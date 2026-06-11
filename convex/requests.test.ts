@@ -3,6 +3,7 @@ import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate } from "../shared/flow";
 import { api, internal } from "./_generated/api";
+import { involvedApproverEmails } from "./requests";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -609,6 +610,45 @@ describe("audit trail and reminders", () => {
     expect(declinedTrail.at(-1)).toMatchObject({
       action: "declined", step: "hod", actor: HENRY, detail: "Too dear",
     });
+  });
+
+  test("chain notifications target the relevant approvers only", () => {
+    const approvers = {
+      hodEmail: HENRY,
+      budgetManagerEmail: BELLA,
+      financeHeadEmail: FIONA,
+      directorEmail: DAN,
+    };
+    const base = {
+      requesterEmail: RACHEL,
+      department: "Marketing",
+      approvedByHOD: "APPROVED",
+      approvedByBudgetManager: "APPROVED",
+      approvedByDirector: undefined,
+      approvedByFinanceHead: "PENDING",
+    } as never as Parameters<typeof involvedApproverEmails>[0];
+
+    // Approved-so-far (decline/cancel audience): HOD + BM, no Director step.
+    expect(involvedApproverEmails(base, approvers, ["APPROVED"])).toEqual([
+      HENRY,
+      BELLA,
+    ]);
+    // Finance department requests have no HOD step to report on.
+    expect(
+      involvedApproverEmails(
+        { ...base, department: "Finance" } as never,
+        approvers,
+        ["APPROVED"]
+      )
+    ).toEqual([BELLA]);
+    // The requester is never notified as an approver (their own steps).
+    expect(
+      involvedApproverEmails(
+        { ...base, requesterEmail: HENRY } as never,
+        approvers,
+        ["APPROVED"]
+      )
+    ).toEqual([BELLA]);
   });
 
   test("requests.get serves the detail screen for any signed-in staff member", async () => {

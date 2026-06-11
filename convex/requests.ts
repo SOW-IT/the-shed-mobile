@@ -87,8 +87,33 @@ const notify = async (
 };
 
 /**
+ * The approver emails attached to steps of this request whose status is in
+ * `statuses` — the "relevant people" for chain-wide notifications. Excludes
+ * the requester (their own steps were auto-approved). Exported for tests.
+ */
+export const involvedApproverEmails = (
+  request: Doc<"requests">,
+  approvers: Approvers,
+  statuses: ApprovalStatus[]
+): string[] => {
+  const steps: [Step, ApprovalStatus | undefined, string | undefined][] = [
+    ["hod", request.approvedByHOD, approvers.hodEmail],
+    ["budgetManager", request.approvedByBudgetManager, approvers.budgetManagerEmail],
+    ["director", request.approvedByDirector, approvers.directorEmail],
+    ["financeHead", request.approvedByFinanceHead, approvers.financeHeadEmail],
+  ];
+  const emails: string[] = [];
+  for (const [step, status, email] of steps) {
+    if (status === undefined) continue; // no Director step on this request
+    if (step === "hod" && request.department === FINANCE) continue;
+    if (email && statuses.includes(status)) emails.push(email);
+  }
+  return [...new Set(emails)].filter((e) => e !== request.requesterEmail);
+};
+
+/**
  * Emails whoever the request now waits on; when fully approved, tells the
- * requester to submit their receipt.
+ * requester to submit their receipt and the approver chain that it cleared.
  */
 const notifyNextActor = async (
   ctx: MutationCtx,
@@ -118,6 +143,16 @@ const notifyNextActor = async (
       `Your request has been fully approved. Please open THE SHED and submit your receipt/invoice details.\n\n${requestSummary(request)}`,
       `/request/${request._id}`
     );
+    // The whole approver chain hears that the request cleared.
+    for (const email of involvedApproverEmails(request, approvers, [APPROVED])) {
+      await notify(
+        ctx,
+        email,
+        `The $${request.amount} request by ${request.requesterEmail} is fully approved`,
+        `Every step has approved this request; the requester has been asked for their receipt.\n\n${requestSummary(request)}`,
+        `/request/${request._id}`
+      );
+    }
   }
 };
 
@@ -525,7 +560,12 @@ export const decline = mutation({
     if (!reason) {
       throw new ConvexError("Please give a reason for declining — the requester will be notified with it.");
     }
-    const { request } = await authorizeStep(ctx, caller, args.requestId, args.step);
+    const { request, approvers } = await authorizeStep(
+      ctx,
+      caller,
+      args.requestId,
+      args.step
+    );
     await ctx.db.patch("requests", args.requestId, {
       [STEP_FIELDS[args.step]]: DECLINED,
       declineReason: reason,
@@ -539,6 +579,17 @@ export const decline = mutation({
       `Your request was declined at the ${STEP_LABELS[args.step]} step by ${caller.email}.\nReason: ${reason}\n\n${requestSummary(request)}`,
       `/request/${request._id}`
     );
+    // Approvers who had already approved hear that it was declined downstream.
+    for (const email of involvedApproverEmails(request, approvers, [APPROVED])) {
+      if (email === caller.email) continue;
+      await notify(
+        ctx,
+        email,
+        `The $${request.amount} request by ${request.requesterEmail} was declined`,
+        `Declined at the ${STEP_LABELS[args.step]} step by ${caller.email}.\nReason: ${reason}\n\n${requestSummary(request)}`,
+        `/request/${request._id}`
+      );
+    }
     return null;
   },
 });
@@ -554,6 +605,32 @@ export const cancel = mutation({
     }
     if (requestCompleted(request)) {
       throw new ConvexError("Completed requests can't be cancelled.");
+    }
+    // Per REQUESTS_FLOW.md, everyone involved hears about the cancellation:
+    // approvers who already approved, plus whoever it is waiting on now.
+    const approvers = await getApprovers(ctx, request.year, request.department);
+    const recipients = new Set(
+      involvedApproverEmails(request, approvers, [APPROVED])
+    );
+    const step = currentStep(request);
+    if (step !== null) {
+      const pendingApprover = {
+        hod: approvers.hodEmail,
+        budgetManager: approvers.budgetManagerEmail,
+        director: approvers.directorEmail,
+        financeHead: approvers.financeHeadEmail,
+      }[step];
+      if (pendingApprover && pendingApprover !== email) {
+        recipients.add(pendingApprover);
+      }
+    }
+    for (const recipient of recipients) {
+      await notify(
+        ctx,
+        recipient,
+        `The $${request.amount} request by ${request.requesterEmail} has been cancelled`,
+        `The requester cancelled this request; no further action is needed.\n\n${requestSummary(request)}`
+      );
     }
     // The request is gone, so its audit events go with it.
     const events = await ctx.db
