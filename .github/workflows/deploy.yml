@@ -21,9 +21,15 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # A hung step must never block the deploy concurrency queue for the
+    # 6-hour GitHub default.
+    timeout-minutes: 30
     env:
       CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      # The CLI's telemetry can keep the process alive after the deployment
+      # finishes, hanging the job.
+      VERCEL_TELEMETRY_DISABLED: "1"
       # Not secrets - just identifiers for the the-shed-web Vercel project.
       VERCEL_ORG_ID: team_BN2cAhJhnaYsx0CBERDsYOeF
       VERCEL_PROJECT_ID: prj_GDhatLychoCm4yRy8b152beusHBE
@@ -53,6 +59,9 @@ jobs:
 
       - name: Publish web to Vercel
         if: env.CONVEX_DEPLOY_KEY != '' && env.VERCEL_TOKEN != ''
+        # Uploading a prebuilt static export takes ~a minute; anything longer
+        # is the CLI hanging after the deployment already went live.
+        timeout-minutes: 10
         run: |
           cp -r web/. dist/
           npx vercel deploy dist --prod --yes --token "$VERCEL_TOKEN"
