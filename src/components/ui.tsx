@@ -67,6 +67,12 @@ export const Btn = ({
     danger: t.danger,
     ghost: t.ghost,
   }[variant];
+  const textColor =
+    variant === "ghost"
+      ? t.ghostText
+      : variant === "primary"
+        ? t.onPrimary
+        : "#ffffff";
   return (
     <Pressable
       onPress={onPress}
@@ -77,9 +83,7 @@ export const Btn = ({
         (pressed || disabled) && { opacity: 0.6 },
       ]}
     >
-      <Text style={[styles.btnText, { color: variant === "ghost" ? t.ghostText : "#ffffff" }]}>
-        {title}
-      </Text>
+      <Text style={[styles.btnText, { color: textColor }]}>{title}</Text>
     </Pressable>
   );
 };

@@ -43,15 +43,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 24,
     gap: 12,
-    backgroundColor: "#f3f4f6",
+    backgroundColor: "#F5F3E3", // brand cream
   },
-  title: { fontSize: 20, fontWeight: "800", color: "#111827" },
-  message: { color: "#6b7280", textAlign: "center" },
+  title: { fontSize: 20, fontWeight: "800", color: "#0F2523" },
+  message: { color: "#5C6B62", textAlign: "center" },
   button: {
     backgroundColor: "#283E42",
     borderRadius: 999,
     paddingHorizontal: 20,
     paddingVertical: 10,
   },
-  buttonText: { color: "#ffffff", fontWeight: "700" },
+  buttonText: { color: "#F5F3E3", fontWeight: "700" },
 });

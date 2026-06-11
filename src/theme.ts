@@ -1,5 +1,11 @@
 import { useColorScheme } from "react-native";
 
+/**
+ * SOW brand palette (Brand Guidelines 2022):
+ *   #0F2523 deep green   #283E42 teal      #E2F1DA light green
+ *   #DDE2D5 sage         #C3D9D8 light blue #F5F3E3 cream
+ *   #CD643C dark orange  #E5AD66 light orange
+ */
 export interface AppTheme {
   dark: boolean;
   background: string;
@@ -9,6 +15,7 @@ export interface AppTheme {
   border: string;
   inputBackground: string;
   primary: string;
+  onPrimary: string;
   success: string;
   danger: string;
   ghost: string;
@@ -18,53 +25,50 @@ export interface AppTheme {
   errorText: string;
 }
 
-// SOW brand primary (the web app's ColoursCampuses.STAFF).
-const BRAND = "#283E42";
-// Lighter brand tint that stays readable on dark surfaces.
-const BRAND_LIGHT = "#6fa3ad";
-
 const light: AppTheme = {
   dark: false,
-  background: "#f3f4f6",
-  card: "#ffffff",
-  text: "#111827",
-  muted: "#6b7280",
-  border: "#d1d5db",
-  inputBackground: "#ffffff",
-  primary: BRAND,
-  success: "#16a34a",
-  danger: "#dc2626",
-  ghost: "#e5e7eb",
-  ghostText: "#111827",
+  background: "#F5F3E3", // brand cream
+  card: "#FDFCF4",
+  text: "#0F2523",
+  muted: "#5C6B62",
+  border: "#DDE2D5",
+  inputBackground: "#FFFFFF",
+  primary: "#283E42",
+  onPrimary: "#F5F3E3",
+  success: "#3E6B4F",
+  danger: "#B5403D",
+  ghost: "#DDE2D5",
+  ghostText: "#0F2523",
   chip: {
-    PAID: { bg: "#dcfce7", fg: "#166534" },
-    DECLINED: { bg: "#fee2e2", fg: "#991b1b" },
-    default: { bg: "#fef3c7", fg: "#92400e" },
+    PAID: { bg: "#E2F1DA", fg: "#0F2523" },
+    DECLINED: { bg: "#F2D4C6", fg: "#7C3015" },
+    default: { bg: "#F6E4C4", fg: "#6B4A14" }, // pending — light orange
   },
-  errorBackground: "#fee2e2",
-  errorText: "#991b1b",
+  errorBackground: "#F2D4C6",
+  errorText: "#7C3015",
 };
 
 const dark: AppTheme = {
   dark: true,
-  background: "#0f172a",
-  card: "#1e293b",
-  text: "#f1f5f9",
-  muted: "#94a3b8",
-  border: "#334155",
-  inputBackground: "#0f172a",
-  primary: BRAND_LIGHT,
-  success: "#22c55e",
-  danger: "#ef4444",
-  ghost: "#334155",
-  ghostText: "#f1f5f9",
+  background: "#0F2523", // brand deep green
+  card: "#1B3330",
+  text: "#F5F3E3",
+  muted: "#A9BDB2",
+  border: "#2C4A45",
+  inputBackground: "#142B28",
+  primary: "#C3D9D8", // brand light blue pops on deep green
+  onPrimary: "#0F2523",
+  success: "#4E8A63",
+  danger: "#CD643C", // brand dark orange
+  ghost: "#2C4A45",
+  ghostText: "#F5F3E3",
   chip: {
-    PAID: { bg: "#14532d", fg: "#bbf7d0" },
-    DECLINED: { bg: "#7f1d1d", fg: "#fecaca" },
-    default: { bg: "#78350f", fg: "#fde68a" },
+    PAID: { bg: "#1E4634", fg: "#DDF0DC" },
+    DECLINED: { bg: "#5A2A1C", fg: "#F2D4C6" },
+    default: { bg: "#5A431C", fg: "#F6E4C4" },
   },
-  errorBackground: "#7f1d1d",
-  errorText: "#fecaca",
+  errorBackground: "#5A2A1C",
+  errorText: "#F2D4C6",
 };
 
 /** The app palette for the current system colour scheme. */

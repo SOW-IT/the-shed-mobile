@@ -45,12 +45,15 @@ export const SignInScreen = () => {
   return (
     <Screen>
       <View style={styles.hero}>
-        <View style={styles.logoWrap}>
-          <Image
-            source={require("../../assets/images/logo.png")}
-            style={styles.logo}
-          />
-        </View>
+        <Image
+          source={
+            t.dark
+              ? require("../../assets/images/lockup-cream.png")
+              : require("../../assets/images/lockup-dark.png")
+          }
+          style={styles.lockup}
+          resizeMode="contain"
+        />
         <Txt style={styles.title}>THE SHED</Txt>
         <Muted>Reimbursement requests</Muted>
       </View>
@@ -88,14 +91,7 @@ export const SignInScreen = () => {
 
 const styles = StyleSheet.create({
   hero: { alignItems: "center", marginVertical: 32, gap: 4 },
-  // White disc so the black logo mark reads in dark mode too.
-  logoWrap: {
-    backgroundColor: "#ffffff",
-    borderRadius: 48,
-    padding: 8,
-    marginBottom: 8,
-  },
-  logo: { width: 80, height: 80 },
+  lockup: { width: 280, height: 53, marginBottom: 12 },
   title: { fontSize: 32, fontWeight: "900", letterSpacing: 1 },
   connected: { fontWeight: "700" },
 });
