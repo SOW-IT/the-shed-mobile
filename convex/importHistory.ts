@@ -56,7 +56,14 @@ export const migrateEmailDomain = internalMutation({
       if (!email || !email.endsWith(`@${args.fromDomain}`)) return null;
       return `${email.split("@")[0]}@${args.toDomain}`;
     };
-    const counts = { profiles: 0, merged: 0, departments: 0, budgetManagers: 0, requests: 0 };
+    const counts = {
+      profiles: 0,
+      merged: 0,
+      departments: 0,
+      divisions: 0,
+      budgetManagers: 0,
+      requests: 0,
+    };
 
     const profiles = await ctx.db
       .query("staffProfiles")
@@ -95,6 +102,18 @@ export const migrateEmailDomain = internalMutation({
       if (headEmail) {
         await ctx.db.patch("departments", department._id, { headEmail });
         counts.departments++;
+      }
+    }
+
+    const divisions = await ctx.db
+      .query("divisions")
+      .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
+      .take(200);
+    for (const division of divisions) {
+      const headEmail = move(division.headEmail);
+      if (headEmail) {
+        await ctx.db.patch("divisions", division._id, { headEmail });
+        counts.divisions++;
       }
     }
 
@@ -141,13 +160,23 @@ export const run = internalMutation({
     for (const yearData of IMPORT_DATA.years) {
       const year = yearData.year;
 
-      for (const name of yearData.divisions) {
+      for (const division of yearData.divisions) {
         const existing = await ctx.db
           .query("divisions")
-          .withIndex("by_year_and_name", (q) => q.eq("year", year).eq("name", name))
+          .withIndex("by_year_and_name", (q) =>
+            q.eq("year", year).eq("name", division.name)
+          )
           .unique();
-        if (!existing) {
-          await ctx.db.insert("divisions", { year, name });
+        if (existing) {
+          await ctx.db.patch("divisions", existing._id, {
+            headEmail: division.headEmail,
+          });
+        } else {
+          await ctx.db.insert("divisions", {
+            year,
+            name: division.name,
+            headEmail: division.headEmail,
+          });
           counts.divisions++;
         }
       }
@@ -193,12 +222,21 @@ export const run = internalMutation({
           name: profile.name,
           importId: profile.importId,
         };
-        const existing = await ctx.db
+        // Sign-ins re-key a person's live email, so match by the person key
+        // first — re-imports must update that row (keeping the newer email),
+        // never insert a second copy of the person under the backup email.
+        const byPerson = await ctx.db
           .query("staffProfiles")
-          .withIndex("by_email_and_year", (q) =>
-            q.eq("email", profile.email).eq("year", year)
-          )
-          .unique();
+          .withIndex("by_importId", (q) => q.eq("importId", profile.importId))
+          .take(100);
+        const existing =
+          byPerson.find((p) => p.year === year) ??
+          (await ctx.db
+            .query("staffProfiles")
+            .withIndex("by_email_and_year", (q) =>
+              q.eq("email", profile.email).eq("year", year)
+            )
+            .unique());
         if (existing) {
           await ctx.db.patch("staffProfiles", existing._id, fields);
         } else {

@@ -57,10 +57,13 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_importId", ["importId"]),
 
-  // Divisions group departments; both are data-driven and per-year.
+  // Divisions group departments; both are data-driven and per-year. The
+  // head lives on the division (like departments.headEmail) so one person
+  // can head several divisions in the same year.
   divisions: defineTable({
     year: v.number(),
     name: v.string(),
+    headEmail: v.optional(v.string()), // the Head of Division; lowercase
   }).index("by_year_and_name", ["year", "name"]),
 
   departments: defineTable({

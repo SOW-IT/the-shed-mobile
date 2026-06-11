@@ -148,7 +148,9 @@ export const setStaffProfile = mutation({
 
     // Keep departments.headEmail in sync with the Head of Department role:
     // gaining the role makes them their department's head; losing the role
-    // (or moving department) vacates any headship they held.
+    // vacates every headship they held. A person can head several
+    // departments (the extras are assigned on the departments themselves),
+    // so keeping the role never vacates the others.
     const isHead = roles.includes(HEAD_OF_DEPARTMENT);
     const yearDepartments = await ctx.db
       .query("departments")
@@ -157,11 +159,22 @@ export const setStaffProfile = mutation({
     for (const dept of yearDepartments) {
       if (isHead && dept.name === department && dept.headEmail !== email) {
         await ctx.db.patch("departments", dept._id, { headEmail: email });
-      } else if (
-        dept.headEmail === email &&
-        (!isHead || dept.name !== department)
-      ) {
+      } else if (dept.headEmail === email && !isHead) {
         await ctx.db.patch("departments", dept._id, { headEmail: undefined });
+      }
+    }
+
+    // Same for divisions and the Head of Division role.
+    const isDivisionHead = roles.includes(HEAD_OF_DIVISION);
+    const yearDivisions = await ctx.db
+      .query("divisions")
+      .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
+      .take(200);
+    for (const div of yearDivisions) {
+      if (isDivisionHead && div.name === division && div.headEmail !== email) {
+        await ctx.db.patch("divisions", div._id, { headEmail: email });
+      } else if (div.headEmail === email && !isDivisionHead) {
+        await ctx.db.patch("divisions", div._id, { headEmail: undefined });
       }
     }
     return profileId;
@@ -191,6 +204,15 @@ export const removeStaffProfile = mutation({
     for (const dept of yearDepartments) {
       if (dept.headEmail === email) {
         await ctx.db.patch("departments", dept._id, { headEmail: undefined });
+      }
+    }
+    const yearDivisions = await ctx.db
+      .query("divisions")
+      .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
+      .take(200);
+    for (const div of yearDivisions) {
+      if (div.headEmail === email) {
+        await ctx.db.patch("divisions", div._id, { headEmail: undefined });
       }
     }
     return null;
@@ -234,18 +256,57 @@ export const listUnassignedUsers = query({
 });
 
 export const upsertDivision = mutation({
-  args: { year: v.number(), name: v.string() },
+  args: {
+    year: v.number(),
+    name: v.string(),
+    headEmail: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
     assertManagedYear(args.year);
     const name = args.name.trim();
     if (!name) throw new ConvexError("Division name is required.");
+    const headEmail = args.headEmail?.trim().toLowerCase() || undefined;
     const existing = await ctx.db
       .query("divisions")
       .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", name))
       .unique();
-    if (existing) return existing._id;
-    return await ctx.db.insert("divisions", { year: args.year, name });
+    let divisionId;
+    if (existing) {
+      await ctx.db.patch("divisions", existing._id, { headEmail });
+      divisionId = existing._id;
+    } else {
+      divisionId = await ctx.db.insert("divisions", {
+        year: args.year,
+        name,
+        headEmail,
+      });
+    }
+
+    // Reverse sync: the head named on a division gets the Head of Division
+    // role on their profile — creating the profile if they were never
+    // provisioned. Their profile's own division is only set when empty, so
+    // heading a second division doesn't move them.
+    if (headEmail) {
+      const headProfile = await getProfile(ctx, headEmail, args.year);
+      if (headProfile) {
+        const roles = [...new Set([...rolesOf(headProfile), HEAD_OF_DIVISION])];
+        await ctx.db.patch("staffProfiles", headProfile._id, {
+          roles,
+          role: undefined,
+          division: headProfile.division ?? name,
+        });
+      } else {
+        await ctx.db.insert("staffProfiles", {
+          email: headEmail,
+          year: args.year,
+          roles: [HEAD_OF_DIVISION],
+          division: name,
+          importId: await resolveImportId(ctx, headEmail),
+        });
+      }
+    }
+    return divisionId;
   },
 });
 
@@ -646,12 +707,18 @@ export const seed = internalMutation({
       .query("divisions")
       .withIndex("by_year_and_name", (q) => q.eq("year", year))
       .take(200);
+    const divisionHeadsByName: Record<string, string | undefined> = {};
     for (const division of oldDivisions) {
+      divisionHeadsByName[division.name] = division.headEmail;
       await ctx.db.delete("divisions", division._id);
     }
 
     for (const [division, departments] of Object.entries(ORG_STRUCTURE)) {
-      await ctx.db.insert("divisions", { year, name: division });
+      await ctx.db.insert("divisions", {
+        year,
+        name: division,
+        headEmail: divisionHeadsByName[division],
+      });
       for (const name of departments) {
         await ctx.db.insert("departments", {
           year,

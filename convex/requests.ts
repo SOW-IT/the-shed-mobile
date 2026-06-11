@@ -20,6 +20,7 @@ import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import {
   getApprovers,
   getDepartment,
+  getDivision,
   getProfile,
   optionalProfile,
   requireProfile,
@@ -240,10 +241,13 @@ export const submit = mutation({
     // The Finance department has no separate HOD step.
     if (department === FINANCE) approvedByHOD = APPROVED;
     // No HOD step when the submitter is this department's head, the
-    // Director, or the head of the division this department belongs to.
+    // Director, or the head of the division this department belongs to
+    // (named on the division itself, or via their own profile).
+    const divisionDoc = await getDivision(ctx, year, departmentDoc.division);
     if (
       approvers.hodEmail === email ||
       roles.includes(DIRECTOR) ||
+      divisionDoc?.headEmail === email ||
       (isDivisionHead && departmentDoc.division === profile.division)
     ) {
       approvedByHOD = APPROVED;

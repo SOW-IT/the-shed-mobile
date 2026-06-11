@@ -186,7 +186,12 @@ payload_years = []
 for year in years:
     dept_body = dept_docs.get(year, {})
     departments = []
-    division_names = set(division_docs.get(year, {}).get("divisions", {}))
+    # Division heads live on the division itself (a person can head several).
+    division_heads = {
+        name: migrate_domain(email_for(info.get("head")), year)
+        for name, info in (division_docs.get(year, {}).get("divisions") or {}).items()
+    }
+    division_names = set(division_heads)
     for name, info in (dept_body.get("departments") or {}).items():
         division = info.get("division") or FALLBACK_DIVISION
         division_names.add(division)
@@ -251,9 +256,16 @@ for year in years:
         if fields.get("university"):
             universities.add(fields["university"])
 
+    divisions = [
+        {"name": name, "headEmail": division_heads.get(name)}
+        for name in sorted(division_names or {FALLBACK_DIVISION})
+    ]
     year_payload = {
         "year": year,
-        "divisions": sorted(division_names) or [FALLBACK_DIVISION],
+        "divisions": [
+            {k: v for k, v in division.items() if v is not None}
+            for division in divisions
+        ],
         "departments": sorted(departments, key=lambda d: d["name"]),
         "universities": sorted(universities),
         "budgetManagerEmail": migrate_domain(
@@ -280,7 +292,7 @@ export interface ImportProfile {
 
 export interface ImportYear {
   year: number;
-  divisions: string[];
+  divisions: { name: string; headEmail?: string }[];
   departments: {
     name: string;
     division: string;

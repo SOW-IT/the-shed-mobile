@@ -111,6 +111,7 @@ export default function AdminScreen() {
     );
   // Division / department / university forms
   const [divisionName, setDivisionName] = useState("");
+  const [divisionHead, setDivisionHead] = useState("");
   const [universityName, setUniversityName] = useState("");
   const [departmentName, setDepartmentName] = useState("");
   const [departmentDivision, setDepartmentDivision] = useState("");
@@ -234,7 +235,7 @@ export default function AdminScreen() {
             <Select
               label="Division (Heads of Division belong directly to one)"
               value={staffDivision}
-              options={structure?.divisions ?? []}
+              options={(structure?.divisions ?? []).map((d) => d.name)}
               onSelect={setStaffDivision}
               placeholder="Choose a division…"
             />
@@ -322,26 +323,45 @@ export default function AdminScreen() {
       ))}
 
       <SectionTitle>Divisions — {selectedYear}</SectionTitle>
-      <Card>
-        <Muted>{(structure?.divisions ?? []).join(", ") || "None yet."}</Muted>
-        {editable && (
-          <>
-            <Field
-              label="New division"
-              value={divisionName}
-              onChangeText={setDivisionName}
-            />
-            <Btn
-              title="Add Division"
-              onPress={() =>
-                void run(() =>
-                  upsertDivision({ year: selectedYear, name: divisionName })
-                ).then((ok) => ok && setDivisionName(""))
-              }
-            />
-          </>
-        )}
-      </Card>
+      {(structure?.divisions ?? []).map((division) => (
+        <Card key={division.name}>
+          <Txt style={{ fontWeight: "600" }}>{division.name}</Txt>
+          <Muted>Head: {division.headEmail ?? "none"}</Muted>
+        </Card>
+      ))}
+      {editable && (
+        <Card>
+          <Field
+            label="Division name (existing name updates that division)"
+            value={divisionName}
+            onChangeText={setDivisionName}
+          />
+          <Select
+            label="Head of Division (optional — also gives them the role; a person can head several divisions)"
+            value={divisionHead}
+            options={[{ label: "— No head —", value: "" }, ...personOptions]}
+            onSelect={setDivisionHead}
+            placeholder="Choose a person…"
+          />
+          <Btn
+            title="Save Division"
+            onPress={() =>
+              void run(() =>
+                upsertDivision({
+                  year: selectedYear,
+                  name: divisionName,
+                  headEmail: divisionHead || undefined,
+                })
+              ).then((ok) => {
+                if (ok) {
+                  setDivisionName("");
+                  setDivisionHead("");
+                }
+              })
+            }
+          />
+        </Card>
+      )}
 
       <SectionTitle>Universities — {selectedYear}</SectionTitle>
       <Card>
@@ -384,7 +404,7 @@ export default function AdminScreen() {
           <Select
             label="Division"
             value={departmentDivision}
-            options={structure?.divisions ?? []}
+            options={(structure?.divisions ?? []).map((d) => d.name)}
             onSelect={setDepartmentDivision}
             placeholder="Choose a division…"
           />

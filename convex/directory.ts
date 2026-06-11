@@ -172,13 +172,17 @@ export const orgChart = query({
         ? person(directorProfile.email, DIRECTOR)
         : null,
       divisions: divisions.map((division) => {
-        const divisionHead = profiles.find(
-          (p) =>
-            rolesOf(p).includes(HEAD_OF_DIVISION) && p.division === division.name
-        );
+        // The head named on the division wins (one person can head several);
+        // fall back to a profile holding the role for that division.
+        const divisionHead =
+          division.headEmail ??
+          profiles.find(
+            (p) =>
+              rolesOf(p).includes(HEAD_OF_DIVISION) && p.division === division.name
+          )?.email;
         return {
           name: division.name,
-          head: divisionHead ? person(divisionHead.email, HEAD_OF_DIVISION) : null,
+          head: divisionHead ? person(divisionHead, HEAD_OF_DIVISION) : null,
           departments: departments
             .filter((department) => department.division === division.name)
             .map((department) => ({
@@ -235,7 +239,10 @@ export const yearStructure = query({
       .withIndex("by_year", (q) => q.eq("year", args.year))
       .unique();
     return {
-      divisions: divisions.map((d) => d.name),
+      divisions: divisions.map((d) => ({
+        name: d.name,
+        headEmail: d.headEmail ?? null,
+      })),
       departments: departments.map((d) => ({
         name: d.name,
         division: d.division,

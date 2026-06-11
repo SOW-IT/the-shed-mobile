@@ -51,6 +51,13 @@ async function rekeyEmail(ctx: MutationCtx, oldEmail: string, newEmail: string) 
     }
   }
 
+  const divisions = await ctx.db.query("divisions").take(2000);
+  for (const division of divisions) {
+    if (division.headEmail === oldEmail) {
+      await ctx.db.patch("divisions", division._id, { headEmail: newEmail });
+    }
+  }
+
   const settings = await ctx.db.query("yearSettings").take(100);
   for (const setting of settings) {
     if (setting.budgetManagerEmail === oldEmail) {

@@ -14,7 +14,7 @@ export interface ImportProfile {
 
 export interface ImportYear {
   year: number;
-  divisions: string[];
+  divisions: { name: string; headEmail?: string }[];
   departments: {
     name: string;
     division: string;
@@ -31,7 +31,9 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
     {
       "year": 2008,
       "divisions": [
-        "General"
+        {
+          "name": "General"
+        }
       ],
       "departments": [],
       "universities": [],
@@ -83,7 +85,9 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
     {
       "year": 2009,
       "divisions": [
-        "General"
+        {
+          "name": "General"
+        }
       ],
       "departments": [],
       "universities": [
@@ -163,7 +167,9 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
     {
       "year": 2010,
       "divisions": [
-        "General"
+        {
+          "name": "General"
+        }
       ],
       "departments": [],
       "universities": [
@@ -229,7 +235,9 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
     {
       "year": 2011,
       "divisions": [
-        "General"
+        {
+          "name": "General"
+        }
       ],
       "departments": [],
       "universities": [
@@ -374,7 +382,9 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
     {
       "year": 2012,
       "divisions": [
-        "General"
+        {
+          "name": "General"
+        }
       ],
       "departments": [],
       "universities": [
@@ -571,7 +581,9 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
     {
       "year": 2013,
       "divisions": [
-        "General"
+        {
+          "name": "General"
+        }
       ],
       "departments": [],
       "universities": [
@@ -838,7 +850,9 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
     {
       "year": 2014,
       "divisions": [
-        "General"
+        {
+          "name": "General"
+        }
       ],
       "departments": [],
       "universities": [
@@ -1072,7 +1086,9 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
     {
       "year": 2015,
       "divisions": [
-        "General"
+        {
+          "name": "General"
+        }
       ],
       "departments": [],
       "universities": [
@@ -1307,7 +1323,9 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
     {
       "year": 2016,
       "divisions": [
-        "General"
+        {
+          "name": "General"
+        }
       ],
       "departments": [],
       "universities": [
@@ -1556,7 +1574,9 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
     {
       "year": 2017,
       "divisions": [
-        "General"
+        {
+          "name": "General"
+        }
       ],
       "departments": [],
       "universities": [
@@ -1913,7 +1933,9 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
     {
       "year": 2018,
       "divisions": [
-        "General"
+        {
+          "name": "General"
+        }
       ],
       "departments": [],
       "universities": [
@@ -2344,7 +2366,9 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
     {
       "year": 2019,
       "divisions": [
-        "General"
+        {
+          "name": "General"
+        }
       ],
       "departments": [
         {
@@ -2934,7 +2958,9 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
     {
       "year": 2020,
       "divisions": [
-        "General"
+        {
+          "name": "General"
+        }
       ],
       "departments": [
         {
@@ -3470,7 +3496,9 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
     {
       "year": 2021,
       "divisions": [
-        "General"
+        {
+          "name": "General"
+        }
       ],
       "departments": [
         {
@@ -4094,7 +4122,9 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
     {
       "year": 2022,
       "divisions": [
-        "General"
+        {
+          "name": "General"
+        }
       ],
       "departments": [
         {
@@ -4775,10 +4805,22 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
     {
       "year": 2023,
       "divisions": [
-        "Development",
-        "Governance",
-        "Marketing",
-        "Operations"
+        {
+          "name": "Development",
+          "headEmail": "sijin.yang@sowaustralia.com"
+        },
+        {
+          "name": "Governance",
+          "headEmail": "isac.kim@sowaustralia.com"
+        },
+        {
+          "name": "Marketing",
+          "headEmail": "joanne.byun@sowaustralia.com"
+        },
+        {
+          "name": "Operations",
+          "headEmail": "sijin.yang@sowaustralia.com"
+        }
       ],
       "departments": [
         {
@@ -5528,9 +5570,18 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
     {
       "year": 2024,
       "divisions": [
-        "Development",
-        "Governance",
-        "Operations"
+        {
+          "name": "Development",
+          "headEmail": "sijin.yang@sowaustralia.com"
+        },
+        {
+          "name": "Governance",
+          "headEmail": "isac.kim@sowaustralia.com"
+        },
+        {
+          "name": "Operations",
+          "headEmail": "sijin.yang@sowaustralia.com"
+        }
       ],
       "departments": [
         {
@@ -6293,9 +6344,18 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
     {
       "year": 2025,
       "divisions": [
-        "Governance",
-        "Human Resources",
-        "Operations"
+        {
+          "name": "Governance",
+          "headEmail": "isac.kim@sowaustralia.com"
+        },
+        {
+          "name": "Human Resources",
+          "headEmail": "esther.ahn@sowaustralia.com"
+        },
+        {
+          "name": "Operations",
+          "headEmail": "sijin.yang@sowaustralia.com"
+        }
       ],
       "departments": [
         {
@@ -6984,11 +7044,26 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
     {
       "year": 2026,
       "divisions": [
-        "Chaplaincy",
-        "Engagement",
-        "Governance",
-        "Human Resources",
-        "Operations"
+        {
+          "name": "Chaplaincy",
+          "headEmail": "sijin.yang@sow.org.au"
+        },
+        {
+          "name": "Engagement",
+          "headEmail": "sijin.yang@sow.org.au"
+        },
+        {
+          "name": "Governance",
+          "headEmail": "isac.kim@sow.org.au"
+        },
+        {
+          "name": "Human Resources",
+          "headEmail": "esther.ahn@sow.org.au"
+        },
+        {
+          "name": "Operations",
+          "headEmail": "monica.park@sow.org.au"
+        }
       ],
       "departments": [
         {

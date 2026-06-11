@@ -104,6 +104,11 @@ export async function isAdminProfile(
   ) {
     return true;
   }
+  // Heads named on a division itself (one person can head several).
+  const headed = await divisionsHeadedBy(ctx, profile.year, profile.email);
+  if (headed.some((division) => ADMIN_DIVISIONS.includes(division.name))) {
+    return true;
+  }
   if (!profile.department) return false;
   if (ADMIN_DEPARTMENTS.includes(profile.department)) return true;
   const department = await getDepartment(ctx, profile.year, profile.department);
@@ -152,6 +157,30 @@ export async function getDepartment(
     .query("departments")
     .withIndex("by_year_and_name", (q) => q.eq("year", year).eq("name", name))
     .unique();
+}
+
+export async function getDivision(
+  ctx: Ctx,
+  year: number,
+  name: string
+): Promise<Doc<"divisions"> | null> {
+  return await ctx.db
+    .query("divisions")
+    .withIndex("by_year_and_name", (q) => q.eq("year", year).eq("name", name))
+    .unique();
+}
+
+/** Divisions the given email heads this year. */
+export async function divisionsHeadedBy(
+  ctx: Ctx,
+  year: number,
+  email: string
+): Promise<Doc<"divisions">[]> {
+  const divisions = await ctx.db
+    .query("divisions")
+    .withIndex("by_year_and_name", (q) => q.eq("year", year))
+    .take(200);
+  return divisions.filter((d) => d.headEmail === email);
 }
 
 export async function getYearSettings(

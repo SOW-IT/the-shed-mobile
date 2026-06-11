@@ -83,6 +83,14 @@ describe("importHistory: backfill from the old web app's Firestore", () => {
     }))!;
     const campus = chart.universities.flatMap((u) => u.members);
     expect(campus.length).toBeGreaterThan(20);
+
+    // Division heads come from the division itself, so one person can head
+    // several: in 2026 Sijin Yang heads Chaplaincy AND Engagement.
+    const headOf = (name: string) =>
+      chart.divisions.find((d) => d.name === name)?.head?.email;
+    expect(headOf("Chaplaincy")).toBe("sijin.yang@sow.org.au");
+    expect(headOf("Engagement")).toBe("sijin.yang@sow.org.au");
+    expect(headOf("Operations")).toBe("monica.park@sow.org.au");
   });
 });
 
@@ -351,6 +359,130 @@ describe("email changes: the person stays the same", () => {
         .unique();
       expect(profile?.department).toBe("Missions"); // the existing row wins
     });
+  });
+});
+
+describe("importHistory: re-import after a re-key", () => {
+  test("matches the person by importId and never duplicates them", async () => {
+    const t = await setup();
+    await t.mutation(internal.importHistory.run, {});
+
+    // Someone imported under the old domain signs in with the new one —
+    // all of their years get re-keyed and bound.
+    const imported = IMPORT_DATA.years.find((y) => y.year === 2025)!.profiles.find(
+      (p) => p.email.endsWith("@sowaustralia.com") && (p.roles ?? []).length > 0
+    )!;
+    const newEmail = `${imported.email.split("@")[0]}@sow.org.au`;
+    const userId = await t.run((ctx) => ctx.db.insert("users", { email: newEmail }));
+    await t.mutation(internal.userLink.link, { userId });
+
+    // Re-importing must update the re-keyed rows, not re-insert old ones.
+    await t.mutation(internal.importHistory.run, {});
+    await t.run(async (ctx) => {
+      const rows = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_importId", (q) => q.eq("importId", imported.importId))
+        .take(50);
+      const years = rows.map((r) => r.year);
+      expect(new Set(years).size).toBe(years.length); // one row per year
+      for (const row of rows) {
+        expect(row.email).toBe(newEmail); // the newer address survives
+      }
+    });
+  });
+});
+
+describe("multi-headship: one person, several divisions/departments", () => {
+  test("naming someone head of a second division keeps the first", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const sijin = "sijin@sow.org.au";
+
+    await admin.mutation(api.admin.upsertDivision, {
+      year: YEAR,
+      name: "Engagement",
+      headEmail: sijin,
+    });
+    await admin.mutation(api.admin.upsertDivision, {
+      year: YEAR,
+      name: "Operations",
+      headEmail: sijin,
+    });
+
+    const structure = (await admin.query(api.directory.yearStructure, {
+      year: YEAR,
+    }))!;
+    const headed = structure.divisions.filter((d) => d.headEmail === sijin);
+    expect(headed.map((d) => d.name).sort()).toEqual(["Engagement", "Operations"]);
+
+    // The reverse-synced profile got the role once and kept its first division.
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const profile = profiles.find((p) => p.email === sijin)!;
+    expect(profile.roles).toEqual(["Head of Division"]);
+    expect(profile.division).toBe("Engagement");
+
+    // Re-saving their staff assignment (role kept) vacates neither division.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: sijin,
+      year: YEAR,
+      roles: ["Head of Division"],
+      division: "Engagement",
+    });
+    const after = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    expect(
+      after.divisions.filter((d) => d.headEmail === sijin).map((d) => d.name).sort()
+    ).toEqual(["Engagement", "Operations"]);
+
+    // The org chart shows them on top of both divisions.
+    const chart = (await admin.query(api.directory.orgChart, { year: YEAR }))!;
+    expect(
+      chart.divisions.filter((d) => d.head?.email === sijin).map((d) => d.name).sort()
+    ).toEqual(["Engagement", "Operations"]);
+
+    // Losing the role vacates every division they head.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: sijin,
+      year: YEAR,
+      roles: ["Staff"],
+      department: "Marketing",
+    });
+    const vacated = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    expect(vacated.divisions.some((d) => d.headEmail === sijin)).toBe(false);
+  });
+
+  test("a department head keeps other departments when re-saved", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const henry = "henry@sow.org.au";
+    // Henry heads both Marketing and Events.
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR,
+      name: "Marketing",
+      division: "Engagement",
+      headEmail: henry,
+    });
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR,
+      name: "Events",
+      division: "Operations",
+      headEmail: henry,
+    });
+    // Re-saving his assignment with Marketing selected keeps Events too.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: henry,
+      year: YEAR,
+      roles: ["Head of Department"],
+      department: "Marketing",
+    });
+    const structure = (await admin.query(api.directory.yearStructure, {
+      year: YEAR,
+    }))!;
+    expect(
+      structure.departments
+        .filter((d) => d.headEmail === henry)
+        .map((d) => d.name)
+        .sort()
+    ).toEqual(["Events", "Marketing"]);
   });
 });
 
