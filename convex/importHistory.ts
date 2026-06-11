@@ -1,6 +1,43 @@
 import { v } from "convex/values";
-import { internalMutation } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { IMPORT_DATA } from "./importData";
+import { rolesOf } from "./model";
+
+/**
+ * One person's staffProfiles rows across every year and email they've held
+ * (followed via importId, like profile.get). For checking imported history
+ * from the CLI:
+ *   npx convex run importHistory:personHistory '{"email":"someone@sow.org.au"}'
+ */
+export const personHistory = internalQuery({
+  args: { email: v.string() },
+  handler: async (ctx, args) => {
+    const email = args.email.trim().toLowerCase();
+    const byEmail = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_email_and_year", (q) => q.eq("email", email))
+      .take(50);
+    const rows = new Map(byEmail.map((h) => [h._id, h]));
+    const importIds = new Set(byEmail.flatMap((h) => (h.importId ? [h.importId] : [])));
+    for (const importId of importIds) {
+      const imported = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_importId", (q) => q.eq("importId", importId))
+        .take(50);
+      for (const h of imported) rows.set(h._id, h);
+    }
+    return [...rows.values()]
+      .sort((a, b) => a.year - b.year)
+      .map((h) => ({
+        year: h.year,
+        email: h.email,
+        roles: rolesOf(h),
+        department: h.department ?? null,
+        division: h.division ?? null,
+        university: h.university ?? null,
+      }));
+  },
+});
 
 /**
  * Re-keys one staff year's emails from the old Workspace domain to the new

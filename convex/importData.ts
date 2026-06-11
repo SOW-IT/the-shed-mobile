@@ -2508,6 +2508,15 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Sydney"
         },
         {
+          "email": "daniel.kim@sowaustralia.com",
+          "importId": "qaPmJh5nfUUlDcz3UX8ZS56f0Hw2",
+          "name": "Daniel Kim",
+          "roles": [
+            "Member"
+          ],
+          "university": "University of New South Wales"
+        },
+        {
           "email": "delaney.chow.920x0b@legacy.invalid",
           "importId": "920X0BZlj0Nd5n88o9Ad",
           "name": "Delaney Chow",
@@ -4249,8 +4258,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "roles": [
             "Staff"
           ],
-          "department": "Finance and IT",
-          "university": "University of New South Wales"
+          "department": "Finance and IT"
         },
         {
           "email": "dominic.tjong@sowaustralia.com",
@@ -6478,9 +6486,9 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "importId": "qaPmJh5nfUUlDcz3UX8ZS56f0Hw2",
           "name": "Daniel Kim",
           "roles": [
-            "Student Leader"
+            "Head of Department"
           ],
-          "university": "University of New South Wales"
+          "department": "Data and IT"
         },
         {
           "email": "daniel.lee@sowaustralia.com",

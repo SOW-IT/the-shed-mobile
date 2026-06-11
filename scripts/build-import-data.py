@@ -38,6 +38,28 @@ OUT_PATH = "convex/importData.ts"
 # the import matches the live data after importHistory:migrateEmailDomain.
 DOMAIN_MIGRATED_YEARS = {2026: "sow.org.au"}
 
+# Corrections to records the old web app itself had wrong, keyed by
+# (year, any email of the person). The fields replace the person's
+# role/department/division/university for that year; identity (email,
+# importId, name) is kept. A year the backup has no doc for gains a row.
+PROFILE_OVERRIDES: dict[tuple[int, str], dict] = {
+    # Daniel Kim's history (confirmed by him, Jun 2026): 2019 was missing,
+    # 2022 carried a stray university, 2025 repeated his 2020 Student
+    # Leader year instead of Head of Department - Data and IT.
+    (2019, "daniel.kim@sowaustralia.com"): {
+        "roles": ["Member"],
+        "university": "University of New South Wales",
+    },
+    (2022, "daniel.kim@sowaustralia.com"): {
+        "roles": ["Staff"],
+        "department": "Finance and IT",
+    },
+    (2025, "daniel.kim@sowaustralia.com"): {
+        "roles": ["Head of Department"],
+        "department": "Data and IT",
+    },
+}
+
 
 def migrate_domain(email, year):
     new_domain = DOMAIN_MIGRATED_YEARS.get(year)
@@ -202,6 +224,24 @@ for year in years:
         profile = merged.get(head_email) if head_email else None
         if profile is not None and not profile.get("division"):
             profile["division"] = division
+
+    # Hand-confirmed corrections override whatever the backup said.
+    for (o_year, o_email), fields in PROFILE_OVERRIDES.items():
+        if o_year != year:
+            continue
+        root = find(doc_key(o_email))
+        assert root in person_email, f"override for unknown person: {o_email}"
+        profile = {
+            "email": migrate_domain(person_email[root], year),
+            "importId": person_import_id[root],
+            "name": person_name[root],
+            **fields,
+        }
+        merged[person_email[root]] = {
+            k: v for k, v in profile.items() if v not in (None, [])
+        }
+        if fields.get("university"):
+            universities.add(fields["university"])
 
     year_payload = {
         "year": year,
