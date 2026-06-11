@@ -46,6 +46,24 @@ const stepValidator = v.union(
 const requestSummary = (r: Doc<"requests">) =>
   `Requester: ${r.requesterEmail}\nDepartment: ${r.department}\nAmount: $${r.amount}\nDescription: ${r.description}`;
 
+/** Appends an immutable audit event (timestamp = _creationTime). */
+const logEvent = async (
+  ctx: MutationCtx,
+  requestId: Id<"requests">,
+  actorEmail: string,
+  action: string,
+  step?: Step,
+  detail?: string
+) => {
+  await ctx.db.insert("requestEvents", {
+    requestId,
+    action,
+    step,
+    actorEmail,
+    detail,
+  });
+};
+
 /** Notifies a person about a request update by email AND push notification. */
 const notify = async (
   ctx: MutationCtx,
@@ -209,6 +227,19 @@ export const submit = mutation({
       approvedByFinanceHead,
     });
 
+    await logEvent(ctx, id, email, "submitted");
+    const autoApproved: [Step, ApprovalStatus | undefined][] = [
+      ["hod", approvedByHOD],
+      ["budgetManager", approvedByBudgetManager],
+      ["director", approvedByDirector],
+      ["financeHead", approvedByFinanceHead],
+    ];
+    for (const [step, status] of autoApproved) {
+      if (status === APPROVED) {
+        await logEvent(ctx, id, email, "auto-approved", step);
+      }
+    }
+
     const request = await ctx.db.get("requests", id);
     if (request) {
       await notify(
@@ -223,7 +254,7 @@ export const submit = mutation({
   },
 });
 
-const yearRequests = async (ctx: QueryCtx, year: number) =>
+const yearRequests = async (ctx: QueryCtx | MutationCtx, year: number) =>
   await ctx.db
     .query("requests")
     .withIndex("by_year", (q) => q.eq("year", year))
@@ -233,9 +264,12 @@ const yearRequests = async (ctx: QueryCtx, year: number) =>
 /**
  * The current year's requests plus the previous year's still-incomplete ones,
  * so in-flight requests survive the September 1 rollover instead of being
- * orphaned.
+ * orphaned. (Also used by the stale-request reminder cron.)
  */
-const openRequestsAcrossYears = async (ctx: QueryCtx, year: number) => {
+export const openRequestsAcrossYears = async (
+  ctx: QueryCtx | MutationCtx,
+  year: number
+) => {
   const current = await yearRequests(ctx, year);
   const carriedOver = (await yearRequests(ctx, year - 1)).filter(
     (r) => !requestCompleted(r)
@@ -464,6 +498,7 @@ export const approve = mutation({
       [STEP_FIELDS[args.step]]: APPROVED,
       ...(requestFullyApproved(updated) ? { approvedTime: Date.now() } : {}),
     });
+    await logEvent(ctx, args.requestId, caller.email, "approved", args.step);
     // Tell the next approver (or the requester, once fully approved).
     await notifyNextActor(ctx, updated, approvers);
     return null;
@@ -488,6 +523,7 @@ export const decline = mutation({
       declineReason: reason,
       declinedTime: Date.now(),
     });
+    await logEvent(ctx, args.requestId, caller.email, "declined", args.step, reason);
     await notify(
       ctx,
       request.requesterEmail,
@@ -510,8 +546,40 @@ export const cancel = mutation({
     if (requestCompleted(request)) {
       throw new ConvexError("Completed requests can't be cancelled.");
     }
+    // The request is gone, so its audit events go with it.
+    const events = await ctx.db
+      .query("requestEvents")
+      .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
+      .take(200);
+    for (const event of events) {
+      await ctx.db.delete("requestEvents", event._id);
+    }
     await ctx.db.delete("requests", args.requestId);
     return null;
+  },
+});
+
+/**
+ * The audit trail for a request: who actioned each step, when, and any
+ * detail (decline reason, amounts). Visible to any signed-in staff member.
+ */
+export const auditTrail = query({
+  args: { requestId: v.id("requests") },
+  handler: async (ctx, args) => {
+    await requireProfile(ctx);
+    const request = await ctx.db.get("requests", args.requestId);
+    if (!request) throw new ConvexError("Request not found.");
+    const events = await ctx.db
+      .query("requestEvents")
+      .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
+      .take(200);
+    return events.map((event) => ({
+      at: event._creationTime,
+      action: event.action,
+      step: event.step ?? null,
+      actor: event.actorEmail,
+      detail: event.detail ?? null,
+    }));
   },
 });
 
@@ -572,6 +640,14 @@ export const submitReceipt = mutation({
       receipt: { totalAmount, recipients: args.recipients },
       paid: false,
     });
+    await logEvent(
+      ctx,
+      args.requestId,
+      email,
+      "receipt-submitted",
+      undefined,
+      `$${totalAmount}, ${args.recipients.length} recipient${args.recipients.length === 1 ? "" : "s"}`
+    );
     const approvers = await getApprovers(ctx, request.year, FINANCE);
     await notify(
       ctx,
@@ -664,6 +740,7 @@ export const pay = mutation({
       payComment: args.comment?.trim() || undefined,
       paidTime: Date.now(),
     });
+    await logEvent(ctx, args.requestId, caller.email, "paid", undefined, `$${args.paidAmount}`);
     await notify(
       ctx,
       request.requesterEmail,

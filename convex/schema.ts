@@ -78,6 +78,16 @@ export default defineSchema({
     budgetManagerEmail: v.optional(v.string()),
   }).index("by_year", ["year"]),
 
+  // Immutable audit trail: who actioned each step of a request, and when
+  // (_creationTime). Events are deleted only when their request is cancelled.
+  requestEvents: defineTable({
+    requestId: v.id("requests"),
+    action: v.string(), // submitted | auto-approved | approved | declined | receipt-submitted | paid
+    step: v.optional(v.string()), // hod | budgetManager | director | financeHead
+    actorEmail: v.string(),
+    detail: v.optional(v.string()),
+  }).index("by_request", ["requestId"]),
+
   requests: defineTable({
     year: v.number(),
     requesterEmail: v.string(),
@@ -94,6 +104,8 @@ export default defineSchema({
     declineReason: v.optional(v.string()),
     approvedTime: v.optional(v.number()),
     declinedTime: v.optional(v.number()),
+    // When the last stale-request reminder went out (cooldown marker).
+    lastReminderAt: v.optional(v.number()),
 
     receipt: v.optional(
       v.object({

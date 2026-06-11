@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
@@ -524,6 +524,83 @@ describe("admin and per-year rules", () => {
     expect(staffYearForDate(new Date("2026-08-31"))).toBe(2026);
     expect(staffYearForDate(new Date("2026-09-01"))).toBe(2027);
     expect(staffYearForDate(new Date("2026-12-31"))).toBe(2027);
+  });
+});
+
+describe("audit trail and reminders", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test("the audit trail records who actioned each step, in order", async () => {
+    const t = await setup();
+    // Henry's own request: HOD auto-approved at submission.
+    await asUser(t, HENRY).mutation(api.requests.submit, { description: "x", amount: 100 });
+    const [request] = await asUser(t, HENRY).query(api.requests.myRequests, {});
+    await asUser(t, BELLA).mutation(api.requests.approve, { requestId: request._id, step: "budgetManager" });
+    await asUser(t, FIONA).mutation(api.requests.approve, { requestId: request._id, step: "financeHead" });
+    await asUser(t, HENRY).mutation(api.requests.submitReceipt, {
+      requestId: request._id,
+      recipients: [{ accountName: "H", bsb: "0", accountNumber: "1", amount: 90 }],
+    });
+    await asUser(t, FIONA).mutation(api.requests.pay, { requestId: request._id, paidAmount: 90 });
+
+    const trail = await asUser(t, RACHEL).query(api.requests.auditTrail, {
+      requestId: request._id,
+    });
+    expect(trail.map((e) => [e.action, e.step, e.actor])).toEqual([
+      ["submitted", null, HENRY],
+      ["auto-approved", "hod", HENRY],
+      ["approved", "budgetManager", BELLA],
+      ["approved", "financeHead", FIONA],
+      ["receipt-submitted", null, HENRY],
+      ["paid", null, FIONA],
+    ]);
+    expect(trail.every((e) => typeof e.at === "number")).toBe(true);
+    expect(trail[5].detail).toBe("$90");
+
+    // Decline reasons land in the trail too.
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "y", amount: 50 });
+    const [declined] = await asUser(t, RACHEL).query(api.requests.myRequests, {});
+    await asUser(t, HENRY).mutation(api.requests.decline, {
+      requestId: declined._id, step: "hod", reason: "Too dear",
+    });
+    const declinedTrail = await asUser(t, RACHEL).query(api.requests.auditTrail, {
+      requestId: declined._id,
+    });
+    expect(declinedTrail.at(-1)).toMatchObject({
+      action: "declined", step: "hod", actor: HENRY, detail: "Too dear",
+    });
+  });
+
+  test("stale requests trigger a weekly reminder to whoever they wait on", async () => {
+    const t = await setup();
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
+    const [request] = await asUser(t, RACHEL).query(api.requests.myRequests, {});
+
+    // Fresh request: no reminder.
+    await t.mutation(internal.reminders.remindStale, {});
+    let updated = await t.run((ctx) => ctx.db.get("requests", request._id));
+    expect(updated?.lastReminderAt).toBeUndefined();
+
+    // Eight days later it's stale (waiting on Henry's HOD approval).
+    vi.useFakeTimers({ now: Date.now(), toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 8 * 24 * 60 * 60 * 1000);
+    await t.mutation(internal.reminders.remindStale, {});
+    updated = await t.run((ctx) => ctx.db.get("requests", request._id));
+    const firstReminder = updated?.lastReminderAt;
+    expect(firstReminder).toBeDefined();
+
+    // Running again the same day doesn't re-nag...
+    await t.mutation(internal.reminders.remindStale, {});
+    updated = await t.run((ctx) => ctx.db.get("requests", request._id));
+    expect(updated?.lastReminderAt).toBe(firstReminder);
+
+    // ...but another week of silence earns another nudge.
+    vi.setSystemTime(Date.now() + 8 * 24 * 60 * 60 * 1000);
+    await t.mutation(internal.reminders.remindStale, {});
+    updated = await t.run((ctx) => ctx.db.get("requests", request._id));
+    expect(updated?.lastReminderAt).toBeGreaterThan(firstReminder!);
   });
 });
 

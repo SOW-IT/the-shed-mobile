@@ -10,12 +10,14 @@
 
 import type * as admin from "../admin.js";
 import type * as auth from "../auth.js";
+import type * as crons from "../crons.js";
 import type * as directory from "../directory.js";
 import type * as emails from "../emails.js";
 import type * as http from "../http.js";
 import type * as model from "../model.js";
 import type * as profile from "../profile.js";
 import type * as push from "../push.js";
+import type * as reminders from "../reminders.js";
 import type * as requests from "../requests.js";
 import type * as userLink from "../userLink.js";
 
@@ -28,12 +30,14 @@ import type {
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   auth: typeof auth;
+  crons: typeof crons;
   directory: typeof directory;
   emails: typeof emails;
   http: typeof http;
   model: typeof model;
   profile: typeof profile;
   push: typeof push;
+  reminders: typeof reminders;
   requests: typeof requests;
   userLink: typeof userLink;
 }>;

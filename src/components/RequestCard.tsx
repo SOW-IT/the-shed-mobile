@@ -1,5 +1,6 @@
-import { ReactNode } from "react";
-import { StyleSheet, Text } from "react-native";
+import { useQuery } from "convex/react";
+import { ReactNode, useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
 import {
   APPROVED,
   currentStep,
@@ -10,9 +11,40 @@ import {
   type ApprovalStatus,
   type ApprovalStep,
 } from "../../shared/flow";
+import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { useAppTheme } from "../theme";
-import { Card, Chip, Muted, Row, Txt } from "./ui";
+import { Btn, Card, Chip, Muted, Row, Txt } from "./ui";
+
+const EVENT_LABELS: Record<string, string> = {
+  submitted: "Submitted",
+  "auto-approved": "Auto-approved",
+  approved: "Approved",
+  declined: "Declined",
+  "receipt-submitted": "Receipt submitted",
+  paid: "Paid",
+};
+
+/** Lazy-loaded audit trail: who actioned each step, and when. */
+const History = ({ request }: { request: Doc<"requests"> }) => {
+  const trail = useQuery(api.requests.auditTrail, { requestId: request._id });
+  if (trail === undefined) return <Muted>Loading history…</Muted>;
+  return (
+    <View style={{ gap: 2 }}>
+      {trail.map((event, index) => (
+        <Muted key={index}>
+          {new Date(event.at).toLocaleString()} —{" "}
+          {EVENT_LABELS[event.action] ?? event.action}
+          {event.step
+            ? ` (${STEP_LABELS[event.step as ApprovalStep] ?? event.step})`
+            : ""}{" "}
+          by {event.actor}
+          {event.detail ? ` — ${event.detail}` : ""}
+        </Muted>
+      ))}
+    </View>
+  );
+};
 
 const stepStatus = (
   request: Doc<"requests">,
@@ -59,6 +91,7 @@ export const RequestCard = ({
   children?: ReactNode;
 }) => {
   const t = useAppTheme();
+  const [showHistory, setShowHistory] = useState(false);
   return (
     <Card>
       <Row>
@@ -94,7 +127,15 @@ export const RequestCard = ({
           {request.payComment ? ` — ${request.payComment}` : ""}
         </Muted>
       ) : null}
-      {children ? <Row>{children}</Row> : null}
+      {showHistory ? <History request={request} /> : null}
+      <Row>
+        {children}
+        <Btn
+          title={showHistory ? "Hide History" : "History"}
+          variant="ghost"
+          onPress={() => setShowHistory((previous) => !previous)}
+        />
+      </Row>
     </Card>
   );
 };
