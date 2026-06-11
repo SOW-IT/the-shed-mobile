@@ -41,9 +41,8 @@ export const serverInfo = query({
 export const me = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity || !identity.email) return null;
-    const email = identity.email.toLowerCase();
+    const email = await optionalEmail(ctx);
+    if (!email) return null;
     const year = currentStaffYear();
     const user = await ctx.db
       .query("users")
@@ -52,9 +51,10 @@ export const me = query({
     const photo = user?.avatarId
       ? await ctx.storage.getUrl(user.avatarId)
       : (user?.image ?? null);
+    const name = user?.name ?? null;
     const profile = await getProfile(ctx, email, year);
     if (!profile) {
-      return { email, year, name: identity.name ?? null, photo, profile: null };
+      return { email, year, name, photo, profile: null };
     }
     const approvers = await getApprovers(
       ctx,
@@ -67,7 +67,7 @@ export const me = query({
     return {
       email,
       year,
-      name: identity.name ?? null,
+      name,
       photo,
       profile: {
         roles: rolesOf(profile),

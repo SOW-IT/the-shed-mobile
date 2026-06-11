@@ -15,23 +15,32 @@ type Ctx = QueryCtx | MutationCtx;
 export const currentStaffYear = () => staffYearForDate(new Date());
 export const nextStaffYear = () => currentStaffYear() + 1;
 
-export async function requireEmail(ctx: Ctx): Promise<string> {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity || !identity.email) {
-    throw new ConvexError("You must be signed in.");
-  }
-  return identity.email.toLowerCase();
-}
-
 /**
- * The caller's email, or null when unauthenticated. QUERIES should use this
- * and return null rather than throwing: the client briefly runs queries
- * before/while auth tokens attach, and a thrown query crashes the React tree.
- * Mutations (user-initiated) keep the throwing requireEmail/requireProfile.
+ * The caller's email, or null when unauthenticated. Convex Auth JWTs carry
+ * ONLY `sub` (userId|sessionId) — no email claim — so the email is resolved
+ * from the caller's users row; the identity email claim is a fallback for
+ * other token shapes (and tests). QUERIES should use this and return null
+ * rather than throwing: the client briefly runs queries while auth tokens
+ * attach, and a thrown query crashes the React tree.
  */
 export async function optionalEmail(ctx: Ctx): Promise<string | null> {
   const identity = await ctx.auth.getUserIdentity();
-  return identity?.email?.toLowerCase() ?? null;
+  if (!identity) return null;
+  const [rawUserId] = identity.subject.split("|");
+  const userId = ctx.db.normalizeId("users", rawUserId);
+  if (userId) {
+    const user = await ctx.db.get("users", userId);
+    if (user?.email) return user.email.toLowerCase();
+  }
+  return identity.email?.toLowerCase() ?? null;
+}
+
+export async function requireEmail(ctx: Ctx): Promise<string> {
+  const email = await optionalEmail(ctx);
+  if (!email) {
+    throw new ConvexError("You must be signed in.");
+  }
+  return email;
 }
 
 /** Caller context for queries: null when unauthenticated or unprovisioned. */

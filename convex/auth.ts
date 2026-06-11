@@ -7,6 +7,26 @@ const allowedDomain = process.env.AUTH_ALLOWED_DOMAIN ?? "sow.org.au";
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   callbacks: {
+    // Where sign-in may return to. The client passes its own origin so the
+    // hosted site, local dev/static servers and the native app all come back
+    // to themselves instead of defaulting to SITE_URL.
+    async redirect({ redirectTo }) {
+      const allowed = [process.env.SITE_URL, process.env.APP_URL].filter(
+        (url): url is string => !!url
+      );
+      if (redirectTo.startsWith("/")) {
+        return `${process.env.SITE_URL ?? ""}${redirectTo}`;
+      }
+      if (
+        allowed.some((url) => redirectTo === url || redirectTo.startsWith(`${url}/`)) ||
+        /^https?:\/\/localhost(:\d+)?(\/|$|\?)/.test(redirectTo) ||
+        redirectTo.startsWith("theshedmobile://") ||
+        redirectTo.startsWith("exp://")
+      ) {
+        return redirectTo;
+      }
+      throw new Error(`Invalid redirectTo: ${redirectTo}`);
+    },
     // Bind staff profiles to the user id on every sign-in, and re-key all
     // email references if the Google account's email changed (rename).
     async afterUserCreatedOrUpdated(ctx, { userId }) {

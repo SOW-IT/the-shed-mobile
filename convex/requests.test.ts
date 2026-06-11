@@ -716,6 +716,22 @@ describe("audit trail and reminders", () => {
     ).toEqual([BELLA]);
   });
 
+  test("identity resolves from the users row: real JWTs carry only sub, no email claim", async () => {
+    const t = await setup();
+    const userId = await t.run((ctx) =>
+      ctx.db.insert("users", { email: RACHEL, name: "Rachel R" })
+    );
+    // Exactly what production tokens look like: subject only.
+    const viaSub = t.withIdentity({ subject: `${userId}|session1`, issuer: "test" });
+    await viaSub.mutation(api.requests.submit, { description: "x", amount: 25 });
+    const mine = await viaSub.query(api.requests.myRequests, {});
+    expect(mine).not.toBeNull();
+    expect(mine![0].requesterEmail).toBe(RACHEL);
+    const me = await viaSub.query(api.directory.me, {});
+    expect(me?.email).toBe(RACHEL);
+    expect(me?.profile?.department).toBe("Marketing");
+  });
+
   test("read queries return null (not throw) while auth is still attaching", async () => {
     const t = await setup();
     // Unauthenticated query calls — the client briefly does this on every

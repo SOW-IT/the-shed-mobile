@@ -19,7 +19,9 @@ export const SignInScreen = () => {
     setBusy(true);
     try {
       if (Platform.OS === "web") {
-        await signIn("google");
+        // Come back to wherever this app is served from (hosted site,
+        // local dev, static preview) instead of defaulting to SITE_URL.
+        await signIn("google", { redirectTo: window.location.origin });
         return; // full-page redirect to Google
       }
       const redirectTo = makeRedirectUri();
