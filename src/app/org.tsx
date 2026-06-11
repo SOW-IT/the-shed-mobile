@@ -86,7 +86,6 @@ const Person = ({
       </Txt>
       <Text style={[styles.personMeta, { color: t.muted }]}>
         {tag ?? person.role ?? ""}
-        {person.name ? ` • ${person.email}` : ""}
       </Text>
     </Pressable>
   );

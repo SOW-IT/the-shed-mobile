@@ -2,7 +2,7 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import { mutation, MutationCtx, query } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
-import { optionalEmail, rolesOf } from "./model";
+import { currentStaffYear, optionalEmail, rolesOf } from "./model";
 
 /**
  * A person's profile: Google-synced identity, self-editable extras (church,
@@ -50,7 +50,11 @@ export const get = query({
         .take(50);
       for (const h of imported) history.set(h._id, h);
     }
-    const serviceHistory = [...history.values()].sort((a, b) => b.year - a.year);
+    // Future years (admins pre-provision the next staff year) stay hidden
+    // until the year actually starts at the September 1st rollover.
+    const serviceHistory = [...history.values()]
+      .filter((h) => h.year <= currentStaffYear())
+      .sort((a, b) => b.year - a.year);
 
     const anyProfile = serviceHistory.find((h) => h.name) ?? null;
     return {

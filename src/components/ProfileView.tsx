@@ -1,3 +1,4 @@
+import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
 import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
@@ -24,6 +25,7 @@ import {
  * departments are managed per-year by admins).
  */
 export const ProfileView = ({ email }: { email?: string }) => {
+  const { signOut } = useAuthActions();
   const profile = useQuery(api.profile.get, email ? { email } : {});
   const updateChurch = useMutation(api.profile.updateChurch);
   const generateAvatarUploadUrl = useMutation(api.profile.generateAvatarUploadUrl);
@@ -127,6 +129,7 @@ export const ProfileView = ({ email }: { email?: string }) => {
                 onPress={() => void pickPhoto()}
                 disabled={uploading}
               />
+              <Btn title="Sign out" variant="ghost" onPress={() => void signOut()} />
             </Row>
             <Muted>
               Name and email sync from Google; your role and department are set

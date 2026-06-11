@@ -38,6 +38,11 @@ OUT_PATH = "convex/importData.ts"
 # the import matches the live data after importHistory:migrateEmailDomain.
 DOMAIN_MIGRATED_YEARS = {2026: "sow.org.au"}
 
+# The old app pre-provisioned 2027 by copying stale data forward. The new
+# app rolls 2027 from the live 2026 data instead (admin:copyYear), so the
+# backup's 2027 must never be imported.
+EXCLUDED_YEARS = {2027}
+
 # Corrections to records the old web app itself had wrong, keyed by
 # (year, any email of the person). The fields replace the person's
 # role/department/division/university for that year; identity (email,
@@ -173,7 +178,10 @@ def email_for(doc_id: str | None) -> str | None:
 
 
 # ---- Assemble per-year payloads ----
-years = sorted({y for y, _, _ in user_docs} | set(dept_docs) | set(division_docs))
+years = sorted(
+    ({y for y, _, _ in user_docs} | set(dept_docs) | set(division_docs))
+    - EXCLUDED_YEARS
+)
 payload_years = []
 for year in years:
     dept_body = dept_docs.get(year, {})

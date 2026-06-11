@@ -98,7 +98,6 @@ export default function RequestsScreen() {
                   • {me.year}
                 </Muted>
               </View>
-              <Btn title="Sign out" variant="ghost" onPress={() => void signOut()} />
             </Row>
           </Card>
           <Segmented segments={segments} active={activeSegment} onChange={setActive} />

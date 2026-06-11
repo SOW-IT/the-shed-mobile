@@ -493,6 +493,112 @@ export const setBudgetManager = mutation({
   },
 });
 
+/**
+ * Replaces one year's divisions, departments, staff profiles and settings
+ * with a copy of another year's — e.g. provisioning next year from the
+ * current one at rollover.
+ * Run with: npx convex run admin:copyYear '{"from":2026,"to":2027}'
+ */
+export const copyYear = internalMutation({
+  args: { from: v.number(), to: v.number() },
+  handler: async (ctx, args) => {
+    if (args.from === args.to) throw new ConvexError("from and to must differ.");
+    const counts = { divisions: 0, departments: 0, profiles: 0, budgetManagers: 0 };
+
+    const oldDivisions = await ctx.db
+      .query("divisions")
+      .withIndex("by_year_and_name", (q) => q.eq("year", args.to))
+      .take(200);
+    for (const division of oldDivisions) await ctx.db.delete("divisions", division._id);
+    const oldDepartments = await ctx.db
+      .query("departments")
+      .withIndex("by_year_and_name", (q) => q.eq("year", args.to))
+      .take(200);
+    for (const department of oldDepartments) {
+      await ctx.db.delete("departments", department._id);
+    }
+    const oldProfiles = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_year", (q) => q.eq("year", args.to))
+      .take(2000);
+    for (const profile of oldProfiles) await ctx.db.delete("staffProfiles", profile._id);
+
+    const divisions = await ctx.db
+      .query("divisions")
+      .withIndex("by_year_and_name", (q) => q.eq("year", args.from))
+      .take(200);
+    for (const division of divisions) {
+      await ctx.db.insert("divisions", { year: args.to, name: division.name });
+      counts.divisions++;
+    }
+    const departments = await ctx.db
+      .query("departments")
+      .withIndex("by_year_and_name", (q) => q.eq("year", args.from))
+      .take(200);
+    for (const department of departments) {
+      await ctx.db.insert("departments", {
+        year: args.to,
+        name: department.name,
+        division: department.division,
+        headEmail: department.headEmail,
+        colour: department.colour,
+      });
+      counts.departments++;
+    }
+    const universities = await ctx.db
+      .query("universities")
+      .withIndex("by_year_and_name", (q) => q.eq("year", args.from))
+      .take(50);
+    for (const university of universities) {
+      const existing = await ctx.db
+        .query("universities")
+        .withIndex("by_year_and_name", (q) =>
+          q.eq("year", args.to).eq("name", university.name)
+        )
+        .unique();
+      if (!existing) {
+        await ctx.db.insert("universities", { year: args.to, name: university.name });
+      }
+    }
+    const profiles = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_year", (q) => q.eq("year", args.from))
+      .take(2000);
+    for (const profile of profiles) {
+      await ctx.db.insert("staffProfiles", {
+        email: profile.email,
+        year: args.to,
+        roles: rolesOf(profile),
+        department: profile.department,
+        division: profile.division,
+        university: profile.university,
+        name: profile.name,
+        userId: profile.userId,
+        importId: profile.importId,
+      });
+      counts.profiles++;
+    }
+
+    const fromSettings = await getYearSettings(ctx, args.from);
+    if (fromSettings?.budgetManagerEmail) {
+      const toSettings = await getYearSettings(ctx, args.to);
+      if (toSettings) {
+        await ctx.db.patch("yearSettings", toSettings._id, {
+          budgetManagerEmail: fromSettings.budgetManagerEmail,
+        });
+      } else {
+        await ctx.db.insert("yearSettings", {
+          year: args.to,
+          budgetManagerEmail: fromSettings.budgetManagerEmail,
+        });
+      }
+      counts.budgetManagers++;
+    }
+
+    return counts;
+  },
+});
+
 /** SOW's organisation structure: division -> departments. */
 const ORG_STRUCTURE: Record<string, string[]> = {
   Governance: ["Data and IT", FINANCE, "Compliance"],

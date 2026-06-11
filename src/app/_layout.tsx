@@ -11,6 +11,7 @@ import { DarkTheme, DefaultTheme, Tabs, ThemeProvider } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator, ColorValue, Platform, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SignInScreen } from "@/components/SignInScreen";
@@ -37,6 +38,7 @@ const tabIcon =
 const AppTabs = () => {
   const me = useQuery(api.directory.me);
   const t = useAppTheme();
+  const insets = useSafeAreaInsets();
   usePushRegistration();
   // Badge: how many requests are waiting on the signed-in approver. Convex
   // dedupes this subscription with the Requests tab's own query.
@@ -57,7 +59,15 @@ const AppTabs = () => {
         tabBarActiveTintColor: t.primary,
         tabBarInactiveTintColor: t.muted,
         tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
-        tabBarStyle: { backgroundColor: t.card, borderTopColor: t.border },
+        // Tall enough that labels never clip; the default bar height leaves
+        // no room for them below 24px icons on web/Android.
+        tabBarStyle: {
+          backgroundColor: t.card,
+          borderTopColor: t.border,
+          height: 60 + insets.bottom,
+          paddingBottom: Math.max(insets.bottom, 8),
+          paddingTop: 6,
+        },
       }}
     >
       <Tabs.Screen

@@ -24,8 +24,10 @@ describe("importHistory: backfill from the old web app's Firestore", () => {
   test("fills every year's structure and people, and re-runs cleanly", async () => {
     const t = await setup();
     const first = await t.mutation(internal.importHistory.run, {});
-    expect(first.profiles).toBeGreaterThan(800);
-    expect(first.budgetManagers).toBeGreaterThanOrEqual(7);
+    // 2008-2026 from the backup; 2027+ is rolled from live data instead.
+    expect(first.profiles).toBeGreaterThan(750);
+    expect(IMPORT_DATA.years.some((y) => y.year > 2026)).toBe(false);
+    expect(first.budgetManagers).toBeGreaterThanOrEqual(6);
 
     // Re-running must upsert, not duplicate (unique (email, year) survives).
     const second = await t.mutation(internal.importHistory.run, {});
