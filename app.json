@@ -10,7 +10,10 @@
     "ios": {
       "bundleIdentifier": "au.org.sow.theshed",
       "supportsTablet": true,
-      "associatedDomains": ["applinks:the-shed-web.vercel.app"]
+      "associatedDomains": ["applinks:the-shed-web.vercel.app"],
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "au.org.sow.theshed",
