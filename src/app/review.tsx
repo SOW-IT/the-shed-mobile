@@ -1,0 +1,218 @@
+import { useMutation, useQuery } from "convex/react";
+import { useState } from "react";
+import { Modal, StyleSheet, Text, View } from "react-native";
+import { api } from "../../convex/_generated/api";
+import { Doc } from "../../convex/_generated/dataModel";
+import { RequestCard } from "@/components/RequestCard";
+import {
+  Btn,
+  Card,
+  ErrorBanner,
+  errorMessage,
+  Field,
+  Muted,
+  Row,
+  Screen,
+  SectionTitle,
+} from "@/components/ui";
+
+type Step = "hod" | "budgetManager" | "director" | "financeHead";
+
+const DeclineModal = ({
+  target,
+  onClose,
+}: {
+  target: { request: Doc<"requests">; step: Step } | null;
+  onClose: () => void;
+}) => {
+  const decline = useMutation(api.requests.decline);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const handleDecline = async () => {
+    if (!target) return;
+    setError(null);
+    try {
+      await decline({ requestId: target.request._id, step: target.step, reason });
+      setReason("");
+      onClose();
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
+  return (
+    <Modal visible={target !== null} animationType="slide" transparent>
+      <View style={styles.modalBackdrop}>
+        <Card>
+          <Text style={styles.modalTitle}>Decline Request</Text>
+          <Muted>The requester will be emailed your reason.</Muted>
+          <Field label="Reason" value={reason} onChangeText={setReason} multiline />
+          <ErrorBanner message={error} />
+          <Row>
+            <Btn title="Decline" variant="danger" onPress={handleDecline} />
+            <Btn title="Back" variant="ghost" onPress={onClose} />
+          </Row>
+        </Card>
+      </View>
+    </Modal>
+  );
+};
+
+const PayModal = ({
+  request,
+  onClose,
+}: {
+  request: Doc<"requests"> | null;
+  onClose: () => void;
+}) => {
+  const pay = useMutation(api.requests.pay);
+  const [paidAmount, setPaidAmount] = useState("");
+  const [comment, setComment] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const handlePay = async () => {
+    if (!request) return;
+    setError(null);
+    try {
+      await pay({
+        requestId: request._id,
+        paidAmount: Number(paidAmount),
+        comment: comment || undefined,
+      });
+      setPaidAmount("");
+      setComment("");
+      onClose();
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
+  return (
+    <Modal visible={request !== null} animationType="slide" transparent>
+      <View style={styles.modalBackdrop}>
+        <Card>
+          <Text style={styles.modalTitle}>Pay Reimbursement</Text>
+          <Muted>Only pay after you have sent the money to the account.</Muted>
+          {request?.receipt?.recipients.map((recipient, i) => (
+            <Muted key={i}>
+              {recipient.accountName} • BSB {recipient.bsb} • Acc{" "}
+              {recipient.accountNumber} • ${recipient.amount}
+            </Muted>
+          ))}
+          <Field
+            label="Paid amount ($)"
+            value={paidAmount}
+            onChangeText={setPaidAmount}
+            keyboardType="numeric"
+          />
+          <Field label="Comment (optional)" value={comment} onChangeText={setComment} />
+          <ErrorBanner message={error} />
+          <Row>
+            <Btn title="PAY" variant="success" onPress={handlePay} />
+            <Btn title="Back" variant="ghost" onPress={onClose} />
+          </Row>
+        </Card>
+      </View>
+    </Modal>
+  );
+};
+
+const SECTIONS: { key: Exclude<Step, never>; title: string }[] = [
+  { key: "hod", title: "Awaiting Your HOD Approval" },
+  { key: "budgetManager", title: "Awaiting Your Budget Approval" },
+  { key: "director", title: "Awaiting Your Director Approval" },
+  { key: "financeHead", title: "Awaiting Your Finance Head Approval" },
+];
+
+export default function ToReviewScreen() {
+  const me = useQuery(api.directory.me);
+  const data = useQuery(api.requests.toReview, me?.profile ? {} : "skip");
+  const approve = useMutation(api.requests.approve);
+  const [declineTarget, setDeclineTarget] = useState<{
+    request: Doc<"requests">;
+    step: Step;
+  } | null>(null);
+  const [payTarget, setPayTarget] = useState<Doc<"requests"> | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleApprove = async (request: Doc<"requests">, step: Step) => {
+    setError(null);
+    try {
+      await approve({ requestId: request._id, step });
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
+  const hasAnything =
+    data &&
+    (data.hod.length > 0 ||
+      data.budgetManager.length > 0 ||
+      data.director.length > 0 ||
+      data.financeHead.length > 0 ||
+      data.readyToPay.length > 0);
+
+  return (
+    <Screen>
+      <ErrorBanner message={error} />
+      {data === undefined ? (
+        <Muted>Loading…</Muted>
+      ) : !hasAnything ? (
+        <Muted>No requests to review.</Muted>
+      ) : (
+        <>
+          {SECTIONS.map(({ key, title }) =>
+            data[key].length === 0 ? null : (
+              <View key={key}>
+                <SectionTitle>
+                  {title} ({data[key].length})
+                </SectionTitle>
+                {data[key].map((request) => (
+                  <RequestCard key={request._id} request={request} showRequester>
+                    <Btn
+                      title="Approve"
+                      variant="success"
+                      onPress={() => void handleApprove(request, key)}
+                    />
+                    <Btn
+                      title="Decline"
+                      variant="danger"
+                      onPress={() => setDeclineTarget({ request, step: key })}
+                    />
+                  </RequestCard>
+                ))}
+              </View>
+            )
+          )}
+          {data.readyToPay.length > 0 && (
+            <View>
+              <SectionTitle>Ready to Pay ({data.readyToPay.length})</SectionTitle>
+              {data.readyToPay.map((request) => (
+                <RequestCard key={request._id} request={request} showRequester>
+                  <Btn
+                    title="Pay"
+                    variant="success"
+                    onPress={() => setPayTarget(request)}
+                  />
+                </RequestCard>
+              ))}
+            </View>
+          )}
+        </>
+      )}
+      <DeclineModal target={declineTarget} onClose={() => setDeclineTarget(null)} />
+      <PayModal request={payTarget} onClose={() => setPayTarget(null)} />
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 16,
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  modalTitle: { fontSize: 18, fontWeight: "700" },
+});
