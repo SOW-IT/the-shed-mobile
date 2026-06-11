@@ -231,49 +231,31 @@ export default function AdminScreen() {
             ))}
           </Row>
           {needsDivision && (
-            <>
-              <Muted>Division (Heads of Division belong directly to one)</Muted>
-              <Row>
-                {(structure?.divisions ?? []).map((division) => (
-                  <Btn
-                    key={division}
-                    title={division}
-                    variant={staffDivision === division ? "primary" : "ghost"}
-                    onPress={() => setStaffDivision(division)}
-                  />
-                ))}
-              </Row>
-            </>
+            <Select
+              label="Division (Heads of Division belong directly to one)"
+              value={staffDivision}
+              options={structure?.divisions ?? []}
+              onSelect={setStaffDivision}
+              placeholder="Choose a division…"
+            />
           )}
           {needsUniversity && (
-            <>
-              <Muted>University (Student Leaders belong to one, not a department)</Muted>
-              <Row>
-                {(structure?.universities ?? []).map((university) => (
-                  <Btn
-                    key={university}
-                    title={university}
-                    variant={staffUniversity === university ? "primary" : "ghost"}
-                    onPress={() => setStaffUniversity(university)}
-                  />
-                ))}
-              </Row>
-            </>
+            <Select
+              label="University (Student Leaders belong to one, not a department)"
+              value={staffUniversity}
+              options={structure?.universities ?? []}
+              onSelect={setStaffUniversity}
+              placeholder="Choose a university…"
+            />
           )}
           {needsDepartment && (
-            <>
-              <Muted>Department</Muted>
-              <Row>
-                {(structure?.departments ?? []).map((department) => (
-                  <Btn
-                    key={department.name}
-                    title={department.name}
-                    variant={staffDepartment === department.name ? "primary" : "ghost"}
-                    onPress={() => setStaffDepartment(department.name)}
-                  />
-                ))}
-              </Row>
-            </>
+            <Select
+              label="Department"
+              value={staffDepartment}
+              options={(structure?.departments ?? []).map((d) => d.name)}
+              onSelect={setStaffDepartment}
+              placeholder="Choose a department…"
+            />
           )}
           <Btn
             title="Save Staff Assignment"
@@ -399,17 +381,13 @@ export default function AdminScreen() {
             value={departmentName}
             onChangeText={setDepartmentName}
           />
-          <Muted>Division</Muted>
-          <Row>
-            {(structure?.divisions ?? []).map((division) => (
-              <Btn
-                key={division}
-                title={division}
-                variant={departmentDivision === division ? "primary" : "ghost"}
-                onPress={() => setDepartmentDivision(division)}
-              />
-            ))}
-          </Row>
+          <Select
+            label="Division"
+            value={departmentDivision}
+            options={structure?.divisions ?? []}
+            onSelect={setDepartmentDivision}
+            placeholder="Choose a division…"
+          />
           <Select
             label="Head of Department (optional — also gives them the role)"
             value={departmentHead}

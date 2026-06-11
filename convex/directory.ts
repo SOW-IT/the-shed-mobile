@@ -31,6 +31,8 @@ export const serverInfo = query({
     return {
       staffYear: year,
       nextStaffYear: nextStaffYear(),
+      // Shown on the sign-in screen so it always matches the server's lock.
+      allowedDomain: process.env.AUTH_ALLOWED_DOMAIN ?? "sow.org.au",
       divisions: divisions.map((d) => d.name),
       departments: departments.map((d) => ({ name: d.name, division: d.division })),
     };

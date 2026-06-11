@@ -1,13 +1,16 @@
 import { useAuthActions } from "@convex-dev/auth/react";
+import { useQuery } from "convex/react";
 import { makeRedirectUri } from "expo-auth-session";
 import { openAuthSessionAsync } from "expo-web-browser";
 import { useState } from "react";
 import { Image, Platform, StyleSheet, View } from "react-native";
+import { api } from "../../convex/_generated/api";
 import { useAppTheme } from "../theme";
 import { Btn, Card, ErrorBanner, errorMessage, Muted, Screen, Txt } from "./ui";
 
 export const SignInScreen = () => {
   const { signIn } = useAuthActions();
+  const serverInfo = useQuery(api.directory.serverInfo);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -60,7 +63,9 @@ export const SignInScreen = () => {
           onPress={handleSignIn}
           disabled={busy}
         />
-        <Muted>Use your sow.org.au Google account.</Muted>
+        <Muted>
+          Use your {serverInfo?.allowedDomain ?? "organisation"} Google account.
+        </Muted>
         <ErrorBanner message={error} />
       </Card>
     </Screen>

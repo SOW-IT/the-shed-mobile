@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import {
   Authenticated,
@@ -9,7 +10,7 @@ import {
 import { DarkTheme, DefaultTheme, Tabs, ThemeProvider } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
-import { ActivityIndicator, Platform, View } from "react-native";
+import { ActivityIndicator, ColorValue, Platform, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SignInScreen } from "@/components/SignInScreen";
@@ -27,12 +28,18 @@ const secureStorage = {
   removeItem: SecureStore.deleteItemAsync,
 };
 
+const tabIcon =
+  (outline: keyof typeof Ionicons.glyphMap, filled: keyof typeof Ionicons.glyphMap) =>
+  ({ color, focused }: { color: ColorValue; focused: boolean }) => (
+    <Ionicons name={focused ? filled : outline} size={24} color={color} />
+  );
+
 const AppTabs = () => {
   const me = useQuery(api.directory.me);
   const t = useAppTheme();
   usePushRegistration();
   // Badge: how many requests are waiting on the signed-in approver. Convex
-  // dedupes this subscription with the To Review screen's own query.
+  // dedupes this subscription with the Requests tab's own query.
   const review = useQuery(
     api.requests.toReview,
     me?.profile && me.isApprover ? {} : "skip"
@@ -45,26 +52,47 @@ const AppTabs = () => {
       review.readyToPay.length
     : 0;
   return (
-    <Tabs screenOptions={{ tabBarActiveTintColor: t.primary }}>
-      <Tabs.Screen name="index" options={{ title: "My Requests" }} />
-      <Tabs.Screen name="org" options={{ title: "Org Chart" }} />
+    <Tabs
+      screenOptions={{
+        tabBarActiveTintColor: t.primary,
+        tabBarInactiveTintColor: t.muted,
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
+        tabBarStyle: { backgroundColor: t.card, borderTopColor: t.border },
+      }}
+    >
       <Tabs.Screen
-        name="review"
+        name="index"
         options={{
-          title: "To Review",
-          href: me?.isApprover ? "/review" : null,
+          title: "Requests",
+          tabBarIcon: tabIcon("receipt-outline", "receipt"),
           tabBarBadge: reviewCount > 0 ? reviewCount : undefined,
         }}
       />
       <Tabs.Screen
-        name="all"
-        options={{ title: "All Requests", href: me?.isFinance ? "/all" : null }}
+        name="org"
+        options={{
+          title: "Org Chart",
+          tabBarIcon: tabIcon("people-outline", "people"),
+        }}
       />
       <Tabs.Screen
         name="admin"
-        options={{ title: "Admin", href: me?.isAdmin ? "/admin" : null }}
+        options={{
+          title: "Admin",
+          href: me?.isAdmin ? "/admin" : null,
+          tabBarIcon: tabIcon("settings-outline", "settings"),
+        }}
       />
-      <Tabs.Screen name="profile" options={{ title: "Profile" }} />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Profile",
+          tabBarIcon: tabIcon("person-circle-outline", "person-circle"),
+        }}
+      />
+      {/* Folded into the Requests tab; routes survive for old deep links. */}
+      <Tabs.Screen name="review" options={{ href: null }} />
+      <Tabs.Screen name="all" options={{ href: null }} />
       {/* Opened by tapping a person in the org chart; not a tab itself. */}
       <Tabs.Screen name="person/[email]" options={{ title: "Profile", href: null }} />
       {/* Opened by tapping a push notification; not a tab itself. */}

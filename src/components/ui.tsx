@@ -2,7 +2,9 @@ import { ConvexError } from "convex/values";
 import { ReactNode, useState } from "react";
 import {
   Image,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -200,6 +202,90 @@ export const Select = ({
   );
 };
 
+export type Segment = { key: string; label: string; badge?: number };
+
+/** Equal-width pill switcher for sections that share one tab. */
+export const Segmented = ({
+  segments,
+  active,
+  onChange,
+}: {
+  segments: Segment[];
+  active: string;
+  onChange: (key: string) => void;
+}) => {
+  const t = useAppTheme();
+  if (segments.length < 2) return null;
+  return (
+    <View style={[styles.segmented, { backgroundColor: t.ghost }]}>
+      {segments.map((segment) => {
+        const selected = segment.key === active;
+        return (
+          <Pressable
+            key={segment.key}
+            style={[styles.segment, selected && { backgroundColor: t.card }]}
+            onPress={() => onChange(segment.key)}
+          >
+            <Text
+              numberOfLines={1}
+              style={[
+                styles.segmentText,
+                { color: selected ? t.text : t.muted },
+                selected && { fontWeight: "700" },
+              ]}
+            >
+              {segment.label}
+            </Text>
+            {segment.badge ? (
+              <View style={[styles.segmentBadge, { backgroundColor: t.danger }]}>
+                <Text style={styles.segmentBadgeText}>{segment.badge}</Text>
+              </View>
+            ) : null}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+};
+
+/**
+ * A modal form sheet: slides up from the bottom on phones, stays clear of
+ * the keyboard, and scrolls when the content is taller than the screen.
+ */
+export const Sheet = ({
+  visible,
+  onClose,
+  children,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  children: ReactNode;
+}) => {
+  const t = useAppTheme();
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        style={styles.sheetBackdrop}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <SafeAreaView
+          edges={["bottom"]}
+          style={[styles.sheet, { backgroundColor: t.card }]}
+        >
+          <View style={[styles.sheetHandle, { backgroundColor: t.border }]} />
+          <ScrollView
+            contentContainerStyle={styles.sheetContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            {children}
+          </ScrollView>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+};
+
 export const Chip = ({ label }: { label: string }) => {
   const t = useAppTheme();
   const colors =
@@ -314,4 +400,51 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   selectItem: { paddingHorizontal: 16, paddingVertical: 12 },
+  segmented: {
+    flexDirection: "row",
+    borderRadius: 999,
+    padding: 3,
+    gap: 2,
+  },
+  segment: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+  },
+  segmentText: { fontSize: 13, fontWeight: "600" },
+  segmentBadge: {
+    borderRadius: 999,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  segmentBadgeText: { color: "#ffffff", fontSize: 11, fontWeight: "800" },
+  sheetBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  sheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: "88%",
+    width: "100%",
+    maxWidth: 720,
+    alignSelf: "center",
+  },
+  sheetHandle: {
+    alignSelf: "center",
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    marginTop: 8,
+  },
+  sheetContent: { padding: 16, paddingBottom: 24, gap: 8 },
 });
