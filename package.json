@@ -51,7 +51,7 @@
     "lint": "expo lint",
     "test": "vitest run",
     "convex": "convex dev",
-    "deploy:web": "expo export --platform web && node -e \"require('fs').cpSync('web','dist',{recursive:true})\" && cd dist && vercel deploy --prod --yes"
+    "deploy:web": "node scripts/deploy-web.mjs"
   },
   "private": true
 }

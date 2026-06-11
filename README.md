@@ -124,11 +124,25 @@ exists, the workflow passes with a warning and skips the build step. To also
 auto-submit to TestFlight/Play Console, append `--auto-submit` to the
 `eas build` line once store credentials are configured.
 
-## Web hosting
+## Production backend + web hosting
 
-The same app runs in the browser via react-native-web. Production:
-**<https://the-shed-web.vercel.app>** (Vercel project `the-shed-web`).
-Redeploy with:
+Convex has two deployments: **dev** (`industrious-robin-425`, used by local
+dev and the `convex dev` watcher) and **prod** (`outgoing-stoat-395`). Push
+backend code to prod with:
+
+```bash
+npx convex deploy -y
+```
+
+Prod env vars are managed with `npx convex env set --prod ...` (JWT keys,
+SITE_URL/APP_URL, Resend are set; Google OAuth + directory-sync vars need
+`--prod` copies when configured). Re-seed prod with the real admin email via
+`npx convex run --prod admin:seed '{"adminEmail":"you@sow.org.au"}'`.
+
+The same app runs in the browser via react-native-web, hosted at
+**<https://the-shed-web.vercel.app>** (Vercel project `the-shed-web`),
+**pointed at the prod deployment**. Mobile production builds (eas.json) use
+prod too; only local dev uses the dev deployment. Redeploy the site with:
 
 ```bash
 npm run deploy:web
