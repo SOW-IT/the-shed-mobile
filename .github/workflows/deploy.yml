@@ -1,0 +1,58 @@
+# Auto-deploys production on every merge to main:
+#   1. npx convex deploy  - pushes the backend to the PROD Convex deployment
+#      and runs the web export with EXPO_PUBLIC_CONVEX_URL pointed at it
+#   2. vercel deploy      - publishes the export to the-shed-web.vercel.app
+#
+# One-time setup (repo secrets):
+#   CONVEX_DEPLOY_KEY - Convex dashboard -> prod deployment -> Settings -> Deploy key
+#   VERCEL_TOKEN      - https://vercel.com/account/tokens
+# Until both exist, this workflow passes with a warning and skips deploying.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      # Not secrets - just identifiers for the the-shed-web Vercel project.
+      VERCEL_ORG_ID: team_BN2cAhJhnaYsx0CBERDsYOeF
+      VERCEL_PROJECT_ID: prj_GDhatLychoCm4yRy8b152beusHBE
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # Quality gate: never deploy a broken main.
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Backend tests
+        run: npm test
+
+      - name: Deploy secrets not configured
+        if: env.CONVEX_DEPLOY_KEY == '' || env.VERCEL_TOKEN == ''
+        run: |
+          echo "::warning::CONVEX_DEPLOY_KEY and/or VERCEL_TOKEN secrets are not set - skipping the production deploy."
+          echo "Add them in the repo settings to enable push-to-deploy (see .github/workflows/deploy.yml)."
+
+      - name: Deploy Convex prod + export web against it
+        if: env.CONVEX_DEPLOY_KEY != '' && env.VERCEL_TOKEN != ''
+        run: npx convex deploy --cmd 'npx expo export --platform web' --cmd-url-env-var-name EXPO_PUBLIC_CONVEX_URL
+
+      - name: Publish web to Vercel
+        if: env.CONVEX_DEPLOY_KEY != '' && env.VERCEL_TOKEN != ''
+        run: |
+          cp -r web/. dist/
+          npx vercel deploy dist --prod --yes --token "$VERCEL_TOKEN"

@@ -110,6 +110,15 @@ explicit admin action.
   (after the same quality gate) queues **iOS + Android production builds** on
   [EAS](https://expo.dev/eas). Builds and signed artifacts appear in the Expo
   dashboard; trigger manually any time via *Actions → EAS Build → Run workflow*.
+- **Deploy** (`.github/workflows/deploy.yml`): every merge to `main` (after
+  the same gate) deploys the **prod Convex backend** and republishes the
+  **hosted web app** against it — push-to-deploy, like the web repo. Needs
+  two repo secrets: `CONVEX_DEPLOY_KEY` (Convex dashboard → prod deployment →
+  Settings → Deploy key) and `VERCEL_TOKEN`
+  (<https://vercel.com/account/tokens>). Until they exist it passes with a
+  warning and skips. (Vercel's own git integration can't be used: Hobby plans
+  can't connect private org-owned repos.) Manual fallbacks remain
+  `npx convex deploy -y` and `npm run deploy:web`.
 
 One-time setup to activate it:
 
