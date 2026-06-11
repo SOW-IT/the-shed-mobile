@@ -142,6 +142,7 @@ export const upsertDepartment = mutation({
     name: v.string(),
     division: v.string(),
     headEmail: v.optional(v.string()),
+    colour: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
@@ -163,6 +164,7 @@ export const upsertDepartment = mutation({
       await ctx.db.patch("departments", existing._id, {
         division: args.division,
         headEmail,
+        colour: args.colour ?? existing.colour,
       });
       return existing._id;
     }
@@ -171,6 +173,7 @@ export const upsertDepartment = mutation({
       name,
       division: args.division,
       headEmail,
+      colour: args.colour,
     });
   },
 });
@@ -211,9 +214,18 @@ export const setBudgetManager = mutation({
   },
 });
 
+/** SOW's organisation structure: division -> departments. */
+const ORG_STRUCTURE: Record<string, string[]> = {
+  Governance: ["Data and IT", FINANCE, "Compliance"],
+  Engagement: ["Marketing", "Alumni"],
+  "Human Resources": ["People and Culture", "Training and Development"],
+  Operations: ["Events", "Missions"],
+};
+
 /**
- * One-time bootstrap: creates the default divisions/departments for the
- * current staff year and makes `adminEmail` an admin (Data and IT).
+ * Bootstrap: replaces the current staff year's divisions/departments with the
+ * SOW org structure (preserving department heads where names match) and makes
+ * `adminEmail` an admin (Data and IT).
  * Run with: npx convex run admin:seed '{"adminEmail":"you@sow.org.au"}'
  */
 export const seed = internalMutation({
@@ -222,25 +234,35 @@ export const seed = internalMutation({
     const year = currentStaffYear();
     const email = args.adminEmail.trim().toLowerCase();
 
-    const divisions = ["Operations", "People"];
-    for (const name of divisions) {
-      const existing = await ctx.db
-        .query("divisions")
-        .withIndex("by_year_and_name", (q) => q.eq("year", year).eq("name", name))
-        .unique();
-      if (!existing) await ctx.db.insert("divisions", { year, name });
+    const oldDepartments = await ctx.db
+      .query("departments")
+      .withIndex("by_year_and_name", (q) => q.eq("year", year))
+      .take(200);
+    const headsByName: Record<string, string | undefined> = {};
+    const coloursByName: Record<string, string | undefined> = {};
+    for (const department of oldDepartments) {
+      headsByName[department.name] = department.headEmail;
+      coloursByName[department.name] = department.colour;
+      await ctx.db.delete("departments", department._id);
+    }
+    const oldDivisions = await ctx.db
+      .query("divisions")
+      .withIndex("by_year_and_name", (q) => q.eq("year", year))
+      .take(200);
+    for (const division of oldDivisions) {
+      await ctx.db.delete("divisions", division._id);
     }
 
-    const departments: { name: string; division: string }[] = [
-      { name: FINANCE, division: "Operations" },
-      { name: "Data and IT", division: "Operations" },
-      { name: "Marketing", division: "Operations" },
-      { name: "Human Resources", division: "People" },
-    ];
-    for (const department of departments) {
-      const existing = await getDepartment(ctx, year, department.name);
-      if (!existing) {
-        await ctx.db.insert("departments", { year, ...department });
+    for (const [division, departments] of Object.entries(ORG_STRUCTURE)) {
+      await ctx.db.insert("divisions", { year, name: division });
+      for (const name of departments) {
+        await ctx.db.insert("departments", {
+          year,
+          name,
+          division,
+          headEmail: headsByName[name],
+          colour: coloursByName[name],
+        });
       }
     }
 

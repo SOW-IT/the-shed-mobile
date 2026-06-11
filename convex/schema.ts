@@ -36,6 +36,7 @@ export default defineSchema({
     name: v.string(),
     division: v.string(),
     headEmail: v.optional(v.string()), // the HOD; lowercase
+    colour: v.optional(v.string()), // hex, used for department badges
   }).index("by_year_and_name", ["year", "name"]),
 
   // Per-year organisation settings (e.g. who the Budget Manager is).

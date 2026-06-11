@@ -57,7 +57,7 @@ export const me = query({
       year,
       name: identity.name ?? null,
       profile: { role: profile.role, department: profile.department },
-      isAdmin: isAdminProfile(profile),
+      isAdmin: await isAdminProfile(ctx, profile),
       isFinance: profile.department === FINANCE,
       isDirector: profile.role === DIRECTOR,
       isBudgetManager: approvers.budgetManagerEmail === email,
@@ -95,6 +95,7 @@ export const yearStructure = query({
         name: d.name,
         division: d.division,
         headEmail: d.headEmail ?? null,
+        colour: d.colour ?? null,
       })),
       budgetManagerEmail: settings?.budgetManagerEmail ?? null,
     };

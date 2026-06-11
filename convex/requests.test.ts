@@ -28,13 +28,13 @@ async function setup() {
   await admin.mutation(api.admin.upsertDepartment, {
     year: YEAR,
     name: "Marketing",
-    division: "Operations",
+    division: "Engagement",
     headEmail: HENRY,
   });
   await admin.mutation(api.admin.upsertDepartment, {
     year: YEAR,
     name: "Finance",
-    division: "Operations",
+    division: "Governance",
     headEmail: FIONA,
   });
   const assignments: { email: string; role: string; department: string }[] = [
@@ -245,6 +245,28 @@ describe("admin and per-year rules", () => {
         department: "Marketing",
       })
     ).rejects.toThrow(/only manage/);
+  });
+
+  test("Human Resources division members are admins too", async () => {
+    const t = await setup();
+    await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+      email: "pnc@sow.org.au",
+      year: YEAR,
+      role: "Staff",
+      department: "People and Culture", // in the Human Resources division
+    });
+    // The People and Culture member can now assign roles themselves.
+    await asUser(t, "pnc@sow.org.au").mutation(api.admin.setStaffProfile, {
+      email: "someone@sow.org.au",
+      year: YEAR,
+      role: "Staff",
+      department: "Marketing",
+    });
+    const profiles = await asUser(t, "pnc@sow.org.au").query(
+      api.admin.listStaffProfiles,
+      { year: YEAR }
+    );
+    expect(profiles.map((p) => p.email)).toContain("someone@sow.org.au");
   });
 
   test("the Budget Manager must be from the Finance department", async () => {

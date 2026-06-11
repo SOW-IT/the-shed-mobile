@@ -5,8 +5,12 @@
 
 export const FINANCE = "Finance";
 
-/** Departments whose members administer roles, departments and divisions. */
-export const ADMIN_DEPARTMENTS = ["Human Resources", "Data and IT"];
+/**
+ * Admins are the Data and IT department plus every department in the Human
+ * Resources division (People and Culture, Training and Development).
+ */
+export const ADMIN_DEPARTMENTS = ["Data and IT"];
+export const ADMIN_DIVISIONS = ["Human Resources"];
 
 export const ROLES = ["Staff", "Head of Department", "Director"] as const;
 export type Role = (typeof ROLES)[number];

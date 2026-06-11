@@ -1,6 +1,7 @@
 import { ConvexError } from "convex/values";
 import {
   ADMIN_DEPARTMENTS,
+  ADMIN_DIVISIONS,
   DIRECTOR,
   FINANCE,
   staffYearForDate,
@@ -51,14 +52,25 @@ export async function requireProfile(ctx: Ctx): Promise<CallerContext> {
   return { email, year, profile };
 }
 
-export const isAdminProfile = (profile: Doc<"staffProfiles">): boolean =>
-  ADMIN_DEPARTMENTS.includes(profile.department);
+/**
+ * Admins: the Data and IT department, plus any department belonging to the
+ * Human Resources division that year.
+ */
+export async function isAdminProfile(
+  ctx: Ctx,
+  profile: Doc<"staffProfiles">
+): Promise<boolean> {
+  if (ADMIN_DEPARTMENTS.includes(profile.department)) return true;
+  const department = await getDepartment(ctx, profile.year, profile.department);
+  return department !== null && ADMIN_DIVISIONS.includes(department.division);
+}
 
-/** Admins are the members of the Human Resources and Data and IT departments. */
 export async function requireAdmin(ctx: Ctx): Promise<CallerContext> {
   const caller = await requireProfile(ctx);
-  if (!isAdminProfile(caller.profile)) {
-    throw new ConvexError("Only admins (Human Resources / Data and IT) can do this.");
+  if (!(await isAdminProfile(ctx, caller.profile))) {
+    throw new ConvexError(
+      "Only admins (Data and IT / Human Resources division) can do this."
+    );
   }
   return caller;
 }

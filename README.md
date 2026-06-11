@@ -17,10 +17,15 @@ from [REQUESTS_FLOW.md](https://github.com/SOW-IT/theshed/blob/main/REQUESTS_FLO
 - **Per-year roles and departments** (`staffProfiles`, `departments`,
   `divisions`, keyed by year). The staff year rolls over on **September 1**:
   admins can prepare the next year in advance and it takes effect automatically.
-- **Admins** = members of **Human Resources** and **Data and IT**. Only they
-  can assign roles/departments (for the current and next year), manage
-  divisions/departments, and set the **Budget Manager** (who must be from the
-  Finance department). Users can never change their own role.
+- **Admins** = the **Data and IT** department plus every department in the
+  **Human Resources** division (People and Culture, Training and Development).
+  Only they can assign roles/departments (for the current and next year),
+  manage divisions/departments, and set the **Budget Manager** (who must be
+  from the Finance department). Users can never change their own role.
+- **Org structure** (seeded, editable per-year by admins): Governance (Data
+  and IT, Finance, Compliance), Engagement (Marketing, Alumni), Human
+  Resources (People and Culture, Training and Development), Operations
+  (Events, Missions).
 - **Pre-provisioning by email**: assign a role/department to someone who has
   never signed in; it links up on their first Google sign-in.
 - **Google sign-in** via Convex Auth, restricted to the `sow.org.au`

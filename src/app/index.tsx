@@ -162,7 +162,7 @@ export default function MyRequestsScreen() {
           <Text style={styles.modalTitle}>Welcome{me?.name ? `, ${me.name}` : ""}</Text>
           <Muted>
             No role or department is assigned to {me?.email} for {me?.year} yet.
-            Ask an admin (Human Resources / Data and IT) to set you up.
+            Ask an admin (Data and IT or Human Resources) to set you up.
           </Muted>
           <Row>
             <Btn title="Sign out" variant="ghost" onPress={() => void signOut()} />
