@@ -21,6 +21,7 @@ import {
   getApprovers,
   getProfile,
   requireProfile,
+  rolesOf,
   type Approvers,
   type CallerContext,
 } from "./model";
@@ -113,9 +114,11 @@ export const submit = mutation({
       throw new ConvexError("Please describe what the request is for.");
     }
 
-    // Heads of Division belong to a division, not a department: their
-    // requests are filed under the division and have no HOD above them.
-    const isDivisionHead = profile.role === HEAD_OF_DIVISION;
+    // People can hold multiple roles. Division heads' requests with no
+    // department membership are filed under their division; they (and the
+    // Director) have no HOD above them.
+    const roles = rolesOf(profile);
+    const isDivisionHead = roles.includes(HEAD_OF_DIVISION);
     const department = profile.department ?? profile.division;
     if (!department) {
       throw new ConvexError("Your profile has no department or division.");
@@ -133,13 +136,13 @@ export const submit = mutation({
     // The Finance department has no separate HOD step.
     if (department === FINANCE) approvedByHOD = APPROVED;
     // HODs, Heads of Division and the Director have no HOD above them.
-    if (approvers.hodEmail === email || profile.role === DIRECTOR || isDivisionHead) {
+    if (approvers.hodEmail === email || roles.includes(DIRECTOR) || isDivisionHead) {
       approvedByHOD = APPROVED;
     }
     // The Budget Manager never reviews their own request.
     if (approvers.budgetManagerEmail === email) approvedByBudgetManager = APPROVED;
-    // Nor does the Director review their own >= $5000 request.
-    if (needsDirector && approvers.directorEmail === email) {
+    // Nor does a Director review their own >= $5000 request.
+    if (needsDirector && roles.includes(DIRECTOR)) {
       approvedByDirector = APPROVED;
     }
     // The Finance Head's own requests skip HOD, Budget Manager and Finance Head.
@@ -268,13 +271,14 @@ export const toReview = query({
     const { email, year } = caller;
     const open = await openRequestsAcrossYears(ctx, year);
     const approversFor = makeApproverResolver(ctx);
-    // The caller's role in a given year (Director gating is per-year too).
-    const roleIn = new Map<number, string | undefined>();
-    const callerRoleIn = async (y: number) => {
-      if (!roleIn.has(y)) {
-        roleIn.set(y, (await getProfile(ctx, email, y))?.role);
+    // The caller's roles in a given year (Director gating is per-year too).
+    const rolesByYear = new Map<number, string[]>();
+    const callerRolesIn = async (y: number) => {
+      if (!rolesByYear.has(y)) {
+        const profileForYear = await getProfile(ctx, email, y);
+        rolesByYear.set(y, profileForYear ? rolesOf(profileForYear) : []);
       }
-      return roleIn.get(y);
+      return rolesByYear.get(y)!;
     };
 
     const hod: Doc<"requests">[] = [];
@@ -312,8 +316,8 @@ export const toReview = query({
         budgetManager.push(request);
       } else if (
         step === "director" &&
-        ((await callerRoleIn(request.year)) === DIRECTOR ||
-          (await callerRoleIn(year)) === DIRECTOR)
+        ((await callerRolesIn(request.year)).includes(DIRECTOR) ||
+          (await callerRolesIn(year)).includes(DIRECTOR))
       ) {
         director.push(request);
       } else if (step === "financeHead" && matches((a) => a.financeHeadEmail)) {
@@ -374,10 +378,14 @@ async function authorizeStep(
       : await getApprovers(ctx, caller.year, request.department);
   const matches = (pick: (a: Approvers) => string | undefined) =>
     pick(approvers) === caller.email || pick(currentApprovers) === caller.email;
+  const requestYearProfile =
+    request.year === caller.year
+      ? caller.profile
+      : await getProfile(ctx, caller.email, request.year);
   const isDirector =
-    caller.profile.role === DIRECTOR ||
-    (request.year !== caller.year &&
-      (await getProfile(ctx, caller.email, request.year))?.role === DIRECTOR);
+    rolesOf(caller.profile).includes(DIRECTOR) ||
+    (requestYearProfile !== null &&
+      rolesOf(requestYearProfile).includes(DIRECTOR));
 
   const stepChecks: Record<Step, { allowed: boolean; ready: boolean }> = {
     hod: {

@@ -53,6 +53,10 @@ export async function requireProfile(ctx: Ctx): Promise<CallerContext> {
   return { email, year, profile };
 }
 
+/** A profile's roles; reads the legacy single-role field transparently. */
+export const rolesOf = (profile: Doc<"staffProfiles">): string[] =>
+  profile.roles ?? (profile.role ? [profile.role] : []);
+
 /**
  * Admins: the Director, the Head of the Human Resources division, the
  * Data and IT department, and any department in the Human Resources division.
@@ -61,9 +65,14 @@ export async function isAdminProfile(
   ctx: Ctx,
   profile: Doc<"staffProfiles">
 ): Promise<boolean> {
-  if (profile.role === DIRECTOR) return true;
-  if (profile.role === HEAD_OF_DIVISION) {
-    return profile.division !== undefined && ADMIN_DIVISIONS.includes(profile.division);
+  const roles = rolesOf(profile);
+  if (roles.includes(DIRECTOR)) return true;
+  if (
+    roles.includes(HEAD_OF_DIVISION) &&
+    profile.division !== undefined &&
+    ADMIN_DIVISIONS.includes(profile.division)
+  ) {
+    return true;
   }
   if (!profile.department) return false;
   if (ADMIN_DEPARTMENTS.includes(profile.department)) return true;
@@ -118,10 +127,13 @@ export async function getApprovers(
   const department = await getDepartment(ctx, year, departmentName);
   const finance = await getDepartment(ctx, year, FINANCE);
   const settings = await getYearSettings(ctx, year);
-  const directorProfile = await ctx.db
+  // Roles are arrays now, so the Director is found by scanning the year's
+  // profiles (small table) rather than via the legacy role index.
+  const profiles = await ctx.db
     .query("staffProfiles")
-    .withIndex("by_year_and_role", (q) => q.eq("year", year).eq("role", DIRECTOR))
-    .first();
+    .withIndex("by_year", (q) => q.eq("year", year))
+    .take(1000);
+  const directorProfile = profiles.find((p) => rolesOf(p).includes(DIRECTOR));
   return {
     hodEmail: department?.headEmail,
     budgetManagerEmail: settings?.budgetManagerEmail,

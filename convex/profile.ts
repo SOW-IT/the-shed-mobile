@@ -2,7 +2,7 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import { mutation, MutationCtx, query } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
-import { requireEmail } from "./model";
+import { requireEmail, rolesOf } from "./model";
 
 /**
  * A person's profile: Google-synced identity, self-editable extras (church,
@@ -37,7 +37,7 @@ export const get = query({
       localChurch: user?.localChurch ?? null,
       serviceHistory: history.map((h) => ({
         year: h.year,
-        role: h.role,
+        roles: rolesOf(h),
         department: h.department ?? null,
         division: h.division ?? null,
       })),

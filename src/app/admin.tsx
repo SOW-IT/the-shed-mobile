@@ -64,11 +64,17 @@ export default function AdminScreen() {
     }
   };
 
-  // Staff form
+  // Staff form — a person can hold multiple roles.
   const [staffEmail, setStaffEmail] = useState("");
-  const [staffRole, setStaffRole] = useState<string>(ROLES[0]);
+  const [staffRoles, setStaffRoles] = useState<string[]>([ROLES[0]]);
   const [staffDepartment, setStaffDepartment] = useState("");
   const [staffDivision, setStaffDivision] = useState("");
+  const toggleRole = (role: string) =>
+    setStaffRoles((previous) =>
+      previous.includes(role)
+        ? previous.filter((r) => r !== role)
+        : [...previous, role]
+    );
   // Division / department forms
   const [divisionName, setDivisionName] = useState("");
   const [departmentName, setDepartmentName] = useState("");
@@ -85,7 +91,8 @@ export default function AdminScreen() {
     );
   }
 
-  const isDivisionHeadRole = staffRole === HEAD_OF_DIVISION;
+  const needsDivision = staffRoles.includes(HEAD_OF_DIVISION);
+  const needsDepartment = staffRoles.some((role) => role !== HEAD_OF_DIVISION);
   const yearLabel = (y: number) =>
     y === currentYear
       ? `${y} (current)`
@@ -167,18 +174,18 @@ export default function AdminScreen() {
             placeholder="someone@sow.org.au"
             keyboardType="email-address"
           />
-          <Muted>Role</Muted>
+          <Muted>Roles (tap to toggle — a person can hold several)</Muted>
           <Row>
             {ROLES.map((role) => (
               <Btn
                 key={role}
                 title={role}
-                variant={staffRole === role ? "primary" : "ghost"}
-                onPress={() => setStaffRole(role)}
+                variant={staffRoles.includes(role) ? "primary" : "ghost"}
+                onPress={() => toggleRole(role)}
               />
             ))}
           </Row>
-          {isDivisionHeadRole ? (
+          {needsDivision && (
             <>
               <Muted>Division (Heads of Division belong directly to one)</Muted>
               <Row>
@@ -192,7 +199,8 @@ export default function AdminScreen() {
                 ))}
               </Row>
             </>
-          ) : (
+          )}
+          {needsDepartment && (
             <>
               <Muted>Department</Muted>
               <Row>
@@ -214,9 +222,9 @@ export default function AdminScreen() {
                 setStaffProfile({
                   email: staffEmail,
                   year: selectedYear,
-                  role: staffRole,
-                  department: isDivisionHeadRole ? undefined : staffDepartment,
-                  division: isDivisionHeadRole ? staffDivision : undefined,
+                  roles: staffRoles,
+                  department: needsDepartment ? staffDepartment : undefined,
+                  division: needsDivision ? staffDivision : undefined,
                 })
               ).then((ok) => ok && setStaffEmail(""))
             }
@@ -229,7 +237,8 @@ export default function AdminScreen() {
             <View style={{ flexGrow: 1 }}>
               <Txt style={{ fontWeight: "600" }}>{profile.email}</Txt>
               <Muted>
-                {profile.role} • {profile.department ?? profile.division ?? "—"}
+                {profile.roles.join(", ")} •{" "}
+                {[profile.department, profile.division].filter(Boolean).join(" / ") || "—"}
               </Muted>
             </View>
             {editable && (

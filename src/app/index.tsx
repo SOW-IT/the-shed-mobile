@@ -178,8 +178,11 @@ export default function MyRequestsScreen() {
               <View style={{ flexGrow: 1 }}>
                 <Txt style={{ fontWeight: "700" }}>{me.name ?? me.email}</Txt>
                 <Muted>
-                  {me.profile.role} •{" "}
-                  {me.profile.department ?? me.profile.division ?? "—"} • {me.year}
+                  {me.profile.roles.join(", ")} •{" "}
+                  {[me.profile.department, me.profile.division]
+                    .filter(Boolean)
+                    .join(" / ") || "—"}{" "}
+                  • {me.year}
                 </Muted>
               </View>
               <Btn title="Sign out" variant="ghost" onPress={() => void signOut()} />

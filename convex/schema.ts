@@ -27,13 +27,15 @@ export default defineSchema({
     avatarId: v.optional(v.id("_storage")), // custom photo, preferred over Google's
   }).index("email", ["email"]),
 
-  // Per-year role + department assignment, keyed by email so admins can
-  // provision people before their first Google sign-in. Heads of Division
-  // belong directly to a division (department unset) instead of a department.
+  // Per-year roles + department assignment, keyed by email so admins can
+  // provision people before their first Google sign-in. A person can hold
+  // multiple roles (e.g. Head of Division AND Head of Department); Heads of
+  // Division belong to a division, optionally alongside a department.
   staffProfiles: defineTable({
     email: v.string(), // always lowercase
     year: v.number(),
-    role: v.string(),
+    roles: v.optional(v.array(v.string())),
+    role: v.optional(v.string()), // legacy single-role field; use rolesOf()
     department: v.optional(v.string()),
     division: v.optional(v.string()), // for Heads of Division
     name: v.optional(v.string()), // synced from Google on sign-in

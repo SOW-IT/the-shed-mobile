@@ -8,6 +8,7 @@ import {
   getYearSettings,
   nextStaffYear,
   requireAdmin,
+  rolesOf,
 } from "./model";
 
 /** Admins may only manage the current staff year and the next one. */
@@ -20,15 +21,17 @@ const assertManagedYear = (year: number) => {
 };
 
 /**
- * Assign a role + department (or division, for Heads of Division) to a user
- * for a year, by email — works before the user has ever signed in. Only
- * admins; ordinary users can never change their own role or department.
+ * Assign roles + department/division to a user for a year, by email — works
+ * before the user has ever signed in. A person can hold multiple roles (e.g.
+ * Head of Division AND Head of Department): division-based roles need a
+ * division, everything else needs a department, and both may be set. Only
+ * admins; ordinary users can never change their own roles or department.
  */
 export const setStaffProfile = mutation({
   args: {
     email: v.string(),
     year: v.number(),
-    role: v.string(),
+    roles: v.array(v.string()),
     department: v.optional(v.string()),
     division: v.optional(v.string()),
   },
@@ -37,14 +40,19 @@ export const setStaffProfile = mutation({
     assertManagedYear(args.year);
     const email = args.email.trim().toLowerCase();
     if (!email.includes("@")) throw new ConvexError("Enter a valid email.");
-    if (!ROLES.includes(args.role as (typeof ROLES)[number])) {
-      throw new ConvexError(`Role must be one of: ${ROLES.join(", ")}.`);
+    const roles = [...new Set(args.roles)];
+    if (roles.length === 0) throw new ConvexError("Pick at least one role.");
+    for (const role of roles) {
+      if (!ROLES.includes(role as (typeof ROLES)[number])) {
+        throw new ConvexError(`Roles must be among: ${ROLES.join(", ")}.`);
+      }
     }
 
-    let department: string | undefined;
+    const needsDivision = roles.includes(HEAD_OF_DIVISION);
+    const needsDepartment = roles.some((role) => role !== HEAD_OF_DIVISION);
+
     let division: string | undefined;
-    if (args.role === HEAD_OF_DIVISION) {
-      // Heads of Division belong directly to a division.
+    if (needsDivision) {
       division = args.division;
       const exists =
         division &&
@@ -59,7 +67,9 @@ export const setStaffProfile = mutation({
           `A Head of Division needs a division that exists in ${args.year}.`
         );
       }
-    } else {
+    }
+    let department: string | undefined;
+    if (needsDepartment) {
       department = args.department;
       const exists =
         department && (await getDepartment(ctx, args.year, department));
@@ -84,7 +94,8 @@ export const setStaffProfile = mutation({
     const existing = await getProfile(ctx, email, args.year);
     if (existing) {
       await ctx.db.patch("staffProfiles", existing._id, {
-        role: args.role,
+        roles,
+        role: undefined, // retire the legacy single-role field
         department,
         division,
       });
@@ -93,7 +104,7 @@ export const setStaffProfile = mutation({
     return await ctx.db.insert("staffProfiles", {
       email,
       year: args.year,
-      role: args.role,
+      roles,
       department,
       division,
     });
@@ -124,10 +135,11 @@ export const listStaffProfiles = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    return await ctx.db
+    const profiles = await ctx.db
       .query("staffProfiles")
       .withIndex("by_year", (q) => q.eq("year", args.year))
       .take(1000);
+    return profiles.map((profile) => ({ ...profile, roles: rolesOf(profile) }));
   },
 });
 
@@ -328,7 +340,7 @@ export const seed = internalMutation({
       await ctx.db.insert("staffProfiles", {
         email,
         year,
-        role: STAFF_ROLE,
+        roles: [STAFF_ROLE],
         department: "Data and IT",
       });
     }

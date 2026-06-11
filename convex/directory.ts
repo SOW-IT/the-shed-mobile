@@ -9,6 +9,7 @@ import {
   isAdminProfile,
   nextStaffYear,
   requireEmail,
+  rolesOf,
 } from "./model";
 
 /**
@@ -69,13 +70,13 @@ export const me = query({
       name: identity.name ?? null,
       photo,
       profile: {
-        role: profile.role,
+        roles: rolesOf(profile),
         department: profile.department ?? null,
         division: profile.division ?? null,
       },
       isAdmin: await isAdminProfile(ctx, profile),
       isFinance: profile.department === FINANCE,
-      isDirector: profile.role === DIRECTOR,
+      isDirector: rolesOf(profile).includes(DIRECTOR),
       isBudgetManager: approvers.budgetManagerEmail === email,
       isFinanceHead: approvers.financeHeadEmail === email,
       headedDepartments,
@@ -83,7 +84,7 @@ export const me = query({
         headedDepartments.some((d) => d !== FINANCE) ||
         approvers.budgetManagerEmail === email ||
         approvers.financeHeadEmail === email ||
-        profile.role === DIRECTOR,
+        rolesOf(profile).includes(DIRECTOR),
     };
   },
 });
@@ -155,7 +156,8 @@ export const orgChart = query({
       role: role ?? null,
     });
 
-    const directorProfile = profiles.find((p) => p.role === DIRECTOR) ?? null;
+    const directorProfile =
+      profiles.find((p) => rolesOf(p).includes(DIRECTOR)) ?? null;
 
     return {
       year,
@@ -165,7 +167,8 @@ export const orgChart = query({
         : null,
       divisions: divisions.map((division) => {
         const divisionHead = profiles.find(
-          (p) => p.role === HEAD_OF_DIVISION && p.division === division.name
+          (p) =>
+            rolesOf(p).includes(HEAD_OF_DIVISION) && p.division === division.name
         );
         return {
           name: division.name,
@@ -181,9 +184,9 @@ export const orgChart = query({
                   (p) =>
                     p.department === department.name &&
                     p.email !== department.headEmail &&
-                    p.role !== DIRECTOR
+                    !rolesOf(p).includes(DIRECTOR)
                 )
-                .map((p) => person(p.email, p.role)),
+                .map((p) => person(p.email, rolesOf(p).join(", "))),
             })),
         };
       }),

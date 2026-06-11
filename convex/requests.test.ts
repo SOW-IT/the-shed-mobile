@@ -37,12 +37,12 @@ async function setup() {
     division: "Governance",
     headEmail: FIONA,
   });
-  const assignments: { email: string; role: string; department: string }[] = [
-    { email: RACHEL, role: "Staff", department: "Marketing" },
-    { email: HENRY, role: "Head of Department", department: "Marketing" },
-    { email: BELLA, role: "Staff", department: "Finance" },
-    { email: FIONA, role: "Head of Department", department: "Finance" },
-    { email: DAN, role: "Director", department: "Marketing" },
+  const assignments: { email: string; roles: string[]; department: string }[] = [
+    { email: RACHEL, roles: ["Staff"], department: "Marketing" },
+    { email: HENRY, roles: ["Head of Department"], department: "Marketing" },
+    { email: BELLA, roles: ["Staff"], department: "Finance" },
+    { email: FIONA, roles: ["Head of Department"], department: "Finance" },
+    { email: DAN, roles: ["Director"], department: "Marketing" },
   ];
   for (const a of assignments) {
     await admin.mutation(api.admin.setStaffProfile, { year: YEAR, ...a });
@@ -210,7 +210,7 @@ describe("admin and per-year rules", () => {
       asUser(t, RACHEL).mutation(api.admin.setStaffProfile, {
         email: RACHEL,
         year: YEAR,
-        role: "Head of Department",
+        roles: ["Head of Department"],
         department: "Marketing",
       })
     ).rejects.toThrow(/Only admins/);
@@ -228,7 +228,7 @@ describe("admin and per-year rules", () => {
     await admin.mutation(api.admin.setStaffProfile, {
       email: "newhire@sow.org.au",
       year: YEAR + 1,
-      role: "Staff",
+      roles: ["Staff"],
       department: "Marketing",
     });
     const nextYearProfiles = await admin.query(api.admin.listStaffProfiles, {
@@ -241,7 +241,7 @@ describe("admin and per-year rules", () => {
       admin.mutation(api.admin.setStaffProfile, {
         email: "newhire@sow.org.au",
         year: YEAR + 2,
-        role: "Staff",
+        roles: ["Staff"],
         department: "Marketing",
       })
     ).rejects.toThrow(/only manage/);
@@ -252,14 +252,14 @@ describe("admin and per-year rules", () => {
     await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
       email: "pnc@sow.org.au",
       year: YEAR,
-      role: "Staff",
+      roles: ["Staff"],
       department: "People and Culture", // in the Human Resources division
     });
     // The People and Culture member can now assign roles themselves.
     await asUser(t, "pnc@sow.org.au").mutation(api.admin.setStaffProfile, {
       email: "someone@sow.org.au",
       year: YEAR,
-      role: "Staff",
+      roles: ["Staff"],
       department: "Marketing",
     });
     const profiles = await asUser(t, "pnc@sow.org.au").query(
@@ -279,7 +279,7 @@ describe("admin and per-year rules", () => {
     await admin.mutation(api.admin.setStaffProfile, {
       email: BELLA,
       year: YEAR,
-      role: "Staff",
+      roles: ["Staff"],
       department: "Marketing",
     });
     const structure = await admin.query(api.directory.yearStructure, { year: YEAR });
@@ -318,7 +318,7 @@ describe("admin and per-year rules", () => {
       await ctx.db.insert("staffProfiles", {
         email: HENRY,
         year: 2020,
-        role: "Head of Department",
+        roles: ["Head of Department"],
         department: "Old Marketing",
       });
     });
@@ -342,6 +342,8 @@ describe("admin and per-year rules", () => {
     // Rachel has signed in before (users row exists, with the Google photo)
     // and served in 2025 too.
     const rachelUserId = await t.run(async (ctx) => {
+      // Deliberately uses the legacy single-role field: rolesOf() must
+      // normalise old documents written before roles became an array.
       await ctx.db.insert("staffProfiles", {
         email: RACHEL,
         year: YEAR - 1,
@@ -371,8 +373,8 @@ describe("admin and per-year rules", () => {
     expect(viewed.name).toBe("Rachel R");
     expect(viewed.localChurch).toBe("SOW City Church");
     expect(viewed.serviceHistory).toEqual([
-      { year: YEAR, role: "Staff", department: "Marketing", division: null },
-      { year: YEAR - 1, role: "Staff", department: "Events", division: null },
+      { year: YEAR, roles: ["Staff"], department: "Marketing", division: null },
+      { year: YEAR - 1, roles: ["Staff"], department: "Events", division: null },
     ]);
 
     // Rachel's own view is editable (isMe) but role/department come from
@@ -422,7 +424,7 @@ describe("admin and per-year rules", () => {
     await admin.mutation(api.admin.setStaffProfile, {
       email: "walter@sow.org.au",
       year: YEAR,
-      role: "Staff",
+      roles: ["Staff"],
       department: "Marketing",
     });
     const after = await admin.query(api.admin.listUnassignedUsers, { year: YEAR });
@@ -473,7 +475,7 @@ describe("deadlock prevention and validation fixes", () => {
       year: YEAR, name: "Finance", division: "Governance", headEmail: FIONA,
     });
     await admin.mutation(api.admin.setStaffProfile, {
-      email: RACHEL, year: YEAR, role: "Staff", department: "Marketing",
+      email: RACHEL, year: YEAR, roles: ["Staff"], department: "Marketing",
     });
     await expect(
       asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 })
@@ -484,7 +486,7 @@ describe("deadlock prevention and validation fixes", () => {
     const t = await setup();
     // Dan steps down: nobody holds the Director role any more.
     await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
-      email: DAN, year: YEAR, role: "Staff", department: "Marketing",
+      email: DAN, year: YEAR, roles: ["Staff"], department: "Marketing",
     });
     await expect(
       asUser(t, RACHEL).mutation(api.requests.submit, { description: "big", amount: 6000 })
@@ -595,22 +597,22 @@ describe("deadlock prevention and validation fixes", () => {
     const t = await setup();
     // Dan (Director) can manage staff assignments.
     await asUser(t, DAN).mutation(api.admin.setStaffProfile, {
-      email: "new@sow.org.au", year: YEAR, role: "Staff", department: "Marketing",
+      email: "new@sow.org.au", year: YEAR, roles: ["Staff"], department: "Marketing",
     });
     // The Head of the Human Resources division is an admin...
     await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
-      email: "hrhead@sow.org.au", year: YEAR, role: "Head of Division", division: "Human Resources",
+      email: "hrhead@sow.org.au", year: YEAR, roles: ["Head of Division"], division: "Human Resources",
     });
     await asUser(t, "hrhead@sow.org.au").mutation(api.admin.setStaffProfile, {
-      email: "new2@sow.org.au", year: YEAR, role: "Staff", department: "Marketing",
+      email: "new2@sow.org.au", year: YEAR, roles: ["Staff"], department: "Marketing",
     });
     // ...but the Head of the Engagement division is not.
     await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
-      email: "enghead@sow.org.au", year: YEAR, role: "Head of Division", division: "Engagement",
+      email: "enghead@sow.org.au", year: YEAR, roles: ["Head of Division"], division: "Engagement",
     });
     await expect(
       asUser(t, "enghead@sow.org.au").mutation(api.admin.setStaffProfile, {
-        email: "new3@sow.org.au", year: YEAR, role: "Staff", department: "Marketing",
+        email: "new3@sow.org.au", year: YEAR, roles: ["Staff"], department: "Marketing",
       })
     ).rejects.toThrow(/Only admins/);
   });
@@ -645,11 +647,47 @@ describe("deadlock prevention and validation fixes", () => {
     });
   });
 
+  test("a person can hold multiple roles (division head + department head)", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "maria@sow.org.au",
+      year: YEAR,
+      roles: ["Head of Division", "Head of Department"],
+      division: "Engagement",
+      department: "Marketing",
+    });
+    // Org chart: heads the Engagement division AND appears in Marketing.
+    const chart = await asUser(t, RACHEL).query(api.directory.orgChart, {});
+    const engagement = chart.divisions.find((d) => d.name === "Engagement");
+    expect(engagement?.head?.email).toBe("maria@sow.org.au");
+    const marketing = engagement?.departments.find((d) => d.name === "Marketing");
+    expect(marketing?.members.map((m) => m.email)).toContain("maria@sow.org.au");
+
+    // Department-based roles still require a department.
+    await expect(
+      admin.mutation(api.admin.setStaffProfile, {
+        email: "x@sow.org.au",
+        year: YEAR,
+        roles: ["Head of Division", "Staff"],
+        division: "Engagement",
+      })
+    ).rejects.toThrow(/Department/);
+
+    // Her own requests file under her department; as a division head she
+    // has no HOD above her.
+    const maria = asUser(t, "maria@sow.org.au");
+    await maria.mutation(api.requests.submit, { description: "x", amount: 50 });
+    const [request] = await maria.query(api.requests.myRequests, {});
+    expect(request.department).toBe("Marketing");
+    expect(request.approvedByHOD).toBe("APPROVED");
+  });
+
   test("Heads of Division belong to a division and skip the HOD step", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.setStaffProfile, {
-      email: "diana@sow.org.au", year: YEAR, role: "Head of Division", division: "Engagement",
+      email: "diana@sow.org.au", year: YEAR, roles: ["Head of Division"], division: "Engagement",
     });
     // Shown as the division's head on the org chart.
     const chart = await asUser(t, RACHEL).query(api.directory.orgChart, {});
@@ -666,7 +704,7 @@ describe("deadlock prevention and validation fixes", () => {
     // The division must exist for the year.
     await expect(
       admin.mutation(api.admin.setStaffProfile, {
-        email: "x@sow.org.au", year: YEAR, role: "Head of Division", division: "Nope",
+        email: "x@sow.org.au", year: YEAR, roles: ["Head of Division"], division: "Nope",
       })
     ).rejects.toThrow(/division/);
   });
