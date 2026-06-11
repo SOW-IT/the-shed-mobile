@@ -647,6 +647,57 @@ describe("deadlock prevention and validation fixes", () => {
     });
   });
 
+  test("requests can be submitted on behalf of another department", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // Events has no head yet, so submitting for it hits the deadlock guard.
+    await expect(
+      asUser(t, RACHEL).mutation(api.requests.submit, {
+        description: "x", amount: 100, department: "Events",
+      })
+    ).rejects.toThrow(/Head for the Events/);
+
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Events", division: "Operations", headEmail: "evan@sow.org.au",
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "evan@sow.org.au", year: YEAR, roles: ["Head of Department"], department: "Events",
+    });
+    await asUser(t, RACHEL).mutation(api.requests.submit, {
+      description: "conference", amount: 100, department: "Events",
+    });
+    const [request] = await asUser(t, RACHEL).query(api.requests.myRequests, {});
+    expect(request.department).toBe("Events");
+    expect(request.approvedByHOD).toBe("PENDING");
+
+    // Events' head reviews it; Rachel's own HOD (Marketing) does not.
+    const evanReview = await asUser(t, "evan@sow.org.au").query(api.requests.toReview, {});
+    expect(evanReview.hod.map((r) => r._id)).toContain(request._id);
+    const henryReview = await asUser(t, HENRY).query(api.requests.toReview, {});
+    expect(henryReview.hod).toHaveLength(0);
+
+    // Unknown departments are rejected.
+    await expect(
+      asUser(t, RACHEL).mutation(api.requests.submit, {
+        description: "x", amount: 10, department: "Nope",
+      })
+    ).rejects.toThrow(/doesn't exist/);
+  });
+
+  test("a division head submitting outside their division gets a normal HOD step", async () => {
+    const t = await setup();
+    await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+      email: "diana@sow.org.au", year: YEAR, roles: ["Head of Division"], division: "Operations",
+    });
+    // Marketing is in Engagement — not Diana's division — so Henry approves.
+    await asUser(t, "diana@sow.org.au").mutation(api.requests.submit, {
+      description: "x", amount: 60, department: "Marketing",
+    });
+    const [request] = await asUser(t, "diana@sow.org.au").query(api.requests.myRequests, {});
+    expect(request.department).toBe("Marketing");
+    expect(request.approvedByHOD).toBe("PENDING");
+  });
+
   test("a person can hold multiple roles (division head + department head)", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
@@ -694,11 +745,12 @@ describe("deadlock prevention and validation fixes", () => {
     expect(chart.divisions.find((d) => d.name === "Engagement")?.head?.email).toBe(
       "diana@sow.org.au"
     );
-    // Her requests are filed under the division with no HOD step pending.
+    // Her requests default to a department under her division (first
+    // alphabetically: Alumni), with no HOD step pending — she outranks it.
     const diana = asUser(t, "diana@sow.org.au");
     await diana.mutation(api.requests.submit, { description: "x", amount: 100 });
     const [request] = await diana.query(api.requests.myRequests, {});
-    expect(request.department).toBe("Engagement");
+    expect(request.department).toBe("Alumni");
     expect(request.approvedByHOD).toBe("APPROVED");
     expect(request.approvedByBudgetManager).toBe("PENDING");
     // The division must exist for the year.

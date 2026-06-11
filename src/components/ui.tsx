@@ -1,7 +1,8 @@
 import { ConvexError } from "convex/values";
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import {
   Image,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -124,6 +125,70 @@ export const Field = ({
   );
 };
 
+/** A labelled dropdown: a field-like button opening a modal option list. */
+export const Select = ({
+  label,
+  value,
+  options,
+  onSelect,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onSelect: (option: string) => void;
+  placeholder?: string;
+}) => {
+  const t = useAppTheme();
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={styles.field}>
+      <Text style={[styles.fieldLabel, { color: t.muted }]}>{label}</Text>
+      <Pressable
+        style={[
+          styles.input,
+          { borderColor: t.border, backgroundColor: t.inputBackground },
+        ]}
+        onPress={() => setOpen(true)}
+      >
+        <Text style={{ color: value ? t.text : t.muted }}>
+          {value || placeholder || "Select…"} ▾
+        </Text>
+      </Pressable>
+      <Modal visible={open} transparent animationType="fade">
+        <Pressable style={styles.selectBackdrop} onPress={() => setOpen(false)}>
+          <View style={[styles.selectMenu, { backgroundColor: t.card }]}>
+            <ScrollView style={{ maxHeight: 360 }}>
+              {options.map((option) => (
+                <Pressable
+                  key={option}
+                  style={[
+                    styles.selectItem,
+                    option === value && { backgroundColor: t.ghost },
+                  ]}
+                  onPress={() => {
+                    onSelect(option);
+                    setOpen(false);
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: t.text,
+                      fontWeight: option === value ? "700" : "400",
+                    }}
+                  >
+                    {option}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
+    </View>
+  );
+};
+
 export const Chip = ({ label }: { label: string }) => {
   const t = useAppTheme();
   const colors =
@@ -224,4 +289,18 @@ const styles = StyleSheet.create({
   },
   muted: { fontSize: 13 },
   avatarFallback: { alignItems: "center", justifyContent: "center" },
+  selectBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    justifyContent: "center",
+    padding: 32,
+  },
+  selectMenu: {
+    borderRadius: 12,
+    paddingVertical: 4,
+    maxWidth: 360,
+    width: "100%",
+    alignSelf: "center",
+  },
+  selectItem: { paddingHorizontal: 16, paddingVertical: 12 },
 });

@@ -1,6 +1,6 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal, StyleSheet, View } from "react-native";
 import { requestCompleted, requestFullyApproved } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
@@ -16,25 +16,36 @@ import {
   Muted,
   Row,
   Screen,
+  Select,
   Txt,
 } from "@/components/ui";
 
 const NewRequestModal = ({
   visible,
   onClose,
+  departments,
+  defaultDepartment,
 }: {
   visible: boolean;
   onClose: () => void;
+  departments: string[];
+  defaultDepartment: string;
 }) => {
   const submit = useMutation(api.requests.submit);
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
+  const [department, setDepartment] = useState(defaultDepartment);
   const [error, setError] = useState<string | null>(null);
+
+  // Re-default the department each time the form opens.
+  useEffect(() => {
+    if (visible) setDepartment(defaultDepartment);
+  }, [visible, defaultDepartment]);
 
   const handleSubmit = async () => {
     setError(null);
     try {
-      await submit({ description, amount: Number(amount) });
+      await submit({ description, amount: Number(amount), department });
       setDescription("");
       setAmount("");
       onClose();
@@ -61,6 +72,12 @@ const NewRequestModal = ({
             onChangeText={setAmount}
             placeholder="0.00"
             keyboardType="numeric"
+          />
+          <Select
+            label="Department (you can submit on behalf of another department)"
+            value={department}
+            options={departments}
+            onSelect={setDepartment}
           />
           <Muted>Requests of $5,000 or more also require Director approval.</Muted>
           <ErrorBanner message={error} />
@@ -141,6 +158,18 @@ export default function MyRequestsScreen() {
     api.requests.myRequests,
     me?.profile ? {} : "skip"
   );
+  const structure = useQuery(
+    api.directory.yearStructure,
+    me?.profile ? { year: me.year } : "skip"
+  );
+  const departmentNames = (structure?.departments ?? []).map((d) => d.name);
+  // Own department, or (for Heads of Division) one under their division.
+  const defaultDepartment =
+    me?.profile?.department ??
+    (structure?.departments ?? []).find(
+      (d) => d.division === me?.profile?.division
+    )?.name ??
+    "";
   const cancel = useMutation(api.requests.cancel);
   const [newOpen, setNewOpen] = useState(false);
   const [receiptFor, setReceiptFor] = useState<Doc<"requests"> | null>(null);
@@ -216,7 +245,12 @@ export default function MyRequestsScreen() {
               </RequestCard>
             ))
           )}
-          <NewRequestModal visible={newOpen} onClose={() => setNewOpen(false)} />
+          <NewRequestModal
+            visible={newOpen}
+            onClose={() => setNewOpen(false)}
+            departments={departmentNames}
+            defaultDepartment={defaultDepartment}
+          />
           <ReceiptModal request={receiptFor} onClose={() => setReceiptFor(null)} />
         </>
       )}

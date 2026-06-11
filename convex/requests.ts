@@ -19,6 +19,7 @@ import { Doc, Id } from "./_generated/dataModel";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import {
   getApprovers,
+  getDepartment,
   getProfile,
   requireProfile,
   rolesOf,
@@ -104,6 +105,10 @@ export const submit = mutation({
   args: {
     description: v.string(),
     amount: v.number(),
+    // Requests can be submitted on behalf of any existing department;
+    // defaults to the submitter's own (or, for Heads of Division, the first
+    // department under their division).
+    department: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { email, year, profile } = await requireProfile(ctx);
@@ -114,15 +119,27 @@ export const submit = mutation({
       throw new ConvexError("Please describe what the request is for.");
     }
 
-    // People can hold multiple roles. Division heads' requests with no
-    // department membership are filed under their division; they (and the
-    // Director) have no HOD above them.
     const roles = rolesOf(profile);
     const isDivisionHead = roles.includes(HEAD_OF_DIVISION);
-    const department = profile.department ?? profile.division;
-    if (!department) {
-      throw new ConvexError("Your profile has no department or division.");
+
+    let department = args.department?.trim() || profile.department;
+    if (!department && profile.division) {
+      const yearDepartments = await ctx.db
+        .query("departments")
+        .withIndex("by_year_and_name", (q) => q.eq("year", year))
+        .take(200);
+      department = yearDepartments.find(
+        (d) => d.division === profile.division
+      )?.name;
     }
+    if (!department) {
+      throw new ConvexError("Pick a department for this request.");
+    }
+    const departmentDoc = await getDepartment(ctx, year, department);
+    if (!departmentDoc) {
+      throw new ConvexError(`Department "${department}" doesn't exist in ${year}.`);
+    }
+
     const approvers = await getApprovers(ctx, year, department);
     const needsDirector = args.amount >= DIRECTOR_APPROVAL_THRESHOLD;
 
@@ -135,8 +152,13 @@ export const submit = mutation({
 
     // The Finance department has no separate HOD step.
     if (department === FINANCE) approvedByHOD = APPROVED;
-    // HODs, Heads of Division and the Director have no HOD above them.
-    if (approvers.hodEmail === email || roles.includes(DIRECTOR) || isDivisionHead) {
+    // No HOD step when the submitter is this department's head, the
+    // Director, or the head of the division this department belongs to.
+    if (
+      approvers.hodEmail === email ||
+      roles.includes(DIRECTOR) ||
+      (isDivisionHead && departmentDoc.division === profile.division)
+    ) {
       approvedByHOD = APPROVED;
     }
     // The Budget Manager never reviews their own request.
