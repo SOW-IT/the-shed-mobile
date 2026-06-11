@@ -120,6 +120,29 @@ export async function requireAdmin(ctx: Ctx): Promise<CallerContext> {
   return caller;
 }
 
+/**
+ * The durable person key to stamp on a profile being created for `email`:
+ * an existing profile's importId for that email (people from the old app),
+ * else their users row id (people who joined after the migration), else
+ * undefined — userLink fills it with the user id at their first sign-in.
+ */
+export async function resolveImportId(
+  ctx: Ctx,
+  email: string
+): Promise<string | undefined> {
+  const profiles = await ctx.db
+    .query("staffProfiles")
+    .withIndex("by_email_and_year", (q) => q.eq("email", email))
+    .take(50);
+  const existing = profiles.find((p) => p.importId !== undefined);
+  if (existing) return existing.importId;
+  const user = await ctx.db
+    .query("users")
+    .withIndex("email", (q) => q.eq("email", email))
+    .first();
+  return user?._id;
+}
+
 export async function getDepartment(
   ctx: Ctx,
   year: number,

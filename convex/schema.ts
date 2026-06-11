@@ -43,9 +43,11 @@ export default defineSchema({
     // Bound on first sign-in; the durable anchor that survives Google
     // Workspace email renames (see userLink.ts).
     userId: v.optional(v.id("users")),
-    // The person's id in the old web app's Firestore. Profiles imported from
-    // there share it across years, so the same person is recognised even
-    // when their email differed year to year (see userLink.ts).
+    // The durable person key shared by all of one person's years, so the
+    // same person is recognised even when their email changes (userLink.ts).
+    // For people imported from the old web app it's their id in its
+    // Firestore; for people who joined later it's their users row id,
+    // filled in at provisioning or first sign-in.
     importId: v.optional(v.string()),
   })
     .index("by_email_and_year", ["email", "year"])

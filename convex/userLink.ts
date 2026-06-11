@@ -148,6 +148,20 @@ export async function linkUserProfiles(ctx: MutationCtx, userId: Id<"users">) {
       await rekeyEmail(ctx, oldEmail, email);
     }
   }
+
+  // Every profile of this person ends up with the durable person key: their
+  // imported id when one exists, otherwise their user id (people who joined
+  // after the migration from the old app).
+  const personKey = [...importIds][0] ?? userId;
+  const mine = await ctx.db
+    .query("staffProfiles")
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .take(100);
+  for (const profile of mine) {
+    if (profile.importId === undefined) {
+      await ctx.db.patch("staffProfiles", profile._id, { importId: personKey });
+    }
+  }
 }
 
 /** Test/maintenance entry point for the sign-in linking logic. */

@@ -219,6 +219,103 @@ describe("email changes: the person stays the same", () => {
     expect(profile.serviceHistory.map((h) => h.year)).toEqual([YEAR, YEAR - 1]);
   });
 
+  test("people without an imported id get their user id as the person key", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const newcomer = "noah.new@sow.org.au";
+
+    // Pre-provisioned before ever signing in: no users row, no person key.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: newcomer,
+      year: YEAR,
+      roles: ["Staff"],
+      department: "Data and IT",
+    });
+    await t.run(async (ctx) => {
+      const profile = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", newcomer).eq("year", YEAR))
+        .unique();
+      expect(profile?.importId).toBeUndefined();
+    });
+
+    // First sign-in fills it with their user id, on every bound year.
+    const userId = await t.run((ctx) => ctx.db.insert("users", { email: newcomer }));
+    await t.mutation(internal.userLink.link, { userId });
+    await t.run(async (ctx) => {
+      const profile = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", newcomer).eq("year", YEAR))
+        .unique();
+      expect(profile?.importId).toBe(userId);
+    });
+
+    // Provisioning another year after sign-in picks the key up immediately.
+    await admin.mutation(api.admin.upsertDivision, {
+      year: YEAR + 1,
+      name: "Governance",
+    });
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR + 1,
+      name: "Data and IT",
+      division: "Governance",
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: newcomer,
+      year: YEAR + 1,
+      roles: ["Staff"],
+      department: "Data and IT",
+    });
+    await t.run(async (ctx) => {
+      const nextYear = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) =>
+          q.eq("email", newcomer).eq("year", YEAR + 1)
+        )
+        .unique();
+      expect(nextYear?.importId).toBe(userId);
+    });
+  });
+
+  test("re-provisioning an imported person keeps their imported key", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const imported = "ivy.imported@sow.org.au";
+    await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: imported,
+        year: YEAR,
+        roles: ["Staff"],
+        department: "Finance",
+        importId: "uid-ivy",
+      });
+    });
+    await admin.mutation(api.admin.upsertDivision, {
+      year: YEAR + 1,
+      name: "Governance",
+    });
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR + 1,
+      name: "Finance",
+      division: "Governance",
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: imported,
+      year: YEAR + 1,
+      roles: ["Staff"],
+      department: "Finance",
+    });
+    await t.run(async (ctx) => {
+      const nextYear = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) =>
+          q.eq("email", imported).eq("year", YEAR + 1)
+        )
+        .unique();
+      expect(nextYear?.importId).toBe("uid-ivy");
+    });
+  });
+
   test("re-keying never duplicates a (email, year) profile", async () => {
     const t = await setup();
     const oldEmail = "jay.old@gmail.com";

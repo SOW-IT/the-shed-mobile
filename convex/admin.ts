@@ -18,6 +18,7 @@ import {
   nextStaffYear,
   optionalEmail,
   requireAdmin,
+  resolveImportId,
   rolesOf,
 } from "./model";
 
@@ -130,6 +131,7 @@ export const setStaffProfile = mutation({
         department,
         division,
         university,
+        importId: existing.importId ?? (await resolveImportId(ctx, email)),
       });
       profileId = existing._id;
     } else {
@@ -140,6 +142,7 @@ export const setStaffProfile = mutation({
         department,
         division,
         university,
+        importId: await resolveImportId(ctx, email),
       });
     }
 
@@ -374,6 +377,7 @@ export const upsertDepartment = mutation({
           year: args.year,
           roles: [HEAD_OF_DEPARTMENT],
           department: name,
+          importId: await resolveImportId(ctx, headEmail),
         });
       }
     }
