@@ -4,6 +4,7 @@ import {
   ADMIN_DIVISIONS,
   DIRECTOR,
   FINANCE,
+  HEAD_OF_DIVISION,
   staffYearForDate,
 } from "../shared/flow";
 import { Doc } from "./_generated/dataModel";
@@ -53,14 +54,18 @@ export async function requireProfile(ctx: Ctx): Promise<CallerContext> {
 }
 
 /**
- * Admins: the Data and IT department, plus any department belonging to the
- * Human Resources division that year.
+ * Admins: the Director, the Head of the Human Resources division, the
+ * Data and IT department, and any department in the Human Resources division.
  */
 export async function isAdminProfile(
   ctx: Ctx,
   profile: Doc<"staffProfiles">
 ): Promise<boolean> {
-  if (!profile.department) return false; // Heads of Division aren't admins
+  if (profile.role === DIRECTOR) return true;
+  if (profile.role === HEAD_OF_DIVISION) {
+    return profile.division !== undefined && ADMIN_DIVISIONS.includes(profile.division);
+  }
+  if (!profile.department) return false;
   if (ADMIN_DEPARTMENTS.includes(profile.department)) return true;
   const department = await getDepartment(ctx, profile.year, profile.department);
   return department !== null && ADMIN_DIVISIONS.includes(department.division);

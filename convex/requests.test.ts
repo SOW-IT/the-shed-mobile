@@ -580,6 +580,71 @@ describe("deadlock prevention and validation fixes", () => {
     expect(after.find((r) => r._id === carried!._id)).toBeUndefined();
   });
 
+  test("declining requires a reason", async () => {
+    const t = await setup();
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
+    const [request] = await asUser(t, RACHEL).query(api.requests.myRequests, {});
+    await expect(
+      asUser(t, HENRY).mutation(api.requests.decline, {
+        requestId: request._id, step: "hod", reason: "   ",
+      })
+    ).rejects.toThrow(/reason/);
+  });
+
+  test("the Director and the HR division head are admins; other division heads aren't", async () => {
+    const t = await setup();
+    // Dan (Director) can manage staff assignments.
+    await asUser(t, DAN).mutation(api.admin.setStaffProfile, {
+      email: "new@sow.org.au", year: YEAR, role: "Staff", department: "Marketing",
+    });
+    // The Head of the Human Resources division is an admin...
+    await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+      email: "hrhead@sow.org.au", year: YEAR, role: "Head of Division", division: "Human Resources",
+    });
+    await asUser(t, "hrhead@sow.org.au").mutation(api.admin.setStaffProfile, {
+      email: "new2@sow.org.au", year: YEAR, role: "Staff", department: "Marketing",
+    });
+    // ...but the Head of the Engagement division is not.
+    await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+      email: "enghead@sow.org.au", year: YEAR, role: "Head of Division", division: "Engagement",
+    });
+    await expect(
+      asUser(t, "enghead@sow.org.au").mutation(api.admin.setStaffProfile, {
+        email: "new3@sow.org.au", year: YEAR, role: "Staff", department: "Marketing",
+      })
+    ).rejects.toThrow(/Only admins/);
+  });
+
+  test("a carried-over request whose approver left can be actioned by this year's officeholder", async () => {
+    const t = await setup();
+    // Last year's Budget Manager (olga) is gone — no profile this year.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("departments", {
+        year: YEAR - 1, name: "Marketing", division: "Engagement", headEmail: HENRY,
+      });
+      await ctx.db.insert("yearSettings", {
+        year: YEAR - 1, budgetManagerEmail: "olga@sow.org.au",
+      });
+      await ctx.db.insert("requests", {
+        year: YEAR - 1,
+        requesterEmail: RACHEL,
+        department: "Marketing",
+        description: "stranded",
+        amount: 120,
+        approvedByHOD: "APPROVED",
+        approvedByBudgetManager: "PENDING",
+        approvedByFinanceHead: "PENDING",
+      });
+    });
+    // This year's Budget Manager (bella) sees and approves it.
+    const review = await asUser(t, BELLA).query(api.requests.toReview, {});
+    const stranded = review.budgetManager.find((r) => r.description === "stranded");
+    expect(stranded).toBeDefined();
+    await asUser(t, BELLA).mutation(api.requests.approve, {
+      requestId: stranded!._id, step: "budgetManager",
+    });
+  });
+
   test("Heads of Division belong to a division and skip the HOD step", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);

@@ -284,26 +284,39 @@ export const toReview = query({
     const readyToPay: Doc<"requests">[] = [];
 
     for (const request of open) {
-      const approvers = await approversFor(request.year, request.department);
+      // Carried-over requests can be actioned by the approvers of the
+      // request's own year AND this year's officeholders, so a departed
+      // approver never strands a leftover request.
+      const requestYear = await approversFor(request.year, request.department);
+      const thisYear =
+        request.year === year
+          ? requestYear
+          : await approversFor(year, request.department);
+      const matches = (pick: (a: Approvers) => string | undefined) =>
+        pick(requestYear) === email || pick(thisYear) === email;
 
       // Ready to Pay includes the Finance Head's own requests.
       if (
         request.receipt !== undefined &&
         request.paid === false &&
-        approvers.financeHeadEmail === email
+        matches((a) => a.financeHeadEmail)
       ) {
         readyToPay.push(request);
       }
 
       if (request.requesterEmail === email || requestCompleted(request)) continue;
       const step = currentStep(request);
-      if (step === "hod" && approvers.hodEmail === email && request.department !== FINANCE) {
+      if (step === "hod" && matches((a) => a.hodEmail) && request.department !== FINANCE) {
         hod.push(request);
-      } else if (step === "budgetManager" && approvers.budgetManagerEmail === email) {
+      } else if (step === "budgetManager" && matches((a) => a.budgetManagerEmail)) {
         budgetManager.push(request);
-      } else if (step === "director" && (await callerRoleIn(request.year)) === DIRECTOR) {
+      } else if (
+        step === "director" &&
+        ((await callerRoleIn(request.year)) === DIRECTOR ||
+          (await callerRoleIn(year)) === DIRECTOR)
+      ) {
         director.push(request);
-      } else if (step === "financeHead" && approvers.financeHeadEmail === email) {
+      } else if (step === "financeHead" && matches((a) => a.financeHeadEmail)) {
         financeHead.push(request);
       }
     }
@@ -351,33 +364,41 @@ async function authorizeStep(
   if (request.requesterEmail === caller.email) {
     throw new ConvexError("You can't review your own request.");
   }
-  // Approvers are resolved from the REQUEST's year, not the caller's.
+  // Approvers come from the REQUEST's year; for carried-over requests the
+  // current year's officeholders may act too (a departed approver must never
+  // strand a leftover request).
   const approvers = await getApprovers(ctx, request.year, request.department);
-  const callerRoleInRequestYear = (
-    await getProfile(ctx, caller.email, request.year)
-  )?.role;
+  const currentApprovers =
+    request.year === caller.year
+      ? approvers
+      : await getApprovers(ctx, caller.year, request.department);
+  const matches = (pick: (a: Approvers) => string | undefined) =>
+    pick(approvers) === caller.email || pick(currentApprovers) === caller.email;
+  const isDirector =
+    caller.profile.role === DIRECTOR ||
+    (request.year !== caller.year &&
+      (await getProfile(ctx, caller.email, request.year))?.role === DIRECTOR);
 
   const stepChecks: Record<Step, { allowed: boolean; ready: boolean }> = {
     hod: {
-      allowed:
-        approvers.hodEmail === caller.email && request.department !== FINANCE,
+      allowed: matches((a) => a.hodEmail) && request.department !== FINANCE,
       ready: request.approvedByHOD === PENDING,
     },
     budgetManager: {
-      allowed: approvers.budgetManagerEmail === caller.email,
+      allowed: matches((a) => a.budgetManagerEmail),
       ready:
         request.approvedByHOD === APPROVED &&
         request.approvedByBudgetManager === PENDING,
     },
     director: {
-      allowed: callerRoleInRequestYear === DIRECTOR,
+      allowed: isDirector,
       ready:
         request.approvedByHOD === APPROVED &&
         request.approvedByBudgetManager === APPROVED &&
         request.approvedByDirector === PENDING,
     },
     financeHead: {
-      allowed: approvers.financeHeadEmail === caller.email,
+      allowed: matches((a) => a.financeHeadEmail),
       ready:
         request.approvedByHOD === APPROVED &&
         request.approvedByBudgetManager === APPROVED &&
@@ -427,17 +448,21 @@ export const decline = mutation({
   },
   handler: async (ctx, args) => {
     const caller = await requireProfile(ctx);
+    const reason = args.reason.trim();
+    if (!reason) {
+      throw new ConvexError("Please give a reason for declining — the requester will be notified with it.");
+    }
     const { request } = await authorizeStep(ctx, caller, args.requestId, args.step);
     await ctx.db.patch("requests", args.requestId, {
       [STEP_FIELDS[args.step]]: DECLINED,
-      declineReason: args.reason.trim(),
+      declineReason: reason,
       declinedTime: Date.now(),
     });
     await notify(
       ctx,
       request.requesterEmail,
       `Your reimbursement request of $${request.amount} has been declined`,
-      `Your request was declined at the ${STEP_LABELS[args.step]} step by ${caller.email}.\nReason: ${args.reason.trim() || "(none given)"}\n\n${requestSummary(request)}`
+      `Your request was declined at the ${STEP_LABELS[args.step]} step by ${caller.email}.\nReason: ${reason}\n\n${requestSummary(request)}`
     );
     return null;
   },
@@ -526,9 +551,16 @@ export const pay = mutation({
     ) {
       throw new ConvexError("Request not found.");
     }
-    // The Finance Head OF THE REQUEST'S YEAR pays it (rollover carry-overs).
+    // The Finance Head of the request's year OR the current one pays it.
     const approvers = await getApprovers(ctx, request.year, FINANCE);
-    if (approvers.financeHeadEmail !== caller.email) {
+    const currentApprovers =
+      request.year === caller.year
+        ? approvers
+        : await getApprovers(ctx, caller.year, FINANCE);
+    if (
+      approvers.financeHeadEmail !== caller.email &&
+      currentApprovers.financeHeadEmail !== caller.email
+    ) {
       throw new ConvexError("Only the Finance Head can pay reimbursements.");
     }
     if (request.receipt === undefined || request.paid !== false) {

@@ -48,7 +48,7 @@ const DeclineModal = ({
         <Card>
           <Txt style={styles.modalTitle}>Decline Request</Txt>
           <Muted>The requester will be emailed your reason.</Muted>
-          <Field label="Reason" value={reason} onChangeText={setReason} multiline />
+          <Field label="Reason (required)" value={reason} onChangeText={setReason} multiline />
           <ErrorBanner message={error} />
           <Row>
             <Btn title="Decline" variant="danger" onPress={handleDecline} />
