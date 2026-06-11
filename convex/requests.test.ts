@@ -794,6 +794,62 @@ describe("deadlock prevention and validation fixes", () => {
     expect(request.approvedByHOD).toBe("APPROVED");
   });
 
+  test("Finance dept head can also head the Operations division; Governance division head works", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+
+    // Fiona: Head of Department (Finance) + Head of Division (Operations).
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: FIONA,
+      year: YEAR,
+      roles: ["Head of Department", "Head of Division"],
+      department: "Finance",
+      division: "Operations",
+    });
+    const chart = await asUser(t, RACHEL).query(api.directory.orgChart, {});
+    expect(chart.divisions.find((d) => d.name === "Operations")?.head?.email).toBe(FIONA);
+    expect(
+      chart.divisions
+        .find((d) => d.name === "Governance")
+        ?.departments.find((d) => d.name === "Finance")?.head?.email
+    ).toBe(FIONA);
+
+    // She is still the Finance Head approver for the whole org...
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
+    const [request] = await asUser(t, RACHEL).query(api.requests.myRequests, {});
+    await asUser(t, HENRY).mutation(api.requests.approve, { requestId: request._id, step: "hod" });
+    await asUser(t, BELLA).mutation(api.requests.approve, { requestId: request._id, step: "budgetManager" });
+    await asUser(t, FIONA).mutation(api.requests.approve, { requestId: request._id, step: "financeHead" });
+
+    // ...and can submit on behalf of an Operations department she oversees.
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Events", division: "Operations", headEmail: "evan@sow.org.au",
+    });
+    await asUser(t, FIONA).mutation(api.requests.submit, {
+      description: "ops gear", amount: 100, department: "Events",
+    });
+    const fionaRequests = await asUser(t, FIONA).query(api.requests.myRequests, {});
+    expect(fionaRequests.find((r) => r.department === "Events")?.approvedByHOD).toBe("APPROVED");
+
+    // Head of Division for Governance: org chart placement + her own request
+    // defaults to a Governance department with the HOD step skipped (she
+    // outranks its head), then waits on the Budget Manager as normal.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "gina@sow.org.au", year: YEAR, roles: ["Head of Division"], division: "Governance",
+    });
+    const chart2 = await asUser(t, RACHEL).query(api.directory.orgChart, {});
+    expect(chart2.divisions.find((d) => d.name === "Governance")?.head?.email).toBe(
+      "gina@sow.org.au"
+    );
+    await asUser(t, "gina@sow.org.au").mutation(api.requests.submit, {
+      description: "governance", amount: 80,
+    });
+    const [ginaRequest] = await asUser(t, "gina@sow.org.au").query(api.requests.myRequests, {});
+    expect(ginaRequest.department).toBe("Compliance"); // first Governance dept
+    expect(ginaRequest.approvedByHOD).toBe("APPROVED");
+    expect(ginaRequest.approvedByBudgetManager).toBe("PENDING");
+  });
+
   test("Heads of Division belong to a division and skip the HOD step", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
