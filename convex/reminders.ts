@@ -19,7 +19,8 @@ const remind = async (
   to: string,
   request: Doc<"requests">,
   waitingOn: string,
-  days: number
+  days: number,
+  url: string
 ) => {
   const subject = `Reminder: a $${request.amount} request has been waiting ${days} days`;
   const body = `The request below has been waiting on ${waitingOn} for ${days} days. Please action it in THE SHED.\n\nRequester: ${request.requesterEmail}\nDepartment: ${request.department}\nAmount: $${request.amount}\nDescription: ${request.description}`;
@@ -28,6 +29,7 @@ const remind = async (
     to,
     title: subject,
     body: `Waiting on ${waitingOn}.`,
+    url,
   });
 };
 
@@ -72,6 +74,7 @@ export const remindStale = internalMutation({
       const step = currentStep(request);
       let to: string | undefined;
       let waitingOn = "";
+      let url = "/review";
       if (step !== null) {
         const selectors: Record<ApprovalStep, (a: Approvers) => string | undefined> = {
           hod: (a) => a.hodEmail,
@@ -84,6 +87,7 @@ export const remindStale = internalMutation({
       } else if (!request.receipt) {
         to = request.requesterEmail;
         waitingOn = "your receipt";
+        url = `/request/${request._id}`;
       } else if (request.paid === false) {
         const finance = await getApprovers(ctx, request.year, FINANCE);
         const financeNow =
@@ -94,7 +98,7 @@ export const remindStale = internalMutation({
       if (!to) continue;
 
       const days = Math.floor((now - lastMovement) / (24 * 60 * 60 * 1000));
-      await remind(ctx, to, request, waitingOn, days);
+      await remind(ctx, to, request, waitingOn, days, url);
       await ctx.db.patch("requests", request._id, { lastReminderAt: now });
     }
     return null;

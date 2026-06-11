@@ -57,7 +57,13 @@ export const removeToken = internalMutation({
  * block on delivery. Dead tokens are pruned on DeviceNotRegistered.
  */
 export const send = internalAction({
-  args: { to: v.string(), title: v.string(), body: v.string() },
+  args: {
+    to: v.string(),
+    title: v.string(),
+    body: v.string(),
+    // In-app route to open when the notification is tapped.
+    url: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const tokens: Doc<"pushTokens">[] = await ctx.runQuery(
       internal.push.tokensForEmail,
@@ -74,6 +80,7 @@ export const send = internalAction({
           sound: "default",
           title: args.title,
           body: args.body,
+          data: args.url ? { url: args.url } : {},
         }))
       ),
     });

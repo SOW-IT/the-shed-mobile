@@ -64,12 +64,16 @@ const logEvent = async (
   });
 };
 
-/** Notifies a person about a request update by email AND push notification. */
+/**
+ * Notifies a person about a request update by email AND push notification.
+ * `url` is the in-app route the push notification deep-links to.
+ */
 const notify = async (
   ctx: MutationCtx,
   to: string | undefined,
   subject: string,
-  body: string
+  body: string,
+  url?: string
 ) => {
   if (!to) return;
   await ctx.scheduler.runAfter(0, internal.emails.send, { to, subject, body });
@@ -78,6 +82,7 @@ const notify = async (
     to,
     title: subject,
     body: body.split("\n")[0],
+    url,
   });
 };
 
@@ -102,14 +107,16 @@ const notifyNextActor = async (
       ctx,
       approverEmail,
       `A reimbursement request of $${request.amount} needs your ${STEP_LABELS[step]} approval`,
-      `The request below is waiting on your approval in THE SHED.\n\n${requestSummary(request)}`
+      `The request below is waiting on your approval in THE SHED.\n\n${requestSummary(request)}`,
+      "/review"
     );
   } else if (requestFullyApproved(request)) {
     await notify(
       ctx,
       request.requesterEmail,
       `Your reimbursement request of $${request.amount} has been approved`,
-      `Your request has been fully approved. Please open THE SHED and submit your receipt/invoice details.\n\n${requestSummary(request)}`
+      `Your request has been fully approved. Please open THE SHED and submit your receipt/invoice details.\n\n${requestSummary(request)}`,
+      `/request/${request._id}`
     );
   }
 };
@@ -246,7 +253,8 @@ export const submit = mutation({
         ctx,
         email,
         `Your reimbursement request of $${request.amount} has been submitted`,
-        `Your request has been submitted and sent for approval. You'll be emailed once it's fully approved.\n\n${requestSummary(request)}`
+        `Your request has been submitted and sent for approval. You'll be emailed once it's fully approved.\n\n${requestSummary(request)}`,
+        `/request/${id}`
       );
       await notifyNextActor(ctx, request, approvers);
     }
@@ -528,7 +536,8 @@ export const decline = mutation({
       ctx,
       request.requesterEmail,
       `Your reimbursement request of $${request.amount} has been declined`,
-      `Your request was declined at the ${STEP_LABELS[args.step]} step by ${caller.email}.\nReason: ${reason}\n\n${requestSummary(request)}`
+      `Your request was declined at the ${STEP_LABELS[args.step]} step by ${caller.email}.\nReason: ${reason}\n\n${requestSummary(request)}`,
+      `/request/${request._id}`
     );
     return null;
   },
@@ -556,6 +565,15 @@ export const cancel = mutation({
     }
     await ctx.db.delete("requests", args.requestId);
     return null;
+  },
+});
+
+/** A single request, for the detail screen push notifications land on. */
+export const get = query({
+  args: { requestId: v.id("requests") },
+  handler: async (ctx, args) => {
+    await requireProfile(ctx);
+    return await ctx.db.get("requests", args.requestId);
   },
 });
 
@@ -653,7 +671,8 @@ export const submitReceipt = mutation({
       ctx,
       approvers.financeHeadEmail,
       `A receipt for $${totalAmount} is ready to pay`,
-      `${request.requesterEmail} submitted their receipt (total $${totalAmount}). Please pay the reimbursement in THE SHED.\n\n${requestSummary(request)}`
+      `${request.requesterEmail} submitted their receipt (total $${totalAmount}). Please pay the reimbursement in THE SHED.\n\n${requestSummary(request)}`,
+      "/review"
     );
     return null;
   },
@@ -745,7 +764,8 @@ export const pay = mutation({
       ctx,
       request.requesterEmail,
       `Your reimbursement of $${args.paidAmount} has been paid`,
-      `The Finance Head (${caller.email}) has paid your reimbursement.\nPaid: $${args.paidAmount}${args.comment ? `\nComment: ${args.comment}` : ""}\n\n${requestSummary(request)}`
+      `The Finance Head (${caller.email}) has paid your reimbursement.\nPaid: $${args.paidAmount}${args.comment ? `\nComment: ${args.comment}` : ""}\n\n${requestSummary(request)}`,
+      `/request/${request._id}`
     );
     // The Budget Manager should know when the paid amount differs.
     if (args.paidAmount !== request.amount) {
@@ -754,7 +774,8 @@ export const pay = mutation({
         ctx,
         yearApprovers.budgetManagerEmail,
         `Paid amount differs from requested amount ($${args.paidAmount} vs $${request.amount})`,
-        `Please update the budget accordingly.\n\n${requestSummary(request)}`
+        `Please update the budget accordingly.\n\n${requestSummary(request)}`,
+        `/request/${request._id}`
       );
     }
     return null;

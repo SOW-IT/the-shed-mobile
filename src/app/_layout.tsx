@@ -30,13 +30,30 @@ const AppTabs = () => {
   const me = useQuery(api.directory.me);
   const t = useAppTheme();
   usePushRegistration();
+  // Badge: how many requests are waiting on the signed-in approver. Convex
+  // dedupes this subscription with the To Review screen's own query.
+  const review = useQuery(
+    api.requests.toReview,
+    me?.profile && me.isApprover ? {} : "skip"
+  );
+  const reviewCount = review
+    ? review.hod.length +
+      review.budgetManager.length +
+      review.director.length +
+      review.financeHead.length +
+      review.readyToPay.length
+    : 0;
   return (
     <Tabs screenOptions={{ tabBarActiveTintColor: t.primary }}>
       <Tabs.Screen name="index" options={{ title: "My Requests" }} />
       <Tabs.Screen name="org" options={{ title: "Org Chart" }} />
       <Tabs.Screen
         name="review"
-        options={{ title: "To Review", href: me?.isApprover ? "/review" : null }}
+        options={{
+          title: "To Review",
+          href: me?.isApprover ? "/review" : null,
+          tabBarBadge: reviewCount > 0 ? reviewCount : undefined,
+        }}
       />
       <Tabs.Screen
         name="all"
@@ -49,6 +66,8 @@ const AppTabs = () => {
       <Tabs.Screen name="profile" options={{ title: "Profile" }} />
       {/* Opened by tapping a person in the org chart; not a tab itself. */}
       <Tabs.Screen name="person/[email]" options={{ title: "Profile", href: null }} />
+      {/* Opened by tapping a push notification; not a tab itself. */}
+      <Tabs.Screen name="request/[id]" options={{ title: "Request", href: null }} />
     </Tabs>
   );
 };

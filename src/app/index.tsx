@@ -3,7 +3,11 @@ import { useMutation, useQuery } from "convex/react";
 import * as DocumentPicker from "expo-document-picker";
 import { useEffect, useState } from "react";
 import { Modal, ScrollView, StyleSheet, View } from "react-native";
-import { requestCompleted, requestFullyApproved } from "../../shared/flow";
+import {
+  requestCompleted,
+  requestDeclined,
+  requestFullyApproved,
+} from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { Doc, Id } from "../../convex/_generated/dataModel";
 import { RequestCard } from "@/components/RequestCard";
@@ -21,16 +25,25 @@ import {
   Txt,
 } from "@/components/ui";
 
+export type RequestPrefill = {
+  description: string;
+  amount: string;
+  department: string;
+};
+
 const NewRequestModal = ({
   visible,
   onClose,
   departments,
   defaultDepartment,
+  prefill,
 }: {
   visible: boolean;
   onClose: () => void;
   departments: string[];
   defaultDepartment: string;
+  /** Set when resubmitting a declined request — pre-fills the form. */
+  prefill: RequestPrefill | null;
 }) => {
   const submit = useMutation(api.requests.submit);
   const [description, setDescription] = useState("");
@@ -38,10 +51,13 @@ const NewRequestModal = ({
   const [department, setDepartment] = useState(defaultDepartment);
   const [error, setError] = useState<string | null>(null);
 
-  // Re-default the department each time the form opens.
+  // Re-initialise the form each time it opens (blank, or from the prefill).
   useEffect(() => {
-    if (visible) setDepartment(defaultDepartment);
-  }, [visible, defaultDepartment]);
+    if (!visible) return;
+    setDescription(prefill?.description ?? "");
+    setAmount(prefill?.amount ?? "");
+    setDepartment(prefill?.department ?? defaultDepartment);
+  }, [visible, prefill, defaultDepartment]);
 
   const handleSubmit = async () => {
     setError(null);
@@ -299,8 +315,18 @@ export default function MyRequestsScreen() {
     "";
   const cancel = useMutation(api.requests.cancel);
   const [newOpen, setNewOpen] = useState(false);
+  const [prefill, setPrefill] = useState<RequestPrefill | null>(null);
   const [receiptFor, setReceiptFor] = useState<Doc<"requests"> | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const resubmit = (request: Doc<"requests">) => {
+    setPrefill({
+      description: request.description,
+      amount: String(request.amount),
+      department: request.department,
+    });
+    setNewOpen(true);
+  };
 
   const handleCancel = async (requestId: Id<"requests">) => {
     setError(null);
@@ -345,7 +371,13 @@ export default function MyRequestsScreen() {
             </Row>
           </Card>
           <Row>
-            <Btn title="+ Make Request" onPress={() => setNewOpen(true)} />
+            <Btn
+              title="+ Make Request"
+              onPress={() => {
+                setPrefill(null);
+                setNewOpen(true);
+              }}
+            />
           </Row>
           <ErrorBanner message={error} />
           {requests === undefined ? (
@@ -369,6 +401,12 @@ export default function MyRequestsScreen() {
                     onPress={() => setReceiptFor(request)}
                   />
                 )}
+                {requestDeclined(request) && (
+                  <Btn
+                    title="Resubmit"
+                    onPress={() => resubmit(request)}
+                  />
+                )}
               </RequestCard>
             ))
           )}
@@ -377,6 +415,7 @@ export default function MyRequestsScreen() {
             onClose={() => setNewOpen(false)}
             departments={departmentNames}
             defaultDepartment={defaultDepartment}
+            prefill={prefill}
           />
           <ReceiptModal request={receiptFor} onClose={() => setReceiptFor(null)} />
         </>

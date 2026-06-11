@@ -573,6 +573,22 @@ describe("audit trail and reminders", () => {
     });
   });
 
+  test("requests.get serves the detail screen for any signed-in staff member", async () => {
+    const t = await setup();
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
+    const [request] = await asUser(t, RACHEL).query(api.requests.myRequests, {});
+    const seen = await asUser(t, HENRY).query(api.requests.get, {
+      requestId: request._id,
+    });
+    expect(seen?._id).toBe(request._id);
+    // A cancelled request resolves to null (the screen shows a notice).
+    await asUser(t, RACHEL).mutation(api.requests.cancel, { requestId: request._id });
+    const gone = await asUser(t, HENRY).query(api.requests.get, {
+      requestId: request._id,
+    });
+    expect(gone).toBeNull();
+  });
+
   test("stale requests trigger a weekly reminder to whoever they wait on", async () => {
     const t = await setup();
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });

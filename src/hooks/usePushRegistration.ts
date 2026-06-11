@@ -2,6 +2,7 @@ import { useMutation } from "convex/react";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
+import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import { Platform } from "react-native";
 import { api } from "../../convex/_generated/api";
@@ -23,6 +24,23 @@ Notifications.setNotificationHandler({
  */
 export const usePushRegistration = () => {
   const register = useMutation(api.push.register);
+  const router = useRouter();
+
+  // Deep links: tapping a notification opens the route in its data payload
+  // (e.g. /review or /request/<id>), including from a cold start.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const openFrom = (response: Notifications.NotificationResponse | null) => {
+      const url = response?.notification.request.content.data?.url;
+      if (typeof url === "string" && url.startsWith("/")) {
+        router.push(url as never);
+      }
+    };
+    const subscription =
+      Notifications.addNotificationResponseReceivedListener(openFrom);
+    void Notifications.getLastNotificationResponseAsync().then(openFrom);
+    return () => subscription.remove();
+  }, [router]);
 
   useEffect(() => {
     const run = async () => {
