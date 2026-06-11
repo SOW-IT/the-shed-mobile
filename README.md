@@ -114,7 +114,5 @@ Manager-must-be-Finance rule, and the September 1 rollover.
 
 ## Not yet implemented
 
-- Receipt **file attachments** (Convex storage is available; the receipt form
-  currently captures account details and amounts only).
 - Past-year request archives and a Google Workspace directory sync (profiles
   sync from Google on sign-in; org-wide user import would use the Admin SDK).
