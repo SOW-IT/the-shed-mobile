@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
-import { Modal, StyleSheet, View } from "react-native";
+import { Linking, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { useAppTheme } from "@/theme";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { RequestCard } from "@/components/RequestCard";
@@ -67,7 +68,12 @@ const PayModal = ({
   request: Doc<"requests"> | null;
   onClose: () => void;
 }) => {
+  const t = useAppTheme();
   const pay = useMutation(api.requests.pay);
+  const receipts = useQuery(
+    api.requests.receiptAttachments,
+    request ? { requestId: request._id } : "skip"
+  );
   const [paidAmount, setPaidAmount] = useState("");
   const [comment, setComment] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -96,10 +102,24 @@ const PayModal = ({
           <Txt style={styles.modalTitle}>Pay Reimbursement</Txt>
           <Muted>Only pay after you have sent the money to the account.</Muted>
           {request?.receipt?.recipients.map((recipient, i) => (
-            <Muted key={i}>
-              {recipient.accountName} • BSB {recipient.bsb} • Acc{" "}
-              {recipient.accountNumber} • ${recipient.amount}
-            </Muted>
+            <View key={i} style={{ gap: 2 }}>
+              <Muted>
+                {recipient.accountName} • BSB {recipient.bsb} • Acc{" "}
+                {recipient.accountNumber} • ${recipient.amount}
+              </Muted>
+              {(receipts?.[i]?.attachments ?? []).map((attachment, j) =>
+                attachment.url ? (
+                  <Pressable
+                    key={j}
+                    onPress={() => void Linking.openURL(attachment.url!)}
+                  >
+                    <Text style={{ color: t.primary, textDecorationLine: "underline" }}>
+                      📎 {attachment.name}
+                    </Text>
+                  </Pressable>
+                ) : null
+              )}
+            </View>
           ))}
           <Field
             label="Paid amount ($)"

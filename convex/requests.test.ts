@@ -647,6 +647,66 @@ describe("deadlock prevention and validation fixes", () => {
     });
   });
 
+  test("receipts support multiple recipients with multiple attachments each", async () => {
+    const t = await setup();
+    const rachel = asUser(t, RACHEL);
+    await rachel.mutation(api.requests.submit, { description: "x", amount: 300 });
+    const [request] = await rachel.query(api.requests.myRequests, {});
+    await asUser(t, HENRY).mutation(api.requests.approve, { requestId: request._id, step: "hod" });
+    await asUser(t, BELLA).mutation(api.requests.approve, { requestId: request._id, step: "budgetManager" });
+    await asUser(t, FIONA).mutation(api.requests.approve, { requestId: request._id, step: "financeHead" });
+
+    // Two receipt files for the first recipient, one for the second.
+    const [fileA, fileB, fileC] = await t.run(async (ctx) => [
+      await ctx.storage.store(new Blob(["receipt-a"], { type: "application/pdf" })),
+      await ctx.storage.store(new Blob(["receipt-b"], { type: "image/png" })),
+      await ctx.storage.store(new Blob(["receipt-c"], { type: "application/pdf" })),
+    ]);
+    await rachel.mutation(api.requests.submitReceipt, {
+      requestId: request._id,
+      recipients: [
+        {
+          accountName: "Rachel",
+          bsb: "111-111",
+          accountNumber: "1",
+          amount: 200,
+          attachments: [
+            { storageId: fileA, name: "flights.pdf" },
+            { storageId: fileB, name: "hotel.png" },
+          ],
+        },
+        {
+          accountName: "Vendor Pty Ltd",
+          bsb: "222-222",
+          accountNumber: "2",
+          amount: 100,
+          attachments: [{ storageId: fileC, name: "invoice.pdf" }],
+        },
+      ],
+    });
+
+    // Total sums across recipients.
+    const updated = await t.run((ctx) => ctx.db.get("requests", request._id));
+    expect(updated?.receipt?.totalAmount).toBe(300);
+
+    // The Finance Head sees signed URLs grouped per recipient...
+    const receipts = await asUser(t, FIONA).query(api.requests.receiptAttachments, {
+      requestId: request._id,
+    });
+    expect(receipts).toHaveLength(2);
+    expect(receipts[0].attachments.map((a) => a.name)).toEqual([
+      "flights.pdf",
+      "hotel.png",
+    ]);
+    expect(receipts[1].attachments[0].url).toBeTruthy();
+
+    // ...the requester can view them too, but unrelated staff cannot.
+    await rachel.query(api.requests.receiptAttachments, { requestId: request._id });
+    await expect(
+      asUser(t, HENRY).query(api.requests.receiptAttachments, { requestId: request._id })
+    ).rejects.toThrow(/can't view/);
+  });
+
   test("requests can be submitted on behalf of another department", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);

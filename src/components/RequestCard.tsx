@@ -79,7 +79,13 @@ export const RequestCard = ({
         <Muted>
           Receipt submitted: ${request.receipt.totalAmount} (
           {request.receipt.recipients.length} recipient
-          {request.receipt.recipients.length === 1 ? "" : "s"})
+          {request.receipt.recipients.length === 1 ? "" : "s"},{" "}
+          {request.receipt.recipients.reduce(
+            (count, recipient) => count + (recipient.attachments?.length ?? 0),
+            0
+          )}{" "}
+          file{request.receipt.recipients.reduce((c, r) => c + (r.attachments?.length ?? 0), 0) === 1 ? "" : "s"}
+          )
         </Muted>
       ) : null}
       {request.paid && request.paidAmount !== undefined ? (

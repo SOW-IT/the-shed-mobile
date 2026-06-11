@@ -515,7 +515,20 @@ export const cancel = mutation({
   },
 });
 
-/** The requester submits receipt details once fully approved. */
+/** Upload URL for receipt/invoice files (one file per generated URL). */
+export const generateReceiptUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireProfile(ctx);
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+/**
+ * The requester submits receipt details once fully approved: one or more
+ * recipients, each with account details, an amount and any number of
+ * receipt/invoice file attachments.
+ */
 export const submitReceipt = mutation({
   args: {
     requestId: v.id("requests"),
@@ -525,6 +538,14 @@ export const submitReceipt = mutation({
         bsb: v.string(),
         accountNumber: v.string(),
         amount: v.number(),
+        attachments: v.optional(
+          v.array(
+            v.object({
+              storageId: v.id("_storage"),
+              name: v.string(),
+            })
+          )
+        ),
       })
     ),
   },
@@ -559,6 +580,47 @@ export const submitReceipt = mutation({
       `${request.requesterEmail} submitted their receipt (total $${totalAmount}). Please pay the reimbursement in THE SHED.\n\n${requestSummary(request)}`
     );
     return null;
+  },
+});
+
+/**
+ * Signed URLs for a request's receipt attachments, grouped per recipient.
+ * Visible to the requester, Finance staff, and the Finance Head of the
+ * request's or current year.
+ */
+export const receiptAttachments = query({
+  args: { requestId: v.id("requests") },
+  handler: async (ctx, args) => {
+    const caller = await requireProfile(ctx);
+    const request = await ctx.db.get("requests", args.requestId);
+    if (!request) throw new ConvexError("Request not found.");
+
+    const requestYearFinance = await getApprovers(ctx, request.year, FINANCE);
+    const currentFinance =
+      request.year === caller.year
+        ? requestYearFinance
+        : await getApprovers(ctx, caller.year, FINANCE);
+    const allowed =
+      request.requesterEmail === caller.email ||
+      caller.profile.department === FINANCE ||
+      requestYearFinance.financeHeadEmail === caller.email ||
+      currentFinance.financeHeadEmail === caller.email;
+    if (!allowed) {
+      throw new ConvexError("You can't view this request's receipts.");
+    }
+
+    if (!request.receipt) return [];
+    return await Promise.all(
+      request.receipt.recipients.map(async (recipient) => ({
+        accountName: recipient.accountName,
+        attachments: await Promise.all(
+          (recipient.attachments ?? []).map(async (attachment) => ({
+            name: attachment.name,
+            url: await ctx.storage.getUrl(attachment.storageId),
+          }))
+        ),
+      }))
+    );
   },
 });
 

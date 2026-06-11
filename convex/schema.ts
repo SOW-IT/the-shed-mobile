@@ -100,6 +100,15 @@ export default defineSchema({
             bsb: v.string(),
             accountNumber: v.string(),
             amount: v.number(),
+            // Receipt/invoice files in Convex storage, per recipient.
+            attachments: v.optional(
+              v.array(
+                v.object({
+                  storageId: v.id("_storage"),
+                  name: v.string(),
+                })
+              )
+            ),
           })
         ),
       })

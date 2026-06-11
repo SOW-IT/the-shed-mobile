@@ -1,7 +1,8 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
+import * as DocumentPicker from "expo-document-picker";
 import { useEffect, useState } from "react";
-import { Modal, StyleSheet, View } from "react-native";
+import { Modal, ScrollView, StyleSheet, View } from "react-native";
 import { requestCompleted, requestFullyApproved } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { Doc, Id } from "../../convex/_generated/dataModel";
@@ -91,6 +92,22 @@ const NewRequestModal = ({
   );
 };
 
+type DraftFile = { storageId: Id<"_storage">; name: string };
+type DraftRecipient = {
+  accountName: string;
+  bsb: string;
+  accountNumber: string;
+  amount: string;
+  files: DraftFile[];
+};
+const emptyRecipient = (): DraftRecipient => ({
+  accountName: "",
+  bsb: "",
+  accountNumber: "",
+  amount: "",
+  files: [],
+});
+
 const ReceiptModal = ({
   request,
   onClose,
@@ -99,11 +116,56 @@ const ReceiptModal = ({
   onClose: () => void;
 }) => {
   const submitReceipt = useMutation(api.requests.submitReceipt);
-  const [accountName, setAccountName] = useState("");
-  const [bsb, setBsb] = useState("");
-  const [accountNumber, setAccountNumber] = useState("");
-  const [amount, setAmount] = useState("");
+  const generateUploadUrl = useMutation(api.requests.generateReceiptUploadUrl);
+  const [recipients, setRecipients] = useState<DraftRecipient[]>([emptyRecipient()]);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const updateRecipient = (index: number, patch: Partial<DraftRecipient>) =>
+    setRecipients((previous) =>
+      previous.map((recipient, i) =>
+        i === index ? { ...recipient, ...patch } : recipient
+      )
+    );
+
+  const attachFiles = async (index: number) => {
+    setError(null);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        multiple: true,
+        type: ["image/*", "application/pdf"],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled) return;
+      setUploading(true);
+      const uploaded: DraftFile[] = [];
+      for (const asset of result.assets) {
+        const blob = await (await fetch(asset.uri)).blob();
+        const uploadUrl = await generateUploadUrl();
+        const response = await fetch(uploadUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": asset.mimeType ?? blob.type ?? "application/octet-stream",
+          },
+          body: blob,
+        });
+        if (!response.ok) throw new Error(`Upload of ${asset.name} failed`);
+        const { storageId } = await response.json();
+        uploaded.push({ storageId, name: asset.name ?? "receipt" });
+      }
+      setRecipients((previous) =>
+        previous.map((recipient, i) =>
+          i === index
+            ? { ...recipient, files: [...recipient.files, ...uploaded] }
+            : recipient
+        )
+      );
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!request) return;
@@ -111,10 +173,15 @@ const ReceiptModal = ({
     try {
       await submitReceipt({
         requestId: request._id,
-        recipients: [
-          { accountName, bsb, accountNumber, amount: Number(amount) },
-        ],
+        recipients: recipients.map((recipient) => ({
+          accountName: recipient.accountName,
+          bsb: recipient.bsb,
+          accountNumber: recipient.accountNumber,
+          amount: Number(recipient.amount),
+          attachments: recipient.files,
+        })),
       });
+      setRecipients([emptyRecipient()]);
       onClose();
     } catch (e) {
       setError(errorMessage(e));
@@ -125,26 +192,86 @@ const ReceiptModal = ({
     <Modal visible={request !== null} animationType="slide" transparent>
       <View style={styles.modalBackdrop}>
         <Card>
-          <Txt style={styles.modalTitle}>Submit Receipt</Txt>
-          <Field label="Account name" value={accountName} onChangeText={setAccountName} />
-          <Field label="BSB" value={bsb} onChangeText={setBsb} keyboardType="numeric" />
-          <Field
-            label="Account number"
-            value={accountNumber}
-            onChangeText={setAccountNumber}
-            keyboardType="numeric"
-          />
-          <Field
-            label="Receipt amount ($)"
-            value={amount}
-            onChangeText={setAmount}
-            keyboardType="numeric"
-          />
-          <ErrorBanner message={error} />
-          <Row>
-            <Btn title="Submit Receipt" onPress={handleSubmit} />
-            <Btn title="Cancel" variant="ghost" onPress={onClose} />
-          </Row>
+          <ScrollView style={{ maxHeight: 560 }}>
+            <View style={{ gap: 8 }}>
+              <Txt style={styles.modalTitle}>Submit Receipt</Txt>
+              {recipients.map((recipient, index) => (
+                <View key={index} style={{ gap: 8 }}>
+                  <Row>
+                    <Txt style={{ fontWeight: "700", flexGrow: 1 }}>
+                      Recipient {index + 1}
+                    </Txt>
+                    {recipients.length > 1 && (
+                      <Btn
+                        title="Remove"
+                        variant="ghost"
+                        onPress={() =>
+                          setRecipients((previous) =>
+                            previous.filter((_, i) => i !== index)
+                          )
+                        }
+                      />
+                    )}
+                  </Row>
+                  <Field
+                    label="Account name"
+                    value={recipient.accountName}
+                    onChangeText={(accountName) => updateRecipient(index, { accountName })}
+                  />
+                  <Field
+                    label="BSB"
+                    value={recipient.bsb}
+                    onChangeText={(bsb) => updateRecipient(index, { bsb })}
+                    keyboardType="numeric"
+                  />
+                  <Field
+                    label="Account number"
+                    value={recipient.accountNumber}
+                    onChangeText={(accountNumber) => updateRecipient(index, { accountNumber })}
+                    keyboardType="numeric"
+                  />
+                  <Field
+                    label="Receipt amount ($)"
+                    value={recipient.amount}
+                    onChangeText={(amount) => updateRecipient(index, { amount })}
+                    keyboardType="numeric"
+                  />
+                  {recipient.files.map((file, fileIndex) => (
+                    <Row key={`${file.storageId}-${fileIndex}`}>
+                      <Muted>📎 {file.name}</Muted>
+                      <Btn
+                        title="✕"
+                        variant="ghost"
+                        onPress={() =>
+                          updateRecipient(index, {
+                            files: recipient.files.filter((_, i) => i !== fileIndex),
+                          })
+                        }
+                      />
+                    </Row>
+                  ))}
+                  <Btn
+                    title={uploading ? "Uploading…" : "Attach receipt files"}
+                    variant="ghost"
+                    onPress={() => void attachFiles(index)}
+                    disabled={uploading}
+                  />
+                </View>
+              ))}
+              <Btn
+                title="+ Add another recipient"
+                variant="ghost"
+                onPress={() =>
+                  setRecipients((previous) => [...previous, emptyRecipient()])
+                }
+              />
+              <ErrorBanner message={error} />
+              <Row>
+                <Btn title="Submit Receipt" onPress={handleSubmit} disabled={uploading} />
+                <Btn title="Cancel" variant="ghost" onPress={onClose} />
+              </Row>
+            </View>
+          </ScrollView>
         </Card>
       </View>
     </Modal>
