@@ -286,6 +286,24 @@ describe("admin and per-year rules", () => {
     expect(structure.budgetManagerEmail).toBeNull();
   });
 
+  test("org chart groups director, divisions, heads and members", async () => {
+    const t = await setup();
+    const chart = await asUser(t, RACHEL).query(api.directory.orgChart, {});
+    expect(chart.year).toBe(YEAR);
+    expect(chart.director?.email).toBe(DAN);
+
+    const engagement = chart.divisions.find((d) => d.name === "Engagement");
+    const marketing = engagement?.departments.find((d) => d.name === "Marketing");
+    expect(marketing?.head?.email).toBe(HENRY);
+    // Members exclude the head and the Director.
+    expect(marketing?.members.map((m) => m.email)).toEqual([RACHEL]);
+
+    const governance = chart.divisions.find((d) => d.name === "Governance");
+    const finance = governance?.departments.find((d) => d.name === "Finance");
+    expect(finance?.head?.email).toBe(FIONA);
+    expect(finance?.members.map((m) => m.email)).toEqual([BELLA]);
+  });
+
   test("staff year rolls over on September 1st", () => {
     expect(staffYearForDate(new Date("2026-06-11"))).toBe(2026);
     expect(staffYearForDate(new Date("2026-08-31"))).toBe(2026);

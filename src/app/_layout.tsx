@@ -28,6 +28,7 @@ const AppTabs = () => {
   return (
     <Tabs screenOptions={{ tabBarActiveTintColor: "#2563eb" }}>
       <Tabs.Screen name="index" options={{ title: "My Requests" }} />
+      <Tabs.Screen name="org" options={{ title: "Org Chart" }} />
       <Tabs.Screen
         name="review"
         options={{ title: "To Review", href: me?.isApprover ? "/review" : null }}

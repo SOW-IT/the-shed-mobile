@@ -72,6 +72,72 @@ export const me = query({
   },
 });
 
+/**
+ * The organisation chart for the current staff year:
+ * Director on top, then divisions -> departments (head first) -> members.
+ * Names come from the synced Google profile when the person has signed in.
+ */
+export const orgChart = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireEmail(ctx);
+    const year = currentStaffYear();
+    const divisions = await ctx.db
+      .query("divisions")
+      .withIndex("by_year_and_name", (q) => q.eq("year", year))
+      .take(200);
+    const departments = await ctx.db
+      .query("departments")
+      .withIndex("by_year_and_name", (q) => q.eq("year", year))
+      .take(200);
+    const profiles = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_year", (q) => q.eq("year", year))
+      .take(1000);
+
+    const nameByEmail: Record<string, string | null> = {};
+    for (const profile of profiles) {
+      const user = await ctx.db
+        .query("users")
+        .withIndex("email", (q) => q.eq("email", profile.email))
+        .first();
+      nameByEmail[profile.email] = user?.name ?? profile.name ?? null;
+    }
+    const person = (email: string, role?: string) => ({
+      email,
+      name: nameByEmail[email] ?? null,
+      role: role ?? null,
+    });
+
+    const directorProfile = profiles.find((p) => p.role === DIRECTOR) ?? null;
+
+    return {
+      year,
+      director: directorProfile
+        ? person(directorProfile.email, DIRECTOR)
+        : null,
+      divisions: divisions.map((division) => ({
+        name: division.name,
+        departments: departments
+          .filter((department) => department.division === division.name)
+          .map((department) => ({
+            name: department.name,
+            colour: department.colour ?? null,
+            head: department.headEmail ? person(department.headEmail) : null,
+            members: profiles
+              .filter(
+                (p) =>
+                  p.department === department.name &&
+                  p.email !== department.headEmail &&
+                  p.role !== DIRECTOR
+              )
+              .map((p) => person(p.email, p.role)),
+          })),
+      })),
+    };
+  },
+});
+
 /** Departments + divisions for a year (signed-in users; admin UI pickers). */
 export const yearStructure = query({
   args: { year: v.number() },
