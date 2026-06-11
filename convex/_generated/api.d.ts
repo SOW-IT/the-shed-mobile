@@ -14,6 +14,7 @@ import type * as directory from "../directory.js";
 import type * as emails from "../emails.js";
 import type * as http from "../http.js";
 import type * as model from "../model.js";
+import type * as profile from "../profile.js";
 import type * as requests from "../requests.js";
 
 import type {
@@ -29,6 +30,7 @@ declare const fullApi: ApiFromModules<{
   emails: typeof emails;
   http: typeof http;
   model: typeof model;
+  profile: typeof profile;
   requests: typeof requests;
 }>;
 

@@ -44,6 +44,9 @@ const AppTabs = () => {
         name="admin"
         options={{ title: "Admin", href: me?.isAdmin ? "/admin" : null }}
       />
+      <Tabs.Screen name="profile" options={{ title: "Profile" }} />
+      {/* Opened by tapping a person in the org chart; not a tab itself. */}
+      <Tabs.Screen name="person/[email]" options={{ title: "Profile", href: null }} />
     </Tabs>
   );
 };

@@ -1,4 +1,5 @@
 import { useQuery } from "convex/react";
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
@@ -57,6 +58,7 @@ const YearDropdown = ({
   );
 };
 
+/** Tapping a person opens their profile (photo, church, service history). */
 const Person = ({
   person,
   bold,
@@ -67,8 +69,17 @@ const Person = ({
   tag?: string;
 }) => {
   const t = useAppTheme();
+  const router = useRouter();
   return (
-    <View style={styles.personRow}>
+    <Pressable
+      style={({ pressed }) => [styles.personRow, pressed && { opacity: 0.5 }]}
+      onPress={() =>
+        router.push({
+          pathname: "/person/[email]",
+          params: { email: person.email },
+        })
+      }
+    >
       <Txt style={[styles.personName, bold && { fontWeight: "700" }]}>
         {person.name ?? person.email}
       </Txt>
@@ -76,7 +87,7 @@ const Person = ({
         {tag ?? person.role ?? ""}
         {person.name ? ` • ${person.email}` : ""}
       </Text>
-    </View>
+    </Pressable>
   );
 };
 

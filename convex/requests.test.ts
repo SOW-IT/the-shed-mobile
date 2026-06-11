@@ -337,6 +337,45 @@ describe("admin and per-year rules", () => {
     expect(current.year).toBe(YEAR);
   });
 
+  test("profiles: own church is editable, service history spans years, others can view", async () => {
+    const t = await setup();
+    // Rachel has signed in before (users row exists) and served in 2025 too.
+    const rachelUserId = await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: RACHEL,
+        year: YEAR - 1,
+        role: "Staff",
+        department: "Events",
+      });
+      return await ctx.db.insert("users", { email: RACHEL, name: "Rachel R" });
+    });
+
+    // updateChurch resolves the caller's users row from the auth subject.
+    const rachelSignedIn = t.withIdentity({
+      email: RACHEL,
+      subject: `${rachelUserId}|session1`,
+      issuer: "test",
+    });
+    await rachelSignedIn.mutation(api.profile.updateChurch, {
+      localChurch: "SOW City Church",
+    });
+
+    // Henry views Rachel's profile from the org chart.
+    const viewed = await asUser(t, HENRY).query(api.profile.get, { email: RACHEL });
+    expect(viewed.isMe).toBe(false);
+    expect(viewed.name).toBe("Rachel R");
+    expect(viewed.localChurch).toBe("SOW City Church");
+    expect(viewed.serviceHistory).toEqual([
+      { year: YEAR, role: "Staff", department: "Marketing" },
+      { year: YEAR - 1, role: "Staff", department: "Events" },
+    ]);
+
+    // Rachel's own view is editable (isMe) but role/department come from
+    // staffProfiles — profile mutations expose no way to change them.
+    const own = await rachelSignedIn.query(api.profile.get, {});
+    expect(own.isMe).toBe(true);
+  });
+
   test("staff year rolls over on September 1st", () => {
     expect(staffYearForDate(new Date("2026-06-11"))).toBe(2026);
     expect(staffYearForDate(new Date("2026-08-31"))).toBe(2026);

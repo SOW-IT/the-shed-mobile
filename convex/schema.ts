@@ -11,6 +11,22 @@ export const approvalStatus = v.union(
 export default defineSchema({
   ...authTables,
 
+  // Convex Auth's users table, extended with profile fields users may edit
+  // themselves. Name/email stay synced from Google; role/department live in
+  // staffProfiles and are admin-only.
+  users: defineTable({
+    name: v.optional(v.string()),
+    image: v.optional(v.string()),
+    email: v.optional(v.string()),
+    emailVerificationTime: v.optional(v.number()),
+    phone: v.optional(v.string()),
+    phoneVerificationTime: v.optional(v.number()),
+    isAnonymous: v.optional(v.boolean()),
+    // App-specific, self-editable:
+    localChurch: v.optional(v.string()),
+    avatarId: v.optional(v.id("_storage")), // custom photo, preferred over Google's
+  }).index("email", ["email"]),
+
   // Per-year role + department assignment, keyed by email so admins can
   // provision people before their first Google sign-in.
   staffProfiles: defineTable({
