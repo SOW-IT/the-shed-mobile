@@ -2,21 +2,12 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { AllRequestsList } from "@/components/AllRequestsList";
 import { MyRequests } from "@/components/MyRequests";
 import { ReviewList } from "@/components/ReviewList";
-import {
-  Avatar,
-  Btn,
-  Card,
-  Muted,
-  Row,
-  Screen,
-  Segmented,
-  Txt,
-} from "@/components/ui";
+import { Btn, Card, Muted, Row, Screen, Segmented, Txt } from "@/components/ui";
 
 /**
  * The Requests tab: your own requests, the ones waiting on you (approvers),
@@ -85,21 +76,6 @@ export default function RequestsScreen() {
         </Card>
       ) : (
         <>
-          <Card>
-            <Row>
-              <Avatar photo={me.photo} name={me.name} size={44} />
-              <View style={{ flexGrow: 1, flexShrink: 1 }}>
-                <Txt style={{ fontWeight: "700" }}>{me.name ?? me.email}</Txt>
-                <Muted>
-                  {me.profile.roles.join(", ")} •{" "}
-                  {[me.profile.department, me.profile.division]
-                    .filter(Boolean)
-                    .join(" / ") || "—"}{" "}
-                  • {me.year}
-                </Muted>
-              </View>
-            </Row>
-          </Card>
           <Segmented segments={segments} active={activeSegment} onChange={setActive} />
           {activeSegment === "review" ? (
             <ReviewList />

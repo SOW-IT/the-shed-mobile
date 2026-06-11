@@ -812,14 +812,14 @@ export const receiptAttachments = query({
       request.year === caller.year
         ? requestYearFinance
         : await getApprovers(ctx, caller.year, FINANCE);
+    // Null (not a throw): this backs an inline section on request cards,
+    // and an unauthorised viewer should just not see the files.
     const allowed =
       request.requesterEmail === caller.email ||
       caller.profile.department === FINANCE ||
       requestYearFinance.financeHeadEmail === caller.email ||
       currentFinance.financeHeadEmail === caller.email;
-    if (!allowed) {
-      throw new ConvexError("You can't view this request's receipts.");
-    }
+    if (!allowed) return null;
 
     if (!request.receipt) return [];
     return await Promise.all(

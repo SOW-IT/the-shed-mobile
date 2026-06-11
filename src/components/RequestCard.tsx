@@ -1,6 +1,6 @@
 import { useQuery } from "convex/react";
 import { ReactNode, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import {
   APPROVED,
   currentStep,
@@ -41,6 +41,47 @@ const History = ({ request }: { request: Doc<"requests"> }) => {
           by {event.actor}
           {event.detail ? ` — ${event.detail}` : ""}
         </Muted>
+      ))}
+    </View>
+  );
+};
+
+/**
+ * The submitted receipt in full: each recipient's bank details and their
+ * receipt files as links (signed URLs — tap to view or download). Files
+ * load lazily when the section is opened; the backend only returns them
+ * to the requester and Finance (incl. the Finance Head).
+ */
+const ReceiptDetails = ({ request }: { request: Doc<"requests"> }) => {
+  const t = useAppTheme();
+  const files = useQuery(api.requests.receiptAttachments, {
+    requestId: request._id,
+  });
+  const receipt = request.receipt;
+  if (!receipt) return null;
+  return (
+    <View style={{ gap: 6 }}>
+      {receipt.recipients.map((recipient, i) => (
+        <View key={i} style={[styles.recipient, { borderColor: t.border }]}>
+          <Row>
+            <Txt style={{ fontWeight: "700", flexGrow: 1 }}>
+              {recipient.accountName}
+            </Txt>
+            <Txt style={{ fontWeight: "700" }}>${recipient.amount}</Txt>
+          </Row>
+          <Muted>
+            BSB {recipient.bsb} • Account {recipient.accountNumber}
+          </Muted>
+          {(files?.[i]?.attachments ?? []).map((file, j) =>
+            file.url ? (
+              <Pressable key={j} onPress={() => void Linking.openURL(file.url!)}>
+                <Text style={{ color: t.primary, textDecorationLine: "underline" }}>
+                  📎 {file.name}
+                </Text>
+              </Pressable>
+            ) : null
+          )}
+        </View>
       ))}
     </View>
   );
@@ -92,6 +133,12 @@ export const RequestCard = ({
 }) => {
   const t = useAppTheme();
   const [showHistory, setShowHistory] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const fileCount =
+    request.receipt?.recipients.reduce(
+      (count, recipient) => count + (recipient.attachments?.length ?? 0),
+      0
+    ) ?? 0;
   return (
     <Card>
       <Row>
@@ -109,17 +156,15 @@ export const RequestCard = ({
         <Text style={{ color: t.danger }}>Declined: {request.declineReason}</Text>
       ) : null}
       {request.receipt ? (
-        <Muted>
-          Receipt submitted: ${request.receipt.totalAmount} (
-          {request.receipt.recipients.length} recipient
-          {request.receipt.recipients.length === 1 ? "" : "s"},{" "}
-          {request.receipt.recipients.reduce(
-            (count, recipient) => count + (recipient.attachments?.length ?? 0),
-            0
-          )}{" "}
-          file{request.receipt.recipients.reduce((c, r) => c + (r.attachments?.length ?? 0), 0) === 1 ? "" : "s"}
-          )
-        </Muted>
+        <>
+          <Muted>
+            Receipt submitted: ${request.receipt.totalAmount} (
+            {request.receipt.recipients.length} recipient
+            {request.receipt.recipients.length === 1 ? "" : "s"}, {fileCount} file
+            {fileCount === 1 ? "" : "s"})
+          </Muted>
+          {showReceipt ? <ReceiptDetails request={request} /> : null}
+        </>
       ) : null}
       {request.paid && request.paidAmount !== undefined ? (
         <Muted>
@@ -130,6 +175,13 @@ export const RequestCard = ({
       {showHistory ? <History request={request} /> : null}
       <Row>
         {children}
+        {request.receipt ? (
+          <Btn
+            title={showReceipt ? "Hide Receipt" : "View Receipt"}
+            variant="ghost"
+            onPress={() => setShowReceipt((previous) => !previous)}
+          />
+        ) : null}
         <Btn
           title={showHistory ? "Hide History" : "History"}
           variant="ghost"
@@ -143,4 +195,10 @@ export const RequestCard = ({
 const styles = StyleSheet.create({
   amount: { fontSize: 22, fontWeight: "800", flexGrow: 1 },
   steps: { fontSize: 12 },
+  recipient: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    gap: 2,
+  },
 });

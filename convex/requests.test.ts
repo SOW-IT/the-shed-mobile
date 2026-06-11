@@ -1103,11 +1103,14 @@ describe("deadlock prevention and validation fixes", () => {
     ]);
     expect(receipts[1].attachments[0].url).toBeTruthy();
 
-    // ...the requester can view them too, but unrelated staff cannot.
+    // ...the requester can view them too, but unrelated staff get nothing
+    // (null, not an error — the query backs an inline card section).
     (await rachel.query(api.requests.receiptAttachments, { requestId: request._id }))!;
-    await expect(
-      asUser(t, HENRY).query(api.requests.receiptAttachments, { requestId: request._id })
-    ).rejects.toThrow(/can't view/);
+    expect(
+      await asUser(t, HENRY).query(api.requests.receiptAttachments, {
+        requestId: request._id,
+      })
+    ).toBeNull();
   });
 
   test("requests can be submitted on behalf of another department", async () => {
