@@ -194,10 +194,11 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontSize: 18, fontWeight: "700", marginTop: 8 },
   row: { flexDirection: "row", gap: 8, flexWrap: "wrap", alignItems: "center" },
+  // Pill buttons, matching the web app's rounded SOW styling.
   btn: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 9,
-    borderRadius: 8,
+    borderRadius: 999,
     alignItems: "center",
   },
   btnText: { fontWeight: "600" },

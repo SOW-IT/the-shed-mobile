@@ -18,6 +18,11 @@ export interface AppTheme {
   errorText: string;
 }
 
+// SOW brand primary (the web app's ColoursCampuses.STAFF).
+const BRAND = "#283E42";
+// Lighter brand tint that stays readable on dark surfaces.
+const BRAND_LIGHT = "#6fa3ad";
+
 const light: AppTheme = {
   dark: false,
   background: "#f3f4f6",
@@ -26,7 +31,7 @@ const light: AppTheme = {
   muted: "#6b7280",
   border: "#d1d5db",
   inputBackground: "#ffffff",
-  primary: "#2563eb",
+  primary: BRAND,
   success: "#16a34a",
   danger: "#dc2626",
   ghost: "#e5e7eb",
@@ -48,7 +53,7 @@ const dark: AppTheme = {
   muted: "#94a3b8",
   border: "#334155",
   inputBackground: "#0f172a",
-  primary: "#3b82f6",
+  primary: BRAND_LIGHT,
   success: "#22c55e",
   danger: "#ef4444",
   ghost: "#334155",

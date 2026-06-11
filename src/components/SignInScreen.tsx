@@ -3,7 +3,7 @@ import { useQuery } from "convex/react";
 import { makeRedirectUri } from "expo-auth-session";
 import { openAuthSessionAsync } from "expo-web-browser";
 import { useState } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Image, Platform, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { useAppTheme } from "../theme";
 import { Btn, Card, ErrorBanner, errorMessage, Muted, Screen, Txt } from "./ui";
@@ -43,6 +43,12 @@ export const SignInScreen = () => {
   return (
     <Screen>
       <View style={styles.hero}>
+        <View style={styles.logoWrap}>
+          <Image
+            source={require("../../assets/images/logo.png")}
+            style={styles.logo}
+          />
+        </View>
         <Txt style={styles.title}>THE SHED</Txt>
         <Muted>Reimbursement requests</Muted>
       </View>
@@ -80,6 +86,14 @@ export const SignInScreen = () => {
 
 const styles = StyleSheet.create({
   hero: { alignItems: "center", marginVertical: 32, gap: 4 },
+  // White disc so the black logo mark reads in dark mode too.
+  logoWrap: {
+    backgroundColor: "#ffffff",
+    borderRadius: 48,
+    padding: 8,
+    marginBottom: 8,
+  },
+  logo: { width: 80, height: 80 },
   title: { fontSize: 32, fontWeight: "900", letterSpacing: 1 },
   connected: { fontWeight: "700" },
 });
