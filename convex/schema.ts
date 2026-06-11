@@ -39,11 +39,15 @@ export default defineSchema({
     department: v.optional(v.string()),
     division: v.optional(v.string()), // for Heads of Division
     name: v.optional(v.string()), // synced from Google on sign-in
+    // Bound on first sign-in; the durable anchor that survives Google
+    // Workspace email renames (see userLink.ts).
+    userId: v.optional(v.id("users")),
   })
     .index("by_email_and_year", ["email", "year"])
     .index("by_year", ["year"])
     .index("by_year_and_department", ["year", "department"])
-    .index("by_year_and_role", ["year", "role"]),
+    .index("by_year_and_role", ["year", "role"])
+    .index("by_userId", ["userId"]),
 
   // Divisions group departments; both are data-driven and per-year.
   divisions: defineTable({
@@ -120,5 +124,6 @@ export default defineSchema({
   })
     .index("by_year", ["year"])
     .index("by_year_and_requester", ["year", "requesterEmail"])
+    .index("by_requester", ["requesterEmail"])
     .index("by_year_and_department", ["year", "department"]),
 });

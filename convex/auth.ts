@@ -1,10 +1,18 @@
 import Google from "@auth/core/providers/google";
 import { convexAuth } from "@convex-dev/auth/server";
+import { linkUserProfiles } from "./userLink";
 
 // Only accounts from this Google Workspace organisation may sign in.
 const allowedDomain = process.env.AUTH_ALLOWED_DOMAIN ?? "sow.org.au";
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
+  callbacks: {
+    // Bind staff profiles to the user id on every sign-in, and re-key all
+    // email references if the Google account's email changed (rename).
+    async afterUserCreatedOrUpdated(ctx, { userId }) {
+      await linkUserProfiles(ctx, userId);
+    },
+  },
   providers: [
     Google({
       // `hd` asks Google to restrict the account picker to the organisation;

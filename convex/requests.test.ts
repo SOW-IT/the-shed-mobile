@@ -441,6 +441,70 @@ describe("admin and per-year rules", () => {
     expect(nextYear.map((u) => u.email)).toContain("walter@sow.org.au");
   });
 
+  test("sign-in binds profiles to the user id; an email rename re-keys everything", async () => {
+    const t = await setup();
+    // Rachel has a request in flight, heads nothing, has a push token.
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
+    await asUser(t, RACHEL).mutation(api.push.register, { token: "ExponentPushToken[r]" });
+    // Bella is the Budget Manager; give her a users row and bind on sign-in.
+    const bellaUserId = await t.run((ctx) =>
+      ctx.db.insert("users", { email: BELLA, name: "Bella B" })
+    );
+    await t.mutation(internal.userLink.link, { userId: bellaUserId });
+    const bound = await t.run(async (ctx) =>
+      (await ctx.db.query("staffProfiles").take(100)).find((p) => p.email === BELLA)
+    );
+    expect(bound?.userId).toBe(bellaUserId);
+
+    // Rachel signs in, binds, then her Google email is renamed.
+    const rachelUserId = await t.run((ctx) =>
+      ctx.db.insert("users", { email: RACHEL, name: "Rachel R" })
+    );
+    await t.mutation(internal.userLink.link, { userId: rachelUserId });
+    await t.run((ctx) =>
+      ctx.db.patch("users", rachelUserId, { email: "rachel.renamed@sow.org.au" })
+    );
+    await t.mutation(internal.userLink.link, { userId: rachelUserId });
+
+    // Her profile, request and push token all follow the new email...
+    const renamed = asUser(t, "rachel.renamed@sow.org.au");
+    const mine = await renamed.query(api.requests.myRequests, {});
+    expect(mine).toHaveLength(1);
+    expect(mine[0].requesterEmail).toBe("rachel.renamed@sow.org.au");
+    const tokens = await t.run((ctx) => ctx.db.query("pushTokens").take(10));
+    expect(tokens.find((tk) => tk.token === "ExponentPushToken[r]")?.email).toBe(
+      "rachel.renamed@sow.org.au"
+    );
+    // ...and the old email is now a stranger.
+    await expect(
+      asUser(t, RACHEL).query(api.requests.myRequests, {})
+    ).rejects.toThrow(/No role\/department/);
+
+    // Headships and the Budget Manager assignment re-key too.
+    const fionaUserId = await t.run((ctx) =>
+      ctx.db.insert("users", { email: FIONA, name: "Fiona F" })
+    );
+    await t.mutation(internal.userLink.link, { userId: fionaUserId });
+    await t.run((ctx) =>
+      ctx.db.patch("users", fionaUserId, { email: "fiona.new@sow.org.au" })
+    );
+    await t.mutation(internal.userLink.link, { userId: fionaUserId });
+    const structure = await asUser(t, ADMIN).query(api.directory.yearStructure, {
+      year: YEAR,
+    });
+    expect(
+      structure.departments.find((d) => d.name === "Finance")?.headEmail
+    ).toBe("fiona.new@sow.org.au");
+    // The renamed Finance Head can still approve.
+    const [request] = await renamed.query(api.requests.myRequests, {});
+    await asUser(t, HENRY).mutation(api.requests.approve, { requestId: request._id, step: "hod" });
+    await asUser(t, BELLA).mutation(api.requests.approve, { requestId: request._id, step: "budgetManager" });
+    await asUser(t, "fiona.new@sow.org.au").mutation(api.requests.approve, {
+      requestId: request._id,
+      step: "financeHead",
+    });
+  });
+
   test("push tokens register per device and follow account switches", async () => {
     const t = await setup();
     await asUser(t, RACHEL).mutation(api.push.register, {

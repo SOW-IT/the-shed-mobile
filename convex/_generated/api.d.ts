@@ -17,6 +17,7 @@ import type * as model from "../model.js";
 import type * as profile from "../profile.js";
 import type * as push from "../push.js";
 import type * as requests from "../requests.js";
+import type * as userLink from "../userLink.js";
 
 import type {
   ApiFromModules,
@@ -34,6 +35,7 @@ declare const fullApi: ApiFromModules<{
   profile: typeof profile;
   push: typeof push;
   requests: typeof requests;
+  userLink: typeof userLink;
 }>;
 
 /**
