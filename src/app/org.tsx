@@ -100,7 +100,7 @@ export default function OrgChartScreen() {
     selectedYear === null ? {} : { year: selectedYear }
   );
 
-  if (chart === undefined) {
+  if (!chart) {
     return (
       <Screen>
         <Muted>Loading…</Muted>

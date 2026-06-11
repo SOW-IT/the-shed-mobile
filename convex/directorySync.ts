@@ -7,7 +7,7 @@ import {
   MutationCtx,
   query,
 } from "./_generated/server";
-import { getProfile, requireAdmin } from "./model";
+import { getProfile, optionalEmail, requireAdmin } from "./model";
 
 /**
  * Google Workspace directory sync via the Admin SDK Directory API, using a
@@ -197,6 +197,7 @@ export const requestSync = mutation({
 export const list = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
+    if ((await optionalEmail(ctx)) === null) return null; // auth attaching
     await requireAdmin(ctx);
     const state = await ctx.db
       .query("syncState")

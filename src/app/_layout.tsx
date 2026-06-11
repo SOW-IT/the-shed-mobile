@@ -11,6 +11,7 @@ import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator, Platform, View } from "react-native";
 import { api } from "../../convex/_generated/api";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SignInScreen } from "@/components/SignInScreen";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { useAppTheme } from "@/theme";
@@ -77,6 +78,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={t.dark ? DarkTheme : DefaultTheme}>
       <StatusBar style="auto" />
+      <ErrorBoundary>
       <ConvexAuthProvider
         client={convex}
         storage={Platform.OS === "web" ? undefined : secureStorage}
@@ -95,6 +97,7 @@ export default function RootLayout() {
           <AppTabs />
         </Authenticated>
       </ConvexAuthProvider>
+      </ErrorBoundary>
     </ThemeProvider>
   );
 }

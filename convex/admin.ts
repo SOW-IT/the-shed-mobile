@@ -13,6 +13,7 @@ import {
   getProfile,
   getYearSettings,
   nextStaffYear,
+  optionalEmail,
   requireAdmin,
   rolesOf,
 } from "./model";
@@ -140,6 +141,7 @@ export const removeStaffProfile = mutation({
 export const listStaffProfiles = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
+    if ((await optionalEmail(ctx)) === null) return null; // auth attaching
     await requireAdmin(ctx);
     const profiles = await ctx.db
       .query("staffProfiles")
@@ -157,6 +159,7 @@ export const listStaffProfiles = query({
 export const listUnassignedUsers = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
+    if ((await optionalEmail(ctx)) === null) return null; // auth attaching
     await requireAdmin(ctx);
     const users = await ctx.db.query("users").take(1000);
     const unassigned: { email: string; name: string | null }[] = [];

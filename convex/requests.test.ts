@@ -58,7 +58,7 @@ describe("submission auto-approval (REQUESTS_FLOW auto-approval table)", () => {
     const rachel = asUser(t, RACHEL);
     await rachel.mutation(api.requests.submit, { description: "small", amount: 200 });
     await rachel.mutation(api.requests.submit, { description: "big", amount: 5000 });
-    const [small, big] = (await rachel.query(api.requests.myRequests, {})).sort(
+    const [small, big] = ((await rachel.query(api.requests.myRequests, {}))!).sort(
       (a, b) => a.amount - b.amount
     );
     expect(small.approvedByHOD).toBe("PENDING");
@@ -70,7 +70,7 @@ describe("submission auto-approval (REQUESTS_FLOW auto-approval table)", () => {
     const t = await setup();
     const henry = asUser(t, HENRY);
     await henry.mutation(api.requests.submit, { description: "x", amount: 100 });
-    const [request] = await henry.query(api.requests.myRequests, {});
+    const [request] = (await henry.query(api.requests.myRequests, {}))!;
     expect(request.approvedByHOD).toBe("APPROVED");
     expect(request.approvedByBudgetManager).toBe("PENDING");
   });
@@ -79,7 +79,7 @@ describe("submission auto-approval (REQUESTS_FLOW auto-approval table)", () => {
     const t = await setup();
     const bella = asUser(t, BELLA);
     await bella.mutation(api.requests.submit, { description: "x", amount: 100 });
-    const [request] = await bella.query(api.requests.myRequests, {});
+    const [request] = (await bella.query(api.requests.myRequests, {}))!;
     expect(request.approvedByHOD).toBe("APPROVED"); // Finance has no HOD step
     expect(request.approvedByBudgetManager).toBe("APPROVED");
     expect(request.approvedByFinanceHead).toBe("PENDING");
@@ -89,7 +89,7 @@ describe("submission auto-approval (REQUESTS_FLOW auto-approval table)", () => {
     const t = await setup();
     const fiona = asUser(t, FIONA);
     await fiona.mutation(api.requests.submit, { description: "x", amount: 9000 });
-    const [request] = await fiona.query(api.requests.myRequests, {});
+    const [request] = (await fiona.query(api.requests.myRequests, {}))!;
     expect(request.approvedByHOD).toBe("APPROVED");
     expect(request.approvedByBudgetManager).toBe("APPROVED");
     expect(request.approvedByFinanceHead).toBe("APPROVED");
@@ -100,7 +100,7 @@ describe("submission auto-approval (REQUESTS_FLOW auto-approval table)", () => {
     const t = await setup();
     const dan = asUser(t, DAN);
     await dan.mutation(api.requests.submit, { description: "x", amount: 6000 });
-    const [request] = await dan.query(api.requests.myRequests, {});
+    const [request] = (await dan.query(api.requests.myRequests, {}))!;
     expect(request.approvedByHOD).toBe("APPROVED");
     expect(request.approvedByDirector).toBe("APPROVED");
     expect(request.approvedByBudgetManager).toBe("PENDING");
@@ -112,7 +112,7 @@ describe("approval chain order and authorization", () => {
     const t = await setup();
     const rachel = asUser(t, RACHEL);
     await rachel.mutation(api.requests.submit, { description: "x", amount: 100 });
-    const [request] = await rachel.query(api.requests.myRequests, {});
+    const [request] = (await rachel.query(api.requests.myRequests, {}))!;
 
     // Budget Manager can't jump the queue before the HOD.
     await expect(
@@ -142,14 +142,14 @@ describe("approval chain order and authorization", () => {
       ],
     });
     const fiona = asUser(t, FIONA);
-    const review = await fiona.query(api.requests.toReview, {});
+    const review = (await fiona.query(api.requests.toReview, {}))!;
     expect(review.readyToPay.map((r) => r._id)).toEqual([request._id]);
     await fiona.mutation(api.requests.pay, {
       requestId: request._id,
       paidAmount: 95,
     });
 
-    const [done] = await rachel.query(api.requests.myRequests, {});
+    const [done] = (await rachel.query(api.requests.myRequests, {}))!;
     expect(done.paid).toBe(true);
   });
 
@@ -159,7 +159,7 @@ describe("approval chain order and authorization", () => {
       description: "x",
       amount: 100,
     });
-    const [request] = await asUser(t, HENRY).query(api.requests.myRequests, {});
+    const [request] = (await asUser(t, HENRY).query(api.requests.myRequests, {}))!;
 
     await expect(
       asUser(t, RACHEL).mutation(api.requests.approve, {
@@ -173,7 +173,7 @@ describe("approval chain order and authorization", () => {
     const t = await setup();
     const rachel = asUser(t, RACHEL);
     await rachel.mutation(api.requests.submit, { description: "x", amount: 100 });
-    const [request] = await rachel.query(api.requests.myRequests, {});
+    const [request] = (await rachel.query(api.requests.myRequests, {}))!;
     await asUser(t, HENRY).mutation(api.requests.decline, {
       requestId: request._id,
       step: "hod",
@@ -197,7 +197,7 @@ describe("approval chain order and authorization", () => {
       description: "finance",
       amount: 100,
     });
-    const review = await asUser(t, HENRY).query(api.requests.toReview, {});
+    const review = (await asUser(t, HENRY).query(api.requests.toReview, {}))!;
     expect(review.hod).toHaveLength(1);
     expect(review.hod[0].department).toBe("Marketing");
     expect(review.budgetManager).toHaveLength(0); // Henry isn't the BM
@@ -232,9 +232,9 @@ describe("admin and per-year rules", () => {
       roles: ["Staff"],
       department: "Marketing",
     });
-    const nextYearProfiles = await admin.query(api.admin.listStaffProfiles, {
+    const nextYearProfiles = (await admin.query(api.admin.listStaffProfiles, {
       year: YEAR + 1,
-    });
+    }))!;
     expect(nextYearProfiles.map((p) => p.email)).toContain("newhire@sow.org.au");
 
     // ...but not for years beyond next.
@@ -267,7 +267,7 @@ describe("admin and per-year rules", () => {
       api.admin.listStaffProfiles,
       { year: YEAR }
     );
-    expect(profiles.map((p) => p.email)).toContain("someone@sow.org.au");
+    expect(profiles!.map((p) => p.email)).toContain("someone@sow.org.au");
   });
 
   test("the Budget Manager must be from the Finance department", async () => {
@@ -283,13 +283,13 @@ describe("admin and per-year rules", () => {
       roles: ["Staff"],
       department: "Marketing",
     });
-    const structure = await admin.query(api.directory.yearStructure, { year: YEAR });
+    const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
     expect(structure.budgetManagerEmail).toBeNull();
   });
 
   test("org chart groups director, divisions, heads and members", async () => {
     const t = await setup();
-    const chart = await asUser(t, RACHEL).query(api.directory.orgChart, {});
+    const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
     expect(chart.year).toBe(YEAR);
     expect(chart.director?.email).toBe(DAN);
 
@@ -324,9 +324,9 @@ describe("admin and per-year rules", () => {
       });
     });
 
-    const past = await asUser(t, RACHEL).query(api.directory.orgChart, {
+    const past = (await asUser(t, RACHEL).query(api.directory.orgChart, {
       year: 2020,
-    });
+    }))!;
     expect(past.year).toBe(2020);
     expect(past.availableYears).toContain(2020);
     expect(past.availableYears).toContain(YEAR);
@@ -334,7 +334,7 @@ describe("admin and per-year rules", () => {
     expect(past.divisions[0].departments[0].head?.email).toBe(HENRY);
 
     // Defaults to the current year when no year is given.
-    const current = await asUser(t, RACHEL).query(api.directory.orgChart, {});
+    const current = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
     expect(current.year).toBe(YEAR);
   });
 
@@ -369,7 +369,7 @@ describe("admin and per-year rules", () => {
     });
 
     // Henry views Rachel's profile from the org chart.
-    const viewed = await asUser(t, HENRY).query(api.profile.get, { email: RACHEL });
+    const viewed = (await asUser(t, HENRY).query(api.profile.get, { email: RACHEL }))!;
     expect(viewed.isMe).toBe(false);
     expect(viewed.name).toBe("Rachel R");
     expect(viewed.localChurch).toBe("SOW City Church");
@@ -380,7 +380,7 @@ describe("admin and per-year rules", () => {
 
     // Rachel's own view is editable (isMe) but role/department come from
     // staffProfiles — profile mutations expose no way to change them.
-    const own = await rachelSignedIn.query(api.profile.get, {});
+    const own = (await rachelSignedIn.query(api.profile.get, {}))!;
     expect(own.isMe).toBe(true);
     expect(own.photo).toBe("https://lh3.googleusercontent.com/google-default");
 
@@ -389,12 +389,12 @@ describe("admin and per-year rules", () => {
       ctx.storage.store(new Blob(["fake-image"], { type: "image/png" }))
     );
     await rachelSignedIn.mutation(api.profile.setAvatar, { storageId });
-    const updated = await asUser(t, HENRY).query(api.profile.get, { email: RACHEL });
+    const updated = (await asUser(t, HENRY).query(api.profile.get, { email: RACHEL }))!;
     expect(updated.photo).not.toBe("https://lh3.googleusercontent.com/google-default");
     expect(updated.photo).toBeTruthy();
 
     // The org chart shows the uploaded photo too.
-    const chart = await asUser(t, HENRY).query(api.directory.orgChart, {});
+    const chart = (await asUser(t, HENRY).query(api.directory.orgChart, {}))!;
     const marketing = chart.divisions
       .flatMap((d) => d.departments)
       .find((d) => d.name === "Marketing");
@@ -412,9 +412,9 @@ describe("admin and per-year rules", () => {
         { email: "fresh@sow.org.au" },
       ],
     });
-    const directory = await asUser(t, ADMIN).query(api.directorySync.list, {
+    const directory = (await asUser(t, ADMIN).query(api.directorySync.list, {
       year: YEAR,
-    });
+    }))!;
     expect(directory.syncedAt).toBeTruthy();
     expect(directory.status).toBe("synced 3 people");
     expect(
@@ -426,9 +426,9 @@ describe("admin and per-year rules", () => {
     await t.mutation(internal.directorySync.store, {
       users: [{ email: "only@sow.org.au" }],
     });
-    const replaced = await asUser(t, ADMIN).query(api.directorySync.list, {
+    const replaced = (await asUser(t, ADMIN).query(api.directorySync.list, {
       year: YEAR,
-    });
+    }))!;
     expect(replaced.users.map((u) => u.email)).toEqual(["only@sow.org.au"]);
 
     // Only admins can view or trigger the sync.
@@ -449,7 +449,7 @@ describe("admin and per-year rules", () => {
     const walter = asUser(t, "walter@sow.org.au");
 
     // He gets the unassigned experience, not an error.
-    const me = await walter.query(api.directory.me, {});
+    const me = (await walter.query(api.directory.me, {}))!;
     expect(me?.profile).toBeNull();
     // ...and can't touch the request flow.
     await expect(
@@ -458,7 +458,7 @@ describe("admin and per-year rules", () => {
 
     // Admins see him in the unassigned list and can assign him.
     const admin = asUser(t, ADMIN);
-    const before = await admin.query(api.admin.listUnassignedUsers, { year: YEAR });
+    const before = (await admin.query(api.admin.listUnassignedUsers, { year: YEAR }))!;
     expect(before.map((u) => u.email)).toContain("walter@sow.org.au");
     await admin.mutation(api.admin.setStaffProfile, {
       email: "walter@sow.org.au",
@@ -466,17 +466,17 @@ describe("admin and per-year rules", () => {
       roles: ["Staff"],
       department: "Marketing",
     });
-    const after = await admin.query(api.admin.listUnassignedUsers, { year: YEAR });
+    const after = (await admin.query(api.admin.listUnassignedUsers, { year: YEAR }))!;
     expect(after.map((u) => u.email)).not.toContain("walter@sow.org.au");
 
     // Now the flow works for him.
     await walter.mutation(api.requests.submit, { description: "x", amount: 10 });
-    expect(await walter.query(api.requests.myRequests, {})).toHaveLength(1);
+    expect((await walter.query(api.requests.myRequests, {}))!).toHaveLength(1);
 
     // Provisioned-but-next-year-lapsed people show as unassigned for that year.
-    const nextYear = await admin.query(api.admin.listUnassignedUsers, {
+    const nextYear = (await admin.query(api.admin.listUnassignedUsers, {
       year: YEAR + 1,
-    });
+    }))!;
     expect(nextYear.map((u) => u.email)).toContain("walter@sow.org.au");
   });
 
@@ -507,17 +507,15 @@ describe("admin and per-year rules", () => {
 
     // Her profile, request and push token all follow the new email...
     const renamed = asUser(t, "rachel.renamed@sow.org.au");
-    const mine = await renamed.query(api.requests.myRequests, {});
+    const mine = (await renamed.query(api.requests.myRequests, {}))!;
     expect(mine).toHaveLength(1);
     expect(mine[0].requesterEmail).toBe("rachel.renamed@sow.org.au");
     const tokens = await t.run((ctx) => ctx.db.query("pushTokens").take(10));
     expect(tokens.find((tk) => tk.token === "ExponentPushToken[r]")?.email).toBe(
       "rachel.renamed@sow.org.au"
     );
-    // ...and the old email is now a stranger.
-    await expect(
-      asUser(t, RACHEL).query(api.requests.myRequests, {})
-    ).rejects.toThrow(/No role\/department/);
+    // ...and the old email is now a stranger (unprovisioned -> null).
+    expect(await asUser(t, RACHEL).query(api.requests.myRequests, {})).toBeNull();
 
     // Headships and the Budget Manager assignment re-key too.
     const fionaUserId = await t.run((ctx) =>
@@ -528,14 +526,14 @@ describe("admin and per-year rules", () => {
       ctx.db.patch("users", fionaUserId, { email: "fiona.new@sow.org.au" })
     );
     await t.mutation(internal.userLink.link, { userId: fionaUserId });
-    const structure = await asUser(t, ADMIN).query(api.directory.yearStructure, {
+    const structure = (await asUser(t, ADMIN).query(api.directory.yearStructure, {
       year: YEAR,
-    });
+    }))!;
     expect(
       structure.departments.find((d) => d.name === "Finance")?.headEmail
     ).toBe("fiona.new@sow.org.au");
     // The renamed Finance Head can still approve.
-    const [request] = await renamed.query(api.requests.myRequests, {});
+    const [request] = (await renamed.query(api.requests.myRequests, {}))!;
     await asUser(t, HENRY).mutation(api.requests.approve, { requestId: request._id, step: "hod" });
     await asUser(t, BELLA).mutation(api.requests.approve, { requestId: request._id, step: "budgetManager" });
     await asUser(t, "fiona.new@sow.org.au").mutation(api.requests.approve, {
@@ -575,7 +573,7 @@ describe("audit trail and reminders", () => {
     const t = await setup();
     // Henry's own request: HOD auto-approved at submission.
     await asUser(t, HENRY).mutation(api.requests.submit, { description: "x", amount: 100 });
-    const [request] = await asUser(t, HENRY).query(api.requests.myRequests, {});
+    const [request] = (await asUser(t, HENRY).query(api.requests.myRequests, {}))!;
     await asUser(t, BELLA).mutation(api.requests.approve, { requestId: request._id, step: "budgetManager" });
     await asUser(t, FIONA).mutation(api.requests.approve, { requestId: request._id, step: "financeHead" });
     await asUser(t, HENRY).mutation(api.requests.submitReceipt, {
@@ -584,9 +582,9 @@ describe("audit trail and reminders", () => {
     });
     await asUser(t, FIONA).mutation(api.requests.pay, { requestId: request._id, paidAmount: 90 });
 
-    const trail = await asUser(t, RACHEL).query(api.requests.auditTrail, {
+    const trail = (await asUser(t, RACHEL).query(api.requests.auditTrail, {
       requestId: request._id,
-    });
+    }))!;
     expect(trail.map((e) => [e.action, e.step, e.actor])).toEqual([
       ["submitted", null, HENRY],
       ["auto-approved", "hod", HENRY],
@@ -600,13 +598,13 @@ describe("audit trail and reminders", () => {
 
     // Decline reasons land in the trail too.
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "y", amount: 50 });
-    const [declined] = await asUser(t, RACHEL).query(api.requests.myRequests, {});
+    const [declined] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
     await asUser(t, HENRY).mutation(api.requests.decline, {
       requestId: declined._id, step: "hod", reason: "Too dear",
     });
-    const declinedTrail = await asUser(t, RACHEL).query(api.requests.auditTrail, {
+    const declinedTrail = (await asUser(t, RACHEL).query(api.requests.auditTrail, {
       requestId: declined._id,
-    });
+    }))!;
     expect(declinedTrail.at(-1)).toMatchObject({
       action: "declined", step: "hod", actor: HENRY, detail: "Too dear",
     });
@@ -623,7 +621,7 @@ describe("audit trail and reminders", () => {
 
     // Members gone but an open request remains -> still refuse.
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 40 });
-    const [request] = await asUser(t, RACHEL).query(api.requests.myRequests, {});
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
     await asUser(t, HENRY).mutation(api.requests.decline, {
       requestId: request._id, step: "hod", reason: "no",
     });
@@ -633,7 +631,7 @@ describe("audit trail and reminders", () => {
 
     // The only request is completed (declined), members are gone -> allowed.
     await admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Marketing" });
-    const structure = await admin.query(api.directory.yearStructure, { year: YEAR });
+    const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
     expect(structure.departments.map((d) => d.name)).not.toContain("Marketing");
 
     // And a department with an OPEN request can't be removed.
@@ -718,26 +716,41 @@ describe("audit trail and reminders", () => {
     ).toEqual([BELLA]);
   });
 
+  test("read queries return null (not throw) while auth is still attaching", async () => {
+    const t = await setup();
+    // Unauthenticated query calls — the client briefly does this on every
+    // page load / token refresh; throwing here blank-screens the app.
+    expect((await t.query(api.directory.orgChart, {}))!).toBeNull();
+    expect((await t.query(api.directory.availableYears, {}))!).toBeNull();
+    expect((await t.query(api.directory.yearStructure, { year: YEAR }))!).toBeNull();
+    expect((await t.query(api.requests.myRequests, {}))!).toBeNull();
+    expect((await t.query(api.requests.toReview, {}))!).toBeNull();
+    expect((await t.query(api.requests.allRequests, {}))!).toBeNull();
+    expect((await t.query(api.profile.get, {}))!).toBeNull();
+    expect((await t.query(api.admin.listStaffProfiles, { year: YEAR }))!).toBeNull();
+    expect((await t.query(api.directorySync.list, { year: YEAR }))!).toBeNull();
+  });
+
   test("requests.get serves the detail screen for any signed-in staff member", async () => {
     const t = await setup();
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
-    const [request] = await asUser(t, RACHEL).query(api.requests.myRequests, {});
-    const seen = await asUser(t, HENRY).query(api.requests.get, {
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    const seen = (await asUser(t, HENRY).query(api.requests.get, {
       requestId: request._id,
-    });
+    }))!;
     expect(seen?._id).toBe(request._id);
     // A cancelled request resolves to null (the screen shows a notice).
     await asUser(t, RACHEL).mutation(api.requests.cancel, { requestId: request._id });
-    const gone = await asUser(t, HENRY).query(api.requests.get, {
+    const gone = (await asUser(t, HENRY).query(api.requests.get, {
       requestId: request._id,
-    });
+    }))!;
     expect(gone).toBeNull();
   });
 
   test("stale requests trigger a weekly reminder to whoever they wait on", async () => {
     const t = await setup();
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
-    const [request] = await asUser(t, RACHEL).query(api.requests.myRequests, {});
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
 
     // Fresh request: no reminder.
     await t.mutation(internal.reminders.remindStale, {});
@@ -801,7 +814,7 @@ describe("deadlock prevention and validation fixes", () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.removeStaffProfile, { email: BELLA, year: YEAR });
-    const structure = await admin.query(api.directory.yearStructure, { year: YEAR });
+    const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
     expect(structure.budgetManagerEmail).toBeNull();
   });
 
@@ -809,7 +822,7 @@ describe("deadlock prevention and validation fixes", () => {
     const t = await setup();
     const rachel = asUser(t, RACHEL);
     await rachel.mutation(api.requests.submit, { description: "x", amount: 100 });
-    const [request] = await rachel.query(api.requests.myRequests, {});
+    const [request] = (await rachel.query(api.requests.myRequests, {}))!;
     await asUser(t, HENRY).mutation(api.requests.approve, { requestId: request._id, step: "hod" });
     await asUser(t, BELLA).mutation(api.requests.approve, { requestId: request._id, step: "budgetManager" });
     await asUser(t, FIONA).mutation(api.requests.approve, { requestId: request._id, step: "financeHead" });
@@ -855,11 +868,11 @@ describe("deadlock prevention and validation fixes", () => {
     });
 
     // Still visible to the requester...
-    const mine = await asUser(t, RACHEL).query(api.requests.myRequests, {});
+    const mine = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
     expect(mine.some((r) => r.year === YEAR - 1)).toBe(true);
 
     // ...and actionable by last year's approvers, all the way to payment.
-    const review = await asUser(t, BELLA).query(api.requests.toReview, {});
+    const review = (await asUser(t, BELLA).query(api.requests.toReview, {}))!;
     const carried = review.budgetManager.find((r) => r.year === YEAR - 1);
     expect(carried).toBeDefined();
     await asUser(t, BELLA).mutation(api.requests.approve, {
@@ -872,7 +885,7 @@ describe("deadlock prevention and validation fixes", () => {
       requestId: carried!._id,
       recipients: [{ accountName: "R", bsb: "0", accountNumber: "1", amount: 300 }],
     });
-    const fionaReview = await asUser(t, FIONA).query(api.requests.toReview, {});
+    const fionaReview = (await asUser(t, FIONA).query(api.requests.toReview, {}))!;
     expect(fionaReview.readyToPay.map((r) => r._id)).toContain(carried!._id);
     await asUser(t, FIONA).mutation(api.requests.pay, {
       requestId: carried!._id, paidAmount: 300,
@@ -880,14 +893,14 @@ describe("deadlock prevention and validation fixes", () => {
     const paidDoc = await t.run((ctx) => ctx.db.get("requests", carried!._id));
     expect(paidDoc?.paid).toBe(true);
     // Once completed, carry-overs drop out of the active lists (archive).
-    const after = await asUser(t, RACHEL).query(api.requests.myRequests, {});
+    const after = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
     expect(after.find((r) => r._id === carried!._id)).toBeUndefined();
   });
 
   test("declining requires a reason", async () => {
     const t = await setup();
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
-    const [request] = await asUser(t, RACHEL).query(api.requests.myRequests, {});
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
     await expect(
       asUser(t, HENRY).mutation(api.requests.decline, {
         requestId: request._id, step: "hod", reason: "   ",
@@ -941,7 +954,7 @@ describe("deadlock prevention and validation fixes", () => {
       });
     });
     // This year's Budget Manager (bella) sees and approves it.
-    const review = await asUser(t, BELLA).query(api.requests.toReview, {});
+    const review = (await asUser(t, BELLA).query(api.requests.toReview, {}))!;
     const stranded = review.budgetManager.find((r) => r.description === "stranded");
     expect(stranded).toBeDefined();
     await asUser(t, BELLA).mutation(api.requests.approve, {
@@ -953,7 +966,7 @@ describe("deadlock prevention and validation fixes", () => {
     const t = await setup();
     const rachel = asUser(t, RACHEL);
     await rachel.mutation(api.requests.submit, { description: "x", amount: 300 });
-    const [request] = await rachel.query(api.requests.myRequests, {});
+    const [request] = (await rachel.query(api.requests.myRequests, {}))!;
     await asUser(t, HENRY).mutation(api.requests.approve, { requestId: request._id, step: "hod" });
     await asUser(t, BELLA).mutation(api.requests.approve, { requestId: request._id, step: "budgetManager" });
     await asUser(t, FIONA).mutation(api.requests.approve, { requestId: request._id, step: "financeHead" });
@@ -992,9 +1005,9 @@ describe("deadlock prevention and validation fixes", () => {
     expect(updated?.receipt?.totalAmount).toBe(300);
 
     // The Finance Head sees signed URLs grouped per recipient...
-    const receipts = await asUser(t, FIONA).query(api.requests.receiptAttachments, {
+    const receipts = (await asUser(t, FIONA).query(api.requests.receiptAttachments, {
       requestId: request._id,
-    });
+    }))!;
     expect(receipts).toHaveLength(2);
     expect(receipts[0].attachments.map((a) => a.name)).toEqual([
       "flights.pdf",
@@ -1003,7 +1016,7 @@ describe("deadlock prevention and validation fixes", () => {
     expect(receipts[1].attachments[0].url).toBeTruthy();
 
     // ...the requester can view them too, but unrelated staff cannot.
-    await rachel.query(api.requests.receiptAttachments, { requestId: request._id });
+    (await rachel.query(api.requests.receiptAttachments, { requestId: request._id }))!;
     await expect(
       asUser(t, HENRY).query(api.requests.receiptAttachments, { requestId: request._id })
     ).rejects.toThrow(/can't view/);
@@ -1028,14 +1041,14 @@ describe("deadlock prevention and validation fixes", () => {
     await asUser(t, RACHEL).mutation(api.requests.submit, {
       description: "conference", amount: 100, department: "Events",
     });
-    const [request] = await asUser(t, RACHEL).query(api.requests.myRequests, {});
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
     expect(request.department).toBe("Events");
     expect(request.approvedByHOD).toBe("PENDING");
 
     // Events' head reviews it; Rachel's own HOD (Marketing) does not.
-    const evanReview = await asUser(t, "evan@sow.org.au").query(api.requests.toReview, {});
+    const evanReview = (await asUser(t, "evan@sow.org.au").query(api.requests.toReview, {}))!;
     expect(evanReview.hod.map((r) => r._id)).toContain(request._id);
-    const henryReview = await asUser(t, HENRY).query(api.requests.toReview, {});
+    const henryReview = (await asUser(t, HENRY).query(api.requests.toReview, {}))!;
     expect(henryReview.hod).toHaveLength(0);
 
     // Unknown departments are rejected.
@@ -1055,7 +1068,7 @@ describe("deadlock prevention and validation fixes", () => {
     await asUser(t, "diana@sow.org.au").mutation(api.requests.submit, {
       description: "x", amount: 60, department: "Marketing",
     });
-    const [request] = await asUser(t, "diana@sow.org.au").query(api.requests.myRequests, {});
+    const [request] = (await asUser(t, "diana@sow.org.au").query(api.requests.myRequests, {}))!;
     expect(request.department).toBe("Marketing");
     expect(request.approvedByHOD).toBe("PENDING");
   });
@@ -1071,7 +1084,7 @@ describe("deadlock prevention and validation fixes", () => {
       department: "Marketing",
     });
     // Org chart: heads the Engagement division AND appears in Marketing.
-    const chart = await asUser(t, RACHEL).query(api.directory.orgChart, {});
+    const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
     const engagement = chart.divisions.find((d) => d.name === "Engagement");
     expect(engagement?.head?.email).toBe("maria@sow.org.au");
     const marketing = engagement?.departments.find((d) => d.name === "Marketing");
@@ -1091,7 +1104,7 @@ describe("deadlock prevention and validation fixes", () => {
     // has no HOD above her.
     const maria = asUser(t, "maria@sow.org.au");
     await maria.mutation(api.requests.submit, { description: "x", amount: 50 });
-    const [request] = await maria.query(api.requests.myRequests, {});
+    const [request] = (await maria.query(api.requests.myRequests, {}))!;
     expect(request.department).toBe("Marketing");
     expect(request.approvedByHOD).toBe("APPROVED");
   });
@@ -1108,7 +1121,7 @@ describe("deadlock prevention and validation fixes", () => {
       department: "Finance",
       division: "Operations",
     });
-    const chart = await asUser(t, RACHEL).query(api.directory.orgChart, {});
+    const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
     expect(chart.divisions.find((d) => d.name === "Operations")?.head?.email).toBe(FIONA);
     expect(
       chart.divisions
@@ -1118,7 +1131,7 @@ describe("deadlock prevention and validation fixes", () => {
 
     // She is still the Finance Head approver for the whole org...
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
-    const [request] = await asUser(t, RACHEL).query(api.requests.myRequests, {});
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
     await asUser(t, HENRY).mutation(api.requests.approve, { requestId: request._id, step: "hod" });
     await asUser(t, BELLA).mutation(api.requests.approve, { requestId: request._id, step: "budgetManager" });
     await asUser(t, FIONA).mutation(api.requests.approve, { requestId: request._id, step: "financeHead" });
@@ -1130,7 +1143,7 @@ describe("deadlock prevention and validation fixes", () => {
     await asUser(t, FIONA).mutation(api.requests.submit, {
       description: "ops gear", amount: 100, department: "Events",
     });
-    const fionaRequests = await asUser(t, FIONA).query(api.requests.myRequests, {});
+    const fionaRequests = (await asUser(t, FIONA).query(api.requests.myRequests, {}))!;
     expect(fionaRequests.find((r) => r.department === "Events")?.approvedByHOD).toBe("APPROVED");
 
     // Head of Division for Governance: org chart placement + her own request
@@ -1139,14 +1152,14 @@ describe("deadlock prevention and validation fixes", () => {
     await admin.mutation(api.admin.setStaffProfile, {
       email: "gina@sow.org.au", year: YEAR, roles: ["Head of Division"], division: "Governance",
     });
-    const chart2 = await asUser(t, RACHEL).query(api.directory.orgChart, {});
+    const chart2 = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
     expect(chart2.divisions.find((d) => d.name === "Governance")?.head?.email).toBe(
       "gina@sow.org.au"
     );
     await asUser(t, "gina@sow.org.au").mutation(api.requests.submit, {
       description: "governance", amount: 80,
     });
-    const [ginaRequest] = await asUser(t, "gina@sow.org.au").query(api.requests.myRequests, {});
+    const [ginaRequest] = (await asUser(t, "gina@sow.org.au").query(api.requests.myRequests, {}))!;
     expect(ginaRequest.department).toBe("Compliance"); // first Governance dept
     expect(ginaRequest.approvedByHOD).toBe("APPROVED");
     expect(ginaRequest.approvedByBudgetManager).toBe("PENDING");
@@ -1159,7 +1172,7 @@ describe("deadlock prevention and validation fixes", () => {
       email: "diana@sow.org.au", year: YEAR, roles: ["Head of Division"], division: "Engagement",
     });
     // Shown as the division's head on the org chart.
-    const chart = await asUser(t, RACHEL).query(api.directory.orgChart, {});
+    const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
     expect(chart.divisions.find((d) => d.name === "Engagement")?.head?.email).toBe(
       "diana@sow.org.au"
     );
@@ -1167,7 +1180,7 @@ describe("deadlock prevention and validation fixes", () => {
     // alphabetically: Alumni), with no HOD step pending — she outranks it.
     const diana = asUser(t, "diana@sow.org.au");
     await diana.mutation(api.requests.submit, { description: "x", amount: 100 });
-    const [request] = await diana.query(api.requests.myRequests, {});
+    const [request] = (await diana.query(api.requests.myRequests, {}))!;
     expect(request.department).toBe("Alumni");
     expect(request.approvedByHOD).toBe("APPROVED");
     expect(request.approvedByBudgetManager).toBe("PENDING");

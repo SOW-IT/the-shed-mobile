@@ -35,7 +35,7 @@ export default function AllRequestsScreen() {
         All {filter === "ongoing" ? "Ongoing" : "Completed"} Requests (
         {filtered.length})
       </SectionTitle>
-      {requests === undefined ? (
+      {requests == null ? (
         <Muted>Loading…</Muted>
       ) : filtered.length === 0 ? (
         <Muted>No {filter} requests.</Muted>

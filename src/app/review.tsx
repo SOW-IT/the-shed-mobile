@@ -177,7 +177,7 @@ export default function ToReviewScreen() {
   return (
     <Screen>
       <ErrorBanner message={error} />
-      {data === undefined ? (
+      {data == null ? (
         <Muted>Loading…</Muted>
       ) : !hasAnything ? (
         <Muted>No requests to review.</Muted>

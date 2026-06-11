@@ -380,7 +380,7 @@ export default function MyRequestsScreen() {
             />
           </Row>
           <ErrorBanner message={error} />
-          {requests === undefined ? (
+          {requests == null ? (
             <Muted>Loading…</Muted>
           ) : requests.length === 0 ? (
             <Muted>No requests yet. Make your first one!</Muted>

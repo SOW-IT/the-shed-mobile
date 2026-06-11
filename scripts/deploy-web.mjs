@@ -18,7 +18,12 @@ run("npx expo export --platform web -c", {
   env: { EXPO_PUBLIC_CONVEX_URL: PROD_CONVEX_URL },
 });
 cpSync("web", "dist", { recursive: true });
-// The export wipes dist (including .vercel), so re-link every time —
-// otherwise the CLI silently creates and deploys to a new project ("dist").
-run("npx vercel link --yes --project the-shed-web", { cwd: "dist" });
-run("npx vercel deploy --prod --yes", { cwd: "dist" });
+// Explicit project env vars: the CLI then needs no .vercel link files (the
+// export wipes them) and can't resolve some other project from a parent dir.
+run("npx vercel deploy . --prod --yes", {
+  cwd: "dist",
+  env: {
+    VERCEL_ORG_ID: "team_BN2cAhJhnaYsx0CBERDsYOeF",
+    VERCEL_PROJECT_ID: "prj_GDhatLychoCm4yRy8b152beusHBE",
+  },
+});

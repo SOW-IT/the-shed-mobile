@@ -8,7 +8,7 @@ import {
   getProfile,
   isAdminProfile,
   nextStaffYear,
-  requireEmail,
+  optionalEmail,
   rolesOf,
 } from "./model";
 
@@ -93,7 +93,7 @@ export const me = query({
 export const availableYears = query({
   args: {},
   handler: async (ctx) => {
-    await requireEmail(ctx);
+    if ((await optionalEmail(ctx)) === null) return null;
     const divisions = await ctx.db.query("divisions").take(1000);
     return [
       ...new Set([
@@ -114,7 +114,7 @@ export const availableYears = query({
 export const orgChart = query({
   args: { year: v.optional(v.number()) },
   handler: async (ctx, args) => {
-    await requireEmail(ctx);
+    if ((await optionalEmail(ctx)) === null) return null; // auth still attaching
     const year = args.year ?? currentStaffYear();
 
     // Distinct years with any structure (divisions are a handful per year).
@@ -198,7 +198,7 @@ export const orgChart = query({
 export const yearStructure = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
-    await requireEmail(ctx);
+    if ((await optionalEmail(ctx)) === null) return null;
     const departments = await ctx.db
       .query("departments")
       .withIndex("by_year_and_name", (q) => q.eq("year", args.year))

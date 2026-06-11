@@ -2,7 +2,7 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import { mutation, MutationCtx, query } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
-import { requireEmail, rolesOf } from "./model";
+import { optionalEmail, rolesOf } from "./model";
 
 /**
  * A person's profile: Google-synced identity, self-editable extras (church,
@@ -13,7 +13,8 @@ import { requireEmail, rolesOf } from "./model";
 export const get = query({
   args: { email: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const callerEmail = await requireEmail(ctx);
+    const callerEmail = await optionalEmail(ctx);
+    if (!callerEmail) return null; // auth still attaching
     const email = (args.email ?? callerEmail).trim().toLowerCase();
 
     const user = await ctx.db

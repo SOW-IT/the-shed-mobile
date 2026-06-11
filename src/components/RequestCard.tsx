@@ -28,7 +28,7 @@ const EVENT_LABELS: Record<string, string> = {
 /** Lazy-loaded audit trail: who actioned each step, and when. */
 const History = ({ request }: { request: Doc<"requests"> }) => {
   const trail = useQuery(api.requests.auditTrail, { requestId: request._id });
-  if (trail === undefined) return <Muted>Loading history…</Muted>;
+  if (!trail) return <Muted>Loading history…</Muted>;
   return (
     <View style={{ gap: 2 }}>
       {trail.map((event, index) => (

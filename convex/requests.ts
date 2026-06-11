@@ -21,6 +21,7 @@ import {
   getApprovers,
   getDepartment,
   getProfile,
+  optionalProfile,
   requireProfile,
   rolesOf,
   type Approvers,
@@ -367,7 +368,9 @@ const makeApproverResolver = (ctx: QueryCtx) => {
 export const myRequests = query({
   args: {},
   handler: async (ctx) => {
-    const { email, year } = await requireProfile(ctx);
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null; // auth still attaching, or unprovisioned
+    const { email, year } = caller;
     const fetch = (y: number) =>
       ctx.db
         .query("requests")
@@ -392,7 +395,8 @@ export const myRequests = query({
 export const toReview = query({
   args: {},
   handler: async (ctx) => {
-    const caller = await requireProfile(ctx);
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
     const { email, year } = caller;
     const open = await openRequestsAcrossYears(ctx, year);
     const approversFor = makeApproverResolver(ctx);
@@ -461,11 +465,12 @@ export const toReview = query({
 export const allRequests = query({
   args: {},
   handler: async (ctx) => {
-    const { year, profile } = await requireProfile(ctx);
-    if (profile.department !== FINANCE) {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    if (caller.profile.department !== FINANCE) {
       throw new ConvexError("Only Finance staff can view all requests.");
     }
-    return await openRequestsAcrossYears(ctx, year);
+    return await openRequestsAcrossYears(ctx, caller.year);
   },
 });
 
@@ -679,7 +684,7 @@ export const cancel = mutation({
 export const get = query({
   args: { requestId: v.id("requests") },
   handler: async (ctx, args) => {
-    await requireProfile(ctx);
+    if (!(await optionalProfile(ctx))) return null;
     return await ctx.db.get("requests", args.requestId);
   },
 });
@@ -691,9 +696,9 @@ export const get = query({
 export const auditTrail = query({
   args: { requestId: v.id("requests") },
   handler: async (ctx, args) => {
-    await requireProfile(ctx);
+    if (!(await optionalProfile(ctx))) return null;
     const request = await ctx.db.get("requests", args.requestId);
-    if (!request) throw new ConvexError("Request not found.");
+    if (!request) return null;
     const events = await ctx.db
       .query("requestEvents")
       .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
@@ -793,9 +798,10 @@ export const submitReceipt = mutation({
 export const receiptAttachments = query({
   args: { requestId: v.id("requests") },
   handler: async (ctx, args) => {
-    const caller = await requireProfile(ctx);
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
     const request = await ctx.db.get("requests", args.requestId);
-    if (!request) throw new ConvexError("Request not found.");
+    if (!request) return null;
 
     const requestYearFinance = await getApprovers(ctx, request.year, FINANCE);
     const currentFinance =

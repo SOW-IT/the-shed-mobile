@@ -23,6 +23,27 @@ export async function requireEmail(ctx: Ctx): Promise<string> {
   return identity.email.toLowerCase();
 }
 
+/**
+ * The caller's email, or null when unauthenticated. QUERIES should use this
+ * and return null rather than throwing: the client briefly runs queries
+ * before/while auth tokens attach, and a thrown query crashes the React tree.
+ * Mutations (user-initiated) keep the throwing requireEmail/requireProfile.
+ */
+export async function optionalEmail(ctx: Ctx): Promise<string | null> {
+  const identity = await ctx.auth.getUserIdentity();
+  return identity?.email?.toLowerCase() ?? null;
+}
+
+/** Caller context for queries: null when unauthenticated or unprovisioned. */
+export async function optionalProfile(ctx: Ctx): Promise<CallerContext | null> {
+  const email = await optionalEmail(ctx);
+  if (!email) return null;
+  const year = currentStaffYear();
+  const profile = await getProfile(ctx, email, year);
+  if (!profile) return null;
+  return { email, year, profile };
+}
+
 export async function getProfile(
   ctx: Ctx,
   email: string,

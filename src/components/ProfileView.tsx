@@ -33,7 +33,7 @@ export const ProfileView = ({ email }: { email?: string }) => {
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  if (profile === undefined) {
+  if (!profile) {
     return (
       <Screen>
         <Muted>Loading…</Muted>
