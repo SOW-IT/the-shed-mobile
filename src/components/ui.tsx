@@ -6,9 +6,11 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TextProps,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAppTheme } from "../theme";
 
 export const errorMessage = (e: unknown): string =>
   e instanceof ConvexError
@@ -17,18 +19,28 @@ export const errorMessage = (e: unknown): string =>
       ? e.message
       : "Something went wrong";
 
-export const Screen = ({ children }: { children?: ReactNode }) => (
-  <SafeAreaView style={styles.screen} edges={["top"]}>
-    <ScrollView contentContainerStyle={styles.scroll}>{children}</ScrollView>
-  </SafeAreaView>
-);
+/** Text that follows the system theme. Use instead of the raw <Text>. */
+export const Txt = ({ style, ...props }: TextProps) => {
+  const t = useAppTheme();
+  return <Text {...props} style={[{ color: t.text }, style]} />;
+};
 
-export const Card = ({ children }: { children: ReactNode }) => (
-  <View style={styles.card}>{children}</View>
-);
+export const Screen = ({ children }: { children?: ReactNode }) => {
+  const t = useAppTheme();
+  return (
+    <SafeAreaView style={[styles.screen, { backgroundColor: t.background }]} edges={["top"]}>
+      <ScrollView contentContainerStyle={styles.scroll}>{children}</ScrollView>
+    </SafeAreaView>
+  );
+};
+
+export const Card = ({ children }: { children: ReactNode }) => {
+  const t = useAppTheme();
+  return <View style={[styles.card, { backgroundColor: t.card }]}>{children}</View>;
+};
 
 export const SectionTitle = ({ children }: { children: ReactNode }) => (
-  <Text style={styles.sectionTitle}>{children}</Text>
+  <Txt style={styles.sectionTitle}>{children}</Txt>
 );
 
 export const Row = ({ children }: { children: ReactNode }) => (
@@ -45,24 +57,30 @@ export const Btn = ({
   onPress: () => void;
   variant?: "primary" | "danger" | "ghost" | "success";
   disabled?: boolean;
-}) => (
-  <Pressable
-    onPress={onPress}
-    disabled={disabled}
-    style={({ pressed }) => [
-      styles.btn,
-      variant === "primary" && styles.btnPrimary,
-      variant === "success" && styles.btnSuccess,
-      variant === "danger" && styles.btnDanger,
-      variant === "ghost" && styles.btnGhost,
-      (pressed || disabled) && { opacity: 0.6 },
-    ]}
-  >
-    <Text style={[styles.btnText, variant === "ghost" && styles.btnGhostText]}>
-      {title}
-    </Text>
-  </Pressable>
-);
+}) => {
+  const t = useAppTheme();
+  const background = {
+    primary: t.primary,
+    success: t.success,
+    danger: t.danger,
+    ghost: t.ghost,
+  }[variant];
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => [
+        styles.btn,
+        { backgroundColor: background },
+        (pressed || disabled) && { opacity: 0.6 },
+      ]}
+    >
+      <Text style={[styles.btnText, { color: variant === "ghost" ? t.ghostText : "#ffffff" }]}>
+        {title}
+      </Text>
+    </Pressable>
+  );
+};
 
 export const Field = ({
   label,
@@ -78,30 +96,37 @@ export const Field = ({
   placeholder?: string;
   keyboardType?: "default" | "numeric" | "email-address";
   multiline?: boolean;
-}) => (
-  <View style={styles.field}>
-    <Text style={styles.fieldLabel}>{label}</Text>
-    <TextInput
-      style={[styles.input, multiline && styles.inputMultiline]}
-      value={value}
-      onChangeText={onChangeText}
-      placeholder={placeholder}
-      placeholderTextColor="#9ca3af"
-      keyboardType={keyboardType}
-      autoCapitalize="none"
-      multiline={multiline}
-    />
-  </View>
-);
-
-const chipColors: Record<string, { bg: string; fg: string }> = {
-  PAID: { bg: "#dcfce7", fg: "#166534" },
-  DECLINED: { bg: "#fee2e2", fg: "#991b1b" },
-  default: { bg: "#fef3c7", fg: "#92400e" },
+}) => {
+  const t = useAppTheme();
+  return (
+    <View style={styles.field}>
+      <Text style={[styles.fieldLabel, { color: t.muted }]}>{label}</Text>
+      <TextInput
+        style={[
+          styles.input,
+          {
+            borderColor: t.border,
+            backgroundColor: t.inputBackground,
+            color: t.text,
+          },
+          multiline && styles.inputMultiline,
+        ]}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={t.muted}
+        keyboardType={keyboardType}
+        autoCapitalize="none"
+        multiline={multiline}
+      />
+    </View>
+  );
 };
 
 export const Chip = ({ label }: { label: string }) => {
-  const colors = chipColors[label] ?? chipColors.default;
+  const t = useAppTheme();
+  const colors =
+    label === "PAID" || label === "DECLINED" ? t.chip[label] : t.chip.default;
   return (
     <View style={[styles.chip, { backgroundColor: colors.bg }]}>
       <Text style={[styles.chipText, { color: colors.fg }]}>{label}</Text>
@@ -109,22 +134,24 @@ export const Chip = ({ label }: { label: string }) => {
   );
 };
 
-export const ErrorBanner = ({ message }: { message: string | null }) =>
-  message ? (
-    <View style={styles.error}>
-      <Text style={styles.errorText}>{message}</Text>
+export const ErrorBanner = ({ message }: { message: string | null }) => {
+  const t = useAppTheme();
+  return message ? (
+    <View style={[styles.error, { backgroundColor: t.errorBackground }]}>
+      <Text style={{ color: t.errorText }}>{message}</Text>
     </View>
   ) : null;
+};
 
-export const Muted = ({ children }: { children: ReactNode }) => (
-  <Text style={styles.muted}>{children}</Text>
-);
+export const Muted = ({ children }: { children: ReactNode }) => {
+  const t = useAppTheme();
+  return <Text style={[styles.muted, { color: t.muted }]}>{children}</Text>;
+};
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#f3f4f6" },
+  screen: { flex: 1 },
   scroll: { padding: 16, paddingBottom: 48, gap: 12, maxWidth: 720, width: "100%", alignSelf: "center" },
   card: {
-    backgroundColor: "#ffffff",
     borderRadius: 12,
     padding: 16,
     gap: 8,
@@ -142,22 +169,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
   },
-  btnPrimary: { backgroundColor: "#2563eb" },
-  btnSuccess: { backgroundColor: "#16a34a" },
-  btnDanger: { backgroundColor: "#dc2626" },
-  btnGhost: { backgroundColor: "#e5e7eb" },
-  btnText: { color: "#ffffff", fontWeight: "600" },
-  btnGhostText: { color: "#111827" },
+  btnText: { fontWeight: "600" },
   field: { gap: 4 },
-  fieldLabel: { fontSize: 13, fontWeight: "600", color: "#374151" },
+  fieldLabel: { fontSize: 13, fontWeight: "600" },
   input: {
     borderWidth: 1,
-    borderColor: "#d1d5db",
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    backgroundColor: "#ffffff",
-    color: "#111827",
   },
   inputMultiline: { minHeight: 80, textAlignVertical: "top" },
   chip: {
@@ -168,10 +187,8 @@ const styles = StyleSheet.create({
   },
   chipText: { fontSize: 12, fontWeight: "700" },
   error: {
-    backgroundColor: "#fee2e2",
     borderRadius: 8,
     padding: 10,
   },
-  errorText: { color: "#991b1b" },
-  muted: { color: "#6b7280", fontSize: 13 },
+  muted: { fontSize: 13 },
 });

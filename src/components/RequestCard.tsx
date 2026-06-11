@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text } from "react-native";
 import {
   APPROVED,
   currentStep,
@@ -11,7 +11,8 @@ import {
   type ApprovalStep,
 } from "../../shared/flow";
 import { Doc } from "../../convex/_generated/dataModel";
-import { Card, Chip, Muted, Row } from "./ui";
+import { useAppTheme } from "../theme";
+import { Card, Chip, Muted, Row, Txt } from "./ui";
 
 const stepStatus = (
   request: Doc<"requests">,
@@ -26,9 +27,10 @@ const stepStatus = (
 
 /** A compact "HOD ✓ → Budget Manager ● → Finance Head ○" progress line. */
 const StepLine = ({ request }: { request: Doc<"requests"> }) => {
+  const t = useAppTheme();
   const active = currentStep(request);
   return (
-    <Text style={styles.steps}>
+    <Text style={[styles.steps, { color: t.muted }]}>
       {stepsForRequest(request)
         .map((step) => {
           const status = stepStatus(request, step);
@@ -55,41 +57,43 @@ export const RequestCard = ({
   request: Doc<"requests">;
   showRequester?: boolean;
   children?: ReactNode;
-}) => (
-  <Card>
-    <Row>
-      <Text style={styles.amount}>${request.amount}</Text>
-      <Chip label={requestDisplayStatus(request)} />
-    </Row>
-    <Muted>
-      {request.department}
-      {showRequester ? ` • ${request.requesterEmail}` : ""} •{" "}
-      {new Date(request._creationTime).toLocaleDateString()}
-    </Muted>
-    <Text>{request.description}</Text>
-    <StepLine request={request} />
-    {request.declineReason ? (
-      <Text style={styles.decline}>Declined: {request.declineReason}</Text>
-    ) : null}
-    {request.receipt ? (
+}) => {
+  const t = useAppTheme();
+  return (
+    <Card>
+      <Row>
+        <Txt style={styles.amount}>${request.amount}</Txt>
+        <Chip label={requestDisplayStatus(request)} />
+      </Row>
       <Muted>
-        Receipt submitted: ${request.receipt.totalAmount} (
-        {request.receipt.recipients.length} recipient
-        {request.receipt.recipients.length === 1 ? "" : "s"})
+        {request.department}
+        {showRequester ? ` • ${request.requesterEmail}` : ""} •{" "}
+        {new Date(request._creationTime).toLocaleDateString()}
       </Muted>
-    ) : null}
-    {request.paid && request.paidAmount !== undefined ? (
-      <Muted>
-        Paid ${request.paidAmount}
-        {request.payComment ? ` — ${request.payComment}` : ""}
-      </Muted>
-    ) : null}
-    {children ? <Row>{children}</Row> : null}
-  </Card>
-);
+      <Txt>{request.description}</Txt>
+      <StepLine request={request} />
+      {request.declineReason ? (
+        <Text style={{ color: t.danger }}>Declined: {request.declineReason}</Text>
+      ) : null}
+      {request.receipt ? (
+        <Muted>
+          Receipt submitted: ${request.receipt.totalAmount} (
+          {request.receipt.recipients.length} recipient
+          {request.receipt.recipients.length === 1 ? "" : "s"})
+        </Muted>
+      ) : null}
+      {request.paid && request.paidAmount !== undefined ? (
+        <Muted>
+          Paid ${request.paidAmount}
+          {request.payComment ? ` — ${request.payComment}` : ""}
+        </Muted>
+      ) : null}
+      {children ? <Row>{children}</Row> : null}
+    </Card>
+  );
+};
 
 const styles = StyleSheet.create({
   amount: { fontSize: 22, fontWeight: "800", flexGrow: 1 },
-  steps: { fontSize: 12, color: "#4b5563" },
-  decline: { color: "#991b1b" },
+  steps: { fontSize: 12 },
 });

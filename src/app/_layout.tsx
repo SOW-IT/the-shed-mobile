@@ -6,11 +6,13 @@ import {
   Unauthenticated,
   useQuery,
 } from "convex/react";
-import { Tabs } from "expo-router";
+import { DarkTheme, DefaultTheme, Tabs, ThemeProvider } from "expo-router";
 import * as SecureStore from "expo-secure-store";
+import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator, Platform, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { SignInScreen } from "@/components/SignInScreen";
+import { useAppTheme } from "@/theme";
 
 const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
   unsavedChangesWarning: false,
@@ -25,8 +27,9 @@ const secureStorage = {
 
 const AppTabs = () => {
   const me = useQuery(api.directory.me);
+  const t = useAppTheme();
   return (
-    <Tabs screenOptions={{ tabBarActiveTintColor: "#2563eb" }}>
+    <Tabs screenOptions={{ tabBarActiveTintColor: t.primary }}>
       <Tabs.Screen name="index" options={{ title: "My Requests" }} />
       <Tabs.Screen name="org" options={{ title: "Org Chart" }} />
       <Tabs.Screen
@@ -46,22 +49,28 @@ const AppTabs = () => {
 };
 
 export default function RootLayout() {
+  const t = useAppTheme();
   return (
-    <ConvexAuthProvider
-      client={convex}
-      storage={Platform.OS === "web" ? undefined : secureStorage}
-    >
-      <AuthLoading>
-        <View style={{ flex: 1, justifyContent: "center" }}>
-          <ActivityIndicator size="large" />
-        </View>
-      </AuthLoading>
-      <Unauthenticated>
-        <SignInScreen />
-      </Unauthenticated>
-      <Authenticated>
-        <AppTabs />
-      </Authenticated>
-    </ConvexAuthProvider>
+    <ThemeProvider value={t.dark ? DarkTheme : DefaultTheme}>
+      <StatusBar style="auto" />
+      <ConvexAuthProvider
+        client={convex}
+        storage={Platform.OS === "web" ? undefined : secureStorage}
+      >
+        <AuthLoading>
+          <View
+            style={{ flex: 1, justifyContent: "center", backgroundColor: t.background }}
+          >
+            <ActivityIndicator size="large" color={t.primary} />
+          </View>
+        </AuthLoading>
+        <Unauthenticated>
+          <SignInScreen />
+        </Unauthenticated>
+        <Authenticated>
+          <AppTabs />
+        </Authenticated>
+      </ConvexAuthProvider>
+    </ThemeProvider>
   );
 }

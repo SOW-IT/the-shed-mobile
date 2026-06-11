@@ -1,7 +1,7 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
-import { Modal, StyleSheet, Text, View } from "react-native";
+import { Modal, StyleSheet, View } from "react-native";
 import { requestCompleted, requestFullyApproved } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { Doc, Id } from "../../convex/_generated/dataModel";
@@ -15,6 +15,7 @@ import {
   Muted,
   Row,
   Screen,
+  Txt,
 } from "@/components/ui";
 
 const NewRequestModal = ({
@@ -45,7 +46,7 @@ const NewRequestModal = ({
     <Modal visible={visible} animationType="slide" transparent>
       <View style={styles.modalBackdrop}>
         <Card>
-          <Text style={styles.modalTitle}>New Request</Text>
+          <Txt style={styles.modalTitle}>New Request</Txt>
           <Field
             label="Description"
             value={description}
@@ -106,7 +107,7 @@ const ReceiptModal = ({
     <Modal visible={request !== null} animationType="slide" transparent>
       <View style={styles.modalBackdrop}>
         <Card>
-          <Text style={styles.modalTitle}>Submit Receipt</Text>
+          <Txt style={styles.modalTitle}>Submit Receipt</Txt>
           <Field label="Account name" value={accountName} onChangeText={setAccountName} />
           <Field label="BSB" value={bsb} onChangeText={setBsb} keyboardType="numeric" />
           <Field
@@ -159,7 +160,7 @@ export default function MyRequestsScreen() {
     <Screen>
       {me === null || me.profile === null ? (
         <Card>
-          <Text style={styles.modalTitle}>Welcome{me?.name ? `, ${me.name}` : ""}</Text>
+          <Txt style={styles.modalTitle}>Welcome{me?.name ? `, ${me.name}` : ""}</Txt>
           <Muted>
             No role or department is assigned to {me?.email} for {me?.year} yet.
             Ask an admin (Data and IT or Human Resources) to set you up.
@@ -173,7 +174,7 @@ export default function MyRequestsScreen() {
           <Card>
             <Row>
               <View style={{ flexGrow: 1 }}>
-                <Text style={{ fontWeight: "700" }}>{me.name ?? me.email}</Text>
+                <Txt style={{ fontWeight: "700" }}>{me.name ?? me.email}</Txt>
                 <Muted>
                   {me.profile.role} • {me.profile.department} • {me.year}
                 </Muted>

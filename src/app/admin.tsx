@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import { ROLES } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import {
@@ -13,6 +13,7 @@ import {
   Row,
   Screen,
   SectionTitle,
+  Txt,
 } from "@/components/ui";
 
 /**
@@ -139,7 +140,7 @@ export default function AdminScreen() {
         <Card key={profile._id}>
           <Row>
             <View style={{ flexGrow: 1 }}>
-              <Text style={{ fontWeight: "600" }}>{profile.email}</Text>
+              <Txt style={{ fontWeight: "600" }}>{profile.email}</Txt>
               <Muted>
                 {profile.role} • {profile.department}
               </Muted>
@@ -174,7 +175,7 @@ export default function AdminScreen() {
       <SectionTitle>Departments — {selectedYear}</SectionTitle>
       {(structure?.departments ?? []).map((department) => (
         <Card key={department.name}>
-          <Text style={{ fontWeight: "600" }}>{department.name}</Text>
+          <Txt style={{ fontWeight: "600" }}>{department.name}</Txt>
           <Muted>
             Division: {department.division} • Head: {department.headEmail ?? "none"}
           </Muted>

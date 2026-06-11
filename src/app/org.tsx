@@ -2,7 +2,8 @@ import { useQuery } from "convex/react";
 import { useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
-import { Card, Muted, Row, Screen, SectionTitle } from "@/components/ui";
+import { useAppTheme } from "@/theme";
+import { Card, Muted, Row, Screen, SectionTitle, Txt } from "@/components/ui";
 
 /** A simple dropdown: a button that opens a modal list of years. */
 const YearDropdown = ({
@@ -14,27 +15,39 @@ const YearDropdown = ({
   years: number[];
   onSelect: (year: number) => void;
 }) => {
+  const t = useAppTheme();
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Pressable style={styles.dropdownButton} onPress={() => setOpen(true)}>
-        <Text style={styles.dropdownButtonText}>{year} ▾</Text>
+      <Pressable
+        style={[
+          styles.dropdownButton,
+          { backgroundColor: t.card, borderColor: t.border },
+        ]}
+        onPress={() => setOpen(true)}
+      >
+        <Txt style={styles.dropdownButtonText}>{year} ▾</Txt>
       </Pressable>
       <Modal visible={open} transparent animationType="fade">
         <Pressable style={styles.dropdownBackdrop} onPress={() => setOpen(false)}>
-          <View style={styles.dropdownMenu}>
+          <View style={[styles.dropdownMenu, { backgroundColor: t.card }]}>
             {years.map((y) => (
               <Pressable
                 key={y}
-                style={[styles.dropdownItem, y === year && styles.dropdownItemActive]}
+                style={[
+                  styles.dropdownItem,
+                  y === year && { backgroundColor: t.ghost },
+                ]}
                 onPress={() => {
                   onSelect(y);
                   setOpen(false);
                 }}
               >
-                <Text style={[styles.dropdownItemText, y === year && { fontWeight: "700" }]}>
+                <Txt
+                  style={[styles.dropdownItemText, y === year && { fontWeight: "700" }]}
+                >
                   {y}
-                </Text>
+                </Txt>
               </Pressable>
             ))}
           </View>
@@ -52,19 +65,23 @@ const Person = ({
   person: { email: string; name: string | null; role: string | null };
   bold?: boolean;
   tag?: string;
-}) => (
-  <View style={styles.personRow}>
-    <Text style={[styles.personName, bold && { fontWeight: "700" }]}>
-      {person.name ?? person.email}
-    </Text>
-    <Text style={styles.personMeta}>
-      {tag ?? person.role ?? ""}
-      {person.name ? ` • ${person.email}` : ""}
-    </Text>
-  </View>
-);
+}) => {
+  const t = useAppTheme();
+  return (
+    <View style={styles.personRow}>
+      <Txt style={[styles.personName, bold && { fontWeight: "700" }]}>
+        {person.name ?? person.email}
+      </Txt>
+      <Text style={[styles.personMeta, { color: t.muted }]}>
+        {tag ?? person.role ?? ""}
+        {person.name ? ` • ${person.email}` : ""}
+      </Text>
+    </View>
+  );
+};
 
 export default function OrgChartScreen() {
+  const t = useAppTheme();
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const chart = useQuery(
     api.directory.orgChart,
@@ -93,12 +110,12 @@ export default function OrgChartScreen() {
       </Row>
 
       {chart.director ? (
-        <View style={styles.directorWrap}>
+        <View>
           <Card>
-            <Text style={styles.directorLabel}>Director</Text>
+            <Text style={[styles.directorLabel, { color: t.muted }]}>Director</Text>
             <Person person={chart.director} bold tag="Director" />
           </Card>
-          <Text style={styles.connector}>│</Text>
+          <Text style={[styles.connector, { color: t.muted }]}>│</Text>
         </View>
       ) : (
         <Muted>No Director assigned for {chart.year} yet.</Muted>
@@ -106,7 +123,7 @@ export default function OrgChartScreen() {
 
       {chart.divisions.map((division) => (
         <View key={division.name}>
-          <Text style={styles.divisionTitle}>{division.name} Division</Text>
+          <Txt style={styles.divisionTitle}>{division.name} Division</Txt>
           {division.departments.length === 0 ? (
             <Muted>No departments.</Muted>
           ) : (
@@ -115,10 +132,13 @@ export default function OrgChartScreen() {
                 key={department.name}
                 style={[
                   styles.departmentCard,
-                  { borderLeftColor: department.colour ?? "#2563eb" },
+                  {
+                    backgroundColor: t.card,
+                    borderLeftColor: department.colour ?? t.primary,
+                  },
                 ]}
               >
-                <Text style={styles.departmentName}>{department.name}</Text>
+                <Txt style={styles.departmentName}>{department.name}</Txt>
                 {department.head ? (
                   <Person person={department.head} bold tag="Head of Department" />
                 ) : (
@@ -141,14 +161,12 @@ export default function OrgChartScreen() {
 
 const styles = StyleSheet.create({
   dropdownButton: {
-    backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "#d1d5db",
     borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
-  dropdownButtonText: { fontWeight: "700", color: "#111827" },
+  dropdownButtonText: { fontWeight: "700" },
   dropdownBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.3)",
@@ -156,7 +174,6 @@ const styles = StyleSheet.create({
     padding: 32,
   },
   dropdownMenu: {
-    backgroundColor: "#ffffff",
     borderRadius: 12,
     paddingVertical: 4,
     maxWidth: 360,
@@ -164,20 +181,16 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   dropdownItem: { paddingHorizontal: 16, paddingVertical: 12 },
-  dropdownItemActive: { backgroundColor: "#eff6ff" },
-  dropdownItemText: { fontSize: 16, color: "#111827" },
-  directorWrap: { alignItems: "stretch" },
+  dropdownItemText: { fontSize: 16 },
   directorLabel: {
     fontSize: 12,
     fontWeight: "800",
-    color: "#6b7280",
     textTransform: "uppercase",
     letterSpacing: 1,
   },
-  connector: { textAlign: "center", color: "#9ca3af", fontSize: 18 },
+  connector: { textAlign: "center", fontSize: 18 },
   divisionTitle: { fontSize: 16, fontWeight: "800", marginTop: 12, marginBottom: 6 },
   departmentCard: {
-    backgroundColor: "#ffffff",
     borderRadius: 12,
     borderLeftWidth: 4,
     padding: 14,
@@ -187,5 +200,5 @@ const styles = StyleSheet.create({
   departmentName: { fontSize: 15, fontWeight: "700" },
   personRow: { flexDirection: "row", justifyContent: "space-between", flexWrap: "wrap" },
   personName: { fontSize: 14 },
-  personMeta: { fontSize: 12, color: "#6b7280" },
+  personMeta: { fontSize: 12 },
 });

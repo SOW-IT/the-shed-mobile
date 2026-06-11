@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
-import { Modal, StyleSheet, Text, View } from "react-native";
+import { Modal, StyleSheet, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { RequestCard } from "@/components/RequestCard";
@@ -14,6 +14,7 @@ import {
   Row,
   Screen,
   SectionTitle,
+  Txt,
 } from "@/components/ui";
 
 type Step = "hod" | "budgetManager" | "director" | "financeHead";
@@ -45,7 +46,7 @@ const DeclineModal = ({
     <Modal visible={target !== null} animationType="slide" transparent>
       <View style={styles.modalBackdrop}>
         <Card>
-          <Text style={styles.modalTitle}>Decline Request</Text>
+          <Txt style={styles.modalTitle}>Decline Request</Txt>
           <Muted>The requester will be emailed your reason.</Muted>
           <Field label="Reason" value={reason} onChangeText={setReason} multiline />
           <ErrorBanner message={error} />
@@ -92,7 +93,7 @@ const PayModal = ({
     <Modal visible={request !== null} animationType="slide" transparent>
       <View style={styles.modalBackdrop}>
         <Card>
-          <Text style={styles.modalTitle}>Pay Reimbursement</Text>
+          <Txt style={styles.modalTitle}>Pay Reimbursement</Txt>
           <Muted>Only pay after you have sent the money to the account.</Muted>
           {request?.receipt?.recipients.map((recipient, i) => (
             <Muted key={i}>

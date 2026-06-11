@@ -5,7 +5,8 @@ import { openAuthSessionAsync } from "expo-web-browser";
 import { useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
-import { Btn, Card, ErrorBanner, errorMessage, Muted, Screen } from "./ui";
+import { useAppTheme } from "../theme";
+import { Btn, Card, ErrorBanner, errorMessage, Muted, Screen, Txt } from "./ui";
 
 export const SignInScreen = () => {
   const { signIn } = useAuthActions();
@@ -37,10 +38,12 @@ export const SignInScreen = () => {
     }
   };
 
+  const t = useAppTheme();
+
   return (
     <Screen>
       <View style={styles.hero}>
-        <Text style={styles.title}>THE SHED</Text>
+        <Txt style={styles.title}>THE SHED</Txt>
         <Muted>Reimbursement requests</Muted>
       </View>
       <Card>
@@ -57,7 +60,9 @@ export const SignInScreen = () => {
           <Muted>Connecting to Convex…</Muted>
         ) : (
           <>
-            <Text style={styles.connected}>✓ Connected to Convex</Text>
+            <Text style={[styles.connected, { color: t.success }]}>
+              ✓ Connected to Convex
+            </Text>
             <Muted>
               Staff year {info.staffYear} (next: {info.nextStaffYear})
             </Muted>
@@ -76,5 +81,5 @@ export const SignInScreen = () => {
 const styles = StyleSheet.create({
   hero: { alignItems: "center", marginVertical: 32, gap: 4 },
   title: { fontSize: 32, fontWeight: "900", letterSpacing: 1 },
-  connected: { color: "#166534", fontWeight: "700" },
+  connected: { fontWeight: "700" },
 });
