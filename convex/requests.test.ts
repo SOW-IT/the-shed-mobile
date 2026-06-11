@@ -645,9 +645,69 @@ describe("audit trail and reminders", () => {
       description: "open", amount: 30,
     });
     await admin.mutation(api.admin.removeStaffProfile, { email: "eve@sow.org.au", year: YEAR });
+    // (Naming evan as head auto-provisioned him; remove that profile too.)
+    await admin.mutation(api.admin.removeStaffProfile, { email: "evan@sow.org.au", year: YEAR });
     await expect(
       admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Events" })
     ).rejects.toThrow(/open requests/);
+  });
+
+  test("the Head of Department role syncs with departments.head, both directions", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+
+    // Promoting Nina to Head of Department of Events makes her its head.
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Events", division: "Operations",
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "nina@sow.org.au", year: YEAR, roles: ["Head of Department"], department: "Events",
+    });
+    let structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    expect(structure.departments.find((d) => d.name === "Events")?.headEmail).toBe(
+      "nina@sow.org.au"
+    );
+
+    // Demoting her to Staff vacates the headship.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "nina@sow.org.au", year: YEAR, roles: ["Staff"], department: "Events",
+    });
+    structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    expect(structure.departments.find((d) => d.name === "Events")?.headEmail).toBeNull();
+
+    // Reverse: naming a never-provisioned head on the department form
+    // creates their profile with the Head of Department role.
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Events", division: "Operations", headEmail: "omar@sow.org.au",
+    });
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const omar = profiles.find((p) => p.email === "omar@sow.org.au");
+    expect(omar?.roles).toEqual(["Head of Department"]);
+    expect(omar?.department).toBe("Events");
+
+    // Removing a head's profile vacates the headship too.
+    await admin.mutation(api.admin.removeStaffProfile, {
+      email: "omar@sow.org.au", year: YEAR,
+    });
+    structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    expect(structure.departments.find((d) => d.name === "Events")?.headEmail).toBeNull();
+  });
+
+  test("admin.people merges directory, signed-in users and profiles", async () => {
+    const t = await setup();
+    await t.mutation(internal.directorySync.store, {
+      users: [{ email: "fresh@sow.org.au", name: "Fresh Face" }],
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", { email: RACHEL, name: "Rachel R" });
+    });
+    const people = (await asUser(t, ADMIN).query(api.admin.people, { year: YEAR }))!;
+    const emails = people.map((p) => p.email);
+    expect(emails).toContain("fresh@sow.org.au"); // directory only
+    expect(emails).toContain(RACHEL); // user + profile
+    expect(new Set(emails).size).toBe(emails.length); // deduped
+    expect(people.find((p) => p.email === RACHEL)?.department).toBe("Marketing");
+    expect(people.find((p) => p.email === RACHEL)?.name).toBe("Rachel R");
   });
 
   test("next-approver notifications fall back to the current year's officeholder", () => {
@@ -1099,12 +1159,13 @@ describe("deadlock prevention and validation fixes", () => {
       division: "Engagement",
       department: "Marketing",
     });
-    // Org chart: heads the Engagement division AND appears in Marketing.
+    // Org chart: heads the Engagement division AND, with the Head of
+    // Department role, the role-to-headship sync makes her Marketing's head.
     const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
     const engagement = chart.divisions.find((d) => d.name === "Engagement");
     expect(engagement?.head?.email).toBe("maria@sow.org.au");
     const marketing = engagement?.departments.find((d) => d.name === "Marketing");
-    expect(marketing?.members.map((m) => m.email)).toContain("maria@sow.org.au");
+    expect(marketing?.head?.email).toBe("maria@sow.org.au");
 
     // Department-based roles still require a department.
     await expect(

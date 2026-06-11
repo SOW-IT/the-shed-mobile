@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import {
   FINANCE,
+  HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
   requestCompleted,
   ROLES,
@@ -99,6 +100,7 @@ export const setStaffProfile = mutation({
     }
 
     const existing = await getProfile(ctx, email, args.year);
+    let profileId;
     if (existing) {
       await ctx.db.patch("staffProfiles", existing._id, {
         roles,
@@ -106,15 +108,36 @@ export const setStaffProfile = mutation({
         department,
         division,
       });
-      return existing._id;
+      profileId = existing._id;
+    } else {
+      profileId = await ctx.db.insert("staffProfiles", {
+        email,
+        year: args.year,
+        roles,
+        department,
+        division,
+      });
     }
-    return await ctx.db.insert("staffProfiles", {
-      email,
-      year: args.year,
-      roles,
-      department,
-      division,
-    });
+
+    // Keep departments.headEmail in sync with the Head of Department role:
+    // gaining the role makes them their department's head; losing the role
+    // (or moving department) vacates any headship they held.
+    const isHead = roles.includes(HEAD_OF_DEPARTMENT);
+    const yearDepartments = await ctx.db
+      .query("departments")
+      .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
+      .take(200);
+    for (const dept of yearDepartments) {
+      if (isHead && dept.name === department && dept.headEmail !== email) {
+        await ctx.db.patch("departments", dept._id, { headEmail: email });
+      } else if (
+        dept.headEmail === email &&
+        (!isHead || dept.name !== department)
+      ) {
+        await ctx.db.patch("departments", dept._id, { headEmail: undefined });
+      }
+    }
+    return profileId;
   },
 });
 
@@ -126,13 +149,22 @@ export const removeStaffProfile = mutation({
     const email = args.email.trim().toLowerCase();
     const profile = await getProfile(ctx, email, args.year);
     if (profile) await ctx.db.delete("staffProfiles", profile._id);
-    // Don't leave a removed person assigned as the Budget Manager —
-    // that would silently deadlock every Budget Manager approval.
+    // Don't leave a removed person assigned as the Budget Manager or as a
+    // department head — both would silently deadlock approvals.
     const settings = await getYearSettings(ctx, args.year);
     if (settings?.budgetManagerEmail === email) {
       await ctx.db.patch("yearSettings", settings._id, {
         budgetManagerEmail: undefined,
       });
+    }
+    const yearDepartments = await ctx.db
+      .query("departments")
+      .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
+      .take(200);
+    for (const dept of yearDepartments) {
+      if (dept.headEmail === email) {
+        await ctx.db.patch("departments", dept._id, { headEmail: undefined });
+      }
     }
     return null;
   },
@@ -238,21 +270,95 @@ export const upsertDepartment = mutation({
     }
     const headEmail = args.headEmail?.trim().toLowerCase() || undefined;
     const existing = await getDepartment(ctx, args.year, name);
+    let departmentId;
     if (existing) {
       await ctx.db.patch("departments", existing._id, {
         division: args.division,
         headEmail,
         colour: args.colour ?? existing.colour,
       });
-      return existing._id;
+      departmentId = existing._id;
+    } else {
+      departmentId = await ctx.db.insert("departments", {
+        year: args.year,
+        name,
+        division: args.division,
+        headEmail,
+        colour: args.colour,
+      });
     }
-    return await ctx.db.insert("departments", {
-      year: args.year,
-      name,
-      division: args.division,
-      headEmail,
-      colour: args.colour,
-    });
+
+    // Reverse sync: the head named on a department gets the Head of
+    // Department role (and membership) on their profile — creating the
+    // profile if they were never provisioned.
+    if (headEmail) {
+      const headProfile = await getProfile(ctx, headEmail, args.year);
+      if (headProfile) {
+        const roles = [...new Set([...rolesOf(headProfile), HEAD_OF_DEPARTMENT])];
+        await ctx.db.patch("staffProfiles", headProfile._id, {
+          roles,
+          role: undefined,
+          department: name,
+        });
+      } else {
+        await ctx.db.insert("staffProfiles", {
+          email: headEmail,
+          year: args.year,
+          roles: [HEAD_OF_DEPARTMENT],
+          department: name,
+        });
+      }
+    }
+    return departmentId;
+  },
+});
+
+/**
+ * Everyone the org knows about, for admin pickers: provisioned profiles,
+ * signed-in users and the synced Workspace directory, deduped by email.
+ */
+export const people = query({
+  args: { year: v.number() },
+  handler: async (ctx, args) => {
+    if ((await optionalEmail(ctx)) === null) return null; // auth attaching
+    await requireAdmin(ctx);
+    const byEmail = new Map<
+      string,
+      { email: string; name: string | null; department: string | null }
+    >();
+    const directory = await ctx.db.query("directoryUsers").take(4000);
+    for (const user of directory) {
+      byEmail.set(user.email, {
+        email: user.email,
+        name: user.name ?? null,
+        department: null,
+      });
+    }
+    const users = await ctx.db.query("users").take(1000);
+    for (const user of users) {
+      if (!user.email) continue;
+      const existing = byEmail.get(user.email);
+      byEmail.set(user.email, {
+        email: user.email,
+        name: user.name ?? existing?.name ?? null,
+        department: existing?.department ?? null,
+      });
+    }
+    const profiles = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_year", (q) => q.eq("year", args.year))
+      .take(1000);
+    for (const profile of profiles) {
+      const existing = byEmail.get(profile.email);
+      byEmail.set(profile.email, {
+        email: profile.email,
+        name: existing?.name ?? profile.name ?? null,
+        department: profile.department ?? null,
+      });
+    }
+    return [...byEmail.values()].sort((a, b) =>
+      (a.name ?? a.email).localeCompare(b.name ?? b.email)
+    );
   },
 });
 

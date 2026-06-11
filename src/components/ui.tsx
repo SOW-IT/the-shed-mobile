@@ -129,6 +129,8 @@ export const Field = ({
   );
 };
 
+export type SelectOption = string | { label: string; value: string };
+
 /** A labelled dropdown: a field-like button opening a modal option list. */
 export const Select = ({
   label,
@@ -139,12 +141,17 @@ export const Select = ({
 }: {
   label: string;
   value: string;
-  options: string[];
-  onSelect: (option: string) => void;
+  options: SelectOption[];
+  onSelect: (value: string) => void;
   placeholder?: string;
 }) => {
   const t = useAppTheme();
   const [open, setOpen] = useState(false);
+  const normalized = options.map((option) =>
+    typeof option === "string" ? { label: option, value: option } : option
+  );
+  const selectedLabel =
+    normalized.find((option) => option.value === value)?.label ?? value;
   return (
     <View style={styles.field}>
       <Text style={[styles.fieldLabel, { color: t.muted }]}>{label}</Text>
@@ -156,32 +163,32 @@ export const Select = ({
         onPress={() => setOpen(true)}
       >
         <Text style={{ color: value ? t.text : t.muted }}>
-          {value || placeholder || "Select…"} ▾
+          {selectedLabel || placeholder || "Select…"} ▾
         </Text>
       </Pressable>
       <Modal visible={open} transparent animationType="fade">
         <Pressable style={styles.selectBackdrop} onPress={() => setOpen(false)}>
           <View style={[styles.selectMenu, { backgroundColor: t.card }]}>
             <ScrollView style={{ maxHeight: 360 }}>
-              {options.map((option) => (
+              {normalized.map((option) => (
                 <Pressable
-                  key={option}
+                  key={option.value || "(empty)"}
                   style={[
                     styles.selectItem,
-                    option === value && { backgroundColor: t.ghost },
+                    option.value === value && { backgroundColor: t.ghost },
                   ]}
                   onPress={() => {
-                    onSelect(option);
+                    onSelect(option.value);
                     setOpen(false);
                   }}
                 >
                   <Text
                     style={{
                       color: t.text,
-                      fontWeight: option === value ? "700" : "400",
+                      fontWeight: option.value === value ? "700" : "400",
                     }}
                   >
-                    {option}
+                    {option.label}
                   </Text>
                 </Pressable>
               ))}

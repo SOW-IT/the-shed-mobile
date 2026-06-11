@@ -50,6 +50,14 @@ export default function AdminScreen() {
     api.directorySync.list,
     me?.isAdmin ? { year: selectedYear } : "skip"
   );
+  const people = useQuery(
+    api.admin.people,
+    me?.isAdmin ? { year: selectedYear } : "skip"
+  );
+  const personOptions = (people ?? []).map((person) => ({
+    label: person.name ? `${person.name} (${person.email})` : person.email,
+    value: person.email,
+  }));
   const requestDirectorySync = useMutation(api.directorySync.requestSync);
 
   const setStaffProfile = useMutation(api.admin.setStaffProfile);
@@ -173,21 +181,17 @@ export default function AdminScreen() {
       <SectionTitle>Staff — {selectedYear}</SectionTitle>
       {editable && (
         <Card>
-          {(directory?.users ?? []).some((user) => !user.hasProfile) && (
+          {personOptions.length > 0 && (
             <Select
-              label={`Pick from the Google Workspace directory (${
-                (directory?.users ?? []).filter((u) => !u.hasProfile).length
-              } unassigned)`}
+              label="Person"
               value={staffEmail}
-              options={(directory?.users ?? [])
-                .filter((user) => !user.hasProfile)
-                .map((user) => user.email)}
+              options={personOptions}
               onSelect={setStaffEmail}
               placeholder="Choose a person…"
             />
           )}
           <Field
-            label="Email (they don't need to have signed in yet)"
+            label="Or type a new email (they don't need to have signed in yet)"
             value={staffEmail}
             onChangeText={setStaffEmail}
             placeholder="someone@sow.org.au"
@@ -339,11 +343,12 @@ export default function AdminScreen() {
               />
             ))}
           </Row>
-          <Field
-            label="Head of Department email (optional)"
+          <Select
+            label="Head of Department (optional — also gives them the role)"
             value={departmentHead}
-            onChangeText={setDepartmentHead}
-            keyboardType="email-address"
+            options={[{ label: "— No head —", value: "" }, ...personOptions]}
+            onSelect={setDepartmentHead}
+            placeholder="Choose a person…"
           />
           <Btn
             title="Save Department"
@@ -369,11 +374,17 @@ export default function AdminScreen() {
         </Muted>
         {editable && (
           <>
-            <Field
-              label="Budget Manager email"
+            <Select
+              label="Budget Manager (Finance department members)"
               value={budgetManagerEmail}
-              onChangeText={setBudgetManagerEmail}
-              keyboardType="email-address"
+              options={(people ?? [])
+                .filter((person) => person.department === "Finance")
+                .map((person) => ({
+                  label: person.name ? `${person.name} (${person.email})` : person.email,
+                  value: person.email,
+                }))}
+              onSelect={setBudgetManagerEmail}
+              placeholder="Choose a Finance member…"
             />
             <Btn
               title="Set Budget Manager"
