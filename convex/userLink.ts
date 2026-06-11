@@ -13,7 +13,19 @@ async function rekeyEmail(ctx: MutationCtx, oldEmail: string, newEmail: string) 
     .withIndex("by_email_and_year", (q) => q.eq("email", oldEmail))
     .take(100);
   for (const profile of profiles) {
-    await ctx.db.patch("staffProfiles", profile._id, { email: newEmail });
+    // Never create a second (email, year) profile — if one already exists
+    // under the new email for that year, it wins and the old row goes.
+    const existing = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_email_and_year", (q) =>
+        q.eq("email", newEmail).eq("year", profile.year)
+      )
+      .unique();
+    if (existing) {
+      await ctx.db.delete("staffProfiles", profile._id);
+    } else {
+      await ctx.db.patch("staffProfiles", profile._id, { email: newEmail });
+    }
   }
 
   const requests = await ctx.db
@@ -55,6 +67,9 @@ async function rekeyEmail(ctx: MutationCtx, oldEmail: string, newEmail: string) 
  *    account was renamed — re-key everything from the old email to the new.
  * 2. Bind any not-yet-bound profiles for this email (pre-provisioned rows)
  *    to the user id, making it the durable anchor from then on.
+ * 3. Profiles imported from the old web app carry an importId shared by all
+ *    of the same person's years — bind those too, and re-key any years that
+ *    were imported under one of the person's older email addresses.
  */
 export async function linkUserProfiles(ctx: MutationCtx, userId: Id<"users">) {
   const user = await ctx.db.get("users", userId);
@@ -79,6 +94,29 @@ export async function linkUserProfiles(ctx: MutationCtx, userId: Id<"users">) {
   for (const profile of unbound) {
     if (profile.userId === undefined) {
       await ctx.db.patch("staffProfiles", profile._id, { userId });
+    }
+  }
+
+  // The person behind this user id, as known from the import. Any of their
+  // profiles still keyed by an older email belong to this account too.
+  const importIds = new Set<string>();
+  for (const profile of [...bound, ...unbound]) {
+    if (profile.importId !== undefined) importIds.add(profile.importId);
+  }
+  for (const importId of importIds) {
+    const siblings = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_importId", (q) => q.eq("importId", importId))
+      .take(100);
+    const siblingEmails = new Set<string>();
+    for (const profile of siblings) {
+      if (profile.userId !== userId) {
+        await ctx.db.patch("staffProfiles", profile._id, { userId });
+      }
+      if (profile.email !== email) siblingEmails.add(profile.email);
+    }
+    for (const oldEmail of siblingEmails) {
+      await rekeyEmail(ctx, oldEmail, email);
     }
   }
 }

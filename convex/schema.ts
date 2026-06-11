@@ -38,16 +38,22 @@ export default defineSchema({
     role: v.optional(v.string()), // legacy single-role field; use rolesOf()
     department: v.optional(v.string()),
     division: v.optional(v.string()), // for Heads of Division
+    university: v.optional(v.string()), // for Student Leaders
     name: v.optional(v.string()), // synced from Google on sign-in
     // Bound on first sign-in; the durable anchor that survives Google
     // Workspace email renames (see userLink.ts).
     userId: v.optional(v.id("users")),
+    // The person's id in the old web app's Firestore. Profiles imported from
+    // there share it across years, so the same person is recognised even
+    // when their email differed year to year (see userLink.ts).
+    importId: v.optional(v.string()),
   })
     .index("by_email_and_year", ["email", "year"])
     .index("by_year", ["year"])
     .index("by_year_and_department", ["year", "department"])
     .index("by_year_and_role", ["year", "role"])
-    .index("by_userId", ["userId"]),
+    .index("by_userId", ["userId"])
+    .index("by_importId", ["importId"]),
 
   // Divisions group departments; both are data-driven and per-year.
   divisions: defineTable({
@@ -61,6 +67,13 @@ export default defineSchema({
     division: v.string(),
     headEmail: v.optional(v.string()), // the HOD; lowercase
     colour: v.optional(v.string()), // hex, used for department badges
+  }).index("by_year_and_name", ["year", "name"]),
+
+  // Universities with a SOW campus presence; Student Leaders belong to one
+  // of these instead of a department. Data-driven and per-year.
+  universities: defineTable({
+    year: v.number(),
+    name: v.string(),
   }).index("by_year_and_name", ["year", "name"]),
 
   // Expo push tokens, per device, keyed by the owner's email so flow events

@@ -17,6 +17,7 @@ export const ROLES = [
   "Head of Department",
   "Head of Division",
   "Director",
+  "Student Leader",
 ] as const;
 export type Role = (typeof ROLES)[number];
 
@@ -25,6 +26,12 @@ export const HEAD_OF_DEPARTMENT: Role = "Head of Department";
 /** Heads of Division belong directly to a division, not a department. */
 export const HEAD_OF_DIVISION: Role = "Head of Division";
 export const DIRECTOR: Role = "Director";
+/** Student Leaders belong to a university, not a department. */
+export const STUDENT_LEADER: Role = "Student Leader";
+
+/** Roles that take a department; the exceptions belong elsewhere. */
+export const roleNeedsDepartment = (role: string): boolean =>
+  role !== HEAD_OF_DIVISION && role !== STUDENT_LEADER;
 
 /** Requests at or above this amount need the Director's approval. */
 export const DIRECTOR_APPROVAL_THRESHOLD = 5000;

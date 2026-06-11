@@ -374,8 +374,20 @@ describe("admin and per-year rules", () => {
     expect(viewed.name).toBe("Rachel R");
     expect(viewed.localChurch).toBe("SOW City Church");
     expect(viewed.serviceHistory).toEqual([
-      { year: YEAR, roles: ["Staff"], department: "Marketing", division: null },
-      { year: YEAR - 1, roles: ["Staff"], department: "Events", division: null },
+      {
+        year: YEAR,
+        roles: ["Staff"],
+        department: "Marketing",
+        division: null,
+        university: null,
+      },
+      {
+        year: YEAR - 1,
+        roles: ["Staff"],
+        department: "Events",
+        division: null,
+        university: null,
+      },
     ]);
 
     // Rachel's own view is editable (isMe) but role/department come from

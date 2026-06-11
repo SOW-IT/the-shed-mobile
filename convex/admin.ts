@@ -5,7 +5,9 @@ import {
   HEAD_OF_DIVISION,
   requestCompleted,
   ROLES,
+  roleNeedsDepartment,
   STAFF_ROLE,
+  STUDENT_LEADER,
 } from "../shared/flow";
 import { internalMutation, mutation, query } from "./_generated/server";
 import {
@@ -29,11 +31,12 @@ const assertManagedYear = (year: number) => {
 };
 
 /**
- * Assign roles + department/division to a user for a year, by email — works
- * before the user has ever signed in. A person can hold multiple roles (e.g.
- * Head of Division AND Head of Department): division-based roles need a
- * division, everything else needs a department, and both may be set. Only
- * admins; ordinary users can never change their own roles or department.
+ * Assign roles + department/division/university to a user for a year, by
+ * email — works before the user has ever signed in. A person can hold
+ * multiple roles (e.g. Head of Division AND Head of Department):
+ * division-based roles need a division, Student Leaders need a university
+ * instead of a department, everything else needs a department. Only admins;
+ * ordinary users can never change their own roles or department.
  */
 export const setStaffProfile = mutation({
   args: {
@@ -42,6 +45,7 @@ export const setStaffProfile = mutation({
     roles: v.array(v.string()),
     department: v.optional(v.string()),
     division: v.optional(v.string()),
+    university: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
@@ -57,7 +61,8 @@ export const setStaffProfile = mutation({
     }
 
     const needsDivision = roles.includes(HEAD_OF_DIVISION);
-    const needsDepartment = roles.some((role) => role !== HEAD_OF_DIVISION);
+    const needsUniversity = roles.includes(STUDENT_LEADER);
+    const needsDepartment = roles.some(roleNeedsDepartment);
 
     let division: string | undefined;
     if (needsDivision) {
@@ -73,6 +78,23 @@ export const setStaffProfile = mutation({
       if (!exists) {
         throw new ConvexError(
           `A Head of Division needs a division that exists in ${args.year}.`
+        );
+      }
+    }
+    let university: string | undefined;
+    if (needsUniversity) {
+      university = args.university;
+      const exists =
+        university &&
+        (await ctx.db
+          .query("universities")
+          .withIndex("by_year_and_name", (q) =>
+            q.eq("year", args.year).eq("name", university!)
+          )
+          .unique());
+      if (!exists) {
+        throw new ConvexError(
+          `A Student Leader needs a university that exists in ${args.year}.`
         );
       }
     }
@@ -107,6 +129,7 @@ export const setStaffProfile = mutation({
         role: undefined, // retire the legacy single-role field
         department,
         division,
+        university,
       });
       profileId = existing._id;
     } else {
@@ -116,6 +139,7 @@ export const setStaffProfile = mutation({
         roles,
         department,
         division,
+        university,
       });
     }
 
@@ -242,6 +266,50 @@ export const removeDivision = mutation({
       throw new ConvexError("Move its departments to another division first.");
     }
     await ctx.db.delete("divisions", division._id);
+    return null;
+  },
+});
+
+export const upsertUniversity = mutation({
+  args: { year: v.number(), name: v.string() },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    assertManagedYear(args.year);
+    const name = args.name.trim();
+    if (!name) throw new ConvexError("University name is required.");
+    const existing = await ctx.db
+      .query("universities")
+      .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", name))
+      .unique();
+    if (existing) return existing._id;
+    return await ctx.db.insert("universities", { year: args.year, name });
+  },
+});
+
+export const removeUniversity = mutation({
+  args: { year: v.number(), name: v.string() },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    assertManagedYear(args.year);
+    const university = await ctx.db
+      .query("universities")
+      .withIndex("by_year_and_name", (q) =>
+        q.eq("year", args.year).eq("name", args.name)
+      )
+      .unique();
+    if (!university) return null;
+    // Don't strand Student Leaders pointing at a university that no longer
+    // exists — reassign them first.
+    const profiles = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_year", (q) => q.eq("year", args.year))
+      .take(1000);
+    if (profiles.some((p) => p.university === args.name)) {
+      throw new ConvexError(
+        `"${args.name}" still has people assigned in ${args.year} — move them to another university first.`
+      );
+    }
+    await ctx.db.delete("universities", university._id);
     return null;
   },
 });
@@ -433,6 +501,14 @@ const ORG_STRUCTURE: Record<string, string[]> = {
   Operations: ["Events", "Missions"],
 };
 
+/** Universities with a SOW campus presence (Student Leaders belong to one). */
+const UNIVERSITIES = [
+  "Macquarie University",
+  "University of New South Wales",
+  "University of Sydney",
+  "University of Technology, Sydney",
+];
+
 /**
  * Bootstrap: replaces the current staff year's divisions/departments with the
  * SOW org structure (preserving department heads where names match) and makes
@@ -474,6 +550,16 @@ export const seed = internalMutation({
           headEmail: headsByName[name],
           colour: coloursByName[name],
         });
+      }
+    }
+
+    for (const name of UNIVERSITIES) {
+      const existing = await ctx.db
+        .query("universities")
+        .withIndex("by_year_and_name", (q) => q.eq("year", year).eq("name", name))
+        .unique();
+      if (!existing) {
+        await ctx.db.insert("universities", { year, name });
       }
     }
 

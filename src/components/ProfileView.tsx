@@ -94,8 +94,9 @@ export const ProfileView = ({ email }: { email?: string }) => {
             {current ? (
               <Muted>
                 {current.roles.join(", ")} •{" "}
-                {[current.department, current.division].filter(Boolean).join(" / ") ||
-                  "—"}{" "}
+                {[current.department, current.division, current.university]
+                  .filter(Boolean)
+                  .join(" / ") || "—"}{" "}
                 • {current.year}
               </Muted>
             ) : (
@@ -150,7 +151,9 @@ export const ProfileView = ({ email }: { email?: string }) => {
             </Row>
             <Muted>
               {entry.roles.join(", ")} •{" "}
-              {[entry.department, entry.division].filter(Boolean).join(" / ") || "—"}
+              {[entry.department, entry.division, entry.university]
+                .filter(Boolean)
+                .join(" / ") || "—"}
             </Muted>
           </Card>
         ))

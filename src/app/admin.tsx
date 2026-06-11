@@ -1,7 +1,12 @@
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
-import { Modal, Pressable, StyleSheet, View } from "react-native";
-import { HEAD_OF_DIVISION, ROLES } from "../../shared/flow";
+import { Alert, Modal, Platform, Pressable, StyleSheet, View } from "react-native";
+import {
+  HEAD_OF_DIVISION,
+  ROLES,
+  roleNeedsDepartment,
+  STUDENT_LEADER,
+} from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { useAppTheme } from "@/theme";
 import {
@@ -24,6 +29,19 @@ import {
  * Manager. Admins can EDIT the current year and the next one (next-year
  * changes take effect at the September 1 rollover) and VIEW any past year.
  */
+
+// Alert.alert buttons are a no-op on react-native-web, so the web build
+// falls back to window.confirm.
+const confirmRemoval = (message: string, onConfirm: () => void) => {
+  if (Platform.OS === "web") {
+    if (window.confirm(message)) onConfirm();
+    return;
+  }
+  Alert.alert("Remove member", message, [
+    { text: "Cancel", style: "cancel" },
+    { text: "Remove", style: "destructive", onPress: onConfirm },
+  ]);
+};
 export default function AdminScreen() {
   const t = useAppTheme();
   const me = useQuery(api.directory.me);
@@ -64,6 +82,7 @@ export default function AdminScreen() {
   const removeStaffProfile = useMutation(api.admin.removeStaffProfile);
   const upsertDivision = useMutation(api.admin.upsertDivision);
   const upsertDepartment = useMutation(api.admin.upsertDepartment);
+  const upsertUniversity = useMutation(api.admin.upsertUniversity);
   const setBudgetManager = useMutation(api.admin.setBudgetManager);
 
   const [error, setError] = useState<string | null>(null);
@@ -83,14 +102,16 @@ export default function AdminScreen() {
   const [staffRoles, setStaffRoles] = useState<string[]>([ROLES[0]]);
   const [staffDepartment, setStaffDepartment] = useState("");
   const [staffDivision, setStaffDivision] = useState("");
+  const [staffUniversity, setStaffUniversity] = useState("");
   const toggleRole = (role: string) =>
     setStaffRoles((previous) =>
       previous.includes(role)
         ? previous.filter((r) => r !== role)
         : [...previous, role]
     );
-  // Division / department forms
+  // Division / department / university forms
   const [divisionName, setDivisionName] = useState("");
+  const [universityName, setUniversityName] = useState("");
   const [departmentName, setDepartmentName] = useState("");
   const [departmentDivision, setDepartmentDivision] = useState("");
   const [departmentHead, setDepartmentHead] = useState("");
@@ -106,7 +127,8 @@ export default function AdminScreen() {
   }
 
   const needsDivision = staffRoles.includes(HEAD_OF_DIVISION);
-  const needsDepartment = staffRoles.some((role) => role !== HEAD_OF_DIVISION);
+  const needsUniversity = staffRoles.includes(STUDENT_LEADER);
+  const needsDepartment = staffRoles.some(roleNeedsDepartment);
   const yearLabel = (y: number) =>
     y === currentYear
       ? `${y} (current)`
@@ -223,6 +245,21 @@ export default function AdminScreen() {
               </Row>
             </>
           )}
+          {needsUniversity && (
+            <>
+              <Muted>University (Student Leaders belong to one, not a department)</Muted>
+              <Row>
+                {(structure?.universities ?? []).map((university) => (
+                  <Btn
+                    key={university}
+                    title={university}
+                    variant={staffUniversity === university ? "primary" : "ghost"}
+                    onPress={() => setStaffUniversity(university)}
+                  />
+                ))}
+              </Row>
+            </>
+          )}
           {needsDepartment && (
             <>
               <Muted>Department</Muted>
@@ -248,6 +285,7 @@ export default function AdminScreen() {
                   roles: staffRoles,
                   department: needsDepartment ? staffDepartment : undefined,
                   division: needsDivision ? staffDivision : undefined,
+                  university: needsUniversity ? staffUniversity : undefined,
                 })
               ).then((ok) => ok && setStaffEmail(""))
             }
@@ -273,10 +311,13 @@ export default function AdminScreen() {
         <Card key={profile._id}>
           <Row>
             <View style={{ flexGrow: 1 }}>
-              <Txt style={{ fontWeight: "600" }}>{profile.email}</Txt>
+              <Txt style={{ fontWeight: "600" }}>{profile.name ?? profile.email}</Txt>
+              {profile.name ? <Muted>{profile.email}</Muted> : null}
               <Muted>
                 {profile.roles.join(", ")} •{" "}
-                {[profile.department, profile.division].filter(Boolean).join(" / ") || "—"}
+                {[profile.department, profile.division, profile.university]
+                  .filter(Boolean)
+                  .join(" / ") || "—"}
               </Muted>
             </View>
             {editable && (
@@ -284,8 +325,12 @@ export default function AdminScreen() {
                 title="Remove"
                 variant="danger"
                 onPress={() =>
-                  void run(() =>
-                    removeStaffProfile({ email: profile.email, year: selectedYear })
+                  confirmRemoval(
+                    `Remove ${profile.email} from ${selectedYear}? Their roles and department assignment for the year will be deleted.`,
+                    () =>
+                      void run(() =>
+                        removeStaffProfile({ email: profile.email, year: selectedYear })
+                      )
                   )
                 }
               />
@@ -310,6 +355,28 @@ export default function AdminScreen() {
                 void run(() =>
                   upsertDivision({ year: selectedYear, name: divisionName })
                 ).then((ok) => ok && setDivisionName(""))
+              }
+            />
+          </>
+        )}
+      </Card>
+
+      <SectionTitle>Universities — {selectedYear}</SectionTitle>
+      <Card>
+        <Muted>{(structure?.universities ?? []).join(", ") || "None yet."}</Muted>
+        {editable && (
+          <>
+            <Field
+              label="New university"
+              value={universityName}
+              onChangeText={setUniversityName}
+            />
+            <Btn
+              title="Add University"
+              onPress={() =>
+                void run(() =>
+                  upsertUniversity({ year: selectedYear, name: universityName })
+                ).then((ok) => ok && setUniversityName(""))
               }
             />
           </>

@@ -131,6 +131,10 @@ export const orgChart = query({
       .query("departments")
       .withIndex("by_year_and_name", (q) => q.eq("year", year))
       .take(200);
+    const universities = await ctx.db
+      .query("universities")
+      .withIndex("by_year_and_name", (q) => q.eq("year", year))
+      .take(200);
     const profiles = await ctx.db
       .query("staffProfiles")
       .withIndex("by_year", (q) => q.eq("year", year))
@@ -190,6 +194,19 @@ export const orgChart = query({
             })),
         };
       }),
+      // Campus people (Student Leaders, Executives, …) belong to a
+      // university rather than a department.
+      universities: universities.map((university) => ({
+        name: university.name,
+        members: profiles
+          .filter(
+            (p) =>
+              p.university === university.name &&
+              p.department === undefined &&
+              !rolesOf(p).includes(DIRECTOR)
+          )
+          .map((p) => person(p.email, rolesOf(p).join(", "))),
+      })),
     };
   },
 });
@@ -207,6 +224,10 @@ export const yearStructure = query({
       .query("divisions")
       .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
       .take(200);
+    const universities = await ctx.db
+      .query("universities")
+      .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
+      .take(200);
     const settings = await ctx.db
       .query("yearSettings")
       .withIndex("by_year", (q) => q.eq("year", args.year))
@@ -219,6 +240,7 @@ export const yearStructure = query({
         headEmail: d.headEmail ?? null,
         colour: d.colour ?? null,
       })),
+      universities: universities.map((u) => u.name),
       budgetManagerEmail: settings?.budgetManagerEmail ?? null,
     };
   },

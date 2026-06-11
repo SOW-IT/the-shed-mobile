@@ -23,24 +23,48 @@ export const get = query({
       .first();
     const avatarUrl = user?.avatarId ? await ctx.storage.getUrl(user.avatarId) : null;
 
-    // Every year's role + department, newest first (index prefix on email).
-    const history = await ctx.db
+    // Every year's role + department, newest first. The email finds the
+    // person; their bound user id and imported person id then pull in years
+    // they served under an older email address.
+    const byEmail = await ctx.db
       .query("staffProfiles")
       .withIndex("by_email_and_year", (q) => q.eq("email", email))
-      .order("desc")
       .take(50);
+    const history = new Map(byEmail.map((h) => [h._id, h]));
+    const userIds = new Set(byEmail.flatMap((h) => (h.userId ? [h.userId] : [])));
+    if (user) userIds.add(user._id);
+    for (const userId of userIds) {
+      const bound = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_userId", (q) => q.eq("userId", userId))
+        .take(50);
+      for (const h of bound) history.set(h._id, h);
+    }
+    const importIds = new Set(
+      [...history.values()].flatMap((h) => (h.importId ? [h.importId] : []))
+    );
+    for (const importId of importIds) {
+      const imported = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_importId", (q) => q.eq("importId", importId))
+        .take(50);
+      for (const h of imported) history.set(h._id, h);
+    }
+    const serviceHistory = [...history.values()].sort((a, b) => b.year - a.year);
 
+    const anyProfile = serviceHistory.find((h) => h.name) ?? null;
     return {
       email,
       isMe: email === callerEmail,
-      name: user?.name ?? null,
+      name: user?.name ?? anyProfile?.name ?? null,
       photo: avatarUrl ?? user?.image ?? null,
       localChurch: user?.localChurch ?? null,
-      serviceHistory: history.map((h) => ({
+      serviceHistory: serviceHistory.map((h) => ({
         year: h.year,
         roles: rolesOf(h),
         department: h.department ?? null,
         division: h.division ?? null,
+        university: h.university ?? null,
       })),
     };
   },

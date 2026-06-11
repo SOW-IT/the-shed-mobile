@@ -170,6 +170,28 @@ export default function OrgChartScreen() {
           )}
         </View>
       ))}
+
+      {chart.universities.some((university) => university.members.length > 0) && (
+        <View>
+          <Txt style={styles.divisionTitle}>Campus</Txt>
+          {chart.universities
+            .filter((university) => university.members.length > 0)
+            .map((university) => (
+              <View
+                key={university.name}
+                style={[
+                  styles.departmentCard,
+                  { backgroundColor: t.card, borderLeftColor: t.primary },
+                ]}
+              >
+                <Txt style={styles.departmentName}>{university.name}</Txt>
+                {university.members.map((member) => (
+                  <Person key={member.email} person={member} />
+                ))}
+              </View>
+            ))}
+        </View>
+      )}
     </Screen>
   );
 }
