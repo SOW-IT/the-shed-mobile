@@ -72,6 +72,20 @@ export default defineSchema({
     .index("by_email", ["email"])
     .index("by_token", ["token"]),
 
+  // Google Workspace directory members, replaced on each sync. Lets admins
+  // assign people from a picker instead of typing emails.
+  directoryUsers: defineTable({
+    email: v.string(), // lowercase primary email
+    name: v.optional(v.string()),
+  }).index("by_email", ["email"]),
+
+  // Singleton-ish sync bookkeeping (key: "directory").
+  syncState: defineTable({
+    key: v.string(),
+    at: v.number(),
+    detail: v.optional(v.string()),
+  }).index("by_key", ["key"]),
+
   // Per-year organisation settings (e.g. who the Budget Manager is).
   yearSettings: defineTable({
     year: v.number(),

@@ -80,6 +80,28 @@ For a fresh deployment, regenerate the JWT keys with
 `node scripts/generate-auth-keys.mjs` and set `JWT_PRIVATE_KEY` / `JWKS` /
 `SITE_URL` (see the script), plus `RESEND_API_KEY` / `RESEND_FROM_EMAIL`.
 
+### Workspace directory sync (optional)
+
+Syncs the sow.org.au member list daily (and via the admin screen's *Sync
+Directory* button) so admins assign people from a picker. Setup:
+
+1. In the Google Cloud console, create a **service account** (no roles
+   needed), create a JSON key, and enable the **Admin SDK API**.
+2. In the Workspace Admin console → *Security → API controls → Domain-wide
+   delegation*, add the service account's client ID with scope
+   `https://www.googleapis.com/auth/admin.directory.user.readonly`.
+3. Set the deployment env vars:
+
+```bash
+npx convex env set GOOGLE_SA_CLIENT_EMAIL <sa>@<project>.iam.gserviceaccount.com
+npx convex env set GOOGLE_SA_PRIVATE_KEY -- "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+npx convex env set GOOGLE_ADMIN_IMPERSONATE <a-workspace-admin>@sow.org.au
+```
+
+Until configured, the daily sync no-ops and the admin screen shows
+"not synced yet". Syncing only fills the picker — assigning roles stays an
+explicit admin action.
+
 ## CI/CD
 
 - **CI** (`.github/workflows/ci.yml`): every PR and push to `main` runs the

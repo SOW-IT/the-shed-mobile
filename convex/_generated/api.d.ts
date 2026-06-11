@@ -12,6 +12,7 @@ import type * as admin from "../admin.js";
 import type * as auth from "../auth.js";
 import type * as crons from "../crons.js";
 import type * as directory from "../directory.js";
+import type * as directorySync from "../directorySync.js";
 import type * as emails from "../emails.js";
 import type * as http from "../http.js";
 import type * as model from "../model.js";
@@ -32,6 +33,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   crons: typeof crons;
   directory: typeof directory;
+  directorySync: typeof directorySync;
   emails: typeof emails;
   http: typeof http;
   model: typeof model;

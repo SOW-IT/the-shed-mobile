@@ -401,6 +401,44 @@ describe("admin and per-year rules", () => {
     expect(rachelInChart?.photo).toBe(updated.photo);
   });
 
+  test("the synced Workspace directory powers the admin picker", async () => {
+    const t = await setup();
+    // A sync stored three org members (one already has a profile).
+    await t.mutation(internal.directorySync.store, {
+      users: [
+        { email: RACHEL, name: "Rachel R" },
+        { email: "newbie@sow.org.au", name: "New B" },
+        { email: "fresh@sow.org.au" },
+      ],
+    });
+    const directory = await asUser(t, ADMIN).query(api.directorySync.list, {
+      year: YEAR,
+    });
+    expect(directory.syncedAt).toBeTruthy();
+    expect(directory.status).toBe("synced 3 people");
+    expect(
+      directory.users.filter((u) => !u.hasProfile).map((u) => u.email)
+    ).toEqual(["newbie@sow.org.au", "fresh@sow.org.au"]);
+    expect(directory.users.find((u) => u.email === RACHEL)?.hasProfile).toBe(true);
+
+    // A later sync replaces the list wholesale.
+    await t.mutation(internal.directorySync.store, {
+      users: [{ email: "only@sow.org.au" }],
+    });
+    const replaced = await asUser(t, ADMIN).query(api.directorySync.list, {
+      year: YEAR,
+    });
+    expect(replaced.users.map((u) => u.email)).toEqual(["only@sow.org.au"]);
+
+    // Only admins can view or trigger the sync.
+    await expect(
+      asUser(t, RACHEL).query(api.directorySync.list, { year: YEAR })
+    ).rejects.toThrow(/Only admins/);
+    await expect(
+      asUser(t, RACHEL).mutation(api.directorySync.requestSync, {})
+    ).rejects.toThrow(/Only admins/);
+  });
+
   test("an unexpected sign-in is unassigned, visible to admins, and assignable", async () => {
     const t = await setup();
     // Walter signed in with Google but no admin ever provisioned him.

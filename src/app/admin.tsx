@@ -14,6 +14,7 @@ import {
   Row,
   Screen,
   SectionTitle,
+  Select,
   Txt,
 } from "@/components/ui";
 
@@ -45,6 +46,11 @@ export default function AdminScreen() {
     api.admin.listUnassignedUsers,
     me?.isAdmin && editable ? { year: selectedYear } : "skip"
   );
+  const directory = useQuery(
+    api.directorySync.list,
+    me?.isAdmin ? { year: selectedYear } : "skip"
+  );
+  const requestDirectorySync = useMutation(api.directorySync.requestSync);
 
   const setStaffProfile = useMutation(api.admin.setStaffProfile);
   const removeStaffProfile = useMutation(api.admin.removeStaffProfile);
@@ -167,6 +173,19 @@ export default function AdminScreen() {
       <SectionTitle>Staff — {selectedYear}</SectionTitle>
       {editable && (
         <Card>
+          {(directory?.users ?? []).some((user) => !user.hasProfile) && (
+            <Select
+              label={`Pick from the Google Workspace directory (${
+                (directory?.users ?? []).filter((u) => !u.hasProfile).length
+              } unassigned)`}
+              value={staffEmail}
+              options={(directory?.users ?? [])
+                .filter((user) => !user.hasProfile)
+                .map((user) => user.email)}
+              onSelect={setStaffEmail}
+              placeholder="Choose a person…"
+            />
+          )}
           <Field
             label="Email (they don't need to have signed in yet)"
             value={staffEmail}
@@ -229,6 +248,21 @@ export default function AdminScreen() {
               ).then((ok) => ok && setStaffEmail(""))
             }
           />
+          <Row>
+            <View style={{ flexGrow: 1 }}>
+              <Muted>
+                Workspace directory:{" "}
+                {directory?.syncedAt
+                  ? `${directory.status} • ${new Date(directory.syncedAt).toLocaleString()}`
+                  : "not synced yet — configure the Google service account (see README)"}
+              </Muted>
+            </View>
+            <Btn
+              title="Sync Directory"
+              variant="ghost"
+              onPress={() => void run(() => requestDirectorySync({}))}
+            />
+          </Row>
         </Card>
       )}
       {(profiles ?? []).map((profile) => (
