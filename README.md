@@ -71,6 +71,28 @@ For a fresh deployment, regenerate the JWT keys with
 `node scripts/generate-auth-keys.mjs` and set `JWT_PRIVATE_KEY` / `JWKS` /
 `SITE_URL` (see the script), plus `RESEND_API_KEY` / `RESEND_FROM_EMAIL`.
 
+## CI/CD
+
+- **CI** (`.github/workflows/ci.yml`): every PR and push to `main` runs the
+  typecheck and backend tests.
+- **EAS Build** (`.github/workflows/eas-build.yml`): every merge to `main`
+  (after the same quality gate) queues **iOS + Android production builds** on
+  [EAS](https://expo.dev/eas). Builds and signed artifacts appear in the Expo
+  dashboard; trigger manually any time via *Actions → EAS Build → Run workflow*.
+
+One-time setup to activate it:
+
+```bash
+npx eas init           # links the repo to an EAS project (adds projectId to app.json)
+npx eas credentials    # set up Apple Developer + Android keystore (EAS manages both)
+```
+
+then create an access token at <https://expo.dev/settings/access-tokens> and
+add it as the `EXPO_TOKEN` repository secret on GitHub. Until the secret
+exists, the workflow passes with a warning and skips the build step. To also
+auto-submit to TestFlight/Play Console, append `--auto-submit` to the
+`eas build` line once store credentials are configured.
+
 ## Tests
 
 ```bash

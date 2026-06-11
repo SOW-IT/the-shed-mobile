@@ -8,9 +8,12 @@
     "scheme": "theshedmobile",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "au.org.sow.theshed",
+      "supportsTablet": true
     },
     "android": {
+      "package": "au.org.sow.theshed",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
