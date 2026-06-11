@@ -1,7 +1,48 @@
 import { useQuery } from "convex/react";
-import { StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
-import { Card, Muted, Screen, SectionTitle } from "@/components/ui";
+import { Card, Muted, Row, Screen, SectionTitle } from "@/components/ui";
+
+/** A simple dropdown: a button that opens a modal list of years. */
+const YearDropdown = ({
+  year,
+  years,
+  onSelect,
+}: {
+  year: number;
+  years: number[];
+  onSelect: (year: number) => void;
+}) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Pressable style={styles.dropdownButton} onPress={() => setOpen(true)}>
+        <Text style={styles.dropdownButtonText}>{year} ▾</Text>
+      </Pressable>
+      <Modal visible={open} transparent animationType="fade">
+        <Pressable style={styles.dropdownBackdrop} onPress={() => setOpen(false)}>
+          <View style={styles.dropdownMenu}>
+            {years.map((y) => (
+              <Pressable
+                key={y}
+                style={[styles.dropdownItem, y === year && styles.dropdownItemActive]}
+                onPress={() => {
+                  onSelect(y);
+                  setOpen(false);
+                }}
+              >
+                <Text style={[styles.dropdownItemText, y === year && { fontWeight: "700" }]}>
+                  {y}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
+    </>
+  );
+};
 
 const Person = ({
   person,
@@ -24,7 +65,11 @@ const Person = ({
 );
 
 export default function OrgChartScreen() {
-  const chart = useQuery(api.directory.orgChart);
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const chart = useQuery(
+    api.directory.orgChart,
+    selectedYear === null ? {} : { year: selectedYear }
+  );
 
   if (chart === undefined) {
     return (
@@ -36,7 +81,16 @@ export default function OrgChartScreen() {
 
   return (
     <Screen>
-      <SectionTitle>Organisation — {chart.year}</SectionTitle>
+      <Row>
+        <View style={{ flexGrow: 1 }}>
+          <SectionTitle>Organisation</SectionTitle>
+        </View>
+        <YearDropdown
+          year={chart.year}
+          years={chart.availableYears}
+          onSelect={setSelectedYear}
+        />
+      </Row>
 
       {chart.director ? (
         <View style={styles.directorWrap}>
@@ -86,6 +140,32 @@ export default function OrgChartScreen() {
 }
 
 const styles = StyleSheet.create({
+  dropdownButton: {
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  dropdownButtonText: { fontWeight: "700", color: "#111827" },
+  dropdownBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    justifyContent: "center",
+    padding: 32,
+  },
+  dropdownMenu: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    paddingVertical: 4,
+    maxWidth: 360,
+    width: "100%",
+    alignSelf: "center",
+  },
+  dropdownItem: { paddingHorizontal: 16, paddingVertical: 12 },
+  dropdownItemActive: { backgroundColor: "#eff6ff" },
+  dropdownItemText: { fontSize: 16, color: "#111827" },
   directorWrap: { alignItems: "stretch" },
   directorLabel: {
     fontSize: 12,

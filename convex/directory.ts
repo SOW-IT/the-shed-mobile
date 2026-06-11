@@ -73,15 +73,23 @@ export const me = query({
 });
 
 /**
- * The organisation chart for the current staff year:
+ * The organisation chart for a staff year (defaults to the current one):
  * Director on top, then divisions -> departments (head first) -> members.
  * Names come from the synced Google profile when the person has signed in.
+ * Also returns every year that has an org structure, for the year dropdown.
  */
 export const orgChart = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { year: v.optional(v.number()) },
+  handler: async (ctx, args) => {
     await requireEmail(ctx);
-    const year = currentStaffYear();
+    const year = args.year ?? currentStaffYear();
+
+    // Distinct years with any structure (divisions are a handful per year).
+    const allDivisions = await ctx.db.query("divisions").take(1000);
+    const availableYears = [
+      ...new Set([...allDivisions.map((d) => d.year), currentStaffYear()]),
+    ].sort((a, b) => b - a);
+
     const divisions = await ctx.db
       .query("divisions")
       .withIndex("by_year_and_name", (q) => q.eq("year", year))
@@ -113,6 +121,7 @@ export const orgChart = query({
 
     return {
       year,
+      availableYears,
       director: directorProfile
         ? person(directorProfile.email, DIRECTOR)
         : null,

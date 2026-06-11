@@ -304,6 +304,39 @@ describe("admin and per-year rules", () => {
     expect(finance?.members.map((m) => m.email)).toEqual([BELLA]);
   });
 
+  test("org chart can show previous years via the year parameter", async () => {
+    const t = await setup();
+    // Backfill a 2020 structure directly (admins can only write current/next).
+    await t.run(async (ctx) => {
+      await ctx.db.insert("divisions", { year: 2020, name: "Old Division" });
+      await ctx.db.insert("departments", {
+        year: 2020,
+        name: "Old Marketing",
+        division: "Old Division",
+        headEmail: HENRY,
+      });
+      await ctx.db.insert("staffProfiles", {
+        email: HENRY,
+        year: 2020,
+        role: "Head of Department",
+        department: "Old Marketing",
+      });
+    });
+
+    const past = await asUser(t, RACHEL).query(api.directory.orgChart, {
+      year: 2020,
+    });
+    expect(past.year).toBe(2020);
+    expect(past.availableYears).toContain(2020);
+    expect(past.availableYears).toContain(YEAR);
+    expect(past.divisions.map((d) => d.name)).toEqual(["Old Division"]);
+    expect(past.divisions[0].departments[0].head?.email).toBe(HENRY);
+
+    // Defaults to the current year when no year is given.
+    const current = await asUser(t, RACHEL).query(api.directory.orgChart, {});
+    expect(current.year).toBe(YEAR);
+  });
+
   test("staff year rolls over on September 1st", () => {
     expect(staffYearForDate(new Date("2026-06-11"))).toBe(2026);
     expect(staffYearForDate(new Date("2026-08-31"))).toBe(2026);
