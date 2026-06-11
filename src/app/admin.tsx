@@ -20,6 +20,7 @@ import {
   Screen,
   SectionTitle,
   Select,
+  type ToastState,
   Txt,
 } from "@/components/ui";
 
@@ -86,6 +87,7 @@ export default function AdminScreen() {
   const setBudgetManager = useMutation(api.admin.setBudgetManager);
 
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastState>(null);
   const run = async (action: () => Promise<unknown>) => {
     setError(null);
     try {
@@ -103,6 +105,7 @@ export default function AdminScreen() {
   const [staffDepartment, setStaffDepartment] = useState("");
   const [staffDivision, setStaffDivision] = useState("");
   const [staffUniversity, setStaffUniversity] = useState("");
+  const [savingStaff, setSavingStaff] = useState(false);
   const toggleRole = (role: string) =>
     setStaffRoles((previous) =>
       previous.includes(role)
@@ -150,7 +153,7 @@ export default function AdminScreen() {
         : `${y}`;
 
   return (
-    <Screen>
+    <Screen toast={toast}>
       <Row>
         <View style={{ flexGrow: 1 }}>
           <SectionTitle>Manage — {yearLabel(selectedYear)}</SectionTitle>
@@ -272,18 +275,28 @@ export default function AdminScreen() {
           )}
           <Btn
             title="Save Staff Assignment"
-            onPress={() =>
+            loading={savingStaff}
+            onPress={() => {
+              const email = staffEmail.trim().toLowerCase();
+              setSavingStaff(true);
               void run(() =>
                 setStaffProfile({
-                  email: staffEmail,
+                  email,
                   year: selectedYear,
                   roles: staffRoles,
                   department: needsDepartment ? staffDepartment : undefined,
                   division: needsDivision ? staffDivision : undefined,
                   university: needsUniversity ? staffUniversity : undefined,
                 })
-              ).then((ok) => ok && setStaffEmail(""))
-            }
+              )
+                .then((ok) => {
+                  if (ok) {
+                    setToast({ text: `Saved ${email} for ${selectedYear}` });
+                    setStaffEmail("");
+                  }
+                })
+                .finally(() => setSavingStaff(false));
+            }}
           />
           <Row>
             <View style={{ flexGrow: 1 }}>

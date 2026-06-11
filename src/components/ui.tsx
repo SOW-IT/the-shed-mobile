@@ -1,6 +1,8 @@
 import { ConvexError } from "convex/values";
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  Animated,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -29,12 +31,58 @@ export const Txt = ({ style, ...props }: TextProps) => {
   return <Text {...props} style={[{ color: t.text }, style]} />;
 };
 
-export const Screen = ({ children }: { children?: ReactNode }) => {
+export const Screen = ({
+  children,
+  toast,
+}: {
+  children?: ReactNode;
+  toast?: ToastState;
+}) => {
   const t = useAppTheme();
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: t.background }]} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.scroll}>{children}</ScrollView>
+      <Toast toast={toast ?? null} />
     </SafeAreaView>
+  );
+};
+
+/**
+ * A short-lived confirmation bubble. Pass a fresh object each time
+ * (`setToast({ text: "Saved" })`) so repeating the same message re-shows it.
+ */
+export type ToastState = { text: string } | null;
+
+export const Toast = ({ toast }: { toast: ToastState }) => {
+  const t = useAppTheme();
+  const opacity = useRef(new Animated.Value(0)).current;
+  const [shown, setShown] = useState<ToastState>(null);
+  useEffect(() => {
+    if (!toast) return;
+    setShown(toast);
+    opacity.setValue(0);
+    Animated.timing(opacity, {
+      toValue: 1,
+      duration: 150,
+      useNativeDriver: false,
+    }).start();
+    const timer = setTimeout(() => {
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: false,
+      }).start(() => setShown(null));
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [toast, opacity]);
+  if (!shown) return null;
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[styles.toast, { backgroundColor: t.text, opacity }]}
+    >
+      <Text style={[styles.toastText, { color: t.background }]}>✓ {shown.text}</Text>
+    </Animated.View>
   );
 };
 
@@ -56,11 +104,14 @@ export const Btn = ({
   onPress,
   variant = "primary",
   disabled,
+  loading,
 }: {
   title: string;
   onPress: () => void;
   variant?: "primary" | "danger" | "ghost" | "success";
   disabled?: boolean;
+  /** Shows a spinner in place of the label and disables the button. */
+  loading?: boolean;
 }) => {
   const t = useAppTheme();
   const background = {
@@ -78,14 +129,18 @@ export const Btn = ({
   return (
     <Pressable
       onPress={onPress}
-      disabled={disabled}
+      disabled={disabled || loading}
       style={({ pressed }) => [
         styles.btn,
         { backgroundColor: background },
-        (pressed || disabled) && { opacity: 0.6 },
+        (pressed || disabled || loading) && { opacity: 0.6 },
       ]}
     >
-      <Text style={[styles.btnText, { color: textColor }]}>{title}</Text>
+      {loading ? (
+        <ActivityIndicator size="small" color={textColor} />
+      ) : (
+        <Text style={[styles.btnText, { color: textColor }]}>{title}</Text>
+      )}
     </Pressable>
   );
 };
@@ -447,4 +502,18 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   sheetContent: { padding: 16, paddingBottom: 24, gap: 8 },
+  toast: {
+    position: "absolute",
+    bottom: 24,
+    alignSelf: "center",
+    borderRadius: 999,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  toastText: { fontWeight: "700", fontSize: 13 },
 });
