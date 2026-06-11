@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { ReactNode, useState } from "react";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
@@ -98,27 +99,56 @@ const stepStatus = (
     financeHead: request.approvedByFinanceHead,
   })[step];
 
-/** A compact "HOD ✓ → Budget Manager ● → Finance Head ○" progress line. */
+/** The approval chain, one icon+label per step: green tick when approved,
+ *  red cross when declined, a highlighted dot for the step it waits on. */
 const StepLine = ({ request }: { request: Doc<"requests"> }) => {
   const t = useAppTheme();
   const active = currentStep(request);
+  const steps = stepsForRequest(request);
   return (
-    <Text style={[styles.steps, { color: t.muted }]}>
-      {stepsForRequest(request)
-        .map((step) => {
-          const status = stepStatus(request, step);
-          const mark =
-            status === APPROVED
-              ? "✓"
-              : status === DECLINED
-                ? "✕"
-                : step === active
-                  ? "●"
-                  : "○";
-          return `${STEP_LABELS[step]} ${mark}`;
-        })
-        .join("  →  ")}
-    </Text>
+    <View style={styles.stepsRow}>
+      {steps.map((step, index) => {
+        const status = stepStatus(request, step);
+        const isActive = step === active;
+        const icon =
+          status === APPROVED ? (
+            <Ionicons name="checkmark-circle" size={18} color={t.success} />
+          ) : status === DECLINED ? (
+            <Ionicons name="close-circle" size={18} color={t.danger} />
+          ) : (
+            <Ionicons
+              name={isActive ? "ellipse" : "ellipse-outline"}
+              size={isActive ? 12 : 12}
+              color={isActive ? t.primary : t.muted}
+            />
+          );
+        const labelColor =
+          status === APPROVED
+            ? t.success
+            : status === DECLINED
+              ? t.danger
+              : isActive
+                ? t.text
+                : t.muted;
+        return (
+          <View key={step} style={styles.stepItem}>
+            {index > 0 ? (
+              <Text style={[styles.stepArrow, { color: t.muted }]}>→</Text>
+            ) : null}
+            {icon}
+            <Text
+              style={[
+                styles.stepLabel,
+                { color: labelColor },
+                isActive && { fontWeight: "700" },
+              ]}
+            >
+              {STEP_LABELS[step]}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
   );
 };
 
@@ -133,7 +163,6 @@ export const RequestCard = ({
 }) => {
   const t = useAppTheme();
   const [showHistory, setShowHistory] = useState(false);
-  const [showReceipt, setShowReceipt] = useState(false);
   const fileCount =
     request.receipt?.recipients.reduce(
       (count, recipient) => count + (recipient.attachments?.length ?? 0),
@@ -163,7 +192,7 @@ export const RequestCard = ({
             {request.receipt.recipients.length === 1 ? "" : "s"}, {fileCount} file
             {fileCount === 1 ? "" : "s"})
           </Muted>
-          {showReceipt ? <ReceiptDetails request={request} /> : null}
+          <ReceiptDetails request={request} />
         </>
       ) : null}
       {request.paid && request.paidAmount !== undefined ? (
@@ -175,15 +204,8 @@ export const RequestCard = ({
       {showHistory ? <History request={request} /> : null}
       <Row>
         {children}
-        {request.receipt ? (
-          <Btn
-            title={showReceipt ? "Hide Payment Details" : "View Payment Details"}
-            variant="ghost"
-            onPress={() => setShowReceipt((previous) => !previous)}
-          />
-        ) : null}
         <Btn
-          title={showHistory ? "Hide History" : "History"}
+          title={showHistory ? "Hide Audit Trail" : "Audit Trail"}
           variant="ghost"
           onPress={() => setShowHistory((previous) => !previous)}
         />
@@ -194,7 +216,16 @@ export const RequestCard = ({
 
 const styles = StyleSheet.create({
   amount: { fontSize: 22, fontWeight: "800", flexGrow: 1 },
-  steps: { fontSize: 12 },
+  stepsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 4,
+    marginVertical: 2,
+  },
+  stepItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  stepArrow: { fontSize: 12, marginRight: 4 },
+  stepLabel: { fontSize: 12 },
   recipient: {
     borderWidth: 1,
     borderRadius: 8,

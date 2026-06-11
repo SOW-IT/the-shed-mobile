@@ -26,14 +26,24 @@ import {
 
 // Alert.alert buttons are a no-op on react-native-web, so the web build
 // falls back to window.confirm.
-const confirmSubmit = (message: string, onConfirm: () => void) => {
+const confirmAction = (
+  title: string,
+  message: string,
+  confirmText: string,
+  onConfirm: () => void,
+  destructive?: boolean
+) => {
   if (Platform.OS === "web") {
     if (window.confirm(message)) onConfirm();
     return;
   }
-  Alert.alert("Receipt exceeds request", message, [
-    { text: "Cancel", style: "cancel" },
-    { text: "Submit Anyway", onPress: onConfirm },
+  Alert.alert(title, message, [
+    { text: "Back", style: "cancel" },
+    {
+      text: confirmText,
+      style: destructive ? "destructive" : "default",
+      onPress: onConfirm,
+    },
   ]);
 };
 
@@ -236,8 +246,10 @@ const ReceiptSheet = ({
     }
     const total = recipients.reduce((sum, r) => sum + Number(r.amount), 0);
     if (total > request.amount) {
-      confirmSubmit(
+      confirmAction(
+        "Receipt exceeds request",
         `Your receipt total of $${total} is more than the requested $${request.amount}. You may only be paid up to the requested amount. Submit anyway?`,
+        "Submit Anyway",
         () => void send()
       );
       return;
@@ -383,7 +395,15 @@ export const MyRequests = ({
               <Btn
                 title="Cancel Request"
                 variant="danger"
-                onPress={() => void handleCancel(request._id)}
+                onPress={() =>
+                  confirmAction(
+                    "Cancel request",
+                    `Cancel your $${request.amount} request ("${request.description}")? It will be deleted along with its approvals — this can't be undone.`,
+                    "Cancel Request",
+                    () => void handleCancel(request._id),
+                    true
+                  )
+                }
               />
             )}
             {requestFullyApproved(request) && !request.receipt && (
