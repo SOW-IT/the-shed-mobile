@@ -9,10 +9,19 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "au.org.sow.theshed",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "associatedDomains": ["applinks:the-shed-web.vercel.app"]
     },
     "android": {
       "package": "au.org.sow.theshed",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [{ "scheme": "https", "host": "the-shed-web.vercel.app" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

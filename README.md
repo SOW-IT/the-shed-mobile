@@ -142,6 +142,27 @@ routes.) When Google sign-in is configured, also set the deployment's
 npx convex env set SITE_URL https://the-shed-web.vercel.app
 ```
 
+### Email links and universal links
+
+Every notification email ends with an "Open in THE SHED" link to the hosted
+web app (`APP_URL` env var, e.g. `/request/<id>`), so emails work for
+everyone immediately. To make those same HTTPS links open the **native app**
+when installed (iOS Universal Links / Android App Links — already configured
+in app.json via `associatedDomains` and `intentFilters`):
+
+1. After Apple enrollment: copy
+   `web/.well-known/apple-app-site-association.example` to
+   `web/.well-known/apple-app-site-association` (no extension) and replace
+   `YOUR_APPLE_TEAM_ID` with the real Team ID.
+2. After `eas credentials` creates the Android keystore: copy
+   `assetlinks.json.example` to `assetlinks.json` and paste the SHA-256
+   signing fingerprint (shown by `eas credentials`).
+3. `npm run deploy:web` — the `.well-known/` files ship with the site, and
+   the OS starts routing those links into the app on the next install.
+
+Until then the links simply open the web app, which is the right fallback
+anyway.
+
 ## Tests
 
 ```bash

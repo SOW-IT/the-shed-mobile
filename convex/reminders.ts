@@ -9,7 +9,7 @@ import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
 import { internalMutation, MutationCtx } from "./_generated/server";
 import { currentStaffYear, getApprovers, type Approvers } from "./model";
-import { openRequestsAcrossYears } from "./requests";
+import { appUrl, openRequestsAcrossYears } from "./requests";
 
 /** A request is considered stale after a week without movement. */
 const STALE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
@@ -23,7 +23,7 @@ const remind = async (
   url: string
 ) => {
   const subject = `Reminder: a $${request.amount} request has been waiting ${days} days`;
-  const body = `The request below has been waiting on ${waitingOn} for ${days} days. Please action it in THE SHED.\n\nRequester: ${request.requesterEmail}\nDepartment: ${request.department}\nAmount: $${request.amount}\nDescription: ${request.description}`;
+  const body = `The request below has been waiting on ${waitingOn} for ${days} days. Please action it in THE SHED.\n\nRequester: ${request.requesterEmail}\nDepartment: ${request.department}\nAmount: $${request.amount}\nDescription: ${request.description}\n\nOpen in THE SHED: ${appUrl(url)}`;
   await ctx.scheduler.runAfter(0, internal.emails.send, { to, subject, body });
   await ctx.scheduler.runAfter(0, internal.push.send, {
     to,

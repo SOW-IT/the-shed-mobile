@@ -64,9 +64,14 @@ const logEvent = async (
   });
 };
 
+/** The hosted app, for links in emails (universal links open the native app). */
+export const appUrl = (path?: string) =>
+  `${process.env.APP_URL ?? "https://the-shed-web.vercel.app"}${path ?? ""}`;
+
 /**
  * Notifies a person about a request update by email AND push notification.
- * `url` is the in-app route the push notification deep-links to.
+ * `url` is the in-app route: pushes deep-link to it, emails get it appended
+ * as an HTTPS link into the hosted app.
  */
 const notify = async (
   ctx: MutationCtx,
@@ -76,7 +81,11 @@ const notify = async (
   url?: string
 ) => {
   if (!to) return;
-  await ctx.scheduler.runAfter(0, internal.emails.send, { to, subject, body });
+  await ctx.scheduler.runAfter(0, internal.emails.send, {
+    to,
+    subject,
+    body: `${body}\n\nOpen in THE SHED: ${appUrl(url)}`,
+  });
   // Push body: just the lead line; the email carries the full details.
   await ctx.scheduler.runAfter(0, internal.push.send, {
     to,
