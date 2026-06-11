@@ -112,22 +112,39 @@ export const involvedApproverEmails = (
 };
 
 /**
+ * Who to notify for a request's pending step: the approver of the request's
+ * own year, falling back to the current year's officeholder when that person
+ * is gone (carried-over requests). Exported for tests.
+ */
+export const nextApproverEmail = (
+  request: Doc<"requests">,
+  approvers: Approvers,
+  fallback?: Approvers
+): string | undefined => {
+  const step = currentStep(request);
+  if (step === null) return undefined;
+  const selectors: Record<Step, (a: Approvers) => string | undefined> = {
+    hod: (a) => a.hodEmail,
+    budgetManager: (a) => a.budgetManagerEmail,
+    director: (a) => a.directorEmail,
+    financeHead: (a) => a.financeHeadEmail,
+  };
+  return selectors[step](approvers) ?? (fallback ? selectors[step](fallback) : undefined);
+};
+
+/**
  * Emails whoever the request now waits on; when fully approved, tells the
  * requester to submit their receipt and the approver chain that it cleared.
  */
 const notifyNextActor = async (
   ctx: MutationCtx,
   request: Doc<"requests">,
-  approvers: Approvers
+  approvers: Approvers,
+  fallback?: Approvers
 ) => {
   const step = currentStep(request);
   if (step !== null) {
-    const approverEmail = {
-      hod: approvers.hodEmail,
-      budgetManager: approvers.budgetManagerEmail,
-      director: approvers.directorEmail,
-      financeHead: approvers.financeHeadEmail,
-    }[step];
+    const approverEmail = nextApproverEmail(request, approvers, fallback);
     await notify(
       ctx,
       approverEmail,
@@ -452,7 +469,11 @@ async function authorizeStep(
   caller: CallerContext,
   requestId: Id<"requests">,
   step: Step
-): Promise<{ request: Doc<"requests">; approvers: Approvers }> {
+): Promise<{
+  request: Doc<"requests">;
+  approvers: Approvers;
+  currentApprovers: Approvers;
+}> {
   const request = await ctx.db.get("requests", requestId);
   // Current-year requests plus incomplete carry-overs from last year.
   if (
@@ -522,14 +543,14 @@ async function authorizeStep(
   if (!check.ready) {
     throw new ConvexError("This request is not waiting on that step.");
   }
-  return { request, approvers };
+  return { request, approvers, currentApprovers };
 }
 
 export const approve = mutation({
   args: { requestId: v.id("requests"), step: stepValidator },
   handler: async (ctx, args) => {
     const caller = await requireProfile(ctx);
-    const { request, approvers } = await authorizeStep(
+    const { request, approvers, currentApprovers } = await authorizeStep(
       ctx,
       caller,
       args.requestId,
@@ -543,7 +564,7 @@ export const approve = mutation({
     });
     await logEvent(ctx, args.requestId, caller.email, "approved", args.step);
     // Tell the next approver (or the requester, once fully approved).
-    await notifyNextActor(ctx, updated, approvers);
+    await notifyNextActor(ctx, updated, approvers, currentApprovers);
     return null;
   },
 });

@@ -3,7 +3,7 @@ import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate } from "../shared/flow";
 import { api, internal } from "./_generated/api";
-import { involvedApproverEmails } from "./requests";
+import { involvedApproverEmails, nextApproverEmail } from "./requests";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -610,6 +610,73 @@ describe("audit trail and reminders", () => {
     expect(declinedTrail.at(-1)).toMatchObject({
       action: "declined", step: "hod", actor: HENRY, detail: "Too dear",
     });
+  });
+
+  test("departments with members or open requests can't be deleted", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+
+    // Members assigned -> refuse.
+    await expect(
+      admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Marketing" })
+    ).rejects.toThrow(/still has staff/);
+
+    // Members gone but an open request remains -> still refuse.
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 40 });
+    const [request] = await asUser(t, RACHEL).query(api.requests.myRequests, {});
+    await asUser(t, HENRY).mutation(api.requests.decline, {
+      requestId: request._id, step: "hod", reason: "no",
+    });
+    await admin.mutation(api.admin.removeStaffProfile, { email: RACHEL, year: YEAR });
+    await admin.mutation(api.admin.removeStaffProfile, { email: HENRY, year: YEAR });
+    await admin.mutation(api.admin.removeStaffProfile, { email: DAN, year: YEAR });
+
+    // The only request is completed (declined), members are gone -> allowed.
+    await admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Marketing" });
+    const structure = await admin.query(api.directory.yearStructure, { year: YEAR });
+    expect(structure.departments.map((d) => d.name)).not.toContain("Marketing");
+
+    // And a department with an OPEN request can't be removed.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "eve@sow.org.au", year: YEAR, roles: ["Staff"], department: "Events",
+    });
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Events", division: "Operations", headEmail: "evan@sow.org.au",
+    });
+    await asUser(t, "eve@sow.org.au").mutation(api.requests.submit, {
+      description: "open", amount: 30,
+    });
+    await admin.mutation(api.admin.removeStaffProfile, { email: "eve@sow.org.au", year: YEAR });
+    await expect(
+      admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Events" })
+    ).rejects.toThrow(/open requests/);
+  });
+
+  test("next-approver notifications fall back to the current year's officeholder", () => {
+    const carriedOver = {
+      requesterEmail: RACHEL,
+      department: "Marketing",
+      approvedByHOD: "APPROVED",
+      approvedByBudgetManager: "PENDING",
+      approvedByDirector: undefined,
+      approvedByFinanceHead: "PENDING",
+    } as never as Parameters<typeof nextApproverEmail>[0];
+    // Last year's Budget Manager is gone (no assignment recorded).
+    const lastYear = { hodEmail: HENRY, budgetManagerEmail: undefined, financeHeadEmail: undefined };
+    const thisYear = { hodEmail: HENRY, budgetManagerEmail: BELLA, financeHeadEmail: FIONA };
+    expect(nextApproverEmail(carriedOver, lastYear, thisYear)).toBe(BELLA);
+    // The request-year officeholder wins when they still exist.
+    expect(
+      nextApproverEmail(carriedOver, { ...lastYear, budgetManagerEmail: "olga@sow.org.au" }, thisYear)
+    ).toBe("olga@sow.org.au");
+    // No step pending -> nobody to notify.
+    expect(
+      nextApproverEmail(
+        { ...carriedOver, approvedByBudgetManager: "APPROVED", approvedByFinanceHead: "APPROVED" } as never,
+        lastYear,
+        thisYear
+      )
+    ).toBeUndefined();
   });
 
   test("chain notifications target the relevant approvers only", () => {

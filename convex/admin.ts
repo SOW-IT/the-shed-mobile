@@ -1,5 +1,11 @@
 import { ConvexError, v } from "convex/values";
-import { FINANCE, HEAD_OF_DIVISION, ROLES, STAFF_ROLE } from "../shared/flow";
+import {
+  FINANCE,
+  HEAD_OF_DIVISION,
+  requestCompleted,
+  ROLES,
+  STAFF_ROLE,
+} from "../shared/flow";
 import { internalMutation, mutation, query } from "./_generated/server";
 import {
   currentStaffYear,
@@ -253,7 +259,34 @@ export const removeDepartment = mutation({
     await requireAdmin(ctx);
     assertManagedYear(args.year);
     const department = await getDepartment(ctx, args.year, args.name);
-    if (department) await ctx.db.delete("departments", department._id);
+    if (!department) return null;
+
+    // Deleting a department that people or in-flight requests still point at
+    // would silently strand them (invisible, unapprovable). Refuse instead.
+    const members = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_year_and_department", (q) =>
+        q.eq("year", args.year).eq("department", args.name)
+      )
+      .take(1);
+    if (members.length > 0) {
+      throw new ConvexError(
+        `"${args.name}" still has staff assigned in ${args.year} — move them to another department first.`
+      );
+    }
+    const requests = await ctx.db
+      .query("requests")
+      .withIndex("by_year_and_department", (q) =>
+        q.eq("year", args.year).eq("department", args.name)
+      )
+      .take(200);
+    if (requests.some((request) => !requestCompleted(request))) {
+      throw new ConvexError(
+        `"${args.name}" still has open requests in ${args.year} — complete or cancel them first.`
+      );
+    }
+
+    await ctx.db.delete("departments", department._id);
     return null;
   },
 });
