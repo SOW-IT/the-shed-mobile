@@ -177,7 +177,7 @@ export const RequestCard = ({
         {children}
         {request.receipt ? (
           <Btn
-            title={showReceipt ? "Hide Receipt" : "View Receipt"}
+            title={showReceipt ? "Hide Payment Details" : "View Payment Details"}
             variant="ghost"
             onPress={() => setShowReceipt((previous) => !previous)}
           />
