@@ -58,15 +58,17 @@ const AppTabs = () => {
       screenOptions={{
         tabBarActiveTintColor: t.primary,
         tabBarInactiveTintColor: t.muted,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
+        // An explicit lineHeight stops the label flex-shrinking to a sliver
+        // (clipped text) when the item runs out of room below the 24px icon.
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "600", lineHeight: 14 },
         // Tall enough that labels never clip; the default bar height leaves
         // no room for them below 24px icons on web/Android.
         tabBarStyle: {
           backgroundColor: t.card,
           borderTopColor: t.border,
-          height: 60 + insets.bottom,
-          paddingBottom: Math.max(insets.bottom, 8),
-          paddingTop: 6,
+          height: 64 + insets.bottom,
+          paddingBottom: Math.max(insets.bottom, 6),
+          paddingTop: 4,
         },
       }}
     >
