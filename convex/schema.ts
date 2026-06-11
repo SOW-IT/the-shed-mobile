@@ -55,6 +55,15 @@ export default defineSchema({
     colour: v.optional(v.string()), // hex, used for department badges
   }).index("by_year_and_name", ["year", "name"]),
 
+  // Expo push tokens, per device, keyed by the owner's email so flow events
+  // can notify whoever needs to act next.
+  pushTokens: defineTable({
+    email: v.string(),
+    token: v.string(),
+  })
+    .index("by_email", ["email"])
+    .index("by_token", ["token"]),
+
   // Per-year organisation settings (e.g. who the Budget Manager is).
   yearSettings: defineTable({
     year: v.number(),

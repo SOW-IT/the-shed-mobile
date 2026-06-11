@@ -43,6 +43,7 @@ const stepValidator = v.union(
 const requestSummary = (r: Doc<"requests">) =>
   `Requester: ${r.requesterEmail}\nDepartment: ${r.department}\nAmount: $${r.amount}\nDescription: ${r.description}`;
 
+/** Notifies a person about a request update by email AND push notification. */
 const notify = async (
   ctx: MutationCtx,
   to: string | undefined,
@@ -51,6 +52,12 @@ const notify = async (
 ) => {
   if (!to) return;
   await ctx.scheduler.runAfter(0, internal.emails.send, { to, subject, body });
+  // Push body: just the lead line; the email carries the full details.
+  await ctx.scheduler.runAfter(0, internal.push.send, {
+    to,
+    title: subject,
+    body: body.split("\n")[0],
+  });
 };
 
 /**

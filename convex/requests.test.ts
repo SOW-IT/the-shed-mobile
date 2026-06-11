@@ -399,6 +399,20 @@ describe("admin and per-year rules", () => {
     expect(rachelInChart?.photo).toBe(updated.photo);
   });
 
+  test("push tokens register per device and follow account switches", async () => {
+    const t = await setup();
+    await asUser(t, RACHEL).mutation(api.push.register, {
+      token: "ExponentPushToken[abc]",
+    });
+    // Same device re-registers under a different account.
+    await asUser(t, HENRY).mutation(api.push.register, {
+      token: "ExponentPushToken[abc]",
+    });
+    const tokens = await t.run((ctx) => ctx.db.query("pushTokens").take(10));
+    expect(tokens).toHaveLength(1);
+    expect(tokens[0].email).toBe(HENRY);
+  });
+
   test("staff year rolls over on September 1st", () => {
     expect(staffYearForDate(new Date("2026-06-11"))).toBe(2026);
     expect(staffYearForDate(new Date("2026-08-31"))).toBe(2026);

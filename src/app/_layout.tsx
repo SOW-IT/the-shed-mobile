@@ -12,6 +12,7 @@ import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator, Platform, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { SignInScreen } from "@/components/SignInScreen";
+import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { useAppTheme } from "@/theme";
 
 const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
@@ -28,6 +29,7 @@ const secureStorage = {
 const AppTabs = () => {
   const me = useQuery(api.directory.me);
   const t = useAppTheme();
+  usePushRegistration();
   return (
     <Tabs screenOptions={{ tabBarActiveTintColor: t.primary }}>
       <Tabs.Screen name="index" options={{ title: "My Requests" }} />
