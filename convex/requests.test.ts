@@ -21,6 +21,14 @@ const DAN = "dan@sow.org.au"; // Director
 const asUser = (t: TestConvex<typeof schema>, email: string) =>
   t.withIdentity({ email, subject: email, issuer: "test" });
 
+/** A stored file ready to attach to a test receipt (one is now required). */
+const storedReceipt = async (t: TestConvex<typeof schema>) => ({
+  storageId: await t.run((ctx) =>
+    ctx.storage.store(new Blob(["receipt"], { type: "application/pdf" }))
+  ),
+  name: "receipt.pdf",
+});
+
 /** Seeds the org chart and personas for the current staff year. */
 async function setup() {
   const t = convexTest(schema, modules);
@@ -138,7 +146,13 @@ describe("approval chain order and authorization", () => {
     await rachel.mutation(api.requests.submitReceipt, {
       requestId: request._id,
       recipients: [
-        { accountName: "R", bsb: "000-000", accountNumber: "1", amount: 95 },
+        {
+          accountName: "R",
+          bsb: "000000",
+          accountNumber: "1",
+          amount: 95,
+          attachments: [await storedReceipt(t)],
+        },
       ],
     });
     const fiona = asUser(t, FIONA);
@@ -590,7 +604,15 @@ describe("audit trail and reminders", () => {
     await asUser(t, FIONA).mutation(api.requests.approve, { requestId: request._id, step: "financeHead" });
     await asUser(t, HENRY).mutation(api.requests.submitReceipt, {
       requestId: request._id,
-      recipients: [{ accountName: "H", bsb: "0", accountNumber: "1", amount: 90 }],
+      recipients: [
+        {
+          accountName: "H",
+          bsb: "0",
+          accountNumber: "1",
+          amount: 90,
+          attachments: [await storedReceipt(t)],
+        },
+      ],
     });
     await asUser(t, FIONA).mutation(api.requests.pay, { requestId: request._id, paidAmount: 90 });
 
@@ -906,7 +928,7 @@ describe("deadlock prevention and validation fixes", () => {
     expect(structure.budgetManagerEmail).toBeNull();
   });
 
-  test("receipts and payments must have positive amounts", async () => {
+  test("receipts need complete digit-only bank details, a file, positive amounts", async () => {
     const t = await setup();
     const rachel = asUser(t, RACHEL);
     await rachel.mutation(api.requests.submit, { description: "x", amount: 100 });
@@ -915,16 +937,38 @@ describe("deadlock prevention and validation fixes", () => {
     await asUser(t, BELLA).mutation(api.requests.approve, { requestId: request._id, step: "budgetManager" });
     await asUser(t, FIONA).mutation(api.requests.approve, { requestId: request._id, step: "financeHead" });
 
-    await expect(
+    const attempt = (recipient: {
+      accountName: string;
+      bsb: string;
+      accountNumber: string;
+      amount: number;
+      attachments?: { storageId: Awaited<ReturnType<typeof storedReceipt>>["storageId"]; name: string }[];
+    }) =>
       rachel.mutation(api.requests.submitReceipt, {
         requestId: request._id,
-        recipients: [{ accountName: "R", bsb: "0", accountNumber: "1", amount: 0 }],
-      })
-    ).rejects.toThrow(/positive/);
+        recipients: [recipient],
+      });
 
-    await rachel.mutation(api.requests.submitReceipt, {
-      requestId: request._id,
-      recipients: [{ accountName: "R", bsb: "0", accountNumber: "1", amount: 95 }],
+    const file = await storedReceipt(t);
+    await expect(
+      attempt({ accountName: "  ", bsb: "0", accountNumber: "1", amount: 95, attachments: [file] })
+    ).rejects.toThrow(/account name/);
+    await expect(
+      attempt({ accountName: "R", bsb: "000-000", accountNumber: "1", amount: 95, attachments: [file] })
+    ).rejects.toThrow(/digits only/);
+    await expect(
+      attempt({ accountName: "R", bsb: "0", accountNumber: "1", amount: 0, attachments: [file] })
+    ).rejects.toThrow(/positive/);
+    await expect(
+      attempt({ accountName: "R", bsb: "0", accountNumber: "1", amount: 95 })
+    ).rejects.toThrow(/receipt file/);
+
+    await attempt({
+      accountName: "R",
+      bsb: "0",
+      accountNumber: "1",
+      amount: 95,
+      attachments: [file],
     });
     await expect(
       asUser(t, FIONA).mutation(api.requests.pay, { requestId: request._id, paidAmount: 0 })
@@ -971,7 +1015,15 @@ describe("deadlock prevention and validation fixes", () => {
     });
     await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
       requestId: carried!._id,
-      recipients: [{ accountName: "R", bsb: "0", accountNumber: "1", amount: 300 }],
+      recipients: [
+        {
+          accountName: "R",
+          bsb: "0",
+          accountNumber: "1",
+          amount: 300,
+          attachments: [await storedReceipt(t)],
+        },
+      ],
     });
     const fionaReview = (await asUser(t, FIONA).query(api.requests.toReview, {}))!;
     expect(fionaReview.readyToPay.map((r) => r._id)).toContain(carried!._id);
@@ -1070,7 +1122,7 @@ describe("deadlock prevention and validation fixes", () => {
       recipients: [
         {
           accountName: "Rachel",
-          bsb: "111-111",
+          bsb: "111111",
           accountNumber: "1",
           amount: 200,
           attachments: [
@@ -1080,7 +1132,7 @@ describe("deadlock prevention and validation fixes", () => {
         },
         {
           accountName: "Vendor Pty Ltd",
-          bsb: "222-222",
+          bsb: "222222",
           accountNumber: "2",
           amount: 100,
           attachments: [{ storageId: fileC, name: "invoice.pdf" }],

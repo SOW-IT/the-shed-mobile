@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "convex/react";
 import * as DocumentPicker from "expo-document-picker";
 import { useEffect, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Alert, Platform, StyleSheet, View } from "react-native";
 import {
   requestCompleted,
   requestDeclined,
@@ -12,6 +12,8 @@ import { Doc, Id } from "../../convex/_generated/dataModel";
 import { RequestCard } from "@/components/RequestCard";
 import {
   Btn,
+  currencyText,
+  digitsOnly,
   ErrorBanner,
   errorMessage,
   Field,
@@ -21,6 +23,19 @@ import {
   Sheet,
   Txt,
 } from "@/components/ui";
+
+// Alert.alert buttons are a no-op on react-native-web, so the web build
+// falls back to window.confirm.
+const confirmSubmit = (message: string, onConfirm: () => void) => {
+  if (Platform.OS === "web") {
+    if (window.confirm(message)) onConfirm();
+    return;
+  }
+  Alert.alert("Receipt exceeds request", message, [
+    { text: "Cancel", style: "cancel" },
+    { text: "Submit Anyway", onPress: onConfirm },
+  ]);
+};
 
 export type RequestPrefill = {
   description: string;
@@ -81,7 +96,7 @@ const NewRequestSheet = ({
       <Field
         label="Amount ($)"
         value={amount}
-        onChangeText={setAmount}
+        onChangeText={(text) => setAmount(currencyText(text))}
         placeholder="0.00"
         keyboardType="numeric"
       />
@@ -176,14 +191,13 @@ const ReceiptSheet = ({
     }
   };
 
-  const handleSubmit = async () => {
+  const send = async () => {
     if (!request) return;
-    setError(null);
     try {
       await submitReceipt({
         requestId: request._id,
         recipients: recipients.map((recipient) => ({
-          accountName: recipient.accountName,
+          accountName: recipient.accountName.trim(),
           bsb: recipient.bsb,
           accountNumber: recipient.accountNumber,
           amount: Number(recipient.amount),
@@ -195,6 +209,40 @@ const ReceiptSheet = ({
     } catch (e) {
       setError(errorMessage(e));
     }
+  };
+
+  const handleSubmit = () => {
+    if (!request) return;
+    setError(null);
+    for (const [index, recipient] of recipients.entries()) {
+      const which = recipients.length === 1 ? "" : ` for recipient ${index + 1}`;
+      if (
+        !recipient.accountName.trim() ||
+        !recipient.bsb ||
+        !recipient.accountNumber ||
+        !recipient.amount
+      ) {
+        setError(`Fill in every field${which}.`);
+        return;
+      }
+      if (!(Number(recipient.amount) > 0)) {
+        setError(`The amount${which} must be a positive number.`);
+        return;
+      }
+    }
+    if (!recipients.some((recipient) => recipient.files.length > 0)) {
+      setError("Attach at least one receipt file.");
+      return;
+    }
+    const total = recipients.reduce((sum, r) => sum + Number(r.amount), 0);
+    if (total > request.amount) {
+      confirmSubmit(
+        `Your receipt total of $${total} is more than the requested $${request.amount}. You may only be paid up to the requested amount. Submit anyway?`,
+        () => void send()
+      );
+      return;
+    }
+    void send();
   };
 
   return (
@@ -226,19 +274,23 @@ const ReceiptSheet = ({
           <Field
             label="BSB"
             value={recipient.bsb}
-            onChangeText={(bsb) => updateRecipient(index, { bsb })}
+            onChangeText={(bsb) => updateRecipient(index, { bsb: digitsOnly(bsb) })}
             keyboardType="numeric"
           />
           <Field
             label="Account number"
             value={recipient.accountNumber}
-            onChangeText={(accountNumber) => updateRecipient(index, { accountNumber })}
+            onChangeText={(accountNumber) =>
+              updateRecipient(index, { accountNumber: digitsOnly(accountNumber) })
+            }
             keyboardType="numeric"
           />
           <Field
             label="Receipt amount ($)"
             value={recipient.amount}
-            onChangeText={(amount) => updateRecipient(index, { amount })}
+            onChangeText={(amount) =>
+              updateRecipient(index, { amount: currencyText(amount) })
+            }
             keyboardType="numeric"
           />
           {recipient.files.map((file, fileIndex) => (

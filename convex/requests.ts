@@ -766,8 +766,19 @@ export const submitReceipt = mutation({
     if (args.recipients.length === 0) {
       throw new ConvexError("Add at least one recipient.");
     }
+    for (const recipient of args.recipients) {
+      if (!recipient.accountName.trim()) {
+        throw new ConvexError("Every recipient needs an account name.");
+      }
+      if (!/^\d+$/.test(recipient.bsb) || !/^\d+$/.test(recipient.accountNumber)) {
+        throw new ConvexError("BSB and account number must be digits only.");
+      }
+    }
     if (args.recipients.some((r) => !(r.amount > 0))) {
       throw new ConvexError("Every recipient amount must be a positive number.");
+    }
+    if (!args.recipients.some((r) => (r.attachments ?? []).length > 0)) {
+      throw new ConvexError("Attach at least one receipt file.");
     }
     const totalAmount = args.recipients.reduce((sum, r) => sum + r.amount, 0);
     await ctx.db.patch("requests", args.requestId, {

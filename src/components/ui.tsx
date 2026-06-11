@@ -25,6 +25,15 @@ export const errorMessage = (e: unknown): string =>
       ? e.message
       : "Something went wrong";
 
+/** Keeps only digits — for BSB / account number inputs. */
+export const digitsOnly = (text: string): string => text.replace(/[^0-9]/g, "");
+
+/** Keeps digits and a single decimal point — for $ amount inputs. */
+export const currencyText = (text: string): string => {
+  const [whole, ...decimals] = text.replace(/[^0-9.]/g, "").split(".");
+  return decimals.length === 0 ? whole : `${whole}.${decimals.join("")}`;
+};
+
 /** Text that follows the system theme. Use instead of the raw <Text>. */
 export const Txt = ({ style, ...props }: TextProps) => {
   const t = useAppTheme();

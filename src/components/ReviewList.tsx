@@ -7,6 +7,7 @@ import { Doc } from "../../convex/_generated/dataModel";
 import { RequestCard } from "@/components/RequestCard";
 import {
   Btn,
+  currencyText,
   ErrorBanner,
   errorMessage,
   Field,
@@ -117,7 +118,7 @@ const PaySheet = ({
       <Field
         label="Paid amount ($)"
         value={paidAmount}
-        onChangeText={setPaidAmount}
+        onChangeText={(text) => setPaidAmount(currencyText(text))}
         keyboardType="numeric"
       />
       <Field label="Comment (optional)" value={comment} onChangeText={setComment} />
