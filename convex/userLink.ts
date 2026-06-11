@@ -3,6 +3,14 @@ import { Id } from "./_generated/dataModel";
 import { internalMutation, MutationCtx } from "./_generated/server";
 
 /**
+ * The organisation's previous Google Workspace domains. Data imported from
+ * the old web app is keyed by addresses on these; when someone first signs
+ * in with their renamed account (same local part, new domain), their old
+ * profiles are claimed and re-keyed to the new address.
+ */
+const LEGACY_EMAIL_DOMAINS = ["sowaustralia.com"];
+
+/**
  * Re-keys every email-keyed reference from oldEmail to newEmail: staff
  * profiles, requests, department headships, Budget Manager assignments and
  * push tokens. Runs when a signed-in account's Google email changes.
@@ -67,7 +75,10 @@ async function rekeyEmail(ctx: MutationCtx, oldEmail: string, newEmail: string) 
  *    account was renamed — re-key everything from the old email to the new.
  * 2. Bind any not-yet-bound profiles for this email (pre-provisioned rows)
  *    to the user id, making it the durable anchor from then on.
- * 3. Profiles imported from the old web app carry an importId shared by all
+ * 3. If nothing matches the email (the org migrated Workspace domains), try
+ *    the same local part on the legacy domains and re-key those profiles to
+ *    the new address.
+ * 4. Profiles imported from the old web app carry an importId shared by all
  *    of the same person's years — bind those too, and re-key any years that
  *    were imported under one of the person's older email addresses.
  */
@@ -87,10 +98,28 @@ export async function linkUserProfiles(ctx: MutationCtx, userId: Id<"users">) {
     await rekeyEmail(ctx, oldEmail, email);
   }
 
-  const unbound = await ctx.db
+  let unbound = await ctx.db
     .query("staffProfiles")
     .withIndex("by_email_and_year", (q) => q.eq("email", email))
     .take(100);
+  if (bound.length === 0 && unbound.length === 0) {
+    const localPart = email.split("@")[0];
+    for (const domain of LEGACY_EMAIL_DOMAINS) {
+      const legacyEmail = `${localPart}@${domain}`;
+      const legacy = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", legacyEmail))
+        .take(100);
+      if (legacy.length > 0) {
+        await rekeyEmail(ctx, legacyEmail, email);
+        unbound = await ctx.db
+          .query("staffProfiles")
+          .withIndex("by_email_and_year", (q) => q.eq("email", email))
+          .take(100);
+        break;
+      }
+    }
+  }
   for (const profile of unbound) {
     if (profile.userId === undefined) {
       await ctx.db.patch("staffProfiles", profile._id, { userId });

@@ -127,6 +127,46 @@ describe("email changes: the person stays the same", () => {
     expect(profile.serviceHistory[1].university).toBe("University of Sydney");
   });
 
+  test("first sign-in after the Workspace domain migration claims legacy-domain profiles", async () => {
+    const t = await setup();
+    // Imported from the old app under the previous Workspace domain.
+    const userId = await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: "mia.cho@sowaustralia.com",
+        year: YEAR,
+        roles: ["Staff"],
+        department: "Data and IT",
+        importId: "uid-mia",
+      });
+      await ctx.db.insert("staffProfiles", {
+        email: "mia.cho@sowaustralia.com",
+        year: YEAR - 1,
+        roles: ["Student Leader"],
+        university: "University of Sydney",
+        importId: "uid-mia",
+      });
+      // The same person, signing in with the org's new domain.
+      return await ctx.db.insert("users", { email: "mia.cho@sow.org.au" });
+    });
+
+    await t.mutation(internal.userLink.link, { userId });
+
+    await t.run(async (ctx) => {
+      const bound = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_userId", (q) => q.eq("userId", userId))
+        .take(10);
+      expect(bound.length).toBe(2);
+      expect(new Set(bound.map((p) => p.email))).toEqual(
+        new Set(["mia.cho@sow.org.au"])
+      );
+    });
+
+    // Their service history follows them onto the new address.
+    const profile = (await asUser(t, "mia.cho@sow.org.au").query(api.profile.get, {}))!;
+    expect(profile.serviceHistory.map((h) => h.year)).toEqual([YEAR, YEAR - 1]);
+  });
+
   test("re-keying never duplicates a (email, year) profile", async () => {
     const t = await setup();
     const oldEmail = "jay.old@gmail.com";
