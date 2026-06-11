@@ -6986,61 +6986,61 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
         {
           "name": "Alumni",
           "division": "Engagement",
-          "headEmail": "josh.kim@sowaustralia.com",
+          "headEmail": "josh.kim@sow.org.au",
           "colour": "#B2C495"
         },
         {
           "name": "Chaplaincy",
           "division": "Chaplaincy",
-          "headEmail": "sijin.yang@sowaustralia.com",
+          "headEmail": "sijin.yang@sow.org.au",
           "colour": "#CD7F32"
         },
         {
           "name": "Compliance",
           "division": "Governance",
-          "headEmail": "kate.ro@sowaustralia.com",
+          "headEmail": "kate.ro@sow.org.au",
           "colour": "#FFA0A0"
         },
         {
           "name": "Data and IT",
           "division": "Governance",
-          "headEmail": "daniel.kim@sowaustralia.com",
+          "headEmail": "daniel.kim@sow.org.au",
           "colour": "#6BE440"
         },
         {
           "name": "Events",
           "division": "Operations",
-          "headEmail": "james.zhao@sowaustralia.com",
+          "headEmail": "james.zhao@sow.org.au",
           "colour": "#5D3FD3"
         },
         {
           "name": "Finance",
           "division": "Governance",
-          "headEmail": "brandon.teng@sowaustralia.com",
+          "headEmail": "brandon.teng@sow.org.au",
           "colour": "#FF5151"
         },
         {
           "name": "Marketing",
           "division": "Engagement",
-          "headEmail": "michelle.chen@sowaustralia.com",
+          "headEmail": "michelle.chen@sow.org.au",
           "colour": "#00A36C"
         },
         {
           "name": "Missions",
           "division": "Operations",
-          "headEmail": "rebecca.lee@sowaustralia.com",
+          "headEmail": "rebecca.lee@sow.org.au",
           "colour": "#E5AD66"
         },
         {
           "name": "People and Culture",
           "division": "Human Resources",
-          "headEmail": "christina.lee@sowaustralia.com",
+          "headEmail": "christina.lee@sow.org.au",
           "colour": "#5182FF"
         },
         {
           "name": "Training and Development",
           "division": "Human Resources",
-          "headEmail": "faith.teo@sowaustralia.com",
+          "headEmail": "faith.teo@sow.org.au",
           "colour": "#5270BF"
         }
       ],
@@ -7050,10 +7050,10 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
         "University of Sydney",
         "University of Technology, Sydney"
       ],
-      "budgetManagerEmail": "tiffany.linggoputro@sowaustralia.com",
+      "budgetManagerEmail": "tiffany.linggoputro@sow.org.au",
       "profiles": [
         {
-          "email": "aaron.valdez@sowaustralia.com",
+          "email": "aaron.valdez@sow.org.au",
           "importId": "4AGFO0S2A9cxBw91phnPj92FbP93",
           "name": "Aaron Valdez",
           "roles": [
@@ -7062,7 +7062,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Sydney"
         },
         {
-          "email": "alex.kook@sowaustralia.com",
+          "email": "alex.kook@sow.org.au",
           "importId": "VLnZplSI9ZfTyECclaIMHjZnH1l1",
           "name": "Alex Kook",
           "roles": [
@@ -7071,7 +7071,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Technology, Sydney"
         },
         {
-          "email": "andrew.lee@sowaustralia.com",
+          "email": "andrew.lee@sow.org.au",
           "importId": "IF3qEpUyHCdyOrdtbkfLM4IVwsI2",
           "name": "Andrew Lee",
           "roles": [
@@ -7080,7 +7080,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "Macquarie University"
         },
         {
-          "email": "anika.kim@sowaustralia.com",
+          "email": "anika.kim@sow.org.au",
           "importId": "ig2kuzgLIKQKoEwKSVY5gr6k6pm1",
           "name": "Anika Kim",
           "roles": [
@@ -7089,7 +7089,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of New South Wales"
         },
         {
-          "email": "anna-leah.sinn@sowaustralia.com",
+          "email": "anna-leah.sinn@sow.org.au",
           "importId": "anna-leah.sinn@sowaustralia.com",
           "roles": [
             "Student Leader"
@@ -7097,7 +7097,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of New South Wales"
         },
         {
-          "email": "annika.chong@sowaustralia.com",
+          "email": "annika.chong@sow.org.au",
           "importId": "praSTUn43qWCEvDDKlgj4cJvmZV2",
           "name": "Annika Chong",
           "roles": [
@@ -7107,7 +7107,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Technology, Sydney"
         },
         {
-          "email": "ashley.kim2@sowaustralia.com",
+          "email": "ashley.kim2@sow.org.au",
           "importId": "Sl954L1pwGe3SsYUZT2sislWt3s2",
           "name": "Ashley Kim",
           "roles": [
@@ -7116,7 +7116,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Sydney"
         },
         {
-          "email": "brandon.teng@sowaustralia.com",
+          "email": "brandon.teng@sow.org.au",
           "importId": "Rz6cMZVjMPWqiQUGQzJ1XrqmMlp1",
           "name": "Brandon Teng",
           "roles": [
@@ -7126,7 +7126,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of New South Wales"
         },
         {
-          "email": "carissa.wong@sowaustralia.com",
+          "email": "carissa.wong@sow.org.au",
           "importId": "6m12KB0JnVQupaxsXsRMdpZnBmN2",
           "name": "Carissa Wong",
           "roles": [
@@ -7135,7 +7135,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "department": "Compliance"
         },
         {
-          "email": "chloe.loy@sowaustralia.com",
+          "email": "chloe.loy@sow.org.au",
           "importId": "KIqeLLAQ4OUWsUz4t1gVDekmrXt2",
           "name": "Chloe Loy",
           "roles": [
@@ -7145,7 +7145,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Sydney"
         },
         {
-          "email": "chloe.moon@sowaustralia.com",
+          "email": "chloe.moon@sow.org.au",
           "importId": "aKA5nxyYABWpWmHFSumubT4Ooos1",
           "name": "Chloe Moon",
           "roles": [
@@ -7155,7 +7155,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Technology, Sydney"
         },
         {
-          "email": "christian.lee@sowaustralia.com",
+          "email": "christian.lee@sow.org.au",
           "importId": "FNv0NeoSqsMQ6bLKqL4t3t4ZTdP2",
           "name": "Christian Lee",
           "roles": [
@@ -7165,7 +7165,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Technology, Sydney"
         },
         {
-          "email": "christina.lee@sowaustralia.com",
+          "email": "christina.lee@sow.org.au",
           "importId": "gRvtET9OCTdVbhGBhl0g3OHWhpk1",
           "name": "Christina Lee",
           "roles": [
@@ -7174,7 +7174,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "department": "People and Culture"
         },
         {
-          "email": "claire.kim@sowaustralia.com",
+          "email": "claire.kim@sow.org.au",
           "importId": "RW2FalRCTdZHhuGLzROLldIQiSS2",
           "name": "Claire Kim",
           "roles": [
@@ -7183,7 +7183,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Sydney"
         },
         {
-          "email": "daniel.kim@sowaustralia.com",
+          "email": "daniel.kim@sow.org.au",
           "importId": "qaPmJh5nfUUlDcz3UX8ZS56f0Hw2",
           "name": "Daniel Kim",
           "roles": [
@@ -7192,7 +7192,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "department": "Data and IT"
         },
         {
-          "email": "daniel.lee2@sowaustralia.com",
+          "email": "daniel.lee2@sow.org.au",
           "importId": "uCrqfYfwk5W18S66shquLgS4IG32",
           "name": "Daniel Lee2",
           "roles": [
@@ -7201,7 +7201,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of New South Wales"
         },
         {
-          "email": "daniel.lee@sowaustralia.com",
+          "email": "daniel.lee@sow.org.au",
           "importId": "cY6WeiyHWBedv0J8BCt5xHQQJ0A2",
           "name": "Daniel Lee",
           "roles": [
@@ -7211,7 +7211,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Sydney"
         },
         {
-          "email": "dave.choi@sowaustralia.com",
+          "email": "dave.choi@sow.org.au",
           "importId": "k7I1Bgci2SZeicxn4naR4aOIq9e2",
           "name": "Dave Choi",
           "roles": [
@@ -7220,7 +7220,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "department": "Chaplaincy"
         },
         {
-          "email": "david.song@sowaustralia.com",
+          "email": "david.song@sow.org.au",
           "importId": "Q9zmKA4VQsUv3hqqIHdCDyg9pgB2",
           "name": "David Song",
           "roles": [
@@ -7230,7 +7230,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of New South Wales"
         },
         {
-          "email": "ed.more@sowaustralia.com",
+          "email": "ed.more@sow.org.au",
           "importId": "4XL8M1nAojU6eV5xsQrQrr3TBXz1",
           "name": "Ed More",
           "roles": [
@@ -7239,7 +7239,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "department": "Finance"
         },
         {
-          "email": "elie.yoon@sowaustralia.com",
+          "email": "elie.yoon@sow.org.au",
           "importId": "iszCOGQ3d5gWc9P5PUR4Qa1JSAB2",
           "name": "Elie Yoon",
           "roles": [
@@ -7248,7 +7248,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of New South Wales"
         },
         {
-          "email": "erik.more@sowaustralia.com",
+          "email": "erik.more@sow.org.au",
           "importId": "ATS2gdN8VVZpvM6zuH3Mqav5Gxi2",
           "name": "Erik More",
           "roles": [
@@ -7257,7 +7257,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "Macquarie University"
         },
         {
-          "email": "erlina.yang@sowaustralia.com",
+          "email": "erlina.yang@sow.org.au",
           "importId": "1deVspvZrLXZCnLz6Afb0CTAAuo2",
           "name": "Erlina Yang",
           "roles": [
@@ -7267,7 +7267,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of New South Wales"
         },
         {
-          "email": "esther.ahn@sowaustralia.com",
+          "email": "esther.ahn@sow.org.au",
           "importId": "b1TNNDVN2MR5bxY7IrYUq7a2CCK2",
           "name": "Esther Ahn",
           "roles": [
@@ -7276,7 +7276,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "division": "Human Resources"
         },
         {
-          "email": "faith.teo@sowaustralia.com",
+          "email": "faith.teo@sow.org.au",
           "importId": "wTudP68iBfNjLqNyaHADTOYZWWc2",
           "name": "Faith Teo",
           "roles": [
@@ -7285,7 +7285,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "department": "Training and Development"
         },
         {
-          "email": "gabriel.perez@sowaustralia.com",
+          "email": "gabriel.perez@sow.org.au",
           "importId": "nmkwZwUuk5U5aMrJdGxgymSA5LV2",
           "name": "Gabriel Perez",
           "roles": [
@@ -7294,7 +7294,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Sydney"
         },
         {
-          "email": "grace.ho@sowaustralia.com",
+          "email": "grace.ho@sow.org.au",
           "importId": "BiW1kktoyEW3zYYiBf4NK2Kon1X2",
           "name": "Grace Ho",
           "roles": [
@@ -7303,7 +7303,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of New South Wales"
         },
         {
-          "email": "grace.oh@sowaustralia.com",
+          "email": "grace.oh@sow.org.au",
           "importId": "T6v7nW6H44TIpXD47IZyy849WD02",
           "name": "Grace Oh",
           "roles": [
@@ -7312,7 +7312,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "department": "Marketing"
         },
         {
-          "email": "grace.youn@sowaustralia.com",
+          "email": "grace.youn@sow.org.au",
           "importId": "e78oP9h5uuYBhc5yumd4UJ1mjsQ2",
           "name": "Grace Youn",
           "roles": [
@@ -7321,7 +7321,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Technology, Sydney"
         },
         {
-          "email": "ian.chung@sowaustralia.com",
+          "email": "ian.chung@sow.org.au",
           "importId": "58kJ0cTY3JWvfjoOph6L1gJcLxG2",
           "name": "Ian Chung",
           "roles": [
@@ -7330,7 +7330,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "department": "Data and IT"
         },
         {
-          "email": "irene.chen@sowaustralia.com",
+          "email": "irene.chen@sow.org.au",
           "importId": "k7RvJ7iZ4UW3FhtSJQ6VtDqpVfE3",
           "name": "Irene Chen",
           "roles": [
@@ -7339,7 +7339,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "department": "Compliance"
         },
         {
-          "email": "irene.lee@sowaustralia.com",
+          "email": "irene.lee@sow.org.au",
           "importId": "vOyvsZD7UoT4z2nthdBxM6ArdH92",
           "name": "Irene Lee",
           "roles": [
@@ -7349,7 +7349,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "Macquarie University"
         },
         {
-          "email": "isac.kim@sowaustralia.com",
+          "email": "isac.kim@sow.org.au",
           "importId": "jnotpNRVKOW6pfoEgr3fwKSvpaV2",
           "name": "Isac Kim",
           "roles": [
@@ -7358,7 +7358,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "division": "Governance"
         },
         {
-          "email": "jacquie.liu@sowaustralia.com",
+          "email": "jacquie.liu@sow.org.au",
           "importId": "0cSYfuExa3dpxHQ8SQi5RBWbwIz2",
           "name": "Jacquie Liu",
           "roles": [
@@ -7367,7 +7367,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "Macquarie University"
         },
         {
-          "email": "james.zhao@sowaustralia.com",
+          "email": "james.zhao@sow.org.au",
           "importId": "aFlYWlIEWeWXJkY6e5lDwtX3M4i1",
           "name": "James Zhao",
           "roles": [
@@ -7376,7 +7376,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "department": "Events"
         },
         {
-          "email": "jesse.ha@sowaustralia.com",
+          "email": "jesse.ha@sow.org.au",
           "importId": "jesse.ha@sowaustralia.com",
           "name": "Jesse Ha",
           "roles": [
@@ -7385,7 +7385,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "Macquarie University"
         },
         {
-          "email": "jia.chung@sowaustralia.com",
+          "email": "jia.chung@sow.org.au",
           "importId": "4sTypFaEmxd9ognWSwPkiKbo7P02",
           "name": "Jia Chung",
           "roles": [
@@ -7394,7 +7394,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "Macquarie University"
         },
         {
-          "email": "jisue.shim@sowaustralia.com",
+          "email": "jisue.shim@sow.org.au",
           "importId": "iyGgzJCc46SczXTbENmoeD595rX2",
           "name": "Jisue Shim",
           "roles": [
@@ -7403,7 +7403,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "Macquarie University"
         },
         {
-          "email": "joanne.kim@sowaustralia.com",
+          "email": "joanne.kim@sow.org.au",
           "importId": "s11eFLnX0ae1UyQPjqN5KMJa5DE2",
           "name": "Joanne Kim",
           "roles": [
@@ -7412,7 +7412,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "Macquarie University"
         },
         {
-          "email": "jonathan.jung@sowaustralia.com",
+          "email": "jonathan.jung@sow.org.au",
           "importId": "7bolI36SVkaSQtJLkWp6a94Vokv2",
           "name": "Jonathan Jung",
           "roles": [
@@ -7421,7 +7421,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Sydney"
         },
         {
-          "email": "joseph.yu@sowaustralia.com",
+          "email": "joseph.yu@sow.org.au",
           "importId": "kaZVKTJyg4b0joLQlFIHe06CSKK2",
           "name": "Joseph Yu",
           "roles": [
@@ -7429,7 +7429,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           ]
         },
         {
-          "email": "josh.kim@sowaustralia.com",
+          "email": "josh.kim@sow.org.au",
           "importId": "8lfUbYE0JOfJ37kkyQJxCt6kegQ2",
           "name": "Josh Kim",
           "roles": [
@@ -7439,7 +7439,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Technology, Sydney"
         },
         {
-          "email": "joshua.cinco@sowaustralia.com",
+          "email": "joshua.cinco@sow.org.au",
           "importId": "mYHL4dlg9jaCpPuP7Y52Lb3YU352",
           "name": "Joshua Cinco",
           "roles": [
@@ -7448,7 +7448,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of New South Wales"
         },
         {
-          "email": "joshua.kim2@sowaustralia.com",
+          "email": "joshua.kim2@sow.org.au",
           "importId": "f2AQVlA34TgTGgnzEvFZOHcsGRR2",
           "name": "Joshua Kim2",
           "roles": [
@@ -7458,7 +7458,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Sydney"
         },
         {
-          "email": "joshua.lee@sowaustralia.com",
+          "email": "joshua.lee@sow.org.au",
           "importId": "W04jiqxTt6dkAvhA4t1hVw6oRce2",
           "name": "Joshua Lee",
           "roles": [
@@ -7467,7 +7467,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "department": "People and Culture"
         },
         {
-          "email": "joshua.park@sowaustralia.com",
+          "email": "joshua.park@sow.org.au",
           "importId": "Og2gq8M5VDXnXdW6OQaB85nVLO93",
           "name": "Joshua Park",
           "roles": [
@@ -7476,7 +7476,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of New South Wales"
         },
         {
-          "email": "joshua.quek@sowaustralia.com",
+          "email": "joshua.quek@sow.org.au",
           "importId": "ydMmaGu87XSMtQdDIHwXGwvz4Uh1",
           "name": "Joshua Quek",
           "roles": [
@@ -7486,7 +7486,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of New South Wales"
         },
         {
-          "email": "jovey.lam@sowaustralia.com",
+          "email": "jovey.lam@sow.org.au",
           "importId": "tFWpcoCzKlRMpsEscV8VBeRBzti2",
           "name": "Jovey Lam",
           "roles": [
@@ -7495,7 +7495,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "department": "Events"
         },
         {
-          "email": "joy.shin@sowaustralia.com",
+          "email": "joy.shin@sow.org.au",
           "importId": "MC6yGrOgN1RTLp5ikl1RUDYqo382",
           "name": "Joy Shin",
           "roles": [
@@ -7505,7 +7505,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "Macquarie University"
         },
         {
-          "email": "justin.hung@sowaustralia.com",
+          "email": "justin.hung@sow.org.au",
           "importId": "lqYBTpWtPwV1kQLeOePKuFyloxW2",
           "name": "Justin Hung",
           "roles": [
@@ -7515,7 +7515,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "Macquarie University"
         },
         {
-          "email": "kate.ro@sowaustralia.com",
+          "email": "kate.ro@sow.org.au",
           "importId": "tdnWhv5pUmYo5UYAyaTYFk4NyQo2",
           "name": "Kate Ro",
           "roles": [
@@ -7524,7 +7524,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "department": "Compliance"
         },
         {
-          "email": "katie.liu@sowaustralia.com",
+          "email": "katie.liu@sow.org.au",
           "importId": "HKIeXoU5cvhKrRcy9sEytneM1wh1",
           "name": "Katie Liu",
           "roles": [
@@ -7533,7 +7533,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Technology, Sydney"
         },
         {
-          "email": "kiki.tsang@sowaustralia.com",
+          "email": "kiki.tsang@sow.org.au",
           "importId": "DsskrVaBIDf8p5tbfTZgZtTXusn1",
           "name": "Kiki Tsang",
           "roles": [
@@ -7542,7 +7542,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Sydney"
         },
         {
-          "email": "kivin.park@sowaustralia.com",
+          "email": "kivin.park@sow.org.au",
           "importId": "BhbtRkkvF4a2nPMmmTGOpvhjo6x1",
           "name": "Kivin Park",
           "roles": [
@@ -7550,7 +7550,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           ]
         },
         {
-          "email": "lena.kim@sowaustralia.com",
+          "email": "lena.kim@sow.org.au",
           "importId": "fILDINBi1ERHcnpRmPALvpeLMWB2",
           "name": "Lena Kim",
           "roles": [
@@ -7559,7 +7559,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Sydney"
         },
         {
-          "email": "mathew.lee@sowaustralia.com",
+          "email": "mathew.lee@sow.org.au",
           "importId": "7RhRmu9F8UPTSidNqdVnoZqoy2g1",
           "name": "Mathew Lee",
           "roles": [
@@ -7568,7 +7568,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "Macquarie University"
         },
         {
-          "email": "michelle.chen@sowaustralia.com",
+          "email": "michelle.chen@sow.org.au",
           "importId": "fKVUYvAtdQhdXdnZ19knoouwlOx1",
           "name": "Michelle Chen",
           "roles": [
@@ -7577,7 +7577,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "department": "Marketing"
         },
         {
-          "email": "michelle.kim@sowaustralia.com",
+          "email": "michelle.kim@sow.org.au",
           "importId": "If1u5v9wMNfSv4OQ4pbznG14EEE3",
           "name": "Michelle Kim",
           "roles": [
@@ -7586,7 +7586,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "Macquarie University"
         },
         {
-          "email": "minjun.cho@sowaustralia.com",
+          "email": "minjun.cho@sow.org.au",
           "importId": "LmV3EmYJMFXdBU6fOJW8PMIAFXE2",
           "name": "Minjun Cho",
           "roles": [
@@ -7595,7 +7595,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of New South Wales"
         },
         {
-          "email": "monica.park@sowaustralia.com",
+          "email": "monica.park@sow.org.au",
           "importId": "AHJeiF9zy3eOciUArotV8LdkPoo2",
           "name": "Monica Park",
           "roles": [
@@ -7605,7 +7605,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "division": "Operations"
         },
         {
-          "email": "natalie.kwok@sowaustralia.com",
+          "email": "natalie.kwok@sow.org.au",
           "importId": "o9ixc8N6hVVQUEntTz1AAdC36e22",
           "name": "Natalie Kwok",
           "roles": [
@@ -7615,7 +7615,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of New South Wales"
         },
         {
-          "email": "nathan.shi@sowaustralia.com",
+          "email": "nathan.shi@sow.org.au",
           "importId": "2bFZALlQZ8aIXKMR4YVMAnMIM8v1",
           "name": "Nathan Shi",
           "roles": [
@@ -7625,7 +7625,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "Macquarie University"
         },
         {
-          "email": "noah.lee@sowaustralia.com",
+          "email": "noah.lee@sow.org.au",
           "importId": "VgBAXIBFnzO6WAj9ZcjhXYiFm1q1",
           "name": "Noah Lee",
           "roles": [
@@ -7634,7 +7634,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of New South Wales"
         },
         {
-          "email": "paul.chae@sowaustralia.com",
+          "email": "paul.chae@sow.org.au",
           "importId": "gleD1I7U3kWs24s5ZUhVwiZMneo2",
           "name": "Paul Chae",
           "roles": [
@@ -7643,7 +7643,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Technology, Sydney"
         },
         {
-          "email": "rachel.lee@sowaustralia.com",
+          "email": "rachel.lee@sow.org.au",
           "importId": "GnidM9Pz9PRgD7sbT6frJ4MVG6m2",
           "name": "Rachel Lee",
           "roles": [
@@ -7652,7 +7652,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Sydney"
         },
         {
-          "email": "rebecca.lee@sowaustralia.com",
+          "email": "rebecca.lee@sow.org.au",
           "importId": "WQgrEaK4AYT9yTGr2WrL8aKqx1j1",
           "name": "Rebecca Lee",
           "roles": [
@@ -7661,7 +7661,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "department": "Missions"
         },
         {
-          "email": "riana.xu@sowaustralia.com",
+          "email": "riana.xu@sow.org.au",
           "importId": "yjSI1OxzYLNyHCYk1cRhypjfTx73",
           "name": "Riana Xu",
           "roles": [
@@ -7670,7 +7670,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of New South Wales"
         },
         {
-          "email": "sam.kim@sowaustralia.com",
+          "email": "sam.kim@sow.org.au",
           "importId": "ggmYMlVjEnSfzKTvvzMOY0kdwrH3",
           "name": "Sam Kim",
           "roles": [
@@ -7680,7 +7680,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Sydney"
         },
         {
-          "email": "samuel.yang@sowaustralia.com",
+          "email": "samuel.yang@sow.org.au",
           "importId": "oAbJxoO0JFcdxcLMFgnESsdPfGw2",
           "name": "Samuel Yang",
           "roles": [
@@ -7689,7 +7689,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Technology, Sydney"
         },
         {
-          "email": "sarah.jiang@sowaustralia.com",
+          "email": "sarah.jiang@sow.org.au",
           "importId": "RCqCWP7qV7cmpDE0Y6mfvZ03TE63",
           "name": "Sarah Jiang",
           "roles": [
@@ -7698,7 +7698,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Sydney"
         },
         {
-          "email": "sarah.shin@sowaustralia.com",
+          "email": "sarah.shin@sow.org.au",
           "importId": "Ojmar4CYcaPMYzb7ZiTjuQ6P0Lq1",
           "name": "Sarah Shin",
           "roles": [
@@ -7707,7 +7707,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "Macquarie University"
         },
         {
-          "email": "sijin.yang@sowaustralia.com",
+          "email": "sijin.yang@sow.org.au",
           "importId": "bReJKkxsZZdgs6zHZJrt69Aevhz2",
           "name": "Sijin Yang",
           "roles": [
@@ -7716,7 +7716,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "division": "Engagement"
         },
         {
-          "email": "sowon.jun@sowaustralia.com",
+          "email": "sowon.jun@sow.org.au",
           "importId": "JLIUp4gZTGVFRMTK0fBwcpyPtRp1",
           "name": "Sowon Jun",
           "roles": [
@@ -7725,7 +7725,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of New South Wales"
         },
         {
-          "email": "stephen.choi@sowaustralia.com",
+          "email": "stephen.choi@sow.org.au",
           "importId": "7n0Dab4tr5W24X0idpYLaGipcok2",
           "name": "Stephen Choi",
           "roles": [
@@ -7734,7 +7734,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of New South Wales"
         },
         {
-          "email": "tiffany.linggoputro@sowaustralia.com",
+          "email": "tiffany.linggoputro@sow.org.au",
           "importId": "Bu4H3LSws3bUd52tnsErZCNCjZ93",
           "name": "Tiffany Linggoputro",
           "roles": [
@@ -7744,7 +7744,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Sydney"
         },
         {
-          "email": "tim.widjaja@sowaustralia.com",
+          "email": "tim.widjaja@sow.org.au",
           "importId": "IyVgtzHu3FOPmW4BwE8OCCxRMFD3",
           "name": "Tim Widjaja",
           "roles": [
@@ -7753,7 +7753,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Sydney"
         },
         {
-          "email": "timothy.yatco@sowaustralia.com",
+          "email": "timothy.yatco@sow.org.au",
           "importId": "0wyj3pxC3vcRy9Z3atMc3cmz5Hw2",
           "name": "Timothy Yatco",
           "roles": [
@@ -7762,7 +7762,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Technology, Sydney"
         },
         {
-          "email": "wilfred.teh@sowaustralia.com",
+          "email": "wilfred.teh@sow.org.au",
           "importId": "cLwJdqf7O9aGLMg3CxSUiAkeOqb2",
           "name": "Wilfred Teh",
           "roles": [

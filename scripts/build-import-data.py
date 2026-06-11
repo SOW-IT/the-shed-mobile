@@ -33,6 +33,18 @@ LEGACY_DOMAIN = "legacy.invalid"
 FALLBACK_DIVISION = "General"
 OUT_PATH = "convex/importData.ts"
 
+# The org migrated its Workspace to sow.org.au. Years listed here get their
+# WORKSPACE_DOMAIN emails re-keyed to the new domain (same local part), so
+# the import matches the live data after importHistory:migrateEmailDomain.
+DOMAIN_MIGRATED_YEARS = {2026: "sow.org.au"}
+
+
+def migrate_domain(email, year):
+    new_domain = DOMAIN_MIGRATED_YEARS.get(year)
+    if email and new_domain and email.endswith("@" + WORKSPACE_DOMAIN):
+        return f"{email.split('@')[0]}@{new_domain}"
+    return email
+
 docs = json.load(open(sys.argv[1], encoding="utf-8"))
 
 user_docs = []  # (year:int, doc_id, body)
@@ -151,7 +163,7 @@ for year in years:
         department = {
             "name": name,
             "division": division,
-            "headEmail": email_for(info.get("head")),
+            "headEmail": migrate_domain(email_for(info.get("head")), year),
             "colour": info.get("colour"),
         }
         departments.append({k: v for k, v in department.items() if v is not None})
@@ -171,7 +183,7 @@ for year in years:
         if body.get("university"):
             universities.add(body["university"])
         profile = {
-            "email": person_email[root],
+            "email": migrate_domain(person_email[root], year),
             "importId": person_import_id[root],
             "name": person_name[root],
             "roles": [body["role"]] if body.get("role") else [],
@@ -196,7 +208,9 @@ for year in years:
         "divisions": sorted(division_names) or [FALLBACK_DIVISION],
         "departments": sorted(departments, key=lambda d: d["name"]),
         "universities": sorted(universities),
-        "budgetManagerEmail": email_for(dept_body.get("BUDGET_MANAGER")),
+        "budgetManagerEmail": migrate_domain(
+            email_for(dept_body.get("BUDGET_MANAGER")), year
+        ),
         "profiles": sorted(merged.values(), key=lambda p: p["email"]),
     }
     payload_years.append({k: v for k, v in year_payload.items() if v is not None})
