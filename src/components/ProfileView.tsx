@@ -3,7 +3,7 @@ import { useMutation, useQuery } from "convex/react";
 import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { staffYearForDate } from "../../shared/flow";
+import { acronym, staffYearForDate } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import {
   Avatar,
@@ -95,8 +95,9 @@ export const ProfileView = ({ email }: { email?: string }) => {
             <Muted>{profile.email}</Muted>
             {current ? (
               <Muted>
-                {current.roles.join(", ")} •{" "}
+                {current.roles.map(acronym).join(", ")} •{" "}
                 {[current.department, current.division, current.university]
+                  .map((name) => name && acronym(name))
                   .filter(Boolean)
                   .join(" / ") || "—"}{" "}
                 • {current.year}
@@ -153,8 +154,9 @@ export const ProfileView = ({ email }: { email?: string }) => {
               </Txt>
             </Row>
             <Muted>
-              {entry.roles.join(", ")} •{" "}
+              {entry.roles.map(acronym).join(", ")} •{" "}
               {[entry.department, entry.division, entry.university]
+                .map((name) => name && acronym(name))
                 .filter(Boolean)
                 .join(" / ") || "—"}
             </Muted>

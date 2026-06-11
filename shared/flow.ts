@@ -48,6 +48,35 @@ export const UNIVERSITY_ROLES: readonly Role[] = [
 export const roleNeedsUniversity = (role: string): boolean =>
   UNIVERSITY_ROLES.includes(role as Role);
 
+/**
+ * Staff-side roles: anyone holding one of these works in the org itself, so
+ * their profile never carries a university — even if they also hold a campus
+ * role that year.
+ */
+export const STAFF_SIDE_ROLES: readonly Role[] = [
+  STAFF_ROLE,
+  HEAD_OF_DEPARTMENT,
+  HEAD_OF_DIVISION,
+  DIRECTOR,
+  "Senior Chaplain",
+  "Junior Chaplain",
+  "Intern Chaplain",
+];
+export const rolesNeedUniversity = (roles: readonly string[]): boolean =>
+  roles.some(roleNeedsUniversity) &&
+  !roles.some((role) => STAFF_SIDE_ROLES.includes(role as Role));
+
+/** Short display forms for cards; anything not listed shows in full. */
+export const DISPLAY_ACRONYMS: Record<string, string> = {
+  "Head of Department": "HOD",
+  "Macquarie University": "MACQ",
+  "University of New South Wales": "UNSW",
+  "University of Sydney": "USYD",
+  "University of Technology, Sydney": "UTS",
+  "Australian Catholic University": "ACU",
+};
+export const acronym = (name: string): string => DISPLAY_ACRONYMS[name] ?? name;
+
 /** Roles that take a department; the exceptions belong elsewhere. */
 export const roleNeedsDepartment = (role: string): boolean =>
   role !== HEAD_OF_DIVISION && role !== MEMBER && !roleNeedsUniversity(role);

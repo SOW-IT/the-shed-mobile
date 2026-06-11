@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { rolesNeedUniversity } from "../shared/flow";
 import { internalMutation, internalQuery } from "./_generated/server";
 import { IMPORT_DATA } from "./importData";
 import { rolesOf } from "./model";
@@ -213,12 +214,14 @@ export const run = internalMutation({
       }
 
       for (const profile of yearData.profiles) {
+        const roles = profile.roles ?? [];
         const fields = {
-          roles: profile.roles ?? [],
+          roles,
           role: undefined, // retire the legacy single-role field if present
           department: profile.department,
           division: profile.division,
-          university: profile.university,
+          // Staff-side roles never carry a university, even in backup data.
+          university: rolesNeedUniversity(roles) ? profile.university : undefined,
           name: profile.name,
           importId: profile.importId,
         };

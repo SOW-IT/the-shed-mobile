@@ -2,10 +2,11 @@ import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { Alert, Modal, Platform, Pressable, StyleSheet, View } from "react-native";
 import {
+  acronym,
   HEAD_OF_DIVISION,
   ROLES,
   roleNeedsDepartment,
-  roleNeedsUniversity,
+  rolesNeedUniversity,
 } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { useAppTheme } from "@/theme";
@@ -152,7 +153,7 @@ export default function AdminScreen() {
   }
 
   const needsDivision = staffRoles.includes(HEAD_OF_DIVISION);
-  const needsUniversity = staffRoles.some(roleNeedsUniversity);
+  const needsUniversity = rolesNeedUniversity(staffRoles);
   const needsDepartment = staffRoles.some(roleNeedsDepartment);
   const yearLabel = (y: number) =>
     y === currentYear
@@ -344,8 +345,9 @@ export default function AdminScreen() {
               <Txt style={{ fontWeight: "600" }}>{profile.name ?? profile.email}</Txt>
               {profile.name ? <Muted>{profile.email}</Muted> : null}
               <Muted>
-                {profile.roles.join(", ")} •{" "}
+                {profile.roles.map(acronym).join(", ")} •{" "}
                 {[profile.department, profile.division, profile.university]
+                  .map((name) => name && acronym(name))
                   .filter(Boolean)
                   .join(" / ") || "—"}
               </Muted>

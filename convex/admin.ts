@@ -6,7 +6,7 @@ import {
   requestCompleted,
   ROLES,
   roleNeedsDepartment,
-  roleNeedsUniversity,
+  rolesNeedUniversity,
   STAFF_ROLE,
 } from "../shared/flow";
 import { internalMutation, mutation, query } from "./_generated/server";
@@ -62,7 +62,9 @@ export const setStaffProfile = mutation({
     }
 
     const needsDivision = roles.includes(HEAD_OF_DIVISION);
-    const needsUniversity = roles.some(roleNeedsUniversity);
+    // Staff-side roles trump campus roles: their holders never get a
+    // university, so saving also clears any stale one.
+    const needsUniversity = rolesNeedUniversity(roles);
     const needsDepartment = roles.some(roleNeedsDepartment);
 
     let division: string | undefined;
@@ -555,6 +557,27 @@ export const setBudgetManager = mutation({
       year: args.year,
       budgetManagerEmail: email,
     });
+  },
+});
+
+/**
+ * One-off cleanup for the rule that staff-side roles (Staff, Heads, Director,
+ * chaplains) never carry a university: strips the field from every existing
+ * profile the rule applies to, across all years.
+ * Run with: npx convex run admin:clearStaffUniversities
+ */
+export const clearStaffUniversities = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let cleared = 0;
+    const profiles = await ctx.db.query("staffProfiles").take(8000);
+    for (const profile of profiles) {
+      if (profile.university && !rolesNeedUniversity(rolesOf(profile))) {
+        await ctx.db.patch("staffProfiles", profile._id, { university: undefined });
+        cleared++;
+      }
+    }
+    return { cleared };
   },
 });
 
