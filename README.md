@@ -16,7 +16,16 @@ from [REQUESTS_FLOW.md](https://github.com/SOW-IT/theshed/blob/main/REQUESTS_FLO
   department requests have no HOD step).
 - **Per-year roles and departments** (`staffProfiles`, `departments`,
   `divisions`, keyed by year). The staff year rolls over on **September 1**:
-  admins can prepare the next year in advance and it takes effect automatically.
+  admins can prepare the next year in advance and it takes effect
+  automatically. In-flight requests **carry over** the rollover — they stay
+  visible and are approved/paid by the approvers of the request's own year.
+  Roles: Staff, Head of Department, **Head of Division** (belongs directly to
+  a division rather than a department; no HOD above them), Director.
+- **Deadlock prevention**: submitting is rejected with a clear message while
+  the year is missing an approver the request would need (department head,
+  Budget Manager, Director for ≥ $5k, Finance head), and removing the Budget
+  Manager's profile clears the assignment. Receipts/payments require
+  positive amounts.
 - **Admins** = the **Data and IT** department plus every department in the
   **Human Resources** division (People and Culture, Training and Development).
   Only they can assign roles/departments (for the current and next year),

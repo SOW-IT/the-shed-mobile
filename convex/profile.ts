@@ -38,7 +38,8 @@ export const get = query({
       serviceHistory: history.map((h) => ({
         year: h.year,
         role: h.role,
-        department: h.department,
+        department: h.department ?? null,
+        division: h.division ?? null,
       })),
     };
   },

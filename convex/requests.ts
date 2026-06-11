@@ -6,6 +6,7 @@ import {
   DIRECTOR,
   DIRECTOR_APPROVAL_THRESHOLD,
   FINANCE,
+  HEAD_OF_DIVISION,
   PENDING,
   requestCompleted,
   requestDeclined,
@@ -15,10 +16,10 @@ import {
 } from "../shared/flow";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import { mutation, MutationCtx, query } from "./_generated/server";
+import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import {
-  departmentsHeadedBy,
   getApprovers,
+  getProfile,
   requireProfile,
   type Approvers,
   type CallerContext,
@@ -112,7 +113,13 @@ export const submit = mutation({
       throw new ConvexError("Please describe what the request is for.");
     }
 
-    const department = profile.department;
+    // Heads of Division belong to a division, not a department: their
+    // requests are filed under the division and have no HOD above them.
+    const isDivisionHead = profile.role === HEAD_OF_DIVISION;
+    const department = profile.department ?? profile.division;
+    if (!department) {
+      throw new ConvexError("Your profile has no department or division.");
+    }
     const approvers = await getApprovers(ctx, year, department);
     const needsDirector = args.amount >= DIRECTOR_APPROVAL_THRESHOLD;
 
@@ -125,8 +132,8 @@ export const submit = mutation({
 
     // The Finance department has no separate HOD step.
     if (department === FINANCE) approvedByHOD = APPROVED;
-    // HODs (and the Director) don't review their own department's requests.
-    if (approvers.hodEmail === email || profile.role === DIRECTOR) {
+    // HODs, Heads of Division and the Director have no HOD above them.
+    if (approvers.hodEmail === email || profile.role === DIRECTOR || isDivisionHead) {
       approvedByHOD = APPROVED;
     }
     // The Budget Manager never reviews their own request.
@@ -140,6 +147,29 @@ export const submit = mutation({
       approvedByHOD = APPROVED;
       approvedByBudgetManager = APPROVED;
       approvedByFinanceHead = APPROVED;
+    }
+
+    // Refuse to create a request that would deadlock: every step that is
+    // still pending must have someone able to approve it.
+    const missing: string[] = [];
+    if (approvedByHOD === PENDING && !approvers.hodEmail) {
+      missing.push(`Head for the ${department} department`);
+    }
+    if (approvedByBudgetManager === PENDING && !approvers.budgetManagerEmail) {
+      missing.push("Budget Manager");
+    }
+    if (approvedByDirector === PENDING && !approvers.directorEmail) {
+      missing.push("Director");
+    }
+    if (approvedByFinanceHead === PENDING && !approvers.financeHeadEmail) {
+      missing.push(`Head for the ${FINANCE} department`);
+    }
+    if (missing.length > 0) {
+      throw new ConvexError(
+        `This request can't be submitted yet — ${year} has no ${missing.join(
+          ", no "
+        )}. Ask an admin to complete the organisation setup.`
+      );
     }
 
     const id = await ctx.db.insert("requests", {
@@ -168,22 +198,7 @@ export const submit = mutation({
   },
 });
 
-/** The caller's own requests for the current staff year, newest first. */
-export const myRequests = query({
-  args: {},
-  handler: async (ctx) => {
-    const { email, year } = await requireProfile(ctx);
-    return await ctx.db
-      .query("requests")
-      .withIndex("by_year_and_requester", (q) =>
-        q.eq("year", year).eq("requesterEmail", email)
-      )
-      .order("desc")
-      .take(200);
-  },
-});
-
-const yearRequests = async (ctx: Parameters<typeof departmentsHeadedBy>[0], year: number) =>
+const yearRequests = async (ctx: QueryCtx, year: number) =>
   await ctx.db
     .query("requests")
     .withIndex("by_year", (q) => q.eq("year", year))
@@ -191,82 +206,105 @@ const yearRequests = async (ctx: Parameters<typeof departmentsHeadedBy>[0], year
     .take(500);
 
 /**
+ * The current year's requests plus the previous year's still-incomplete ones,
+ * so in-flight requests survive the September 1 rollover instead of being
+ * orphaned.
+ */
+const openRequestsAcrossYears = async (ctx: QueryCtx, year: number) => {
+  const current = await yearRequests(ctx, year);
+  const carriedOver = (await yearRequests(ctx, year - 1)).filter(
+    (r) => !requestCompleted(r)
+  );
+  return [...current, ...carriedOver];
+};
+
+/** Resolves approvers per (year, department), cached for a single query. */
+const makeApproverResolver = (ctx: QueryCtx) => {
+  const cache = new Map<string, Promise<Approvers>>();
+  return (year: number, department: string): Promise<Approvers> => {
+    const key = `${year}:${department}`;
+    let cached = cache.get(key);
+    if (!cached) {
+      cached = getApprovers(ctx, year, department);
+      cache.set(key, cached);
+    }
+    return cached;
+  };
+};
+
+/**
+ * The caller's own requests: everything from the current staff year plus any
+ * still-incomplete requests carried over from the previous year.
+ */
+export const myRequests = query({
+  args: {},
+  handler: async (ctx) => {
+    const { email, year } = await requireProfile(ctx);
+    const fetch = (y: number) =>
+      ctx.db
+        .query("requests")
+        .withIndex("by_year_and_requester", (q) =>
+          q.eq("year", y).eq("requesterEmail", email)
+        )
+        .order("desc")
+        .take(200);
+    const current = await fetch(year);
+    const carriedOver = (await fetch(year - 1)).filter((r) => !requestCompleted(r));
+    return [...current, ...carriedOver].sort(
+      (a, b) => b._creationTime - a._creationTime
+    );
+  },
+});
+
+/**
  * Everything the caller can currently act on, grouped by the capacity they
- * act in. Sections the caller has no authority over are empty.
+ * act in. Each request is matched against the approvers OF ITS OWN YEAR, so
+ * carried-over requests stay actionable by the people who held the role then.
  */
 export const toReview = query({
   args: {},
   handler: async (ctx) => {
     const caller = await requireProfile(ctx);
-    const { email, year, profile } = caller;
-    const approvers = await getApprovers(ctx, year, profile.department);
-    const headedDepartments = (await departmentsHeadedBy(ctx, year, email))
-      .map((d) => d.name)
-      .filter((name) => name !== FINANCE);
-    const isBudgetManager = approvers.budgetManagerEmail === email;
-    const isDirector = profile.role === DIRECTOR;
-    const isFinanceHead = approvers.financeHeadEmail === email;
+    const { email, year } = caller;
+    const open = await openRequestsAcrossYears(ctx, year);
+    const approversFor = makeApproverResolver(ctx);
+    // The caller's role in a given year (Director gating is per-year too).
+    const roleIn = new Map<number, string | undefined>();
+    const callerRoleIn = async (y: number) => {
+      if (!roleIn.has(y)) {
+        roleIn.set(y, (await getProfile(ctx, email, y))?.role);
+      }
+      return roleIn.get(y);
+    };
 
     const hod: Doc<"requests">[] = [];
-    if (headedDepartments.length > 0) {
-      for (const department of headedDepartments) {
-        const departmentRequests = await ctx.db
-          .query("requests")
-          .withIndex("by_year_and_department", (q) =>
-            q.eq("year", year).eq("department", department)
-          )
-          .order("desc")
-          .take(200);
-        hod.push(
-          ...departmentRequests.filter(
-            (r) =>
-              r.requesterEmail !== email &&
-              !requestDeclined(r) &&
-              r.approvedByHOD === PENDING
-          )
-        );
-      }
-    }
+    const budgetManager: Doc<"requests">[] = [];
+    const director: Doc<"requests">[] = [];
+    const financeHead: Doc<"requests">[] = [];
+    const readyToPay: Doc<"requests">[] = [];
 
-    let budgetManager: Doc<"requests">[] = [];
-    let director: Doc<"requests">[] = [];
-    let financeHead: Doc<"requests">[] = [];
-    let readyToPay: Doc<"requests">[] = [];
+    for (const request of open) {
+      const approvers = await approversFor(request.year, request.department);
 
-    if (isBudgetManager || isDirector || isFinanceHead) {
-      const all = await yearRequests(ctx, year);
-      const open = all.filter((r) => !requestDeclined(r));
-      if (isBudgetManager) {
-        budgetManager = open.filter(
-          (r) =>
-            r.requesterEmail !== email &&
-            r.approvedByHOD === APPROVED &&
-            r.approvedByBudgetManager === PENDING
-        );
+      // Ready to Pay includes the Finance Head's own requests.
+      if (
+        request.receipt !== undefined &&
+        request.paid === false &&
+        approvers.financeHeadEmail === email
+      ) {
+        readyToPay.push(request);
       }
-      if (isDirector) {
-        director = open.filter(
-          (r) =>
-            r.requesterEmail !== email &&
-            r.approvedByHOD === APPROVED &&
-            r.approvedByBudgetManager === APPROVED &&
-            r.approvedByDirector === PENDING
-        );
-      }
-      if (isFinanceHead) {
-        financeHead = open.filter(
-          (r) =>
-            r.requesterEmail !== email &&
-            r.approvedByHOD === APPROVED &&
-            r.approvedByBudgetManager === APPROVED &&
-            (r.approvedByDirector === undefined ||
-              r.approvedByDirector === APPROVED) &&
-            r.approvedByFinanceHead === PENDING
-        );
-        // Includes the Finance Head's own receipt-submitted requests.
-        readyToPay = open.filter(
-          (r) => r.receipt !== undefined && r.paid === false
-        );
+
+      if (request.requesterEmail === email || requestCompleted(request)) continue;
+      const step = currentStep(request);
+      if (step === "hod" && approvers.hodEmail === email && request.department !== FINANCE) {
+        hod.push(request);
+      } else if (step === "budgetManager" && approvers.budgetManagerEmail === email) {
+        budgetManager.push(request);
+      } else if (step === "director" && (await callerRoleIn(request.year)) === DIRECTOR) {
+        director.push(request);
+      } else if (step === "financeHead" && approvers.financeHeadEmail === email) {
+        financeHead.push(request);
       }
     }
 
@@ -274,7 +312,10 @@ export const toReview = query({
   },
 });
 
-/** All requests across the organisation — Finance staff only. */
+/**
+ * All requests across the organisation — Finance staff only. Includes the
+ * previous year's still-incomplete requests.
+ */
 export const allRequests = query({
   args: {},
   handler: async (ctx) => {
@@ -282,7 +323,7 @@ export const allRequests = query({
     if (profile.department !== FINANCE) {
       throw new ConvexError("Only Finance staff can view all requests.");
     }
-    return await yearRequests(ctx, year);
+    return await openRequestsAcrossYears(ctx, year);
   },
 });
 
@@ -297,7 +338,11 @@ async function authorizeStep(
   step: Step
 ): Promise<{ request: Doc<"requests">; approvers: Approvers }> {
   const request = await ctx.db.get("requests", requestId);
-  if (!request || request.year !== caller.year) {
+  // Current-year requests plus incomplete carry-overs from last year.
+  if (
+    !request ||
+    (request.year !== caller.year && request.year !== caller.year - 1)
+  ) {
     throw new ConvexError("Request not found.");
   }
   if (requestDeclined(request)) {
@@ -306,7 +351,11 @@ async function authorizeStep(
   if (request.requesterEmail === caller.email) {
     throw new ConvexError("You can't review your own request.");
   }
-  const approvers = await getApprovers(ctx, caller.year, request.department);
+  // Approvers are resolved from the REQUEST's year, not the caller's.
+  const approvers = await getApprovers(ctx, request.year, request.department);
+  const callerRoleInRequestYear = (
+    await getProfile(ctx, caller.email, request.year)
+  )?.role;
 
   const stepChecks: Record<Step, { allowed: boolean; ready: boolean }> = {
     hod: {
@@ -321,7 +370,7 @@ async function authorizeStep(
         request.approvedByBudgetManager === PENDING,
     },
     director: {
-      allowed: caller.profile.role === DIRECTOR,
+      allowed: callerRoleInRequestYear === DIRECTOR,
       ready:
         request.approvedByHOD === APPROVED &&
         request.approvedByBudgetManager === APPROVED &&
@@ -439,6 +488,9 @@ export const submitReceipt = mutation({
     if (args.recipients.length === 0) {
       throw new ConvexError("Add at least one recipient.");
     }
+    if (args.recipients.some((r) => !(r.amount > 0))) {
+      throw new ConvexError("Every recipient amount must be a positive number.");
+    }
     const totalAmount = args.recipients.reduce((sum, r) => sum + r.amount, 0);
     await ctx.db.patch("requests", args.requestId, {
       receipt: { totalAmount, recipients: args.recipients },
@@ -464,13 +516,20 @@ export const pay = mutation({
   },
   handler: async (ctx, args) => {
     const caller = await requireProfile(ctx);
-    const approvers = await getApprovers(ctx, caller.year, FINANCE);
-    if (approvers.financeHeadEmail !== caller.email) {
-      throw new ConvexError("Only the Finance Head can pay reimbursements.");
+    if (!(args.paidAmount > 0)) {
+      throw new ConvexError("The paid amount must be a positive number.");
     }
     const request = await ctx.db.get("requests", args.requestId);
-    if (!request || request.year !== caller.year) {
+    if (
+      !request ||
+      (request.year !== caller.year && request.year !== caller.year - 1)
+    ) {
       throw new ConvexError("Request not found.");
+    }
+    // The Finance Head OF THE REQUEST'S YEAR pays it (rollover carry-overs).
+    const approvers = await getApprovers(ctx, request.year, FINANCE);
+    if (approvers.financeHeadEmail !== caller.email) {
+      throw new ConvexError("Only the Finance Head can pay reimbursements.");
     }
     if (request.receipt === undefined || request.paid !== false) {
       throw new ConvexError("This request is not awaiting payment.");
@@ -489,7 +548,7 @@ export const pay = mutation({
     );
     // The Budget Manager should know when the paid amount differs.
     if (args.paidAmount !== request.amount) {
-      const yearApprovers = await getApprovers(ctx, caller.year, request.department);
+      const yearApprovers = await getApprovers(ctx, request.year, request.department);
       await notify(
         ctx,
         yearApprovers.budgetManagerEmail,

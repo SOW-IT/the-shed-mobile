@@ -60,6 +60,7 @@ export async function isAdminProfile(
   ctx: Ctx,
   profile: Doc<"staffProfiles">
 ): Promise<boolean> {
+  if (!profile.department) return false; // Heads of Division aren't admins
   if (ADMIN_DEPARTMENTS.includes(profile.department)) return true;
   const department = await getDepartment(ctx, profile.year, profile.department);
   return department !== null && ADMIN_DIVISIONS.includes(department.division);

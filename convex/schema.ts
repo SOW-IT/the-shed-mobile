@@ -28,12 +28,14 @@ export default defineSchema({
   }).index("email", ["email"]),
 
   // Per-year role + department assignment, keyed by email so admins can
-  // provision people before their first Google sign-in.
+  // provision people before their first Google sign-in. Heads of Division
+  // belong directly to a division (department unset) instead of a department.
   staffProfiles: defineTable({
     email: v.string(), // always lowercase
     year: v.number(),
     role: v.string(),
-    department: v.string(),
+    department: v.optional(v.string()),
+    division: v.optional(v.string()), // for Heads of Division
     name: v.optional(v.string()), // synced from Google on sign-in
   })
     .index("by_email_and_year", ["email", "year"])

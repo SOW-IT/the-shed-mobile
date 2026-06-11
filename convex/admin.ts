@@ -1,5 +1,5 @@
 import { ConvexError, v } from "convex/values";
-import { FINANCE, ROLES, STAFF_ROLE } from "../shared/flow";
+import { FINANCE, HEAD_OF_DIVISION, ROLES, STAFF_ROLE } from "../shared/flow";
 import { internalMutation, mutation, query } from "./_generated/server";
 import {
   currentStaffYear,
@@ -20,16 +20,17 @@ const assertManagedYear = (year: number) => {
 };
 
 /**
- * Assign a role + department to a user for a year, by email — works before
- * the user has ever signed in. Only admins; ordinary users can never change
- * their own role or department.
+ * Assign a role + department (or division, for Heads of Division) to a user
+ * for a year, by email — works before the user has ever signed in. Only
+ * admins; ordinary users can never change their own role or department.
  */
 export const setStaffProfile = mutation({
   args: {
     email: v.string(),
     year: v.number(),
     role: v.string(),
-    department: v.string(),
+    department: v.optional(v.string()),
+    division: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
@@ -39,16 +40,39 @@ export const setStaffProfile = mutation({
     if (!ROLES.includes(args.role as (typeof ROLES)[number])) {
       throw new ConvexError(`Role must be one of: ${ROLES.join(", ")}.`);
     }
-    const department = await getDepartment(ctx, args.year, args.department);
-    if (!department) {
-      throw new ConvexError(
-        `Department "${args.department}" doesn't exist in ${args.year}.`
-      );
+
+    let department: string | undefined;
+    let division: string | undefined;
+    if (args.role === HEAD_OF_DIVISION) {
+      // Heads of Division belong directly to a division.
+      division = args.division;
+      const exists =
+        division &&
+        (await ctx.db
+          .query("divisions")
+          .withIndex("by_year_and_name", (q) =>
+            q.eq("year", args.year).eq("name", division!)
+          )
+          .unique());
+      if (!exists) {
+        throw new ConvexError(
+          `A Head of Division needs a division that exists in ${args.year}.`
+        );
+      }
+    } else {
+      department = args.department;
+      const exists =
+        department && (await getDepartment(ctx, args.year, department));
+      if (!exists) {
+        throw new ConvexError(
+          `Department "${args.department ?? ""}" doesn't exist in ${args.year}.`
+        );
+      }
     }
 
     // Moving the Budget Manager out of Finance would violate the rule that
     // the Budget Manager must be from the Finance department.
-    if (args.department !== FINANCE) {
+    if (department !== FINANCE) {
       const settings = await getYearSettings(ctx, args.year);
       if (settings?.budgetManagerEmail === email) {
         await ctx.db.patch("yearSettings", settings._id, {
@@ -61,7 +85,8 @@ export const setStaffProfile = mutation({
     if (existing) {
       await ctx.db.patch("staffProfiles", existing._id, {
         role: args.role,
-        department: args.department,
+        department,
+        division,
       });
       return existing._id;
     }
@@ -69,7 +94,8 @@ export const setStaffProfile = mutation({
       email,
       year: args.year,
       role: args.role,
-      department: args.department,
+      department,
+      division,
     });
   },
 });
@@ -79,8 +105,17 @@ export const removeStaffProfile = mutation({
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
     assertManagedYear(args.year);
-    const profile = await getProfile(ctx, args.email.trim().toLowerCase(), args.year);
+    const email = args.email.trim().toLowerCase();
+    const profile = await getProfile(ctx, email, args.year);
     if (profile) await ctx.db.delete("staffProfiles", profile._id);
+    // Don't leave a removed person assigned as the Budget Manager —
+    // that would silently deadlock every Budget Manager approval.
+    const settings = await getYearSettings(ctx, args.year);
+    if (settings?.budgetManagerEmail === email) {
+      await ctx.db.patch("yearSettings", settings._id, {
+        budgetManagerEmail: undefined,
+      });
+    }
     return null;
   },
 });

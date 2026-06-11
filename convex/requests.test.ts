@@ -371,8 +371,8 @@ describe("admin and per-year rules", () => {
     expect(viewed.name).toBe("Rachel R");
     expect(viewed.localChurch).toBe("SOW City Church");
     expect(viewed.serviceHistory).toEqual([
-      { year: YEAR, role: "Staff", department: "Marketing" },
-      { year: YEAR - 1, role: "Staff", department: "Events" },
+      { year: YEAR, role: "Staff", department: "Marketing", division: null },
+      { year: YEAR - 1, role: "Staff", department: "Events", division: null },
     ]);
 
     // Rachel's own view is editable (isMe) but role/department come from
@@ -458,5 +458,151 @@ describe("admin and per-year rules", () => {
     expect(staffYearForDate(new Date("2026-08-31"))).toBe(2026);
     expect(staffYearForDate(new Date("2026-09-01"))).toBe(2027);
     expect(staffYearForDate(new Date("2026-12-31"))).toBe(2027);
+  });
+});
+
+describe("deadlock prevention and validation fixes", () => {
+  test("submit is rejected while the year has no Budget Manager", async () => {
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Marketing", division: "Engagement", headEmail: HENRY,
+    });
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Finance", division: "Governance", headEmail: FIONA,
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: RACHEL, year: YEAR, role: "Staff", department: "Marketing",
+    });
+    await expect(
+      asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 })
+    ).rejects.toThrow(/Budget Manager/);
+  });
+
+  test("a >= $5000 request is rejected while the org has no Director", async () => {
+    const t = await setup();
+    // Dan steps down: nobody holds the Director role any more.
+    await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+      email: DAN, year: YEAR, role: "Staff", department: "Marketing",
+    });
+    await expect(
+      asUser(t, RACHEL).mutation(api.requests.submit, { description: "big", amount: 6000 })
+    ).rejects.toThrow(/Director/);
+    // Small requests don't need a Director and still work.
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "small", amount: 100 });
+  });
+
+  test("removing the Budget Manager's profile clears the assignment", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.removeStaffProfile, { email: BELLA, year: YEAR });
+    const structure = await admin.query(api.directory.yearStructure, { year: YEAR });
+    expect(structure.budgetManagerEmail).toBeNull();
+  });
+
+  test("receipts and payments must have positive amounts", async () => {
+    const t = await setup();
+    const rachel = asUser(t, RACHEL);
+    await rachel.mutation(api.requests.submit, { description: "x", amount: 100 });
+    const [request] = await rachel.query(api.requests.myRequests, {});
+    await asUser(t, HENRY).mutation(api.requests.approve, { requestId: request._id, step: "hod" });
+    await asUser(t, BELLA).mutation(api.requests.approve, { requestId: request._id, step: "budgetManager" });
+    await asUser(t, FIONA).mutation(api.requests.approve, { requestId: request._id, step: "financeHead" });
+
+    await expect(
+      rachel.mutation(api.requests.submitReceipt, {
+        requestId: request._id,
+        recipients: [{ accountName: "R", bsb: "0", accountNumber: "1", amount: 0 }],
+      })
+    ).rejects.toThrow(/positive/);
+
+    await rachel.mutation(api.requests.submitReceipt, {
+      requestId: request._id,
+      recipients: [{ accountName: "R", bsb: "0", accountNumber: "1", amount: 95 }],
+    });
+    await expect(
+      asUser(t, FIONA).mutation(api.requests.pay, { requestId: request._id, paidAmount: 0 })
+    ).rejects.toThrow(/positive/);
+  });
+
+  test("in-flight previous-year requests survive the rollover end to end", async () => {
+    const t = await setup();
+    // Last year's org chart: the same people held the roles.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("divisions", { year: YEAR - 1, name: "Engagement" });
+      await ctx.db.insert("departments", {
+        year: YEAR - 1, name: "Marketing", division: "Engagement", headEmail: HENRY,
+      });
+      await ctx.db.insert("departments", {
+        year: YEAR - 1, name: "Finance", division: "Governance", headEmail: FIONA,
+      });
+      await ctx.db.insert("yearSettings", { year: YEAR - 1, budgetManagerEmail: BELLA });
+      await ctx.db.insert("requests", {
+        year: YEAR - 1,
+        requesterEmail: RACHEL,
+        department: "Marketing",
+        description: "carried over",
+        amount: 300,
+        approvedByHOD: "APPROVED",
+        approvedByBudgetManager: "PENDING",
+        approvedByFinanceHead: "PENDING",
+      });
+    });
+
+    // Still visible to the requester...
+    const mine = await asUser(t, RACHEL).query(api.requests.myRequests, {});
+    expect(mine.some((r) => r.year === YEAR - 1)).toBe(true);
+
+    // ...and actionable by last year's approvers, all the way to payment.
+    const review = await asUser(t, BELLA).query(api.requests.toReview, {});
+    const carried = review.budgetManager.find((r) => r.year === YEAR - 1);
+    expect(carried).toBeDefined();
+    await asUser(t, BELLA).mutation(api.requests.approve, {
+      requestId: carried!._id, step: "budgetManager",
+    });
+    await asUser(t, FIONA).mutation(api.requests.approve, {
+      requestId: carried!._id, step: "financeHead",
+    });
+    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
+      requestId: carried!._id,
+      recipients: [{ accountName: "R", bsb: "0", accountNumber: "1", amount: 300 }],
+    });
+    const fionaReview = await asUser(t, FIONA).query(api.requests.toReview, {});
+    expect(fionaReview.readyToPay.map((r) => r._id)).toContain(carried!._id);
+    await asUser(t, FIONA).mutation(api.requests.pay, {
+      requestId: carried!._id, paidAmount: 300,
+    });
+    const paidDoc = await t.run((ctx) => ctx.db.get("requests", carried!._id));
+    expect(paidDoc?.paid).toBe(true);
+    // Once completed, carry-overs drop out of the active lists (archive).
+    const after = await asUser(t, RACHEL).query(api.requests.myRequests, {});
+    expect(after.find((r) => r._id === carried!._id)).toBeUndefined();
+  });
+
+  test("Heads of Division belong to a division and skip the HOD step", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "diana@sow.org.au", year: YEAR, role: "Head of Division", division: "Engagement",
+    });
+    // Shown as the division's head on the org chart.
+    const chart = await asUser(t, RACHEL).query(api.directory.orgChart, {});
+    expect(chart.divisions.find((d) => d.name === "Engagement")?.head?.email).toBe(
+      "diana@sow.org.au"
+    );
+    // Her requests are filed under the division with no HOD step pending.
+    const diana = asUser(t, "diana@sow.org.au");
+    await diana.mutation(api.requests.submit, { description: "x", amount: 100 });
+    const [request] = await diana.query(api.requests.myRequests, {});
+    expect(request.department).toBe("Engagement");
+    expect(request.approvedByHOD).toBe("APPROVED");
+    expect(request.approvedByBudgetManager).toBe("PENDING");
+    // The division must exist for the year.
+    await expect(
+      admin.mutation(api.admin.setStaffProfile, {
+        email: "x@sow.org.au", year: YEAR, role: "Head of Division", division: "Nope",
+      })
+    ).rejects.toThrow(/division/);
   });
 });

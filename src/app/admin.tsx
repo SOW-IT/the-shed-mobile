@@ -1,8 +1,9 @@
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
-import { View } from "react-native";
-import { ROLES } from "../../shared/flow";
+import { Modal, Pressable, StyleSheet, View } from "react-native";
+import { HEAD_OF_DIVISION, ROLES } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
+import { useAppTheme } from "@/theme";
 import {
   Btn,
   Card,
@@ -19,14 +20,18 @@ import {
 /**
  * Admin console: per-year staff roles/departments (including people who
  * haven't signed in yet, by email), divisions, departments and the Budget
- * Manager. Admins can manage the current year and the next one — next-year
- * changes take effect at the September 1 rollover.
+ * Manager. Admins can EDIT the current year and the next one (next-year
+ * changes take effect at the September 1 rollover) and VIEW any past year.
  */
 export default function AdminScreen() {
+  const t = useAppTheme();
   const me = useQuery(api.directory.me);
+  const years = useQuery(api.directory.availableYears, me?.isAdmin ? {} : "skip");
   const currentYear = me?.year ?? new Date().getFullYear();
   const [year, setYear] = useState<number | null>(null);
   const selectedYear = year ?? currentYear;
+  const editable = selectedYear === currentYear || selectedYear === currentYear + 1;
+  const [yearMenuOpen, setYearMenuOpen] = useState(false);
 
   const structure = useQuery(
     api.directory.yearStructure,
@@ -38,7 +43,7 @@ export default function AdminScreen() {
   );
   const unassigned = useQuery(
     api.admin.listUnassignedUsers,
-    me?.isAdmin ? { year: selectedYear } : "skip"
+    me?.isAdmin && editable ? { year: selectedYear } : "skip"
   );
 
   const setStaffProfile = useMutation(api.admin.setStaffProfile);
@@ -63,6 +68,7 @@ export default function AdminScreen() {
   const [staffEmail, setStaffEmail] = useState("");
   const [staffRole, setStaffRole] = useState<string>(ROLES[0]);
   const [staffDepartment, setStaffDepartment] = useState("");
+  const [staffDivision, setStaffDivision] = useState("");
   // Division / department forms
   const [divisionName, setDivisionName] = useState("");
   const [departmentName, setDepartmentName] = useState("");
@@ -79,23 +85,58 @@ export default function AdminScreen() {
     );
   }
 
+  const isDivisionHeadRole = staffRole === HEAD_OF_DIVISION;
+  const yearLabel = (y: number) =>
+    y === currentYear
+      ? `${y} (current)`
+      : y === currentYear + 1
+        ? `${y} (from Sep 1)`
+        : `${y}`;
+
   return (
     <Screen>
       <Row>
-        <Btn
-          title={`${currentYear} (current)`}
-          variant={selectedYear === currentYear ? "primary" : "ghost"}
-          onPress={() => setYear(currentYear)}
-        />
-        <Btn
-          title={`${currentYear + 1} (from Sep 1)`}
-          variant={selectedYear === currentYear + 1 ? "primary" : "ghost"}
-          onPress={() => setYear(currentYear + 1)}
-        />
+        <View style={{ flexGrow: 1 }}>
+          <SectionTitle>Manage — {yearLabel(selectedYear)}</SectionTitle>
+        </View>
+        <Pressable
+          style={[styles.yearButton, { backgroundColor: t.card, borderColor: t.border }]}
+          onPress={() => setYearMenuOpen(true)}
+        >
+          <Txt style={{ fontWeight: "700" }}>{selectedYear} ▾</Txt>
+        </Pressable>
       </Row>
+      <Modal visible={yearMenuOpen} transparent animationType="fade">
+        <Pressable style={styles.yearBackdrop} onPress={() => setYearMenuOpen(false)}>
+          <View style={[styles.yearMenu, { backgroundColor: t.card }]}>
+            {(years ?? [currentYear, currentYear + 1]).map((y) => (
+              <Pressable
+                key={y}
+                style={[styles.yearItem, y === selectedYear && { backgroundColor: t.ghost }]}
+                onPress={() => {
+                  setYear(y);
+                  setYearMenuOpen(false);
+                }}
+              >
+                <Txt style={y === selectedYear ? { fontWeight: "700" } : undefined}>
+                  {yearLabel(y)}
+                </Txt>
+              </Pressable>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
+      {!editable && (
+        <Card>
+          <Muted>
+            {selectedYear} is a past year — view only. You can edit {currentYear} and{" "}
+            {currentYear + 1}.
+          </Muted>
+        </Card>
+      )}
       <ErrorBanner message={error} />
 
-      {(unassigned ?? []).length > 0 && (
+      {editable && (unassigned ?? []).length > 0 && (
         <>
           <SectionTitle>Signed in, no assignment — {selectedYear}</SectionTitle>
           {(unassigned ?? []).map((user) => (
@@ -117,68 +158,91 @@ export default function AdminScreen() {
       )}
 
       <SectionTitle>Staff — {selectedYear}</SectionTitle>
-      <Card>
-        <Field
-          label="Email (they don't need to have signed in yet)"
-          value={staffEmail}
-          onChangeText={setStaffEmail}
-          placeholder="someone@sow.org.au"
-          keyboardType="email-address"
-        />
-        <Muted>Role</Muted>
-        <Row>
-          {ROLES.map((role) => (
-            <Btn
-              key={role}
-              title={role}
-              variant={staffRole === role ? "primary" : "ghost"}
-              onPress={() => setStaffRole(role)}
-            />
-          ))}
-        </Row>
-        <Muted>Department</Muted>
-        <Row>
-          {(structure?.departments ?? []).map((department) => (
-            <Btn
-              key={department.name}
-              title={department.name}
-              variant={staffDepartment === department.name ? "primary" : "ghost"}
-              onPress={() => setStaffDepartment(department.name)}
-            />
-          ))}
-        </Row>
-        <Btn
-          title="Save Staff Assignment"
-          onPress={() =>
-            void run(() =>
-              setStaffProfile({
-                email: staffEmail,
-                year: selectedYear,
-                role: staffRole,
-                department: staffDepartment,
-              })
-            ).then((ok) => ok && setStaffEmail(""))
-          }
-        />
-      </Card>
+      {editable && (
+        <Card>
+          <Field
+            label="Email (they don't need to have signed in yet)"
+            value={staffEmail}
+            onChangeText={setStaffEmail}
+            placeholder="someone@sow.org.au"
+            keyboardType="email-address"
+          />
+          <Muted>Role</Muted>
+          <Row>
+            {ROLES.map((role) => (
+              <Btn
+                key={role}
+                title={role}
+                variant={staffRole === role ? "primary" : "ghost"}
+                onPress={() => setStaffRole(role)}
+              />
+            ))}
+          </Row>
+          {isDivisionHeadRole ? (
+            <>
+              <Muted>Division (Heads of Division belong directly to one)</Muted>
+              <Row>
+                {(structure?.divisions ?? []).map((division) => (
+                  <Btn
+                    key={division}
+                    title={division}
+                    variant={staffDivision === division ? "primary" : "ghost"}
+                    onPress={() => setStaffDivision(division)}
+                  />
+                ))}
+              </Row>
+            </>
+          ) : (
+            <>
+              <Muted>Department</Muted>
+              <Row>
+                {(structure?.departments ?? []).map((department) => (
+                  <Btn
+                    key={department.name}
+                    title={department.name}
+                    variant={staffDepartment === department.name ? "primary" : "ghost"}
+                    onPress={() => setStaffDepartment(department.name)}
+                  />
+                ))}
+              </Row>
+            </>
+          )}
+          <Btn
+            title="Save Staff Assignment"
+            onPress={() =>
+              void run(() =>
+                setStaffProfile({
+                  email: staffEmail,
+                  year: selectedYear,
+                  role: staffRole,
+                  department: isDivisionHeadRole ? undefined : staffDepartment,
+                  division: isDivisionHeadRole ? staffDivision : undefined,
+                })
+              ).then((ok) => ok && setStaffEmail(""))
+            }
+          />
+        </Card>
+      )}
       {(profiles ?? []).map((profile) => (
         <Card key={profile._id}>
           <Row>
             <View style={{ flexGrow: 1 }}>
               <Txt style={{ fontWeight: "600" }}>{profile.email}</Txt>
               <Muted>
-                {profile.role} • {profile.department}
+                {profile.role} • {profile.department ?? profile.division ?? "—"}
               </Muted>
             </View>
-            <Btn
-              title="Remove"
-              variant="danger"
-              onPress={() =>
-                void run(() =>
-                  removeStaffProfile({ email: profile.email, year: selectedYear })
-                )
-              }
-            />
+            {editable && (
+              <Btn
+                title="Remove"
+                variant="danger"
+                onPress={() =>
+                  void run(() =>
+                    removeStaffProfile({ email: profile.email, year: selectedYear })
+                  )
+                }
+              />
+            )}
           </Row>
         </Card>
       ))}
@@ -186,15 +250,23 @@ export default function AdminScreen() {
       <SectionTitle>Divisions — {selectedYear}</SectionTitle>
       <Card>
         <Muted>{(structure?.divisions ?? []).join(", ") || "None yet."}</Muted>
-        <Field label="New division" value={divisionName} onChangeText={setDivisionName} />
-        <Btn
-          title="Add Division"
-          onPress={() =>
-            void run(() =>
-              upsertDivision({ year: selectedYear, name: divisionName })
-            ).then((ok) => ok && setDivisionName(""))
-          }
-        />
+        {editable && (
+          <>
+            <Field
+              label="New division"
+              value={divisionName}
+              onChangeText={setDivisionName}
+            />
+            <Btn
+              title="Add Division"
+              onPress={() =>
+                void run(() =>
+                  upsertDivision({ year: selectedYear, name: divisionName })
+                ).then((ok) => ok && setDivisionName(""))
+              }
+            />
+          </>
+        )}
       </Card>
 
       <SectionTitle>Departments — {selectedYear}</SectionTitle>
@@ -206,39 +278,45 @@ export default function AdminScreen() {
           </Muted>
         </Card>
       ))}
-      <Card>
-        <Field label="Department name" value={departmentName} onChangeText={setDepartmentName} />
-        <Muted>Division</Muted>
-        <Row>
-          {(structure?.divisions ?? []).map((division) => (
-            <Btn
-              key={division}
-              title={division}
-              variant={departmentDivision === division ? "primary" : "ghost"}
-              onPress={() => setDepartmentDivision(division)}
-            />
-          ))}
-        </Row>
-        <Field
-          label="Head of Department email (optional)"
-          value={departmentHead}
-          onChangeText={setDepartmentHead}
-          keyboardType="email-address"
-        />
-        <Btn
-          title="Save Department"
-          onPress={() =>
-            void run(() =>
-              upsertDepartment({
-                year: selectedYear,
-                name: departmentName,
-                division: departmentDivision,
-                headEmail: departmentHead || undefined,
-              })
-            ).then((ok) => ok && setDepartmentName(""))
-          }
-        />
-      </Card>
+      {editable && (
+        <Card>
+          <Field
+            label="Department name"
+            value={departmentName}
+            onChangeText={setDepartmentName}
+          />
+          <Muted>Division</Muted>
+          <Row>
+            {(structure?.divisions ?? []).map((division) => (
+              <Btn
+                key={division}
+                title={division}
+                variant={departmentDivision === division ? "primary" : "ghost"}
+                onPress={() => setDepartmentDivision(division)}
+              />
+            ))}
+          </Row>
+          <Field
+            label="Head of Department email (optional)"
+            value={departmentHead}
+            onChangeText={setDepartmentHead}
+            keyboardType="email-address"
+          />
+          <Btn
+            title="Save Department"
+            onPress={() =>
+              void run(() =>
+                upsertDepartment({
+                  year: selectedYear,
+                  name: departmentName,
+                  division: departmentDivision,
+                  headEmail: departmentHead || undefined,
+                })
+              ).then((ok) => ok && setDepartmentName(""))
+            }
+          />
+        </Card>
+      )}
 
       <SectionTitle>Budget Manager — {selectedYear}</SectionTitle>
       <Card>
@@ -246,21 +324,48 @@ export default function AdminScreen() {
           Current: {structure?.budgetManagerEmail ?? "not set"} (must be from the
           Finance department)
         </Muted>
-        <Field
-          label="Budget Manager email"
-          value={budgetManagerEmail}
-          onChangeText={setBudgetManagerEmail}
-          keyboardType="email-address"
-        />
-        <Btn
-          title="Set Budget Manager"
-          onPress={() =>
-            void run(() =>
-              setBudgetManager({ year: selectedYear, email: budgetManagerEmail })
-            ).then((ok) => ok && setBudgetManagerEmail(""))
-          }
-        />
+        {editable && (
+          <>
+            <Field
+              label="Budget Manager email"
+              value={budgetManagerEmail}
+              onChangeText={setBudgetManagerEmail}
+              keyboardType="email-address"
+            />
+            <Btn
+              title="Set Budget Manager"
+              onPress={() =>
+                void run(() =>
+                  setBudgetManager({ year: selectedYear, email: budgetManagerEmail })
+                ).then((ok) => ok && setBudgetManagerEmail(""))
+              }
+            />
+          </>
+        )}
       </Card>
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  yearButton: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  yearBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    justifyContent: "center",
+    padding: 32,
+  },
+  yearMenu: {
+    borderRadius: 12,
+    paddingVertical: 4,
+    maxWidth: 360,
+    width: "100%",
+    alignSelf: "center",
+  },
+  yearItem: { paddingHorizontal: 16, paddingVertical: 12 },
+});

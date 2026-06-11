@@ -136,6 +136,9 @@ export default function OrgChartScreen() {
       {chart.divisions.map((division) => (
         <View key={division.name}>
           <Txt style={styles.divisionTitle}>{division.name} Division</Txt>
+          {division.head ? (
+            <Person person={division.head} bold tag="Head of Division" />
+          ) : null}
           {division.departments.length === 0 ? (
             <Muted>No departments.</Muted>
           ) : (

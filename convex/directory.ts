@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { DIRECTOR, FINANCE } from "../shared/flow";
+import { DIRECTOR, FINANCE, HEAD_OF_DIVISION } from "../shared/flow";
 import { query } from "./_generated/server";
 import {
   currentStaffYear,
@@ -55,7 +55,11 @@ export const me = query({
     if (!profile) {
       return { email, year, name: identity.name ?? null, photo, profile: null };
     }
-    const approvers = await getApprovers(ctx, year, profile.department);
+    const approvers = await getApprovers(
+      ctx,
+      year,
+      profile.department ?? profile.division ?? ""
+    );
     const headedDepartments = (await departmentsHeadedBy(ctx, year, email)).map(
       (d) => d.name
     );
@@ -64,7 +68,11 @@ export const me = query({
       year,
       name: identity.name ?? null,
       photo,
-      profile: { role: profile.role, department: profile.department },
+      profile: {
+        role: profile.role,
+        department: profile.department ?? null,
+        division: profile.division ?? null,
+      },
       isAdmin: await isAdminProfile(ctx, profile),
       isFinance: profile.department === FINANCE,
       isDirector: profile.role === DIRECTOR,
@@ -77,6 +85,22 @@ export const me = query({
         approvers.financeHeadEmail === email ||
         profile.role === DIRECTOR,
     };
+  },
+});
+
+/** Every year with an org structure, plus the current and next staff years. */
+export const availableYears = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireEmail(ctx);
+    const divisions = await ctx.db.query("divisions").take(1000);
+    return [
+      ...new Set([
+        ...divisions.map((d) => d.year),
+        currentStaffYear(),
+        nextStaffYear(),
+      ]),
+    ].sort((a, b) => b - a);
   },
 });
 
@@ -139,24 +163,30 @@ export const orgChart = query({
       director: directorProfile
         ? person(directorProfile.email, DIRECTOR)
         : null,
-      divisions: divisions.map((division) => ({
-        name: division.name,
-        departments: departments
-          .filter((department) => department.division === division.name)
-          .map((department) => ({
-            name: department.name,
-            colour: department.colour ?? null,
-            head: department.headEmail ? person(department.headEmail) : null,
-            members: profiles
-              .filter(
-                (p) =>
-                  p.department === department.name &&
-                  p.email !== department.headEmail &&
-                  p.role !== DIRECTOR
-              )
-              .map((p) => person(p.email, p.role)),
-          })),
-      })),
+      divisions: divisions.map((division) => {
+        const divisionHead = profiles.find(
+          (p) => p.role === HEAD_OF_DIVISION && p.division === division.name
+        );
+        return {
+          name: division.name,
+          head: divisionHead ? person(divisionHead.email, HEAD_OF_DIVISION) : null,
+          departments: departments
+            .filter((department) => department.division === division.name)
+            .map((department) => ({
+              name: department.name,
+              colour: department.colour ?? null,
+              head: department.headEmail ? person(department.headEmail) : null,
+              members: profiles
+                .filter(
+                  (p) =>
+                    p.department === department.name &&
+                    p.email !== department.headEmail &&
+                    p.role !== DIRECTOR
+                )
+                .map((p) => person(p.email, p.role)),
+            })),
+        };
+      }),
     };
   },
 });

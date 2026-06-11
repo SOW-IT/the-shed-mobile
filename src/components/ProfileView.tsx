@@ -93,7 +93,8 @@ export const ProfileView = ({ email }: { email?: string }) => {
             <Muted>{profile.email}</Muted>
             {current ? (
               <Muted>
-                {current.role} • {current.department} • {current.year}
+                {current.role} • {current.department ?? current.division ?? "—"} •{" "}
+                {current.year}
               </Muted>
             ) : (
               <Muted>No assignment for {currentYear}</Muted>
@@ -146,7 +147,7 @@ export const ProfileView = ({ email }: { email?: string }) => {
               </Txt>
             </Row>
             <Muted>
-              {entry.role} • {entry.department}
+              {entry.role} • {entry.department ?? entry.division ?? "—"}
             </Muted>
           </Card>
         ))

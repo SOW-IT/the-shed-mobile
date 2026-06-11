@@ -12,11 +12,18 @@ export const FINANCE = "Finance";
 export const ADMIN_DEPARTMENTS = ["Data and IT"];
 export const ADMIN_DIVISIONS = ["Human Resources"];
 
-export const ROLES = ["Staff", "Head of Department", "Director"] as const;
+export const ROLES = [
+  "Staff",
+  "Head of Department",
+  "Head of Division",
+  "Director",
+] as const;
 export type Role = (typeof ROLES)[number];
 
 export const STAFF_ROLE: Role = "Staff";
 export const HEAD_OF_DEPARTMENT: Role = "Head of Department";
+/** Heads of Division belong directly to a division, not a department. */
+export const HEAD_OF_DIVISION: Role = "Head of Division";
 export const DIRECTOR: Role = "Director";
 
 /** Requests at or above this amount need the Director's approval. */
