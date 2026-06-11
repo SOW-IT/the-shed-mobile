@@ -7,6 +7,7 @@ import { api } from "../../convex/_generated/api";
 import { Doc, Id } from "../../convex/_generated/dataModel";
 import { RequestCard } from "@/components/RequestCard";
 import {
+  Avatar,
   Btn,
   Card,
   ErrorBanner,
@@ -173,6 +174,7 @@ export default function MyRequestsScreen() {
         <>
           <Card>
             <Row>
+              <Avatar photo={me.photo} name={me.name} size={44} />
               <View style={{ flexGrow: 1 }}>
                 <Txt style={{ fontWeight: "700" }}>{me.name ?? me.email}</Txt>
                 <Muted>

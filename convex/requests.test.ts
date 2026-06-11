@@ -339,7 +339,8 @@ describe("admin and per-year rules", () => {
 
   test("profiles: own church is editable, service history spans years, others can view", async () => {
     const t = await setup();
-    // Rachel has signed in before (users row exists) and served in 2025 too.
+    // Rachel has signed in before (users row exists, with the Google photo)
+    // and served in 2025 too.
     const rachelUserId = await t.run(async (ctx) => {
       await ctx.db.insert("staffProfiles", {
         email: RACHEL,
@@ -347,7 +348,11 @@ describe("admin and per-year rules", () => {
         role: "Staff",
         department: "Events",
       });
-      return await ctx.db.insert("users", { email: RACHEL, name: "Rachel R" });
+      return await ctx.db.insert("users", {
+        email: RACHEL,
+        name: "Rachel R",
+        image: "https://lh3.googleusercontent.com/google-default",
+      });
     });
 
     // updateChurch resolves the caller's users row from the auth subject.
@@ -374,6 +379,24 @@ describe("admin and per-year rules", () => {
     // staffProfiles — profile mutations expose no way to change them.
     const own = await rachelSignedIn.query(api.profile.get, {});
     expect(own.isMe).toBe(true);
+    expect(own.photo).toBe("https://lh3.googleusercontent.com/google-default");
+
+    // Uploading her own photo replaces the Google default everywhere.
+    const storageId = await t.run((ctx) =>
+      ctx.storage.store(new Blob(["fake-image"], { type: "image/png" }))
+    );
+    await rachelSignedIn.mutation(api.profile.setAvatar, { storageId });
+    const updated = await asUser(t, HENRY).query(api.profile.get, { email: RACHEL });
+    expect(updated.photo).not.toBe("https://lh3.googleusercontent.com/google-default");
+    expect(updated.photo).toBeTruthy();
+
+    // The org chart shows the uploaded photo too.
+    const chart = await asUser(t, HENRY).query(api.directory.orgChart, {});
+    const marketing = chart.divisions
+      .flatMap((d) => d.departments)
+      .find((d) => d.name === "Marketing");
+    const rachelInChart = marketing?.members.find((m) => m.email === RACHEL);
+    expect(rachelInChart?.photo).toBe(updated.photo);
   });
 
   test("staff year rolls over on September 1st", () => {

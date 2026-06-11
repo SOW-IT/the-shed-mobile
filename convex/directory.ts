@@ -44,9 +44,16 @@ export const me = query({
     if (!identity || !identity.email) return null;
     const email = identity.email.toLowerCase();
     const year = currentStaffYear();
+    const user = await ctx.db
+      .query("users")
+      .withIndex("email", (q) => q.eq("email", email))
+      .first();
+    const photo = user?.avatarId
+      ? await ctx.storage.getUrl(user.avatarId)
+      : (user?.image ?? null);
     const profile = await getProfile(ctx, email, year);
     if (!profile) {
-      return { email, year, name: identity.name ?? null, profile: null };
+      return { email, year, name: identity.name ?? null, photo, profile: null };
     }
     const approvers = await getApprovers(ctx, year, profile.department);
     const headedDepartments = (await departmentsHeadedBy(ctx, year, email)).map(
@@ -56,6 +63,7 @@ export const me = query({
       email,
       year,
       name: identity.name ?? null,
+      photo,
       profile: { role: profile.role, department: profile.department },
       isAdmin: await isAdminProfile(ctx, profile),
       isFinance: profile.department === FINANCE,
@@ -104,16 +112,22 @@ export const orgChart = query({
       .take(1000);
 
     const nameByEmail: Record<string, string | null> = {};
+    const photoByEmail: Record<string, string | null> = {};
     for (const profile of profiles) {
       const user = await ctx.db
         .query("users")
         .withIndex("email", (q) => q.eq("email", profile.email))
         .first();
       nameByEmail[profile.email] = user?.name ?? profile.name ?? null;
+      // A custom uploaded photo beats the Google default.
+      photoByEmail[profile.email] = user?.avatarId
+        ? await ctx.storage.getUrl(user.avatarId)
+        : (user?.image ?? null);
     }
     const person = (email: string, role?: string) => ({
       email,
       name: nameByEmail[email] ?? null,
+      photo: photoByEmail[email] ?? null,
       role: role ?? null,
     });
 

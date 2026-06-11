@@ -1,6 +1,7 @@
 import { ConvexError } from "convex/values";
 import { ReactNode } from "react";
 import {
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -148,6 +149,36 @@ export const Muted = ({ children }: { children: ReactNode }) => {
   return <Text style={[styles.muted, { color: t.muted }]}>{children}</Text>;
 };
 
+/** Round profile photo with an initials fallback. */
+export const Avatar = ({
+  photo,
+  name,
+  size = 40,
+}: {
+  photo: string | null;
+  name: string | null;
+  size?: number;
+}) => {
+  const t = useAppTheme();
+  const round = { width: size, height: size, borderRadius: size / 2 };
+  if (photo) {
+    return <Image source={{ uri: photo }} style={round} />;
+  }
+  const initials = (name ?? "?")
+    .split(" ")
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+  return (
+    <View style={[round, styles.avatarFallback, { backgroundColor: t.ghost }]}>
+      <Text style={{ color: t.ghostText, fontWeight: "800", fontSize: size / 3 }}>
+        {initials}
+      </Text>
+    </View>
+  );
+};
+
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   scroll: { padding: 16, paddingBottom: 48, gap: 12, maxWidth: 720, width: "100%", alignSelf: "center" },
@@ -191,4 +222,5 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   muted: { fontSize: 13 },
+  avatarFallback: { alignItems: "center", justifyContent: "center" },
 });

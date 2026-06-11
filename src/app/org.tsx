@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { useAppTheme } from "@/theme";
-import { Card, Muted, Row, Screen, SectionTitle, Txt } from "@/components/ui";
+import { Avatar, Card, Muted, Row, Screen, SectionTitle, Txt } from "@/components/ui";
 
 /** A simple dropdown: a button that opens a modal list of years. */
 const YearDropdown = ({
@@ -64,7 +64,7 @@ const Person = ({
   bold,
   tag,
 }: {
-  person: { email: string; name: string | null; role: string | null };
+  person: { email: string; name: string | null; photo: string | null; role: string | null };
   bold?: boolean;
   tag?: string;
 }) => {
@@ -80,6 +80,7 @@ const Person = ({
         })
       }
     >
+      <Avatar photo={person.photo} name={person.name} size={28} />
       <Txt style={[styles.personName, bold && { fontWeight: "700" }]}>
         {person.name ?? person.email}
       </Txt>
@@ -209,7 +210,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   departmentName: { fontSize: 15, fontWeight: "700" },
-  personRow: { flexDirection: "row", justifyContent: "space-between", flexWrap: "wrap" },
-  personName: { fontSize: 14 },
+  personRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
+  personName: { fontSize: 14, flexGrow: 1 },
   personMeta: { fontSize: 12 },
 });

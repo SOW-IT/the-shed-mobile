@@ -1,11 +1,11 @@
 import { useMutation, useQuery } from "convex/react";
 import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { staffYearForDate } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
-import { useAppTheme } from "../theme";
 import {
+  Avatar,
   Btn,
   Card,
   ErrorBanner,
@@ -17,24 +17,6 @@ import {
   SectionTitle,
   Txt,
 } from "./ui";
-
-const Avatar = ({ photo, name }: { photo: string | null; name: string | null }) => {
-  const t = useAppTheme();
-  if (photo) {
-    return <Image source={{ uri: photo }} style={styles.avatar} />;
-  }
-  const initials = (name ?? "?")
-    .split(" ")
-    .map((part) => part[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-  return (
-    <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: t.ghost }]}>
-      <Text style={[styles.avatarInitials, { color: t.ghostText }]}>{initials}</Text>
-    </View>
-  );
-};
 
 /**
  * A person's profile. Church and photo are editable on your own profile;
@@ -105,7 +87,7 @@ export const ProfileView = ({ email }: { email?: string }) => {
     <Screen>
       <Card>
         <Row>
-          <Avatar photo={profile.photo} name={profile.name} />
+          <Avatar photo={profile.photo} name={profile.name} size={84} />
           <View style={{ flexGrow: 1, flexShrink: 1 }}>
             <Txt style={styles.name}>{profile.name ?? profile.email}</Txt>
             <Muted>{profile.email}</Muted>
@@ -174,8 +156,5 @@ export const ProfileView = ({ email }: { email?: string }) => {
 };
 
 const styles = StyleSheet.create({
-  avatar: { width: 84, height: 84, borderRadius: 42 },
-  avatarFallback: { alignItems: "center", justifyContent: "center" },
-  avatarInitials: { fontSize: 28, fontWeight: "800" },
   name: { fontSize: 20, fontWeight: "800" },
 });
