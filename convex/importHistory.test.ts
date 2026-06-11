@@ -526,6 +526,42 @@ describe("Student Leaders pick a university, not a department", () => {
     expect(saved.department).toBeUndefined();
   });
 
+  test("all campus roles need a university; Member needs nothing", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+
+    // Vice President (like President/Executive) is a campus role.
+    await expect(
+      admin.mutation(api.admin.setStaffProfile, {
+        email: "vinh.vp@sow.org.au",
+        year: YEAR,
+        roles: ["Vice President"],
+      })
+    ).rejects.toThrow(/university/i);
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "vinh.vp@sow.org.au",
+      year: YEAR,
+      roles: ["Vice President"],
+      university: "University of Sydney",
+    });
+
+    // Member takes neither a department nor a university.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "mona.member@sow.org.au",
+      year: YEAR,
+      roles: ["Member"],
+    });
+
+    const profiles = (await admin.query(api.admin.listStaffProfiles, {
+      year: YEAR,
+    }))!;
+    const vp = profiles.find((p) => p.email === "vinh.vp@sow.org.au")!;
+    expect(vp.university).toBe("University of Sydney");
+    expect(vp.department).toBeUndefined();
+    const member = profiles.find((p) => p.email === "mona.member@sow.org.au")!;
+    expect(member.roles).toEqual(["Member"]);
+  });
+
   test("universities are data-driven per year and protected while in use", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);

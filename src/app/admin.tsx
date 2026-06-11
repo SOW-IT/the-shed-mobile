@@ -5,7 +5,7 @@ import {
   HEAD_OF_DIVISION,
   ROLES,
   roleNeedsDepartment,
-  STUDENT_LEADER,
+  roleNeedsUniversity,
 } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { useAppTheme } from "@/theme";
@@ -109,6 +109,18 @@ export default function AdminScreen() {
         ? previous.filter((r) => r !== role)
         : [...previous, role]
     );
+  // Picking a person loads what they already have this year, so saving
+  // edits their assignment instead of silently rebuilding it from scratch.
+  const selectPerson = (email: string) => {
+    setStaffEmail(email);
+    const existing = (profiles ?? []).find((p) => p.email === email);
+    setStaffRoles(
+      existing && existing.roles.length > 0 ? existing.roles : [ROLES[0]]
+    );
+    setStaffDepartment(existing?.department ?? "");
+    setStaffDivision(existing?.division ?? "");
+    setStaffUniversity(existing?.university ?? "");
+  };
   // Division / department / university forms
   const [divisionName, setDivisionName] = useState("");
   const [divisionHead, setDivisionHead] = useState("");
@@ -128,7 +140,7 @@ export default function AdminScreen() {
   }
 
   const needsDivision = staffRoles.includes(HEAD_OF_DIVISION);
-  const needsUniversity = staffRoles.includes(STUDENT_LEADER);
+  const needsUniversity = staffRoles.some(roleNeedsUniversity);
   const needsDepartment = staffRoles.some(roleNeedsDepartment);
   const yearLabel = (y: number) =>
     y === currentYear
@@ -193,7 +205,7 @@ export default function AdminScreen() {
                 <Btn
                   title="Assign"
                   variant="ghost"
-                  onPress={() => setStaffEmail(user.email)}
+                  onPress={() => selectPerson(user.email)}
                 />
               </Row>
             </Card>
@@ -206,10 +218,10 @@ export default function AdminScreen() {
         <Card>
           {personOptions.length > 0 && (
             <Select
-              label="Person"
+              label="Person (selecting loads their current assignment)"
               value={staffEmail}
               options={personOptions}
-              onSelect={setStaffEmail}
+              onSelect={selectPerson}
               placeholder="Choose a person…"
             />
           )}
@@ -304,19 +316,26 @@ export default function AdminScreen() {
               </Muted>
             </View>
             {editable && (
-              <Btn
-                title="Remove"
-                variant="danger"
-                onPress={() =>
-                  confirmRemoval(
-                    `Remove ${profile.email} from ${selectedYear}? Their roles and department assignment for the year will be deleted.`,
-                    () =>
-                      void run(() =>
-                        removeStaffProfile({ email: profile.email, year: selectedYear })
-                      )
-                  )
-                }
-              />
+              <>
+                <Btn
+                  title="Edit"
+                  variant="ghost"
+                  onPress={() => selectPerson(profile.email)}
+                />
+                <Btn
+                  title="Remove"
+                  variant="danger"
+                  onPress={() =>
+                    confirmRemoval(
+                      `Remove ${profile.email} from ${selectedYear}? Their roles and department assignment for the year will be deleted.`,
+                      () =>
+                        void run(() =>
+                          removeStaffProfile({ email: profile.email, year: selectedYear })
+                        )
+                    )
+                  }
+                />
+              </>
             )}
           </Row>
         </Card>

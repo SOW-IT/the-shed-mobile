@@ -14,10 +14,18 @@ export const ADMIN_DIVISIONS = ["Human Resources"];
 
 export const ROLES = [
   "Staff",
+  "Student Leader",
+  "President",
+  "Vice President",
+  "Executive",
   "Head of Department",
   "Head of Division",
   "Director",
-  "Student Leader",
+  "Senior Chaplain",
+  "Junior Chaplain",
+  "Intern Chaplain",
+  "Outsource",
+  "Member",
 ] as const;
 export type Role = (typeof ROLES)[number];
 
@@ -28,10 +36,21 @@ export const HEAD_OF_DIVISION: Role = "Head of Division";
 export const DIRECTOR: Role = "Director";
 /** Student Leaders belong to a university, not a department. */
 export const STUDENT_LEADER: Role = "Student Leader";
+export const MEMBER: Role = "Member";
+
+/** Campus roles belong to a university instead of a department. */
+export const UNIVERSITY_ROLES: readonly Role[] = [
+  STUDENT_LEADER,
+  "President",
+  "Vice President",
+  "Executive",
+];
+export const roleNeedsUniversity = (role: string): boolean =>
+  UNIVERSITY_ROLES.includes(role as Role);
 
 /** Roles that take a department; the exceptions belong elsewhere. */
 export const roleNeedsDepartment = (role: string): boolean =>
-  role !== HEAD_OF_DIVISION && role !== STUDENT_LEADER;
+  role !== HEAD_OF_DIVISION && role !== MEMBER && !roleNeedsUniversity(role);
 
 /** Requests at or above this amount need the Director's approval. */
 export const DIRECTOR_APPROVAL_THRESHOLD = 5000;

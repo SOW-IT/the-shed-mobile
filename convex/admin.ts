@@ -6,8 +6,8 @@ import {
   requestCompleted,
   ROLES,
   roleNeedsDepartment,
+  roleNeedsUniversity,
   STAFF_ROLE,
-  STUDENT_LEADER,
 } from "../shared/flow";
 import { internalMutation, mutation, query } from "./_generated/server";
 import {
@@ -62,7 +62,7 @@ export const setStaffProfile = mutation({
     }
 
     const needsDivision = roles.includes(HEAD_OF_DIVISION);
-    const needsUniversity = roles.includes(STUDENT_LEADER);
+    const needsUniversity = roles.some(roleNeedsUniversity);
     const needsDepartment = roles.some(roleNeedsDepartment);
 
     let division: string | undefined;
@@ -95,7 +95,7 @@ export const setStaffProfile = mutation({
           .unique());
       if (!exists) {
         throw new ConvexError(
-          `A Student Leader needs a university that exists in ${args.year}.`
+          `Campus roles (Student Leader, President, Vice President, Executive) need a university that exists in ${args.year}.`
         );
       }
     }
