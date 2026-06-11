@@ -96,6 +96,28 @@ export const listStaffProfiles = query({
   },
 });
 
+/**
+ * People who have signed in with Google but have no role/department for the
+ * given year — either we never expected them, or they lapsed at rollover.
+ * Lets admins spot and assign them instead of needing the email out-of-band.
+ */
+export const listUnassignedUsers = query({
+  args: { year: v.number() },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const users = await ctx.db.query("users").take(1000);
+    const unassigned: { email: string; name: string | null }[] = [];
+    for (const user of users) {
+      if (!user.email) continue;
+      const profile = await getProfile(ctx, user.email, args.year);
+      if (!profile) {
+        unassigned.push({ email: user.email, name: user.name ?? null });
+      }
+    }
+    return unassigned;
+  },
+});
+
 export const upsertDivision = mutation({
   args: { year: v.number(), name: v.string() },
   handler: async (ctx, args) => {

@@ -399,6 +399,46 @@ describe("admin and per-year rules", () => {
     expect(rachelInChart?.photo).toBe(updated.photo);
   });
 
+  test("an unexpected sign-in is unassigned, visible to admins, and assignable", async () => {
+    const t = await setup();
+    // Walter signed in with Google but no admin ever provisioned him.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", { email: "walter@sow.org.au", name: "Walter W" });
+    });
+    const walter = asUser(t, "walter@sow.org.au");
+
+    // He gets the unassigned experience, not an error.
+    const me = await walter.query(api.directory.me, {});
+    expect(me?.profile).toBeNull();
+    // ...and can't touch the request flow.
+    await expect(
+      walter.mutation(api.requests.submit, { description: "x", amount: 10 })
+    ).rejects.toThrow(/No role\/department/);
+
+    // Admins see him in the unassigned list and can assign him.
+    const admin = asUser(t, ADMIN);
+    const before = await admin.query(api.admin.listUnassignedUsers, { year: YEAR });
+    expect(before.map((u) => u.email)).toContain("walter@sow.org.au");
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "walter@sow.org.au",
+      year: YEAR,
+      role: "Staff",
+      department: "Marketing",
+    });
+    const after = await admin.query(api.admin.listUnassignedUsers, { year: YEAR });
+    expect(after.map((u) => u.email)).not.toContain("walter@sow.org.au");
+
+    // Now the flow works for him.
+    await walter.mutation(api.requests.submit, { description: "x", amount: 10 });
+    expect(await walter.query(api.requests.myRequests, {})).toHaveLength(1);
+
+    // Provisioned-but-next-year-lapsed people show as unassigned for that year.
+    const nextYear = await admin.query(api.admin.listUnassignedUsers, {
+      year: YEAR + 1,
+    });
+    expect(nextYear.map((u) => u.email)).toContain("walter@sow.org.au");
+  });
+
   test("push tokens register per device and follow account switches", async () => {
     const t = await setup();
     await asUser(t, RACHEL).mutation(api.push.register, {

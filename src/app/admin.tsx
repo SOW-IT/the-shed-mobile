@@ -36,6 +36,10 @@ export default function AdminScreen() {
     api.admin.listStaffProfiles,
     me?.isAdmin ? { year: selectedYear } : "skip"
   );
+  const unassigned = useQuery(
+    api.admin.listUnassignedUsers,
+    me?.isAdmin ? { year: selectedYear } : "skip"
+  );
 
   const setStaffProfile = useMutation(api.admin.setStaffProfile);
   const removeStaffProfile = useMutation(api.admin.removeStaffProfile);
@@ -90,6 +94,27 @@ export default function AdminScreen() {
         />
       </Row>
       <ErrorBanner message={error} />
+
+      {(unassigned ?? []).length > 0 && (
+        <>
+          <SectionTitle>Signed in, no assignment — {selectedYear}</SectionTitle>
+          {(unassigned ?? []).map((user) => (
+            <Card key={user.email}>
+              <Row>
+                <View style={{ flexGrow: 1 }}>
+                  <Txt style={{ fontWeight: "600" }}>{user.name ?? user.email}</Txt>
+                  <Muted>{user.email}</Muted>
+                </View>
+                <Btn
+                  title="Assign"
+                  variant="ghost"
+                  onPress={() => setStaffEmail(user.email)}
+                />
+              </Row>
+            </Card>
+          ))}
+        </>
+      )}
 
       <SectionTitle>Staff — {selectedYear}</SectionTitle>
       <Card>
