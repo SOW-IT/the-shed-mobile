@@ -124,6 +124,24 @@ exists, the workflow passes with a warning and skips the build step. To also
 auto-submit to TestFlight/Play Console, append `--auto-submit` to the
 `eas build` line once store credentials are configured.
 
+## Web hosting
+
+The same app runs in the browser via react-native-web. Production:
+**<https://the-shed-web.vercel.app>** (Vercel project `the-shed-web`).
+Redeploy with:
+
+```bash
+npm run deploy:web
+```
+
+(`web/vercel.json` provides clean URLs + an SPA fallback for the dynamic
+routes.) When Google sign-in is configured, also set the deployment's
+`SITE_URL` to the hosted URL so web OAuth redirects return there:
+
+```bash
+npx convex env set SITE_URL https://the-shed-web.vercel.app
+```
+
 ## Tests
 
 ```bash

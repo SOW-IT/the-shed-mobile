@@ -50,7 +50,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "test": "vitest run",
-    "convex": "convex dev"
+    "convex": "convex dev",
+    "deploy:web": "expo export --platform web && node -e \"require('fs').copyFileSync('web/vercel.json','dist/vercel.json')\" && cd dist && vercel deploy --prod --yes"
   },
   "private": true
 }
