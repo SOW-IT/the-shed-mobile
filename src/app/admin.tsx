@@ -99,27 +99,36 @@ export default function AdminScreen() {
     }
   };
 
-  // Staff form — a person can hold multiple roles.
+  // Staff form — a person can hold multiple roles, but most hold one, so the
+  // picker stays single-select until "Allow multiple" is switched on.
   const [staffEmail, setStaffEmail] = useState("");
   const [staffRoles, setStaffRoles] = useState<string[]>([ROLES[0]]);
+  const [allowMultipleRoles, setAllowMultipleRoles] = useState(false);
   const [staffDepartment, setStaffDepartment] = useState("");
   const [staffDivision, setStaffDivision] = useState("");
   const [staffUniversity, setStaffUniversity] = useState("");
   const [savingStaff, setSavingStaff] = useState(false);
   const toggleRole = (role: string) =>
-    setStaffRoles((previous) =>
-      previous.includes(role)
+    setStaffRoles((previous) => {
+      if (!allowMultipleRoles) return [role];
+      return previous.includes(role)
         ? previous.filter((r) => r !== role)
-        : [...previous, role]
-    );
+        : [...previous, role];
+    });
+  const setAllowMultiple = (allow: boolean) => {
+    setAllowMultipleRoles(allow);
+    // Switching back to single-select keeps only the first chosen role.
+    if (!allow) setStaffRoles((previous) => previous.slice(0, 1));
+  };
   // Picking a person loads what they already have this year, so saving
   // edits their assignment instead of silently rebuilding it from scratch.
   const selectPerson = (email: string) => {
     setStaffEmail(email);
     const existing = (profiles ?? []).find((p) => p.email === email);
-    setStaffRoles(
-      existing && existing.roles.length > 0 ? existing.roles : [ROLES[0]]
-    );
+    const existingRoles =
+      existing && existing.roles.length > 0 ? existing.roles : [ROLES[0]];
+    setStaffRoles(existingRoles);
+    setAllowMultipleRoles(existingRoles.length > 1);
     setStaffDepartment(existing?.department ?? "");
     setStaffDivision(existing?.division ?? "");
     setStaffUniversity(existing?.university ?? "");
@@ -235,7 +244,20 @@ export default function AdminScreen() {
             placeholder="someone@sow.org.au"
             keyboardType="email-address"
           />
-          <Muted>Roles (tap to toggle — a person can hold several)</Muted>
+          <Row>
+            <View style={{ flexGrow: 1 }}>
+              <Muted>
+                {allowMultipleRoles
+                  ? "Roles (tap to toggle — this person can hold several)"
+                  : "Role (tap to pick one)"}
+              </Muted>
+            </View>
+            <Btn
+              title="Allow multiple"
+              variant={allowMultipleRoles ? "primary" : "ghost"}
+              onPress={() => setAllowMultiple(!allowMultipleRoles)}
+            />
+          </Row>
           <Row>
             {ROLES.map((role) => (
               <Btn
