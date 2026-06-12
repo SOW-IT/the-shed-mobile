@@ -1,0 +1,6 @@
+# The Vercel CLI excludes node_modules paths from uploads by default, but the
+# Expo web export keeps its icon fonts under assets/node_modules/ — without
+# re-including them every font request falls through to the SPA rewrite and
+# icons render as empty boxes.
+!assets/node_modules
+!assets/node_modules/**
