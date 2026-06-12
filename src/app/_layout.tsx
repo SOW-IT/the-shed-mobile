@@ -126,7 +126,9 @@ export default function RootLayout() {
       <ErrorBoundary>
       <ConvexAuthProvider
         client={convex}
-        storage={Platform.OS === "web" ? undefined : secureStorage}
+        storage={Platform.OS === "web" ? window.localStorage : secureStorage}
+        storageNamespace="the-shed-mobile"
+        shouldHandleCode={false}
       >
         <AuthLoading>
           <View
