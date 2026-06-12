@@ -31,8 +31,8 @@ const secureStorage = {
 
 const tabIcon =
   (outline: keyof typeof Ionicons.glyphMap, filled: keyof typeof Ionicons.glyphMap) =>
-  ({ color, focused }: { color: ColorValue; focused: boolean }) => (
-    <Ionicons name={focused ? filled : outline} size={focused ? 28 : 22} color={color} />
+  ({ color }: { color: ColorValue; focused: boolean }) => (
+    <Ionicons name={filled} size={24} color={color} />
   );
 
 const AppTabs = () => {
@@ -57,13 +57,13 @@ const AppTabs = () => {
     <Tabs
       screenOptions={{
         headerShown: false,
+        tabBarShowLabel: false,
         tabBarActiveTintColor: t.primary,
         tabBarInactiveTintColor: t.muted,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: "600", lineHeight: 14 },
         tabBarStyle: {
           backgroundColor: t.card,
           borderTopColor: t.border,
-          height: 68 + insets.bottom,
+          height: 56 + insets.bottom,
           paddingBottom: Math.max(insets.bottom, 6),
           paddingTop: 6,
         },
