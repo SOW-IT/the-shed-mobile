@@ -1,5 +1,5 @@
 import { ConvexError } from "convex/values";
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { ReactNode, Ref, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -43,14 +43,19 @@ export const Txt = ({ style, ...props }: TextProps) => {
 export const Screen = ({
   children,
   toast,
+  scrollRef,
 }: {
   children?: ReactNode;
   toast?: ToastState;
+  /** Exposes the screen's ScrollView, e.g. to scroll back to the top. */
+  scrollRef?: Ref<ScrollView>;
 }) => {
   const t = useAppTheme();
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: t.background }]} edges={["top"]}>
-      <ScrollView contentContainerStyle={styles.scroll}>{children}</ScrollView>
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.scroll}>
+        {children}
+      </ScrollView>
       <Toast toast={toast ?? null} />
     </SafeAreaView>
   );

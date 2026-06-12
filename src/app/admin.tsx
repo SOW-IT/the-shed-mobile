@@ -1,5 +1,6 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Alert,
   Modal,
@@ -28,6 +29,7 @@ import {
   Row,
   Screen,
   SectionTitle,
+  Segmented,
   Select,
   type ToastState,
   Txt,
@@ -36,8 +38,9 @@ import {
 /**
  * Admin console: per-year staff roles/departments (including people who
  * haven't signed in yet, by email), divisions, departments and the Budget
- * Manager. Admins can EDIT the current year and the next one (next-year
- * changes take effect at the September 1 rollover) and VIEW any past year.
+ * Manager — split into Users / Structure / Other tabs. Admins can EDIT the
+ * current year and the next one (next-year changes take effect at the
+ * September 1 rollover) and VIEW any past year.
  */
 
 // Alert.alert buttons are a no-op on react-native-web, so the web build
@@ -52,6 +55,14 @@ const confirmRemoval = (message: string, onConfirm: () => void) => {
     { text: "Remove", style: "destructive", onPress: onConfirm },
   ]);
 };
+
+type AdminTab = "users" | "structure" | "other";
+const ADMIN_TABS = [
+  { key: "users", label: "Users" },
+  { key: "structure", label: "Structure" },
+  { key: "other", label: "Other" },
+];
+
 export default function AdminScreen() {
   const t = useAppTheme();
   const me = useQuery(api.directory.me);
@@ -61,6 +72,8 @@ export default function AdminScreen() {
   const selectedYear = year ?? currentYear;
   const editable = selectedYear === currentYear || selectedYear === currentYear + 1;
   const [yearMenuOpen, setYearMenuOpen] = useState(false);
+  const [tab, setTab] = useState<AdminTab>("users");
+  const scrollRef = useRef<ScrollView>(null);
 
   const structure = useQuery(
     api.directory.yearStructure,
@@ -137,6 +150,11 @@ export default function AdminScreen() {
     setStaffDivision(existing?.division ?? "");
     setStaffUniversity(existing?.university ?? "");
   };
+  // The Edit icon on a user card loads them into the form at the top.
+  const editPerson = (email: string) => {
+    selectPerson(email);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  };
   // Division / department / university forms
   const [divisionName, setDivisionName] = useState("");
   const [divisionHead, setDivisionHead] = useState("");
@@ -144,8 +162,10 @@ export default function AdminScreen() {
   const [departmentName, setDepartmentName] = useState("");
   const [departmentDivision, setDepartmentDivision] = useState("");
   const [departmentHead, setDepartmentHead] = useState("");
-  // Budget manager form
-  const [budgetManagerEmail, setBudgetManagerEmail] = useState("");
+  // Budget manager form — null means "untouched", showing the current one.
+  const [budgetManagerEmail, setBudgetManagerEmail] = useState<string | null>(null);
+  const budgetManagerValue =
+    budgetManagerEmail ?? structure?.budgetManagerEmail ?? "";
 
   if (me && !me.isAdmin) {
     return (
@@ -166,7 +186,7 @@ export default function AdminScreen() {
         : `${y}`;
 
   return (
-    <Screen toast={toast}>
+    <Screen toast={toast} scrollRef={scrollRef}>
       <Row>
         <View style={{ flexGrow: 1 }}>
           <SectionTitle>Manage — {yearLabel(selectedYear)}</SectionTitle>
@@ -200,6 +220,13 @@ export default function AdminScreen() {
           </View>
         </Pressable>
       </Modal>
+
+      <Segmented
+        segments={ADMIN_TABS}
+        active={tab}
+        onChange={(key) => setTab(key as AdminTab)}
+      />
+
       {!editable && (
         <Card>
           <Muted>
@@ -210,304 +237,337 @@ export default function AdminScreen() {
       )}
       <ErrorBanner message={error} />
 
-      {editable && (unassigned ?? []).length > 0 && (
+      {tab === "users" && (
         <>
-          <SectionTitle>Signed in, no assignment — {selectedYear}</SectionTitle>
-          {(unassigned ?? []).map((user) => (
-            <Card key={user.email}>
+          {editable && (unassigned ?? []).length > 0 && (
+            <>
+              <SectionTitle>Signed in, no assignment — {selectedYear}</SectionTitle>
+              {(unassigned ?? []).map((user) => (
+                <Card key={user.email}>
+                  <Row>
+                    <View style={{ flexGrow: 1 }}>
+                      <Txt style={{ fontWeight: "600" }}>{user.name ?? user.email}</Txt>
+                      <Muted>{user.email}</Muted>
+                    </View>
+                    <Btn
+                      title="Assign"
+                      variant="ghost"
+                      onPress={() => selectPerson(user.email)}
+                    />
+                  </Row>
+                </Card>
+              ))}
+            </>
+          )}
+
+          <SectionTitle>Staff — {selectedYear}</SectionTitle>
+          {editable && (
+            <Card>
+              {personOptions.length > 0 && (
+                <Select
+                  label="Person (selecting loads their current assignment)"
+                  value={staffEmail}
+                  options={personOptions}
+                  onSelect={selectPerson}
+                  placeholder="Choose a person…"
+                />
+              )}
+              <Field
+                label="Or type a new email (they don't need to have signed in yet)"
+                value={staffEmail}
+                onChangeText={setStaffEmail}
+                placeholder="someone@sow.org.au"
+                keyboardType="email-address"
+              />
               <Row>
                 <View style={{ flexGrow: 1 }}>
-                  <Txt style={{ fontWeight: "600" }}>{user.name ?? user.email}</Txt>
-                  <Muted>{user.email}</Muted>
+                  <Muted>
+                    {allowMultipleRoles
+                      ? "Roles (tap to toggle — this person can hold several)"
+                      : "Role (tap to pick one)"}
+                  </Muted>
                 </View>
                 <Btn
-                  title="Assign"
-                  variant="ghost"
-                  onPress={() => selectPerson(user.email)}
+                  title="Allow multiple"
+                  variant={allowMultipleRoles ? "primary" : "ghost"}
+                  onPress={() => setAllowMultiple(!allowMultipleRoles)}
                 />
+              </Row>
+              <Row>
+                {ROLES.map((role) => (
+                  <Btn
+                    key={role}
+                    title={role}
+                    variant={staffRoles.includes(role) ? "primary" : "ghost"}
+                    onPress={() => toggleRole(role)}
+                  />
+                ))}
+              </Row>
+              {needsDivision && (
+                <Select
+                  label="Division (Heads of Division belong directly to one)"
+                  value={staffDivision}
+                  options={(structure?.divisions ?? []).map((d) => d.name)}
+                  onSelect={setStaffDivision}
+                  placeholder="Choose a division…"
+                />
+              )}
+              {needsUniversity && (
+                <Select
+                  label="University (Student Leaders belong to one, not a department)"
+                  value={staffUniversity}
+                  options={structure?.universities ?? []}
+                  onSelect={setStaffUniversity}
+                  placeholder="Choose a university…"
+                />
+              )}
+              {needsDepartment && (
+                <Select
+                  label="Department"
+                  value={staffDepartment}
+                  options={(structure?.departments ?? []).map((d) => d.name)}
+                  onSelect={setStaffDepartment}
+                  placeholder="Choose a department…"
+                />
+              )}
+              <Btn
+                title="Save Staff Assignment"
+                loading={savingStaff}
+                onPress={() => {
+                  const email = staffEmail.trim().toLowerCase();
+                  setSavingStaff(true);
+                  void run(() =>
+                    setStaffProfile({
+                      email,
+                      year: selectedYear,
+                      roles: staffRoles,
+                      department: needsDepartment ? staffDepartment : undefined,
+                      division: needsDivision ? staffDivision : undefined,
+                      university: needsUniversity ? staffUniversity : undefined,
+                    })
+                  )
+                    .then((ok) => {
+                      if (ok) {
+                        setToast({ text: `Saved ${email} for ${selectedYear}` });
+                        setStaffEmail("");
+                      }
+                    })
+                    .finally(() => setSavingStaff(false));
+                }}
+              />
+            </Card>
+          )}
+          {(profiles ?? []).map((profile) => (
+            <Card key={profile._id}>
+              <Row>
+                <View style={{ flexGrow: 1 }}>
+                  <Txt style={{ fontWeight: "600" }}>{profile.name ?? profile.email}</Txt>
+                  {profile.name ? <Muted>{profile.email}</Muted> : null}
+                  <Muted>
+                    {profile.roles.map(acronym).join(", ")} •{" "}
+                    {[profile.department, profile.division, profile.university]
+                      .map((name) => name && acronym(name))
+                      .filter(Boolean)
+                      .join(" / ") || "—"}
+                  </Muted>
+                </View>
+                {editable && (
+                  <>
+                    <Pressable
+                      hitSlop={8}
+                      style={({ pressed }) => [
+                        styles.iconButton,
+                        { backgroundColor: t.ghost },
+                        pressed && { opacity: 0.6 },
+                      ]}
+                      onPress={() => editPerson(profile.email)}
+                    >
+                      <Ionicons name="create-outline" size={18} color={t.ghostText} />
+                    </Pressable>
+                    <Pressable
+                      hitSlop={8}
+                      style={({ pressed }) => [
+                        styles.iconButton,
+                        { backgroundColor: t.ghost },
+                        pressed && { opacity: 0.6 },
+                      ]}
+                      onPress={() =>
+                        confirmRemoval(
+                          `Remove ${profile.email} from ${selectedYear}? Their roles and department assignment for the year will be deleted.`,
+                          () =>
+                            void run(() =>
+                              removeStaffProfile({
+                                email: profile.email,
+                                year: selectedYear,
+                              })
+                            )
+                        )
+                      }
+                    >
+                      <Ionicons name="trash-outline" size={18} color={t.danger} />
+                    </Pressable>
+                  </>
+                )}
               </Row>
             </Card>
           ))}
         </>
       )}
 
-      <SectionTitle>Staff — {selectedYear}</SectionTitle>
-      {editable && (
-        <Card>
-          {personOptions.length > 0 && (
-            <Select
-              label="Person (selecting loads their current assignment)"
-              value={staffEmail}
-              options={personOptions}
-              onSelect={selectPerson}
-              placeholder="Choose a person…"
-            />
-          )}
-          <Field
-            label="Or type a new email (they don't need to have signed in yet)"
-            value={staffEmail}
-            onChangeText={setStaffEmail}
-            placeholder="someone@sow.org.au"
-            keyboardType="email-address"
-          />
-          <Row>
-            <View style={{ flexGrow: 1 }}>
-              <Muted>
-                {allowMultipleRoles
-                  ? "Roles (tap to toggle — this person can hold several)"
-                  : "Role (tap to pick one)"}
-              </Muted>
-            </View>
-            <Btn
-              title="Allow multiple"
-              variant={allowMultipleRoles ? "primary" : "ghost"}
-              onPress={() => setAllowMultiple(!allowMultipleRoles)}
-            />
-          </Row>
-          <Row>
-            {ROLES.map((role) => (
-              <Btn
-                key={role}
-                title={role}
-                variant={staffRoles.includes(role) ? "primary" : "ghost"}
-                onPress={() => toggleRole(role)}
+      {tab === "structure" && (
+        <>
+          <SectionTitle>Divisions — {selectedYear}</SectionTitle>
+          {(structure?.divisions ?? []).map((division) => (
+            <Card key={division.name}>
+              <Txt style={{ fontWeight: "600" }}>{division.name}</Txt>
+              <Muted>Head: {division.headEmail ?? "none"}</Muted>
+            </Card>
+          ))}
+          {editable && (
+            <Card>
+              <Field
+                label="Division name (existing name updates that division)"
+                value={divisionName}
+                onChangeText={setDivisionName}
               />
-            ))}
-          </Row>
-          {needsDivision && (
-            <Select
-              label="Division (Heads of Division belong directly to one)"
-              value={staffDivision}
-              options={(structure?.divisions ?? []).map((d) => d.name)}
-              onSelect={setStaffDivision}
-              placeholder="Choose a division…"
-            />
+              <Select
+                label="Head of Division (optional — also gives them the role; a person can head several divisions)"
+                value={divisionHead}
+                options={[{ label: "— No head —", value: "" }, ...personOptions]}
+                onSelect={setDivisionHead}
+                placeholder="Choose a person…"
+              />
+              <Btn
+                title="Save Division"
+                onPress={() =>
+                  void run(() =>
+                    upsertDivision({
+                      year: selectedYear,
+                      name: divisionName,
+                      headEmail: divisionHead || undefined,
+                    })
+                  ).then((ok) => {
+                    if (ok) {
+                      setDivisionName("");
+                      setDivisionHead("");
+                    }
+                  })
+                }
+              />
+            </Card>
           )}
-          {needsUniversity && (
-            <Select
-              label="University (Student Leaders belong to one, not a department)"
-              value={staffUniversity}
-              options={structure?.universities ?? []}
-              onSelect={setStaffUniversity}
-              placeholder="Choose a university…"
-            />
-          )}
-          {needsDepartment && (
-            <Select
-              label="Department"
-              value={staffDepartment}
-              options={(structure?.departments ?? []).map((d) => d.name)}
-              onSelect={setStaffDepartment}
-              placeholder="Choose a department…"
-            />
-          )}
-          <Btn
-            title="Save Staff Assignment"
-            loading={savingStaff}
-            onPress={() => {
-              const email = staffEmail.trim().toLowerCase();
-              setSavingStaff(true);
-              void run(() =>
-                setStaffProfile({
-                  email,
-                  year: selectedYear,
-                  roles: staffRoles,
-                  department: needsDepartment ? staffDepartment : undefined,
-                  division: needsDivision ? staffDivision : undefined,
-                  university: needsUniversity ? staffUniversity : undefined,
-                })
-              )
-                .then((ok) => {
-                  if (ok) {
-                    setToast({ text: `Saved ${email} for ${selectedYear}` });
-                    setStaffEmail("");
-                  }
-                })
-                .finally(() => setSavingStaff(false));
-            }}
-          />
-        </Card>
-      )}
-      {(profiles ?? []).map((profile) => (
-        <Card key={profile._id}>
-          <Row>
-            <View style={{ flexGrow: 1 }}>
-              <Txt style={{ fontWeight: "600" }}>{profile.name ?? profile.email}</Txt>
-              {profile.name ? <Muted>{profile.email}</Muted> : null}
-              <Muted>
-                {profile.roles.map(acronym).join(", ")} •{" "}
-                {[profile.department, profile.division, profile.university]
-                  .map((name) => name && acronym(name))
-                  .filter(Boolean)
-                  .join(" / ") || "—"}
-              </Muted>
-            </View>
+
+          <SectionTitle>Universities — {selectedYear}</SectionTitle>
+          <Card>
+            <Muted>{(structure?.universities ?? []).join(", ") || "None yet."}</Muted>
             {editable && (
               <>
-                <Btn
-                  title="Edit"
-                  variant="ghost"
-                  onPress={() => selectPerson(profile.email)}
+                <Field
+                  label="New university"
+                  value={universityName}
+                  onChangeText={setUniversityName}
                 />
                 <Btn
-                  title="Remove"
-                  variant="danger"
+                  title="Add University"
                   onPress={() =>
-                    confirmRemoval(
-                      `Remove ${profile.email} from ${selectedYear}? Their roles and department assignment for the year will be deleted.`,
-                      () =>
-                        void run(() =>
-                          removeStaffProfile({ email: profile.email, year: selectedYear })
-                        )
-                    )
+                    void run(() =>
+                      upsertUniversity({ year: selectedYear, name: universityName })
+                    ).then((ok) => ok && setUniversityName(""))
                   }
                 />
               </>
             )}
-          </Row>
-        </Card>
-      ))}
+          </Card>
 
-      <SectionTitle>Divisions — {selectedYear}</SectionTitle>
-      {(structure?.divisions ?? []).map((division) => (
-        <Card key={division.name}>
-          <Txt style={{ fontWeight: "600" }}>{division.name}</Txt>
-          <Muted>Head: {division.headEmail ?? "none"}</Muted>
-        </Card>
-      ))}
-      {editable && (
-        <Card>
-          <Field
-            label="Division name (existing name updates that division)"
-            value={divisionName}
-            onChangeText={setDivisionName}
-          />
-          <Select
-            label="Head of Division (optional — also gives them the role; a person can head several divisions)"
-            value={divisionHead}
-            options={[{ label: "— No head —", value: "" }, ...personOptions]}
-            onSelect={setDivisionHead}
-            placeholder="Choose a person…"
-          />
-          <Btn
-            title="Save Division"
-            onPress={() =>
-              void run(() =>
-                upsertDivision({
-                  year: selectedYear,
-                  name: divisionName,
-                  headEmail: divisionHead || undefined,
-                })
-              ).then((ok) => {
-                if (ok) {
-                  setDivisionName("");
-                  setDivisionHead("");
+          <SectionTitle>Departments — {selectedYear}</SectionTitle>
+          {(structure?.departments ?? []).map((department) => (
+            <Card key={department.name}>
+              <Txt style={{ fontWeight: "600" }}>{department.name}</Txt>
+              <Muted>
+                Division: {department.division} • Head: {department.headEmail ?? "none"}
+              </Muted>
+            </Card>
+          ))}
+          {editable && (
+            <Card>
+              <Field
+                label="Department name"
+                value={departmentName}
+                onChangeText={setDepartmentName}
+              />
+              <Select
+                label="Division"
+                value={departmentDivision}
+                options={(structure?.divisions ?? []).map((d) => d.name)}
+                onSelect={setDepartmentDivision}
+                placeholder="Choose a division…"
+              />
+              <Select
+                label="Head of Department (optional — also gives them the role)"
+                value={departmentHead}
+                options={[{ label: "— No head —", value: "" }, ...personOptions]}
+                onSelect={setDepartmentHead}
+                placeholder="Choose a person…"
+              />
+              <Btn
+                title="Save Department"
+                onPress={() =>
+                  void run(() =>
+                    upsertDepartment({
+                      year: selectedYear,
+                      name: departmentName,
+                      division: departmentDivision,
+                      headEmail: departmentHead || undefined,
+                    })
+                  ).then((ok) => ok && setDepartmentName(""))
                 }
-              })
-            }
-          />
-        </Card>
+              />
+            </Card>
+          )}
+        </>
       )}
 
-      <SectionTitle>Universities — {selectedYear}</SectionTitle>
-      <Card>
-        <Muted>{(structure?.universities ?? []).join(", ") || "None yet."}</Muted>
-        {editable && (
-          <>
-            <Field
-              label="New university"
-              value={universityName}
-              onChangeText={setUniversityName}
-            />
-            <Btn
-              title="Add University"
-              onPress={() =>
-                void run(() =>
-                  upsertUniversity({ year: selectedYear, name: universityName })
-                ).then((ok) => ok && setUniversityName(""))
-              }
-            />
-          </>
-        )}
-      </Card>
-
-      <SectionTitle>Departments — {selectedYear}</SectionTitle>
-      {(structure?.departments ?? []).map((department) => (
-        <Card key={department.name}>
-          <Txt style={{ fontWeight: "600" }}>{department.name}</Txt>
-          <Muted>
-            Division: {department.division} • Head: {department.headEmail ?? "none"}
-          </Muted>
-        </Card>
-      ))}
-      {editable && (
-        <Card>
-          <Field
-            label="Department name"
-            value={departmentName}
-            onChangeText={setDepartmentName}
-          />
-          <Select
-            label="Division"
-            value={departmentDivision}
-            options={(structure?.divisions ?? []).map((d) => d.name)}
-            onSelect={setDepartmentDivision}
-            placeholder="Choose a division…"
-          />
-          <Select
-            label="Head of Department (optional — also gives them the role)"
-            value={departmentHead}
-            options={[{ label: "— No head —", value: "" }, ...personOptions]}
-            onSelect={setDepartmentHead}
-            placeholder="Choose a person…"
-          />
-          <Btn
-            title="Save Department"
-            onPress={() =>
-              void run(() =>
-                upsertDepartment({
-                  year: selectedYear,
-                  name: departmentName,
-                  division: departmentDivision,
-                  headEmail: departmentHead || undefined,
-                })
-              ).then((ok) => ok && setDepartmentName(""))
-            }
-          />
-        </Card>
+      {tab === "other" && (
+        <>
+          <SectionTitle>Budget Manager — {selectedYear}</SectionTitle>
+          <Card>
+            <Muted>
+              Current: {structure?.budgetManagerEmail ?? "not set"} (must be from
+              the Finance department)
+            </Muted>
+            {editable && (
+              <>
+                <Select
+                  label="Budget Manager (Finance department members)"
+                  value={budgetManagerValue}
+                  options={(people ?? [])
+                    .filter((person) => person.department === "Finance")
+                    .map((person) => ({
+                      label: person.name
+                        ? `${person.name} (${person.email})`
+                        : person.email,
+                      value: person.email,
+                    }))}
+                  onSelect={setBudgetManagerEmail}
+                  placeholder="Choose a Finance member…"
+                />
+                <Btn
+                  title="Set Budget Manager"
+                  disabled={!budgetManagerValue}
+                  onPress={() =>
+                    void run(() =>
+                      setBudgetManager({
+                        year: selectedYear,
+                        email: budgetManagerValue,
+                      })
+                    ).then((ok) => ok && setBudgetManagerEmail(null))
+                  }
+                />
+              </>
+            )}
+          </Card>
+        </>
       )}
-
-      <SectionTitle>Budget Manager — {selectedYear}</SectionTitle>
-      <Card>
-        <Muted>
-          Current: {structure?.budgetManagerEmail ?? "not set"} (must be from the
-          Finance department)
-        </Muted>
-        {editable && (
-          <>
-            <Select
-              label="Budget Manager (Finance department members)"
-              value={budgetManagerEmail}
-              options={(people ?? [])
-                .filter((person) => person.department === "Finance")
-                .map((person) => ({
-                  label: person.name ? `${person.name} (${person.email})` : person.email,
-                  value: person.email,
-                }))}
-              onSelect={setBudgetManagerEmail}
-              placeholder="Choose a Finance member…"
-            />
-            <Btn
-              title="Set Budget Manager"
-              onPress={() =>
-                void run(() =>
-                  setBudgetManager({ year: selectedYear, email: budgetManagerEmail })
-                ).then((ok) => ok && setBudgetManagerEmail(""))
-              }
-            />
-          </>
-        )}
-      </Card>
     </Screen>
   );
 }
@@ -536,4 +596,5 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   yearItem: { paddingHorizontal: 16, paddingVertical: 12 },
+  iconButton: { borderRadius: 8, padding: 8 },
 });
