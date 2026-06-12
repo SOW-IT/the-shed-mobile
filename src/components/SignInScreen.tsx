@@ -67,7 +67,6 @@ export const SignInScreen = () => {
           resizeMode="contain"
         />
         <Txt style={styles.title}>THE SHED</Txt>
-        <Muted>Reimbursement requests</Muted>
       </View>
       <Card>
         <Btn
