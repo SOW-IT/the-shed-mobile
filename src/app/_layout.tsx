@@ -23,10 +23,18 @@ const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
 });
 
 // Tokens live in the platform keychain on device; localStorage on web.
+// AFTER_FIRST_UNLOCK keeps items readable after the first device unlock
+// post-restart, so the app stays signed in after backgrounding or reboot.
 const secureStorage = {
-  getItem: SecureStore.getItemAsync,
-  setItem: SecureStore.setItemAsync,
-  removeItem: SecureStore.deleteItemAsync,
+  getItem: (key: string) =>
+    SecureStore.getItemAsync(key, {
+      keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
+    }),
+  setItem: (key: string, value: string) =>
+    SecureStore.setItemAsync(key, value, {
+      keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
+    }),
+  removeItem: (key: string) => SecureStore.deleteItemAsync(key),
 };
 
 const tabIcon =
