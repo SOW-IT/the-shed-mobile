@@ -1,21 +1,24 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
-import { useAppTheme } from "@/theme";
+import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { RequestCard } from "@/components/RequestCard";
 import {
   Btn,
   currencyText,
+  EmptyState,
   ErrorBanner,
   errorMessage,
+  FadeInView,
   Field,
+  LoadingState,
   Muted,
-  Row,
   SectionTitle,
   Sheet,
-  Txt,
+  stagger,
 } from "@/components/ui";
 
 type Step = "hod" | "budgetManager" | "director" | "financeHead";
@@ -44,15 +47,12 @@ const DeclineSheet = ({
   };
 
   return (
-    <Sheet visible={target !== null} onClose={onClose}>
-      <Txt style={styles.sheetTitle}>Decline Request</Txt>
+    <Sheet visible={target !== null} onClose={onClose} title="Decline Request">
       <Muted>The requester will be emailed your reason.</Muted>
       <Field label="Reason (required)" value={reason} onChangeText={setReason} multiline />
       <ErrorBanner message={error} />
-      <Row>
-        <Btn title="Decline" variant="danger" onPress={handleDecline} />
-        <Btn title="Back" variant="ghost" onPress={onClose} />
-      </Row>
+      <Btn title="Decline" variant="danger" onPress={handleDecline} />
+      <Btn title="Back" variant="ghost" onPress={onClose} />
     </Sheet>
   );
 };
@@ -92,23 +92,29 @@ const PaySheet = ({
   };
 
   return (
-    <Sheet visible={request !== null} onClose={onClose}>
-      <Txt style={styles.sheetTitle}>Pay Reimbursement</Txt>
+    <Sheet visible={request !== null} onClose={onClose} title="Pay Reimbursement">
       <Muted>Only pay after you have sent the money to the account.</Muted>
       {request?.receipt?.recipients.map((recipient, i) => (
-        <View key={i} style={{ gap: 2 }}>
+        <View key={i} style={[styles.recipient, { backgroundColor: t.inputBackground }]}>
+          <Text style={[typography.caption, { color: t.text, fontWeight: "600" }]}>
+            {recipient.accountName} · ${recipient.amount}
+          </Text>
           <Muted>
-            {recipient.accountName} • BSB {recipient.bsb} • Acc{" "}
-            {recipient.accountNumber} • ${recipient.amount}
+            BSB {recipient.bsb} · Acc {recipient.accountNumber}
           </Muted>
           {(receipts?.[i]?.attachments ?? []).map((attachment, j) =>
             attachment.url ? (
               <Pressable
                 key={j}
+                style={({ pressed }) => [styles.fileLink, pressed && { opacity: 0.6 }]}
                 onPress={() => void Linking.openURL(attachment.url!)}
               >
-                <Text style={{ color: t.primary, textDecorationLine: "underline" }}>
-                  📎 {attachment.name}
+                <Ionicons name="document-attach-outline" size={15} color={t.primary} />
+                <Text
+                  numberOfLines={1}
+                  style={[typography.caption, { color: t.primary, fontWeight: "600", flex: 1 }]}
+                >
+                  {attachment.name}
                 </Text>
               </Pressable>
             ) : null
@@ -123,10 +129,8 @@ const PaySheet = ({
       />
       <Field label="Comment (optional)" value={comment} onChangeText={setComment} />
       <ErrorBanner message={error} />
-      <Row>
-        <Btn title="PAY" variant="success" onPress={handlePay} />
-        <Btn title="Back" variant="ghost" onPress={onClose} />
-      </Row>
+      <Btn title="Mark as Paid" variant="success" onPress={handlePay} />
+      <Btn title="Back" variant="ghost" onPress={onClose} />
     </Sheet>
   );
 };
@@ -170,45 +174,53 @@ export const ReviewList = () => {
     <>
       <ErrorBanner message={error} />
       {data == null ? (
-        <Muted>Loading…</Muted>
+        <LoadingState />
       ) : !hasAnything ? (
-        <Muted>No requests to review.</Muted>
+        <EmptyState
+          icon="checkmark-done-outline"
+          title="All caught up"
+          message="Nothing is waiting on your review right now."
+        />
       ) : (
         <>
           {SECTIONS.map(({ key, title }) =>
             data[key].length === 0 ? null : (
-              <View key={key}>
+              <View key={key} style={{ gap: spacing.md }}>
                 <SectionTitle>
                   {title} ({data[key].length})
                 </SectionTitle>
-                {data[key].map((request) => (
-                  <RequestCard key={request._id} request={request} showRequester>
-                    <Btn
-                      title="Approve"
-                      variant="success"
-                      onPress={() => void handleApprove(request, key)}
-                    />
-                    <Btn
-                      title="Decline"
-                      variant="danger"
-                      onPress={() => setDeclineTarget({ request, step: key })}
-                    />
-                  </RequestCard>
+                {data[key].map((request, index) => (
+                  <FadeInView key={request._id} delay={stagger(index)}>
+                    <RequestCard request={request} showRequester>
+                      <Btn
+                        title="Approve"
+                        variant="success"
+                        onPress={() => void handleApprove(request, key)}
+                      />
+                      <Btn
+                        title="Decline"
+                        variant="danger"
+                        onPress={() => setDeclineTarget({ request, step: key })}
+                      />
+                    </RequestCard>
+                  </FadeInView>
                 ))}
               </View>
             )
           )}
           {data.readyToPay.length > 0 && (
-            <View>
+            <View style={{ gap: spacing.md }}>
               <SectionTitle>Ready to Pay ({data.readyToPay.length})</SectionTitle>
-              {data.readyToPay.map((request) => (
-                <RequestCard key={request._id} request={request} showRequester>
-                  <Btn
-                    title="Pay"
-                    variant="success"
-                    onPress={() => setPayTarget(request)}
-                  />
-                </RequestCard>
+              {data.readyToPay.map((request, index) => (
+                <FadeInView key={request._id} delay={stagger(index)}>
+                  <RequestCard request={request} showRequester>
+                    <Btn
+                      title="Pay"
+                      variant="success"
+                      onPress={() => setPayTarget(request)}
+                    />
+                  </RequestCard>
+                </FadeInView>
               ))}
             </View>
           )}
@@ -221,5 +233,10 @@ export const ReviewList = () => {
 };
 
 const styles = StyleSheet.create({
-  sheetTitle: { fontSize: 18, fontWeight: "700" },
+  recipient: {
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: 4,
+  },
+  fileLink: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 2 },
 });

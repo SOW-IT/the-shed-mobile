@@ -1,12 +1,24 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
-import { useAppTheme } from "@/theme";
-import { Avatar, Muted, Screen, Txt } from "@/components/ui";
+import { radius, spacing, typography, useAppTheme } from "@/theme";
+import {
+  Avatar,
+  FadeInView,
+  LoadingState,
+  Muted,
+  OptionRow,
+  OptionSheet,
+  Screen,
+  stagger,
+  Txt,
+} from "@/components/ui";
 
-const YearDropdown = ({
+/** Compact pill that opens the year picker as a bottom sheet. */
+const YearPill = ({
   year,
   years,
   onSelect,
@@ -20,33 +32,30 @@ const YearDropdown = ({
   return (
     <>
       <Pressable
-        style={[styles.yearPill, { backgroundColor: t.card, borderColor: t.border }]}
+        style={({ pressed }) => [
+          styles.yearPill,
+          t.shadowCard,
+          { backgroundColor: t.card },
+          pressed && { opacity: 0.7 },
+        ]}
         onPress={() => setOpen(true)}
       >
-        <Txt style={styles.yearPillText}>{year} ▾</Txt>
+        <Txt style={styles.yearPillText}>{year}</Txt>
+        <Ionicons name="chevron-down" size={14} color={t.muted} />
       </Pressable>
-      <Modal visible={open} transparent animationType="fade">
-        <Pressable style={styles.dropdownBackdrop} onPress={() => setOpen(false)}>
-          <View style={[styles.dropdownMenu, { backgroundColor: t.card }]}>
-            <ScrollView>
-              {years.map((y) => (
-                <Pressable
-                  key={y}
-                  style={[styles.dropdownItem, y === year && { backgroundColor: t.ghost }]}
-                  onPress={() => {
-                    onSelect(y);
-                    setOpen(false);
-                  }}
-                >
-                  <Txt style={[styles.dropdownItemText, y === year && { fontWeight: "700" }]}>
-                    {y}
-                  </Txt>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        </Pressable>
-      </Modal>
+      <OptionSheet visible={open} title="Year" onClose={() => setOpen(false)}>
+        {years.map((y) => (
+          <OptionRow
+            key={y}
+            label={String(y)}
+            selected={y === year}
+            onPress={() => {
+              onSelect(y);
+              setOpen(false);
+            }}
+          />
+        ))}
+      </OptionSheet>
     </>
   );
 };
@@ -75,7 +84,7 @@ const Person = ({
       <Txt style={[styles.personName, bold && styles.personNameBold]} numberOfLines={1}>
         {person.name ?? person.email}
       </Txt>
-      <Text style={[styles.personTag, { color: t.muted }]} numberOfLines={1}>
+      <Text style={[typography.caption, styles.personTag, { color: t.faint }]} numberOfLines={1}>
         {tag ?? person.role ?? ""}
       </Text>
     </Pressable>
@@ -92,176 +101,149 @@ export default function OrgChartScreen() {
 
   if (!chart) {
     return (
-      <Screen>
-        <Muted>Loading…</Muted>
+      <Screen title="Organisation">
+        <LoadingState />
       </Screen>
     );
   }
 
   return (
-    <Screen>
-      {/* Page header */}
-      <View style={styles.pageHeader}>
-        <Txt style={styles.pageTitle}>Organisation</Txt>
-        <YearDropdown
+    <Screen
+      title="Organisation"
+      subtitle={`${chart.year} staff year`}
+      headerRight={
+        <YearPill
           year={chart.year}
           years={chart.availableYears}
           onSelect={setSelectedYear}
         />
-      </View>
-
+      }
+    >
       {/* Director */}
       {chart.director ? (
-        <View style={[styles.directorCard, { backgroundColor: t.card, borderColor: t.border }]}>
-          <Person person={chart.director} bold tag="Director" size={46} />
-        </View>
+        <FadeInView delay={40}>
+          <View style={[styles.directorCard, t.shadowCard, { backgroundColor: t.card }]}>
+            <Person person={chart.director} bold tag="Director" size={46} />
+          </View>
+        </FadeInView>
       ) : (
         <Muted>No Director assigned for {chart.year} yet.</Muted>
       )}
 
       {/* Divisions */}
-      {chart.divisions.map((division) => (
-        <View key={division.name} style={styles.divisionBlock}>
-          {/* Division label */}
-          <Txt style={[styles.divisionTitle, { color: t.text }]}>
-            {division.name} Division
-          </Txt>
+      {chart.divisions.map((division, divisionIndex) => (
+        <FadeInView key={division.name} delay={stagger(divisionIndex + 1)}>
+          <View style={styles.divisionBlock}>
+            {/* Division label */}
+            <Text style={[typography.label, { color: t.muted }]}>
+              {division.name} Division
+            </Text>
 
-          {/* Head of Division — contained row */}
-          {division.head ? (
-            <View style={[styles.divisionHeadRow, { backgroundColor: t.card, borderColor: t.border }]}>
-              <Person person={division.head} bold tag="Head of Division" size={34} />
-            </View>
-          ) : null}
-
-          {/* Departments */}
-          {division.departments.length === 0 ? (
-            <Muted>No departments.</Muted>
-          ) : (
-            division.departments.map((dept) => (
-              <View
-                key={dept.name}
-                style={[
-                  styles.deptCard,
-                  { backgroundColor: t.card, borderLeftColor: dept.colour ?? t.primary },
-                ]}
-              >
-                <Txt style={[styles.deptName, { color: t.text }]}>{dept.name}</Txt>
-                {dept.head ? (
-                  <Person person={dept.head} bold tag="Head of Dept" />
-                ) : null}
-                {dept.members.map((member) => (
-                  <Person key={member.email} person={member} />
-                ))}
-                {dept.members.length === 0 && !dept.head ? (
-                  <Muted>No members yet</Muted>
-                ) : null}
+            {/* Head of Division — contained row */}
+            {division.head ? (
+              <View style={[styles.divisionHeadRow, t.shadowCard, { backgroundColor: t.card }]}>
+                <Person person={division.head} bold tag="Head of Division" size={34} />
               </View>
-            ))
-          )}
-        </View>
+            ) : null}
+
+            {/* Departments */}
+            {division.departments.length === 0 ? (
+              <Muted>No departments.</Muted>
+            ) : (
+              division.departments.map((dept) => (
+                <View
+                  key={dept.name}
+                  style={[
+                    styles.deptCard,
+                    t.shadowCard,
+                    { backgroundColor: t.card, borderLeftColor: dept.colour ?? t.primary },
+                  ]}
+                >
+                  <Text style={[typography.label, { color: t.faint }]}>{dept.name}</Text>
+                  {dept.head ? (
+                    <Person person={dept.head} bold tag="Head of Dept" />
+                  ) : null}
+                  {dept.members.map((member) => (
+                    <Person key={member.email} person={member} />
+                  ))}
+                  {dept.members.length === 0 && !dept.head ? (
+                    <Muted>No members yet</Muted>
+                  ) : null}
+                </View>
+              ))
+            )}
+          </View>
+        </FadeInView>
       ))}
 
       {/* Campus */}
       {chart.universities.some((u) => u.members.length > 0) && (
-        <View style={styles.divisionBlock}>
-          <Txt style={[styles.divisionTitle, { color: t.text }]}>Campus</Txt>
-          {chart.universities
-            .filter((u) => u.members.length > 0)
-            .map((u) => (
-              <View
-                key={u.name}
-                style={[styles.deptCard, { backgroundColor: t.card, borderLeftColor: t.primary }]}
-              >
-                <Txt style={[styles.deptName, { color: t.text }]}>{u.name}</Txt>
-                {u.members.map((member) => (
-                  <Person key={member.email} person={member} />
-                ))}
-              </View>
-            ))}
-        </View>
+        <FadeInView delay={stagger(chart.divisions.length + 1)}>
+          <View style={styles.divisionBlock}>
+            <Text style={[typography.label, { color: t.muted }]}>Campus</Text>
+            {chart.universities
+              .filter((u) => u.members.length > 0)
+              .map((u) => (
+                <View
+                  key={u.name}
+                  style={[
+                    styles.deptCard,
+                    t.shadowCard,
+                    { backgroundColor: t.card, borderLeftColor: t.primary },
+                  ]}
+                >
+                  <Text style={[typography.label, { color: t.faint }]}>{u.name}</Text>
+                  {u.members.map((member) => (
+                    <Person key={member.email} person={member} />
+                  ))}
+                </View>
+              ))}
+          </View>
+        </FadeInView>
       )}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  pageHeader: {
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  pageTitle: {
-    fontSize: 22,
-    fontWeight: "800",
-    flexGrow: 1,
-  },
   yearPill: {
-    borderWidth: 1,
-    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: radius.full,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: 9,
   },
   yearPillText: {
     fontWeight: "700",
     fontSize: 15,
   },
-  dropdownBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    justifyContent: "center",
-    padding: 32,
-  },
-  dropdownMenu: {
-    borderRadius: 12,
-    paddingVertical: 4,
-    maxWidth: 360,
-    maxHeight: 320,
-    width: "100%",
-    alignSelf: "center",
-  },
-  dropdownItem: { paddingHorizontal: 16, paddingVertical: 12 },
-  dropdownItemText: { fontSize: 16 },
   directorCard: {
-    borderRadius: 14,
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: 24,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg - 2,
+    marginBottom: spacing.md,
   },
   divisionBlock: {
-    marginBottom: 24,
-    gap: 8,
-  },
-  divisionTitle: {
-    fontSize: 17,
-    fontWeight: "800",
-    letterSpacing: -0.2,
-    marginBottom: 2,
+    marginBottom: spacing.md,
+    gap: spacing.sm + 2,
   },
   divisionHeadRow: {
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.lg - 2,
+    paddingVertical: spacing.md,
   },
   deptCard: {
-    borderRadius: 12,
+    borderRadius: radius.lg,
     borderLeftWidth: 4,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 8,
-  },
-  deptName: {
-    fontSize: 13,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    marginBottom: 2,
+    paddingHorizontal: spacing.lg - 2,
+    paddingVertical: spacing.lg - 2,
+    gap: spacing.sm + 2,
   },
   personRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: spacing.md - 2,
   },
   personName: {
     fontSize: 15,
@@ -272,7 +254,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   personTag: {
-    fontSize: 12,
     textAlign: "right",
+    maxWidth: 110,
   },
 });

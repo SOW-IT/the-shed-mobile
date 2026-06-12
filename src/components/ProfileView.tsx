@@ -1,21 +1,26 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
 import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
-import { Alert, Platform, StyleSheet, View } from "react-native";
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { acronym, staffYearForDate } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
+import { radius, spacing, typography, useAppTheme } from "../theme";
 import {
   Avatar,
   Btn,
   Card,
   ErrorBanner,
   errorMessage,
+  FadeInView,
   Field,
+  LoadingState,
   Muted,
   Row,
   Screen,
   SectionTitle,
+  stagger,
   Txt,
 } from "./ui";
 
@@ -25,6 +30,7 @@ import {
  * departments are managed per-year by admins).
  */
 export const ProfileView = ({ email }: { email?: string }) => {
+  const t = useAppTheme();
   const { signOut } = useAuthActions();
   const profile = useQuery(api.profile.get, email ? { email } : {});
   const updateChurch = useMutation(api.profile.updateChurch);
@@ -38,8 +44,8 @@ export const ProfileView = ({ email }: { email?: string }) => {
 
   if (!profile) {
     return (
-      <Screen>
-        <Muted>Loading…</Muted>
+      <Screen title="Profile">
+        <LoadingState />
       </Screen>
     );
   }
@@ -87,80 +93,104 @@ export const ProfileView = ({ email }: { email?: string }) => {
   };
 
   return (
-    <Screen>
-      <Card>
-        <Row>
-          <Avatar photo={profile.photo} name={profile.name} size={84} />
-          <View style={{ flexGrow: 1, flexShrink: 1 }}>
-            <Txt style={styles.name}>{profile.name ?? profile.email}</Txt>
-            <Muted>{profile.email}</Muted>
-            {current ? (
-              <Muted>
-                {current.roles.map(acronym).join(", ")} •{" "}
+    <Screen title="Profile">
+      <FadeInView delay={40}>
+        <Card style={styles.hero}>
+          <View>
+            <Avatar photo={profile.photo} name={profile.name} size={92} />
+            {profile.isMe && (
+              <Pressable
+                hitSlop={6}
+                disabled={uploading}
+                onPress={() => void pickPhoto()}
+                style={({ pressed }) => [
+                  styles.cameraBadge,
+                  { backgroundColor: t.primary, borderColor: t.card },
+                  (pressed || uploading) && { opacity: 0.7 },
+                ]}
+              >
+                <Ionicons name="camera" size={14} color={t.onPrimary} />
+              </Pressable>
+            )}
+          </View>
+          <Text style={[typography.title, { color: t.text, textAlign: "center" }]}>
+            {profile.name ?? profile.email}
+          </Text>
+          <Text style={[typography.caption, { color: t.muted }]}>{profile.email}</Text>
+          {current ? (
+            <View style={[styles.assignmentPill, { backgroundColor: t.primarySoft }]}>
+              <Text
+                style={[
+                  typography.caption,
+                  { color: t.dark ? t.text : t.primary, fontWeight: "600" },
+                ]}
+              >
+                {current.roles.map(acronym).join(", ")} ·{" "}
                 {[current.department, current.division, current.university]
                   .map((name) => name && acronym(name))
                   .filter(Boolean)
                   .join(" / ") || "—"}{" "}
-                • {current.year}
-              </Muted>
-            ) : (
-              <Muted>No assignment for {currentYear}</Muted>
-            )}
-            {!profile.isMe && profile.localChurch ? (
-              <Muted>Church: {profile.localChurch}</Muted>
-            ) : null}
-          </View>
-        </Row>
-        {profile.isMe && (
-          <>
+                · {current.year}
+              </Text>
+            </View>
+          ) : (
+            <Muted>No assignment for {currentYear}</Muted>
+          )}
+          {!profile.isMe && profile.localChurch ? (
+            <Muted>Church: {profile.localChurch}</Muted>
+          ) : null}
+          <ErrorBanner message={error} />
+        </Card>
+      </FadeInView>
+
+      {profile.isMe && (
+        <FadeInView delay={stagger(2)}>
+          <Card>
             <Field
               label="Local church"
               value={churchDraft ?? profile.localChurch ?? ""}
               onChangeText={setChurchDraft}
               placeholder="e.g. SOW City Church"
             />
-            <Row>
-              <Btn
-                title="Save Church"
-                onPress={() => void saveChurch()}
-                disabled={churchDraft === null}
-              />
-              <Btn
-                title={uploading ? "Uploading…" : "Change Photo"}
-                variant="ghost"
-                onPress={() => void pickPhoto()}
-                disabled={uploading}
-              />
-            </Row>
+            <Btn
+              title="Save Church"
+              onPress={() => void saveChurch()}
+              disabled={churchDraft === null}
+            />
             <Muted>
               Name and email sync from Google; your role and department are set
               by admins per year.
             </Muted>
-          </>
-        )}
-        <ErrorBanner message={error} />
-      </Card>
+          </Card>
+        </FadeInView>
+      )}
 
       <SectionTitle>Service History</SectionTitle>
       {profile.serviceHistory.length === 0 ? (
         <Muted>No service history yet.</Muted>
       ) : (
-        profile.serviceHistory.map((entry) => (
-          <Card key={entry.year}>
-            <Row>
-              <Txt style={{ fontWeight: "700", flexGrow: 1 }}>
-                {entry.year}
-                {entry.year === currentYear ? " (current)" : ""}
-              </Txt>
-            </Row>
-            <Muted>
-              {entry.roles.map(acronym).join(", ")} •{" "}
-              {[entry.department, entry.division, entry.university]
-                .map((name) => name && acronym(name))
-                .filter(Boolean)
-                .join(" / ") || "—"}
-            </Muted>
-          </Card>
+        profile.serviceHistory.map((entry, index) => (
+          <FadeInView key={entry.year} delay={stagger(index + 3)}>
+            <Card style={styles.historyCard}>
+              <View style={[styles.yearBadge, { backgroundColor: t.inputBackground }]}>
+                <Text style={[styles.yearBadgeText, { color: t.text }]}>
+                  {entry.year}
+                </Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Txt style={{ fontWeight: "700" }}>
+                  {entry.roles.map(acronym).join(", ")}
+                  {entry.year === currentYear ? "  ·  current" : ""}
+                </Txt>
+                <Muted>
+                  {[entry.department, entry.division, entry.university]
+                    .map((name) => name && acronym(name))
+                    .filter(Boolean)
+                    .join(" / ") || "—"}
+                </Muted>
+              </View>
+            </Card>
+          </FadeInView>
         ))
       )}
       {profile.isMe && (
@@ -199,5 +229,33 @@ export const ProfileView = ({ email }: { email?: string }) => {
 };
 
 const styles = StyleSheet.create({
-  name: { fontSize: 20, fontWeight: "800" },
+  hero: { alignItems: "center", paddingVertical: spacing.xxl },
+  cameraBadge: {
+    position: "absolute",
+    right: -2,
+    bottom: -2,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  assignmentPill: {
+    borderRadius: radius.full,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    marginTop: 2,
+  },
+  historyCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  yearBadge: {
+    borderRadius: radius.md,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  yearBadgeText: { fontSize: 14, fontWeight: "800", letterSpacing: -0.3 },
 });
