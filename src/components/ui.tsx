@@ -15,7 +15,7 @@ import {
   TextProps,
   View,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppTheme } from "../theme";
 
 export const errorMessage = (e: unknown): string =>
@@ -331,14 +331,10 @@ export const Sheet = ({
   children: ReactNode;
 }) => {
   const t = useAppTheme();
-  const insets = useSafeAreaInsets();
-  // On web the tab bar renders above the Modal in CSS z-order, so push
-  // the sheet card up by the full tab bar height (56 + insets.bottom, matching _layout.tsx).
-  const webTabBarPad = Platform.OS === "web" ? { paddingBottom: 56 + insets.bottom } : undefined;
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
-        style={[styles.sheetBackdrop, webTabBarPad]}
+        style={styles.sheetBackdrop}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
