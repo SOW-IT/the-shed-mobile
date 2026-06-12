@@ -494,14 +494,18 @@ export const Sheet = ({
 
   return (
     <Modal visible animationType="none" transparent onRequestClose={onClose}>
+      {/* Backdrop sits outside KAV so its opacity layer covers the full modal
+          including the tab bar area on web, not just the KAV subtree. */}
+      <Animated.View
+        style={[StyleSheet.absoluteFill, styles.sheetBackdrop, { opacity: fade }]}
+        pointerEvents="none"
+      />
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
       <KeyboardAvoidingView
         style={styles.sheetOuter}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
+        pointerEvents="box-none"
       >
-        {/* Backdrop: fades in/out independently of the card */}
-        <Animated.View style={[StyleSheet.absoluteFill, styles.sheetBackdrop, { opacity: fade }]}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        </Animated.View>
         {/* Card: slides up from below */}
         <Animated.View style={{ transform: [{ translateY: slideY }] }}>
           <SafeAreaView
