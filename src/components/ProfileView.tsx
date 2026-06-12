@@ -2,7 +2,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
 import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Alert, Platform, StyleSheet, View } from "react-native";
 import { acronym, staffYearForDate } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import {
@@ -163,7 +163,20 @@ export const ProfileView = ({ email }: { email?: string }) => {
         ))
       )}
       {profile.isMe && (
-        <Btn title="Sign out" variant="danger" onPress={() => void signOut()} />
+        <Btn
+          title="Sign out"
+          variant="danger"
+          onPress={() => {
+            if (Platform.OS === "web") {
+              if (window.confirm("Sign out of The Shed?")) void signOut();
+            } else {
+              Alert.alert("Sign out", "Sign out of The Shed?", [
+                { text: "Cancel", style: "cancel" },
+                { text: "Sign out", style: "destructive", onPress: () => void signOut() },
+              ]);
+            }
+          }}
+        />
       )}
     </Screen>
   );
