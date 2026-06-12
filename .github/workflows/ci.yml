@@ -24,8 +24,3 @@ jobs:
         run: npx tsc --noEmit
       - name: Backend tests
         run: npm test
-      - name: Deploy Convex
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: npx convex deploy
-        env:
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
