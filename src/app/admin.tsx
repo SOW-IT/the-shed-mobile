@@ -1,6 +1,14 @@
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
-import { Alert, Modal, Platform, Pressable, StyleSheet, View } from "react-native";
+import {
+  Alert,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
 import {
   acronym,
   HEAD_OF_DIVISION,
@@ -173,20 +181,22 @@ export default function AdminScreen() {
       <Modal visible={yearMenuOpen} transparent animationType="fade">
         <Pressable style={styles.yearBackdrop} onPress={() => setYearMenuOpen(false)}>
           <View style={[styles.yearMenu, { backgroundColor: t.card }]}>
-            {(years ?? [currentYear, currentYear + 1]).map((y) => (
-              <Pressable
-                key={y}
-                style={[styles.yearItem, y === selectedYear && { backgroundColor: t.ghost }]}
-                onPress={() => {
-                  setYear(y);
-                  setYearMenuOpen(false);
-                }}
-              >
-                <Txt style={y === selectedYear ? { fontWeight: "700" } : undefined}>
-                  {yearLabel(y)}
-                </Txt>
-              </Pressable>
-            ))}
+            <ScrollView>
+              {(years ?? [currentYear, currentYear + 1]).map((y) => (
+                <Pressable
+                  key={y}
+                  style={[styles.yearItem, y === selectedYear && { backgroundColor: t.ghost }]}
+                  onPress={() => {
+                    setYear(y);
+                    setYearMenuOpen(false);
+                  }}
+                >
+                  <Txt style={y === selectedYear ? { fontWeight: "700" } : undefined}>
+                    {yearLabel(y)}
+                  </Txt>
+                </Pressable>
+              ))}
+            </ScrollView>
           </View>
         </Pressable>
       </Modal>
@@ -519,6 +529,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 4,
     maxWidth: 360,
+    // Many history years are available; keep the menu within small phone
+    // screens and let it scroll instead.
+    maxHeight: 320,
     width: "100%",
     alignSelf: "center",
   },

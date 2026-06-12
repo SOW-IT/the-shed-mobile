@@ -1,7 +1,7 @@
 import { useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { useAppTheme } from "@/theme";
 import { Avatar, Card, Muted, Row, Screen, SectionTitle, Txt } from "@/components/ui";
@@ -32,25 +32,27 @@ const YearDropdown = ({
       <Modal visible={open} transparent animationType="fade">
         <Pressable style={styles.dropdownBackdrop} onPress={() => setOpen(false)}>
           <View style={[styles.dropdownMenu, { backgroundColor: t.card }]}>
-            {years.map((y) => (
-              <Pressable
-                key={y}
-                style={[
-                  styles.dropdownItem,
-                  y === year && { backgroundColor: t.ghost },
-                ]}
-                onPress={() => {
-                  onSelect(y);
-                  setOpen(false);
-                }}
-              >
-                <Txt
-                  style={[styles.dropdownItemText, y === year && { fontWeight: "700" }]}
+            <ScrollView>
+              {years.map((y) => (
+                <Pressable
+                  key={y}
+                  style={[
+                    styles.dropdownItem,
+                    y === year && { backgroundColor: t.ghost },
+                  ]}
+                  onPress={() => {
+                    onSelect(y);
+                    setOpen(false);
+                  }}
                 >
-                  {y}
-                </Txt>
-              </Pressable>
-            ))}
+                  <Txt
+                    style={[styles.dropdownItemText, y === year && { fontWeight: "700" }]}
+                  >
+                    {y}
+                  </Txt>
+                </Pressable>
+              ))}
+            </ScrollView>
           </View>
         </Pressable>
       </Modal>
@@ -213,6 +215,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 4,
     maxWidth: 360,
+    // Many history years are available; keep the menu within small phone
+    // screens and let it scroll instead.
+    maxHeight: 320,
     width: "100%",
     alignSelf: "center",
   },
