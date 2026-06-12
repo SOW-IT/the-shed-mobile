@@ -66,10 +66,6 @@ export default function AdminScreen() {
     api.admin.listUnassignedUsers,
     me?.isAdmin && editable ? { year: selectedYear } : "skip"
   );
-  const directory = useQuery(
-    api.directorySync.list,
-    me?.isAdmin ? { year: selectedYear } : "skip"
-  );
   const people = useQuery(
     api.admin.people,
     me?.isAdmin ? { year: selectedYear } : "skip"
@@ -78,7 +74,6 @@ export default function AdminScreen() {
     label: person.name ? `${person.name} (${person.email})` : person.email,
     value: person.email,
   }));
-  const requestDirectorySync = useMutation(api.directorySync.requestSync);
 
   const setStaffProfile = useMutation(api.admin.setStaffProfile);
   const removeStaffProfile = useMutation(api.admin.removeStaffProfile);
@@ -321,21 +316,6 @@ export default function AdminScreen() {
                 .finally(() => setSavingStaff(false));
             }}
           />
-          <Row>
-            <View style={{ flexGrow: 1 }}>
-              <Muted>
-                Workspace directory:{" "}
-                {directory?.syncedAt
-                  ? `${directory.status} • ${new Date(directory.syncedAt).toLocaleString()}`
-                  : "not synced yet — configure the Google service account (see README)"}
-              </Muted>
-            </View>
-            <Btn
-              title="Sync Directory"
-              variant="ghost"
-              onPress={() => void run(() => requestDirectorySync({}))}
-            />
-          </Row>
         </Card>
       )}
       {(profiles ?? []).map((profile) => (
