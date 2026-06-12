@@ -16,7 +16,7 @@ import {
   TextProps,
   View,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppTheme } from "../theme";
 
 const haptic = (style = Haptics.ImpactFeedbackStyle.Light) => {
@@ -469,7 +469,6 @@ export const Sheet = ({
   scrollable?: boolean;
 }) => {
   const t = useAppTheme();
-  const insets = useSafeAreaInsets();
   const [mounted, setMounted] = useState(false);
   const slideY = useRef(new Animated.Value(600)).current;
   const fade = useRef(new Animated.Value(0)).current;
@@ -496,7 +495,7 @@ export const Sheet = ({
   return (
     <Modal visible animationType="none" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
-        style={[styles.sheetOuter, Platform.OS === "web" && { paddingBottom: 56 + insets.bottom }]}
+        style={styles.sheetOuter}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         {/* Backdrop: fades in/out independently of the card */}
@@ -512,13 +511,23 @@ export const Sheet = ({
             <View style={[styles.sheetHandle, { backgroundColor: t.border }]} />
             {scrollable ? (
               <ScrollView
-                contentContainerStyle={styles.sheetContent}
+                contentContainerStyle={[
+                  styles.sheetContent,
+                  Platform.OS === "web" && { paddingBottom: 24 + 56 },
+                ]}
                 keyboardShouldPersistTaps="handled"
               >
                 {children}
               </ScrollView>
             ) : (
-              <View style={styles.sheetContent}>{children}</View>
+              <View
+                style={[
+                  styles.sheetContent,
+                  Platform.OS === "web" && { paddingBottom: 24 + 56 },
+                ]}
+              >
+                {children}
+              </View>
             )}
           </SafeAreaView>
         </Animated.View>
