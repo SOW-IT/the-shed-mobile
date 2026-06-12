@@ -331,10 +331,13 @@ export const Sheet = ({
   children: ReactNode;
 }) => {
   const t = useAppTheme();
+  // On web the tab bar renders above the Modal in CSS z-order, so push
+  // the sheet card up by the tab bar height (56px) to keep buttons visible.
+  const webTabBarPad = Platform.OS === "web" ? { paddingBottom: 56 } : undefined;
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
-        style={styles.sheetBackdrop}
+        style={[styles.sheetBackdrop, webTabBarPad]}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
