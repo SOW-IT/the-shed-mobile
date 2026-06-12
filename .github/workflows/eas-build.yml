@@ -7,9 +7,7 @@
 name: EAS Build
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+  workflow_dispatch: # disabled until Apple Developer account is configured
 
 concurrency:
   group: eas-build-${{ github.ref }}

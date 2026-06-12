@@ -15,9 +15,11 @@ import {
   getDepartment,
   getProfile,
   getYearSettings,
+  isAdminProfile,
   nextStaffYear,
   optionalEmail,
   requireAdmin,
+  requireEmail,
   resolveImportId,
   rolesOf,
 } from "./model";
@@ -379,6 +381,9 @@ export const updateDivision = mutation({
           await ctx.db.patch("departments", dept._id, { division: newName });
         }
       }
+      // NOTE: capped at 1000 profiles — if the org ever exceeds this in a
+      // single year, profiles beyond the cap will silently retain the old
+      // division name. Use @convex-dev/migrations for a safe unbounded rename.
       const profiles = await ctx.db
         .query("staffProfiles")
         .withIndex("by_year", (q) => q.eq("year", args.year))
@@ -690,6 +695,10 @@ export const updateDepartment = mutation({
       });
 
       // Cascade: update staff profiles and requests that reference the old name.
+      // NOTE: both loops are capped at 1000 — if the org exceeds 1000 profiles
+      // or 1000 requests in a single department/year, records beyond the cap
+      // will silently retain the old department name. Use @convex-dev/migrations
+      // for a safe unbounded rename at that scale.
       const profiles = await ctx.db
         .query("staffProfiles")
         .withIndex("by_year", (q) => q.eq("year", args.year))
@@ -801,8 +810,20 @@ export const removeDepartment = mutation({
 export const setBudgetManager = mutation({
   args: { year: v.number(), email: v.string() },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
     assertManagedYear(args.year);
+    // Allow admins OR the Finance Head (Head of Finance department).
+    const callerEmail = await requireEmail(ctx);
+    const callerProfile = await getProfile(ctx, callerEmail, args.year);
+    if (!callerProfile) throw new ConvexError("No profile found for your account.");
+    const isAdmin = await isAdminProfile(ctx, callerProfile);
+    if (!isAdmin) {
+      const financeDept = await getDepartment(ctx, args.year, FINANCE);
+      if (financeDept?.headEmail !== callerEmail) {
+        throw new ConvexError(
+          "Only admins or the Finance Head can set the Budget Manager."
+        );
+      }
+    }
     const email = args.email.trim().toLowerCase();
     const profile = await getProfile(ctx, email, args.year);
     if (!profile || profile.department !== FINANCE) {
@@ -819,6 +840,33 @@ export const setBudgetManager = mutation({
       year: args.year,
       budgetManagerEmail: email,
     });
+  },
+});
+
+/**
+ * Finance department members for the Budget Manager picker — accessible to
+ * the Finance Head and admins (not exposed to general staff).
+ */
+export const financeMembers = query({
+  args: { year: v.number() },
+  handler: async (ctx, args) => {
+    if ((await optionalEmail(ctx)) === null) return null;
+    const callerEmail = await optionalEmail(ctx);
+    if (!callerEmail) return null;
+    const callerProfile = await getProfile(ctx, callerEmail, args.year);
+    if (!callerProfile) return null;
+    const isAdmin = await isAdminProfile(ctx, callerProfile);
+    if (!isAdmin) {
+      const financeDept = await getDepartment(ctx, args.year, FINANCE);
+      if (financeDept?.headEmail !== callerEmail) return null;
+    }
+    const profiles = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_year_and_department", (q) =>
+        q.eq("year", args.year).eq("department", FINANCE)
+      )
+      .take(100);
+    return profiles.map((p) => ({ email: p.email, name: p.name ?? null }));
   },
 });
 

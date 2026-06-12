@@ -25,6 +25,7 @@ import {
   ErrorBanner,
   errorMessage,
   Field,
+  MultiSelect,
   Muted,
   Row,
   Screen,
@@ -121,31 +122,15 @@ export default function AdminScreen() {
   // Staff add form — for new assignments.
   const [staffEmail, setStaffEmail] = useState("");
   const [staffRoles, setStaffRoles] = useState<string[]>([ROLES[0]]);
-  const [allowMultipleRoles, setAllowMultipleRoles] = useState(false);
   const [staffDepartment, setStaffDepartment] = useState("");
   const [staffDivision, setStaffDivision] = useState("");
   const [staffUniversity, setStaffUniversity] = useState("");
   const [savingStaff, setSavingStaff] = useState(false);
-  const toggleRole = (role: string) =>
-    setStaffRoles((previous) => {
-      if (!allowMultipleRoles) return [role];
-      return previous.includes(role)
-        ? previous.filter((r) => r !== role)
-        : [...previous, role];
-    });
-  const setAllowMultiple = (allow: boolean) => {
-    setAllowMultipleRoles(allow);
-    // Switching back to single-select keeps only the first chosen role.
-    if (!allow) setStaffRoles((previous) => previous.slice(0, 1));
-  };
   // Picking a person pre-fills the add form with their existing assignment.
   const selectPerson = (email: string) => {
     setStaffEmail(email);
     const existing = (profiles ?? []).find((p) => p.email === email);
-    const existingRoles =
-      existing && existing.roles.length > 0 ? existing.roles : [ROLES[0]];
-    setStaffRoles(existingRoles);
-    setAllowMultipleRoles(existingRoles.length > 1);
+    setStaffRoles(existing && existing.roles.length > 0 ? existing.roles : [ROLES[0]]);
     setStaffDepartment(existing?.department ?? "");
     setStaffDivision(existing?.division ?? "");
     setStaffUniversity(existing?.university ?? "");
@@ -165,7 +150,6 @@ export default function AdminScreen() {
   // Inline editing state for user cards
   const [editingUserEmail, setEditingUserEmail] = useState<string | null>(null);
   const [editingUserRoles, setEditingUserRoles] = useState<string[]>([ROLES[0]]);
-  const [editingUserAllowMultiple, setEditingUserAllowMultiple] = useState(false);
   const [editingUserDepartment, setEditingUserDepartment] = useState("");
   const [editingUserDivision, setEditingUserDivision] = useState("");
   const [editingUserUniversity, setEditingUserUniversity] = useState("");
@@ -184,20 +168,14 @@ export default function AdminScreen() {
 
   const startEditUser = (email: string) => {
     const existing = (profiles ?? []).find((p) => p.email === email);
-    const existingRoles =
-      existing && existing.roles.length > 0 ? existing.roles : [ROLES[0]];
-    setEditingUserRoles(existingRoles);
-    setEditingUserAllowMultiple(existingRoles.length > 1);
+    setEditingUserRoles(
+      existing && existing.roles.length > 0 ? existing.roles : [ROLES[0]]
+    );
     setEditingUserDepartment(existing?.department ?? "");
     setEditingUserDivision(existing?.division ?? "");
     setEditingUserUniversity(existing?.university ?? "");
     setEditingUserEmail(email);
   };
-  const toggleEditUserRole = (role: string) =>
-    setEditingUserRoles((prev) => {
-      if (!editingUserAllowMultiple) return [role];
-      return prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role];
-    });
 
   if (me && !me.isAdmin) {
     return (
@@ -311,30 +289,12 @@ export default function AdminScreen() {
                 placeholder="someone@sow.org.au"
                 keyboardType="email-address"
               />
-              <Row>
-                <View style={{ flexGrow: 1 }}>
-                  <Muted>
-                    {allowMultipleRoles
-                      ? "Roles (tap to toggle — this person can hold several)"
-                      : "Role (tap to pick one)"}
-                  </Muted>
-                </View>
-                <Btn
-                  title="Allow multiple"
-                  variant={allowMultipleRoles ? "primary" : "ghost"}
-                  onPress={() => setAllowMultiple(!allowMultipleRoles)}
-                />
-              </Row>
-              <Row>
-                {ROLES.map((role) => (
-                  <Btn
-                    key={role}
-                    title={role}
-                    variant={staffRoles.includes(role) ? "primary" : "ghost"}
-                    onPress={() => toggleRole(role)}
-                  />
-                ))}
-              </Row>
+              <MultiSelect
+                label="Role (select one or more)"
+                values={staffRoles}
+                options={ROLES}
+                onSelect={setStaffRoles}
+              />
               {needsDivision && (
                 <Select
                   label="Division (Heads of Division belong directly to one)"
@@ -400,34 +360,12 @@ export default function AdminScreen() {
                   <>
                     <Txt style={{ fontWeight: "600" }}>{profile.name ?? profile.email}</Txt>
                     {profile.name ? <Muted>{profile.email}</Muted> : null}
-                    <Row>
-                      <View style={{ flexGrow: 1 }}>
-                        <Muted>
-                          {editingUserAllowMultiple
-                            ? "Roles (tap to toggle — this person can hold several)"
-                            : "Role (tap to pick one)"}
-                        </Muted>
-                      </View>
-                      <Btn
-                        title="Allow multiple"
-                        variant={editingUserAllowMultiple ? "primary" : "ghost"}
-                        onPress={() => {
-                          if (editingUserAllowMultiple)
-                            setEditingUserRoles((prev) => prev.slice(0, 1));
-                          setEditingUserAllowMultiple(!editingUserAllowMultiple);
-                        }}
-                      />
-                    </Row>
-                    <Row>
-                      {ROLES.map((role) => (
-                        <Btn
-                          key={role}
-                          title={role}
-                          variant={editingUserRoles.includes(role) ? "primary" : "ghost"}
-                          onPress={() => toggleEditUserRole(role)}
-                        />
-                      ))}
-                    </Row>
+                    <MultiSelect
+                      label="Role (select one or more)"
+                      values={editingUserRoles}
+                      options={ROLES}
+                      onSelect={setEditingUserRoles}
+                    />
                     {needsEditDiv && (
                       <Select
                         label="Division"

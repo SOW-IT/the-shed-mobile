@@ -2,7 +2,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
 import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Alert, Platform, StyleSheet, View } from "react-native";
 import { acronym, staffYearForDate } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import {
@@ -34,6 +34,7 @@ export const ProfileView = ({ email }: { email?: string }) => {
   const [churchDraft, setChurchDraft] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
 
   if (!profile) {
     return (
@@ -130,7 +131,6 @@ export const ProfileView = ({ email }: { email?: string }) => {
                 onPress={() => void pickPhoto()}
                 disabled={uploading}
               />
-              <Btn title="Sign out" variant="ghost" onPress={() => void signOut()} />
             </Row>
             <Muted>
               Name and email sync from Google; your role and department are set
@@ -162,6 +162,37 @@ export const ProfileView = ({ email }: { email?: string }) => {
             </Muted>
           </Card>
         ))
+      )}
+      {profile.isMe && (
+        confirmingSignOut ? (
+          <Row>
+            <Btn
+              title="Confirm sign out"
+              variant="danger"
+              onPress={() => void signOut()}
+            />
+            <Btn
+              title="Cancel"
+              variant="ghost"
+              onPress={() => setConfirmingSignOut(false)}
+            />
+          </Row>
+        ) : (
+          <Btn
+            title="Sign out"
+            variant="danger"
+            onPress={() => {
+              if (Platform.OS === "web") {
+                setConfirmingSignOut(true);
+              } else {
+                Alert.alert("Sign out", "Sign out of The Shed?", [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Sign out", style: "destructive", onPress: () => void signOut() },
+                ]);
+              }
+            }}
+          />
+        )
       )}
     </Screen>
   );

@@ -4,9 +4,8 @@ import { useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { useAppTheme } from "@/theme";
-import { Avatar, Card, Muted, Row, Screen, SectionTitle, Txt } from "@/components/ui";
+import { Avatar, Muted, Screen, Txt } from "@/components/ui";
 
-/** A simple dropdown: a button that opens a modal list of years. */
 const YearDropdown = ({
   year,
   years,
@@ -21,13 +20,10 @@ const YearDropdown = ({
   return (
     <>
       <Pressable
-        style={[
-          styles.dropdownButton,
-          { backgroundColor: t.card, borderColor: t.border },
-        ]}
+        style={[styles.yearPill, { backgroundColor: t.card, borderColor: t.border }]}
         onPress={() => setOpen(true)}
       >
-        <Txt style={styles.dropdownButtonText}>{year} ▾</Txt>
+        <Txt style={styles.yearPillText}>{year} ▾</Txt>
       </Pressable>
       <Modal visible={open} transparent animationType="fade">
         <Pressable style={styles.dropdownBackdrop} onPress={() => setOpen(false)}>
@@ -36,18 +32,13 @@ const YearDropdown = ({
               {years.map((y) => (
                 <Pressable
                   key={y}
-                  style={[
-                    styles.dropdownItem,
-                    y === year && { backgroundColor: t.ghost },
-                  ]}
+                  style={[styles.dropdownItem, y === year && { backgroundColor: t.ghost }]}
                   onPress={() => {
                     onSelect(y);
                     setOpen(false);
                   }}
                 >
-                  <Txt
-                    style={[styles.dropdownItemText, y === year && { fontWeight: "700" }]}
-                  >
+                  <Txt style={[styles.dropdownItemText, y === year && { fontWeight: "700" }]}>
                     {y}
                   </Txt>
                 </Pressable>
@@ -60,15 +51,16 @@ const YearDropdown = ({
   );
 };
 
-/** Tapping a person opens their profile (photo, church, service history). */
 const Person = ({
   person,
   bold,
   tag,
+  size = 36,
 }: {
   person: { email: string; name: string | null; photo: string | null; role: string | null };
   bold?: boolean;
   tag?: string;
+  size?: number;
 }) => {
   const t = useAppTheme();
   const router = useRouter();
@@ -76,17 +68,14 @@ const Person = ({
     <Pressable
       style={({ pressed }) => [styles.personRow, pressed && { opacity: 0.5 }]}
       onPress={() =>
-        router.push({
-          pathname: "/person/[email]",
-          params: { email: person.email },
-        })
+        router.push({ pathname: "/person/[email]", params: { email: person.email } })
       }
     >
-      <Avatar photo={person.photo} name={person.name} size={28} />
-      <Txt style={[styles.personName, bold && { fontWeight: "700" }]}>
+      <Avatar photo={person.photo} name={person.name} size={size} />
+      <Txt style={[styles.personName, bold && styles.personNameBold]} numberOfLines={1}>
         {person.name ?? person.email}
       </Txt>
-      <Text style={[styles.personMeta, { color: t.muted }]}>
+      <Text style={[styles.personTag, { color: t.muted }]} numberOfLines={1}>
         {tag ?? person.role ?? ""}
       </Text>
     </Pressable>
@@ -111,59 +100,60 @@ export default function OrgChartScreen() {
 
   return (
     <Screen>
-      <Row>
-        <View style={{ flexGrow: 1 }}>
-          <SectionTitle>Organisation</SectionTitle>
-        </View>
+      {/* Page header */}
+      <View style={styles.pageHeader}>
+        <Txt style={styles.pageTitle}>Organisation</Txt>
         <YearDropdown
           year={chart.year}
           years={chart.availableYears}
           onSelect={setSelectedYear}
         />
-      </Row>
+      </View>
 
+      {/* Director */}
       {chart.director ? (
-        <View>
-          <Card>
-            <Text style={[styles.directorLabel, { color: t.muted }]}>Director</Text>
-            <Person person={chart.director} bold tag="Director" />
-          </Card>
-          <Text style={[styles.connector, { color: t.muted }]}>│</Text>
+        <View style={[styles.directorCard, { backgroundColor: t.card, borderColor: t.border }]}>
+          <Person person={chart.director} bold tag="Director" size={46} />
         </View>
       ) : (
         <Muted>No Director assigned for {chart.year} yet.</Muted>
       )}
 
+      {/* Divisions */}
       {chart.divisions.map((division) => (
-        <View key={division.name}>
-          <Txt style={styles.divisionTitle}>{division.name} Division</Txt>
+        <View key={division.name} style={styles.divisionBlock}>
+          {/* Division label */}
+          <Txt style={[styles.divisionTitle, { color: t.text }]}>
+            {division.name} Division
+          </Txt>
+
+          {/* Head of Division — contained row */}
           {division.head ? (
-            <Person person={division.head} bold tag="Head of Division" />
+            <View style={[styles.divisionHeadRow, { backgroundColor: t.card, borderColor: t.border }]}>
+              <Person person={division.head} bold tag="Head of Division" size={34} />
+            </View>
           ) : null}
+
+          {/* Departments */}
           {division.departments.length === 0 ? (
             <Muted>No departments.</Muted>
           ) : (
-            division.departments.map((department) => (
+            division.departments.map((dept) => (
               <View
-                key={department.name}
+                key={dept.name}
                 style={[
-                  styles.departmentCard,
-                  {
-                    backgroundColor: t.card,
-                    borderLeftColor: department.colour ?? t.primary,
-                  },
+                  styles.deptCard,
+                  { backgroundColor: t.card, borderLeftColor: dept.colour ?? t.primary },
                 ]}
               >
-                <Txt style={styles.departmentName}>{department.name}</Txt>
-                {department.head ? (
-                  <Person person={department.head} bold tag="Head of Department" />
-                ) : (
-                  <Muted>No head assigned</Muted>
-                )}
-                {department.members.map((member) => (
+                <Txt style={[styles.deptName, { color: t.text }]}>{dept.name}</Txt>
+                {dept.head ? (
+                  <Person person={dept.head} bold tag="Head of Dept" />
+                ) : null}
+                {dept.members.map((member) => (
                   <Person key={member.email} person={member} />
                 ))}
-                {department.members.length === 0 && !department.head ? (
+                {dept.members.length === 0 && !dept.head ? (
                   <Muted>No members yet</Muted>
                 ) : null}
               </View>
@@ -172,21 +162,19 @@ export default function OrgChartScreen() {
         </View>
       ))}
 
-      {chart.universities.some((university) => university.members.length > 0) && (
-        <View>
-          <Txt style={styles.divisionTitle}>Campus</Txt>
+      {/* Campus */}
+      {chart.universities.some((u) => u.members.length > 0) && (
+        <View style={styles.divisionBlock}>
+          <Txt style={[styles.divisionTitle, { color: t.text }]}>Campus</Txt>
           {chart.universities
-            .filter((university) => university.members.length > 0)
-            .map((university) => (
+            .filter((u) => u.members.length > 0)
+            .map((u) => (
               <View
-                key={university.name}
-                style={[
-                  styles.departmentCard,
-                  { backgroundColor: t.card, borderLeftColor: t.primary },
-                ]}
+                key={u.name}
+                style={[styles.deptCard, { backgroundColor: t.card, borderLeftColor: t.primary }]}
               >
-                <Txt style={styles.departmentName}>{university.name}</Txt>
-                {university.members.map((member) => (
+                <Txt style={[styles.deptName, { color: t.text }]}>{u.name}</Txt>
+                {u.members.map((member) => (
                   <Person key={member.email} person={member} />
                 ))}
               </View>
@@ -198,13 +186,25 @@ export default function OrgChartScreen() {
 }
 
 const styles = StyleSheet.create({
-  dropdownButton: {
+  pageHeader: {
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  pageTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    flexGrow: 1,
+  },
+  yearPill: {
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
-  dropdownButtonText: { fontWeight: "700" },
+  yearPillText: {
+    fontWeight: "700",
+    fontSize: 15,
+  },
   dropdownBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.3)",
@@ -215,31 +215,64 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 4,
     maxWidth: 360,
-    // Many history years are available; keep the menu within small phone
-    // screens and let it scroll instead.
     maxHeight: 320,
     width: "100%",
     alignSelf: "center",
   },
   dropdownItem: { paddingHorizontal: 16, paddingVertical: 12 },
   dropdownItemText: { fontSize: 16 },
-  directorLabel: {
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 1,
+  directorCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 24,
   },
-  connector: { textAlign: "center", fontSize: 18 },
-  divisionTitle: { fontSize: 16, fontWeight: "800", marginTop: 12, marginBottom: 6 },
-  departmentCard: {
+  divisionBlock: {
+    marginBottom: 24,
+    gap: 8,
+  },
+  divisionTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    letterSpacing: -0.2,
+    marginBottom: 2,
+  },
+  divisionHeadRow: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  deptCard: {
     borderRadius: 12,
     borderLeftWidth: 4,
-    padding: 14,
-    marginBottom: 8,
-    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 8,
   },
-  departmentName: { fontSize: 15, fontWeight: "700" },
-  personRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
-  personName: { fontSize: 14, flexGrow: 1 },
-  personMeta: { fontSize: 12 },
+  deptName: {
+    fontSize: 13,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginBottom: 2,
+  },
+  personRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  personName: {
+    fontSize: 15,
+    flexGrow: 1,
+    flexShrink: 1,
+  },
+  personNameBold: {
+    fontWeight: "700",
+  },
+  personTag: {
+    fontSize: 12,
+    textAlign: "right",
+  },
 });

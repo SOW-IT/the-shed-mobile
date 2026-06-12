@@ -23,16 +23,24 @@ const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
 });
 
 // Tokens live in the platform keychain on device; localStorage on web.
+// AFTER_FIRST_UNLOCK keeps items readable after the first device unlock
+// post-restart, so the app stays signed in after backgrounding or reboot.
 const secureStorage = {
-  getItem: SecureStore.getItemAsync,
-  setItem: SecureStore.setItemAsync,
-  removeItem: SecureStore.deleteItemAsync,
+  getItem: (key: string) =>
+    SecureStore.getItemAsync(key, {
+      keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
+    }),
+  setItem: (key: string, value: string) =>
+    SecureStore.setItemAsync(key, value, {
+      keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
+    }),
+  removeItem: (key: string) => SecureStore.deleteItemAsync(key),
 };
 
 const tabIcon =
   (outline: keyof typeof Ionicons.glyphMap, filled: keyof typeof Ionicons.glyphMap) =>
-  ({ color, focused }: { color: ColorValue; focused: boolean }) => (
-    <Ionicons name={focused ? filled : outline} size={24} color={color} />
+  ({ color }: { color: ColorValue; focused: boolean }) => (
+    <Ionicons name={filled} size={24} color={color} />
   );
 
 const AppTabs = () => {
@@ -56,19 +64,16 @@ const AppTabs = () => {
   return (
     <Tabs
       screenOptions={{
+        headerShown: false,
+        tabBarShowLabel: false,
         tabBarActiveTintColor: t.primary,
         tabBarInactiveTintColor: t.muted,
-        // An explicit lineHeight stops the label flex-shrinking to a sliver
-        // (clipped text) when the item runs out of room below the 24px icon.
-        tabBarLabelStyle: { fontSize: 11, fontWeight: "600", lineHeight: 14 },
-        // Tall enough that labels never clip; the default bar height leaves
-        // no room for them below 24px icons on web/Android.
         tabBarStyle: {
           backgroundColor: t.card,
           borderTopColor: t.border,
-          height: 64 + insets.bottom,
+          height: 56 + insets.bottom,
           paddingBottom: Math.max(insets.bottom, 6),
-          paddingTop: 4,
+          paddingTop: 6,
         },
       }}
     >
@@ -122,6 +127,7 @@ export default function RootLayout() {
       <ConvexAuthProvider
         client={convex}
         storage={Platform.OS === "web" ? undefined : secureStorage}
+        shouldHandleCode={Platform.OS !== "web"}
       >
         <AuthLoading>
           <View

@@ -1,4 +1,5 @@
 import { ConvexError } from "convex/values";
+import * as Haptics from "expo-haptics";
 import { ReactNode, Ref, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -17,6 +18,15 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppTheme } from "../theme";
+
+const haptic = (style = Haptics.ImpactFeedbackStyle.Light) => {
+  if (Platform.OS === "web") return;
+  void Haptics.impactAsync(style);
+};
+const hapticSelect = () => {
+  if (Platform.OS === "web") return;
+  void Haptics.selectionAsync();
+};
 
 export const errorMessage = (e: unknown): string =>
   e instanceof ConvexError
@@ -44,18 +54,25 @@ export const Screen = ({
   children,
   toast,
   scrollRef,
+  footer,
 }: {
   children?: ReactNode;
   toast?: ToastState;
   /** Exposes the screen's ScrollView, e.g. to scroll back to the top. */
   scrollRef?: Ref<ScrollView>;
+  /** Pinned full-width area between the scroll content and the tab bar. */
+  footer?: ReactNode;
 }) => {
   const t = useAppTheme();
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: t.background }]} edges={["top"]}>
-      <ScrollView ref={scrollRef} contentContainerStyle={styles.scroll}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={[styles.scroll, footer != null && { paddingBottom: 70 }]}
+      >
         {children}
       </ScrollView>
+      {footer}
       <Toast toast={toast ?? null} />
     </SafeAreaView>
   );
@@ -100,6 +117,32 @@ export const Toast = ({ toast }: { toast: ToastState }) => {
   );
 };
 
+/** Full-width rectangle button pinned above the tab bar. */
+export const FooterAction = ({
+  title,
+  onPress,
+  disabled,
+}: {
+  title: string;
+  onPress: () => void;
+  disabled?: boolean;
+}) => {
+  const t = useAppTheme();
+  return (
+    <Pressable
+      onPress={() => { haptic(); onPress(); }}
+      disabled={disabled}
+      style={({ pressed }) => [
+        styles.footerAction,
+        { backgroundColor: t.primary },
+        (pressed || disabled) && { opacity: 0.7 },
+      ]}
+    >
+      <Text style={[styles.footerActionText, { color: t.onPrimary }]}>{title}</Text>
+    </Pressable>
+  );
+};
+
 export const Card = ({ children }: { children: ReactNode }) => {
   const t = useAppTheme();
   return <View style={[styles.card, { backgroundColor: t.card }]}>{children}</View>;
@@ -128,6 +171,7 @@ export const Btn = ({
   loading?: boolean;
 }) => {
   const t = useAppTheme();
+  const scale = useRef(new Animated.Value(1)).current;
   const background = {
     primary: t.primary,
     success: t.success,
@@ -141,21 +185,46 @@ export const Btn = ({
         ? t.onPrimary
         : "#ffffff";
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled || loading}
-      style={({ pressed }) => [
-        styles.btn,
-        { backgroundColor: background },
-        (pressed || disabled || loading) && { opacity: 0.6 },
-      ]}
-    >
-      {loading ? (
-        <ActivityIndicator size="small" color={textColor} />
-      ) : (
-        <Text style={[styles.btnText, { color: textColor }]}>{title}</Text>
-      )}
-    </Pressable>
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Pressable
+        onPress={() => {
+          haptic(
+            variant === "danger"
+              ? Haptics.ImpactFeedbackStyle.Medium
+              : Haptics.ImpactFeedbackStyle.Light
+          );
+          onPress();
+        }}
+        onPressIn={() =>
+          Animated.spring(scale, {
+            toValue: 0.95,
+            useNativeDriver: true,
+            speed: 50,
+            bounciness: 0,
+          }).start()
+        }
+        onPressOut={() =>
+          Animated.spring(scale, {
+            toValue: 1,
+            useNativeDriver: true,
+            speed: 20,
+            bounciness: 6,
+          }).start()
+        }
+        disabled={disabled || loading}
+        style={[
+          styles.btn,
+          { backgroundColor: background },
+          (disabled || loading) && { opacity: 0.5 },
+        ]}
+      >
+        {loading ? (
+          <ActivityIndicator size="small" color={textColor} />
+        ) : (
+          <Text style={[styles.btnText, { color: textColor }]}>{title}</Text>
+        )}
+      </Pressable>
+    </Animated.View>
   );
 };
 
@@ -181,11 +250,8 @@ export const Field = ({
       <TextInput
         style={[
           styles.input,
-          {
-            borderColor: t.border,
-            backgroundColor: t.inputBackground,
-            color: t.text,
-          },
+          { backgroundColor: t.inputBackground, color: t.text },
+          Platform.OS !== "ios" && { borderWidth: 1, borderColor: t.border },
           multiline && styles.inputMultiline,
         ]}
         value={value}
@@ -229,9 +295,10 @@ export const Select = ({
       <Pressable
         style={[
           styles.input,
-          { borderColor: t.border, backgroundColor: t.inputBackground },
+          { backgroundColor: t.inputBackground },
+          Platform.OS !== "ios" && { borderWidth: 1, borderColor: t.border },
         ]}
-        onPress={() => setOpen(true)}
+        onPress={() => { hapticSelect(); setOpen(true); }}
       >
         <Text style={{ color: value ? t.text : t.muted }}>
           {selectedLabel || placeholder || "Select…"} ▾
@@ -249,6 +316,7 @@ export const Select = ({
                     option.value === value && { backgroundColor: t.ghost },
                   ]}
                   onPress={() => {
+                    hapticSelect();
                     onSelect(option.value);
                     setOpen(false);
                   }}
@@ -263,6 +331,74 @@ export const Select = ({
                   </Text>
                 </Pressable>
               ))}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
+    </View>
+  );
+};
+
+/** A labelled dropdown that allows selecting multiple values. */
+export const MultiSelect = ({
+  label,
+  values,
+  options,
+  onSelect,
+  placeholder,
+}: {
+  label: string;
+  values: string[];
+  options: readonly SelectOption[];
+  onSelect: (values: string[]) => void;
+  placeholder?: string;
+}) => {
+  const t = useAppTheme();
+  const [open, setOpen] = useState(false);
+  const normalized = options.map((o) =>
+    typeof o === "string" ? { label: o, value: o } : o
+  );
+  const selectedLabels = values
+    .map((v) => normalized.find((o) => o.value === v)?.label ?? v)
+    .join(", ");
+  const toggle = (value: string) => {
+    onSelect(
+      values.includes(value) ? values.filter((v) => v !== value) : [...values, value]
+    );
+  };
+  return (
+    <View style={styles.field}>
+      <Text style={[styles.fieldLabel, { color: t.muted }]}>{label}</Text>
+      <Pressable
+        style={[
+          styles.input,
+          { backgroundColor: t.inputBackground },
+          Platform.OS !== "ios" && { borderWidth: 1, borderColor: t.border },
+        ]}
+        onPress={() => { hapticSelect(); setOpen(true); }}
+      >
+        <Text style={{ color: values.length > 0 ? t.text : t.muted }}>
+          {selectedLabels || placeholder || "Select…"} ▾
+        </Text>
+      </Pressable>
+      <Modal visible={open} transparent animationType="fade">
+        <Pressable style={styles.selectBackdrop} onPress={() => setOpen(false)}>
+          <View style={[styles.selectMenu, { backgroundColor: t.card }]}>
+            <ScrollView style={{ maxHeight: 360 }}>
+              {normalized.map((option) => {
+                const selected = values.includes(option.value);
+                return (
+                  <Pressable
+                    key={option.value || "(empty)"}
+                    style={[styles.selectItem, selected && { backgroundColor: t.ghost }]}
+                    onPress={() => { hapticSelect(); toggle(option.value); }}
+                  >
+                    <Text style={{ color: t.text, fontWeight: selected ? "700" : "400" }}>
+                      {selected ? "✓  " : "    "}{option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </ScrollView>
           </View>
         </Pressable>
@@ -293,7 +429,7 @@ export const Segmented = ({
           <Pressable
             key={segment.key}
             style={[styles.segment, selected && { backgroundColor: t.card }]}
-            onPress={() => onChange(segment.key)}
+            onPress={() => { hapticSelect(); onChange(segment.key); }}
           >
             <Text
               numberOfLines={1}
@@ -318,38 +454,77 @@ export const Segmented = ({
 };
 
 /**
- * A modal form sheet: slides up from the bottom on phones, stays clear of
- * the keyboard, and scrolls when the content is taller than the screen.
+ * A modal form sheet: the backdrop fades in while only the card slides up,
+ * matching native iOS bottom sheet behaviour (no full-screen curtain effect).
  */
 export const Sheet = ({
   visible,
   onClose,
   children,
+  scrollable = true,
 }: {
   visible: boolean;
   onClose: () => void;
   children: ReactNode;
+  scrollable?: boolean;
 }) => {
   const t = useAppTheme();
+  const [mounted, setMounted] = useState(false);
+  const slideY = useRef(new Animated.Value(600)).current;
+  const fade = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+      slideY.setValue(600);
+      fade.setValue(0);
+      Animated.parallel([
+        Animated.timing(fade, { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.spring(slideY, { toValue: 0, useNativeDriver: true, damping: 26, stiffness: 300 }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(fade, { toValue: 0, duration: 180, useNativeDriver: true }),
+        Animated.timing(slideY, { toValue: 600, duration: 200, useNativeDriver: true }),
+      ]).start(() => setMounted(false));
+    }
+  }, [visible, slideY, fade]);
+
+  if (!mounted) return null;
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible animationType="none" transparent onRequestClose={onClose}>
+      {/* Backdrop sits outside KAV so its opacity layer covers the full modal
+          including the tab bar area on web, not just the KAV subtree. */}
+      <Animated.View
+        style={[StyleSheet.absoluteFill, styles.sheetBackdrop, { opacity: fade }]}
+        pointerEvents="none"
+      />
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
       <KeyboardAvoidingView
-        style={styles.sheetBackdrop}
+        style={styles.sheetOuter}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
+        pointerEvents="box-none"
       >
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <SafeAreaView
-          edges={["bottom"]}
-          style={[styles.sheet, { backgroundColor: t.card }]}
-        >
-          <View style={[styles.sheetHandle, { backgroundColor: t.border }]} />
-          <ScrollView
-            contentContainerStyle={styles.sheetContent}
-            keyboardShouldPersistTaps="handled"
+        {/* Card: slides up from below */}
+        <Animated.View style={{ transform: [{ translateY: slideY }] }}>
+          <SafeAreaView
+            edges={["bottom"]}
+            style={[styles.sheet, { backgroundColor: t.card }]}
           >
-            {children}
-          </ScrollView>
-        </SafeAreaView>
+            <View style={[styles.sheetHandle, { backgroundColor: t.border }]} />
+            {scrollable ? (
+              <ScrollView
+                contentContainerStyle={styles.sheetContent}
+                keyboardShouldPersistTaps="handled"
+              >
+                {children}
+              </ScrollView>
+            ) : (
+              <View style={styles.sheetContent}>{children}</View>
+            )}
+          </SafeAreaView>
+        </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -418,10 +593,10 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 8,
     shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   sectionTitle: { fontSize: 18, fontWeight: "700", marginTop: 8 },
   row: { flexDirection: "row", gap: 8, flexWrap: "wrap", alignItems: "center" },
@@ -436,7 +611,6 @@ const styles = StyleSheet.create({
   field: { gap: 4 },
   fieldLabel: { fontSize: 13, fontWeight: "600" },
   input: {
-    borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 8,
@@ -467,6 +641,11 @@ const styles = StyleSheet.create({
     maxWidth: 360,
     width: "100%",
     alignSelf: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
   },
   selectItem: { paddingHorizontal: 16, paddingVertical: 12 },
   segmented: {
@@ -495,9 +674,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   segmentBadgeText: { color: "#ffffff", fontSize: 11, fontWeight: "800" },
-  sheetBackdrop: {
+  sheetOuter: {
     flex: 1,
     justifyContent: "flex-end",
+  },
+  sheetBackdrop: {
     backgroundColor: "rgba(0,0,0,0.4)",
   },
   sheet: {
@@ -530,4 +711,10 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   toastText: { fontWeight: "700", fontSize: 13 },
+  footerAction: {
+    height: 54,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  footerActionText: { fontSize: 16, fontWeight: "700", letterSpacing: 0.3 },
 });

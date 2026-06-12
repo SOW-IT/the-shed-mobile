@@ -12,13 +12,11 @@ import {
   rolesOf,
 } from "./model";
 
-/**
- * Public health/info query — used by the sign-in screen to prove the app is
- * talking to Convex end-to-end before authentication.
- */
+/** Authenticated-only info query used by admin sync and other tooling. */
 export const serverInfo = query({
   args: {},
   handler: async (ctx) => {
+    if ((await optionalEmail(ctx)) === null) return null;
     const year = currentStaffYear();
     const departments = await ctx.db
       .query("departments")
@@ -31,7 +29,6 @@ export const serverInfo = query({
     return {
       staffYear: year,
       nextStaffYear: nextStaffYear(),
-      // Shown on the sign-in screen so it always matches the server's lock.
       allowedDomain: process.env.AUTH_ALLOWED_DOMAIN ?? "sow.org.au",
       divisions: divisions.map((d) => d.name),
       departments: departments.map((d) => ({ name: d.name, division: d.division })),

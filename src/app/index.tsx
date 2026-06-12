@@ -1,5 +1,5 @@
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { StyleSheet } from "react-native";
@@ -7,7 +7,21 @@ import { api } from "../../convex/_generated/api";
 import { AllRequestsList } from "@/components/AllRequestsList";
 import { MyRequests } from "@/components/MyRequests";
 import { ReviewList } from "@/components/ReviewList";
-import { Btn, Card, Muted, Row, Screen, Segmented, Txt } from "@/components/ui";
+import { type RequestPrefill } from "@/components/MyRequests";
+import {
+  Btn,
+  Card,
+  ErrorBanner,
+  errorMessage,
+  FooterAction,
+  Muted,
+  Row,
+  Screen,
+  SectionTitle,
+  Segmented,
+  Select,
+  Txt,
+} from "@/components/ui";
 
 /**
  * The Requests tab: your own requests, the ones waiting on you (approvers),
@@ -26,6 +40,15 @@ export default function RequestsScreen() {
     api.requests.toReview,
     me?.profile && me.isApprover ? {} : "skip"
   );
+  const financeMembers = useQuery(
+    api.admin.financeMembers,
+    me?.isFinanceHead ? { year: me.year } : "skip"
+  );
+  const setBudgetManager = useMutation(api.admin.setBudgetManager);
+  const [newBudgetManagerEmail, setNewBudgetManagerEmail] = useState<string | null>(null);
+  const [savingBudgetManager, setSavingBudgetManager] = useState(false);
+  const [budgetManagerError, setBudgetManagerError] = useState<string | null>(null);
+  const budgetManagerValue = newBudgetManagerEmail ?? structure?.budgetManagerEmail ?? "";
   const reviewCount = review
     ? review.hod.length +
       review.budgetManager.length +
@@ -59,10 +82,18 @@ export default function RequestsScreen() {
     )?.name ??
     "";
 
+  const [newRequestOpen, setNewRequestOpen] = useState(false);
+  const [requestPrefill, setRequestPrefill] = useState<RequestPrefill | null>(null);
+  const openNewRequest = () => { setRequestPrefill(null); setNewRequestOpen(true); };
+
+  const showMakeRequest = me?.profile != null && activeSegment === "mine";
+
   if (me === undefined) return <Screen />;
 
   return (
-    <Screen>
+    <Screen
+      footer={showMakeRequest ? <FooterAction title="+ Make Request" onPress={openNewRequest} /> : undefined}
+    >
       {me === null || me.profile === null ? (
         <Card>
           <Txt style={styles.title}>Welcome{me?.name ? `, ${me.name}` : ""}</Txt>
@@ -80,11 +111,50 @@ export default function RequestsScreen() {
           {activeSegment === "review" ? (
             <ReviewList />
           ) : activeSegment === "all" ? (
-            <AllRequestsList />
+            <>
+              {me?.isFinanceHead && (
+                <>
+                  <SectionTitle>Budget Manager — {me.year}</SectionTitle>
+                  <Card>
+                    <Muted>Current: {structure?.budgetManagerEmail ?? "not set"}</Muted>
+                    <Select
+                      label="Budget Manager (Finance department members)"
+                      value={budgetManagerValue}
+                      options={(financeMembers ?? []).map((p) => ({
+                        label: p.name ? `${p.name} (${p.email})` : p.email,
+                        value: p.email,
+                      }))}
+                      onSelect={setNewBudgetManagerEmail}
+                      placeholder="Choose a Finance member…"
+                    />
+                    <ErrorBanner message={budgetManagerError} />
+                    <Btn
+                      title="Set Budget Manager"
+                      loading={savingBudgetManager}
+                      disabled={!budgetManagerValue}
+                      onPress={() => {
+                        setSavingBudgetManager(true);
+                        setBudgetManagerError(null);
+                        void setBudgetManager({ year: me.year, email: budgetManagerValue })
+                          .then(() => setNewBudgetManagerEmail(null))
+                          .catch((e) => setBudgetManagerError(errorMessage(e)))
+                          .finally(() => setSavingBudgetManager(false));
+                      }}
+                    />
+                  </Card>
+                  <SectionTitle>All Requests — {me.year}</SectionTitle>
+                </>
+              )}
+              <AllRequestsList />
+            </>
           ) : (
             <MyRequests
               departments={departmentNames}
               defaultDepartment={defaultDepartment}
+              newOpen={newRequestOpen}
+              prefill={requestPrefill}
+              onResubmit={(p) => { setRequestPrefill(p); setNewRequestOpen(true); }}
+              onNewClose={() => setNewRequestOpen(false)}
             />
           )}
         </>
