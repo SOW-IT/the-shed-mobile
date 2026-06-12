@@ -130,7 +130,6 @@ export const ProfileView = ({ email }: { email?: string }) => {
                 onPress={() => void pickPhoto()}
                 disabled={uploading}
               />
-              <Btn title="Sign out" variant="ghost" onPress={() => void signOut()} />
             </Row>
             <Muted>
               Name and email sync from Google; your role and department are set
@@ -162,6 +161,9 @@ export const ProfileView = ({ email }: { email?: string }) => {
             </Muted>
           </Card>
         ))
+      )}
+      {profile.isMe && (
+        <Btn title="Sign out" variant="danger" onPress={() => void signOut()} />
       )}
     </Screen>
   );
