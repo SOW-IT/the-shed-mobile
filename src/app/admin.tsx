@@ -202,7 +202,6 @@ export default function AdminScreen() {
       toast={toast}
       scrollRef={scrollRef}
       title="Manage"
-      subtitle={yearLabel(selectedYear)}
       headerRight={
         <Pressable
           style={({ pressed }) => [
@@ -275,7 +274,7 @@ export default function AdminScreen() {
             </>
           )}
 
-          <SectionTitle>Staff — {selectedYear}</SectionTitle>
+          <SectionTitle>Users</SectionTitle>
           {editable && (
             <Card>
               {personOptions.length > 0 && (

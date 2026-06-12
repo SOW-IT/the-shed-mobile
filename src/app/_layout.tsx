@@ -18,9 +18,11 @@ import { SignInScreen } from "@/components/SignInScreen";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { useAppTheme } from "@/theme";
 
-const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
-  unsavedChangesWarning: false,
-});
+const convex = process.env.EXPO_PUBLIC_CONVEX_URL
+  ? new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL, {
+      unsavedChangesWarning: false,
+    })
+  : null;
 
 // Tokens live in the platform keychain on device; localStorage on web.
 // AFTER_FIRST_UNLOCK keeps items readable after the first device unlock
@@ -131,6 +133,14 @@ const AppTabs = () => {
 
 export default function RootLayout() {
   const t = useAppTheme();
+  if (!convex) {
+    return (
+      <ThemeProvider value={t.dark ? DarkTheme : DefaultTheme}>
+        <StatusBar style="auto" />
+        <View style={{ flex: 1, backgroundColor: t.background }} />
+      </ThemeProvider>
+    );
+  }
   return (
     <ThemeProvider value={t.dark ? DarkTheme : DefaultTheme}>
       <StatusBar style="auto" />
