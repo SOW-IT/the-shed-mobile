@@ -34,6 +34,7 @@ export const ProfileView = ({ email }: { email?: string }) => {
   const [churchDraft, setChurchDraft] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
 
   if (!profile) {
     return (
@@ -163,20 +164,35 @@ export const ProfileView = ({ email }: { email?: string }) => {
         ))
       )}
       {profile.isMe && (
-        <Btn
-          title="Sign out"
-          variant="danger"
-          onPress={() => {
-            if (Platform.OS === "web") {
-              if (window.confirm("Sign out of The Shed?")) void signOut();
-            } else {
-              Alert.alert("Sign out", "Sign out of The Shed?", [
-                { text: "Cancel", style: "cancel" },
-                { text: "Sign out", style: "destructive", onPress: () => void signOut() },
-              ]);
-            }
-          }}
-        />
+        confirmingSignOut ? (
+          <Row>
+            <Btn
+              title="Confirm sign out"
+              variant="danger"
+              onPress={() => void signOut()}
+            />
+            <Btn
+              title="Cancel"
+              variant="ghost"
+              onPress={() => setConfirmingSignOut(false)}
+            />
+          </Row>
+        ) : (
+          <Btn
+            title="Sign out"
+            variant="danger"
+            onPress={() => {
+              if (Platform.OS === "web") {
+                setConfirmingSignOut(true);
+              } else {
+                Alert.alert("Sign out", "Sign out of The Shed?", [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Sign out", style: "destructive", onPress: () => void signOut() },
+                ]);
+              }
+            }}
+          />
+        )
       )}
     </Screen>
   );
