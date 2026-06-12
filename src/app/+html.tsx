@@ -1,0 +1,29 @@
+import { ScrollViewStyleReset } from "expo-router/html";
+
+// Customise the static HTML shell that wraps the Expo web app.
+// https://docs.expo.dev/router/reference/static-rendering/#root-html
+export default function Root({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <head>
+        <meta charSet="utf-8" />
+        <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, shrink-to-fit=no"
+        />
+        <ScrollViewStyleReset />
+        <style
+          // React Native Web Modal renders with `position:fixed` but no
+          // z-index, so the tab bar (which appears later in the stacking
+          // context) can paint on top of it. Give every modal dialog a
+          // high z-index so sheets and pickers always cover the tab bar.
+          dangerouslySetInnerHTML={{
+            __html: `div[aria-modal="true"] { z-index: 9999 !important; }`,
+          }}
+        />
+      </head>
+      <body>{children}</body>
+    </html>
+  );
+}

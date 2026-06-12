@@ -16,7 +16,7 @@ import {
   TextProps,
   View,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppTheme } from "../theme";
 
 const haptic = (style = Haptics.ImpactFeedbackStyle.Light) => {
@@ -467,7 +467,6 @@ export const Sheet = ({
   children: ReactNode;
 }) => {
   const t = useAppTheme();
-  const insets = useSafeAreaInsets();
   const [mounted, setMounted] = useState(false);
   const slideY = useRef(new Animated.Value(600)).current;
   const fade = useRef(new Animated.Value(0)).current;
@@ -493,13 +492,12 @@ export const Sheet = ({
 
   // On web the tab bar renders above the Modal in CSS z-order, so we push
   // the sheet card up by the tab bar height (56px) to keep buttons visible.
-  // Tab bar height matches _layout.tsx: 56 + insets.bottom.
-  const sheetBottomOffset = Platform.OS === "web" ? 56 + insets.bottom : 0;
+
 
   return (
     <Modal visible animationType="none" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
-        style={[styles.sheetOuter, sheetBottomOffset > 0 && { paddingBottom: sheetBottomOffset }]}
+        style={styles.sheetOuter}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         {/* Backdrop: fades in/out independently of the card */}
