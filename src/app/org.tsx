@@ -110,7 +110,6 @@ export default function OrgChartScreen() {
   return (
     <Screen
       title="Organisation"
-      subtitle={`${chart.year} staff year`}
       headerRight={
         <YearPill
           year={chart.year}
