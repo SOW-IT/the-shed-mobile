@@ -381,6 +381,9 @@ export const updateDivision = mutation({
           await ctx.db.patch("departments", dept._id, { division: newName });
         }
       }
+      // NOTE: capped at 1000 profiles — if the org ever exceeds this in a
+      // single year, profiles beyond the cap will silently retain the old
+      // division name. Use @convex-dev/migrations for a safe unbounded rename.
       const profiles = await ctx.db
         .query("staffProfiles")
         .withIndex("by_year", (q) => q.eq("year", args.year))
@@ -692,6 +695,10 @@ export const updateDepartment = mutation({
       });
 
       // Cascade: update staff profiles and requests that reference the old name.
+      // NOTE: both loops are capped at 1000 — if the org exceeds 1000 profiles
+      // or 1000 requests in a single department/year, records beyond the cap
+      // will silently retain the old department name. Use @convex-dev/migrations
+      // for a safe unbounded rename at that scale.
       const profiles = await ctx.db
         .query("staffProfiles")
         .withIndex("by_year", (q) => q.eq("year", args.year))
