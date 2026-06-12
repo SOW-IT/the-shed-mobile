@@ -32,7 +32,7 @@ const secureStorage = {
 const tabIcon =
   (outline: keyof typeof Ionicons.glyphMap, filled: keyof typeof Ionicons.glyphMap) =>
   ({ color, focused }: { color: ColorValue; focused: boolean }) => (
-    <Ionicons name={focused ? filled : outline} size={24} color={color} />
+    <Ionicons name={focused ? filled : outline} size={focused ? 28 : 22} color={color} />
   );
 
 const AppTabs = () => {
@@ -56,19 +56,16 @@ const AppTabs = () => {
   return (
     <Tabs
       screenOptions={{
+        headerShown: false,
         tabBarActiveTintColor: t.primary,
         tabBarInactiveTintColor: t.muted,
-        // An explicit lineHeight stops the label flex-shrinking to a sliver
-        // (clipped text) when the item runs out of room below the 24px icon.
         tabBarLabelStyle: { fontSize: 11, fontWeight: "600", lineHeight: 14 },
-        // Tall enough that labels never clip; the default bar height leaves
-        // no room for them below 24px icons on web/Android.
         tabBarStyle: {
           backgroundColor: t.card,
           borderTopColor: t.border,
-          height: 64 + insets.bottom,
+          height: 68 + insets.bottom,
           paddingBottom: Math.max(insets.bottom, 6),
-          paddingTop: 4,
+          paddingTop: 6,
         },
       }}
     >
