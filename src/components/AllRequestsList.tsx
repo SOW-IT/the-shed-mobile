@@ -3,7 +3,14 @@ import { useState } from "react";
 import { requestCompleted } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { RequestCard } from "@/components/RequestCard";
-import { Muted, SectionTitle, Segmented } from "@/components/ui";
+import {
+  EmptyState,
+  FadeInView,
+  LoadingState,
+  SectionTitle,
+  Segmented,
+  stagger,
+} from "@/components/ui";
 
 /** Every request this year (Finance only), split into ongoing/completed. */
 export const AllRequestsList = () => {
@@ -29,12 +36,22 @@ export const AllRequestsList = () => {
         {filtered.length})
       </SectionTitle>
       {requests == null ? (
-        <Muted>Loading…</Muted>
+        <LoadingState />
       ) : filtered.length === 0 ? (
-        <Muted>No {filter} requests.</Muted>
+        <EmptyState
+          icon="file-tray-outline"
+          title={`No ${filter} requests`}
+          message={
+            filter === "ongoing"
+              ? "New requests will appear here as staff submit them."
+              : "Paid and declined requests will appear here."
+          }
+        />
       ) : (
-        filtered.map((request) => (
-          <RequestCard key={request._id} request={request} showRequester />
+        filtered.map((request, index) => (
+          <FadeInView key={request._id} delay={stagger(index)}>
+            <RequestCard request={request} showRequester />
+          </FadeInView>
         ))
       )}
     </>

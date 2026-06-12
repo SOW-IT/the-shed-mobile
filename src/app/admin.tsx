@@ -3,7 +3,6 @@ import { useMutation, useQuery } from "convex/react";
 import { useRef, useState } from "react";
 import {
   Alert,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -18,15 +17,18 @@ import {
   rolesNeedUniversity,
 } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
-import { useAppTheme } from "@/theme";
+import { radius, useAppTheme } from "@/theme";
 import {
   Btn,
   Card,
   ErrorBanner,
   errorMessage,
   Field,
+  IconButton,
   MultiSelect,
   Muted,
+  OptionRow,
+  OptionSheet,
   Row,
   Screen,
   SectionTitle,
@@ -196,40 +198,43 @@ export default function AdminScreen() {
         : `${y}`;
 
   return (
-    <Screen toast={toast} scrollRef={scrollRef}>
-      <Row>
-        <View style={{ flexGrow: 1 }}>
-          <SectionTitle>Manage — {yearLabel(selectedYear)}</SectionTitle>
-        </View>
+    <Screen
+      toast={toast}
+      scrollRef={scrollRef}
+      title="Manage"
+      subtitle={yearLabel(selectedYear)}
+      headerRight={
         <Pressable
-          style={[styles.yearButton, { backgroundColor: t.card, borderColor: t.border }]}
+          style={({ pressed }) => [
+            styles.yearPill,
+            t.shadowCard,
+            { backgroundColor: t.card },
+            pressed && { opacity: 0.7 },
+          ]}
           onPress={() => setYearMenuOpen(true)}
         >
-          <Txt style={{ fontWeight: "700" }}>{selectedYear} ▾</Txt>
+          <Txt style={{ fontWeight: "700" }}>{selectedYear}</Txt>
+          <Ionicons name="chevron-down" size={14} color={t.muted} />
         </Pressable>
-      </Row>
-      <Modal visible={yearMenuOpen} transparent animationType="fade">
-        <Pressable style={styles.yearBackdrop} onPress={() => setYearMenuOpen(false)}>
-          <View style={[styles.yearMenu, { backgroundColor: t.card }]}>
-            <ScrollView>
-              {(years ?? [currentYear, currentYear + 1]).map((y) => (
-                <Pressable
-                  key={y}
-                  style={[styles.yearItem, y === selectedYear && { backgroundColor: t.ghost }]}
-                  onPress={() => {
-                    setYear(y);
-                    setYearMenuOpen(false);
-                  }}
-                >
-                  <Txt style={y === selectedYear ? { fontWeight: "700" } : undefined}>
-                    {yearLabel(y)}
-                  </Txt>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        </Pressable>
-      </Modal>
+      }
+    >
+      <OptionSheet
+        visible={yearMenuOpen}
+        title="Year"
+        onClose={() => setYearMenuOpen(false)}
+      >
+        {(years ?? [currentYear, currentYear + 1]).map((y) => (
+          <OptionRow
+            key={y}
+            label={yearLabel(y)}
+            selected={y === selectedYear}
+            onPress={() => {
+              setYear(y);
+              setYearMenuOpen(false);
+            }}
+          />
+        ))}
+      </OptionSheet>
 
       <Segmented
         segments={ADMIN_TABS}
@@ -440,24 +445,13 @@ export default function AdminScreen() {
                     </View>
                     {editable && (
                       <>
-                        <Pressable
-                          hitSlop={8}
-                          style={({ pressed }) => [
-                            styles.iconButton,
-                            { backgroundColor: t.ghost },
-                            pressed && { opacity: 0.6 },
-                          ]}
+                        <IconButton
+                          name="create-outline"
                           onPress={() => startEditUser(profile.email)}
-                        >
-                          <Ionicons name="create-outline" size={18} color={t.ghostText} />
-                        </Pressable>
-                        <Pressable
-                          hitSlop={8}
-                          style={({ pressed }) => [
-                            styles.iconButton,
-                            { backgroundColor: t.ghost },
-                            pressed && { opacity: 0.6 },
-                          ]}
+                        />
+                        <IconButton
+                          name="trash-outline"
+                          color={t.danger}
                           onPress={() =>
                             confirmRemoval(
                               `Remove ${profile.email} from ${selectedYear}? Their roles and department assignment for the year will be deleted.`,
@@ -470,9 +464,7 @@ export default function AdminScreen() {
                                 )
                             )
                           }
-                        >
-                          <Ionicons name="trash-outline" size={18} color={t.danger} />
-                        </Pressable>
+                        />
                       </>
                     )}
                   </Row>
@@ -538,21 +530,14 @@ export default function AdminScreen() {
                       <Muted>Head: {division.headEmail ?? "none"}</Muted>
                     </View>
                     {editable && (
-                      <Pressable
-                        hitSlop={8}
-                        style={({ pressed }) => [
-                          styles.iconButton,
-                          { backgroundColor: t.ghost },
-                          pressed && { opacity: 0.6 },
-                        ]}
+                      <IconButton
+                        name="create-outline"
                         onPress={() => {
                           setEditingDivisionFormName(division.name);
                           setEditingDivisionFormHead(division.headEmail ?? "");
                           setEditingDivisionKey(division.name);
                         }}
-                      >
-                        <Ionicons name="create-outline" size={18} color={t.ghostText} />
-                      </Pressable>
+                      />
                     )}
                   </Row>
                 )}
@@ -678,22 +663,15 @@ export default function AdminScreen() {
                       </Muted>
                     </View>
                     {editable && (
-                      <Pressable
-                        hitSlop={8}
-                        style={({ pressed }) => [
-                          styles.iconButton,
-                          { backgroundColor: t.ghost },
-                          pressed && { opacity: 0.6 },
-                        ]}
+                      <IconButton
+                        name="create-outline"
                         onPress={() => {
                           setEditingDepartmentFormName(department.name);
                           setEditingDepartmentFormDivision(department.division);
                           setEditingDepartmentFormHead(department.headEmail ?? "");
                           setEditingDepartmentKey(department.name);
                         }}
-                      >
-                        <Ionicons name="create-outline" size={18} color={t.ghostText} />
-                      </Pressable>
+                      />
                     )}
                   </Row>
                 )}
@@ -785,28 +763,12 @@ export default function AdminScreen() {
 }
 
 const styles = StyleSheet.create({
-  yearButton: {
-    borderWidth: 1,
-    borderRadius: 8,
+  yearPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: radius.full,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: 9,
   },
-  yearBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    justifyContent: "center",
-    padding: 32,
-  },
-  yearMenu: {
-    borderRadius: 12,
-    paddingVertical: 4,
-    maxWidth: 360,
-    // Many history years are available; keep the menu within small phone
-    // screens and let it scroll instead.
-    maxHeight: 320,
-    width: "100%",
-    alignSelf: "center",
-  },
-  yearItem: { paddingHorizontal: 16, paddingVertical: 12 },
-  iconButton: { borderRadius: 8, padding: 8 },
 });

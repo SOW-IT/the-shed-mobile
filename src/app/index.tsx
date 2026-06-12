@@ -1,18 +1,20 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { StyleSheet } from "react-native";
+import { Pressable } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { AllRequestsList } from "@/components/AllRequestsList";
 import { MyRequests } from "@/components/MyRequests";
 import { ReviewList } from "@/components/ReviewList";
 import { type RequestPrefill } from "@/components/MyRequests";
 import {
+  Avatar,
   Btn,
   Card,
   ErrorBanner,
   errorMessage,
+  FadeInView,
   FooterAction,
   Muted,
   Row,
@@ -23,6 +25,13 @@ import {
   Txt,
 } from "@/components/ui";
 
+const greetingForNow = (): string => {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+};
+
 /**
  * The Requests tab: your own requests, the ones waiting on you (approvers),
  * and every request this year (Finance) — one tab, switched by segments.
@@ -30,6 +39,7 @@ import {
  */
 export default function RequestsScreen() {
   const { signOut } = useAuthActions();
+  const router = useRouter();
   const me = useQuery(api.directory.me);
   const structure = useQuery(
     api.directory.yearStructure,
@@ -90,24 +100,44 @@ export default function RequestsScreen() {
 
   if (me === undefined) return <Screen />;
 
+  const firstName = me?.name?.split(" ")[0];
+
   return (
     <Screen
+      subtitle={greetingForNow()}
+      title={firstName ? `Hello, ${firstName}` : "Requests"}
+      headerRight={
+        me ? (
+          <Pressable
+            onPress={() => router.push("/profile")}
+            style={({ pressed }) => pressed && { opacity: 0.7 }}
+          >
+            <Avatar photo={me.photo} name={me.name} size={44} />
+          </Pressable>
+        ) : undefined
+      }
       footer={showMakeRequest ? <FooterAction title="+ Make Request" onPress={openNewRequest} /> : undefined}
     >
       {me === null || me.profile === null ? (
-        <Card>
-          <Txt style={styles.title}>Welcome{me?.name ? `, ${me.name}` : ""}</Txt>
-          <Muted>
-            No role or department is assigned to {me?.email} for {me?.year} yet.
-            Ask an admin (Data and IT or Human Resources) to set you up.
-          </Muted>
-          <Row>
-            <Btn title="Sign out" variant="ghost" onPress={() => void signOut()} />
-          </Row>
-        </Card>
+        <FadeInView>
+          <Card>
+            <Txt style={{ fontSize: 18, fontWeight: "700" }}>
+              Welcome{me?.name ? `, ${me.name}` : ""}
+            </Txt>
+            <Muted>
+              No role or department is assigned to {me?.email} for {me?.year} yet.
+              Ask an admin (Data and IT or Human Resources) to set you up.
+            </Muted>
+            <Row>
+              <Btn title="Sign out" variant="ghost" onPress={() => void signOut()} />
+            </Row>
+          </Card>
+        </FadeInView>
       ) : (
         <>
-          <Segmented segments={segments} active={activeSegment} onChange={setActive} />
+          <FadeInView delay={40}>
+            <Segmented segments={segments} active={activeSegment} onChange={setActive} />
+          </FadeInView>
           {activeSegment === "review" ? (
             <ReviewList />
           ) : activeSegment === "all" ? (
@@ -162,7 +192,3 @@ export default function RequestsScreen() {
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  title: { fontSize: 18, fontWeight: "700" },
-});

@@ -1,23 +1,27 @@
+import { Ionicons } from "@expo/vector-icons";
 import { ConvexError } from "convex/values";
 import * as Haptics from "expo-haptics";
 import { ReactNode, Ref, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
+  Easing,
   Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
   ScrollView,
+  StyleProp,
   StyleSheet,
   Text,
   TextInput,
   TextProps,
   View,
+  ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAppTheme } from "../theme";
+import { radius, spacing, typography, useAppTheme } from "../theme";
 
 const haptic = (style = Haptics.ImpactFeedbackStyle.Light) => {
   if (Platform.OS === "web") return;
@@ -47,14 +51,60 @@ export const currencyText = (text: string): string => {
 /** Text that follows the system theme. Use instead of the raw <Text>. */
 export const Txt = ({ style, ...props }: TextProps) => {
   const t = useAppTheme();
-  return <Text {...props} style={[{ color: t.text }, style]} />;
+  return <Text {...props} style={[typography.body, { color: t.text }, style]} />;
 };
+
+/**
+ * Gentle mount animation: fade in while drifting up. Wrap list items and
+ * pass a small staggered `delay` for a premium cascade.
+ */
+export const FadeInView = ({
+  children,
+  delay = 0,
+  style,
+}: {
+  children: ReactNode;
+  delay?: number;
+  style?: StyleProp<ViewStyle>;
+}) => {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(12)).current;
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 360,
+        delay,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 360,
+        delay,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [opacity, translateY, delay]);
+  return (
+    <Animated.View style={[{ opacity, transform: [{ translateY }] }, style]}>
+      {children}
+    </Animated.View>
+  );
+};
+
+/** Stagger helper: caps the cascade so long lists don't feel sluggish. */
+export const stagger = (index: number): number => Math.min(index, 8) * 50;
 
 export const Screen = ({
   children,
   toast,
   scrollRef,
   footer,
+  title,
+  subtitle,
+  headerRight,
 }: {
   children?: ReactNode;
   toast?: ToastState;
@@ -62,14 +112,38 @@ export const Screen = ({
   scrollRef?: Ref<ScrollView>;
   /** Pinned full-width area between the scroll content and the tab bar. */
   footer?: ReactNode;
+  /** Large display title rendered at the top of the scroll content. */
+  title?: string;
+  /** Quiet line above the title — greeting, date, context. */
+  subtitle?: string;
+  /** Rendered to the right of the title (e.g. an avatar or a year picker). */
+  headerRight?: ReactNode;
 }) => {
   const t = useAppTheme();
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: t.background }]} edges={["top"]}>
       <ScrollView
         ref={scrollRef}
-        contentContainerStyle={[styles.scroll, footer != null && { paddingBottom: 70 }]}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.scroll, footer != null && { paddingBottom: 96 }]}
       >
+        {(title || headerRight) && (
+          <FadeInView>
+            <View style={styles.header}>
+              <View style={styles.headerText}>
+                {subtitle ? (
+                  <Text style={[typography.caption, { color: t.muted, marginBottom: 2 }]}>
+                    {subtitle}
+                  </Text>
+                ) : null}
+                {title ? (
+                  <Text style={[typography.largeTitle, { color: t.text }]}>{title}</Text>
+                ) : null}
+              </View>
+              {headerRight}
+            </View>
+          </FadeInView>
+        )}
         {children}
       </ScrollView>
       {footer}
@@ -87,37 +161,43 @@ export type ToastState = { text: string } | null;
 export const Toast = ({ toast }: { toast: ToastState }) => {
   const t = useAppTheme();
   const opacity = useRef(new Animated.Value(0)).current;
+  const lift = useRef(new Animated.Value(8)).current;
   const [shown, setShown] = useState<ToastState>(null);
   useEffect(() => {
     if (!toast) return;
     setShown(toast);
     opacity.setValue(0);
-    Animated.timing(opacity, {
-      toValue: 1,
-      duration: 150,
-      useNativeDriver: false,
-    }).start();
+    lift.setValue(8);
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+      Animated.spring(lift, { toValue: 0, useNativeDriver: true, damping: 18, stiffness: 240 }),
+    ]).start();
     const timer = setTimeout(() => {
       Animated.timing(opacity, {
         toValue: 0,
         duration: 400,
-        useNativeDriver: false,
+        useNativeDriver: true,
       }).start(() => setShown(null));
     }, 2000);
     return () => clearTimeout(timer);
-  }, [toast, opacity]);
+  }, [toast, opacity, lift]);
   if (!shown) return null;
   return (
     <Animated.View
       pointerEvents="none"
-      style={[styles.toast, { backgroundColor: t.text, opacity }]}
+      style={[
+        styles.toast,
+        t.shadowFloat,
+        { backgroundColor: t.text, opacity, transform: [{ translateY: lift }] },
+      ]}
     >
-      <Text style={[styles.toastText, { color: t.background }]}>✓ {shown.text}</Text>
+      <Ionicons name="checkmark-circle" size={16} color={t.background} />
+      <Text style={[styles.toastText, { color: t.background }]}>{shown.text}</Text>
     </Animated.View>
   );
 };
 
-/** Full-width rectangle button pinned above the tab bar. */
+/** Floating full-width pill action pinned above the tab bar. */
 export const FooterAction = ({
   title,
   onPress,
@@ -128,29 +208,56 @@ export const FooterAction = ({
   disabled?: boolean;
 }) => {
   const t = useAppTheme();
+  const scale = useRef(new Animated.Value(1)).current;
   return (
-    <Pressable
-      onPress={() => { haptic(); onPress(); }}
-      disabled={disabled}
-      style={({ pressed }) => [
-        styles.footerAction,
-        { backgroundColor: t.primary },
-        (pressed || disabled) && { opacity: 0.7 },
-      ]}
-    >
-      <Text style={[styles.footerActionText, { color: t.onPrimary }]}>{title}</Text>
-    </Pressable>
+    <View pointerEvents="box-none" style={styles.footerWrap}>
+      <Animated.View style={[{ transform: [{ scale }] }, t.shadowFloat]}>
+        <Pressable
+          onPress={() => { haptic(); onPress(); }}
+          onPressIn={() =>
+            Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 0 }).start()
+          }
+          onPressOut={() =>
+            Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 6 }).start()
+          }
+          disabled={disabled}
+          style={[
+            styles.footerAction,
+            { backgroundColor: t.primary },
+            disabled && { opacity: 0.6 },
+          ]}
+        >
+          <Text style={[styles.footerActionText, { color: t.onPrimary }]}>{title}</Text>
+        </Pressable>
+      </Animated.View>
+    </View>
   );
 };
 
-export const Card = ({ children }: { children: ReactNode }) => {
+export const Card = ({
+  children,
+  style,
+}: {
+  children: ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) => {
   const t = useAppTheme();
-  return <View style={[styles.card, { backgroundColor: t.card }]}>{children}</View>;
+  return (
+    <View style={[styles.card, t.shadowCard, { backgroundColor: t.card }, style]}>
+      {children}
+    </View>
+  );
 };
 
-export const SectionTitle = ({ children }: { children: ReactNode }) => (
-  <Txt style={styles.sectionTitle}>{children}</Txt>
-);
+/** Quiet uppercase section label, Linear-style. */
+export const SectionTitle = ({ children }: { children: ReactNode }) => {
+  const t = useAppTheme();
+  return (
+    <Text style={[typography.label, styles.sectionTitle, { color: t.muted }]}>
+      {children}
+    </Text>
+  );
+};
 
 export const Row = ({ children }: { children: ReactNode }) => (
   <View style={styles.row}>{children}</View>
@@ -165,7 +272,7 @@ export const Btn = ({
 }: {
   title: string;
   onPress: () => void;
-  variant?: "primary" | "danger" | "ghost" | "success";
+  variant?: "primary" | "danger" | "ghost" | "success" | "tonal";
   disabled?: boolean;
   /** Shows a spinner in place of the label and disables the button. */
   loading?: boolean;
@@ -174,16 +281,18 @@ export const Btn = ({
   const scale = useRef(new Animated.Value(1)).current;
   const background = {
     primary: t.primary,
+    success: t.successSoft,
+    danger: t.dangerSoft,
+    ghost: t.ghost,
+    tonal: t.primarySoft,
+  }[variant];
+  const textColor = {
+    primary: t.onPrimary,
     success: t.success,
     danger: t.danger,
-    ghost: t.ghost,
+    ghost: t.ghostText,
+    tonal: t.dark ? t.text : t.primary,
   }[variant];
-  const textColor =
-    variant === "ghost"
-      ? t.ghostText
-      : variant === "primary"
-        ? t.onPrimary
-        : "#ffffff";
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <Pressable
@@ -228,6 +337,32 @@ export const Btn = ({
   );
 };
 
+/** Small round icon-only button for inline card actions. */
+export const IconButton = ({
+  name,
+  onPress,
+  color,
+}: {
+  name: keyof typeof Ionicons.glyphMap;
+  onPress: () => void;
+  color?: string;
+}) => {
+  const t = useAppTheme();
+  return (
+    <Pressable
+      hitSlop={8}
+      onPress={() => { hapticSelect(); onPress(); }}
+      style={({ pressed }) => [
+        styles.iconButton,
+        { backgroundColor: t.ghost },
+        pressed && { opacity: 0.6 },
+      ]}
+    >
+      <Ionicons name={name} size={17} color={color ?? t.ghostText} />
+    </Pressable>
+  );
+};
+
 export const Field = ({
   label,
   value,
@@ -244,23 +379,29 @@ export const Field = ({
   multiline?: boolean;
 }) => {
   const t = useAppTheme();
+  const [focused, setFocused] = useState(false);
   return (
     <View style={styles.field}>
-      <Text style={[styles.fieldLabel, { color: t.muted }]}>{label}</Text>
+      <Text style={[typography.label, { color: t.muted }]}>{label}</Text>
       <TextInput
         style={[
           styles.input,
-          { backgroundColor: t.inputBackground, color: t.text },
-          Platform.OS !== "ios" && { borderWidth: 1, borderColor: t.border },
+          {
+            backgroundColor: t.inputBackground,
+            color: t.text,
+            borderColor: focused ? t.primary : "transparent",
+          },
           multiline && styles.inputMultiline,
         ]}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={t.muted}
+        placeholderTextColor={t.faint}
         keyboardType={keyboardType}
         autoCapitalize="none"
         multiline={multiline}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
       />
     </View>
   );
@@ -268,7 +409,157 @@ export const Field = ({
 
 export type SelectOption = string | { label: string; value: string };
 
-/** A labelled dropdown: a field-like button opening a modal option list. */
+const normalizeOptions = (options: readonly SelectOption[]) =>
+  options.map((option) =>
+    typeof option === "string" ? { label: option, value: option } : option
+  );
+
+/**
+ * Bottom-sheet option list shared by Select and MultiSelect: backdrop fades
+ * while the card slides up, matching the app's Sheet behaviour.
+ */
+export const OptionSheet = ({
+  visible,
+  title,
+  onClose,
+  children,
+}: {
+  visible: boolean;
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) => {
+  const t = useAppTheme();
+  const [mounted, setMounted] = useState(false);
+  const slideY = useRef(new Animated.Value(480)).current;
+  const fade = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+      slideY.setValue(480);
+      fade.setValue(0);
+      Animated.parallel([
+        Animated.timing(fade, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.spring(slideY, { toValue: 0, useNativeDriver: true, damping: 26, stiffness: 300 }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(fade, { toValue: 0, duration: 160, useNativeDriver: true }),
+        Animated.timing(slideY, { toValue: 480, duration: 180, useNativeDriver: true }),
+      ]).start(() => setMounted(false));
+    }
+  }, [visible, slideY, fade]);
+  if (!mounted) return null;
+  return (
+    <Modal visible animationType="none" transparent onRequestClose={onClose}>
+      <View style={styles.sheetOuter}>
+        <Animated.View
+          style={[StyleSheet.absoluteFill, { backgroundColor: t.overlay, opacity: fade }]}
+        >
+          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        </Animated.View>
+        <Animated.View style={{ transform: [{ translateY: slideY }] }}>
+          <SafeAreaView edges={["bottom"]} style={[styles.sheet, { backgroundColor: t.card }]}>
+            <View style={[styles.sheetHandle, { backgroundColor: t.border }]} />
+            <Text style={[typography.headline, styles.optionSheetTitle, { color: t.text }]}>
+              {title}
+            </Text>
+            <ScrollView style={{ maxHeight: 380 }} contentContainerStyle={styles.optionList}>
+              {children}
+            </ScrollView>
+          </SafeAreaView>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+};
+
+export const OptionRow = ({
+  label,
+  selected,
+  onPress,
+  multi,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  multi?: boolean;
+}) => {
+  const t = useAppTheme();
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.optionRow,
+        selected && { backgroundColor: t.primarySoft },
+        pressed && { opacity: 0.7 },
+      ]}
+      onPress={onPress}
+    >
+      <Text
+        numberOfLines={1}
+        style={[
+          typography.body,
+          { color: t.text, flex: 1 },
+          selected && { fontWeight: "700" },
+        ]}
+      >
+        {label}
+      </Text>
+      <Ionicons
+        name={
+          selected
+            ? multi
+              ? "checkbox"
+              : "checkmark-circle"
+            : multi
+              ? "square-outline"
+              : "ellipse-outline"
+        }
+        size={20}
+        color={selected ? t.primary : t.faint}
+      />
+    </Pressable>
+  );
+};
+
+/** The tappable field face shared by Select and MultiSelect. */
+const SelectFace = ({
+  label,
+  display,
+  hasValue,
+  onOpen,
+}: {
+  label: string;
+  display: string;
+  hasValue: boolean;
+  onOpen: () => void;
+}) => {
+  const t = useAppTheme();
+  return (
+    <View style={styles.field}>
+      <Text style={[typography.label, { color: t.muted }]}>{label}</Text>
+      <Pressable
+        style={({ pressed }) => [
+          styles.input,
+          styles.selectFace,
+          { backgroundColor: t.inputBackground, borderColor: "transparent" },
+          pressed && { opacity: 0.7 },
+        ]}
+        onPress={() => { hapticSelect(); onOpen(); }}
+      >
+        <Text
+          numberOfLines={1}
+          style={[typography.body, { color: hasValue ? t.text : t.faint, flex: 1 }]}
+        >
+          {display}
+        </Text>
+        <Ionicons name="chevron-down" size={16} color={t.faint} />
+      </Pressable>
+    </View>
+  );
+};
+
+/** A labelled dropdown: a field-like button opening a bottom option sheet. */
 export const Select = ({
   label,
   value,
@@ -282,60 +573,33 @@ export const Select = ({
   onSelect: (value: string) => void;
   placeholder?: string;
 }) => {
-  const t = useAppTheme();
   const [open, setOpen] = useState(false);
-  const normalized = options.map((option) =>
-    typeof option === "string" ? { label: option, value: option } : option
-  );
+  const normalized = normalizeOptions(options);
   const selectedLabel =
     normalized.find((option) => option.value === value)?.label ?? value;
   return (
-    <View style={styles.field}>
-      <Text style={[styles.fieldLabel, { color: t.muted }]}>{label}</Text>
-      <Pressable
-        style={[
-          styles.input,
-          { backgroundColor: t.inputBackground },
-          Platform.OS !== "ios" && { borderWidth: 1, borderColor: t.border },
-        ]}
-        onPress={() => { hapticSelect(); setOpen(true); }}
-      >
-        <Text style={{ color: value ? t.text : t.muted }}>
-          {selectedLabel || placeholder || "Select…"} ▾
-        </Text>
-      </Pressable>
-      <Modal visible={open} transparent animationType="fade">
-        <Pressable style={styles.selectBackdrop} onPress={() => setOpen(false)}>
-          <View style={[styles.selectMenu, { backgroundColor: t.card }]}>
-            <ScrollView style={{ maxHeight: 360 }}>
-              {normalized.map((option) => (
-                <Pressable
-                  key={option.value || "(empty)"}
-                  style={[
-                    styles.selectItem,
-                    option.value === value && { backgroundColor: t.ghost },
-                  ]}
-                  onPress={() => {
-                    hapticSelect();
-                    onSelect(option.value);
-                    setOpen(false);
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: t.text,
-                      fontWeight: option.value === value ? "700" : "400",
-                    }}
-                  >
-                    {option.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        </Pressable>
-      </Modal>
-    </View>
+    <>
+      <SelectFace
+        label={label}
+        display={selectedLabel || placeholder || "Select…"}
+        hasValue={!!value}
+        onOpen={() => setOpen(true)}
+      />
+      <OptionSheet visible={open} title={label} onClose={() => setOpen(false)}>
+        {normalized.map((option) => (
+          <OptionRow
+            key={option.value || "(empty)"}
+            label={option.label}
+            selected={option.value === value}
+            onPress={() => {
+              hapticSelect();
+              onSelect(option.value);
+              setOpen(false);
+            }}
+          />
+        ))}
+      </OptionSheet>
+    </>
   );
 };
 
@@ -353,11 +617,8 @@ export const MultiSelect = ({
   onSelect: (values: string[]) => void;
   placeholder?: string;
 }) => {
-  const t = useAppTheme();
   const [open, setOpen] = useState(false);
-  const normalized = options.map((o) =>
-    typeof o === "string" ? { label: o, value: o } : o
-  );
+  const normalized = normalizeOptions(options);
   const selectedLabels = values
     .map((v) => normalized.find((o) => o.value === v)?.label ?? v)
     .join(", ");
@@ -367,49 +628,31 @@ export const MultiSelect = ({
     );
   };
   return (
-    <View style={styles.field}>
-      <Text style={[styles.fieldLabel, { color: t.muted }]}>{label}</Text>
-      <Pressable
-        style={[
-          styles.input,
-          { backgroundColor: t.inputBackground },
-          Platform.OS !== "ios" && { borderWidth: 1, borderColor: t.border },
-        ]}
-        onPress={() => { hapticSelect(); setOpen(true); }}
-      >
-        <Text style={{ color: values.length > 0 ? t.text : t.muted }}>
-          {selectedLabels || placeholder || "Select…"} ▾
-        </Text>
-      </Pressable>
-      <Modal visible={open} transparent animationType="fade">
-        <Pressable style={styles.selectBackdrop} onPress={() => setOpen(false)}>
-          <View style={[styles.selectMenu, { backgroundColor: t.card }]}>
-            <ScrollView style={{ maxHeight: 360 }}>
-              {normalized.map((option) => {
-                const selected = values.includes(option.value);
-                return (
-                  <Pressable
-                    key={option.value || "(empty)"}
-                    style={[styles.selectItem, selected && { backgroundColor: t.ghost }]}
-                    onPress={() => { hapticSelect(); toggle(option.value); }}
-                  >
-                    <Text style={{ color: t.text, fontWeight: selected ? "700" : "400" }}>
-                      {selected ? "✓  " : "    "}{option.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-        </Pressable>
-      </Modal>
-    </View>
+    <>
+      <SelectFace
+        label={label}
+        display={selectedLabels || placeholder || "Select…"}
+        hasValue={values.length > 0}
+        onOpen={() => setOpen(true)}
+      />
+      <OptionSheet visible={open} title={label} onClose={() => setOpen(false)}>
+        {normalized.map((option) => (
+          <OptionRow
+            key={option.value || "(empty)"}
+            label={option.label}
+            selected={values.includes(option.value)}
+            multi
+            onPress={() => { hapticSelect(); toggle(option.value); }}
+          />
+        ))}
+      </OptionSheet>
+    </>
   );
 };
 
 export type Segment = { key: string; label: string; badge?: number };
 
-/** Equal-width pill switcher for sections that share one tab. */
+/** Equal-width pill switcher with a sliding indicator. */
 export const Segmented = ({
   segments,
   active,
@@ -420,15 +663,48 @@ export const Segmented = ({
   onChange: (key: string) => void;
 }) => {
   const t = useAppTheme();
+  const [trackWidth, setTrackWidth] = useState(0);
+  const slide = useRef(new Animated.Value(0)).current;
+  const activeIndex = Math.max(
+    segments.findIndex((segment) => segment.key === active),
+    0
+  );
+  const segmentWidth =
+    segments.length > 0 ? (trackWidth - 2 * styles.segmented.padding) / segments.length : 0;
+  useEffect(() => {
+    if (trackWidth === 0) return;
+    Animated.spring(slide, {
+      toValue: activeIndex * segmentWidth,
+      useNativeDriver: true,
+      damping: 22,
+      stiffness: 280,
+    }).start();
+  }, [activeIndex, segmentWidth, trackWidth, slide]);
   if (segments.length < 2) return null;
   return (
-    <View style={[styles.segmented, { backgroundColor: t.ghost }]}>
+    <View
+      style={[styles.segmented, { backgroundColor: t.ghost }]}
+      onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+    >
+      {trackWidth > 0 && (
+        <Animated.View
+          style={[
+            styles.segmentIndicator,
+            t.shadowCard,
+            {
+              backgroundColor: t.card,
+              width: segmentWidth,
+              transform: [{ translateX: slide }],
+            },
+          ]}
+        />
+      )}
       {segments.map((segment) => {
         const selected = segment.key === active;
         return (
           <Pressable
             key={segment.key}
-            style={[styles.segment, selected && { backgroundColor: t.card }]}
+            style={styles.segment}
             onPress={() => { hapticSelect(); onChange(segment.key); }}
           >
             <Text
@@ -442,7 +718,7 @@ export const Segmented = ({
               {segment.label}
             </Text>
             {segment.badge ? (
-              <View style={[styles.segmentBadge, { backgroundColor: t.danger }]}>
+              <View style={[styles.segmentBadge, { backgroundColor: t.accent }]}>
                 <Text style={styles.segmentBadgeText}>{segment.badge}</Text>
               </View>
             ) : null}
@@ -462,11 +738,14 @@ export const Sheet = ({
   onClose,
   children,
   scrollable = true,
+  title,
 }: {
   visible: boolean;
   onClose: () => void;
   children: ReactNode;
   scrollable?: boolean;
+  /** Headline rendered above the content, with a close affordance. */
+  title?: string;
 }) => {
   const t = useAppTheme();
   const [mounted, setMounted] = useState(false);
@@ -492,6 +771,23 @@ export const Sheet = ({
 
   if (!mounted) return null;
 
+  const header = title ? (
+    <View style={styles.sheetHeader}>
+      <Text style={[typography.title, { color: t.text, flex: 1 }]}>{title}</Text>
+      <Pressable
+        hitSlop={8}
+        onPress={onClose}
+        style={({ pressed }) => [
+          styles.sheetClose,
+          { backgroundColor: t.ghost },
+          pressed && { opacity: 0.6 },
+        ]}
+      >
+        <Ionicons name="close" size={18} color={t.ghostText} />
+      </Pressable>
+    </View>
+  ) : null;
+
   return (
     <Modal visible animationType="none" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
@@ -499,7 +795,9 @@ export const Sheet = ({
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         {/* Backdrop: fades in/out independently of the card */}
-        <Animated.View style={[StyleSheet.absoluteFill, styles.sheetBackdrop, { opacity: fade }]}>
+        <Animated.View
+          style={[StyleSheet.absoluteFill, { backgroundColor: t.overlay, opacity: fade }]}
+        >
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         </Animated.View>
         {/* Card: slides up from below */}
@@ -517,6 +815,7 @@ export const Sheet = ({
                 ]}
                 keyboardShouldPersistTaps="handled"
               >
+                {header}
                 {children}
               </ScrollView>
             ) : (
@@ -526,6 +825,7 @@ export const Sheet = ({
                   Platform.OS === "web" && { paddingBottom: 24 + 56 },
                 ]}
               >
+                {header}
                 {children}
               </View>
             )}
@@ -542,6 +842,7 @@ export const Chip = ({ label }: { label: string }) => {
     label === "PAID" || label === "DECLINED" ? t.chip[label] : t.chip.default;
   return (
     <View style={[styles.chip, { backgroundColor: colors.bg }]}>
+      <View style={[styles.chipDot, { backgroundColor: colors.fg }]} />
       <Text style={[styles.chipText, { color: colors.fg }]}>{label}</Text>
     </View>
   );
@@ -551,14 +852,55 @@ export const ErrorBanner = ({ message }: { message: string | null }) => {
   const t = useAppTheme();
   return message ? (
     <View style={[styles.error, { backgroundColor: t.errorBackground }]}>
-      <Text style={{ color: t.errorText }}>{message}</Text>
+      <Ionicons name="alert-circle" size={16} color={t.errorText} />
+      <Text style={[typography.caption, { color: t.errorText, flex: 1 }]}>{message}</Text>
     </View>
   ) : null;
 };
 
 export const Muted = ({ children }: { children: ReactNode }) => {
   const t = useAppTheme();
-  return <Text style={[styles.muted, { color: t.muted }]}>{children}</Text>;
+  return <Text style={[typography.caption, { color: t.muted }]}>{children}</Text>;
+};
+
+/** Friendly centred state for empty lists and loading screens. */
+export const EmptyState = ({
+  icon,
+  title,
+  message,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  message?: string;
+}) => {
+  const t = useAppTheme();
+  return (
+    <FadeInView>
+      <View style={styles.empty}>
+        <View style={[styles.emptyIcon, { backgroundColor: t.primarySoft }]}>
+          <Ionicons name={icon} size={26} color={t.dark ? t.text : t.primary} />
+        </View>
+        <Text style={[typography.headline, { color: t.text, textAlign: "center" }]}>
+          {title}
+        </Text>
+        {message ? (
+          <Text style={[typography.caption, styles.emptyMessage, { color: t.muted }]}>
+            {message}
+          </Text>
+        ) : null}
+      </View>
+    </FadeInView>
+  );
+};
+
+/** Centred loading indicator for screens waiting on their first query. */
+export const LoadingState = () => {
+  const t = useAppTheme();
+  return (
+    <View style={styles.loading}>
+      <ActivityIndicator size="small" color={t.muted} />
+    </View>
+  );
 };
 
 /** Round profile photo with an initials fallback. */
@@ -583,8 +925,14 @@ export const Avatar = ({
     .join("")
     .toUpperCase();
   return (
-    <View style={[round, styles.avatarFallback, { backgroundColor: t.ghost }]}>
-      <Text style={{ color: t.ghostText, fontWeight: "800", fontSize: size / 3 }}>
+    <View style={[round, styles.avatarFallback, { backgroundColor: t.primarySoft }]}>
+      <Text
+        style={{
+          color: t.dark ? t.text : t.primary,
+          fontWeight: "800",
+          fontSize: size / 3,
+        }}
+      >
         {initials}
       </Text>
     </View>
@@ -593,72 +941,118 @@ export const Avatar = ({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  scroll: { padding: 16, paddingBottom: 48, gap: 12, maxWidth: 720, width: "100%", alignSelf: "center" },
-  card: {
-    borderRadius: 12,
-    padding: 16,
-    gap: 8,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  },
-  sectionTitle: { fontSize: 18, fontWeight: "700", marginTop: 8 },
-  row: { flexDirection: "row", gap: 8, flexWrap: "wrap", alignItems: "center" },
-  // Pill buttons, matching the web app's rounded SOW styling.
-  btn: {
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 999,
-    alignItems: "center",
-  },
-  btnText: { fontWeight: "600" },
-  field: { gap: 4 },
-  fieldLabel: { fontSize: 13, fontWeight: "600" },
-  input: {
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  inputMultiline: { minHeight: 80, textAlignVertical: "top" },
-  chip: {
-    alignSelf: "flex-start",
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-  },
-  chipText: { fontSize: 12, fontWeight: "700" },
-  error: {
-    borderRadius: 8,
-    padding: 10,
-  },
-  muted: { fontSize: 13 },
-  avatarFallback: { alignItems: "center", justifyContent: "center" },
-  selectBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    justifyContent: "center",
-    padding: 32,
-  },
-  selectMenu: {
-    borderRadius: 12,
-    paddingVertical: 4,
-    maxWidth: 360,
+  scroll: {
+    padding: spacing.lg,
+    paddingBottom: 48,
+    gap: spacing.md,
+    maxWidth: 720,
     width: "100%",
     alignSelf: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
   },
-  selectItem: { paddingHorizontal: 16, paddingVertical: 12 },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  headerText: { flex: 1 },
+  card: {
+    borderRadius: radius.lg,
+    padding: spacing.lg + 2,
+    gap: spacing.sm + 2,
+  },
+  sectionTitle: { marginTop: spacing.md, marginBottom: -2 },
+  row: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap", alignItems: "center" },
+  // Pill buttons, matching the web app's rounded SOW styling.
+  btn: {
+    paddingHorizontal: spacing.xl,
+    paddingVertical: 11,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 42,
+  },
+  btnText: { fontWeight: "700", fontSize: 14, letterSpacing: -0.1 },
+  iconButton: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  field: { gap: 6 },
+  input: {
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    fontSize: 15,
+    minHeight: 46,
+  },
+  inputMultiline: { minHeight: 88, textAlignVertical: "top" },
+  selectFace: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  optionSheetTitle: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.sm,
+  },
+  optionList: { paddingHorizontal: spacing.md, paddingBottom: spacing.lg, gap: 2 },
+  optionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 13,
+    borderRadius: radius.md,
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    alignSelf: "flex-start",
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  chipDot: { width: 6, height: 6, borderRadius: 3 },
+  chipText: { fontSize: 11.5, fontWeight: "700", letterSpacing: 0.2 },
+  error: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    borderRadius: radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  empty: {
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.xxxl,
+    paddingHorizontal: spacing.xl,
+  },
+  emptyIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.xs,
+  },
+  emptyMessage: { textAlign: "center", lineHeight: 18 },
+  loading: { paddingVertical: spacing.xxxl, alignItems: "center" },
+  avatarFallback: { alignItems: "center", justifyContent: "center" },
   segmented: {
     flexDirection: "row",
-    borderRadius: 999,
-    padding: 3,
-    gap: 2,
+    borderRadius: radius.full,
+    padding: 4,
+  },
+  segmentIndicator: {
+    position: "absolute",
+    top: 4,
+    bottom: 4,
+    left: 4,
+    borderRadius: radius.full,
   },
   segment: {
     flex: 1,
@@ -666,13 +1060,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     gap: 5,
-    borderRadius: 999,
-    paddingVertical: 8,
+    borderRadius: radius.full,
+    paddingVertical: 9,
     paddingHorizontal: 6,
   },
-  segmentText: { fontSize: 13, fontWeight: "600" },
+  segmentText: { fontSize: 13, fontWeight: "600", letterSpacing: -0.1 },
   segmentBadge: {
-    borderRadius: 999,
+    borderRadius: radius.full,
     minWidth: 18,
     height: 18,
     paddingHorizontal: 4,
@@ -684,12 +1078,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
   },
-  sheetBackdrop: {
-    backgroundColor: "rgba(0,0,0,0.4)",
-  },
   sheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
     maxHeight: "88%",
     width: "100%",
     maxWidth: 720,
@@ -697,30 +1088,50 @@ const styles = StyleSheet.create({
   },
   sheetHandle: {
     alignSelf: "center",
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    marginTop: 8,
+    width: 36,
+    height: 5,
+    borderRadius: radius.full,
+    marginTop: spacing.sm,
   },
-  sheetContent: { padding: 16, paddingBottom: 24, gap: 8 },
-  toast: {
-    position: "absolute",
-    bottom: 24,
-    alignSelf: "center",
-    borderRadius: 999,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginBottom: spacing.xs,
   },
-  toastText: { fontWeight: "700", fontSize: 13 },
-  footerAction: {
-    height: 54,
+  sheetClose: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.full,
     alignItems: "center",
     justifyContent: "center",
   },
-  footerActionText: { fontSize: 16, fontWeight: "700", letterSpacing: 0.3 },
+  sheetContent: { padding: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.sm + 2 },
+  toast: {
+    position: "absolute",
+    bottom: 28,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: radius.full,
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+  },
+  toastText: { fontWeight: "700", fontSize: 13 },
+  footerWrap: {
+    position: "absolute",
+    bottom: spacing.md,
+    paddingHorizontal: spacing.lg,
+    maxWidth: 720,
+    width: "100%",
+    alignSelf: "center",
+  },
+  footerAction: {
+    height: 54,
+    borderRadius: radius.lg - 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  footerActionText: { fontSize: 16, fontWeight: "700", letterSpacing: -0.2 },
 });

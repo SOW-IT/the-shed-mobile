@@ -10,7 +10,7 @@ import {
 import { DarkTheme, DefaultTheme, Tabs, ThemeProvider } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
-import { ActivityIndicator, ColorValue, Platform, View } from "react-native";
+import { ActivityIndicator, ColorValue, Image, Platform, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -41,8 +41,8 @@ const secureStorage = {
 
 const tabIcon =
   (outline: keyof typeof Ionicons.glyphMap, filled: keyof typeof Ionicons.glyphMap) =>
-  ({ color }: { color: ColorValue; focused: boolean }) => (
-    <Ionicons name={filled} size={24} color={color} />
+  ({ color, focused }: { color: ColorValue; focused: boolean }) => (
+    <Ionicons name={focused ? filled : outline} size={23} color={color} />
   );
 
 const AppTabs = () => {
@@ -69,13 +69,24 @@ const AppTabs = () => {
         headerShown: false,
         tabBarShowLabel: false,
         tabBarActiveTintColor: t.primary,
-        tabBarInactiveTintColor: t.muted,
+        tabBarInactiveTintColor: t.faint,
+        tabBarBadgeStyle: {
+          backgroundColor: t.accent,
+          color: "#ffffff",
+          fontSize: 11,
+          fontWeight: "700",
+        },
         tabBarStyle: {
           backgroundColor: t.card,
-          borderTopColor: t.border,
-          height: 56 + insets.bottom,
-          paddingBottom: Math.max(insets.bottom, 6),
-          paddingTop: 6,
+          borderTopWidth: 0,
+          height: 58 + insets.bottom,
+          paddingBottom: Math.max(insets.bottom, 8),
+          paddingTop: 8,
+          shadowColor: t.dark ? "#000000" : "#0F2523",
+          shadowOpacity: t.dark ? 0.35 : 0.08,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: -4 },
+          elevation: 12,
         },
       }}
     >
@@ -141,9 +152,24 @@ export default function RootLayout() {
       >
         <AuthLoading>
           <View
-            style={{ flex: 1, justifyContent: "center", backgroundColor: t.background }}
+            style={{
+              flex: 1,
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 20,
+              backgroundColor: t.background,
+            }}
           >
-            <ActivityIndicator size="large" color={t.primary} />
+            <Image
+              source={
+                t.dark
+                  ? require("../../assets/images/mark-cream.png")
+                  : require("../../assets/images/mark-dark.png")
+              }
+              style={{ width: 56, height: 56 }}
+              resizeMode="contain"
+            />
+            <ActivityIndicator size="small" color={t.muted} />
           </View>
         </AuthLoading>
         <Unauthenticated>

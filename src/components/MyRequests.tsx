@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "convex/react";
 import * as DocumentPicker from "expo-document-picker";
 import { useEffect, useState } from "react";
-import { Alert, Platform, StyleSheet, View } from "react-native";
+import { Alert, Platform, View } from "react-native";
 import {
   requestCompleted,
   requestDeclined,
@@ -14,13 +14,17 @@ import {
   Btn,
   currencyText,
   digitsOnly,
+  EmptyState,
   ErrorBanner,
   errorMessage,
+  FadeInView,
   Field,
+  LoadingState,
   Muted,
   Row,
   Select,
   Sheet,
+  stagger,
   Txt,
 } from "@/components/ui";
 
@@ -94,8 +98,7 @@ const NewRequestSheet = ({
   };
 
   return (
-    <Sheet visible={visible} onClose={onClose} scrollable={false}>
-      <Txt style={styles.sheetTitle}>New Request</Txt>
+    <Sheet visible={visible} onClose={onClose} scrollable={false} title="New Request">
       <Field
         label="Description"
         value={description}
@@ -118,10 +121,8 @@ const NewRequestSheet = ({
       />
       <Muted>Requests of $5,000 or more also require Director approval.</Muted>
       <ErrorBanner message={error} />
-      <Row>
-        <Btn title="Submit" onPress={handleSubmit} />
-        <Btn title="Cancel" variant="ghost" onPress={onClose} />
-      </Row>
+      <Btn title="Submit Request" onPress={handleSubmit} />
+      <Btn title="Cancel" variant="ghost" onPress={onClose} />
     </Sheet>
   );
 };
@@ -258,10 +259,9 @@ const ReceiptSheet = ({
   };
 
   return (
-    <Sheet visible={request !== null} onClose={onClose}>
-      <Txt style={styles.sheetTitle}>Submit Receipt</Txt>
+    <Sheet visible={request !== null} onClose={onClose} title="Submit Receipt">
       {recipients.map((recipient, index) => (
-        <View key={index} style={{ gap: 8 }}>
+        <View key={index} style={{ gap: 10 }}>
           <Row>
             <Txt style={{ fontWeight: "700", flexGrow: 1 }}>
               Recipient {index + 1}
@@ -321,7 +321,7 @@ const ReceiptSheet = ({
           ))}
           <Btn
             title={uploading ? "Uploading…" : "Attach receipt files"}
-            variant="ghost"
+            variant="tonal"
             onPress={() => void attachFiles(index)}
             disabled={uploading}
           />
@@ -333,10 +333,8 @@ const ReceiptSheet = ({
         onPress={() => setRecipients((previous) => [...previous, emptyRecipient()])}
       />
       <ErrorBanner message={error} />
-      <Row>
-        <Btn title="Submit Receipt" onPress={handleSubmit} disabled={uploading} />
-        <Btn title="Cancel" variant="ghost" onPress={onClose} />
-      </Row>
+      <Btn title="Submit Receipt" onPress={handleSubmit} disabled={uploading} />
+      <Btn title="Cancel" variant="ghost" onPress={onClose} />
     </Sheet>
   );
 };
@@ -383,38 +381,44 @@ export const MyRequests = ({
     <>
       <ErrorBanner message={error} />
       {requests == null ? (
-        <Muted>Loading…</Muted>
+        <LoadingState />
       ) : requests.length === 0 ? (
-        <Muted>No requests yet. Make your first one!</Muted>
+        <EmptyState
+          icon="receipt-outline"
+          title="No requests yet"
+          message="Tap “Make Request” below to submit your first one."
+        />
       ) : (
-        requests.map((request) => (
-          <RequestCard key={request._id} request={request}>
-            {!requestCompleted(request) && (
-              <Btn
-                title="Cancel Request"
-                variant="danger"
-                onPress={() =>
-                  confirmAction(
-                    "Cancel request",
-                    `Cancel your $${request.amount} request ("${request.description}")? It will be deleted along with its approvals — this can't be undone.`,
-                    "Cancel Request",
-                    () => void handleCancel(request._id),
-                    true
-                  )
-                }
-              />
-            )}
-            {requestFullyApproved(request) && !request.receipt && (
-              <Btn
-                title="Submit Receipt"
-                variant="success"
-                onPress={() => setReceiptFor(request)}
-              />
-            )}
-            {requestDeclined(request) && (
-              <Btn title="Resubmit" onPress={() => resubmit(request)} />
-            )}
-          </RequestCard>
+        requests.map((request, index) => (
+          <FadeInView key={request._id} delay={stagger(index)}>
+            <RequestCard request={request}>
+              {!requestCompleted(request) && (
+                <Btn
+                  title="Cancel Request"
+                  variant="danger"
+                  onPress={() =>
+                    confirmAction(
+                      "Cancel request",
+                      `Cancel your $${request.amount} request ("${request.description}")? It will be deleted along with its approvals — this can't be undone.`,
+                      "Cancel Request",
+                      () => void handleCancel(request._id),
+                      true
+                    )
+                  }
+                />
+              )}
+              {requestFullyApproved(request) && !request.receipt && (
+                <Btn
+                  title="Submit Receipt"
+                  variant="success"
+                  onPress={() => setReceiptFor(request)}
+                />
+              )}
+              {requestDeclined(request) && (
+                <Btn title="Resubmit" onPress={() => resubmit(request)} />
+              )}
+            </RequestCard>
+          </FadeInView>
         ))
       )}
       <NewRequestSheet
@@ -428,7 +432,3 @@ export const MyRequests = ({
     </>
   );
 };
-
-const styles = StyleSheet.create({
-  sheetTitle: { fontSize: 18, fontWeight: "700" },
-});
