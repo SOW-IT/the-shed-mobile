@@ -271,6 +271,70 @@ export const Select = ({
   );
 };
 
+/** A labelled dropdown that allows selecting multiple values. */
+export const MultiSelect = ({
+  label,
+  values,
+  options,
+  onSelect,
+  placeholder,
+}: {
+  label: string;
+  values: string[];
+  options: readonly SelectOption[];
+  onSelect: (values: string[]) => void;
+  placeholder?: string;
+}) => {
+  const t = useAppTheme();
+  const [open, setOpen] = useState(false);
+  const normalized = options.map((o) =>
+    typeof o === "string" ? { label: o, value: o } : o
+  );
+  const selectedLabels = values
+    .map((v) => normalized.find((o) => o.value === v)?.label ?? v)
+    .join(", ");
+  const toggle = (value: string) => {
+    onSelect(
+      values.includes(value) ? values.filter((v) => v !== value) : [...values, value]
+    );
+  };
+  return (
+    <View style={styles.field}>
+      <Text style={[styles.fieldLabel, { color: t.muted }]}>{label}</Text>
+      <Pressable
+        style={[styles.input, { borderColor: t.border, backgroundColor: t.inputBackground }]}
+        onPress={() => setOpen(true)}
+      >
+        <Text style={{ color: values.length > 0 ? t.text : t.muted }}>
+          {selectedLabels || placeholder || "Select…"} ▾
+        </Text>
+      </Pressable>
+      <Modal visible={open} transparent animationType="fade">
+        <Pressable style={styles.selectBackdrop} onPress={() => setOpen(false)}>
+          <View style={[styles.selectMenu, { backgroundColor: t.card }]}>
+            <ScrollView style={{ maxHeight: 360 }}>
+              {normalized.map((option) => {
+                const selected = values.includes(option.value);
+                return (
+                  <Pressable
+                    key={option.value || "(empty)"}
+                    style={[styles.selectItem, selected && { backgroundColor: t.ghost }]}
+                    onPress={() => toggle(option.value)}
+                  >
+                    <Text style={{ color: t.text, fontWeight: selected ? "700" : "400" }}>
+                      {selected ? "✓  " : "    "}{option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
+    </View>
+  );
+};
+
 export type Segment = { key: string; label: string; badge?: number };
 
 /** Equal-width pill switcher for sections that share one tab. */
