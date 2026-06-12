@@ -454,8 +454,8 @@ export const Segmented = ({
 };
 
 /**
- * A modal form sheet: slides up from the bottom on phones, stays clear of
- * the keyboard, and scrolls when the content is taller than the screen.
+ * A modal form sheet: the backdrop fades in while only the card slides up,
+ * matching native iOS bottom sheet behaviour (no full-screen curtain effect).
  */
 export const Sheet = ({
   visible,
@@ -467,25 +467,54 @@ export const Sheet = ({
   children: ReactNode;
 }) => {
   const t = useAppTheme();
+  const [mounted, setMounted] = useState(false);
+  const slideY = useRef(new Animated.Value(600)).current;
+  const fade = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+      slideY.setValue(600);
+      fade.setValue(0);
+      Animated.parallel([
+        Animated.timing(fade, { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.spring(slideY, { toValue: 0, useNativeDriver: true, damping: 26, stiffness: 300 }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(fade, { toValue: 0, duration: 180, useNativeDriver: true }),
+        Animated.timing(slideY, { toValue: 600, duration: 200, useNativeDriver: true }),
+      ]).start(() => setMounted(false));
+    }
+  }, [visible, slideY, fade]);
+
+  if (!mounted) return null;
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible animationType="none" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
-        style={styles.sheetBackdrop}
+        style={styles.sheetOuter}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <SafeAreaView
-          edges={["bottom"]}
-          style={[styles.sheet, { backgroundColor: t.card }]}
-        >
-          <View style={[styles.sheetHandle, { backgroundColor: t.border }]} />
-          <ScrollView
-            contentContainerStyle={styles.sheetContent}
-            keyboardShouldPersistTaps="handled"
+        {/* Backdrop: fades in/out independently of the card */}
+        <Animated.View style={[StyleSheet.absoluteFill, styles.sheetBackdrop, { opacity: fade }]}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        </Animated.View>
+        {/* Card: slides up from below */}
+        <Animated.View style={{ transform: [{ translateY: slideY }] }}>
+          <SafeAreaView
+            edges={["bottom"]}
+            style={[styles.sheet, { backgroundColor: t.card }]}
           >
-            {children}
-          </ScrollView>
-        </SafeAreaView>
+            <View style={[styles.sheetHandle, { backgroundColor: t.border }]} />
+            <ScrollView
+              contentContainerStyle={styles.sheetContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              {children}
+            </ScrollView>
+          </SafeAreaView>
+        </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -635,9 +664,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   segmentBadgeText: { color: "#ffffff", fontSize: 11, fontWeight: "800" },
-  sheetBackdrop: {
+  sheetOuter: {
     flex: 1,
     justifyContent: "flex-end",
+  },
+  sheetBackdrop: {
     backgroundColor: "rgba(0,0,0,0.4)",
   },
   sheet: {
