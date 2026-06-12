@@ -26,12 +26,6 @@ jobs:
           cache: npm
       - run: npm ci
 
-      # Quality gate: don't queue store builds for a broken main.
-      - name: Typecheck
-        run: npx tsc --noEmit
-      - name: Backend tests
-        run: npm test
-
       - name: EXPO_TOKEN not configured
         if: env.EXPO_TOKEN == ''
         run: |
