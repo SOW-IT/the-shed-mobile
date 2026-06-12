@@ -3,7 +3,13 @@ import { useLocalSearchParams } from "expo-router";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { RequestCard } from "@/components/RequestCard";
-import { Muted, Screen, SectionTitle } from "@/components/ui";
+import {
+  EmptyState,
+  FadeInView,
+  LoadingState,
+  Muted,
+  Screen,
+} from "@/components/ui";
 
 /** Where push notifications about a request land. */
 export default function RequestDetailScreen() {
@@ -15,22 +21,27 @@ export default function RequestDetailScreen() {
 
   if (request === undefined) {
     return (
-      <Screen>
-        <Muted>Loading…</Muted>
+      <Screen title="Request">
+        <LoadingState />
       </Screen>
     );
   }
   if (request === null) {
     return (
-      <Screen>
-        <Muted>This request no longer exists (it may have been cancelled).</Muted>
+      <Screen title="Request">
+        <EmptyState
+          icon="trash-bin-outline"
+          title="Request not found"
+          message="This request no longer exists (it may have been cancelled)."
+        />
       </Screen>
     );
   }
   return (
-    <Screen>
-      <SectionTitle>Request</SectionTitle>
-      <RequestCard request={request} showRequester />
+    <Screen title="Request">
+      <FadeInView delay={40}>
+        <RequestCard request={request} showRequester />
+      </FadeInView>
       <Muted>
         If this request is waiting on you, action it from the To Review tab.
       </Muted>

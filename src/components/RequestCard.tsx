@@ -14,7 +14,7 @@ import {
 } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
-import { useAppTheme } from "../theme";
+import { radius, spacing, typography, useAppTheme } from "../theme";
 import { Btn, Card, Chip, Muted, Row, Txt } from "./ui";
 
 const EVENT_LABELS: Record<string, string> = {
@@ -28,20 +28,27 @@ const EVENT_LABELS: Record<string, string> = {
 
 /** Lazy-loaded audit trail: who actioned each step, and when. */
 const History = ({ request }: { request: Doc<"requests"> }) => {
+  const t = useAppTheme();
   const trail = useQuery(api.requests.auditTrail, { requestId: request._id });
   if (!trail) return <Muted>Loading history…</Muted>;
   return (
-    <View style={{ gap: 2 }}>
+    <View style={[styles.history, { backgroundColor: t.inputBackground }]}>
       {trail.map((event, index) => (
-        <Muted key={index}>
-          {new Date(event.at).toLocaleString()} —{" "}
-          {EVENT_LABELS[event.action] ?? event.action}
-          {event.step
-            ? ` (${STEP_LABELS[event.step as ApprovalStep] ?? event.step})`
-            : ""}{" "}
-          by {event.actor}
-          {event.detail ? ` — ${event.detail}` : ""}
-        </Muted>
+        <View key={index} style={styles.historyRow}>
+          <View style={[styles.historyDot, { backgroundColor: t.faint }]} />
+          <View style={{ flex: 1 }}>
+            <Text style={[typography.caption, { color: t.text, fontWeight: "600" }]}>
+              {EVENT_LABELS[event.action] ?? event.action}
+              {event.step
+                ? ` · ${STEP_LABELS[event.step as ApprovalStep] ?? event.step}`
+                : ""}
+            </Text>
+            <Text style={[typography.caption, { color: t.muted }]}>
+              {new Date(event.at).toLocaleString()} · {event.actor}
+              {event.detail ? ` — ${event.detail}` : ""}
+            </Text>
+          </View>
+        </View>
       ))}
     </View>
   );
@@ -61,9 +68,9 @@ const ReceiptDetails = ({ request }: { request: Doc<"requests"> }) => {
   const receipt = request.receipt;
   if (!receipt) return null;
   return (
-    <View style={{ gap: 6 }}>
+    <View style={{ gap: spacing.sm }}>
       {receipt.recipients.map((recipient, i) => (
-        <View key={i} style={[styles.recipient, { borderColor: t.border }]}>
+        <View key={i} style={[styles.recipient, { backgroundColor: t.inputBackground }]}>
           <Row>
             <Txt style={{ fontWeight: "700", flexGrow: 1 }}>
               {recipient.accountName}
@@ -71,13 +78,21 @@ const ReceiptDetails = ({ request }: { request: Doc<"requests"> }) => {
             <Txt style={{ fontWeight: "700" }}>${recipient.amount}</Txt>
           </Row>
           <Muted>
-            BSB {recipient.bsb} • Account {recipient.accountNumber}
+            BSB {recipient.bsb} · Account {recipient.accountNumber}
           </Muted>
           {(files?.[i]?.attachments ?? []).map((file, j) =>
             file.url ? (
-              <Pressable key={j} onPress={() => void Linking.openURL(file.url!)}>
-                <Text style={{ color: t.primary, textDecorationLine: "underline" }}>
-                  📎 {file.name}
+              <Pressable
+                key={j}
+                style={({ pressed }) => [styles.fileLink, pressed && { opacity: 0.6 }]}
+                onPress={() => void Linking.openURL(file.url!)}
+              >
+                <Ionicons name="document-attach-outline" size={15} color={t.primary} />
+                <Text
+                  numberOfLines={1}
+                  style={[typography.caption, { color: t.primary, fontWeight: "600", flex: 1 }]}
+                >
+                  {file.name}
                 </Text>
               </Pressable>
             ) : null
@@ -99,8 +114,10 @@ const stepStatus = (
     financeHead: request.approvedByFinanceHead,
   })[step];
 
-/** The approval chain, one icon+label per step: green tick when approved,
- *  red cross when declined, a highlighted dot for the step it waits on. */
+/**
+ * The approval chain as a connected stepper: filled tick when approved,
+ * cross when declined, a pulsing-dot style ring for the awaited step.
+ */
 const StepLine = ({ request }: { request: Doc<"requests"> }) => {
   const t = useAppTheme();
   const active = currentStep(request);
@@ -110,18 +127,16 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
       {steps.map((step, index) => {
         const status = stepStatus(request, step);
         const isActive = step === active;
-        const icon =
-          status === APPROVED ? (
-            <Ionicons name="checkmark-circle" size={18} color={t.success} />
-          ) : status === DECLINED ? (
-            <Ionicons name="close-circle" size={18} color={t.danger} />
-          ) : (
-            <Ionicons
-              name={isActive ? "ellipse" : "ellipse-outline"}
-              size={isActive ? 12 : 12}
-              color={isActive ? t.primary : t.muted}
-            />
-          );
+        const previousApproved =
+          index > 0 && stepStatus(request, steps[index - 1]) === APPROVED;
+        const circleStyle =
+          status === APPROVED
+            ? { backgroundColor: t.success }
+            : status === DECLINED
+              ? { backgroundColor: t.danger }
+              : isActive
+                ? { backgroundColor: t.card, borderWidth: 2, borderColor: t.primary }
+                : { backgroundColor: t.card, borderWidth: 1.5, borderColor: t.border };
         const labelColor =
           status === APPROVED
             ? t.success
@@ -129,22 +144,38 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
               ? t.danger
               : isActive
                 ? t.text
-                : t.muted;
+                : t.faint;
         return (
-          <View key={step} style={styles.stepItem}>
-            {index > 0 ? (
-              <Text style={[styles.stepArrow, { color: t.muted }]}>→</Text>
-            ) : null}
-            {icon}
-            <Text
-              style={[
-                styles.stepLabel,
-                { color: labelColor },
-                isActive && { fontWeight: "700" },
-              ]}
-            >
-              {STEP_LABELS[step]}
-            </Text>
+          <View key={step} style={styles.stepGroup}>
+            {index > 0 && (
+              <View
+                style={[
+                  styles.stepConnector,
+                  { backgroundColor: previousApproved ? t.success : t.separator },
+                ]}
+              />
+            )}
+            <View style={styles.stepItem}>
+              <View style={[styles.stepCircle, circleStyle]}>
+                {status === APPROVED ? (
+                  <Ionicons name="checkmark" size={12} color={t.dark ? t.background : "#ffffff"} />
+                ) : status === DECLINED ? (
+                  <Ionicons name="close" size={12} color={t.dark ? t.background : "#ffffff"} />
+                ) : isActive ? (
+                  <View style={[styles.stepActiveDot, { backgroundColor: t.primary }]} />
+                ) : null}
+              </View>
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.stepLabel,
+                  { color: labelColor },
+                  isActive && { fontWeight: "700" },
+                ]}
+              >
+                {STEP_LABELS[step]}
+              </Text>
+            </View>
           </View>
         );
       })}
@@ -170,19 +201,26 @@ export const RequestCard = ({
     ) ?? 0;
   return (
     <Card>
-      <Row>
-        <Txt style={styles.amount}>${request.amount}</Txt>
+      <View style={styles.topRow}>
+        <Text style={[typography.amount, { color: t.text, flex: 1 }]}>
+          ${request.amount}
+        </Text>
         <Chip label={requestDisplayStatus(request)} />
-      </Row>
-      <Muted>
+      </View>
+      <Text style={[typography.caption, { color: t.faint, marginTop: -6 }]}>
         {request.department}
-        {showRequester ? ` • ${request.requesterEmail}` : ""} •{" "}
+        {showRequester ? ` · ${request.requesterEmail}` : ""} ·{" "}
         {new Date(request._creationTime).toLocaleDateString()}
-      </Muted>
+      </Text>
       <Txt>{request.description}</Txt>
       <StepLine request={request} />
       {request.declineReason ? (
-        <Text style={{ color: t.danger }}>Declined: {request.declineReason}</Text>
+        <View style={[styles.declineBox, { backgroundColor: t.dangerSoft }]}>
+          <Ionicons name="close-circle" size={15} color={t.danger} />
+          <Text style={[typography.caption, { color: t.danger, flex: 1 }]}>
+            {request.declineReason}
+          </Text>
+        </View>
       ) : null}
       {request.receipt ? (
         <>
@@ -196,16 +234,20 @@ export const RequestCard = ({
         </>
       ) : null}
       {request.paid && request.paidAmount !== undefined ? (
-        <Muted>
-          Paid ${request.paidAmount}
-          {request.payComment ? ` — ${request.payComment}` : ""}
-        </Muted>
+        <View style={[styles.paidBox, { backgroundColor: t.successSoft }]}>
+          <Ionicons name="checkmark-circle" size={15} color={t.success} />
+          <Text style={[typography.caption, { color: t.success, flex: 1, fontWeight: "600" }]}>
+            Paid ${request.paidAmount}
+            {request.payComment ? ` — ${request.payComment}` : ""}
+          </Text>
+        </View>
       ) : null}
       {showHistory ? <History request={request} /> : null}
+      <View style={[styles.actionsDivider, { backgroundColor: t.separator }]} />
       <Row>
         {children}
         <Btn
-          title={showHistory ? "Hide Audit Trail" : "Audit Trail"}
+          title={showHistory ? "Hide History" : "History"}
           variant="ghost"
           onPress={() => setShowHistory((previous) => !previous)}
         />
@@ -215,21 +257,58 @@ export const RequestCard = ({
 };
 
 const styles = StyleSheet.create({
-  amount: { fontSize: 22, fontWeight: "800", flexGrow: 1 },
+  topRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   stepsRow: {
     flexDirection: "row",
+    alignItems: "flex-start",
+    marginVertical: spacing.xs,
+  },
+  stepGroup: { flexDirection: "row", alignItems: "flex-start", flexShrink: 1 },
+  stepConnector: {
+    height: 2,
+    borderRadius: 1,
+    width: 14,
+    marginTop: 10,
+    marginHorizontal: 3,
+  },
+  stepItem: { alignItems: "center", gap: 4, flexShrink: 1 },
+  stepCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: "center",
-    flexWrap: "wrap",
-    gap: 4,
-    marginVertical: 2,
+    justifyContent: "center",
   },
-  stepItem: { flexDirection: "row", alignItems: "center", gap: 4 },
-  stepArrow: { fontSize: 12, marginRight: 4 },
-  stepLabel: { fontSize: 12 },
+  stepActiveDot: { width: 8, height: 8, borderRadius: 4 },
+  stepLabel: { fontSize: 10.5, letterSpacing: -0.1, maxWidth: 76, textAlign: "center" },
+  declineBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    borderRadius: radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  paidBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    borderRadius: radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  history: {
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  historyRow: { flexDirection: "row", gap: spacing.sm },
+  historyDot: { width: 6, height: 6, borderRadius: 3, marginTop: 6 },
   recipient: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 10,
-    gap: 2,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: 4,
   },
+  fileLink: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 2 },
+  actionsDivider: { height: StyleSheet.hairlineWidth, marginVertical: 2 },
 });

@@ -1,10 +1,21 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { makeRedirectUri } from "expo-auth-session";
 import { openAuthSessionAsync } from "expo-web-browser";
-import { useEffect, useState } from "react";
-import { Image, Platform, StyleSheet, View } from "react-native";
-import { useAppTheme } from "../theme";
-import { Btn, Card, ErrorBanner, errorMessage, Muted, Screen, Txt } from "./ui";
+import { useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Animated,
+  Image,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { radius, spacing, typography, useAppTheme } from "../theme";
+import { ErrorBanner, errorMessage, FadeInView } from "./ui";
 
 export const SignInScreen = () => {
   const { signIn } = useAuthActions();
@@ -53,36 +64,94 @@ export const SignInScreen = () => {
   };
 
   const t = useAppTheme();
+  const scale = useRef(new Animated.Value(1)).current;
 
   return (
-    <Screen>
+    <SafeAreaView style={[styles.screen, { backgroundColor: t.background }]}>
       <View style={styles.hero}>
-        <Image
-          source={
-            t.dark
-              ? require("../../assets/images/lockup-cream.png")
-              : require("../../assets/images/lockup-dark.png")
-          }
-          style={styles.lockup}
-          resizeMode="contain"
-        />
-        <Txt style={styles.title}>THE SHED</Txt>
+        <FadeInView style={styles.heroInner}>
+          <Image
+            source={
+              t.dark
+                ? require("../../assets/images/lockup-cream.png")
+                : require("../../assets/images/lockup-dark.png")
+            }
+            style={styles.lockup}
+            resizeMode="contain"
+          />
+          <Text style={[styles.title, { color: t.text }]}>THE SHED</Text>
+          <Text style={[typography.caption, styles.tagline, { color: t.muted }]}>
+            Requests, approvals and the staff directory — all in one place.
+          </Text>
+        </FadeInView>
       </View>
-      <Card>
-        <Btn
-          title={busy ? "Signing in…" : "Sign in with Google"}
-          onPress={handleSignIn}
-          disabled={busy}
-        />
-        <Muted>Use your sow.org.au Google account.</Muted>
-        <ErrorBanner message={error} />
-      </Card>
-    </Screen>
+      <FadeInView delay={120}>
+        <View style={[styles.panel, t.shadowCard, { backgroundColor: t.card }]}>
+          <Animated.View style={[{ transform: [{ scale }] }, styles.buttonWrap]}>
+            <Pressable
+              onPress={() => void handleSignIn()}
+              onPressIn={() =>
+                Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 0 }).start()
+              }
+              onPressOut={() =>
+                Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 6 }).start()
+              }
+              disabled={busy}
+              style={[
+                styles.googleButton,
+                { backgroundColor: t.primary },
+                busy && { opacity: 0.6 },
+              ]}
+            >
+              {busy ? (
+                <ActivityIndicator size="small" color={t.onPrimary} />
+              ) : (
+                <>
+                  <Ionicons name="logo-google" size={18} color={t.onPrimary} />
+                  <Text style={[styles.googleButtonText, { color: t.onPrimary }]}>
+                    Sign in with Google
+                  </Text>
+                </>
+              )}
+            </Pressable>
+          </Animated.View>
+          <Text style={[typography.caption, { color: t.muted, textAlign: "center" }]}>
+            Use your sow.org.au Google account.
+          </Text>
+          <ErrorBanner message={error} />
+        </View>
+      </FadeInView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  hero: { alignItems: "center", marginVertical: 32, gap: 4 },
-  lockup: { width: 280, height: 53, marginBottom: 12 },
-  title: { fontSize: 32, fontWeight: "900", letterSpacing: 1 },
+  screen: {
+    flex: 1,
+    padding: spacing.lg,
+    maxWidth: 720,
+    width: "100%",
+    alignSelf: "center",
+  },
+  hero: { flex: 1, justifyContent: "center" },
+  heroInner: { alignItems: "center", gap: spacing.sm },
+  lockup: { width: 280, height: 53, marginBottom: spacing.md },
+  title: { fontSize: 34, fontWeight: "900", letterSpacing: 2 },
+  tagline: { textAlign: "center", maxWidth: 280, lineHeight: 19 },
+  panel: {
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  buttonWrap: { width: "100%" },
+  googleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    height: 54,
+    borderRadius: radius.lg - 2,
+  },
+  googleButtonText: { fontSize: 16, fontWeight: "700", letterSpacing: -0.2 },
 });
