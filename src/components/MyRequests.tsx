@@ -94,7 +94,7 @@ const NewRequestSheet = ({
   };
 
   return (
-    <Sheet visible={visible} onClose={onClose}>
+    <Sheet visible={visible} onClose={onClose} scrollable={false}>
       <Txt style={styles.sheetTitle}>New Request</Txt>
       <Field
         label="Description"

@@ -461,10 +461,12 @@ export const Sheet = ({
   visible,
   onClose,
   children,
+  scrollable = true,
 }: {
   visible: boolean;
   onClose: () => void;
   children: ReactNode;
+  scrollable?: boolean;
 }) => {
   const t = useAppTheme();
   const [mounted, setMounted] = useState(false);
@@ -490,10 +492,6 @@ export const Sheet = ({
 
   if (!mounted) return null;
 
-  // On web the tab bar renders above the Modal in CSS z-order, so we push
-  // the sheet card up by the tab bar height (56px) to keep buttons visible.
-
-
   return (
     <Modal visible animationType="none" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
@@ -511,12 +509,16 @@ export const Sheet = ({
             style={[styles.sheet, { backgroundColor: t.card }]}
           >
             <View style={[styles.sheetHandle, { backgroundColor: t.border }]} />
-            <ScrollView
-              contentContainerStyle={styles.sheetContent}
-              keyboardShouldPersistTaps="handled"
-            >
-              {children}
-            </ScrollView>
+            {scrollable ? (
+              <ScrollView
+                contentContainerStyle={styles.sheetContent}
+                keyboardShouldPersistTaps="handled"
+              >
+                {children}
+              </ScrollView>
+            ) : (
+              <View style={styles.sheetContent}>{children}</View>
+            )}
           </SafeAreaView>
         </Animated.View>
       </KeyboardAvoidingView>
