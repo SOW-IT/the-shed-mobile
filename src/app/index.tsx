@@ -7,11 +7,13 @@ import { api } from "../../convex/_generated/api";
 import { AllRequestsList } from "@/components/AllRequestsList";
 import { MyRequests } from "@/components/MyRequests";
 import { ReviewList } from "@/components/ReviewList";
+import { type RequestPrefill } from "@/components/MyRequests";
 import {
   Btn,
   Card,
   ErrorBanner,
   errorMessage,
+  FooterAction,
   Muted,
   Row,
   Screen,
@@ -80,10 +82,18 @@ export default function RequestsScreen() {
     )?.name ??
     "";
 
+  const [newRequestOpen, setNewRequestOpen] = useState(false);
+  const [requestPrefill, setRequestPrefill] = useState<RequestPrefill | null>(null);
+  const openNewRequest = () => { setRequestPrefill(null); setNewRequestOpen(true); };
+
+  const showMakeRequest = me?.profile != null && activeSegment === "mine";
+
   if (me === undefined) return <Screen />;
 
   return (
-    <Screen>
+    <Screen
+      footer={showMakeRequest ? <FooterAction title="+ Make Request" onPress={openNewRequest} /> : undefined}
+    >
       {me === null || me.profile === null ? (
         <Card>
           <Txt style={styles.title}>Welcome{me?.name ? `, ${me.name}` : ""}</Txt>
@@ -141,6 +151,10 @@ export default function RequestsScreen() {
             <MyRequests
               departments={departmentNames}
               defaultDepartment={defaultDepartment}
+              newOpen={newRequestOpen}
+              prefill={requestPrefill}
+              onResubmit={(p) => { setRequestPrefill(p); setNewRequestOpen(true); }}
+              onNewClose={() => setNewRequestOpen(false)}
             />
           )}
         </>

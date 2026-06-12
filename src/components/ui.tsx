@@ -54,18 +54,25 @@ export const Screen = ({
   children,
   toast,
   scrollRef,
+  footer,
 }: {
   children?: ReactNode;
   toast?: ToastState;
   /** Exposes the screen's ScrollView, e.g. to scroll back to the top. */
   scrollRef?: Ref<ScrollView>;
+  /** Pinned full-width area between the scroll content and the tab bar. */
+  footer?: ReactNode;
 }) => {
   const t = useAppTheme();
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: t.background }]} edges={["top"]}>
-      <ScrollView ref={scrollRef} contentContainerStyle={styles.scroll}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={[styles.scroll, footer != null && { paddingBottom: 70 }]}
+      >
         {children}
       </ScrollView>
+      {footer}
       <Toast toast={toast ?? null} />
     </SafeAreaView>
   );
@@ -107,6 +114,32 @@ export const Toast = ({ toast }: { toast: ToastState }) => {
     >
       <Text style={[styles.toastText, { color: t.background }]}>✓ {shown.text}</Text>
     </Animated.View>
+  );
+};
+
+/** Full-width rectangle button pinned above the tab bar. */
+export const FooterAction = ({
+  title,
+  onPress,
+  disabled,
+}: {
+  title: string;
+  onPress: () => void;
+  disabled?: boolean;
+}) => {
+  const t = useAppTheme();
+  return (
+    <Pressable
+      onPress={() => { haptic(); onPress(); }}
+      disabled={disabled}
+      style={({ pressed }) => [
+        styles.footerAction,
+        { backgroundColor: t.primary },
+        (pressed || disabled) && { opacity: 0.7 },
+      ]}
+    >
+      <Text style={[styles.footerActionText, { color: t.onPrimary }]}>{title}</Text>
+    </Pressable>
   );
 };
 
@@ -637,4 +670,10 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   toastText: { fontWeight: "700", fontSize: 13 },
+  footerAction: {
+    height: 54,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  footerActionText: { fontSize: 16, fontWeight: "700", letterSpacing: 0.3 },
 });

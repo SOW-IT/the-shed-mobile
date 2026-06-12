@@ -345,24 +345,29 @@ const ReceiptSheet = ({
 export const MyRequests = ({
   departments,
   defaultDepartment,
+  newOpen,
+  prefill,
+  onResubmit,
+  onNewClose,
 }: {
   departments: string[];
   defaultDepartment: string;
+  newOpen: boolean;
+  prefill: RequestPrefill | null;
+  onResubmit: (prefill: RequestPrefill) => void;
+  onNewClose: () => void;
 }) => {
   const requests = useQuery(api.requests.myRequests, {});
   const cancel = useMutation(api.requests.cancel);
-  const [newOpen, setNewOpen] = useState(false);
-  const [prefill, setPrefill] = useState<RequestPrefill | null>(null);
   const [receiptFor, setReceiptFor] = useState<Doc<"requests"> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const resubmit = (request: Doc<"requests">) => {
-    setPrefill({
+    onResubmit({
       description: request.description,
       amount: String(request.amount),
       department: request.department,
     });
-    setNewOpen(true);
   };
 
   const handleCancel = async (requestId: Id<"requests">) => {
@@ -376,13 +381,6 @@ export const MyRequests = ({
 
   return (
     <>
-      <Btn
-        title="+ Make Request"
-        onPress={() => {
-          setPrefill(null);
-          setNewOpen(true);
-        }}
-      />
       <ErrorBanner message={error} />
       {requests == null ? (
         <Muted>Loading…</Muted>
@@ -421,7 +419,7 @@ export const MyRequests = ({
       )}
       <NewRequestSheet
         visible={newOpen}
-        onClose={() => setNewOpen(false)}
+        onClose={onNewClose}
         departments={departments}
         defaultDepartment={defaultDepartment}
         prefill={prefill}
