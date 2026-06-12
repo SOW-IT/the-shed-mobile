@@ -1,4 +1,5 @@
 import { ConvexError } from "convex/values";
+import * as Haptics from "expo-haptics";
 import { ReactNode, Ref, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -17,6 +18,15 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppTheme } from "../theme";
+
+const haptic = (style = Haptics.ImpactFeedbackStyle.Light) => {
+  if (Platform.OS === "web") return;
+  void Haptics.impactAsync(style);
+};
+const hapticSelect = () => {
+  if (Platform.OS === "web") return;
+  void Haptics.selectionAsync();
+};
 
 export const errorMessage = (e: unknown): string =>
   e instanceof ConvexError
@@ -128,6 +138,7 @@ export const Btn = ({
   loading?: boolean;
 }) => {
   const t = useAppTheme();
+  const scale = useRef(new Animated.Value(1)).current;
   const background = {
     primary: t.primary,
     success: t.success,
@@ -141,21 +152,46 @@ export const Btn = ({
         ? t.onPrimary
         : "#ffffff";
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled || loading}
-      style={({ pressed }) => [
-        styles.btn,
-        { backgroundColor: background },
-        (pressed || disabled || loading) && { opacity: 0.6 },
-      ]}
-    >
-      {loading ? (
-        <ActivityIndicator size="small" color={textColor} />
-      ) : (
-        <Text style={[styles.btnText, { color: textColor }]}>{title}</Text>
-      )}
-    </Pressable>
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Pressable
+        onPress={() => {
+          haptic(
+            variant === "danger"
+              ? Haptics.ImpactFeedbackStyle.Medium
+              : Haptics.ImpactFeedbackStyle.Light
+          );
+          onPress();
+        }}
+        onPressIn={() =>
+          Animated.spring(scale, {
+            toValue: 0.95,
+            useNativeDriver: true,
+            speed: 50,
+            bounciness: 0,
+          }).start()
+        }
+        onPressOut={() =>
+          Animated.spring(scale, {
+            toValue: 1,
+            useNativeDriver: true,
+            speed: 20,
+            bounciness: 6,
+          }).start()
+        }
+        disabled={disabled || loading}
+        style={[
+          styles.btn,
+          { backgroundColor: background },
+          (disabled || loading) && { opacity: 0.5 },
+        ]}
+      >
+        {loading ? (
+          <ActivityIndicator size="small" color={textColor} />
+        ) : (
+          <Text style={[styles.btnText, { color: textColor }]}>{title}</Text>
+        )}
+      </Pressable>
+    </Animated.View>
   );
 };
 
@@ -181,11 +217,8 @@ export const Field = ({
       <TextInput
         style={[
           styles.input,
-          {
-            borderColor: t.border,
-            backgroundColor: t.inputBackground,
-            color: t.text,
-          },
+          { backgroundColor: t.inputBackground, color: t.text },
+          Platform.OS !== "ios" && { borderWidth: 1, borderColor: t.border },
           multiline && styles.inputMultiline,
         ]}
         value={value}
@@ -229,9 +262,10 @@ export const Select = ({
       <Pressable
         style={[
           styles.input,
-          { borderColor: t.border, backgroundColor: t.inputBackground },
+          { backgroundColor: t.inputBackground },
+          Platform.OS !== "ios" && { borderWidth: 1, borderColor: t.border },
         ]}
-        onPress={() => setOpen(true)}
+        onPress={() => { hapticSelect(); setOpen(true); }}
       >
         <Text style={{ color: value ? t.text : t.muted }}>
           {selectedLabel || placeholder || "Select…"} ▾
@@ -249,6 +283,7 @@ export const Select = ({
                     option.value === value && { backgroundColor: t.ghost },
                   ]}
                   onPress={() => {
+                    hapticSelect();
                     onSelect(option.value);
                     setOpen(false);
                   }}
@@ -302,8 +337,12 @@ export const MultiSelect = ({
     <View style={styles.field}>
       <Text style={[styles.fieldLabel, { color: t.muted }]}>{label}</Text>
       <Pressable
-        style={[styles.input, { borderColor: t.border, backgroundColor: t.inputBackground }]}
-        onPress={() => setOpen(true)}
+        style={[
+          styles.input,
+          { backgroundColor: t.inputBackground },
+          Platform.OS !== "ios" && { borderWidth: 1, borderColor: t.border },
+        ]}
+        onPress={() => { hapticSelect(); setOpen(true); }}
       >
         <Text style={{ color: values.length > 0 ? t.text : t.muted }}>
           {selectedLabels || placeholder || "Select…"} ▾
@@ -319,7 +358,7 @@ export const MultiSelect = ({
                   <Pressable
                     key={option.value || "(empty)"}
                     style={[styles.selectItem, selected && { backgroundColor: t.ghost }]}
-                    onPress={() => toggle(option.value)}
+                    onPress={() => { hapticSelect(); toggle(option.value); }}
                   >
                     <Text style={{ color: t.text, fontWeight: selected ? "700" : "400" }}>
                       {selected ? "✓  " : "    "}{option.label}
@@ -357,7 +396,7 @@ export const Segmented = ({
           <Pressable
             key={segment.key}
             style={[styles.segment, selected && { backgroundColor: t.card }]}
-            onPress={() => onChange(segment.key)}
+            onPress={() => { hapticSelect(); onChange(segment.key); }}
           >
             <Text
               numberOfLines={1}
@@ -482,10 +521,10 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 8,
     shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   sectionTitle: { fontSize: 18, fontWeight: "700", marginTop: 8 },
   row: { flexDirection: "row", gap: 8, flexWrap: "wrap", alignItems: "center" },
@@ -500,7 +539,6 @@ const styles = StyleSheet.create({
   field: { gap: 4 },
   fieldLabel: { fontSize: 13, fontWeight: "600" },
   input: {
-    borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 8,
@@ -531,6 +569,11 @@ const styles = StyleSheet.create({
     maxWidth: 360,
     width: "100%",
     alignSelf: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
   },
   selectItem: { paddingHorizontal: 16, paddingVertical: 12 },
   segmented: {
