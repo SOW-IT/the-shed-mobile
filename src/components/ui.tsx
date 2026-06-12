@@ -490,10 +490,14 @@ export const Sheet = ({
 
   if (!mounted) return null;
 
+  // On web the tab bar renders above the Modal in CSS z-order, so we push
+  // the sheet card up by the tab bar height (56px) to keep buttons visible.
+  const sheetBottomOffset = Platform.OS === "web" ? 56 : 0;
+
   return (
     <Modal visible animationType="none" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
-        style={styles.sheetOuter}
+        style={[styles.sheetOuter, sheetBottomOffset > 0 && { paddingBottom: sheetBottomOffset }]}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         {/* Backdrop: fades in/out independently of the card */}
