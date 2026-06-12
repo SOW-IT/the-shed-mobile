@@ -127,6 +127,7 @@ export default function RootLayout() {
       <ConvexAuthProvider
         client={convex}
         storage={Platform.OS === "web" ? undefined : secureStorage}
+        shouldHandleCode={Platform.OS !== "web"}
       >
         <AuthLoading>
           <View
