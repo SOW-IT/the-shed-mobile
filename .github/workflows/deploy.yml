@@ -59,9 +59,22 @@ jobs:
 
       - name: Publish web to Vercel
         if: env.CONVEX_DEPLOY_KEY != '' && env.VERCEL_TOKEN != ''
-        # Uploading a prebuilt static export takes ~a minute; anything longer
-        # is the CLI hanging after the deployment already went live.
+        # Uses the Vercel Build Output API (--prebuilt) so Vercel skips its own
+        # build step and serves the files we provide directly. Routing is
+        # declared in config.json: try static files first, then fall back to
+        # index.html so Expo Router handles all client-side navigation.
         timeout-minutes: 10
         run: |
-          cp -r web/. dist/
-          npx vercel deploy dist --prod --yes --token "$VERCEL_TOKEN"
+          mkdir -p .vercel/output/static
+          cp -r dist/. .vercel/output/static/
+          cat > .vercel/output/config.json << 'VERCEL_CONFIG'
+          {
+            "version": 3,
+            "cleanUrls": true,
+            "routes": [
+              { "handle": "filesystem" },
+              { "src": "/(.*)", "dest": "/index.html" }
+            ]
+          }
+          VERCEL_CONFIG
+          npx vercel deploy --prebuilt --prod --yes --token "$VERCEL_TOKEN"
