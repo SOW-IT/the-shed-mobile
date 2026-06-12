@@ -99,7 +99,9 @@ export default function AdminScreen() {
   const setStaffProfile = useMutation(api.admin.setStaffProfile);
   const removeStaffProfile = useMutation(api.admin.removeStaffProfile);
   const upsertDivision = useMutation(api.admin.upsertDivision);
+  const updateDivision = useMutation(api.admin.updateDivision);
   const upsertDepartment = useMutation(api.admin.upsertDepartment);
+  const updateDepartment = useMutation(api.admin.updateDepartment);
   const upsertUniversity = useMutation(api.admin.upsertUniversity);
   const setBudgetManager = useMutation(api.admin.setBudgetManager);
 
@@ -116,8 +118,7 @@ export default function AdminScreen() {
     }
   };
 
-  // Staff form — a person can hold multiple roles, but most hold one, so the
-  // picker stays single-select until "Allow multiple" is switched on.
+  // Staff add form — for new assignments.
   const [staffEmail, setStaffEmail] = useState("");
   const [staffRoles, setStaffRoles] = useState<string[]>([ROLES[0]]);
   const [allowMultipleRoles, setAllowMultipleRoles] = useState(false);
@@ -137,8 +138,7 @@ export default function AdminScreen() {
     // Switching back to single-select keeps only the first chosen role.
     if (!allow) setStaffRoles((previous) => previous.slice(0, 1));
   };
-  // Picking a person loads what they already have this year, so saving
-  // edits their assignment instead of silently rebuilding it from scratch.
+  // Picking a person pre-fills the add form with their existing assignment.
   const selectPerson = (email: string) => {
     setStaffEmail(email);
     const existing = (profiles ?? []).find((p) => p.email === email);
@@ -150,12 +150,7 @@ export default function AdminScreen() {
     setStaffDivision(existing?.division ?? "");
     setStaffUniversity(existing?.university ?? "");
   };
-  // The Edit icon on a user card loads them into the form at the top.
-  const editPerson = (email: string) => {
-    selectPerson(email);
-    scrollRef.current?.scrollTo({ y: 0, animated: true });
-  };
-  // Division / department / university forms
+  // Division / department / university add forms
   const [divisionName, setDivisionName] = useState("");
   const [divisionHead, setDivisionHead] = useState("");
   const [universityName, setUniversityName] = useState("");
@@ -166,6 +161,43 @@ export default function AdminScreen() {
   const [budgetManagerEmail, setBudgetManagerEmail] = useState<string | null>(null);
   const budgetManagerValue =
     budgetManagerEmail ?? structure?.budgetManagerEmail ?? "";
+
+  // Inline editing state for user cards
+  const [editingUserEmail, setEditingUserEmail] = useState<string | null>(null);
+  const [editingUserRoles, setEditingUserRoles] = useState<string[]>([ROLES[0]]);
+  const [editingUserAllowMultiple, setEditingUserAllowMultiple] = useState(false);
+  const [editingUserDepartment, setEditingUserDepartment] = useState("");
+  const [editingUserDivision, setEditingUserDivision] = useState("");
+  const [editingUserUniversity, setEditingUserUniversity] = useState("");
+  const [savingEditUser, setSavingEditUser] = useState(false);
+  // Inline editing state for division cards
+  const [editingDivisionKey, setEditingDivisionKey] = useState<string | null>(null);
+  const [editingDivisionFormName, setEditingDivisionFormName] = useState("");
+  const [editingDivisionFormHead, setEditingDivisionFormHead] = useState("");
+  const [savingEditDivision, setSavingEditDivision] = useState(false);
+  // Inline editing state for department cards
+  const [editingDepartmentKey, setEditingDepartmentKey] = useState<string | null>(null);
+  const [editingDepartmentFormName, setEditingDepartmentFormName] = useState("");
+  const [editingDepartmentFormDivision, setEditingDepartmentFormDivision] = useState("");
+  const [editingDepartmentFormHead, setEditingDepartmentFormHead] = useState("");
+  const [savingEditDepartment, setSavingEditDepartment] = useState(false);
+
+  const startEditUser = (email: string) => {
+    const existing = (profiles ?? []).find((p) => p.email === email);
+    const existingRoles =
+      existing && existing.roles.length > 0 ? existing.roles : [ROLES[0]];
+    setEditingUserRoles(existingRoles);
+    setEditingUserAllowMultiple(existingRoles.length > 1);
+    setEditingUserDepartment(existing?.department ?? "");
+    setEditingUserDivision(existing?.division ?? "");
+    setEditingUserUniversity(existing?.university ?? "");
+    setEditingUserEmail(email);
+  };
+  const toggleEditUserRole = (role: string) =>
+    setEditingUserRoles((prev) => {
+      if (!editingUserAllowMultiple) return [role];
+      return prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role];
+    });
 
   if (me && !me.isAdmin) {
     return (
@@ -265,7 +297,7 @@ export default function AdminScreen() {
             <Card>
               {personOptions.length > 0 && (
                 <Select
-                  label="Person (selecting loads their current assignment)"
+                  label="Person (selecting pre-fills the form with their current assignment)"
                   value={staffEmail}
                   options={personOptions}
                   onSelect={selectPerson}
@@ -357,76 +389,242 @@ export default function AdminScreen() {
               />
             </Card>
           )}
-          {(profiles ?? []).map((profile) => (
-            <Card key={profile._id}>
-              <Row>
-                <View style={{ flexGrow: 1 }}>
-                  <Txt style={{ fontWeight: "600" }}>{profile.name ?? profile.email}</Txt>
-                  {profile.name ? <Muted>{profile.email}</Muted> : null}
-                  <Muted>
-                    {profile.roles.map(acronym).join(", ")} •{" "}
-                    {[profile.department, profile.division, profile.university]
-                      .map((name) => name && acronym(name))
-                      .filter(Boolean)
-                      .join(" / ") || "—"}
-                  </Muted>
-                </View>
-                {editable && (
+          {(profiles ?? []).map((profile) => {
+            const isEditingThis = editingUserEmail === profile.email;
+            const needsEditDiv = editingUserRoles.includes(HEAD_OF_DIVISION);
+            const needsEditUni = rolesNeedUniversity(editingUserRoles);
+            const needsEditDept = editingUserRoles.some(roleNeedsDepartment);
+            return (
+              <Card key={profile._id}>
+                {isEditingThis ? (
                   <>
-                    <Pressable
-                      hitSlop={8}
-                      style={({ pressed }) => [
-                        styles.iconButton,
-                        { backgroundColor: t.ghost },
-                        pressed && { opacity: 0.6 },
-                      ]}
-                      onPress={() => editPerson(profile.email)}
-                    >
-                      <Ionicons name="create-outline" size={18} color={t.ghostText} />
-                    </Pressable>
-                    <Pressable
-                      hitSlop={8}
-                      style={({ pressed }) => [
-                        styles.iconButton,
-                        { backgroundColor: t.ghost },
-                        pressed && { opacity: 0.6 },
-                      ]}
-                      onPress={() =>
-                        confirmRemoval(
-                          `Remove ${profile.email} from ${selectedYear}? Their roles and department assignment for the year will be deleted.`,
-                          () =>
-                            void run(() =>
-                              removeStaffProfile({
-                                email: profile.email,
-                                year: selectedYear,
-                              })
-                            )
-                        )
-                      }
-                    >
-                      <Ionicons name="trash-outline" size={18} color={t.danger} />
-                    </Pressable>
+                    <Txt style={{ fontWeight: "600" }}>{profile.name ?? profile.email}</Txt>
+                    {profile.name ? <Muted>{profile.email}</Muted> : null}
+                    <Row>
+                      <View style={{ flexGrow: 1 }}>
+                        <Muted>
+                          {editingUserAllowMultiple
+                            ? "Roles (tap to toggle — this person can hold several)"
+                            : "Role (tap to pick one)"}
+                        </Muted>
+                      </View>
+                      <Btn
+                        title="Allow multiple"
+                        variant={editingUserAllowMultiple ? "primary" : "ghost"}
+                        onPress={() => {
+                          if (editingUserAllowMultiple)
+                            setEditingUserRoles((prev) => prev.slice(0, 1));
+                          setEditingUserAllowMultiple(!editingUserAllowMultiple);
+                        }}
+                      />
+                    </Row>
+                    <Row>
+                      {ROLES.map((role) => (
+                        <Btn
+                          key={role}
+                          title={role}
+                          variant={editingUserRoles.includes(role) ? "primary" : "ghost"}
+                          onPress={() => toggleEditUserRole(role)}
+                        />
+                      ))}
+                    </Row>
+                    {needsEditDiv && (
+                      <Select
+                        label="Division"
+                        value={editingUserDivision}
+                        options={(structure?.divisions ?? []).map((d) => d.name)}
+                        onSelect={setEditingUserDivision}
+                        placeholder="Choose a division…"
+                      />
+                    )}
+                    {needsEditUni && (
+                      <Select
+                        label="University"
+                        value={editingUserUniversity}
+                        options={structure?.universities ?? []}
+                        onSelect={setEditingUserUniversity}
+                        placeholder="Choose a university…"
+                      />
+                    )}
+                    {needsEditDept && (
+                      <Select
+                        label="Department"
+                        value={editingUserDepartment}
+                        options={(structure?.departments ?? []).map((d) => d.name)}
+                        onSelect={setEditingUserDepartment}
+                        placeholder="Choose a department…"
+                      />
+                    )}
+                    <Row>
+                      <Btn
+                        title="Save"
+                        loading={savingEditUser}
+                        onPress={() => {
+                          setSavingEditUser(true);
+                          void run(() =>
+                            setStaffProfile({
+                              email: profile.email,
+                              year: selectedYear,
+                              roles: editingUserRoles,
+                              department: needsEditDept ? editingUserDepartment : undefined,
+                              division: needsEditDiv ? editingUserDivision : undefined,
+                              university: needsEditUni ? editingUserUniversity : undefined,
+                            })
+                          )
+                            .then((ok) => {
+                              if (ok) {
+                                setEditingUserEmail(null);
+                                setToast({ text: `Saved ${profile.email}` });
+                              }
+                            })
+                            .finally(() => setSavingEditUser(false));
+                        }}
+                      />
+                      <Btn
+                        title="Cancel"
+                        variant="ghost"
+                        onPress={() => setEditingUserEmail(null)}
+                      />
+                    </Row>
                   </>
+                ) : (
+                  <Row>
+                    <View style={{ flexGrow: 1 }}>
+                      <Txt style={{ fontWeight: "600" }}>{profile.name ?? profile.email}</Txt>
+                      {profile.name ? <Muted>{profile.email}</Muted> : null}
+                      <Muted>
+                        {profile.roles.map(acronym).join(", ")} •{" "}
+                        {[profile.department, profile.division, profile.university]
+                          .map((name) => name && acronym(name))
+                          .filter(Boolean)
+                          .join(" / ") || "—"}
+                      </Muted>
+                    </View>
+                    {editable && (
+                      <>
+                        <Pressable
+                          hitSlop={8}
+                          style={({ pressed }) => [
+                            styles.iconButton,
+                            { backgroundColor: t.ghost },
+                            pressed && { opacity: 0.6 },
+                          ]}
+                          onPress={() => startEditUser(profile.email)}
+                        >
+                          <Ionicons name="create-outline" size={18} color={t.ghostText} />
+                        </Pressable>
+                        <Pressable
+                          hitSlop={8}
+                          style={({ pressed }) => [
+                            styles.iconButton,
+                            { backgroundColor: t.ghost },
+                            pressed && { opacity: 0.6 },
+                          ]}
+                          onPress={() =>
+                            confirmRemoval(
+                              `Remove ${profile.email} from ${selectedYear}? Their roles and department assignment for the year will be deleted.`,
+                              () =>
+                                void run(() =>
+                                  removeStaffProfile({
+                                    email: profile.email,
+                                    year: selectedYear,
+                                  })
+                                )
+                            )
+                          }
+                        >
+                          <Ionicons name="trash-outline" size={18} color={t.danger} />
+                        </Pressable>
+                      </>
+                    )}
+                  </Row>
                 )}
-              </Row>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </>
       )}
 
       {tab === "structure" && (
         <>
           <SectionTitle>Divisions — {selectedYear}</SectionTitle>
-          {(structure?.divisions ?? []).map((division) => (
-            <Card key={division.name}>
-              <Txt style={{ fontWeight: "600" }}>{division.name}</Txt>
-              <Muted>Head: {division.headEmail ?? "none"}</Muted>
-            </Card>
-          ))}
+          {(structure?.divisions ?? []).map((division) => {
+            const isEditingThis = editingDivisionKey === division.name;
+            return (
+              <Card key={division.name}>
+                {isEditingThis ? (
+                  <>
+                    <Field
+                      label="Division name (rename cascades to departments and staff)"
+                      value={editingDivisionFormName}
+                      onChangeText={setEditingDivisionFormName}
+                    />
+                    <Select
+                      label="Head of Division (optional — also gives them the role)"
+                      value={editingDivisionFormHead}
+                      options={[{ label: "— No head —", value: "" }, ...personOptions]}
+                      onSelect={setEditingDivisionFormHead}
+                      placeholder="Choose a person…"
+                    />
+                    <Row>
+                      <Btn
+                        title="Save"
+                        loading={savingEditDivision}
+                        onPress={() => {
+                          setSavingEditDivision(true);
+                          void run(() =>
+                            updateDivision({
+                              year: selectedYear,
+                              oldName: division.name,
+                              newName: editingDivisionFormName,
+                              headEmail: editingDivisionFormHead || undefined,
+                            })
+                          )
+                            .then((ok) => {
+                              if (ok) setEditingDivisionKey(null);
+                            })
+                            .finally(() => setSavingEditDivision(false));
+                        }}
+                      />
+                      <Btn
+                        title="Cancel"
+                        variant="ghost"
+                        onPress={() => setEditingDivisionKey(null)}
+                      />
+                    </Row>
+                  </>
+                ) : (
+                  <Row>
+                    <View style={{ flexGrow: 1 }}>
+                      <Txt style={{ fontWeight: "600" }}>{division.name}</Txt>
+                      <Muted>Head: {division.headEmail ?? "none"}</Muted>
+                    </View>
+                    {editable && (
+                      <Pressable
+                        hitSlop={8}
+                        style={({ pressed }) => [
+                          styles.iconButton,
+                          { backgroundColor: t.ghost },
+                          pressed && { opacity: 0.6 },
+                        ]}
+                        onPress={() => {
+                          setEditingDivisionFormName(division.name);
+                          setEditingDivisionFormHead(division.headEmail ?? "");
+                          setEditingDivisionKey(division.name);
+                        }}
+                      >
+                        <Ionicons name="create-outline" size={18} color={t.ghostText} />
+                      </Pressable>
+                    )}
+                  </Row>
+                )}
+              </Card>
+            );
+          })}
           {editable && (
             <Card>
               <Field
-                label="Division name (existing name updates that division)"
+                label="New division name"
                 value={divisionName}
                 onChangeText={setDivisionName}
               />
@@ -438,7 +636,7 @@ export default function AdminScreen() {
                 placeholder="Choose a person…"
               />
               <Btn
-                title="Save Division"
+                title="Add Division"
                 onPress={() =>
                   void run(() =>
                     upsertDivision({
@@ -480,18 +678,94 @@ export default function AdminScreen() {
           </Card>
 
           <SectionTitle>Departments — {selectedYear}</SectionTitle>
-          {(structure?.departments ?? []).map((department) => (
-            <Card key={department.name}>
-              <Txt style={{ fontWeight: "600" }}>{department.name}</Txt>
-              <Muted>
-                Division: {department.division} • Head: {department.headEmail ?? "none"}
-              </Muted>
-            </Card>
-          ))}
+          {(structure?.departments ?? []).map((department) => {
+            const isEditingThis = editingDepartmentKey === department.name;
+            return (
+              <Card key={department.name}>
+                {isEditingThis ? (
+                  <>
+                    <Field
+                      label="Department name (rename cascades to staff and requests)"
+                      value={editingDepartmentFormName}
+                      onChangeText={setEditingDepartmentFormName}
+                    />
+                    <Select
+                      label="Division"
+                      value={editingDepartmentFormDivision}
+                      options={(structure?.divisions ?? []).map((d) => d.name)}
+                      onSelect={setEditingDepartmentFormDivision}
+                      placeholder="Choose a division…"
+                    />
+                    <Select
+                      label="Head of Department (optional — also gives them the role)"
+                      value={editingDepartmentFormHead}
+                      options={[{ label: "— No head —", value: "" }, ...personOptions]}
+                      onSelect={setEditingDepartmentFormHead}
+                      placeholder="Choose a person…"
+                    />
+                    <Row>
+                      <Btn
+                        title="Save"
+                        loading={savingEditDepartment}
+                        onPress={() => {
+                          setSavingEditDepartment(true);
+                          void run(() =>
+                            updateDepartment({
+                              year: selectedYear,
+                              oldName: department.name,
+                              newName: editingDepartmentFormName,
+                              division: editingDepartmentFormDivision,
+                              headEmail: editingDepartmentFormHead || undefined,
+                            })
+                          )
+                            .then((ok) => {
+                              if (ok) setEditingDepartmentKey(null);
+                            })
+                            .finally(() => setSavingEditDepartment(false));
+                        }}
+                      />
+                      <Btn
+                        title="Cancel"
+                        variant="ghost"
+                        onPress={() => setEditingDepartmentKey(null)}
+                      />
+                    </Row>
+                  </>
+                ) : (
+                  <Row>
+                    <View style={{ flexGrow: 1 }}>
+                      <Txt style={{ fontWeight: "600" }}>{department.name}</Txt>
+                      <Muted>
+                        Division: {department.division} • Head: {department.headEmail ?? "none"}
+                      </Muted>
+                    </View>
+                    {editable && (
+                      <Pressable
+                        hitSlop={8}
+                        style={({ pressed }) => [
+                          styles.iconButton,
+                          { backgroundColor: t.ghost },
+                          pressed && { opacity: 0.6 },
+                        ]}
+                        onPress={() => {
+                          setEditingDepartmentFormName(department.name);
+                          setEditingDepartmentFormDivision(department.division);
+                          setEditingDepartmentFormHead(department.headEmail ?? "");
+                          setEditingDepartmentKey(department.name);
+                        }}
+                      >
+                        <Ionicons name="create-outline" size={18} color={t.ghostText} />
+                      </Pressable>
+                    )}
+                  </Row>
+                )}
+              </Card>
+            );
+          })}
           {editable && (
             <Card>
               <Field
-                label="Department name"
+                label="New department name"
                 value={departmentName}
                 onChangeText={setDepartmentName}
               />
@@ -510,7 +784,7 @@ export default function AdminScreen() {
                 placeholder="Choose a person…"
               />
               <Btn
-                title="Save Department"
+                title="Add Department"
                 onPress={() =>
                   void run(() =>
                     upsertDepartment({

@@ -273,6 +273,7 @@ export const upsertDivision = mutation({
       .query("divisions")
       .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", name))
       .unique();
+    const oldHeadEmail = existing?.headEmail;
     let divisionId;
     if (existing) {
       await ctx.db.patch("divisions", existing._id, { headEmail });
@@ -308,7 +309,130 @@ export const upsertDivision = mutation({
         });
       }
     }
+
+    // Remove HEAD_OF_DIVISION from the old head if they no longer head any division.
+    if (oldHeadEmail && oldHeadEmail !== headEmail) {
+      const yearDivisions = await ctx.db
+        .query("divisions")
+        .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
+        .take(200);
+      const stillHeading = yearDivisions.some((d) => d.headEmail === oldHeadEmail);
+      if (!stillHeading) {
+        const oldHead = await getProfile(ctx, oldHeadEmail, args.year);
+        if (oldHead) {
+          const updatedRoles = rolesOf(oldHead).filter((r) => r !== HEAD_OF_DIVISION);
+          await ctx.db.patch("staffProfiles", oldHead._id, {
+            roles: updatedRoles.length > 0 ? updatedRoles : [STAFF_ROLE],
+            role: undefined,
+          });
+        }
+      }
+    }
+
     return divisionId;
+  },
+});
+
+/**
+ * Inline-edit for an existing division: rename (cascading through departments
+ * and staff profiles) and/or update the head, all in one atomic transaction.
+ */
+export const updateDivision = mutation({
+  args: {
+    year: v.number(),
+    oldName: v.string(),
+    newName: v.string(),
+    headEmail: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    assertManagedYear(args.year);
+    const oldName = args.oldName.trim();
+    const newName = args.newName.trim();
+    if (!newName) throw new ConvexError("Division name is required.");
+    const headEmail = args.headEmail?.trim().toLowerCase() || undefined;
+
+    const existing = await ctx.db
+      .query("divisions")
+      .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", oldName))
+      .unique();
+    if (!existing) throw new ConvexError(`Division "${oldName}" not found.`);
+
+    const oldHeadEmail = existing.headEmail;
+
+    if (newName !== oldName) {
+      const conflict = await ctx.db
+        .query("divisions")
+        .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", newName))
+        .unique();
+      if (conflict) throw new ConvexError(`A division named "${newName}" already exists.`);
+
+      await ctx.db.patch("divisions", existing._id, { name: newName, headEmail });
+
+      // Cascade: update departments and staff profiles that reference the old name.
+      const departments = await ctx.db
+        .query("departments")
+        .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
+        .take(200);
+      for (const dept of departments) {
+        if (dept.division === oldName) {
+          await ctx.db.patch("departments", dept._id, { division: newName });
+        }
+      }
+      const profiles = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_year", (q) => q.eq("year", args.year))
+        .take(1000);
+      for (const profile of profiles) {
+        if (profile.division === oldName) {
+          await ctx.db.patch("staffProfiles", profile._id, { division: newName });
+        }
+      }
+    } else {
+      await ctx.db.patch("divisions", existing._id, { headEmail });
+    }
+
+    // Reverse sync: grant HEAD_OF_DIVISION role to new head.
+    if (headEmail) {
+      const headProfile = await getProfile(ctx, headEmail, args.year);
+      if (headProfile) {
+        const roles = [...new Set([...rolesOf(headProfile), HEAD_OF_DIVISION])];
+        await ctx.db.patch("staffProfiles", headProfile._id, {
+          roles,
+          role: undefined,
+          division: headProfile.division ?? newName,
+        });
+      } else {
+        await ctx.db.insert("staffProfiles", {
+          email: headEmail,
+          year: args.year,
+          roles: [HEAD_OF_DIVISION],
+          division: newName,
+          importId: await resolveImportId(ctx, headEmail),
+        });
+      }
+    }
+
+    // Remove HEAD_OF_DIVISION from old head if they no longer head any division.
+    if (oldHeadEmail && oldHeadEmail !== headEmail) {
+      const yearDivisions = await ctx.db
+        .query("divisions")
+        .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
+        .take(200);
+      const stillHeading = yearDivisions.some((d) => d.headEmail === oldHeadEmail);
+      if (!stillHeading) {
+        const oldHead = await getProfile(ctx, oldHeadEmail, args.year);
+        if (oldHead) {
+          const updatedRoles = rolesOf(oldHead).filter((r) => r !== HEAD_OF_DIVISION);
+          await ctx.db.patch("staffProfiles", oldHead._id, {
+            roles: updatedRoles.length > 0 ? updatedRoles : [STAFF_ROLE],
+            role: undefined,
+          });
+        }
+      }
+    }
+
+    return existing._id;
   },
 });
 
@@ -404,6 +528,7 @@ export const upsertDepartment = mutation({
     }
     const headEmail = args.headEmail?.trim().toLowerCase() || undefined;
     const existing = await getDepartment(ctx, args.year, name);
+    const oldHeadEmail = existing?.headEmail;
     let departmentId;
     if (existing) {
       await ctx.db.patch("departments", existing._id, {
@@ -444,6 +569,26 @@ export const upsertDepartment = mutation({
         });
       }
     }
+
+    // Remove HEAD_OF_DEPARTMENT from old head if they no longer head any department.
+    if (oldHeadEmail && oldHeadEmail !== headEmail) {
+      const yearDepartments = await ctx.db
+        .query("departments")
+        .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
+        .take(200);
+      const stillHeading = yearDepartments.some((d) => d.headEmail === oldHeadEmail);
+      if (!stillHeading) {
+        const oldHead = await getProfile(ctx, oldHeadEmail, args.year);
+        if (oldHead) {
+          const updatedRoles = rolesOf(oldHead).filter((r) => r !== HEAD_OF_DEPARTMENT);
+          await ctx.db.patch("staffProfiles", oldHead._id, {
+            roles: updatedRoles.length > 0 ? updatedRoles : [STAFF_ROLE],
+            role: undefined,
+          });
+        }
+      }
+    }
+
     return departmentId;
   },
 });
@@ -494,6 +639,123 @@ export const people = query({
     return [...byEmail.values()].sort((a, b) =>
       (a.name ?? a.email).localeCompare(b.name ?? b.email)
     );
+  },
+});
+
+/**
+ * Inline-edit for an existing department: rename (cascading through staff
+ * profiles and requests), change division, and/or update the head — all
+ * in one atomic transaction.
+ */
+export const updateDepartment = mutation({
+  args: {
+    year: v.number(),
+    oldName: v.string(),
+    newName: v.string(),
+    division: v.string(),
+    headEmail: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    assertManagedYear(args.year);
+    const oldName = args.oldName.trim();
+    const newName = args.newName.trim();
+    if (!newName) throw new ConvexError("Department name is required.");
+
+    const divisionDoc = await ctx.db
+      .query("divisions")
+      .withIndex("by_year_and_name", (q) =>
+        q.eq("year", args.year).eq("name", args.division)
+      )
+      .unique();
+    if (!divisionDoc) {
+      throw new ConvexError(`Division "${args.division}" doesn't exist in ${args.year}.`);
+    }
+
+    const headEmail = args.headEmail?.trim().toLowerCase() || undefined;
+    const existing = await getDepartment(ctx, args.year, oldName);
+    if (!existing) throw new ConvexError(`Department "${oldName}" not found.`);
+
+    const oldHeadEmail = existing.headEmail;
+
+    if (newName !== oldName) {
+      const conflict = await getDepartment(ctx, args.year, newName);
+      if (conflict) throw new ConvexError(`A department named "${newName}" already exists.`);
+
+      // Rename the document and update division + head in one patch.
+      await ctx.db.patch("departments", existing._id, {
+        name: newName,
+        division: args.division,
+        headEmail,
+      });
+
+      // Cascade: update staff profiles and requests that reference the old name.
+      const profiles = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_year", (q) => q.eq("year", args.year))
+        .take(1000);
+      for (const profile of profiles) {
+        if (profile.department === oldName) {
+          await ctx.db.patch("staffProfiles", profile._id, { department: newName });
+        }
+      }
+      const requests = await ctx.db
+        .query("requests")
+        .withIndex("by_year_and_department", (q) =>
+          q.eq("year", args.year).eq("department", oldName)
+        )
+        .take(1000);
+      for (const request of requests) {
+        await ctx.db.patch("requests", request._id, { department: newName });
+      }
+    } else {
+      await ctx.db.patch("departments", existing._id, {
+        division: args.division,
+        headEmail,
+      });
+    }
+
+    // Reverse sync: grant HEAD_OF_DEPARTMENT role to new head.
+    if (headEmail) {
+      const headProfile = await getProfile(ctx, headEmail, args.year);
+      if (headProfile) {
+        const roles = [...new Set([...rolesOf(headProfile), HEAD_OF_DEPARTMENT])];
+        await ctx.db.patch("staffProfiles", headProfile._id, {
+          roles,
+          role: undefined,
+          department: newName,
+        });
+      } else {
+        await ctx.db.insert("staffProfiles", {
+          email: headEmail,
+          year: args.year,
+          roles: [HEAD_OF_DEPARTMENT],
+          department: newName,
+          importId: await resolveImportId(ctx, headEmail),
+        });
+      }
+    }
+
+    // Remove HEAD_OF_DEPARTMENT from old head if they no longer head any department.
+    if (oldHeadEmail && oldHeadEmail !== headEmail) {
+      const yearDepartments = await ctx.db
+        .query("departments")
+        .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
+        .take(200);
+      const stillHeading = yearDepartments.some((d) => d.headEmail === oldHeadEmail);
+      if (!stillHeading) {
+        const oldHead = await getProfile(ctx, oldHeadEmail, args.year);
+        if (oldHead) {
+          const updatedRoles = rolesOf(oldHead).filter((r) => r !== HEAD_OF_DEPARTMENT);
+          await ctx.db.patch("staffProfiles", oldHead._id, {
+            roles: updatedRoles.length > 0 ? updatedRoles : [STAFF_ROLE],
+            role: undefined,
+          });
+        }
+      }
+    }
+
+    return existing._id;
   },
 });
 
