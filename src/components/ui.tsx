@@ -16,6 +16,7 @@ import {
   Text,
   TextInput,
   TextProps,
+  useWindowDimensions,
   View,
   ViewStyle,
 } from "react-native";
@@ -429,6 +430,7 @@ export const OptionSheet = ({
   children: ReactNode;
 }) => {
   const t = useAppTheme();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const [mounted, setMounted] = useState(false);
   const slideY = useRef(new Animated.Value(480)).current;
   const fade = useRef(new Animated.Value(0)).current;
@@ -451,7 +453,7 @@ export const OptionSheet = ({
   if (!mounted) return null;
   return (
     <Modal visible animationType="none" transparent onRequestClose={onClose}>
-      <View style={styles.sheetOuter}>
+      <View style={{ width: screenWidth, height: screenHeight, justifyContent: "flex-end" }}>
         <Animated.View
           style={[StyleSheet.absoluteFill, { backgroundColor: t.overlay, opacity: fade }]}
         >
@@ -749,6 +751,7 @@ export const Sheet = ({
   title?: string;
 }) => {
   const t = useAppTheme();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const [mounted, setMounted] = useState(false);
   const slideY = useRef(new Animated.Value(600)).current;
   const fade = useRef(new Animated.Value(0)).current;
@@ -791,7 +794,7 @@ export const Sheet = ({
 
   return (
     <Modal visible animationType="none" transparent onRequestClose={onClose}>
-      <View style={styles.sheetOuter}>
+      <View style={{ width: screenWidth, height: screenHeight, justifyContent: "flex-end" }}>
         {/* Backdrop: fades in/out independently of the card */}
         <Animated.View
           style={[StyleSheet.absoluteFill, { backgroundColor: t.overlay, opacity: fade }]}
@@ -1074,10 +1077,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   segmentBadgeText: { color: "#ffffff", fontSize: 11, fontWeight: "800" },
-  sheetOuter: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
   sheet: {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
