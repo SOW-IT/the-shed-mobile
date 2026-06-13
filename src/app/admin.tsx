@@ -131,7 +131,6 @@ export default function AdminScreen() {
   const [staffEmail, setStaffEmail] = useState("");
   const [staffRoles, setStaffRoles] = useState<string[]>([ROLES[0]]);
   const [staffDepartment, setStaffDepartment] = useState("");
-  const [staffDivision, setStaffDivision] = useState("");
   const [staffUniversity, setStaffUniversity] = useState("");
   const [savingStaff, setSavingStaff] = useState(false);
   // Picking a person pre-fills the add form with their existing assignment.
@@ -145,7 +144,6 @@ export default function AdminScreen() {
     );
     setStaffRoles(nonHeadRoles.length > 0 ? nonHeadRoles : [ROLES[0]]);
     setStaffDepartment(existing?.department ?? "");
-    setStaffDivision(existing?.division ?? "");
     setStaffUniversity(existing?.university ?? "");
   };
   // Division / department / university add forms
@@ -164,7 +162,6 @@ export default function AdminScreen() {
   const [editingUserEmail, setEditingUserEmail] = useState<string | null>(null);
   const [editingUserRoles, setEditingUserRoles] = useState<string[]>([ROLES[0]]);
   const [editingUserDepartment, setEditingUserDepartment] = useState("");
-  const [editingUserDivision, setEditingUserDivision] = useState("");
   const [editingUserUniversity, setEditingUserUniversity] = useState("");
   const [savingEditUser, setSavingEditUser] = useState(false);
   // Inline editing state for division cards
@@ -186,7 +183,6 @@ export default function AdminScreen() {
     );
     setEditingUserRoles(nonHeadRoles.length > 0 ? nonHeadRoles : [ROLES[0]]);
     setEditingUserDepartment(existing?.department ?? "");
-    setEditingUserDivision(existing?.division ?? "");
     setEditingUserUniversity(existing?.university ?? "");
     setEditingUserEmail(email);
   };
@@ -199,7 +195,6 @@ export default function AdminScreen() {
     );
   }
 
-  const needsDivision = staffRoles.includes(HEAD_OF_DIVISION);
   const needsUniversity = rolesNeedUniversity(staffRoles);
   const needsDepartment = staffRoles.some(roleNeedsDepartment);
   const addFormProfile = (profiles ?? []).find(
@@ -357,7 +352,6 @@ export default function AdminScreen() {
                       year: selectedYear,
                       roles: staffRoles,
                       department: needsDepartment ? staffDepartment : undefined,
-                      division: needsDivision ? staffDivision : undefined,
                       university: needsUniversity ? staffUniversity : undefined,
                     })
                   )
