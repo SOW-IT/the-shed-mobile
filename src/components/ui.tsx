@@ -413,10 +413,7 @@ const normalizeOptions = (options: readonly SelectOption[]) =>
     typeof option === "string" ? { label: option, value: option } : option
   );
 
-/**
- * Bottom-sheet option list shared by Select and MultiSelect: backdrop fades
- * while the card slides up, matching the app's Sheet behaviour.
- */
+/** Centered dialog option list shared by Select and MultiSelect. */
 export const OptionSheet = ({
   visible,
   title,
@@ -429,47 +426,20 @@ export const OptionSheet = ({
   children: ReactNode;
 }) => {
   const t = useAppTheme();
-  const [mounted, setMounted] = useState(false);
-  const slideY = useRef(new Animated.Value(480)).current;
-  const fade = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (visible) {
-      setMounted(true);
-      slideY.setValue(480);
-      fade.setValue(0);
-      Animated.parallel([
-        Animated.timing(fade, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.spring(slideY, { toValue: 0, useNativeDriver: true, damping: 26, stiffness: 300 }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(fade, { toValue: 0, duration: 160, useNativeDriver: true }),
-        Animated.timing(slideY, { toValue: 480, duration: 180, useNativeDriver: true }),
-      ]).start(() => setMounted(false));
-    }
-  }, [visible, slideY, fade]);
-  if (!mounted) return null;
   return (
-    <Modal visible animationType="none" transparent onRequestClose={onClose}>
-      <View style={styles.sheetOuter}>
-        <Animated.View
-          style={[StyleSheet.absoluteFill, { backgroundColor: t.overlay, opacity: fade }]}
-        >
-          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        </Animated.View>
-        <Animated.View style={{ transform: [{ translateY: slideY }], overflow: "visible" }}>
-          <SafeAreaView edges={["bottom"]} style={[styles.sheet, { backgroundColor: t.card }]}>
-            <View style={[styles.sheetHandle, { backgroundColor: t.border }]} />
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={{ flex: 1 }}>
+        <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: t.overlay }]} onPress={onClose} />
+        <View style={styles.dialogOuter} pointerEvents="box-none">
+          <View style={[styles.dialog, { backgroundColor: t.card }]}>
             <Text style={[typography.headline, styles.optionSheetTitle, { color: t.text }]}>
               {title}
             </Text>
-            <ScrollView style={{ maxHeight: 380 }} contentContainerStyle={styles.optionList}>
+            <ScrollView contentContainerStyle={styles.optionList} keyboardShouldPersistTaps="handled">
               {children}
             </ScrollView>
-          </SafeAreaView>
-          {/* Fill any gap between the sheet and the physical screen edge */}
-          <View style={{ position: "absolute", bottom: -300, left: 0, right: 0, height: 300, backgroundColor: t.card }} />
-        </Animated.View>
+          </View>
+        </View>
       </View>
     </Modal>
   );
@@ -730,10 +700,7 @@ export const Segmented = ({
   );
 };
 
-/**
- * A modal form sheet: the backdrop fades in while only the card slides up,
- * matching native iOS bottom sheet behaviour (no full-screen curtain effect).
- */
+/** A centered modal dialog with a dimmed backdrop. */
 export const Sheet = ({
   visible,
   onClose,
@@ -749,28 +716,6 @@ export const Sheet = ({
   title?: string;
 }) => {
   const t = useAppTheme();
-  const [mounted, setMounted] = useState(false);
-  const slideY = useRef(new Animated.Value(600)).current;
-  const fade = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (visible) {
-      setMounted(true);
-      slideY.setValue(600);
-      fade.setValue(0);
-      Animated.parallel([
-        Animated.timing(fade, { toValue: 1, duration: 220, useNativeDriver: true }),
-        Animated.spring(slideY, { toValue: 0, useNativeDriver: true, damping: 26, stiffness: 300 }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(fade, { toValue: 0, duration: 180, useNativeDriver: true }),
-        Animated.timing(slideY, { toValue: 600, duration: 200, useNativeDriver: true }),
-      ]).start(() => setMounted(false));
-    }
-  }, [visible, slideY, fade]);
-
-  if (!mounted) return null;
 
   const header = title ? (
     <View style={styles.sheetHeader}>
@@ -790,47 +735,24 @@ export const Sheet = ({
   ) : null;
 
   return (
-    <Modal visible animationType="none" transparent onRequestClose={onClose}>
-      <View style={styles.sheetOuter}>
-        {/* Backdrop: fades in/out independently of the card */}
-        <Animated.View
-          style={[StyleSheet.absoluteFill, { backgroundColor: t.overlay, opacity: fade }]}
-        >
-          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        </Animated.View>
-        {/* Card: slides up from below */}
-        <Animated.View style={{ transform: [{ translateY: slideY }], overflow: "visible" }}>
-          <SafeAreaView
-            edges={["bottom"]}
-            style={[styles.sheet, { backgroundColor: t.card }]}
-          >
-            <View style={[styles.sheetHandle, { backgroundColor: t.border }]} />
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={{ flex: 1 }}>
+        <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: t.overlay }]} onPress={onClose} />
+        <View style={styles.dialogOuter} pointerEvents="box-none">
+          <View style={[styles.dialog, { backgroundColor: t.card }]}>
             {scrollable ? (
-              <ScrollView
-                contentContainerStyle={[
-                  styles.sheetContent,
-                  Platform.OS === "web" && { paddingBottom: 24 + 56 },
-                ]}
-                keyboardShouldPersistTaps="handled"
-              >
+              <ScrollView contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled">
                 {header}
                 {children}
               </ScrollView>
             ) : (
-              <View
-                style={[
-                  styles.sheetContent,
-                  Platform.OS === "web" && { paddingBottom: 24 + 56 },
-                ]}
-              >
+              <View style={styles.sheetContent}>
                 {header}
                 {children}
               </View>
             )}
-          </SafeAreaView>
-          {/* Fill any gap between the sheet and the physical screen edge */}
-          <View style={{ position: "absolute", bottom: -300, left: 0, right: 0, height: 300, backgroundColor: t.card }} />
-        </Animated.View>
+          </View>
+        </View>
       </View>
     </Modal>
   );
@@ -1074,24 +996,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   segmentBadgeText: { color: "#ffffff", fontSize: 11, fontWeight: "800" },
-  sheetOuter: {
+  dialogOuter: {
     flex: 1,
-    justifyContent: "flex-end",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: spacing.xl,
   },
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    maxHeight: "88%",
+  dialog: {
+    borderRadius: radius.xl,
     width: "100%",
-    maxWidth: 720,
-    alignSelf: "center",
-  },
-  sheetHandle: {
-    alignSelf: "center",
-    width: 36,
-    height: 5,
-    borderRadius: radius.full,
-    marginTop: spacing.sm,
+    maxWidth: 480,
+    maxHeight: "85%",
+    overflow: "hidden",
   },
   sheetHeader: {
     flexDirection: "row",
