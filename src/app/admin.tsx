@@ -257,7 +257,7 @@ export default function AdminScreen() {
       <Segmented
         segments={ADMIN_TABS}
         active={tab}
-        onChange={(key) => setTab(key as AdminTab)}
+        onChange={(key) => { setTab(key as AdminTab); setError(null); }}
       />
 
       {!editable && (
