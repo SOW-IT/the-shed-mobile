@@ -83,37 +83,35 @@ export const SignInScreen = () => {
         </FadeInView>
       </View>
       <FadeInView delay={120}>
-        <View style={[styles.panel, t.shadowCard, { backgroundColor: t.card }]}>
-          <Animated.View style={[{ transform: [{ scale }] }, styles.buttonWrap]}>
-            <Pressable
-              onPress={() => void handleSignIn()}
-              onPressIn={() =>
-                Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 0 }).start()
-              }
-              onPressOut={() =>
-                Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 6 }).start()
-              }
-              disabled={busy}
-              style={[
-                styles.googleButton,
-                { backgroundColor: t.primary },
-                busy && { opacity: 0.6 },
-              ]}
-            >
-              {busy ? (
-                <ActivityIndicator size="small" color={t.onPrimary} />
-              ) : (
-                <>
-                  <Ionicons name="logo-google" size={18} color={t.onPrimary} />
-                  <Text style={[styles.googleButtonText, { color: t.onPrimary }]}>
-                    Sign in with Google
-                  </Text>
-                </>
-              )}
-            </Pressable>
-          </Animated.View>
-          <ErrorBanner message={error} />
-        </View>
+        <Animated.View style={[{ transform: [{ scale }] }, styles.buttonWrap]}>
+          <Pressable
+            onPress={() => void handleSignIn()}
+            onPressIn={() =>
+              Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 0 }).start()
+            }
+            onPressOut={() =>
+              Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 6 }).start()
+            }
+            disabled={busy}
+            style={[
+              styles.googleButton,
+              { backgroundColor: t.primary },
+              busy && { opacity: 0.6 },
+            ]}
+          >
+            {busy ? (
+              <ActivityIndicator size="small" color={t.onPrimary} />
+            ) : (
+              <>
+                <Ionicons name="logo-google" size={18} color={t.onPrimary} />
+                <Text style={[styles.googleButtonText, { color: t.onPrimary }]}>
+                  Sign in with Google
+                </Text>
+              </>
+            )}
+          </Pressable>
+        </Animated.View>
+        <ErrorBanner message={error} />
       </FadeInView>
     </SafeAreaView>
   );
@@ -134,12 +132,6 @@ const styles = StyleSheet.create({
   lockup: { width: 280, height: 53, marginBottom: spacing.md },
   title: { fontSize: 34, fontWeight: "900", letterSpacing: 2 },
   tagline: { textAlign: "center", maxWidth: 280, lineHeight: 19 },
-  panel: {
-    borderRadius: radius.xl,
-    padding: spacing.xl,
-    gap: spacing.md,
-    marginBottom: spacing.md,
-  },
   buttonWrap: { width: "100%" },
   googleButton: {
     flexDirection: "row",
