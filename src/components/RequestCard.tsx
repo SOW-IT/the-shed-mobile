@@ -1,3 +1,4 @@
+import React from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { ReactNode, useState } from "react";
@@ -146,16 +147,17 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
                 ? t.text
                 : t.faint;
         return (
-          <View key={step} style={styles.stepGroup}>
+          <>
             {index > 0 && (
               <View
+                key={`connector-${step}`}
                 style={[
                   styles.stepConnector,
                   { backgroundColor: previousApproved ? t.success : t.separator },
                 ]}
               />
             )}
-            <View style={styles.stepItem}>
+            <View key={step} style={styles.stepItem}>
               <View style={[styles.stepCircle, circleStyle]}>
                 {status === APPROVED ? (
                   <Ionicons name="checkmark" size={12} color={t.dark ? t.background : "#ffffff"} />
@@ -176,7 +178,7 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
                 {STEP_LABELS[step]}
               </Text>
             </View>
-          </View>
+          </>
         );
       })}
     </View>
@@ -253,15 +255,14 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     marginVertical: spacing.xs,
   },
-  stepGroup: { flexDirection: "row", alignItems: "flex-start", flex: 1 },
   stepConnector: {
+    flex: 1,
     height: 2,
     borderRadius: 1,
-    flex: 1,
     marginTop: 10,
     marginHorizontal: 3,
   },
-  stepItem: { alignItems: "center", gap: 4, flexShrink: 0 },
+  stepItem: { alignItems: "center", gap: 4, width: 72 },
   stepCircle: {
     width: 22,
     height: 22,
