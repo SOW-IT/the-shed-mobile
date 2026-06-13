@@ -88,6 +88,22 @@ export const me = query({
   },
 });
 
+/** Resolves a display name for any staff email — used on request cards. */
+export const nameForEmail = query({
+  args: { email: v.string() },
+  handler: async (ctx, args) => {
+    if ((await optionalEmail(ctx)) === null) return null;
+    const year = currentStaffYear();
+    const profile = await getProfile(ctx, args.email, year);
+    if (profile?.name) return profile.name;
+    const dirUser = await ctx.db
+      .query("directoryUsers")
+      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .unique();
+    return dirUser?.name ?? null;
+  },
+});
+
 /** Every year with an org structure, plus the current and next staff years. */
 export const availableYears = query({
   args: {},
