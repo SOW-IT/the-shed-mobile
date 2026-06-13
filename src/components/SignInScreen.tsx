@@ -80,9 +80,6 @@ export const SignInScreen = () => {
             resizeMode="contain"
           />
           <Text style={[styles.title, { color: t.text }]}>THE SHED</Text>
-          <Text style={[typography.caption, styles.tagline, { color: t.muted }]}>
-            Requests, approvals and the staff directory — all in one place.
-          </Text>
         </FadeInView>
       </View>
       <FadeInView delay={120}>
@@ -115,9 +112,6 @@ export const SignInScreen = () => {
               )}
             </Pressable>
           </Animated.View>
-          <Text style={[typography.caption, { color: t.muted, textAlign: "center" }]}>
-            Use your sow.org.au Google account.
-          </Text>
           <ErrorBanner message={error} />
         </View>
       </FadeInView>
@@ -132,8 +126,10 @@ const styles = StyleSheet.create({
     maxWidth: 720,
     width: "100%",
     alignSelf: "center",
+    justifyContent: "center",
+    gap: spacing.xl,
   },
-  hero: { flex: 1, justifyContent: "center" },
+  hero: { alignItems: "center" },
   heroInner: { alignItems: "center", gap: spacing.sm },
   lockup: { width: 280, height: 53, marginBottom: spacing.md },
   title: { fontSize: 34, fontWeight: "900", letterSpacing: 2 },
