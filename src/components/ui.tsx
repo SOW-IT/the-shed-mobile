@@ -7,7 +7,6 @@ import {
   Animated,
   Easing,
   Image,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -458,7 +457,7 @@ export const OptionSheet = ({
         >
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         </Animated.View>
-        <Animated.View style={{ transform: [{ translateY: slideY }] }}>
+        <Animated.View style={{ transform: [{ translateY: slideY }], overflow: "visible" }}>
           <SafeAreaView edges={["bottom"]} style={[styles.sheet, { backgroundColor: t.card }]}>
             <View style={[styles.sheetHandle, { backgroundColor: t.border }]} />
             <Text style={[typography.headline, styles.optionSheetTitle, { color: t.text }]}>
@@ -792,10 +791,7 @@ export const Sheet = ({
 
   return (
     <Modal visible animationType="none" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={styles.sheetOuter}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+      <View style={styles.sheetOuter}>
         {/* Backdrop: fades in/out independently of the card */}
         <Animated.View
           style={[StyleSheet.absoluteFill, { backgroundColor: t.overlay, opacity: fade }]}
@@ -803,7 +799,7 @@ export const Sheet = ({
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         </Animated.View>
         {/* Card: slides up from below */}
-        <Animated.View style={{ transform: [{ translateY: slideY }] }}>
+        <Animated.View style={{ transform: [{ translateY: slideY }], overflow: "visible" }}>
           <SafeAreaView
             edges={["bottom"]}
             style={[styles.sheet, { backgroundColor: t.card }]}
@@ -835,7 +831,7 @@ export const Sheet = ({
           {/* Fill any gap between the sheet and the physical screen edge */}
           <View style={{ position: "absolute", bottom: -300, left: 0, right: 0, height: 300, backgroundColor: t.card }} />
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 };
