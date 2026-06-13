@@ -67,57 +67,62 @@ export const SignInScreen = () => {
   const scale = useRef(new Animated.Value(1)).current;
 
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: t.background }]}>
-      <View style={styles.hero}>
-        <FadeInView style={styles.heroInner}>
-          <Image
-            source={
-              t.dark
-                ? require("../../assets/images/lockup-cream.png")
-                : require("../../assets/images/lockup-dark.png")
-            }
-            style={styles.lockup}
-            resizeMode="contain"
-          />
-          <Text style={[styles.title, { color: t.text }]}>THE SHED</Text>
+    <View style={[styles.fullScreen, { backgroundColor: t.background }]}>
+      <SafeAreaView style={styles.screen}>
+        <View style={styles.hero}>
+          <FadeInView style={styles.heroInner}>
+            <Image
+              source={
+                t.dark
+                  ? require("../../assets/images/lockup-cream.png")
+                  : require("../../assets/images/lockup-dark.png")
+              }
+              style={styles.lockup}
+              resizeMode="contain"
+            />
+            <Text style={[styles.title, { color: t.text }]}>THE SHED</Text>
+          </FadeInView>
+        </View>
+        <FadeInView delay={120}>
+          <Animated.View style={[{ transform: [{ scale }] }, styles.buttonWrap]}>
+            <Pressable
+              onPress={() => void handleSignIn()}
+              onPressIn={() =>
+                Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 0 }).start()
+              }
+              onPressOut={() =>
+                Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 6 }).start()
+              }
+              disabled={busy}
+              style={[
+                styles.googleButton,
+                { backgroundColor: t.primary },
+                busy && { opacity: 0.6 },
+              ]}
+            >
+              {busy ? (
+                <ActivityIndicator size="small" color={t.onPrimary} />
+              ) : (
+                <>
+                  <Ionicons name="logo-google" size={18} color={t.onPrimary} />
+                  <Text style={[styles.googleButtonText, { color: t.onPrimary }]}>
+                    Sign in with Google
+                  </Text>
+                </>
+              )}
+            </Pressable>
+          </Animated.View>
+          <ErrorBanner message={error} />
         </FadeInView>
-      </View>
-      <FadeInView delay={120}>
-        <Animated.View style={[{ transform: [{ scale }] }, styles.buttonWrap]}>
-          <Pressable
-            onPress={() => void handleSignIn()}
-            onPressIn={() =>
-              Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 0 }).start()
-            }
-            onPressOut={() =>
-              Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 6 }).start()
-            }
-            disabled={busy}
-            style={[
-              styles.googleButton,
-              { backgroundColor: t.primary },
-              busy && { opacity: 0.6 },
-            ]}
-          >
-            {busy ? (
-              <ActivityIndicator size="small" color={t.onPrimary} />
-            ) : (
-              <>
-                <Ionicons name="logo-google" size={18} color={t.onPrimary} />
-                <Text style={[styles.googleButtonText, { color: t.onPrimary }]}>
-                  Sign in with Google
-                </Text>
-              </>
-            )}
-          </Pressable>
-        </Animated.View>
-        <ErrorBanner message={error} />
-      </FadeInView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  fullScreen: {
+    flex: 1,
+  },
   screen: {
     flex: 1,
     padding: spacing.lg,
@@ -132,7 +137,7 @@ const styles = StyleSheet.create({
   lockup: { width: 280, height: 53, marginBottom: spacing.md },
   title: { fontSize: 34, fontWeight: "900", letterSpacing: 2 },
   tagline: { textAlign: "center", maxWidth: 280, lineHeight: 19 },
-  buttonWrap: { width: "100%" },
+  buttonWrap: { maxWidth: 420, width: "100%", alignSelf: "center" },
   googleButton: {
     flexDirection: "row",
     alignItems: "center",
