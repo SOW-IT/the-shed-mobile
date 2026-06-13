@@ -308,7 +308,10 @@ export default function AdminScreen() {
               <Field
                 label="Or type a new email (they don't need to have signed in yet)"
                 value={staffEmail}
-                onChangeText={setStaffEmail}
+                onChangeText={(text) => {
+                  setStaffEmail(text);
+                  setError(null);
+                }}
                 placeholder="someone@sow.org.au"
                 keyboardType="email-address"
               />
