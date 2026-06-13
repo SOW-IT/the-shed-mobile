@@ -468,6 +468,8 @@ export const OptionSheet = ({
               {children}
             </ScrollView>
           </SafeAreaView>
+          {/* Fill any gap between the sheet and the physical screen edge */}
+          <View style={{ position: "absolute", bottom: -300, left: 0, right: 0, height: 300, backgroundColor: t.card }} />
         </Animated.View>
       </View>
     </Modal>
@@ -830,6 +832,8 @@ export const Sheet = ({
               </View>
             )}
           </SafeAreaView>
+          {/* Fill any gap between the sheet and the physical screen edge */}
+          <View style={{ position: "absolute", bottom: -300, left: 0, right: 0, height: 300, backgroundColor: t.card }} />
         </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
