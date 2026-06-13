@@ -2,7 +2,6 @@ name: Convex Deploy
 
 on:
   push:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -20,6 +19,11 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Deploy to Convex
-        run: npx convex deploy
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            npx convex deploy
+          else
+            npx convex deploy --preview-name "${{ github.ref_name }}"
+          fi
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}

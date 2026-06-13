@@ -421,12 +421,11 @@ describe("multi-headship: one person, several divisions/departments", () => {
     expect(profile.roles).toEqual(["Head of Division"]);
     expect(profile.division).toBe("Engagement");
 
-    // Re-saving their staff assignment (role kept) vacates neither division.
-    await admin.mutation(api.admin.setStaffProfile, {
-      email: sijin,
+    // Re-saving the division (no-op) vacates neither division.
+    await admin.mutation(api.admin.upsertDivision, {
       year: YEAR,
-      roles: ["Head of Division"],
-      division: "Engagement",
+      name: "Engagement",
+      headEmail: sijin,
     });
     const after = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
     expect(
@@ -439,13 +438,9 @@ describe("multi-headship: one person, several divisions/departments", () => {
       chart.divisions.filter((d) => d.head?.email === sijin).map((d) => d.name).sort()
     ).toEqual(["Engagement", "Operations"]);
 
-    // Losing the role vacates every division they head.
-    await admin.mutation(api.admin.setStaffProfile, {
-      email: sijin,
-      year: YEAR,
-      roles: ["Staff"],
-      department: "Marketing",
-    });
+    // Clearing the head via the structure section vacates every division they head.
+    await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "Engagement" });
+    await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "Operations" });
     const vacated = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
     expect(vacated.divisions.some((d) => d.headEmail === sijin)).toBe(false);
   });
@@ -467,12 +462,12 @@ describe("multi-headship: one person, several divisions/departments", () => {
       division: "Operations",
       headEmail: henry,
     });
-    // Re-saving his assignment with Marketing selected keeps Events too.
-    await admin.mutation(api.admin.setStaffProfile, {
-      email: henry,
+    // Re-saving via the structure section keeps Events too.
+    await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR,
-      roles: ["Head of Department"],
-      department: "Marketing",
+      name: "Marketing",
+      division: "Engagement",
+      headEmail: henry,
     });
     const structure = (await admin.query(api.directory.yearStructure, {
       year: YEAR,
