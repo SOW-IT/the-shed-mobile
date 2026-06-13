@@ -2532,7 +2532,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Sydney"
         },
         {
-          "email": "daniel.kim@sowaustralia.com",
+          "email": "daniel.kim@sow.org.au",
           "importId": "qaPmJh5nfUUlDcz3UX8ZS56f0Hw2",
           "name": "Daniel Kim",
           "roles": [
@@ -3151,7 +3151,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "department": "Management"
         },
         {
-          "email": "daniel.kim@sowaustralia.com",
+          "email": "daniel.kim@sow.org.au",
           "importId": "qaPmJh5nfUUlDcz3UX8ZS56f0Hw2",
           "name": "Daniel Kim",
           "roles": [
@@ -3661,7 +3661,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "department": "Human Resources"
         },
         {
-          "email": "daniel.kim@sowaustralia.com",
+          "email": "daniel.kim@sow.org.au",
           "importId": "qaPmJh5nfUUlDcz3UX8ZS56f0Hw2",
           "name": "Daniel Kim",
           "roles": [
@@ -4282,7 +4282,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "department": "Human Resources"
         },
         {
-          "email": "daniel.kim@sowaustralia.com",
+          "email": "daniel.kim@sow.org.au",
           "importId": "qaPmJh5nfUUlDcz3UX8ZS56f0Hw2",
           "name": "Daniel Kim",
           "roles": [
@@ -4844,7 +4844,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
         {
           "name": "Data and IT",
           "division": "Marketing",
-          "headEmail": "daniel.kim@sowaustralia.com",
+          "headEmail": "daniel.kim@sow.org.au",
           "colour": "#6BE440"
         },
         {
@@ -5034,7 +5034,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "department": "Human Resources"
         },
         {
-          "email": "daniel.kim@sowaustralia.com",
+          "email": "daniel.kim@sow.org.au",
           "importId": "qaPmJh5nfUUlDcz3UX8ZS56f0Hw2",
           "name": "Daniel Kim",
           "roles": [
@@ -5599,7 +5599,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
         {
           "name": "Data and IT",
           "division": "Governance",
-          "headEmail": "daniel.kim@sowaustralia.com",
+          "headEmail": "daniel.kim@sow.org.au",
           "colour": "#6BE440"
         },
         {
@@ -5783,7 +5783,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Sydney"
         },
         {
-          "email": "daniel.kim@sowaustralia.com",
+          "email": "daniel.kim@sow.org.au",
           "importId": "qaPmJh5nfUUlDcz3UX8ZS56f0Hw2",
           "name": "Daniel Kim",
           "roles": [
@@ -6373,7 +6373,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
         {
           "name": "Data and IT",
           "division": "Governance",
-          "headEmail": "daniel.kim@sowaustralia.com",
+          "headEmail": "daniel.kim@sow.org.au",
           "colour": "#6BE440"
         },
         {
@@ -6542,7 +6542,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "department": "People and Culture"
         },
         {
-          "email": "daniel.kim@sowaustralia.com",
+          "email": "daniel.kim@sow.org.au",
           "importId": "qaPmJh5nfUUlDcz3UX8ZS56f0Hw2",
           "name": "Daniel Kim",
           "roles": [
