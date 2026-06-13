@@ -14,7 +14,6 @@ import { ActivityIndicator, ColorValue, Image, Platform, View } from "react-nati
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { PortalHost } from "@/components/Portal";
 import { SignInScreen } from "@/components/SignInScreen";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { useAppTheme } from "@/theme";
@@ -65,7 +64,6 @@ const AppTabs = () => {
       review.readyToPay.length
     : 0;
   return (
-    <View style={{ flex: 1 }}>
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -130,8 +128,6 @@ const AppTabs = () => {
       {/* Opened by tapping a push notification; not a tab itself. */}
       <Tabs.Screen name="request/[id]" options={{ title: "Request", href: null }} />
     </Tabs>
-    <PortalHost />
-    </View>
   );
 };
 

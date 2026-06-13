@@ -7,6 +7,7 @@ import {
   Animated,
   Easing,
   Image,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -18,7 +19,6 @@ import {
   View,
   ViewStyle,
 } from "react-native";
-import { Portal } from "./Portal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { radius, spacing, typography, useAppTheme } from "../theme";
 
@@ -450,7 +450,7 @@ export const OptionSheet = ({
   }, [visible, slideY, fade]);
   if (!mounted) return null;
   return (
-    <Portal>
+    <Modal visible animationType="none" transparent onRequestClose={onClose}>
       <View style={styles.sheetOuter}>
         <Animated.View
           style={[StyleSheet.absoluteFill, { backgroundColor: t.overlay, opacity: fade }]}
@@ -471,7 +471,7 @@ export const OptionSheet = ({
           <View style={{ position: "absolute", bottom: -300, left: 0, right: 0, height: 300, backgroundColor: t.card }} />
         </Animated.View>
       </View>
-    </Portal>
+    </Modal>
   );
 };
 
@@ -790,7 +790,7 @@ export const Sheet = ({
   ) : null;
 
   return (
-    <Portal>
+    <Modal visible animationType="none" transparent onRequestClose={onClose}>
       <View style={styles.sheetOuter}>
         {/* Backdrop: fades in/out independently of the card */}
         <Animated.View
@@ -832,7 +832,7 @@ export const Sheet = ({
           <View style={{ position: "absolute", bottom: -300, left: 0, right: 0, height: 300, backgroundColor: t.card }} />
         </Animated.View>
       </View>
-    </Portal>
+    </Modal>
   );
 };
 
