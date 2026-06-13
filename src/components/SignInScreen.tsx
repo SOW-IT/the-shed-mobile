@@ -80,46 +80,38 @@ export const SignInScreen = () => {
             resizeMode="contain"
           />
           <Text style={[styles.title, { color: t.text }]}>THE SHED</Text>
-          <Text style={[typography.caption, styles.tagline, { color: t.muted }]}>
-            Requests, approvals and the staff directory — all in one place.
-          </Text>
         </FadeInView>
       </View>
       <FadeInView delay={120}>
-        <View style={[styles.panel, t.shadowCard, { backgroundColor: t.card }]}>
-          <Animated.View style={[{ transform: [{ scale }] }, styles.buttonWrap]}>
-            <Pressable
-              onPress={() => void handleSignIn()}
-              onPressIn={() =>
-                Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 0 }).start()
-              }
-              onPressOut={() =>
-                Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 6 }).start()
-              }
-              disabled={busy}
-              style={[
-                styles.googleButton,
-                { backgroundColor: t.primary },
-                busy && { opacity: 0.6 },
-              ]}
-            >
-              {busy ? (
-                <ActivityIndicator size="small" color={t.onPrimary} />
-              ) : (
-                <>
-                  <Ionicons name="logo-google" size={18} color={t.onPrimary} />
-                  <Text style={[styles.googleButtonText, { color: t.onPrimary }]}>
-                    Sign in with Google
-                  </Text>
-                </>
-              )}
-            </Pressable>
-          </Animated.View>
-          <Text style={[typography.caption, { color: t.muted, textAlign: "center" }]}>
-            Use your sow.org.au Google account.
-          </Text>
-          <ErrorBanner message={error} />
-        </View>
+        <Animated.View style={[{ transform: [{ scale }] }, styles.buttonWrap]}>
+          <Pressable
+            onPress={() => void handleSignIn()}
+            onPressIn={() =>
+              Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 0 }).start()
+            }
+            onPressOut={() =>
+              Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 6 }).start()
+            }
+            disabled={busy}
+            style={[
+              styles.googleButton,
+              { backgroundColor: t.primary },
+              busy && { opacity: 0.6 },
+            ]}
+          >
+            {busy ? (
+              <ActivityIndicator size="small" color={t.onPrimary} />
+            ) : (
+              <>
+                <Ionicons name="logo-google" size={18} color={t.onPrimary} />
+                <Text style={[styles.googleButtonText, { color: t.onPrimary }]}>
+                  Sign in with Google
+                </Text>
+              </>
+            )}
+          </Pressable>
+        </Animated.View>
+        <ErrorBanner message={error} />
       </FadeInView>
     </SafeAreaView>
   );
@@ -132,18 +124,14 @@ const styles = StyleSheet.create({
     maxWidth: 720,
     width: "100%",
     alignSelf: "center",
+    justifyContent: "center",
+    gap: spacing.xl,
   },
-  hero: { flex: 1, justifyContent: "center" },
+  hero: { alignItems: "center" },
   heroInner: { alignItems: "center", gap: spacing.sm },
   lockup: { width: 280, height: 53, marginBottom: spacing.md },
   title: { fontSize: 34, fontWeight: "900", letterSpacing: 2 },
   tagline: { textAlign: "center", maxWidth: 280, lineHeight: 19 },
-  panel: {
-    borderRadius: radius.xl,
-    padding: spacing.xl,
-    gap: spacing.md,
-    marginBottom: spacing.md,
-  },
   buttonWrap: { width: "100%" },
   googleButton: {
     flexDirection: "row",

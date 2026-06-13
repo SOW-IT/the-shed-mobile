@@ -644,11 +644,11 @@ export const Segmented = ({
     segments.length > 0 ? (trackWidth - 2 * styles.segmented.padding) / segments.length : 0;
   useEffect(() => {
     if (trackWidth === 0) return;
-    Animated.spring(slide, {
+    Animated.timing(slide, {
       toValue: activeIndex * segmentWidth,
+      duration: 200,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
-      damping: 22,
-      stiffness: 280,
     }).start();
   }, [activeIndex, segmentWidth, trackWidth, slide]);
   if (segments.length < 2) return null;
@@ -661,7 +661,6 @@ export const Segmented = ({
         <Animated.View
           style={[
             styles.segmentIndicator,
-            t.shadowCard,
             {
               backgroundColor: t.card,
               width: segmentWidth,
