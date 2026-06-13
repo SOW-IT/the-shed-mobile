@@ -1,0 +1,28 @@
+name: Vercel Preview
+
+on:
+  push:
+    branches-ignore: [main]
+
+concurrency:
+  group: vercel-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx expo export --platform web
+      - run: cp -r web/. dist/
+      - name: Deploy to Vercel (preview)
+        run: npx vercel deploy dist --yes
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: team_BN2cAhJhnaYsx0CBERDsYOeF
+          VERCEL_PROJECT_ID: prj_GDhatLychoCm4yRy8b152beusHBE
