@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import {
   acronym,
+  HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
   ROLES,
   roleNeedsDepartment,
@@ -65,6 +66,11 @@ const ADMIN_TABS = [
   { key: "structure", label: "Structure" },
   { key: "other", label: "Other" },
 ];
+
+/** Head roles are set exclusively via the Structure tab; hide them from the staff profile role picker. */
+const STAFF_EDITABLE_ROLES = ROLES.filter(
+  (r) => r !== HEAD_OF_DEPARTMENT && r !== HEAD_OF_DIVISION
+);
 
 export default function AdminScreen() {
   const t = useAppTheme();
@@ -132,7 +138,12 @@ export default function AdminScreen() {
   const selectPerson = (email: string) => {
     setStaffEmail(email);
     const existing = (profiles ?? []).find((p) => p.email === email);
-    setStaffRoles(existing && existing.roles.length > 0 ? existing.roles : [ROLES[0]]);
+    // Head roles are managed via the Structure tab; strip them so they don't
+    // appear as editable options (the backend re-adds them on save).
+    const nonHeadRoles = (existing?.roles ?? []).filter(
+      (r) => r !== HEAD_OF_DEPARTMENT && r !== HEAD_OF_DIVISION
+    );
+    setStaffRoles(nonHeadRoles.length > 0 ? nonHeadRoles : [ROLES[0]]);
     setStaffDepartment(existing?.department ?? "");
     setStaffDivision(existing?.division ?? "");
     setStaffUniversity(existing?.university ?? "");
@@ -170,9 +181,10 @@ export default function AdminScreen() {
 
   const startEditUser = (email: string) => {
     const existing = (profiles ?? []).find((p) => p.email === email);
-    setEditingUserRoles(
-      existing && existing.roles.length > 0 ? existing.roles : [ROLES[0]]
+    const nonHeadRoles = (existing?.roles ?? []).filter(
+      (r) => r !== HEAD_OF_DEPARTMENT && r !== HEAD_OF_DIVISION
     );
+    setEditingUserRoles(nonHeadRoles.length > 0 ? nonHeadRoles : [ROLES[0]]);
     setEditingUserDepartment(existing?.department ?? "");
     setEditingUserDivision(existing?.division ?? "");
     setEditingUserUniversity(existing?.university ?? "");
@@ -190,6 +202,13 @@ export default function AdminScreen() {
   const needsDivision = staffRoles.includes(HEAD_OF_DIVISION);
   const needsUniversity = rolesNeedUniversity(staffRoles);
   const needsDepartment = staffRoles.some(roleNeedsDepartment);
+  const addFormProfile = (profiles ?? []).find(
+    (p) => p.email === staffEmail.trim().toLowerCase()
+  );
+  const isAddFormHeadLocked = !!(
+    addFormProfile?.roles.includes(HEAD_OF_DEPARTMENT) ||
+    addFormProfile?.roles.includes(HEAD_OF_DIVISION)
+  );
   const yearLabel = (y: number) =>
     y === currentYear
       ? `${y} (current)`
@@ -296,18 +315,9 @@ export default function AdminScreen() {
               <MultiSelect
                 label="Role (select one or more)"
                 values={staffRoles}
-                options={ROLES}
+                options={STAFF_EDITABLE_ROLES}
                 onSelect={setStaffRoles}
               />
-              {needsDivision && (
-                <Select
-                  label="Division (Heads of Division belong directly to one)"
-                  value={staffDivision}
-                  options={(structure?.divisions ?? []).map((d) => d.name)}
-                  onSelect={setStaffDivision}
-                  placeholder="Choose a division…"
-                />
-              )}
               {needsUniversity && (
                 <Select
                   label="University (Student Leaders belong to one, not a department)"
@@ -318,13 +328,19 @@ export default function AdminScreen() {
                 />
               )}
               {needsDepartment && (
-                <Select
-                  label="Department"
-                  value={staffDepartment}
-                  options={(structure?.departments ?? []).map((d) => d.name)}
-                  onSelect={setStaffDepartment}
-                  placeholder="Choose a department…"
-                />
+                isAddFormHeadLocked ? (
+                  <Muted>
+                    Department is locked — remove their headship in the Structure tab first.
+                  </Muted>
+                ) : (
+                  <Select
+                    label="Department"
+                    value={staffDepartment}
+                    options={(structure?.departments ?? []).map((d) => d.name)}
+                    onSelect={setStaffDepartment}
+                    placeholder="Choose a department…"
+                  />
+                )
               )}
               <Btn
                 title="Save Staff Assignment"
@@ -355,9 +371,12 @@ export default function AdminScreen() {
           )}
           {(profiles ?? []).map((profile) => {
             const isEditingThis = editingUserEmail === profile.email;
-            const needsEditDiv = editingUserRoles.includes(HEAD_OF_DIVISION);
             const needsEditUni = rolesNeedUniversity(editingUserRoles);
             const needsEditDept = editingUserRoles.some(roleNeedsDepartment);
+            const lockedHeadRoles = profile.roles.filter(
+              (r) => r === HEAD_OF_DEPARTMENT || r === HEAD_OF_DIVISION
+            );
+            const isEditHeadLocked = lockedHeadRoles.length > 0;
             return (
               <Card key={profile._id}>
                 {isEditingThis ? (
@@ -367,17 +386,13 @@ export default function AdminScreen() {
                     <MultiSelect
                       label="Role (select one or more)"
                       values={editingUserRoles}
-                      options={ROLES}
+                      options={STAFF_EDITABLE_ROLES}
                       onSelect={setEditingUserRoles}
                     />
-                    {needsEditDiv && (
-                      <Select
-                        label="Division"
-                        value={editingUserDivision}
-                        options={(structure?.divisions ?? []).map((d) => d.name)}
-                        onSelect={setEditingUserDivision}
-                        placeholder="Choose a division…"
-                      />
+                    {isEditHeadLocked && (
+                      <Muted>
+                        {lockedHeadRoles.join(", ")} — managed via the Structure tab
+                      </Muted>
                     )}
                     {needsEditUni && (
                       <Select
@@ -389,13 +404,19 @@ export default function AdminScreen() {
                       />
                     )}
                     {needsEditDept && (
-                      <Select
-                        label="Department"
-                        value={editingUserDepartment}
-                        options={(structure?.departments ?? []).map((d) => d.name)}
-                        onSelect={setEditingUserDepartment}
-                        placeholder="Choose a department…"
-                      />
+                      isEditHeadLocked ? (
+                        <Muted>
+                          Department is locked — remove their headship in the Structure tab first.
+                        </Muted>
+                      ) : (
+                        <Select
+                          label="Department"
+                          value={editingUserDepartment}
+                          options={(structure?.departments ?? []).map((d) => d.name)}
+                          onSelect={setEditingUserDepartment}
+                          placeholder="Choose a department…"
+                        />
+                      )
                     )}
                     <Row>
                       <Btn
@@ -409,7 +430,6 @@ export default function AdminScreen() {
                               year: selectedYear,
                               roles: editingUserRoles,
                               department: needsEditDept ? editingUserDepartment : undefined,
-                              division: needsEditDiv ? editingUserDivision : undefined,
                               university: needsEditUni ? editingUserUniversity : undefined,
                             })
                           )
