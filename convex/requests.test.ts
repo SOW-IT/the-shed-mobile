@@ -48,9 +48,7 @@ async function setup() {
   });
   const assignments: { email: string; roles: string[]; department: string }[] = [
     { email: RACHEL, roles: ["Staff"], department: "Marketing" },
-    { email: HENRY, roles: ["Head of Department"], department: "Marketing" },
     { email: BELLA, roles: ["Staff"], department: "Finance" },
-    { email: FIONA, roles: ["Head of Department"], department: "Finance" },
     { email: DAN, roles: ["Director"], department: "Marketing" },
   ];
   for (const a of assignments) {
@@ -692,19 +690,16 @@ describe("audit trail and reminders", () => {
 
     // Promoting Nina to Head of Department of Events makes her its head.
     await admin.mutation(api.admin.upsertDepartment, {
-      year: YEAR, name: "Events", division: "Operations",
-    });
-    await admin.mutation(api.admin.setStaffProfile, {
-      email: "nina@sow.org.au", year: YEAR, roles: ["Head of Department"], department: "Events",
+      year: YEAR, name: "Events", division: "Operations", headEmail: "nina@sow.org.au",
     });
     let structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
     expect(structure.departments.find((d) => d.name === "Events")?.headEmail).toBe(
       "nina@sow.org.au"
     );
 
-    // Demoting her to Staff vacates the headship.
-    await admin.mutation(api.admin.setStaffProfile, {
-      email: "nina@sow.org.au", year: YEAR, roles: ["Staff"], department: "Events",
+    // Removing her from the department head vacates the headship.
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Events", division: "Operations",
     });
     structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
     expect(structure.departments.find((d) => d.name === "Events")?.headEmail).toBeNull();
@@ -1055,15 +1050,15 @@ describe("deadlock prevention and validation fixes", () => {
       email: "new@sow.org.au", year: YEAR, roles: ["Staff"], department: "Marketing",
     });
     // The Head of the Human Resources division is an admin...
-    await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
-      email: "hrhead@sow.org.au", year: YEAR, roles: ["Head of Division"], division: "Human Resources",
+    await asUser(t, ADMIN).mutation(api.admin.upsertDivision, {
+      year: YEAR, name: "Human Resources", headEmail: "hrhead@sow.org.au",
     });
     await asUser(t, "hrhead@sow.org.au").mutation(api.admin.setStaffProfile, {
       email: "new2@sow.org.au", year: YEAR, roles: ["Staff"], department: "Marketing",
     });
     // ...but the Head of the Engagement division is not.
-    await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
-      email: "enghead@sow.org.au", year: YEAR, roles: ["Head of Division"], division: "Engagement",
+    await asUser(t, ADMIN).mutation(api.admin.upsertDivision, {
+      year: YEAR, name: "Engagement", headEmail: "enghead@sow.org.au",
     });
     await expect(
       asUser(t, "enghead@sow.org.au").mutation(api.admin.setStaffProfile, {
@@ -1178,9 +1173,6 @@ describe("deadlock prevention and validation fixes", () => {
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Events", division: "Operations", headEmail: "evan@sow.org.au",
     });
-    await admin.mutation(api.admin.setStaffProfile, {
-      email: "evan@sow.org.au", year: YEAR, roles: ["Head of Department"], department: "Events",
-    });
     await asUser(t, RACHEL).mutation(api.requests.submit, {
       description: "conference", amount: 100, department: "Events",
     });
@@ -1204,8 +1196,8 @@ describe("deadlock prevention and validation fixes", () => {
 
   test("a division head submitting outside their division gets a normal HOD step", async () => {
     const t = await setup();
-    await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
-      email: "diana@sow.org.au", year: YEAR, roles: ["Head of Division"], division: "Operations",
+    await asUser(t, ADMIN).mutation(api.admin.upsertDivision, {
+      year: YEAR, name: "Operations", headEmail: "diana@sow.org.au",
     });
     // Marketing is in Engagement — not Diana's division — so Henry approves.
     await asUser(t, "diana@sow.org.au").mutation(api.requests.submit, {
@@ -1219,15 +1211,13 @@ describe("deadlock prevention and validation fixes", () => {
   test("a person can hold multiple roles (division head + department head)", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    await admin.mutation(api.admin.setStaffProfile, {
-      email: "maria@sow.org.au",
-      year: YEAR,
-      roles: ["Head of Division", "Head of Department"],
-      division: "Engagement",
-      department: "Marketing",
+    await admin.mutation(api.admin.upsertDivision, {
+      year: YEAR, name: "Engagement", headEmail: "maria@sow.org.au",
     });
-    // Org chart: heads the Engagement division AND, with the Head of
-    // Department role, the role-to-headship sync makes her Marketing's head.
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Marketing", division: "Engagement", headEmail: "maria@sow.org.au",
+    });
+    // Org chart: heads the Engagement division AND Marketing department.
     const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
     const engagement = chart.divisions.find((d) => d.name === "Engagement");
     expect(engagement?.head?.email).toBe("maria@sow.org.au");
@@ -1239,8 +1229,7 @@ describe("deadlock prevention and validation fixes", () => {
       admin.mutation(api.admin.setStaffProfile, {
         email: "x@sow.org.au",
         year: YEAR,
-        roles: ["Head of Division", "Staff"],
-        division: "Engagement",
+        roles: ["Staff"],
       })
     ).rejects.toThrow(/Department/);
 
@@ -1257,13 +1246,9 @@ describe("deadlock prevention and validation fixes", () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
 
-    // Fiona: Head of Department (Finance) + Head of Division (Operations).
-    await admin.mutation(api.admin.setStaffProfile, {
-      email: FIONA,
-      year: YEAR,
-      roles: ["Head of Department", "Head of Division"],
-      department: "Finance",
-      division: "Operations",
+    // Fiona: Head of Department (Finance, from setup) + Head of Division (Operations).
+    await admin.mutation(api.admin.upsertDivision, {
+      year: YEAR, name: "Operations", headEmail: FIONA,
     });
     const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
     expect(chart.divisions.find((d) => d.name === "Operations")?.head?.email).toBe(FIONA);
@@ -1293,8 +1278,8 @@ describe("deadlock prevention and validation fixes", () => {
     // Head of Division for Governance: org chart placement + her own request
     // defaults to a Governance department with the HOD step skipped (she
     // outranks its head), then waits on the Budget Manager as normal.
-    await admin.mutation(api.admin.setStaffProfile, {
-      email: "gina@sow.org.au", year: YEAR, roles: ["Head of Division"], division: "Governance",
+    await admin.mutation(api.admin.upsertDivision, {
+      year: YEAR, name: "Governance", headEmail: "gina@sow.org.au",
     });
     const chart2 = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
     expect(chart2.divisions.find((d) => d.name === "Governance")?.head?.email).toBe(
@@ -1312,8 +1297,8 @@ describe("deadlock prevention and validation fixes", () => {
   test("Heads of Division belong to a division and skip the HOD step", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    await admin.mutation(api.admin.setStaffProfile, {
-      email: "diana@sow.org.au", year: YEAR, roles: ["Head of Division"], division: "Engagement",
+    await admin.mutation(api.admin.upsertDivision, {
+      year: YEAR, name: "Engagement", headEmail: "diana@sow.org.au",
     });
     // Shown as the division's head on the org chart.
     const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
@@ -1328,11 +1313,11 @@ describe("deadlock prevention and validation fixes", () => {
     expect(request.department).toBe("Alumni");
     expect(request.approvedByHOD).toBe("APPROVED");
     expect(request.approvedByBudgetManager).toBe("PENDING");
-    // The division must exist for the year.
+    // The division must exist for the year (validated via upsertDepartment).
     await expect(
-      admin.mutation(api.admin.setStaffProfile, {
-        email: "x@sow.org.au", year: YEAR, roles: ["Head of Division"], division: "Nope",
+      admin.mutation(api.admin.upsertDepartment, {
+        year: YEAR, name: "SomeDept", division: "Nope",
       })
-    ).rejects.toThrow(/division/);
+    ).rejects.toThrow(/division/i);
   });
 });
