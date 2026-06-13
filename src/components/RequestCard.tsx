@@ -14,9 +14,25 @@ import {
   type ApprovalStep,
 } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
-import { Doc } from "../../convex/_generated/dataModel";
+import { Doc, Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "../theme";
-import { Btn, Card, Chip, Muted, Row, Txt } from "./ui";
+import { Btn, Card, Chip, Muted, Row, Sheet, Txt } from "./ui";
+
+const timeAgo = (ms: number): string => {
+  const secs = Math.floor((Date.now() - ms) / 1000);
+  if (secs < 60) return "just now";
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `${weeks}w ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(months / 12)}y ago`;
+};
 
 const EVENT_LABELS: Record<string, string> = {
   submitted: "Submitted",
@@ -57,9 +73,7 @@ const History = ({ request }: { request: Doc<"requests"> }) => {
 
 /**
  * The submitted receipt in full: each recipient's bank details and their
- * receipt files as links (signed URLs — tap to view or download). Files
- * load lazily when the section is opened; the backend only returns them
- * to the requester and Finance (incl. the Finance Head).
+ * receipt files as links (signed URLs — tap to view or download).
  */
 const ReceiptDetails = ({ request }: { request: Doc<"requests"> }) => {
   const t = useAppTheme();
@@ -115,73 +129,141 @@ const stepStatus = (
     financeHead: request.approvedByFinanceHead,
   })[step];
 
+/** Modal shown when a step circle is tapped: approver info + audit events. */
+const StepInfoModal = ({
+  requestId,
+  step,
+  onClose,
+}: {
+  requestId: Id<"requests">;
+  step: ApprovalStep | null;
+  onClose: () => void;
+}) => {
+  const t = useAppTheme();
+  const info = useQuery(
+    api.requests.stepInfo,
+    step ? { requestId, step } : "skip"
+  );
+  return (
+    <Sheet
+      visible={step !== null}
+      onClose={onClose}
+      scrollable={false}
+      title={step ? STEP_LABELS[step] : ""}
+    >
+      {!info ? (
+        <Muted>Loading…</Muted>
+      ) : (
+        <>
+          <View style={{ gap: 2 }}>
+            {info.name ? (
+              <Txt style={{ fontWeight: "700" }}>{info.name}</Txt>
+            ) : null}
+            {info.email ? (
+              <Muted>{info.email}</Muted>
+            ) : (
+              <Muted>No one assigned to this step yet.</Muted>
+            )}
+          </View>
+          {info.events.length === 0 ? (
+            <Muted>Awaiting action</Muted>
+          ) : (
+            info.events.map((event, i) => (
+              <View key={i} style={{ gap: 2 }}>
+                <Text style={[typography.caption, { color: t.text, fontWeight: "600" }]}>
+                  {EVENT_LABELS[event.action] ?? event.action}
+                </Text>
+                <Muted>
+                  {new Date(event.at).toLocaleString()}
+                  {event.detail ? ` — ${event.detail}` : ""}
+                </Muted>
+              </View>
+            ))
+          )}
+        </>
+      )}
+    </Sheet>
+  );
+};
+
 /**
- * The approval chain as a connected stepper: filled tick when approved,
- * cross when declined, a pulsing-dot style ring for the awaited step.
+ * The approval chain as a connected stepper. Tap any circle to see who owns
+ * that step and what they've done.
  */
 const StepLine = ({ request }: { request: Doc<"requests"> }) => {
   const t = useAppTheme();
+  const [selectedStep, setSelectedStep] = useState<ApprovalStep | null>(null);
   const active = currentStep(request);
   const steps = stepsForRequest(request);
   return (
-    <View style={styles.stepsRow}>
-      {steps.map((step, index) => {
-        const status = stepStatus(request, step);
-        const isActive = step === active;
-        const previousApproved =
-          index > 0 && stepStatus(request, steps[index - 1]) === APPROVED;
-        const circleStyle =
-          status === APPROVED
-            ? { backgroundColor: t.success }
-            : status === DECLINED
-              ? { backgroundColor: t.danger }
-              : isActive
-                ? { backgroundColor: t.card, borderWidth: 2, borderColor: t.primary }
-                : { backgroundColor: t.card, borderWidth: 1.5, borderColor: t.border };
-        const labelColor =
-          status === APPROVED
-            ? t.success
-            : status === DECLINED
-              ? t.danger
-              : isActive
-                ? t.text
-                : t.faint;
-        return (
-          <>
-            {index > 0 && (
-              <View
-                key={`connector-${step}`}
-                style={[
-                  styles.stepConnector,
-                  { backgroundColor: previousApproved ? t.success : t.separator },
-                ]}
-              />
-            )}
-            <View key={step} style={styles.stepItem}>
-              <View style={[styles.stepCircle, circleStyle]}>
-                {status === APPROVED ? (
-                  <Ionicons name="checkmark" size={12} color={t.dark ? t.background : "#ffffff"} />
-                ) : status === DECLINED ? (
-                  <Ionicons name="close" size={12} color={t.dark ? t.background : "#ffffff"} />
-                ) : isActive ? (
-                  <View style={[styles.stepActiveDot, { backgroundColor: t.primary }]} />
-                ) : null}
-              </View>
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.stepLabel,
-                  { color: labelColor },
-                  isActive && { fontWeight: "700" },
-                ]}
+    <>
+      <View style={styles.stepsRow}>
+        {steps.map((step, index) => {
+          const status = stepStatus(request, step);
+          const isActive = step === active;
+          const previousApproved =
+            index > 0 && stepStatus(request, steps[index - 1]) === APPROVED;
+          const circleStyle =
+            status === APPROVED
+              ? { backgroundColor: t.success }
+              : status === DECLINED
+                ? { backgroundColor: t.danger }
+                : isActive
+                  ? { backgroundColor: t.card, borderWidth: 2, borderColor: t.primary }
+                  : { backgroundColor: t.card, borderWidth: 1.5, borderColor: t.border };
+          const labelColor =
+            status === APPROVED
+              ? t.success
+              : status === DECLINED
+                ? t.danger
+                : isActive
+                  ? t.text
+                  : t.faint;
+          return (
+            <React.Fragment key={step}>
+              {index > 0 && (
+                <View
+                  style={[
+                    styles.stepConnector,
+                    { backgroundColor: previousApproved ? t.success : t.separator },
+                  ]}
+                />
+              )}
+              <Pressable
+                onPress={() => setSelectedStep(step)}
+                hitSlop={8}
+                style={styles.stepItem}
               >
-                {STEP_LABELS[step]}
-              </Text>
-            </View>
-          </>
-        );
-      })}
-    </View>
+                <View style={[styles.stepCircle, circleStyle]}>
+                  {status === APPROVED ? (
+                    <Ionicons name="checkmark" size={12} color={t.dark ? t.background : "#ffffff"} />
+                  ) : status === DECLINED ? (
+                    <Ionicons name="close" size={12} color={t.dark ? t.background : "#ffffff"} />
+                  ) : isActive ? (
+                    <View style={[styles.stepActiveDot, { backgroundColor: t.primary }]} />
+                  ) : null}
+                </View>
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.stepLabel,
+                    { color: labelColor },
+                    isActive && { fontWeight: "700" },
+                  ]}
+                >
+                  {STEP_LABELS[step]}
+                </Text>
+              </Pressable>
+            </React.Fragment>
+          );
+        })}
+      </View>
+      <StepInfoModal
+        requestId={request._id}
+        step={selectedStep}
+        onClose={() => setSelectedStep(null)}
+      />
+    </>
   );
 };
 
@@ -196,11 +278,10 @@ export const RequestCard = ({
 }) => {
   const t = useAppTheme();
   const [showHistory, setShowHistory] = useState(false);
-  const fileCount =
-    request.receipt?.recipients.reduce(
-      (count, recipient) => count + (recipient.attachments?.length ?? 0),
-      0
-    ) ?? 0;
+  const requesterName = useQuery(
+    api.directory.nameForEmail,
+    showRequester ? { email: request.requesterEmail } : "skip"
+  );
   return (
     <Card>
       <View style={styles.topRow}>
@@ -211,8 +292,8 @@ export const RequestCard = ({
       </View>
       <Text style={[typography.caption, { color: t.faint, marginTop: -6 }]}>
         {request.department}
-        {showRequester ? ` · ${request.requesterEmail}` : ""} ·{" "}
-        {new Date(request._creationTime).toLocaleDateString()}
+        {showRequester ? ` · ${requesterName ?? request.requesterEmail}` : ""} ·{" "}
+        {new Date(request._creationTime).toLocaleDateString(undefined, { day: "numeric", month: "short" })} · {timeAgo(request._creationTime)}
       </Text>
       <Txt>{request.description}</Txt>
       <StepLine request={request} />
@@ -236,14 +317,14 @@ export const RequestCard = ({
       ) : null}
       {showHistory ? <History request={request} /> : null}
       <View style={[styles.actionsDivider, { backgroundColor: t.separator }]} />
-      <Row>
-        {children}
+      <View style={styles.actionsRow}>
+        <View style={styles.actionsLeft}>{children}</View>
         <Btn
           title={showHistory ? "Hide Audit Trail" : "Audit Trail"}
           variant="ghost"
           onPress={() => setShowHistory((previous) => !previous)}
         />
-      </Row>
+      </View>
     </Card>
   );
 };
@@ -302,4 +383,12 @@ const styles = StyleSheet.create({
   },
   fileLink: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 2 },
   actionsDivider: { height: StyleSheet.hairlineWidth, marginVertical: 2 },
+  actionsRow: { flexDirection: "row", alignItems: "center" },
+  actionsLeft: {
+    flex: 1,
+    flexDirection: "row",
+    gap: spacing.sm,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
 });

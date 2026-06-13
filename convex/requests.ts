@@ -717,6 +717,47 @@ export const auditTrail = query({
   },
 });
 
+/**
+ * Info about a single approval step: who owns it, their name, and any
+ * audit events recorded for that step (approved / declined / auto-approved).
+ */
+export const stepInfo = query({
+  args: { requestId: v.id("requests"), step: stepValidator },
+  handler: async (ctx, args) => {
+    if (!(await optionalProfile(ctx))) return null;
+    const request = await ctx.db.get("requests", args.requestId);
+    if (!request) return null;
+    const approvers = await getApprovers(ctx, request.year, request.department);
+    const emailMap: Record<string, string | undefined> = {
+      hod: approvers.hodEmail,
+      budgetManager: approvers.budgetManagerEmail,
+      director: approvers.directorEmail,
+      financeHead: approvers.financeHeadEmail,
+    };
+    const email = emailMap[args.step] ?? null;
+    let name: string | null = null;
+    if (email) {
+      const profile = await getProfile(ctx, email, request.year);
+      name = profile?.name ?? null;
+      if (!name) {
+        const dirUser = await ctx.db
+          .query("directoryUsers")
+          .withIndex("by_email", (q) => q.eq("email", email))
+          .unique();
+        name = dirUser?.name ?? null;
+      }
+    }
+    const allEvents = await ctx.db
+      .query("requestEvents")
+      .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
+      .take(200);
+    const events = allEvents
+      .filter((e) => e.step === args.step)
+      .map((e) => ({ at: e._creationTime, action: e.action, detail: e.detail ?? null }));
+    return { email, name, events };
+  },
+});
+
 /** Upload URL for receipt/invoice files (one file per generated URL). */
 export const generateReceiptUploadUrl = mutation({
   args: {},
