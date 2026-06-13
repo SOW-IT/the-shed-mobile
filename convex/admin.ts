@@ -63,29 +63,18 @@ export const setStaffProfile = mutation({
       }
     }
 
-    const needsDivision = roles.includes(HEAD_OF_DIVISION);
+    // Head roles are managed exclusively through the department/division
+    // structure section — they cannot be added or removed via staff profile edits.
+    if (roles.includes(HEAD_OF_DEPARTMENT) || roles.includes(HEAD_OF_DIVISION)) {
+      throw new ConvexError(
+        "Head of Department and Head of Division are assigned through the Structure section — edit the department or division directly to change its head."
+      );
+    }
+
     // Staff-side roles trump campus roles: their holders never get a
     // university, so saving also clears any stale one.
     const needsUniversity = rolesNeedUniversity(roles);
     const needsDepartment = roles.some(roleNeedsDepartment);
-
-    let division: string | undefined;
-    if (needsDivision) {
-      division = args.division;
-      const exists =
-        division &&
-        (await ctx.db
-          .query("divisions")
-          .withIndex("by_year_and_name", (q) =>
-            q.eq("year", args.year).eq("name", division!)
-          )
-          .unique());
-      if (!exists) {
-        throw new ConvexError(
-          `A Head of Division needs a division that exists in ${args.year}.`
-        );
-      }
-    }
     let university: string | undefined;
     if (needsUniversity) {
       university = args.university;
@@ -127,10 +116,29 @@ export const setStaffProfile = mutation({
     }
 
     const existing = await getProfile(ctx, email, args.year);
+
+    // Preserve any head roles assigned through the structure section — they
+    // cannot be changed via staff profile edits, only via the department/division
+    // mutations which also enforce uniqueness.
+    const existingHeadRoles = existing
+      ? rolesOf(existing).filter(
+          (r) => r === HEAD_OF_DEPARTMENT || r === HEAD_OF_DIVISION
+        )
+      : [];
+    const finalRoles =
+      existingHeadRoles.length > 0
+        ? [...new Set([...roles, ...existingHeadRoles])]
+        : roles;
+    // The division field on a profile is managed by the structure section
+    // for Heads of Division; preserve whatever it currently is.
+    const division = existingHeadRoles.includes(HEAD_OF_DIVISION)
+      ? existing?.division
+      : undefined;
+
     let profileId;
     if (existing) {
       await ctx.db.patch("staffProfiles", existing._id, {
-        roles,
+        roles: finalRoles,
         role: undefined, // retire the legacy single-role field
         department,
         division,
@@ -142,44 +150,12 @@ export const setStaffProfile = mutation({
       profileId = await ctx.db.insert("staffProfiles", {
         email,
         year: args.year,
-        roles,
+        roles: finalRoles,
         department,
         division,
         university,
         importId: await resolveImportId(ctx, email),
       });
-    }
-
-    // Keep departments.headEmail in sync with the Head of Department role:
-    // gaining the role makes them their department's head; losing the role
-    // vacates every headship they held. A person can head several
-    // departments (the extras are assigned on the departments themselves),
-    // so keeping the role never vacates the others.
-    const isHead = roles.includes(HEAD_OF_DEPARTMENT);
-    const yearDepartments = await ctx.db
-      .query("departments")
-      .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
-      .take(200);
-    for (const dept of yearDepartments) {
-      if (isHead && dept.name === department && dept.headEmail !== email) {
-        await ctx.db.patch("departments", dept._id, { headEmail: email });
-      } else if (dept.headEmail === email && !isHead) {
-        await ctx.db.patch("departments", dept._id, { headEmail: undefined });
-      }
-    }
-
-    // Same for divisions and the Head of Division role.
-    const isDivisionHead = roles.includes(HEAD_OF_DIVISION);
-    const yearDivisions = await ctx.db
-      .query("divisions")
-      .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
-      .take(200);
-    for (const div of yearDivisions) {
-      if (isDivisionHead && div.name === division && div.headEmail !== email) {
-        await ctx.db.patch("divisions", div._id, { headEmail: email });
-      } else if (div.headEmail === email && !isDivisionHead) {
-        await ctx.db.patch("divisions", div._id, { headEmail: undefined });
-      }
     }
     return profileId;
   },
