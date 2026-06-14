@@ -78,6 +78,7 @@ const PaymentTab = () => {
   const setPreferred = useMutation(api.bankAccounts.setPreferred);
 
   const [editing, setEditing] = useState(false);
+  const [editingId, setEditingId] = useState<Id<"savedBankAccounts"> | null>(null);
   const [nameDraft, setNameDraft] = useState("");
   const [bsbDraft, setBsbDraft] = useState("");
   const [numberDraft, setNumberDraft] = useState("");
@@ -98,6 +99,7 @@ const PaymentTab = () => {
   const others = savedAccounts.filter((a) => a.id !== preferred.id);
 
   const startEdit = () => {
+    setEditingId(preferred.id);
     setNameDraft(preferred.accountName);
     setBsbDraft(preferred.bsb);
     setNumberDraft(preferred.accountNumber);
@@ -107,20 +109,23 @@ const PaymentTab = () => {
 
   const cancelEdit = () => {
     setEditing(false);
+    setEditingId(null);
     setError(null);
   };
 
   const save = async () => {
+    if (!editingId) return;
     setSaving(true);
     setError(null);
     try {
       await updateAccount({
-        id: preferred.id,
+        id: editingId,
         accountName: nameDraft,
         bsb: bsbDraft,
         accountNumber: numberDraft,
       });
       setEditing(false);
+      setEditingId(null);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
