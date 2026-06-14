@@ -46,9 +46,8 @@ const tabIcon =
   );
 
 /**
- * Requests tab icon: renders a red review-count badge and a white unread-
- * comments badge side-by-side so both counts are visible at a glance without
- * one hiding behind the other.
+ * Requests tab icon: single combined badge (action-required + unread comments)
+ * in yellow so users see one total "things needing attention" count.
  */
 const RequestsTabIcon = ({
   color,
@@ -62,57 +61,28 @@ const RequestsTabIcon = ({
   unreadComments: number;
 }) => {
   const t = useAppTheme();
-  const hasBadges = reviewCount > 0 || unreadComments > 0;
+  const total = reviewCount + unreadComments;
   return (
     <View style={{ position: "relative" }}>
       <Ionicons name={focused ? "receipt" : "receipt-outline"} size={23} color={color} />
-      {hasBadges && (
+      {total > 0 && (
         <View
           style={{
             position: "absolute",
             top: -6,
-            right: -20,
-            flexDirection: "row",
+            right: -10,
+            minWidth: 16,
+            height: 16,
+            borderRadius: 8,
+            backgroundColor: t.warning,
             alignItems: "center",
-            gap: 2,
+            justifyContent: "center",
+            paddingHorizontal: 3,
           }}
         >
-          {reviewCount > 0 && (
-            <View
-              style={{
-                minWidth: 16,
-                height: 16,
-                borderRadius: 8,
-                backgroundColor: t.warning,
-                alignItems: "center",
-                justifyContent: "center",
-                paddingHorizontal: 3,
-              }}
-            >
-              <Text style={{ color: "#ffffff", fontSize: 10, fontWeight: "800" }}>
-                {reviewCount > 99 ? "99+" : reviewCount}
-              </Text>
-            </View>
-          )}
-          {unreadComments > 0 && (
-            <View
-              style={{
-                minWidth: 16,
-                height: 16,
-                borderRadius: 8,
-                backgroundColor: "#ffffff",
-                alignItems: "center",
-                justifyContent: "center",
-                paddingHorizontal: 3,
-                borderWidth: 1,
-                borderColor: "#cccccc",
-              }}
-            >
-              <Text style={{ color: "#333333", fontSize: 10, fontWeight: "800" }}>
-                {unreadComments > 99 ? "99+" : unreadComments}
-              </Text>
-            </View>
-          )}
+          <Text style={{ color: "#ffffff", fontSize: 10, fontWeight: "800" }}>
+            {total > 99 ? "99+" : total}
+          </Text>
         </View>
       )}
     </View>
