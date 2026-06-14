@@ -12,11 +12,12 @@ import {
   stepsForRequest,
   type ApprovalStatus,
   type ApprovalStep,
+  type RequestDisplayStatus,
 } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { Doc, Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "../theme";
-import { Btn, Card, Chip, Muted, Row, Sheet, Txt } from "./ui";
+import { Btn, Card, Muted, Row, Sheet, Txt } from "./ui";
 
 const timeAgo = (ms: number): string => {
   const secs = Math.floor((Date.now() - ms) / 1000);
@@ -188,13 +189,16 @@ const StepInfoModal = ({
 
 /**
  * The approval chain as a connected stepper. Tap any circle to see who owns
- * that step and what they've done.
+ * that step and what they've done. Shows the approver's name and when they
+ * acted inline under each step.
  */
 const StepLine = ({ request }: { request: Doc<"requests"> }) => {
   const t = useAppTheme();
   const [selectedStep, setSelectedStep] = useState<ApprovalStep | null>(null);
   const active = currentStep(request);
   const steps = stepsForRequest(request);
+  const actors = useQuery(api.requests.stepActors, { requestId: request._id });
+
   return (
     <>
       <View style={styles.stepsRow}>
@@ -219,6 +223,10 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
                 : isActive
                   ? t.text
                   : t.faint;
+
+          const actor = actors?.[step];
+          const displayName = actor?.name ?? (actor?.email ? actor.email : null);
+
           return (
             <React.Fragment key={step}>
               {index > 0 && (
@@ -244,7 +252,6 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
                   ) : null}
                 </View>
                 <Text
-                  numberOfLines={1}
                   style={[
                     styles.stepLabel,
                     { color: labelColor },
@@ -253,6 +260,16 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
                 >
                   {STEP_LABELS[step]}
                 </Text>
+                {displayName ? (
+                  <Text numberOfLines={1} style={[styles.stepName, { color: t.muted }]}>
+                    {displayName}
+                  </Text>
+                ) : null}
+                {actor?.actedAt ? (
+                  <Text style={[styles.stepTime, { color: t.faint }]}>
+                    {timeAgo(actor.actedAt)}
+                  </Text>
+                ) : null}
               </Pressable>
             </React.Fragment>
           );
@@ -267,15 +284,24 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
   );
 };
 
+const statusColor = (status: RequestDisplayStatus, t: ReturnType<typeof useAppTheme>): string => {
+  if (status === "PAID") return t.success;
+  if (status === "DECLINED") return t.danger;
+  return t.chip.default.fg;
+};
+
 export const RequestCard = ({
   request,
   showRequester,
   onCancel,
+  actionRequired,
   children,
 }: {
   request: Doc<"requests">;
   showRequester?: boolean;
   onCancel?: () => void;
+  /** When true, tints the card to signal the current user needs to act. */
+  actionRequired?: boolean;
   children?: ReactNode;
 }) => {
   const t = useAppTheme();
@@ -284,13 +310,14 @@ export const RequestCard = ({
     api.directory.nameForEmail,
     showRequester ? { email: request.requesterEmail } : "skip"
   );
+  const status = requestDisplayStatus(request);
+
   return (
-    <Card>
+    <Card style={actionRequired ? { backgroundColor: t.pendingCard } : undefined}>
       <View style={styles.topRow}>
         <Text style={[typography.amount, { color: t.text, flex: 1 }]}>
           ${request.amount}
         </Text>
-        <Chip label={requestDisplayStatus(request)} />
         {onCancel && (
           <Pressable onPress={onCancel} hitSlop={10} style={styles.cancelIcon}>
             <Ionicons name="trash-outline" size={17} color={t.danger} />
@@ -299,8 +326,16 @@ export const RequestCard = ({
       </View>
       <Text style={[typography.caption, { color: t.faint, marginTop: -6 }]}>
         {request.department}
-        {showRequester ? ` · ${requesterName ?? request.requesterEmail}` : ""} ·{" "}
-        {new Date(request._creationTime).toLocaleDateString(undefined, { day: "numeric", month: "short" })} · {timeAgo(request._creationTime)}
+        {showRequester ? ` · ${requesterName ?? request.requesterEmail}` : ""}{" · "}
+        {new Date(request._creationTime).toLocaleDateString(undefined, {
+          day: "numeric",
+          month: "short",
+        })}{" · "}
+        {timeAgo(request._creationTime)}
+        {"  ·  "}
+        <Text style={{ color: statusColor(status, t), fontWeight: "600" }}>
+          {status}
+        </Text>
       </Text>
       <Txt>{request.description}</Txt>
       <StepLine request={request} />
@@ -345,13 +380,13 @@ const styles = StyleSheet.create({
     marginVertical: spacing.xs,
   },
   stepConnector: {
-    flex: 1,
+    width: 10,
     height: 2,
     borderRadius: 1,
     marginTop: 10,
-    marginHorizontal: 3,
+    flexShrink: 0,
   },
-  stepItem: { alignItems: "center", gap: 4, width: 72 },
+  stepItem: { flex: 1, alignItems: "center", gap: 3 },
   stepCircle: {
     width: 22,
     height: 22,
@@ -360,7 +395,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   stepActiveDot: { width: 8, height: 8, borderRadius: 4 },
-  stepLabel: { fontSize: 10.5, letterSpacing: -0.1, maxWidth: 76, textAlign: "center" },
+  stepLabel: { fontSize: 10.5, letterSpacing: -0.1, textAlign: "center" },
+  stepName: { fontSize: 9.5, letterSpacing: -0.05, textAlign: "center" },
+  stepTime: { fontSize: 9, textAlign: "center" },
   declineBox: {
     flexDirection: "row",
     alignItems: "center",

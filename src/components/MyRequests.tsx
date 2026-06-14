@@ -389,36 +389,49 @@ export const MyRequests = ({
           message="Tap “Make Request” below to submit your first one."
         />
       ) : (
-        requests.map((request, index) => (
-          <FadeInView key={request._id} delay={stagger(index)}>
-            <RequestCard
-              request={request}
-              onCancel={
-                !requestCompleted(request)
-                  ? () =>
-                      confirmAction(
-                        "Cancel request",
-                        `Cancel your $${request.amount} request ("${request.description}")? It will be deleted along with its approvals — this can't be undone.`,
-                        "Cancel Request",
-                        () => void handleCancel(request._id),
-                        true
-                      )
-                  : undefined
-              }
-            >
-              {requestFullyApproved(request) && !request.receipt && (
-                <Btn
-                  title="Submit Receipt"
-                  variant="success"
-                  onPress={() => setReceiptFor(request)}
-                />
-              )}
-              {requestDeclined(request) && (
-                <Btn title="Resubmit" onPress={() => resubmit(request)} />
-              )}
-            </RequestCard>
-          </FadeInView>
-        ))
+        [...requests]
+          .sort((a, b) => {
+            // Requests needing action (submit receipt or resubmit after decline) float up
+            const needsAction = (r: typeof a) =>
+              (requestFullyApproved(r) && !r.receipt) || requestDeclined(r) ? 0 : 1;
+            const diff = needsAction(a) - needsAction(b);
+            if (diff !== 0) return diff;
+            return b._creationTime - a._creationTime;
+          })
+          .map((request, index) => {
+            const needsReceipt = requestFullyApproved(request) && !request.receipt;
+            return (
+              <FadeInView key={request._id} delay={stagger(index)}>
+                <RequestCard
+                  request={request}
+                  actionRequired={needsReceipt}
+                  onCancel={
+                    !requestCompleted(request)
+                      ? () =>
+                          confirmAction(
+                            "Cancel request",
+                            `Cancel your $${request.amount} request ("${request.description}")? It will be deleted along with its approvals — this can't be undone.`,
+                            "Cancel Request",
+                            () => void handleCancel(request._id),
+                            true
+                          )
+                      : undefined
+                  }
+                >
+                  {needsReceipt && (
+                    <Btn
+                      title="Submit Receipt"
+                      variant="success"
+                      onPress={() => setReceiptFor(request)}
+                    />
+                  )}
+                  {requestDeclined(request) && (
+                    <Btn title="Resubmit" onPress={() => resubmit(request)} />
+                  )}
+                </RequestCard>
+              </FadeInView>
+            );
+          })
       )}
       <NewRequestSheet
         visible={newOpen}

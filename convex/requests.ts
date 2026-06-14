@@ -758,6 +758,73 @@ export const stepInfo = query({
   },
 });
 
+/**
+ * Names + action timestamps for all approval steps on one request.
+ * Loaded once per card so the stepper can show who each approver is
+ * and when they acted without separate per-step queries.
+ */
+export const stepActors = query({
+  args: { requestId: v.id("requests") },
+  handler: async (ctx, args) => {
+    if (!(await optionalProfile(ctx))) return null;
+    const request = await ctx.db.get("requests", args.requestId);
+    if (!request) return null;
+    const approvers = await getApprovers(ctx, request.year, request.department);
+    const emailMap: Record<Step, string | undefined> = {
+      hod: approvers.hodEmail,
+      budgetManager: approvers.budgetManagerEmail,
+      director: approvers.directorEmail,
+      financeHead: approvers.financeHeadEmail,
+    };
+    const allEvents = await ctx.db
+      .query("requestEvents")
+      .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
+      .take(200);
+    const result: Record<
+      string,
+      { name: string | null; email: string | null; actedAt: number | null }
+    > = {};
+    for (const step of [
+      "hod",
+      "budgetManager",
+      "director",
+      "financeHead",
+    ] as const) {
+      const email = emailMap[step] ?? null;
+      let name: string | null = null;
+      if (email) {
+        const profile = await getProfile(ctx, email, request.year);
+        name = profile?.name ?? null;
+        if (!name) {
+          const dirUser = await ctx.db
+            .query("directoryUsers")
+            .withIndex("by_email", (q) => q.eq("email", email))
+            .unique();
+          name = dirUser?.name ?? null;
+        }
+      }
+      const stepEvent = allEvents
+        .filter(
+          (e) =>
+            e.step === step &&
+            (e.action === "approved" ||
+              e.action === "declined" ||
+              e.action === "auto-approved")
+        )
+        .sort((a, b) => b._creationTime - a._creationTime)[0];
+      result[step] = {
+        name,
+        email,
+        actedAt: stepEvent?._creationTime ?? null,
+      };
+    }
+    return result as Record<
+      Step,
+      { name: string | null; email: string | null; actedAt: number | null }
+    >;
+  },
+});
+
 /** Upload URL for receipt/invoice files (one file per generated URL). */
 export const generateReceiptUploadUrl = mutation({
   args: {},

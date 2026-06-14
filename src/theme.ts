@@ -55,6 +55,8 @@ export interface AppTheme {
   dark: boolean;
   background: string;
   card: string;
+  /** Subtle warm-tinted card background for cards that need user action. */
+  pendingCard: string;
   text: string;
   muted: string;
   /** Even quieter than muted — timestamps, helper text. */
@@ -122,6 +124,7 @@ const light: AppTheme = {
   dark: false,
   background: "#F5F3E3", // brand cream
   card: "#FFFFFF",
+  pendingCard: "#FFF5E8",
   text: "#0F2523",
   muted: "#5C6B62",
   faint: "#8C988F",
@@ -155,6 +158,7 @@ const dark: AppTheme = {
   dark: true,
   background: "#0F2523", // brand deep green
   card: "#1B3330",
+  pendingCard: "#252518",
   text: "#F5F3E3",
   muted: "#A9BDB2",
   faint: "#74897E",

@@ -191,7 +191,7 @@ export const ReviewList = () => {
                 </SectionTitle>
                 {data[key].map((request, index) => (
                   <FadeInView key={request._id} delay={stagger(index)}>
-                    <RequestCard request={request} showRequester>
+                    <RequestCard request={request} showRequester actionRequired>
                       <Btn
                         title="Approve"
                         variant="success"
@@ -213,7 +213,7 @@ export const ReviewList = () => {
               <SectionTitle>Ready to Pay ({data.readyToPay.length})</SectionTitle>
               {data.readyToPay.map((request, index) => (
                 <FadeInView key={request._id} delay={stagger(index)}>
-                  <RequestCard request={request} showRequester>
+                  <RequestCard request={request} showRequester actionRequired>
                     <Btn
                       title="Pay"
                       variant="success"
