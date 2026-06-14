@@ -22,5 +22,5 @@ jobs:
       - run: npm ci
       - name: Typecheck
         run: npx tsc --noEmit
-      - name: Backend tests
-        run: npm test
+      - name: Backend tests (with coverage thresholds)
+        run: npm run test:coverage

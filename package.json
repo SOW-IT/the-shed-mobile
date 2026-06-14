@@ -40,6 +40,7 @@
   "devDependencies": {
     "@edge-runtime/vm": "^5.0.0",
     "@types/react": "~19.2.2",
+    "@vitest/coverage-v8": "^4.1.8",
     "convex-test": "^0.0.53",
     "typescript": "~6.0.3",
     "vitest": "^4.1.8"
@@ -52,6 +53,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "convex": "convex dev",
     "deploy:web": "node scripts/deploy-web.mjs"
   },
