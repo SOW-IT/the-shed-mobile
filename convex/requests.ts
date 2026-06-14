@@ -19,6 +19,7 @@ import { Doc, Id } from "./_generated/dataModel";
 import { rememberBankAccount } from "./bankAccounts";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import {
+  currentStaffYear,
   getApprovers,
   getDepartment,
   getDivision,
@@ -76,7 +77,7 @@ export const appUrl = (path?: string) =>
  * `url` is the in-app route: pushes deep-link to it, emails get it appended
  * as an HTTPS link into the hosted app.
  */
-const notify = async (
+export const notify = async (
   ctx: MutationCtx,
   to: string | undefined,
   subject: string,
@@ -143,6 +144,38 @@ export const nextApproverEmail = (
   };
   return selectors[step](approvers) ?? (fallback ? selectors[step](fallback) : undefined);
 };
+
+/**
+ * The single person a request currently needs action from: the pending
+ * approver, else the requester (awaiting their receipt), else the Finance Head
+ * (awaiting payment), else nobody (paid or declined). Carried-over requests
+ * fall back to the current year's officeholder. Used to route comment
+ * notifications. Exported for tests.
+ */
+export async function actionOwnerEmail(
+  ctx: QueryCtx | MutationCtx,
+  request: Doc<"requests">
+): Promise<string | undefined> {
+  const year = currentStaffYear();
+  const approvers = await getApprovers(ctx, request.year, request.department);
+  const currentApprovers =
+    request.year === year
+      ? approvers
+      : await getApprovers(ctx, year, request.department);
+
+  if (currentStep(request) !== null) {
+    return nextApproverEmail(request, approvers, currentApprovers);
+  }
+  if (requestDeclined(request) || !requestFullyApproved(request)) return undefined;
+  if (!request.receipt) return request.requesterEmail; // awaiting receipt
+  if (request.paid === false) {
+    const finance = await getApprovers(ctx, request.year, FINANCE);
+    const financeNow =
+      request.year === year ? finance : await getApprovers(ctx, year, FINANCE);
+    return finance.financeHeadEmail ?? financeNow.financeHeadEmail;
+  }
+  return undefined; // paid / completed
+}
 
 /**
  * Emails whoever the request now waits on; when fully approved, tells the
@@ -679,6 +712,38 @@ export const cancel = mutation({
       .take(200);
     for (const event of events) {
       await ctx.db.delete("requestEvents", event._id);
+    }
+    // ...along with its comment thread, reactions and read markers. Drained in
+    // batches so a request with an unusually long thread leaves no orphans.
+    for (;;) {
+      const comments = await ctx.db
+        .query("requestComments")
+        .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
+        .take(200);
+      if (comments.length === 0) break;
+      for (const comment of comments) {
+        for (;;) {
+          const reactions = await ctx.db
+            .query("commentReactions")
+            .withIndex("by_comment", (q) => q.eq("commentId", comment._id))
+            .take(200);
+          if (reactions.length === 0) break;
+          for (const reaction of reactions) {
+            await ctx.db.delete("commentReactions", reaction._id);
+          }
+        }
+        await ctx.db.delete("requestComments", comment._id);
+      }
+    }
+    for (;;) {
+      const reads = await ctx.db
+        .query("commentReads")
+        .withIndex("by_request_and_user", (q) => q.eq("requestId", args.requestId))
+        .take(200);
+      if (reads.length === 0) break;
+      for (const read of reads) {
+        await ctx.db.delete("commentReads", read._id);
+      }
     }
     await ctx.db.delete("requests", args.requestId);
     return null;

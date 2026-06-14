@@ -74,6 +74,9 @@ export interface AppTheme {
   successSoft: string;
   danger: string;
   dangerSoft: string;
+  /** Amber for pending/in-progress states (active approval steps). */
+  warning: string;
+  warningSoft: string;
   ghost: string;
   ghostText: string;
   /** Modal / sheet backdrop. */
@@ -137,6 +140,8 @@ const light: AppTheme = {
   successSoft: "#E2F1DA", // brand light green
   danger: "#B5403D",
   dangerSoft: "#F6DFD9",
+  warning: "#8A5E1A", // dark amber — 5.1:1 against cream, meets WCAG AA
+  warningSoft: "#EDD88A", // warm yellow, visibly distinct from cream background
   ghost: "#ECEFE4",
   ghostText: "#0F2523",
   overlay: "rgba(15, 37, 35, 0.45)",
@@ -170,6 +175,8 @@ const dark: AppTheme = {
   successSoft: "#1E4634",
   danger: "#E08A63",
   dangerSoft: "#46251B",
+  warning: "#E5AD66", // brand light orange pops on deep green
+  warningSoft: "#4A3A1C",
   ghost: "#27433E",
   ghostText: "#F5F3E3",
   overlay: "rgba(0, 0, 0, 0.6)",
