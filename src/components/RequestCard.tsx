@@ -209,23 +209,23 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
   const steps = stepsForRequest(request);
   const actors = useQuery(api.requests.stepActors, { requestId: request._id });
 
-  // Alternating L-to-R fill sweep: 2 s on the connector, then 2 s on the circle.
-  // 0→0.5 = connector phase, 0.5→1 = circle phase, then loops.
+  // L-to-R fill sweep, 3 s total. Connector sweeps 0→2 s, circle sweeps 1→3 s,
+  // so the fill appears to flow off the line and into the circle during the 1 s overlap.
   const fill = useRef(new Animated.Value(0)).current;
   const needsAnimation = active !== null;
   useEffect(() => {
     if (!needsAnimation) return;
     const native = Platform.OS !== "web";
     const loop = Animated.loop(
-      Animated.timing(fill, { toValue: 1, duration: 4000, useNativeDriver: native, easing: Easing.linear })
+      Animated.timing(fill, { toValue: 1, duration: 3000, useNativeDriver: native, easing: Easing.linear })
     );
     loop.start();
     return () => loop.stop();
   }, [fill, needsAnimation]);
-  // Connector sweeps during [0, 0.5], then hides off-screen right for [0.5, 1].
-  const connectorFillX = fill.interpolate({ inputRange: [0, 0.5, 1], outputRange: [-10, 10, 10] });
-  // Circle hides off-screen left during [0, 0.5], then sweeps during [0.5, 1].
-  const circleFillX = fill.interpolate({ inputRange: [0, 0.5, 1], outputRange: [-22, -22, 22] });
+  // Connector: sweeps -10→+10 over first ⅔, then stays off-screen right.
+  const connectorFillX = fill.interpolate({ inputRange: [0, 2 / 3, 1], outputRange: [-10, 10, 10] });
+  // Circle: hidden off-screen left for first ⅓, then sweeps -22→+22 over last ⅔.
+  const circleFillX = fill.interpolate({ inputRange: [0, 1 / 3, 1], outputRange: [-22, -22, 22] });
   const dotColor = t.dark ? t.background : "#ffffff";
 
   return (
@@ -239,20 +239,22 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
           const isPending = !isApproved && !isDeclined;
 
           // Colour the connector by the step it leads INTO: green into an
-          // approved step, amber into a pending one (animated when active).
+          // approved step, amber into the active pending step, grey into future steps.
           const connectorColor = isApproved
             ? t.success
             : isDeclined
               ? t.separator
-              : t.warning;
+              : isActive
+                ? t.warning
+                : t.separator;
           const circleStyle = isApproved
             ? { backgroundColor: t.success }
             : isDeclined
               ? { backgroundColor: t.danger }
               : isActive
                 ? { backgroundColor: t.warning }
-                : { backgroundColor: t.card, borderWidth: 1.5, borderColor: t.warning };
-          const labelColor = isApproved ? t.success : isDeclined ? t.danger : t.warning;
+                : { backgroundColor: t.card, borderWidth: 1.5, borderColor: t.separator };
+          const labelColor = isApproved ? t.success : isDeclined ? t.danger : isActive ? t.warning : t.faint;
 
           const actor = actors?.[step];
           const displayName = actor?.name ?? (actor?.email ? actor.email : null);
