@@ -162,6 +162,8 @@ export const CommentsSheet = ({
                       ))}
                       <Pressable
                         hitSlop={4}
+                        accessibilityRole="button"
+                        accessibilityLabel="More reactions"
                         onPress={() => {
                           setReactingTo(null);
                           setMoreFor(comment.id);
