@@ -1,8 +1,8 @@
 import React from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
-import { ReactNode, useState } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { ReactNode, useEffect, useRef, useState } from "react";
+import { Animated, Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import {
   APPROVED,
   currentStep,
@@ -19,6 +19,15 @@ import { Doc, Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "../theme";
 import { Card, IconButton, Muted, Row, Sheet, Txt } from "./ui";
 import { CommentsSheet } from "./CommentsSheet";
+
+/** Re-renders the caller once a minute so "… ago" labels stay current. */
+const useMinuteTick = () => {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+};
 
 const timeAgo = (ms: number): string => {
   const secs = Math.floor((Date.now() - ms) / 1000);
@@ -195,10 +204,28 @@ const StepInfoModal = ({
  */
 const StepLine = ({ request }: { request: Doc<"requests"> }) => {
   const t = useAppTheme();
+  useMinuteTick();
   const [selectedStep, setSelectedStep] = useState<ApprovalStep | null>(null);
   const active = currentStep(request);
   const steps = stepsForRequest(request);
   const actors = useQuery(api.requests.stepActors, { requestId: request._id });
+
+  // One looping pulse drives the active step's circle and its incoming line.
+  const pulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const native = Platform.OS !== "web";
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 750, useNativeDriver: native }),
+        Animated.timing(pulse, { toValue: 0, duration: 750, useNativeDriver: native }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+  const pulseScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] });
+  const pulseOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] });
+  const dotColor = t.dark ? t.background : "#ffffff";
 
   return (
     <>
@@ -206,24 +233,25 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
         {steps.map((step, index) => {
           const status = stepStatus(request, step);
           const isActive = step === active;
-          const previousApproved =
-            index > 0 && stepStatus(request, steps[index - 1]) === APPROVED;
-          const circleStyle =
-            status === APPROVED
-              ? { backgroundColor: t.success }
-              : status === DECLINED
-                ? { backgroundColor: t.danger }
-                : isActive
-                  ? { backgroundColor: t.card, borderWidth: 2, borderColor: t.primary }
-                  : { backgroundColor: t.card, borderWidth: 1.5, borderColor: t.border };
-          const labelColor =
-            status === APPROVED
-              ? t.success
-              : status === DECLINED
-                ? t.danger
-                : isActive
-                  ? t.text
-                  : t.faint;
+          const isApproved = status === APPROVED;
+          const isDeclined = status === DECLINED;
+          const isPending = !isApproved && !isDeclined;
+
+          // Colour the connector by the step it leads INTO: green into an
+          // approved step, amber into a pending one (animated when active).
+          const connectorColor = isApproved
+            ? t.success
+            : isDeclined
+              ? t.separator
+              : t.warning;
+          const circleStyle = isApproved
+            ? { backgroundColor: t.success }
+            : isDeclined
+              ? { backgroundColor: t.danger }
+              : isActive
+                ? { backgroundColor: t.warning }
+                : { backgroundColor: t.card, borderWidth: 1.5, borderColor: t.warning };
+          const labelColor = isApproved ? t.success : isDeclined ? t.danger : t.warning;
 
           const actor = actors?.[step];
           const displayName = actor?.name ?? (actor?.email ? actor.email : null);
@@ -231,10 +259,11 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
           return (
             <React.Fragment key={step}>
               {index > 0 && (
-                <View
+                <Animated.View
                   style={[
                     styles.stepConnector,
-                    { backgroundColor: previousApproved ? t.success : t.separator },
+                    { backgroundColor: connectorColor },
+                    isActive && { opacity: pulseOpacity },
                   ]}
                 />
               )}
@@ -243,15 +272,21 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
                 hitSlop={8}
                 style={styles.stepItem}
               >
-                <View style={[styles.stepCircle, circleStyle]}>
-                  {status === APPROVED ? (
-                    <Ionicons name="checkmark" size={12} color={t.dark ? t.background : "#ffffff"} />
-                  ) : status === DECLINED ? (
-                    <Ionicons name="close" size={12} color={t.dark ? t.background : "#ffffff"} />
+                <Animated.View
+                  style={[
+                    styles.stepCircle,
+                    circleStyle,
+                    isActive && { transform: [{ scale: pulseScale }] },
+                  ]}
+                >
+                  {isApproved ? (
+                    <Ionicons name="checkmark" size={12} color={dotColor} />
+                  ) : isDeclined ? (
+                    <Ionicons name="close" size={12} color={dotColor} />
                   ) : isActive ? (
-                    <View style={[styles.stepActiveDot, { backgroundColor: t.primary }]} />
+                    <View style={[styles.stepActiveDot, { backgroundColor: dotColor }]} />
                   ) : null}
-                </View>
+                </Animated.View>
                 <Text
                   style={[
                     styles.stepLabel,
@@ -285,10 +320,13 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
   );
 };
 
-const statusTextColor = (status: RequestDisplayStatus, t: ReturnType<typeof useAppTheme>): string => {
-  if (status === "PAID") return t.success;
-  if (status === "DECLINED") return t.danger;
-  return t.chip.default.fg;
+const statusChip = (
+  status: RequestDisplayStatus,
+  t: ReturnType<typeof useAppTheme>
+): { bg: string; fg: string } => {
+  if (status === "PAID") return t.chip.PAID;
+  if (status === "DECLINED") return t.chip.DECLINED;
+  return t.chip.default; // AWAITING …
 };
 
 const cardBorderStyle = (
@@ -317,6 +355,7 @@ export const RequestCard = ({
   children?: ReactNode;
 }) => {
   const t = useAppTheme();
+  useMinuteTick();
   const [showHistory, setShowHistory] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const requesterName = useQuery(
@@ -327,13 +366,19 @@ export const RequestCard = ({
     requestId: request._id,
   });
   const status = requestDisplayStatus(request);
+  const chip = statusChip(status, t);
 
   return (
     <Card style={cardBorderStyle(status, actionRequired, t)}>
       <View style={styles.topRow}>
-        <Text style={[typography.amount, { color: t.text, flex: 1 }]}>
-          ${request.amount}
-        </Text>
+        <Text style={[typography.amount, { color: t.text }]}>${request.amount}</Text>
+        <View style={styles.statusWrap}>
+          <View style={[styles.statusPill, { backgroundColor: chip.bg }]}>
+            <Text numberOfLines={1} style={[styles.statusPillText, { color: chip.fg }]}>
+              {status}
+            </Text>
+          </View>
+        </View>
         {onCancel && (
           <Pressable onPress={onCancel} hitSlop={10} style={styles.cancelIcon}>
             <Ionicons name="trash-outline" size={17} color={t.danger} />
@@ -348,10 +393,6 @@ export const RequestCard = ({
           month: "short",
         })}{" · "}
         {timeAgo(request._creationTime)}
-        {"  ·  "}
-        <Text style={{ color: statusTextColor(status, t), fontWeight: "600" }}>
-          {status}
-        </Text>
       </Text>
       <Txt>{request.description}</Txt>
       <StepLine request={request} />
@@ -404,6 +445,18 @@ export const RequestCard = ({
 
 const styles = StyleSheet.create({
   topRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  statusWrap: { flex: 1, alignItems: "center" },
+  statusPill: {
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    maxWidth: "100%",
+  },
+  statusPillText: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
   cancelIcon: { padding: 2 },
   stepsRow: {
     flexDirection: "row",

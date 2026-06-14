@@ -246,6 +246,31 @@ describe("unreadCount + markRead", () => {
     await asUser(t, HENRY).mutation(api.comments.markRead, { requestId: id });
     expect(await asUser(t, HENRY).query(api.comments.unreadCount, { requestId: id })).toBe(0);
   });
+
+  test("unreadTotalForRequests sums across requests, deduped, excluding own", async () => {
+    const t = await setup();
+    const id1 = await submit(t);
+    const id2 = await submit(t);
+    await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id1, body: "a" });
+    await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id1, body: "b" });
+    await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id2, body: "c" });
+    // Henry: 3 unread across the two requests (the duplicate id is ignored).
+    expect(
+      await asUser(t, HENRY).query(api.comments.unreadTotalForRequests, {
+        requestIds: [id1, id2, id1],
+      })
+    ).toBe(3);
+    // Rachel authored them all, so none count for her.
+    expect(
+      await asUser(t, RACHEL).query(api.comments.unreadTotalForRequests, {
+        requestIds: [id1, id2],
+      })
+    ).toBe(0);
+    // Unauthenticated -> 0.
+    expect(
+      await t.query(api.comments.unreadTotalForRequests, { requestIds: [id1] })
+    ).toBe(0);
+  });
 });
 
 describe("toggleReaction + list grouping", () => {

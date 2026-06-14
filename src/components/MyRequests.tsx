@@ -22,6 +22,7 @@ import {
   errorMessage,
   FadeInView,
   Field,
+  IconButton,
   LoadingState,
   Muted,
   Row,
@@ -507,6 +508,7 @@ export const MyRequests = ({
   onNewClose: () => void;
   onShowGuide: () => void;
 }) => {
+  const t = useAppTheme();
   const requests = useQuery(api.requests.myRequests, {});
   const cancel = useMutation(api.requests.cancel);
   const [receiptFor, setReceiptFor] = useState<Doc<"requests"> | null>(null);
@@ -571,14 +573,22 @@ export const MyRequests = ({
                   }
                 >
                   {needsReceipt && (
-                    <Btn
-                      title="Submit Receipt"
-                      variant="success"
+                    <IconButton
+                      name="cloud-upload-outline"
+                      bg={t.successSoft}
+                      color={t.success}
+                      accessibilityLabel="Submit receipt"
                       onPress={() => setReceiptFor(request)}
                     />
                   )}
                   {requestDeclined(request) && (
-                    <Btn title="Resubmit" onPress={() => resubmit(request)} />
+                    <IconButton
+                      name="refresh"
+                      bg={t.primarySoft}
+                      color={t.primary}
+                      accessibilityLabel="Resubmit request"
+                      onPress={() => resubmit(request)}
+                    />
                   )}
                 </RequestCard>
               </FadeInView>

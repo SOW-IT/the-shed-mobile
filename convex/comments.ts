@@ -1,5 +1,5 @@
 import { ConvexError, v } from "convex/values";
-import { Doc } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, QueryCtx } from "./_generated/server";
 import { getProfile, optionalProfile, requireProfile } from "./model";
 import { actionOwnerEmail, appUrl, notify } from "./requests";
@@ -115,26 +115,52 @@ export const list = query({
   },
 });
 
+/** Comments by others on one request the given user hasn't read yet. */
+async function unreadCountFor(
+  ctx: QueryCtx,
+  requestId: Id<"requests">,
+  email: string
+): Promise<number> {
+  const read = await ctx.db
+    .query("commentReads")
+    .withIndex("by_request_and_user", (q) =>
+      q.eq("requestId", requestId).eq("userEmail", email)
+    )
+    .unique();
+  const lastReadAt = read?.lastReadAt ?? 0;
+  const comments: Doc<"requestComments">[] = await ctx.db
+    .query("requestComments")
+    .withIndex("by_request", (q) => q.eq("requestId", requestId))
+    .collect(); // small per-request set; never truncate the count
+  return comments.filter(
+    (c) => c.authorEmail !== email && c._creationTime > lastReadAt
+  ).length;
+}
+
 /** How many comments by others the caller hasn't seen yet (for the badge). */
 export const unreadCount = query({
   args: { requestId: v.id("requests") },
   handler: async (ctx, args) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
-    const read = await ctx.db
-      .query("commentReads")
-      .withIndex("by_request_and_user", (q) =>
-        q.eq("requestId", args.requestId).eq("userEmail", caller.email)
-      )
-      .unique();
-    const lastReadAt = read?.lastReadAt ?? 0;
-    const comments: Doc<"requestComments">[] = await ctx.db
-      .query("requestComments")
-      .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
-      .collect(); // small per-request set; never truncate the count
-    return comments.filter(
-      (c) => c.authorEmail !== caller.email && c._creationTime > lastReadAt
-    ).length;
+    return await unreadCountFor(ctx, args.requestId, caller.email);
+  },
+});
+
+/**
+ * Total unread comments across a set of requests — used to fold unread counts
+ * into the Mine / To Review segment badges. Deduplicates the ids.
+ */
+export const unreadTotalForRequests = query({
+  args: { requestIds: v.array(v.id("requests")) },
+  handler: async (ctx, args) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return 0;
+    let total = 0;
+    for (const requestId of new Set(args.requestIds)) {
+      total += await unreadCountFor(ctx, requestId, caller.email);
+    }
+    return total;
   },
 });
 
