@@ -25,6 +25,12 @@ const storedReceipt = async (t: TestConvex<typeof schema>) => ({
   name: "receipt.pdf",
 });
 
+/** Jumps the clock 8 days forward so open requests read as stale (>7 days). */
+const stale = () => {
+  vi.useFakeTimers({ now: Date.now(), toFake: ["Date"] });
+  vi.setSystemTime(Date.now() + 8 * 24 * 60 * 60 * 1000);
+};
+
 async function setup() {
   const t = convexTest(schema, modules);
   await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
@@ -189,11 +195,6 @@ describe("receiptAttachments: current-year Finance Head on a carried-over reques
 
 describe("reminders: receipt and payment stages", () => {
   afterEach(() => vi.useRealTimers());
-
-  const stale = () => {
-    vi.useFakeTimers({ now: Date.now(), toFake: ["Date"] });
-    vi.setSystemTime(Date.now() + 8 * 24 * 60 * 60 * 1000);
-  };
 
   test("nudges the requester when a fully-approved request has no receipt", async () => {
     const t = await setup();
@@ -425,10 +426,6 @@ describe("model.isAdminProfile via a Human Resources division headship", () => {
 
 describe("reminders: director and finance-head stages", () => {
   afterEach(() => vi.useRealTimers());
-  const stale = () => {
-    vi.useFakeTimers({ now: Date.now(), toFake: ["Date"] });
-    vi.setSystemTime(Date.now() + 8 * 24 * 60 * 60 * 1000);
-  };
 
   test("nudges the Director when a >= $5000 request waits on them", async () => {
     const t = await setup();
