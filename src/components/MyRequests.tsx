@@ -98,7 +98,7 @@ const GUIDE_STEPS = [
   },
 ];
 
-const GuideSheet = ({
+export const GuideSheet = ({
   visible,
   onClose,
 }: {
@@ -131,6 +131,7 @@ const NewRequestSheet = ({
   departments,
   defaultDepartment,
   prefill,
+  onShowGuide,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -138,6 +139,7 @@ const NewRequestSheet = ({
   defaultDepartment: string;
   /** Set when resubmitting a declined request — pre-fills the form. */
   prefill: RequestPrefill | null;
+  onShowGuide: () => void;
 }) => {
   const t = useAppTheme();
   const submit = useMutation(api.requests.submit);
@@ -145,7 +147,6 @@ const NewRequestSheet = ({
   const [amount, setAmount] = useState("");
   const [department, setDepartment] = useState(defaultDepartment);
   const [error, setError] = useState<string | null>(null);
-  const [showGuide, setShowGuide] = useState(false);
 
   // Re-initialise the form each time it opens (blank, or from the prefill).
   useEffect(() => {
@@ -168,17 +169,7 @@ const NewRequestSheet = ({
   };
 
   return (
-    <>
-      <Sheet visible={visible} onClose={onClose} title="New Request">
-        <Pressable
-          style={({ pressed }) => [styles.infoRow, pressed && { opacity: 0.6 }]}
-          onPress={() => setShowGuide(true)}
-        >
-          <Ionicons name="information-circle-outline" size={17} color={t.primary} />
-          <Text style={[typography.caption, { color: t.primary, fontWeight: "600" }]}>
-            How does this work?
-          </Text>
-        </Pressable>
+    <Sheet visible={visible} onClose={onClose} title="New Request">
         <Field
           label="Description"
           value={description}
@@ -204,8 +195,6 @@ const NewRequestSheet = ({
         <Btn title="Submit Request" onPress={handleSubmit} />
         <Btn title="Cancel" variant="ghost" onPress={onClose} />
       </Sheet>
-      <GuideSheet visible={showGuide} onClose={() => setShowGuide(false)} />
-    </>
   );
 };
 
@@ -429,6 +418,7 @@ export const MyRequests = ({
   prefill,
   onResubmit,
   onNewClose,
+  onShowGuide,
 }: {
   departments: string[];
   defaultDepartment: string;
@@ -436,6 +426,7 @@ export const MyRequests = ({
   prefill: RequestPrefill | null;
   onResubmit: (prefill: RequestPrefill) => void;
   onNewClose: () => void;
+  onShowGuide: () => void;
 }) => {
   const requests = useQuery(api.requests.myRequests, {});
   const cancel = useMutation(api.requests.cancel);
@@ -521,6 +512,7 @@ export const MyRequests = ({
         departments={departments}
         defaultDepartment={defaultDepartment}
         prefill={prefill}
+        onShowGuide={onShowGuide}
       />
       <ReceiptSheet request={receiptFor} onClose={() => setReceiptFor(null)} />
     </>
@@ -528,12 +520,6 @@ export const MyRequests = ({
 };
 
 const styles = StyleSheet.create({
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    alignSelf: "flex-start",
-  },
   guideStep: {
     flexDirection: "row",
     alignItems: "flex-start",

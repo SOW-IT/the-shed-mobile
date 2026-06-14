@@ -6,7 +6,7 @@ import { Pressable } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { requestFullyApproved } from "../../shared/flow";
 import { AllRequestsList } from "@/components/AllRequestsList";
-import { MyRequests } from "@/components/MyRequests";
+import { GuideSheet, MyRequests } from "@/components/MyRequests";
 import { ReviewList } from "@/components/ReviewList";
 import { type RequestPrefill } from "@/components/MyRequests";
 import {
@@ -100,6 +100,7 @@ export default function RequestsScreen() {
 
   const [newRequestOpen, setNewRequestOpen] = useState(false);
   const [requestPrefill, setRequestPrefill] = useState<RequestPrefill | null>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
   const openNewRequest = () => { setRequestPrefill(null); setNewRequestOpen(true); };
 
   const showMakeRequest = me?.profile != null && activeSegment === "mine";
@@ -122,7 +123,7 @@ export default function RequestsScreen() {
           </Pressable>
         ) : undefined
       }
-      footer={showMakeRequest ? <FooterAction title="+ Make Request" onPress={openNewRequest} /> : undefined}
+      footer={showMakeRequest ? <FooterAction title="+ Make Request" onPress={openNewRequest} onInfo={() => setGuideOpen(true)} /> : undefined}
     >
       {me === null || me.profile === null ? (
         <FadeInView>
@@ -191,10 +192,12 @@ export default function RequestsScreen() {
               prefill={requestPrefill}
               onResubmit={(p) => { setRequestPrefill(p); setNewRequestOpen(true); }}
               onNewClose={() => setNewRequestOpen(false)}
+              onShowGuide={() => setGuideOpen(true)}
             />
           )}
         </>
       )}
+      <GuideSheet visible={guideOpen} onClose={() => setGuideOpen(false)} />
     </Screen>
   );
 }
