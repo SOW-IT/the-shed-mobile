@@ -76,10 +76,44 @@ export const setPreferred = mutation({
     const all = await ctx.db
       .query("savedBankAccounts")
       .withIndex("by_email", (q) => q.eq("email", email))
-      .take(100);
+      .collect();
     for (const a of all) {
       await ctx.db.patch("savedBankAccounts", a._id, { preferred: a._id === args.id ? true : undefined });
     }
+    return null;
+  },
+});
+
+/** Updates the details of one of the caller's saved accounts. */
+export const updateAccount = mutation({
+  args: {
+    id: v.id("savedBankAccounts"),
+    accountName: v.string(),
+    bsb: v.string(),
+    accountNumber: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const email = await requireEmail(ctx);
+    const account = await ctx.db.get("savedBankAccounts", args.id);
+    if (!account || account.email !== email) {
+      throw new ConvexError("You can only update your own saved accounts.");
+    }
+    const accountName = args.accountName.trim();
+    const bsb = args.bsb.trim();
+    const accountNumber = args.accountNumber.trim();
+    if (!accountName) throw new ConvexError("Account name is required.");
+    if (!bsb) throw new ConvexError("BSB is required.");
+    if (!accountNumber) throw new ConvexError("Account number is required.");
+    const duplicate = await ctx.db
+      .query("savedBankAccounts")
+      .withIndex("by_email_bsb_accountNumber", (q) =>
+        q.eq("email", email).eq("bsb", bsb).eq("accountNumber", accountNumber)
+      )
+      .unique();
+    if (duplicate && duplicate._id !== args.id) {
+      throw new ConvexError("You already have a saved account with those details.");
+    }
+    await ctx.db.patch("savedBankAccounts", args.id, { accountName, bsb, accountNumber });
     return null;
   },
 });

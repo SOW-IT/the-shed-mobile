@@ -360,6 +360,8 @@ export const IconButton = ({
   bg,
   size = 34,
   badge,
+  badgeColor,
+  badgeTextColor,
   accessibilityLabel,
   disabled,
 }: {
@@ -370,6 +372,10 @@ export const IconButton = ({
   size?: number;
   /** A count shown as a badge on the top-right corner (hidden when 0). */
   badge?: number;
+  /** Background colour of the badge pill — defaults to accent. */
+  badgeColor?: string;
+  /** Text colour inside the badge pill — defaults to white. */
+  badgeTextColor?: string;
   accessibilityLabel?: string;
   disabled?: boolean;
 }) => {
@@ -390,8 +396,10 @@ export const IconButton = ({
     >
       <Ionicons name={name} size={Math.round(size * 0.5)} color={color ?? t.ghostText} />
       {badge != null && badge > 0 ? (
-        <View style={[styles.iconBadge, { backgroundColor: t.accent }]}>
-          <Text style={styles.iconBadgeText}>{badge > 99 ? "99+" : badge}</Text>
+        <View style={[styles.iconBadge, { backgroundColor: badgeColor ?? t.accent }]}>
+          <Text style={[styles.iconBadgeText, badgeTextColor ? { color: badgeTextColor } : null]}>
+            {badge > 99 ? "99+" : badge}
+          </Text>
         </View>
       ) : null}
     </Pressable>
@@ -657,7 +665,14 @@ export const MultiSelect = ({
   );
 };
 
-export type Segment = { key: string; label: string; badge?: number };
+export type Segment = {
+  key: string;
+  label: string;
+  /** Action count — rendered in yellow/warning colour. */
+  badge?: number;
+  /** Unread message count — rendered in white. */
+  messageBadge?: number;
+};
 
 /** Equal-width pill switcher with a sliding indicator. */
 export const Segmented = ({
@@ -724,8 +739,20 @@ export const Segmented = ({
               {segment.label}
             </Text>
             {segment.badge ? (
-              <View style={[styles.segmentBadge, { backgroundColor: t.accent }]}>
+              <View style={[styles.segmentBadge, { backgroundColor: t.warning }]}>
                 <Text style={styles.segmentBadgeText}>{segment.badge}</Text>
+              </View>
+            ) : null}
+            {segment.messageBadge ? (
+              <View
+                style={[
+                  styles.segmentBadge,
+                  { backgroundColor: "#ffffff", borderWidth: 1, borderColor: "#cccccc" },
+                ]}
+              >
+                <Text style={[styles.segmentBadgeText, { color: "#333333" }]}>
+                  {segment.messageBadge}
+                </Text>
               </View>
             ) : null}
           </Pressable>

@@ -144,10 +144,13 @@ const stepStatus = (
 const StepInfoModal = ({
   requestId,
   step,
+  isActiveStep,
   onClose,
 }: {
   requestId: Id<"requests">;
   step: ApprovalStep | null;
+  /** True only when this step is the one currently awaiting action. */
+  isActiveStep: boolean;
   onClose: () => void;
 }) => {
   const t = useAppTheme();
@@ -177,7 +180,7 @@ const StepInfoModal = ({
             )}
           </View>
           {info.events.length === 0 ? (
-            <Muted>Awaiting action</Muted>
+            isActiveStep ? <Muted>Awaiting action</Muted> : null
           ) : (
             info.events.map((event, i) => (
               <View key={i} style={{ gap: 2 }}>
@@ -332,6 +335,7 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
       <StepInfoModal
         requestId={request._id}
         step={selectedStep}
+        isActiveStep={selectedStep === active}
         onClose={() => setSelectedStep(null)}
       />
     </>
@@ -458,6 +462,8 @@ export const RequestCard = ({
             name="chatbubble-ellipses-outline"
             accessibilityLabel="Comments"
             badge={unreadComments ?? 0}
+            badgeColor="#ffffff"
+            badgeTextColor="#333333"
             onPress={() => setShowComments(true)}
           />
         </View>

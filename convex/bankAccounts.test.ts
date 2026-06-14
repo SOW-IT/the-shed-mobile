@@ -165,6 +165,112 @@ describe("setPreferred", () => {
   });
 });
 
+describe("updateAccount", () => {
+  test("edits name, BSB and account number of own account", async () => {
+    const t = await setup();
+    const id = await approvedRequest(t);
+    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
+      requestId: id,
+      recipients: [
+        { accountName: "Rachel", bsb: "111111", accountNumber: "12345678", amount: 100, attachments: [await file(t)] },
+      ],
+    });
+    const [account] = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
+
+    await asUser(t, RACHEL).mutation(api.bankAccounts.updateAccount, {
+      id: account.id,
+      accountName: "  Rachel Updated  ",
+      bsb: "222222",
+      accountNumber: "99999999",
+    });
+
+    const [updated] = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
+    expect(updated.accountName).toBe("Rachel Updated"); // trimmed
+    expect(updated.bsb).toBe("222222");
+    expect(updated.accountNumber).toBe("99999999");
+  });
+
+  test("rejects another user updating someone else's account", async () => {
+    const t = await setup();
+    const id = await approvedRequest(t);
+    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
+      requestId: id,
+      recipients: [
+        { accountName: "Rachel", bsb: "1", accountNumber: "2", amount: 100, attachments: [await file(t)] },
+      ],
+    });
+    const [account] = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
+    await expect(
+      asUser(t, BELLA).mutation(api.bankAccounts.updateAccount, {
+        id: account.id,
+        accountName: "Hacked",
+        bsb: "0",
+        accountNumber: "0",
+      })
+    ).rejects.toThrow(/your own saved accounts/);
+  });
+
+  test("rejects changing to BSB/account-number already owned by another saved account", async () => {
+    const t = await setup();
+    const id1 = await approvedRequest(t, 50);
+    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
+      requestId: id1,
+      recipients: [{ accountName: "Rachel A", bsb: "111111", accountNumber: "11111111", amount: 50, attachments: [await file(t)] }],
+    });
+    const id2 = await approvedRequest(t, 50);
+    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
+      requestId: id2,
+      recipients: [{ accountName: "Rachel B", bsb: "222222", accountNumber: "22222222", amount: 50, attachments: [await file(t)] }],
+    });
+    const accounts = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
+    const accountB = accounts.find((a) => a.accountName === "Rachel B")!;
+    await expect(
+      asUser(t, RACHEL).mutation(api.bankAccounts.updateAccount, {
+        id: accountB.id,
+        accountName: "Rachel B renamed",
+        bsb: "111111",
+        accountNumber: "11111111",
+      })
+    ).rejects.toThrow(/already have a saved account with those details/);
+  });
+
+  test("rejects blank fields", async () => {
+    const t = await setup();
+    const id = await approvedRequest(t);
+    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
+      requestId: id,
+      recipients: [
+        { accountName: "Rachel", bsb: "1", accountNumber: "2", amount: 100, attachments: [await file(t)] },
+      ],
+    });
+    const [account] = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
+    await expect(
+      asUser(t, RACHEL).mutation(api.bankAccounts.updateAccount, {
+        id: account.id,
+        accountName: "   ",
+        bsb: "1",
+        accountNumber: "2",
+      })
+    ).rejects.toThrow(/Account name is required/);
+    await expect(
+      asUser(t, RACHEL).mutation(api.bankAccounts.updateAccount, {
+        id: account.id,
+        accountName: "Rachel",
+        bsb: "   ",
+        accountNumber: "2",
+      })
+    ).rejects.toThrow(/BSB is required/);
+    await expect(
+      asUser(t, RACHEL).mutation(api.bankAccounts.updateAccount, {
+        id: account.id,
+        accountName: "Rachel",
+        bsb: "1",
+        accountNumber: "   ",
+      })
+    ).rejects.toThrow(/Account number is required/);
+  });
+});
+
 describe("remove", () => {
   test("forgets the caller's own account but not someone else's", async () => {
     const t = await setup();
