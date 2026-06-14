@@ -284,10 +284,21 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
   );
 };
 
-const statusColor = (status: RequestDisplayStatus, t: ReturnType<typeof useAppTheme>): string => {
+const statusTextColor = (status: RequestDisplayStatus, t: ReturnType<typeof useAppTheme>): string => {
   if (status === "PAID") return t.success;
   if (status === "DECLINED") return t.danger;
   return t.chip.default.fg;
+};
+
+const cardBorderStyle = (
+  status: RequestDisplayStatus,
+  actionRequired: boolean | undefined,
+  t: ReturnType<typeof useAppTheme>
+): { borderWidth?: number; borderColor?: string } => {
+  if (status === "PAID") return { borderWidth: 1.5, borderColor: t.success };
+  if (status === "DECLINED") return { borderWidth: 1.5, borderColor: t.danger };
+  if (actionRequired) return { borderWidth: 1.5, borderColor: t.chip.default.fg };
+  return {};
 };
 
 export const RequestCard = ({
@@ -300,7 +311,7 @@ export const RequestCard = ({
   request: Doc<"requests">;
   showRequester?: boolean;
   onCancel?: () => void;
-  /** When true, tints the card to signal the current user needs to act. */
+  /** When true, draws an amber border to signal the current user needs to act. */
   actionRequired?: boolean;
   children?: ReactNode;
 }) => {
@@ -313,7 +324,7 @@ export const RequestCard = ({
   const status = requestDisplayStatus(request);
 
   return (
-    <Card style={actionRequired ? { backgroundColor: t.pendingCard } : undefined}>
+    <Card style={cardBorderStyle(status, actionRequired, t)}>
       <View style={styles.topRow}>
         <Text style={[typography.amount, { color: t.text, flex: 1 }]}>
           ${request.amount}
@@ -333,7 +344,7 @@ export const RequestCard = ({
         })}{" · "}
         {timeAgo(request._creationTime)}
         {"  ·  "}
-        <Text style={{ color: statusColor(status, t), fontWeight: "600" }}>
+        <Text style={{ color: statusTextColor(status, t), fontWeight: "600" }}>
           {status}
         </Text>
       </Text>

@@ -14,9 +14,9 @@ import {
 } from "@/components/ui";
 
 const STATUS_PRIORITY: Record<string, number> = {
-  "Awaiting Payment": 0,
-  "Awaiting Receipt": 1,
-  "Awaiting Approval": 2,
+  "AWAITING PAYMENT": 0,
+  "AWAITING RECEIPT": 1,
+  "AWAITING APPROVAL": 2,
   DECLINED: 3,
   PAID: 4,
 };
