@@ -614,6 +614,44 @@ describe("editRequest", () => {
       })
     ).rejects.toThrow(/positive number/);
   });
+
+  test("rejects crossing the director threshold when no Director is configured", async () => {
+    // Build an org with no Director role assigned.
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR,
+      name: "Marketing",
+      division: "Engagement",
+      headEmail: HENRY,
+    });
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR,
+      name: "Finance",
+      division: "Governance",
+      headEmail: FIONA,
+    });
+    for (const a of [
+      { email: RACHEL, roles: ["Staff"], department: "Marketing" },
+      { email: HENRY, roles: ["Staff"], department: "Marketing" },
+      { email: BELLA, roles: ["Staff"], department: "Finance" },
+    ]) {
+      await admin.mutation(api.admin.setStaffProfile, { year: YEAR, ...a });
+    }
+    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
+
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+
+    await expect(
+      asUser(t, RACHEL).mutation(api.requests.editRequest, {
+        requestId: request._id,
+        description: "x",
+        amount: 5000,
+      })
+    ).rejects.toThrow(/no Director/);
+  });
 });
 
 describe("importHistory.personHistory", () => {
