@@ -440,6 +440,66 @@ describe("generateReceiptUploadUrl", () => {
   });
 });
 
+describe("deleteDeclined", () => {
+  const storedFile = async (t: TestConvex<typeof schema>) => ({
+    storageId: await t.run((ctx) =>
+      ctx.storage.store(new Blob(["r"], { type: "application/pdf" }))
+    ),
+    name: "r.pdf",
+  });
+
+  async function declinedRequest(t: TestConvex<typeof schema>) {
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    await asUser(t, HENRY).mutation(api.requests.decline, {
+      requestId: request._id,
+      step: "hod",
+      reason: "nope",
+    });
+    return request._id;
+  }
+
+  test("requester can delete a declined request and all its data is cleaned up", async () => {
+    const t = await setup();
+    const id = await declinedRequest(t);
+
+    // Add a comment with reaction and a read marker so we can verify cleanup.
+    await asUser(t, HENRY).mutation(api.comments.add, { requestId: id, body: "fyi" });
+    const [comment] = (await asUser(t, HENRY).query(api.comments.list, { requestId: id }))!;
+    await asUser(t, RACHEL).mutation(api.comments.toggleReaction, { commentId: comment.id, emoji: "👍" });
+    await asUser(t, RACHEL).mutation(api.comments.markRead, { requestId: id });
+
+    await asUser(t, RACHEL).mutation(api.requests.deleteDeclined, { requestId: id });
+
+    // Request is gone.
+    expect(await asUser(t, RACHEL).query(api.requests.get, { requestId: id })).toBeNull();
+    // All related records cleaned up.
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("requestEvents").take(10)).toHaveLength(0);
+      expect(await ctx.db.query("requestComments").take(10)).toHaveLength(0);
+      expect(await ctx.db.query("commentReactions").take(10)).toHaveLength(0);
+      expect(await ctx.db.query("commentReads").take(10)).toHaveLength(0);
+    });
+  });
+
+  test("only the requester can delete their own declined request", async () => {
+    const t = await setup();
+    const id = await declinedRequest(t);
+
+    // Another user can't delete it.
+    await expect(
+      asUser(t, HENRY).mutation(api.requests.deleteDeclined, { requestId: id })
+    ).rejects.toThrow(/your own requests/);
+
+    // Can't delete a non-declined request.
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "y", amount: 50 });
+    const [pending] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    await expect(
+      asUser(t, RACHEL).mutation(api.requests.deleteDeclined, { requestId: pending._id })
+    ).rejects.toThrow(/declined/);
+  });
+});
+
 describe("importHistory.personHistory", () => {
   test("follows a person across emails via importId, sorted by year", async () => {
     const t = await setup();

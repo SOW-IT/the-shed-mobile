@@ -131,6 +131,40 @@ describe("auto-save on receipt submission", () => {
   });
 });
 
+describe("setPreferred", () => {
+  test("marks one account preferred and clears the others, rejects non-owner", async () => {
+    const t = await setup();
+    // Save two accounts via two receipt submissions.
+    const id1 = await approvedRequest(t, 50);
+    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
+      requestId: id1,
+      recipients: [{ accountName: "Rachel A", bsb: "1", accountNumber: "11", amount: 50, attachments: [await file(t)] }],
+    });
+    const id2 = await approvedRequest(t, 50);
+    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
+      requestId: id2,
+      recipients: [{ accountName: "Rachel B", bsb: "2", accountNumber: "22", amount: 50, attachments: [await file(t)] }],
+    });
+
+    const accounts = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
+    expect(accounts).toHaveLength(2);
+    // With two accounts and no explicit preferred, the first (most-recent) is implicitly preferred.
+    expect(accounts[0].preferred).toBe(true);
+    expect(accounts[1].preferred).toBe(false);
+
+    // Explicitly set the second one as preferred.
+    await asUser(t, RACHEL).mutation(api.bankAccounts.setPreferred, { id: accounts[1].id });
+    const after = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
+    expect(after.find((a) => a.id === accounts[1].id)!.preferred).toBe(true);
+    expect(after.find((a) => a.id === accounts[0].id)!.preferred).toBe(false);
+
+    // Another user can't set Rachel's account.
+    await expect(
+      asUser(t, BELLA).mutation(api.bankAccounts.setPreferred, { id: accounts[0].id })
+    ).rejects.toThrow(/your own saved accounts/);
+  });
+});
+
 describe("remove", () => {
   test("forgets the caller's own account but not someone else's", async () => {
     const t = await setup();
@@ -157,5 +191,39 @@ describe("remove", () => {
     // Rachel can.
     await asUser(t, RACHEL).mutation(api.bankAccounts.remove, { id: accountId });
     expect(await asUser(t, RACHEL).query(api.bankAccounts.listMine, {})).toEqual([]);
+  });
+
+  test("deleting the preferred account promotes the next most-recently-used", async () => {
+    const t = await setup();
+    // Save three accounts so the sort comparator runs after deletion.
+    const id1 = await approvedRequest(t, 50);
+    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
+      requestId: id1,
+      recipients: [{ accountName: "A", bsb: "1", accountNumber: "11", amount: 50, attachments: [await file(t)] }],
+    });
+    const id2 = await approvedRequest(t, 50);
+    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
+      requestId: id2,
+      recipients: [{ accountName: "B", bsb: "2", accountNumber: "22", amount: 50, attachments: [await file(t)] }],
+    });
+    const id3 = await approvedRequest(t, 50);
+    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
+      requestId: id3,
+      recipients: [{ accountName: "C", bsb: "3", accountNumber: "33", amount: 50, attachments: [await file(t)] }],
+    });
+
+    const accounts = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
+    expect(accounts).toHaveLength(3);
+    // Explicitly prefer account A (the oldest, last in the sorted list).
+    const accountA = accounts.find((a) => a.accountName === "A")!;
+    await asUser(t, RACHEL).mutation(api.bankAccounts.setPreferred, { id: accountA.id });
+
+    // Delete the preferred account — the most-recently-used of the remaining (C) should be promoted.
+    await asUser(t, RACHEL).mutation(api.bankAccounts.remove, { id: accountA.id });
+    const remaining = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
+    expect(remaining).toHaveLength(2);
+    expect(remaining[0].accountName).toBe("C"); // most-recently-used
+    expect(remaining[0].preferred).toBe(true);
+    expect(remaining[1].preferred).toBe(false);
   });
 });
