@@ -511,6 +511,111 @@ describe("deleteDeclined", () => {
   });
 });
 
+describe("editRequest", () => {
+  test("requester can fix description and amount while HOD is still pending", async () => {
+    const t = await setup();
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "typo", amount: 100 });
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    expect(request.approvedByHOD).toBe("PENDING");
+
+    await asUser(t, RACHEL).mutation(api.requests.editRequest, {
+      requestId: request._id,
+      description: "corrected",
+      amount: 200,
+    });
+
+    const [updated] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    expect(updated.description).toBe("corrected");
+    expect(updated.amount).toBe(200);
+    expect(updated.approvedByDirector).toBeUndefined(); // still under threshold
+  });
+
+  test("cannot edit after HOD has approved", async () => {
+    const t = await setup();
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    await asUser(t, HENRY).mutation(api.requests.approve, { requestId: request._id, step: "hod" });
+
+    await expect(
+      asUser(t, RACHEL).mutation(api.requests.editRequest, {
+        requestId: request._id,
+        description: "too late",
+        amount: 150,
+      })
+    ).rejects.toThrow(/before the HOD approves/);
+  });
+
+  test("cannot edit another user's request", async () => {
+    const t = await setup();
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+
+    await expect(
+      asUser(t, BELLA).mutation(api.requests.editRequest, {
+        requestId: request._id,
+        description: "hacked",
+        amount: 999,
+      })
+    ).rejects.toThrow(/your own requests/);
+  });
+
+  test("editing amount from below to above threshold adds the director step", async () => {
+    const t = await setup();
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    expect(request.approvedByDirector).toBeUndefined();
+
+    await asUser(t, RACHEL).mutation(api.requests.editRequest, {
+      requestId: request._id,
+      description: "x",
+      amount: 5000,
+    });
+
+    const [updated] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    expect(updated.amount).toBe(5000);
+    expect(updated.approvedByDirector).toBe("PENDING");
+  });
+
+  test("editing amount from above to below threshold removes the director step", async () => {
+    const t = await setup();
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 5000 });
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    expect(request.approvedByDirector).toBe("PENDING");
+
+    await asUser(t, RACHEL).mutation(api.requests.editRequest, {
+      requestId: request._id,
+      description: "x",
+      amount: 100,
+    });
+
+    const [updated] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    expect(updated.amount).toBe(100);
+    expect(updated.approvedByDirector).toBeUndefined();
+  });
+
+  test("rejects blank description and non-positive amount", async () => {
+    const t = await setup();
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+
+    await expect(
+      asUser(t, RACHEL).mutation(api.requests.editRequest, {
+        requestId: request._id,
+        description: "   ",
+        amount: 100,
+      })
+    ).rejects.toThrow(/describe what the request is for/);
+
+    await expect(
+      asUser(t, RACHEL).mutation(api.requests.editRequest, {
+        requestId: request._id,
+        description: "valid",
+        amount: 0,
+      })
+    ).rejects.toThrow(/positive number/);
+  });
+});
+
 describe("importHistory.personHistory", () => {
   test("follows a person across emails via importId, sorted by year", async () => {
     const t = await setup();

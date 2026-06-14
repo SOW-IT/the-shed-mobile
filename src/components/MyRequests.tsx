@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Alert, Platform, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import {
   DIRECTOR_APPROVAL_THRESHOLD,
+  PENDING,
   requestCompleted,
   requestDeclined,
   requestFullyApproved,
@@ -196,6 +197,61 @@ const NewRequestSheet = ({
         <Btn title="Submit Request" onPress={handleSubmit} />
         <Btn title="Cancel" variant="ghost" onPress={onClose} />
       </Sheet>
+  );
+};
+
+const EditRequestSheet = ({
+  request,
+  onClose,
+}: {
+  request: Doc<"requests"> | null;
+  onClose: () => void;
+}) => {
+  const t = useAppTheme();
+  const editRequest = useMutation(api.requests.editRequest);
+  const [description, setDescription] = useState("");
+  const [amount, setAmount] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!request) return;
+    setDescription(request.description);
+    setAmount(String(request.amount));
+    setError(null);
+  }, [request]);
+
+  const handleSave = async () => {
+    if (!request) return;
+    setError(null);
+    try {
+      await editRequest({ requestId: request._id, description, amount: Number(amount) });
+      onClose();
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
+  return (
+    <Sheet visible={request !== null} onClose={onClose} title="Edit Request">
+      <Field
+        label="Description"
+        value={description}
+        onChangeText={setDescription}
+        placeholder="What is this for?"
+        multiline
+      />
+      <Field
+        label="Amount ($)"
+        value={amount}
+        onChangeText={(text) => setAmount(currencyText(text))}
+        placeholder="0.00"
+        keyboardType="numeric"
+      />
+      <Muted>{`Requests of $${DIRECTOR_APPROVAL_THRESHOLD.toLocaleString()} or more also require Director approval.`}</Muted>
+      <ErrorBanner message={error} />
+      <Btn title="Save Changes" onPress={handleSave} />
+      <Btn title="Cancel" variant="ghost" onPress={onClose} />
+    </Sheet>
   );
 };
 
@@ -597,6 +653,7 @@ export const MyRequests = ({
   const cancel = useMutation(api.requests.cancel);
   const deleteDeclined = useMutation(api.requests.deleteDeclined);
   const [receiptFor, setReceiptFor] = useState<Doc<"requests"> | null>(null);
+  const [editFor, setEditFor] = useState<Doc<"requests"> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const resubmit = (request: Doc<"requests">) => {
@@ -693,6 +750,15 @@ export const MyRequests = ({
                       onPress={() => resubmit(request)}
                     />
                   )}
+                  {request.approvedByHOD === PENDING && (
+                    <IconButton
+                      name="pencil-outline"
+                      bg={t.primarySoft}
+                      color={t.primary}
+                      accessibilityLabel="Edit request"
+                      onPress={() => setEditFor(request)}
+                    />
+                  )}
                 </RequestCard>
               </FadeInView>
             );
@@ -707,6 +773,7 @@ export const MyRequests = ({
         onShowGuide={onShowGuide}
       />
       <ReceiptSheet request={receiptFor} onClose={() => setReceiptFor(null)} />
+      <EditRequestSheet request={editFor} onClose={() => setEditFor(null)} />
     </>
   );
 };

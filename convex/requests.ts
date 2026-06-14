@@ -751,6 +751,72 @@ export const cancel = mutation({
 });
 
 /**
+ * The requester can correct the description or amount of their own request
+ * while it has not yet passed HOD review. Once the HOD approves, the chain
+ * has already seen the amount and corrections must go through a new request.
+ * If the edited amount crosses the DIRECTOR_APPROVAL_THRESHOLD the director
+ * step is added or removed accordingly.
+ */
+export const editRequest = mutation({
+  args: {
+    requestId: v.id("requests"),
+    description: v.string(),
+    amount: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const { email, profile } = await requireProfile(ctx);
+    const request = await ctx.db.get("requests", args.requestId);
+    if (!request || request.requesterEmail !== email) {
+      throw new ConvexError("You can only edit your own requests.");
+    }
+    if (request.approvedByHOD !== PENDING) {
+      throw new ConvexError(
+        "Requests can only be edited before the HOD approves them."
+      );
+    }
+    if (!(args.amount > 0)) {
+      throw new ConvexError("Amount must be a positive number.");
+    }
+    const description = args.description.trim();
+    if (!description) {
+      throw new ConvexError("Please describe what the request is for.");
+    }
+
+    const wasDirector = request.approvedByDirector !== undefined;
+    const needsDirector = args.amount >= DIRECTOR_APPROVAL_THRESHOLD;
+
+    type DirectorPatch = { approvedByDirector?: ApprovalStatus };
+    let directorPatch: DirectorPatch = {};
+
+    if (needsDirector !== wasDirector) {
+      const approvers = await getApprovers(ctx, request.year, request.department);
+      if (needsDirector) {
+        if (!approvers.directorEmail) {
+          throw new ConvexError(
+            `This amount requires Director approval but ${request.year} has no Director. Ask an admin to complete the organisation setup.`
+          );
+        }
+        directorPatch = {
+          approvedByDirector: rolesOf(profile).includes(DIRECTOR) ? APPROVED : PENDING,
+        };
+      } else {
+        // Remove the director step by clearing the field.
+        directorPatch = { approvedByDirector: undefined };
+      }
+    }
+
+    await ctx.db.patch("requests", args.requestId, {
+      description,
+      amount: args.amount,
+      ...directorPatch,
+    });
+    await logEvent(ctx, args.requestId, email, "edited", undefined,
+      `Amount: $${args.amount}, Description: ${description}`);
+    return null;
+  },
+});
+
+/**
  * The requester can delete a declined request to clear it from their list.
  * Unlike cancel, no notifications are sent (the decline notification already
  * went out; everyone involved already knows).
