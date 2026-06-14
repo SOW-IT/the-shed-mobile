@@ -110,6 +110,17 @@ export default defineSchema({
     budgetManagerEmail: v.optional(v.string()),
   }).index("by_year", ["year"]),
 
+  // Bank accounts a person has used on a receipt, remembered so they don't
+  // re-type BSB/account each time. Owned by email; auto-saved on receipt
+  // submission and deletable by the owner. Deduped per (email, bsb, account).
+  savedBankAccounts: defineTable({
+    email: v.string(), // owner, lowercase
+    accountName: v.string(),
+    bsb: v.string(),
+    accountNumber: v.string(),
+    lastUsedAt: v.number(), // for most-recent-first ordering in the picker
+  }).index("by_email", ["email"]),
+
   // Immutable audit trail: who actioned each step of a request, and when
   // (_creationTime). Events are deleted only when their request is cancelled.
   requestEvents: defineTable({
