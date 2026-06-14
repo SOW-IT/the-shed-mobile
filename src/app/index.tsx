@@ -52,6 +52,23 @@ export default function RequestsScreen() {
     api.requests.toReview,
     me?.profile && me.isApprover ? {} : "skip"
   );
+  // Unread comment counts for segment message badges.
+  const myUnreadComments =
+    useQuery(api.comments.myUnreadTotal, me?.profile ? {} : "skip") ?? 0;
+  const reviewRequestIds = review
+    ? [
+        ...review.hod.map((r) => r._id),
+        ...review.budgetManager.map((r) => r._id),
+        ...review.director.map((r) => r._id),
+        ...review.financeHead.map((r) => r._id),
+        ...review.readyToPay.map((r) => r._id),
+      ]
+    : [];
+  const reviewUnreadComments =
+    useQuery(
+      api.comments.unreadTotalForRequests,
+      me?.profile && me.isApprover && review ? { requestIds: reviewRequestIds } : "skip"
+    ) ?? 0;
   const financeMembers = useQuery(
     api.admin.financeMembers,
     me?.isFinanceHead ? { year: me.year } : "skip"
@@ -74,9 +91,21 @@ export default function RequestsScreen() {
   ).length;
 
   const segments = [
-    { key: "mine", label: "Mine", badge: mineCount > 0 ? mineCount : undefined },
+    {
+      key: "mine",
+      label: "Mine",
+      badge: mineCount > 0 ? mineCount : undefined,
+      messageBadge: myUnreadComments > 0 ? myUnreadComments : undefined,
+    },
     ...(me?.isApprover
-      ? [{ key: "review", label: "To Review", badge: reviewCount > 0 ? reviewCount : undefined }]
+      ? [
+          {
+            key: "review",
+            label: "To Review",
+            badge: reviewCount > 0 ? reviewCount : undefined,
+            messageBadge: reviewUnreadComments > 0 ? reviewUnreadComments : undefined,
+          },
+        ]
       : []),
     ...(me?.isFinance ? [{ key: "all", label: "All" }] : []),
   ];

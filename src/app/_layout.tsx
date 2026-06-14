@@ -83,7 +83,7 @@ const RequestsTabIcon = ({
                 minWidth: 16,
                 height: 16,
                 borderRadius: 8,
-                backgroundColor: t.accent,
+                backgroundColor: t.warning,
                 alignItems: "center",
                 justifyContent: "center",
                 paddingHorizontal: 3,

@@ -458,6 +458,8 @@ export const RequestCard = ({
             name="chatbubble-ellipses-outline"
             accessibilityLabel="Comments"
             badge={unreadComments ?? 0}
+            badgeColor="#ffffff"
+            badgeTextColor="#333333"
             onPress={() => setShowComments(true)}
           />
         </View>
