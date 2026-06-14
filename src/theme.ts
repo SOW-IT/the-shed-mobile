@@ -1,4 +1,4 @@
-import { TextStyle, useColorScheme, ViewStyle } from "react-native";
+import { Platform, TextStyle, useColorScheme, ViewStyle } from "react-native";
 
 /**
  * SOW brand palette (Brand Guidelines 2022):
@@ -185,5 +185,15 @@ const dark: AppTheme = {
 };
 
 /** The app palette for the current system colour scheme. */
-export const useAppTheme = (): AppTheme =>
-  useColorScheme() === "dark" ? dark : light;
+export const useAppTheme = (): AppTheme => {
+  const scheme = useColorScheme();
+  // On web, useColorScheme() returns null on the first render before it reads
+  // the system preference — fall back to matchMedia to avoid a light-theme flash.
+  const prefersDark =
+    scheme === "dark" ||
+    (scheme === null &&
+      Platform.OS === "web" &&
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-color-scheme: dark)")?.matches);
+  return prefersDark ? dark : light;
+};
