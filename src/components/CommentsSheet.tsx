@@ -58,6 +58,7 @@ export const CommentsSheet = ({
 
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
   const [reactingTo, setReactingTo] = useState<Id<"requestComments"> | null>(null);
   const [moreFor, setMoreFor] = useState<Id<"requestComments"> | null>(null);
 
@@ -66,9 +67,18 @@ export const CommentsSheet = ({
     if (visible && comments) void markRead({ requestId: request._id });
   }, [visible, comments, markRead, request._id]);
 
+  // Closing the thread also dismisses any open reaction picker.
+  useEffect(() => {
+    if (!visible) {
+      setReactingTo(null);
+      setMoreFor(null);
+    }
+  }, [visible]);
+
   const send = async () => {
     const body = draft.trim();
-    if (!body) return;
+    if (!body || sending) return; // guard against double-taps
+    setSending(true);
     setDraft("");
     setError(null);
     try {
@@ -76,6 +86,8 @@ export const CommentsSheet = ({
     } catch (e) {
       setError(errorMessage(e));
       setDraft(body); // restore so the text isn't lost
+    } finally {
+      setSending(false);
     }
   };
 
@@ -199,14 +211,14 @@ export const CommentsSheet = ({
             color={t.onPrimary}
             size={40}
             accessibilityLabel="Send comment"
-            disabled={draft.trim() === ""}
+            disabled={sending || draft.trim() === ""}
             onPress={() => void send()}
           />
         </View>
       </Sheet>
 
       <Sheet
-        visible={moreFor !== null}
+        visible={visible && moreFor !== null}
         onClose={() => setMoreFor(null)}
         scrollable={false}
         title="Pick a reaction"

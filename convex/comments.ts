@@ -77,11 +77,13 @@ export const list = query({
     const request = await ctx.db.get("requests", args.requestId);
     if (!request) return null;
 
+    // collect() (not take(N)) so long threads are never truncated; a single
+    // request's comments are a naturally small set.
     const comments = (
       await ctx.db
         .query("requestComments")
         .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
-        .take(500)
+        .collect()
     ).sort((a, b) => a._creationTime - b._creationTime);
 
     const result = [];
@@ -89,7 +91,7 @@ export const list = query({
       const reactions = await ctx.db
         .query("commentReactions")
         .withIndex("by_comment", (q) => q.eq("commentId", comment._id))
-        .take(500);
+        .collect();
       const byEmoji = new Map<string, ReactionGroup>();
       for (const reaction of reactions) {
         const group =
@@ -129,7 +131,7 @@ export const unreadCount = query({
     const comments: Doc<"requestComments">[] = await ctx.db
       .query("requestComments")
       .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
-      .take(500);
+      .collect(); // small per-request set; never truncate the count
     return comments.filter(
       (c) => c.authorEmail !== caller.email && c._creationTime > lastReadAt
     ).length;

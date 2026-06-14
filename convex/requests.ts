@@ -713,27 +713,37 @@ export const cancel = mutation({
     for (const event of events) {
       await ctx.db.delete("requestEvents", event._id);
     }
-    // ...along with its comment thread, reactions and read markers.
-    const comments = await ctx.db
-      .query("requestComments")
-      .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
-      .take(500);
-    for (const comment of comments) {
-      const reactions = await ctx.db
-        .query("commentReactions")
-        .withIndex("by_comment", (q) => q.eq("commentId", comment._id))
-        .take(500);
-      for (const reaction of reactions) {
-        await ctx.db.delete("commentReactions", reaction._id);
+    // ...along with its comment thread, reactions and read markers. Drained in
+    // batches so a request with an unusually long thread leaves no orphans.
+    for (;;) {
+      const comments = await ctx.db
+        .query("requestComments")
+        .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
+        .take(200);
+      if (comments.length === 0) break;
+      for (const comment of comments) {
+        for (;;) {
+          const reactions = await ctx.db
+            .query("commentReactions")
+            .withIndex("by_comment", (q) => q.eq("commentId", comment._id))
+            .take(200);
+          if (reactions.length === 0) break;
+          for (const reaction of reactions) {
+            await ctx.db.delete("commentReactions", reaction._id);
+          }
+        }
+        await ctx.db.delete("requestComments", comment._id);
       }
-      await ctx.db.delete("requestComments", comment._id);
     }
-    const reads = await ctx.db
-      .query("commentReads")
-      .withIndex("by_request_and_user", (q) => q.eq("requestId", args.requestId))
-      .take(500);
-    for (const read of reads) {
-      await ctx.db.delete("commentReads", read._id);
+    for (;;) {
+      const reads = await ctx.db
+        .query("commentReads")
+        .withIndex("by_request_and_user", (q) => q.eq("requestId", args.requestId))
+        .take(200);
+      if (reads.length === 0) break;
+      for (const read of reads) {
+        await ctx.db.delete("commentReads", read._id);
+      }
     }
     await ctx.db.delete("requests", args.requestId);
     return null;
