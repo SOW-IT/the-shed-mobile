@@ -473,12 +473,20 @@ describe("deleteDeclined", () => {
 
     // Request is gone.
     expect(await asUser(t, RACHEL).query(api.requests.get, { requestId: id })).toBeNull();
-    // All related records cleaned up.
+    // All related records cleaned up (scoped to this request/comment).
     await t.run(async (ctx) => {
-      expect(await ctx.db.query("requestEvents").take(10)).toHaveLength(0);
-      expect(await ctx.db.query("requestComments").take(10)).toHaveLength(0);
-      expect(await ctx.db.query("commentReactions").take(10)).toHaveLength(0);
-      expect(await ctx.db.query("commentReads").take(10)).toHaveLength(0);
+      expect(
+        await ctx.db.query("requestEvents").withIndex("by_request", (q) => q.eq("requestId", id)).take(10)
+      ).toHaveLength(0);
+      expect(
+        await ctx.db.query("requestComments").withIndex("by_request", (q) => q.eq("requestId", id)).take(10)
+      ).toHaveLength(0);
+      expect(
+        await ctx.db.query("commentReactions").withIndex("by_comment", (q) => q.eq("commentId", comment.id)).take(10)
+      ).toHaveLength(0);
+      expect(
+        await ctx.db.query("commentReads").withIndex("by_request_and_user", (q) => q.eq("requestId", id)).take(10)
+      ).toHaveLength(0);
     });
   });
 
@@ -493,9 +501,12 @@ describe("deleteDeclined", () => {
 
     // Can't delete a non-declined request.
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "y", amount: 50 });
-    const [pending] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    const pending = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!.find(
+      (r) => r.description === "y" && r.amount === 50
+    );
+    expect(pending).toBeDefined();
     await expect(
-      asUser(t, RACHEL).mutation(api.requests.deleteDeclined, { requestId: pending._id })
+      asUser(t, RACHEL).mutation(api.requests.deleteDeclined, { requestId: pending!._id })
     ).rejects.toThrow(/declined/);
   });
 });

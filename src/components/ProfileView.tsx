@@ -36,7 +36,10 @@ const PaymentDetails = () => {
   const removeAccount = useMutation(api.bankAccounts.remove);
   const [error, setError] = useState<string | null>(null);
 
-  if (!savedAccounts || savedAccounts.length === 0) {
+  if (savedAccounts === undefined) {
+    return <LoadingState />;
+  }
+  if (savedAccounts === null || savedAccounts.length === 0) {
     return (
       <Card>
         <Muted>No saved bank accounts yet. Submit a receipt to save one.</Muted>

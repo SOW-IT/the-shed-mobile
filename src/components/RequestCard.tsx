@@ -399,7 +399,13 @@ export const RequestCard = ({
         </View>
         <View style={styles.topSide}>
           {onCancel ? (
-            <Pressable onPress={onCancel} hitSlop={10} style={styles.cancelIcon}>
+            <Pressable
+              onPress={onCancel}
+              hitSlop={10}
+              style={styles.cancelIcon}
+              accessibilityRole="button"
+              accessibilityLabel="Delete or cancel request"
+            >
               <Ionicons name="trash-outline" size={17} color={t.danger} />
             </Pressable>
           ) : (

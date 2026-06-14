@@ -359,9 +359,24 @@ const ReceiptSheet = ({
 
   const updateRecipient = (index: number, patch: Partial<DraftRecipient>) =>
     setRecipients((previous) =>
-      previous.map((recipient, i) =>
-        i === index ? { ...recipient, ...patch } : recipient
-      )
+      previous.map((recipient, i) => {
+        if (i !== index) return recipient;
+        const next = { ...recipient, ...patch };
+        const touchedBankFields =
+          patch.accountName !== undefined ||
+          patch.bsb !== undefined ||
+          patch.accountNumber !== undefined;
+        const matchesSaved =
+          next.bsb !== "" &&
+          next.accountNumber !== "" &&
+          (savedAccounts ?? []).some(
+            (a) => a.bsb === next.bsb && a.accountNumber === next.accountNumber
+          );
+        if (touchedBankFields && patch.saveAccount === undefined && !matchesSaved) {
+          next.saveAccount = true;
+        }
+        return next;
+      })
     );
 
   const attachFiles = async (index: number) => {

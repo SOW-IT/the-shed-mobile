@@ -183,7 +183,7 @@ export const myUnreadTotal = query({
         .withIndex("by_year_and_requester", (q) =>
           q.eq("year", y).eq("requesterEmail", email)
         )
-        .take(200);
+        .collect();
     const current = await fetch(year);
     const prev = await fetch(year - 1);
     let total = 0;
