@@ -210,6 +210,30 @@ describe("updateAccount", () => {
     ).rejects.toThrow(/your own saved accounts/);
   });
 
+  test("rejects changing to BSB/account-number already owned by another saved account", async () => {
+    const t = await setup();
+    const id1 = await approvedRequest(t, 50);
+    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
+      requestId: id1,
+      recipients: [{ accountName: "Rachel A", bsb: "111111", accountNumber: "11111111", amount: 50, attachments: [await file(t)] }],
+    });
+    const id2 = await approvedRequest(t, 50);
+    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
+      requestId: id2,
+      recipients: [{ accountName: "Rachel B", bsb: "222222", accountNumber: "22222222", amount: 50, attachments: [await file(t)] }],
+    });
+    const accounts = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
+    const accountB = accounts.find((a) => a.accountName === "Rachel B")!;
+    await expect(
+      asUser(t, RACHEL).mutation(api.bankAccounts.updateAccount, {
+        id: accountB.id,
+        accountName: "Rachel B renamed",
+        bsb: "111111",
+        accountNumber: "11111111",
+      })
+    ).rejects.toThrow(/already have a saved account with those details/);
+  });
+
   test("rejects blank fields", async () => {
     const t = await setup();
     const id = await approvedRequest(t);
