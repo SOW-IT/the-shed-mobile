@@ -211,14 +211,16 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
 
   // L-to-R fill sweep for the active pending step's circle and connector.
   const fill = useRef(new Animated.Value(0)).current;
+  const needsAnimation = active !== null;
   useEffect(() => {
+    if (!needsAnimation) return;
     const native = Platform.OS !== "web";
     const loop = Animated.loop(
       Animated.timing(fill, { toValue: 1, duration: 1000, useNativeDriver: native, easing: Easing.linear })
     );
     loop.start();
     return () => loop.stop();
-  }, [fill]);
+  }, [fill, needsAnimation]);
   const circleFillX = fill.interpolate({ inputRange: [0, 1], outputRange: [-22, 22] });
   const connectorFillX = fill.interpolate({ inputRange: [0, 1], outputRange: [-10, 10] });
   const dotColor = t.dark ? t.background : "#ffffff";
