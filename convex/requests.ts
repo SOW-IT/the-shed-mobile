@@ -16,6 +16,7 @@ import {
 } from "../shared/flow";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
+import { rememberBankAccount } from "./bankAccounts";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import {
   getApprovers,
@@ -881,6 +882,10 @@ export const submitReceipt = mutation({
       receipt: { totalAmount, recipients: args.recipients },
       paid: false,
     });
+    // Remember each recipient's bank details so the requester can reuse them.
+    for (const recipient of args.recipients) {
+      await rememberBankAccount(ctx, email, recipient);
+    }
     await logEvent(
       ctx,
       args.requestId,

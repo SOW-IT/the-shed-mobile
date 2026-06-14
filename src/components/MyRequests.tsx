@@ -214,6 +214,70 @@ const emptyRecipient = (): DraftRecipient => ({
   files: [],
 });
 
+type SavedAccount = {
+  id: Id<"savedBankAccounts">;
+  accountName: string;
+  bsb: string;
+  accountNumber: string;
+};
+
+/** Shows the last 4 digits of an account number behind a mask. */
+const maskAccount = (accountNumber: string) =>
+  accountNumber.length > 4 ? `••${accountNumber.slice(-4)}` : accountNumber;
+
+/**
+ * Tappable chips of the caller's previously-used bank accounts. Tapping one
+ * fills the recipient's account fields; the × forgets it.
+ */
+const SavedAccountPicker = ({
+  accounts,
+  onPick,
+  onForget,
+}: {
+  accounts: SavedAccount[];
+  onPick: (account: SavedAccount) => void;
+  onForget: (id: Id<"savedBankAccounts">) => void;
+}) => {
+  const t = useAppTheme();
+  if (accounts.length === 0) return null;
+  return (
+    <View style={{ gap: spacing.xs }}>
+      <Text style={[typography.label, { color: t.muted }]}>Saved accounts</Text>
+      <View style={styles.savedRow}>
+        {accounts.map((account) => (
+          <View
+            key={account.id}
+            style={[styles.savedChip, { backgroundColor: t.ghost, borderColor: t.border }]}
+          >
+            <Pressable
+              style={({ pressed }) => [styles.savedChipMain, pressed && { opacity: 0.6 }]}
+              onPress={() => onPick(account)}
+            >
+              <Ionicons name="card-outline" size={14} color={t.primary} />
+              <Text style={[typography.caption, { color: t.text, fontWeight: "600" }]}>
+                {account.accountName}
+              </Text>
+              <Text style={[typography.caption, { color: t.faint }]}>
+                {maskAccount(account.accountNumber)}
+              </Text>
+            </Pressable>
+            <Pressable
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={`Forget saved account ${account.accountName}`}
+              accessibilityHint="Removes this saved account"
+              style={({ pressed }) => [styles.savedChipForget, pressed && { opacity: 0.6 }]}
+              onPress={() => onForget(account.id)}
+            >
+              <Ionicons name="close" size={13} color={t.faint} />
+            </Pressable>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+};
+
 const ReceiptSheet = ({
   request,
   onClose,
@@ -223,6 +287,8 @@ const ReceiptSheet = ({
 }) => {
   const submitReceipt = useMutation(api.requests.submitReceipt);
   const generateUploadUrl = useMutation(api.requests.generateReceiptUploadUrl);
+  const savedAccounts = useQuery(api.bankAccounts.listMine, {});
+  const forgetAccount = useMutation(api.bankAccounts.remove);
   const [recipients, setRecipients] = useState<DraftRecipient[]>([emptyRecipient()]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -349,6 +415,19 @@ const ReceiptSheet = ({
               />
             )}
           </Row>
+          <SavedAccountPicker
+            accounts={savedAccounts ?? []}
+            onPick={(account) =>
+              updateRecipient(index, {
+                accountName: account.accountName,
+                bsb: account.bsb,
+                accountNumber: account.accountNumber,
+              })
+            }
+            onForget={(id) =>
+              void forgetAccount({ id }).catch((e) => setError(errorMessage(e)))
+            }
+          />
           <Field
             label="Account name"
             value={recipient.accountName}
@@ -532,5 +611,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+  },
+  savedRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+  },
+  savedChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingLeft: spacing.sm,
+    paddingRight: spacing.xs,
+    paddingVertical: 5,
+    gap: 4,
+  },
+  savedChipMain: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  savedChipForget: {
+    paddingLeft: 2,
   },
 });
