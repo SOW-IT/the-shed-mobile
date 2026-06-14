@@ -194,6 +194,6 @@ export const useAppTheme = (): AppTheme => {
     (scheme === null &&
       Platform.OS === "web" &&
       typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-color-scheme: dark)").matches);
+      window.matchMedia?.("(prefers-color-scheme: dark)")?.matches);
   return prefersDark ? dark : light;
 };
