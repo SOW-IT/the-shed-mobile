@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable } from "react-native";
 import { api } from "../../convex/_generated/api";
+import { requestFullyApproved } from "../../shared/flow";
 import { AllRequestsList } from "@/components/AllRequestsList";
 import { MyRequests } from "@/components/MyRequests";
 import { ReviewList } from "@/components/ReviewList";
@@ -45,6 +46,7 @@ export default function RequestsScreen() {
     api.directory.yearStructure,
     me?.profile ? { year: me.year } : "skip"
   );
+  const myRequests = useQuery(api.requests.myRequests, me?.profile ? {} : "skip");
   // Badge for the To Review segment (Convex dedupes with the tab badge).
   const review = useQuery(
     api.requests.toReview,
@@ -67,8 +69,12 @@ export default function RequestsScreen() {
       review.readyToPay.length
     : 0;
 
+  const mineCount = (myRequests ?? []).filter(
+    (r) => requestFullyApproved(r) && !r.receipt
+  ).length;
+
   const segments = [
-    { key: "mine", label: "Mine" },
+    { key: "mine", label: "Mine", badge: mineCount },
     ...(me?.isApprover
       ? [{ key: "review", label: "To Review", badge: reviewCount }]
       : []),
