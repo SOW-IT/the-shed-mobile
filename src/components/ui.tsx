@@ -201,34 +201,47 @@ export const FooterAction = ({
   title,
   onPress,
   disabled,
+  onInfo,
 }: {
   title: string;
   onPress: () => void;
   disabled?: boolean;
+  /** Optional info icon button rendered to the left of the main pill. */
+  onInfo?: () => void;
 }) => {
   const t = useAppTheme();
   const scale = useRef(new Animated.Value(1)).current;
   return (
     <View pointerEvents="box-none" style={styles.footerWrap}>
-      <Animated.View style={[{ transform: [{ scale }] }, t.shadowFloat]}>
-        <Pressable
-          onPress={() => { haptic(); onPress(); }}
-          onPressIn={() =>
-            Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 0 }).start()
-          }
-          onPressOut={() =>
-            Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 6 }).start()
-          }
-          disabled={disabled}
-          style={[
-            styles.footerAction,
-            { backgroundColor: t.primary },
-            disabled && { opacity: 0.6 },
-          ]}
-        >
-          <Text style={[styles.footerActionText, { color: t.onPrimary }]}>{title}</Text>
-        </Pressable>
-      </Animated.View>
+      <View style={styles.footerRow}>
+        {onInfo && (
+          <Pressable
+            onPress={() => { haptic(); onInfo(); }}
+            style={[styles.footerInfoBtn, { backgroundColor: t.card }, t.shadowFloat]}
+          >
+            <Ionicons name="information-circle-outline" size={22} color={t.primary} />
+          </Pressable>
+        )}
+        <Animated.View style={[{ flex: 1, transform: [{ scale }] }, t.shadowFloat]}>
+          <Pressable
+            onPress={() => { haptic(); onPress(); }}
+            onPressIn={() =>
+              Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 0 }).start()
+            }
+            onPressOut={() =>
+              Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 6 }).start()
+            }
+            disabled={disabled}
+            style={[
+              styles.footerAction,
+              { backgroundColor: t.primary },
+              disabled && { opacity: 0.6 },
+            ]}
+          >
+            <Text style={[styles.footerActionText, { color: t.onPrimary }]}>{title}</Text>
+          </Pressable>
+        </Animated.View>
+      </View>
     </View>
   );
 };
@@ -1041,6 +1054,19 @@ const styles = StyleSheet.create({
     maxWidth: 720,
     width: "100%",
     alignSelf: "center",
+  },
+  footerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  footerInfoBtn: {
+    width: 54,
+    height: 54,
+    borderRadius: radius.lg - 2,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
   footerAction: {
     height: 54,
