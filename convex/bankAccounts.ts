@@ -84,6 +84,31 @@ export const setPreferred = mutation({
   },
 });
 
+/** Updates the details of one of the caller's saved accounts. */
+export const updateAccount = mutation({
+  args: {
+    id: v.id("savedBankAccounts"),
+    accountName: v.string(),
+    bsb: v.string(),
+    accountNumber: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const email = await requireEmail(ctx);
+    const account = await ctx.db.get("savedBankAccounts", args.id);
+    if (!account || account.email !== email) {
+      throw new ConvexError("You can only update your own saved accounts.");
+    }
+    const accountName = args.accountName.trim();
+    const bsb = args.bsb.trim();
+    const accountNumber = args.accountNumber.trim();
+    if (!accountName) throw new ConvexError("Account name is required.");
+    if (!bsb) throw new ConvexError("BSB is required.");
+    if (!accountNumber) throw new ConvexError("Account number is required.");
+    await ctx.db.patch("savedBankAccounts", args.id, { accountName, bsb, accountNumber });
+    return null;
+  },
+});
+
 /** Forgets one of the caller's saved accounts. If it was preferred, promotes the next most-recently-used. */
 export const remove = mutation({
   args: { id: v.id("savedBankAccounts") },

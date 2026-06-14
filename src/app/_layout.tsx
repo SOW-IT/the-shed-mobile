@@ -45,42 +45,79 @@ const tabIcon =
     <Ionicons name={focused ? filled : outline} size={23} color={color} />
   );
 
-/** Requests tab icon: shows a separate white badge for unread comments. */
+/**
+ * Requests tab icon: renders a red review-count badge and a white unread-
+ * comments badge side-by-side so both counts are visible at a glance without
+ * one hiding behind the other.
+ */
 const RequestsTabIcon = ({
   color,
   focused,
+  reviewCount,
   unreadComments,
 }: {
   color: ColorValue;
   focused: boolean;
+  reviewCount: number;
   unreadComments: number;
-}) => (
-  <View style={{ position: "relative" }}>
-    <Ionicons name={focused ? "receipt" : "receipt-outline"} size={23} color={color} />
-    {unreadComments > 0 && (
-      <View
-        style={{
-          position: "absolute",
-          top: -5,
-          right: -8,
-          minWidth: 16,
-          height: 16,
-          borderRadius: 8,
-          backgroundColor: "#ffffff",
-          alignItems: "center",
-          justifyContent: "center",
-          paddingHorizontal: 3,
-          borderWidth: 1,
-          borderColor: "#cccccc",
-        }}
-      >
-        <Text style={{ color: "#333333", fontSize: 10, fontWeight: "800" }}>
-          {unreadComments > 99 ? "99+" : unreadComments}
-        </Text>
-      </View>
-    )}
-  </View>
-);
+}) => {
+  const t = useAppTheme();
+  const hasBadges = reviewCount > 0 || unreadComments > 0;
+  return (
+    <View style={{ position: "relative" }}>
+      <Ionicons name={focused ? "receipt" : "receipt-outline"} size={23} color={color} />
+      {hasBadges && (
+        <View
+          style={{
+            position: "absolute",
+            top: -6,
+            right: -20,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          {reviewCount > 0 && (
+            <View
+              style={{
+                minWidth: 16,
+                height: 16,
+                borderRadius: 8,
+                backgroundColor: t.accent,
+                alignItems: "center",
+                justifyContent: "center",
+                paddingHorizontal: 3,
+              }}
+            >
+              <Text style={{ color: "#ffffff", fontSize: 10, fontWeight: "800" }}>
+                {reviewCount > 99 ? "99+" : reviewCount}
+              </Text>
+            </View>
+          )}
+          {unreadComments > 0 && (
+            <View
+              style={{
+                minWidth: 16,
+                height: 16,
+                borderRadius: 8,
+                backgroundColor: "#ffffff",
+                alignItems: "center",
+                justifyContent: "center",
+                paddingHorizontal: 3,
+                borderWidth: 1,
+                borderColor: "#cccccc",
+              }}
+            >
+              <Text style={{ color: "#333333", fontSize: 10, fontWeight: "800" }}>
+                {unreadComments > 99 ? "99+" : unreadComments}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
+    </View>
+  );
+};
 
 const AppTabs = () => {
   const me = useQuery(api.directory.me);
@@ -138,10 +175,11 @@ const AppTabs = () => {
             <RequestsTabIcon
               color={color}
               focused={focused}
+              reviewCount={reviewCount}
               unreadComments={unreadComments}
             />
           ),
-          tabBarBadge: reviewCount > 0 ? reviewCount : undefined,
+          // Both counts are rendered inline by RequestsTabIcon; no tabBarBadge needed.
         }}
       />
       <Tabs.Screen
