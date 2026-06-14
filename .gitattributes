@@ -1,0 +1,5 @@
+# Convex writes its generated bindings with LF. On Windows checkouts,
+# core.autocrlf=true otherwise rewrites them to CRLF and git reports the
+# files as perpetually "modified" with no real diff. Pin them to LF so the
+# working tree matches the committed (LF) blobs on every platform.
+convex/_generated/** text eol=lf
