@@ -140,8 +140,8 @@ const light: AppTheme = {
   successSoft: "#E2F1DA", // brand light green
   danger: "#B5403D",
   dangerSoft: "#F6DFD9",
-  warning: "#C8881C", // golden amber, readable on cream
-  warningSoft: "#FBEFD2",
+  warning: "#8A5E1A", // dark amber — 5.1:1 against cream, meets WCAG AA
+  warningSoft: "#EDD88A", // warm yellow, visibly distinct from cream background
   ghost: "#ECEFE4",
   ghostText: "#0F2523",
   overlay: "rgba(15, 37, 35, 0.45)",

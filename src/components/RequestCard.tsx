@@ -204,7 +204,6 @@ const StepInfoModal = ({
  */
 const StepLine = ({ request }: { request: Doc<"requests"> }) => {
   const t = useAppTheme();
-  useMinuteTick();
   const [selectedStep, setSelectedStep] = useState<ApprovalStep | null>(null);
   const active = currentStep(request);
   const steps = stepsForRequest(request);

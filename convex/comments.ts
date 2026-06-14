@@ -3,6 +3,7 @@ import { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, QueryCtx } from "./_generated/server";
 import { getProfile, optionalProfile, requireProfile } from "./model";
 import { actionOwnerEmail, appUrl, notify } from "./requests";
+import { ALLOWED_REACTIONS } from "../shared/flow";
 
 /** Display name for an email: staff profile first, directory fallback, else null. */
 async function resolveName(
@@ -143,6 +144,8 @@ export const unreadCount = query({
   handler: async (ctx, args) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
+    const request = await ctx.db.get(args.requestId);
+    if (!request) return null;
     return await unreadCountFor(ctx, args.requestId, caller.email);
   },
 });
@@ -169,6 +172,8 @@ export const markRead = mutation({
   args: { requestId: v.id("requests") },
   handler: async (ctx, args) => {
     const { email } = await requireProfile(ctx);
+    const request = await ctx.db.get(args.requestId);
+    if (!request) throw new ConvexError("Request not found.");
     const existing = await ctx.db
       .query("commentReads")
       .withIndex("by_request_and_user", (q) =>
@@ -194,7 +199,7 @@ export const toggleReaction = mutation({
   handler: async (ctx, args) => {
     const { email } = await requireProfile(ctx);
     const emoji = args.emoji.trim();
-    if (!emoji || emoji.length > 16) {
+    if (!emoji || !ALLOWED_REACTIONS.has(emoji)) {
       throw new ConvexError("Pick a single emoji.");
     }
     const comment = await ctx.db.get("requestComments", args.commentId);

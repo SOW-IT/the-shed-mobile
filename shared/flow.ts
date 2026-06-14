@@ -168,3 +168,10 @@ export const currentStep = (r: ApprovalState): ApprovalStep | null => {
   if (r.approvedByFinanceHead === PENDING) return "financeHead";
   return null;
 };
+
+/** The full set of emoji the reaction picker exposes. Validated server-side too. */
+export const ALLOWED_REACTIONS = new Set([
+  "👍", "👎", "❤️", "🔥", "🎉", "😂", "😅", "🙏", "👀", "✅",
+  "❌", "⚠️", "💰", "💸", "🧾", "📎", "⏳", "🚀", "💯", "🤝",
+  "🙌", "👏", "🤔", "😮", "😢", "😡", "🥳", "🫡", "💪", "✍️",
+]);
