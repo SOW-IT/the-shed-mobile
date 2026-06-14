@@ -1010,9 +1010,9 @@ export const submitReceipt = mutation({
       receipt: { totalAmount, recipients: storedRecipients },
       paid: false,
     });
-    // Save bank details only for recipients the user opted in for.
+    // Save bank details unless the user explicitly opted out (saveAccount === false).
     for (const recipient of args.recipients) {
-      if (recipient.saveAccount) {
+      if (recipient.saveAccount !== false) {
         await rememberBankAccount(ctx, email, recipient);
       }
     }
