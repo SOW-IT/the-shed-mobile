@@ -2,7 +2,7 @@ import React from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Animated, Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Easing, Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import {
   APPROVED,
   currentStep,
@@ -210,21 +210,18 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
   const steps = stepsForRequest(request);
   const actors = useQuery(api.requests.stepActors, { requestId: request._id });
 
-  // One looping pulse drives the active step's circle and its incoming line.
-  const pulse = useRef(new Animated.Value(0)).current;
+  // L-to-R fill sweep for the active pending step's circle and connector.
+  const fill = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const native = Platform.OS !== "web";
     const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 750, useNativeDriver: native }),
-        Animated.timing(pulse, { toValue: 0, duration: 750, useNativeDriver: native }),
-      ])
+      Animated.timing(fill, { toValue: 1, duration: 1000, useNativeDriver: native, easing: Easing.linear })
     );
     loop.start();
     return () => loop.stop();
-  }, [pulse]);
-  const pulseScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] });
-  const pulseOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] });
+  }, [fill]);
+  const circleFillX = fill.interpolate({ inputRange: [0, 1], outputRange: [-22, 22] });
+  const connectorFillX = fill.interpolate({ inputRange: [0, 1], outputRange: [-10, 10] });
   const dotColor = t.dark ? t.background : "#ffffff";
 
   return (
@@ -259,34 +256,49 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
           return (
             <React.Fragment key={step}>
               {index > 0 && (
-                <Animated.View
-                  style={[
-                    styles.stepConnector,
-                    { backgroundColor: connectorColor },
-                    isActive && { opacity: pulseOpacity },
-                  ]}
-                />
+                isActive && isPending ? (
+                  <View style={[styles.stepConnector, { backgroundColor: t.warningSoft, overflow: "hidden" }]}>
+                    <Animated.View
+                      style={{
+                        position: "absolute",
+                        width: 10,
+                        height: 2,
+                        backgroundColor: t.warning,
+                        transform: [{ translateX: connectorFillX }],
+                      }}
+                    />
+                  </View>
+                ) : (
+                  <View style={[styles.stepConnector, { backgroundColor: connectorColor }]} />
+                )
               )}
               <Pressable
                 onPress={() => setSelectedStep(step)}
                 hitSlop={8}
                 style={styles.stepItem}
               >
-                <Animated.View
-                  style={[
-                    styles.stepCircle,
-                    circleStyle,
-                    isActive && { transform: [{ scale: pulseScale }] },
-                  ]}
-                >
-                  {isApproved ? (
-                    <Ionicons name="checkmark" size={12} color={dotColor} />
-                  ) : isDeclined ? (
-                    <Ionicons name="close" size={12} color={dotColor} />
-                  ) : isActive ? (
+                {isActive && isPending ? (
+                  <View style={[styles.stepCircle, { backgroundColor: t.warningSoft, overflow: "hidden" }]}>
+                    <Animated.View
+                      style={{
+                        position: "absolute",
+                        width: 22,
+                        height: 22,
+                        backgroundColor: t.warning,
+                        transform: [{ translateX: circleFillX }],
+                      }}
+                    />
                     <View style={[styles.stepActiveDot, { backgroundColor: dotColor }]} />
-                  ) : null}
-                </Animated.View>
+                  </View>
+                ) : (
+                  <View style={[styles.stepCircle, circleStyle]}>
+                    {isApproved ? (
+                      <Ionicons name="checkmark" size={12} color={dotColor} />
+                    ) : isDeclined ? (
+                      <Ionicons name="close" size={12} color={dotColor} />
+                    ) : null}
+                  </View>
+                )}
                 <Text
                   style={[
                     styles.stepLabel,
