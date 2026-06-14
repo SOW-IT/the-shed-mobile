@@ -209,20 +209,23 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
   const steps = stepsForRequest(request);
   const actors = useQuery(api.requests.stepActors, { requestId: request._id });
 
-  // L-to-R fill sweep for the active pending step's circle and connector.
+  // Alternating L-to-R fill sweep: 2 s on the connector, then 2 s on the circle.
+  // 0→0.5 = connector phase, 0.5→1 = circle phase, then loops.
   const fill = useRef(new Animated.Value(0)).current;
   const needsAnimation = active !== null;
   useEffect(() => {
     if (!needsAnimation) return;
     const native = Platform.OS !== "web";
     const loop = Animated.loop(
-      Animated.timing(fill, { toValue: 1, duration: 1000, useNativeDriver: native, easing: Easing.linear })
+      Animated.timing(fill, { toValue: 1, duration: 4000, useNativeDriver: native, easing: Easing.linear })
     );
     loop.start();
     return () => loop.stop();
   }, [fill, needsAnimation]);
-  const circleFillX = fill.interpolate({ inputRange: [0, 1], outputRange: [-22, 22] });
-  const connectorFillX = fill.interpolate({ inputRange: [0, 1], outputRange: [-10, 10] });
+  // Connector sweeps during [0, 0.5], then hides off-screen right for [0.5, 1].
+  const connectorFillX = fill.interpolate({ inputRange: [0, 0.5, 1], outputRange: [-10, 10, 10] });
+  // Circle hides off-screen left during [0, 0.5], then sweeps during [0.5, 1].
+  const circleFillX = fill.interpolate({ inputRange: [0, 0.5, 1], outputRange: [-22, -22, 22] });
   const dotColor = t.dark ? t.background : "#ffffff";
 
   return (
