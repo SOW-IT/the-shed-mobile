@@ -4,6 +4,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { useEffect, useState } from "react";
 import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import {
+  DIRECTOR_APPROVAL_THRESHOLD,
   requestCompleted,
   requestDeclined,
   requestFullyApproved,
@@ -77,8 +78,8 @@ const GUIDE_STEPS = [
   },
   {
     icon: "shield-checkmark-outline" as const,
-    title: "Director approval (≥ $5,000)",
-    detail: "Requests at or above $5,000 also need Director sign-off.",
+    title: `Director approval (≥ $${DIRECTOR_APPROVAL_THRESHOLD.toLocaleString()})`,
+    detail: `Requests at or above $${DIRECTOR_APPROVAL_THRESHOLD.toLocaleString()} also need Director sign-off.`,
   },
   {
     icon: "checkmark-circle-outline" as const,
@@ -168,7 +169,7 @@ const NewRequestSheet = ({
 
   return (
     <>
-      <Sheet visible={visible} onClose={onClose} scrollable={false} title="New Request">
+      <Sheet visible={visible} onClose={onClose} title="New Request">
         <Pressable
           style={({ pressed }) => [styles.infoRow, pressed && { opacity: 0.6 }]}
           onPress={() => setShowGuide(true)}
@@ -198,7 +199,7 @@ const NewRequestSheet = ({
           options={departments}
           onSelect={setDepartment}
         />
-        <Muted>Requests of $5,000 or more also require Director approval.</Muted>
+        <Muted>{`Requests of $${DIRECTOR_APPROVAL_THRESHOLD.toLocaleString()} or more also require Director approval.`}</Muted>
         <ErrorBanner message={error} />
         <Btn title="Submit Request" onPress={handleSubmit} />
         <Btn title="Cancel" variant="ghost" onPress={onClose} />
