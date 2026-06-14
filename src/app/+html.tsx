@@ -18,8 +18,16 @@ export default function Root({ children }: { children: React.ReactNode }) {
           // z-index, so the tab bar (which appears later in the stacking
           // context) can paint on top of it. Give every modal dialog a
           // high z-index so sheets and pickers always cover the tab bar.
+          // Also pin the document background to the brand palette so the
+          // browser chrome matches the app on initial load and in gaps.
           dangerouslySetInnerHTML={{
-            __html: `div[aria-modal="true"] { z-index: 9999 !important; }`,
+            __html: `
+              div[aria-modal="true"] { z-index: 9999 !important; }
+              html, body, #root { background-color: #F5F3E3; }
+              @media (prefers-color-scheme: dark) {
+                html, body, #root { background-color: #0F2523; }
+              }
+            `,
           }}
         />
       </head>
