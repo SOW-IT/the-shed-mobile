@@ -391,22 +391,21 @@ export const MyRequests = ({
       ) : (
         requests.map((request, index) => (
           <FadeInView key={request._id} delay={stagger(index)}>
-            <RequestCard request={request}>
-              {!requestCompleted(request) && (
-                <Btn
-                  title="Cancel Request"
-                  variant="danger"
-                  onPress={() =>
-                    confirmAction(
-                      "Cancel request",
-                      `Cancel your $${request.amount} request ("${request.description}")? It will be deleted along with its approvals — this can't be undone.`,
-                      "Cancel Request",
-                      () => void handleCancel(request._id),
-                      true
-                    )
-                  }
-                />
-              )}
+            <RequestCard
+              request={request}
+              onCancel={
+                !requestCompleted(request)
+                  ? () =>
+                      confirmAction(
+                        "Cancel request",
+                        `Cancel your $${request.amount} request ("${request.description}")? It will be deleted along with its approvals — this can't be undone.`,
+                        "Cancel Request",
+                        () => void handleCancel(request._id),
+                        true
+                      )
+                  : undefined
+              }
+            >
               {requestFullyApproved(request) && !request.receipt && (
                 <Btn
                   title="Submit Receipt"

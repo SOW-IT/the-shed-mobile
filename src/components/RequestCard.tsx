@@ -270,10 +270,12 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
 export const RequestCard = ({
   request,
   showRequester,
+  onCancel,
   children,
 }: {
   request: Doc<"requests">;
   showRequester?: boolean;
+  onCancel?: () => void;
   children?: ReactNode;
 }) => {
   const t = useAppTheme();
@@ -289,6 +291,11 @@ export const RequestCard = ({
           ${request.amount}
         </Text>
         <Chip label={requestDisplayStatus(request)} />
+        {onCancel && (
+          <Pressable onPress={onCancel} hitSlop={10} style={styles.cancelIcon}>
+            <Ionicons name="trash-outline" size={17} color={t.danger} />
+          </Pressable>
+        )}
       </View>
       <Text style={[typography.caption, { color: t.faint, marginTop: -6 }]}>
         {request.department}
@@ -331,6 +338,7 @@ export const RequestCard = ({
 
 const styles = StyleSheet.create({
   topRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  cancelIcon: { padding: 2 },
   stepsRow: {
     flexDirection: "row",
     alignItems: "flex-start",
