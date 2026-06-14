@@ -196,7 +196,7 @@ const PaymentTab = () => {
               <Ionicons name="star" size={20} color={t.accent} />
               <View style={{ flex: 1, gap: 2 }}>
                 <Txt style={{ fontWeight: "700" }}>{preferred.accountName}</Txt>
-                <Muted>BSB {preferred.bsb} · {preferred.accountNumber}</Muted>
+                <Muted>BSB {preferred.bsb} · {maskAccount(preferred.accountNumber)}</Muted>
               </View>
               <Pressable
                 hitSlop={8}
