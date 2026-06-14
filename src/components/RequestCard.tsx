@@ -389,19 +389,29 @@ export const RequestCard = ({
   return (
     <Card style={cardBorderStyle(status, actionRequired, t)}>
       <View style={styles.topRow}>
-        <Text style={[typography.amount, { color: t.text }]}>${request.amount}</Text>
-        <View style={styles.statusWrap}>
-          <View style={[styles.statusPill, { backgroundColor: chip.bg }]}>
-            <Text numberOfLines={1} style={[styles.statusPillText, { color: chip.fg }]}>
-              {status}
-            </Text>
-          </View>
+        <View style={styles.topSide}>
+          <Text style={[typography.amount, { color: t.text }]}>${request.amount}</Text>
         </View>
-        {onCancel && (
-          <Pressable onPress={onCancel} hitSlop={10} style={styles.cancelIcon}>
-            <Ionicons name="trash-outline" size={17} color={t.danger} />
-          </Pressable>
-        )}
+        <View style={[styles.statusPill, { backgroundColor: chip.bg }]}>
+          <Text numberOfLines={1} style={[styles.statusPillText, { color: chip.fg }]}>
+            {status}
+          </Text>
+        </View>
+        <View style={styles.topSide}>
+          {onCancel ? (
+            <Pressable
+              onPress={onCancel}
+              hitSlop={10}
+              style={styles.cancelIcon}
+              accessibilityRole="button"
+              accessibilityLabel="Delete or cancel request"
+            >
+              <Ionicons name="trash-outline" size={17} color={t.danger} />
+            </Pressable>
+          ) : (
+            <View style={styles.cancelPlaceholder} />
+          )}
+        </View>
       </View>
       <Text style={[typography.caption, { color: t.faint, marginTop: -6 }]}>
         {request.department}
@@ -462,20 +472,21 @@ export const RequestCard = ({
 };
 
 const styles = StyleSheet.create({
-  topRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  statusWrap: { flex: 1, alignItems: "center" },
+  topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  topSide: { flex: 1 },
   statusPill: {
     borderRadius: radius.full,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    maxWidth: "100%",
+    maxWidth: "60%",
   },
   statusPillText: {
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 0.3,
   },
-  cancelIcon: { padding: 2 },
+  cancelIcon: { padding: 2, alignSelf: "flex-end" },
+  cancelPlaceholder: { width: 21, height: 21 },
   stepsRow: {
     flexDirection: "row",
     alignItems: "flex-start",

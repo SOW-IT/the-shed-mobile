@@ -750,6 +750,66 @@ export const cancel = mutation({
   },
 });
 
+/**
+ * The requester can delete a declined request to clear it from their list.
+ * Unlike cancel, no notifications are sent (the decline notification already
+ * went out; everyone involved already knows).
+ */
+export const deleteDeclined = mutation({
+  args: { requestId: v.id("requests") },
+  handler: async (ctx, args) => {
+    const { email } = await requireProfile(ctx);
+    const request = await ctx.db.get("requests", args.requestId);
+    if (!request || request.requesterEmail !== email) {
+      throw new ConvexError("You can only delete your own requests.");
+    }
+    if (!requestDeclined(request)) {
+      throw new ConvexError("Only declined requests can be deleted this way.");
+    }
+    // Clean up audit events.
+    const events = await ctx.db
+      .query("requestEvents")
+      .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
+      .take(200);
+    for (const event of events) {
+      await ctx.db.delete("requestEvents", event._id);
+    }
+    // Clean up comment thread, reactions, and read markers.
+    for (;;) {
+      const comments = await ctx.db
+        .query("requestComments")
+        .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
+        .take(200);
+      if (comments.length === 0) break;
+      for (const comment of comments) {
+        for (;;) {
+          const reactions = await ctx.db
+            .query("commentReactions")
+            .withIndex("by_comment", (q) => q.eq("commentId", comment._id))
+            .take(200);
+          if (reactions.length === 0) break;
+          for (const reaction of reactions) {
+            await ctx.db.delete("commentReactions", reaction._id);
+          }
+        }
+        await ctx.db.delete("requestComments", comment._id);
+      }
+    }
+    for (;;) {
+      const reads = await ctx.db
+        .query("commentReads")
+        .withIndex("by_request_and_user", (q) => q.eq("requestId", args.requestId))
+        .take(200);
+      if (reads.length === 0) break;
+      for (const read of reads) {
+        await ctx.db.delete("commentReads", read._id);
+      }
+    }
+    await ctx.db.delete("requests", args.requestId);
+    return null;
+  },
+});
+
 /** A single request, for the detail screen push notifications land on. */
 export const get = query({
   args: { requestId: v.id("requests") },
@@ -902,6 +962,7 @@ export const submitReceipt = mutation({
         bsb: v.string(),
         accountNumber: v.string(),
         amount: v.number(),
+        saveAccount: v.optional(v.boolean()),
         attachments: v.optional(
           v.array(
             v.object({
@@ -942,14 +1003,18 @@ export const submitReceipt = mutation({
     if (!args.recipients.some((r) => (r.attachments ?? []).length > 0)) {
       throw new ConvexError("Attach at least one receipt file.");
     }
-    const totalAmount = args.recipients.reduce((sum, r) => sum + r.amount, 0);
+    // Strip the UI-only saveAccount flag before storing.
+    const storedRecipients = args.recipients.map(({ saveAccount: _s, ...r }) => r);
+    const totalAmount = storedRecipients.reduce((sum, r) => sum + r.amount, 0);
     await ctx.db.patch("requests", args.requestId, {
-      receipt: { totalAmount, recipients: args.recipients },
+      receipt: { totalAmount, recipients: storedRecipients },
       paid: false,
     });
-    // Remember each recipient's bank details so the requester can reuse them.
+    // Save bank details unless the user explicitly opted out (saveAccount === false).
     for (const recipient of args.recipients) {
-      await rememberBankAccount(ctx, email, recipient);
+      if (recipient.saveAccount !== false) {
+        await rememberBankAccount(ctx, email, recipient);
+      }
     }
     await logEvent(
       ctx,

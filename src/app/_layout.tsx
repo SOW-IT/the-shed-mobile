@@ -10,7 +10,7 @@ import {
 import { DarkTheme, DefaultTheme, Tabs, ThemeProvider } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
-import { ActivityIndicator, ColorValue, Image, Platform, View } from "react-native";
+import { ActivityIndicator, ColorValue, Image, Platform, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -45,6 +45,43 @@ const tabIcon =
     <Ionicons name={focused ? filled : outline} size={23} color={color} />
   );
 
+/** Requests tab icon: shows a separate white badge for unread comments. */
+const RequestsTabIcon = ({
+  color,
+  focused,
+  unreadComments,
+}: {
+  color: ColorValue;
+  focused: boolean;
+  unreadComments: number;
+}) => (
+  <View style={{ position: "relative" }}>
+    <Ionicons name={focused ? "receipt" : "receipt-outline"} size={23} color={color} />
+    {unreadComments > 0 && (
+      <View
+        style={{
+          position: "absolute",
+          top: -5,
+          right: -8,
+          minWidth: 16,
+          height: 16,
+          borderRadius: 8,
+          backgroundColor: "#ffffff",
+          alignItems: "center",
+          justifyContent: "center",
+          paddingHorizontal: 3,
+          borderWidth: 1,
+          borderColor: "#cccccc",
+        }}
+      >
+        <Text style={{ color: "#333333", fontSize: 10, fontWeight: "800" }}>
+          {unreadComments > 99 ? "99+" : unreadComments}
+        </Text>
+      </View>
+    )}
+  </View>
+);
+
 const AppTabs = () => {
   const me = useQuery(api.directory.me);
   const t = useAppTheme();
@@ -63,6 +100,9 @@ const AppTabs = () => {
       review.financeHead.length +
       review.readyToPay.length
     : 0;
+  // Separate white badge: unread comments on the user's own requests.
+  const unreadComments =
+    useQuery(api.comments.myUnreadTotal, me?.profile ? {} : "skip") ?? 0;
   return (
     <Tabs
       screenOptions={{
@@ -94,7 +134,13 @@ const AppTabs = () => {
         name="index"
         options={{
           title: "Requests",
-          tabBarIcon: tabIcon("receipt-outline", "receipt"),
+          tabBarIcon: ({ color, focused }) => (
+            <RequestsTabIcon
+              color={color}
+              focused={focused}
+              unreadComments={unreadComments}
+            />
+          ),
           tabBarBadge: reviewCount > 0 ? reviewCount : undefined,
         }}
       />

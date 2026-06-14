@@ -51,18 +51,40 @@ export const listMine = query({
       .query("savedBankAccounts")
       .withIndex("by_email", (q) => q.eq("email", email))
       .take(100);
-    return accounts
-      .sort((a, b) => b.lastUsedAt - a.lastUsedAt)
-      .map((a) => ({
-        id: a._id,
-        accountName: a.accountName,
-        bsb: a.bsb,
-        accountNumber: a.accountNumber,
-      }));
+    const sorted = accounts.sort((a, b) => b.lastUsedAt - a.lastUsedAt);
+    // If only one account, it is implicitly preferred.
+    const hasExplicitPreferred = sorted.some((a) => a.preferred === true);
+    return sorted.map((a, i) => ({
+      id: a._id,
+      accountName: a.accountName,
+      bsb: a.bsb,
+      accountNumber: a.accountNumber,
+      preferred: a.preferred === true || (!hasExplicitPreferred && i === 0),
+    }));
   },
 });
 
-/** Forgets one of the caller's saved accounts. */
+/** Marks one of the caller's saved accounts as preferred, clearing the others. */
+export const setPreferred = mutation({
+  args: { id: v.id("savedBankAccounts") },
+  handler: async (ctx, args) => {
+    const email = await requireEmail(ctx);
+    const account = await ctx.db.get("savedBankAccounts", args.id);
+    if (!account || account.email !== email) {
+      throw new ConvexError("You can only set your own saved accounts as preferred.");
+    }
+    const all = await ctx.db
+      .query("savedBankAccounts")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .take(100);
+    for (const a of all) {
+      await ctx.db.patch("savedBankAccounts", a._id, { preferred: a._id === args.id ? true : undefined });
+    }
+    return null;
+  },
+});
+
+/** Forgets one of the caller's saved accounts. If it was preferred, promotes the next most-recently-used. */
 export const remove = mutation({
   args: { id: v.id("savedBankAccounts") },
   handler: async (ctx, args) => {
@@ -71,7 +93,20 @@ export const remove = mutation({
     if (!account || account.email !== email) {
       throw new ConvexError("You can only remove your own saved accounts.");
     }
+    const wasPreferred = account.preferred === true;
     await ctx.db.delete("savedBankAccounts", args.id);
+    if (wasPreferred) {
+      // Promote the next most-recently-used account as preferred.
+      const remaining = (
+        await ctx.db
+          .query("savedBankAccounts")
+          .withIndex("by_email", (q) => q.eq("email", email))
+          .take(100)
+      ).sort((a, b) => b.lastUsedAt - a.lastUsedAt);
+      if (remaining.length > 0) {
+        await ctx.db.patch("savedBankAccounts", remaining[0]._id, { preferred: true });
+      }
+    }
     return null;
   },
 });

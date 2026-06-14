@@ -271,6 +271,27 @@ describe("unreadCount + markRead", () => {
       await t.query(api.comments.unreadTotalForRequests, { requestIds: [id1] })
     ).toBe(0);
   });
+
+  test("myUnreadTotal counts unread comments on the caller's own requests", async () => {
+    const t = await setup();
+    // Rachel has no requests yet — zero unread.
+    expect(await asUser(t, RACHEL).query(api.comments.myUnreadTotal, {})).toBe(0);
+    // Unauthenticated → 0.
+    expect(await t.query(api.comments.myUnreadTotal, {})).toBe(0);
+
+    const id = await submit(t);
+    // Henry comments twice on Rachel's request.
+    await asUser(t, HENRY).mutation(api.comments.add, { requestId: id, body: "a" });
+    await asUser(t, HENRY).mutation(api.comments.add, { requestId: id, body: "b" });
+    expect(await asUser(t, RACHEL).query(api.comments.myUnreadTotal, {})).toBe(2);
+
+    // Rachel reads the thread — unread drops to zero.
+    await asUser(t, RACHEL).mutation(api.comments.markRead, { requestId: id });
+    expect(await asUser(t, RACHEL).query(api.comments.myUnreadTotal, {})).toBe(0);
+
+    // Henry's own comments don't count as unread for him (he's not the requester here).
+    expect(await asUser(t, HENRY).query(api.comments.myUnreadTotal, {})).toBe(0);
+  });
 });
 
 describe("toggleReaction + list grouping", () => {
