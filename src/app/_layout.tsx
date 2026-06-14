@@ -17,6 +17,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SignInScreen } from "@/components/SignInScreen";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { useAppTheme } from "@/theme";
+import { requestFullyApproved } from "../../shared/flow";
 
 const convex = process.env.EXPO_PUBLIC_CONVEX_URL
   ? new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL, {
@@ -46,22 +47,19 @@ const tabIcon =
   );
 
 /**
- * Requests tab icon: single combined badge (action-required + unread comments)
- * in yellow so users see one total "things needing attention" count.
+ * Requests tab icon: single combined badge summing every action-required count
+ * and every unread-message count across all segments (Mine + To Review).
  */
 const RequestsTabIcon = ({
   color,
   focused,
-  reviewCount,
-  unreadComments,
+  total,
 }: {
   color: ColorValue;
   focused: boolean;
-  reviewCount: number;
-  unreadComments: number;
+  total: number;
 }) => {
   const t = useAppTheme();
-  const total = reviewCount + unreadComments;
   return (
     <View style={{ position: "relative" }}>
       <Ionicons name={focused ? "receipt" : "receipt-outline"} size={23} color={color} />
@@ -94,22 +92,46 @@ const AppTabs = () => {
   const t = useAppTheme();
   const insets = useSafeAreaInsets();
   usePushRegistration();
-  // Badge: how many requests are waiting on the signed-in approver. Convex
-  // dedupes this subscription with the Requests tab's own query.
+  // Mine: action count (requests fully approved but awaiting receipt submission).
+  const myRequests = useQuery(api.requests.myRequests, me?.profile ? {} : "skip");
+  const mineActionCount = (myRequests ?? []).filter(
+    (r) => requestFullyApproved(r) && !r.receipt
+  ).length;
+  // Mine: unread comment count across the user's own requests.
+  const mineUnread =
+    useQuery(api.comments.myUnreadTotal, me?.profile ? {} : "skip") ?? 0;
+
+  // To Review: action count (requests waiting on the approver).
+  // Convex dedupes this subscription with the Requests tab's own query.
   const review = useQuery(
     api.requests.toReview,
     me?.profile && me.isApprover ? {} : "skip"
   );
-  const reviewCount = review
+  const reviewActionCount = review
     ? review.hod.length +
       review.budgetManager.length +
       review.director.length +
       review.financeHead.length +
       review.readyToPay.length
     : 0;
-  // Separate white badge: unread comments on the user's own requests.
-  const unreadComments =
-    useQuery(api.comments.myUnreadTotal, me?.profile ? {} : "skip") ?? 0;
+  // To Review: unread comment count across the review queue.
+  const reviewRequestIds = review
+    ? [
+        ...review.hod.map((r) => r._id),
+        ...review.budgetManager.map((r) => r._id),
+        ...review.director.map((r) => r._id),
+        ...review.financeHead.map((r) => r._id),
+        ...review.readyToPay.map((r) => r._id),
+      ]
+    : [];
+  const reviewUnread =
+    useQuery(
+      api.comments.unreadTotalForRequests,
+      me?.profile && me.isApprover && review ? { requestIds: reviewRequestIds } : "skip"
+    ) ?? 0;
+
+  // Combined tab badge: every action + every unread message across both segments.
+  const tabTotal = mineActionCount + mineUnread + reviewActionCount + reviewUnread;
   return (
     <Tabs
       screenOptions={{
@@ -145,8 +167,7 @@ const AppTabs = () => {
             <RequestsTabIcon
               color={color}
               focused={focused}
-              reviewCount={reviewCount}
-              unreadComments={unreadComments}
+              total={tabTotal}
             />
           ),
           // Both counts are rendered inline by RequestsTabIcon; no tabBarBadge needed.
