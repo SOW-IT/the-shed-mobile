@@ -130,18 +130,18 @@ export interface RequestLifecycle extends ApprovalState {
 }
 
 export type RequestDisplayStatus =
-  | "Awaiting Approval"
-  | "Awaiting Receipt"
-  | "Awaiting Payment"
+  | "AWAITING APPROVAL"
+  | "AWAITING RECEIPT"
+  | "AWAITING PAYMENT"
   | "PAID"
   | "DECLINED";
 
 export const requestDisplayStatus = (r: RequestLifecycle): RequestDisplayStatus => {
   if (requestDeclined(r)) return "DECLINED";
   if (r.paid === true) return "PAID";
-  if (!requestFullyApproved(r)) return "Awaiting Approval";
-  if (!r.receipt) return "Awaiting Receipt";
-  return "Awaiting Payment";
+  if (!requestFullyApproved(r)) return "AWAITING APPROVAL";
+  if (!r.receipt) return "AWAITING RECEIPT";
+  return "AWAITING PAYMENT";
 };
 
 /** A request is closed when it can no longer move forward. */

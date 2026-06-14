@@ -717,6 +717,31 @@ export const auditTrail = query({
   },
 });
 
+/** Resolves a display name for an approver email: profile first, directory fallback. */
+async function resolveApproverName(
+  ctx: QueryCtx,
+  email: string,
+  year: number
+): Promise<string | null> {
+  const profile = await getProfile(ctx, email, year);
+  if (profile?.name) return profile.name;
+  const dirUser = await ctx.db
+    .query("directoryUsers")
+    .withIndex("by_email", (q) => q.eq("email", email))
+    .unique();
+  return dirUser?.name ?? null;
+}
+
+/** Builds a step→email map from an Approvers record. */
+function approverEmailMap(approvers: Approvers): Record<Step, string | undefined> {
+  return {
+    hod: approvers.hodEmail,
+    budgetManager: approvers.budgetManagerEmail,
+    director: approvers.directorEmail,
+    financeHead: approvers.financeHeadEmail,
+  };
+}
+
 /**
  * Info about a single approval step: who owns it, their name, and any
  * audit events recorded for that step (approved / declined / auto-approved).
@@ -728,25 +753,8 @@ export const stepInfo = query({
     const request = await ctx.db.get("requests", args.requestId);
     if (!request) return null;
     const approvers = await getApprovers(ctx, request.year, request.department);
-    const emailMap: Record<string, string | undefined> = {
-      hod: approvers.hodEmail,
-      budgetManager: approvers.budgetManagerEmail,
-      director: approvers.directorEmail,
-      financeHead: approvers.financeHeadEmail,
-    };
-    const email = emailMap[args.step] ?? null;
-    let name: string | null = null;
-    if (email) {
-      const profile = await getProfile(ctx, email, request.year);
-      name = profile?.name ?? null;
-      if (!name) {
-        const dirUser = await ctx.db
-          .query("directoryUsers")
-          .withIndex("by_email", (q) => q.eq("email", email))
-          .unique();
-        name = dirUser?.name ?? null;
-      }
-    }
+    const email = approverEmailMap(approvers)[args.step] ?? null;
+    const name = email ? await resolveApproverName(ctx, email, request.year) : null;
     const allEvents = await ctx.db
       .query("requestEvents")
       .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
@@ -755,6 +763,53 @@ export const stepInfo = query({
       .filter((e) => e.step === args.step)
       .map((e) => ({ at: e._creationTime, action: e.action, detail: e.detail ?? null }));
     return { email, name, events };
+  },
+});
+
+/**
+ * Names + action timestamps for all approval steps on one request.
+ * Loaded once per card so the stepper can show who each approver is
+ * and when they acted without separate per-step queries.
+ */
+export const stepActors = query({
+  args: { requestId: v.id("requests") },
+  handler: async (ctx, args) => {
+    if (!(await optionalProfile(ctx))) return null;
+    const request = await ctx.db.get("requests", args.requestId);
+    if (!request) return null;
+    const approvers = await getApprovers(ctx, request.year, request.department);
+    const emailMap = approverEmailMap(approvers);
+    const allEvents = await ctx.db
+      .query("requestEvents")
+      .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
+      .take(200);
+    const result: Record<
+      string,
+      { name: string | null; email: string | null; actedAt: number | null }
+    > = {};
+    for (const step of [
+      "hod",
+      "budgetManager",
+      "director",
+      "financeHead",
+    ] as const) {
+      const email = emailMap[step] ?? null;
+      const name = email ? await resolveApproverName(ctx, email, request.year) : null;
+      const stepEvent = allEvents
+        .filter(
+          (e) =>
+            e.step === step &&
+            (e.action === "approved" ||
+              e.action === "declined" ||
+              e.action === "auto-approved")
+        )
+        .sort((a, b) => b._creationTime - a._creationTime)[0];
+      result[step] = { name, email, actedAt: stepEvent?._creationTime ?? null };
+    }
+    return result as Record<
+      Step,
+      { name: string | null; email: string | null; actedAt: number | null }
+    >;
   },
 });
 

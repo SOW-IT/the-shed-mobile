@@ -1,14 +1,17 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import * as DocumentPicker from "expo-document-picker";
 import { useEffect, useState } from "react";
-import { Alert, Platform, View } from "react-native";
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import {
+  DIRECTOR_APPROVAL_THRESHOLD,
   requestCompleted,
   requestDeclined,
   requestFullyApproved,
 } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { Doc, Id } from "../../convex/_generated/dataModel";
+import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { RequestCard } from "@/components/RequestCard";
 import {
   Btn,
@@ -57,6 +60,71 @@ export type RequestPrefill = {
   department: string;
 };
 
+const GUIDE_STEPS = [
+  {
+    icon: "create-outline" as const,
+    title: "Submit your request",
+    detail: "Enter what you need reimbursed, the amount, and the department to charge.",
+  },
+  {
+    icon: "person-outline" as const,
+    title: "HOD approval",
+    detail: "Your Head of Department reviews and approves the request.",
+  },
+  {
+    icon: "wallet-outline" as const,
+    title: "Budget Manager approval",
+    detail: "The Budget Manager checks available funds and signs off.",
+  },
+  {
+    icon: "shield-checkmark-outline" as const,
+    title: `Director approval (≥ $${DIRECTOR_APPROVAL_THRESHOLD.toLocaleString()})`,
+    detail: `Requests at or above $${DIRECTOR_APPROVAL_THRESHOLD.toLocaleString()} also need Director sign-off.`,
+  },
+  {
+    icon: "checkmark-circle-outline" as const,
+    title: "Finance Head approval",
+    detail: "The Finance Head gives final approval.",
+  },
+  {
+    icon: "receipt-outline" as const,
+    title: "Submit your receipt",
+    detail: "Once fully approved, upload your receipt and provide bank account details.",
+  },
+  {
+    icon: "cash-outline" as const,
+    title: "Payment",
+    detail: "Finance transfers the amount to your account and marks the request as Paid.",
+  },
+];
+
+const GuideSheet = ({
+  visible,
+  onClose,
+}: {
+  visible: boolean;
+  onClose: () => void;
+}) => {
+  const t = useAppTheme();
+  return (
+    <Sheet visible={visible} onClose={onClose} title="How to submit a request">
+      {GUIDE_STEPS.map((step, i) => (
+        <View key={i} style={styles.guideStep}>
+          <View style={[styles.guideIconWrap, { backgroundColor: t.primarySoft }]}>
+            <Ionicons name={step.icon} size={18} color={t.primary} />
+          </View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={[typography.caption, { color: t.text, fontWeight: "700" }]}>
+              {step.title}
+            </Text>
+            <Text style={[typography.caption, { color: t.muted }]}>{step.detail}</Text>
+          </View>
+        </View>
+      ))}
+    </Sheet>
+  );
+};
+
 const NewRequestSheet = ({
   visible,
   onClose,
@@ -71,11 +139,13 @@ const NewRequestSheet = ({
   /** Set when resubmitting a declined request — pre-fills the form. */
   prefill: RequestPrefill | null;
 }) => {
+  const t = useAppTheme();
   const submit = useMutation(api.requests.submit);
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [department, setDepartment] = useState(defaultDepartment);
   const [error, setError] = useState<string | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
 
   // Re-initialise the form each time it opens (blank, or from the prefill).
   useEffect(() => {
@@ -98,32 +168,44 @@ const NewRequestSheet = ({
   };
 
   return (
-    <Sheet visible={visible} onClose={onClose} scrollable={false} title="New Request">
-      <Field
-        label="Description"
-        value={description}
-        onChangeText={setDescription}
-        placeholder="What is this for?"
-        multiline
-      />
-      <Field
-        label="Amount ($)"
-        value={amount}
-        onChangeText={(text) => setAmount(currencyText(text))}
-        placeholder="0.00"
-        keyboardType="numeric"
-      />
-      <Select
-        label="Department (you can submit on behalf of another department)"
-        value={department}
-        options={departments}
-        onSelect={setDepartment}
-      />
-      <Muted>Requests of $5,000 or more also require Director approval.</Muted>
-      <ErrorBanner message={error} />
-      <Btn title="Submit Request" onPress={handleSubmit} />
-      <Btn title="Cancel" variant="ghost" onPress={onClose} />
-    </Sheet>
+    <>
+      <Sheet visible={visible} onClose={onClose} title="New Request">
+        <Pressable
+          style={({ pressed }) => [styles.infoRow, pressed && { opacity: 0.6 }]}
+          onPress={() => setShowGuide(true)}
+        >
+          <Ionicons name="information-circle-outline" size={17} color={t.primary} />
+          <Text style={[typography.caption, { color: t.primary, fontWeight: "600" }]}>
+            How does this work?
+          </Text>
+        </Pressable>
+        <Field
+          label="Description"
+          value={description}
+          onChangeText={setDescription}
+          placeholder="What is this for?"
+          multiline
+        />
+        <Field
+          label="Amount ($)"
+          value={amount}
+          onChangeText={(text) => setAmount(currencyText(text))}
+          placeholder="0.00"
+          keyboardType="numeric"
+        />
+        <Select
+          label="Department"
+          value={department}
+          options={departments}
+          onSelect={setDepartment}
+        />
+        <Muted>{`Requests of $${DIRECTOR_APPROVAL_THRESHOLD.toLocaleString()} or more also require Director approval.`}</Muted>
+        <ErrorBanner message={error} />
+        <Btn title="Submit Request" onPress={handleSubmit} />
+        <Btn title="Cancel" variant="ghost" onPress={onClose} />
+      </Sheet>
+      <GuideSheet visible={showGuide} onClose={() => setShowGuide(false)} />
+    </>
   );
 };
 
@@ -389,36 +471,49 @@ export const MyRequests = ({
           message="Tap “Make Request” below to submit your first one."
         />
       ) : (
-        requests.map((request, index) => (
-          <FadeInView key={request._id} delay={stagger(index)}>
-            <RequestCard
-              request={request}
-              onCancel={
-                !requestCompleted(request)
-                  ? () =>
-                      confirmAction(
-                        "Cancel request",
-                        `Cancel your $${request.amount} request ("${request.description}")? It will be deleted along with its approvals — this can't be undone.`,
-                        "Cancel Request",
-                        () => void handleCancel(request._id),
-                        true
-                      )
-                  : undefined
-              }
-            >
-              {requestFullyApproved(request) && !request.receipt && (
-                <Btn
-                  title="Submit Receipt"
-                  variant="success"
-                  onPress={() => setReceiptFor(request)}
-                />
-              )}
-              {requestDeclined(request) && (
-                <Btn title="Resubmit" onPress={() => resubmit(request)} />
-              )}
-            </RequestCard>
-          </FadeInView>
-        ))
+        [...requests]
+          .sort((a, b) => {
+            // Requests needing action (submit receipt or resubmit after decline) float up
+            const needsAction = (r: typeof a) =>
+              (requestFullyApproved(r) && !r.receipt) || requestDeclined(r) ? 0 : 1;
+            const diff = needsAction(a) - needsAction(b);
+            if (diff !== 0) return diff;
+            return b._creationTime - a._creationTime;
+          })
+          .map((request, index) => {
+            const needsReceipt = requestFullyApproved(request) && !request.receipt;
+            return (
+              <FadeInView key={request._id} delay={stagger(index)}>
+                <RequestCard
+                  request={request}
+                  actionRequired={needsReceipt}
+                  onCancel={
+                    !requestCompleted(request)
+                      ? () =>
+                          confirmAction(
+                            "Cancel request",
+                            `Cancel your $${request.amount} request ("${request.description}")? It will be deleted along with its approvals — this can't be undone.`,
+                            "Cancel Request",
+                            () => void handleCancel(request._id),
+                            true
+                          )
+                      : undefined
+                  }
+                >
+                  {needsReceipt && (
+                    <Btn
+                      title="Submit Receipt"
+                      variant="success"
+                      onPress={() => setReceiptFor(request)}
+                    />
+                  )}
+                  {requestDeclined(request) && (
+                    <Btn title="Resubmit" onPress={() => resubmit(request)} />
+                  )}
+                </RequestCard>
+              </FadeInView>
+            );
+          })
       )}
       <NewRequestSheet
         visible={newOpen}
@@ -431,3 +526,25 @@ export const MyRequests = ({
     </>
   );
 };
+
+const styles = StyleSheet.create({
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    alignSelf: "flex-start",
+  },
+  guideStep: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.md,
+  },
+  guideIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+});
