@@ -13,15 +13,18 @@ export async function rememberBankAccount(
   email: string,
   account: { accountName: string; bsb: string; accountNumber: string }
 ): Promise<void> {
+  // Canonicalise the owner key and account fields so case/whitespace
+  // differences can't split one logical account into duplicate rows.
+  const ownerEmail = email.trim().toLowerCase();
   const accountName = account.accountName.trim();
-  const existing = (
-    await ctx.db
-      .query("savedBankAccounts")
-      .withIndex("by_email", (q) => q.eq("email", email))
-      .take(100)
-  ).find(
-    (a) => a.bsb === account.bsb && a.accountNumber === account.accountNumber
-  );
+  const bsb = account.bsb.trim();
+  const accountNumber = account.accountNumber.trim();
+  const existing = await ctx.db
+    .query("savedBankAccounts")
+    .withIndex("by_email_bsb_accountNumber", (q) =>
+      q.eq("email", ownerEmail).eq("bsb", bsb).eq("accountNumber", accountNumber)
+    )
+    .unique();
   if (existing) {
     await ctx.db.patch("savedBankAccounts", existing._id, {
       accountName,
@@ -30,10 +33,10 @@ export async function rememberBankAccount(
     return;
   }
   await ctx.db.insert("savedBankAccounts", {
-    email,
+    email: ownerEmail,
     accountName,
-    bsb: account.bsb,
-    accountNumber: account.accountNumber,
+    bsb,
+    accountNumber,
     lastUsedAt: Date.now(),
   });
 }

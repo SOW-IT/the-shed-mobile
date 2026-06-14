@@ -263,6 +263,9 @@ const SavedAccountPicker = ({
             </Pressable>
             <Pressable
               hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={`Forget saved account ${account.accountName}`}
+              accessibilityHint="Removes this saved account"
               style={({ pressed }) => [styles.savedChipForget, pressed && { opacity: 0.6 }]}
               onPress={() => onForget(account.id)}
             >
@@ -421,7 +424,9 @@ const ReceiptSheet = ({
                 accountNumber: account.accountNumber,
               })
             }
-            onForget={(id) => void forgetAccount({ id })}
+            onForget={(id) =>
+              void forgetAccount({ id }).catch((e) => setError(errorMessage(e)))
+            }
           />
           <Field
             label="Account name"
