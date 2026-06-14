@@ -167,6 +167,33 @@ export const unreadTotalForRequests = query({
   },
 });
 
+/**
+ * Total unread comments the caller has across all their own requests.
+ * Used for the tab-level unread indicator in the navigation bar.
+ */
+export const myUnreadTotal = query({
+  args: {},
+  handler: async (ctx) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return 0;
+    const { email, year } = caller;
+    const fetch = (y: number) =>
+      ctx.db
+        .query("requests")
+        .withIndex("by_year_and_requester", (q) =>
+          q.eq("year", y).eq("requesterEmail", email)
+        )
+        .take(200);
+    const current = await fetch(year);
+    const prev = await fetch(year - 1);
+    let total = 0;
+    for (const req of [...current, ...prev]) {
+      total += await unreadCountFor(ctx, req._id, email);
+    }
+    return total;
+  },
+});
+
 /** Marks the caller as having read this request's comments up to now. */
 export const markRead = mutation({
   args: { requestId: v.id("requests") },

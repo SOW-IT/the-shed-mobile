@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { acronym, staffYearForDate } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
+import { Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "../theme";
 import {
   Avatar,
@@ -23,6 +24,88 @@ import {
   stagger,
   Txt,
 } from "./ui";
+
+const maskAccount = (accountNumber: string) =>
+  accountNumber.length > 4 ? `••${accountNumber.slice(-4)}` : accountNumber;
+
+/** Payment details management: saved bank accounts with preferred toggle and delete. */
+const PaymentDetails = () => {
+  const t = useAppTheme();
+  const savedAccounts = useQuery(api.bankAccounts.listMine, {});
+  const setPreferred = useMutation(api.bankAccounts.setPreferred);
+  const removeAccount = useMutation(api.bankAccounts.remove);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!savedAccounts || savedAccounts.length === 0) {
+    return (
+      <Card>
+        <Muted>No saved bank accounts yet. Submit a receipt to save one.</Muted>
+      </Card>
+    );
+  }
+
+  const confirmDelete = (id: Id<"savedBankAccounts">, name: string) => {
+    if (Platform.OS === "web") {
+      if (window.confirm(`Delete saved account "${name}"?`)) {
+        void removeAccount({ id }).catch((e) => setError(errorMessage(e)));
+      }
+      return;
+    }
+    Alert.alert("Delete account", `Delete saved account "${name}"?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () =>
+          void removeAccount({ id }).catch((e) => setError(errorMessage(e))),
+      },
+    ]);
+  };
+
+  return (
+    <>
+      <ErrorBanner message={error} />
+      {savedAccounts.map((account) => (
+        <Card key={account.id} style={styles.paymentCard}>
+          <View style={styles.paymentRow}>
+            <Pressable
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={account.preferred ? "Preferred account" : "Set as preferred"}
+              onPress={() =>
+                !account.preferred &&
+                void setPreferred({ id: account.id }).catch((e) => setError(errorMessage(e)))
+              }
+              style={({ pressed }) => [pressed && { opacity: 0.6 }]}
+            >
+              <Ionicons
+                name={account.preferred ? "star" : "star-outline"}
+                size={20}
+                color={account.preferred ? t.accent : t.faint}
+              />
+            </Pressable>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Txt style={{ fontWeight: "700" }}>{account.accountName}</Txt>
+              <Muted>BSB {account.bsb} · {maskAccount(account.accountNumber)}</Muted>
+            </View>
+            <Pressable
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={`Delete ${account.accountName}`}
+              onPress={() => confirmDelete(account.id, account.accountName)}
+              style={({ pressed }) => [pressed && { opacity: 0.6 }]}
+            >
+              <Ionicons name="trash-outline" size={18} color={t.danger} />
+            </Pressable>
+          </View>
+          {account.preferred && savedAccounts.length > 1 && (
+            <Muted>This account is auto-filled when you submit a receipt.</Muted>
+          )}
+        </Card>
+      ))}
+    </>
+  );
+};
 
 /**
  * A person's profile. Church and photo are editable on your own profile;
@@ -165,6 +248,13 @@ export const ProfileView = ({ email }: { email?: string }) => {
         </FadeInView>
       )}
 
+      {profile.isMe && (
+        <>
+          <SectionTitle>Payment Details</SectionTitle>
+          <PaymentDetails />
+        </>
+      )}
+
       <SectionTitle>Service History</SectionTitle>
       {profile.serviceHistory.length === 0 ? (
         <Muted>No service history yet.</Muted>
@@ -258,4 +348,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   yearBadgeText: { fontSize: 14, fontWeight: "800", letterSpacing: -0.3 },
+  paymentCard: { gap: spacing.xs },
+  paymentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
 });

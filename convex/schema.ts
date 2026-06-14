@@ -119,6 +119,7 @@ export default defineSchema({
     bsb: v.string(),
     accountNumber: v.string(),
     lastUsedAt: v.number(), // for most-recent-first ordering in the picker
+    preferred: v.optional(v.boolean()), // exactly one per user should be true
   })
     .index("by_email", ["email"])
     // Exact lookup for dedupe on re-use (one row per owner+account).

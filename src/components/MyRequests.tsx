@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import * as DocumentPicker from "expo-document-picker";
 import { useEffect, useState } from "react";
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Platform, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import {
   DIRECTOR_APPROVAL_THRESHOLD,
   requestCompleted,
@@ -206,6 +206,7 @@ type DraftRecipient = {
   accountNumber: string;
   amount: string;
   files: DraftFile[];
+  saveAccount: boolean;
 };
 const emptyRecipient = (): DraftRecipient => ({
   accountName: "",
@@ -213,6 +214,7 @@ const emptyRecipient = (): DraftRecipient => ({
   accountNumber: "",
   amount: "",
   files: [],
+  saveAccount: true,
 });
 
 type SavedAccount = {
@@ -220,6 +222,7 @@ type SavedAccount = {
   accountName: string;
   bsb: string;
   accountNumber: string;
+  preferred: boolean;
 };
 
 /** Shows the last 4 digits of an account number behind a mask. */
@@ -279,6 +282,41 @@ const SavedAccountPicker = ({
   );
 };
 
+/** Shows a "Save for future use" toggle only when the account isn't already saved. */
+const SaveAccountToggle = ({
+  recipient,
+  savedAccounts,
+  onToggle,
+}: {
+  recipient: DraftRecipient;
+  savedAccounts: SavedAccount[];
+  onToggle: (save: boolean) => void;
+}) => {
+  const t = useAppTheme();
+  // Don't show if bsb+accountNumber is already in saved list.
+  const alreadySaved =
+    recipient.bsb &&
+    recipient.accountNumber &&
+    savedAccounts.some(
+      (a) => a.bsb === recipient.bsb && a.accountNumber === recipient.accountNumber
+    );
+  if (alreadySaved) return null;
+  if (!recipient.bsb && !recipient.accountNumber) return null;
+  return (
+    <View style={styles.saveToggleRow}>
+      <Text style={[{ color: t.text, fontSize: 14, flex: 1 }]}>
+        Save account details for future use
+      </Text>
+      <Switch
+        value={recipient.saveAccount}
+        onValueChange={onToggle}
+        trackColor={{ false: t.ghost, true: t.primarySoft }}
+        thumbColor={recipient.saveAccount ? t.primary : t.faint}
+      />
+    </View>
+  );
+};
+
 const ReceiptSheet = ({
   request,
   onClose,
@@ -293,6 +331,31 @@ const ReceiptSheet = ({
   const [recipients, setRecipients] = useState<DraftRecipient[]>([emptyRecipient()]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Auto-fill first recipient from preferred account when the sheet opens or
+  // when savedAccounts finish loading for the first time while the sheet is open.
+  useEffect(() => {
+    if (!request || !savedAccounts || savedAccounts.length === 0) return;
+    // Only auto-fill if the recipient form is still in default empty state.
+    const [first] = recipients;
+    const isDefault =
+      recipients.length === 1 &&
+      first.accountName === "" &&
+      first.bsb === "" &&
+      first.accountNumber === "";
+    if (!isDefault) return;
+    const preferred = savedAccounts.find((a) => a.preferred) ?? savedAccounts[0];
+    setRecipients([{
+      accountName: preferred.accountName,
+      bsb: preferred.bsb,
+      accountNumber: preferred.accountNumber,
+      amount: "",
+      files: [],
+      saveAccount: false, // already saved
+    }]);
+  // recipients intentionally excluded — only need to check on sheet open and accounts load
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request?._id, savedAccounts]);
 
   const updateRecipient = (index: number, patch: Partial<DraftRecipient>) =>
     setRecipients((previous) =>
@@ -350,6 +413,7 @@ const ReceiptSheet = ({
           bsb: recipient.bsb,
           accountNumber: recipient.accountNumber,
           amount: Number(recipient.amount),
+          saveAccount: recipient.saveAccount,
           attachments: recipient.files,
         })),
       });
@@ -476,6 +540,11 @@ const ReceiptSheet = ({
             onPress={() => void attachFiles(index)}
             disabled={uploading}
           />
+          <SaveAccountToggle
+            recipient={recipient}
+            savedAccounts={savedAccounts ?? []}
+            onToggle={(saveAccount) => updateRecipient(index, { saveAccount })}
+          />
         </View>
       ))}
       <Btn
@@ -511,6 +580,7 @@ export const MyRequests = ({
   const t = useAppTheme();
   const requests = useQuery(api.requests.myRequests, {});
   const cancel = useMutation(api.requests.cancel);
+  const deleteDeclined = useMutation(api.requests.deleteDeclined);
   const [receiptFor, setReceiptFor] = useState<Doc<"requests"> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -526,6 +596,15 @@ export const MyRequests = ({
     setError(null);
     try {
       await cancel({ requestId });
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
+  const handleDeleteDeclined = async (requestId: Id<"requests">) => {
+    setError(null);
+    try {
+      await deleteDeclined({ requestId });
     } catch (e) {
       setError(errorMessage(e));
     }
@@ -560,7 +639,16 @@ export const MyRequests = ({
                   request={request}
                   actionRequired={needsReceipt}
                   onCancel={
-                    !requestCompleted(request)
+                    requestDeclined(request)
+                      ? () =>
+                          confirmAction(
+                            "Delete request",
+                            `Delete this declined $${request.amount} request ("${request.description}")? This can't be undone.`,
+                            "Delete",
+                            () => void handleDeleteDeclined(request._id),
+                            true
+                          )
+                      : !requestCompleted(request)
                       ? () =>
                           confirmAction(
                             "Cancel request",
@@ -644,5 +732,10 @@ const styles = StyleSheet.create({
   },
   savedChipForget: {
     paddingLeft: 2,
+  },
+  saveToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
 });

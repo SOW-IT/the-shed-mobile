@@ -73,32 +73,10 @@ export default function RequestsScreen() {
     (r) => requestFullyApproved(r) && !r.receipt
   ).length;
 
-  // Fold unread comments into the segment badges: each unread comment adds one.
-  const mineIds = (myRequests ?? []).map((r) => r._id);
-  const reviewIds = review
-    ? [
-        ...review.hod,
-        ...review.budgetManager,
-        ...review.director,
-        ...review.financeHead,
-        ...review.readyToPay,
-      ].map((r) => r._id)
-    : [];
-  const mineUnread =
-    useQuery(
-      api.comments.unreadTotalForRequests,
-      me?.profile ? { requestIds: mineIds } : "skip"
-    ) ?? 0;
-  const reviewUnread =
-    useQuery(
-      api.comments.unreadTotalForRequests,
-      me?.profile && me.isApprover ? { requestIds: reviewIds } : "skip"
-    ) ?? 0;
-
   const segments = [
-    { key: "mine", label: "Mine", badge: mineCount + mineUnread },
+    { key: "mine", label: "Mine", badge: mineCount > 0 ? mineCount : undefined },
     ...(me?.isApprover
-      ? [{ key: "review", label: "To Review", badge: reviewCount + reviewUnread }]
+      ? [{ key: "review", label: "To Review", badge: reviewCount > 0 ? reviewCount : undefined }]
       : []),
     ...(me?.isFinance ? [{ key: "all", label: "All" }] : []),
   ];
