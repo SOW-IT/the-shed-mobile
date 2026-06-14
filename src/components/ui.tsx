@@ -349,28 +349,51 @@ export const Btn = ({
   );
 };
 
-/** Small round icon-only button for inline card actions. */
+/**
+ * Small round icon-only button for inline card actions. Optionally tinted
+ * (`bg`/`color`), resizable, and able to show a small count badge.
+ */
 export const IconButton = ({
   name,
   onPress,
   color,
+  bg,
+  size = 34,
+  badge,
+  accessibilityLabel,
+  disabled,
 }: {
   name: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
   color?: string;
+  bg?: string;
+  size?: number;
+  /** A count shown as a badge on the top-right corner (hidden when 0). */
+  badge?: number;
+  accessibilityLabel?: string;
+  disabled?: boolean;
 }) => {
   const t = useAppTheme();
   return (
     <Pressable
       hitSlop={8}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       onPress={() => { hapticSelect(); onPress(); }}
       style={({ pressed }) => [
         styles.iconButton,
-        { backgroundColor: t.ghost },
+        { width: size, height: size, backgroundColor: bg ?? t.ghost },
+        disabled && { opacity: 0.5 },
         pressed && { opacity: 0.6 },
       ]}
     >
-      <Ionicons name={name} size={17} color={color ?? t.ghostText} />
+      <Ionicons name={name} size={Math.round(size * 0.5)} color={color ?? t.ghostText} />
+      {badge != null && badge > 0 ? (
+        <View style={[styles.iconBadge, { backgroundColor: t.accent }]}>
+          <Text style={styles.iconBadgeText}>{badge > 99 ? "99+" : badge}</Text>
+        </View>
+      ) : null}
     </Pressable>
   );
 };
@@ -915,6 +938,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  iconBadge: {
+    position: "absolute",
+    top: -3,
+    right: -3,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconBadgeText: { color: "#ffffff", fontSize: 10, fontWeight: "800" },
   field: { gap: 6 },
   input: {
     borderRadius: radius.md,

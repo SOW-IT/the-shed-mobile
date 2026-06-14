@@ -124,6 +124,33 @@ export default defineSchema({
     // Exact lookup for dedupe on re-use (one row per owner+account).
     .index("by_email_bsb_accountNumber", ["email", "bsb", "accountNumber"]),
 
+  // A clarification thread on a request: free-text comments by any signed-in
+  // staff member, newest read tracked per user for unread badges. Deleted with
+  // their request on cancellation.
+  requestComments: defineTable({
+    requestId: v.id("requests"),
+    authorEmail: v.string(), // lowercase
+    body: v.string(),
+  }).index("by_request", ["requestId"]),
+
+  // Emoji reactions on a comment; one row per (comment, user, emoji) so a tap
+  // toggles. Deleted with their comment / request.
+  commentReactions: defineTable({
+    commentId: v.id("requestComments"),
+    userEmail: v.string(), // lowercase
+    emoji: v.string(),
+  })
+    .index("by_comment", ["commentId"])
+    .index("by_comment_user_emoji", ["commentId", "userEmail", "emoji"]),
+
+  // Per-user "last read the comments of this request at" marker, for the
+  // unread-count badge on each card's comment bubble.
+  commentReads: defineTable({
+    requestId: v.id("requests"),
+    userEmail: v.string(), // lowercase
+    lastReadAt: v.number(),
+  }).index("by_request_and_user", ["requestId", "userEmail"]),
+
   // Immutable audit trail: who actioned each step of a request, and when
   // (_creationTime). Events are deleted only when their request is cancelled.
   requestEvents: defineTable({

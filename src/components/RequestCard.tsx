@@ -17,7 +17,8 @@ import {
 import { api } from "../../convex/_generated/api";
 import { Doc, Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "../theme";
-import { Btn, Card, Muted, Row, Sheet, Txt } from "./ui";
+import { Card, IconButton, Muted, Row, Sheet, Txt } from "./ui";
+import { CommentsSheet } from "./CommentsSheet";
 
 const timeAgo = (ms: number): string => {
   const secs = Math.floor((Date.now() - ms) / 1000);
@@ -317,10 +318,14 @@ export const RequestCard = ({
 }) => {
   const t = useAppTheme();
   const [showHistory, setShowHistory] = useState(false);
+  const [showComments, setShowComments] = useState(false);
   const requesterName = useQuery(
     api.directory.nameForEmail,
     showRequester ? { email: request.requesterEmail } : "skip"
   );
+  const unreadComments = useQuery(api.comments.unreadCount, {
+    requestId: request._id,
+  });
   const status = requestDisplayStatus(request);
 
   return (
@@ -372,12 +377,27 @@ export const RequestCard = ({
       <View style={[styles.actionsDivider, { backgroundColor: t.separator }]} />
       <View style={styles.actionsRow}>
         <View style={styles.actionsLeft}>{children}</View>
-        <Btn
-          title={showHistory ? "Hide Audit Trail" : "Audit Trail"}
-          variant="ghost"
-          onPress={() => setShowHistory((previous) => !previous)}
-        />
+        <View style={styles.actionsRight}>
+          <IconButton
+            name="receipt-outline"
+            accessibilityLabel={showHistory ? "Hide audit trail" : "Show audit trail"}
+            color={showHistory ? t.primary : t.ghostText}
+            bg={showHistory ? t.primarySoft : undefined}
+            onPress={() => setShowHistory((previous) => !previous)}
+          />
+          <IconButton
+            name="chatbubble-ellipses-outline"
+            accessibilityLabel="Comments"
+            badge={unreadComments ?? 0}
+            onPress={() => setShowComments(true)}
+          />
+        </View>
       </View>
+      <CommentsSheet
+        request={request}
+        visible={showComments}
+        onClose={() => setShowComments(false)}
+      />
     </Card>
   );
 };
@@ -439,12 +459,17 @@ const styles = StyleSheet.create({
   },
   fileLink: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 2 },
   actionsDivider: { height: StyleSheet.hairlineWidth, marginVertical: 2 },
-  actionsRow: { flexDirection: "row", alignItems: "center" },
+  actionsRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   actionsLeft: {
     flex: 1,
     flexDirection: "row",
     gap: spacing.sm,
     flexWrap: "wrap",
     alignItems: "center",
+  },
+  actionsRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
   },
 });

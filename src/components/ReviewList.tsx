@@ -14,6 +14,7 @@ import {
   errorMessage,
   FadeInView,
   Field,
+  IconButton,
   LoadingState,
   Muted,
   SectionTitle,
@@ -144,6 +145,7 @@ const SECTIONS: { key: Exclude<Step, never>; title: string }[] = [
 
 /** Requests waiting on the signed-in approver, grouped by step. */
 export const ReviewList = () => {
+  const t = useAppTheme();
   const data = useQuery(api.requests.toReview, {});
   const approve = useMutation(api.requests.approve);
   const [declineTarget, setDeclineTarget] = useState<{
@@ -192,14 +194,18 @@ export const ReviewList = () => {
                 {data[key].map((request, index) => (
                   <FadeInView key={request._id} delay={stagger(index)}>
                     <RequestCard request={request} showRequester actionRequired>
-                      <Btn
-                        title="Approve"
-                        variant="success"
+                      <IconButton
+                        name="checkmark"
+                        bg={t.successSoft}
+                        color={t.success}
+                        accessibilityLabel="Approve"
                         onPress={() => void handleApprove(request, key)}
                       />
-                      <Btn
-                        title="Decline"
-                        variant="danger"
+                      <IconButton
+                        name="close"
+                        bg={t.dangerSoft}
+                        color={t.danger}
+                        accessibilityLabel="Decline"
                         onPress={() => setDeclineTarget({ request, step: key })}
                       />
                     </RequestCard>
@@ -214,9 +220,11 @@ export const ReviewList = () => {
               {data.readyToPay.map((request, index) => (
                 <FadeInView key={request._id} delay={stagger(index)}>
                   <RequestCard request={request} showRequester actionRequired>
-                    <Btn
-                      title="Pay"
-                      variant="success"
+                    <IconButton
+                      name="cash-outline"
+                      bg={t.successSoft}
+                      color={t.success}
+                      accessibilityLabel="Mark as paid"
                       onPress={() => setPayTarget(request)}
                     />
                   </RequestCard>
