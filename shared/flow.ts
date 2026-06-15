@@ -82,7 +82,7 @@ export const acronym = (name: string): string => DISPLAY_ACRONYMS[name] ?? name;
 
 /** Roles that take a department; the exceptions belong elsewhere. */
 export const roleNeedsDepartment = (role: string): boolean =>
-  role !== HEAD_OF_DIVISION && role !== MEMBER && !roleNeedsUniversity(role);
+  role !== HEAD_OF_DIVISION && role !== MEMBER && role !== DIRECTOR && !roleNeedsUniversity(role);
 
 // ---------------------------------------------------------------------------
 // Per-role scope links (assignments)
@@ -130,8 +130,8 @@ export const scopeKindFor = (role: string): ScopeKind => {
   if (role === HEAD_OF_DIVISION) return "division";
   if (isChaplainRole(role)) return "department";
   if (roleNeedsUniversity(role)) return "university";
-  if (role === MEMBER) return "none";
-  return "department"; // Staff, HOD, Director, Outsource
+  if (role === MEMBER || role === DIRECTOR) return "none";
+  return "department"; // Staff, HOD, Outsource
 };
 
 /**

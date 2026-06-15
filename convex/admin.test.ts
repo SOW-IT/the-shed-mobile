@@ -161,24 +161,37 @@ describe("setStaffProfile validation", () => {
     expect(fiona.roles).toContain("Head of Department");
   });
 
+  test("Director can be assigned without any department or scope", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "director@sow.org.au",
+      year: YEAR,
+      roles: ["Director"],
+    });
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const director = profiles.find((p) => p.email === "director@sow.org.au")!;
+    expect(director.roles).toEqual(["Director"]);
+    expect(director.department).toBeUndefined();
+  });
+
   test("only one Director per year; re-saving the same Director is fine", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
+    // Director has no required scope — no department needed.
     await admin.mutation(api.admin.setStaffProfile, {
       email: "first@sow.org.au",
       year: YEAR,
       roles: ["Director"],
-      department: "Finance",
     });
     await expect(
       admin.mutation(api.admin.setStaffProfile, {
         email: "second@sow.org.au",
         year: YEAR,
         roles: ["Director"],
-        department: "Finance",
       })
     ).rejects.toThrow(/already the Director/);
-    // Re-saving the same Director (adding another role) must not throw.
+    // Re-saving the same Director (adding Staff for a department) must not throw.
     await admin.mutation(api.admin.setStaffProfile, {
       email: "first@sow.org.au",
       year: YEAR,
