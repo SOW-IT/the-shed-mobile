@@ -22,6 +22,7 @@ import {
   ROLES,
   roleNeedsDepartment,
   roleNeedsUniversity,
+  scopeKindFor,
 } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { radius, typography, useAppTheme } from "@/theme";
@@ -196,9 +197,11 @@ const LockedAssignmentRow = ({
   totalCount: number;
 }) => {
   const t = useAppTheme();
+  const kind = scopeKindFor(a.role);
   const scopeLabel =
-    a.division ? "Division" : a.university ? "University" : a.department ? "Department" : null;
-  const scopeValue = a.division ?? a.university ?? a.department ?? null;
+    kind === "division" ? "Division" : kind === "university" ? "University" : kind === "department" ? "Department" : null;
+  const scopeValue =
+    kind === "division" ? (a.division ?? null) : kind === "university" ? (a.university ?? null) : kind === "department" ? (a.department ?? null) : null;
   return (
     <View style={{ backgroundColor: t.ghost, borderRadius: radius.md, padding: 12, gap: 8, opacity: 0.6 }}>
       <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
