@@ -57,10 +57,14 @@ export const get = query({
       .sort((a, b) => b.year - a.year);
 
     const anyProfile = serviceHistory.find((h) => h.name) ?? null;
+    const dirUser = await ctx.db
+      .query("directoryUsers")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .unique();
     return {
       email,
       isMe: email === callerEmail,
-      name: user?.name ?? anyProfile?.name ?? null,
+      name: user?.name ?? anyProfile?.name ?? dirUser?.name ?? null,
       photo: avatarUrl ?? user?.image ?? null,
       localChurch: user?.localChurch ?? null,
       serviceHistory: serviceHistory.map((h) => ({

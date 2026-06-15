@@ -50,8 +50,12 @@ export const me = query({
     const photo = user?.avatarId
       ? await ctx.storage.getUrl(user.avatarId)
       : (user?.image ?? null);
-    const name = user?.name ?? null;
     const profile = await getProfile(ctx, email, year);
+    const dirUser = await ctx.db
+      .query("directoryUsers")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .unique();
+    const name = user?.name ?? profile?.name ?? dirUser?.name ?? null;
     if (!profile) {
       return { email, year, name, photo, profile: null };
     }
@@ -161,6 +165,11 @@ export const orgChart = query({
       .withIndex("by_year", (q) => q.eq("year", year))
       .take(1000);
 
+    const directoryUsers = await ctx.db.query("directoryUsers").take(4000);
+    const directoryNameByEmail = new Map(
+      directoryUsers.map((u) => [u.email, u.name ?? null] as const)
+    );
+
     const nameByEmail: Record<string, string | null> = {};
     const photoByEmail: Record<string, string | null> = {};
     for (const profile of profiles) {
@@ -168,7 +177,8 @@ export const orgChart = query({
         .query("users")
         .withIndex("email", (q) => q.eq("email", profile.email))
         .first();
-      nameByEmail[profile.email] = user?.name ?? profile.name ?? null;
+      nameByEmail[profile.email] =
+        user?.name ?? profile.name ?? directoryNameByEmail.get(profile.email) ?? null;
       // A custom uploaded photo beats the Google default.
       photoByEmail[profile.email] = user?.avatarId
         ? await ctx.storage.getUrl(user.avatarId)

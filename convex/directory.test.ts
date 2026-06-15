@@ -175,3 +175,19 @@ describe("availableYears", () => {
     expect([...years].sort((a, b) => b - a)).toEqual(years);
   });
 });
+
+describe("orgChart", () => {
+  test("uses directory name as fallback when profile and user have no name", async () => {
+    const t = await setup();
+    // HENRY has a staff profile (head of Marketing) but no name anywhere.
+    // A directoryUsers entry should be used as the name fallback.
+    await t.run((ctx) =>
+      ctx.db.insert("directoryUsers", { email: HENRY, name: "Henry from Directory" })
+    );
+    const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
+    const marketing = chart.divisions
+      .flatMap((d) => d.departments)
+      .find((d) => d.name === "Marketing");
+    expect(marketing?.head?.name).toBe("Henry from Directory");
+  });
+});
