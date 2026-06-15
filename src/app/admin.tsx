@@ -7,9 +7,13 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Text,
   View,
 } from "react-native";
 import {
+  type Assignment,
+  departmentsOf,
+  divisionsOf,
   formatAssignment,
   HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
@@ -19,7 +23,7 @@ import {
   roleNeedsUniversity,
 } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
-import { radius, useAppTheme } from "@/theme";
+import { radius, typography, useAppTheme } from "@/theme";
 import {
   Btn,
   Card,
@@ -85,13 +89,16 @@ const AssignmentEditor = ({
   onChange,
   departments,
   universities,
+  startIndex = 0,
 }: {
   assignments: AssignmentDraft[];
   onChange: (a: AssignmentDraft[]) => void;
   departments: string[];
   universities: string[];
+  startIndex?: number;
 }) => {
   const t = useAppTheme();
+  const totalCount = startIndex + assignments.length;
   return (
     <View style={{ gap: 8 }}>
       {assignments.map((a, i) => {
@@ -116,7 +123,7 @@ const AssignmentEditor = ({
             <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
               <View style={{ flex: 1 }}>
                 <Select
-                  label={assignments.length > 1 ? `Assignment ${i + 1}` : "Role"}
+                  label={totalCount > 1 ? `Assignment ${startIndex + i + 1}` : "Role"}
                   value={a.role}
                   options={STAFF_EDITABLE_ROLES}
                   onSelect={(role) => update({ role, department: "", university: "" })}
@@ -168,6 +175,66 @@ const AssignmentEditor = ({
         variant="ghost"
         onPress={() => onChange([...assignments, emptyDraft()])}
       />
+    </View>
+  );
+};
+
+/** A read-only assignment row matching AssignmentEditor visually, for head roles locked to the Structure tab. */
+const LockedAssignmentRow = ({
+  a,
+  index,
+  totalCount,
+}: {
+  a: Assignment;
+  index: number;
+  totalCount: number;
+}) => {
+  const t = useAppTheme();
+  const scopeLabel =
+    a.division ? "Division" : a.university ? "University" : a.department ? "Department" : null;
+  const scopeValue = a.division ?? a.university ?? a.department ?? null;
+  return (
+    <View style={{ backgroundColor: t.ghost, borderRadius: radius.md, padding: 12, gap: 8, opacity: 0.6 }}>
+      <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
+        <View style={{ flex: 1, gap: 6 }}>
+          <Text style={[typography.label, { color: t.muted }]}>
+            {totalCount > 1 ? `Assignment ${index + 1}` : "Role"}
+          </Text>
+          <View
+            style={{
+              borderRadius: radius.md,
+              borderWidth: 1.5,
+              paddingHorizontal: 14,
+              minHeight: 46,
+              borderColor: "transparent",
+              backgroundColor: t.inputBackground,
+              flexDirection: "row",
+              alignItems: "center",
+            }}
+          >
+            <Text style={[typography.body, { color: t.text, flex: 1 }]}>{a.role}</Text>
+          </View>
+        </View>
+        <Ionicons name="lock-closed-outline" size={20} color={t.muted} style={{ marginBottom: 12 }} />
+      </View>
+      {scopeLabel && scopeValue && (
+        <View style={{ gap: 6 }}>
+          <Text style={[typography.label, { color: t.muted }]}>{scopeLabel}</Text>
+          <View
+            style={{
+              borderRadius: radius.md,
+              borderWidth: 1.5,
+              paddingHorizontal: 14,
+              minHeight: 46,
+              borderColor: "transparent",
+              backgroundColor: t.inputBackground,
+              justifyContent: "center",
+            }}
+          >
+            <Text style={[typography.body, { color: t.text }]}>{scopeValue}</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 };
@@ -271,6 +338,10 @@ export default function AdminScreen() {
   const [editingUserEmail, setEditingUserEmail] = useState<string | null>(null);
   const [editingAssignments, setEditingAssignments] = useState<AssignmentDraft[]>([emptyDraft()]);
   const [savingEditUser, setSavingEditUser] = useState(false);
+  // Inline assign state for unassigned user cards
+  const [assigningUserEmail, setAssigningUserEmail] = useState<string | null>(null);
+  const [assigningAssignments, setAssigningAssignments] = useState<AssignmentDraft[]>([emptyDraft()]);
+  const [savingAssign, setSavingAssign] = useState(false);
   // Inline editing state for division cards
   const [editingDivisionKey, setEditingDivisionKey] = useState<string | null>(null);
   const [editingDivisionFormName, setEditingDivisionFormName] = useState("");
@@ -300,6 +371,11 @@ export default function AdminScreen() {
     setEditingUserEmail(email);
   };
 
+  const startAssign = (email: string) => {
+    setAssigningAssignments([emptyDraft()]);
+    setAssigningUserEmail(email);
+  };
+
   if (me && !me.isAdmin) {
     return (
       <Screen>
@@ -311,16 +387,224 @@ export default function AdminScreen() {
   const addFormProfile = (profiles ?? []).find(
     (p) => p.email === staffEmail.trim().toLowerCase()
   );
-  const isAddFormHeadLocked = !!(
-    addFormProfile?.roles.includes(HEAD_OF_DEPARTMENT) ||
-    addFormProfile?.roles.includes(HEAD_OF_DIVISION)
+  const addFormLockedHeads = (addFormProfile?.assignments ?? []).filter(
+    (a) => a.role === HEAD_OF_DEPARTMENT || a.role === HEAD_OF_DIVISION
   );
+  const isAddFormHeadLocked = addFormLockedHeads.length > 0;
   const yearLabel = (y: number) =>
     y === currentYear
       ? `${y} (current)`
       : y === currentYear + 1
         ? `${y} (from Sep 1)`
         : `${y}`;
+
+  // Profiles grouped by division > department for the org-chart-style list.
+  const directoryOnlyUnassigned = (syncState?.users ?? []).filter(
+    (u) => !u.hasProfile && !unassignedEmails.has(u.email)
+  );
+  const groupedProfiles = (structure?.divisions ?? []).map((div) => {
+    const divDepts = (structure?.departments ?? []).filter((d) => d.division === div.name);
+    return {
+      division: div.name,
+      departments: divDepts
+        .map((dept) => ({
+          name: dept.name,
+          profiles: (profiles ?? []).filter((p) =>
+            (p.assignments ?? []).some((a) => a.department === dept.name)
+          ),
+        }))
+        .filter((d) => d.profiles.length > 0),
+      divisionOnlyProfiles: (profiles ?? []).filter((p) => {
+        const pdivs = divisionsOf(p);
+        const pdepts = departmentsOf(p);
+        return pdivs.includes(div.name) && pdepts.length === 0;
+      }),
+    };
+  });
+  const groupedEmails = new Set(
+    groupedProfiles.flatMap((g) => [
+      ...g.departments.flatMap((d) => d.profiles.map((p) => p.email)),
+      ...g.divisionOnlyProfiles.map((p) => p.email),
+    ])
+  );
+  const otherProfiles = (profiles ?? []).filter((p) => !groupedEmails.has(p.email));
+
+  // Shared save handler for inline-assign cards (used for both unassigned sections).
+  const saveAssign = (email: string) => {
+    setSavingAssign(true);
+    void run(() =>
+      setStaffProfile({
+        email,
+        year: selectedYear,
+        assignments: assigningAssignments.map((a) => ({
+          role: a.role,
+          department: a.department || undefined,
+          university: a.university || undefined,
+        })),
+      })
+    )
+      .then((ok) => {
+        if (ok) {
+          setAssigningUserEmail(null);
+          setToast({ text: `Saved ${email}` });
+        }
+      })
+      .finally(() => setSavingAssign(false));
+  };
+
+  // Renders the collapsed or expanded card for an unassigned user.
+  const renderUnassignedCard = (user: { email: string; name?: string | null }) => {
+    const isAssigning = assigningUserEmail === user.email;
+    return (
+      <Card key={user.email}>
+        {isAssigning ? (
+          <>
+            <Txt style={{ fontWeight: "600" }}>{user.name ?? user.email}</Txt>
+            {user.name ? <Muted>{user.email}</Muted> : null}
+            <AssignmentEditor
+              assignments={assigningAssignments}
+              onChange={setAssigningAssignments}
+              departments={(structure?.departments ?? []).map((d) => d.name)}
+              universities={structure?.universities ?? []}
+            />
+            <Row>
+              <Btn
+                title="Save"
+                loading={savingAssign}
+                onPress={() => saveAssign(user.email)}
+              />
+              <Btn
+                title="Cancel"
+                variant="ghost"
+                onPress={() => setAssigningUserEmail(null)}
+              />
+            </Row>
+          </>
+        ) : (
+          <Row>
+            <View style={{ flexGrow: 1 }}>
+              <Txt style={{ fontWeight: "600" }}>{user.name ?? user.email}</Txt>
+              <Muted>{user.email}</Muted>
+            </View>
+            <Btn
+              title="Assign"
+              variant="ghost"
+              onPress={() => startAssign(user.email)}
+            />
+          </Row>
+        )}
+      </Card>
+    );
+  };
+
+  // Renders the collapsed or expanded card for an assigned profile.
+  const renderProfileCard = (profile: NonNullable<typeof profiles>[number]) => {
+    const isEditingThis = editingUserEmail === profile.email;
+    const lockedHeadAssignments = (profile.assignments ?? []).filter(
+      (a) => a.role === HEAD_OF_DEPARTMENT || a.role === HEAD_OF_DIVISION
+    );
+    return (
+      <Card key={profile._id}>
+        {isEditingThis ? (
+          <>
+            <Txt style={{ fontWeight: "600" }}>{profile.name ?? profile.email}</Txt>
+            {profile.name ? <Muted>{profile.email}</Muted> : null}
+            {lockedHeadAssignments.map((a, i) => (
+              <LockedAssignmentRow
+                key={i}
+                a={a}
+                index={i}
+                totalCount={lockedHeadAssignments.length + editingAssignments.length}
+              />
+            ))}
+            <AssignmentEditor
+              assignments={editingAssignments}
+              onChange={setEditingAssignments}
+              departments={(structure?.departments ?? []).map((d) => d.name)}
+              universities={structure?.universities ?? []}
+              startIndex={lockedHeadAssignments.length}
+            />
+            <Row>
+              <Btn
+                title="Save"
+                loading={savingEditUser}
+                onPress={() => {
+                  setSavingEditUser(true);
+                  void run(() =>
+                    setStaffProfile({
+                      email: profile.email,
+                      year: selectedYear,
+                      assignments: editingAssignments.map((a) => ({
+                        role: a.role,
+                        department: a.department || undefined,
+                        university: a.university || undefined,
+                      })),
+                    })
+                  )
+                    .then((ok) => {
+                      if (ok) {
+                        setEditingUserEmail(null);
+                        setToast({ text: `Saved ${profile.email}` });
+                      }
+                    })
+                    .finally(() => setSavingEditUser(false));
+                }}
+              />
+              <Btn
+                title="Cancel"
+                variant="ghost"
+                onPress={() => setEditingUserEmail(null)}
+              />
+            </Row>
+          </>
+        ) : (
+          <Row>
+            <View style={{ flexGrow: 1 }}>
+              <Txt style={{ fontWeight: "600" }}>{profile.name ?? profile.email}</Txt>
+              {profile.name ? <Muted>{profile.email}</Muted> : null}
+              {(profile.assignments ?? []).length > 0 ? (
+                <View style={styles.chips}>
+                  {(profile.assignments ?? []).map((a, i) => (
+                    <View key={i} style={[styles.chip, { backgroundColor: t.primarySoft }]}>
+                      <Txt style={[styles.chipText, { color: t.primary }]}>
+                        {formatAssignment(a)}
+                      </Txt>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Muted>—</Muted>
+              )}
+            </View>
+            {editable && (
+              <>
+                <IconButton
+                  name="create-outline"
+                  onPress={() => startEditUser(profile.email)}
+                />
+                <IconButton
+                  name="trash-outline"
+                  color={t.danger}
+                  onPress={() =>
+                    confirmRemoval(
+                      `Remove ${profile.email} from ${selectedYear}? Their roles and department assignment for the year will be deleted.`,
+                      () =>
+                        void run(() =>
+                          removeStaffProfile({
+                            email: profile.email,
+                            year: selectedYear,
+                          })
+                        )
+                    )
+                  }
+                />
+              </>
+            )}
+          </Row>
+        )}
+      </Card>
+    );
+  };
 
   return (
     <Screen
@@ -381,224 +665,110 @@ export default function AdminScreen() {
           {editable && (unassigned ?? []).length > 0 && (
             <>
               <SectionTitle>Signed in, no assignment — {selectedYear}</SectionTitle>
-              {(unassigned ?? []).map((user) => (
-                <Card key={user.email}>
-                  <Row>
-                    <View style={{ flexGrow: 1 }}>
-                      <Txt style={{ fontWeight: "600" }}>{user.name ?? user.email}</Txt>
-                      <Muted>{user.email}</Muted>
-                    </View>
-                    <Btn
-                      title="Assign"
-                      variant="ghost"
-                      onPress={() => selectPerson(user.email)}
-                    />
-                  </Row>
-                </Card>
-              ))}
+              {(unassigned ?? []).map((user) => renderUnassignedCard(user))}
             </>
           )}
 
-          {editable && (syncState?.users ?? []).filter((u) => !u.hasProfile && !unassignedEmails.has(u.email)).length > 0 && (
+          {editable && directoryOnlyUnassigned.length > 0 && (
             <>
               <SectionTitle>
-                In directory, no assignment — {selectedYear} (
-                {(syncState?.users ?? []).filter((u) => !u.hasProfile && !unassignedEmails.has(u.email)).length})
+                In directory, no assignment — {selectedYear} ({directoryOnlyUnassigned.length})
               </SectionTitle>
-              {(syncState?.users ?? [])
-                .filter((u) => !u.hasProfile && !unassignedEmails.has(u.email))
-                .map((user) => (
-                  <Card key={user.email}>
-                    <Row>
-                      <View style={{ flexGrow: 1 }}>
-                        <Txt style={{ fontWeight: "600" }}>{user.name ?? user.email}</Txt>
-                        <Muted>{user.email}</Muted>
-                      </View>
-                      <Btn
-                        title="Assign"
-                        variant="ghost"
-                        onPress={() => selectPerson(user.email)}
-                      />
-                    </Row>
-                  </Card>
-                ))}
+              {directoryOnlyUnassigned.map((user) => renderUnassignedCard(user))}
             </>
           )}
 
-          <SectionTitle>Users</SectionTitle>
           {editable && (
-            <Card>
-              {personOptions.length > 0 && (
-                <Select
-                  label="Person (selecting pre-fills the form with their current assignment)"
-                  value={staffEmail}
-                  options={personOptions}
-                  onSelect={selectPerson}
-                  placeholder="Choose a person…"
-                />
-              )}
-              <Field
-                label="Or type a new email (they don't need to have signed in yet)"
-                value={staffEmail}
-                onChangeText={(text) => {
-                  setStaffEmail(text);
-                  setError(null);
-                }}
-                placeholder="someone@sow.org.au"
-                keyboardType="email-address"
-              />
-              <AssignmentEditor
-                assignments={staffAssignments}
-                onChange={setStaffAssignments}
-                departments={(structure?.departments ?? []).map((d) => d.name)}
-                universities={structure?.universities ?? []}
-              />
-              {isAddFormHeadLocked && (
-                <Muted>
-                  Also holds a head assignment (managed in Structure tab) — saving keeps it alongside these assignments.
-                </Muted>
-              )}
-              <Btn
-                title="Save Staff Assignment"
-                loading={savingStaff}
-                onPress={() => {
-                  const email = staffEmail.trim().toLowerCase();
-                  setSavingStaff(true);
-                  void run(() =>
-                    setStaffProfile({
-                      email,
-                      year: selectedYear,
-                      assignments: staffAssignments.map((a) => ({
-                        role: a.role,
-                        department: a.department || undefined,
-                        university: a.university || undefined,
-                      })),
-                    })
-                  )
-                    .then((ok) => {
-                      if (ok) {
-                        setToast({ text: `Saved ${email} for ${selectedYear}` });
-                        setStaffEmail("");
-                        setStaffAssignments([emptyDraft()]);
-                      }
-                    })
-                    .finally(() => setSavingStaff(false));
-                }}
-              />
-            </Card>
-          )}
-          {(profiles ?? []).map((profile) => {
-            const isEditingThis = editingUserEmail === profile.email;
-            const lockedHeadAssignments = (profile.assignments ?? []).filter(
-              (a) => a.role === HEAD_OF_DEPARTMENT || a.role === HEAD_OF_DIVISION
-            );
-            return (
-              <Card key={profile._id}>
-                {isEditingThis ? (
-                  <>
-                    <Txt style={{ fontWeight: "600" }}>{profile.name ?? profile.email}</Txt>
-                    {profile.name ? <Muted>{profile.email}</Muted> : null}
-                    {lockedHeadAssignments.length > 0 && (
-                      <>
-                        <Muted>Head assignments — managed in the Structure tab:</Muted>
-                        <View style={styles.chips}>
-                          {lockedHeadAssignments.map((a, i) => (
-                            <View key={i} style={[styles.chip, { backgroundColor: t.ghost }]}>
-                              <Txt style={[styles.chipText, { color: t.muted }]}>
-                                {formatAssignment(a)}
-                              </Txt>
-                            </View>
-                          ))}
-                        </View>
-                      </>
-                    )}
-                    <AssignmentEditor
-                      assignments={editingAssignments}
-                      onChange={setEditingAssignments}
-                      departments={(structure?.departments ?? []).map((d) => d.name)}
-                      universities={structure?.universities ?? []}
-                    />
-                    <Row>
-                      <Btn
-                        title="Save"
-                        loading={savingEditUser}
-                        onPress={() => {
-                          setSavingEditUser(true);
-                          void run(() =>
-                            setStaffProfile({
-                              email: profile.email,
-                              year: selectedYear,
-                              assignments: editingAssignments.map((a) => ({
-                                role: a.role,
-                                department: a.department || undefined,
-                                university: a.university || undefined,
-                              })),
-                            })
-                          )
-                            .then((ok) => {
-                              if (ok) {
-                                setEditingUserEmail(null);
-                                setToast({ text: `Saved ${profile.email}` });
-                              }
-                            })
-                            .finally(() => setSavingEditUser(false));
-                        }}
-                      />
-                      <Btn
-                        title="Cancel"
-                        variant="ghost"
-                        onPress={() => setEditingUserEmail(null)}
-                      />
-                    </Row>
-                  </>
-                ) : (
-                  <Row>
-                    <View style={{ flexGrow: 1 }}>
-                      <Txt style={{ fontWeight: "600" }}>{profile.name ?? profile.email}</Txt>
-                      {profile.name ? <Muted>{profile.email}</Muted> : null}
-                      {(profile.assignments ?? []).length > 0 ? (
-                        <View style={styles.chips}>
-                          {(profile.assignments ?? []).map((a, i) => (
-                            <View key={i} style={[styles.chip, { backgroundColor: t.primarySoft }]}>
-                              <Txt style={[styles.chipText, { color: t.primary }]}>
-                                {formatAssignment(a)}
-                              </Txt>
-                            </View>
-                          ))}
-                        </View>
-                      ) : (
-                        <Muted>—</Muted>
-                      )}
-                    </View>
-                    {editable && (
-                      <>
-                        <IconButton
-                          name="create-outline"
-                          onPress={() => startEditUser(profile.email)}
-                        />
-                        <IconButton
-                          name="trash-outline"
-                          color={t.danger}
-                          onPress={() =>
-                            confirmRemoval(
-                              `Remove ${profile.email} from ${selectedYear}? Their roles and department assignment for the year will be deleted.`,
-                              () =>
-                                void run(() =>
-                                  removeStaffProfile({
-                                    email: profile.email,
-                                    year: selectedYear,
-                                  })
-                                )
-                            )
-                          }
-                        />
-                      </>
-                    )}
-                  </Row>
+            <>
+              <SectionTitle>Add Staff — {selectedYear}</SectionTitle>
+              <Card>
+                {personOptions.length > 0 && (
+                  <Select
+                    label="Person (selecting pre-fills with their current assignment)"
+                    value={staffEmail}
+                    options={personOptions}
+                    onSelect={selectPerson}
+                    placeholder="Choose a person…"
+                  />
                 )}
+                {addFormLockedHeads.map((a, i) => (
+                  <LockedAssignmentRow
+                    key={i}
+                    a={a}
+                    index={i}
+                    totalCount={addFormLockedHeads.length + staffAssignments.length}
+                  />
+                ))}
+                <AssignmentEditor
+                  assignments={staffAssignments}
+                  onChange={setStaffAssignments}
+                  departments={(structure?.departments ?? []).map((d) => d.name)}
+                  universities={structure?.universities ?? []}
+                  startIndex={addFormLockedHeads.length}
+                />
+                <Btn
+                  title="Save Staff Assignment"
+                  loading={savingStaff}
+                  onPress={() => {
+                    const email = staffEmail.trim().toLowerCase();
+                    setSavingStaff(true);
+                    void run(() =>
+                      setStaffProfile({
+                        email,
+                        year: selectedYear,
+                        assignments: staffAssignments.map((a) => ({
+                          role: a.role,
+                          department: a.department || undefined,
+                          university: a.university || undefined,
+                        })),
+                      })
+                    )
+                      .then((ok) => {
+                        if (ok) {
+                          setToast({ text: `Saved ${email} for ${selectedYear}` });
+                          setStaffEmail("");
+                          setStaffAssignments([emptyDraft()]);
+                        }
+                      })
+                      .finally(() => setSavingStaff(false));
+                  }}
+                />
               </Card>
+            </>
+          )}
+
+          {/* Profiles grouped by division > department */}
+          {groupedProfiles.map((group) => {
+            const hasAny = group.departments.length > 0 || group.divisionOnlyProfiles.length > 0;
+            if (!hasAny) return null;
+            return (
+              <View key={group.division}>
+                <SectionTitle>{group.division} — {selectedYear}</SectionTitle>
+                {group.departments.map((dept) => (
+                  <View key={dept.name}>
+                    <Text
+                      style={[
+                        typography.label,
+                        { color: t.muted, paddingHorizontal: 4, paddingBottom: 4, paddingTop: 8 },
+                      ]}
+                    >
+                      {dept.name}
+                    </Text>
+                    {dept.profiles.map((profile) => renderProfileCard(profile))}
+                  </View>
+                ))}
+                {group.divisionOnlyProfiles.map((profile) => renderProfileCard(profile))}
+              </View>
             );
           })}
+
+          {/* Campus workers, multi-div, and other profiles not in any division */}
+          {otherProfiles.length > 0 && (
+            <>
+              <SectionTitle>Other — {selectedYear}</SectionTitle>
+              {otherProfiles.map((profile) => renderProfileCard(profile))}
+            </>
+          )}
         </>
       )}
 
