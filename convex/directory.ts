@@ -120,6 +120,12 @@ export const availableYears = query({
   },
 });
 
+const CAMPUS_ROLE_ORDER = ["President", "Vice President", "Executive", "Student Leader"] as const;
+const campusRoleRank = (roles: string[]) => {
+  const idx = CAMPUS_ROLE_ORDER.findIndex((r) => roles.includes(r));
+  return idx === -1 ? CAMPUS_ROLE_ORDER.length : idx;
+};
+
 /**
  * The organisation chart for a staff year (defaults to the current one):
  * Director on top, then divisions -> departments (head first) -> members.
@@ -224,6 +230,7 @@ export const orgChart = query({
               p.department === undefined &&
               !rolesOf(p).includes(DIRECTOR)
           )
+          .sort((a, b) => campusRoleRank(rolesOf(a)) - campusRoleRank(rolesOf(b)))
           .map((p) => person(p.email, rolesOf(p).join(", "))),
       })),
     };
