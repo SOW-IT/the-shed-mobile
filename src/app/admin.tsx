@@ -113,6 +113,12 @@ export default function AdminScreen() {
   const updateDepartment = useMutation(api.admin.updateDepartment);
   const upsertUniversity = useMutation(api.admin.upsertUniversity);
   const setBudgetManager = useMutation(api.admin.setBudgetManager);
+  const requestSync = useMutation(api.directorySync.requestSync);
+  const syncState = useQuery(
+    api.directorySync.list,
+    me?.isAdmin ? { year: selectedYear } : "skip"
+  );
+  const [syncing, setSyncing] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState>(null);
@@ -735,6 +741,33 @@ export default function AdminScreen() {
 
       {tab === "other" && (
         <>
+          <SectionTitle>Directory Sync</SectionTitle>
+          <Card>
+            <Muted>
+              Syncs all active Google Workspace users on sow.org.au into the
+              people picker. Runs automatically every day.
+            </Muted>
+            {syncState?.syncedAt ? (
+              <Muted>
+                Last synced:{" "}
+                {new Date(syncState.syncedAt).toLocaleString()} —{" "}
+                {syncState.status}
+              </Muted>
+            ) : (
+              <Muted>Never synced.</Muted>
+            )}
+            <Btn
+              title={syncing ? "Syncing…" : "Sync Directory Now"}
+              loading={syncing}
+              onPress={() => {
+                setSyncing(true);
+                void run(() => requestSync({})).finally(() =>
+                  setSyncing(false)
+                );
+              }}
+            />
+          </Card>
+
           <SectionTitle>Budget Manager — {selectedYear}</SectionTitle>
           <Card>
             <Muted>
