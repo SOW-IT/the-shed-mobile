@@ -20,6 +20,7 @@ import { getProfile, optionalEmail, requireAdmin } from "./model";
  */
 
 const SCOPE = "https://www.googleapis.com/auth/admin.directory.user.readonly";
+const DIRECTORY_LIMIT = 10000;
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 
 const base64url = (bytes: Uint8Array): string => {
@@ -160,7 +161,7 @@ export const store = internalMutation({
   },
   handler: async (ctx, args) => {
     // Upsert synced users and delete any that are no longer in the directory.
-    const existing = await ctx.db.query("directoryUsers").take(10000);
+    const existing = await ctx.db.query("directoryUsers").take(DIRECTORY_LIMIT);
     const byEmail = new Map(existing.map((u) => [u.email, u]));
 
     for (const user of args.users) {
@@ -215,7 +216,7 @@ export const list = query({
       .query("syncState")
       .withIndex("by_key", (q) => q.eq("key", "directory"))
       .unique();
-    const users = await ctx.db.query("directoryUsers").take(4000);
+    const users = await ctx.db.query("directoryUsers").take(DIRECTORY_LIMIT);
     const annotated = [];
     for (const user of users) {
       const profile = await getProfile(ctx, user.email, args.year);

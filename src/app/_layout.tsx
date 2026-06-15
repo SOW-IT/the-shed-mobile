@@ -242,6 +242,7 @@ export default function RootLayout() {
               }
               style={{ width: 140, height: 140 }}
               resizeMode="contain"
+              accessibilityLabel="Loading"
             />
           </View>
         </AuthLoading>
