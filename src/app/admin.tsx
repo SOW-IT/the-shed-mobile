@@ -104,6 +104,7 @@ export default function AdminScreen() {
     label: person.name ? `${person.name} (${person.email})` : person.email,
     value: person.email,
   }));
+  const unassignedEmails = new Set((unassigned ?? []).map((u) => u.email));
 
   const setStaffProfile = useMutation(api.admin.setStaffProfile);
   const removeStaffProfile = useMutation(api.admin.removeStaffProfile);
@@ -291,6 +292,32 @@ export default function AdminScreen() {
                   </Row>
                 </Card>
               ))}
+            </>
+          )}
+
+          {editable && (syncState?.users ?? []).filter((u) => !u.hasProfile && !unassignedEmails.has(u.email)).length > 0 && (
+            <>
+              <SectionTitle>
+                In directory, no assignment — {selectedYear} (
+                {(syncState?.users ?? []).filter((u) => !u.hasProfile && !unassignedEmails.has(u.email)).length})
+              </SectionTitle>
+              {(syncState?.users ?? [])
+                .filter((u) => !u.hasProfile && !unassignedEmails.has(u.email))
+                .map((user) => (
+                  <Card key={user.email}>
+                    <Row>
+                      <View style={{ flexGrow: 1 }}>
+                        <Txt style={{ fontWeight: "600" }}>{user.name ?? user.email}</Txt>
+                        <Muted>{user.email}</Muted>
+                      </View>
+                      <Btn
+                        title="Assign"
+                        variant="ghost"
+                        onPress={() => selectPerson(user.email)}
+                      />
+                    </Row>
+                  </Card>
+                ))}
             </>
           )}
 

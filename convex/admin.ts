@@ -208,7 +208,15 @@ export const listStaffProfiles = query({
       .query("staffProfiles")
       .withIndex("by_year", (q) => q.eq("year", args.year))
       .take(1000);
-    return profiles.map((profile) => ({ ...profile, roles: rolesOf(profile) }));
+    const directoryUsers = await ctx.db.query("directoryUsers").take(4000);
+    const directoryNameByEmail = new Map(
+      directoryUsers.map((u) => [u.email, u.name ?? null] as const)
+    );
+    return profiles.map((profile) => ({
+      ...profile,
+      roles: rolesOf(profile),
+      name: profile.name ?? directoryNameByEmail.get(profile.email) ?? null,
+    }));
   },
 });
 
@@ -223,12 +231,19 @@ export const listUnassignedUsers = query({
     if ((await optionalEmail(ctx)) === null) return null; // auth attaching
     await requireAdmin(ctx);
     const users = await ctx.db.query("users").take(1000);
+    const directoryUsers = await ctx.db.query("directoryUsers").take(4000);
+    const directoryNameByEmail = new Map(
+      directoryUsers.map((u) => [u.email, u.name ?? null] as const)
+    );
     const unassigned: { email: string; name: string | null }[] = [];
     for (const user of users) {
       if (!user.email) continue;
       const profile = await getProfile(ctx, user.email, args.year);
       if (!profile) {
-        unassigned.push({ email: user.email, name: user.name ?? null });
+        unassigned.push({
+          email: user.email,
+          name: user.name ?? directoryNameByEmail.get(user.email) ?? null,
+        });
       }
     }
     return unassigned;
