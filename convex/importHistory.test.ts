@@ -557,7 +557,7 @@ describe("Student Leaders pick a university, not a department", () => {
     expect(member.roles).toEqual(["Member"]);
   });
 
-  test("universities are data-driven per year and protected while in use", async () => {
+  test("universities are data-driven per year; deletion cascades to staff assignments", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
 
@@ -576,11 +576,13 @@ describe("Student Leaders pick a university, not a department", () => {
       roles: ["Student Leader"],
       university: "Australian Catholic University",
     });
-    await expect(
-      admin.mutation(api.admin.removeUniversity, {
-        year: YEAR,
-        name: "Australian Catholic University",
-      })
-    ).rejects.toThrow(/assigned/i);
+    // Deletion now cascades — strips the assignment rather than refusing.
+    await admin.mutation(api.admin.removeUniversity, {
+      year: YEAR,
+      name: "Australian Catholic University",
+    });
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const leo = profiles.find((p) => p.email === "leo@sow.org.au")!;
+    expect(leo.assignments?.some((a) => a.university === "Australian Catholic University")).toBe(false);
   });
 });

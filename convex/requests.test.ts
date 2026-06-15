@@ -645,16 +645,24 @@ describe("audit trail and reminders", () => {
     });
   });
 
-  test("departments with members or open requests can't be deleted", async () => {
+  test("departments with open requests can't be deleted; members cascade", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
 
-    // Members assigned -> refuse.
-    await expect(
-      admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Marketing" })
-    ).rejects.toThrow(/still has staff/);
+    // Members assigned -> cascade-strip and succeed.
+    await admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Marketing" });
+    const structure0 = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    expect(structure0.departments.map((d) => d.name)).not.toContain("Marketing");
 
-    // Members gone but an open request remains -> still refuse.
+    // Restore Marketing so we can test the open-request guard.
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Marketing", division: "Operations", headEmail: HENRY,
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: RACHEL, year: YEAR, assignments: [{ role: "Staff", department: "Marketing" }],
+    });
+
+    // Submit and decline a request so it's completed, then remove staff.
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 40 });
     const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
     await asUser(t, HENRY).mutation(api.requests.decline, {
