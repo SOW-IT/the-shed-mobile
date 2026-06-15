@@ -64,7 +64,7 @@ describe("importHistory: backfill from the old web app's Firestore", () => {
       );
       expect(studentLeaders.length).toBeGreaterThan(0);
       for (const leader of studentLeaders) {
-        expect(leader.university).toBeDefined();
+        expect(leader.assignments?.some((a) => a.university)).toBe(true);
         expect(leader.department).toBeUndefined();
       }
 
