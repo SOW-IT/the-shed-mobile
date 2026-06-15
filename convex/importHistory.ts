@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { rolesNeedUniversity } from "../shared/flow";
+import { assignmentFor, assignmentsOf, departmentsOf, divisionsOf } from "../shared/flow";
 import { internalMutation, internalQuery } from "./_generated/server";
 import { IMPORT_DATA } from "./importData";
 import { rolesOf } from "./model";
@@ -33,9 +33,10 @@ export const personHistory = internalQuery({
         year: h.year,
         email: h.email,
         roles: rolesOf(h),
-        department: h.department ?? null,
-        division: h.division ?? null,
-        university: h.university ?? null,
+        assignments: assignmentsOf(h),
+        department: departmentsOf(h)[0] ?? null,
+        division: divisionsOf(h)[0] ?? null,
+        university: assignmentsOf(h).find((a) => a.university)?.university ?? null,
       }));
   },
 });
@@ -215,13 +216,17 @@ export const run = internalMutation({
 
       for (const profile of yearData.profiles) {
         const roles = profile.roles ?? [];
+        const assignments = roles.map((role) =>
+          assignmentFor(role, {
+            department: profile.department,
+            division: profile.division,
+            university: profile.university,
+          })
+        );
         const fields = {
           roles,
           role: undefined, // retire the legacy single-role field if present
-          department: profile.department,
-          division: profile.division,
-          // Staff-side roles never carry a university, even in backup data.
-          university: rolesNeedUniversity(roles) ? profile.university : undefined,
+          assignments,
           name: profile.name,
           importId: profile.importId,
         };

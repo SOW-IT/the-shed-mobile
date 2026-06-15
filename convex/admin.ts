@@ -15,6 +15,7 @@ import {
   requestCompleted,
   ROLES,
   roleNeedsDepartment,
+  roleNeedsUniversity,
   rolesNeedUniversity,
   STAFF_ROLE,
   STAFF_SIDE_ROLES,
@@ -54,24 +55,7 @@ const assertManagedYear = (year: number) => {
 const isHeadRole = (role: string): boolean =>
   role === HEAD_OF_DEPARTMENT || role === HEAD_OF_DIVISION;
 
-/**
- * Derive the legacy single-scope fields from an assignment list (Invariant A):
- * department prefers a Head-of-Department link, then the first department; the
- * division prefers a Head-of-Division link; university the first one present.
- */
-const legacyScopeFrom = (
-  assignments: Assignment[]
-): { department?: string; division?: string; university?: string } => ({
-  department:
-    assignments.find((a) => a.role === HEAD_OF_DEPARTMENT && a.department)
-      ?.department ?? assignments.find((a) => a.department)?.department,
-  division:
-    assignments.find((a) => a.role === HEAD_OF_DIVISION && a.division)
-      ?.division ?? assignments.find((a) => a.division)?.division,
-  university: assignments.find((a) => a.university)?.university,
-});
-
-/** Patch a profile from a final assignment set, keeping roles + legacy fields in sync. */
+/** Patch a profile from a final assignment set. `assignments` is the source of truth. */
 const patchFromAssignments = async (
   ctx: MutationCtx,
   profile: Doc<"staffProfiles">,
@@ -83,7 +67,6 @@ const patchFromAssignments = async (
     roles,
     role: undefined,
     assignments: deduped,
-    ...legacyScopeFrom(deduped),
   });
 };
 
@@ -113,7 +96,6 @@ const grantHead = async (
       year,
       roles: [role],
       assignments: [headAssignment],
-      ...legacyScopeFrom([headAssignment]),
       importId: await resolveImportId(ctx, email),
     });
     return;
@@ -179,17 +161,162 @@ export const setStaffProfile = mutation({
   args: {
     email: v.string(),
     year: v.number(),
-    roles: v.array(v.string()),
+    roles: v.optional(v.array(v.string())),
     department: v.optional(v.string()),
     division: v.optional(v.string()),
     university: v.optional(v.string()),
+    assignments: v.optional(
+      v.array(
+        v.object({
+          role: v.string(),
+          department: v.optional(v.string()),
+          university: v.optional(v.string()),
+        })
+      )
+    ),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
     assertManagedYear(args.year);
     const email = args.email.trim().toLowerCase();
     if (!email.includes("@")) throw new ConvexError("Enter a valid email.");
-    const roles = [...new Set(args.roles)];
+
+    if (args.assignments !== undefined) {
+      // ——— Per-assignment path (new UI) ———
+      const drafts = args.assignments;
+      if (drafts.length === 0) throw new ConvexError("Add at least one assignment.");
+
+      for (const a of drafts) {
+        if (!ROLES.includes(a.role as (typeof ROLES)[number])) {
+          throw new ConvexError(`Roles must be among: ${ROLES.join(", ")}.`);
+        }
+        if (a.role === HEAD_OF_DEPARTMENT || a.role === HEAD_OF_DIVISION) {
+          throw new ConvexError(
+            "Head of Department and Head of Division are assigned through the Structure section — edit the department or division directly to change its head."
+          );
+        }
+      }
+
+      const submittedRoles = [...new Set(drafts.map((a) => a.role))];
+
+      if (submittedRoles.includes(DIRECTOR)) {
+        const yearProfiles = await ctx.db
+          .query("staffProfiles")
+          .withIndex("by_year", (q) => q.eq("year", args.year))
+          .take(1000);
+        const existingDirector = yearProfiles.find(
+          (p) => p.email !== email && rolesOf(p).includes(DIRECTOR)
+        );
+        if (existingDirector) {
+          throw new ConvexError(
+            `${existingDirector.email} is already the Director for ${args.year} — there can only be one.`
+          );
+        }
+      }
+
+      const builtAssignments: Assignment[] = [];
+      for (const draft of drafts) {
+        const built = assignmentFor(draft.role, {
+          department: draft.department,
+          university: draft.university,
+        });
+        if (built.department && built.department !== CHAPLAINCY_DEPARTMENT) {
+          const exists = await getDepartment(ctx, args.year, built.department);
+          if (!exists) {
+            throw new ConvexError(
+              `Department "${built.department}" doesn't exist in ${args.year}.`
+            );
+          }
+        }
+        if (isChaplainRole(draft.role)) {
+          const chaplaincy = await getDepartment(ctx, args.year, CHAPLAINCY_DEPARTMENT);
+          if (!chaplaincy) {
+            throw new ConvexError(
+              `The "${CHAPLAINCY_DEPARTMENT}" department doesn't exist in ${args.year} — create it first.`
+            );
+          }
+        }
+        if (built.university) {
+          const exists = await ctx.db
+            .query("universities")
+            .withIndex("by_year_and_name", (q) =>
+              q.eq("year", args.year).eq("name", built.university!)
+            )
+            .unique();
+          if (!exists) {
+            throw new ConvexError(
+              `University "${built.university}" doesn't exist in ${args.year}.`
+            );
+          }
+        }
+        if (roleNeedsUniversity(draft.role) && !built.university) {
+          throw new ConvexError(
+            `Campus roles (Student Leader, President, Vice President, Executive) need a university that exists in ${args.year}.`
+          );
+        }
+        if (roleNeedsDepartment(draft.role) && !isChaplainRole(draft.role) && !built.department) {
+          throw new ConvexError(`${draft.role} needs a department.`);
+        }
+        builtAssignments.push(built);
+      }
+
+      const existing = await getProfile(ctx, email, args.year);
+      const existingHeadRoles = existing ? rolesOf(existing).filter(isHeadRole) : [];
+
+      if (existing && existingHeadRoles.length === 0) {
+        const currentRoles = rolesOf(existing);
+        const isPureReduction =
+          submittedRoles.every((r) => currentRoles.includes(r)) &&
+          currentRoles.some((r) => !submittedRoles.includes(r));
+        if (isPureReduction) {
+          throw new ConvexError(
+            "Roles can only be removed from users who hold a Head of Department or Head of Division position."
+          );
+        }
+      }
+
+      const preservedHead = existing
+        ? assignmentsOf(existing).filter((a) => isHeadRole(a.role))
+        : [];
+      const headedDepts = new Set(
+        preservedHead
+          .filter((a) => a.role === HEAD_OF_DEPARTMENT && a.department)
+          .map((a) => a.department)
+      );
+      const submittedKept = builtAssignments.filter(
+        (a) => !(a.department && headedDepts.has(a.department))
+      );
+      const assignments = dedupeAssignments([...submittedKept, ...preservedHead]);
+      const finalRoles = [...new Set(assignments.map((a) => a.role))];
+
+      if (!assignments.some((a) => a.department === FINANCE)) {
+        const settings = await getYearSettings(ctx, args.year);
+        if (settings?.budgetManagerEmail === email) {
+          await ctx.db.patch("yearSettings", settings._id, { budgetManagerEmail: undefined });
+        }
+      }
+
+      if (existing) {
+        await ctx.db.patch("staffProfiles", existing._id, {
+          roles: finalRoles,
+          role: undefined,
+          assignments,
+          importId: existing.importId ?? (await resolveImportId(ctx, email)),
+        });
+        return existing._id;
+      } else {
+        return await ctx.db.insert("staffProfiles", {
+          email,
+          year: args.year,
+          roles: finalRoles,
+          assignments,
+          importId: await resolveImportId(ctx, email),
+        });
+      }
+    }
+
+    // ——— Legacy roles path (unchanged) ———
+    const roles = [...new Set(args.roles ?? [])];
     if (roles.length === 0) throw new ConvexError("Pick at least one role.");
     for (const role of roles) {
       if (!ROLES.includes(role as (typeof ROLES)[number])) {
@@ -324,7 +451,6 @@ export const setStaffProfile = mutation({
     );
     const assignments = dedupeAssignments([...submittedKept, ...preservedHead]);
     const finalRoles = [...new Set(assignments.map((a) => a.role))];
-    const legacy = legacyScopeFrom(assignments);
 
     // Moving the Budget Manager out of Finance would violate the rule that the
     // Budget Manager must be a member of the Finance department.
@@ -341,11 +467,8 @@ export const setStaffProfile = mutation({
     if (existing) {
       await ctx.db.patch("staffProfiles", existing._id, {
         roles: finalRoles,
-        role: undefined, // retire the legacy single-role field
+        role: undefined,
         assignments,
-        department: legacy.department,
-        division: legacy.division,
-        university: legacy.university,
         importId: existing.importId ?? (await resolveImportId(ctx, email)),
       });
       profileId = existing._id;
@@ -355,9 +478,6 @@ export const setStaffProfile = mutation({
         year: args.year,
         roles: finalRoles,
         assignments,
-        department: legacy.department,
-        division: legacy.division,
-        university: legacy.university,
         importId: await resolveImportId(ctx, email),
       });
     }
@@ -561,10 +681,7 @@ export const updateDivision = mutation({
           current.some((a) => a.division === oldName);
         if (referencesOld) {
           const remapped = remapScope(current, "division", oldName, newName);
-          await ctx.db.patch("staffProfiles", profile._id, {
-            assignments: remapped,
-            ...legacyScopeFrom(remapped),
-          });
+          await ctx.db.patch("staffProfiles", profile._id, { assignments: remapped });
         }
       }
     } else {
@@ -764,8 +881,7 @@ export const people = query({
       byEmail.set(profile.email, {
         email: profile.email,
         name: existing?.name ?? profile.name ?? null,
-        // Legacy single department kept for back-compat; prefer `departments`.
-        department: profile.department ?? departments[0] ?? null,
+        department: departments[0] ?? null,
         departments,
       });
     }
@@ -838,10 +954,7 @@ export const updateDepartment = mutation({
           current.some((a) => a.department === oldName);
         if (referencesOld) {
           const remapped = remapScope(current, "department", oldName, newName);
-          await ctx.db.patch("staffProfiles", profile._id, {
-            assignments: remapped,
-            ...legacyScopeFrom(remapped),
-          });
+          await ctx.db.patch("staffProfiles", profile._id, { assignments: remapped });
         }
       }
       const requests = await ctx.db
@@ -1067,7 +1180,6 @@ export const backfillAssignments = internalMutation({
         roles,
         role: undefined,
         assignments,
-        ...legacyScopeFrom(assignments),
       });
       updated++;
     }
@@ -1156,9 +1268,6 @@ export const copyYear = internalMutation({
         year: args.to,
         roles: rolesOf(profile),
         assignments: assignmentsOf(profile),
-        department: profile.department,
-        division: profile.division,
-        university: profile.university,
         name: profile.name,
         userId: profile.userId,
         importId: profile.importId,

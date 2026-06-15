@@ -64,7 +64,7 @@ describe("importHistory: backfill from the old web app's Firestore", () => {
       );
       expect(studentLeaders.length).toBeGreaterThan(0);
       for (const leader of studentLeaders) {
-        expect(leader.university).toBeDefined();
+        expect(leader.assignments?.some((a) => a.university)).toBe(true);
         expect(leader.department).toBeUndefined();
       }
 
@@ -419,7 +419,7 @@ describe("multi-headship: one person, several divisions/departments", () => {
     const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
     const profile = profiles.find((p) => p.email === sijin)!;
     expect(profile.roles).toEqual(["Head of Division"]);
-    expect(profile.division).toBe("Engagement");
+    expect(profile.assignments?.some((a) => a.division === "Engagement")).toBe(true);
 
     // Re-saving the division (no-op) vacates neither division.
     await admin.mutation(api.admin.upsertDivision, {
@@ -517,8 +517,8 @@ describe("Student Leaders pick a university, not a department", () => {
       year: YEAR,
     }))!;
     const saved = profiles.find((p) => p.email === leader)!;
-    expect(saved.university).toBe("Macquarie University");
-    expect(saved.department).toBeUndefined();
+    expect(saved.assignments?.some((a) => a.university === "Macquarie University")).toBe(true);
+    expect(saved.assignments?.every((a) => !a.department || a.department === "Chaplaincy")).toBe(true);
   });
 
   test("all campus roles need a university; Member needs nothing", async () => {
@@ -551,8 +551,8 @@ describe("Student Leaders pick a university, not a department", () => {
       year: YEAR,
     }))!;
     const vp = profiles.find((p) => p.email === "vinh.vp@sow.org.au")!;
-    expect(vp.university).toBe("University of Sydney");
-    expect(vp.department).toBeUndefined();
+    expect(vp.assignments?.some((a) => a.university === "University of Sydney")).toBe(true);
+    expect(vp.assignments?.every((a) => !a.department)).toBe(true);
     const member = profiles.find((p) => p.email === "mona.member@sow.org.au")!;
     expect(member.roles).toEqual(["Member"]);
   });

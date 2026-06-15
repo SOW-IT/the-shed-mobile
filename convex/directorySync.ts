@@ -20,6 +20,7 @@ import { getProfile, optionalEmail, requireAdmin } from "./model";
  */
 
 const SCOPE = "https://www.googleapis.com/auth/admin.directory.user.readonly";
+const DIRECTORY_LIMIT = 10000;
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 
 const base64url = (bytes: Uint8Array): string => {
@@ -159,14 +160,26 @@ export const store = internalMutation({
     users: v.array(v.object({ email: v.string(), name: v.optional(v.string()) })),
   },
   handler: async (ctx, args) => {
-    // Replace the whole list — it's the source of truth from Google.
-    const existing = await ctx.db.query("directoryUsers").take(4000);
-    for (const user of existing) {
-      await ctx.db.delete("directoryUsers", user._id);
-    }
+    // Upsert synced users and delete any that are no longer in the directory.
+    const existing = await ctx.db.query("directoryUsers").take(DIRECTORY_LIMIT);
+    const byEmail = new Map(existing.map((u) => [u.email, u]));
+
     for (const user of args.users) {
-      await ctx.db.insert("directoryUsers", user);
+      const current = byEmail.get(user.email);
+      if (current) {
+        if (current.name !== user.name) {
+          await ctx.db.patch("directoryUsers", current._id, { name: user.name });
+        }
+        byEmail.delete(user.email);
+      } else {
+        await ctx.db.insert("directoryUsers", user);
+      }
     }
+    // Remove users no longer returned by the Google sync.
+    for (const [, gone] of byEmail) {
+      await ctx.db.delete("directoryUsers", gone._id);
+    }
+
     await upsertSyncState(ctx, `synced ${args.users.length} people`);
     return null;
   },
@@ -203,7 +216,7 @@ export const list = query({
       .query("syncState")
       .withIndex("by_key", (q) => q.eq("key", "directory"))
       .unique();
-    const users = await ctx.db.query("directoryUsers").take(4000);
+    const users = await ctx.db.query("directoryUsers").take(DIRECTORY_LIMIT);
     const annotated = [];
     for (const user of users) {
       const profile = await getProfile(ctx, user.email, args.year);

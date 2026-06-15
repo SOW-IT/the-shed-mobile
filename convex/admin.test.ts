@@ -161,24 +161,37 @@ describe("setStaffProfile validation", () => {
     expect(fiona.roles).toContain("Head of Department");
   });
 
+  test("Director can be assigned without any department or scope", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "director@sow.org.au",
+      year: YEAR,
+      roles: ["Director"],
+    });
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const director = profiles.find((p) => p.email === "director@sow.org.au")!;
+    expect(director.roles).toEqual(["Director"]);
+    expect(director.department).toBeUndefined();
+  });
+
   test("only one Director per year; re-saving the same Director is fine", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
+    // Director has no required scope — no department needed.
     await admin.mutation(api.admin.setStaffProfile, {
       email: "first@sow.org.au",
       year: YEAR,
       roles: ["Director"],
-      department: "Finance",
     });
     await expect(
       admin.mutation(api.admin.setStaffProfile, {
         email: "second@sow.org.au",
         year: YEAR,
         roles: ["Director"],
-        department: "Finance",
       })
     ).rejects.toThrow(/already the Director/);
-    // Re-saving the same Director (adding another role) must not throw.
+    // Re-saving the same Director (adding Staff for a department) must not throw.
     await admin.mutation(api.admin.setStaffProfile, {
       email: "first@sow.org.au",
       year: YEAR,
@@ -357,7 +370,8 @@ describe("updateDivision", () => {
       "Outreach"
     );
     const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
-    expect(profiles.find((p) => p.email === "ewan@sow.org.au")?.division).toBe("Outreach");
+    const ewan = profiles.find((p) => p.email === "ewan@sow.org.au");
+    expect(ewan?.assignments?.some((a) => a.division === "Outreach")).toBe(true);
   });
 
   test("rejects a rename that collides with an existing division", async () => {
@@ -460,7 +474,8 @@ describe("updateDepartment", () => {
     const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
     expect(structure.departments.map((d) => d.name)).toContain("Comms");
     const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
-    expect(profiles.find((p) => p.email === "rachel@sow.org.au")?.department).toBe("Comms");
+    const rachel = profiles.find((p) => p.email === "rachel@sow.org.au");
+    expect(rachel?.assignments?.some((a) => a.department === "Comms")).toBe(true);
     const requests = await asUser(t, "rachel@sow.org.au").query(api.requests.myRequests, {});
     expect(requests?.[0].department).toBe("Comms");
   });
@@ -688,7 +703,9 @@ describe("chaplain university assignment", () => {
       university: "Macquarie University",
     });
     const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
-    expect(profiles.find((p) => p.email === "chap@sow.org.au")?.university).toBeDefined();
+    expect(
+      profiles.find((p) => p.email === "chap@sow.org.au")?.assignments?.some((a) => a.university === "Macquarie University")
+    ).toBe(true);
 
     // Staff member — university must be cleared even if passed.
     await admin.mutation(api.admin.setStaffProfile, {
@@ -699,7 +716,7 @@ describe("chaplain university assignment", () => {
       university: "Macquarie University",
     });
     const updated = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
-    expect(updated.find((p) => p.email === "staff@sow.org.au")?.university).toBeUndefined();
+    expect(updated.find((p) => p.email === "staff@sow.org.au")?.assignments?.every((a) => !a.university)).toBe(true);
   });
 });
 
@@ -800,5 +817,199 @@ describe("seed preserves existing heads", () => {
     expect(structure.divisions.find((d) => d.name === "Governance")?.headEmail).toBe(
       "gov.head@sow.org.au"
     );
+  });
+});
+
+describe("setStaffProfile with assignments path", () => {
+  test("saves two non-head assignments and derives roles from them", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR,
+      name: "Marketing",
+      division: "Engagement",
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "multi@sow.org.au",
+      year: YEAR,
+      assignments: [
+        { role: "Staff", department: "Finance" },
+        { role: "Staff", department: "Marketing" },
+        { role: "Director" },
+      ],
+    });
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const p = profiles.find((x) => x.email === "multi@sow.org.au")!;
+    expect(p.roles.sort()).toEqual(["Director", "Staff"]);
+    expect(p.assignments).toContainEqual({ role: "Staff", department: "Finance" });
+    expect(p.assignments).toContainEqual({ role: "Staff", department: "Marketing" });
+    expect(p.assignments).toContainEqual({ role: "Director" });
+  });
+
+  test("empty assignments array is rejected", async () => {
+    const t = await setup();
+    await expect(
+      asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+        email: "x@sow.org.au",
+        year: YEAR,
+        assignments: [],
+      })
+    ).rejects.toThrow(/at least one assignment/);
+  });
+
+  test("HOD/HODiv in assignments is rejected", async () => {
+    const t = await setup();
+    await expect(
+      asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+        email: "x@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Head of Department", department: "Finance" }],
+      })
+    ).rejects.toThrow(/Structure section/);
+  });
+
+  test("assignments path preserves existing head links", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // Fiona is already HOD of Finance (set up in setup()).
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR,
+      name: "Marketing",
+      division: "Engagement",
+    });
+    // Add a Staff-of-Marketing assignment via the new path.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: FIONA,
+      year: YEAR,
+      assignments: [{ role: "Staff", department: "Marketing" }],
+    });
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const fiona = profiles.find((p) => p.email === FIONA)!;
+    expect(fiona.roles).toContain("Head of Department");
+    expect(fiona.assignments).toContainEqual({ role: "Head of Department", department: "Finance" });
+    expect(fiona.assignments).toContainEqual({ role: "Staff", department: "Marketing" });
+  });
+
+  test("invalid role in assignments is rejected", async () => {
+    const t = await setup();
+    await expect(
+      asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+        email: "x@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Wizard" }],
+      })
+    ).rejects.toThrow(/Roles must be among/);
+  });
+
+  test("Staff assignment without a department is rejected", async () => {
+    const t = await setup();
+    await expect(
+      asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+        email: "x@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Staff" }],
+      })
+    ).rejects.toThrow(/needs a department/);
+  });
+
+  test("duplicate Director via assignments path is rejected", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "dir1@sow.org.au",
+      year: YEAR,
+      assignments: [{ role: "Director" }],
+    });
+    await expect(
+      admin.mutation(api.admin.setStaffProfile, {
+        email: "dir2@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Director" }],
+      })
+    ).rejects.toThrow(/already the Director/);
+  });
+
+  test("unknown department in assignments path is rejected", async () => {
+    const t = await setup();
+    await expect(
+      asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+        email: "x@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Staff", department: "NonExistent" }],
+      })
+    ).rejects.toThrow(/doesn't exist/);
+  });
+
+  test("chaplain assignment fails when Chaplaincy department is missing", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Chaplaincy" });
+    await expect(
+      admin.mutation(api.admin.setStaffProfile, {
+        email: "x@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Senior Chaplain" }],
+      })
+    ).rejects.toThrow(/Chaplaincy/);
+  });
+
+  test("campus role with unknown university in assignments path is rejected", async () => {
+    const t = await setup();
+    await expect(
+      asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+        email: "x@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Student Leader", university: "Hogwarts" }],
+      })
+    ).rejects.toThrow(/university/i);
+  });
+
+  test("campus role without university in assignments path is rejected", async () => {
+    const t = await setup();
+    await expect(
+      asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+        email: "x@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Student Leader" }],
+      })
+    ).rejects.toThrow(/university/i);
+  });
+
+  test("pure role reduction via assignments path is rejected for non-head users", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "multi@sow.org.au",
+      year: YEAR,
+      assignments: [{ role: "Staff", department: "Finance" }, { role: "Director" }],
+    });
+    await expect(
+      admin.mutation(api.admin.setStaffProfile, {
+        email: "multi@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Staff", department: "Finance" }],
+      })
+    ).rejects.toThrow(/Roles can only be removed/);
+  });
+
+  test("assignments path clears budget manager when removed from Finance", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR,
+      name: "Marketing",
+      division: "Governance",
+    });
+    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
+    // Reassign BELLA away from Finance via assignments path.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: BELLA,
+      year: YEAR,
+      assignments: [{ role: "Staff", department: "Marketing" }],
+    });
+    const settings = await t.run((ctx) =>
+      ctx.db.query("yearSettings").withIndex("by_year", (q) => q.eq("year", YEAR)).unique()
+    );
+    expect(settings?.budgetManagerEmail).toBeUndefined();
   });
 });

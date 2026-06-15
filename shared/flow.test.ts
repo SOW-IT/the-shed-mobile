@@ -79,9 +79,9 @@ describe("role classification", () => {
     expect(rolesNeedUniversity([])).toBe(false);
   });
 
-  test("most roles need a department; Head of Division, Member and campus roles do not", () => {
+  test("most roles need a department; Head of Division, Member, Director and campus roles do not", () => {
     expect(roleNeedsDepartment("Staff")).toBe(true);
-    expect(roleNeedsDepartment("Director")).toBe(true);
+    expect(roleNeedsDepartment("Director")).toBe(false);
     expect(roleNeedsDepartment("Head of Division")).toBe(false);
     expect(roleNeedsDepartment("Member")).toBe(false);
     expect(roleNeedsDepartment("Student Leader")).toBe(false);

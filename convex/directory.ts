@@ -73,7 +73,7 @@ export const me = query({
     const approvers = await getApprovers(
       ctx,
       year,
-      profile.department ?? profile.division ?? ""
+      departmentsOf(profile)[0] ?? divisionsOf(profile)[0] ?? ""
     );
     const headedDepartments = (await departmentsHeadedBy(ctx, year, email)).map(
       (d) => d.name
@@ -86,9 +86,8 @@ export const me = query({
       profile: {
         roles: rolesOf(profile),
         assignments: assignmentsOf(profile),
-        // Legacy singles kept for back-compat; prefer departments/divisions.
-        department: profile.department ?? null,
-        division: profile.division ?? null,
+        department: departmentsOf(profile)[0] ?? null,
+        division: divisionsOf(profile)[0] ?? null,
         departments: departmentsOf(profile),
         divisions: divisionsOf(profile),
       },

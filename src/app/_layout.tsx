@@ -231,20 +231,19 @@ export default function RootLayout() {
               flex: 1,
               alignItems: "center",
               justifyContent: "center",
-              gap: 20,
               backgroundColor: t.background,
             }}
           >
             <Image
               source={
                 t.dark
-                  ? require("../../assets/images/mark-cream.png")
-                  : require("../../assets/images/mark-dark.png")
+                  ? require("../../assets/images/splash-icon-dark.png")
+                  : require("../../assets/images/splash-icon.png")
               }
-              style={{ width: 56, height: 56 }}
+              style={{ width: 140, height: 140 }}
               resizeMode="contain"
+              accessibilityLabel="Loading"
             />
-            <ActivityIndicator size="small" color={t.muted} />
           </View>
         </AuthLoading>
         <Unauthenticated>
