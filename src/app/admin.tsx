@@ -301,27 +301,6 @@ export default function AdminScreen() {
     }
   };
 
-  // Staff add form — for new assignments.
-  const [staffEmail, setStaffEmail] = useState("");
-  const [staffAssignments, setStaffAssignments] = useState<AssignmentDraft[]>([emptyDraft()]);
-  const [savingStaff, setSavingStaff] = useState(false);
-  // Picking a person pre-fills the add form with their existing non-head assignments.
-  const selectPerson = (email: string) => {
-    setStaffEmail(email);
-    const existing = (profiles ?? []).find((p) => p.email === email);
-    const nonHead = (existing?.assignments ?? []).filter(
-      (a) => a.role !== HEAD_OF_DEPARTMENT && a.role !== HEAD_OF_DIVISION
-    );
-    setStaffAssignments(
-      nonHead.length > 0
-        ? nonHead.map((a) => ({
-            role: a.role,
-            department: a.department ?? "",
-            university: a.university ?? "",
-          }))
-        : [emptyDraft()]
-    );
-  };
   // Division / department / university add forms
   const [divisionName, setDivisionName] = useState("");
   const [divisionHead, setDivisionHead] = useState("");
@@ -384,13 +363,6 @@ export default function AdminScreen() {
     );
   }
 
-  const addFormProfile = (profiles ?? []).find(
-    (p) => p.email === staffEmail.trim().toLowerCase()
-  );
-  const addFormLockedHeads = (addFormProfile?.assignments ?? []).filter(
-    (a) => a.role === HEAD_OF_DEPARTMENT || a.role === HEAD_OF_DIVISION
-  );
-  const isAddFormHeadLocked = addFormLockedHeads.length > 0;
   const yearLabel = (y: number) =>
     y === currentYear
       ? `${y} (current)`
@@ -679,65 +651,6 @@ export default function AdminScreen() {
                 In directory, no assignment — {selectedYear} ({directoryOnlyUnassigned.length})
               </SectionTitle>
               {directoryOnlyUnassigned.map((user) => renderUnassignedCard(user))}
-            </>
-          )}
-
-          {editable && (
-            <>
-              <SectionTitle>Add Staff — {selectedYear}</SectionTitle>
-              <Card>
-                {personOptions.length > 0 && (
-                  <Select
-                    label="Person (selecting pre-fills with their current assignment)"
-                    value={staffEmail}
-                    options={personOptions}
-                    onSelect={selectPerson}
-                    placeholder="Choose a person…"
-                  />
-                )}
-                {addFormLockedHeads.map((a, i) => (
-                  <LockedAssignmentRow
-                    key={i}
-                    a={a}
-                    index={i}
-                    totalCount={addFormLockedHeads.length + staffAssignments.length}
-                  />
-                ))}
-                <AssignmentEditor
-                  assignments={staffAssignments}
-                  onChange={setStaffAssignments}
-                  departments={(structure?.departments ?? []).map((d) => d.name)}
-                  universities={structure?.universities ?? []}
-                  startIndex={addFormLockedHeads.length}
-                />
-                <Btn
-                  title="Save Staff Assignment"
-                  loading={savingStaff}
-                  onPress={() => {
-                    const email = staffEmail.trim().toLowerCase();
-                    setSavingStaff(true);
-                    void run(() =>
-                      setStaffProfile({
-                        email,
-                        year: selectedYear,
-                        assignments: staffAssignments.map((a) => ({
-                          role: a.role,
-                          department: a.department || undefined,
-                          university: a.university || undefined,
-                        })),
-                      })
-                    )
-                      .then((ok) => {
-                        if (ok) {
-                          setToast({ text: `Saved ${email} for ${selectedYear}` });
-                          setStaffEmail("");
-                          setStaffAssignments([emptyDraft()]);
-                        }
-                      })
-                      .finally(() => setSavingStaff(false));
-                  }}
-                />
-              </Card>
             </>
           )}
 
