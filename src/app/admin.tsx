@@ -419,6 +419,36 @@ export default function AdminScreen() {
   );
   const otherProfiles = (profiles ?? []).filter((p) => !groupedEmails.has(p.email));
 
+  // Within otherProfiles, group campus roles (SL / Exec / VP / President) by university.
+  const campusProfiles = otherProfiles.filter((p) =>
+    (p.assignments ?? []).some((a) => a.university)
+  );
+  const nonCampusOtherProfiles = otherProfiles.filter((p) =>
+    !(p.assignments ?? []).some((a) => a.university)
+  );
+  // Derive university order from structure list, then append any extras found on profiles.
+  const structureUnis = structure?.universities ?? [];
+  const extraUnis = [
+    ...new Set(
+      campusProfiles.flatMap((p) =>
+        (p.assignments ?? []).flatMap((a) => (a.university ? [a.university] : []))
+      )
+    ),
+  ].filter((u) => !structureUnis.includes(u));
+  const campusUniversities = [...structureUnis, ...extraUnis];
+  const seenInCampus = new Set<string>();
+  const campusByUniversity = campusUniversities
+    .map((uni) => ({
+      university: uni,
+      profiles: campusProfiles.filter((p) => {
+        if (seenInCampus.has(p.email)) return false;
+        const match = (p.assignments ?? []).some((a) => a.university === uni);
+        if (match) seenInCampus.add(p.email);
+        return match;
+      }),
+    }))
+    .filter((g) => g.profiles.length > 0);
+
   // Shared save handler for inline-assign cards (used for both unassigned sections).
   const saveAssign = (email: string) => {
     setSavingAssign(true);
@@ -695,11 +725,19 @@ export default function AdminScreen() {
             );
           })}
 
-          {/* Campus workers, multi-div, and other profiles not in any division */}
-          {otherProfiles.length > 0 && (
+          {/* Campus roles grouped by university */}
+          {campusByUniversity.map((group) => (
+            <View key={group.university}>
+              <SectionTitle>{group.university} — {selectedYear}</SectionTitle>
+              {group.profiles.map((profile) => renderProfileCard(profile))}
+            </View>
+          ))}
+
+          {/* Profiles not in any division, department, or campus */}
+          {nonCampusOtherProfiles.length > 0 && (
             <>
               <SectionTitle>Other — {selectedYear}</SectionTitle>
-              {otherProfiles.map((profile) => renderProfileCard(profile))}
+              {nonCampusOtherProfiles.map((profile) => renderProfileCard(profile))}
             </>
           )}
         </>
