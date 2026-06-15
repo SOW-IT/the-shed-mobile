@@ -248,30 +248,6 @@ describe("updateDivision", () => {
     ]);
   });
 
-  test("new head who was previously a dept head gets HOD role cleared on their profile", async () => {
-    const t = await setup();
-    const admin = asUser(t, ADMIN);
-    // Assign pat as HOD of a department first.
-    await admin.mutation(api.admin.upsertDepartment, {
-      year: YEAR,
-      name: "Marketing",
-      division: "Engagement",
-      headEmail: "pat@sow.org.au",
-    });
-    await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "Engagement" });
-    // Now promote pat to HODiv via updateDivision — cross-clear fires.
-    await admin.mutation(api.admin.updateDivision, {
-      year: YEAR,
-      oldName: "Engagement",
-      newName: "Engagement",
-      headEmail: "pat@sow.org.au",
-    });
-    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
-    const pat = profiles.find((p) => p.email === "pat@sow.org.au");
-    expect(pat?.roles).toContain("Head of Division");
-    expect(pat?.roles).not.toContain("Head of Department");
-    expect(pat?.department).toBeUndefined();
-  });
 });
 
 describe("updateDepartment", () => {
@@ -395,61 +371,8 @@ describe("updateDepartment", () => {
     ]);
   });
 
-  test("new head who was previously a div head gets HODiv role cleared on their profile", async () => {
-    const t = await setup();
-    const admin = asUser(t, ADMIN);
-    // Assign quinn as HODiv of Engagement first.
-    await admin.mutation(api.admin.upsertDivision, {
-      year: YEAR,
-      name: "Engagement",
-      headEmail: "quinn@sow.org.au",
-    });
-    await admin.mutation(api.admin.upsertDepartment, {
-      year: YEAR,
-      name: "Marketing",
-      division: "Engagement",
-    });
-    // Now move quinn to HOD of Marketing via updateDepartment — cross-clear fires.
-    await admin.mutation(api.admin.updateDepartment, {
-      year: YEAR,
-      oldName: "Marketing",
-      newName: "Marketing",
-      division: "Engagement",
-      headEmail: "quinn@sow.org.au",
-    });
-    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
-    const quinn = profiles.find((p) => p.email === "quinn@sow.org.au");
-    expect(quinn?.roles).toContain("Head of Department");
-    expect(quinn?.roles).not.toContain("Head of Division");
-    expect(quinn?.division).toBeUndefined();
-  });
 });
 
-describe("cross-role clear: upsertDivision/updateDivision clear Budget Manager when HOD leaves Finance", () => {
-  test("upsertDivision: making the Finance HOD a division head clears budgetManagerEmail", async () => {
-    const t = await setup();
-    const admin = asUser(t, ADMIN);
-    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: FIONA });
-    await admin.mutation(api.admin.upsertDivision, {
-      year: YEAR, name: "Operations", headEmail: FIONA,
-    });
-    const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
-    expect(structure.budgetManagerEmail).toBeNull();
-  });
-
-  test("updateDivision: making the Finance HOD a division head clears budgetManagerEmail", async () => {
-    const t = await setup();
-    const admin = asUser(t, ADMIN);
-    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: FIONA });
-    await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "Operations" });
-    // Re-assign via updateDivision — this is the second cross-clear path.
-    await admin.mutation(api.admin.updateDivision, {
-      year: YEAR, oldName: "Operations", newName: "Operations", headEmail: FIONA,
-    });
-    const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
-    expect(structure.budgetManagerEmail).toBeNull();
-  });
-});
 
 describe("setBudgetManager (Finance Head path)", () => {
   test("the Finance Head can set the Budget Manager; a stranger cannot", async () => {

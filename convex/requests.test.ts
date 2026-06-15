@@ -1208,20 +1208,19 @@ describe("deadlock prevention and validation fixes", () => {
     expect(request.approvedByHOD).toBe("PENDING");
   });
 
-  test("assigning a div head as dept head clears their div role and headship", async () => {
+  test("a person can hold multiple roles (division head + department head)", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.upsertDivision, {
       year: YEAR, name: "Engagement", headEmail: "maria@sow.org.au",
     });
-    // Promoting Maria from HODiv to HOD of Marketing cross-clears her div headship.
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Marketing", division: "Engagement", headEmail: "maria@sow.org.au",
     });
+    // Org chart: heads the Engagement division AND Marketing department.
     const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
     const engagement = chart.divisions.find((d) => d.name === "Engagement");
-    // Engagement head was cleared — she is now only HOD of Marketing.
-    expect(engagement?.head).toBeNull();
+    expect(engagement?.head?.email).toBe("maria@sow.org.au");
     const marketing = engagement?.departments.find((d) => d.name === "Marketing");
     expect(marketing?.head?.email).toBe("maria@sow.org.au");
 
@@ -1234,7 +1233,8 @@ describe("deadlock prevention and validation fixes", () => {
       })
     ).rejects.toThrow(/Department/);
 
-    // As HOD of Marketing her own requests skip the HOD step (self-approval).
+    // Her own requests file under her department; as a division head she
+    // has no HOD above her.
     const maria = asUser(t, "maria@sow.org.au");
     await maria.mutation(api.requests.submit, { description: "x", amount: 50 });
     const [request] = (await maria.query(api.requests.myRequests, {}))!;
@@ -1242,30 +1242,30 @@ describe("deadlock prevention and validation fixes", () => {
     expect(request.approvedByHOD).toBe("APPROVED");
   });
 
-  test("assigning a dept head as div head clears their dept role and headship; Governance div head works", async () => {
+  test("Finance dept head can also head the Operations division; Governance division head works", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
 
-    // Fiona starts as HOD of Finance (from setup). Making her HODiv of Operations
-    // should cross-clear her Finance headship.
+    // Fiona: Head of Department (Finance, from setup) + Head of Division (Operations).
     await admin.mutation(api.admin.upsertDivision, {
       year: YEAR, name: "Operations", headEmail: FIONA,
     });
     const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
     expect(chart.divisions.find((d) => d.name === "Operations")?.head?.email).toBe(FIONA);
-    // Finance headship is cleared by cross-clear.
     expect(
       chart.divisions
         .find((d) => d.name === "Governance")
-        ?.departments.find((d) => d.name === "Finance")?.head
-    ).toBeNull();
+        ?.departments.find((d) => d.name === "Finance")?.head?.email
+    ).toBe(FIONA);
 
-    // Restore a Finance head so request submissions don't deadlock.
-    await admin.mutation(api.admin.upsertDepartment, {
-      year: YEAR, name: "Finance", division: "Governance", headEmail: "frank@sow.org.au",
-    });
+    // She is still the Finance Head approver for the whole org...
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    await asUser(t, HENRY).mutation(api.requests.approve, { requestId: request._id, step: "hod" });
+    await asUser(t, BELLA).mutation(api.requests.approve, { requestId: request._id, step: "budgetManager" });
+    await asUser(t, FIONA).mutation(api.requests.approve, { requestId: request._id, step: "financeHead" });
 
-    // Fiona can submit on behalf of an Operations department she oversees (HOD step auto-approved).
+    // ...and can submit on behalf of an Operations department she oversees.
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Events", division: "Operations", headEmail: "evan@sow.org.au",
     });
@@ -1289,7 +1289,7 @@ describe("deadlock prevention and validation fixes", () => {
       description: "governance", amount: 80,
     });
     const [ginaRequest] = (await asUser(t, "gina@sow.org.au").query(api.requests.myRequests, {}))!;
-    expect(ginaRequest.department).toBe("Compliance"); // first Governance dept alphabetically
+    expect(ginaRequest.department).toBe("Compliance"); // first Governance dept
     expect(ginaRequest.approvedByHOD).toBe("APPROVED");
     expect(ginaRequest.approvedByBudgetManager).toBe("PENDING");
   });
