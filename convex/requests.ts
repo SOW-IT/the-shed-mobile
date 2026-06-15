@@ -9,7 +9,6 @@ import {
   FINANCE,
   HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
-  isHeadOfDivisionName,
   isMemberOfDepartment,
   PENDING,
   requestCompleted,
@@ -292,16 +291,16 @@ export const submit = mutation({
 
     // The Finance department has no separate HOD step.
     if (department === FINANCE) approvedByHOD = APPROVED;
-    // No HOD step when the submitter is this department's head, the
-    // Director, or the head of the division this department belongs to
-    // (named on the division itself, or via any of their head-of-division
-    // links — covers heading several divisions).
+    // No HOD step when the submitter is this department's head, the Director,
+    // or the head of the division this department belongs to. The division's
+    // authoritative `headEmail` covers heading several divisions (it's checked
+    // per the submitted department's division), so no assignment-derived check
+    // is needed here.
     const divisionDoc = await getDivision(ctx, year, departmentDoc.division);
     if (
       approvers.hodEmail === email ||
       roles.includes(DIRECTOR) ||
-      divisionDoc?.headEmail === email ||
-      isHeadOfDivisionName(profile, departmentDoc.division)
+      divisionDoc?.headEmail === email
     ) {
       approvedByHOD = APPROVED;
     }
