@@ -13,13 +13,6 @@ export default function Root({ children }: { children: React.ReactNode }) {
           content="width=device-width, initial-scale=1, shrink-to-fit=no"
         />
         <ScrollViewStyleReset />
-        {/* Runs synchronously before first paint: sets background via inline style
-            (highest specificity) so no white flash regardless of CSS load order. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){var d=window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches;var bg=d?'#0F2523':'#F5F3E3';document.documentElement.style.background=bg;document.body.style.background=bg;})();`,
-          }}
-        />
         <style
           // React Native Web Modal renders with `position:fixed` but no
           // z-index, so the tab bar (which appears later in the stacking
