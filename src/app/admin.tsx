@@ -104,6 +104,7 @@ export default function AdminScreen() {
     label: person.name ? `${person.name} (${person.email})` : person.email,
     value: person.email,
   }));
+  const unassignedEmails = new Set((unassigned ?? []).map((u) => u.email));
 
   const setStaffProfile = useMutation(api.admin.setStaffProfile);
   const removeStaffProfile = useMutation(api.admin.removeStaffProfile);
@@ -294,14 +295,14 @@ export default function AdminScreen() {
             </>
           )}
 
-          {editable && (syncState?.users ?? []).filter((u) => !u.hasProfile).length > 0 && (
+          {editable && (syncState?.users ?? []).filter((u) => !u.hasProfile && !unassignedEmails.has(u.email)).length > 0 && (
             <>
               <SectionTitle>
                 In directory, no assignment — {selectedYear} (
-                {(syncState?.users ?? []).filter((u) => !u.hasProfile).length})
+                {(syncState?.users ?? []).filter((u) => !u.hasProfile && !unassignedEmails.has(u.email)).length})
               </SectionTitle>
               {(syncState?.users ?? [])
-                .filter((u) => !u.hasProfile)
+                .filter((u) => !u.hasProfile && !unassignedEmails.has(u.email))
                 .map((user) => (
                   <Card key={user.email}>
                     <Row>
