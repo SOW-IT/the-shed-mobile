@@ -1,7 +1,10 @@
 name: Convex Deploy
 
 on:
+  # Auto-deploy only on merges to main (prod). Branch/PR pushes do NOT deploy;
+  # use the manual workflow_dispatch below for an on-demand preview deploy.
   push:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
