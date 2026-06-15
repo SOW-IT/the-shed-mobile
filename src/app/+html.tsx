@@ -23,9 +23,9 @@ export default function Root({ children }: { children: React.ReactNode }) {
           dangerouslySetInnerHTML={{
             __html: `
               div[aria-modal="true"] { z-index: 9999 !important; }
-              html, body, #root { background-color: #F5F3E3; }
+              html, body, #root, #root > div { background-color: #F5F3E3; }
               @media (prefers-color-scheme: dark) {
-                html, body, #root { background-color: #0F2523; }
+                html, body, #root, #root > div { background-color: #0F2523; }
               }
             `,
           }}
