@@ -294,6 +294,32 @@ export default function AdminScreen() {
             </>
           )}
 
+          {editable && (syncState?.users ?? []).filter((u) => !u.hasProfile).length > 0 && (
+            <>
+              <SectionTitle>
+                In directory, no assignment — {selectedYear} (
+                {(syncState?.users ?? []).filter((u) => !u.hasProfile).length})
+              </SectionTitle>
+              {(syncState?.users ?? [])
+                .filter((u) => !u.hasProfile)
+                .map((user) => (
+                  <Card key={user.email}>
+                    <Row>
+                      <View style={{ flexGrow: 1 }}>
+                        <Txt style={{ fontWeight: "600" }}>{user.name ?? user.email}</Txt>
+                        <Muted>{user.email}</Muted>
+                      </View>
+                      <Btn
+                        title="Assign"
+                        variant="ghost"
+                        onPress={() => selectPerson(user.email)}
+                      />
+                    </Row>
+                  </Card>
+                ))}
+            </>
+          )}
+
           <SectionTitle>Users</SectionTitle>
           {editable && (
             <Card>
