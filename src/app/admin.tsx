@@ -67,16 +67,7 @@ const confirmRemoval = (message: string, onConfirm: () => void) => {
   ]);
 };
 
-const confirmDelete = (title: string, message: string, onConfirm: () => void) => {
-  if (Platform.OS === "web") {
-    if (window.confirm(message)) onConfirm();
-    return;
-  }
-  Alert.alert(title, message, [
-    { text: "Cancel", style: "cancel" },
-    { text: "Delete", style: "destructive", onPress: onConfirm },
-  ]);
-};
+type DeleteConfirm = { name: string; message: string; onConfirm: () => void };
 
 type AdminTab = "users" | "structure" | "other";
 const ADMIN_TABS = [
@@ -360,6 +351,9 @@ export default function AdminScreen() {
   const [editingUniversityKey, setEditingUniversityKey] = useState<string | null>(null);
   const [editingUniversityFormName, setEditingUniversityFormName] = useState("");
   const [savingEditUniversity, setSavingEditUniversity] = useState(false);
+  // Type-to-confirm delete dialog
+  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(null);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
 
   const startEditUser = (email: string) => {
     const existing = (profiles ?? []).find((p) => p.email === email);
@@ -685,6 +679,39 @@ export default function AdminScreen() {
       }
     >
       <OptionSheet
+        visible={deleteConfirm !== null}
+        title={`Delete "${deleteConfirm?.name}"`}
+        onClose={() => { setDeleteConfirm(null); setDeleteConfirmInput(""); }}
+      >
+        <View style={{ paddingHorizontal: 4, paddingBottom: 8, gap: 12 }}>
+          <Muted>{deleteConfirm?.message}</Muted>
+          <Field
+            label={`Type "${deleteConfirm?.name}" to confirm`}
+            value={deleteConfirmInput}
+            onChangeText={setDeleteConfirmInput}
+            placeholder={deleteConfirm?.name ?? ""}
+          />
+          <Row>
+            <Btn
+              title="Cancel"
+              variant="ghost"
+              onPress={() => { setDeleteConfirm(null); setDeleteConfirmInput(""); }}
+            />
+            <Btn
+              title="Delete"
+              variant="danger"
+              disabled={deleteConfirmInput.trim() !== deleteConfirm?.name}
+              onPress={() => {
+                deleteConfirm?.onConfirm();
+                setDeleteConfirm(null);
+                setDeleteConfirmInput("");
+              }}
+            />
+          </Row>
+        </View>
+      </OptionSheet>
+
+      <OptionSheet
         visible={yearMenuOpen}
         title="Year"
         onClose={() => setYearMenuOpen(false)}
@@ -852,11 +879,11 @@ export default function AdminScreen() {
                           name="trash-outline"
                           color={t.danger}
                           onPress={() =>
-                            confirmDelete(
-                              "Delete division",
-                              `Delete "${division.name}"? Its departments and all staff assignments in this division will also be removed.`,
-                              () => void run(() => removeDivision({ year: selectedYear, name: division.name }))
-                            )
+                            setDeleteConfirm({
+                              name: division.name,
+                              message: `Its departments and all staff assignments in this division will also be removed.`,
+                              onConfirm: () => void run(() => removeDivision({ year: selectedYear, name: division.name })),
+                            })
                           }
                         />
                       </>
@@ -959,11 +986,11 @@ export default function AdminScreen() {
                           name="trash-outline"
                           color={t.danger}
                           onPress={() =>
-                            confirmDelete(
-                              "Delete university",
-                              `Delete "${university}"? All campus assignments for this university will also be removed.`,
-                              () => void run(() => removeUniversity({ year: selectedYear, name: university }))
-                            )
+                            setDeleteConfirm({
+                              name: university,
+                              message: `All campus assignments for this university will also be removed.`,
+                              onConfirm: () => void run(() => removeUniversity({ year: selectedYear, name: university })),
+                            })
                           }
                         />
                       </>
@@ -1068,11 +1095,11 @@ export default function AdminScreen() {
                           name="trash-outline"
                           color={t.danger}
                           onPress={() =>
-                            confirmDelete(
-                              "Delete department",
-                              `Delete "${department.name}"? All staff assignments to this department will also be removed.`,
-                              () => void run(() => removeDepartment({ year: selectedYear, name: department.name }))
-                            )
+                            setDeleteConfirm({
+                              name: department.name,
+                              message: `All staff assignments to this department will also be removed.`,
+                              onConfirm: () => void run(() => removeDepartment({ year: selectedYear, name: department.name })),
+                            })
                           }
                         />
                       </>
