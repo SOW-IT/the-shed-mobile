@@ -46,13 +46,13 @@ async function setup() {
     division: "Governance",
     headEmail: FIONA,
   });
-  const assignments: { email: string; roles: string[]; department: string }[] = [
+  const assignments: { email: string; roles: string[]; department?: string }[] = [
     { email: RACHEL, roles: ["Staff"], department: "Marketing" },
     { email: BELLA, roles: ["Staff"], department: "Finance" },
-    { email: DAN, roles: ["Director"], department: "Marketing" },
+    { email: DAN, roles: ["Director"] }, // Director is scopeless — no department
   ];
   for (const a of assignments) {
-    await admin.mutation(api.admin.setStaffProfile, { year: YEAR, ...a });
+    await admin.mutation(api.admin.setStaffProfile, { year: YEAR, email: a.email, roles: a.roles, department: a.department });
   }
   await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
   return t;
@@ -102,10 +102,11 @@ describe("submission auto-approval (REQUESTS_FLOW auto-approval table)", () => {
     expect(request.approvedByDirector).toBe("PENDING");
   });
 
-  test("the Director's own >= $5000 request skips HOD (own dept) and Director", async () => {
+  test("the Director's own >= $5000 request skips HOD and Director steps", async () => {
     const t = await setup();
     const dan = asUser(t, DAN);
-    await dan.mutation(api.requests.submit, { description: "x", amount: 6000 });
+    // Director is scopeless — must specify which department the request is for.
+    await dan.mutation(api.requests.submit, { description: "x", amount: 6000, department: "Marketing" });
     const [request] = (await dan.query(api.requests.myRequests, {}))!;
     expect(request.approvedByHOD).toBe("APPROVED");
     expect(request.approvedByDirector).toBe("APPROVED");
@@ -714,7 +715,7 @@ describe("audit trail and reminders", () => {
     const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
     const omar = profiles.find((p) => p.email === "omar@sow.org.au");
     expect(omar?.roles).toEqual(["Head of Department"]);
-    expect(omar?.department).toBe("Events");
+    expect(omar?.assignments?.some((a) => a.department === "Events")).toBe(true);
 
     // Removing a head's profile vacates the headship too.
     await admin.mutation(api.admin.removeStaffProfile, {

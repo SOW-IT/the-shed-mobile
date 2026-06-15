@@ -13,9 +13,10 @@ import {
   formatAssignment,
   HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
+  isChaplainRole,
   ROLES,
   roleNeedsDepartment,
-  rolesNeedUniversity,
+  roleNeedsUniversity,
 } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { radius, useAppTheme } from "@/theme";
@@ -72,6 +73,104 @@ const STAFF_EDITABLE_ROLES = ROLES.filter(
   (r) => r !== HEAD_OF_DEPARTMENT && r !== HEAD_OF_DIVISION
 );
 
+type AssignmentDraft = { role: string; department: string; university: string };
+const emptyDraft = (): AssignmentDraft => ({
+  role: STAFF_EDITABLE_ROLES[0],
+  department: "",
+  university: "",
+});
+
+const AssignmentEditor = ({
+  assignments,
+  onChange,
+  departments,
+  universities,
+}: {
+  assignments: AssignmentDraft[];
+  onChange: (a: AssignmentDraft[]) => void;
+  departments: string[];
+  universities: string[];
+}) => {
+  const t = useAppTheme();
+  return (
+    <View style={{ gap: 8 }}>
+      {assignments.map((a, i) => {
+        const needsUni = roleNeedsUniversity(a.role);
+        const isChaplain = isChaplainRole(a.role);
+        const needsDept = roleNeedsDepartment(a.role) && !isChaplain;
+        const update = (patch: Partial<AssignmentDraft>) => {
+          const next = [...assignments];
+          next[i] = { ...next[i], ...patch };
+          onChange(next);
+        };
+        return (
+          <View
+            key={i}
+            style={{
+              backgroundColor: t.ghost,
+              borderRadius: radius.md,
+              padding: 12,
+              gap: 8,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
+              <View style={{ flex: 1 }}>
+                <Select
+                  label={assignments.length > 1 ? `Assignment ${i + 1}` : "Role"}
+                  value={a.role}
+                  options={STAFF_EDITABLE_ROLES}
+                  onSelect={(role) => update({ role, department: "", university: "" })}
+                />
+              </View>
+              {assignments.length > 1 && (
+                <IconButton
+                  name="close-circle-outline"
+                  onPress={() => onChange(assignments.filter((_, j) => j !== i))}
+                  accessibilityLabel="Remove assignment"
+                />
+              )}
+            </View>
+            {needsDept && (
+              <Select
+                label="Department"
+                value={a.department}
+                options={departments}
+                onSelect={(department) => update({ department })}
+                placeholder="Choose a department…"
+              />
+            )}
+            {needsUni && (
+              <Select
+                label="University"
+                value={a.university}
+                options={universities}
+                onSelect={(university) => update({ university })}
+                placeholder="Choose a university…"
+              />
+            )}
+            {isChaplain && (
+              <Select
+                label="University (optional)"
+                value={a.university}
+                options={[
+                  { label: "— None —", value: "" },
+                  ...universities.map((u) => ({ label: u, value: u })),
+                ]}
+                onSelect={(university) => update({ university })}
+                placeholder="Choose a university…"
+              />
+            )}
+          </View>
+        );
+      })}
+      <Btn
+        title="+ Add Assignment"
+        variant="ghost"
+        onPress={() => onChange([...assignments, emptyDraft()])}
+      />
+    </View>
+  );
+};
 
 export default function AdminScreen() {
   const t = useAppTheme();
@@ -137,28 +236,24 @@ export default function AdminScreen() {
 
   // Staff add form — for new assignments.
   const [staffEmail, setStaffEmail] = useState("");
-  const [staffRoles, setStaffRoles] = useState<string[]>([ROLES[0]]);
-  const [staffDepartment, setStaffDepartment] = useState("");
-  const [staffUniversity, setStaffUniversity] = useState("");
+  const [staffAssignments, setStaffAssignments] = useState<AssignmentDraft[]>([emptyDraft()]);
   const [savingStaff, setSavingStaff] = useState(false);
-  // Picking a person pre-fills the add form with their existing assignment.
+  // Picking a person pre-fills the add form with their existing non-head assignments.
   const selectPerson = (email: string) => {
     setStaffEmail(email);
     const existing = (profiles ?? []).find((p) => p.email === email);
-    // Head roles are managed via the Structure tab; strip them so they don't
-    // appear as editable options (the backend re-adds them on save).
-    const nonHeadRoles = (existing?.roles ?? []).filter(
-      (r) => r !== HEAD_OF_DEPARTMENT && r !== HEAD_OF_DIVISION
-    );
-    setStaffRoles(nonHeadRoles.length > 0 ? nonHeadRoles : [ROLES[0]]);
-    // Prefill the scope from a NON-head assignment so editing a mixed person
-    // (e.g. Staff of Marketing + Head of Finance) keeps their Staff department,
-    // not the head one the legacy single field would resolve to.
     const nonHead = (existing?.assignments ?? []).filter(
       (a) => a.role !== HEAD_OF_DEPARTMENT && a.role !== HEAD_OF_DIVISION
     );
-    setStaffDepartment(nonHead.find((a) => a.department)?.department ?? "");
-    setStaffUniversity(nonHead.find((a) => a.university)?.university ?? "");
+    setStaffAssignments(
+      nonHead.length > 0
+        ? nonHead.map((a) => ({
+            role: a.role,
+            department: a.department ?? "",
+            university: a.university ?? "",
+          }))
+        : [emptyDraft()]
+    );
   };
   // Division / department / university add forms
   const [divisionName, setDivisionName] = useState("");
@@ -174,9 +269,7 @@ export default function AdminScreen() {
 
   // Inline editing state for user cards
   const [editingUserEmail, setEditingUserEmail] = useState<string | null>(null);
-  const [editingUserRoles, setEditingUserRoles] = useState<string[]>([ROLES[0]]);
-  const [editingUserDepartment, setEditingUserDepartment] = useState("");
-  const [editingUserUniversity, setEditingUserUniversity] = useState("");
+  const [editingAssignments, setEditingAssignments] = useState<AssignmentDraft[]>([emptyDraft()]);
   const [savingEditUser, setSavingEditUser] = useState(false);
   // Inline editing state for division cards
   const [editingDivisionKey, setEditingDivisionKey] = useState<string | null>(null);
@@ -192,15 +285,18 @@ export default function AdminScreen() {
 
   const startEditUser = (email: string) => {
     const existing = (profiles ?? []).find((p) => p.email === email);
-    const nonHeadRoles = (existing?.roles ?? []).filter(
-      (r) => r !== HEAD_OF_DEPARTMENT && r !== HEAD_OF_DIVISION
-    );
-    setEditingUserRoles(nonHeadRoles.length > 0 ? nonHeadRoles : [ROLES[0]]);
     const nonHead = (existing?.assignments ?? []).filter(
       (a) => a.role !== HEAD_OF_DEPARTMENT && a.role !== HEAD_OF_DIVISION
     );
-    setEditingUserDepartment(nonHead.find((a) => a.department)?.department ?? "");
-    setEditingUserUniversity(nonHead.find((a) => a.university)?.university ?? "");
+    setEditingAssignments(
+      nonHead.length > 0
+        ? nonHead.map((a) => ({
+            role: a.role,
+            department: a.department ?? "",
+            university: a.university ?? "",
+          }))
+        : [emptyDraft()]
+    );
     setEditingUserEmail(email);
   };
 
@@ -212,8 +308,6 @@ export default function AdminScreen() {
     );
   }
 
-  const needsUniversity = rolesNeedUniversity(staffRoles);
-  const needsDepartment = staffRoles.some(roleNeedsDepartment);
   const addFormProfile = (profiles ?? []).find(
     (p) => p.email === staffEmail.trim().toLowerCase()
   );
@@ -353,34 +447,15 @@ export default function AdminScreen() {
                 placeholder="someone@sow.org.au"
                 keyboardType="email-address"
               />
-              <MultiSelect
-                label="Role (select one or more)"
-                values={staffRoles}
-                options={STAFF_EDITABLE_ROLES}
-                onSelect={setStaffRoles}
+              <AssignmentEditor
+                assignments={staffAssignments}
+                onChange={setStaffAssignments}
+                departments={(structure?.departments ?? []).map((d) => d.name)}
+                universities={structure?.universities ?? []}
               />
-              {needsUniversity && (
-                <Select
-                  label="University (Student Leaders belong to one, not a department)"
-                  value={staffUniversity}
-                  options={structure?.universities ?? []}
-                  onSelect={setStaffUniversity}
-                  placeholder="Choose a university…"
-                />
-              )}
-              {needsDepartment && (
-                <Select
-                  label="Department"
-                  value={staffDepartment}
-                  options={(structure?.departments ?? []).map((d) => d.name)}
-                  onSelect={setStaffDepartment}
-                  placeholder="Choose a department…"
-                />
-              )}
               {isAddFormHeadLocked && (
                 <Muted>
-                  Also holds a head role (managed in the Structure tab) — saving
-                  keeps it alongside the roles above.
+                  Also holds a head assignment (managed in Structure tab) — saving keeps it alongside these assignments.
                 </Muted>
               )}
               <Btn
@@ -393,15 +468,18 @@ export default function AdminScreen() {
                     setStaffProfile({
                       email,
                       year: selectedYear,
-                      roles: staffRoles,
-                      department: needsDepartment ? staffDepartment : undefined,
-                      university: needsUniversity ? staffUniversity : undefined,
+                      assignments: staffAssignments.map((a) => ({
+                        role: a.role,
+                        department: a.department || undefined,
+                        university: a.university || undefined,
+                      })),
                     })
                   )
                     .then((ok) => {
                       if (ok) {
                         setToast({ text: `Saved ${email} for ${selectedYear}` });
                         setStaffEmail("");
+                        setStaffAssignments([emptyDraft()]);
                       }
                     })
                     .finally(() => setSavingStaff(false));
@@ -411,47 +489,35 @@ export default function AdminScreen() {
           )}
           {(profiles ?? []).map((profile) => {
             const isEditingThis = editingUserEmail === profile.email;
-            const needsEditUni = rolesNeedUniversity(editingUserRoles);
-            const needsEditDept = editingUserRoles.some(roleNeedsDepartment);
-            const lockedHeadRoles = profile.roles.filter(
-              (r) => r === HEAD_OF_DEPARTMENT || r === HEAD_OF_DIVISION
+            const lockedHeadAssignments = (profile.assignments ?? []).filter(
+              (a) => a.role === HEAD_OF_DEPARTMENT || a.role === HEAD_OF_DIVISION
             );
-            const isEditHeadLocked = lockedHeadRoles.length > 0;
             return (
               <Card key={profile._id}>
                 {isEditingThis ? (
                   <>
                     <Txt style={{ fontWeight: "600" }}>{profile.name ?? profile.email}</Txt>
                     {profile.name ? <Muted>{profile.email}</Muted> : null}
-                    <MultiSelect
-                      label="Role (select one or more)"
-                      values={editingUserRoles}
-                      options={STAFF_EDITABLE_ROLES}
-                      onSelect={setEditingUserRoles}
+                    {lockedHeadAssignments.length > 0 && (
+                      <>
+                        <Muted>Head assignments — managed in the Structure tab:</Muted>
+                        <View style={styles.chips}>
+                          {lockedHeadAssignments.map((a, i) => (
+                            <View key={i} style={[styles.chip, { backgroundColor: t.ghost }]}>
+                              <Txt style={[styles.chipText, { color: t.muted }]}>
+                                {formatAssignment(a)}
+                              </Txt>
+                            </View>
+                          ))}
+                        </View>
+                      </>
+                    )}
+                    <AssignmentEditor
+                      assignments={editingAssignments}
+                      onChange={setEditingAssignments}
+                      departments={(structure?.departments ?? []).map((d) => d.name)}
+                      universities={structure?.universities ?? []}
                     />
-                    {isEditHeadLocked && (
-                      <Muted>
-                        {lockedHeadRoles.join(", ")} — managed via the Structure tab
-                      </Muted>
-                    )}
-                    {needsEditUni && (
-                      <Select
-                        label="University"
-                        value={editingUserUniversity}
-                        options={structure?.universities ?? []}
-                        onSelect={setEditingUserUniversity}
-                        placeholder="Choose a university…"
-                      />
-                    )}
-                    {needsEditDept && (
-                      <Select
-                        label="Department"
-                        value={editingUserDepartment}
-                        options={(structure?.departments ?? []).map((d) => d.name)}
-                        onSelect={setEditingUserDepartment}
-                        placeholder="Choose a department…"
-                      />
-                    )}
                     <Row>
                       <Btn
                         title="Save"
@@ -462,9 +528,11 @@ export default function AdminScreen() {
                             setStaffProfile({
                               email: profile.email,
                               year: selectedYear,
-                              roles: editingUserRoles,
-                              department: needsEditDept ? editingUserDepartment : undefined,
-                              university: needsEditUni ? editingUserUniversity : undefined,
+                              assignments: editingAssignments.map((a) => ({
+                                role: a.role,
+                                department: a.department || undefined,
+                                university: a.university || undefined,
+                              })),
                             })
                           )
                             .then((ok) => {

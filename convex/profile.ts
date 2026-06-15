@@ -2,7 +2,7 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
 import { mutation, MutationCtx, query } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
-import { assignmentsOf } from "../shared/flow";
+import { assignmentsOf, departmentsOf, divisionsOf } from "../shared/flow";
 import { currentStaffYear, optionalEmail, rolesOf } from "./model";
 
 /**
@@ -72,10 +72,9 @@ export const get = query({
         year: h.year,
         roles: rolesOf(h),
         assignments: assignmentsOf(h),
-        // Legacy singles kept for back-compat; prefer assignments.
-        department: h.department ?? null,
-        division: h.division ?? null,
-        university: h.university ?? null,
+        department: departmentsOf(h)[0] ?? null,
+        division: divisionsOf(h)[0] ?? null,
+        university: assignmentsOf(h).find((a) => a.university)?.university ?? null,
       })),
     };
   },
