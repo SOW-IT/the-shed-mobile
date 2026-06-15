@@ -224,7 +224,7 @@ const LockedAssignmentRow = ({
             <Text style={[typography.body, { color: t.text, flex: 1 }]}>{a.role}</Text>
           </View>
         </View>
-        <Ionicons name="lock-closed-outline" size={20} color={t.muted} style={{ marginBottom: 12 }} />
+        <Ionicons name="lock-closed-outline" size={20} color={t.muted} style={{ marginBottom: 12 }} accessibilityLabel="Locked – managed in Structure tab" />
       </View>
       {scopeLabel && scopeValue && (
         <View style={{ gap: 6 }}>

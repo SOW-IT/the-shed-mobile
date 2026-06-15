@@ -10,11 +10,12 @@ import {
 import { DarkTheme, DefaultTheme, Tabs, ThemeProvider } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
-import { ActivityIndicator, ColorValue, Image, Platform, Text, View } from "react-native";
+import { ColorValue, Platform, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SignInScreen } from "@/components/SignInScreen";
+import { SowSpinner } from "@/components/ui";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { useAppTheme } from "@/theme";
 import { requestFullyApproved } from "../../shared/flow";
@@ -208,16 +209,21 @@ const AppTabs = () => {
 
 export default function RootLayout() {
   const t = useAppTheme();
+  const baseTheme = t.dark ? DarkTheme : DefaultTheme;
+  const navTheme = {
+    ...baseTheme,
+    colors: { ...baseTheme.colors, background: t.background },
+  };
   if (!convex) {
     return (
-      <ThemeProvider value={t.dark ? DarkTheme : DefaultTheme}>
+      <ThemeProvider value={navTheme}>
         <StatusBar style="auto" />
         <View style={{ flex: 1, backgroundColor: t.background }} />
       </ThemeProvider>
     );
   }
   return (
-    <ThemeProvider value={t.dark ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={navTheme}>
       <StatusBar style="auto" />
       <ErrorBoundary>
       <ConvexAuthProvider
@@ -234,16 +240,7 @@ export default function RootLayout() {
               backgroundColor: t.background,
             }}
           >
-            <Image
-              source={
-                t.dark
-                  ? require("../../assets/images/splash-icon-dark.png")
-                  : require("../../assets/images/splash-icon.png")
-              }
-              style={{ width: 140, height: 140 }}
-              resizeMode="contain"
-              accessibilityLabel="Loading"
-            />
+            <SowSpinner size={140} />
           </View>
         </AuthLoading>
         <Unauthenticated>

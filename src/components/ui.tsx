@@ -124,6 +124,7 @@ export const Screen = ({
       <ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
+        style={{ backgroundColor: t.background }}
         contentContainerStyle={[styles.scroll, footer != null && { paddingBottom: 96 }]}
       >
         {(title || headerRight) && (
@@ -877,15 +878,43 @@ export const EmptyState = ({
   );
 };
 
-/** Centred loading indicator for screens waiting on their first query. */
-export const LoadingState = () => {
+/** SOW logo that rotates continuously — used as the app's loading spinner. */
+export const SowSpinner = ({ size = 64 }: { size?: number }) => {
   const t = useAppTheme();
+  const spin = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.timing(spin, {
+        toValue: 1,
+        duration: 1200,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [spin]);
+  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
   return (
-    <View style={styles.loading}>
-      <ActivityIndicator size="small" color={t.muted} />
-    </View>
+    <Animated.Image
+      source={
+        t.dark
+          ? require("../../assets/images/splash-icon-dark.png")
+          : require("../../assets/images/splash-icon.png")
+      }
+      style={{ width: size, height: size, transform: [{ rotate }] }}
+      resizeMode="contain"
+      accessibilityLabel="Loading"
+    />
   );
 };
+
+/** Centred loading indicator for screens waiting on their first query. */
+export const LoadingState = () => (
+  <View style={styles.loading}>
+    <SowSpinner />
+  </View>
+);
 
 /** Round profile photo with an initials fallback. */
 export const Avatar = ({
