@@ -403,15 +403,19 @@ export default function AdminScreen() {
     (u) => !u.hasProfile && !unassignedEmails.has(u.email)
   );
   const groupedProfiles = (structure?.divisions ?? []).map((div) => {
+    const seenInDepartments = new Set<string>();
     const divDepts = (structure?.departments ?? []).filter((d) => d.division === div.name);
     return {
       division: div.name,
       departments: divDepts
         .map((dept) => ({
           name: dept.name,
-          profiles: (profiles ?? []).filter((p) =>
-            (p.assignments ?? []).some((a) => a.department === dept.name)
-          ),
+          profiles: (profiles ?? []).filter((p) => {
+            if (seenInDepartments.has(p.email)) return false;
+            const inDept = (p.assignments ?? []).some((a) => a.department === dept.name);
+            if (inDept) seenInDepartments.add(p.email);
+            return inDept;
+          }),
         }))
         .filter((d) => d.profiles.length > 0),
       divisionOnlyProfiles: (profiles ?? []).filter((p) => {
@@ -484,7 +488,7 @@ export default function AdminScreen() {
           <Row>
             <View style={{ flexGrow: 1 }}>
               <Txt style={{ fontWeight: "600" }}>{user.name ?? user.email}</Txt>
-              <Muted>{user.email}</Muted>
+              {user.name ? <Muted>{user.email}</Muted> : null}
             </View>
             <Btn
               title="Assign"
