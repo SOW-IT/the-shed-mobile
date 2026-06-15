@@ -208,7 +208,19 @@ export const listStaffProfiles = query({
       .query("staffProfiles")
       .withIndex("by_year", (q) => q.eq("year", args.year))
       .take(1000);
-    return profiles.map((profile) => ({ ...profile, roles: rolesOf(profile) }));
+    const result = [];
+    for (const profile of profiles) {
+      const directoryUser = await ctx.db
+        .query("directoryUsers")
+        .withIndex("by_email", (q) => q.eq("email", profile.email))
+        .unique();
+      result.push({
+        ...profile,
+        roles: rolesOf(profile),
+        name: profile.name ?? directoryUser?.name ?? null,
+      });
+    }
+    return result;
   },
 });
 
@@ -228,7 +240,11 @@ export const listUnassignedUsers = query({
       if (!user.email) continue;
       const profile = await getProfile(ctx, user.email, args.year);
       if (!profile) {
-        unassigned.push({ email: user.email, name: user.name ?? null });
+        const directoryUser = await ctx.db
+          .query("directoryUsers")
+          .withIndex("by_email", (q) => q.eq("email", user.email!))
+          .unique();
+        unassigned.push({ email: user.email, name: user.name ?? directoryUser?.name ?? null });
       }
     }
     return unassigned;
