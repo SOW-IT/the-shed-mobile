@@ -451,6 +451,10 @@ export default function AdminScreen() {
 
   // Shared save handler for inline-assign cards (used for both unassigned sections).
   const saveAssign = (email: string) => {
+    if (directorExists && assigningAssignments.some((a) => a.role === DIRECTOR)) {
+      setError("A Director is already assigned for this year.");
+      return;
+    }
     setSavingAssign(true);
     void run(() =>
       setStaffProfile({
@@ -551,16 +555,30 @@ export default function AdminScreen() {
                 title="Save"
                 loading={savingEditUser}
                 onPress={() => {
+                  const isCurrentDirector = (profile.assignments ?? []).some(
+                    (a) => a.role === DIRECTOR
+                  );
+                  if (
+                    directorExists &&
+                    !isCurrentDirector &&
+                    editingAssignments.some((a) => a.role === DIRECTOR)
+                  ) {
+                    setError("A Director is already assigned for this year.");
+                    return;
+                  }
                   setSavingEditUser(true);
                   void run(() =>
                     setStaffProfile({
                       email: profile.email,
                       year: selectedYear,
-                      assignments: editingAssignments.map((a) => ({
-                        role: a.role,
-                        department: a.department || undefined,
-                        university: a.university || undefined,
-                      })),
+                      assignments: [
+                        ...lockedHeadAssignments,
+                        ...editingAssignments.map((a) => ({
+                          role: a.role,
+                          department: a.department || undefined,
+                          university: a.university || undefined,
+                        })),
+                      ],
                     })
                   )
                     .then((ok) => {
