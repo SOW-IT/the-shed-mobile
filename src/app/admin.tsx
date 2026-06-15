@@ -413,6 +413,7 @@ export default function AdminScreen() {
   const groupedProfiles = (structure?.divisions ?? []).map((div) => {
     const seenInDepartments = new Set<string>();
     const divDepts = (structure?.departments ?? []).filter((d) => d.division === div.name);
+    const divDeptNames = new Set(divDepts.map((d) => d.name));
     return {
       division: div.name,
       departments: divDepts
@@ -428,8 +429,6 @@ export default function AdminScreen() {
         .filter((d) => d.profiles.length > 0),
       divisionOnlyProfiles: (profiles ?? []).filter((p) => {
         if (!divisionsOf(p).includes(div.name)) return false;
-        // Only show here if the person has NO department in THIS division.
-        const divDeptNames = new Set(divDepts.map((d) => d.name));
         return !departmentsOf(p).some((dept) => divDeptNames.has(dept));
       }),
     };

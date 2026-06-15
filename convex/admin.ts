@@ -749,14 +749,18 @@ export const removeDivision = mutation({
         (a) => a.division !== args.name && !deptNames.has(a.department ?? "")
       );
       if (filtered.length !== current.length) {
-        await ctx.db.patch("staffProfiles", profile._id, {
-          assignments: filtered,
-          ...(filtered.length === 0 ? { roles: [] } : {}),
-        });
+        await patchFromAssignments(ctx, profile, filtered);
       }
     }
 
     // Delete the departments and the division itself.
+    // Clear the budget manager when Finance is among the deleted departments.
+    if (deptNames.has(FINANCE)) {
+      const settings = await getYearSettings(ctx, args.year);
+      if (settings?.budgetManagerEmail) {
+        await ctx.db.patch("yearSettings", settings._id, { budgetManagerEmail: undefined });
+      }
+    }
     for (const dept of divDepts) {
       await ctx.db.delete("departments", dept._id);
     }
@@ -846,10 +850,7 @@ export const removeUniversity = mutation({
       const current = assignmentsOf(profile);
       const filtered = current.filter((a) => a.university !== args.name);
       if (filtered.length !== current.length) {
-        await ctx.db.patch("staffProfiles", profile._id, {
-          assignments: filtered,
-          ...(filtered.length === 0 ? { roles: [] } : {}),
-        });
+        await patchFromAssignments(ctx, profile, filtered);
       }
     }
     await ctx.db.delete("universities", university._id);
@@ -1101,10 +1102,15 @@ export const removeDepartment = mutation({
       const current = assignmentsOf(profile);
       const filtered = current.filter((a) => a.department !== args.name);
       if (filtered.length !== current.length) {
-        await ctx.db.patch("staffProfiles", profile._id, {
-          assignments: filtered,
-          ...(filtered.length === 0 ? { roles: [] } : {}),
-        });
+        await patchFromAssignments(ctx, profile, filtered);
+      }
+    }
+
+    // Clear the budget manager when the Finance department itself is deleted.
+    if (args.name === FINANCE) {
+      const settings = await getYearSettings(ctx, args.year);
+      if (settings?.budgetManagerEmail) {
+        await ctx.db.patch("yearSettings", settings._id, { budgetManagerEmail: undefined });
       }
     }
 

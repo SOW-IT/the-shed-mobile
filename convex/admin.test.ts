@@ -259,7 +259,7 @@ describe("updateUniversity", () => {
     });
 
     // Rename cascades to the staff profile.
-    await admin.mutation(api.admin.updateUniversity, {
+    const renamedId = await admin.mutation(api.admin.updateUniversity, {
       year: YEAR, oldName: "ACU", newName: "Australian Catholic University",
     });
     const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
@@ -271,12 +271,11 @@ describe("updateUniversity", () => {
       { role: "Student Leader", university: "Australian Catholic University" },
     ]);
 
-    // Same name is a no-op (returns the id without error).
-    await expect(
-      admin.mutation(api.admin.updateUniversity, {
-        year: YEAR, oldName: "Australian Catholic University", newName: "Australian Catholic University",
-      })
-    ).resolves.toBeDefined();
+    // Same name is a true no-op — returns the same id, touches nothing.
+    const sameNameId = await admin.mutation(api.admin.updateUniversity, {
+      year: YEAR, oldName: "Australian Catholic University", newName: "Australian Catholic University",
+    });
+    expect(sameNameId).toBe(renamedId);
 
     // Duplicate name is rejected.
     await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: "UTS" });
