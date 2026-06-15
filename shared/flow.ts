@@ -189,11 +189,6 @@ export const divisionsOf = (p: ProfileLike): string[] => [
   ...new Set(assignmentsOf(p).flatMap((a) => (a.division ? [a.division] : []))),
 ];
 
-/** Distinct universities a profile is linked to (any role). */
-export const universitiesOf = (p: ProfileLike): string[] => [
-  ...new Set(assignmentsOf(p).flatMap((a) => (a.university ? [a.university] : []))),
-];
-
 export const isMemberOfDepartment = (p: ProfileLike, department: string): boolean =>
   assignmentsOf(p).some((a) => a.department === department);
 

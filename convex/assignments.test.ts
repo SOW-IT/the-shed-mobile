@@ -230,6 +230,34 @@ describe("chaplaincy roles", () => {
     const usyd = chart.universities.find((u) => u.name === "University of Sydney");
     expect(usyd?.members.map((m) => m.email) ?? []).not.toContain(email);
   });
+
+  test("assigning a chaplain fails when the Chaplaincy department is missing", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // The seed creates Chaplaincy; remove it so the guard trips.
+    await admin.mutation(api.admin.removeDepartment, {
+      year: YEAR, name: CHAPLAINCY_DEPARTMENT,
+    });
+    await expect(
+      admin.mutation(api.admin.setStaffProfile, {
+        email: "c@sow.org.au", year: YEAR, roles: ["Junior Chaplain"],
+      })
+    ).rejects.toThrow(/Chaplaincy.*doesn't exist/);
+  });
+});
+
+describe("admin via division headship", () => {
+  test("the head of an admin division is treated as an admin", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const email = "hrhead@sow.org.au";
+    // Human Resources is an admin division (see ADMIN_DIVISIONS).
+    await admin.mutation(api.admin.upsertDivision, {
+      year: YEAR, name: "Human Resources", headEmail: email,
+    });
+    const me = await asUser(t, email).query(api.directory.me, {});
+    expect(me?.isAdmin).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -391,6 +419,14 @@ describe("backfillAssignments", () => {
         )
         .unique();
       await ctx.db.patch("departments", dept!._id, { headEmail: "legacy@sow.org.au" });
+      // A division head doc points at them too (authoritative).
+      const div = await ctx.db
+        .query("divisions")
+        .withIndex("by_year_and_name", (q) =>
+          q.eq("year", YEAR).eq("name", "Operations")
+        )
+        .unique();
+      await ctx.db.patch("divisions", div!._id, { headEmail: "legacy@sow.org.au" });
     });
 
     const first = await t.mutation(internal.admin.backfillAssignments, {});
@@ -401,9 +437,17 @@ describe("backfillAssignments", () => {
     expect(p.assignments).toContainEqual({
       role: "Head of Department", department: "Alumni",
     });
+    // …a Head of Division link for Operations…
+    expect(p.assignments).toContainEqual({
+      role: "Head of Division", division: "Operations",
+    });
     // …and keep their Staff-of-Marketing membership.
     expect(p.assignments).toContainEqual({ role: "Staff", department: "Marketing" });
-    expect(p.roles.sort()).toEqual(["Head of Department", "Staff"]);
+    expect(p.roles.sort()).toEqual([
+      "Head of Department",
+      "Head of Division",
+      "Staff",
+    ]);
 
     // Idempotent: a second run produces the same assignments.
     await t.mutation(internal.admin.backfillAssignments, {});

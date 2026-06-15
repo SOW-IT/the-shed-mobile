@@ -2,11 +2,9 @@ import { ConvexError } from "convex/values";
 import {
   ADMIN_DEPARTMENTS,
   ADMIN_DIVISIONS,
-  assignmentsOf,
   departmentsOf,
   DIRECTOR,
   FINANCE,
-  HEAD_OF_DIVISION,
   rolesOfLike,
   staffYearForDate,
 } from "../shared/flow";
@@ -100,20 +98,8 @@ export async function isAdminProfile(
 ): Promise<boolean> {
   const roles = rolesOf(profile);
   if (roles.includes(DIRECTOR)) return true;
-  // Head of any admin division (read from the assignment mirror so a person
-  // who heads several divisions is covered).
-  const assignments = assignmentsOf(profile);
-  if (
-    assignments.some(
-      (a) =>
-        a.role === HEAD_OF_DIVISION &&
-        a.division !== undefined &&
-        ADMIN_DIVISIONS.includes(a.division)
-    )
-  ) {
-    return true;
-  }
-  // Heads named on a division itself (authoritative; one person can head several).
+  // Head of any admin division — read from the authoritative division docs
+  // (headEmail), which already covers a person who heads several divisions.
   const headed = await divisionsHeadedBy(ctx, profile.year, profile.email);
   if (headed.some((division) => ADMIN_DIVISIONS.includes(division.name))) {
     return true;
