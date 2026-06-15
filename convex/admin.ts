@@ -143,7 +143,7 @@ const revokeHead = async (
 /** Remap a department/division rename across a profile's assignment scopes. */
 const remapScope = (
   assignments: Assignment[],
-  key: "department" | "division",
+  key: "department" | "division" | "university",
   oldName: string,
   newName: string
 ): Assignment[] =>
@@ -713,12 +713,52 @@ export const removeDivision = mutation({
       )
       .unique();
     if (!division) return null;
+
+    // Cascade: collect all departments belonging to this division.
     const departments = await ctx.db
       .query("departments")
       .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
       .take(200);
-    if (departments.some((d) => d.division === args.name)) {
-      throw new ConvexError("Move its departments to another division first.");
+    const divDepts = departments.filter((d) => d.division === args.name);
+    const deptNames = new Set(divDepts.map((d) => d.name));
+
+    // Open requests in any child department would become orphaned — refuse.
+    for (const dept of divDepts) {
+      const requests = await ctx.db
+        .query("requests")
+        .withIndex("by_year_and_department", (q) =>
+          q.eq("year", args.year).eq("department", dept.name)
+        )
+        .take(200);
+      if (requests.some((r) => !requestCompleted(r))) {
+        throw new ConvexError(
+          `"${dept.name}" still has open requests in ${args.year} — complete or cancel them first.`
+        );
+      }
+    }
+
+    // Strip all assignments referencing this division or any of its departments
+    // in one pass (covers HODiv, HOD, and regular staff assignments).
+    const profiles = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_year", (q) => q.eq("year", args.year))
+      .take(1000);
+    for (const profile of profiles) {
+      const current = assignmentsOf(profile);
+      const filtered = current.filter(
+        (a) => a.division !== args.name && !deptNames.has(a.department ?? "")
+      );
+      if (filtered.length !== current.length) {
+        await ctx.db.patch("staffProfiles", profile._id, {
+          assignments: filtered,
+          ...(filtered.length === 0 ? { roles: [] } : {}),
+        });
+      }
+    }
+
+    // Delete the departments and the division itself.
+    for (const dept of divDepts) {
+      await ctx.db.delete("departments", dept._id);
     }
     await ctx.db.delete("divisions", division._id);
     return null;
@@ -741,6 +781,50 @@ export const upsertUniversity = mutation({
   },
 });
 
+export const updateUniversity = mutation({
+  args: { year: v.number(), oldName: v.string(), newName: v.string() },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    assertManagedYear(args.year);
+    const oldName = args.oldName.trim();
+    const newName = args.newName.trim();
+    if (!newName) throw new ConvexError("University name is required.");
+
+    const existing = await ctx.db
+      .query("universities")
+      .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", oldName))
+      .unique();
+    if (!existing) throw new ConvexError(`University "${oldName}" not found.`);
+
+    if (newName !== oldName) {
+      const conflict = await ctx.db
+        .query("universities")
+        .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", newName))
+        .unique();
+      if (conflict) throw new ConvexError(`A university named "${newName}" already exists.`);
+
+      await ctx.db.patch("universities", existing._id, { name: newName });
+
+      const profiles = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_year", (q) => q.eq("year", args.year))
+        .take(1000);
+      for (const profile of profiles) {
+        const current = assignmentsOf(profile);
+        const referencesOld =
+          profile.university === oldName ||
+          current.some((a) => a.university === oldName);
+        if (referencesOld) {
+          const remapped = remapScope(current, "university", oldName, newName);
+          await ctx.db.patch("staffProfiles", profile._id, { assignments: remapped });
+        }
+      }
+    }
+
+    return existing._id;
+  },
+});
+
 export const removeUniversity = mutation({
   args: { year: v.number(), name: v.string() },
   handler: async (ctx, args) => {
@@ -753,20 +837,20 @@ export const removeUniversity = mutation({
       )
       .unique();
     if (!university) return null;
-    // Don't strand Student Leaders pointing at a university that no longer
-    // exists — reassign them first. Scan assignments, not just the legacy field.
+    // Cascade: strip all assignments pointing to this university from staff profiles.
     const profiles = await ctx.db
       .query("staffProfiles")
       .withIndex("by_year", (q) => q.eq("year", args.year))
       .take(1000);
-    if (
-      profiles.some((p) =>
-        assignmentsOf(p).some((a) => a.university === args.name)
-      )
-    ) {
-      throw new ConvexError(
-        `"${args.name}" still has people assigned in ${args.year} — move them to another university first.`
-      );
+    for (const profile of profiles) {
+      const current = assignmentsOf(profile);
+      const filtered = current.filter((a) => a.university !== args.name);
+      if (filtered.length !== current.length) {
+        await ctx.db.patch("staffProfiles", profile._id, {
+          assignments: filtered,
+          ...(filtered.length === 0 ? { roles: [] } : {}),
+        });
+      }
     }
     await ctx.db.delete("universities", university._id);
     return null;
@@ -994,19 +1078,7 @@ export const removeDepartment = mutation({
     const department = await getDepartment(ctx, args.year, args.name);
     if (!department) return null;
 
-    // Deleting a department that people or in-flight requests still point at
-    // would silently strand them (invisible, unapprovable). Refuse instead.
-    // Scan assignments (not just the legacy field) so a member linked via a
-    // non-primary assignment can't be missed.
-    const yearProfiles = await ctx.db
-      .query("staffProfiles")
-      .withIndex("by_year", (q) => q.eq("year", args.year))
-      .take(1000);
-    if (yearProfiles.some((p) => isMemberOfDepartment(p, args.name))) {
-      throw new ConvexError(
-        `"${args.name}" still has staff assigned in ${args.year} — move them to another department first.`
-      );
-    }
+    // Open requests would become orphaned — refuse rather than silently corrupt.
     const requests = await ctx.db
       .query("requests")
       .withIndex("by_year_and_department", (q) =>
@@ -1017,6 +1089,23 @@ export const removeDepartment = mutation({
       throw new ConvexError(
         `"${args.name}" still has open requests in ${args.year} — complete or cancel them first.`
       );
+    }
+
+    // Cascade: strip all assignments pointing to this department from staff profiles
+    // in one pass (covers HOD and regular staff assignments).
+    const yearProfiles = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_year", (q) => q.eq("year", args.year))
+      .take(1000);
+    for (const profile of yearProfiles) {
+      const current = assignmentsOf(profile);
+      const filtered = current.filter((a) => a.department !== args.name);
+      if (filtered.length !== current.length) {
+        await ctx.db.patch("staffProfiles", profile._id, {
+          assignments: filtered,
+          ...(filtered.length === 0 ? { roles: [] } : {}),
+        });
+      }
     }
 
     await ctx.db.delete("departments", department._id);

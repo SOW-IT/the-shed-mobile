@@ -67,6 +67,17 @@ const confirmRemoval = (message: string, onConfirm: () => void) => {
   ]);
 };
 
+const confirmDelete = (title: string, message: string, onConfirm: () => void) => {
+  if (Platform.OS === "web") {
+    if (window.confirm(message)) onConfirm();
+    return;
+  }
+  Alert.alert(title, message, [
+    { text: "Cancel", style: "cancel" },
+    { text: "Delete", style: "destructive", onPress: onConfirm },
+  ]);
+};
+
 type AdminTab = "users" | "structure" | "other";
 const ADMIN_TABS = [
   { key: "users", label: "Users" },
@@ -80,8 +91,8 @@ const STAFF_EDITABLE_ROLES = ROLES.filter(
 );
 
 type AssignmentDraft = { role: string; department: string; university: string };
-const emptyDraft = (): AssignmentDraft => ({
-  role: STAFF_EDITABLE_ROLES[0],
+const emptyDraft = (role = STAFF_EDITABLE_ROLES[0]): AssignmentDraft => ({
+  role,
   department: "",
   university: "",
 });
@@ -286,9 +297,13 @@ export default function AdminScreen() {
   const removeStaffProfile = useMutation(api.admin.removeStaffProfile);
   const upsertDivision = useMutation(api.admin.upsertDivision);
   const updateDivision = useMutation(api.admin.updateDivision);
+  const removeDivision = useMutation(api.admin.removeDivision);
   const upsertDepartment = useMutation(api.admin.upsertDepartment);
   const updateDepartment = useMutation(api.admin.updateDepartment);
+  const removeDepartment = useMutation(api.admin.removeDepartment);
   const upsertUniversity = useMutation(api.admin.upsertUniversity);
+  const updateUniversity = useMutation(api.admin.updateUniversity);
+  const removeUniversity = useMutation(api.admin.removeUniversity);
   const setBudgetManager = useMutation(api.admin.setBudgetManager);
   const requestSync = useMutation(api.directorySync.requestSync);
   const syncState = useQuery(
@@ -341,6 +356,10 @@ export default function AdminScreen() {
   const [editingDepartmentFormDivision, setEditingDepartmentFormDivision] = useState("");
   const [editingDepartmentFormHead, setEditingDepartmentFormHead] = useState("");
   const [savingEditDepartment, setSavingEditDepartment] = useState(false);
+  // Inline editing state for university cards
+  const [editingUniversityKey, setEditingUniversityKey] = useState<string | null>(null);
+  const [editingUniversityFormName, setEditingUniversityFormName] = useState("");
+  const [savingEditUniversity, setSavingEditUniversity] = useState(false);
 
   const startEditUser = (email: string) => {
     const existing = (profiles ?? []).find((p) => p.email === email);
@@ -408,9 +427,10 @@ export default function AdminScreen() {
         }))
         .filter((d) => d.profiles.length > 0),
       divisionOnlyProfiles: (profiles ?? []).filter((p) => {
-        const pdivs = divisionsOf(p);
-        const pdepts = departmentsOf(p);
-        return pdivs.includes(div.name) && pdepts.length === 0;
+        if (!divisionsOf(p).includes(div.name)) return false;
+        // Only show here if the person has NO department in THIS division.
+        const divDeptNames = new Set(divDepts.map((d) => d.name));
+        return !departmentsOf(p).some((dept) => divDeptNames.has(dept));
       }),
     };
   });
@@ -606,13 +626,9 @@ export default function AdminScreen() {
               <Txt style={{ fontWeight: "600" }}>{profile.name ?? profile.email}</Txt>
               {profile.name ? <Muted>{profile.email}</Muted> : null}
               {(profile.assignments ?? []).length > 0 ? (
-                <View style={styles.chips}>
+                <View style={{ marginTop: 2 }}>
                   {(profile.assignments ?? []).map((a, i) => (
-                    <View key={i} style={[styles.chip, { backgroundColor: t.primarySoft }]}>
-                      <Txt style={[styles.chipText, { color: t.primary }]}>
-                        {formatAssignment(a)}
-                      </Txt>
-                    </View>
+                    <Muted key={i}>{formatAssignment(a)}</Muted>
                   ))}
                 </View>
               ) : (
@@ -682,6 +698,11 @@ export default function AdminScreen() {
             onPress={() => {
               setYear(y);
               setYearMenuOpen(false);
+              setEditingUserEmail(null);
+              setAssigningUserEmail(null);
+              setEditingDivisionKey(null);
+              setEditingDepartmentKey(null);
+              setEditingUniversityKey(null);
             }}
           />
         ))}
@@ -819,14 +840,27 @@ export default function AdminScreen() {
                       <Muted>Head: {division.headEmail ?? "none"}</Muted>
                     </View>
                     {editable && (
-                      <IconButton
-                        name="create-outline"
-                        onPress={() => {
-                          setEditingDivisionFormName(division.name);
-                          setEditingDivisionFormHead(division.headEmail ?? "");
-                          setEditingDivisionKey(division.name);
-                        }}
-                      />
+                      <>
+                        <IconButton
+                          name="create-outline"
+                          onPress={() => {
+                            setEditingDivisionFormName(division.name);
+                            setEditingDivisionFormHead(division.headEmail ?? "");
+                            setEditingDivisionKey(division.name);
+                          }}
+                        />
+                        <IconButton
+                          name="trash-outline"
+                          color={t.danger}
+                          onPress={() =>
+                            confirmDelete(
+                              "Delete division",
+                              `Delete "${division.name}"? Its departments and all staff assignments in this division will also be removed.`,
+                              () => void run(() => removeDivision({ year: selectedYear, name: division.name }))
+                            )
+                          }
+                        />
+                      </>
                     )}
                   </Row>
                 )}
@@ -868,26 +902,95 @@ export default function AdminScreen() {
           )}
 
           <SectionTitle>Universities — {selectedYear}</SectionTitle>
-          <Card>
-            <Muted>{(structure?.universities ?? []).join(", ") || "None yet."}</Muted>
-            {editable && (
-              <>
-                <Field
-                  label="New university"
-                  value={universityName}
-                  onChangeText={setUniversityName}
-                />
-                <Btn
-                  title="Add University"
-                  onPress={() =>
-                    void run(() =>
-                      upsertUniversity({ year: selectedYear, name: universityName })
-                    ).then((ok) => ok && setUniversityName(""))
-                  }
-                />
-              </>
-            )}
-          </Card>
+          {(structure?.universities ?? []).length === 0 && (
+            <Card><Muted>No universities yet.</Muted></Card>
+          )}
+          {(structure?.universities ?? []).map((university) => {
+            const isEditingThis = editingUniversityKey === university;
+            return (
+              <Card key={university}>
+                {isEditingThis ? (
+                  <>
+                    <Field
+                      label="University name (rename cascades to staff)"
+                      value={editingUniversityFormName}
+                      onChangeText={setEditingUniversityFormName}
+                    />
+                    <Row>
+                      <Btn
+                        title="Save"
+                        loading={savingEditUniversity}
+                        onPress={() => {
+                          setSavingEditUniversity(true);
+                          void run(() =>
+                            updateUniversity({
+                              year: selectedYear,
+                              oldName: university,
+                              newName: editingUniversityFormName,
+                            })
+                          )
+                            .then((ok) => {
+                              if (ok) setEditingUniversityKey(null);
+                            })
+                            .finally(() => setSavingEditUniversity(false));
+                        }}
+                      />
+                      <Btn
+                        title="Cancel"
+                        variant="ghost"
+                        onPress={() => setEditingUniversityKey(null)}
+                      />
+                    </Row>
+                  </>
+                ) : (
+                  <Row>
+                    <View style={{ flexGrow: 1 }}>
+                      <Txt style={{ fontWeight: "600" }}>{university}</Txt>
+                    </View>
+                    {editable && (
+                      <>
+                        <IconButton
+                          name="create-outline"
+                          onPress={() => {
+                            setEditingUniversityFormName(university);
+                            setEditingUniversityKey(university);
+                          }}
+                        />
+                        <IconButton
+                          name="trash-outline"
+                          color={t.danger}
+                          onPress={() =>
+                            confirmDelete(
+                              "Delete university",
+                              `Delete "${university}"? All campus assignments for this university will also be removed.`,
+                              () => void run(() => removeUniversity({ year: selectedYear, name: university }))
+                            )
+                          }
+                        />
+                      </>
+                    )}
+                  </Row>
+                )}
+              </Card>
+            );
+          })}
+          {editable && (
+            <Card>
+              <Field
+                label="New university"
+                value={universityName}
+                onChangeText={setUniversityName}
+              />
+              <Btn
+                title="Add University"
+                onPress={() =>
+                  void run(() =>
+                    upsertUniversity({ year: selectedYear, name: universityName })
+                  ).then((ok) => ok && setUniversityName(""))
+                }
+              />
+            </Card>
+          )}
 
           <SectionTitle>Departments — {selectedYear}</SectionTitle>
           {(structure?.departments ?? []).map((department) => {
@@ -952,15 +1055,28 @@ export default function AdminScreen() {
                       </Muted>
                     </View>
                     {editable && (
-                      <IconButton
-                        name="create-outline"
-                        onPress={() => {
-                          setEditingDepartmentFormName(department.name);
-                          setEditingDepartmentFormDivision(department.division);
-                          setEditingDepartmentFormHead(department.headEmail ?? "");
-                          setEditingDepartmentKey(department.name);
-                        }}
-                      />
+                      <>
+                        <IconButton
+                          name="create-outline"
+                          onPress={() => {
+                            setEditingDepartmentFormName(department.name);
+                            setEditingDepartmentFormDivision(department.division);
+                            setEditingDepartmentFormHead(department.headEmail ?? "");
+                            setEditingDepartmentKey(department.name);
+                          }}
+                        />
+                        <IconButton
+                          name="trash-outline"
+                          color={t.danger}
+                          onPress={() =>
+                            confirmDelete(
+                              "Delete department",
+                              `Delete "${department.name}"? All staff assignments to this department will also be removed.`,
+                              () => void run(() => removeDepartment({ year: selectedYear, name: department.name }))
+                            )
+                          }
+                        />
+                      </>
                     )}
                   </Row>
                 )}
@@ -1089,20 +1205,5 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     paddingHorizontal: 14,
     paddingVertical: 9,
-  },
-  chips: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    marginTop: 4,
-  },
-  chip: {
-    borderRadius: radius.full,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  chipText: {
-    fontSize: 12,
-    fontWeight: "600",
   },
 });

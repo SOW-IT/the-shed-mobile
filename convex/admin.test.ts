@@ -248,19 +248,30 @@ describe("removeUniversity", () => {
 });
 
 describe("removeDivision", () => {
-  test("refuses while departments still reference it; succeeds once empty", async () => {
+  test("cascades to departments and staff assignments; no-ops on missing", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Governance has departments from the seed -> refuse.
-    await expect(
-      admin.mutation(api.admin.removeDivision, { year: YEAR, name: "Governance" })
-    ).rejects.toThrow(/Move its departments/);
 
-    // An empty, freshly-created division can be removed.
-    await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "Temp Division" });
-    await admin.mutation(api.admin.removeDivision, { year: YEAR, name: "Temp Division" });
+    // Use Engagement (Marketing, Alumni) — the admin is in Data and IT (Governance),
+    // so deleting Engagement won't strip the admin's own profile.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "temp@sow.org.au",
+      year: YEAR,
+      assignments: [{ role: "Staff", department: "Marketing" }],
+    });
+
+    // Engagement has Marketing + Alumni and a staff member -> cascade should succeed.
+    await admin.mutation(api.admin.removeDivision, { year: YEAR, name: "Engagement" });
     const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
-    expect(structure.divisions.map((d) => d.name)).not.toContain("Temp Division");
+    expect(structure.divisions.map((d) => d.name)).not.toContain("Engagement");
+    // Child departments should also have been removed.
+    expect(structure.departments.map((d) => d.name)).not.toContain("Marketing");
+    expect(structure.departments.map((d) => d.name)).not.toContain("Alumni");
+
+    // Staff assignment to Marketing should have been stripped.
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const temp = profiles.find((p) => p.email === "temp@sow.org.au");
+    expect(temp?.assignments ?? []).toHaveLength(0);
 
     // Removing a missing division is a no-op.
     await expect(

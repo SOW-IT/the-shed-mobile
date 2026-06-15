@@ -327,38 +327,43 @@ describe("request submit with multiple departments", () => {
 // Guarding structural deletes
 // ---------------------------------------------------------------------------
 
-describe("structural deletes are assignment-aware", () => {
-  test("removeDepartment refuses while a member is linked via assignments", async () => {
+describe("structural deletes cascade to assignments", () => {
+  test("removeDepartment strips assignments even when a member is linked via assignments", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     const email = "m@sow.org.au";
-    // Member of Marketing AND head of Finance, so the legacy `department`
-    // field resolves to Finance — but Marketing must still be protected.
+    // Member of Marketing AND head of Finance — Marketing assignment should be
+    // stripped when Marketing is deleted, Finance link must be preserved.
     await admin.mutation(api.admin.setStaffProfile, {
       email, year: YEAR, roles: ["Staff"], department: "Marketing",
     });
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Finance", division: "Governance", headEmail: email,
     });
-    await expect(
-      admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Marketing" })
-    ).rejects.toThrow(/still has staff/);
+    await admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Marketing" });
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const m = profiles.find((p) => p.email === email)!;
+    // Marketing assignment stripped; Finance (HOD) link survives.
+    expect(m.assignments?.some((a) => a.department === "Marketing")).toBe(false);
+    expect(m.assignments?.some((a) => a.department === "Finance")).toBe(true);
   });
 
-  test("removeUniversity refuses while a member is linked via assignments", async () => {
+  test("removeUniversity strips assignments even when a member is linked via assignments", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
+    const email = "sl@sow.org.au";
     await admin.mutation(api.admin.setStaffProfile, {
-      email: "sl@sow.org.au",
+      email,
       year: YEAR,
       roles: ["Student Leader"],
       university: "University of New South Wales",
     });
-    await expect(
-      admin.mutation(api.admin.removeUniversity, {
-        year: YEAR, name: "University of New South Wales",
-      })
-    ).rejects.toThrow(/still has people/);
+    await admin.mutation(api.admin.removeUniversity, {
+      year: YEAR, name: "University of New South Wales",
+    });
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const sl = profiles.find((p) => p.email === email)!;
+    expect(sl.assignments?.some((a) => a.university === "University of New South Wales")).toBe(false);
   });
 });
 
