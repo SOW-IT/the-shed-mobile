@@ -348,6 +348,37 @@ describe("removeDivision", () => {
       admin.mutation(api.admin.removeDivision, { year: YEAR, name: "Governance" })
     ).rejects.toThrow(/open requests/);
   });
+
+  test("clears the budget manager when a division containing Finance is deleted", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // Move Finance to a dedicated division so we can delete it without touching Data and IT
+    // (the admin's department, also in Governance).
+    await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "FinanceOnly" });
+    await admin.mutation(api.admin.updateDepartment, {
+      year: YEAR, oldName: "Finance", newName: "Finance",
+      division: "FinanceOnly", headEmail: FIONA,
+    });
+    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
+    await admin.mutation(api.admin.removeDivision, { year: YEAR, name: "FinanceOnly" });
+    const settings = await t.run((ctx) =>
+      ctx.db.query("yearSettings").withIndex("by_year", (q) => q.eq("year", YEAR)).unique()
+    );
+    expect(settings?.budgetManagerEmail).toBeUndefined();
+  });
+});
+
+describe("removeDepartment", () => {
+  test("clears the budget manager when Finance is deleted", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
+    await admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Finance" });
+    const settings = await t.run((ctx) =>
+      ctx.db.query("yearSettings").withIndex("by_year", (q) => q.eq("year", YEAR)).unique()
+    );
+    expect(settings?.budgetManagerEmail).toBeUndefined();
+  });
 });
 
 describe("head role assignment supersedes only same-scope links", () => {
