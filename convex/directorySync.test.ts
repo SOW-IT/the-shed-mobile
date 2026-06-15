@@ -204,19 +204,24 @@ describe("directorySync.store + list", () => {
         { email: "two@sow.org.au", name: "Two" },
       ],
     });
-    // Second sync: one gets a name update, two is removed, three is new, four has same name
+    const initial = await t.run((ctx) => ctx.db.query("directoryUsers").take(100));
+    const twoInitialId = initial.find((r) => r.email === "two@sow.org.au")?._id;
+    expect(twoInitialId).toBeDefined();
+    // Second sync: one gets a name update, two stays (same name, no patch), three is new
     await t.mutation(internal.directorySync.store, {
       users: [
         { email: "one@sow.org.au", name: "New Name" },
         { email: "three@sow.org.au" },
-        { email: "two@sow.org.au", name: "Two" }, // same name, no patch needed
+        { email: "two@sow.org.au", name: "Two" }, // same name — no patch, same _id
       ],
     });
     const rows = await t.run((ctx) => ctx.db.query("directoryUsers").take(100));
+    const twoAfterSecondSync = rows.find((r) => r.email === "two@sow.org.au");
     expect(rows.find((r) => r.email === "one@sow.org.au")?.name).toBe("New Name");
-    expect(rows.find((r) => r.email === "two@sow.org.au")?.name).toBe("Two");
+    expect(twoAfterSecondSync?.name).toBe("Two");
+    expect(twoAfterSecondSync?._id).toBe(twoInitialId); // not recreated
     expect(rows.find((r) => r.email === "three@sow.org.au")).toBeDefined();
-    // Third sync: removes two
+    // Third sync: two is removed
     await t.mutation(internal.directorySync.store, {
       users: [{ email: "one@sow.org.au", name: "New Name" }, { email: "three@sow.org.au" }],
     });
