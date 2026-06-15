@@ -90,6 +90,77 @@ describe("setStaffProfile validation", () => {
     expect(fiona.roles.sort()).toEqual(["Head of Department", "Staff"]);
   });
 
+  test("cannot remove roles from a user without a head role", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // Bella is a plain Staff member (no head role).
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: BELLA,
+      year: YEAR,
+      roles: ["Staff", "Director"],
+      department: "Finance",
+    });
+    // Reducing from ["Staff", "Director"] to ["Staff"] must be rejected.
+    await expect(
+      admin.mutation(api.admin.setStaffProfile, {
+        email: BELLA,
+        year: YEAR,
+        roles: ["Staff"],
+        department: "Finance",
+      })
+    ).rejects.toThrow(/head/i);
+  });
+
+  test("can remove roles from a user who holds a head role", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // Fiona is HEAD_OF_DEPARTMENT for Finance. Give her an extra role first.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: FIONA,
+      year: YEAR,
+      roles: ["Staff", "Director"],
+      department: "Finance",
+    });
+    // Now reduce to just Staff — allowed because she holds HEAD_OF_DEPARTMENT.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: FIONA,
+      year: YEAR,
+      roles: ["Staff"],
+      department: "Finance",
+    });
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const fiona = profiles.find((p) => p.email === FIONA)!;
+    // Director was removed; Head of Department preserved by structure.
+    expect(fiona.roles).not.toContain("Director");
+    expect(fiona.roles).toContain("Head of Department");
+  });
+
+  test("only one Director per year; re-saving the same Director is fine", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "first@sow.org.au",
+      year: YEAR,
+      roles: ["Director"],
+      department: "Finance",
+    });
+    await expect(
+      admin.mutation(api.admin.setStaffProfile, {
+        email: "second@sow.org.au",
+        year: YEAR,
+        roles: ["Director"],
+        department: "Finance",
+      })
+    ).rejects.toThrow(/already the Director/);
+    // Re-saving the same Director (adding another role) must not throw.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "first@sow.org.au",
+      year: YEAR,
+      roles: ["Director", "Staff"],
+      department: "Finance",
+    });
+  });
+
   test("rejects an unmanaged year", async () => {
     const t = await setup();
     await expect(
@@ -156,6 +227,40 @@ describe("removeDivision", () => {
     await expect(
       admin.mutation(api.admin.removeDivision, { year: YEAR, name: "Nope" })
     ).resolves.toBeNull();
+  });
+});
+
+describe("head role assignment strips Staff and campus roles", () => {
+  test("assigning a HOD removes Staff from an existing profile", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const email = "pete@sow.org.au";
+    await admin.mutation(api.admin.setStaffProfile, {
+      email, year: YEAR, roles: ["Staff"], department: "Finance",
+    });
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Finance", division: "Governance", headEmail: email,
+    });
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const pete = profiles.find((p) => p.email === email)!;
+    expect(pete.roles).not.toContain("Staff");
+    expect(pete.roles).toContain("Head of Department");
+  });
+
+  test("assigning a HODiv removes campus roles from an existing profile", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const email = "sue@sow.org.au";
+    await admin.mutation(api.admin.setStaffProfile, {
+      email, year: YEAR, roles: ["Student Leader"], university: "Macquarie University",
+    });
+    await admin.mutation(api.admin.upsertDivision, {
+      year: YEAR, name: "Engagement", headEmail: email,
+    });
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const sue = profiles.find((p) => p.email === email)!;
+    expect(sue.roles).not.toContain("Student Leader");
+    expect(sue.roles).toContain("Head of Division");
   });
 });
 

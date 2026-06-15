@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import {
+  DIRECTOR,
   FINANCE,
   HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
@@ -8,6 +9,7 @@ import {
   roleNeedsDepartment,
   rolesNeedUniversity,
   STAFF_ROLE,
+  UNIVERSITY_ROLES,
 } from "../shared/flow";
 import { internalMutation, mutation, query } from "./_generated/server";
 import {
@@ -71,6 +73,22 @@ export const setStaffProfile = mutation({
       );
     }
 
+    // Only one Director per year.
+    if (roles.includes(DIRECTOR)) {
+      const yearProfiles = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_year", (q) => q.eq("year", args.year))
+        .take(1000);
+      const existingDirector = yearProfiles.find(
+        (p) => p.email !== email && rolesOf(p).includes(DIRECTOR)
+      );
+      if (existingDirector) {
+        throw new ConvexError(
+          `${existingDirector.email} is already the Director for ${args.year} — there can only be one.`
+        );
+      }
+    }
+
     // Staff-side roles trump campus roles: their holders never get a
     // university, so saving also clears any stale one.
     const needsUniversity = rolesNeedUniversity(roles);
@@ -125,6 +143,22 @@ export const setStaffProfile = mutation({
           (r) => r === HEAD_OF_DEPARTMENT || r === HEAD_OF_DIVISION
         )
       : [];
+
+    // Roles may only be stripped (removed without adding a replacement) from
+    // a user who holds a head role. A complete swap (e.g. Director → Staff)
+    // is always allowed; only a pure subset reduction is guarded.
+    if (existing && existingHeadRoles.length === 0) {
+      const currentRoles = rolesOf(existing);
+      const isPureReduction =
+        roles.every((r) => currentRoles.includes(r)) &&
+        currentRoles.some((r) => !roles.includes(r));
+      if (isPureReduction) {
+        throw new ConvexError(
+          "Roles can only be removed from users who hold a Head of Department or Head of Division position."
+        );
+      }
+    }
+
     const finalRoles =
       existingHeadRoles.length > 0
         ? [...new Set([...roles, ...existingHeadRoles])]
@@ -283,11 +317,14 @@ export const upsertDivision = mutation({
     // role on their profile — creating the profile if they were never
     // provisioned. Their profile's own division is only set when empty, so
     // heading a second division doesn't move them. A person may hold both
-    // HOD and HODiv simultaneously.
+    // HOD and HODiv simultaneously. Staff and campus roles are superseded.
     if (headEmail) {
       const headProfile = await getProfile(ctx, headEmail, args.year);
       if (headProfile) {
-        const roles = [...new Set([...rolesOf(headProfile), HEAD_OF_DIVISION])];
+        const filtered = rolesOf(headProfile).filter(
+          (r) => r !== STAFF_ROLE && !UNIVERSITY_ROLES.includes(r as (typeof UNIVERSITY_ROLES)[number])
+        );
+        const roles = [...new Set([...filtered, HEAD_OF_DIVISION])];
         await ctx.db.patch("staffProfiles", headProfile._id, {
           roles,
           role: undefined,
@@ -390,11 +427,15 @@ export const updateDivision = mutation({
     }
 
     // Reverse sync: grant HEAD_OF_DIVISION role to new head (additive — a
-    // person may hold both HOD and HODiv simultaneously).
+    // person may hold both HOD and HODiv simultaneously. Staff and campus roles
+    // are superseded when a head role is granted.
     if (headEmail) {
       const headProfile = await getProfile(ctx, headEmail, args.year);
       if (headProfile) {
-        const roles = [...new Set([...rolesOf(headProfile), HEAD_OF_DIVISION])];
+        const filtered = rolesOf(headProfile).filter(
+          (r) => r !== STAFF_ROLE && !UNIVERSITY_ROLES.includes(r as (typeof UNIVERSITY_ROLES)[number])
+        );
+        const roles = [...new Set([...filtered, HEAD_OF_DIVISION])];
         await ctx.db.patch("staffProfiles", headProfile._id, {
           roles,
           role: undefined,
@@ -548,11 +589,14 @@ export const upsertDepartment = mutation({
     // Reverse sync: the head named on a department gets the Head of
     // Department role (and membership) on their profile — creating the
     // profile if they were never provisioned. A person may hold both HOD
-    // and HODiv simultaneously.
+    // and HODiv simultaneously. Staff and campus roles are superseded.
     if (headEmail) {
       const headProfile = await getProfile(ctx, headEmail, args.year);
       if (headProfile) {
-        const roles = [...new Set([...rolesOf(headProfile), HEAD_OF_DEPARTMENT])];
+        const filtered = rolesOf(headProfile).filter(
+          (r) => r !== STAFF_ROLE && !UNIVERSITY_ROLES.includes(r as (typeof UNIVERSITY_ROLES)[number])
+        );
+        const roles = [...new Set([...filtered, HEAD_OF_DEPARTMENT])];
         await ctx.db.patch("staffProfiles", headProfile._id, {
           roles,
           role: undefined,
@@ -719,11 +763,15 @@ export const updateDepartment = mutation({
     }
 
     // Reverse sync: grant HEAD_OF_DEPARTMENT role to new head (additive — a
-    // person may hold both HOD and HODiv simultaneously).
+    // person may hold both HOD and HODiv simultaneously). Staff and campus
+    // roles are superseded when the head role is granted.
     if (headEmail) {
       const headProfile = await getProfile(ctx, headEmail, args.year);
       if (headProfile) {
-        const roles = [...new Set([...rolesOf(headProfile), HEAD_OF_DEPARTMENT])];
+        const filtered = rolesOf(headProfile).filter(
+          (r) => r !== STAFF_ROLE && !UNIVERSITY_ROLES.includes(r as (typeof UNIVERSITY_ROLES)[number])
+        );
+        const roles = [...new Set([...filtered, HEAD_OF_DEPARTMENT])];
         await ctx.db.patch("staffProfiles", headProfile._id, {
           roles,
           role: undefined,
