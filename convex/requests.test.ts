@@ -389,6 +389,7 @@ describe("admin and per-year rules", () => {
       {
         year: YEAR,
         roles: ["Staff"],
+        assignments: [{ role: "Staff", department: "Marketing" }],
         department: "Marketing",
         division: null,
         university: null,
@@ -396,6 +397,7 @@ describe("admin and per-year rules", () => {
       {
         year: YEAR - 1,
         roles: ["Staff"],
+        assignments: [{ role: "Staff", department: "Events" }],
         department: "Events",
         division: null,
         university: null,

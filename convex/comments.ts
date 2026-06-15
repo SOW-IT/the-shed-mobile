@@ -202,6 +202,15 @@ export const markRead = mutation({
     const { email } = await requireProfile(ctx);
     const request = await ctx.db.get(args.requestId);
     if (!request) throw new ConvexError("Request not found.");
+    // Stamp at least the newest existing comment's creation time, not just the
+    // wall clock: a comment's `_creationTime` can be >= `Date.now()` here, which
+    // would otherwise leave a just-posted comment counted as unread.
+    const comments = await ctx.db
+      .query("requestComments")
+      .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
+      .collect();
+    const newest = comments.reduce((max, c) => Math.max(max, c._creationTime), 0);
+    const lastReadAt = Math.max(Date.now(), newest);
     const existing = await ctx.db
       .query("commentReads")
       .withIndex("by_request_and_user", (q) =>
@@ -209,12 +218,12 @@ export const markRead = mutation({
       )
       .unique();
     if (existing) {
-      await ctx.db.patch("commentReads", existing._id, { lastReadAt: Date.now() });
+      await ctx.db.patch("commentReads", existing._id, { lastReadAt });
     } else {
       await ctx.db.insert("commentReads", {
         requestId: args.requestId,
         userEmail: email,
-        lastReadAt: Date.now(),
+        lastReadAt,
       });
     }
     return null;

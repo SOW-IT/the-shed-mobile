@@ -6,6 +6,7 @@ import {
   currentStep,
   DECLINED,
   DISPLAY_ACRONYMS,
+  formatAssignment,
   PENDING,
   type RequestLifecycle,
   requestCompleted,
@@ -18,6 +19,22 @@ import {
   staffYearForDate,
   stepsForRequest,
 } from "./flow";
+
+describe("formatAssignment", () => {
+  test("renders role -> scope with acronyms; bare role when no scope", () => {
+    expect(formatAssignment({ role: "Head of Department", department: "Finance" })).toBe(
+      "HOD → Finance"
+    );
+    expect(
+      formatAssignment({
+        role: "Senior Chaplain",
+        department: "Chaplaincy",
+        university: "University of Sydney",
+      })
+    ).toBe("Senior Chaplain → Chaplaincy · USYD");
+    expect(formatAssignment({ role: "Member" })).toBe("Member");
+  });
+});
 
 // A fully-pending base state (no Director step) to derive variants from.
 const base = (over: Partial<ApprovalState> = {}): ApprovalState => ({

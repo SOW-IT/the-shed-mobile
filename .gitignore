@@ -46,3 +46,7 @@ example
 
 # test coverage reports
 /coverage
+
+# Local prod data snapshot (contains PII) — never commit
+the-shed-prod-snapshot.zip
+*-snapshot.zip

@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import {
-  acronym,
+  formatAssignment,
   HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
   ROLES,
@@ -71,6 +71,7 @@ const ADMIN_TABS = [
 const STAFF_EDITABLE_ROLES = ROLES.filter(
   (r) => r !== HEAD_OF_DEPARTMENT && r !== HEAD_OF_DIVISION
 );
+
 
 export default function AdminScreen() {
   const t = useAppTheme();
@@ -150,8 +151,14 @@ export default function AdminScreen() {
       (r) => r !== HEAD_OF_DEPARTMENT && r !== HEAD_OF_DIVISION
     );
     setStaffRoles(nonHeadRoles.length > 0 ? nonHeadRoles : [ROLES[0]]);
-    setStaffDepartment(existing?.department ?? "");
-    setStaffUniversity(existing?.university ?? "");
+    // Prefill the scope from a NON-head assignment so editing a mixed person
+    // (e.g. Staff of Marketing + Head of Finance) keeps their Staff department,
+    // not the head one the legacy single field would resolve to.
+    const nonHead = (existing?.assignments ?? []).filter(
+      (a) => a.role !== HEAD_OF_DEPARTMENT && a.role !== HEAD_OF_DIVISION
+    );
+    setStaffDepartment(nonHead.find((a) => a.department)?.department ?? "");
+    setStaffUniversity(nonHead.find((a) => a.university)?.university ?? "");
   };
   // Division / department / university add forms
   const [divisionName, setDivisionName] = useState("");
@@ -189,8 +196,11 @@ export default function AdminScreen() {
       (r) => r !== HEAD_OF_DEPARTMENT && r !== HEAD_OF_DIVISION
     );
     setEditingUserRoles(nonHeadRoles.length > 0 ? nonHeadRoles : [ROLES[0]]);
-    setEditingUserDepartment(existing?.department ?? "");
-    setEditingUserUniversity(existing?.university ?? "");
+    const nonHead = (existing?.assignments ?? []).filter(
+      (a) => a.role !== HEAD_OF_DEPARTMENT && a.role !== HEAD_OF_DIVISION
+    );
+    setEditingUserDepartment(nonHead.find((a) => a.department)?.department ?? "");
+    setEditingUserUniversity(nonHead.find((a) => a.university)?.university ?? "");
     setEditingUserEmail(email);
   };
 
@@ -359,19 +369,19 @@ export default function AdminScreen() {
                 />
               )}
               {needsDepartment && (
-                isAddFormHeadLocked ? (
-                  <Muted>
-                    Department is locked — remove their headship in the Structure tab first.
-                  </Muted>
-                ) : (
-                  <Select
-                    label="Department"
-                    value={staffDepartment}
-                    options={(structure?.departments ?? []).map((d) => d.name)}
-                    onSelect={setStaffDepartment}
-                    placeholder="Choose a department…"
-                  />
-                )
+                <Select
+                  label="Department"
+                  value={staffDepartment}
+                  options={(structure?.departments ?? []).map((d) => d.name)}
+                  onSelect={setStaffDepartment}
+                  placeholder="Choose a department…"
+                />
+              )}
+              {isAddFormHeadLocked && (
+                <Muted>
+                  Also holds a head role (managed in the Structure tab) — saving
+                  keeps it alongside the roles above.
+                </Muted>
               )}
               <Btn
                 title="Save Staff Assignment"
@@ -434,19 +444,13 @@ export default function AdminScreen() {
                       />
                     )}
                     {needsEditDept && (
-                      isEditHeadLocked ? (
-                        <Muted>
-                          Department is locked — remove their headship in the Structure tab first.
-                        </Muted>
-                      ) : (
-                        <Select
-                          label="Department"
-                          value={editingUserDepartment}
-                          options={(structure?.departments ?? []).map((d) => d.name)}
-                          onSelect={setEditingUserDepartment}
-                          placeholder="Choose a department…"
-                        />
-                      )
+                      <Select
+                        label="Department"
+                        value={editingUserDepartment}
+                        options={(structure?.departments ?? []).map((d) => d.name)}
+                        onSelect={setEditingUserDepartment}
+                        placeholder="Choose a department…"
+                      />
                     )}
                     <Row>
                       <Btn
@@ -484,13 +488,19 @@ export default function AdminScreen() {
                     <View style={{ flexGrow: 1 }}>
                       <Txt style={{ fontWeight: "600" }}>{profile.name ?? profile.email}</Txt>
                       {profile.name ? <Muted>{profile.email}</Muted> : null}
-                      <Muted>
-                        {profile.roles.map(acronym).join(", ")} •{" "}
-                        {[profile.department, profile.division, profile.university]
-                          .map((name) => name && acronym(name))
-                          .filter(Boolean)
-                          .join(" / ") || "—"}
-                      </Muted>
+                      {(profile.assignments ?? []).length > 0 ? (
+                        <View style={styles.chips}>
+                          {(profile.assignments ?? []).map((a, i) => (
+                            <View key={i} style={[styles.chip, { backgroundColor: t.primarySoft }]}>
+                              <Txt style={[styles.chipText, { color: t.primary }]}>
+                                {formatAssignment(a)}
+                              </Txt>
+                            </View>
+                          ))}
+                        </View>
+                      ) : (
+                        <Muted>—</Muted>
+                      )}
                     </View>
                     {editable && (
                       <>
@@ -807,7 +817,10 @@ export default function AdminScreen() {
                   label="Budget Manager (Finance department members)"
                   value={budgetManagerValue}
                   options={(people ?? [])
-                    .filter((person) => person.department === "Finance")
+                    .filter((person) =>
+                      person.departments?.includes("Finance") ||
+                      person.department === "Finance"
+                    )
                     .map((person) => ({
                       label: person.name
                         ? `${person.name} (${person.email})`
@@ -846,5 +859,20 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     paddingHorizontal: 14,
     paddingVertical: 9,
+  },
+  chips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 4,
+  },
+  chip: {
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
 });

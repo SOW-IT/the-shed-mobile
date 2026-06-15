@@ -1,5 +1,16 @@
 import { v } from "convex/values";
-import { DIRECTOR, FINANCE, HEAD_OF_DIVISION } from "../shared/flow";
+import {
+  assignmentsOf,
+  departmentsOf,
+  DIRECTOR,
+  divisionsOf,
+  FINANCE,
+  HEAD_OF_DIVISION,
+  isHeadOfDivisionName,
+  isMemberOfDepartment,
+  roleNeedsUniversity,
+  rolesForDepartment,
+} from "../shared/flow";
 import { query } from "./_generated/server";
 import {
   currentStaffYear,
@@ -74,11 +85,15 @@ export const me = query({
       photo,
       profile: {
         roles: rolesOf(profile),
+        assignments: assignmentsOf(profile),
+        // Legacy singles kept for back-compat; prefer departments/divisions.
         department: profile.department ?? null,
         division: profile.division ?? null,
+        departments: departmentsOf(profile),
+        divisions: divisionsOf(profile),
       },
       isAdmin: await isAdminProfile(ctx, profile),
-      isFinance: profile.department === FINANCE,
+      isFinance: isMemberOfDepartment(profile, FINANCE),
       isDirector: rolesOf(profile).includes(DIRECTOR),
       isBudgetManager: approvers.budgetManagerEmail === email,
       isFinanceHead: approvers.financeHeadEmail === email,
@@ -202,13 +217,10 @@ export const orgChart = query({
         : null,
       divisions: divisions.map((division) => {
         // The head named on the division wins (one person can head several);
-        // fall back to a profile holding the role for that division.
+        // fall back to a profile whose assignments head this division.
         const divisionHead =
           division.headEmail ??
-          profiles.find(
-            (p) =>
-              rolesOf(p).includes(HEAD_OF_DIVISION) && p.division === division.name
-          )?.email;
+          profiles.find((p) => isHeadOfDivisionName(p, division.name))?.email;
         return {
           name: division.name,
           head: divisionHead ? person(divisionHead, HEAD_OF_DIVISION) : null,
@@ -218,30 +230,48 @@ export const orgChart = query({
               name: department.name,
               colour: department.colour ?? null,
               head: department.headEmail ? person(department.headEmail) : null,
+              // A person appears under every department they're linked to,
+              // tagged with the role(s) they hold there.
               members: profiles
                 .filter(
                   (p) =>
-                    p.department === department.name &&
+                    isMemberOfDepartment(p, department.name) &&
                     p.email !== department.headEmail &&
                     !rolesOf(p).includes(DIRECTOR)
                 )
-                .map((p) => person(p.email, rolesOf(p).join(", "))),
+                .map((p) =>
+                  person(p.email, rolesForDepartment(p, department.name).join(", "))
+                ),
             })),
         };
       }),
       // Campus people (Student Leaders, Executives, …) belong to a
-      // university rather than a department.
+      // university via a campus-role assignment. Chaplains carry a university
+      // too but render under the Chaplaincy department, so only campus roles
+      // surface here.
       universities: universities.map((university) => ({
         name: university.name,
         members: profiles
           .filter(
             (p) =>
-              p.university === university.name &&
-              p.department === undefined &&
-              !rolesOf(p).includes(DIRECTOR)
+              assignmentsOf(p).some(
+                (a) =>
+                  a.university === university.name && roleNeedsUniversity(a.role)
+              ) && !rolesOf(p).includes(DIRECTOR)
           )
           .sort((a, b) => campusRoleRank(rolesOf(a)) - campusRoleRank(rolesOf(b)))
-          .map((p) => person(p.email, rolesOf(p).join(", "))),
+          .map((p) =>
+            person(
+              p.email,
+              assignmentsOf(p)
+                .filter(
+                  (a) =>
+                    a.university === university.name && roleNeedsUniversity(a.role)
+                )
+                .map((a) => a.role)
+                .join(", ")
+            )
+          ),
       })),
     };
   },

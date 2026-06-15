@@ -4,7 +4,7 @@ import { useMutation, useQuery } from "convex/react";
 import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
 import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { acronym, staffYearForDate } from "../../shared/flow";
+import { acronym, formatAssignment, staffYearForDate } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "../theme";
@@ -360,11 +360,9 @@ export const ProfileView = ({ email }: { email?: string }) => {
                   { color: t.dark ? t.text : t.primary, fontWeight: "600" },
                 ]}
               >
-                {current.roles.map(acronym).join(", ")} ·{" "}
-                {[current.department, current.division, current.university]
-                  .map((name) => name && acronym(name))
-                  .filter(Boolean)
-                  .join(" / ") || "—"}{" "}
+                {(current.assignments ?? []).length > 0
+                  ? current.assignments.map(formatAssignment).join("  ·  ")
+                  : current.roles.map(acronym).join(", ")}{" "}
                 · {current.year}
               </Text>
             </View>
@@ -425,16 +423,32 @@ export const ProfileView = ({ email }: { email?: string }) => {
                     </Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Txt style={{ fontWeight: "700" }}>
-                      {entry.roles.map(acronym).join(", ")}
-                      {entry.year === currentYear ? "  ·  current" : ""}
-                    </Txt>
-                    <Muted>
-                      {[entry.department, entry.division, entry.university]
-                        .map((name) => name && acronym(name))
-                        .filter(Boolean)
-                        .join(" / ") || "—"}
-                    </Muted>
+                    {entry.year === currentYear ? (
+                      <Txt style={{ fontWeight: "700" }}>current</Txt>
+                    ) : null}
+                    {(entry.assignments ?? []).length > 0 ? (
+                      <View style={styles.assignmentChips}>
+                        {entry.assignments.map((a, i) => (
+                          <View
+                            key={i}
+                            style={[styles.assignmentChip, { backgroundColor: t.primarySoft }]}
+                          >
+                            <Text
+                              style={[
+                                styles.assignmentChipText,
+                                { color: t.dark ? t.text : t.primary },
+                              ]}
+                            >
+                              {formatAssignment(a)}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : (
+                      <Txt style={{ fontWeight: "700" }}>
+                        {entry.roles.map(acronym).join(", ") || "—"}
+                      </Txt>
+                    )}
                   </View>
                 </Card>
               </FadeInView>
@@ -495,6 +509,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 7,
     marginTop: 2,
+  },
+  assignmentChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  assignmentChip: {
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  assignmentChipText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
   segmented: {
     flexDirection: "row",
