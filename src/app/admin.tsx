@@ -13,6 +13,7 @@ import {
 import {
   type Assignment,
   departmentsOf,
+  DIRECTOR,
   divisionsOf,
   formatAssignment,
   HEAD_OF_DEPARTMENT,
@@ -89,12 +90,14 @@ const AssignmentEditor = ({
   onChange,
   departments,
   universities,
+  roles = STAFF_EDITABLE_ROLES,
   startIndex = 0,
 }: {
   assignments: AssignmentDraft[];
   onChange: (a: AssignmentDraft[]) => void;
   departments: string[];
   universities: string[];
+  roles?: string[];
   startIndex?: number;
 }) => {
   const t = useAppTheme();
@@ -110,6 +113,9 @@ const AssignmentEditor = ({
           next[i] = { ...next[i], ...patch };
           onChange(next);
         };
+        // Always include the row's current role even if it was filtered out
+        // (e.g. editing an existing Director when another was later added).
+        const rowRoles = roles.includes(a.role) ? roles : [a.role, ...roles];
         return (
           <View
             key={i}
@@ -125,7 +131,7 @@ const AssignmentEditor = ({
                 <Select
                   label={totalCount > 1 ? `Assignment ${startIndex + i + 1}` : "Role"}
                   value={a.role}
-                  options={STAFF_EDITABLE_ROLES}
+                  options={rowRoles}
                   onSelect={(role) => update({ role, department: "", university: "" })}
                 />
               </View>
@@ -370,6 +376,14 @@ export default function AdminScreen() {
         ? `${y} (from Sep 1)`
         : `${y}`;
 
+  // Director can only be assigned when nobody else holds the role this year.
+  const directorExists = (profiles ?? []).some((p) =>
+    (p.assignments ?? []).some((a) => a.role === DIRECTOR)
+  );
+  const availableRoles = directorExists
+    ? STAFF_EDITABLE_ROLES.filter((r) => r !== DIRECTOR)
+    : STAFF_EDITABLE_ROLES;
+
   // Profiles grouped by division > department for the org-chart-style list.
   const directoryOnlyUnassigned = (syncState?.users ?? []).filter(
     (u) => !u.hasProfile && !unassignedEmails.has(u.email)
@@ -442,6 +456,7 @@ export default function AdminScreen() {
               onChange={setAssigningAssignments}
               departments={(structure?.departments ?? []).map((d) => d.name)}
               universities={structure?.universities ?? []}
+              roles={availableRoles}
             />
             <Row>
               <Btn
@@ -498,6 +513,7 @@ export default function AdminScreen() {
               onChange={setEditingAssignments}
               departments={(structure?.departments ?? []).map((d) => d.name)}
               universities={structure?.universities ?? []}
+              roles={availableRoles}
               startIndex={lockedHeadAssignments.length}
             />
             <Row>
