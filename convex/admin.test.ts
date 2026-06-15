@@ -90,6 +90,77 @@ describe("setStaffProfile validation", () => {
     expect(fiona.roles.sort()).toEqual(["Head of Department", "Staff"]);
   });
 
+  test("cannot remove roles from a user without a head role", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // Bella is a plain Staff member (no head role).
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: BELLA,
+      year: YEAR,
+      roles: ["Staff", "Director"],
+      department: "Finance",
+    });
+    // Reducing from ["Staff", "Director"] to ["Staff"] must be rejected.
+    await expect(
+      admin.mutation(api.admin.setStaffProfile, {
+        email: BELLA,
+        year: YEAR,
+        roles: ["Staff"],
+        department: "Finance",
+      })
+    ).rejects.toThrow(/head/i);
+  });
+
+  test("can remove roles from a user who holds a head role", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // Fiona is HEAD_OF_DEPARTMENT for Finance. Give her an extra role first.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: FIONA,
+      year: YEAR,
+      roles: ["Staff", "Director"],
+      department: "Finance",
+    });
+    // Now reduce to just Staff — allowed because she holds HEAD_OF_DEPARTMENT.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: FIONA,
+      year: YEAR,
+      roles: ["Staff"],
+      department: "Finance",
+    });
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const fiona = profiles.find((p) => p.email === FIONA)!;
+    // Director was removed; Head of Department preserved by structure.
+    expect(fiona.roles).not.toContain("Director");
+    expect(fiona.roles).toContain("Head of Department");
+  });
+
+  test("only one Director per year; re-saving the same Director is fine", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "first@sow.org.au",
+      year: YEAR,
+      roles: ["Director"],
+      department: "Finance",
+    });
+    await expect(
+      admin.mutation(api.admin.setStaffProfile, {
+        email: "second@sow.org.au",
+        year: YEAR,
+        roles: ["Director"],
+        department: "Finance",
+      })
+    ).rejects.toThrow(/already the Director/);
+    // Re-saving the same Director (adding another role) must not throw.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "first@sow.org.au",
+      year: YEAR,
+      roles: ["Director", "Staff"],
+      department: "Finance",
+    });
+  });
+
   test("rejects an unmanaged year", async () => {
     const t = await setup();
     await expect(
@@ -156,6 +227,40 @@ describe("removeDivision", () => {
     await expect(
       admin.mutation(api.admin.removeDivision, { year: YEAR, name: "Nope" })
     ).resolves.toBeNull();
+  });
+});
+
+describe("head role assignment strips Staff and campus roles", () => {
+  test("assigning a HOD removes Staff from an existing profile", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const email = "pete@sow.org.au";
+    await admin.mutation(api.admin.setStaffProfile, {
+      email, year: YEAR, roles: ["Staff"], department: "Finance",
+    });
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Finance", division: "Governance", headEmail: email,
+    });
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const pete = profiles.find((p) => p.email === email)!;
+    expect(pete.roles).not.toContain("Staff");
+    expect(pete.roles).toContain("Head of Department");
+  });
+
+  test("assigning a HODiv removes campus roles from an existing profile", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const email = "sue@sow.org.au";
+    await admin.mutation(api.admin.setStaffProfile, {
+      email, year: YEAR, roles: ["Student Leader"], university: "Macquarie University",
+    });
+    await admin.mutation(api.admin.upsertDivision, {
+      year: YEAR, name: "Engagement", headEmail: email,
+    });
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const sue = profiles.find((p) => p.email === email)!;
+    expect(sue.roles).not.toContain("Student Leader");
+    expect(sue.roles).toContain("Head of Division");
   });
 });
 
@@ -469,10 +574,10 @@ describe("financeMembers", () => {
 });
 
 describe("clearStaffUniversities (one-off cleanup)", () => {
-  test("strips universities from staff-side profiles, leaves campus roles", async () => {
+  test("strips universities from staff/head/director profiles; leaves campus and chaplain profiles", async () => {
     const t = await setup();
     await t.run(async (ctx) => {
-      // A staff member wrongly carrying a university.
+      // A staff member wrongly carrying a university — should be cleared.
       await ctx.db.insert("staffProfiles", {
         email: "stale@sow.org.au",
         year: YEAR,
@@ -480,11 +585,19 @@ describe("clearStaffUniversities (one-off cleanup)", () => {
         department: "Finance",
         university: "University of Sydney",
       });
-      // A legitimate campus role that should keep its university.
+      // A campus role that should keep its university.
       await ctx.db.insert("staffProfiles", {
         email: "leader@sow.org.au",
         year: YEAR,
         roles: ["Student Leader"],
+        university: "University of Sydney",
+      });
+      // A chaplain that should keep its university.
+      await ctx.db.insert("staffProfiles", {
+        email: "chap@sow.org.au",
+        year: YEAR,
+        roles: ["Senior Chaplain"],
+        department: "Finance",
         university: "University of Sydney",
       });
     });
@@ -493,10 +606,37 @@ describe("clearStaffUniversities (one-off cleanup)", () => {
     await t.run(async (ctx) => {
       const rows = await ctx.db.query("staffProfiles").take(1000);
       expect(rows.find((p) => p.email === "stale@sow.org.au")?.university).toBeUndefined();
-      expect(rows.find((p) => p.email === "leader@sow.org.au")?.university).toBe(
-        "University of Sydney"
-      );
+      expect(rows.find((p) => p.email === "leader@sow.org.au")?.university).toBe("University of Sydney");
+      expect(rows.find((p) => p.email === "chap@sow.org.au")?.university).toBe("University of Sydney");
     });
+  });
+});
+
+describe("chaplain university assignment", () => {
+  test("a chaplain can be assigned an optional university; Staff cannot", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // Chaplain with university — allowed.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "chap@sow.org.au",
+      year: YEAR,
+      roles: ["Senior Chaplain"],
+      department: "Finance",
+      university: "Macquarie University",
+    });
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    expect(profiles.find((p) => p.email === "chap@sow.org.au")?.university).toBeDefined();
+
+    // Staff member — university must be cleared even if passed.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "staff@sow.org.au",
+      year: YEAR,
+      roles: ["Staff"],
+      department: "Finance",
+      university: "Macquarie University",
+    });
+    const updated = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    expect(updated.find((p) => p.email === "staff@sow.org.au")?.university).toBeUndefined();
   });
 });
 

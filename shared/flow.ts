@@ -48,19 +48,22 @@ export const UNIVERSITY_ROLES: readonly Role[] = [
 export const roleNeedsUniversity = (role: string): boolean =>
   UNIVERSITY_ROLES.includes(role as Role);
 
+/** Chaplains serve across campuses and may optionally carry a university. */
+export const CHAPLAIN_ROLES: readonly Role[] = [
+  "Senior Chaplain",
+  "Junior Chaplain",
+  "Intern Chaplain",
+];
+
 /**
- * Staff-side roles: anyone holding one of these works in the org itself, so
- * their profile never carries a university — even if they also hold a campus
- * role that year.
+ * Roles that block a university field on a profile: Staff, HOD, and HODiv
+ * are purely org-internal positions that never belong to a campus.
+ * Director, Chaplains and campus roles are all excluded.
  */
 export const STAFF_SIDE_ROLES: readonly Role[] = [
   STAFF_ROLE,
   HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
-  DIRECTOR,
-  "Senior Chaplain",
-  "Junior Chaplain",
-  "Intern Chaplain",
 ];
 export const rolesNeedUniversity = (roles: readonly string[]): boolean =>
   roles.some(roleNeedsUniversity) &&
