@@ -225,32 +225,33 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={navTheme}>
       <StatusBar style="auto" />
-      <ErrorBoundary>
-      <ConvexAuthProvider
-        client={convex}
-        storage={Platform.OS === "web" ? undefined : secureStorage}
-        shouldHandleCode={Platform.OS !== "web"}
-      >
-        <AuthLoading>
-          <View
-            style={{
-              flex: 1,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: t.background,
-            }}
+      <View style={{ flex: 1, backgroundColor: t.background }}>
+        <ErrorBoundary>
+          <ConvexAuthProvider
+            client={convex}
+            storage={Platform.OS === "web" ? undefined : secureStorage}
+            shouldHandleCode={Platform.OS !== "web"}
           >
-            <SowSpinner size={140} />
-          </View>
-        </AuthLoading>
-        <Unauthenticated>
-          <SignInScreen />
-        </Unauthenticated>
-        <Authenticated>
-          <AppTabs />
-        </Authenticated>
-      </ConvexAuthProvider>
-      </ErrorBoundary>
+            <AuthLoading>
+              <View
+                style={{
+                  flex: 1,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <SowSpinner size={140} />
+              </View>
+            </AuthLoading>
+            <Unauthenticated>
+              <SignInScreen />
+            </Unauthenticated>
+            <Authenticated>
+              <AppTabs />
+            </Authenticated>
+          </ConvexAuthProvider>
+        </ErrorBoundary>
+      </View>
     </ThemeProvider>
   );
 }
