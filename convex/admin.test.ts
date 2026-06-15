@@ -531,6 +531,52 @@ describe("copyYear", () => {
   });
 });
 
+describe("listStaffProfiles directory name fallback", () => {
+  test("uses the synced directory name when the profile has no name yet", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: "provisioned@sow.org.au",
+        year: YEAR,
+        roles: ["Staff"],
+        department: "Finance",
+        // name intentionally absent — provisioned before first sign-in
+      });
+      await ctx.db.insert("directoryUsers", {
+        email: "provisioned@sow.org.au",
+        name: "Provisioned Person",
+      });
+      // A directory entry without a name exercises the u.name ?? null branch.
+      await ctx.db.insert("directoryUsers", {
+        email: "noname@sow.org.au",
+      });
+    });
+    const profiles = (await asUser(t, ADMIN).query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const profile = profiles.find((p) => p.email === "provisioned@sow.org.au")!;
+    expect(profile.name).toBe("Provisioned Person");
+  });
+});
+
+describe("listUnassignedUsers directory name fallback", () => {
+  test("uses the synced directory name when the signed-in user has no name", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", { email: "noname@sow.org.au" });
+      await ctx.db.insert("directoryUsers", {
+        email: "noname@sow.org.au",
+        name: "Directory Name",
+      });
+      // A directory entry without a name exercises the u.name ?? null branch.
+      await ctx.db.insert("directoryUsers", {
+        email: "other@sow.org.au",
+      });
+    });
+    const unassigned = (await asUser(t, ADMIN).query(api.admin.listUnassignedUsers, { year: YEAR }))!;
+    const user = unassigned.find((u) => u.email === "noname@sow.org.au")!;
+    expect(user.name).toBe("Directory Name");
+  });
+});
+
 describe("seed preserves existing heads", () => {
   test("re-seeding keeps department and division heads where names match", async () => {
     const t = await setup();
