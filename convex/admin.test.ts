@@ -247,6 +247,7 @@ describe("updateDivision", () => {
       "Staff",
     ]);
   });
+
 });
 
 describe("updateDepartment", () => {
@@ -369,7 +370,9 @@ describe("updateDepartment", () => {
       "Staff",
     ]);
   });
+
 });
+
 
 describe("setBudgetManager (Finance Head path)", () => {
   test("the Finance Head can set the Budget Manager; a stranger cannot", async () => {

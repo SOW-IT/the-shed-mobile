@@ -282,7 +282,8 @@ export const upsertDivision = mutation({
     // Reverse sync: the head named on a division gets the Head of Division
     // role on their profile — creating the profile if they were never
     // provisioned. Their profile's own division is only set when empty, so
-    // heading a second division doesn't move them.
+    // heading a second division doesn't move them. A person may hold both
+    // HOD and HODiv simultaneously.
     if (headEmail) {
       const headProfile = await getProfile(ctx, headEmail, args.year);
       if (headProfile) {
@@ -388,7 +389,8 @@ export const updateDivision = mutation({
       await ctx.db.patch("divisions", existing._id, { headEmail });
     }
 
-    // Reverse sync: grant HEAD_OF_DIVISION role to new head.
+    // Reverse sync: grant HEAD_OF_DIVISION role to new head (additive — a
+    // person may hold both HOD and HODiv simultaneously).
     if (headEmail) {
       const headProfile = await getProfile(ctx, headEmail, args.year);
       if (headProfile) {
@@ -545,7 +547,8 @@ export const upsertDepartment = mutation({
 
     // Reverse sync: the head named on a department gets the Head of
     // Department role (and membership) on their profile — creating the
-    // profile if they were never provisioned.
+    // profile if they were never provisioned. A person may hold both HOD
+    // and HODiv simultaneously.
     if (headEmail) {
       const headProfile = await getProfile(ctx, headEmail, args.year);
       if (headProfile) {
@@ -715,7 +718,8 @@ export const updateDepartment = mutation({
       });
     }
 
-    // Reverse sync: grant HEAD_OF_DEPARTMENT role to new head.
+    // Reverse sync: grant HEAD_OF_DEPARTMENT role to new head (additive — a
+    // person may hold both HOD and HODiv simultaneously).
     if (headEmail) {
       const headProfile = await getProfile(ctx, headEmail, args.year);
       if (headProfile) {
