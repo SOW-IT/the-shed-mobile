@@ -33,6 +33,7 @@ import {
   errorMessage,
   Field,
   IconButton,
+  LoadingState,
   MultiSelect,
   Muted,
   OptionRow,
@@ -377,7 +378,11 @@ export default function AdminScreen() {
     setAssigningUserEmail(email);
   };
 
-  if (me && !me.isAdmin) {
+  if (me === undefined) {
+    return <Screen><LoadingState /></Screen>;
+  }
+
+  if (!me?.isAdmin) {
     return (
       <Screen>
         <Muted>Only admins can access this screen.</Muted>
