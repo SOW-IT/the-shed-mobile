@@ -47,6 +47,24 @@ describe("profile.get", () => {
     expect(profile.serviceHistory.map((h) => h.year)).toEqual([YEAR]);
     expect(profile.isMe).toBe(true);
   });
+
+  test("falls back to the directory name when no user row or profile name exists", async () => {
+    const t = await setup();
+    const email = "nav@sow.org.au";
+    await t.run(async (ctx) => {
+      // Profile with no name field.
+      await ctx.db.insert("staffProfiles", {
+        email,
+        year: YEAR,
+        roles: ["Staff"],
+        department: "Data and IT",
+      });
+      // No users row — directory entry is the only name source.
+      await ctx.db.insert("directoryUsers", { email, name: "Nav from Directory" });
+    });
+    const profile = (await asUser(t, email).query(api.profile.get, { email }))!;
+    expect(profile.name).toBe("Nav from Directory");
+  });
 });
 
 describe("profile.updateChurch", () => {
