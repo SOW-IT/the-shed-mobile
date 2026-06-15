@@ -1,18 +1,26 @@
 import { ConvexError, v } from "convex/values";
 import {
+  Assignment,
+  assignmentFor,
+  assignmentsOf,
+  CHAPLAINCY_DEPARTMENT,
+  dedupeAssignments,
+  departmentsOf,
   DIRECTOR,
   FINANCE,
   HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
+  isChaplainRole,
+  isMemberOfDepartment,
   requestCompleted,
   ROLES,
   roleNeedsDepartment,
   rolesNeedUniversity,
   STAFF_ROLE,
   STAFF_SIDE_ROLES,
-  UNIVERSITY_ROLES,
 } from "../shared/flow";
-import { internalMutation, mutation, query } from "./_generated/server";
+import { Doc } from "./_generated/dataModel";
+import { internalMutation, MutationCtx, mutation, query } from "./_generated/server";
 import {
   currentStaffYear,
   getDepartment,
@@ -35,6 +43,129 @@ const assertManagedYear = (year: number) => {
     );
   }
 };
+
+// ---------------------------------------------------------------------------
+// Head reverse-sync helpers — keep a profile's assignments (and the legacy
+// single-scope fields) in step with the authoritative department/division
+// headEmail. Heads remain owned by the structure section; these never derive
+// headEmail from a profile.
+// ---------------------------------------------------------------------------
+
+const isHeadRole = (role: string): boolean =>
+  role === HEAD_OF_DEPARTMENT || role === HEAD_OF_DIVISION;
+
+/**
+ * Derive the legacy single-scope fields from an assignment list (Invariant A):
+ * department prefers a Head-of-Department link, then the first department; the
+ * division prefers a Head-of-Division link; university the first one present.
+ */
+const legacyScopeFrom = (
+  assignments: Assignment[]
+): { department?: string; division?: string; university?: string } => ({
+  department:
+    assignments.find((a) => a.role === HEAD_OF_DEPARTMENT && a.department)
+      ?.department ?? assignments.find((a) => a.department)?.department,
+  division:
+    assignments.find((a) => a.role === HEAD_OF_DIVISION && a.division)
+      ?.division ?? assignments.find((a) => a.division)?.division,
+  university: assignments.find((a) => a.university)?.university,
+});
+
+/** Patch a profile from a final assignment set, keeping roles + legacy fields in sync. */
+const patchFromAssignments = async (
+  ctx: MutationCtx,
+  profile: Doc<"staffProfiles">,
+  assignments: Assignment[]
+) => {
+  const deduped = dedupeAssignments(assignments);
+  const roles = [...new Set(deduped.map((a) => a.role))];
+  await ctx.db.patch("staffProfiles", profile._id, {
+    roles,
+    role: undefined,
+    assignments: deduped,
+    ...legacyScopeFrom(deduped),
+  });
+};
+
+/**
+ * Grant a head role for one specific department/division, mirroring the
+ * authoritative headEmail onto the person's profile (creating it if missing).
+ * Scope-specific supersede: a non-head link to the *same* department is dropped
+ * (you needn't be both Staff and Head of the same dept); links to other
+ * departments, divisions and campuses are preserved, so "Staff of A + Head of
+ * B" survives. A person may hold both HOD and HODiv at once.
+ */
+const grantHead = async (
+  ctx: MutationCtx,
+  year: number,
+  email: string,
+  role: typeof HEAD_OF_DEPARTMENT | typeof HEAD_OF_DIVISION,
+  scopeName: string
+) => {
+  const headAssignment: Assignment =
+    role === HEAD_OF_DEPARTMENT
+      ? { role, department: scopeName }
+      : { role, division: scopeName };
+  const profile = await getProfile(ctx, email, year);
+  if (!profile) {
+    await ctx.db.insert("staffProfiles", {
+      email,
+      year,
+      roles: [role],
+      assignments: [headAssignment],
+      ...legacyScopeFrom([headAssignment]),
+      importId: await resolveImportId(ctx, email),
+    });
+    return;
+  }
+  const kept = assignmentsOf(profile).filter((a) => {
+    if (a.role === role) {
+      // Drop an existing head link for this same scope (re-added canonically).
+      const existingScope =
+        role === HEAD_OF_DEPARTMENT ? a.department : a.division;
+      return existingScope !== scopeName;
+    }
+    // Supersede a non-head link scoped to this same department.
+    if (role === HEAD_OF_DEPARTMENT && !isHeadRole(a.role) && a.department === scopeName) {
+      return false;
+    }
+    return true;
+  });
+  await patchFromAssignments(ctx, profile, [...kept, headAssignment]);
+};
+
+/**
+ * Revoke a head role for one specific department/division from a person — used
+ * when a headship moves to someone else. Removes only that one head link;
+ * other head links and memberships stay. Falls back to a plain Staff link if
+ * the person ends up with no assignments at all.
+ */
+const revokeHead = async (
+  ctx: MutationCtx,
+  year: number,
+  email: string,
+  role: typeof HEAD_OF_DEPARTMENT | typeof HEAD_OF_DIVISION,
+  scopeName: string
+) => {
+  const profile = await getProfile(ctx, email, year);
+  if (!profile) return;
+  const scopeKey = role === HEAD_OF_DEPARTMENT ? "department" : "division";
+  const remaining = assignmentsOf(profile).filter(
+    (a) => !(a.role === role && a[scopeKey] === scopeName)
+  );
+  const finalAssignments =
+    remaining.length > 0 ? remaining : [{ role: STAFF_ROLE }];
+  await patchFromAssignments(ctx, profile, finalAssignments);
+};
+
+/** Remap a department/division rename across a profile's assignment scopes. */
+const remapScope = (
+  assignments: Assignment[],
+  key: "department" | "division",
+  oldName: string,
+  newName: string
+): Assignment[] =>
+  assignments.map((a) => (a[key] === oldName ? { ...a, [key]: newName } : a));
 
 /**
  * Assign roles + department/division/university to a user for a year, by
@@ -96,7 +227,6 @@ export const setStaffProfile = mutation({
     // Staff, HOD and HODiv never carry a university — all other roles
     // (Chaplains, Director, campus roles) may optionally or necessarily have one.
     const hasBlockingRole = STAFF_SIDE_ROLES.some((r) => roles.includes(r));
-    const needsDepartment = roles.some(roleNeedsDepartment);
     let university: string | undefined;
     if (!hasBlockingRole) {
       const raw = args.university?.trim();
@@ -119,8 +249,15 @@ export const setStaffProfile = mutation({
         );
       }
     }
+    // Chaplains are always attached to the Chaplaincy department, never an
+    // admin-picked one. Every other department-scoped role (Staff, Director,
+    // Outsource) shares the one department the admin picked.
+    const hasChaplain = roles.some(isChaplainRole);
+    const needsPickedDepartment = roles.some(
+      (r) => roleNeedsDepartment(r) && !isChaplainRole(r)
+    );
     let department: string | undefined;
-    if (needsDepartment) {
+    if (needsPickedDepartment) {
       department = args.department;
       const exists =
         department && (await getDepartment(ctx, args.year, department));
@@ -130,15 +267,12 @@ export const setStaffProfile = mutation({
         );
       }
     }
-
-    // Moving the Budget Manager out of Finance would violate the rule that
-    // the Budget Manager must be from the Finance department.
-    if (department !== FINANCE) {
-      const settings = await getYearSettings(ctx, args.year);
-      if (settings?.budgetManagerEmail === email) {
-        await ctx.db.patch("yearSettings", settings._id, {
-          budgetManagerEmail: undefined,
-        });
+    if (hasChaplain) {
+      const chaplaincy = await getDepartment(ctx, args.year, CHAPLAINCY_DEPARTMENT);
+      if (!chaplaincy) {
+        throw new ConvexError(
+          `The "${CHAPLAINCY_DEPARTMENT}" department doesn't exist in ${args.year} — create it first.`
+        );
       }
     }
 
@@ -168,24 +302,50 @@ export const setStaffProfile = mutation({
       }
     }
 
-    const finalRoles =
-      existingHeadRoles.length > 0
-        ? [...new Set([...roles, ...existingHeadRoles])]
-        : roles;
-    // The division field on a profile is managed by the structure section
-    // for Heads of Division; preserve whatever it currently is.
-    const division = existingHeadRoles.includes(HEAD_OF_DIVISION)
-      ? existing?.division
-      : undefined;
+    // Build the per-role scope links for the submitted (non-head) roles. The
+    // admin form supplies one department + one university; chaplains override
+    // their department to "Chaplaincy" (handled by assignmentFor).
+    const submitted = roles.map((role) =>
+      assignmentFor(role, { department, university })
+    );
+    // Head links are owned by the Structure section — preserve them verbatim.
+    const preservedHead = existing
+      ? assignmentsOf(existing).filter((a) => isHeadRole(a.role))
+      : [];
+    // A submitted non-head link to a department this person already heads is
+    // superseded by the headship (don't list them as both head and member).
+    const headedDepts = new Set(
+      preservedHead
+        .filter((a) => a.role === HEAD_OF_DEPARTMENT && a.department)
+        .map((a) => a.department)
+    );
+    const submittedKept = submitted.filter(
+      (a) => !(a.department && headedDepts.has(a.department))
+    );
+    const assignments = dedupeAssignments([...submittedKept, ...preservedHead]);
+    const finalRoles = [...new Set(assignments.map((a) => a.role))];
+    const legacy = legacyScopeFrom(assignments);
+
+    // Moving the Budget Manager out of Finance would violate the rule that the
+    // Budget Manager must be a member of the Finance department.
+    if (!assignments.some((a) => a.department === FINANCE)) {
+      const settings = await getYearSettings(ctx, args.year);
+      if (settings?.budgetManagerEmail === email) {
+        await ctx.db.patch("yearSettings", settings._id, {
+          budgetManagerEmail: undefined,
+        });
+      }
+    }
 
     let profileId;
     if (existing) {
       await ctx.db.patch("staffProfiles", existing._id, {
         roles: finalRoles,
         role: undefined, // retire the legacy single-role field
-        department,
-        division,
-        university,
+        assignments,
+        department: legacy.department,
+        division: legacy.division,
+        university: legacy.university,
         importId: existing.importId ?? (await resolveImportId(ctx, email)),
       });
       profileId = existing._id;
@@ -194,9 +354,10 @@ export const setStaffProfile = mutation({
         email,
         year: args.year,
         roles: finalRoles,
-        department,
-        division,
-        university,
+        assignments,
+        department: legacy.department,
+        division: legacy.division,
+        university: legacy.university,
         importId: await resolveImportId(ctx, email),
       });
     }
@@ -258,6 +419,7 @@ export const listStaffProfiles = query({
     return profiles.map((profile) => ({
       ...profile,
       roles: rolesOf(profile),
+      assignments: assignmentsOf(profile),
       name: profile.name ?? directoryNameByEmail.get(profile.email) ?? null,
     }));
   },
@@ -322,53 +484,17 @@ export const upsertDivision = mutation({
       });
     }
 
-    // Reverse sync: the head named on a division gets the Head of Division
-    // role on their profile — creating the profile if they were never
-    // provisioned. Their profile's own division is only set when empty, so
-    // heading a second division doesn't move them. A person may hold both
-    // HOD and HODiv simultaneously. Staff and campus roles are superseded;
-    // university is always cleared (head roles are staff-side).
+    // Reverse sync: the head named on a division gets a Head of Division
+    // assignment for it, mirroring the authoritative headEmail. Memberships of
+    // other departments/divisions are preserved, so heading a second division
+    // (or being Staff elsewhere) still works.
     if (headEmail) {
-      const headProfile = await getProfile(ctx, headEmail, args.year);
-      if (headProfile) {
-        const filtered = rolesOf(headProfile).filter(
-          (r) => r !== STAFF_ROLE && !UNIVERSITY_ROLES.includes(r as (typeof UNIVERSITY_ROLES)[number])
-        );
-        const roles = [...new Set([...filtered, HEAD_OF_DIVISION])];
-        await ctx.db.patch("staffProfiles", headProfile._id, {
-          roles,
-          role: undefined,
-          division: headProfile.division ?? name,
-          university: undefined,
-        });
-      } else {
-        await ctx.db.insert("staffProfiles", {
-          email: headEmail,
-          year: args.year,
-          roles: [HEAD_OF_DIVISION],
-          division: name,
-          importId: await resolveImportId(ctx, headEmail),
-        });
-      }
+      await grantHead(ctx, args.year, headEmail, HEAD_OF_DIVISION, name);
     }
 
-    // Remove HEAD_OF_DIVISION from the old head if they no longer head any division.
+    // Drop the old head's Head-of-Division link for this division only.
     if (oldHeadEmail && oldHeadEmail !== headEmail) {
-      const yearDivisions = await ctx.db
-        .query("divisions")
-        .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
-        .take(200);
-      const stillHeading = yearDivisions.some((d) => d.headEmail === oldHeadEmail);
-      if (!stillHeading) {
-        const oldHead = await getProfile(ctx, oldHeadEmail, args.year);
-        if (oldHead) {
-          const updatedRoles = rolesOf(oldHead).filter((r) => r !== HEAD_OF_DIVISION);
-          await ctx.db.patch("staffProfiles", oldHead._id, {
-            roles: updatedRoles.length > 0 ? updatedRoles : [STAFF_ROLE],
-            role: undefined,
-          });
-        }
-      }
+      await revokeHead(ctx, args.year, oldHeadEmail, HEAD_OF_DIVISION, name);
     }
 
     return divisionId;
@@ -429,58 +555,29 @@ export const updateDivision = mutation({
         .withIndex("by_year", (q) => q.eq("year", args.year))
         .take(1000);
       for (const profile of profiles) {
-        if (profile.division === oldName) {
-          await ctx.db.patch("staffProfiles", profile._id, { division: newName });
+        const current = assignmentsOf(profile);
+        const referencesOld =
+          profile.division === oldName ||
+          current.some((a) => a.division === oldName);
+        if (referencesOld) {
+          const remapped = remapScope(current, "division", oldName, newName);
+          await ctx.db.patch("staffProfiles", profile._id, {
+            assignments: remapped,
+            ...legacyScopeFrom(remapped),
+          });
         }
       }
     } else {
       await ctx.db.patch("divisions", existing._id, { headEmail });
     }
 
-    // Reverse sync: grant HEAD_OF_DIVISION role to new head (additive — a
-    // person may hold both HOD and HODiv simultaneously. Staff and campus roles
-    // are superseded when a head role is granted; university is always cleared.
+    // Reverse sync: grant the Head of Division link to the new head; revoke it
+    // from the old head (this division only). Other memberships are preserved.
     if (headEmail) {
-      const headProfile = await getProfile(ctx, headEmail, args.year);
-      if (headProfile) {
-        const filtered = rolesOf(headProfile).filter(
-          (r) => r !== STAFF_ROLE && !UNIVERSITY_ROLES.includes(r as (typeof UNIVERSITY_ROLES)[number])
-        );
-        const roles = [...new Set([...filtered, HEAD_OF_DIVISION])];
-        await ctx.db.patch("staffProfiles", headProfile._id, {
-          roles,
-          role: undefined,
-          division: headProfile.division ?? newName,
-          university: undefined,
-        });
-      } else {
-        await ctx.db.insert("staffProfiles", {
-          email: headEmail,
-          year: args.year,
-          roles: [HEAD_OF_DIVISION],
-          division: newName,
-          importId: await resolveImportId(ctx, headEmail),
-        });
-      }
+      await grantHead(ctx, args.year, headEmail, HEAD_OF_DIVISION, newName);
     }
-
-    // Remove HEAD_OF_DIVISION from old head if they no longer head any division.
     if (oldHeadEmail && oldHeadEmail !== headEmail) {
-      const yearDivisions = await ctx.db
-        .query("divisions")
-        .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
-        .take(200);
-      const stillHeading = yearDivisions.some((d) => d.headEmail === oldHeadEmail);
-      if (!stillHeading) {
-        const oldHead = await getProfile(ctx, oldHeadEmail, args.year);
-        if (oldHead) {
-          const updatedRoles = rolesOf(oldHead).filter((r) => r !== HEAD_OF_DIVISION);
-          await ctx.db.patch("staffProfiles", oldHead._id, {
-            roles: updatedRoles.length > 0 ? updatedRoles : [STAFF_ROLE],
-            role: undefined,
-          });
-        }
-      }
+      await revokeHead(ctx, args.year, oldHeadEmail, HEAD_OF_DIVISION, newName);
     }
 
     return existing._id;
@@ -540,12 +637,16 @@ export const removeUniversity = mutation({
       .unique();
     if (!university) return null;
     // Don't strand Student Leaders pointing at a university that no longer
-    // exists — reassign them first.
+    // exists — reassign them first. Scan assignments, not just the legacy field.
     const profiles = await ctx.db
       .query("staffProfiles")
       .withIndex("by_year", (q) => q.eq("year", args.year))
       .take(1000);
-    if (profiles.some((p) => p.university === args.name)) {
+    if (
+      profiles.some((p) =>
+        assignmentsOf(p).some((a) => a.university === args.name)
+      )
+    ) {
       throw new ConvexError(
         `"${args.name}" still has people assigned in ${args.year} — move them to another university first.`
       );
@@ -598,52 +699,17 @@ export const upsertDepartment = mutation({
       });
     }
 
-    // Reverse sync: the head named on a department gets the Head of
-    // Department role (and membership) on their profile — creating the
-    // profile if they were never provisioned. A person may hold both HOD
-    // and HODiv simultaneously. Staff and campus roles are superseded;
-    // university is always cleared (head roles are staff-side).
+    // Reverse sync: the head named on a department gets a Head of Department
+    // assignment for it (creating the profile if needed). A same-department
+    // Staff link is superseded; links to other departments/divisions/campuses
+    // are preserved, so "Staff of A + Head of B" works. May hold HOD and HODiv.
     if (headEmail) {
-      const headProfile = await getProfile(ctx, headEmail, args.year);
-      if (headProfile) {
-        const filtered = rolesOf(headProfile).filter(
-          (r) => r !== STAFF_ROLE && !UNIVERSITY_ROLES.includes(r as (typeof UNIVERSITY_ROLES)[number])
-        );
-        const roles = [...new Set([...filtered, HEAD_OF_DEPARTMENT])];
-        await ctx.db.patch("staffProfiles", headProfile._id, {
-          roles,
-          role: undefined,
-          department: name,
-          university: undefined,
-        });
-      } else {
-        await ctx.db.insert("staffProfiles", {
-          email: headEmail,
-          year: args.year,
-          roles: [HEAD_OF_DEPARTMENT],
-          department: name,
-          importId: await resolveImportId(ctx, headEmail),
-        });
-      }
+      await grantHead(ctx, args.year, headEmail, HEAD_OF_DEPARTMENT, name);
     }
 
-    // Remove HEAD_OF_DEPARTMENT from old head if they no longer head any department.
+    // Drop the old head's Head-of-Department link for this department only.
     if (oldHeadEmail && oldHeadEmail !== headEmail) {
-      const yearDepartments = await ctx.db
-        .query("departments")
-        .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
-        .take(200);
-      const stillHeading = yearDepartments.some((d) => d.headEmail === oldHeadEmail);
-      if (!stillHeading) {
-        const oldHead = await getProfile(ctx, oldHeadEmail, args.year);
-        if (oldHead) {
-          const updatedRoles = rolesOf(oldHead).filter((r) => r !== HEAD_OF_DEPARTMENT);
-          await ctx.db.patch("staffProfiles", oldHead._id, {
-            roles: updatedRoles.length > 0 ? updatedRoles : [STAFF_ROLE],
-            role: undefined,
-          });
-        }
-      }
+      await revokeHead(ctx, args.year, oldHeadEmail, HEAD_OF_DEPARTMENT, name);
     }
 
     return departmentId;
@@ -661,7 +727,12 @@ export const people = query({
     await requireAdmin(ctx);
     const byEmail = new Map<
       string,
-      { email: string; name: string | null; department: string | null }
+      {
+        email: string;
+        name: string | null;
+        department: string | null;
+        departments: string[];
+      }
     >();
     const directory = await ctx.db.query("directoryUsers").take(4000);
     for (const user of directory) {
@@ -669,6 +740,7 @@ export const people = query({
         email: user.email,
         name: user.name ?? null,
         department: null,
+        departments: [],
       });
     }
     const users = await ctx.db.query("users").take(1000);
@@ -679,6 +751,7 @@ export const people = query({
         email: user.email,
         name: user.name ?? existing?.name ?? null,
         department: existing?.department ?? null,
+        departments: existing?.departments ?? [],
       });
     }
     const profiles = await ctx.db
@@ -687,10 +760,13 @@ export const people = query({
       .take(1000);
     for (const profile of profiles) {
       const existing = byEmail.get(profile.email);
+      const departments = departmentsOf(profile);
       byEmail.set(profile.email, {
         email: profile.email,
         name: existing?.name ?? profile.name ?? null,
-        department: profile.department ?? null,
+        // Legacy single department kept for back-compat; prefer `departments`.
+        department: profile.department ?? departments[0] ?? null,
+        departments,
       });
     }
     return [...byEmail.values()].sort((a, b) =>
@@ -756,8 +832,16 @@ export const updateDepartment = mutation({
         .withIndex("by_year", (q) => q.eq("year", args.year))
         .take(1000);
       for (const profile of profiles) {
-        if (profile.department === oldName) {
-          await ctx.db.patch("staffProfiles", profile._id, { department: newName });
+        const current = assignmentsOf(profile);
+        const referencesOld =
+          profile.department === oldName ||
+          current.some((a) => a.department === oldName);
+        if (referencesOld) {
+          const remapped = remapScope(current, "department", oldName, newName);
+          await ctx.db.patch("staffProfiles", profile._id, {
+            assignments: remapped,
+            ...legacyScopeFrom(remapped),
+          });
         }
       }
       const requests = await ctx.db
@@ -776,50 +860,13 @@ export const updateDepartment = mutation({
       });
     }
 
-    // Reverse sync: grant HEAD_OF_DEPARTMENT role to new head (additive — a
-    // person may hold both HOD and HODiv simultaneously). Staff and campus
-    // roles are superseded when the head role is granted; university is cleared.
+    // Reverse sync: grant the Head of Department link to the new head; revoke it
+    // from the old head (this department only). Other memberships are preserved.
     if (headEmail) {
-      const headProfile = await getProfile(ctx, headEmail, args.year);
-      if (headProfile) {
-        const filtered = rolesOf(headProfile).filter(
-          (r) => r !== STAFF_ROLE && !UNIVERSITY_ROLES.includes(r as (typeof UNIVERSITY_ROLES)[number])
-        );
-        const roles = [...new Set([...filtered, HEAD_OF_DEPARTMENT])];
-        await ctx.db.patch("staffProfiles", headProfile._id, {
-          roles,
-          role: undefined,
-          department: newName,
-          university: undefined,
-        });
-      } else {
-        await ctx.db.insert("staffProfiles", {
-          email: headEmail,
-          year: args.year,
-          roles: [HEAD_OF_DEPARTMENT],
-          department: newName,
-          importId: await resolveImportId(ctx, headEmail),
-        });
-      }
+      await grantHead(ctx, args.year, headEmail, HEAD_OF_DEPARTMENT, newName);
     }
-
-    // Remove HEAD_OF_DEPARTMENT from old head if they no longer head any department.
     if (oldHeadEmail && oldHeadEmail !== headEmail) {
-      const yearDepartments = await ctx.db
-        .query("departments")
-        .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
-        .take(200);
-      const stillHeading = yearDepartments.some((d) => d.headEmail === oldHeadEmail);
-      if (!stillHeading) {
-        const oldHead = await getProfile(ctx, oldHeadEmail, args.year);
-        if (oldHead) {
-          const updatedRoles = rolesOf(oldHead).filter((r) => r !== HEAD_OF_DEPARTMENT);
-          await ctx.db.patch("staffProfiles", oldHead._id, {
-            roles: updatedRoles.length > 0 ? updatedRoles : [STAFF_ROLE],
-            role: undefined,
-          });
-        }
-      }
+      await revokeHead(ctx, args.year, oldHeadEmail, HEAD_OF_DEPARTMENT, newName);
     }
 
     return existing._id;
@@ -836,13 +883,13 @@ export const removeDepartment = mutation({
 
     // Deleting a department that people or in-flight requests still point at
     // would silently strand them (invisible, unapprovable). Refuse instead.
-    const members = await ctx.db
+    // Scan assignments (not just the legacy field) so a member linked via a
+    // non-primary assignment can't be missed.
+    const yearProfiles = await ctx.db
       .query("staffProfiles")
-      .withIndex("by_year_and_department", (q) =>
-        q.eq("year", args.year).eq("department", args.name)
-      )
-      .take(1);
-    if (members.length > 0) {
+      .withIndex("by_year", (q) => q.eq("year", args.year))
+      .take(1000);
+    if (yearProfiles.some((p) => isMemberOfDepartment(p, args.name))) {
       throw new ConvexError(
         `"${args.name}" still has staff assigned in ${args.year} — move them to another department first.`
       );
@@ -884,7 +931,7 @@ export const setBudgetManager = mutation({
     }
     const email = args.email.trim().toLowerCase();
     const profile = await getProfile(ctx, email, args.year);
-    if (!profile || profile.department !== FINANCE) {
+    if (!profile || !isMemberOfDepartment(profile, FINANCE)) {
       throw new ConvexError(
         `The Budget Manager must be from the ${FINANCE} department in ${args.year}.`
       );
@@ -920,11 +967,11 @@ export const financeMembers = query({
     }
     const profiles = await ctx.db
       .query("staffProfiles")
-      .withIndex("by_year_and_department", (q) =>
-        q.eq("year", args.year).eq("department", FINANCE)
-      )
-      .take(100);
-    return profiles.map((p) => ({ email: p.email, name: p.name ?? null }));
+      .withIndex("by_year", (q) => q.eq("year", args.year))
+      .take(1000);
+    return profiles
+      .filter((p) => isMemberOfDepartment(p, FINANCE))
+      .map((p) => ({ email: p.email, name: p.name ?? null }));
   },
 });
 
@@ -948,6 +995,83 @@ export const clearStaffUniversities = internalMutation({
       }
     }
     return { cleared };
+  },
+});
+
+/**
+ * One-time migration: populate the new `assignments` array on every profile
+ * from its legacy roles + department/division/university and the authoritative
+ * department/division headEmail. Idempotent — re-running recomputes the same
+ * assignments. Heads come from the actual head docs (so a person who heads two
+ * departments gets both links and a stale `roles:[HOD]` without a real headship
+ * is corrected). Returns the count and the profiles whose role set changed.
+ * Run with: npx convex run admin:backfillAssignments
+ */
+export const backfillAssignments = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const profiles = await ctx.db.query("staffProfiles").take(8000);
+
+    // Pre-load each year's authoritative heads once.
+    const years = [...new Set(profiles.map((p) => p.year))];
+    const headDeptsByYearEmail = new Map<string, string[]>();
+    const headDivsByYearEmail = new Map<string, string[]>();
+    const key = (year: number, email: string) => `${year} ${email}`;
+    for (const year of years) {
+      const departments = await ctx.db
+        .query("departments")
+        .withIndex("by_year_and_name", (q) => q.eq("year", year))
+        .take(200);
+      for (const d of departments) {
+        if (!d.headEmail) continue;
+        const k = key(year, d.headEmail);
+        headDeptsByYearEmail.set(k, [...(headDeptsByYearEmail.get(k) ?? []), d.name]);
+      }
+      const divisions = await ctx.db
+        .query("divisions")
+        .withIndex("by_year_and_name", (q) => q.eq("year", year))
+        .take(200);
+      for (const d of divisions) {
+        if (!d.headEmail) continue;
+        const k = key(year, d.headEmail);
+        headDivsByYearEmail.set(k, [...(headDivsByYearEmail.get(k) ?? []), d.name]);
+      }
+    }
+
+    let updated = 0;
+    const roleChanges: { email: string; year: number; from: string[]; to: string[] }[] = [];
+    for (const profile of profiles) {
+      // Base: derive non-head assignments from the legacy fields, dropping any
+      // legacy-derived head links (the authoritative docs are the truth).
+      const base = assignmentsOf(profile).filter((a) => !isHeadRole(a.role));
+      const headedDepts = headDeptsByYearEmail.get(key(profile.year, profile.email)) ?? [];
+      const headedDivs = headDivsByYearEmail.get(key(profile.year, profile.email)) ?? [];
+      const headAssignments: Assignment[] = [
+        ...headedDepts.map((d) => ({ role: HEAD_OF_DEPARTMENT, department: d })),
+        ...headedDivs.map((d) => ({ role: HEAD_OF_DIVISION, division: d })),
+      ];
+      // A non-head link to a department this person heads is superseded.
+      const headedDeptSet = new Set(headedDepts);
+      const baseKept = base.filter(
+        (a) => !(a.department && headedDeptSet.has(a.department))
+      );
+      let assignments = dedupeAssignments([...baseKept, ...headAssignments]);
+      if (assignments.length === 0) assignments = [{ role: STAFF_ROLE }];
+
+      const roles = [...new Set(assignments.map((a) => a.role))];
+      const before = rolesOf(profile);
+      if (before.slice().sort().join() !== roles.slice().sort().join()) {
+        roleChanges.push({ email: profile.email, year: profile.year, from: before, to: roles });
+      }
+      await ctx.db.patch("staffProfiles", profile._id, {
+        roles,
+        role: undefined,
+        assignments,
+        ...legacyScopeFrom(assignments),
+      });
+      updated++;
+    }
+    return { updated, roleChanges };
   },
 });
 
@@ -986,7 +1110,11 @@ export const copyYear = internalMutation({
       .withIndex("by_year_and_name", (q) => q.eq("year", args.from))
       .take(200);
     for (const division of divisions) {
-      await ctx.db.insert("divisions", { year: args.to, name: division.name });
+      await ctx.db.insert("divisions", {
+        year: args.to,
+        name: division.name,
+        headEmail: division.headEmail,
+      });
       counts.divisions++;
     }
     const departments = await ctx.db
@@ -1027,6 +1155,7 @@ export const copyYear = internalMutation({
         email: profile.email,
         year: args.to,
         roles: rolesOf(profile),
+        assignments: assignmentsOf(profile),
         department: profile.department,
         division: profile.division,
         university: profile.university,
@@ -1062,7 +1191,9 @@ const ORG_STRUCTURE: Record<string, string[]> = {
   Governance: ["Data and IT", FINANCE, "Compliance"],
   Engagement: ["Marketing", "Alumni"],
   "Human Resources": ["People and Culture", "Training and Development"],
-  Operations: ["Events", "Missions"],
+  // Chaplaincy is a real department so chaplain assignments validate and render
+  // through the normal department machinery.
+  Operations: ["Events", "Missions", CHAPLAINCY_DEPARTMENT],
 };
 
 /** Universities with a SOW campus presence (Student Leaders belong to one). */

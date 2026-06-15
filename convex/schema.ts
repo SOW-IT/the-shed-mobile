@@ -36,6 +36,24 @@ export default defineSchema({
     year: v.number(),
     roles: v.optional(v.array(v.string())),
     role: v.optional(v.string()), // legacy single-role field; use rolesOf()
+    // The per-role scope links: one entry per role a person holds, tied to its
+    // specific department/division/campus. Lets someone be e.g. Head of two
+    // departments, Staff of a third, and Head of two divisions at once. Read
+    // via assignmentsOf() (derives from the legacy fields below when absent).
+    // Heads are mirrored here from the authoritative departments/divisions
+    // headEmail — those docs remain the source of truth and uniqueness enforcer.
+    assignments: v.optional(
+      v.array(
+        v.object({
+          role: v.string(),
+          department: v.optional(v.string()),
+          division: v.optional(v.string()),
+          university: v.optional(v.string()),
+        })
+      )
+    ),
+    // Legacy single-scope fields, kept in sync for backward compatibility
+    // (request-submit fallback, etc.). Prefer the assignments helpers.
     department: v.optional(v.string()),
     division: v.optional(v.string()), // for Heads of Division
     university: v.optional(v.string()), // for Student Leaders

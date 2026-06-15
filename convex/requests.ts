@@ -1,12 +1,16 @@
 import { ConvexError, v } from "convex/values";
 import {
   APPROVED,
+  assignmentsOf,
   currentStep,
   DECLINED,
   DIRECTOR,
   DIRECTOR_APPROVAL_THRESHOLD,
   FINANCE,
+  HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
+  isHeadOfDivisionName,
+  isMemberOfDepartment,
   PENDING,
   requestCompleted,
   requestDeclined,
@@ -242,17 +246,31 @@ export const submit = mutation({
     }
 
     const roles = rolesOf(profile);
-    const isDivisionHead = roles.includes(HEAD_OF_DIVISION);
+    const assignments = assignmentsOf(profile);
 
-    let department = args.department?.trim() || profile.department;
-    if (!department && profile.division) {
-      const yearDepartments = await ctx.db
-        .query("departments")
-        .withIndex("by_year_and_name", (q) => q.eq("year", year))
-        .take(200);
-      department = yearDepartments.find(
-        (d) => d.division === profile.division
-      )?.name;
+    // The request may be submitted for any department. When none is given,
+    // default to a department they are Head of Department of, else the first
+    // department in their assignments, else (for a pure Head of Division) the
+    // first department under a division they head.
+    let department = args.department?.trim();
+    if (!department) {
+      department =
+        assignments.find((a) => a.role === HEAD_OF_DEPARTMENT && a.department)
+          ?.department ?? assignments.find((a) => a.department)?.department;
+    }
+    if (!department) {
+      const headedDivision = assignments.find(
+        (a) => a.role === HEAD_OF_DIVISION && a.division
+      )?.division;
+      if (headedDivision) {
+        const yearDepartments = await ctx.db
+          .query("departments")
+          .withIndex("by_year_and_name", (q) => q.eq("year", year))
+          .take(200);
+        department = yearDepartments.find(
+          (d) => d.division === headedDivision
+        )?.name;
+      }
     }
     if (!department) {
       throw new ConvexError("Pick a department for this request.");
@@ -276,13 +294,14 @@ export const submit = mutation({
     if (department === FINANCE) approvedByHOD = APPROVED;
     // No HOD step when the submitter is this department's head, the
     // Director, or the head of the division this department belongs to
-    // (named on the division itself, or via their own profile).
+    // (named on the division itself, or via any of their head-of-division
+    // links — covers heading several divisions).
     const divisionDoc = await getDivision(ctx, year, departmentDoc.division);
     if (
       approvers.hodEmail === email ||
       roles.includes(DIRECTOR) ||
       divisionDoc?.headEmail === email ||
-      (isDivisionHead && departmentDoc.division === profile.division)
+      isHeadOfDivisionName(profile, departmentDoc.division)
     ) {
       approvedByHOD = APPROVED;
     }
@@ -505,7 +524,7 @@ export const allRequests = query({
   handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
-    if (caller.profile.department !== FINANCE) {
+    if (!isMemberOfDepartment(caller.profile, FINANCE)) {
       throw new ConvexError("Only Finance staff can view all requests.");
     }
     return await openRequestsAcrossYears(ctx, caller.year);
@@ -1058,7 +1077,7 @@ export const receiptAttachments = query({
     // and an unauthorised viewer should just not see the files.
     const allowed =
       request.requesterEmail === caller.email ||
-      caller.profile.department === FINANCE ||
+      isMemberOfDepartment(caller.profile, FINANCE) ||
       requestYearFinance.financeHeadEmail === caller.email ||
       currentFinance.financeHeadEmail === caller.email;
     if (!allowed) return null;

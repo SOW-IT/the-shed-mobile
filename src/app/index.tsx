@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable } from "react-native";
 import { api } from "../../convex/_generated/api";
-import { requestFullyApproved } from "../../shared/flow";
+import { HEAD_OF_DEPARTMENT, requestFullyApproved } from "../../shared/flow";
 import { AllRequestsList } from "@/components/AllRequestsList";
 import { GuideSheet, MyRequests } from "@/components/MyRequests";
 import { ReviewList } from "@/components/ReviewList";
@@ -119,11 +119,16 @@ export default function RequestsScreen() {
   const activeSegment = segments.some((s) => s.key === active) ? active : "mine";
 
   const departmentNames = (structure?.departments ?? []).map((d) => d.name);
-  // Own department, or (for Heads of Division) one under their division.
+  // Default to a department they are Head of Department of, else the first
+  // department in their assignments, else (for a pure Head of Division) the
+  // first department under a division they head. They may still pick any.
+  const myAssignments = me?.profile?.assignments ?? [];
   const defaultDepartment =
-    me?.profile?.department ??
-    (structure?.departments ?? []).find(
-      (d) => d.division === me?.profile?.division
+    myAssignments.find((a) => a.role === HEAD_OF_DEPARTMENT && a.department)
+      ?.department ??
+    myAssignments.find((a) => a.department)?.department ??
+    (structure?.departments ?? []).find((d) =>
+      (me?.profile?.divisions ?? []).includes(d.division)
     )?.name ??
     "";
 

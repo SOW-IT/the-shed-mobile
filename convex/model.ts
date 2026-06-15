@@ -2,9 +2,12 @@ import { ConvexError } from "convex/values";
 import {
   ADMIN_DEPARTMENTS,
   ADMIN_DIVISIONS,
+  assignmentsOf,
+  departmentsOf,
   DIRECTOR,
   FINANCE,
   HEAD_OF_DIVISION,
+  rolesOfLike,
   staffYearForDate,
 } from "../shared/flow";
 import { Doc } from "./_generated/dataModel";
@@ -85,7 +88,7 @@ export async function requireProfile(ctx: Ctx): Promise<CallerContext> {
 
 /** A profile's roles; reads the legacy single-role field transparently. */
 export const rolesOf = (profile: Doc<"staffProfiles">): string[] =>
-  profile.roles ?? (profile.role ? [profile.role] : []);
+  rolesOfLike(profile);
 
 /**
  * Admins: the Director, the Head of the Human Resources division, the
@@ -97,22 +100,33 @@ export async function isAdminProfile(
 ): Promise<boolean> {
   const roles = rolesOf(profile);
   if (roles.includes(DIRECTOR)) return true;
+  // Head of any admin division (read from the assignment mirror so a person
+  // who heads several divisions is covered).
+  const assignments = assignmentsOf(profile);
   if (
-    roles.includes(HEAD_OF_DIVISION) &&
-    profile.division !== undefined &&
-    ADMIN_DIVISIONS.includes(profile.division)
+    assignments.some(
+      (a) =>
+        a.role === HEAD_OF_DIVISION &&
+        a.division !== undefined &&
+        ADMIN_DIVISIONS.includes(a.division)
+    )
   ) {
     return true;
   }
-  // Heads named on a division itself (one person can head several).
+  // Heads named on a division itself (authoritative; one person can head several).
   const headed = await divisionsHeadedBy(ctx, profile.year, profile.email);
   if (headed.some((division) => ADMIN_DIVISIONS.includes(division.name))) {
     return true;
   }
-  if (!profile.department) return false;
-  if (ADMIN_DEPARTMENTS.includes(profile.department)) return true;
-  const department = await getDepartment(ctx, profile.year, profile.department);
-  return department !== null && ADMIN_DIVISIONS.includes(department.division);
+  // Membership in any admin department, or any department under an admin division.
+  for (const dept of departmentsOf(profile)) {
+    if (ADMIN_DEPARTMENTS.includes(dept)) return true;
+    const department = await getDepartment(ctx, profile.year, dept);
+    if (department !== null && ADMIN_DIVISIONS.includes(department.division)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export async function requireAdmin(ctx: Ctx): Promise<CallerContext> {

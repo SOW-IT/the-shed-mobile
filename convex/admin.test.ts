@@ -78,7 +78,8 @@ describe("setStaffProfile validation", () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     // Fiona heads Finance (a HEAD_OF_DEPARTMENT via the structure section).
-    // Re-saving her staff profile as Staff must keep the head role.
+    // Re-saving her staff profile as Staff of Finance must keep the head role;
+    // Staff of the SAME department she heads is superseded, so she stays HOD.
     await admin.mutation(api.admin.setStaffProfile, {
       email: FIONA,
       year: YEAR,
@@ -87,7 +88,32 @@ describe("setStaffProfile validation", () => {
     });
     const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
     const fiona = profiles.find((p) => p.email === FIONA)!;
+    expect(fiona.roles).toEqual(["Head of Department"]);
+  });
+
+  test("editing a head's staff profile keeps a Staff link to a different department", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR,
+      name: "Marketing",
+      division: "Engagement",
+    });
+    // Fiona heads Finance; making her Staff of Marketing keeps both.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: FIONA,
+      year: YEAR,
+      roles: ["Staff"],
+      department: "Marketing",
+    });
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const fiona = profiles.find((p) => p.email === FIONA)!;
     expect(fiona.roles.sort()).toEqual(["Head of Department", "Staff"]);
+    expect(fiona.assignments).toContainEqual({ role: "Staff", department: "Marketing" });
+    expect(fiona.assignments).toContainEqual({
+      role: "Head of Department",
+      department: "Finance",
+    });
   });
 
   test("cannot remove roles from a user without a head role", async () => {
@@ -230,8 +256,8 @@ describe("removeDivision", () => {
   });
 });
 
-describe("head role assignment strips Staff and campus roles", () => {
-  test("assigning a HOD removes Staff from an existing profile", async () => {
+describe("head role assignment supersedes only same-scope links", () => {
+  test("assigning a HOD supersedes a Staff link to the SAME department", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     const email = "pete@sow.org.au";
@@ -243,11 +269,40 @@ describe("head role assignment strips Staff and campus roles", () => {
     });
     const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
     const pete = profiles.find((p) => p.email === email)!;
+    // Being Staff and Head of the same department collapses to just Head.
     expect(pete.roles).not.toContain("Staff");
     expect(pete.roles).toContain("Head of Department");
+    expect(pete.assignments).toEqual([
+      { role: "Head of Department", department: "Finance" },
+    ]);
   });
 
-  test("assigning a HODiv removes campus roles from an existing profile", async () => {
+  test("assigning a HOD keeps a Staff link to a DIFFERENT department", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const email = "paul@sow.org.au";
+    // Paul is Staff of Marketing…
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Marketing", division: "Engagement",
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email, year: YEAR, roles: ["Staff"], department: "Marketing",
+    });
+    // …then becomes Head of Finance (a different department).
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Finance", division: "Governance", headEmail: email,
+    });
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const paul = profiles.find((p) => p.email === email)!;
+    expect(paul.roles.sort()).toEqual(["Head of Department", "Staff"]);
+    expect(paul.assignments).toContainEqual({ role: "Staff", department: "Marketing" });
+    expect(paul.assignments).toContainEqual({
+      role: "Head of Department",
+      department: "Finance",
+    });
+  });
+
+  test("assigning a HODiv keeps a campus role (different scope)", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     const email = "sue@sow.org.au";
@@ -259,8 +314,16 @@ describe("head role assignment strips Staff and campus roles", () => {
     });
     const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
     const sue = profiles.find((p) => p.email === email)!;
-    expect(sue.roles).not.toContain("Student Leader");
-    expect(sue.roles).toContain("Head of Division");
+    // Campus role and division headship are different scopes — both are kept.
+    expect(sue.roles.sort()).toEqual(["Head of Division", "Student Leader"]);
+    expect(sue.assignments).toContainEqual({
+      role: "Student Leader",
+      university: "Macquarie University",
+    });
+    expect(sue.assignments).toContainEqual({
+      role: "Head of Division",
+      division: "Engagement",
+    });
   });
 });
 
