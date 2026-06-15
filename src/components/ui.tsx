@@ -3,7 +3,6 @@ import { ConvexError } from "convex/values";
 import * as Haptics from "expo-haptics";
 import { ReactNode, Ref, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Animated,
   Easing,
   Image,
@@ -341,7 +340,7 @@ export const Btn = ({
         ]}
       >
         {loading ? (
-          <ActivityIndicator size="small" color={textColor} />
+          <SowSpinner size={20} onDark={variant === "primary" ? !t.dark : t.dark} />
         ) : (
           <Text style={[styles.btnText, { color: textColor }]}>{title}</Text>
         )}
@@ -879,8 +878,9 @@ export const EmptyState = ({
 };
 
 /** SOW logo that rotates continuously — used as the app's loading spinner. */
-export const SowSpinner = ({ size = 64 }: { size?: number }) => {
+export const SowSpinner = ({ size = 64, onDark }: { size?: number; onDark?: boolean }) => {
   const t = useAppTheme();
+  const dark = onDark ?? t.dark;
   const spin = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const anim = Animated.loop(
@@ -898,7 +898,7 @@ export const SowSpinner = ({ size = 64 }: { size?: number }) => {
   return (
     <Animated.Image
       source={
-        t.dark
+        dark
           ? require("../../assets/images/splash-icon-dark.png")
           : require("../../assets/images/splash-icon.png")
       }

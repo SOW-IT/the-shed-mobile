@@ -4,7 +4,6 @@ import { makeRedirectUri } from "expo-auth-session";
 import { openAuthSessionAsync } from "expo-web-browser";
 import { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Animated,
   Image,
   Platform,
@@ -15,7 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { radius, spacing, typography, useAppTheme } from "../theme";
-import { ErrorBanner, errorMessage, FadeInView } from "./ui";
+import { ErrorBanner, errorMessage, FadeInView, SowSpinner } from "./ui";
 
 export const SignInScreen = () => {
   const { signIn } = useAuthActions();
@@ -101,7 +100,7 @@ export const SignInScreen = () => {
               ]}
             >
               {busy ? (
-                <ActivityIndicator size="small" color={t.onPrimary} />
+                <SowSpinner size={20} onDark={!t.dark} />
               ) : (
                 <>
                   <Ionicons name="logo-google" size={18} color={t.onPrimary} />
