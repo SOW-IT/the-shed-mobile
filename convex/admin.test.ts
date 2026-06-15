@@ -247,6 +247,54 @@ describe("removeUniversity", () => {
   });
 });
 
+describe("updateUniversity", () => {
+  test("renames a university, cascades the rename to profiles, and validates constraints", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: "ACU" });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "sl@sow.org.au",
+      year: YEAR,
+      assignments: [{ role: "Student Leader", university: "ACU" }],
+    });
+
+    // Rename cascades to the staff profile.
+    await admin.mutation(api.admin.updateUniversity, {
+      year: YEAR, oldName: "ACU", newName: "Australian Catholic University",
+    });
+    const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    expect(structure.universities).toContain("Australian Catholic University");
+    expect(structure.universities).not.toContain("ACU");
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const sl = profiles.find((p) => p.email === "sl@sow.org.au");
+    expect(sl?.assignments).toEqual([
+      { role: "Student Leader", university: "Australian Catholic University" },
+    ]);
+
+    // Same name is a no-op (returns the id without error).
+    await expect(
+      admin.mutation(api.admin.updateUniversity, {
+        year: YEAR, oldName: "Australian Catholic University", newName: "Australian Catholic University",
+      })
+    ).resolves.toBeDefined();
+
+    // Duplicate name is rejected.
+    await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: "UTS" });
+    await expect(
+      admin.mutation(api.admin.updateUniversity, {
+        year: YEAR, oldName: "Australian Catholic University", newName: "UTS",
+      })
+    ).rejects.toThrow(/already exists/);
+
+    // Unknown old name is rejected.
+    await expect(
+      admin.mutation(api.admin.updateUniversity, {
+        year: YEAR, oldName: "Nonexistent", newName: "Whatever",
+      })
+    ).rejects.toThrow(/not found/);
+  });
+});
+
 describe("removeDivision", () => {
   test("cascades to departments and staff assignments; no-ops on missing", async () => {
     const t = await setup();
@@ -277,6 +325,29 @@ describe("removeDivision", () => {
     await expect(
       admin.mutation(api.admin.removeDivision, { year: YEAR, name: "Nope" })
     ).resolves.toBeNull();
+  });
+
+  test("blocks removal when a child department has an open request", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // Insert an open request directly into Finance (a Governance child dept).
+    await t.run((ctx) =>
+      ctx.db.insert("requests", {
+        year: YEAR,
+        requesterEmail: BELLA,
+        department: "Finance",
+        description: "open",
+        amount: 50,
+        approvedByHOD: "PENDING",
+        approvedByBudgetManager: "PENDING",
+        approvedByFinanceHead: "PENDING",
+        paid: false,
+      })
+    );
+    // Governance contains Finance which has that open request — deletion must be refused.
+    await expect(
+      admin.mutation(api.admin.removeDivision, { year: YEAR, name: "Governance" })
+    ).rejects.toThrow(/open requests/);
   });
 });
 
