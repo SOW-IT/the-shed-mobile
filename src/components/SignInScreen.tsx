@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { radius, spacing, typography, useAppTheme } from "../theme";
-import { ErrorBanner, errorMessage, FadeInView, SowSpinner } from "./ui";
+import { ErrorBanner, errorMessage, FadeInView } from "./ui";
 
 export const SignInScreen = () => {
   const { signIn } = useAuthActions();
@@ -71,7 +71,6 @@ export const SignInScreen = () => {
       <SafeAreaView style={styles.screen}>
         <View style={styles.hero}>
           <FadeInView style={styles.heroInner}>
-            <SowSpinner size={96} />
             <Image
               source={
                 t.dark
