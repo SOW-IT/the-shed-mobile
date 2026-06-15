@@ -17,6 +17,7 @@ import {
   errorMessage,
   FadeInView,
   FooterAction,
+  LoadingState,
   Muted,
   Row,
   Screen,
@@ -139,7 +140,7 @@ export default function RequestsScreen() {
 
   const showMakeRequest = me?.profile != null && activeSegment === "mine";
 
-  if (me === undefined) return <Screen />;
+  if (me === undefined) return <Screen><LoadingState /></Screen>;
 
   const firstName = me?.name?.split(" ")[0];
 
