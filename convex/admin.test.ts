@@ -425,6 +425,32 @@ describe("updateDepartment", () => {
   });
 });
 
+describe("cross-role clear: upsertDivision/updateDivision clear Budget Manager when HOD leaves Finance", () => {
+  test("upsertDivision: making the Finance HOD a division head clears budgetManagerEmail", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: FIONA });
+    await admin.mutation(api.admin.upsertDivision, {
+      year: YEAR, name: "Operations", headEmail: FIONA,
+    });
+    const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    expect(structure.budgetManagerEmail).toBeNull();
+  });
+
+  test("updateDivision: making the Finance HOD a division head clears budgetManagerEmail", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: FIONA });
+    await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "Operations" });
+    // Re-assign via updateDivision — this is the second cross-clear path.
+    await admin.mutation(api.admin.updateDivision, {
+      year: YEAR, oldName: "Operations", newName: "Operations", headEmail: FIONA,
+    });
+    const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    expect(structure.budgetManagerEmail).toBeNull();
+  });
+});
+
 describe("setBudgetManager (Finance Head path)", () => {
   test("the Finance Head can set the Budget Manager; a stranger cannot", async () => {
     const t = await setup();

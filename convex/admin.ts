@@ -283,7 +283,7 @@ export const upsertDivision = mutation({
     // role on their profile — creating the profile if they were never
     // provisioned. Their profile's own division is only set when empty, so
     // heading a second division doesn't move them. If they were previously a
-    // dept head, the conflicting role and department field are cleared on the profile.
+    // dept head, the conflicting role, department field, and headship are cleared.
     if (headEmail) {
       const headProfile = await getProfile(ctx, headEmail, args.year);
       if (headProfile) {
@@ -291,6 +291,19 @@ export const upsertDivision = mutation({
         const wasHeadOfDept = roles.includes(HEAD_OF_DEPARTMENT);
         if (wasHeadOfDept) {
           roles = roles.filter((r) => r !== HEAD_OF_DEPARTMENT);
+          const yearDepts = await ctx.db
+            .query("departments")
+            .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
+            .take(200);
+          for (const dept of yearDepts) {
+            if (dept.headEmail === headEmail) {
+              await ctx.db.patch("departments", dept._id, { headEmail: undefined });
+            }
+          }
+          const settings = await getYearSettings(ctx, args.year);
+          if (settings?.budgetManagerEmail === headEmail) {
+            await ctx.db.patch("yearSettings", settings._id, { budgetManagerEmail: undefined });
+          }
         }
         await ctx.db.patch("staffProfiles", headProfile._id, {
           roles,
@@ -395,7 +408,7 @@ export const updateDivision = mutation({
     }
 
     // Reverse sync: grant HEAD_OF_DIVISION role to new head.
-    // If they were previously a dept head, clear that conflicting role on the profile.
+    // If they were previously a dept head, clear the conflicting role, headship, and budget manager.
     if (headEmail) {
       const headProfile = await getProfile(ctx, headEmail, args.year);
       if (headProfile) {
@@ -403,6 +416,19 @@ export const updateDivision = mutation({
         const wasHeadOfDept = roles.includes(HEAD_OF_DEPARTMENT);
         if (wasHeadOfDept) {
           roles = roles.filter((r) => r !== HEAD_OF_DEPARTMENT);
+          const yearDepts = await ctx.db
+            .query("departments")
+            .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
+            .take(200);
+          for (const dept of yearDepts) {
+            if (dept.headEmail === headEmail) {
+              await ctx.db.patch("departments", dept._id, { headEmail: undefined });
+            }
+          }
+          const settings = await getYearSettings(ctx, args.year);
+          if (settings?.budgetManagerEmail === headEmail) {
+            await ctx.db.patch("yearSettings", settings._id, { budgetManagerEmail: undefined });
+          }
         }
         await ctx.db.patch("staffProfiles", headProfile._id, {
           roles,
@@ -558,7 +584,7 @@ export const upsertDepartment = mutation({
     // Reverse sync: the head named on a department gets the Head of
     // Department role (and membership) on their profile — creating the
     // profile if they were never provisioned. If they were previously a
-    // division head, that conflicting role and division field are cleared on the profile.
+    // division head, the conflicting role, division field, and headship are cleared.
     if (headEmail) {
       const headProfile = await getProfile(ctx, headEmail, args.year);
       if (headProfile) {
@@ -566,6 +592,15 @@ export const upsertDepartment = mutation({
         const wasHeadOfDiv = roles.includes(HEAD_OF_DIVISION);
         if (wasHeadOfDiv) {
           roles = roles.filter((r) => r !== HEAD_OF_DIVISION);
+          const yearDivs = await ctx.db
+            .query("divisions")
+            .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
+            .take(200);
+          for (const div of yearDivs) {
+            if (div.headEmail === headEmail) {
+              await ctx.db.patch("divisions", div._id, { headEmail: undefined });
+            }
+          }
         }
         await ctx.db.patch("staffProfiles", headProfile._id, {
           roles,
@@ -734,7 +769,7 @@ export const updateDepartment = mutation({
     }
 
     // Reverse sync: grant HEAD_OF_DEPARTMENT role to new head.
-    // If they were previously a division head, clear that conflicting role on the profile.
+    // If they were previously a division head, clear the conflicting role, division field, and headship.
     if (headEmail) {
       const headProfile = await getProfile(ctx, headEmail, args.year);
       if (headProfile) {
@@ -742,6 +777,15 @@ export const updateDepartment = mutation({
         const wasHeadOfDiv = roles.includes(HEAD_OF_DIVISION);
         if (wasHeadOfDiv) {
           roles = roles.filter((r) => r !== HEAD_OF_DIVISION);
+          const yearDivs = await ctx.db
+            .query("divisions")
+            .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
+            .take(200);
+          for (const div of yearDivs) {
+            if (div.headEmail === headEmail) {
+              await ctx.db.patch("divisions", div._id, { headEmail: undefined });
+            }
+          }
         }
         await ctx.db.patch("staffProfiles", headProfile._id, {
           roles,
