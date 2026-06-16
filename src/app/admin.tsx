@@ -777,14 +777,6 @@ export default function AdminScreen() {
         onChange={(key) => { setTab(key as AdminTab); setError(null); }}
       />
 
-      {!editable && (
-        <Card>
-          <Muted>
-            {selectedYear} is a past year — view only. You can edit {currentYear} and{" "}
-            {currentYear + 1}.
-          </Muted>
-        </Card>
-      )}
       <ErrorBanner message={error} />
 
       {tab === "users" && (
