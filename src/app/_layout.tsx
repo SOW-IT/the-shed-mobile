@@ -135,6 +135,11 @@ const AppTabs = () => {
   const tabTotal = mineActionCount + mineUnread + reviewActionCount + reviewUnread;
   return (
     <Tabs
+      // Back (browser back / Android hardware back) returns to the last
+      // visited tab rather than always the first tab. This makes back from a
+      // hidden screen like person/[email] (opened from the Org Chart tab)
+      // return to /org instead of the default firstRoute (/).
+      backBehavior="history"
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,
