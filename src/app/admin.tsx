@@ -160,11 +160,7 @@ const AssignmentEditor = ({
                     color={t.danger}
                     onPress={() =>
                       confirmRemoval(
-                        `Remove the ${formatAssignment({
-                          role: a.role,
-                          department: a.department || undefined,
-                          university: a.university || undefined,
-                        })} assignment?`,
+                        `Remove the ${formatAssignment(a)} assignment?`,
                         () => onChange(assignments.filter((_, j) => j !== i)),
                         "Remove assignment"
                       )
@@ -393,17 +389,19 @@ export default function AdminScreen() {
     // If they already hold something — even just a head role (shown locked
     // above) — start with an empty editor rather than adding an unselected
     // default Staff assignment.
-    setEditingAssignments(
-      nonHead.length > 0
-        ? nonHead.map((a) => ({
-            role: a.role,
-            department: a.department ?? "",
-            university: a.university ?? "",
-          }))
-        : all.length > 0
-          ? []
-          : [emptyDraft()]
-    );
+    let initial: AssignmentDraft[];
+    if (nonHead.length > 0) {
+      initial = nonHead.map((a) => ({
+        role: a.role,
+        department: a.department ?? "",
+        university: a.university ?? "",
+      }));
+    } else if (all.length > 0) {
+      initial = [];
+    } else {
+      initial = [emptyDraft()];
+    }
+    setEditingAssignments(initial);
     setEditingUserEmail(email);
   };
 
