@@ -22,6 +22,7 @@ import {
 } from "../shared/flow";
 import { Doc } from "./_generated/dataModel";
 import { internalMutation, MutationCtx, mutation, query } from "./_generated/server";
+import { IMPORT_DATA } from "./importData";
 import {
   currentStaffYear,
   getDepartment,
@@ -865,6 +866,97 @@ export const removeUniversity = mutation({
   },
 });
 
+export const upsertRole = mutation({
+  args: { year: v.number(), name: v.string() },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    assertManagedYear(args.year);
+    const name = args.name.trim();
+    if (!name) throw new ConvexError("Role name is required.");
+    const existing = await ctx.db
+      .query("roles")
+      .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", name))
+      .unique();
+    if (existing) return existing._id;
+    return await ctx.db.insert("roles", { year: args.year, name });
+  },
+});
+
+export const updateRole = mutation({
+  args: { year: v.number(), oldName: v.string(), newName: v.string() },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    assertManagedYear(args.year);
+    const oldName = args.oldName.trim();
+    const newName = args.newName.trim();
+    if (!newName) throw new ConvexError("Role name is required.");
+
+    const existing = await ctx.db
+      .query("roles")
+      .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", oldName))
+      .unique();
+    if (!existing) throw new ConvexError(`Role "${oldName}" not found.`);
+
+    if (newName !== oldName) {
+      const conflict = await ctx.db
+        .query("roles")
+        .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", newName))
+        .unique();
+      if (conflict) throw new ConvexError(`A role named "${newName}" already exists.`);
+
+      await ctx.db.patch("roles", existing._id, { name: newName });
+
+      // Cascade: rename the role across that year's staff assignments.
+      const profiles = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_year", (q) => q.eq("year", args.year))
+        .take(1000);
+      for (const profile of profiles) {
+        const current = assignmentsOf(profile);
+        if (current.some((a) => a.role === oldName)) {
+          const remapped = current.map((a) =>
+            a.role === oldName ? { ...a, role: newName } : a
+          );
+          await patchFromAssignments(ctx, profile, remapped);
+        }
+      }
+    }
+
+    return existing._id;
+  },
+});
+
+export const removeRole = mutation({
+  args: { year: v.number(), name: v.string() },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    assertManagedYear(args.year);
+    const role = await ctx.db
+      .query("roles")
+      .withIndex("by_year_and_name", (q) =>
+        q.eq("year", args.year).eq("name", args.name)
+      )
+      .unique();
+    if (!role) return null;
+    // Block deletion while anyone that year still holds this role — the
+    // assignment must be reassigned first rather than silently dropped.
+    const profiles = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_year", (q) => q.eq("year", args.year))
+      .take(1000);
+    const inUse = profiles.filter((p) =>
+      assignmentsOf(p).some((a) => a.role === args.name)
+    );
+    if (inUse.length > 0) {
+      throw new ConvexError(
+        `"${args.name}" is still assigned to ${inUse.length} ${inUse.length === 1 ? "person" : "people"} in ${args.year} — reassign them first.`
+      );
+    }
+    await ctx.db.delete("roles", role._id);
+    return null;
+  },
+});
+
 export const upsertDepartment = mutation({
   args: {
     year: v.number(),
@@ -1290,6 +1382,34 @@ export const backfillAssignments = internalMutation({
 });
 
 /**
+ * Populates the `roles` table from IMPORT_DATA so an existing deployment can
+ * be backfilled with the per-year role catalog without re-importing everything.
+ * Idempotent — inserts only the (year, name) role rows that are missing.
+ * Run with: npx convex run admin:backfillRoles
+ */
+export const backfillRoles = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let inserted = 0;
+    for (const yearData of IMPORT_DATA.years) {
+      for (const name of yearData.roles) {
+        const existing = await ctx.db
+          .query("roles")
+          .withIndex("by_year_and_name", (q) =>
+            q.eq("year", yearData.year).eq("name", name)
+          )
+          .unique();
+        if (!existing) {
+          await ctx.db.insert("roles", { year: yearData.year, name });
+          inserted++;
+        }
+      }
+    }
+    return { inserted };
+  },
+});
+
+/**
  * Replaces one year's divisions, departments, staff profiles and settings
  * with a copy of another year's — e.g. provisioning next year from the
  * current one at rollover.
@@ -1358,6 +1478,21 @@ export const copyYear = internalMutation({
         .unique();
       if (!existing) {
         await ctx.db.insert("universities", { year: args.to, name: university.name });
+      }
+    }
+    const roles = await ctx.db
+      .query("roles")
+      .withIndex("by_year_and_name", (q) => q.eq("year", args.from))
+      .take(50);
+    for (const role of roles) {
+      const existing = await ctx.db
+        .query("roles")
+        .withIndex("by_year_and_name", (q) =>
+          q.eq("year", args.to).eq("name", role.name)
+        )
+        .unique();
+      if (!existing) {
+        await ctx.db.insert("roles", { year: args.to, name: role.name });
       }
     }
     const profiles = await ctx.db

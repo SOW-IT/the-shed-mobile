@@ -948,6 +948,96 @@ describe("seed preserves existing heads", () => {
   });
 });
 
+describe("roles", () => {
+  test("upsertRole adds a role that yearStructure then includes", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const first = await admin.mutation(api.admin.upsertRole, {
+      year: YEAR,
+      name: "Volunteer",
+    });
+    // Idempotent: a second upsert returns the same id.
+    const second = await admin.mutation(api.admin.upsertRole, {
+      year: YEAR,
+      name: "Volunteer",
+    });
+    expect(second).toBe(first);
+    const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    expect(structure.roles).toContain("Volunteer");
+    await expect(
+      admin.mutation(api.admin.upsertRole, { year: YEAR, name: "  " })
+    ).rejects.toThrow(/name is required/);
+  });
+
+  test("updateRole renames and cascades to that year's staff assignments", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Outsource" });
+    // A profile holding the custom role (Director needs no scope).
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "out@sow.org.au",
+      year: YEAR,
+      assignments: [{ role: "Outsource", department: "Finance" }],
+    });
+
+    await admin.mutation(api.admin.updateRole, {
+      year: YEAR,
+      oldName: "Outsource",
+      newName: "Contractor",
+    });
+
+    const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    expect(structure.roles).toContain("Contractor");
+    expect(structure.roles).not.toContain("Outsource");
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const out = profiles.find((p) => p.email === "out@sow.org.au");
+    expect(out?.assignments).toContainEqual({
+      role: "Contractor",
+      department: "Finance",
+    });
+
+    // Unknown old name is rejected.
+    await expect(
+      admin.mutation(api.admin.updateRole, {
+        year: YEAR,
+        oldName: "Nonexistent",
+        newName: "Whatever",
+      })
+    ).rejects.toThrow(/not found/);
+  });
+
+  test("removeRole blocks while in use and succeeds once freed", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Outsource" });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "out@sow.org.au",
+      year: YEAR,
+      assignments: [{ role: "Outsource", department: "Finance" }],
+    });
+
+    // Blocked: someone still holds the role.
+    await expect(
+      admin.mutation(api.admin.removeRole, { year: YEAR, name: "Outsource" })
+    ).rejects.toThrow(/still assigned/);
+
+    // Reassign them off the role, then deletion succeeds.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "out@sow.org.au",
+      year: YEAR,
+      assignments: [{ role: "Staff", department: "Finance" }],
+    });
+    await admin.mutation(api.admin.removeRole, { year: YEAR, name: "Outsource" });
+    const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    expect(structure.roles).not.toContain("Outsource");
+
+    // Removing a missing role returns null, not an error.
+    await expect(
+      admin.mutation(api.admin.removeRole, { year: YEAR, name: "Outsource" })
+    ).resolves.toBeNull();
+  });
+});
+
 describe("setStaffProfile with assignments path", () => {
   test("saves two non-head assignments and derives roles from them", async () => {
     const t = await setup();

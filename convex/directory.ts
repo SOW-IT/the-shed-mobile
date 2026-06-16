@@ -293,6 +293,10 @@ export const yearStructure = query({
       .query("universities")
       .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
       .take(200);
+    const roles = await ctx.db
+      .query("roles")
+      .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
+      .take(200);
     const settings = await ctx.db
       .query("yearSettings")
       .withIndex("by_year", (q) => q.eq("year", args.year))
@@ -309,6 +313,7 @@ export const yearStructure = query({
         colour: d.colour ?? null,
       })),
       universities: universities.map((u) => u.name),
+      roles: roles.map((r) => r.name),
       budgetManagerEmail: settings?.budgetManagerEmail ?? null,
     };
   },
