@@ -381,9 +381,14 @@ export default function AdminScreen() {
 
   const startEditUser = (email: string) => {
     const existing = (profiles ?? []).find((p) => p.email === email);
-    const nonHead = (existing?.assignments ?? []).filter(
+    const all = existing?.assignments ?? [];
+    const nonHead = all.filter(
       (a) => a.role !== HEAD_OF_DEPARTMENT && a.role !== HEAD_OF_DIVISION
     );
+    // Seed a blank Staff row only when the profile has NO assignment at all.
+    // If they already hold something — even just a head role (shown locked
+    // above) — start with an empty editor rather than adding an unselected
+    // default Staff assignment.
     setEditingAssignments(
       nonHead.length > 0
         ? nonHead.map((a) => ({
@@ -391,7 +396,9 @@ export default function AdminScreen() {
             department: a.department ?? "",
             university: a.university ?? "",
           }))
-        : [emptyDraft()]
+        : all.length > 0
+          ? []
+          : [emptyDraft()]
     );
     setEditingUserEmail(email);
   };
