@@ -122,7 +122,7 @@ export default function OrgChartScreen() {
       {chart.director ? (
         <FadeInView delay={40}>
           <View style={[styles.directorCard, t.shadowCard, { backgroundColor: t.card }]}>
-            <Person person={chart.director} bold tag="Director" size={46} />
+            <Person person={chart.director} bold tag={chart.director.role ?? "Director"} size={46} />
           </View>
         </FadeInView>
       ) : (
@@ -175,9 +175,29 @@ export default function OrgChartScreen() {
         </FadeInView>
       ))}
 
+      {/* Staff — people not in any department, division or campus */}
+      {chart.staff.length > 0 && (
+        <FadeInView delay={stagger(chart.divisions.length + 1)}>
+          <View style={styles.divisionBlock}>
+            <Text style={[typography.label, { color: t.muted }]}>Staff</Text>
+            <View
+              style={[
+                styles.deptCard,
+                t.shadowCard,
+                { backgroundColor: t.card, borderLeftColor: t.primary },
+              ]}
+            >
+              {chart.staff.map((member) => (
+                <Person key={member.email} person={member} />
+              ))}
+            </View>
+          </View>
+        </FadeInView>
+      )}
+
       {/* Campus */}
       {chart.universities.some((u) => u.members.length > 0) && (
-        <FadeInView delay={stagger(chart.divisions.length + 1)}>
+        <FadeInView delay={stagger(chart.divisions.length + 2)}>
           <View style={styles.divisionBlock}>
             <Text style={[typography.label, { color: t.muted }]}>Campus</Text>
             {chart.universities

@@ -222,7 +222,14 @@ export const FooterAction = ({
             <Ionicons name="information-circle-outline" size={22} color={t.primary} />
           </Pressable>
         )}
-        <Animated.View style={[{ flex: 1, transform: [{ scale }] }, t.shadowFloat]}>
+        {/* Match the pill's radius so the shadow container's corners don't
+            show through behind the rounded button (visible on web). */}
+        <Animated.View
+          style={[
+            { flex: 1, borderRadius: radius.lg - 2, transform: [{ scale }] },
+            t.shadowFloat,
+          ]}
+        >
           <Pressable
             onPress={() => { haptic(); onPress(); }}
             onPressIn={() =>
@@ -525,8 +532,10 @@ export const ConfirmDialog = ({
   useEffect(() => {
     if (!visible) setInput("");
   }, [visible]);
+  // Normalise both sides: data-sourced requireText may carry stray whitespace.
+  const normalizedRequired = requireText?.trim();
   const confirmDisabled =
-    requireText !== undefined && input.trim() !== requireText;
+    normalizedRequired !== undefined && input.trim() !== normalizedRequired;
   const close = () => {
     setInput("");
     onClose();

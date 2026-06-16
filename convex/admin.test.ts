@@ -880,6 +880,32 @@ describe("copyYear", () => {
       t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR })
     ).rejects.toThrow(/must differ/);
   });
+
+  test("copies the role catalog and dedupes roles already present in the destination", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // Seed a couple of roles for the source year.
+    await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Outsource" });
+    await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Volunteer" });
+    // Pre-create one of them in the destination so the dedupe branch is hit.
+    await admin.mutation(api.admin.upsertRole, { year: YEAR + 1, name: "Volunteer" });
+
+    await t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR + 1 });
+
+    const next = (await admin.query(api.directory.yearStructure, { year: YEAR + 1 }))!;
+    expect(next.roles).toContain("Outsource");
+    expect(next.roles).toContain("Volunteer");
+    // Dedupe: Volunteer should not have been inserted twice.
+    const volunteerRows = await t.run((ctx) =>
+      ctx.db
+        .query("roles")
+        .withIndex("by_year_and_name", (q) =>
+          q.eq("year", YEAR + 1).eq("name", "Volunteer")
+        )
+        .take(10)
+    );
+    expect(volunteerRows).toHaveLength(1);
+  });
 });
 
 describe("listStaffProfiles directory name fallback", () => {
@@ -1009,7 +1035,11 @@ describe("roles", () => {
   test("removeRole blocks while in use and succeeds once freed", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
+    // Seeding a catalog makes role validation data-driven, so the roles used
+    // below (Outsource for the initial assignment, Staff for the reassignment)
+    // must both be present in the year's catalog.
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Outsource" });
+    await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Staff" });
     await admin.mutation(api.admin.setStaffProfile, {
       email: "out@sow.org.au",
       year: YEAR,
@@ -1257,5 +1287,184 @@ describe("setStaffProfile with assignments path", () => {
       ctx.db.query("yearSettings").withIndex("by_year", (q) => q.eq("year", YEAR)).unique()
     );
     expect(settings?.budgetManagerEmail).toBeUndefined();
+  });
+});
+
+describe("backfillRoles", () => {
+  test("seeds the per-year catalog from IMPORT_DATA and the next staff year from the current one", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+
+    const { inserted } = await t.mutation(internal.admin.backfillRoles, {});
+    expect(inserted).toBeGreaterThan(0);
+
+    // The current staff year (YEAR, covered by IMPORT_DATA) gets a catalog.
+    const current = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    expect(current.roles.length).toBeGreaterThan(0);
+
+    // Next-year seeding branch: the next staff year (not in IMPORT_DATA) is
+    // seeded by copying the current year's catalog, so its picker isn't empty.
+    const next = (await admin.query(api.directory.yearStructure, { year: YEAR + 1 }))!;
+    expect(next.roles.length).toBeGreaterThan(0);
+    expect(next.roles.slice().sort()).toEqual(current.roles.slice().sort());
+  });
+
+  test("is idempotent and no-ops the next-year seeding when it already has a catalog", async () => {
+    const t = await setup();
+    // First run seeds everything (including the next year).
+    await t.mutation(internal.admin.backfillRoles, {});
+    const nextBefore = await t.run((ctx) =>
+      ctx.db
+        .query("roles")
+        .withIndex("by_year_and_name", (q) => q.eq("year", YEAR + 1))
+        .take(500)
+    );
+    expect(nextBefore.length).toBeGreaterThan(0);
+
+    // Second run: IMPORT_DATA rows already exist and the next year is non-empty,
+    // so the seeding branch is skipped — nothing new is inserted.
+    const { inserted } = await t.mutation(internal.admin.backfillRoles, {});
+    expect(inserted).toBe(0);
+    const nextAfter = await t.run((ctx) =>
+      ctx.db
+        .query("roles")
+        .withIndex("by_year_and_name", (q) => q.eq("year", YEAR + 1))
+        .take(500)
+    );
+    expect(nextAfter.length).toBe(nextBefore.length);
+  });
+});
+
+describe("reserved system roles", () => {
+  test("updateRole and removeRole refuse a reserved role; custom roles still work", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+
+    // Director is reserved — renaming or deleting it is blocked.
+    await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Director" });
+    await expect(
+      admin.mutation(api.admin.updateRole, {
+        year: YEAR,
+        oldName: "Director",
+        newName: "Chief",
+      })
+    ).rejects.toThrow(/managed by the app and can't be renamed/);
+    await expect(
+      admin.mutation(api.admin.removeRole, { year: YEAR, name: "Director" })
+    ).rejects.toThrow(/managed by the app and can't be deleted/);
+    // Renaming a custom role TO a reserved name is also blocked.
+    await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Helper" });
+    await expect(
+      admin.mutation(api.admin.updateRole, {
+        year: YEAR,
+        oldName: "Helper",
+        newName: "Member",
+      })
+    ).rejects.toThrow(/managed by the app and can't be renamed/);
+
+    // A non-reserved custom role can still be renamed and removed.
+    await admin.mutation(api.admin.updateRole, {
+      year: YEAR,
+      oldName: "Helper",
+      newName: "Assistant",
+    });
+    await admin.mutation(api.admin.removeRole, { year: YEAR, name: "Assistant" });
+    const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    expect(structure.roles).not.toContain("Assistant");
+  });
+});
+
+describe("setStaffProfile catalog validation", () => {
+  test("a custom catalog role assigns; an off-catalog role is rejected; both paths", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // Seed a year catalog that includes a CUSTOM role plus the standard ones we use.
+    await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Outsource" });
+    await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Staff" });
+
+    // Legacy path: the custom catalog role assigns successfully…
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "out1@sow.org.au",
+      year: YEAR,
+      roles: ["Outsource"],
+      department: "Finance",
+    });
+    const profilesA = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    expect(profilesA.find((p) => p.email === "out1@sow.org.au")?.roles).toContain("Outsource");
+
+    // …and a role NOT in the catalog is rejected (Director isn't in this catalog).
+    await expect(
+      admin.mutation(api.admin.setStaffProfile, {
+        email: "off1@sow.org.au",
+        year: YEAR,
+        roles: ["Director"],
+      })
+    ).rejects.toThrow(/roles available for/);
+
+    // Per-assignment path: the custom catalog role assigns…
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "out2@sow.org.au",
+      year: YEAR,
+      assignments: [{ role: "Outsource", department: "Finance" }],
+    });
+    const profilesB = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    expect(profilesB.find((p) => p.email === "out2@sow.org.au")?.roles).toContain("Outsource");
+
+    // …and an off-catalog role is rejected on the per-assignment path too.
+    await expect(
+      admin.mutation(api.admin.setStaffProfile, {
+        email: "off2@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Director" }],
+      })
+    ).rejects.toThrow(/roles available for/);
+  });
+
+  test("falls back to the built-in ROLES when the year has no catalog", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // No roles seeded for YEAR -> validation falls back to the hardcoded ROLES.
+    // Legacy path: a standard role succeeds.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "fallback1@sow.org.au",
+      year: YEAR,
+      roles: ["Staff"],
+      department: "Finance",
+    });
+    // Per-assignment path: a standard role succeeds.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "fallback2@sow.org.au",
+      year: YEAR,
+      assignments: [{ role: "Staff", department: "Finance" }],
+    });
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    expect(profiles.find((p) => p.email === "fallback1@sow.org.au")?.roles).toContain("Staff");
+    expect(profiles.find((p) => p.email === "fallback2@sow.org.au")?.roles).toContain("Staff");
+  });
+});
+
+describe("role mutations fail fast on the 1000-profile cap", () => {
+  test("updateRole and removeRole throw when a year has 1000 profiles", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // A custom role for the managed year, plus exactly 1000 profiles holding it.
+    await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "X" });
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 1000; i++) {
+        await ctx.db.insert("staffProfiles", {
+          email: `p${i}@x.test`,
+          year: YEAR,
+          roles: ["X"],
+          assignments: [{ role: "X" }],
+        });
+      }
+    });
+
+    await expect(
+      admin.mutation(api.admin.updateRole, { year: YEAR, oldName: "X", newName: "Y" })
+    ).rejects.toThrow(/Too many profiles to update in one go/);
+    await expect(
+      admin.mutation(api.admin.removeRole, { year: YEAR, name: "X" })
+    ).rejects.toThrow(/Too many profiles to update in one go/);
   });
 });

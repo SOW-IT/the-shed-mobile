@@ -138,6 +138,11 @@ export const availableYears = query({
   },
 });
 
+/** Legacy role that fills the Director slot when no real Director exists. */
+const INTERIM_DIRECTOR = "Interim Director";
+/** Synthetic division name used by the importer when a year has no real divisions. */
+const FALLBACK_DIVISION = "General";
+
 const CAMPUS_ROLE_ORDER = ["President", "Vice President", "Executive", "Student Leader"] as const;
 const campusRoleRank = (roles: string[]) => {
   const idx = CAMPUS_ROLE_ORDER.findIndex((r) => roles.includes(r));
@@ -205,16 +210,46 @@ export const orgChart = query({
       role: role ?? null,
     });
 
+    // A real Director wins; otherwise an "Interim Director" fills the slot.
     const directorProfile =
-      profiles.find((p) => rolesOf(p).includes(DIRECTOR)) ?? null;
+      profiles.find((p) => rolesOf(p).includes(DIRECTOR)) ??
+      profiles.find((p) => rolesOf(p).includes(INTERIM_DIRECTOR)) ??
+      null;
+    const directorEmail = directorProfile?.email ?? null;
+    const directorRole =
+      directorProfile && rolesOf(directorProfile).includes(DIRECTOR)
+        ? DIRECTOR
+        : INTERIM_DIRECTOR;
 
     return {
       year,
       availableYears,
       director: directorProfile
-        ? person(directorProfile.email, DIRECTOR)
+        ? person(directorProfile.email, directorRole)
         : null,
-      divisions: divisions.map((division) => {
+      // People with no department, no real division, no campus role — and not
+      // the director — would otherwise be invisible; surface them as Staff.
+      staff: profiles
+        .filter((p) => {
+          const realDivisions = divisionsOf(p).filter((d) => d !== FALLBACK_DIVISION);
+          const hasDept = departmentsOf(p).length > 0;
+          const isCampus = assignmentsOf(p).some(
+            (a) => a.university && roleNeedsUniversity(a.role)
+          );
+          return (
+            !hasDept &&
+            realDivisions.length === 0 &&
+            !isCampus &&
+            p.email !== directorEmail
+          );
+        })
+        .sort((a, b) =>
+          (nameByEmail[a.email] ?? a.email).localeCompare(nameByEmail[b.email] ?? b.email)
+        )
+        .map((p) => person(p.email, rolesOf(p).join(", "))),
+      divisions: divisions
+        .filter((division) => division.name !== FALLBACK_DIVISION)
+        .map((division) => {
         // The head named on the division wins (one person can head several);
         // fall back to a profile whose assignments head this division.
         const divisionHead =
@@ -236,7 +271,7 @@ export const orgChart = query({
                   (p) =>
                     isMemberOfDepartment(p, department.name) &&
                     p.email !== department.headEmail &&
-                    !rolesOf(p).includes(DIRECTOR)
+                    p.email !== directorEmail
                 )
                 .map((p) =>
                   person(p.email, rolesForDepartment(p, department.name).join(", "))
@@ -256,7 +291,7 @@ export const orgChart = query({
               assignmentsOf(p).some(
                 (a) =>
                   a.university === university.name && roleNeedsUniversity(a.role)
-              ) && !rolesOf(p).includes(DIRECTOR)
+              ) && p.email !== directorEmail
           )
           .sort((a, b) => campusRoleRank(rolesOf(a)) - campusRoleRank(rolesOf(b)))
           .map((p) =>

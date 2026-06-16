@@ -12,6 +12,7 @@ import {
   HEAD_OF_DIVISION,
   isChaplainRole,
   isMemberOfDepartment,
+  MEMBER,
   requestCompleted,
   ROLES,
   roleNeedsDepartment,
@@ -44,6 +45,12 @@ const assertManagedYear = (year: number) => {
       `You can only manage ${currentStaffYear()} and ${nextStaffYear()}.`
     );
   }
+};
+
+/** The role names assignable in a given year: the year's data-driven catalog, or the built-in ROLES when none exists yet. */
+const allowedRolesForYear = async (ctx: MutationCtx, year: number): Promise<Set<string>> => {
+  const rows = await ctx.db.query("roles").withIndex("by_year_and_name", (q) => q.eq("year", year)).take(500);
+  return rows.length > 0 ? new Set(rows.map((r) => r.name)) : new Set<string>(ROLES);
 };
 
 // ---------------------------------------------------------------------------
@@ -191,9 +198,10 @@ export const setStaffProfile = mutation({
       const existing = await getProfile(ctx, email, args.year);
       const existingHeadRoles = existing ? rolesOf(existing).filter(isHeadRole) : [];
 
+      const allowed = await allowedRolesForYear(ctx, args.year);
       for (const a of drafts) {
-        if (!ROLES.includes(a.role as (typeof ROLES)[number])) {
-          throw new ConvexError(`Roles must be among: ${ROLES.join(", ")}.`);
+        if (!allowed.has(a.role)) {
+          throw new ConvexError(`Roles must be among the roles available for ${args.year}.`);
         }
         // Head roles are owned by the Structure section. A head role the person
         // ALREADY holds may be round-tripped by the form (e.g. when adding a
@@ -326,9 +334,10 @@ export const setStaffProfile = mutation({
     // ——— Legacy roles path (unchanged) ———
     const roles = [...new Set(args.roles ?? [])];
     if (roles.length === 0) throw new ConvexError("Pick at least one role.");
+    const allowed = await allowedRolesForYear(ctx, args.year);
     for (const role of roles) {
-      if (!ROLES.includes(role as (typeof ROLES)[number])) {
-        throw new ConvexError(`Roles must be among: ${ROLES.join(", ")}.`);
+      if (!allowed.has(role)) {
+        throw new ConvexError(`Roles must be among the roles available for ${args.year}.`);
       }
     }
 
@@ -866,6 +875,9 @@ export const removeUniversity = mutation({
   },
 });
 
+/** Roles with hardcoded semantics elsewhere (heads, director, staff fallback, member scope) — renaming/deleting them would break invariants. */
+const RESERVED_SYSTEM_ROLES = new Set<string>([HEAD_OF_DEPARTMENT, HEAD_OF_DIVISION, DIRECTOR, STAFF_ROLE, MEMBER]);
+
 export const upsertRole = mutation({
   args: { year: v.number(), name: v.string() },
   handler: async (ctx, args) => {
@@ -890,6 +902,9 @@ export const updateRole = mutation({
     const oldName = args.oldName.trim();
     const newName = args.newName.trim();
     if (!newName) throw new ConvexError("Role name is required.");
+    if (RESERVED_SYSTEM_ROLES.has(oldName) || RESERVED_SYSTEM_ROLES.has(newName)) {
+      throw new ConvexError("This role is managed by the app and can't be renamed.");
+    }
 
     const existing = await ctx.db
       .query("roles")
@@ -911,6 +926,9 @@ export const updateRole = mutation({
         .query("staffProfiles")
         .withIndex("by_year", (q) => q.eq("year", args.year))
         .take(1000);
+      if (profiles.length === 1000) {
+        throw new ConvexError("Too many profiles to update in one go for this year; this needs a paginated migration.");
+      }
       for (const profile of profiles) {
         const current = assignmentsOf(profile);
         if (current.some((a) => a.role === oldName)) {
@@ -931,6 +949,10 @@ export const removeRole = mutation({
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
     assertManagedYear(args.year);
+    const name = args.name.trim();
+    if (RESERVED_SYSTEM_ROLES.has(name)) {
+      throw new ConvexError("This role is managed by the app and can't be deleted.");
+    }
     const role = await ctx.db
       .query("roles")
       .withIndex("by_year_and_name", (q) =>
@@ -944,6 +966,9 @@ export const removeRole = mutation({
       .query("staffProfiles")
       .withIndex("by_year", (q) => q.eq("year", args.year))
       .take(1000);
+    if (profiles.length === 1000) {
+      throw new ConvexError("Too many profiles to update in one go for this year; this needs a paginated migration.");
+    }
     const inUse = profiles.filter((p) =>
       assignmentsOf(p).some((a) => a.role === args.name)
     );
@@ -1405,6 +1430,19 @@ export const backfillRoles = internalMutation({
         }
       }
     }
+
+    // 2027+ are rolled forward live (admin:copyYear), not imported — seed the next
+    // managed year from the current one's catalog so its picker isn't empty.
+    const next = nextStaffYear();
+    const nextRows = await ctx.db.query("roles").withIndex("by_year_and_name", (q) => q.eq("year", next)).take(1);
+    if (nextRows.length === 0) {
+      const currentRows = await ctx.db.query("roles").withIndex("by_year_and_name", (q) => q.eq("year", currentStaffYear())).take(500);
+      for (const r of currentRows) {
+        await ctx.db.insert("roles", { year: next, name: r.name });
+        inserted++;
+      }
+    }
+
     return { inserted };
   },
 });

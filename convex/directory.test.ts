@@ -190,4 +190,81 @@ describe("orgChart", () => {
       .find((d) => d.name === "Marketing");
     expect(marketing?.head?.name).toBe("Henry from Directory");
   });
+
+  test("a real Director fills the slot and is excluded from staff/members", async () => {
+    const t = await setup();
+    // DAN is a Director in Marketing (from setup). HENRY also gets an Interim
+    // Director role, but the real Director must still win the slot.
+    await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email: "interim@sow.org.au",
+        year: YEAR,
+        roles: ["Interim Director"],
+      })
+    );
+    const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
+    expect(chart.director?.email).toBe(DAN);
+    expect(chart.director?.role).toBe("Director");
+    // The Director is not also listed as a department member.
+    const marketing = chart.divisions
+      .flatMap((d) => d.departments)
+      .find((d) => d.name === "Marketing");
+    expect(marketing?.members.some((m) => m.email === DAN)).toBe(false);
+  });
+
+  test("an Interim Director fills the Director slot when no Director exists", async () => {
+    const t = await setup();
+    // Remove DAN's Director role and add an Interim Director.
+    await t.run(async (ctx) => {
+      const dan = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", DAN).eq("year", YEAR))
+        .unique();
+      if (dan) await ctx.db.delete("staffProfiles", dan._id);
+      await ctx.db.insert("staffProfiles", {
+        email: "interim@sow.org.au",
+        year: YEAR,
+        roles: ["Interim Director"],
+      });
+    });
+    const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
+    expect(chart.director?.email).toBe("interim@sow.org.au");
+    expect(chart.director?.role).toBe("Interim Director");
+    // The interim director is not duplicated into the staff group.
+    expect(chart.staff.some((s) => s.email === "interim@sow.org.au")).toBe(false);
+  });
+
+  test("non-department, non-division, non-campus people surface as staff", async () => {
+    const t = await setup();
+    // A Staff role with no department/division/university — otherwise invisible.
+    await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email: "floater@sow.org.au",
+        year: YEAR,
+        roles: ["Staff"],
+        assignments: [{ role: "Staff" }],
+      })
+    );
+    const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
+    expect(chart.staff.some((s) => s.email === "floater@sow.org.au")).toBe(true);
+    expect(chart.staff.find((s) => s.email === "floater@sow.org.au")?.role).toBe("Staff");
+    // RACHEL is in the Marketing department, so she must NOT appear in staff.
+    expect(chart.staff.some((s) => s.email === RACHEL)).toBe(false);
+  });
+
+  test('the synthetic "General" division is hidden and its people fall into staff', async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("divisions", { year: YEAR, name: "General" });
+      await ctx.db.insert("staffProfiles", {
+        email: "general@sow.org.au",
+        year: YEAR,
+        roles: ["Staff"],
+        assignments: [{ role: "Staff", division: "General" }],
+      });
+    });
+    const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
+    expect(chart.divisions.some((d) => d.name === "General")).toBe(false);
+    expect(chart.staff.some((s) => s.email === "general@sow.org.au")).toBe(true);
+  });
 });

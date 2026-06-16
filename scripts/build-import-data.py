@@ -184,7 +184,7 @@ def email_for(doc_id: str | None) -> str | None:
 
 # ---- Assemble per-year payloads ----
 years = sorted(
-    ({y for y, _, _ in user_docs} | set(dept_docs) | set(division_docs))
+    ({y for y, _, _ in user_docs} | set(dept_docs) | set(division_docs) | set(role_docs))
     - EXCLUDED_YEARS
 )
 payload_years = []
