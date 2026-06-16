@@ -156,7 +156,7 @@ export default function OrgChartScreen() {
           <View style={styles.divisionBlock}>
             {/* Division label */}
             <Text style={[typography.label, { color: t.muted }]}>
-              {division.name} Division
+              {division.name}
             </Text>
 
             {/* Head of Division — contained row */}
