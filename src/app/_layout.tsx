@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SignInScreen } from "@/components/SignInScreen";
-import { SowSpinner } from "@/components/ui";
+import { LoadingState } from "@/components/ui";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { useAppTheme } from "@/theme";
 import { requestFullyApproved } from "../../shared/flow";
@@ -218,14 +218,14 @@ export default function RootLayout() {
     return (
       <ThemeProvider value={navTheme}>
         <StatusBar style="auto" />
-        <View style={{ flex: 1, backgroundColor: t.background }} />
+        <View style={{ flex: 1, backgroundColor: Platform.OS === "web" ? "transparent" : t.background }} />
       </ThemeProvider>
     );
   }
   return (
     <ThemeProvider value={navTheme}>
       <StatusBar style="auto" />
-      <View style={{ flex: 1, backgroundColor: t.background }}>
+      <View style={{ flex: 1, backgroundColor: Platform.OS === "web" ? "transparent" : t.background }}>
         <ErrorBoundary>
           <ConvexAuthProvider
             client={convex}
@@ -233,15 +233,7 @@ export default function RootLayout() {
             shouldHandleCode={Platform.OS !== "web"}
           >
             <AuthLoading>
-              <View
-                style={{
-                  flex: 1,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <SowSpinner size={140} />
-              </View>
+              <LoadingState />
             </AuthLoading>
             <Unauthenticated>
               <SignInScreen />
