@@ -19,6 +19,7 @@ import {
   HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
   isChaplainRole,
+  MEMBER,
   ROLES,
   roleNeedsDepartment,
   roleNeedsUniversity,
@@ -81,9 +82,12 @@ const ADMIN_TABS = [
   { key: "other", label: "Other" },
 ];
 
-/** Head roles are set exclusively via the Structure tab; hide them from the staff profile role picker. */
+/**
+ * Roles assignable via the staff profile picker. Head roles are set exclusively
+ * through the Structure tab, and "Member" is not an assignable role here.
+ */
 const STAFF_EDITABLE_ROLES = ROLES.filter(
-  (r) => r !== HEAD_OF_DEPARTMENT && r !== HEAD_OF_DIVISION
+  (r) => r !== HEAD_OF_DEPARTMENT && r !== HEAD_OF_DIVISION && r !== MEMBER
 );
 
 type AssignmentDraft = { role: string; department: string; university: string };
