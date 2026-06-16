@@ -1002,6 +1002,34 @@ describe("setStaffProfile with assignments path", () => {
     expect(fiona.assignments).toContainEqual({ role: "Staff", department: "Marketing" });
   });
 
+  test("allows a round-tripped head link the person already holds (adds a new role)", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR,
+      name: "Marketing",
+      division: "Engagement",
+    });
+    // The new UI round-trips Fiona's existing HOD assignment alongside the
+    // added Staff link — adding a role must not be rejected as "via Structure".
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: FIONA,
+      year: YEAR,
+      assignments: [
+        { role: "Staff", department: "Marketing" },
+        { role: "Head of Department", department: "Finance" },
+      ],
+    });
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const fiona = profiles.find((p) => p.email === FIONA)!;
+    expect(fiona.roles.sort()).toEqual(["Head of Department", "Staff"]);
+    expect(fiona.assignments).toContainEqual({
+      role: "Head of Department",
+      department: "Finance",
+    });
+    expect(fiona.assignments).toContainEqual({ role: "Staff", department: "Marketing" });
+  });
+
   test("invalid role in assignments is rejected", async () => {
     const t = await setup();
     await expect(

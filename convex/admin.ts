@@ -186,11 +186,17 @@ export const setStaffProfile = mutation({
       const drafts = args.assignments;
       if (drafts.length === 0) throw new ConvexError("Add at least one assignment.");
 
+      const existing = await getProfile(ctx, email, args.year);
+      const existingHeadRoles = existing ? rolesOf(existing).filter(isHeadRole) : [];
+
       for (const a of drafts) {
         if (!ROLES.includes(a.role as (typeof ROLES)[number])) {
           throw new ConvexError(`Roles must be among: ${ROLES.join(", ")}.`);
         }
-        if (a.role === HEAD_OF_DEPARTMENT || a.role === HEAD_OF_DIVISION) {
+        // Head roles are owned by the Structure section. A head role the person
+        // ALREADY holds may be round-tripped by the form (e.g. when adding a
+        // Staff link) and is preserved untouched — only block NEWLY granting one.
+        if (isHeadRole(a.role) && !existingHeadRoles.includes(a.role)) {
           throw new ConvexError(
             "Head of Department and Head of Division are assigned through the Structure section — edit the department or division directly to change its head."
           );
@@ -216,6 +222,9 @@ export const setStaffProfile = mutation({
 
       const builtAssignments: Assignment[] = [];
       for (const draft of drafts) {
+        // A round-tripped head role is preserved from the mirror below, never
+        // rebuilt from the form (which would fabricate an unbacked head link).
+        if (isHeadRole(draft.role)) continue;
         const built = assignmentFor(draft.role, {
           department: draft.department,
           university: draft.university,
@@ -259,9 +268,6 @@ export const setStaffProfile = mutation({
         }
         builtAssignments.push(built);
       }
-
-      const existing = await getProfile(ctx, email, args.year);
-      const existingHeadRoles = existing ? rolesOf(existing).filter(isHeadRole) : [];
 
       if (existing && existingHeadRoles.length === 0) {
         const currentRoles = rolesOf(existing);
@@ -324,9 +330,15 @@ export const setStaffProfile = mutation({
       }
     }
 
-    // Head roles are managed exclusively through the department/division
-    // structure section — they cannot be added or removed via staff profile edits.
-    if (roles.includes(HEAD_OF_DEPARTMENT) || roles.includes(HEAD_OF_DIVISION)) {
+    const existing = await getProfile(ctx, email, args.year);
+    const existingHeadRoles = existing
+      ? rolesOf(existing).filter(isHeadRole)
+      : [];
+
+    // Head roles are owned by the Structure section. A head role the person
+    // ALREADY holds may appear in the submitted list and is preserved untouched
+    // — only block NEWLY granting a head role through a staff-profile edit.
+    if (roles.some((r) => isHeadRole(r) && !existingHeadRoles.includes(r))) {
       throw new ConvexError(
         "Head of Department and Head of Division are assigned through the Structure section — edit the department or division directly to change its head."
       );
@@ -403,17 +415,6 @@ export const setStaffProfile = mutation({
       }
     }
 
-    const existing = await getProfile(ctx, email, args.year);
-
-    // Preserve any head roles assigned through the structure section — they
-    // cannot be changed via staff profile edits, only via the department/division
-    // mutations which also enforce uniqueness.
-    const existingHeadRoles = existing
-      ? rolesOf(existing).filter(
-          (r) => r === HEAD_OF_DEPARTMENT || r === HEAD_OF_DIVISION
-        )
-      : [];
-
     // Roles may only be stripped (removed without adding a replacement) from
     // a user who holds a head role. A complete swap (e.g. Director → Staff)
     // is always allowed; only a pure subset reduction is guarded.
@@ -429,12 +430,13 @@ export const setStaffProfile = mutation({
       }
     }
 
-    // Build the per-role scope links for the submitted (non-head) roles. The
+    // Build the per-role scope links for the submitted NON-head roles. The
     // admin form supplies one department + one university; chaplains override
-    // their department to "Chaplaincy" (handled by assignmentFor).
-    const submitted = roles.map((role) =>
-      assignmentFor(role, { department, university })
-    );
+    // their department to "Chaplaincy" (handled by assignmentFor). Head roles
+    // are never fabricated here — they come from the preserved mirror below.
+    const submitted = roles
+      .filter((role) => !isHeadRole(role))
+      .map((role) => assignmentFor(role, { department, university }));
     // Head links are owned by the Structure section — preserve them verbatim.
     const preservedHead = existing
       ? assignmentsOf(existing).filter((a) => isHeadRole(a.role))
