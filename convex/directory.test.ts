@@ -205,7 +205,9 @@ describe("orgChart", () => {
     const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
     expect(chart.director?.email).toBe(DAN);
     expect(chart.director?.role).toBe("Director");
-    // The Director is not also listed as a department member.
+    // The Director is not also listed in the Staff group…
+    expect(chart.staff.some((s) => s.email === DAN)).toBe(false);
+    // …nor as a department member.
     const marketing = chart.divisions
       .flatMap((d) => d.departments)
       .find((d) => d.name === "Marketing");

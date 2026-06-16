@@ -956,7 +956,7 @@ export const removeRole = mutation({
     const role = await ctx.db
       .query("roles")
       .withIndex("by_year_and_name", (q) =>
-        q.eq("year", args.year).eq("name", args.name)
+        q.eq("year", args.year).eq("name", name)
       )
       .unique();
     if (!role) return null;
@@ -970,11 +970,11 @@ export const removeRole = mutation({
       throw new ConvexError("Too many profiles to update in one go for this year; this needs a paginated migration.");
     }
     const inUse = profiles.filter((p) =>
-      assignmentsOf(p).some((a) => a.role === args.name)
+      assignmentsOf(p).some((a) => a.role === name)
     );
     if (inUse.length > 0) {
       throw new ConvexError(
-        `"${args.name}" is still assigned to ${inUse.length} ${inUse.length === 1 ? "person" : "people"} in ${args.year} — reassign them first.`
+        `"${name}" is still assigned to ${inUse.length} ${inUse.length === 1 ? "person" : "people"} in ${args.year} — reassign them first.`
       );
     }
     await ctx.db.delete("roles", role._id);
