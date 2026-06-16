@@ -6,10 +6,8 @@ import {
   divisionsOf,
   FINANCE,
   HEAD_OF_DIVISION,
-  isHeadOfDivisionName,
   isMemberOfDepartment,
   roleNeedsUniversity,
-  rolesForDepartment,
 } from "../shared/flow";
 import { query } from "./_generated/server";
 import {
@@ -210,14 +208,22 @@ export const orgChart = query({
       role: role ?? null,
     });
 
+    // Org-chart placement is derived strictly from each profile's stored
+    // `assignments` — never the legacy single-scope fields (assignmentsOf would
+    // otherwise fall back to them). These read the assignments array directly.
+    const assignmentsFor = (p: (typeof profiles)[number]) => p.assignments ?? [];
+    const rolesFor = (p: (typeof profiles)[number]) => [
+      ...new Set(assignmentsFor(p).map((a) => a.role)),
+    ];
+
     // A real Director wins; otherwise an "Interim Director" fills the slot.
     const directorProfile =
-      profiles.find((p) => rolesOf(p).includes(DIRECTOR)) ??
-      profiles.find((p) => rolesOf(p).includes(INTERIM_DIRECTOR)) ??
+      profiles.find((p) => rolesFor(p).includes(DIRECTOR)) ??
+      profiles.find((p) => rolesFor(p).includes(INTERIM_DIRECTOR)) ??
       null;
     const directorEmail = directorProfile?.email ?? null;
     const directorRole =
-      directorProfile && rolesOf(directorProfile).includes(DIRECTOR)
+      directorProfile && rolesFor(directorProfile).includes(DIRECTOR)
         ? DIRECTOR
         : INTERIM_DIRECTOR;
 
@@ -234,15 +240,18 @@ export const orgChart = query({
       // a campus member without an assignment, not staff.
       staff: profiles
         .filter((p) => {
-          const realDivisions = divisionsOf(p).filter((d) => d !== FALLBACK_DIVISION);
-          const hasDept = departmentsOf(p).length > 0;
-          const isCampus = assignmentsOf(p).some(
+          const myAssignments = assignmentsFor(p);
+          const hasRealDivision = myAssignments.some(
+            (a) => a.division && a.division !== FALLBACK_DIVISION
+          );
+          const hasDept = myAssignments.some((a) => a.department);
+          const isCampus = myAssignments.some(
             (a) => a.university && roleNeedsUniversity(a.role)
           );
-          const hasStaffRole = rolesOf(p).some((r) => !roleNeedsUniversity(r));
+          const hasStaffRole = rolesFor(p).some((r) => !roleNeedsUniversity(r));
           return (
             !hasDept &&
-            realDivisions.length === 0 &&
+            !hasRealDivision &&
             !isCampus &&
             hasStaffRole &&
             p.email !== directorEmail
@@ -251,7 +260,7 @@ export const orgChart = query({
         .sort((a, b) =>
           (nameByEmail[a.email] ?? a.email).localeCompare(nameByEmail[b.email] ?? b.email)
         )
-        .map((p) => person(p.email, rolesOf(p).join(", "))),
+        .map((p) => person(p.email, rolesFor(p).join(", "))),
       divisions: divisions
         .filter((division) => division.name !== FALLBACK_DIVISION)
         .map((division) => {
@@ -259,7 +268,11 @@ export const orgChart = query({
         // fall back to a profile whose assignments head this division.
         const divisionHead =
           division.headEmail ??
-          profiles.find((p) => isHeadOfDivisionName(p, division.name))?.email;
+          profiles.find((p) =>
+            assignmentsFor(p).some(
+              (a) => a.role === HEAD_OF_DIVISION && a.division === division.name
+            )
+          )?.email;
         return {
           name: division.name,
           head: divisionHead ? person(divisionHead, HEAD_OF_DIVISION) : null,
@@ -274,12 +287,18 @@ export const orgChart = query({
               members: profiles
                 .filter(
                   (p) =>
-                    isMemberOfDepartment(p, department.name) &&
+                    assignmentsFor(p).some((a) => a.department === department.name) &&
                     p.email !== department.headEmail &&
                     p.email !== directorEmail
                 )
                 .map((p) =>
-                  person(p.email, rolesForDepartment(p, department.name).join(", "))
+                  person(
+                    p.email,
+                    assignmentsFor(p)
+                      .filter((a) => a.department === department.name)
+                      .map((a) => a.role)
+                      .join(", ")
+                  )
                 ),
             })),
         };
@@ -293,16 +312,16 @@ export const orgChart = query({
         members: profiles
           .filter(
             (p) =>
-              assignmentsOf(p).some(
+              assignmentsFor(p).some(
                 (a) =>
                   a.university === university.name && roleNeedsUniversity(a.role)
               ) && p.email !== directorEmail
           )
-          .sort((a, b) => campusRoleRank(rolesOf(a)) - campusRoleRank(rolesOf(b)))
+          .sort((a, b) => campusRoleRank(rolesFor(a)) - campusRoleRank(rolesFor(b)))
           .map((p) =>
             person(
               p.email,
-              assignmentsOf(p)
+              assignmentsFor(p)
                 .filter(
                   (a) =>
                     a.university === university.name && roleNeedsUniversity(a.role)

@@ -227,6 +227,7 @@ describe("orgChart", () => {
         email: "interim@sow.org.au",
         year: YEAR,
         roles: ["Interim Director"],
+        assignments: [{ role: "Interim Director" }],
       });
     });
     const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
