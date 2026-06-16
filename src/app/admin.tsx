@@ -19,6 +19,7 @@ import {
   HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
   isChaplainRole,
+  MEMBER,
   ROLES,
   roleNeedsDepartment,
   roleNeedsUniversity,
@@ -57,12 +58,16 @@ import {
 
 // Alert.alert buttons are a no-op on react-native-web, so the web build
 // falls back to window.confirm.
-const confirmRemoval = (message: string, onConfirm: () => void) => {
+const confirmRemoval = (
+  message: string,
+  onConfirm: () => void,
+  title = "Remove member"
+) => {
   if (Platform.OS === "web") {
     if (window.confirm(message)) onConfirm();
     return;
   }
-  Alert.alert("Remove member", message, [
+  Alert.alert(title, message, [
     { text: "Cancel", style: "cancel" },
     { text: "Remove", style: "destructive", onPress: onConfirm },
   ]);
@@ -77,9 +82,12 @@ const ADMIN_TABS = [
   { key: "other", label: "Other" },
 ];
 
-/** Head roles are set exclusively via the Structure tab; hide them from the staff profile role picker. */
+/**
+ * Roles assignable via the staff profile picker. Head roles are set exclusively
+ * through the Structure tab, and "Member" is not an assignable role here.
+ */
 const STAFF_EDITABLE_ROLES = ROLES.filter(
-  (r) => r !== HEAD_OF_DEPARTMENT && r !== HEAD_OF_DIVISION
+  (r) => r !== HEAD_OF_DEPARTMENT && r !== HEAD_OF_DIVISION && r !== MEMBER
 );
 
 type AssignmentDraft = { role: string; department: string; university: string };
@@ -96,6 +104,7 @@ const AssignmentEditor = ({
   universities,
   roles = STAFF_EDITABLE_ROLES,
   startIndex = 0,
+  minCount = 1,
 }: {
   assignments: AssignmentDraft[];
   onChange: (a: AssignmentDraft[]) => void;
@@ -103,6 +112,9 @@ const AssignmentEditor = ({
   universities: string[];
   roles?: string[];
   startIndex?: number;
+  // The fewest rows that must remain — e.g. 0 when head roles already cover the
+  // profile, so the last non-head assignment can be removed too.
+  minCount?: number;
 }) => {
   const t = useAppTheme();
   const totalCount = startIndex + assignments.length;
@@ -139,12 +151,23 @@ const AssignmentEditor = ({
                   onSelect={(role) => update({ role, department: "", university: "" })}
                 />
               </View>
-              {assignments.length > 1 && (
-                <IconButton
-                  name="close-circle-outline"
-                  onPress={() => onChange(assignments.filter((_, j) => j !== i))}
-                  accessibilityLabel="Remove assignment"
-                />
+              {assignments.length > minCount && (
+                // The row is bottom-aligned to the dropdown; nudge the 34px
+                // icon up by (46-34)/2 so it sits centred on the 46px box.
+                <View style={{ marginBottom: 6 }}>
+                  <IconButton
+                    name="trash-outline"
+                    color={t.danger}
+                    onPress={() =>
+                      confirmRemoval(
+                        `Remove the ${formatAssignment(a)} assignment?`,
+                        () => onChange(assignments.filter((_, j) => j !== i)),
+                        "Remove assignment"
+                      )
+                    }
+                    accessibilityLabel="Remove assignment"
+                  />
+                </View>
               )}
             </View>
             {needsDept && (
@@ -358,18 +381,27 @@ export default function AdminScreen() {
 
   const startEditUser = (email: string) => {
     const existing = (profiles ?? []).find((p) => p.email === email);
-    const nonHead = (existing?.assignments ?? []).filter(
+    const all = existing?.assignments ?? [];
+    const nonHead = all.filter(
       (a) => a.role !== HEAD_OF_DEPARTMENT && a.role !== HEAD_OF_DIVISION
     );
-    setEditingAssignments(
-      nonHead.length > 0
-        ? nonHead.map((a) => ({
-            role: a.role,
-            department: a.department ?? "",
-            university: a.university ?? "",
-          }))
-        : [emptyDraft()]
-    );
+    // Seed a blank Staff row only when the profile has NO assignment at all.
+    // If they already hold something — even just a head role (shown locked
+    // above) — start with an empty editor rather than adding an unselected
+    // default Staff assignment.
+    let initial: AssignmentDraft[];
+    if (nonHead.length > 0) {
+      initial = nonHead.map((a) => ({
+        role: a.role,
+        department: a.department ?? "",
+        university: a.university ?? "",
+      }));
+    } else if (all.length > 0) {
+      initial = [];
+    } else {
+      initial = [emptyDraft()];
+    }
+    setEditingAssignments(initial);
     setEditingUserEmail(email);
   };
 
@@ -570,6 +602,9 @@ export default function AdminScreen() {
               universities={structure?.universities ?? []}
               roles={availableRoles}
               startIndex={lockedHeadAssignments.length}
+              // A head role already covers the profile, so the last non-head
+              // assignment can be removed too; otherwise keep at least one.
+              minCount={lockedHeadAssignments.length > 0 ? 0 : 1}
             />
             <Row>
               <Btn
