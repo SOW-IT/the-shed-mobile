@@ -57,12 +57,16 @@ import {
 
 // Alert.alert buttons are a no-op on react-native-web, so the web build
 // falls back to window.confirm.
-const confirmRemoval = (message: string, onConfirm: () => void) => {
+const confirmRemoval = (
+  message: string,
+  onConfirm: () => void,
+  title = "Remove member"
+) => {
   if (Platform.OS === "web") {
     if (window.confirm(message)) onConfirm();
     return;
   }
-  Alert.alert("Remove member", message, [
+  Alert.alert(title, message, [
     { text: "Cancel", style: "cancel" },
     { text: "Remove", style: "destructive", onPress: onConfirm },
   ]);
@@ -96,6 +100,7 @@ const AssignmentEditor = ({
   universities,
   roles = STAFF_EDITABLE_ROLES,
   startIndex = 0,
+  minCount = 1,
 }: {
   assignments: AssignmentDraft[];
   onChange: (a: AssignmentDraft[]) => void;
@@ -103,6 +108,9 @@ const AssignmentEditor = ({
   universities: string[];
   roles?: string[];
   startIndex?: number;
+  // The fewest rows that must remain — e.g. 0 when head roles already cover the
+  // profile, so the last non-head assignment can be removed too.
+  minCount?: number;
 }) => {
   const t = useAppTheme();
   const totalCount = startIndex + assignments.length;
@@ -139,10 +147,21 @@ const AssignmentEditor = ({
                   onSelect={(role) => update({ role, department: "", university: "" })}
                 />
               </View>
-              {assignments.length > 1 && (
+              {assignments.length > minCount && (
                 <IconButton
-                  name="close-circle-outline"
-                  onPress={() => onChange(assignments.filter((_, j) => j !== i))}
+                  name="trash-outline"
+                  color={t.danger}
+                  onPress={() =>
+                    confirmRemoval(
+                      `Remove the ${formatAssignment({
+                        role: a.role,
+                        department: a.department || undefined,
+                        university: a.university || undefined,
+                      })} assignment?`,
+                      () => onChange(assignments.filter((_, j) => j !== i)),
+                      "Remove assignment"
+                    )
+                  }
                   accessibilityLabel="Remove assignment"
                 />
               )}
@@ -570,6 +589,9 @@ export default function AdminScreen() {
               universities={structure?.universities ?? []}
               roles={availableRoles}
               startIndex={lockedHeadAssignments.length}
+              // A head role already covers the profile, so the last non-head
+              // assignment can be removed too; otherwise keep at least one.
+              minCount={lockedHeadAssignments.length > 0 ? 0 : 1}
             />
             <Row>
               <Btn
