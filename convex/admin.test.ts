@@ -74,6 +74,22 @@ describe("setStaffProfile validation", () => {
     ).rejects.toThrow(/Structure section/);
   });
 
+  test("legacy path: re-saving only the held head role needs no department", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // Fiona heads Finance. Submitting just her (already-held) head role with no
+    // other role must succeed and not demand a department — scope validation
+    // ignores preserved head roles.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: FIONA,
+      year: YEAR,
+      roles: ["Head of Department"],
+    });
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const fiona = profiles.find((p) => p.email === FIONA)!;
+    expect(fiona.roles).toEqual(["Head of Department"]);
+  });
+
   test("editing a head's staff profile preserves their structure-assigned head role", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
@@ -999,6 +1015,34 @@ describe("setStaffProfile with assignments path", () => {
     const fiona = profiles.find((p) => p.email === FIONA)!;
     expect(fiona.roles).toContain("Head of Department");
     expect(fiona.assignments).toContainEqual({ role: "Head of Department", department: "Finance" });
+    expect(fiona.assignments).toContainEqual({ role: "Staff", department: "Marketing" });
+  });
+
+  test("allows a round-tripped head link the person already holds (adds a new role)", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR,
+      name: "Marketing",
+      division: "Engagement",
+    });
+    // The new UI round-trips Fiona's existing HOD assignment alongside the
+    // added Staff link — adding a role must not be rejected as "via Structure".
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: FIONA,
+      year: YEAR,
+      assignments: [
+        { role: "Staff", department: "Marketing" },
+        { role: "Head of Department", department: "Finance" },
+      ],
+    });
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const fiona = profiles.find((p) => p.email === FIONA)!;
+    expect(fiona.roles.sort()).toEqual(["Head of Department", "Staff"]);
+    expect(fiona.assignments).toContainEqual({
+      role: "Head of Department",
+      department: "Finance",
+    });
     expect(fiona.assignments).toContainEqual({ role: "Staff", department: "Marketing" });
   });
 
