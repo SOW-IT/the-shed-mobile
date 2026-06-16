@@ -148,22 +148,26 @@ const AssignmentEditor = ({
                 />
               </View>
               {assignments.length > minCount && (
-                <IconButton
-                  name="trash-outline"
-                  color={t.danger}
-                  onPress={() =>
-                    confirmRemoval(
-                      `Remove the ${formatAssignment({
-                        role: a.role,
-                        department: a.department || undefined,
-                        university: a.university || undefined,
-                      })} assignment?`,
-                      () => onChange(assignments.filter((_, j) => j !== i)),
-                      "Remove assignment"
-                    )
-                  }
-                  accessibilityLabel="Remove assignment"
-                />
+                // The row is bottom-aligned to the dropdown; nudge the 34px
+                // icon up by (46-34)/2 so it sits centred on the 46px box.
+                <View style={{ marginBottom: 6 }}>
+                  <IconButton
+                    name="trash-outline"
+                    color={t.danger}
+                    onPress={() =>
+                      confirmRemoval(
+                        `Remove the ${formatAssignment({
+                          role: a.role,
+                          department: a.department || undefined,
+                          university: a.university || undefined,
+                        })} assignment?`,
+                        () => onChange(assignments.filter((_, j) => j !== i)),
+                        "Remove assignment"
+                      )
+                    }
+                    accessibilityLabel="Remove assignment"
+                  />
+                </View>
               )}
             </View>
             {needsDept && (
