@@ -170,6 +170,7 @@ export const setStaffProfile = mutation({
         v.object({
           role: v.string(),
           department: v.optional(v.string()),
+          division: v.optional(v.string()),
           university: v.optional(v.string()),
         })
       )
@@ -360,12 +361,16 @@ export const setStaffProfile = mutation({
       }
     }
 
+    // Scope validation considers only the submitted NON-head roles — a
+    // round-tripped head role the person already holds is preserved from the
+    // authoritative mirror and must not drive department/university checks.
+    const nonHeadRoles = roles.filter((r) => !isHeadRole(r));
     // Staff-side roles trump campus roles: their holders never get a
     // university, so saving also clears any stale one.
-    const needsUniversity = rolesNeedUniversity(roles);
+    const needsUniversity = rolesNeedUniversity(nonHeadRoles);
     // Staff, HOD and HODiv never carry a university — all other roles
     // (Chaplains, Director, campus roles) may optionally or necessarily have one.
-    const hasBlockingRole = STAFF_SIDE_ROLES.some((r) => roles.includes(r));
+    const hasBlockingRole = STAFF_SIDE_ROLES.some((r) => nonHeadRoles.includes(r));
     let university: string | undefined;
     if (!hasBlockingRole) {
       const raw = args.university?.trim();
@@ -391,8 +396,8 @@ export const setStaffProfile = mutation({
     // Chaplains are always attached to the Chaplaincy department, never an
     // admin-picked one. Every other department-scoped role (Staff, Director,
     // Outsource) shares the one department the admin picked.
-    const hasChaplain = roles.some(isChaplainRole);
-    const needsPickedDepartment = roles.some(
+    const hasChaplain = nonHeadRoles.some(isChaplainRole);
+    const needsPickedDepartment = nonHeadRoles.some(
       (r) => roleNeedsDepartment(r) && !isChaplainRole(r)
     );
     let department: string | undefined;
@@ -434,9 +439,9 @@ export const setStaffProfile = mutation({
     // admin form supplies one department + one university; chaplains override
     // their department to "Chaplaincy" (handled by assignmentFor). Head roles
     // are never fabricated here — they come from the preserved mirror below.
-    const submitted = roles
-      .filter((role) => !isHeadRole(role))
-      .map((role) => assignmentFor(role, { department, university }));
+    const submitted = nonHeadRoles.map((role) =>
+      assignmentFor(role, { department, university })
+    );
     // Head links are owned by the Structure section — preserve them verbatim.
     const preservedHead = existing
       ? assignmentsOf(existing).filter((a) => isHeadRole(a.role))

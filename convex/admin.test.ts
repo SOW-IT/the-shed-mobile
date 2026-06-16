@@ -74,6 +74,22 @@ describe("setStaffProfile validation", () => {
     ).rejects.toThrow(/Structure section/);
   });
 
+  test("legacy path: re-saving only the held head role needs no department", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // Fiona heads Finance. Submitting just her (already-held) head role with no
+    // other role must succeed and not demand a department — scope validation
+    // ignores preserved head roles.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: FIONA,
+      year: YEAR,
+      roles: ["Head of Department"],
+    });
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const fiona = profiles.find((p) => p.email === FIONA)!;
+    expect(fiona.roles).toEqual(["Head of Department"]);
+  });
+
   test("editing a head's staff profile preserves their structure-assigned head role", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
