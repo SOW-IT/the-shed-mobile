@@ -227,43 +227,50 @@ export const orgChart = query({
         ? DIRECTOR
         : INTERIM_DIRECTOR;
 
+    // "Staff" = people with no department, no real division and no campus role,
+    // who hold a non-campus role (anyone other than President / Vice President /
+    // Executive / Student Leader), and aren't the director.
+    const staffPeople = profiles
+      .filter((p) => {
+        const myAssignments = assignmentsFor(p);
+        const hasRealDivision = myAssignments.some(
+          (a) => a.division && a.division !== FALLBACK_DIVISION
+        );
+        const hasDept = myAssignments.some((a) => a.department);
+        const isCampus = myAssignments.some(
+          (a) => a.university && roleNeedsUniversity(a.role)
+        );
+        const hasStaffRole = rolesFor(p).some((r) => !roleNeedsUniversity(r));
+        return (
+          !hasDept &&
+          !hasRealDivision &&
+          !isCampus &&
+          hasStaffRole &&
+          p.email !== directorEmail
+        );
+      })
+      .sort((a, b) =>
+        (nameByEmail[a.email] ?? a.email).localeCompare(nameByEmail[b.email] ?? b.email)
+      )
+      .map((p) => person(p.email, rolesFor(p).join(", ")));
+
+    // Years before divisions/departments existed keep their "General" division
+    // (older departments are grouped under it). When such a year has no real
+    // departments, the staff are shown in a synthesised "Staff" department under
+    // General rather than as a separate top-level group.
+    const generalExists = divisions.some((d) => d.name === FALLBACK_DIVISION);
+    const staffUnderGeneral = generalExists && departments.length === 0;
+
     return {
       year,
       availableYears,
       director: directorProfile
         ? person(directorProfile.email, directorRole)
         : null,
-      // People with no department, no real division and no campus role — and
-      // not the director — would otherwise be invisible. Surface them as Staff,
-      // but only if they hold a non-campus role: someone whose only role is a
-      // campus one (President / Vice President / Executive / Student Leader) is
-      // a campus member without an assignment, not staff.
-      staff: profiles
-        .filter((p) => {
-          const myAssignments = assignmentsFor(p);
-          const hasRealDivision = myAssignments.some(
-            (a) => a.division && a.division !== FALLBACK_DIVISION
-          );
-          const hasDept = myAssignments.some((a) => a.department);
-          const isCampus = myAssignments.some(
-            (a) => a.university && roleNeedsUniversity(a.role)
-          );
-          const hasStaffRole = rolesFor(p).some((r) => !roleNeedsUniversity(r));
-          return (
-            !hasDept &&
-            !hasRealDivision &&
-            !isCampus &&
-            hasStaffRole &&
-            p.email !== directorEmail
-          );
-        })
-        .sort((a, b) =>
-          (nameByEmail[a.email] ?? a.email).localeCompare(nameByEmail[b.email] ?? b.email)
-        )
-        .map((p) => person(p.email, rolesFor(p).join(", "))),
-      divisions: divisions
-        .filter((division) => division.name !== FALLBACK_DIVISION)
-        .map((division) => {
+      // Shown as a top-level group — except in legacy years where they live in
+      // a "Staff" department under the General division instead (see below).
+      staff: staffUnderGeneral ? [] : staffPeople,
+      divisions: divisions.map((division) => {
         // The head named on the division wins (one person can head several);
         // fall back to a profile whose assignments head this division.
         const divisionHead =
@@ -273,34 +280,40 @@ export const orgChart = query({
               (a) => a.role === HEAD_OF_DIVISION && a.division === division.name
             )
           )?.email;
+        const realDepartments = departments
+          .filter((department) => department.division === division.name)
+          .map((department) => ({
+            name: department.name,
+            colour: department.colour ?? null,
+            head: department.headEmail ? person(department.headEmail) : null,
+            // A person appears under every department they're linked to,
+            // tagged with the role(s) they hold there.
+            members: profiles
+              .filter(
+                (p) =>
+                  assignmentsFor(p).some((a) => a.department === department.name) &&
+                  p.email !== department.headEmail &&
+                  p.email !== directorEmail
+              )
+              .map((p) =>
+                person(
+                  p.email,
+                  assignmentsFor(p)
+                    .filter((a) => a.department === department.name)
+                    .map((a) => a.role)
+                    .join(", ")
+                )
+              ),
+          }));
         return {
           name: division.name,
           head: divisionHead ? person(divisionHead, HEAD_OF_DIVISION) : null,
-          departments: departments
-            .filter((department) => department.division === division.name)
-            .map((department) => ({
-              name: department.name,
-              colour: department.colour ?? null,
-              head: department.headEmail ? person(department.headEmail) : null,
-              // A person appears under every department they're linked to,
-              // tagged with the role(s) they hold there.
-              members: profiles
-                .filter(
-                  (p) =>
-                    assignmentsFor(p).some((a) => a.department === department.name) &&
-                    p.email !== department.headEmail &&
-                    p.email !== directorEmail
-                )
-                .map((p) =>
-                  person(
-                    p.email,
-                    assignmentsFor(p)
-                      .filter((a) => a.department === department.name)
-                      .map((a) => a.role)
-                      .join(", ")
-                  )
-                ),
-            })),
+          // Legacy years with no real departments get a synthesised "Staff"
+          // department under General holding everyone who isn't campus.
+          departments:
+            staffUnderGeneral && division.name === FALLBACK_DIVISION
+              ? [{ name: "Staff", colour: null, head: null, members: staffPeople }]
+              : realDepartments,
         };
       }),
       // Campus people (Student Leaders, Executives, …) belong to a

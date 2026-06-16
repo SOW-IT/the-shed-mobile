@@ -271,8 +271,8 @@ describe("orgChart", () => {
     expect(chart.staff.some((s) => s.email === "prez@sow.org.au")).toBe(false);
   });
 
-  test('the synthetic "General" division is hidden and its people fall into staff', async () => {
-    const t = await setup();
+  test('the "General" division is shown; in a year with real departments staff stay a top-level group', async () => {
+    const t = await setup(); // YEAR has Marketing/Finance departments
     await t.run(async (ctx) => {
       await ctx.db.insert("divisions", { year: YEAR, name: "General" });
       await ctx.db.insert("staffProfiles", {
@@ -283,7 +283,41 @@ describe("orgChart", () => {
       });
     });
     const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
-    expect(chart.divisions.some((d) => d.name === "General")).toBe(false);
+    // General is no longer hidden.
+    expect(chart.divisions.some((d) => d.name === "General")).toBe(true);
+    // The year has real departments, so staff remain a top-level group.
     expect(chart.staff.some((s) => s.email === "general@sow.org.au")).toBe(true);
+  });
+
+  test("a legacy year with no departments gets a Staff department under General", async () => {
+    const t = await setup();
+    const OLD = 2015;
+    await t.run(async (ctx) => {
+      await ctx.db.insert("divisions", { year: OLD, name: "General" });
+      // A plain staff member with no department, and a campus role with a
+      // university (who must NOT land in the Staff department).
+      await ctx.db.insert("staffProfiles", {
+        email: "oldstaff@sow.org.au",
+        year: OLD,
+        roles: ["Staff"],
+        assignments: [{ role: "Staff" }],
+      });
+      await ctx.db.insert("staffProfiles", {
+        email: "oldprez@sow.org.au",
+        year: OLD,
+        roles: ["President"],
+        assignments: [{ role: "President", university: "UNSW" }],
+      });
+    });
+    const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, { year: OLD }))!;
+    const general = chart.divisions.find((d) => d.name === "General");
+    expect(general).toBeDefined();
+    const staffDept = general!.departments.find((d) => d.name === "Staff");
+    expect(staffDept).toBeDefined();
+    expect(staffDept!.members.some((m) => m.email === "oldstaff@sow.org.au")).toBe(true);
+    // The campus role is not in the Staff department…
+    expect(staffDept!.members.some((m) => m.email === "oldprez@sow.org.au")).toBe(false);
+    // …and the top-level staff group is empty for this year.
+    expect(chart.staff).toHaveLength(0);
   });
 });
