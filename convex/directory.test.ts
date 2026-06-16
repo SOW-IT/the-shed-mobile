@@ -254,6 +254,22 @@ describe("orgChart", () => {
     expect(chart.staff.some((s) => s.email === RACHEL)).toBe(false);
   });
 
+  test("someone whose only role is a campus role does not surface as staff", async () => {
+    const t = await setup();
+    // A President with no university assigned: a campus member missing their
+    // campus, NOT staff — so they must not appear in the Staff group.
+    await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email: "prez@sow.org.au",
+        year: YEAR,
+        roles: ["President"],
+        assignments: [{ role: "President" }],
+      })
+    );
+    const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
+    expect(chart.staff.some((s) => s.email === "prez@sow.org.au")).toBe(false);
+  });
+
   test('the synthetic "General" division is hidden and its people fall into staff', async () => {
     const t = await setup();
     await t.run(async (ctx) => {

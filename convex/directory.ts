@@ -227,8 +227,11 @@ export const orgChart = query({
       director: directorProfile
         ? person(directorProfile.email, directorRole)
         : null,
-      // People with no department, no real division, no campus role — and not
-      // the director — would otherwise be invisible; surface them as Staff.
+      // People with no department, no real division and no campus role — and
+      // not the director — would otherwise be invisible. Surface them as Staff,
+      // but only if they hold a non-campus role: someone whose only role is a
+      // campus one (President / Vice President / Executive / Student Leader) is
+      // a campus member without an assignment, not staff.
       staff: profiles
         .filter((p) => {
           const realDivisions = divisionsOf(p).filter((d) => d !== FALLBACK_DIVISION);
@@ -236,10 +239,12 @@ export const orgChart = query({
           const isCampus = assignmentsOf(p).some(
             (a) => a.university && roleNeedsUniversity(a.role)
           );
+          const hasStaffRole = rolesOf(p).some((r) => !roleNeedsUniversity(r));
           return (
             !hasDept &&
             realDivisions.length === 0 &&
             !isCampus &&
+            hasStaffRole &&
             p.email !== directorEmail
           );
         })
