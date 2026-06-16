@@ -1448,6 +1448,45 @@ export const backfillRoles = internalMutation({
 });
 
 /**
+ * One-off cleanup: retire the "Member" role everywhere. Deletes any profile
+ * whose only role is Member, strips a stray Member link from a mixed profile,
+ * and removes every "Member" row from the per-year roles catalogue.
+ * Run with: npx convex run admin:purgeMemberRole
+ */
+export const purgeMemberRole = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let deletedProfiles = 0;
+    let strippedProfiles = 0;
+    let deletedRoles = 0;
+
+    const profiles = await ctx.db.query("staffProfiles").collect();
+    for (const profile of profiles) {
+      const current = assignmentsOf(profile);
+      const kept = current.filter((a) => a.role !== MEMBER);
+      if (kept.length === current.length) continue; // no Member link
+      if (kept.length === 0) {
+        await ctx.db.delete("staffProfiles", profile._id);
+        deletedProfiles++;
+      } else {
+        await patchFromAssignments(ctx, profile, kept);
+        strippedProfiles++;
+      }
+    }
+
+    const roleRows = await ctx.db.query("roles").collect();
+    for (const row of roleRows) {
+      if (row.name === MEMBER) {
+        await ctx.db.delete("roles", row._id);
+        deletedRoles++;
+      }
+    }
+
+    return { deletedProfiles, strippedProfiles, deletedRoles };
+  },
+});
+
+/**
  * Replaces one year's divisions, departments, staff profiles and settings
  * with a copy of another year's — e.g. provisioning next year from the
  * current one at rollover.

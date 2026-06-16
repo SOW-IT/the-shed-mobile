@@ -1335,6 +1335,50 @@ describe("backfillRoles", () => {
   });
 });
 
+describe("purgeMemberRole", () => {
+  test("deletes Member-only profiles, strips mixed ones, and removes Member catalogue rows", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: "memberonly@sow.org.au",
+        year: YEAR,
+        roles: ["Member"],
+        assignments: [{ role: "Member" }],
+      });
+      await ctx.db.insert("staffProfiles", {
+        email: "mixed@sow.org.au",
+        year: YEAR,
+        roles: ["Member", "Staff"],
+        assignments: [{ role: "Member" }, { role: "Staff", department: "Finance" }],
+      });
+      await ctx.db.insert("roles", { year: YEAR, name: "Member" });
+      await ctx.db.insert("roles", { year: YEAR, name: "Staff" });
+    });
+
+    const res = await t.mutation(internal.admin.purgeMemberRole, {});
+    expect(res.deletedProfiles).toBe(1);
+    expect(res.strippedProfiles).toBe(1);
+    expect(res.deletedRoles).toBe(1);
+
+    const after = await t.run(async (ctx) => {
+      const byEmail = (email: string) =>
+        ctx.db
+          .query("staffProfiles")
+          .withIndex("by_email_and_year", (q) => q.eq("email", email).eq("year", YEAR))
+          .unique();
+      return {
+        memberOnly: await byEmail("memberonly@sow.org.au"),
+        mixed: await byEmail("mixed@sow.org.au"),
+        memberRows: (await ctx.db.query("roles").collect()).filter((r) => r.name === "Member"),
+      };
+    });
+    expect(after.memberOnly).toBeNull();
+    expect(after.mixed?.roles).toEqual(["Staff"]);
+    expect(after.mixed?.assignments).toEqual([{ role: "Staff", department: "Finance" }]);
+    expect(after.memberRows).toHaveLength(0);
+  });
+});
+
 describe("reserved system roles", () => {
   test("updateRole and removeRole refuse a reserved role; custom roles still work", async () => {
     const t = await setup();

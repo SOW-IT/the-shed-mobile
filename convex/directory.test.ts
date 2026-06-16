@@ -239,18 +239,30 @@ describe("orgChart", () => {
 
   test("non-department, non-division, non-campus people surface as staff", async () => {
     const t = await setup();
-    // A Staff role with no department/division/university — otherwise invisible.
-    await t.run((ctx) =>
-      ctx.db.insert("staffProfiles", {
+    // Two Staff roles with no department/division/university — otherwise
+    // invisible. Two of them also exercises the name-sort of the staff list.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: "zoe@sow.org.au",
+        year: YEAR,
+        roles: ["Staff"],
+        name: "Zoe",
+        assignments: [{ role: "Staff" }],
+      });
+      await ctx.db.insert("staffProfiles", {
         email: "floater@sow.org.au",
         year: YEAR,
         roles: ["Staff"],
+        name: "Aaron",
         assignments: [{ role: "Staff" }],
-      })
-    );
+      });
+    });
     const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
     expect(chart.staff.some((s) => s.email === "floater@sow.org.au")).toBe(true);
     expect(chart.staff.find((s) => s.email === "floater@sow.org.au")?.role).toBe("Staff");
+    // Sorted by name: Aaron (floater) before Zoe.
+    const emails = chart.staff.map((s) => s.email);
+    expect(emails.indexOf("floater@sow.org.au")).toBeLessThan(emails.indexOf("zoe@sow.org.au"));
     // RACHEL is in the Marketing department, so she must NOT appear in staff.
     expect(chart.staff.some((s) => s.email === RACHEL)).toBe(false);
   });

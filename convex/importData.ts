@@ -2028,8 +2028,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
         "President",
         "Vice President",
         "Executive",
-        "Student Leader",
-        "Member"
+        "Student Leader"
       ],
       "profiles": [
         {
@@ -2508,8 +2507,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
         "President",
         "Vice President",
         "Executive",
-        "Student Leader",
-        "Member"
+        "Student Leader"
       ],
       "profiles": [
         {
@@ -2628,15 +2626,6 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
             "Student Leader"
           ],
           "university": "University of Sydney"
-        },
-        {
-          "email": "daniel.kim@sowaustralia.com",
-          "importId": "qaPmJh5nfUUlDcz3UX8ZS56f0Hw2",
-          "name": "Daniel Kim",
-          "roles": [
-            "Member"
-          ],
-          "university": "University of New South Wales"
         },
         {
           "email": "delaney.chow.920x0b@legacy.invalid",
@@ -3111,8 +3100,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
         "President",
         "Vice President",
         "Executive",
-        "Student Leader",
-        "Member"
+        "Student Leader"
       ],
       "profiles": [
         {
@@ -3666,8 +3654,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
         "President",
         "Vice President",
         "Executive",
-        "Student Leader",
-        "Member"
+        "Student Leader"
       ],
       "budgetManagerEmail": "william.roh@sowaustralia.com",
       "profiles": [
@@ -4306,8 +4293,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
         "President",
         "Vice President",
         "Executive",
-        "Student Leader",
-        "Member"
+        "Student Leader"
       ],
       "budgetManagerEmail": "brandon.teng@sowaustralia.com",
       "profiles": [
@@ -5049,8 +5035,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
         "President",
         "Vice President",
         "Executive",
-        "Student Leader",
-        "Member"
+        "Student Leader"
       ],
       "budgetManagerEmail": "brandon.teng@sowaustralia.com",
       "profiles": [
@@ -5127,15 +5112,6 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
             "Staff"
           ],
           "department": "Events"
-        },
-        {
-          "email": "ben.rim@sowaustralia.com",
-          "importId": "vZQ2K7YxVxXXyfzoaYXpDsLdrw32",
-          "name": "Ben Rim",
-          "roles": [
-            "Member"
-          ],
-          "university": "Australian Catholic University"
         },
         {
           "email": "benjamin.kim@sowaustralia.com",
@@ -5812,8 +5788,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
         "President",
         "Vice President",
         "Executive",
-        "Student Leader",
-        "Member"
+        "Student Leader"
       ],
       "budgetManagerEmail": "brandon.teng@sowaustralia.com",
       "profiles": [
@@ -6595,8 +6570,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
         "President",
         "Vice President",
         "Executive",
-        "Student Leader",
-        "Member"
+        "Student Leader"
       ],
       "budgetManagerEmail": "brandon.teng@sowaustralia.com",
       "profiles": [
@@ -7324,8 +7298,7 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
         "President",
         "Vice President",
         "Executive",
-        "Student Leader",
-        "Member"
+        "Student Leader"
       ],
       "budgetManagerEmail": "tiffany.linggoputro@sow.org.au",
       "profiles": [
@@ -7698,14 +7671,6 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
           "university": "University of Sydney"
         },
         {
-          "email": "joseph.yu@sow.org.au",
-          "importId": "kaZVKTJyg4b0joLQlFIHe06CSKK2",
-          "name": "Joseph Yu",
-          "roles": [
-            "Member"
-          ]
-        },
-        {
           "email": "josh.kim@sow.org.au",
           "importId": "8lfUbYE0JOfJ37kkyQJxCt6kegQ2",
           "name": "Josh Kim",
@@ -7817,14 +7782,6 @@ export const IMPORT_DATA: { years: ImportYear[] } = {
             "President"
           ],
           "university": "University of Sydney"
-        },
-        {
-          "email": "kivin.park@sow.org.au",
-          "importId": "BhbtRkkvF4a2nPMmmTGOpvhjo6x1",
-          "name": "Kivin Park",
-          "roles": [
-            "Member"
-          ]
         },
         {
           "email": "lena.kim@sow.org.au",

@@ -276,6 +276,19 @@ for year in years:
             for role in profile.get("roles", []):
                 if role not in roles:
                     roles.append(role)
+    # The "Member" role has been retired: drop it from the catalogue and from
+    # every profile, removing anyone who is left with no role at all.
+    roles = [r for r in roles if r != "Member"]
+    for email in list(merged):
+        profile = merged[email]
+        if "roles" not in profile:
+            continue
+        kept_roles = [r for r in profile["roles"] if r != "Member"]
+        if not kept_roles:
+            del merged[email]
+        else:
+            profile["roles"] = kept_roles
+
     year_payload = {
         "year": year,
         "divisions": [
