@@ -2,8 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useRef, useState } from "react";
 import {
-  Alert,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -30,6 +28,7 @@ import { radius, typography, useAppTheme } from "@/theme";
 import {
   Btn,
   Card,
+  ConfirmDialog,
   ErrorBanner,
   errorMessage,
   Field,
@@ -55,23 +54,6 @@ import {
  * current year and the next one (next-year changes take effect at the
  * September 1 rollover) and VIEW any past year.
  */
-
-// Alert.alert buttons are a no-op on react-native-web, so the web build
-// falls back to window.confirm.
-const confirmRemoval = (
-  message: string,
-  onConfirm: () => void,
-  title = "Remove member"
-) => {
-  if (Platform.OS === "web") {
-    if (window.confirm(message)) onConfirm();
-    return;
-  }
-  Alert.alert(title, message, [
-    { text: "Cancel", style: "cancel" },
-    { text: "Remove", style: "destructive", onPress: onConfirm },
-  ]);
-};
 
 type DeleteConfirm = { name: string; message: string; onConfirm: () => void };
 
@@ -118,6 +100,8 @@ const AssignmentEditor = ({
 }) => {
   const t = useAppTheme();
   const totalCount = startIndex + assignments.length;
+  // Confirm before dropping an assignment row from the draft (not a DB delete).
+  const [removeIndex, setRemoveIndex] = useState<number | null>(null);
   return (
     <View style={{ gap: 8 }}>
       {assignments.map((a, i) => {
@@ -158,13 +142,7 @@ const AssignmentEditor = ({
                   <IconButton
                     name="trash-outline"
                     color={t.danger}
-                    onPress={() =>
-                      confirmRemoval(
-                        `Remove the ${formatAssignment(a)} assignment?`,
-                        () => onChange(assignments.filter((_, j) => j !== i)),
-                        "Remove assignment"
-                      )
-                    }
+                    onPress={() => setRemoveIndex(i)}
                     accessibilityLabel="Remove assignment"
                   />
                 </View>
@@ -207,6 +185,21 @@ const AssignmentEditor = ({
         title="+ Add Assignment"
         variant="ghost"
         onPress={() => onChange([...assignments, emptyDraft()])}
+      />
+      <ConfirmDialog
+        visible={removeIndex !== null}
+        title={
+          removeIndex !== null
+            ? `Remove the ${formatAssignment(assignments[removeIndex])} assignment?`
+            : ""
+        }
+        confirmLabel="Remove"
+        onConfirm={() => {
+          if (removeIndex !== null) {
+            onChange(assignments.filter((_, j) => j !== removeIndex));
+          }
+        }}
+        onClose={() => setRemoveIndex(null)}
       />
     </View>
   );
@@ -319,6 +312,9 @@ export default function AdminScreen() {
   const upsertUniversity = useMutation(api.admin.upsertUniversity);
   const updateUniversity = useMutation(api.admin.updateUniversity);
   const removeUniversity = useMutation(api.admin.removeUniversity);
+  const upsertRole = useMutation(api.admin.upsertRole);
+  const updateRole = useMutation(api.admin.updateRole);
+  const removeRole = useMutation(api.admin.removeRole);
   const setBudgetManager = useMutation(api.admin.setBudgetManager);
   const requestSync = useMutation(api.directorySync.requestSync);
   const syncState = useQuery(
@@ -344,6 +340,7 @@ export default function AdminScreen() {
   const [divisionName, setDivisionName] = useState("");
   const [divisionHead, setDivisionHead] = useState("");
   const [universityName, setUniversityName] = useState("");
+  const [roleName, setRoleName] = useState("");
   const [departmentName, setDepartmentName] = useState("");
   const [departmentDivision, setDepartmentDivision] = useState("");
   const [departmentHead, setDepartmentHead] = useState("");
@@ -375,9 +372,16 @@ export default function AdminScreen() {
   const [editingUniversityKey, setEditingUniversityKey] = useState<string | null>(null);
   const [editingUniversityFormName, setEditingUniversityFormName] = useState("");
   const [savingEditUniversity, setSavingEditUniversity] = useState(false);
-  // Type-to-confirm delete dialog
+  // Inline editing state for role cards
+  const [editingRoleKey, setEditingRoleKey] = useState<string | null>(null);
+  const [editingRoleFormName, setEditingRoleFormName] = useState("");
+  const [savingEditRole, setSavingEditRole] = useState(false);
+  // Type-to-confirm delete dialog (divisions / universities / roles / departments)
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(null);
-  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
+  // Type-to-confirm dialog for removing a person's profile for the year.
+  const [removeProfileTarget, setRemoveProfileTarget] = useState<
+    NonNullable<typeof profiles>[number] | null
+  >(null);
 
   const startEditUser = (email: string) => {
     const existing = (profiles ?? []).find((p) => p.email === email);
@@ -429,13 +433,22 @@ export default function AdminScreen() {
         ? `${y} (from Sep 1)`
         : `${y}`;
 
+  // Assignable roles come from the YEAR's role catalog (mirroring universities)
+  // minus the head/member roles set through the Structure section. Falls back to
+  // the hardcoded list when the year's roles haven't been backfilled yet.
+  const yearRoles = structure?.roles ?? [];
+  const yearAssignableRoles = yearRoles.filter(
+    (r) => r !== HEAD_OF_DEPARTMENT && r !== HEAD_OF_DIVISION && r !== MEMBER
+  );
+  const assignableRoles =
+    yearAssignableRoles.length > 0 ? yearAssignableRoles : STAFF_EDITABLE_ROLES;
   // Director can only be assigned when nobody else holds the role this year.
   const directorExists = (profiles ?? []).some((p) =>
     (p.assignments ?? []).some((a) => a.role === DIRECTOR)
   );
   const availableRoles = directorExists
-    ? STAFF_EDITABLE_ROLES.filter((r) => r !== DIRECTOR)
-    : STAFF_EDITABLE_ROLES;
+    ? assignableRoles.filter((r) => r !== DIRECTOR)
+    : assignableRoles;
 
   // Profiles grouped by division > department for the org-chart-style list.
   const directoryOnlyUnassigned = (syncState?.users ?? []).filter(
@@ -677,18 +690,7 @@ export default function AdminScreen() {
                 <IconButton
                   name="trash-outline"
                   color={t.danger}
-                  onPress={() =>
-                    confirmRemoval(
-                      `Remove ${profile.email} from ${selectedYear}? Their roles and department assignment for the year will be deleted.`,
-                      () =>
-                        void run(() =>
-                          removeStaffProfile({
-                            email: profile.email,
-                            year: selectedYear,
-                          })
-                        )
-                    )
-                  }
+                  onPress={() => setRemoveProfileTarget(profile)}
                 />
               </>
             )}
@@ -718,38 +720,32 @@ export default function AdminScreen() {
         </Pressable>
       }
     >
-      <OptionSheet
+      <ConfirmDialog
         visible={deleteConfirm !== null}
         title={`Delete "${deleteConfirm?.name}"`}
-        onClose={() => { setDeleteConfirm(null); setDeleteConfirmInput(""); }}
-      >
-        <View style={{ paddingHorizontal: 4, paddingBottom: 8, gap: 12 }}>
-          <Muted>{deleteConfirm?.message}</Muted>
-          <Field
-            label={`Type "${deleteConfirm?.name}" to confirm`}
-            value={deleteConfirmInput}
-            onChangeText={setDeleteConfirmInput}
-            placeholder={deleteConfirm?.name ?? ""}
-          />
-          <Row>
-            <Btn
-              title="Cancel"
-              variant="ghost"
-              onPress={() => { setDeleteConfirm(null); setDeleteConfirmInput(""); }}
-            />
-            <Btn
-              title="Delete"
-              variant="danger"
-              disabled={deleteConfirmInput.trim() !== deleteConfirm?.name}
-              onPress={() => {
-                deleteConfirm?.onConfirm();
-                setDeleteConfirm(null);
-                setDeleteConfirmInput("");
-              }}
-            />
-          </Row>
-        </View>
-      </OptionSheet>
+        message={deleteConfirm?.message}
+        requireText={deleteConfirm?.name}
+        onConfirm={() => deleteConfirm?.onConfirm()}
+        onClose={() => setDeleteConfirm(null)}
+      />
+
+      <ConfirmDialog
+        visible={removeProfileTarget !== null}
+        title={`Delete "${removeProfileTarget?.name ?? removeProfileTarget?.email}"`}
+        message={`Remove ${removeProfileTarget?.email} from ${selectedYear}? Their roles and department assignments for the year will be deleted.`}
+        requireText={removeProfileTarget?.name ?? removeProfileTarget?.email}
+        onConfirm={() => {
+          if (removeProfileTarget) {
+            void run(() =>
+              removeStaffProfile({
+                email: removeProfileTarget.email,
+                year: selectedYear,
+              })
+            );
+          }
+        }}
+        onClose={() => setRemoveProfileTarget(null)}
+      />
 
       <OptionSheet
         visible={yearMenuOpen}
@@ -769,6 +765,7 @@ export default function AdminScreen() {
               setEditingDivisionKey(null);
               setEditingDepartmentKey(null);
               setEditingUniversityKey(null);
+              setEditingRoleKey(null);
             }}
           />
         ))}
@@ -1053,6 +1050,97 @@ export default function AdminScreen() {
                   void run(() =>
                     upsertUniversity({ year: selectedYear, name: universityName })
                   ).then((ok) => ok && setUniversityName(""))
+                }
+              />
+            </Card>
+          )}
+
+          <SectionTitle>Roles — {selectedYear}</SectionTitle>
+          {(structure?.roles ?? []).length === 0 && (
+            <Card><Muted>No roles yet.</Muted></Card>
+          )}
+          {(structure?.roles ?? []).map((role) => {
+            const isEditingThis = editingRoleKey === role;
+            return (
+              <Card key={role}>
+                {isEditingThis ? (
+                  <>
+                    <Field
+                      label="Role name (rename cascades to staff assignments)"
+                      value={editingRoleFormName}
+                      onChangeText={setEditingRoleFormName}
+                    />
+                    <Row>
+                      <Btn
+                        title="Save"
+                        loading={savingEditRole}
+                        onPress={() => {
+                          setSavingEditRole(true);
+                          void run(() =>
+                            updateRole({
+                              year: selectedYear,
+                              oldName: role,
+                              newName: editingRoleFormName,
+                            })
+                          )
+                            .then((ok) => {
+                              if (ok) setEditingRoleKey(null);
+                            })
+                            .finally(() => setSavingEditRole(false));
+                        }}
+                      />
+                      <Btn
+                        title="Cancel"
+                        variant="ghost"
+                        onPress={() => setEditingRoleKey(null)}
+                      />
+                    </Row>
+                  </>
+                ) : (
+                  <Row>
+                    <View style={{ flexGrow: 1 }}>
+                      <Txt style={{ fontWeight: "600" }}>{role}</Txt>
+                    </View>
+                    {editable && (
+                      <>
+                        <IconButton
+                          name="create-outline"
+                          onPress={() => {
+                            setEditingRoleFormName(role);
+                            setEditingRoleKey(role);
+                          }}
+                        />
+                        <IconButton
+                          name="trash-outline"
+                          color={t.danger}
+                          onPress={() =>
+                            setDeleteConfirm({
+                              name: role,
+                              message: `This role can only be deleted if no one is assigned it this year.`,
+                              onConfirm: () => void run(() => removeRole({ year: selectedYear, name: role })),
+                            })
+                          }
+                        />
+                      </>
+                    )}
+                  </Row>
+                )}
+              </Card>
+            );
+          })}
+          {editable && (
+            <Card>
+              <Field
+                label="New role"
+                value={roleName}
+                onChangeText={setRoleName}
+              />
+              <Btn
+                title="Add Role"
+                onPress={() =>
+                  void run(() =>
+                    upsertRole({ year: selectedYear, name: roleName })
+                  ).then((ok) => ok && setRoleName(""))
                 }
               />
             </Card>
