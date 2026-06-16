@@ -222,7 +222,14 @@ export const FooterAction = ({
             <Ionicons name="information-circle-outline" size={22} color={t.primary} />
           </Pressable>
         )}
-        <Animated.View style={[{ flex: 1, transform: [{ scale }] }, t.shadowFloat]}>
+        {/* Match the pill's radius so the shadow container's corners don't
+            show through behind the rounded button (visible on web). */}
+        <Animated.View
+          style={[
+            { flex: 1, borderRadius: radius.lg - 2, transform: [{ scale }] },
+            t.shadowFloat,
+          ]}
+        >
           <Pressable
             onPress={() => { haptic(); onPress(); }}
             onPressIn={() =>
@@ -486,6 +493,79 @@ export const OptionSheet = ({
         </View>
       </View>
     </Modal>
+  );
+};
+
+/**
+ * A reusable confirmation dialog modelled on the Structure tab's type-to-confirm
+ * sheet. Use it everywhere instead of the platform's native confirm dialogs.
+ *
+ * Pass `requireText` for high-stakes deletes (e.g. a person): the confirm button
+ * stays disabled until the typed text matches it exactly (trimmed). Omit it for a
+ * plain Cancel/Confirm dialog. `destructive` (default true) tints the confirm
+ * button red; set it false for non-destructive confirmations.
+ */
+export const ConfirmDialog = ({
+  visible,
+  title,
+  message,
+  confirmLabel = "Delete",
+  cancelLabel = "Cancel",
+  destructive = true,
+  requireText,
+  onConfirm,
+  onClose,
+}: {
+  visible: boolean;
+  title: string;
+  message?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  destructive?: boolean;
+  /** When set, require the user to type this exact text before confirming. */
+  requireText?: string;
+  onConfirm: () => void;
+  onClose: () => void;
+}) => {
+  const [input, setInput] = useState("");
+  // Reset the typed text whenever the dialog opens or closes.
+  useEffect(() => {
+    if (!visible) setInput("");
+  }, [visible]);
+  // Normalise both sides: data-sourced requireText may carry stray whitespace.
+  const normalizedRequired = requireText?.trim();
+  const confirmDisabled =
+    normalizedRequired !== undefined && input.trim() !== normalizedRequired;
+  const close = () => {
+    setInput("");
+    onClose();
+  };
+  return (
+    <OptionSheet visible={visible} title={title} onClose={close}>
+      <View style={{ paddingHorizontal: 4, paddingBottom: 8, gap: 12 }}>
+        {message ? <Muted>{message}</Muted> : null}
+        {requireText !== undefined && (
+          <Field
+            label={`Type "${requireText}" to confirm`}
+            value={input}
+            onChangeText={setInput}
+            placeholder={requireText}
+          />
+        )}
+        <Row>
+          <Btn title={cancelLabel} variant="ghost" onPress={close} />
+          <Btn
+            title={confirmLabel}
+            variant={destructive ? "danger" : "primary"}
+            disabled={confirmDisabled}
+            onPress={() => {
+              onConfirm();
+              close();
+            }}
+          />
+        </Row>
+      </View>
+    </OptionSheet>
   );
 };
 

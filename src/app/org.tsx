@@ -122,20 +122,41 @@ export default function OrgChartScreen() {
       {chart.director ? (
         <FadeInView delay={40}>
           <View style={[styles.directorCard, t.shadowCard, { backgroundColor: t.card }]}>
-            <Person person={chart.director} bold tag="Director" size={46} />
+            <Person person={chart.director} bold tag={chart.director.role ?? "Director"} size={46} />
           </View>
         </FadeInView>
       ) : (
         <Muted>No Director assigned for {chart.year} yet.</Muted>
       )}
 
+      {/* Staff — people not in any department, division or campus, who hold a
+          non-campus role. Shown at the top, just under the Director. */}
+      {chart.staff.length > 0 && (
+        <FadeInView delay={stagger(1)}>
+          <View style={styles.divisionBlock}>
+            <Text style={[typography.label, { color: t.muted }]}>Staff</Text>
+            <View
+              style={[
+                styles.deptCard,
+                t.shadowCard,
+                { backgroundColor: t.card, borderLeftColor: t.primary },
+              ]}
+            >
+              {chart.staff.map((member) => (
+                <Person key={member.email} person={member} />
+              ))}
+            </View>
+          </View>
+        </FadeInView>
+      )}
+
       {/* Divisions */}
       {chart.divisions.map((division, divisionIndex) => (
-        <FadeInView key={division.name} delay={stagger(divisionIndex + 1)}>
+        <FadeInView key={division.name} delay={stagger(divisionIndex + 2)}>
           <View style={styles.divisionBlock}>
             {/* Division label */}
             <Text style={[typography.label, { color: t.muted }]}>
-              {division.name} Division
+              {division.name}
             </Text>
 
             {/* Head of Division — contained row */}
@@ -177,7 +198,7 @@ export default function OrgChartScreen() {
 
       {/* Campus */}
       {chart.universities.some((u) => u.members.length > 0) && (
-        <FadeInView delay={stagger(chart.divisions.length + 1)}>
+        <FadeInView delay={stagger(chart.divisions.length + 2)}>
           <View style={styles.divisionBlock}>
             <Text style={[typography.label, { color: t.muted }]}>Campus</Text>
             {chart.universities

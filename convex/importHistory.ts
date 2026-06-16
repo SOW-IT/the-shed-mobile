@@ -157,7 +157,7 @@ export const migrateEmailDomain = internalMutation({
 export const run = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const counts = { divisions: 0, departments: 0, universities: 0, profiles: 0, budgetManagers: 0 };
+    const counts = { divisions: 0, departments: 0, universities: 0, roles: 0, profiles: 0, budgetManagers: 0 };
 
     for (const yearData of IMPORT_DATA.years) {
       const year = yearData.year;
@@ -191,6 +191,17 @@ export const run = internalMutation({
         if (!existing) {
           await ctx.db.insert("universities", { year, name });
           counts.universities++;
+        }
+      }
+
+      for (const name of yearData.roles) {
+        const existing = await ctx.db
+          .query("roles")
+          .withIndex("by_year_and_name", (q) => q.eq("year", year).eq("name", name))
+          .unique();
+        if (!existing) {
+          await ctx.db.insert("roles", { year, name });
+          counts.roles++;
         }
       }
 

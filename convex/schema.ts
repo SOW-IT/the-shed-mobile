@@ -99,6 +99,14 @@ export default defineSchema({
     name: v.string(),
   }).index("by_year_and_name", ["year", "name"]),
 
+  // Data-driven, per-year catalog of assignable role names — the roles an
+  // admin may pick when assigning a staff member come from that year's list,
+  // so older years keep their legacy role names (e.g. "Campus Chaplain").
+  roles: defineTable({
+    year: v.number(),
+    name: v.string(),
+  }).index("by_year_and_name", ["year", "name"]),
+
   // Expo push tokens, per device, keyed by the owner's email so flow events
   // can notify whoever needs to act next.
   pushTokens: defineTable({

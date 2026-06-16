@@ -3,7 +3,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
 import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { acronym, formatAssignment, staffYearForDate } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
@@ -12,6 +12,7 @@ import {
   Avatar,
   Btn,
   Card,
+  ConfirmDialog,
   digitsOnly,
   ErrorBanner,
   errorMessage,
@@ -84,6 +85,12 @@ const PaymentTab = () => {
   const [numberDraft, setNumberDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Drives the in-app confirmation for deleting a saved bank account.
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: Id<"savedBankAccounts">;
+    title: string;
+    message: string;
+  } | null>(null);
 
   if (savedAccounts === undefined) return <LoadingState />;
 
@@ -134,24 +141,13 @@ const PaymentTab = () => {
   };
 
   const confirmDelete = (id: Id<"savedBankAccounts">, name: string, isPreferred: boolean) => {
-    const title = isPreferred ? "Delete preferred account" : "Delete account";
-    const message = isPreferred
-      ? `"${name}" is your auto-filled account. Deleting it will remove your payment auto-fill. Continue?`
-      : `Delete saved account "${name}"?`;
-    if (Platform.OS === "web") {
-      if (window.confirm(message)) {
-        void removeAccount({ id }).catch((e) => setError(errorMessage(e)));
-      }
-      return;
-    }
-    Alert.alert(title, message, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => void removeAccount({ id }).catch((e) => setError(errorMessage(e))),
-      },
-    ]);
+    setDeleteTarget({
+      id,
+      title: isPreferred ? "Delete preferred account" : "Delete account",
+      message: isPreferred
+        ? `"${name}" is your auto-filled account. Deleting it will remove your payment auto-fill. Continue?`
+        : `Delete saved account "${name}"?`,
+    });
   };
 
   return (
@@ -254,6 +250,21 @@ const PaymentTab = () => {
           ))}
         </>
       )}
+
+      <ConfirmDialog
+        visible={deleteTarget !== null}
+        title={deleteTarget?.title ?? ""}
+        message={deleteTarget?.message}
+        confirmLabel="Delete"
+        onConfirm={() => {
+          if (deleteTarget) {
+            void removeAccount({ id: deleteTarget.id }).catch((e) =>
+              setError(errorMessage(e))
+            );
+          }
+        }}
+        onClose={() => setDeleteTarget(null)}
+      />
     </>
   );
 };
@@ -455,38 +466,23 @@ export const ProfileView = ({ email }: { email?: string }) => {
             ))
           )}
           {profile.isMe && (
-            confirmingSignOut ? (
-              <Row>
-                <Btn
-                  title="Confirm sign out"
-                  variant="danger"
-                  onPress={() => void signOut()}
-                />
-                <Btn
-                  title="Cancel"
-                  variant="ghost"
-                  onPress={() => setConfirmingSignOut(false)}
-                />
-              </Row>
-            ) : (
-              <Btn
-                title="Sign out"
-                variant="danger"
-                onPress={() => {
-                  if (Platform.OS === "web") {
-                    setConfirmingSignOut(true);
-                  } else {
-                    Alert.alert("Sign out", "Sign out of The Shed?", [
-                      { text: "Cancel", style: "cancel" },
-                      { text: "Sign out", style: "destructive", onPress: () => void signOut() },
-                    ]);
-                  }
-                }}
-              />
-            )
+            <Btn
+              title="Sign out"
+              variant="danger"
+              onPress={() => setConfirmingSignOut(true)}
+            />
           )}
         </>
       )}
+
+      <ConfirmDialog
+        visible={confirmingSignOut}
+        title="Sign out"
+        message="Sign out of The Shed?"
+        confirmLabel="Sign out"
+        onConfirm={() => void signOut()}
+        onClose={() => setConfirmingSignOut(false)}
+      />
     </Screen>
   );
 };

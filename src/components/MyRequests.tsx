@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import * as DocumentPicker from "expo-document-picker";
 import { useEffect, useState } from "react";
-import { Alert, Platform, Pressable, StyleSheet, Switch, Text, View } from "react-native";
+import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import {
   DIRECTOR_APPROVAL_THRESHOLD,
   requestCompleted,
@@ -15,6 +15,7 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { RequestCard } from "@/components/RequestCard";
 import {
   Btn,
+  ConfirmDialog,
   currencyText,
   digitsOnly,
   EmptyState,
@@ -31,29 +32,6 @@ import {
   stagger,
   Txt,
 } from "@/components/ui";
-
-// Alert.alert buttons are a no-op on react-native-web, so the web build
-// falls back to window.confirm.
-const confirmAction = (
-  title: string,
-  message: string,
-  confirmText: string,
-  onConfirm: () => void,
-  destructive?: boolean
-) => {
-  if (Platform.OS === "web") {
-    if (window.confirm(message)) onConfirm();
-    return;
-  }
-  Alert.alert(title, message, [
-    { text: "Back", style: "cancel" },
-    {
-      text: confirmText,
-      style: destructive ? "destructive" : "default",
-      onPress: onConfirm,
-    },
-  ]);
-};
 
 export type RequestPrefill = {
   description: string;
@@ -331,6 +309,10 @@ const ReceiptSheet = ({
   const [recipients, setRecipients] = useState<DraftRecipient[]>([emptyRecipient()]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set when the receipt total exceeds the request and we need a confirmation.
+  const [confirmExceeds, setConfirmExceeds] = useState<{ total: number } | null>(
+    null
+  );
 
   // Auto-fill first recipient from preferred account when the sheet opens or
   // when savedAccounts finish loading for the first time while the sheet is open.
@@ -464,12 +446,7 @@ const ReceiptSheet = ({
     }
     const total = recipients.reduce((sum, r) => sum + Number(r.amount), 0);
     if (total > request.amount) {
-      confirmAction(
-        "Receipt exceeds request",
-        `Your receipt total of $${total} is more than the requested $${request.amount}. You may only be paid up to the requested amount. Submit anyway?`,
-        "Submit Anyway",
-        () => void send()
-      );
+      setConfirmExceeds({ total });
       return;
     }
     void send();
@@ -570,6 +547,19 @@ const ReceiptSheet = ({
       <ErrorBanner message={error} />
       <Btn title="Submit Receipt" onPress={handleSubmit} disabled={uploading} />
       <Btn title="Cancel" variant="ghost" onPress={onClose} />
+      <ConfirmDialog
+        visible={confirmExceeds !== null}
+        title="Receipt exceeds request"
+        message={
+          confirmExceeds && request
+            ? `Your receipt total of $${confirmExceeds.total} is more than the requested $${request.amount}. You may only be paid up to the requested amount. Submit anyway?`
+            : undefined
+        }
+        confirmLabel="Submit Anyway"
+        destructive={false}
+        onConfirm={() => void send()}
+        onClose={() => setConfirmExceeds(null)}
+      />
     </Sheet>
   );
 };
@@ -598,6 +588,13 @@ export const MyRequests = ({
   const deleteDeclined = useMutation(api.requests.deleteDeclined);
   const [receiptFor, setReceiptFor] = useState<Doc<"requests"> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Drives the in-app confirmation for cancelling or deleting a request.
+  const [confirm, setConfirm] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const resubmit = (request: Doc<"requests">) => {
     onResubmit({
@@ -656,22 +653,20 @@ export const MyRequests = ({
                   onCancel={
                     requestDeclined(request)
                       ? () =>
-                          confirmAction(
-                            "Delete request",
-                            `Delete this declined $${request.amount} request ("${request.description}")? This can't be undone.`,
-                            "Delete",
-                            () => void handleDeleteDeclined(request._id),
-                            true
-                          )
+                          setConfirm({
+                            title: "Delete request",
+                            message: `Delete this declined $${request.amount} request ("${request.description}")? This can't be undone.`,
+                            confirmLabel: "Delete",
+                            onConfirm: () => void handleDeleteDeclined(request._id),
+                          })
                       : !requestCompleted(request)
                       ? () =>
-                          confirmAction(
-                            "Cancel request",
-                            `Cancel your $${request.amount} request ("${request.description}")? It will be deleted along with its approvals — this can't be undone.`,
-                            "Cancel Request",
-                            () => void handleCancel(request._id),
-                            true
-                          )
+                          setConfirm({
+                            title: "Cancel request",
+                            message: `Cancel your $${request.amount} request ("${request.description}")? It will be deleted along with its approvals — this can't be undone.`,
+                            confirmLabel: "Cancel Request",
+                            onConfirm: () => void handleCancel(request._id),
+                          })
                       : undefined
                   }
                 >
@@ -707,6 +702,14 @@ export const MyRequests = ({
         onShowGuide={onShowGuide}
       />
       <ReceiptSheet request={receiptFor} onClose={() => setReceiptFor(null)} />
+      <ConfirmDialog
+        visible={confirm !== null}
+        title={confirm?.title ?? ""}
+        message={confirm?.message}
+        confirmLabel={confirm?.confirmLabel}
+        onConfirm={() => confirm?.onConfirm()}
+        onClose={() => setConfirm(null)}
+      />
     </>
   );
 };

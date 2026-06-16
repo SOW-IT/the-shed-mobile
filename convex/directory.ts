@@ -6,10 +6,8 @@ import {
   divisionsOf,
   FINANCE,
   HEAD_OF_DIVISION,
-  isHeadOfDivisionName,
   isMemberOfDepartment,
   roleNeedsUniversity,
-  rolesForDepartment,
 } from "../shared/flow";
 import { query } from "./_generated/server";
 import {
@@ -138,6 +136,11 @@ export const availableYears = query({
   },
 });
 
+/** Legacy role that fills the Director slot when no real Director exists. */
+const INTERIM_DIRECTOR = "Interim Director";
+/** Synthetic division name used by the importer when a year has no real divisions. */
+const FALLBACK_DIVISION = "General";
+
 const CAMPUS_ROLE_ORDER = ["President", "Vice President", "Executive", "Student Leader"] as const;
 const campusRoleRank = (roles: string[]) => {
   const idx = CAMPUS_ROLE_ORDER.findIndex((r) => roles.includes(r));
@@ -205,43 +208,112 @@ export const orgChart = query({
       role: role ?? null,
     });
 
+    // Org-chart placement is derived strictly from each profile's stored
+    // `assignments` — never the legacy single-scope fields (assignmentsOf would
+    // otherwise fall back to them). These read the assignments array directly.
+    const assignmentsFor = (p: (typeof profiles)[number]) => p.assignments ?? [];
+    const rolesFor = (p: (typeof profiles)[number]) => [
+      ...new Set(assignmentsFor(p).map((a) => a.role)),
+    ];
+
+    // A real Director wins; otherwise an "Interim Director" fills the slot.
     const directorProfile =
-      profiles.find((p) => rolesOf(p).includes(DIRECTOR)) ?? null;
+      profiles.find((p) => rolesFor(p).includes(DIRECTOR)) ??
+      profiles.find((p) => rolesFor(p).includes(INTERIM_DIRECTOR)) ??
+      null;
+    const directorEmail = directorProfile?.email ?? null;
+    const directorRole =
+      directorProfile && rolesFor(directorProfile).includes(DIRECTOR)
+        ? DIRECTOR
+        : INTERIM_DIRECTOR;
+
+    // "Staff" = people with no department, no real division and no campus role,
+    // who hold a non-campus role (anyone other than President / Vice President /
+    // Executive / Student Leader), and aren't the director.
+    const staffPeople = profiles
+      .filter((p) => {
+        const myAssignments = assignmentsFor(p);
+        const hasRealDivision = myAssignments.some(
+          (a) => a.division && a.division !== FALLBACK_DIVISION
+        );
+        const hasDept = myAssignments.some((a) => a.department);
+        const isCampus = myAssignments.some(
+          (a) => a.university && roleNeedsUniversity(a.role)
+        );
+        const hasStaffRole = rolesFor(p).some((r) => !roleNeedsUniversity(r));
+        return (
+          !hasDept &&
+          !hasRealDivision &&
+          !isCampus &&
+          hasStaffRole &&
+          p.email !== directorEmail
+        );
+      })
+      .sort((a, b) =>
+        (nameByEmail[a.email] ?? a.email).localeCompare(nameByEmail[b.email] ?? b.email)
+      )
+      .map((p) => person(p.email, rolesFor(p).join(", ")));
+
+    // Years before divisions/departments existed keep their "General" division
+    // (older departments are grouped under it). When such a year has no real
+    // departments, the staff are shown in a synthesised "Staff" department under
+    // General rather than as a separate top-level group.
+    const generalExists = divisions.some((d) => d.name === FALLBACK_DIVISION);
+    const staffUnderGeneral = generalExists && departments.length === 0;
 
     return {
       year,
       availableYears,
       director: directorProfile
-        ? person(directorProfile.email, DIRECTOR)
+        ? person(directorProfile.email, directorRole)
         : null,
+      // Shown as a top-level group — except in legacy years where they live in
+      // a "Staff" department under the General division instead (see below).
+      staff: staffUnderGeneral ? [] : staffPeople,
       divisions: divisions.map((division) => {
         // The head named on the division wins (one person can head several);
         // fall back to a profile whose assignments head this division.
         const divisionHead =
           division.headEmail ??
-          profiles.find((p) => isHeadOfDivisionName(p, division.name))?.email;
+          profiles.find((p) =>
+            assignmentsFor(p).some(
+              (a) => a.role === HEAD_OF_DIVISION && a.division === division.name
+            )
+          )?.email;
+        const realDepartments = departments
+          .filter((department) => department.division === division.name)
+          .map((department) => ({
+            name: department.name,
+            colour: department.colour ?? null,
+            head: department.headEmail ? person(department.headEmail) : null,
+            // A person appears under every department they're linked to,
+            // tagged with the role(s) they hold there.
+            members: profiles
+              .filter(
+                (p) =>
+                  assignmentsFor(p).some((a) => a.department === department.name) &&
+                  p.email !== department.headEmail &&
+                  p.email !== directorEmail
+              )
+              .map((p) =>
+                person(
+                  p.email,
+                  assignmentsFor(p)
+                    .filter((a) => a.department === department.name)
+                    .map((a) => a.role)
+                    .join(", ")
+                )
+              ),
+          }));
         return {
           name: division.name,
           head: divisionHead ? person(divisionHead, HEAD_OF_DIVISION) : null,
-          departments: departments
-            .filter((department) => department.division === division.name)
-            .map((department) => ({
-              name: department.name,
-              colour: department.colour ?? null,
-              head: department.headEmail ? person(department.headEmail) : null,
-              // A person appears under every department they're linked to,
-              // tagged with the role(s) they hold there.
-              members: profiles
-                .filter(
-                  (p) =>
-                    isMemberOfDepartment(p, department.name) &&
-                    p.email !== department.headEmail &&
-                    !rolesOf(p).includes(DIRECTOR)
-                )
-                .map((p) =>
-                  person(p.email, rolesForDepartment(p, department.name).join(", "))
-                ),
-            })),
+          // Legacy years with no real departments get a synthesised "Staff"
+          // department under General holding everyone who isn't campus.
+          departments:
+            staffUnderGeneral && division.name === FALLBACK_DIVISION
+              ? [{ name: "Staff", colour: null, head: null, members: staffPeople }]
+              : realDepartments,
         };
       }),
       // Campus people (Student Leaders, Executives, …) belong to a
@@ -253,16 +325,16 @@ export const orgChart = query({
         members: profiles
           .filter(
             (p) =>
-              assignmentsOf(p).some(
+              assignmentsFor(p).some(
                 (a) =>
                   a.university === university.name && roleNeedsUniversity(a.role)
-              ) && !rolesOf(p).includes(DIRECTOR)
+              ) && p.email !== directorEmail
           )
-          .sort((a, b) => campusRoleRank(rolesOf(a)) - campusRoleRank(rolesOf(b)))
+          .sort((a, b) => campusRoleRank(rolesFor(a)) - campusRoleRank(rolesFor(b)))
           .map((p) =>
             person(
               p.email,
-              assignmentsOf(p)
+              assignmentsFor(p)
                 .filter(
                   (a) =>
                     a.university === university.name && roleNeedsUniversity(a.role)
@@ -293,6 +365,10 @@ export const yearStructure = query({
       .query("universities")
       .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
       .take(200);
+    const roles = await ctx.db
+      .query("roles")
+      .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
+      .take(200);
     const settings = await ctx.db
       .query("yearSettings")
       .withIndex("by_year", (q) => q.eq("year", args.year))
@@ -309,6 +385,7 @@ export const yearStructure = query({
         colour: d.colour ?? null,
       })),
       universities: universities.map((u) => u.name),
+      roles: roles.map((r) => r.name),
       budgetManagerEmail: settings?.budgetManagerEmail ?? null,
     };
   },
