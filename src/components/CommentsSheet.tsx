@@ -81,8 +81,10 @@ export const CommentsSheet = ({
   const toggleReaction = useMutation(api.comments.toggleReaction);
 
   const [draft, setDraft] = useState("");
+  const [focused, setFocused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const canSend = !sending && draft.trim() !== "";
   const [reactingTo, setReactingTo] = useState<Id<"requestComments"> | null>(null);
   const [moreFor, setMoreFor] = useState<Id<"requestComments"> | null>(null);
 
@@ -223,21 +225,27 @@ export const CommentsSheet = ({
           <TextInput
             value={draft}
             onChangeText={setDraft}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
             placeholder="Write a comment…"
             placeholderTextColor={t.faint}
             multiline
             style={[
               styles.composerInput,
-              { backgroundColor: t.inputBackground, color: t.text, borderColor: t.border },
+              {
+                backgroundColor: t.inputBackground,
+                color: t.text,
+                borderColor: focused ? t.primary : t.border,
+              },
             ]}
           />
           <IconButton
             name="arrow-up"
-            bg={t.primary}
-            color={t.onPrimary}
+            bg={canSend ? t.primary : t.ghost}
+            color={canSend ? t.onPrimary : t.faint}
             size={40}
             accessibilityLabel="Send comment"
-            disabled={sending || draft.trim() === ""}
+            disabled={!canSend}
             onPress={() => void send()}
           />
         </View>
@@ -303,17 +311,18 @@ const styles = StyleSheet.create({
   },
   quickEmoji: { paddingHorizontal: 2 },
   quickMore: { paddingHorizontal: 4, paddingVertical: 2 },
-  composer: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm, marginTop: spacing.sm },
+  composer: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm, marginTop: spacing.md },
   composerInput: {
     flex: 1,
     minHeight: 40,
     maxHeight: 120,
     borderRadius: radius.lg,
     borderWidth: 1.5,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: 10,
     fontSize: 15,
+    lineHeight: 20,
   },
   emojiGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: spacing.sm },
   gridEmoji: {
