@@ -869,6 +869,38 @@ describe("copyYear", () => {
   });
 });
 
+describe("rollOverStaffYear", () => {
+  test("prefills the next staff year from the current staff year", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Outsource" });
+    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
+    // Stale data in the next year is replaced wholesale.
+    await admin.mutation(api.admin.upsertDivision, { year: YEAR + 1, name: "Stale Division" });
+
+    const counts = await t.mutation(internal.admin.rollOverStaffYear, {});
+    expect(counts.divisions).toBeGreaterThan(0);
+    expect(counts.budgetManagers).toBe(1);
+
+    const next = (await admin.query(api.directory.yearStructure, { year: YEAR + 1 }))!;
+    expect(next.divisions.map((d) => d.name)).toContain("Governance");
+    expect(next.divisions.map((d) => d.name)).not.toContain("Stale Division");
+    expect(next.roles).toContain("Outsource");
+    expect(next.budgetManagerEmail).toBe(BELLA);
+
+    // A summary email to IT is scheduled.
+    const scheduled = await t.run((ctx) =>
+      ctx.db.system.query("_scheduled_functions").collect()
+    );
+    const email = scheduled.find((s) => s.name === "emails:send");
+    expect(email).toBeDefined();
+    expect(email!.args[0]).toMatchObject({ to: "it@sow.org.au" });
+    expect((email!.args[0] as { subject: string }).subject).toContain(
+      `${YEAR} copied to ${YEAR + 1}`
+    );
+  });
+});
+
 describe("listStaffProfiles directory name fallback", () => {
   test("uses the synced directory name when the profile has no name yet", async () => {
     const t = await setup();
