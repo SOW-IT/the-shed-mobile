@@ -64,7 +64,7 @@ export const me = query({
       .query("directoryUsers")
       .withIndex("by_email", (q) => q.eq("email", email))
       .unique();
-    const name = user?.name ?? profile?.name ?? dirUser?.name ?? null;
+    const name = user?.name ?? dirUser?.name ?? profile?.name ?? null;
     if (!profile) {
       return { email, year, name, photo, profile: null };
     }
@@ -106,10 +106,13 @@ export const me = query({
 
 /** Resolves a display name for any staff email — used on request cards. */
 export const nameForEmail = query({
-  args: { email: v.string() },
+  args: { email: v.string(), year: v.optional(v.number()) },
   handler: async (ctx, args) => {
     if ((await optionalEmail(ctx)) === null) return null;
-    const year = currentStaffYear();
+    // Resolve against the given staff year so historical requests show the
+    // requester's name as it was that year (legacy people have no user
+    // account, but their imported staffProfile carries the name).
+    const year = args.year ?? currentStaffYear();
     const profile = await getProfile(ctx, args.email, year);
     if (profile?.name) return profile.name;
     const dirUser = await ctx.db
@@ -195,7 +198,7 @@ export const orgChart = query({
         .withIndex("email", (q) => q.eq("email", profile.email))
         .first();
       nameByEmail[profile.email] =
-        user?.name ?? profile.name ?? directoryNameByEmail.get(profile.email) ?? null;
+        user?.name ?? directoryNameByEmail.get(profile.email) ?? profile.name ?? null;
       // A custom uploaded photo beats the Google default.
       photoByEmail[profile.email] = user?.avatarId
         ? await ctx.storage.getUrl(user.avatarId)

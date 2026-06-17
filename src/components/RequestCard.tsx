@@ -367,6 +367,7 @@ export const RequestCard = ({
   showRequester,
   onCancel,
   actionRequired,
+  collapsible = false,
   children,
 }: {
   request: Doc<"requests">;
@@ -374,21 +375,72 @@ export const RequestCard = ({
   onCancel?: () => void;
   /** When true, draws an amber border to signal the current user needs to act. */
   actionRequired?: boolean;
+  /**
+   * When true the card starts collapsed to a one-line summary (amount, status,
+   * department, requester, date) with a "View More" toggle. Used for completed
+   * requests, which are read-only and browsed in bulk.
+   */
+  collapsible?: boolean;
   children?: ReactNode;
 }) => {
   const t = useAppTheme();
   useMinuteTick();
   const [showHistory, setShowHistory] = useState(false);
   const [showComments, setShowComments] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const requesterName = useQuery(
     api.directory.nameForEmail,
-    showRequester ? { email: request.requesterEmail } : "skip"
+    showRequester
+      ? { email: request.requesterEmail, year: request.year }
+      : "skip"
   );
   const unreadComments = useQuery(api.comments.unreadCount, {
     requestId: request._id,
   });
   const status = requestDisplayStatus(request);
   const chip = statusChip(status, t);
+
+  const dateLabel = new Date(request._creationTime).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+  // Collapsed summary: just the essentials plus a "View More" affordance.
+  if (collapsible && !expanded) {
+    return (
+      <Card style={cardBorderStyle(status, actionRequired, t)}>
+        <View style={styles.topRow}>
+          <View style={styles.topSide}>
+            <Text style={[typography.amount, { color: t.text }]}>${request.amount}</Text>
+          </View>
+          <View style={[styles.statusPill, { backgroundColor: chip.bg }]}>
+            <Text numberOfLines={1} style={[styles.statusPillText, { color: chip.fg }]}>
+              {status}
+            </Text>
+          </View>
+          <View style={styles.topSide} />
+        </View>
+        <Text style={[typography.caption, { color: t.faint, marginTop: -6 }]}>
+          {request.department}
+          {showRequester ? ` · ${requesterName ?? request.requesterEmail}` : ""}
+          {" · "}
+          {dateLabel}
+        </Text>
+        <Pressable
+          onPress={() => setExpanded(true)}
+          accessibilityRole="button"
+          accessibilityLabel="View more details"
+          style={({ pressed }) => [styles.viewMore, pressed && { opacity: 0.6 }]}
+        >
+          <Text style={[typography.caption, { color: t.primary, fontWeight: "700" }]}>
+            View More
+          </Text>
+          <Ionicons name="chevron-down" size={14} color={t.primary} />
+        </Pressable>
+      </Card>
+    );
+  }
 
   return (
     <Card style={cardBorderStyle(status, actionRequired, t)}>
@@ -449,7 +501,22 @@ export const RequestCard = ({
       {showHistory ? <History request={request} /> : null}
       <View style={[styles.actionsDivider, { backgroundColor: t.separator }]} />
       <View style={styles.actionsRow}>
-        <View style={styles.actionsLeft}>{children}</View>
+        <View style={styles.actionsLeft}>
+          {children}
+          {collapsible && (
+            <Pressable
+              onPress={() => setExpanded(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Show less"
+              style={({ pressed }) => [styles.viewMore, pressed && { opacity: 0.6 }]}
+            >
+              <Text style={[typography.caption, { color: t.muted, fontWeight: "700" }]}>
+                View Less
+              </Text>
+              <Ionicons name="chevron-up" size={14} color={t.muted} />
+            </Pressable>
+          )}
+        </View>
         <View style={styles.actionsRight}>
           <IconButton
             name="receipt-outline"
@@ -492,6 +559,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   cancelIcon: { padding: 2, alignSelf: "flex-end" },
+  viewMore: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    alignSelf: "flex-start",
+    paddingVertical: 2,
+  },
   cancelPlaceholder: { width: 21, height: 21 },
   stepsRow: {
     flexDirection: "row",

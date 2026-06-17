@@ -257,6 +257,14 @@ export const STEP_LABELS: Record<ApprovalStep, string> = {
 export const staffYearForDate = (date: Date): number =>
   date.getMonth() >= 8 ? date.getFullYear() + 1 : date.getFullYear();
 
+/**
+ * Earliest staff year with any reimbursement requests (the old web app's
+ * history starts here). Bounds the requests year picker so it never offers
+ * years that can't have requests, even though the org structure goes back
+ * further (to 2008).
+ */
+export const EARLIEST_REQUEST_YEAR = 2021;
+
 export interface ApprovalState {
   approvedByHOD: ApprovalStatus;
   approvedByBudgetManager: ApprovalStatus;

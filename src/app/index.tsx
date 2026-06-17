@@ -1,7 +1,7 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { HEAD_OF_DEPARTMENT, requestFullyApproved } from "../../shared/flow";
@@ -25,6 +25,7 @@ import {
   Segmented,
   Select,
   Txt,
+  YearPill,
 } from "@/components/ui";
 
 const greetingForNow = (): string => {
@@ -48,6 +49,12 @@ export default function RequestsScreen() {
     me?.profile ? { year: me.year } : "skip"
   );
   const myRequests = useQuery(api.requests.myRequests, me?.profile ? {} : "skip");
+  // Past-year browsing for the Mine / All segments. null = the live staff year.
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const requestYears = useQuery(
+    api.requests.requestYears,
+    me?.profile ? {} : "skip"
+  );
   // Badge for the To Review segment (Convex dedupes with the tab badge).
   const review = useQuery(
     api.requests.toReview,
@@ -119,6 +126,19 @@ export default function RequestsScreen() {
   }, [tab]);
   const activeSegment = segments.some((s) => s.key === active) ? active : "mine";
 
+  // Year browsing only applies to the "All" segment. "Mine" and "To Review"
+  // always show the live staff year (with carry-over). null = live year;
+  // picking an earlier year shows that year's requests read-only.
+  const currentYear = me?.year;
+  const viewingYear = selectedYear ?? currentYear ?? new Date().getFullYear();
+  const isPastYear =
+    activeSegment === "all" &&
+    currentYear != null &&
+    selectedYear != null &&
+    selectedYear !== currentYear;
+  const queryYear = isPastYear ? (selectedYear as number) : undefined;
+  const pickerYears = requestYears?.all ?? [];
+
   const departmentNames = (structure?.departments ?? []).map((d) => d.name);
   // Default to a department they are Head of Department of, else the first
   // department in their assignments, else (for a pure Head of Division) the
@@ -140,6 +160,9 @@ export default function RequestsScreen() {
 
   const showMakeRequest = me?.profile != null && activeSegment === "mine";
 
+  // Wired to the active list's completed-tab "reveal more" handler (or null).
+  const loadMoreRef = useRef<(() => void) | null>(null);
+
   if (me === undefined) return <Screen><LoadingState /></Screen>;
 
   const firstName = me?.name?.split(" ")[0];
@@ -159,6 +182,7 @@ export default function RequestsScreen() {
         ) : undefined
       }
       footer={showMakeRequest ? <FooterAction title="+ Make Request" onPress={openNewRequest} onInfo={() => setGuideOpen(true)} /> : undefined}
+      onEndReached={() => loadMoreRef.current?.()}
     >
       {me === null || me.profile === null ? (
         <FadeInView>
@@ -180,6 +204,20 @@ export default function RequestsScreen() {
           <FadeInView delay={40}>
             <Segmented segments={segments} active={activeSegment} onChange={setActive} />
           </FadeInView>
+          {activeSegment === "all" && pickerYears.length > 1 && (
+            <FadeInView delay={60}>
+              <Row>
+                <Muted>Staff year</Muted>
+                <YearPill
+                  year={viewingYear}
+                  years={pickerYears}
+                  onSelect={(y) =>
+                    setSelectedYear(y === currentYear ? null : y)
+                  }
+                />
+              </Row>
+            </FadeInView>
+          )}
           {activeSegment === "review" ? (
             <ReviewList />
           ) : activeSegment === "all" ? (
@@ -217,7 +255,7 @@ export default function RequestsScreen() {
                   <SectionTitle>All Requests — {me.year}</SectionTitle>
                 </>
               )}
-              <AllRequestsList />
+              <AllRequestsList year={queryYear} loadMoreRef={loadMoreRef} />
             </>
           ) : (
             <MyRequests

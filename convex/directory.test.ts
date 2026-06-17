@@ -159,6 +159,26 @@ describe("nameForEmail", () => {
       await asUser(t, RACHEL).query(api.directory.nameForEmail, { email: HENRY })
     ).toBe("Profile Henry");
   });
+
+  test("resolves the name from the given staff year's profile", async () => {
+    const t = await setup();
+    // Same person, a different name on an earlier year's imported profile.
+    await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email: RACHEL,
+        year: YEAR - 2,
+        roles: ["Staff"],
+        department: "Marketing",
+        name: "Rachel (maiden)",
+      })
+    );
+    expect(
+      await asUser(t, RACHEL).query(api.directory.nameForEmail, {
+        email: RACHEL,
+        year: YEAR - 2,
+      })
+    ).toBe("Rachel (maiden)");
+  });
 });
 
 describe("availableYears", () => {

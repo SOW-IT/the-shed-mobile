@@ -573,6 +573,8 @@ export const MyRequests = ({
   onResubmit,
   onNewClose,
   onShowGuide,
+  year,
+  readOnly = false,
 }: {
   departments: string[];
   defaultDepartment: string;
@@ -581,9 +583,15 @@ export const MyRequests = ({
   onResubmit: (prefill: RequestPrefill) => void;
   onNewClose: () => void;
   onShowGuide: () => void;
+  // A past staff year to browse (read-only). Omit/undefined for the live year.
+  year?: number;
+  readOnly?: boolean;
 }) => {
   const t = useAppTheme();
-  const requests = useQuery(api.requests.myRequests, {});
+  const requests = useQuery(
+    api.requests.myRequests,
+    year !== undefined ? { year } : {}
+  );
   const cancel = useMutation(api.requests.cancel);
   const deleteDeclined = useMutation(api.requests.deleteDeclined);
   const [receiptFor, setReceiptFor] = useState<Doc<"requests"> | null>(null);
@@ -630,8 +638,12 @@ export const MyRequests = ({
       ) : requests.length === 0 ? (
         <EmptyState
           icon="receipt-outline"
-          title="No requests yet"
-          message="Tap “Make Request” below to submit your first one."
+          title={readOnly ? `No requests in ${year}` : "No requests yet"}
+          message={
+            readOnly
+              ? "You didn't submit any requests this staff year."
+              : "Tap “Make Request” below to submit your first one."
+          }
         />
       ) : (
         [...requests]
@@ -644,14 +656,18 @@ export const MyRequests = ({
             return b._creationTime - a._creationTime;
           })
           .map((request, index) => {
-            const needsReceipt = requestFullyApproved(request) && !request.receipt;
+            const needsReceipt =
+              !readOnly && requestFullyApproved(request) && !request.receipt;
             return (
               <FadeInView key={request._id} delay={stagger(index)}>
                 <RequestCard
                   request={request}
                   actionRequired={needsReceipt}
+                  collapsible={requestCompleted(request)}
                   onCancel={
-                    requestDeclined(request)
+                    readOnly
+                      ? undefined
+                      : requestDeclined(request)
                       ? () =>
                           setConfirm({
                             title: "Delete request",
@@ -679,7 +695,7 @@ export const MyRequests = ({
                       onPress={() => setReceiptFor(request)}
                     />
                   )}
-                  {requestDeclined(request) && (
+                  {!readOnly && requestDeclined(request) && (
                     <IconButton
                       name="refresh"
                       bg={t.primarySoft}

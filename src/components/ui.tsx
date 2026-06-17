@@ -103,6 +103,7 @@ export const Screen = ({
   title,
   subtitle,
   headerRight,
+  onEndReached,
 }: {
   children?: ReactNode;
   toast?: ToastState;
@@ -116,6 +117,8 @@ export const Screen = ({
   subtitle?: string;
   /** Rendered to the right of the title (e.g. an avatar or a year picker). */
   headerRight?: ReactNode;
+  /** Fired while the user scrolls within ~600px of the bottom (infinite load). */
+  onEndReached?: () => void;
 }) => {
   const t = useAppTheme();
   return (
@@ -125,6 +128,17 @@ export const Screen = ({
         showsVerticalScrollIndicator={false}
         style={{ backgroundColor: t.background }}
         contentContainerStyle={[styles.scroll, footer != null && { paddingBottom: 96 }]}
+        scrollEventThrottle={onEndReached ? 16 : undefined}
+        onScroll={
+          onEndReached
+            ? ({ nativeEvent }) => {
+                const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+                const distanceFromBottom =
+                  contentSize.height - (contentOffset.y + layoutMeasurement.height);
+                if (distanceFromBottom < 600) onEndReached();
+              }
+            : undefined
+        }
       >
         {(title || headerRight) && (
           <FadeInView>
@@ -617,6 +631,49 @@ export const OptionRow = ({
   );
 };
 
+/** Compact pill that opens a staff-year picker as a bottom sheet. */
+export const YearPill = ({
+  year,
+  years,
+  onSelect,
+}: {
+  year: number;
+  years: number[];
+  onSelect: (year: number) => void;
+}) => {
+  const t = useAppTheme();
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Pressable
+        style={({ pressed }) => [
+          styles.yearPill,
+          t.shadowCard,
+          { backgroundColor: t.card },
+          pressed && { opacity: 0.7 },
+        ]}
+        onPress={() => setOpen(true)}
+      >
+        <Txt style={styles.yearPillText}>{year}</Txt>
+        <Ionicons name="chevron-down" size={14} color={t.muted} />
+      </Pressable>
+      <OptionSheet visible={open} title="Year" onClose={() => setOpen(false)}>
+        {years.map((y) => (
+          <OptionRow
+            key={y}
+            label={String(y)}
+            selected={y === year}
+            onPress={() => {
+              onSelect(y);
+              setOpen(false);
+            }}
+          />
+        ))}
+      </OptionSheet>
+    </>
+  );
+};
+
 /** The tappable field face shared by Select and MultiSelect. */
 const SelectFace = ({
   label,
@@ -1057,6 +1114,15 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { marginTop: spacing.md, marginBottom: -2 },
   row: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap", alignItems: "center" },
+  yearPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: radius.full,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  yearPillText: { fontWeight: "700", fontSize: 15 },
   // Pill buttons, matching the web app's rounded SOW styling.
   btn: {
     paddingHorizontal: spacing.xl,

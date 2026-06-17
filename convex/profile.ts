@@ -65,7 +65,7 @@ export const get = query({
     return {
       email,
       isMe: email === callerEmail,
-      name: user?.name ?? anyProfile?.name ?? dirUser?.name ?? null,
+      name: user?.name ?? dirUser?.name ?? anyProfile?.name ?? null,
       photo: avatarUrl ?? user?.image ?? null,
       localChurch: user?.localChurch ?? null,
       serviceHistory: serviceHistory.map((h) => ({
