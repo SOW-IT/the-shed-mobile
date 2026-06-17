@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
   },
   divisionBlock: {
     marginBottom: spacing.md,
-    gap: spacing.sm + 2,
+    gap: spacing.md,
   },
   divisionHeadRow: {
     borderRadius: radius.lg,

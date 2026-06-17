@@ -1,11 +1,11 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
-import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { View } from "react-native";
+import { spacing, useAppTheme } from "@/theme";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { RequestCard } from "@/components/RequestCard";
+import { ReceiptRecipientList } from "@/components/ReceiptRecipientList";
 import {
   Btn,
   currencyText,
@@ -88,12 +88,7 @@ const PaySheet = ({
   request: Doc<"requests"> | null;
   onClose: () => void;
 }) => {
-  const t = useAppTheme();
   const pay = useMutation(api.requests.pay);
-  const receipts = useQuery(
-    api.requests.receiptAttachments,
-    request ? { requestId: request._id } : "skip"
-  );
   const [paidAmount, setPaidAmount] = useState("");
   const [comment, setComment] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -130,33 +125,7 @@ const PaySheet = ({
   return (
     <Sheet visible={request !== null} onClose={onClose} title="Pay Reimbursement">
       <Muted>Only pay after you have sent the money to the account.</Muted>
-      {request?.receipt?.recipients.map((recipient, i) => (
-        <View key={i} style={[styles.recipient, { backgroundColor: t.inputBackground }]}>
-          <Text style={[typography.caption, { color: t.text, fontWeight: "600" }]}>
-            {recipient.accountName} · ${recipient.amount}
-          </Text>
-          <Muted>
-            BSB {recipient.bsb} · Acc {recipient.accountNumber}
-          </Muted>
-          {(receipts?.[i]?.attachments ?? []).map((attachment, j) =>
-            attachment.url ? (
-              <Pressable
-                key={j}
-                style={({ pressed }) => [styles.fileLink, pressed && { opacity: 0.6 }]}
-                onPress={() => void Linking.openURL(attachment.url!)}
-              >
-                <Ionicons name="document-attach-outline" size={15} color={t.primary} />
-                <Text
-                  numberOfLines={1}
-                  style={[typography.caption, { color: t.primary, fontWeight: "600", flex: 1 }]}
-                >
-                  {attachment.name}
-                </Text>
-              </Pressable>
-            ) : null
-          )}
-        </View>
-      ))}
+      {request ? <ReceiptRecipientList request={request} /> : null}
       <Field
         label="Paid amount ($)"
         value={paidAmount}
@@ -285,12 +254,3 @@ export const ReviewList = () => {
     </>
   );
 };
-
-const styles = StyleSheet.create({
-  recipient: {
-    borderRadius: radius.md,
-    padding: spacing.md,
-    gap: 4,
-  },
-  fileLink: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 2 },
-});

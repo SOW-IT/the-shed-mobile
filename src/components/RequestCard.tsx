@@ -2,7 +2,7 @@ import React from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Animated, Easing, Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import {
   APPROVED,
   currentStep,
@@ -17,8 +17,9 @@ import {
 import { api } from "../../convex/_generated/api";
 import { Doc, Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "../theme";
-import { Card, IconButton, Muted, Row, Sheet, Txt } from "./ui";
+import { Card, IconButton, Muted, Sheet, Txt } from "./ui";
 import { CommentsSheet } from "./CommentsSheet";
+import { ReceiptRecipientList } from "./ReceiptRecipientList";
 
 /** Re-renders the caller once a minute so "… ago" labels stay current. */
 const useMinuteTick = () => {
@@ -76,53 +77,6 @@ const History = ({ request }: { request: Doc<"requests"> }) => {
               {event.detail ? ` — ${event.detail}` : ""}
             </Text>
           </View>
-        </View>
-      ))}
-    </View>
-  );
-};
-
-/**
- * The submitted receipt in full: each recipient's bank details and their
- * receipt files as links (signed URLs — tap to view or download).
- */
-const ReceiptDetails = ({ request }: { request: Doc<"requests"> }) => {
-  const t = useAppTheme();
-  const files = useQuery(api.requests.receiptAttachments, {
-    requestId: request._id,
-  });
-  const receipt = request.receipt;
-  if (!receipt) return null;
-  return (
-    <View style={{ gap: spacing.sm }}>
-      {receipt.recipients.map((recipient, i) => (
-        <View key={i} style={[styles.recipient, { backgroundColor: t.inputBackground }]}>
-          <Row>
-            <Txt style={{ fontWeight: "700", flexGrow: 1 }}>
-              {recipient.accountName}
-            </Txt>
-            <Txt style={{ fontWeight: "700" }}>${recipient.amount}</Txt>
-          </Row>
-          <Muted>
-            BSB {recipient.bsb} · Account {recipient.accountNumber}
-          </Muted>
-          {(files?.[i]?.attachments ?? []).map((file, j) =>
-            file.url ? (
-              <Pressable
-                key={j}
-                style={({ pressed }) => [styles.fileLink, pressed && { opacity: 0.6 }]}
-                onPress={() => void Linking.openURL(file.url!)}
-              >
-                <Ionicons name="document-attach-outline" size={15} color={t.primary} />
-                <Text
-                  numberOfLines={1}
-                  style={[typography.caption, { color: t.primary, fontWeight: "600", flex: 1 }]}
-                >
-                  {file.name}
-                </Text>
-              </Pressable>
-            ) : null
-          )}
         </View>
       ))}
     </View>
@@ -472,7 +426,7 @@ export const RequestCard = ({
           </Text>
         </View>
       ) : null}
-      {request.receipt ? <ReceiptDetails request={request} /> : null}
+      {request.receipt ? <ReceiptRecipientList request={request} /> : null}
       {request.paid && request.paidAmount !== undefined ? (
         <View style={[styles.paidBox, { backgroundColor: t.successSoft }]}>
           <Ionicons name="checkmark-circle" size={15} color={t.success} />
@@ -607,12 +561,6 @@ const styles = StyleSheet.create({
   },
   historyRow: { flexDirection: "row", gap: spacing.sm },
   historyDot: { width: 6, height: 6, borderRadius: 3, marginTop: 6 },
-  recipient: {
-    borderRadius: radius.md,
-    padding: spacing.md,
-    gap: 4,
-  },
-  fileLink: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 2 },
   actionsDivider: { height: StyleSheet.hairlineWidth, marginVertical: 2 },
   actionsRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   actionsLeft: {

@@ -16,6 +16,7 @@ import {
   Field,
   IconButton,
   LoadingState,
+  maskAccount,
   Muted,
   OptionRow,
   Row,
@@ -23,9 +24,6 @@ import {
   stagger,
   Txt,
 } from "./ui";
-
-const maskAccount = (accountNumber: string) =>
-  accountNumber.length > 4 ? `••${accountNumber.slice(-4)}` : accountNumber;
 
 type Mode = "none" | "add" | "edit";
 
@@ -384,7 +382,7 @@ export const BankTab = () => {
       </FadeInView>
 
       {others.length > 0 && (
-        <FadeInView delay={stagger(2)}>
+        <FadeInView delay={stagger(2)} style={styles.othersList}>
           <SectionTitle>Other Saved Accounts</SectionTitle>
           {others.map((account) =>
             animatedWrap(
@@ -471,5 +469,9 @@ export const BankTab = () => {
 const styles = StyleSheet.create({
   bankCard: { gap: spacing.xs },
   bankRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  // Space the section header and the cards apart, matching the request lists'
+  // card rhythm (the cards are nested in one FadeInView, so they don't inherit
+  // the screen scroll's gap on their own).
+  othersList: { gap: spacing.md },
   addButton: { marginTop: spacing.lg },
 });

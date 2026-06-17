@@ -272,7 +272,6 @@ export default function RequestsScreen() {
               prefill={requestPrefill}
               onResubmit={(p) => { setRequestPrefill(p); setNewRequestOpen(true); }}
               onNewClose={() => setNewRequestOpen(false)}
-              onShowGuide={() => setGuideOpen(true)}
             />
           )}
         </>

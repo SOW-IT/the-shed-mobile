@@ -43,6 +43,10 @@ export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 /** Keeps only digits — for BSB / account number inputs. */
 export const digitsOnly = (text: string): string => text.replace(/[^0-9]/g, "");
 
+/** Masks an account number to its last 4 digits (e.g. ••1234). */
+export const maskAccount = (accountNumber: string): string =>
+  accountNumber.length > 4 ? `••${accountNumber.slice(-4)}` : accountNumber;
+
 /** Keeps digits and a single decimal point — for $ amount inputs. */
 export const currencyText = (text: string): string => {
   const [whole, ...decimals] = text.replace(/[^0-9.]/g, "").split(".");
