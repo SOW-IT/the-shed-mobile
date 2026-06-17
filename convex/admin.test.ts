@@ -810,7 +810,7 @@ describe("chaplain university assignment", () => {
 });
 
 describe("copyYear", () => {
-  test("clones one year's structure, profiles, universities and budget manager", async () => {
+  test("copies one year's structure, profiles, universities and budget manager", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.upsertUniversity, {
@@ -819,8 +819,8 @@ describe("copyYear", () => {
     });
     await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
 
-    // Pre-existing junk in the destination year is replaced wholesale.
-    await admin.mutation(api.admin.upsertDivision, { year: YEAR + 1, name: "Stale Division" });
+    // Pre-existing data in the destination year is kept (non-destructive merge).
+    await admin.mutation(api.admin.upsertDivision, { year: YEAR + 1, name: "Kept Division" });
 
     const counts = await t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR + 1 });
     expect(counts.divisions).toBeGreaterThan(0);
@@ -830,32 +830,44 @@ describe("copyYear", () => {
 
     const next = (await admin.query(api.directory.yearStructure, { year: YEAR + 1 }))!;
     expect(next.divisions.map((d) => d.name)).toContain("Governance");
-    expect(next.divisions.map((d) => d.name)).not.toContain("Stale Division");
+    // The destination's own division survives the merge.
+    expect(next.divisions.map((d) => d.name)).toContain("Kept Division");
     expect(next.budgetManagerEmail).toBe(BELLA);
 
-    // Copying again (destination yearSettings now exists) hits the patch branch.
+    // Copying again (destination yearSettings now exists) hits the patch branch
+    // and must not duplicate any copied division.
     const recounts = await t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR + 1 });
     expect(recounts.budgetManagers).toBe(1);
+    const govRows = await t.run((ctx) =>
+      ctx.db
+        .query("divisions")
+        .withIndex("by_year_and_name", (q) =>
+          q.eq("year", YEAR + 1).eq("name", "Governance")
+        )
+        .take(10)
+    );
+    expect(govRows).toHaveLength(1);
 
     await expect(
       t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR })
     ).rejects.toThrow(/must differ/);
   });
 
-  test("replaces the destination role catalog wholesale, dropping stale roles", async () => {
+  test("merges the role catalog, keeping the destination's own roles and not duplicating overlaps", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     // Source year roles.
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Outsource" });
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Volunteer" });
-    // Destination has an overlapping role (Volunteer) and a stale one (Legacy).
+    // Destination has an overlapping role (Volunteer) and its own (Kept).
     await admin.mutation(api.admin.upsertRole, { year: YEAR + 1, name: "Volunteer" });
-    await admin.mutation(api.admin.upsertRole, { year: YEAR + 1, name: "Legacy" });
+    await admin.mutation(api.admin.upsertRole, { year: YEAR + 1, name: "Kept" });
 
     await t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR + 1 });
 
     const next = (await admin.query(api.directory.yearStructure, { year: YEAR + 1 }))!;
-    expect(next.roles.slice().sort()).toEqual(["Outsource", "Volunteer"]);
+    // Source roles added, destination's own role kept (non-destructive).
+    expect(next.roles.slice().sort()).toEqual(["Kept", "Outsource", "Volunteer"]);
     // Volunteer exists exactly once (no duplicate from the overlap).
     const volunteerRows = await t.run((ctx) =>
       ctx.db
@@ -868,7 +880,7 @@ describe("copyYear", () => {
     expect(volunteerRows).toHaveLength(1);
   });
 
-  test("clears a stale destination budget manager when the source has none", async () => {
+  test("leaves the destination budget manager untouched when the source has none", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     // Destination has a budget manager; source year has none.
@@ -880,21 +892,21 @@ describe("copyYear", () => {
     expect(counts.budgetManagers).toBe(0);
 
     const next = (await admin.query(api.directory.yearStructure, { year: YEAR + 1 }))!;
-    expect(next.budgetManagerEmail).toBeNull();
+    expect(next.budgetManagerEmail).toBe(BELLA);
   });
 });
 
 describe("rollOverStaffYear", () => {
-  test("prefills the next staff year from the current staff year", async () => {
+  test("prefills the next staff year from the current staff year, keeping its existing data", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Outsource" });
     await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
-    // Stale data in the next year is replaced wholesale — division, a role and a
-    // university that aren't in the source must not survive the copy.
-    await admin.mutation(api.admin.upsertDivision, { year: YEAR + 1, name: "Stale Division" });
-    await admin.mutation(api.admin.upsertRole, { year: YEAR + 1, name: "Stale Role" });
-    await admin.mutation(api.admin.upsertUniversity, { year: YEAR + 1, name: "Stale University" });
+    // Data already in the next year is kept (non-destructive merge) — a
+    // division, a role and a university the source lacks must survive the copy.
+    await admin.mutation(api.admin.upsertDivision, { year: YEAR + 1, name: "Kept Division" });
+    await admin.mutation(api.admin.upsertRole, { year: YEAR + 1, name: "Kept Role" });
+    await admin.mutation(api.admin.upsertUniversity, { year: YEAR + 1, name: "Kept University" });
 
     const counts = await t.mutation(internal.admin.rollOverStaffYear, {});
     expect(counts.divisions).toBeGreaterThan(0);
@@ -902,10 +914,10 @@ describe("rollOverStaffYear", () => {
 
     const next = (await admin.query(api.directory.yearStructure, { year: YEAR + 1 }))!;
     expect(next.divisions.map((d) => d.name)).toContain("Governance");
-    expect(next.divisions.map((d) => d.name)).not.toContain("Stale Division");
+    expect(next.divisions.map((d) => d.name)).toContain("Kept Division");
     expect(next.roles).toContain("Outsource");
-    expect(next.roles).not.toContain("Stale Role");
-    expect(next.universities).not.toContain("Stale University");
+    expect(next.roles).toContain("Kept Role");
+    expect(next.universities).toContain("Kept University");
     expect(next.budgetManagerEmail).toBe(BELLA);
 
     // A summary email to IT is scheduled.

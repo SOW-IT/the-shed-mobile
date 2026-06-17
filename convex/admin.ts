@@ -1290,57 +1290,32 @@ export const financeMembers = query({
 });
 
 /**
- * Replaces the `to` year's divisions, departments, staff profiles and
- * settings with a copy of the `from` year's, leaving the `from` year intact.
- * Shared by copyYear (manual) and rollOverStaffYear (the Sept 1 cron).
+ * Copies the `from` year's divisions, departments, universities, roles, staff
+ * profiles and budget manager into the `to` year, leaving both years' existing
+ * data intact. Non-destructive merge keyed by natural keys (name, or person
+ * email/importId for profiles): the source overwrites on conflict, anything the
+ * destination already had that the source lacks is kept, and nothing is
+ * duplicated. Shared by copyYear (manual) and rollOverStaffYear (the cron).
  */
 const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
   if (from === to) throw new ConvexError("from and to must differ.");
   const counts = { divisions: 0, departments: 0, profiles: 0, budgetManagers: 0 };
-
-  const oldDivisions = await ctx.db
-    .query("divisions")
-    .withIndex("by_year_and_name", (q) => q.eq("year", to))
-    .take(200);
-  for (const division of oldDivisions) await ctx.db.delete("divisions", division._id);
-  const oldDepartments = await ctx.db
-    .query("departments")
-    .withIndex("by_year_and_name", (q) => q.eq("year", to))
-    .take(200);
-  for (const department of oldDepartments) {
-    await ctx.db.delete("departments", department._id);
-  }
-  const oldProfiles = await ctx.db
-    .query("staffProfiles")
-    .withIndex("by_year", (q) => q.eq("year", to))
-    .take(2000);
-  for (const profile of oldProfiles) await ctx.db.delete("staffProfiles", profile._id);
-  // Roles and universities are part of the wholesale replace too — clear the
-  // destination's so a stale role catalog can't linger (a leftover role flips
-  // allowedRolesForYear to data-driven validation and rejects valid roles).
-  const oldUniversities = await ctx.db
-    .query("universities")
-    .withIndex("by_year_and_name", (q) => q.eq("year", to))
-    .take(50);
-  for (const university of oldUniversities) {
-    await ctx.db.delete("universities", university._id);
-  }
-  const oldRoles = await ctx.db
-    .query("roles")
-    .withIndex("by_year_and_name", (q) => q.eq("year", to))
-    .take(50);
-  for (const role of oldRoles) await ctx.db.delete("roles", role._id);
 
   const divisions = await ctx.db
     .query("divisions")
     .withIndex("by_year_and_name", (q) => q.eq("year", from))
     .take(200);
   for (const division of divisions) {
-    await ctx.db.insert("divisions", {
-      year: to,
-      name: division.name,
-      headEmail: division.headEmail,
-    });
+    const existing = await ctx.db
+      .query("divisions")
+      .withIndex("by_year_and_name", (q) => q.eq("year", to).eq("name", division.name))
+      .unique();
+    const fields = { headEmail: division.headEmail };
+    if (existing) {
+      await ctx.db.patch("divisions", existing._id, fields);
+    } else {
+      await ctx.db.insert("divisions", { year: to, name: division.name, ...fields });
+    }
     counts.divisions++;
   }
   const departments = await ctx.db
@@ -1348,13 +1323,22 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
     .withIndex("by_year_and_name", (q) => q.eq("year", from))
     .take(200);
   for (const department of departments) {
-    await ctx.db.insert("departments", {
-      year: to,
-      name: department.name,
+    const existing = await ctx.db
+      .query("departments")
+      .withIndex("by_year_and_name", (q) =>
+        q.eq("year", to).eq("name", department.name)
+      )
+      .unique();
+    const fields = {
       division: department.division,
       headEmail: department.headEmail,
       colour: department.colour,
-    });
+    };
+    if (existing) {
+      await ctx.db.patch("departments", existing._id, fields);
+    } else {
+      await ctx.db.insert("departments", { year: to, name: department.name, ...fields });
+    }
     counts.departments++;
   }
   const universities = await ctx.db
@@ -1362,50 +1346,90 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
     .withIndex("by_year_and_name", (q) => q.eq("year", from))
     .take(50);
   for (const university of universities) {
-    await ctx.db.insert("universities", { year: to, name: university.name });
+    const existing = await ctx.db
+      .query("universities")
+      .withIndex("by_year_and_name", (q) =>
+        q.eq("year", to).eq("name", university.name)
+      )
+      .unique();
+    if (!existing) {
+      await ctx.db.insert("universities", { year: to, name: university.name });
+    }
   }
   const roles = await ctx.db
     .query("roles")
     .withIndex("by_year_and_name", (q) => q.eq("year", from))
     .take(50);
   for (const role of roles) {
-    await ctx.db.insert("roles", { year: to, name: role.name });
+    const existing = await ctx.db
+      .query("roles")
+      .withIndex("by_year_and_name", (q) => q.eq("year", to).eq("name", role.name))
+      .unique();
+    if (!existing) {
+      await ctx.db.insert("roles", { year: to, name: role.name });
+    }
   }
   const profiles = await ctx.db
     .query("staffProfiles")
     .withIndex("by_year", (q) => q.eq("year", from))
     .take(2000);
   for (const profile of profiles) {
-    await ctx.db.insert("staffProfiles", {
-      email: profile.email,
-      year: to,
+    const fields = {
       assignments: assignmentsOf(profile),
       name: profile.name,
       userId: profile.userId,
       importId: profile.importId,
-    });
+    };
+    // Match the same person in the destination year by their durable importId
+    // first (their email may differ year to year), then by email — so a re-copy
+    // updates the existing row rather than inserting a duplicate person-year.
+    const byPerson = profile.importId
+      ? await ctx.db
+          .query("staffProfiles")
+          .withIndex("by_importId", (q) => q.eq("importId", profile.importId))
+          .take(100)
+      : [];
+    const existing =
+      byPerson.find((p) => p.year === to) ??
+      (await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) =>
+          q.eq("email", profile.email).eq("year", to)
+        )
+        .unique());
+    if (existing) {
+      await ctx.db.patch("staffProfiles", existing._id, fields);
+    } else {
+      await ctx.db.insert("staffProfiles", { email: profile.email, year: to, ...fields });
+    }
     counts.profiles++;
   }
 
-  // Mirror the source's budget manager onto the destination, including
-  // clearing a stale one when the source year has none.
+  // Mirror the source's budget manager onto the destination when it has one;
+  // a destination budget manager is left untouched when the source has none.
   const fromSettings = await getYearSettings(ctx, from);
-  const budgetManagerEmail = fromSettings?.budgetManagerEmail;
-  const toSettings = await getYearSettings(ctx, to);
-  if (toSettings) {
-    await ctx.db.patch("yearSettings", toSettings._id, { budgetManagerEmail });
-  } else if (budgetManagerEmail) {
-    await ctx.db.insert("yearSettings", { year: to, budgetManagerEmail });
+  if (fromSettings?.budgetManagerEmail) {
+    const toSettings = await getYearSettings(ctx, to);
+    if (toSettings) {
+      await ctx.db.patch("yearSettings", toSettings._id, {
+        budgetManagerEmail: fromSettings.budgetManagerEmail,
+      });
+    } else {
+      await ctx.db.insert("yearSettings", {
+        year: to,
+        budgetManagerEmail: fromSettings.budgetManagerEmail,
+      });
+    }
+    counts.budgetManagers++;
   }
-  if (budgetManagerEmail) counts.budgetManagers++;
 
   return counts;
 };
 
 /**
- * Replaces one year's divisions, departments, staff profiles and settings
- * with a copy of another year's — e.g. provisioning next year from the
- * current one at rollover.
+ * Copies one year's divisions, departments, universities, roles, staff
+ * profiles and budget manager into another year (non-destructive merge; see
+ * copyYearData) — e.g. provisioning next year from the current one at rollover.
  * Run with: npx convex run admin:copyYear '{"from":2026,"to":2027}'
  */
 export const copyYear = internalMutation({
