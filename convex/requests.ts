@@ -459,9 +459,7 @@ export const requestYears = query({
   handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
-    // Read every matching row (both sets are bounded: one caller's requests and
-    // the org's divisions) so no year is silently dropped. A single function
-    // can't run two paginated queries, so collect() is used here, not paginate.
+    // The caller's own requests are bounded to one user, so collect() is safe.
     const mineRows = await ctx.db
       .query("requests")
       .withIndex("by_requester", (q) => q.eq("requesterEmail", caller.email))
@@ -472,8 +470,18 @@ export const requestYears = query({
         .filter((y) => y >= EARLIEST_REQUEST_YEAR)
         .sort((a, b) => b - a);
     const mine = yearsFrom(mineRows.map((r) => r.year));
-    const divisions = await ctx.db.query("divisions").collect();
-    const all = yearsFrom(divisions.map((d) => d.year));
+    // Discover which years have an org structure with one indexed probe per
+    // candidate year. This stays bounded (a handful of years) instead of
+    // collecting the whole divisions table, which grows with every year added.
+    const allYears: number[] = [];
+    for (let y = currentStaffYear(); y >= EARLIEST_REQUEST_YEAR; y--) {
+      const hasStructure = await ctx.db
+        .query("divisions")
+        .withIndex("by_year_and_name", (q) => q.eq("year", y))
+        .first();
+      if (hasStructure) allYears.push(y);
+    }
+    const all = yearsFrom(allYears);
     return { mine, all };
   },
 });
