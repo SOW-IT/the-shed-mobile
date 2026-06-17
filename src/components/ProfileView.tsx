@@ -19,6 +19,7 @@ import {
   FadeInView,
   Field,
   LoadingState,
+  MAX_UPLOAD_BYTES,
   Muted,
   Row,
   Screen,
@@ -312,6 +313,10 @@ export const ProfileView = ({ email }: { email?: string }) => {
       setUploading(true);
       const asset = result.assets[0];
       const blob = await (await fetch(asset.uri)).blob();
+      if (blob.size > MAX_UPLOAD_BYTES) {
+        const maxMb = Math.round(MAX_UPLOAD_BYTES / (1024 * 1024));
+        throw new Error(`Image is too large. Please choose one ${maxMb}MB or less.`);
+      }
       const uploadUrl = await generateAvatarUploadUrl();
       const response = await fetch(uploadUrl, {
         method: "POST",
