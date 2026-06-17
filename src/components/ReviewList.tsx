@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { api } from "../../convex/_generated/api";
@@ -47,6 +47,14 @@ const DeclineSheet = ({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // The sheet stays mounted (hidden via `visible`), so reset the form whenever
+  // it opens for a different request — otherwise a previously typed reason
+  // carries over to the next request.
+  useEffect(() => {
+    setReason("");
+    setError(null);
+  }, [target]);
+
   const handleDecline = async () => {
     if (!target || submitting) return;
     setError(null);
@@ -90,6 +98,14 @@ const PaySheet = ({
   const [comment, setComment] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [paying, setPaying] = useState(false);
+
+  // Reset when the sheet opens for a different request (it stays mounted, so
+  // the amount/comment would otherwise persist from the last payment).
+  useEffect(() => {
+    setPaidAmount("");
+    setComment("");
+    setError(null);
+  }, [request]);
 
   const handlePay = async () => {
     if (!request || paying) return;

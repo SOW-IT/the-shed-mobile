@@ -26,6 +26,11 @@ const MORE_EMOJIS = [
   "🙌", "👏", "🤔", "😮", "😢", "😡", "🥳", "🫡", "💪", "✍️",
 ];
 
+/** Optimistic comments carry a synthetic id (`optimistic-…`) until the server
+ *  reconciles them; reactions can't target a row that doesn't exist yet. */
+const isOptimisticId = (id: Id<"requestComments">) =>
+  String(id).startsWith("optimistic-");
+
 const compactAgo = (ms: number): string => {
   const mins = Math.floor((Date.now() - ms) / 60000);
   if (mins < 1) return "now";
@@ -167,6 +172,9 @@ export const CommentsSheet = ({
   const react = async (commentId: Id<"requestComments">, emoji: string) => {
     setReactingTo(null);
     setMoreFor(null);
+    // The comment hasn't been persisted yet — toggling a reaction on its
+    // synthetic id would fail the mutation's id validator with a false error.
+    if (isOptimisticId(commentId)) return;
     try {
       await toggleReaction({ commentId, emoji });
     } catch (e) {
@@ -221,18 +229,20 @@ export const CommentsSheet = ({
                         </Text>
                       </Pressable>
                     ))}
-                    <Pressable
-                      hitSlop={6}
-                      accessibilityRole="button"
-                      accessibilityLabel="Add a reaction"
-                      onPress={() =>
-                        setReactingTo((current) => (current === comment.id ? null : comment.id))
-                      }
-                      style={[styles.reactionAdd, { borderColor: t.border }]}
-                    >
-                      <Ionicons name="happy-outline" size={15} color={t.muted} />
-                      <Ionicons name="add" size={12} color={t.muted} />
-                    </Pressable>
+                    {!isOptimisticId(comment.id) && (
+                      <Pressable
+                        hitSlop={6}
+                        accessibilityRole="button"
+                        accessibilityLabel="Add a reaction"
+                        onPress={() =>
+                          setReactingTo((current) => (current === comment.id ? null : comment.id))
+                        }
+                        style={[styles.reactionAdd, { borderColor: t.border }]}
+                      >
+                        <Ionicons name="happy-outline" size={15} color={t.muted} />
+                        <Ionicons name="add" size={12} color={t.muted} />
+                      </Pressable>
+                    )}
                   </View>
 
                   {reactingTo === comment.id ? (

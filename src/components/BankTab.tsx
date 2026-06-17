@@ -362,7 +362,6 @@ export const BankTab = () => {
                   <IconButton
                     name="create-outline"
                     size={40}
-                    disabled={editing}
                     accessibilityLabel="Edit preferred bank details"
                     onPress={() => startEdit(preferred)}
                   />
@@ -370,7 +369,6 @@ export const BankTab = () => {
                     name="trash-outline"
                     size={40}
                     color={t.danger}
-                    disabled={editing}
                     accessibilityLabel={`Delete ${preferred.accountName}`}
                     onPress={() => confirmDelete(preferred.id, preferred.accountName, true)}
                   />
@@ -419,7 +417,6 @@ export const BankTab = () => {
                     <IconButton
                       name="create-outline"
                       size={40}
-                      disabled={editing}
                       accessibilityLabel={`Edit ${account.accountName}`}
                       onPress={() => startEdit(account)}
                     />
@@ -427,7 +424,6 @@ export const BankTab = () => {
                       name="trash-outline"
                       size={40}
                       color={t.danger}
-                      disabled={editing}
                       accessibilityLabel={`Delete ${account.accountName}`}
                       onPress={() => confirmDelete(account.id, account.accountName, false)}
                     />
