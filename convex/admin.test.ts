@@ -842,21 +842,21 @@ describe("copyYear", () => {
     ).rejects.toThrow(/must differ/);
   });
 
-  test("copies the role catalog and dedupes roles already present in the destination", async () => {
+  test("replaces the destination role catalog wholesale, dropping stale roles", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Seed a couple of roles for the source year.
+    // Source year roles.
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Outsource" });
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Volunteer" });
-    // Pre-create one of them in the destination so the dedupe branch is hit.
+    // Destination has an overlapping role (Volunteer) and a stale one (Legacy).
     await admin.mutation(api.admin.upsertRole, { year: YEAR + 1, name: "Volunteer" });
+    await admin.mutation(api.admin.upsertRole, { year: YEAR + 1, name: "Legacy" });
 
     await t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR + 1 });
 
     const next = (await admin.query(api.directory.yearStructure, { year: YEAR + 1 }))!;
-    expect(next.roles).toContain("Outsource");
-    expect(next.roles).toContain("Volunteer");
-    // Dedupe: Volunteer should not have been inserted twice.
+    expect(next.roles.slice().sort()).toEqual(["Outsource", "Volunteer"]);
+    // Volunteer exists exactly once (no duplicate from the overlap).
     const volunteerRows = await t.run((ctx) =>
       ctx.db
         .query("roles")
@@ -867,6 +867,21 @@ describe("copyYear", () => {
     );
     expect(volunteerRows).toHaveLength(1);
   });
+
+  test("clears a stale destination budget manager when the source has none", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // Destination has a budget manager; source year has none.
+    await t.run((ctx) =>
+      ctx.db.insert("yearSettings", { year: YEAR + 1, budgetManagerEmail: BELLA })
+    );
+
+    const counts = await t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR + 1 });
+    expect(counts.budgetManagers).toBe(0);
+
+    const next = (await admin.query(api.directory.yearStructure, { year: YEAR + 1 }))!;
+    expect(next.budgetManagerEmail).toBeNull();
+  });
 });
 
 describe("rollOverStaffYear", () => {
@@ -875,8 +890,11 @@ describe("rollOverStaffYear", () => {
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Outsource" });
     await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
-    // Stale data in the next year is replaced wholesale.
+    // Stale data in the next year is replaced wholesale — division, a role and a
+    // university that aren't in the source must not survive the copy.
     await admin.mutation(api.admin.upsertDivision, { year: YEAR + 1, name: "Stale Division" });
+    await admin.mutation(api.admin.upsertRole, { year: YEAR + 1, name: "Stale Role" });
+    await admin.mutation(api.admin.upsertUniversity, { year: YEAR + 1, name: "Stale University" });
 
     const counts = await t.mutation(internal.admin.rollOverStaffYear, {});
     expect(counts.divisions).toBeGreaterThan(0);
@@ -886,6 +904,8 @@ describe("rollOverStaffYear", () => {
     expect(next.divisions.map((d) => d.name)).toContain("Governance");
     expect(next.divisions.map((d) => d.name)).not.toContain("Stale Division");
     expect(next.roles).toContain("Outsource");
+    expect(next.roles).not.toContain("Stale Role");
+    expect(next.universities).not.toContain("Stale University");
     expect(next.budgetManagerEmail).toBe(BELLA);
 
     // A summary email to IT is scheduled.

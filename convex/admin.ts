@@ -1315,6 +1315,21 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
     .withIndex("by_year", (q) => q.eq("year", to))
     .take(2000);
   for (const profile of oldProfiles) await ctx.db.delete("staffProfiles", profile._id);
+  // Roles and universities are part of the wholesale replace too — clear the
+  // destination's so a stale role catalog can't linger (a leftover role flips
+  // allowedRolesForYear to data-driven validation and rejects valid roles).
+  const oldUniversities = await ctx.db
+    .query("universities")
+    .withIndex("by_year_and_name", (q) => q.eq("year", to))
+    .take(50);
+  for (const university of oldUniversities) {
+    await ctx.db.delete("universities", university._id);
+  }
+  const oldRoles = await ctx.db
+    .query("roles")
+    .withIndex("by_year_and_name", (q) => q.eq("year", to))
+    .take(50);
+  for (const role of oldRoles) await ctx.db.delete("roles", role._id);
 
   const divisions = await ctx.db
     .query("divisions")
@@ -1347,28 +1362,14 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
     .withIndex("by_year_and_name", (q) => q.eq("year", from))
     .take(50);
   for (const university of universities) {
-    const existing = await ctx.db
-      .query("universities")
-      .withIndex("by_year_and_name", (q) =>
-        q.eq("year", to).eq("name", university.name)
-      )
-      .unique();
-    if (!existing) {
-      await ctx.db.insert("universities", { year: to, name: university.name });
-    }
+    await ctx.db.insert("universities", { year: to, name: university.name });
   }
   const roles = await ctx.db
     .query("roles")
     .withIndex("by_year_and_name", (q) => q.eq("year", from))
     .take(50);
   for (const role of roles) {
-    const existing = await ctx.db
-      .query("roles")
-      .withIndex("by_year_and_name", (q) => q.eq("year", to).eq("name", role.name))
-      .unique();
-    if (!existing) {
-      await ctx.db.insert("roles", { year: to, name: role.name });
-    }
+    await ctx.db.insert("roles", { year: to, name: role.name });
   }
   const profiles = await ctx.db
     .query("staffProfiles")
@@ -1386,21 +1387,17 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
     counts.profiles++;
   }
 
+  // Mirror the source's budget manager onto the destination, including
+  // clearing a stale one when the source year has none.
   const fromSettings = await getYearSettings(ctx, from);
-  if (fromSettings?.budgetManagerEmail) {
-    const toSettings = await getYearSettings(ctx, to);
-    if (toSettings) {
-      await ctx.db.patch("yearSettings", toSettings._id, {
-        budgetManagerEmail: fromSettings.budgetManagerEmail,
-      });
-    } else {
-      await ctx.db.insert("yearSettings", {
-        year: to,
-        budgetManagerEmail: fromSettings.budgetManagerEmail,
-      });
-    }
-    counts.budgetManagers++;
+  const budgetManagerEmail = fromSettings?.budgetManagerEmail;
+  const toSettings = await getYearSettings(ctx, to);
+  if (toSettings) {
+    await ctx.db.patch("yearSettings", toSettings._id, { budgetManagerEmail });
+  } else if (budgetManagerEmail) {
+    await ctx.db.insert("yearSettings", { year: to, budgetManagerEmail });
   }
+  if (budgetManagerEmail) counts.budgetManagers++;
 
   return counts;
 };
