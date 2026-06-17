@@ -6,14 +6,12 @@ import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { acronym, formatAssignment, staffYearForDate } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
-import { Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "../theme";
 import {
   Avatar,
   Btn,
   Card,
   ConfirmDialog,
-  digitsOnly,
   ErrorBanner,
   errorMessage,
   FadeInView,
@@ -21,254 +19,11 @@ import {
   LoadingState,
   MAX_UPLOAD_BYTES,
   Muted,
-  Row,
   Screen,
   SectionTitle,
   stagger,
   Txt,
 } from "./ui";
-
-const maskAccount = (accountNumber: string) =>
-  accountNumber.length > 4 ? `••${accountNumber.slice(-4)}` : accountNumber;
-
-/** Simple two-segment tab switcher used within the profile screen. */
-const ProfileTabs = ({
-  active,
-  onChange,
-}: {
-  active: "profile" | "payment";
-  onChange: (tab: "profile" | "payment") => void;
-}) => {
-  const t = useAppTheme();
-  return (
-    <View style={[styles.segmented, { backgroundColor: t.inputBackground }]}>
-      {(["profile", "payment"] as const).map((tab) => (
-        <Pressable
-          key={tab}
-          onPress={() => onChange(tab)}
-          style={[
-            styles.segment,
-            active === tab && { backgroundColor: t.card, ...t.shadowCard },
-          ]}
-        >
-          <Text
-            style={[
-              typography.caption,
-              {
-                fontWeight: active === tab ? "700" : "500",
-                color: active === tab ? t.text : t.muted,
-              },
-            ]}
-          >
-            {tab === "profile" ? "Profile" : "Payment"}
-          </Text>
-        </Pressable>
-      ))}
-    </View>
-  );
-};
-
-/**
- * Payment tab: shows the preferred (auto-fill) bank account with view/edit
- * and delete (with a stronger confirmation because it's the auto-fill account).
- */
-const PaymentTab = () => {
-  const t = useAppTheme();
-  const savedAccounts = useQuery(api.bankAccounts.listMine, {});
-  const updateAccount = useMutation(api.bankAccounts.updateAccount);
-  const removeAccount = useMutation(api.bankAccounts.remove);
-  const setPreferred = useMutation(api.bankAccounts.setPreferred);
-
-  const [editing, setEditing] = useState(false);
-  const [editingId, setEditingId] = useState<Id<"savedBankAccounts"> | null>(null);
-  const [nameDraft, setNameDraft] = useState("");
-  const [bsbDraft, setBsbDraft] = useState("");
-  const [numberDraft, setNumberDraft] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // Drives the in-app confirmation for deleting a saved bank account.
-  const [deleteTarget, setDeleteTarget] = useState<{
-    id: Id<"savedBankAccounts">;
-    title: string;
-    message: string;
-  } | null>(null);
-
-  if (savedAccounts === undefined) return <LoadingState />;
-
-  if (!savedAccounts || savedAccounts.length === 0) {
-    return (
-      <Card>
-        <Muted>No saved bank accounts yet. Submit a receipt to save one.</Muted>
-      </Card>
-    );
-  }
-
-  const preferred = savedAccounts.find((a) => a.preferred) ?? savedAccounts[0];
-  const others = savedAccounts.filter((a) => a.id !== preferred.id);
-
-  const startEdit = () => {
-    setEditingId(preferred.id);
-    setNameDraft(preferred.accountName);
-    setBsbDraft(preferred.bsb);
-    setNumberDraft(preferred.accountNumber);
-    setError(null);
-    setEditing(true);
-  };
-
-  const cancelEdit = () => {
-    setEditing(false);
-    setEditingId(null);
-    setError(null);
-  };
-
-  const save = async () => {
-    if (!editingId) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await updateAccount({
-        id: editingId,
-        accountName: nameDraft,
-        bsb: bsbDraft,
-        accountNumber: numberDraft,
-      });
-      setEditing(false);
-      setEditingId(null);
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const confirmDelete = (id: Id<"savedBankAccounts">, name: string, isPreferred: boolean) => {
-    setDeleteTarget({
-      id,
-      title: isPreferred ? "Delete preferred account" : "Delete account",
-      message: isPreferred
-        ? `"${name}" is your auto-filled account. Deleting it will remove your payment auto-fill. Continue?`
-        : `Delete saved account "${name}"?`,
-    });
-  };
-
-  return (
-    <>
-      <SectionTitle>Preferred Account</SectionTitle>
-      <View style={{ marginBottom: spacing.sm }}>
-        <Muted>This account is auto-filled when you submit a receipt.</Muted>
-      </View>
-      <ErrorBanner message={error} />
-
-      <Card style={styles.paymentCard}>
-        {editing ? (
-          <>
-            <Field
-              label="Account name"
-              value={nameDraft}
-              onChangeText={setNameDraft}
-              placeholder="e.g. John Smith"
-            />
-            <Field
-              label="BSB"
-              value={bsbDraft}
-              onChangeText={(v) => setBsbDraft(digitsOnly(v))}
-              placeholder="000-000"
-              keyboardType="numeric"
-            />
-            <Field
-              label="Account number"
-              value={numberDraft}
-              onChangeText={(v) => setNumberDraft(digitsOnly(v))}
-              placeholder="00000000"
-              keyboardType="numeric"
-            />
-            <Row spread loading={saving}>
-              <Btn title="Cancel" variant="ghost" onPress={cancelEdit} />
-              <Btn title="Save" onPress={() => void save()} disabled={saving} />
-            </Row>
-          </>
-        ) : (
-          <>
-            <View style={styles.paymentRow}>
-              <Ionicons name="star" size={20} color={t.accent} />
-              <View style={{ flex: 1, gap: 2 }}>
-                <Txt style={{ fontWeight: "700" }}>{preferred.accountName}</Txt>
-                <Muted>BSB {preferred.bsb} · {maskAccount(preferred.accountNumber)}</Muted>
-              </View>
-              <Pressable
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="Edit payment details"
-                onPress={startEdit}
-                style={({ pressed }) => [pressed && { opacity: 0.6 }]}
-              >
-                <Ionicons name="pencil-outline" size={18} color={t.primary} />
-              </Pressable>
-              <Pressable
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel={`Delete ${preferred.accountName}`}
-                onPress={() => confirmDelete(preferred.id, preferred.accountName, true)}
-                style={({ pressed }) => [pressed && { opacity: 0.6 }]}
-              >
-                <Ionicons name="trash-outline" size={18} color={t.danger} />
-              </Pressable>
-            </View>
-          </>
-        )}
-      </Card>
-
-      {others.length > 0 && (
-        <>
-          <SectionTitle>Other Saved Accounts</SectionTitle>
-          {others.map((account) => (
-            <Card key={account.id} style={styles.paymentCard}>
-              <View style={styles.paymentRow}>
-                <Pressable
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel="Set as preferred"
-                  onPress={() => void setPreferred({ id: account.id }).catch((e) => setError(errorMessage(e)))}
-                  style={({ pressed }) => [pressed && { opacity: 0.6 }]}
-                >
-                  <Ionicons name="star-outline" size={20} color={t.faint} />
-                </Pressable>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Txt style={{ fontWeight: "700" }}>{account.accountName}</Txt>
-                  <Muted>BSB {account.bsb} · {maskAccount(account.accountNumber)}</Muted>
-                </View>
-                <Pressable
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Delete ${account.accountName}`}
-                  onPress={() => confirmDelete(account.id, account.accountName, false)}
-                  style={({ pressed }) => [pressed && { opacity: 0.6 }]}
-                >
-                  <Ionicons name="trash-outline" size={18} color={t.danger} />
-                </Pressable>
-              </View>
-            </Card>
-          ))}
-        </>
-      )}
-
-      <ConfirmDialog
-        visible={deleteTarget !== null}
-        title={deleteTarget?.title ?? ""}
-        message={deleteTarget?.message}
-        confirmLabel="Delete"
-        onConfirm={() => {
-          if (deleteTarget) {
-            void removeAccount({ id: deleteTarget.id }).catch((e) =>
-              setError(errorMessage(e))
-            );
-          }
-        }}
-        onClose={() => setDeleteTarget(null)}
-      />
-    </>
-  );
-};
 
 /**
  * A person's profile. Church and photo are editable on your own profile;
@@ -283,7 +38,6 @@ export const ProfileView = ({ email }: { email?: string }) => {
   const generateAvatarUploadUrl = useMutation(api.profile.generateAvatarUploadUrl);
   const setAvatar = useMutation(api.profile.setAvatar);
 
-  const [activeTab, setActiveTab] = useState<"profile" | "payment">("profile");
   const [churchDraft, setChurchDraft] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -394,90 +148,76 @@ export const ProfileView = ({ email }: { email?: string }) => {
 
       {profile.isMe && (
         <FadeInView delay={stagger(1)}>
-          <ProfileTabs active={activeTab} onChange={setActiveTab} />
+          <Card>
+            <Field
+              label="Local church"
+              value={churchDraft ?? profile.localChurch ?? ""}
+              onChangeText={setChurchDraft}
+              placeholder="e.g. SOW City Church"
+            />
+            <Btn
+              title="Save Church"
+              onPress={() => void saveChurch()}
+              disabled={churchDraft === null}
+            />
+            <Muted>
+              Name and email sync from Google; your role and department are set
+              by admins per year.
+            </Muted>
+          </Card>
         </FadeInView>
       )}
 
-      {profile.isMe && activeTab === "payment" ? (
-        <FadeInView delay={stagger(2)}>
-          <PaymentTab />
-        </FadeInView>
+      <SectionTitle>Service History</SectionTitle>
+      {profile.serviceHistory.length === 0 ? (
+        <Muted>No service history yet.</Muted>
       ) : (
-        <>
-          {profile.isMe && (
-            <FadeInView delay={stagger(2)}>
-              <Card>
-                <Field
-                  label="Local church"
-                  value={churchDraft ?? profile.localChurch ?? ""}
-                  onChangeText={setChurchDraft}
-                  placeholder="e.g. SOW City Church"
-                />
-                <Btn
-                  title="Save Church"
-                  onPress={() => void saveChurch()}
-                  disabled={churchDraft === null}
-                />
-                <Muted>
-                  Name and email sync from Google; your role and department are set
-                  by admins per year.
-                </Muted>
-              </Card>
-            </FadeInView>
-          )}
-
-          <SectionTitle>Service History</SectionTitle>
-          {profile.serviceHistory.length === 0 ? (
-            <Muted>No service history yet.</Muted>
-          ) : (
-            profile.serviceHistory.map((entry, index) => (
-              <FadeInView key={entry.year} delay={stagger(index + 3)}>
-                <Card style={styles.historyCard}>
-                  <View style={[styles.yearBadge, { backgroundColor: t.inputBackground }]}>
-                    <Text style={[styles.yearBadgeText, { color: t.text }]}>
-                      {entry.year}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    {entry.year === currentYear ? (
-                      <Txt style={{ fontWeight: "700" }}>current</Txt>
-                    ) : null}
-                    {(entry.assignments ?? []).length > 0 ? (
-                      <View style={styles.assignmentChips}>
-                        {entry.assignments.map((a, i) => (
-                          <View
-                            key={i}
-                            style={[styles.assignmentChip, { backgroundColor: t.primarySoft }]}
-                          >
-                            <Text
-                              style={[
-                                styles.assignmentChipText,
-                                { color: t.dark ? t.text : t.primary },
-                              ]}
-                            >
-                              {formatAssignment(a)}
-                            </Text>
-                          </View>
-                        ))}
+        profile.serviceHistory.map((entry, index) => (
+          <FadeInView key={entry.year} delay={stagger(index + 2)}>
+            <Card style={styles.historyCard}>
+              <View style={[styles.yearBadge, { backgroundColor: t.inputBackground }]}>
+                <Text style={[styles.yearBadgeText, { color: t.text }]}>
+                  {entry.year}
+                </Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                {entry.year === currentYear ? (
+                  <Txt style={{ fontWeight: "700" }}>current</Txt>
+                ) : null}
+                {(entry.assignments ?? []).length > 0 ? (
+                  <View style={styles.assignmentChips}>
+                    {entry.assignments.map((a, i) => (
+                      <View
+                        key={i}
+                        style={[styles.assignmentChip, { backgroundColor: t.primarySoft }]}
+                      >
+                        <Text
+                          style={[
+                            styles.assignmentChipText,
+                            { color: t.dark ? t.text : t.primary },
+                          ]}
+                        >
+                          {formatAssignment(a)}
+                        </Text>
                       </View>
-                    ) : (
-                      <Txt style={{ fontWeight: "700" }}>
-                        {entry.roles.map(acronym).join(", ") || "—"}
-                      </Txt>
-                    )}
+                    ))}
                   </View>
-                </Card>
-              </FadeInView>
-            ))
-          )}
-          {profile.isMe && (
-            <Btn
-              title="Sign out"
-              variant="danger"
-              onPress={() => setConfirmingSignOut(true)}
-            />
-          )}
-        </>
+                ) : (
+                  <Txt style={{ fontWeight: "700" }}>
+                    {entry.roles.map(acronym).join(", ") || "—"}
+                  </Txt>
+                )}
+              </View>
+            </Card>
+          </FadeInView>
+        ))
+      )}
+      {profile.isMe && (
+        <Btn
+          title="Sign out"
+          variant="danger"
+          onPress={() => setConfirmingSignOut(true)}
+        />
       )}
 
       <ConfirmDialog
@@ -525,18 +265,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
-  segmented: {
-    flexDirection: "row",
-    borderRadius: radius.md,
-    padding: 3,
-    marginBottom: spacing.sm,
-  },
-  segment: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: spacing.sm,
-    borderRadius: radius.sm,
-  },
   historyCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -548,10 +276,4 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   yearBadgeText: { fontSize: 14, fontWeight: "800", letterSpacing: -0.3 },
-  paymentCard: { gap: spacing.xs },
-  paymentRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
 });

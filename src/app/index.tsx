@@ -6,6 +6,7 @@ import { Pressable } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { HEAD_OF_DEPARTMENT, requestFullyApproved } from "../../shared/flow";
 import { AllRequestsList } from "@/components/AllRequestsList";
+import { BankTab } from "@/components/BankTab";
 import { GuideSheet, MyRequests } from "@/components/MyRequests";
 import { ReviewList } from "@/components/ReviewList";
 import { type RequestPrefill } from "@/components/MyRequests";
@@ -116,6 +117,7 @@ export default function RequestsScreen() {
         ]
       : []),
     ...(me?.isFinance ? [{ key: "all", label: "All" }] : []),
+    { key: "bank", label: "Bank" },
   ];
 
   // Deep links (e.g. a push notification) choose the segment via ?tab=.
@@ -220,6 +222,8 @@ export default function RequestsScreen() {
           )}
           {activeSegment === "review" ? (
             <ReviewList />
+          ) : activeSegment === "bank" ? (
+            <BankTab />
           ) : activeSegment === "all" ? (
             <>
               {me?.isFinanceHead && (

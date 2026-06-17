@@ -84,6 +84,63 @@ export const setPreferred = mutation({
   },
 });
 
+/**
+ * Adds a bank account the caller typed in directly (e.g. from the Bank tab)
+ * and marks it as their preferred (auto-fill) account. Reuses an existing row
+ * with the same BSB + account number rather than duplicating it.
+ */
+export const addAccount = mutation({
+  args: {
+    accountName: v.string(),
+    bsb: v.string(),
+    accountNumber: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const email = await requireEmail(ctx);
+    const accountName = args.accountName.trim();
+    const bsb = args.bsb.trim();
+    const accountNumber = args.accountNumber.trim();
+    if (!accountName) throw new ConvexError("Account name is required.");
+    if (!bsb) throw new ConvexError("BSB is required.");
+    if (!accountNumber) throw new ConvexError("Account number is required.");
+
+    const existing = await ctx.db
+      .query("savedBankAccounts")
+      .withIndex("by_email_bsb_accountNumber", (q) =>
+        q.eq("email", email).eq("bsb", bsb).eq("accountNumber", accountNumber)
+      )
+      .unique();
+    let targetId;
+    if (existing) {
+      await ctx.db.patch("savedBankAccounts", existing._id, {
+        accountName,
+        lastUsedAt: Date.now(),
+      });
+      targetId = existing._id;
+    } else {
+      targetId = await ctx.db.insert("savedBankAccounts", {
+        email,
+        accountName,
+        bsb,
+        accountNumber,
+        lastUsedAt: Date.now(),
+      });
+    }
+
+    // Make the added account preferred, clearing any previous preferred flag.
+    const all = await ctx.db
+      .query("savedBankAccounts")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .collect();
+    for (const a of all) {
+      await ctx.db.patch("savedBankAccounts", a._id, {
+        preferred: a._id === targetId ? true : undefined,
+      });
+    }
+    return null;
+  },
+});
+
 /** Updates the details of one of the caller's saved accounts. */
 export const updateAccount = mutation({
   args: {
