@@ -15,6 +15,9 @@ import {
   SowSpinner,
 } from "./ui";
 
+/** Roughly the Sheet's Modal fade duration; we hold the query this long on close. */
+const CLOSE_ANIMATION_MS = 300;
+
 /** A handful of one-tap reactions; the rest live behind "More". */
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "🎉", "🙏", "👀", "✅"];
 const MORE_EMOJIS = [
@@ -48,14 +51,27 @@ export const CommentsSheet = ({
   onClose: () => void;
 }) => {
   const t = useAppTheme();
+  // Keep the comments query subscribed until the close animation has
+  // finished. `visible` switches it on immediately; on close we hold the
+  // subscription for the fade duration so the request comments state never
+  // reverts to the loading spinner mid-animation — the query would otherwise
+  // flip to "skip" (-> undefined) the instant the close button is pressed.
+  const [active, setActive] = useState(visible);
+  useEffect(() => {
+    if (visible) {
+      setActive(true);
+      return;
+    }
+    const id = setTimeout(() => setActive(false), CLOSE_ANIMATION_MS);
+    return () => clearTimeout(id);
+  }, [visible]);
+
   const comments = useQuery(
     api.comments.list,
-    visible ? { requestId: request._id } : "skip"
+    active ? { requestId: request._id } : "skip"
   );
-  // Retain the last loaded result so closing the sheet doesn't flash the
-  // spinner again: on close `visible` flips false, the query reverts to
-  // "skip" (comments -> undefined), and without this the content would swap
-  // back to the loading state mid fade-out.
+  // Also retain the last loaded result so re-opening shows the thread
+  // instantly instead of flashing the spinner before the query resolves.
   const [loaded, setLoaded] = useState<typeof comments>(comments);
   useEffect(() => {
     if (comments !== undefined) setLoaded(comments);
@@ -114,7 +130,7 @@ export const CommentsSheet = ({
       <Sheet visible={visible} onClose={onClose} title="Comments">
         {loaded === undefined ? (
           <View style={styles.loading}>
-            <SowSpinner size={22} />
+            <SowSpinner size={18} />
           </View>
         ) : loaded === null || loaded.length === 0 ? (
           <Muted>No comments yet. Start the conversation below.</Muted>
