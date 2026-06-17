@@ -561,17 +561,19 @@ describe("browsing past years", () => {
       })
     );
 
-  test("myRequests({year}) returns only that year, no carry-over", async () => {
+  test("myRequests({year}) returns only that year, newest-first, no carry-over", async () => {
     const t = await setup();
     const rachel = asUser(t, RACHEL);
     await rachel.mutation(api.requests.submit, { description: "this year", amount: 50 });
     await seedPastRequest(t, RACHEL, YEAR - 2, "old one");
+    await seedPastRequest(t, RACHEL, YEAR - 2, "old two");
 
     const live = (await rachel.query(api.requests.myRequests, {}))!;
     expect(live.map((r) => r.description)).toEqual(["this year"]);
 
+    // Both past-year rows, sorted newest-first (the later insert wins).
     const past = (await rachel.query(api.requests.myRequests, { year: YEAR - 2 }))!;
-    expect(past.map((r) => r.description)).toEqual(["old one"]);
+    expect(past.map((r) => r.description)).toEqual(["old two", "old one"]);
   });
 
   test("requestYears lists the caller's request years plus the current one", async () => {
