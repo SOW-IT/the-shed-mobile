@@ -1296,6 +1296,12 @@ export const financeMembers = query({
  * email/importId for profiles): the source overwrites on conflict, anything the
  * destination already had that the source lacks is kept, and nothing is
  * duplicated. Shared by copyYear (manual) and rollOverStaffYear (the cron).
+ *
+ * Because it never deletes, stale destination roles/universities survive by
+ * design (an admin's in-progress next-year setup must not be wiped). This is
+ * safe given the rollover target year is normally empty when first seeded; a
+ * leftover role would otherwise flip allowedRolesForYear to data-driven
+ * validation, so clear that year's roles by hand if you ever need to reset it.
  */
 const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
   if (from === to) throw new ConvexError("from and to must differ.");
