@@ -321,6 +321,41 @@ describe("addAccount", () => {
     ).rejects.toThrow(/Account number is required/);
   });
 
+  test("defaults to non-preferred; only re-prefers when makePreferred is set", async () => {
+    const t = await setup();
+    // First account, explicitly made preferred (auto-fill).
+    await asUser(t, RACHEL).mutation(api.bankAccounts.addAccount, {
+      accountName: "X",
+      bsb: "111111",
+      accountNumber: "11111111",
+      makePreferred: true,
+    });
+    // Second account added without ticking "make preferred" — saved as an
+    // "other" account, leaving X as the preferred one.
+    await asUser(t, RACHEL).mutation(api.bankAccounts.addAccount, {
+      accountName: "Y",
+      bsb: "222222",
+      accountNumber: "22222222",
+    });
+    let saved = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
+    expect(saved).toHaveLength(2);
+    expect(saved.find((a) => a.accountName === "X")!.preferred).toBe(true);
+    expect(saved.find((a) => a.accountName === "Y")!.preferred).toBe(false);
+
+    // Adding Z with makePreferred makes it the new auto-fill account, clearing X.
+    await asUser(t, RACHEL).mutation(api.bankAccounts.addAccount, {
+      accountName: "Z",
+      bsb: "333333",
+      accountNumber: "33333333",
+      makePreferred: true,
+    });
+    saved = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
+    expect(saved).toHaveLength(3);
+    expect(saved.find((a) => a.accountName === "Z")!.preferred).toBe(true);
+    expect(saved.find((a) => a.accountName === "X")!.preferred).toBe(false);
+    expect(saved.find((a) => a.accountName === "Y")!.preferred).toBe(false);
+  });
+
   test("de-dupes onto an existing account by BSB + number and re-prefers it", async () => {
     const t = await setup();
     // Two distinct accounts; the second added becomes preferred.
@@ -333,18 +368,20 @@ describe("addAccount", () => {
       accountName: "Y",
       bsb: "222222",
       accountNumber: "22222222",
+      makePreferred: true,
     });
     let saved = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
     expect(saved).toHaveLength(2);
     expect(saved.find((a) => a.accountName === "Y")!.preferred).toBe(true);
     expect(saved.find((a) => a.accountName === "X")!.preferred).toBe(false);
 
-    // Re-adding X's BSB + number updates that row in place (no duplicate) and
-    // makes it preferred again, clearing Y.
+    // Re-adding X's BSB + number with makePreferred updates that row in place
+    // (no duplicate) and makes it preferred again, clearing Y.
     await asUser(t, RACHEL).mutation(api.bankAccounts.addAccount, {
       accountName: "X renamed",
       bsb: "111111",
       accountNumber: "11111111",
+      makePreferred: true,
     });
     saved = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
     expect(saved).toHaveLength(2); // still two, not three

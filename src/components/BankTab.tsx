@@ -17,6 +17,7 @@ import {
   IconButton,
   LoadingState,
   Muted,
+  OptionRow,
   Row,
   SectionTitle,
   stagger,
@@ -46,6 +47,7 @@ export const BankTab = () => {
   const [nameDraft, setNameDraft] = useState("");
   const [bsbDraft, setBsbDraft] = useState("");
   const [numberDraft, setNumberDraft] = useState("");
+  const [makePreferredDraft, setMakePreferredDraft] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -56,6 +58,8 @@ export const BankTab = () => {
 
   if (savedAccounts === undefined) return <LoadingState />;
 
+  type Account = NonNullable<typeof savedAccounts>[number];
+
   const preferred =
     (savedAccounts ?? []).find((a) => a.preferred) ?? (savedAccounts ?? [])[0];
   const others = (savedAccounts ?? []).filter((a) => a.id !== preferred?.id);
@@ -65,16 +69,16 @@ export const BankTab = () => {
     setNameDraft("");
     setBsbDraft("");
     setNumberDraft("");
+    setMakePreferredDraft(false);
     setError(null);
     setMode("add");
   };
 
-  const startEdit = () => {
-    if (!preferred) return;
-    setEditingId(preferred.id);
-    setNameDraft(preferred.accountName);
-    setBsbDraft(preferred.bsb);
-    setNumberDraft(preferred.accountNumber);
+  const startEdit = (account: Account) => {
+    setEditingId(account.id);
+    setNameDraft(account.accountName);
+    setBsbDraft(account.bsb);
+    setNumberDraft(account.accountNumber);
     setError(null);
     setMode("edit");
   };
@@ -101,6 +105,7 @@ export const BankTab = () => {
           accountName: nameDraft,
           bsb: bsbDraft,
           accountNumber: numberDraft,
+          makePreferred: makePreferredDraft,
         });
       }
       cancel();
@@ -129,14 +134,10 @@ export const BankTab = () => {
 
   return (
     <>
-      <FadeInView delay={stagger(1)}>
-        <SectionTitle>Preferred Account</SectionTitle>
-        <View style={{ marginBottom: spacing.sm }}>
-          <Muted>This account is auto-filled when you submit a receipt.</Muted>
-        </View>
-        <ErrorBanner message={error} />
-
-        {editing ? (
+      {editing ? (
+        <FadeInView delay={stagger(1)}>
+          <SectionTitle>{mode === "edit" ? "Edit Account" : "Add Account"}</SectionTitle>
+          <ErrorBanner message={error} />
           <Card style={styles.bankCard}>
             <Field
               label="Account name"
@@ -158,6 +159,14 @@ export const BankTab = () => {
               placeholder="00000000"
               keyboardType="numeric"
             />
+            {mode === "add" && (
+              <OptionRow
+                label="Make this your preferred account"
+                selected={makePreferredDraft}
+                onPress={() => setMakePreferredDraft((v) => !v)}
+                multi
+              />
+            )}
             <Row spread loading={saving}>
               <Btn title="Cancel" variant="ghost" onPress={cancel} />
               <Btn
@@ -167,82 +176,102 @@ export const BankTab = () => {
               />
             </Row>
           </Card>
-        ) : preferred ? (
-          <Card style={styles.bankCard}>
-            <View style={styles.bankRow}>
-              <Ionicons name="star" size={20} color={t.accent} />
-              <View style={{ flex: 1, gap: 2 }}>
-                <Txt style={{ fontWeight: "700" }}>{preferred.accountName}</Txt>
-                <Muted>
-                  BSB {preferred.bsb} · {maskAccount(preferred.accountNumber)}
-                </Muted>
-              </View>
-              <IconButton
-                name="create-outline"
-                size={40}
-                accessibilityLabel="Edit preferred bank details"
-                onPress={startEdit}
-              />
-              <IconButton
-                name="trash-outline"
-                size={40}
-                color={t.danger}
-                accessibilityLabel={`Delete ${preferred.accountName}`}
-                onPress={() => confirmDelete(preferred.id, preferred.accountName, true)}
+        </FadeInView>
+      ) : (
+        <>
+          <FadeInView delay={stagger(1)}>
+            <SectionTitle>Preferred Account</SectionTitle>
+            <View style={{ marginBottom: spacing.sm }}>
+              <Muted>This account is auto-filled when you submit a receipt.</Muted>
+            </View>
+            <ErrorBanner message={error} />
+
+            {preferred ? (
+              <Card style={styles.bankCard}>
+                <View style={styles.bankRow}>
+                  <Ionicons name="star" size={20} color={t.accent} />
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Txt style={{ fontWeight: "700" }}>{preferred.accountName}</Txt>
+                    <Muted>
+                      BSB {preferred.bsb} · {maskAccount(preferred.accountNumber)}
+                    </Muted>
+                  </View>
+                  <IconButton
+                    name="create-outline"
+                    size={40}
+                    accessibilityLabel="Edit preferred bank details"
+                    onPress={() => startEdit(preferred)}
+                  />
+                  <IconButton
+                    name="trash-outline"
+                    size={40}
+                    color={t.danger}
+                    accessibilityLabel={`Delete ${preferred.accountName}`}
+                    onPress={() => confirmDelete(preferred.id, preferred.accountName, true)}
+                  />
+                </View>
+              </Card>
+            ) : (
+              <Card style={styles.bankCard}>
+                <Muted>No preferred bank account yet. Add one below.</Muted>
+              </Card>
+            )}
+          </FadeInView>
+
+          {others.length > 0 && (
+            <FadeInView delay={stagger(2)}>
+              <SectionTitle>Other Saved Accounts</SectionTitle>
+              {others.map((account) => (
+                <Card key={account.id} style={styles.bankCard}>
+                  <View style={styles.bankRow}>
+                    <Pressable
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Set as preferred"
+                      onPress={() =>
+                        void setPreferred({ id: account.id }).catch((e) =>
+                          setError(errorMessage(e))
+                        )
+                      }
+                      style={({ pressed }) => [pressed && { opacity: 0.6 }]}
+                    >
+                      <Ionicons name="star-outline" size={20} color={t.faint} />
+                    </Pressable>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Txt style={{ fontWeight: "700" }}>{account.accountName}</Txt>
+                      <Muted>
+                        BSB {account.bsb} · {maskAccount(account.accountNumber)}
+                      </Muted>
+                    </View>
+                    <IconButton
+                      name="create-outline"
+                      size={40}
+                      accessibilityLabel={`Edit ${account.accountName}`}
+                      onPress={() => startEdit(account)}
+                    />
+                    <IconButton
+                      name="trash-outline"
+                      size={40}
+                      color={t.danger}
+                      accessibilityLabel={`Delete ${account.accountName}`}
+                      onPress={() => confirmDelete(account.id, account.accountName, false)}
+                    />
+                  </View>
+                </Card>
+              ))}
+            </FadeInView>
+          )}
+
+          <FadeInView delay={stagger(3)}>
+            <View style={styles.addButton}>
+              <Btn
+                title={preferred ? "Add Another Account" : "Add Bank Details"}
+                variant="ghost"
+                onPress={startAdd}
               />
             </View>
-          </Card>
-        ) : (
-          <Card style={styles.bankCard}>
-            <Muted>No preferred bank account yet. Add one below.</Muted>
-          </Card>
-        )}
-
-        {!editing && (
-          <Btn
-            title={preferred ? "Add Another Account" : "Add Bank Details"}
-            variant="ghost"
-            onPress={startAdd}
-          />
-        )}
-      </FadeInView>
-
-      {!editing && others.length > 0 && (
-        <FadeInView delay={stagger(2)}>
-          <SectionTitle>Other Saved Accounts</SectionTitle>
-          {others.map((account) => (
-            <Card key={account.id} style={styles.bankCard}>
-              <View style={styles.bankRow}>
-                <Pressable
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel="Set as preferred"
-                  onPress={() =>
-                    void setPreferred({ id: account.id }).catch((e) =>
-                      setError(errorMessage(e))
-                    )
-                  }
-                  style={({ pressed }) => [pressed && { opacity: 0.6 }]}
-                >
-                  <Ionicons name="star-outline" size={20} color={t.faint} />
-                </Pressable>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Txt style={{ fontWeight: "700" }}>{account.accountName}</Txt>
-                  <Muted>
-                    BSB {account.bsb} · {maskAccount(account.accountNumber)}
-                  </Muted>
-                </View>
-                <IconButton
-                  name="trash-outline"
-                  size={40}
-                  color={t.danger}
-                  accessibilityLabel={`Delete ${account.accountName}`}
-                  onPress={() => confirmDelete(account.id, account.accountName, false)}
-                />
-              </View>
-            </Card>
-          ))}
-        </FadeInView>
+          </FadeInView>
+        </>
       )}
 
       <ConfirmDialog
@@ -266,4 +295,5 @@ export const BankTab = () => {
 const styles = StyleSheet.create({
   bankCard: { gap: spacing.xs },
   bankRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  addButton: { marginTop: spacing.lg },
 });

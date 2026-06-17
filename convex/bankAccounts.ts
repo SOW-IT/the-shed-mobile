@@ -85,15 +85,17 @@ export const setPreferred = mutation({
 });
 
 /**
- * Adds a bank account the caller typed in directly (e.g. from the Bank tab)
- * and marks it as their preferred (auto-fill) account. Reuses an existing row
- * with the same BSB + account number rather than duplicating it.
+ * Adds a bank account the caller typed in directly (e.g. from the Bank tab).
+ * By default the account is saved without changing which account is preferred;
+ * pass `makePreferred: true` to make it the new auto-fill account. Reuses an
+ * existing row with the same BSB + account number rather than duplicating it.
  */
 export const addAccount = mutation({
   args: {
     accountName: v.string(),
     bsb: v.string(),
     accountNumber: v.string(),
+    makePreferred: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const email = await requireEmail(ctx);
@@ -127,15 +129,19 @@ export const addAccount = mutation({
       });
     }
 
-    // Make the added account preferred, clearing any previous preferred flag.
-    const all = await ctx.db
-      .query("savedBankAccounts")
-      .withIndex("by_email", (q) => q.eq("email", email))
-      .collect();
-    for (const a of all) {
-      await ctx.db.patch("savedBankAccounts", a._id, {
-        preferred: a._id === targetId ? true : undefined,
-      });
+    // Only touch the preferred flag when the caller opted in: make the added
+    // account preferred, clearing any previous preferred flag. Otherwise the
+    // account is saved as a non-preferred ("other saved") account.
+    if (args.makePreferred) {
+      const all = await ctx.db
+        .query("savedBankAccounts")
+        .withIndex("by_email", (q) => q.eq("email", email))
+        .collect();
+      for (const a of all) {
+        await ctx.db.patch("savedBankAccounts", a._id, {
+          preferred: a._id === targetId ? true : undefined,
+        });
+      }
     }
     return null;
   },
