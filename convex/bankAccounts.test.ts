@@ -271,6 +271,90 @@ describe("updateAccount", () => {
   });
 });
 
+describe("addAccount", () => {
+  test("adds a new account, trims the name, and marks it preferred", async () => {
+    const t = await setup();
+    await asUser(t, RACHEL).mutation(api.bankAccounts.addAccount, {
+      accountName: "  Rachel  ",
+      bsb: "111111",
+      accountNumber: "12345678",
+    });
+    const saved = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({
+      accountName: "Rachel", // trimmed
+      bsb: "111111",
+      accountNumber: "12345678",
+      preferred: true,
+    });
+  });
+
+  test("rejects an unauthenticated caller and blank fields", async () => {
+    const t = await setup();
+    await expect(
+      t.mutation(api.bankAccounts.addAccount, {
+        accountName: "Rachel",
+        bsb: "1",
+        accountNumber: "2",
+      })
+    ).rejects.toThrow(/signed in/);
+    await expect(
+      asUser(t, RACHEL).mutation(api.bankAccounts.addAccount, {
+        accountName: "   ",
+        bsb: "1",
+        accountNumber: "2",
+      })
+    ).rejects.toThrow(/Account name is required/);
+    await expect(
+      asUser(t, RACHEL).mutation(api.bankAccounts.addAccount, {
+        accountName: "Rachel",
+        bsb: "   ",
+        accountNumber: "2",
+      })
+    ).rejects.toThrow(/BSB is required/);
+    await expect(
+      asUser(t, RACHEL).mutation(api.bankAccounts.addAccount, {
+        accountName: "Rachel",
+        bsb: "1",
+        accountNumber: "   ",
+      })
+    ).rejects.toThrow(/Account number is required/);
+  });
+
+  test("de-dupes onto an existing account by BSB + number and re-prefers it", async () => {
+    const t = await setup();
+    // Two distinct accounts; the second added becomes preferred.
+    await asUser(t, RACHEL).mutation(api.bankAccounts.addAccount, {
+      accountName: "X",
+      bsb: "111111",
+      accountNumber: "11111111",
+    });
+    await asUser(t, RACHEL).mutation(api.bankAccounts.addAccount, {
+      accountName: "Y",
+      bsb: "222222",
+      accountNumber: "22222222",
+    });
+    let saved = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
+    expect(saved).toHaveLength(2);
+    expect(saved.find((a) => a.accountName === "Y")!.preferred).toBe(true);
+    expect(saved.find((a) => a.accountName === "X")!.preferred).toBe(false);
+
+    // Re-adding X's BSB + number updates that row in place (no duplicate) and
+    // makes it preferred again, clearing Y.
+    await asUser(t, RACHEL).mutation(api.bankAccounts.addAccount, {
+      accountName: "X renamed",
+      bsb: "111111",
+      accountNumber: "11111111",
+    });
+    saved = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
+    expect(saved).toHaveLength(2); // still two, not three
+    const x = saved.find((a) => a.accountNumber === "11111111")!;
+    expect(x.accountName).toBe("X renamed");
+    expect(x.preferred).toBe(true);
+    expect(saved.find((a) => a.accountName === "Y")!.preferred).toBe(false);
+  });
+});
+
 describe("remove", () => {
   test("forgets the caller's own account but not someone else's", async () => {
     const t = await setup();
