@@ -810,7 +810,7 @@ describe("chaplain university assignment", () => {
 });
 
 describe("copyYear", () => {
-  test("clones one year's structure, profiles, universities and budget manager", async () => {
+  test("copies one year's structure, profiles, universities and budget manager", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.upsertUniversity, {
@@ -819,8 +819,8 @@ describe("copyYear", () => {
     });
     await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
 
-    // Pre-existing junk in the destination year is replaced wholesale.
-    await admin.mutation(api.admin.upsertDivision, { year: YEAR + 1, name: "Stale Division" });
+    // Pre-existing data in the destination year is kept (non-destructive merge).
+    await admin.mutation(api.admin.upsertDivision, { year: YEAR + 1, name: "Kept Division" });
 
     const counts = await t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR + 1 });
     expect(counts.divisions).toBeGreaterThan(0);
@@ -830,33 +830,45 @@ describe("copyYear", () => {
 
     const next = (await admin.query(api.directory.yearStructure, { year: YEAR + 1 }))!;
     expect(next.divisions.map((d) => d.name)).toContain("Governance");
-    expect(next.divisions.map((d) => d.name)).not.toContain("Stale Division");
+    // The destination's own division survives the merge.
+    expect(next.divisions.map((d) => d.name)).toContain("Kept Division");
     expect(next.budgetManagerEmail).toBe(BELLA);
 
-    // Copying again (destination yearSettings now exists) hits the patch branch.
+    // Copying again (destination yearSettings now exists) hits the patch branch
+    // and must not duplicate any copied division.
     const recounts = await t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR + 1 });
     expect(recounts.budgetManagers).toBe(1);
+    const govRows = await t.run((ctx) =>
+      ctx.db
+        .query("divisions")
+        .withIndex("by_year_and_name", (q) =>
+          q.eq("year", YEAR + 1).eq("name", "Governance")
+        )
+        .take(10)
+    );
+    expect(govRows).toHaveLength(1);
 
     await expect(
       t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR })
     ).rejects.toThrow(/must differ/);
   });
 
-  test("copies the role catalog and dedupes roles already present in the destination", async () => {
+  test("merges the role catalog, keeping the destination's own roles and not duplicating overlaps", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Seed a couple of roles for the source year.
+    // Source year roles.
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Outsource" });
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Volunteer" });
-    // Pre-create one of them in the destination so the dedupe branch is hit.
+    // Destination has an overlapping role (Volunteer) and its own (Kept).
     await admin.mutation(api.admin.upsertRole, { year: YEAR + 1, name: "Volunteer" });
+    await admin.mutation(api.admin.upsertRole, { year: YEAR + 1, name: "Kept" });
 
     await t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR + 1 });
 
     const next = (await admin.query(api.directory.yearStructure, { year: YEAR + 1 }))!;
-    expect(next.roles).toContain("Outsource");
-    expect(next.roles).toContain("Volunteer");
-    // Dedupe: Volunteer should not have been inserted twice.
+    // Source roles added, destination's own role kept (non-destructive).
+    expect(next.roles.slice().sort()).toEqual(["Kept", "Outsource", "Volunteer"]);
+    // Volunteer exists exactly once (no duplicate from the overlap).
     const volunteerRows = await t.run((ctx) =>
       ctx.db
         .query("roles")
@@ -866,6 +878,94 @@ describe("copyYear", () => {
         .take(10)
     );
     expect(volunteerRows).toHaveLength(1);
+  });
+
+  test("matches an existing person by importId across a changed email and updates in place", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      // Source profile carries a durable importId.
+      await ctx.db.insert("staffProfiles", {
+        email: "old.name@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Staff", department: "Finance" }],
+        importId: "person-123",
+        name: "Person",
+      });
+      // The same person already exists in the destination year under a renamed
+      // email — the copy must match by importId and update in place.
+      await ctx.db.insert("staffProfiles", {
+        email: "new.name@sow.org.au",
+        year: YEAR + 1,
+        assignments: [{ role: "Outsource" }],
+        importId: "person-123",
+        name: "Person",
+      });
+    });
+
+    await t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR + 1 });
+
+    const destRows = await t.run((ctx) =>
+      ctx.db
+        .query("staffProfiles")
+        .withIndex("by_importId", (q) => q.eq("importId", "person-123"))
+        .collect()
+    ).then((rows) => rows.filter((r) => r.year === YEAR + 1));
+    // Matched by importId — updated in place, not duplicated, email preserved.
+    expect(destRows).toHaveLength(1);
+    expect(destRows[0].email).toBe("new.name@sow.org.au");
+    expect(destRows[0].assignments).toEqual([{ role: "Staff", department: "Finance" }]);
+  });
+
+  test("leaves the destination budget manager untouched when the source has none", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // Destination has a budget manager; source year has none.
+    await t.run((ctx) =>
+      ctx.db.insert("yearSettings", { year: YEAR + 1, budgetManagerEmail: BELLA })
+    );
+
+    const counts = await t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR + 1 });
+    expect(counts.budgetManagers).toBe(0);
+
+    const next = (await admin.query(api.directory.yearStructure, { year: YEAR + 1 }))!;
+    expect(next.budgetManagerEmail).toBe(BELLA);
+  });
+});
+
+describe("rollOverStaffYear", () => {
+  test("prefills the next staff year from the current staff year, keeping its existing data", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Outsource" });
+    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
+    // Data already in the next year is kept (non-destructive merge) — a
+    // division, a role and a university the source lacks must survive the copy.
+    await admin.mutation(api.admin.upsertDivision, { year: YEAR + 1, name: "Kept Division" });
+    await admin.mutation(api.admin.upsertRole, { year: YEAR + 1, name: "Kept Role" });
+    await admin.mutation(api.admin.upsertUniversity, { year: YEAR + 1, name: "Kept University" });
+
+    const counts = await t.mutation(internal.admin.rollOverStaffYear, {});
+    expect(counts.divisions).toBeGreaterThan(0);
+    expect(counts.budgetManagers).toBe(1);
+
+    const next = (await admin.query(api.directory.yearStructure, { year: YEAR + 1 }))!;
+    expect(next.divisions.map((d) => d.name)).toContain("Governance");
+    expect(next.divisions.map((d) => d.name)).toContain("Kept Division");
+    expect(next.roles).toContain("Outsource");
+    expect(next.roles).toContain("Kept Role");
+    expect(next.universities).toContain("Kept University");
+    expect(next.budgetManagerEmail).toBe(BELLA);
+
+    // A summary email to IT is scheduled.
+    const scheduled = await t.run((ctx) =>
+      ctx.db.system.query("_scheduled_functions").collect()
+    );
+    const email = scheduled.find((s) => s.name === "emails:send");
+    expect(email).toBeDefined();
+    expect(email!.args[0]).toMatchObject({ to: "it@sow.org.au" });
+    expect((email!.args[0] as { subject: string }).subject).toContain(
+      `${YEAR} copied to ${YEAR + 1}`
+    );
   });
 });
 

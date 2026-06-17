@@ -10,4 +10,11 @@ crons.cron("stale request reminders", "0 22 * * *", internal.reminders.remindSta
 // gracefully until the service-account env vars are configured).
 crons.cron("google directory sync", "0 21 * * *", internal.directorySync.run, {});
 
+// Sept 1 at 00:01 UTC: the staff year rolls over at midnight UTC Sept 1
+// (staffYearForDate keys off getMonth() in UTC), so by 00:01 currentStaffYear()
+// is already the new year. Prefill the next staff year (2 calendar years out)
+// from the new current staff year, e.g. on 2026-09-01 copy 2027 -> 2028, then
+// email IT a summary. Admins can then configure the new year from a populated copy.
+crons.cron("staff year rollover", "1 0 1 9 *", internal.admin.rollOverStaffYear, {});
+
 export default crons;
