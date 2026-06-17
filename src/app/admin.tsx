@@ -582,7 +582,7 @@ export default function AdminScreen() {
               universities={structure?.universities ?? []}
               roles={availableRoles}
             />
-            <Row>
+            <Row spread>
               <Btn
                 title="Cancel"
                 variant="ghost"
@@ -643,7 +643,7 @@ export default function AdminScreen() {
               // assignment can be removed too; otherwise keep at least one.
               minCount={lockedHeadAssignments.length > 0 ? 0 : 1}
             />
-            <Row>
+            <Row spread>
               <Btn
                 title="Cancel"
                 variant="ghost"
@@ -906,7 +906,7 @@ export default function AdminScreen() {
                       value={editingRoleFormName}
                       onChangeText={setEditingRoleFormName}
                     />
-                    <Row>
+                    <Row spread>
                       <Btn
                         title="Cancel"
                         variant="ghost"
@@ -1005,7 +1005,7 @@ export default function AdminScreen() {
                       onSelect={setEditingDivisionFormHead}
                       placeholder="Choose a person…"
                     />
-                    <Row>
+                    <Row spread>
                       <Btn
                         title="Cancel"
                         variant="ghost"
@@ -1126,7 +1126,7 @@ export default function AdminScreen() {
                       value={editingUniversityFormName}
                       onChangeText={setEditingUniversityFormName}
                     />
-                    <Row>
+                    <Row spread>
                       <Btn
                         title="Cancel"
                         variant="ghost"
@@ -1232,7 +1232,7 @@ export default function AdminScreen() {
                       onSelect={setEditingDepartmentFormHead}
                       placeholder="Choose a person…"
                     />
-                    <Row>
+                    <Row spread>
                       <Btn
                         title="Cancel"
                         variant="ghost"

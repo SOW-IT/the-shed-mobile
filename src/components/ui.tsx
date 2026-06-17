@@ -295,8 +295,17 @@ export const SectionTitle = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export const Row = ({ children }: { children: ReactNode }) => (
-  <View style={styles.row}>{children}</View>
+export const Row = ({
+  children,
+  spread,
+}: {
+  children: ReactNode;
+  /** Pushes children to opposite ends (space-between) — e.g. Cancel | Save. */
+  spread?: boolean;
+}) => (
+  <View style={[styles.row, spread && { justifyContent: "space-between" }]}>
+    {children}
+  </View>
 );
 
 export const Btn = ({
@@ -569,7 +578,7 @@ export const ConfirmDialog = ({
             placeholder={requireText}
           />
         )}
-        <Row>
+        <Row spread>
           <Btn title={cancelLabel} variant="ghost" onPress={close} />
           <Btn
             title={confirmLabel}
