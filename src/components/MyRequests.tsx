@@ -170,7 +170,9 @@ const NewRequestSheet = ({
           options={departments}
           onSelect={setDepartment}
         />
-        <Muted>{`Requests of $${DIRECTOR_APPROVAL_THRESHOLD.toLocaleString()} or more also require Director approval.`}</Muted>
+        {Number(amount) >= DIRECTOR_APPROVAL_THRESHOLD ? (
+          <Muted>{`Requests of $${DIRECTOR_APPROVAL_THRESHOLD.toLocaleString()} or more also require Director approval.`}</Muted>
+        ) : null}
         <ErrorBanner message={error} />
         <Btn title="Submit Request" onPress={handleSubmit} />
         <Btn title="Cancel" variant="ghost" onPress={onClose} />
