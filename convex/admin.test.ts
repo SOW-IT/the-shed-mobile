@@ -1373,7 +1373,6 @@ describe("purgeMemberRole", () => {
       };
     });
     expect(after.memberOnly).toBeNull();
-    expect(after.mixed?.roles).toEqual(["Staff"]);
     expect(after.mixed?.assignments).toEqual([{ role: "Staff", department: "Finance" }]);
     expect(after.memberRows).toHaveLength(0);
   });

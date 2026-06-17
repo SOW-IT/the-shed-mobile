@@ -60,12 +60,12 @@ describe("importHistory: backfill from the old web app's Firestore", () => {
 
       // Student Leaders came in with a university and no department.
       const studentLeaders = imported.filter((p) =>
-        (p.roles ?? []).includes("Student Leader")
+        (p.assignments ?? []).some((a) => a.role === "Student Leader")
       );
       expect(studentLeaders.length).toBeGreaterThan(0);
       for (const leader of studentLeaders) {
         expect(leader.assignments?.some((a) => a.university)).toBe(true);
-        expect(leader.department).toBeUndefined();
+        expect(leader.assignments?.some((a) => a.department)).toBe(false);
       }
 
       const universities = await ctx.db
