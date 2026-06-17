@@ -13,7 +13,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { radius, spacing, typography, useAppTheme } from "../theme";
+import { radius, spacing, useAppTheme } from "../theme";
 import { ErrorBanner, errorMessage, FadeInView, SowSpinner } from "./ui";
 
 export const SignInScreen = () => {
@@ -71,15 +71,15 @@ export const SignInScreen = () => {
         <View style={styles.hero}>
           <FadeInView style={styles.heroInner}>
             <Image
-              source={
-                t.dark
-                  ? require("../../assets/images/lockup-cream.png")
-                  : require("../../assets/images/lockup-dark.png")
-              }
-              style={styles.lockup}
+              source={require("../../assets/images/the-shed-compact-logo.png")}
+              style={styles.compactLogo}
               resizeMode="contain"
             />
-            <Text style={[styles.title, { color: t.text }]}>THE SHED</Text>
+            <Image
+              source={require("../../assets/images/the-shed-watermark.png")}
+              style={styles.watermark}
+              resizeMode="contain"
+            />
           </FadeInView>
         </View>
         <FadeInView delay={120}>
@@ -133,8 +133,8 @@ const styles = StyleSheet.create({
   },
   hero: { alignItems: "center" },
   heroInner: { alignItems: "center", gap: spacing.sm },
-  lockup: { width: 280, height: 53, marginBottom: spacing.md },
-  title: { fontSize: 34, fontWeight: "900", letterSpacing: 2 },
+  compactLogo: { width: 200, height: 38 },
+  watermark: { width: 320, height: 220 },
   tagline: { textAlign: "center", maxWidth: 280, lineHeight: 19 },
   buttonWrap: { maxWidth: 420, width: "100%", alignSelf: "center" },
   googleButton: {
