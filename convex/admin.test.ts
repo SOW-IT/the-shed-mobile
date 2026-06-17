@@ -188,7 +188,7 @@ describe("setStaffProfile validation", () => {
     const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
     const director = profiles.find((p) => p.email === "director@sow.org.au")!;
     expect(director.roles).toEqual(["Director"]);
-    expect(director.department).toBeUndefined();
+    expect(director.assignments).toEqual([{ role: "Director" }]);
   });
 
   test("only one Director per year; re-saving the same Director is fine", async () => {
@@ -779,45 +779,6 @@ describe("financeMembers", () => {
   });
 });
 
-describe("clearStaffUniversities (one-off cleanup)", () => {
-  test("strips universities from staff/head/director profiles; leaves campus and chaplain profiles", async () => {
-    const t = await setup();
-    await t.run(async (ctx) => {
-      // A staff member wrongly carrying a university — should be cleared.
-      await ctx.db.insert("staffProfiles", {
-        email: "stale@sow.org.au",
-        year: YEAR,
-        roles: ["Staff"],
-        department: "Finance",
-        university: "University of Sydney",
-      });
-      // A campus role that should keep its university.
-      await ctx.db.insert("staffProfiles", {
-        email: "leader@sow.org.au",
-        year: YEAR,
-        roles: ["Student Leader"],
-        university: "University of Sydney",
-      });
-      // A chaplain that should keep its university.
-      await ctx.db.insert("staffProfiles", {
-        email: "chap@sow.org.au",
-        year: YEAR,
-        roles: ["Senior Chaplain"],
-        department: "Finance",
-        university: "University of Sydney",
-      });
-    });
-    const result = await t.mutation(internal.admin.clearStaffUniversities, {});
-    expect(result.cleared).toBe(1);
-    await t.run(async (ctx) => {
-      const rows = await ctx.db.query("staffProfiles").take(1000);
-      expect(rows.find((p) => p.email === "stale@sow.org.au")?.university).toBeUndefined();
-      expect(rows.find((p) => p.email === "leader@sow.org.au")?.university).toBe("University of Sydney");
-      expect(rows.find((p) => p.email === "chap@sow.org.au")?.university).toBe("University of Sydney");
-    });
-  });
-});
-
 describe("chaplain university assignment", () => {
   test("a chaplain can be assigned an optional university; Staff cannot", async () => {
     const t = await setup();
@@ -915,8 +876,7 @@ describe("listStaffProfiles directory name fallback", () => {
       await ctx.db.insert("staffProfiles", {
         email: "provisioned@sow.org.au",
         year: YEAR,
-        roles: ["Staff"],
-        department: "Finance",
+        assignments: [{ role: "Staff", department: "Finance" }],
         // name intentionally absent — provisioned before first sign-in
       });
       await ctx.db.insert("directoryUsers", {
@@ -1342,13 +1302,11 @@ describe("purgeMemberRole", () => {
       await ctx.db.insert("staffProfiles", {
         email: "memberonly@sow.org.au",
         year: YEAR,
-        roles: ["Member"],
         assignments: [{ role: "Member" }],
       });
       await ctx.db.insert("staffProfiles", {
         email: "mixed@sow.org.au",
         year: YEAR,
-        roles: ["Member", "Staff"],
         assignments: [{ role: "Member" }, { role: "Staff", department: "Finance" }],
       });
       await ctx.db.insert("roles", { year: YEAR, name: "Member" });
@@ -1497,7 +1455,6 @@ describe("role mutations fail fast on the 1000-profile cap", () => {
         await ctx.db.insert("staffProfiles", {
           email: `p${i}@x.test`,
           year: YEAR,
-          roles: ["X"],
           assignments: [{ role: "X" }],
         });
       }

@@ -32,15 +32,13 @@ describe("profile.get", () => {
       await ctx.db.insert("staffProfiles", {
         email,
         year: YEAR,
-        roles: ["Staff"],
-        department: "Data and IT",
+        assignments: [{ role: "Staff", department: "Data and IT" }],
       });
       // Next year is pre-provisioned but must stay hidden until rollover.
       await ctx.db.insert("staffProfiles", {
         email,
         year: YEAR + 1,
-        roles: ["Staff"],
-        department: "Data and IT",
+        assignments: [{ role: "Staff", department: "Data and IT" }],
       });
     });
     const profile = (await asUser(t, email).query(api.profile.get, { email }))!;
@@ -56,8 +54,7 @@ describe("profile.get", () => {
       await ctx.db.insert("staffProfiles", {
         email,
         year: YEAR,
-        roles: ["Staff"],
-        department: "Data and IT",
+        assignments: [{ role: "Staff", department: "Data and IT" }],
       });
       // No users row — directory entry is the only name source.
       await ctx.db.insert("directoryUsers", { email, name: "Nav from Directory" });

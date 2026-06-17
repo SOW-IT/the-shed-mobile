@@ -316,16 +316,14 @@ describe("importHistory.migrateEmailDomain: merge + request re-key", () => {
       await ctx.db.insert("staffProfiles", {
         email: "kai.lee@sowaustralia.com",
         year: 2020,
-        roles: ["Staff"],
-        department: "Marketing",
+        assignments: [{ role: "Staff", department: "Marketing" }],
         importId: "uid-kai",
         name: "Kai Legacy",
       });
       await ctx.db.insert("staffProfiles", {
         email: "kai.lee@sow.org.au",
         year: 2020,
-        roles: ["Staff"],
-        department: "Finance",
+        assignments: [{ role: "Staff", department: "Finance" }],
       });
       // A request that year under the legacy email -> re-keyed.
       await ctx.db.insert("requests", {
@@ -349,14 +347,16 @@ describe("importHistory.migrateEmailDomain: merge + request re-key", () => {
     expect(result.requests).toBe(1);
 
     await t.run(async (ctx) => {
-      // The surviving row keeps its department but inherits the legacy importId.
+      // The surviving row keeps its assignments but inherits the legacy importId.
       const survivor = await ctx.db
         .query("staffProfiles")
         .withIndex("by_email_and_year", (q) =>
           q.eq("email", "kai.lee@sow.org.au").eq("year", 2020)
         )
         .unique();
-      expect(survivor?.department).toBe("Finance");
+      expect(survivor?.assignments).toEqual([
+        { role: "Staff", department: "Finance" },
+      ]);
       expect(survivor?.importId).toBe("uid-kai");
       const reqs = await ctx.db
         .query("requests")

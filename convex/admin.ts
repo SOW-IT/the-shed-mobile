@@ -680,9 +680,7 @@ export const updateDivision = mutation({
         .take(1000);
       for (const profile of profiles) {
         const current = assignmentsOf(profile);
-        const referencesOld =
-          profile.division === oldName ||
-          current.some((a) => a.division === oldName);
+        const referencesOld = current.some((a) => a.division === oldName);
         if (referencesOld) {
           const remapped = remapScope(current, "division", oldName, newName);
           await ctx.db.patch("staffProfiles", profile._id, { assignments: remapped });
@@ -819,9 +817,7 @@ export const updateUniversity = mutation({
         .take(1000);
       for (const profile of profiles) {
         const current = assignmentsOf(profile);
-        const referencesOld =
-          profile.university === oldName ||
-          current.some((a) => a.university === oldName);
+        const referencesOld = current.some((a) => a.university === oldName);
         if (referencesOld) {
           const remapped = remapScope(current, "university", oldName, newName);
           await ctx.db.patch("staffProfiles", profile._id, { assignments: remapped });
@@ -1293,136 +1289,6 @@ export const financeMembers = query({
 });
 
 /**
- * One-off cleanup: strips university from profiles where a purely org-internal
- * role is present (Staff, Head of Department, Head of Division).
- * Director, Chaplains and campus roles are left alone — they may carry a university.
- * Run with: npx convex run admin:clearStaffUniversities
- */
-export const clearStaffUniversities = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    let cleared = 0;
-    const profiles = await ctx.db.query("staffProfiles").take(8000);
-    for (const profile of profiles) {
-      const roles = rolesOf(profile);
-      const hasBlockingRole = STAFF_SIDE_ROLES.some((r) => roles.includes(r));
-      if (profile.university && hasBlockingRole) {
-        await ctx.db.patch("staffProfiles", profile._id, { university: undefined });
-        cleared++;
-      }
-    }
-    return { cleared };
-  },
-});
-
-/**
- * One-time migration: populate the new `assignments` array on every profile
- * from its legacy roles + department/division/university and the authoritative
- * department/division headEmail. Idempotent — re-running recomputes the same
- * assignments. Heads come from the actual head docs (so a person who heads two
- * departments gets both links and a stale `roles:[HOD]` without a real headship
- * is corrected). Returns the count and the profiles whose role set changed.
- * Run with: npx convex run admin:backfillAssignments
- */
-export const backfillAssignments = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const profiles = await ctx.db.query("staffProfiles").take(8000);
-
-    // Pre-load each year's authoritative heads once.
-    const years = [...new Set(profiles.map((p) => p.year))];
-    const headDeptsByYearEmail = new Map<string, string[]>();
-    const headDivsByYearEmail = new Map<string, string[]>();
-    const key = (year: number, email: string) => `${year} ${email}`;
-    for (const year of years) {
-      const departments = await ctx.db
-        .query("departments")
-        .withIndex("by_year_and_name", (q) => q.eq("year", year))
-        .take(200);
-      for (const d of departments) {
-        if (!d.headEmail) continue;
-        const k = key(year, d.headEmail);
-        headDeptsByYearEmail.set(k, [...(headDeptsByYearEmail.get(k) ?? []), d.name]);
-      }
-      const divisions = await ctx.db
-        .query("divisions")
-        .withIndex("by_year_and_name", (q) => q.eq("year", year))
-        .take(200);
-      for (const d of divisions) {
-        if (!d.headEmail) continue;
-        const k = key(year, d.headEmail);
-        headDivsByYearEmail.set(k, [...(headDivsByYearEmail.get(k) ?? []), d.name]);
-      }
-    }
-
-    let updated = 0;
-    const roleChanges: { email: string; year: number; from: string[]; to: string[] }[] = [];
-    for (const profile of profiles) {
-      // Base: derive non-head assignments from the legacy fields, dropping any
-      // legacy-derived head links (the authoritative docs are the truth).
-      const base = assignmentsOf(profile).filter((a) => !isHeadRole(a.role));
-      const headedDepts = headDeptsByYearEmail.get(key(profile.year, profile.email)) ?? [];
-      const headedDivs = headDivsByYearEmail.get(key(profile.year, profile.email)) ?? [];
-      const headAssignments: Assignment[] = [
-        ...headedDepts.map((d) => ({ role: HEAD_OF_DEPARTMENT, department: d })),
-        ...headedDivs.map((d) => ({ role: HEAD_OF_DIVISION, division: d })),
-      ];
-      // A non-head link to a department this person heads is superseded.
-      const headedDeptSet = new Set(headedDepts);
-      const baseKept = base.filter(
-        (a) => !(a.department && headedDeptSet.has(a.department))
-      );
-      let assignments = dedupeAssignments([...baseKept, ...headAssignments]);
-      if (assignments.length === 0) assignments = [{ role: STAFF_ROLE }];
-
-      const roles = [...new Set(assignments.map((a) => a.role))];
-      const before = rolesOf(profile);
-      if (before.slice().sort().join() !== roles.slice().sort().join()) {
-        roleChanges.push({ email: profile.email, year: profile.year, from: before, to: roles });
-      }
-      await ctx.db.patch("staffProfiles", profile._id, {
-        roles,
-        role: undefined,
-        assignments,
-      });
-      updated++;
-    }
-    return { updated, roleChanges };
-  },
-});
-
-/**
- * One-time migration retiring the legacy per-profile fields (`role`, `roles`,
- * `department`, `division`, `university`) now that `assignments` is the sole
- * source of truth. Self-sufficient and idempotent: derives `assignments` from
- * the legacy fields for any profile that still lacks them (defensive — every
- * write path already populates `assignments`), then unsets all five fields so
- * the schema can drop them. Run with: npx convex run admin:stripDeprecatedProfileFields
- */
-export const stripDeprecatedProfileFields = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const profiles = await ctx.db.query("staffProfiles").take(8000);
-    let updated = 0;
-    for (const profile of profiles) {
-      // assignmentsOf returns the stored assignments, or derives them from the
-      // legacy fields when absent — so this is a no-op-safe backstop before we
-      // unset the legacy columns.
-      await ctx.db.patch("staffProfiles", profile._id, {
-        assignments: dedupeAssignments(assignmentsOf(profile)),
-        role: undefined,
-        roles: undefined,
-        department: undefined,
-        division: undefined,
-        university: undefined,
-      });
-      updated++;
-    }
-    return { updated };
-  },
-});
-
-/**
  * Populates the `roles` table from IMPORT_DATA so an existing deployment can
  * be backfilled with the per-year role catalog without re-importing everything.
  * Idempotent — inserts only the (year, name) role rows that are missing.
@@ -1596,7 +1462,6 @@ export const copyYear = internalMutation({
       await ctx.db.insert("staffProfiles", {
         email: profile.email,
         year: args.to,
-        roles: rolesOf(profile),
         assignments: assignmentsOf(profile),
         name: profile.name,
         userId: profile.userId,
