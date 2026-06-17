@@ -345,6 +345,7 @@ export default function AdminScreen() {
     me?.isAdmin ? { year: selectedYear } : "skip"
   );
   const [syncing, setSyncing] = useState(false);
+  const [syncConfirm, setSyncConfirm] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState>(null);
@@ -583,14 +584,14 @@ export default function AdminScreen() {
             />
             <Row>
               <Btn
-                title="Save"
-                loading={savingAssign}
-                onPress={() => saveAssign(user.email)}
-              />
-              <Btn
                 title="Cancel"
                 variant="ghost"
                 onPress={() => setAssigningUserEmail(null)}
+              />
+              <Btn
+                title="Save"
+                loading={savingAssign}
+                onPress={() => saveAssign(user.email)}
               />
             </Row>
           </>
@@ -644,6 +645,11 @@ export default function AdminScreen() {
             />
             <Row>
               <Btn
+                title="Cancel"
+                variant="ghost"
+                onPress={() => setEditingUserEmail(null)}
+              />
+              <Btn
                 title="Save"
                 loading={savingEditUser}
                 onPress={() => {
@@ -681,11 +687,6 @@ export default function AdminScreen() {
                     })
                     .finally(() => setSavingEditUser(false));
                 }}
-              />
-              <Btn
-                title="Cancel"
-                variant="ghost"
-                onPress={() => setEditingUserEmail(null)}
               />
             </Row>
           </>
@@ -770,6 +771,19 @@ export default function AdminScreen() {
           }
         }}
         onClose={() => setRemoveProfileTarget(null)}
+      />
+
+      <ConfirmDialog
+        visible={syncConfirm}
+        title="Sync directory now?"
+        message="Pulls all active Google Workspace users on sow.org.au into the people picker. This also runs automatically every day."
+        destructive={false}
+        confirmLabel="Sync"
+        onConfirm={() => {
+          setSyncing(true);
+          void run(() => requestSync({})).finally(() => setSyncing(false));
+        }}
+        onClose={() => setSyncConfirm(false)}
       />
 
       <OptionSheet
@@ -894,6 +908,11 @@ export default function AdminScreen() {
                     />
                     <Row>
                       <Btn
+                        title="Cancel"
+                        variant="ghost"
+                        onPress={() => setEditingRoleKey(null)}
+                      />
+                      <Btn
                         title="Save"
                         loading={savingEditRole}
                         onPress={() => {
@@ -910,11 +929,6 @@ export default function AdminScreen() {
                             })
                             .finally(() => setSavingEditRole(false));
                         }}
-                      />
-                      <Btn
-                        title="Cancel"
-                        variant="ghost"
-                        onPress={() => setEditingRoleKey(null)}
                       />
                     </Row>
                   </>
@@ -993,6 +1007,11 @@ export default function AdminScreen() {
                     />
                     <Row>
                       <Btn
+                        title="Cancel"
+                        variant="ghost"
+                        onPress={() => setEditingDivisionKey(null)}
+                      />
+                      <Btn
                         title="Save"
                         loading={savingEditDivision}
                         onPress={() => {
@@ -1010,11 +1029,6 @@ export default function AdminScreen() {
                             })
                             .finally(() => setSavingEditDivision(false));
                         }}
-                      />
-                      <Btn
-                        title="Cancel"
-                        variant="ghost"
-                        onPress={() => setEditingDivisionKey(null)}
                       />
                     </Row>
                   </>
@@ -1114,6 +1128,11 @@ export default function AdminScreen() {
                     />
                     <Row>
                       <Btn
+                        title="Cancel"
+                        variant="ghost"
+                        onPress={() => setEditingUniversityKey(null)}
+                      />
+                      <Btn
                         title="Save"
                         loading={savingEditUniversity}
                         onPress={() => {
@@ -1130,11 +1149,6 @@ export default function AdminScreen() {
                             })
                             .finally(() => setSavingEditUniversity(false));
                         }}
-                      />
-                      <Btn
-                        title="Cancel"
-                        variant="ghost"
-                        onPress={() => setEditingUniversityKey(null)}
                       />
                     </Row>
                   </>
@@ -1220,6 +1234,11 @@ export default function AdminScreen() {
                     />
                     <Row>
                       <Btn
+                        title="Cancel"
+                        variant="ghost"
+                        onPress={() => setEditingDepartmentKey(null)}
+                      />
+                      <Btn
                         title="Save"
                         loading={savingEditDepartment}
                         onPress={() => {
@@ -1238,11 +1257,6 @@ export default function AdminScreen() {
                             })
                             .finally(() => setSavingEditDepartment(false));
                         }}
-                      />
-                      <Btn
-                        title="Cancel"
-                        variant="ghost"
-                        onPress={() => setEditingDepartmentKey(null)}
                       />
                     </Row>
                   </>
@@ -1355,12 +1369,7 @@ export default function AdminScreen() {
                 <Btn
                   title={syncing ? "Syncing…" : "Sync Directory Now"}
                   loading={syncing}
-                  onPress={() => {
-                    setSyncing(true);
-                    void run(() => requestSync({})).finally(() =>
-                      setSyncing(false)
-                    );
-                  }}
+                  onPress={() => setSyncConfirm(true)}
                 />
               </Card>
             </>
@@ -1368,11 +1377,7 @@ export default function AdminScreen() {
 
           <SectionTitle>Budget Manager — {selectedYear}</SectionTitle>
           <Card>
-            <Muted>
-              Current: {structure?.budgetManagerEmail ?? "not set"} (must be from
-              the Finance department)
-            </Muted>
-            {editable && (
+            {editable ? (
               <>
                 <Select
                   label="Budget Manager (Finance department members)"
@@ -1399,6 +1404,20 @@ export default function AdminScreen() {
                   }
                 />
               </>
+            ) : (
+              <Select
+                label="Budget Manager (Finance department members)"
+                value={structure?.budgetManagerEmail ?? ""}
+                options={(financeMembers ?? []).map((person) => ({
+                  label: person.name
+                    ? `${person.name} (${person.email})`
+                    : person.email,
+                  value: person.email,
+                }))}
+                onSelect={() => {}}
+                disabled
+                placeholder="Not set"
+              />
             )}
           </Card>
         </>

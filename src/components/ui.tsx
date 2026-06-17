@@ -683,22 +683,26 @@ const SelectFace = ({
   display,
   hasValue,
   onOpen,
+  disabled,
 }: {
   label: string;
   display: string;
   hasValue: boolean;
   onOpen: () => void;
+  disabled?: boolean;
 }) => {
   const t = useAppTheme();
   return (
     <View style={styles.field}>
       <Text style={[typography.label, { color: t.muted }]}>{label}</Text>
       <Pressable
+        disabled={disabled}
         style={({ pressed }) => [
           styles.input,
           styles.selectFace,
           { backgroundColor: t.inputBackground, borderColor: "transparent" },
-          pressed && { opacity: 0.7 },
+          disabled && { opacity: 0.6 },
+          !disabled && pressed && { opacity: 0.7 },
         ]}
         onPress={() => { hapticSelect(); onOpen(); }}
       >
@@ -708,7 +712,11 @@ const SelectFace = ({
         >
           {display}
         </Text>
-        <Ionicons name="chevron-down" size={16} color={t.faint} />
+        <Ionicons
+          name={disabled ? "lock-closed-outline" : "chevron-down"}
+          size={16}
+          color={t.faint}
+        />
       </Pressable>
     </View>
   );
@@ -721,12 +729,15 @@ export const Select = ({
   options,
   onSelect,
   placeholder,
+  disabled,
 }: {
   label: string;
   value: string;
   options: SelectOption[];
   onSelect: (value: string) => void;
   placeholder?: string;
+  /** Renders the field as a read-only, locked dropdown that can't be opened. */
+  disabled?: boolean;
 }) => {
   const [open, setOpen] = useState(false);
   const normalized = normalizeOptions(options);
@@ -738,6 +749,7 @@ export const Select = ({
         label={label}
         display={selectedLabel || placeholder || "Select…"}
         hasValue={!!value}
+        disabled={disabled}
         onOpen={() => setOpen(true)}
       />
       <OptionSheet visible={open} title={label} onClose={() => setOpen(false)}>

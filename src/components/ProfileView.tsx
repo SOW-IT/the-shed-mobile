@@ -183,8 +183,8 @@ const PaymentTab = () => {
               keyboardType="numeric"
             />
             <Row>
-              <Btn title="Save" onPress={() => void save()} disabled={saving} />
               <Btn title="Cancel" variant="ghost" onPress={cancelEdit} />
+              <Btn title="Save" onPress={() => void save()} disabled={saving} />
             </Row>
           </>
         ) : (
