@@ -69,12 +69,8 @@ const patchFromAssignments = async (
   profile: Doc<"staffProfiles">,
   assignments: Assignment[]
 ) => {
-  const deduped = dedupeAssignments(assignments);
-  const roles = [...new Set(deduped.map((a) => a.role))];
   await ctx.db.patch("staffProfiles", profile._id, {
-    roles,
-    role: undefined,
-    assignments: deduped,
+    assignments: dedupeAssignments(assignments),
   });
 };
 
@@ -102,7 +98,6 @@ const grantHead = async (
     await ctx.db.insert("staffProfiles", {
       email,
       year,
-      roles: [role],
       assignments: [headAssignment],
       importId: await resolveImportId(ctx, email),
     });
@@ -303,7 +298,6 @@ export const setStaffProfile = mutation({
         (a) => !(a.department && headedDepts.has(a.department))
       );
       const assignments = dedupeAssignments([...submittedKept, ...preservedHead]);
-      const finalRoles = [...new Set(assignments.map((a) => a.role))];
 
       if (!assignments.some((a) => a.department === FINANCE)) {
         const settings = await getYearSettings(ctx, args.year);
@@ -314,8 +308,6 @@ export const setStaffProfile = mutation({
 
       if (existing) {
         await ctx.db.patch("staffProfiles", existing._id, {
-          roles: finalRoles,
-          role: undefined,
           assignments,
           importId: existing.importId ?? (await resolveImportId(ctx, email)),
         });
@@ -324,7 +316,6 @@ export const setStaffProfile = mutation({
         return await ctx.db.insert("staffProfiles", {
           email,
           year: args.year,
-          roles: finalRoles,
           assignments,
           importId: await resolveImportId(ctx, email),
         });
@@ -467,7 +458,6 @@ export const setStaffProfile = mutation({
       (a) => !(a.department && headedDepts.has(a.department))
     );
     const assignments = dedupeAssignments([...submittedKept, ...preservedHead]);
-    const finalRoles = [...new Set(assignments.map((a) => a.role))];
 
     // Moving the Budget Manager out of Finance would violate the rule that the
     // Budget Manager must be a member of the Finance department.
@@ -483,8 +473,6 @@ export const setStaffProfile = mutation({
     let profileId;
     if (existing) {
       await ctx.db.patch("staffProfiles", existing._id, {
-        roles: finalRoles,
-        role: undefined,
         assignments,
         importId: existing.importId ?? (await resolveImportId(ctx, email)),
       });
@@ -493,7 +481,6 @@ export const setStaffProfile = mutation({
       profileId = await ctx.db.insert("staffProfiles", {
         email,
         year: args.year,
-        roles: finalRoles,
         assignments,
         importId: await resolveImportId(ctx, email),
       });
@@ -1158,9 +1145,7 @@ export const updateDepartment = mutation({
         .take(1000);
       for (const profile of profiles) {
         const current = assignmentsOf(profile);
-        const referencesOld =
-          profile.department === oldName ||
-          current.some((a) => a.department === oldName);
+        const referencesOld = current.some((a) => a.department === oldName);
         if (referencesOld) {
           const remapped = remapScope(current, "department", oldName, newName);
           await ctx.db.patch("staffProfiles", profile._id, { assignments: remapped });
@@ -1403,6 +1388,37 @@ export const backfillAssignments = internalMutation({
       updated++;
     }
     return { updated, roleChanges };
+  },
+});
+
+/**
+ * One-time migration retiring the legacy per-profile fields (`role`, `roles`,
+ * `department`, `division`, `university`) now that `assignments` is the sole
+ * source of truth. Self-sufficient and idempotent: derives `assignments` from
+ * the legacy fields for any profile that still lacks them (defensive — every
+ * write path already populates `assignments`), then unsets all five fields so
+ * the schema can drop them. Run with: npx convex run admin:stripDeprecatedProfileFields
+ */
+export const stripDeprecatedProfileFields = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const profiles = await ctx.db.query("staffProfiles").take(8000);
+    let updated = 0;
+    for (const profile of profiles) {
+      // assignmentsOf returns the stored assignments, or derives them from the
+      // legacy fields when absent — so this is a no-op-safe backstop before we
+      // unset the legacy columns.
+      await ctx.db.patch("staffProfiles", profile._id, {
+        assignments: dedupeAssignments(assignmentsOf(profile)),
+        role: undefined,
+        roles: undefined,
+        department: undefined,
+        division: undefined,
+        university: undefined,
+      });
+      updated++;
+    }
+    return { updated };
   },
 });
 
@@ -1692,8 +1708,7 @@ export const seed = internalMutation({
       await ctx.db.insert("staffProfiles", {
         email,
         year,
-        roles: [STAFF_ROLE],
-        department: "Data and IT",
+        assignments: [{ role: STAFF_ROLE, department: "Data and IT" }],
       });
     }
     return { year, admin: email };

@@ -461,6 +461,67 @@ describe("backfillAssignments", () => {
   });
 });
 
+describe("stripDeprecatedProfileFields", () => {
+  test("derives assignments from legacy fields then clears them", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: "legacy@sow.org.au",
+        year: YEAR,
+        roles: ["Staff"],
+        department: "Marketing",
+      });
+    });
+
+    const { updated } = await t.mutation(
+      internal.admin.stripDeprecatedProfileFields,
+      {}
+    );
+    expect(updated).toBeGreaterThan(0);
+
+    const doc = await t.run((ctx) =>
+      ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) =>
+          q.eq("email", "legacy@sow.org.au").eq("year", YEAR)
+        )
+        .unique()
+    );
+    // Assignments derived from the legacy fields…
+    expect(doc?.assignments).toEqual([{ role: "Staff", department: "Marketing" }]);
+    // …and every deprecated field unset.
+    expect(doc?.roles).toBeUndefined();
+    expect(doc?.role).toBeUndefined();
+    expect(doc?.department).toBeUndefined();
+    expect(doc?.division).toBeUndefined();
+    expect(doc?.university).toBeUndefined();
+  });
+
+  test("leaves an already-migrated profile's assignments intact", async () => {
+    const t = await setup();
+    const stored = [{ role: "Staff", department: "Marketing" }];
+    await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: "modern@sow.org.au",
+        year: YEAR,
+        assignments: stored,
+      });
+    });
+
+    await t.mutation(internal.admin.stripDeprecatedProfileFields, {});
+
+    const doc = await t.run((ctx) =>
+      ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) =>
+          q.eq("email", "modern@sow.org.au").eq("year", YEAR)
+        )
+        .unique()
+    );
+    expect(doc?.assignments).toEqual(stored);
+  });
+});
+
 describe("copyYear", () => {
   test("copies assignments and division headEmail to the next year", async () => {
     const t = await setup();

@@ -235,8 +235,6 @@ export const run = internalMutation({
           })
         );
         const fields = {
-          roles,
-          role: undefined, // retire the legacy single-role field if present
           assignments,
           name: profile.name,
           importId: profile.importId,

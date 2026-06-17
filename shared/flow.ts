@@ -106,6 +106,11 @@ export interface Assignment {
  * The minimal shape the assignment helpers read. Both the Convex
  * `Doc<"staffProfiles">` and the app's profile payloads satisfy it, so these
  * helpers stay pure and free of the Convex `Doc` type.
+ *
+ * The `roles`/`role`/`department`/`division`/`university` fields are DEPRECATED
+ * legacy fallbacks, read only when `assignments` is absent. They are being
+ * removed: writers no longer set them and a strip migration clears them; the
+ * read fallback below is deleted alongside the schema fields in a follow-up.
  */
 export interface ProfileLike {
   roles?: string[];
@@ -116,9 +121,17 @@ export interface ProfileLike {
   assignments?: Assignment[];
 }
 
-/** A profile's roles; reads the legacy single-role field transparently. */
-export const rolesOfLike = (p: ProfileLike): string[] =>
-  p.roles ?? (p.role ? [p.role] : []);
+/**
+ * A profile's distinct roles. Derives from `assignments` (the source of truth);
+ * falls back to the legacy `roles`/`role` fields only for profiles not yet
+ * migrated to assignments.
+ */
+export const rolesOfLike = (p: ProfileLike): string[] => {
+  if (p.assignments && p.assignments.length > 0) {
+    return [...new Set(p.assignments.map((a) => a.role))];
+  }
+  return p.roles ?? (p.role ? [p.role] : []);
+};
 
 /**
  * The primary scope a role attaches to. Chaplains are department-scoped
@@ -166,7 +179,7 @@ export const assignmentFor = (
 /**
  * A profile's per-role scope links. Returns the stored `assignments` when
  * present; otherwise derives them from the legacy single-scope fields so every
- * reader works before the backfill runs.
+ * reader works for profiles not yet stripped of the deprecated fields.
  */
 export const assignmentsOf = (p: ProfileLike): Assignment[] => {
   if (p.assignments && p.assignments.length > 0) return p.assignments;
