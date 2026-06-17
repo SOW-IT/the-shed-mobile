@@ -1019,7 +1019,7 @@ export default function AdminScreen() {
                       onChangeText={setEditingDivisionFormName}
                     />
                     <Select
-                      label="Head of Division (optional — also gives them the role)"
+                      label="Head of Division"
                       value={editingDivisionFormHead}
                       options={[{ label: "— No head —", value: "" }, ...personOptions]}
                       onSelect={setEditingDivisionFormHead}
@@ -1100,7 +1100,7 @@ export default function AdminScreen() {
                 onChangeText={setDivisionName}
               />
               <Select
-                label="Head of Division (optional — also gives them the role; a person can head several divisions)"
+                label="Head of Division (a person can head several divisions)"
                 value={divisionHead}
                 options={[{ label: "— No head —", value: "" }, ...personOptions]}
                 onSelect={setDivisionHead}
@@ -1244,7 +1244,7 @@ export default function AdminScreen() {
                       placeholder="Choose a division…"
                     />
                     <Select
-                      label="Head of Department (optional — also gives them the role)"
+                      label="Head of Department"
                       value={editingDepartmentFormHead}
                       options={[{ label: "— No head —", value: "" }, ...personOptions]}
                       onSelect={setEditingDepartmentFormHead}
@@ -1338,7 +1338,7 @@ export default function AdminScreen() {
                 placeholder="Choose a division…"
               />
               <Select
-                label="Head of Department (optional — also gives them the role)"
+                label="Head of Department"
                 value={departmentHead}
                 options={[{ label: "— No head —", value: "" }, ...personOptions]}
                 onSelect={setDepartmentHead}
