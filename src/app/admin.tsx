@@ -728,10 +728,12 @@ export default function AdminScreen() {
               <>
                 <IconButton
                   name="create-outline"
+                  size={40}
                   onPress={() => startEditUser(profile.email)}
                 />
                 <IconButton
                   name="trash-outline"
+                  size={40}
                   color={t.danger}
                   onPress={() => setRemoveProfileTarget(profile)}
                 />

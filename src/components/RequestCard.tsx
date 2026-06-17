@@ -419,7 +419,6 @@ export const RequestCard = ({
               {status}
             </Text>
           </View>
-          <View style={styles.topSide} />
         </View>
         <Text style={[typography.caption, { color: t.faint, marginTop: -6 }]}>
           {request.department}
@@ -452,21 +451,6 @@ export const RequestCard = ({
           <Text numberOfLines={1} style={[styles.statusPillText, { color: chip.fg }]}>
             {status}
           </Text>
-        </View>
-        <View style={styles.topSide}>
-          {onCancel ? (
-            <Pressable
-              onPress={onCancel}
-              hitSlop={10}
-              style={styles.cancelIcon}
-              accessibilityRole="button"
-              accessibilityLabel="Delete or cancel request"
-            >
-              <Ionicons name="trash-outline" size={17} color={t.danger} />
-            </Pressable>
-          ) : (
-            <View style={styles.cancelPlaceholder} />
-          )}
         </View>
       </View>
       <Text style={[typography.caption, { color: t.faint, marginTop: -6 }]}>
@@ -520,6 +504,7 @@ export const RequestCard = ({
         <View style={styles.actionsRight}>
           <IconButton
             name="receipt-outline"
+            size={40}
             accessibilityLabel={showHistory ? "Hide audit trail" : "Show audit trail"}
             color={showHistory ? t.primary : t.ghostText}
             bg={showHistory ? t.primarySoft : undefined}
@@ -527,12 +512,22 @@ export const RequestCard = ({
           />
           <IconButton
             name="chatbubble-ellipses-outline"
+            size={40}
             accessibilityLabel="Comments"
             badge={unreadComments ?? 0}
             badgeColor="#ffffff"
             badgeTextColor="#333333"
             onPress={() => setShowComments(true)}
           />
+          {onCancel ? (
+            <IconButton
+              name="trash-outline"
+              size={40}
+              color={t.danger}
+              accessibilityLabel="Delete or cancel request"
+              onPress={onCancel}
+            />
+          ) : null}
         </View>
       </View>
       <CommentsSheet
@@ -558,7 +553,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 0.3,
   },
-  cancelIcon: { padding: 2, alignSelf: "flex-end" },
   viewMore: {
     flexDirection: "row",
     alignItems: "center",
@@ -566,7 +560,6 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     paddingVertical: 2,
   },
-  cancelPlaceholder: { width: 21, height: 21 },
   stepsRow: {
     flexDirection: "row",
     alignItems: "flex-start",
