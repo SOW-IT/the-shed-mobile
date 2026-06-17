@@ -14,6 +14,7 @@ import {
   errorMessage,
   FadeInView,
   Field,
+  IconButton,
   LoadingState,
   Muted,
   Row,
@@ -176,24 +177,19 @@ export const BankTab = () => {
                   BSB {preferred.bsb} · {maskAccount(preferred.accountNumber)}
                 </Muted>
               </View>
-              <Pressable
-                hitSlop={8}
-                accessibilityRole="button"
+              <IconButton
+                name="create-outline"
+                size={40}
                 accessibilityLabel="Edit preferred bank details"
                 onPress={startEdit}
-                style={({ pressed }) => [pressed && { opacity: 0.6 }]}
-              >
-                <Ionicons name="pencil-outline" size={18} color={t.primary} />
-              </Pressable>
-              <Pressable
-                hitSlop={8}
-                accessibilityRole="button"
+              />
+              <IconButton
+                name="trash-outline"
+                size={40}
+                color={t.danger}
                 accessibilityLabel={`Delete ${preferred.accountName}`}
                 onPress={() => confirmDelete(preferred.id, preferred.accountName, true)}
-                style={({ pressed }) => [pressed && { opacity: 0.6 }]}
-              >
-                <Ionicons name="trash-outline" size={18} color={t.danger} />
-              </Pressable>
+              />
             </View>
           </Card>
         ) : (
@@ -236,15 +232,13 @@ export const BankTab = () => {
                     BSB {account.bsb} · {maskAccount(account.accountNumber)}
                   </Muted>
                 </View>
-                <Pressable
-                  hitSlop={8}
-                  accessibilityRole="button"
+                <IconButton
+                  name="trash-outline"
+                  size={40}
+                  color={t.danger}
                   accessibilityLabel={`Delete ${account.accountName}`}
                   onPress={() => confirmDelete(account.id, account.accountName, false)}
-                  style={({ pressed }) => [pressed && { opacity: 0.6 }]}
-                >
-                  <Ionicons name="trash-outline" size={18} color={t.danger} />
-                </Pressable>
+                />
               </View>
             </Card>
           ))}
