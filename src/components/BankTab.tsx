@@ -272,153 +272,173 @@ export const BankTab = () => {
     });
   };
 
+  const isEditing = (id: Id<"savedBankAccounts">) =>
+    mode === "edit" && editingId === id;
+
+  /** The add/edit form, rendered in place of a card (edit) or the add button
+   *  (add) so the rest of the accounts stay visible above and below. */
+  const accountForm = (isAdd: boolean) => (
+    <Card style={styles.bankCard}>
+      <Field
+        label="Account name"
+        value={nameDraft}
+        onChangeText={setNameDraft}
+        placeholder="e.g. John Smith"
+      />
+      <Field
+        label="BSB"
+        value={bsbDraft}
+        onChangeText={(v) => setBsbDraft(digitsOnly(v))}
+        placeholder="000-000"
+        keyboardType="numeric"
+      />
+      <Field
+        label="Account number"
+        value={numberDraft}
+        onChangeText={(v) => setNumberDraft(digitsOnly(v))}
+        placeholder="00000000"
+        keyboardType="numeric"
+      />
+      {isAdd && (
+        <OptionRow
+          label="Make this your preferred account"
+          selected={makePreferredDraft}
+          onPress={() => setMakePreferredDraft((v) => !v)}
+          multi
+        />
+      )}
+      <ErrorBanner message={error} />
+      <Row spread loading={saving}>
+        <Btn title="Cancel" variant="ghost" onPress={cancel} />
+        <Btn
+          title={isAdd ? "Add Account" : "Save"}
+          onPress={() => void save()}
+          disabled={saving}
+        />
+      </Row>
+    </Card>
+  );
+
   return (
     <>
-      {editing ? (
-        <FadeInView delay={stagger(1)}>
-          <SectionTitle>{mode === "edit" ? "Edit Account" : "Add Account"}</SectionTitle>
-          <ErrorBanner message={error} />
-          <Card style={styles.bankCard}>
-            <Field
-              label="Account name"
-              value={nameDraft}
-              onChangeText={setNameDraft}
-              placeholder="e.g. John Smith"
-            />
-            <Field
-              label="BSB"
-              value={bsbDraft}
-              onChangeText={(v) => setBsbDraft(digitsOnly(v))}
-              placeholder="000-000"
-              keyboardType="numeric"
-            />
-            <Field
-              label="Account number"
-              value={numberDraft}
-              onChangeText={(v) => setNumberDraft(digitsOnly(v))}
-              placeholder="00000000"
-              keyboardType="numeric"
-            />
-            {mode === "add" && (
-              <OptionRow
-                label="Make this your preferred account"
-                selected={makePreferredDraft}
-                onPress={() => setMakePreferredDraft((v) => !v)}
-                multi
-              />
-            )}
-            <Row spread loading={saving}>
-              <Btn title="Cancel" variant="ghost" onPress={cancel} />
-              <Btn
-                title={mode === "edit" ? "Save" : "Add Account"}
-                onPress={() => void save()}
-                disabled={saving}
-              />
-            </Row>
-          </Card>
-        </FadeInView>
-      ) : (
-        <>
-          <FadeInView delay={stagger(1)}>
-            <SectionTitle>Preferred Account</SectionTitle>
-            <View style={{ marginBottom: spacing.sm }}>
-              <Muted>This account is auto-filled when you submit a receipt.</Muted>
-            </View>
-            <ErrorBanner message={error} />
+      <FadeInView delay={stagger(1)}>
+        <SectionTitle>Preferred Account</SectionTitle>
+        <View style={{ marginBottom: spacing.sm }}>
+          <Muted>This account is auto-filled when you submit a receipt.</Muted>
+        </View>
+        {/* Form-level errors render inside the form; this banner is for
+            list actions (set preferred / delete) while no form is open. */}
+        <ErrorBanner message={mode === "none" ? error : null} />
 
-            {preferred ? (
-              animatedWrap(
-                preferred.id,
+        {preferred ? (
+          animatedWrap(
+            preferred.id,
+            isEditing(preferred.id) ? (
+              accountForm(false)
+            ) : (
+              <Card style={styles.bankCard}>
+                <View style={styles.bankRow}>
+                  <Ionicons name="star" size={20} color={t.accent} />
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Txt style={{ fontWeight: "700" }}>{preferred.accountName}</Txt>
+                    <Muted>
+                      BSB {preferred.bsb} · {maskAccount(preferred.accountNumber)}
+                    </Muted>
+                  </View>
+                  <IconButton
+                    name="create-outline"
+                    size={40}
+                    disabled={editing}
+                    accessibilityLabel="Edit preferred bank details"
+                    onPress={() => startEdit(preferred)}
+                  />
+                  <IconButton
+                    name="trash-outline"
+                    size={40}
+                    color={t.danger}
+                    disabled={editing}
+                    accessibilityLabel={`Delete ${preferred.accountName}`}
+                    onPress={() => confirmDelete(preferred.id, preferred.accountName, true)}
+                  />
+                </View>
+              </Card>
+            )
+          )
+        ) : (
+          <Card style={styles.bankCard}>
+            <Muted>No preferred bank account yet. Add one below.</Muted>
+          </Card>
+        )}
+      </FadeInView>
+
+      {others.length > 0 && (
+        <FadeInView delay={stagger(2)}>
+          <SectionTitle>Other Saved Accounts</SectionTitle>
+          {others.map((account) =>
+            animatedWrap(
+              account.id,
+              isEditing(account.id) ? (
+                accountForm(false)
+              ) : (
                 <Card style={styles.bankCard}>
                   <View style={styles.bankRow}>
-                    <Ionicons name="star" size={20} color={t.accent} />
+                    <Pressable
+                      hitSlop={8}
+                      disabled={editing}
+                      accessibilityRole="button"
+                      accessibilityLabel="Set as preferred"
+                      onPress={() =>
+                        void setPreferred({ id: account.id }).catch((e) =>
+                          setError(errorMessage(e))
+                        )
+                      }
+                      style={({ pressed }) => [(pressed || editing) && { opacity: 0.6 }]}
+                    >
+                      <Ionicons name="star-outline" size={20} color={t.faint} />
+                    </Pressable>
                     <View style={{ flex: 1, gap: 2 }}>
-                      <Txt style={{ fontWeight: "700" }}>{preferred.accountName}</Txt>
+                      <Txt style={{ fontWeight: "700" }}>{account.accountName}</Txt>
                       <Muted>
-                        BSB {preferred.bsb} · {maskAccount(preferred.accountNumber)}
+                        BSB {account.bsb} · {maskAccount(account.accountNumber)}
                       </Muted>
                     </View>
                     <IconButton
                       name="create-outline"
                       size={40}
-                      accessibilityLabel="Edit preferred bank details"
-                      onPress={() => startEdit(preferred)}
+                      disabled={editing}
+                      accessibilityLabel={`Edit ${account.accountName}`}
+                      onPress={() => startEdit(account)}
                     />
                     <IconButton
                       name="trash-outline"
                       size={40}
                       color={t.danger}
-                      accessibilityLabel={`Delete ${preferred.accountName}`}
-                      onPress={() => confirmDelete(preferred.id, preferred.accountName, true)}
+                      disabled={editing}
+                      accessibilityLabel={`Delete ${account.accountName}`}
+                      onPress={() => confirmDelete(account.id, account.accountName, false)}
                     />
                   </View>
                 </Card>
               )
-            ) : (
-              <Card style={styles.bankCard}>
-                <Muted>No preferred bank account yet. Add one below.</Muted>
-              </Card>
-            )}
-          </FadeInView>
-
-          {others.length > 0 && (
-            <FadeInView delay={stagger(2)}>
-              <SectionTitle>Other Saved Accounts</SectionTitle>
-              {others.map((account) =>
-                animatedWrap(
-                  account.id,
-                  <Card style={styles.bankCard}>
-                    <View style={styles.bankRow}>
-                      <Pressable
-                        hitSlop={8}
-                        accessibilityRole="button"
-                        accessibilityLabel="Set as preferred"
-                        onPress={() =>
-                          void setPreferred({ id: account.id }).catch((e) =>
-                            setError(errorMessage(e))
-                          )
-                        }
-                        style={({ pressed }) => [pressed && { opacity: 0.6 }]}
-                      >
-                        <Ionicons name="star-outline" size={20} color={t.faint} />
-                      </Pressable>
-                      <View style={{ flex: 1, gap: 2 }}>
-                        <Txt style={{ fontWeight: "700" }}>{account.accountName}</Txt>
-                        <Muted>
-                          BSB {account.bsb} · {maskAccount(account.accountNumber)}
-                        </Muted>
-                      </View>
-                      <IconButton
-                        name="create-outline"
-                        size={40}
-                        accessibilityLabel={`Edit ${account.accountName}`}
-                        onPress={() => startEdit(account)}
-                      />
-                      <IconButton
-                        name="trash-outline"
-                        size={40}
-                        color={t.danger}
-                        accessibilityLabel={`Delete ${account.accountName}`}
-                        onPress={() => confirmDelete(account.id, account.accountName, false)}
-                      />
-                    </View>
-                  </Card>
-                )
-              )}
-            </FadeInView>
+            )
           )}
-
-          <FadeInView delay={stagger(3)}>
-            <View style={styles.addButton}>
-              <Btn
-                title={preferred ? "Add Another Account" : "Add Bank Details"}
-                variant="ghost"
-                onPress={startAdd}
-              />
-            </View>
-          </FadeInView>
-        </>
+        </FadeInView>
       )}
+
+      <FadeInView delay={stagger(3)}>
+        <View style={styles.addButton}>
+          {mode === "add" ? (
+            accountForm(true)
+          ) : (
+            <Btn
+              title={preferred ? "Add Another Account" : "Add Bank Details"}
+              variant="ghost"
+              disabled={editing}
+              onPress={startAdd}
+            />
+          )}
+        </View>
+      </FadeInView>
 
       <ConfirmDialog
         visible={deleteTarget !== null}
