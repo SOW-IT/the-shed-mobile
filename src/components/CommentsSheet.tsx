@@ -10,9 +10,9 @@ import {
   errorMessage,
   ErrorBanner,
   IconButton,
-  LoadingState,
   Muted,
   Sheet,
+  SowSpinner,
 } from "./ui";
 
 /** A handful of one-tap reactions; the rest live behind "More". */
@@ -52,6 +52,14 @@ export const CommentsSheet = ({
     api.comments.list,
     visible ? { requestId: request._id } : "skip"
   );
+  // Retain the last loaded result so closing the sheet doesn't flash the
+  // spinner again: on close `visible` flips false, the query reverts to
+  // "skip" (comments -> undefined), and without this the content would swap
+  // back to the loading state mid fade-out.
+  const [loaded, setLoaded] = useState<typeof comments>(comments);
+  useEffect(() => {
+    if (comments !== undefined) setLoaded(comments);
+  }, [comments]);
   const add = useMutation(api.comments.add);
   const markRead = useMutation(api.comments.markRead);
   const toggleReaction = useMutation(api.comments.toggleReaction);
@@ -104,13 +112,15 @@ export const CommentsSheet = ({
   return (
     <>
       <Sheet visible={visible} onClose={onClose} title="Comments">
-        {comments === undefined ? (
-          <LoadingState />
-        ) : comments === null || comments.length === 0 ? (
+        {loaded === undefined ? (
+          <View style={styles.loading}>
+            <SowSpinner size={22} />
+          </View>
+        ) : loaded === null || loaded.length === 0 ? (
           <Muted>No comments yet. Start the conversation below.</Muted>
         ) : (
           <View style={{ gap: spacing.md }}>
-            {comments.map((comment) => (
+            {loaded.map((comment) => (
               <View key={comment.id} style={styles.commentRow}>
                 <Avatar photo={null} name={comment.authorName ?? comment.authorEmail} size={32} />
                 <View style={{ flex: 1, gap: 3 }}>
@@ -241,6 +251,9 @@ export const CommentsSheet = ({
 };
 
 const styles = StyleSheet.create({
+  // Compact, left-aligned to occupy roughly the same footprint as the
+  // "No comments yet" line so the sheet doesn't jump in size after loading.
+  loading: { alignSelf: "flex-start", paddingVertical: 2 },
   commentRow: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" },
   commentHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   reactionRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 2 },
