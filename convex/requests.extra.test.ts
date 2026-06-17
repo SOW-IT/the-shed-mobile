@@ -597,6 +597,20 @@ describe("browsing past years", () => {
     expect(Math.min(...years.all)).toBeGreaterThanOrEqual(2021);
   });
 
+  test("requestYears paginates past a single page of divisions", async () => {
+    const t = await setup();
+    // More divisions than one pagination page (256) so the cursor loop runs;
+    // the lone 2022 row would be dropped by a fixed first-page-only fetch.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("divisions", { year: 2022, name: "Edge" });
+      for (let i = 0; i < 300; i++) {
+        await ctx.db.insert("divisions", { year: YEAR, name: `Div ${i}` });
+      }
+    });
+    const years = (await asUser(t, BELLA).query(api.requests.requestYears, {}))!;
+    expect(years.all).toContain(2022);
+  });
+
   test("allRequests({year}) shows a past year to Finance only", async () => {
     const t = await setup();
     await seedPastRequest(t, RACHEL, YEAR - 1, "last year");
