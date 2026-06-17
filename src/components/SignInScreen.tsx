@@ -81,7 +81,7 @@ export const SignInScreen = () => {
             />
             <Image
               source={require("../../assets/images/the-shed-watermark.png")}
-              style={[styles.watermark, t.dark && { tintColor: t.text }]}
+              style={[styles.watermark, { tintColor: t.text }]}
               resizeMode="contain"
             />
           </FadeInView>
