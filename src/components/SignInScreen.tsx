@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
   },
   hero: { alignItems: "center" },
   heroInner: { alignItems: "center", gap: spacing.sm },
-  compactLogo: { width: 240, height: 46 },
+  compactLogo: { width: 320, height: 61 },
   tagline: { textAlign: "center", maxWidth: 280, lineHeight: 19 },
   buttonWrap: { maxWidth: 420, width: "100%", alignSelf: "center" },
   googleButton: {
