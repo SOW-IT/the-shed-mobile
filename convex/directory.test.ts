@@ -167,8 +167,7 @@ describe("nameForEmail", () => {
       ctx.db.insert("staffProfiles", {
         email: RACHEL,
         year: YEAR - 2,
-        roles: ["Staff"],
-        department: "Marketing",
+        assignments: [{ role: "Staff", department: "Marketing" }],
         name: "Rachel (maiden)",
       })
     );
@@ -219,7 +218,7 @@ describe("orgChart", () => {
       ctx.db.insert("staffProfiles", {
         email: "interim@sow.org.au",
         year: YEAR,
-        roles: ["Interim Director"],
+        assignments: [{ role: "Interim Director" }],
       })
     );
     const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
@@ -246,7 +245,6 @@ describe("orgChart", () => {
       await ctx.db.insert("staffProfiles", {
         email: "interim@sow.org.au",
         year: YEAR,
-        roles: ["Interim Director"],
         assignments: [{ role: "Interim Director" }],
       });
     });
@@ -265,14 +263,12 @@ describe("orgChart", () => {
       await ctx.db.insert("staffProfiles", {
         email: "zoe@sow.org.au",
         year: YEAR,
-        roles: ["Staff"],
         name: "Zoe",
         assignments: [{ role: "Staff" }],
       });
       await ctx.db.insert("staffProfiles", {
         email: "floater@sow.org.au",
         year: YEAR,
-        roles: ["Staff"],
         name: "Aaron",
         assignments: [{ role: "Staff" }],
       });
@@ -295,7 +291,6 @@ describe("orgChart", () => {
       ctx.db.insert("staffProfiles", {
         email: "prez@sow.org.au",
         year: YEAR,
-        roles: ["President"],
         assignments: [{ role: "President" }],
       })
     );
@@ -310,7 +305,6 @@ describe("orgChart", () => {
       await ctx.db.insert("staffProfiles", {
         email: "general@sow.org.au",
         year: YEAR,
-        roles: ["Staff"],
         assignments: [{ role: "Staff", division: "General" }],
       });
     });
@@ -331,13 +325,11 @@ describe("orgChart", () => {
       await ctx.db.insert("staffProfiles", {
         email: "oldstaff@sow.org.au",
         year: OLD,
-        roles: ["Staff"],
         assignments: [{ role: "Staff" }],
       });
       await ctx.db.insert("staffProfiles", {
         email: "oldprez@sow.org.au",
         year: OLD,
-        roles: ["President"],
         assignments: [{ role: "President", university: "UNSW" }],
       });
     });

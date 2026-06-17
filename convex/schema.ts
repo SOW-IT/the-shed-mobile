@@ -34,12 +34,10 @@ export default defineSchema({
   staffProfiles: defineTable({
     email: v.string(), // always lowercase
     year: v.number(),
-    roles: v.optional(v.array(v.string())),
-    role: v.optional(v.string()), // legacy single-role field; use rolesOf()
     // The per-role scope links: one entry per role a person holds, tied to its
     // specific department/division/campus. Lets someone be e.g. Head of two
     // departments, Staff of a third, and Head of two divisions at once. Read
-    // via assignmentsOf() (derives from the legacy fields below when absent).
+    // via assignmentsOf(); the sole source of a profile's roles + scopes.
     // Heads are mirrored here from the authoritative departments/divisions
     // headEmail — those docs remain the source of truth and uniqueness enforcer.
     assignments: v.optional(
@@ -52,11 +50,6 @@ export default defineSchema({
         })
       )
     ),
-    // Legacy single-scope fields, kept in sync for backward compatibility
-    // (request-submit fallback, etc.). Prefer the assignments helpers.
-    department: v.optional(v.string()),
-    division: v.optional(v.string()), // for Heads of Division
-    university: v.optional(v.string()), // for Student Leaders
     name: v.optional(v.string()), // synced from Google on sign-in
     // Bound on first sign-in; the durable anchor that survives Google
     // Workspace email renames (see userLink.ts).
@@ -70,8 +63,6 @@ export default defineSchema({
   })
     .index("by_email_and_year", ["email", "year"])
     .index("by_year", ["year"])
-    .index("by_year_and_department", ["year", "department"])
-    .index("by_year_and_role", ["year", "role"])
     .index("by_userId", ["userId"])
     .index("by_importId", ["importId"]),
 

@@ -518,15 +518,15 @@ describe("importHistory.personHistory", () => {
       await ctx.db.insert("staffProfiles", {
         email: "old@gmail.com",
         year: YEAR - 2,
-        roles: ["Student Leader"],
-        university: "University of Sydney",
+        assignments: [
+          { role: "Student Leader", university: "University of Sydney" },
+        ],
         importId: "uid-1",
       });
       await ctx.db.insert("staffProfiles", {
         email: "new@sow.org.au",
         year: YEAR,
-        roles: ["Staff"],
-        department: "Marketing",
+        assignments: [{ role: "Staff", department: "Marketing" }],
         importId: "uid-1",
       });
     });

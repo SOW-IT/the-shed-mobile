@@ -154,15 +154,15 @@ describe("email changes: the person stays the same", () => {
       await ctx.db.insert("staffProfiles", {
         email: oldEmail,
         year: YEAR - 2,
-        roles: ["Student Leader"],
-        university: "University of Sydney",
+        assignments: [
+          { role: "Student Leader", university: "University of Sydney" },
+        ],
         importId: "uid-jane",
       });
       await ctx.db.insert("staffProfiles", {
         email: newEmail,
         year: YEAR,
-        roles: ["Staff"],
-        department: "Data and IT",
+        assignments: [{ role: "Staff", department: "Data and IT" }],
         importId: "uid-jane",
       });
       return await ctx.db.insert("users", { email: newEmail, name: "Jane Doe" });
@@ -194,15 +194,15 @@ describe("email changes: the person stays the same", () => {
       await ctx.db.insert("staffProfiles", {
         email: "mia.cho@sowaustralia.com",
         year: YEAR,
-        roles: ["Staff"],
-        department: "Data and IT",
+        assignments: [{ role: "Staff", department: "Data and IT" }],
         importId: "uid-mia",
       });
       await ctx.db.insert("staffProfiles", {
         email: "mia.cho@sowaustralia.com",
         year: YEAR - 1,
-        roles: ["Student Leader"],
-        university: "University of Sydney",
+        assignments: [
+          { role: "Student Leader", university: "University of Sydney" },
+        ],
         importId: "uid-mia",
       });
       // The same person, signing in with the org's new domain.
@@ -293,8 +293,7 @@ describe("email changes: the person stays the same", () => {
       await ctx.db.insert("staffProfiles", {
         email: imported,
         year: YEAR,
-        roles: ["Staff"],
-        department: "Finance",
+        assignments: [{ role: "Staff", department: "Finance" }],
         importId: "uid-ivy",
       });
     });
@@ -335,15 +334,13 @@ describe("email changes: the person stays the same", () => {
       await ctx.db.insert("staffProfiles", {
         email: oldEmail,
         year: YEAR,
-        roles: ["Staff"],
-        department: "Events",
+        assignments: [{ role: "Staff", department: "Events" }],
         importId: "uid-jay",
       });
       await ctx.db.insert("staffProfiles", {
         email: newEmail,
         year: YEAR,
-        roles: ["Staff"],
-        department: "Missions",
+        assignments: [{ role: "Staff", department: "Missions" }],
         importId: "uid-jay",
       });
       return await ctx.db.insert("users", { email: newEmail });
@@ -357,7 +354,10 @@ describe("email changes: the person stays the same", () => {
         .query("staffProfiles")
         .withIndex("by_email_and_year", (q) => q.eq("email", newEmail).eq("year", YEAR))
         .unique();
-      expect(profile?.department).toBe("Missions"); // the existing row wins
+      // the existing row wins
+      expect(profile?.assignments).toEqual([
+        { role: "Staff", department: "Missions" },
+      ]);
     });
   });
 });

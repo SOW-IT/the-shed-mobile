@@ -2,6 +2,7 @@
 import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, test } from "vitest";
 import {
+  assignmentFor,
   assignmentsOf,
   CHAPLAINCY_DEPARTMENT,
   departmentsOf,
@@ -34,54 +35,58 @@ const profileOf = async (t: TestConvex<typeof schema>, email: string) =>
   )!;
 
 // ---------------------------------------------------------------------------
-// assignmentsOf — pure derivation from legacy fields
+// assignmentsOf / assignmentFor — pure helpers
 // ---------------------------------------------------------------------------
 
 describe("assignmentsOf (pure)", () => {
-  test("derives from a legacy single role + department", () => {
-    expect(assignmentsOf({ role: "Staff", department: "Marketing" })).toEqual([
-      { role: "Staff", department: "Marketing" },
-    ]);
-  });
-
-  test("derives a campus role from the legacy university", () => {
-    expect(
-      assignmentsOf({ roles: ["Student Leader"], university: "USYD" })
-    ).toEqual([{ role: "Student Leader", university: "USYD" }]);
-  });
-
-  test("derives a chaplain as Chaplaincy department + optional university", () => {
-    expect(
-      assignmentsOf({ roles: ["Senior Chaplain"], university: "USYD" })
-    ).toEqual([
-      { role: "Senior Chaplain", department: CHAPLAINCY_DEPARTMENT, university: "USYD" },
-    ]);
-  });
-
-  test("derives a Head of Division from the legacy division", () => {
-    expect(
-      assignmentsOf({ roles: ["Head of Division"], division: "Operations" })
-    ).toEqual([{ role: "Head of Division", division: "Operations" }]);
-  });
-
-  test("Member carries no scope", () => {
-    expect(assignmentsOf({ roles: ["Member"], department: "Marketing" })).toEqual([
-      { role: "Member" },
-    ]);
-  });
-
-  test("stored assignments win over legacy fields", () => {
+  test("returns the stored assignments unchanged", () => {
     const stored = [
       { role: "Head of Department", department: "Finance" },
       { role: "Staff", department: "Marketing" },
     ];
-    expect(
-      assignmentsOf({
-        assignments: stored,
-        roles: ["Staff"],
-        department: "Events",
-      })
-    ).toEqual(stored);
+    expect(assignmentsOf({ assignments: stored })).toEqual(stored);
+  });
+
+  test("returns an empty array when there are no assignments", () => {
+    expect(assignmentsOf({})).toEqual([]);
+    expect(assignmentsOf({ assignments: [] })).toEqual([]);
+  });
+});
+
+describe("assignmentFor (scope derivation)", () => {
+  test("a department role keeps its department", () => {
+    expect(assignmentFor("Staff", { department: "Marketing" })).toEqual({
+      role: "Staff",
+      department: "Marketing",
+    });
+  });
+
+  test("a campus role keeps its university", () => {
+    expect(assignmentFor("Student Leader", { university: "USYD" })).toEqual({
+      role: "Student Leader",
+      university: "USYD",
+    });
+  });
+
+  test("a chaplain is fixed to Chaplaincy + optional university", () => {
+    expect(assignmentFor("Senior Chaplain", { university: "USYD" })).toEqual({
+      role: "Senior Chaplain",
+      department: CHAPLAINCY_DEPARTMENT,
+      university: "USYD",
+    });
+  });
+
+  test("Head of Division keeps its division", () => {
+    expect(assignmentFor("Head of Division", { division: "Operations" })).toEqual({
+      role: "Head of Division",
+      division: "Operations",
+    });
+  });
+
+  test("Member carries no scope", () => {
+    expect(assignmentFor("Member", { department: "Marketing" })).toEqual({
+      role: "Member",
+    });
   });
 });
 
@@ -400,127 +405,8 @@ describe("finance access via membership", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Backfill + copyYear
+// copyYear
 // ---------------------------------------------------------------------------
-
-describe("backfillAssignments", () => {
-  test("derives assignments from legacy fields and authoritative heads; idempotent", async () => {
-    const t = await setup();
-
-    // Insert a legacy-shaped profile directly (no assignments), and make them
-    // a real department head via the head doc only.
-    await t.run(async (ctx) => {
-      await ctx.db.insert("staffProfiles", {
-        email: "legacy@sow.org.au",
-        year: YEAR,
-        roles: ["Staff"],
-        department: "Marketing",
-      });
-      // Department head doc points at them, but their roles say only Staff.
-      const dept = await ctx.db
-        .query("departments")
-        .withIndex("by_year_and_name", (q) =>
-          q.eq("year", YEAR).eq("name", "Alumni")
-        )
-        .unique();
-      await ctx.db.patch("departments", dept!._id, { headEmail: "legacy@sow.org.au" });
-      // A division head doc points at them too (authoritative).
-      const div = await ctx.db
-        .query("divisions")
-        .withIndex("by_year_and_name", (q) =>
-          q.eq("year", YEAR).eq("name", "Operations")
-        )
-        .unique();
-      await ctx.db.patch("divisions", div!._id, { headEmail: "legacy@sow.org.au" });
-    });
-
-    const first = await t.mutation(internal.admin.backfillAssignments, {});
-    expect(first.updated).toBeGreaterThan(0);
-
-    const p = await profileOf(t, "legacy@sow.org.au");
-    // Authoritative head wins: they gain Head of Department for Alumni…
-    expect(p.assignments).toContainEqual({
-      role: "Head of Department", department: "Alumni",
-    });
-    // …a Head of Division link for Operations…
-    expect(p.assignments).toContainEqual({
-      role: "Head of Division", division: "Operations",
-    });
-    // …and keep their Staff-of-Marketing membership.
-    expect(p.assignments).toContainEqual({ role: "Staff", department: "Marketing" });
-    expect(p.roles.sort()).toEqual([
-      "Head of Department",
-      "Head of Division",
-      "Staff",
-    ]);
-
-    // Idempotent: a second run produces the same assignments.
-    await t.mutation(internal.admin.backfillAssignments, {});
-    const p2 = await profileOf(t, "legacy@sow.org.au");
-    expect(p2.assignments).toEqual(p.assignments);
-  });
-});
-
-describe("stripDeprecatedProfileFields", () => {
-  test("derives assignments from legacy fields then clears them", async () => {
-    const t = await setup();
-    await t.run(async (ctx) => {
-      await ctx.db.insert("staffProfiles", {
-        email: "legacy@sow.org.au",
-        year: YEAR,
-        roles: ["Staff"],
-        department: "Marketing",
-      });
-    });
-
-    const { updated } = await t.mutation(
-      internal.admin.stripDeprecatedProfileFields,
-      {}
-    );
-    expect(updated).toBeGreaterThan(0);
-
-    const doc = await t.run((ctx) =>
-      ctx.db
-        .query("staffProfiles")
-        .withIndex("by_email_and_year", (q) =>
-          q.eq("email", "legacy@sow.org.au").eq("year", YEAR)
-        )
-        .unique()
-    );
-    // Assignments derived from the legacy fields…
-    expect(doc?.assignments).toEqual([{ role: "Staff", department: "Marketing" }]);
-    // …and every deprecated field unset.
-    expect(doc?.roles).toBeUndefined();
-    expect(doc?.role).toBeUndefined();
-    expect(doc?.department).toBeUndefined();
-    expect(doc?.division).toBeUndefined();
-    expect(doc?.university).toBeUndefined();
-  });
-
-  test("leaves an already-migrated profile's assignments intact", async () => {
-    const t = await setup();
-    const stored = [{ role: "Staff", department: "Marketing" }];
-    await t.run(async (ctx) => {
-      await ctx.db.insert("staffProfiles", {
-        email: "modern@sow.org.au",
-        year: YEAR,
-        assignments: stored,
-      });
-    });
-
-    await t.mutation(internal.admin.stripDeprecatedProfileFields, {});
-
-    const doc = await t.run((ctx) =>
-      ctx.db
-        .query("staffProfiles")
-        .withIndex("by_email_and_year", (q) =>
-          q.eq("email", "modern@sow.org.au").eq("year", YEAR)
-        )
-        .unique()
-    );
-    expect(doc?.assignments).toEqual(stored);
-  });
-});
 
 describe("copyYear", () => {
   test("copies assignments and division headEmail to the next year", async () => {

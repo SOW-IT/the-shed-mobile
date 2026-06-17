@@ -332,8 +332,7 @@ describe("admin and per-year rules", () => {
       await ctx.db.insert("staffProfiles", {
         email: HENRY,
         year: 2020,
-        roles: ["Head of Department"],
-        department: "Old Marketing",
+        assignments: [{ role: "Head of Department", department: "Old Marketing" }],
       });
     });
 
@@ -356,13 +355,10 @@ describe("admin and per-year rules", () => {
     // Rachel has signed in before (users row exists, with the Google photo)
     // and served in 2025 too.
     const rachelUserId = await t.run(async (ctx) => {
-      // Deliberately uses the legacy single-role field: rolesOf() must
-      // normalise old documents written before roles became an array.
       await ctx.db.insert("staffProfiles", {
         email: RACHEL,
         year: YEAR - 1,
-        role: "Staff",
-        department: "Events",
+        assignments: [{ role: "Staff", department: "Events" }],
       });
       return await ctx.db.insert("users", {
         email: RACHEL,
