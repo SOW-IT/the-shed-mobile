@@ -513,11 +513,14 @@ export const OptionSheet = ({
   title,
   onClose,
   children,
+  contentStyle,
 }: {
   visible: boolean;
   title: string;
   onClose: () => void;
   children: ReactNode;
+  /** Overrides the default option-list padding — use for non-list content. */
+  contentStyle?: StyleProp<ViewStyle>;
 }) => {
   const t = useAppTheme();
   // Retain the last content shown while the modal fades out, so resetting the
@@ -537,7 +540,7 @@ export const OptionSheet = ({
             <Text style={[typography.headline, styles.optionSheetTitle, { color: t.text }]}>
               {shownTitle.current}
             </Text>
-            <ScrollView contentContainerStyle={styles.optionList} keyboardShouldPersistTaps="handled">
+            <ScrollView contentContainerStyle={contentStyle ?? styles.optionList} keyboardShouldPersistTaps="handled">
               {shownChildren.current}
             </ScrollView>
           </View>
@@ -592,30 +595,28 @@ export const ConfirmDialog = ({
     onClose();
   };
   return (
-    <OptionSheet visible={visible} title={title} onClose={close}>
-      <View style={{ paddingHorizontal: 8, paddingTop: 4, paddingBottom: 12, gap: 14 }}>
-        {message ? <Muted>{message}</Muted> : null}
-        {requireText !== undefined && (
-          <Field
-            label={`Type "${requireText}" to confirm`}
-            value={input}
-            onChangeText={setInput}
-            placeholder={requireText}
-          />
-        )}
-        <Row spread>
-          <Btn title={cancelLabel} variant="ghost" onPress={close} />
-          <Btn
-            title={confirmLabel}
-            variant={destructive ? "danger" : "primary"}
-            disabled={confirmDisabled}
-            onPress={() => {
-              onConfirm();
-              close();
-            }}
-          />
-        </Row>
-      </View>
+    <OptionSheet visible={visible} title={title} onClose={close} contentStyle={styles.confirmContent}>
+      {message ? <Muted>{message}</Muted> : null}
+      {requireText !== undefined && (
+        <Field
+          label={`Type "${requireText}" to confirm`}
+          value={input}
+          onChangeText={setInput}
+          placeholder={requireText}
+        />
+      )}
+      <Row spread>
+        <Btn title={cancelLabel} variant="ghost" onPress={close} />
+        <Btn
+          title={confirmLabel}
+          variant={destructive ? "danger" : "primary"}
+          disabled={confirmDisabled}
+          onPress={() => {
+            onConfirm();
+            close();
+          }}
+        />
+      </Row>
     </OptionSheet>
   );
 };
@@ -1216,10 +1217,18 @@ const styles = StyleSheet.create({
   selectFace: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   optionSheetTitle: {
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
+    paddingTop: spacing.xl,
     paddingBottom: spacing.sm,
   },
   optionList: { paddingHorizontal: spacing.md, paddingBottom: spacing.lg, gap: 2 },
+  // Single uniform padding layer for dialog content (no compounding) — sides and
+  // bottom match the title's horizontal inset; top adds to the title's gap.
+  confirmContent: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xl,
+    gap: 14,
+  },
   optionRow: {
     flexDirection: "row",
     alignItems: "center",
