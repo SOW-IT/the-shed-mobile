@@ -356,6 +356,35 @@ describe("addAccount", () => {
     expect(saved.find((a) => a.accountName === "Y")!.preferred).toBe(false);
   });
 
+  test("adding without opting in keeps the current (implicit) preferred account", async () => {
+    const t = await setup();
+    // Two accounts saved via receipts — neither is explicitly preferred, so the
+    // most-recently-used (B) is the effective preferred via listMine's fallback.
+    const id1 = await approvedRequest(t, 50);
+    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
+      requestId: id1,
+      recipients: [{ accountName: "A", bsb: "1", accountNumber: "11", amount: 50, attachments: [await file(t)] }],
+    });
+    const id2 = await approvedRequest(t, 50);
+    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
+      requestId: id2,
+      recipients: [{ accountName: "B", bsb: "2", accountNumber: "22", amount: 50, attachments: [await file(t)] }],
+    });
+    let saved = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
+    expect(saved.find((a) => a.accountName === "B")!.preferred).toBe(true); // implicit
+
+    // Add a third account WITHOUT opting in: it must not steal the preferred slot.
+    await asUser(t, RACHEL).mutation(api.bankAccounts.addAccount, {
+      accountName: "C",
+      bsb: "3",
+      accountNumber: "33",
+    });
+    saved = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
+    expect(saved).toHaveLength(3);
+    expect(saved.find((a) => a.accountName === "C")!.preferred).toBe(false);
+    expect(saved.find((a) => a.accountName === "B")!.preferred).toBe(true);
+  });
+
   test("de-dupes onto an existing account by BSB + number and re-prefers it", async () => {
     const t = await setup();
     // Two distinct accounts; the second added becomes preferred.
