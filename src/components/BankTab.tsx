@@ -61,8 +61,38 @@ export const BankTab = () => {
   const savedAccounts = useQuery(api.bankAccounts.listMine, {});
   const addAccount = useMutation(api.bankAccounts.addAccount);
   const updateAccount = useMutation(api.bankAccounts.updateAccount);
-  const removeAccount = useMutation(api.bankAccounts.remove);
-  const setPreferred = useMutation(api.bankAccounts.setPreferred);
+  // Optimistic: drop the account from the local list immediately (promoting the
+  // next most-recent to preferred, mirroring the server) so the card animates
+  // out on tap; Convex reverts if the delete fails.
+  const removeAccount = useMutation(api.bankAccounts.remove).withOptimisticUpdate(
+    (localStore, { id }) => {
+      const current = localStore.getQuery(api.bankAccounts.listMine, {});
+      if (!current) return;
+      const remaining = current.filter((a) => a.id !== id);
+      const hasPreferred = remaining.some((a) => a.preferred);
+      localStore.setQuery(
+        api.bankAccounts.listMine,
+        {},
+        remaining.map((a, i) => ({
+          ...a,
+          preferred: a.preferred || (!hasPreferred && i === 0),
+        }))
+      );
+    }
+  );
+  // Optimistic: flip the preferred flags locally so the reorder animation runs
+  // the instant the star is tapped, not after the round-trip. Reverts on error.
+  const setPreferred = useMutation(api.bankAccounts.setPreferred).withOptimisticUpdate(
+    (localStore, { id }) => {
+      const current = localStore.getQuery(api.bankAccounts.listMine, {});
+      if (!current) return;
+      localStore.setQuery(
+        api.bankAccounts.listMine,
+        {},
+        current.map((a) => ({ ...a, preferred: a.id === id }))
+      );
+    }
+  );
 
   const [mode, setMode] = useState<Mode>("none");
   const [editingId, setEditingId] = useState<Id<"savedBankAccounts"> | null>(null);

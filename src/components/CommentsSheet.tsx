@@ -76,9 +76,56 @@ export const CommentsSheet = ({
   useEffect(() => {
     if (comments !== undefined) setLoaded(comments);
   }, [comments]);
-  const add = useMutation(api.comments.add);
+  // Optimistic: show the comment immediately (as "You") so the thread feels
+  // instant; the real query replaces it on response, or Convex reverts on error.
+  const add = useMutation(api.comments.add).withOptimisticUpdate(
+    (localStore, { requestId, body }) => {
+      const current = localStore.getQuery(api.comments.list, { requestId });
+      if (!current) return;
+      localStore.setQuery(api.comments.list, { requestId }, [
+        ...current,
+        {
+          id: `optimistic-${Date.now()}` as unknown as Id<"requestComments">,
+          authorEmail: "",
+          authorName: null,
+          body: body.trim(),
+          at: Date.now(),
+          isMine: true,
+          reactions: [],
+        },
+      ]);
+    }
+  );
   const markRead = useMutation(api.comments.markRead);
-  const toggleReaction = useMutation(api.comments.toggleReaction);
+  // Optimistic: toggle my reaction locally (add/remove, re-sorted by count) so
+  // the chip updates on tap instead of after the round-trip.
+  const toggleReaction = useMutation(api.comments.toggleReaction).withOptimisticUpdate(
+    (localStore, { commentId, emoji }) => {
+      const current = localStore.getQuery(api.comments.list, { requestId: request._id });
+      if (!current) return;
+      localStore.setQuery(
+        api.comments.list,
+        { requestId: request._id },
+        current.map((c) => {
+          if (c.id !== commentId) return c;
+          const mine = c.reactions.find((r) => r.emoji === emoji);
+          let reactions;
+          if (mine?.mine) {
+            reactions = c.reactions
+              .map((r) => (r.emoji === emoji ? { ...r, count: r.count - 1, mine: false } : r))
+              .filter((r) => r.count > 0);
+          } else if (mine) {
+            reactions = c.reactions.map((r) =>
+              r.emoji === emoji ? { ...r, count: r.count + 1, mine: true } : r
+            );
+          } else {
+            reactions = [...c.reactions, { emoji, count: 1, mine: true }];
+          }
+          return { ...c, reactions: [...reactions].sort((a, b) => b.count - a.count) };
+        })
+      );
+    }
+  );
 
   const [draft, setDraft] = useState("");
   const [focused, setFocused] = useState(false);
