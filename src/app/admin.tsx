@@ -87,6 +87,16 @@ const emptyDraft = (role = STAFF_EDITABLE_ROLES[0]): AssignmentDraft => ({
   university: "",
 });
 
+/** True when two assignment-draft lists are identical (same rows, same order). */
+const sameAssignments = (a: AssignmentDraft[], b: AssignmentDraft[]): boolean =>
+  a.length === b.length &&
+  a.every(
+    (x, i) =>
+      x.role === b[i].role &&
+      x.department === b[i].department &&
+      x.university === b[i].university
+  );
+
 const AssignmentEditor = ({
   assignments,
   onChange,
@@ -617,6 +627,16 @@ export default function AdminScreen() {
     const lockedHeadAssignments = (profile.assignments ?? []).filter(
       (a) => a.role === HEAD_OF_DEPARTMENT || a.role === HEAD_OF_DIVISION
     );
+    // The saved (non-head) assignments the editor was seeded from. Save stays
+    // disabled until the draft differs — adding, editing or removing a row.
+    const savedAssignments: AssignmentDraft[] = (profile.assignments ?? [])
+      .filter((a) => a.role !== HEAD_OF_DEPARTMENT && a.role !== HEAD_OF_DIVISION)
+      .map((a) => ({
+        role: a.role,
+        department: a.department ?? "",
+        university: a.university ?? "",
+      }));
+    const assignmentsChanged = !sameAssignments(editingAssignments, savedAssignments);
     return (
       <Card key={profile._id} style={{ marginBottom: spacing.sm }}>
         {isEditingThis ? (
@@ -650,6 +670,7 @@ export default function AdminScreen() {
               />
               <Btn
                 title="Save"
+                disabled={!assignmentsChanged}
                 onPress={() => {
                   const isCurrentDirector = (profile.assignments ?? []).some(
                     (a) => a.role === DIRECTOR
