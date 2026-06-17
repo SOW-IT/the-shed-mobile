@@ -37,6 +37,9 @@ export const errorMessage = (e: unknown): string =>
       ? e.message
       : "Something went wrong";
 
+/** Maximum size (in bytes) for any uploaded file — profile photos and receipts. */
+export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
+
 /** Keeps only digits — for BSB / account number inputs. */
 export const digitsOnly = (text: string): string => text.replace(/[^0-9]/g, "");
 

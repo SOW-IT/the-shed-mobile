@@ -25,6 +25,7 @@ import {
   Field,
   IconButton,
   LoadingState,
+  MAX_UPLOAD_BYTES,
   Muted,
   Row,
   Select,
@@ -374,6 +375,11 @@ const ReceiptSheet = ({
       const uploaded: DraftFile[] = [];
       for (const asset of result.assets) {
         const blob = await (await fetch(asset.uri)).blob();
+        if (blob.size > MAX_UPLOAD_BYTES) {
+          throw new Error(
+            `${asset.name ?? "File"} is too large. Each receipt must be under 2MB.`
+          );
+        }
         const uploadUrl = await generateUploadUrl();
         const response = await fetch(uploadUrl, {
           method: "POST",
