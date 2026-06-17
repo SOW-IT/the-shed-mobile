@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { ConvexError } from "convex/values";
 import * as Haptics from "expo-haptics";
-import { ReactNode, Ref, useEffect, useRef, useState } from "react";
+import { Children, ReactNode, Ref, useEffect, useRef, useState } from "react";
 import {
   Animated,
   Easing,
@@ -298,15 +298,32 @@ export const SectionTitle = ({ children }: { children: ReactNode }) => {
 export const Row = ({
   children,
   spread,
+  loading,
 }: {
   children: ReactNode;
-  /** Pushes children to opposite ends (space-between) — e.g. Cancel | Save. */
+  /** Gives each child an equal share of the width — e.g. Cancel | Save at 50/50. */
   spread?: boolean;
-}) => (
-  <View style={[styles.row, spread && { justifyContent: "space-between" }]}>
-    {children}
-  </View>
-);
+  /** Replaces the row's children with a centred SOW spinner at button height. */
+  loading?: boolean;
+}) => {
+  if (loading) {
+    return (
+      <View style={styles.rowLoading}>
+        <SowSpinner size={24} />
+      </View>
+    );
+  }
+  if (spread) {
+    return (
+      <View style={styles.rowSpread}>
+        {Children.map(children, (child) => (
+          <View style={{ flex: 1 }}>{child}</View>
+        ))}
+      </View>
+    );
+  }
+  return <View style={styles.row}>{children}</View>;
+};
 
 export const Btn = ({
   title,
@@ -503,6 +520,14 @@ export const OptionSheet = ({
   children: ReactNode;
 }) => {
   const t = useAppTheme();
+  // Retain the last content shown while the modal fades out, so resetting the
+  // backing state on close (e.g. setX(null)) doesn't blank the dialog mid-fade.
+  const shownTitle = useRef(title);
+  const shownChildren = useRef(children);
+  if (visible) {
+    shownTitle.current = title;
+    shownChildren.current = children;
+  }
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1 }}>
@@ -510,10 +535,10 @@ export const OptionSheet = ({
         <View style={styles.dialogOuter} pointerEvents="box-none">
           <View style={[styles.dialog, { backgroundColor: t.card }]}>
             <Text style={[typography.headline, styles.optionSheetTitle, { color: t.text }]}>
-              {title}
+              {shownTitle.current}
             </Text>
             <ScrollView contentContainerStyle={styles.optionList} keyboardShouldPersistTaps="handled">
-              {children}
+              {shownChildren.current}
             </ScrollView>
           </View>
         </View>
@@ -568,7 +593,7 @@ export const ConfirmDialog = ({
   };
   return (
     <OptionSheet visible={visible} title={title} onClose={close}>
-      <View style={{ paddingHorizontal: 4, paddingBottom: 8, gap: 12 }}>
+      <View style={{ paddingHorizontal: 8, paddingTop: 4, paddingBottom: 12, gap: 14 }}>
         {message ? <Muted>{message}</Muted> : null}
         {requireText !== undefined && (
           <Field
@@ -1138,6 +1163,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { marginTop: spacing.md, marginBottom: -2 },
   row: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap", alignItems: "center" },
+  rowSpread: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
+  rowLoading: { minHeight: 42, alignItems: "center", justifyContent: "center" },
   yearPill: {
     flexDirection: "row",
     alignItems: "center",

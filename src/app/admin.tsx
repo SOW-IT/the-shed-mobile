@@ -582,7 +582,7 @@ export default function AdminScreen() {
               universities={structure?.universities ?? []}
               roles={availableRoles}
             />
-            <Row spread>
+            <Row spread loading={savingAssign}>
               <Btn
                 title="Cancel"
                 variant="ghost"
@@ -590,7 +590,6 @@ export default function AdminScreen() {
               />
               <Btn
                 title="Save"
-                loading={savingAssign}
                 onPress={() => saveAssign(user.email)}
               />
             </Row>
@@ -643,7 +642,7 @@ export default function AdminScreen() {
               // assignment can be removed too; otherwise keep at least one.
               minCount={lockedHeadAssignments.length > 0 ? 0 : 1}
             />
-            <Row spread>
+            <Row spread loading={savingEditUser}>
               <Btn
                 title="Cancel"
                 variant="ghost"
@@ -651,7 +650,6 @@ export default function AdminScreen() {
               />
               <Btn
                 title="Save"
-                loading={savingEditUser}
                 onPress={() => {
                   const isCurrentDirector = (profile.assignments ?? []).some(
                     (a) => a.role === DIRECTOR
@@ -906,7 +904,7 @@ export default function AdminScreen() {
                       value={editingRoleFormName}
                       onChangeText={setEditingRoleFormName}
                     />
-                    <Row spread>
+                    <Row spread loading={savingEditRole}>
                       <Btn
                         title="Cancel"
                         variant="ghost"
@@ -914,7 +912,6 @@ export default function AdminScreen() {
                       />
                       <Btn
                         title="Save"
-                        loading={savingEditRole}
                         onPress={() => {
                           setSavingEditRole(true);
                           void run(() =>
@@ -1005,7 +1002,7 @@ export default function AdminScreen() {
                       onSelect={setEditingDivisionFormHead}
                       placeholder="Choose a person…"
                     />
-                    <Row spread>
+                    <Row spread loading={savingEditDivision}>
                       <Btn
                         title="Cancel"
                         variant="ghost"
@@ -1013,7 +1010,6 @@ export default function AdminScreen() {
                       />
                       <Btn
                         title="Save"
-                        loading={savingEditDivision}
                         onPress={() => {
                           setSavingEditDivision(true);
                           void run(() =>
@@ -1126,7 +1122,7 @@ export default function AdminScreen() {
                       value={editingUniversityFormName}
                       onChangeText={setEditingUniversityFormName}
                     />
-                    <Row spread>
+                    <Row spread loading={savingEditUniversity}>
                       <Btn
                         title="Cancel"
                         variant="ghost"
@@ -1134,7 +1130,6 @@ export default function AdminScreen() {
                       />
                       <Btn
                         title="Save"
-                        loading={savingEditUniversity}
                         onPress={() => {
                           setSavingEditUniversity(true);
                           void run(() =>
@@ -1232,7 +1227,7 @@ export default function AdminScreen() {
                       onSelect={setEditingDepartmentFormHead}
                       placeholder="Choose a person…"
                     />
-                    <Row spread>
+                    <Row spread loading={savingEditDepartment}>
                       <Btn
                         title="Cancel"
                         variant="ghost"
@@ -1240,7 +1235,6 @@ export default function AdminScreen() {
                       />
                       <Btn
                         title="Save"
-                        loading={savingEditDepartment}
                         onPress={() => {
                           setSavingEditDepartment(true);
                           void run(() =>
