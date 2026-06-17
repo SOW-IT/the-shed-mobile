@@ -231,7 +231,7 @@ export default function RequestsScreen() {
                       label="Budget Manager"
                       value={budgetManagerValue}
                       options={(financeMembers ?? []).map((p) => ({
-                        label: p.name ? `${p.name} (${p.email})` : p.email,
+                        label: p.name ?? p.email,
                         value: p.email,
                       }))}
                       onSelect={setNewBudgetManagerEmail}

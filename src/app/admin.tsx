@@ -328,7 +328,7 @@ export default function AdminScreen() {
     me?.isAdmin ? { year: selectedYear } : "skip"
   );
   const personOptions = (people ?? []).map((person) => ({
-    label: person.name ? `${person.name} (${person.email})` : person.email,
+    label: person.name ?? person.email,
     value: person.email,
   }));
   const nameByEmail = new Map((people ?? []).map((p) => [p.email, p.name]));
@@ -1400,9 +1400,7 @@ export default function AdminScreen() {
                   label="Budget Manager"
                   value={budgetManagerValue}
                   options={(financeMembers ?? []).map((person) => ({
-                    label: person.name
-                      ? `${person.name} (${person.email})`
-                      : person.email,
+                    label: person.name ?? person.email,
                     value: person.email,
                   }))}
                   onSelect={setBudgetManagerEmail}
@@ -1426,9 +1424,7 @@ export default function AdminScreen() {
                 label="Budget Manager"
                 value={structure?.budgetManagerEmail ?? ""}
                 options={(financeMembers ?? []).map((person) => ({
-                  label: person.name
-                    ? `${person.name} (${person.email})`
-                    : person.email,
+                  label: person.name ?? person.email,
                   value: person.email,
                 }))}
                 onSelect={() => {}}
