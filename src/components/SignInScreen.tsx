@@ -71,8 +71,17 @@ export const SignInScreen = () => {
         <View style={styles.hero}>
           <FadeInView style={styles.heroInner}>
             <Image
-              source={require("../../assets/images/the-shed-compact-logo.png")}
-              style={[styles.compactLogo, t.dark && { tintColor: t.text }]}
+              source={
+                t.dark
+                  ? require("../../assets/images/mark-cream.png")
+                  : require("../../assets/images/mark-dark.png")
+              }
+              style={styles.mark}
+              resizeMode="contain"
+            />
+            <Image
+              source={require("../../assets/images/the-shed-watermark.png")}
+              style={[styles.watermark, t.dark && { tintColor: t.text }]}
               resizeMode="contain"
             />
           </FadeInView>
@@ -128,7 +137,8 @@ const styles = StyleSheet.create({
   },
   hero: { alignItems: "center" },
   heroInner: { alignItems: "center", gap: spacing.sm },
-  compactLogo: { width: 320, height: 61 },
+  mark: { width: 90, height: 90 },
+  watermark: { width: 300, height: 205 },
   tagline: { textAlign: "center", maxWidth: 280, lineHeight: 19 },
   buttonWrap: { maxWidth: 420, width: "100%", alignSelf: "center" },
   googleButton: {
