@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { ConvexError } from "convex/values";
 import * as Haptics from "expo-haptics";
-import { ReactNode, Ref, useEffect, useRef, useState } from "react";
+import { Children, ReactNode, Ref, useEffect, useRef, useState } from "react";
 import {
   Animated,
   Easing,
@@ -295,9 +295,35 @@ export const SectionTitle = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export const Row = ({ children }: { children: ReactNode }) => (
-  <View style={styles.row}>{children}</View>
-);
+export const Row = ({
+  children,
+  spread,
+  loading,
+}: {
+  children: ReactNode;
+  /** Gives each child an equal share of the width — e.g. Cancel | Save at 50/50. */
+  spread?: boolean;
+  /** Replaces the row's children with a centred SOW spinner at button height. */
+  loading?: boolean;
+}) => {
+  if (loading) {
+    return (
+      <View style={styles.rowLoading}>
+        <SowSpinner size={24} />
+      </View>
+    );
+  }
+  if (spread) {
+    return (
+      <View style={styles.rowSpread}>
+        {Children.map(children, (child) => (
+          <View style={{ flex: 1 }}>{child}</View>
+        ))}
+      </View>
+    );
+  }
+  return <View style={styles.row}>{children}</View>;
+};
 
 export const Btn = ({
   title,
@@ -487,13 +513,24 @@ export const OptionSheet = ({
   title,
   onClose,
   children,
+  contentStyle,
 }: {
   visible: boolean;
   title: string;
   onClose: () => void;
   children: ReactNode;
+  /** Overrides the default option-list padding — use for non-list content. */
+  contentStyle?: StyleProp<ViewStyle>;
 }) => {
   const t = useAppTheme();
+  // Retain the last content shown while the modal fades out, so resetting the
+  // backing state on close (e.g. setX(null)) doesn't blank the dialog mid-fade.
+  const shownTitle = useRef(title);
+  const shownChildren = useRef(children);
+  if (visible) {
+    shownTitle.current = title;
+    shownChildren.current = children;
+  }
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1 }}>
@@ -501,10 +538,10 @@ export const OptionSheet = ({
         <View style={styles.dialogOuter} pointerEvents="box-none">
           <View style={[styles.dialog, { backgroundColor: t.card }]}>
             <Text style={[typography.headline, styles.optionSheetTitle, { color: t.text }]}>
-              {title}
+              {shownTitle.current}
             </Text>
-            <ScrollView contentContainerStyle={styles.optionList} keyboardShouldPersistTaps="handled">
-              {children}
+            <ScrollView contentContainerStyle={contentStyle ?? styles.optionList} keyboardShouldPersistTaps="handled">
+              {shownChildren.current}
             </ScrollView>
           </View>
         </View>
@@ -558,30 +595,28 @@ export const ConfirmDialog = ({
     onClose();
   };
   return (
-    <OptionSheet visible={visible} title={title} onClose={close}>
-      <View style={{ paddingHorizontal: 4, paddingBottom: 8, gap: 12 }}>
-        {message ? <Muted>{message}</Muted> : null}
-        {requireText !== undefined && (
-          <Field
-            label={`Type "${requireText}" to confirm`}
-            value={input}
-            onChangeText={setInput}
-            placeholder={requireText}
-          />
-        )}
-        <Row>
-          <Btn title={cancelLabel} variant="ghost" onPress={close} />
-          <Btn
-            title={confirmLabel}
-            variant={destructive ? "danger" : "primary"}
-            disabled={confirmDisabled}
-            onPress={() => {
-              onConfirm();
-              close();
-            }}
-          />
-        </Row>
-      </View>
+    <OptionSheet visible={visible} title={title} onClose={close} contentStyle={styles.confirmContent}>
+      {message ? <Muted>{message}</Muted> : null}
+      {requireText !== undefined && (
+        <Field
+          label={`Type "${requireText}" to confirm`}
+          value={input}
+          onChangeText={setInput}
+          placeholder={requireText}
+        />
+      )}
+      <Row spread>
+        <Btn title={cancelLabel} variant="ghost" onPress={close} />
+        <Btn
+          title={confirmLabel}
+          variant={destructive ? "danger" : "primary"}
+          disabled={confirmDisabled}
+          onPress={() => {
+            onConfirm();
+            close();
+          }}
+        />
+      </Row>
     </OptionSheet>
   );
 };
@@ -1129,6 +1164,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { marginTop: spacing.md, marginBottom: -2 },
   row: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap", alignItems: "center" },
+  rowSpread: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
+  rowLoading: { minHeight: 42, alignItems: "center", justifyContent: "center" },
   yearPill: {
     flexDirection: "row",
     alignItems: "center",
@@ -1180,10 +1217,18 @@ const styles = StyleSheet.create({
   selectFace: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   optionSheetTitle: {
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
+    paddingTop: spacing.xl,
     paddingBottom: spacing.sm,
   },
   optionList: { paddingHorizontal: spacing.md, paddingBottom: spacing.lg, gap: 2 },
+  // Single uniform padding layer for dialog content (no compounding) — sides and
+  // bottom match the title's horizontal inset; top adds to the title's gap.
+  confirmContent: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xl,
+    gap: 14,
+  },
   optionRow: {
     flexDirection: "row",
     alignItems: "center",

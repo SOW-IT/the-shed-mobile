@@ -182,7 +182,7 @@ const PaymentTab = () => {
               placeholder="00000000"
               keyboardType="numeric"
             />
-            <Row>
+            <Row spread loading={saving}>
               <Btn title="Cancel" variant="ghost" onPress={cancelEdit} />
               <Btn title="Save" onPress={() => void save()} disabled={saving} />
             </Row>
