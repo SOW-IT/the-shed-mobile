@@ -1,8 +1,10 @@
 import { useQuery } from "convex/react";
 import { MutableRefObject, useCallback, useEffect, useRef, useState } from "react";
+import { View } from "react-native";
 import { requestCompleted, requestDisplayStatus } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
+import { spacing } from "@/theme";
 import { RequestCard } from "@/components/RequestCard";
 import {
   EmptyState,
@@ -10,6 +12,7 @@ import {
   LoadingState,
   SectionTitle,
   Segmented,
+  SowSpinner,
   stagger,
 } from "@/components/ui";
 
@@ -124,6 +127,11 @@ export const AllRequestsList = ({
             <RequestCard request={request} showRequester collapsible={isCompleted} />
           </FadeInView>
         ))
+      )}
+      {hasMore && (
+        <View style={{ alignItems: "center", paddingVertical: spacing.md }}>
+          <SowSpinner size={36} />
+        </View>
       )}
     </>
   );
