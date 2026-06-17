@@ -228,7 +228,7 @@ export default function RequestsScreen() {
                   <Card>
                     <Muted>Current: {structure?.budgetManagerEmail ?? "not set"}</Muted>
                     <Select
-                      label="Budget Manager (Finance department members)"
+                      label="Budget Manager"
                       value={budgetManagerValue}
                       options={(financeMembers ?? []).map((p) => ({
                         label: p.name ? `${p.name} (${p.email})` : p.email,

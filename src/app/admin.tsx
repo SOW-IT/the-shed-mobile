@@ -1397,7 +1397,7 @@ export default function AdminScreen() {
             {editable ? (
               <>
                 <Select
-                  label="Budget Manager (Finance department members)"
+                  label="Budget Manager"
                   value={budgetManagerValue}
                   options={(financeMembers ?? []).map((person) => ({
                     label: person.name
@@ -1423,7 +1423,7 @@ export default function AdminScreen() {
               </>
             ) : (
               <Select
-                label="Budget Manager (Finance department members)"
+                label="Budget Manager"
                 value={structure?.budgetManagerEmail ?? ""}
                 options={(financeMembers ?? []).map((person) => ({
                   label: person.name
