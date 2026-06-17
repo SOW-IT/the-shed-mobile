@@ -376,8 +376,9 @@ const ReceiptSheet = ({
       for (const asset of result.assets) {
         const blob = await (await fetch(asset.uri)).blob();
         if (blob.size > MAX_UPLOAD_BYTES) {
+          const maxMb = Math.round(MAX_UPLOAD_BYTES / (1024 * 1024));
           throw new Error(
-            `${asset.name ?? "File"} is too large. Each receipt must be under 2MB.`
+            `${asset.name ?? "File"} is too large. Each receipt must be ${maxMb}MB or less.`
           );
         }
         const uploadUrl = await generateUploadUrl();
