@@ -20,6 +20,11 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
       if (
         allowed.some((url) => redirectTo === url || redirectTo.startsWith(`${url}/`)) ||
         /^https?:\/\/localhost(:\d+)?(\/|$|\?)/.test(redirectTo) ||
+        // Vercel preview deployments of the web build (per-branch URLs), scoped
+        // to this project + team so it isn't an open redirect to any *.vercel.app.
+        /^https:\/\/the-shed-web-[a-z0-9-]+-kimchankwons-projects\.vercel\.app(\/|$|\?)/.test(
+          redirectTo
+        ) ||
         redirectTo.startsWith("theshedmobile://") ||
         redirectTo.startsWith("exp://")
       ) {
