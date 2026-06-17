@@ -190,7 +190,9 @@ const AppTabs = () => {
         name="admin"
         options={{
           title: "Admin",
-          href: me?.isAdmin ? "/admin" : null,
+          // Admins get the full Manage screen; the Finance Head gets a
+          // restricted view (Budget Manager only).
+          href: me?.isAdmin || me?.isFinanceHead ? "/admin" : null,
           tabBarIcon: tabIcon("settings-outline", "settings"),
         }}
       />

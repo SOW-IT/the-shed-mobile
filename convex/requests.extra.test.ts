@@ -538,3 +538,74 @@ describe("importHistory.personHistory", () => {
     expect(history[1].department).toBe("Marketing");
   });
 });
+
+describe("browsing past years", () => {
+  /** Inserts a fully-paid historical request for `email` in `year`. */
+  const seedPastRequest = (
+    t: TestConvex<typeof schema>,
+    email: string,
+    year: number,
+    description: string
+  ) =>
+    t.run((ctx) =>
+      ctx.db.insert("requests", {
+        year,
+        requesterEmail: email,
+        department: "Marketing",
+        description,
+        amount: 100,
+        approvedByHOD: "APPROVED",
+        approvedByBudgetManager: "APPROVED",
+        approvedByFinanceHead: "APPROVED",
+        paid: true,
+      })
+    );
+
+  test("myRequests({year}) returns only that year, no carry-over", async () => {
+    const t = await setup();
+    const rachel = asUser(t, RACHEL);
+    await rachel.mutation(api.requests.submit, { description: "this year", amount: 50 });
+    await seedPastRequest(t, RACHEL, YEAR - 2, "old one");
+
+    const live = (await rachel.query(api.requests.myRequests, {}))!;
+    expect(live.map((r) => r.description)).toEqual(["this year"]);
+
+    const past = (await rachel.query(api.requests.myRequests, { year: YEAR - 2 }))!;
+    expect(past.map((r) => r.description)).toEqual(["old one"]);
+  });
+
+  test("requestYears lists the caller's request years plus the current one", async () => {
+    const t = await setup();
+    const rachel = asUser(t, RACHEL);
+    await rachel.mutation(api.requests.submit, { description: "this year", amount: 50 });
+    await seedPastRequest(t, RACHEL, YEAR - 2, "old one");
+
+    const years = (await rachel.query(api.requests.requestYears, {}))!;
+    expect(years.mine).toEqual([YEAR, YEAR - 2]); // newest-first, deduped
+  });
+
+  test("requestYears never offers years before 2021, even with older org data", async () => {
+    const t = await setup();
+    // An old division exists (org history goes back to 2008) but no requests can.
+    await t.run((ctx) =>
+      ctx.db.insert("divisions", { year: 2019, name: "Governance" })
+    );
+    const years = (await asUser(t, BELLA).query(api.requests.requestYears, {}))!;
+    expect(years.all).not.toContain(2019);
+    expect(Math.min(...years.all)).toBeGreaterThanOrEqual(2021);
+  });
+
+  test("allRequests({year}) shows a past year to Finance only", async () => {
+    const t = await setup();
+    await seedPastRequest(t, RACHEL, YEAR - 1, "last year");
+
+    const past = (await asUser(t, BELLA).query(api.requests.allRequests, {
+      year: YEAR - 1,
+    }))!;
+    expect(past.map((r) => r.description)).toEqual(["last year"]);
+
+    await expect(
+      asUser(t, RACHEL).query(api.requests.allRequests, { year: YEAR - 1 })
+    ).rejects.toThrow(/Only Finance/);
+  });
+});

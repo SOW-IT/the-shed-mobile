@@ -1,5 +1,5 @@
 import { useQuery } from "convex/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { requestCompleted, requestDisplayStatus } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
@@ -30,9 +30,19 @@ const sortRequests = (list: Doc<"requests">[]): Doc<"requests">[] =>
   });
 
 /** Every request this year (Finance only), split into ongoing/completed. */
-export const AllRequestsList = () => {
-  const requests = useQuery(api.requests.allRequests, {});
-  const [filter, setFilter] = useState<"ongoing" | "completed">("ongoing");
+export const AllRequestsList = ({ year }: { year?: number }) => {
+  const requests = useQuery(
+    api.requests.allRequests,
+    year !== undefined ? { year } : {}
+  );
+  // Past years (year set) are almost all completed, so default to that tab;
+  // reset the default whenever the browsed year changes.
+  const [filter, setFilter] = useState<"ongoing" | "completed">(
+    year !== undefined ? "completed" : "ongoing"
+  );
+  useEffect(() => {
+    setFilter(year !== undefined ? "completed" : "ongoing");
+  }, [year]);
 
   const filtered = sortRequests(
     (requests ?? []).filter((request) =>

@@ -382,7 +382,9 @@ export const RequestCard = ({
   const [showComments, setShowComments] = useState(false);
   const requesterName = useQuery(
     api.directory.nameForEmail,
-    showRequester ? { email: request.requesterEmail } : "skip"
+    showRequester
+      ? { email: request.requesterEmail, year: request.year }
+      : "skip"
   );
   const unreadComments = useQuery(api.comments.unreadCount, {
     requestId: request._id,

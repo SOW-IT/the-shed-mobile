@@ -6,6 +6,7 @@ import {
   DECLINED,
   DIRECTOR,
   DIRECTOR_APPROVAL_THRESHOLD,
+  EARLIEST_REQUEST_YEAR,
   FINANCE,
   HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
@@ -422,8 +423,8 @@ const makeApproverResolver = (ctx: QueryCtx) => {
  * still-incomplete requests carried over from the previous year.
  */
 export const myRequests = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { year: v.optional(v.number()) },
+  handler: async (ctx, args) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null; // auth still attaching, or unprovisioned
     const { email, year } = caller;
@@ -435,11 +436,42 @@ export const myRequests = query({
         )
         .order("desc")
         .take(200);
+    // Browsing a specific past staff year: show exactly that year's requests,
+    // with no carry-over merge (that only makes sense for the live year).
+    if (args.year !== undefined && args.year !== year) {
+      return (await fetch(args.year)).sort((a, b) => b._creationTime - a._creationTime);
+    }
     const current = await fetch(year);
     const carriedOver = (await fetch(year - 1)).filter((r) => !requestCompleted(r));
     return [...current, ...carriedOver].sort(
       (a, b) => b._creationTime - a._creationTime
     );
+  },
+});
+
+/**
+ * The staff years the caller can browse in the requests view: every year they
+ * have a request in (plus the current one) for "Mine", and every year with an
+ * org structure for "All" (Finance). Sorted newest-first for the picker.
+ */
+export const requestYears = query({
+  args: {},
+  handler: async (ctx) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    const mineRows = await ctx.db
+      .query("requests")
+      .withIndex("by_requester", (q) => q.eq("requesterEmail", caller.email))
+      .take(500);
+    // Only offer years that can actually have requests (>= 2021), newest-first.
+    const yearsFrom = (years: number[]) =>
+      [...new Set([currentStaffYear(), ...years])]
+        .filter((y) => y >= EARLIEST_REQUEST_YEAR)
+        .sort((a, b) => b - a);
+    const mine = yearsFrom(mineRows.map((r) => r.year));
+    const divisions = await ctx.db.query("divisions").take(1000);
+    const all = yearsFrom(divisions.map((d) => d.year));
+    return { mine, all };
   },
 });
 
@@ -519,12 +551,17 @@ export const toReview = query({
  * previous year's still-incomplete requests.
  */
 export const allRequests = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { year: v.optional(v.number()) },
+  handler: async (ctx, args) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
     if (!isMemberOfDepartment(caller.profile, FINANCE)) {
       throw new ConvexError("Only Finance staff can view all requests.");
+    }
+    // A specific past year shows just that year; the live year carries over
+    // the previous year's still-open requests.
+    if (args.year !== undefined && args.year !== caller.year) {
+      return await yearRequests(ctx, args.year);
     }
     return await openRequestsAcrossYears(ctx, caller.year);
   },

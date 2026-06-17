@@ -24,7 +24,7 @@ import {
   scopeKindFor,
 } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
-import { radius, typography, useAppTheme } from "@/theme";
+import { radius, spacing, typography, useAppTheme } from "@/theme";
 import {
   Btn,
   Card,
@@ -270,18 +270,31 @@ const LockedAssignmentRow = ({
 export default function AdminScreen() {
   const t = useAppTheme();
   const me = useQuery(api.directory.me);
-  const years = useQuery(api.directory.availableYears, me?.isAdmin ? {} : "skip");
+  const isAdmin = !!me?.isAdmin;
+  // The Finance Head (head of the Finance department) gets a restricted view of
+  // this screen: the Budget Manager setting only, nothing else.
+  const budgetManagerOnly = !isAdmin && !!me?.isFinanceHead;
+  const hasAccess = isAdmin || budgetManagerOnly;
+  const years = useQuery(api.directory.availableYears, isAdmin ? {} : "skip");
   const currentYear = me?.year ?? new Date().getFullYear();
   const [year, setYear] = useState<number | null>(null);
-  const selectedYear = year ?? currentYear;
+  // Budget-manager-only callers can't switch years; they manage the live one.
+  const selectedYear = budgetManagerOnly ? currentYear : year ?? currentYear;
   const editable = selectedYear === currentYear || selectedYear === currentYear + 1;
   const [yearMenuOpen, setYearMenuOpen] = useState(false);
   const [tab, setTab] = useState<AdminTab>("users");
+  const activeTab: AdminTab = budgetManagerOnly ? "other" : tab;
   const scrollRef = useRef<ScrollView>(null);
 
   const structure = useQuery(
     api.directory.yearStructure,
-    me?.isAdmin ? { year: selectedYear } : "skip"
+    hasAccess ? { year: selectedYear } : "skip"
+  );
+  // Finance department members for the Budget Manager picker (allowed for both
+  // admins and the Finance Head).
+  const financeMembers = useQuery(
+    api.admin.financeMembers,
+    hasAccess ? { year: selectedYear } : "skip"
   );
   const profiles = useQuery(
     api.admin.listStaffProfiles,
@@ -299,6 +312,7 @@ export default function AdminScreen() {
     label: person.name ? `${person.name} (${person.email})` : person.email,
     value: person.email,
   }));
+  const nameByEmail = new Map((people ?? []).map((p) => [p.email, p.name]));
   const unassignedEmails = new Set((unassigned ?? []).map((u) => u.email));
 
   const setStaffProfile = useMutation(api.admin.setStaffProfile);
@@ -418,7 +432,7 @@ export default function AdminScreen() {
     return <Screen><LoadingState /></Screen>;
   }
 
-  if (!me?.isAdmin) {
+  if (!hasAccess) {
     return (
       <Screen>
         <Muted>Only admins can access this screen.</Muted>
@@ -706,18 +720,20 @@ export default function AdminScreen() {
       scrollRef={scrollRef}
       title="Manage"
       headerRight={
-        <Pressable
-          style={({ pressed }) => [
-            styles.yearPill,
-            t.shadowCard,
-            { backgroundColor: t.card },
-            pressed && { opacity: 0.7 },
-          ]}
-          onPress={() => setYearMenuOpen(true)}
-        >
-          <Txt style={{ fontWeight: "700" }}>{selectedYear}</Txt>
-          <Ionicons name="chevron-down" size={14} color={t.muted} />
-        </Pressable>
+        budgetManagerOnly ? undefined : (
+          <Pressable
+            style={({ pressed }) => [
+              styles.yearPill,
+              t.shadowCard,
+              { backgroundColor: t.card },
+              pressed && { opacity: 0.7 },
+            ]}
+            onPress={() => setYearMenuOpen(true)}
+          >
+            <Txt style={{ fontWeight: "700" }}>{selectedYear}</Txt>
+            <Ionicons name="chevron-down" size={14} color={t.muted} />
+          </Pressable>
+        )
       }
     >
       <ConfirmDialog
@@ -771,15 +787,17 @@ export default function AdminScreen() {
         ))}
       </OptionSheet>
 
-      <Segmented
-        segments={ADMIN_TABS}
-        active={tab}
-        onChange={(key) => { setTab(key as AdminTab); setError(null); }}
-      />
+      {!budgetManagerOnly && (
+        <Segmented
+          segments={ADMIN_TABS}
+          active={tab}
+          onChange={(key) => { setTab(key as AdminTab); setError(null); }}
+        />
+      )}
 
       <ErrorBanner message={error} />
 
-      {tab === "users" && (
+      {activeTab === "users" && (
         <>
           {editable && (unassigned ?? []).length > 0 && (
             <>
@@ -840,7 +858,7 @@ export default function AdminScreen() {
         </>
       )}
 
-      {tab === "structure" && (
+      {activeTab === "structure" && (
         <>
           <SectionTitle>Divisions — {selectedYear}</SectionTitle>
           {(structure?.divisions ?? []).map((division) => {
@@ -892,7 +910,14 @@ export default function AdminScreen() {
                   <Row>
                     <View style={{ flexGrow: 1 }}>
                       <Txt style={{ fontWeight: "600" }}>{division.name}</Txt>
-                      <Muted>Head: {division.headEmail ?? "none"}</Muted>
+                      {division.headEmail ? (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, marginTop: 2 }}>
+                          <Ionicons name="person-outline" size={12} color={t.muted} />
+                          <Muted>{nameByEmail.get(division.headEmail) ?? division.headEmail}</Muted>
+                        </View>
+                      ) : (
+                        <Muted>No head assigned</Muted>
+                      )}
                     </View>
                     {editable && (
                       <>
@@ -1196,9 +1221,18 @@ export default function AdminScreen() {
                   <Row>
                     <View style={{ flexGrow: 1 }}>
                       <Txt style={{ fontWeight: "600" }}>{department.name}</Txt>
-                      <Muted>
-                        Division: {department.division} • Head: {department.headEmail ?? "none"}
-                      </Muted>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: 2, flexWrap: "wrap" }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+                          <Ionicons name="git-branch-outline" size={12} color={t.muted} />
+                          <Muted>{department.division}</Muted>
+                        </View>
+                        {department.headEmail && (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+                            <Ionicons name="person-outline" size={12} color={t.muted} />
+                            <Muted>{nameByEmail.get(department.headEmail) ?? department.headEmail}</Muted>
+                          </View>
+                        )}
+                      </View>
                     </View>
                     {editable && (
                       <>
@@ -1268,34 +1302,38 @@ export default function AdminScreen() {
         </>
       )}
 
-      {tab === "other" && (
+      {activeTab === "other" && (
         <>
-          <SectionTitle>Directory Sync</SectionTitle>
-          <Card>
-            <Muted>
-              Syncs all active Google Workspace users on sow.org.au into the
-              people picker. Runs automatically every day.
-            </Muted>
-            {syncState?.syncedAt ? (
-              <Muted>
-                Last synced:{" "}
-                {new Date(syncState.syncedAt).toLocaleString()} —{" "}
-                {syncState.status}
-              </Muted>
-            ) : (
-              <Muted>Never synced.</Muted>
-            )}
-            <Btn
-              title={syncing ? "Syncing…" : "Sync Directory Now"}
-              loading={syncing}
-              onPress={() => {
-                setSyncing(true);
-                void run(() => requestSync({})).finally(() =>
-                  setSyncing(false)
-                );
-              }}
-            />
-          </Card>
+          {isAdmin && (
+            <>
+              <SectionTitle>Directory Sync</SectionTitle>
+              <Card>
+                <Muted>
+                  Syncs all active Google Workspace users on sow.org.au into the
+                  people picker. Runs automatically every day.
+                </Muted>
+                {syncState?.syncedAt ? (
+                  <Muted>
+                    Last synced:{" "}
+                    {new Date(syncState.syncedAt).toLocaleString()} —{" "}
+                    {syncState.status}
+                  </Muted>
+                ) : (
+                  <Muted>Never synced.</Muted>
+                )}
+                <Btn
+                  title={syncing ? "Syncing…" : "Sync Directory Now"}
+                  loading={syncing}
+                  onPress={() => {
+                    setSyncing(true);
+                    void run(() => requestSync({})).finally(() =>
+                      setSyncing(false)
+                    );
+                  }}
+                />
+              </Card>
+            </>
+          )}
 
           <SectionTitle>Budget Manager — {selectedYear}</SectionTitle>
           <Card>
@@ -1308,17 +1346,12 @@ export default function AdminScreen() {
                 <Select
                   label="Budget Manager (Finance department members)"
                   value={budgetManagerValue}
-                  options={(people ?? [])
-                    .filter((person) =>
-                      person.departments?.includes("Finance") ||
-                      person.department === "Finance"
-                    )
-                    .map((person) => ({
-                      label: person.name
-                        ? `${person.name} (${person.email})`
-                        : person.email,
-                      value: person.email,
-                    }))}
+                  options={(financeMembers ?? []).map((person) => ({
+                    label: person.name
+                      ? `${person.name} (${person.email})`
+                      : person.email,
+                    value: person.email,
+                  }))}
                   onSelect={setBudgetManagerEmail}
                   placeholder="Choose a Finance member…"
                 />

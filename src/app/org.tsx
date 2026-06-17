@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { useState } from "react";
@@ -10,55 +9,11 @@ import {
   FadeInView,
   LoadingState,
   Muted,
-  OptionRow,
-  OptionSheet,
   Screen,
   stagger,
   Txt,
+  YearPill,
 } from "@/components/ui";
-
-/** Compact pill that opens the year picker as a bottom sheet. */
-const YearPill = ({
-  year,
-  years,
-  onSelect,
-}: {
-  year: number;
-  years: number[];
-  onSelect: (year: number) => void;
-}) => {
-  const t = useAppTheme();
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <Pressable
-        style={({ pressed }) => [
-          styles.yearPill,
-          t.shadowCard,
-          { backgroundColor: t.card },
-          pressed && { opacity: 0.7 },
-        ]}
-        onPress={() => setOpen(true)}
-      >
-        <Txt style={styles.yearPillText}>{year}</Txt>
-        <Ionicons name="chevron-down" size={14} color={t.muted} />
-      </Pressable>
-      <OptionSheet visible={open} title="Year" onClose={() => setOpen(false)}>
-        {years.map((y) => (
-          <OptionRow
-            key={y}
-            label={String(y)}
-            selected={y === year}
-            onPress={() => {
-              onSelect(y);
-              setOpen(false);
-            }}
-          />
-        ))}
-      </OptionSheet>
-    </>
-  );
-};
 
 const Person = ({
   person,
@@ -226,18 +181,6 @@ export default function OrgChartScreen() {
 }
 
 const styles = StyleSheet.create({
-  yearPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    borderRadius: radius.full,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-  },
-  yearPillText: {
-    fontWeight: "700",
-    fontSize: 15,
-  },
   directorCard: {
     borderRadius: radius.lg,
     paddingHorizontal: spacing.lg,

@@ -25,6 +25,7 @@ import {
   Segmented,
   Select,
   Txt,
+  YearPill,
 } from "@/components/ui";
 
 const greetingForNow = (): string => {
@@ -48,6 +49,12 @@ export default function RequestsScreen() {
     me?.profile ? { year: me.year } : "skip"
   );
   const myRequests = useQuery(api.requests.myRequests, me?.profile ? {} : "skip");
+  // Past-year browsing for the Mine / All segments. null = the live staff year.
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const requestYears = useQuery(
+    api.requests.requestYears,
+    me?.profile ? {} : "skip"
+  );
   // Badge for the To Review segment (Convex dedupes with the tab badge).
   const review = useQuery(
     api.requests.toReview,
@@ -119,6 +126,16 @@ export default function RequestsScreen() {
   }, [tab]);
   const activeSegment = segments.some((s) => s.key === active) ? active : "mine";
 
+  // Year browsing: null means the live staff year (with carry-over). Picking an
+  // earlier year shows that year's requests read-only.
+  const currentYear = me?.year;
+  const viewingYear = selectedYear ?? currentYear ?? new Date().getFullYear();
+  const isPastYear =
+    currentYear != null && selectedYear != null && selectedYear !== currentYear;
+  const queryYear = isPastYear ? (selectedYear as number) : undefined;
+  const pickerYears =
+    (activeSegment === "all" ? requestYears?.all : requestYears?.mine) ?? [];
+
   const departmentNames = (structure?.departments ?? []).map((d) => d.name);
   // Default to a department they are Head of Department of, else the first
   // department in their assignments, else (for a pure Head of Division) the
@@ -138,7 +155,8 @@ export default function RequestsScreen() {
   const [guideOpen, setGuideOpen] = useState(false);
   const openNewRequest = () => { setRequestPrefill(null); setNewRequestOpen(true); };
 
-  const showMakeRequest = me?.profile != null && activeSegment === "mine";
+  const showMakeRequest =
+    me?.profile != null && activeSegment === "mine" && !isPastYear;
 
   if (me === undefined) return <Screen><LoadingState /></Screen>;
 
@@ -180,6 +198,20 @@ export default function RequestsScreen() {
           <FadeInView delay={40}>
             <Segmented segments={segments} active={activeSegment} onChange={setActive} />
           </FadeInView>
+          {activeSegment !== "review" && pickerYears.length > 1 && (
+            <FadeInView delay={60}>
+              <Row>
+                <Muted>Staff year</Muted>
+                <YearPill
+                  year={viewingYear}
+                  years={pickerYears}
+                  onSelect={(y) =>
+                    setSelectedYear(y === currentYear ? null : y)
+                  }
+                />
+              </Row>
+            </FadeInView>
+          )}
           {activeSegment === "review" ? (
             <ReviewList />
           ) : activeSegment === "all" ? (
@@ -217,7 +249,7 @@ export default function RequestsScreen() {
                   <SectionTitle>All Requests — {me.year}</SectionTitle>
                 </>
               )}
-              <AllRequestsList />
+              <AllRequestsList year={queryYear} />
             </>
           ) : (
             <MyRequests
@@ -228,6 +260,8 @@ export default function RequestsScreen() {
               onResubmit={(p) => { setRequestPrefill(p); setNewRequestOpen(true); }}
               onNewClose={() => setNewRequestOpen(false)}
               onShowGuide={() => setGuideOpen(true)}
+              year={queryYear}
+              readOnly={isPastYear}
             />
           )}
         </>
