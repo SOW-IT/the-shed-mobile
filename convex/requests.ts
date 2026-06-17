@@ -54,25 +54,6 @@ const stepValidator = v.union(
 const requestSummary = (r: Doc<"requests">) =>
   `Requester: ${r.requesterEmail}\nDepartment: ${r.department}\nAmount: $${r.amount}\nDescription: ${r.description}`;
 
-/** Drains a paginated query across all pages so nothing is silently dropped. */
-const collectAll = async <T>(
-  page: (cursor: string | null) => Promise<{
-    page: T[];
-    isDone: boolean;
-    continueCursor: string;
-  }>
-): Promise<T[]> => {
-  const rows: T[] = [];
-  let cursor: string | null = null;
-  for (;;) {
-    const result = await page(cursor);
-    rows.push(...result.page);
-    if (result.isDone) break;
-    cursor = result.continueCursor;
-  }
-  return rows;
-};
-
 /** Appends an immutable audit event (timestamp = _creationTime). */
 const logEvent = async (
   ctx: MutationCtx,
@@ -478,23 +459,20 @@ export const requestYears = query({
   handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
-    // Enumerate every matching record via cursor pagination so no year is
-    // silently dropped once counts exceed a fixed page size.
-    const mineRows = await collectAll((cursor) =>
-      ctx.db
-        .query("requests")
-        .withIndex("by_requester", (q) => q.eq("requesterEmail", caller.email))
-        .paginate({ numItems: 256, cursor }),
-    );
+    // Read every matching row (both sets are bounded: one caller's requests and
+    // the org's divisions) so no year is silently dropped. A single function
+    // can't run two paginated queries, so collect() is used here, not paginate.
+    const mineRows = await ctx.db
+      .query("requests")
+      .withIndex("by_requester", (q) => q.eq("requesterEmail", caller.email))
+      .collect();
     // Only offer years that can actually have requests (>= 2021), newest-first.
     const yearsFrom = (years: number[]) =>
       [...new Set([currentStaffYear(), ...years])]
         .filter((y) => y >= EARLIEST_REQUEST_YEAR)
         .sort((a, b) => b - a);
     const mine = yearsFrom(mineRows.map((r) => r.year));
-    const divisions = await collectAll((cursor) =>
-      ctx.db.query("divisions").paginate({ numItems: 256, cursor }),
-    );
+    const divisions = await ctx.db.query("divisions").collect();
     const all = yearsFrom(divisions.map((d) => d.year));
     return { mine, all };
   },

@@ -1,7 +1,7 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { HEAD_OF_DEPARTMENT, requestFullyApproved } from "../../shared/flow";
@@ -158,6 +158,9 @@ export default function RequestsScreen() {
   const showMakeRequest =
     me?.profile != null && activeSegment === "mine" && !isPastYear;
 
+  // Wired to the active list's completed-tab "reveal more" handler (or null).
+  const loadMoreRef = useRef<(() => void) | null>(null);
+
   if (me === undefined) return <Screen><LoadingState /></Screen>;
 
   const firstName = me?.name?.split(" ")[0];
@@ -177,6 +180,7 @@ export default function RequestsScreen() {
         ) : undefined
       }
       footer={showMakeRequest ? <FooterAction title="+ Make Request" onPress={openNewRequest} onInfo={() => setGuideOpen(true)} /> : undefined}
+      onEndReached={() => loadMoreRef.current?.()}
     >
       {me === null || me.profile === null ? (
         <FadeInView>
@@ -249,7 +253,7 @@ export default function RequestsScreen() {
                   <SectionTitle>All Requests — {me.year}</SectionTitle>
                 </>
               )}
-              <AllRequestsList year={queryYear} />
+              <AllRequestsList year={queryYear} loadMoreRef={loadMoreRef} />
             </>
           ) : (
             <MyRequests

@@ -663,6 +663,7 @@ export const MyRequests = ({
                 <RequestCard
                   request={request}
                   actionRequired={needsReceipt}
+                  collapsible={requestCompleted(request)}
                   onCancel={
                     readOnly
                       ? undefined

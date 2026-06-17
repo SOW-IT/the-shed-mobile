@@ -103,6 +103,7 @@ export const Screen = ({
   title,
   subtitle,
   headerRight,
+  onEndReached,
 }: {
   children?: ReactNode;
   toast?: ToastState;
@@ -116,6 +117,8 @@ export const Screen = ({
   subtitle?: string;
   /** Rendered to the right of the title (e.g. an avatar or a year picker). */
   headerRight?: ReactNode;
+  /** Fired while the user scrolls within ~600px of the bottom (infinite load). */
+  onEndReached?: () => void;
 }) => {
   const t = useAppTheme();
   return (
@@ -125,6 +128,17 @@ export const Screen = ({
         showsVerticalScrollIndicator={false}
         style={{ backgroundColor: t.background }}
         contentContainerStyle={[styles.scroll, footer != null && { paddingBottom: 96 }]}
+        scrollEventThrottle={onEndReached ? 16 : undefined}
+        onScroll={
+          onEndReached
+            ? ({ nativeEvent }) => {
+                const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+                const distanceFromBottom =
+                  contentSize.height - (contentOffset.y + layoutMeasurement.height);
+                if (distanceFromBottom < 600) onEndReached();
+              }
+            : undefined
+        }
       >
         {(title || headerRight) && (
           <FadeInView>
