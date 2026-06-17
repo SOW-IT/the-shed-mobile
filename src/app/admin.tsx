@@ -64,6 +64,14 @@ const ADMIN_TABS = [
   { key: "other", label: "Other" },
 ];
 
+type StructureSubTab = "roles" | "divisions" | "departments" | "universities";
+const STRUCTURE_SUB_TABS = [
+  { key: "roles", label: "Roles" },
+  { key: "divisions", label: "Divisions" },
+  { key: "departments", label: "Departments" },
+  { key: "universities", label: "Universities" },
+];
+
 /**
  * Roles assignable via the staff profile picker. Head roles are set exclusively
  * through the Structure tab, and "Member" is not an assignable role here.
@@ -284,6 +292,7 @@ export default function AdminScreen() {
   const [yearMenuOpen, setYearMenuOpen] = useState(false);
   const [tab, setTab] = useState<AdminTab>("users");
   const activeTab: AdminTab = budgetManagerOnly ? "other" : tab;
+  const [structureSubTab, setStructureSubTab] = useState<StructureSubTab>("roles");
   const scrollRef = useRef<ScrollView>(null);
 
   const structure = useQuery(
@@ -560,7 +569,7 @@ export default function AdminScreen() {
   const renderUnassignedCard = (user: { email: string; name?: string | null }) => {
     const isAssigning = assigningUserEmail === user.email;
     return (
-      <Card key={user.email}>
+      <Card key={user.email} style={{ marginBottom: spacing.sm }}>
         {isAssigning ? (
           <>
             <Txt style={{ fontWeight: "600" }}>{user.name ?? user.email}</Txt>
@@ -609,7 +618,7 @@ export default function AdminScreen() {
       (a) => a.role === HEAD_OF_DEPARTMENT || a.role === HEAD_OF_DIVISION
     );
     return (
-      <Card key={profile._id}>
+      <Card key={profile._id} style={{ marginBottom: spacing.sm }}>
         {isEditingThis ? (
           <>
             <Txt style={{ fontWeight: "600" }}>{profile.name ?? profile.email}</Txt>
@@ -860,6 +869,109 @@ export default function AdminScreen() {
 
       {activeTab === "structure" && (
         <>
+          <Segmented
+            segments={STRUCTURE_SUB_TABS}
+            active={structureSubTab}
+            onChange={(key) => setStructureSubTab(key as StructureSubTab)}
+          />
+
+          {structureSubTab === "roles" && (
+            <>
+          <SectionTitle>Roles — {selectedYear}</SectionTitle>
+          {(structure?.roles ?? []).length === 0 && (
+            <Card><Muted>No roles yet.</Muted></Card>
+          )}
+          {(structure?.roles ?? []).map((role) => {
+            const isEditingThis = editingRoleKey === role;
+            return (
+              <Card key={role}>
+                {isEditingThis ? (
+                  <>
+                    <Field
+                      label="Role name (rename cascades to staff assignments)"
+                      value={editingRoleFormName}
+                      onChangeText={setEditingRoleFormName}
+                    />
+                    <Row>
+                      <Btn
+                        title="Save"
+                        loading={savingEditRole}
+                        onPress={() => {
+                          setSavingEditRole(true);
+                          void run(() =>
+                            updateRole({
+                              year: selectedYear,
+                              oldName: role,
+                              newName: editingRoleFormName,
+                            })
+                          )
+                            .then((ok) => {
+                              if (ok) setEditingRoleKey(null);
+                            })
+                            .finally(() => setSavingEditRole(false));
+                        }}
+                      />
+                      <Btn
+                        title="Cancel"
+                        variant="ghost"
+                        onPress={() => setEditingRoleKey(null)}
+                      />
+                    </Row>
+                  </>
+                ) : (
+                  <Row>
+                    <View style={{ flexGrow: 1 }}>
+                      <Txt style={{ fontWeight: "600" }}>{role}</Txt>
+                    </View>
+                    {editable && (
+                      <>
+                        <IconButton
+                          name="create-outline"
+                          onPress={() => {
+                            setEditingRoleFormName(role);
+                            setEditingRoleKey(role);
+                          }}
+                        />
+                        <IconButton
+                          name="trash-outline"
+                          color={t.danger}
+                          onPress={() =>
+                            setDeleteConfirm({
+                              name: role,
+                              message: `This role can only be deleted if no one is assigned it this year.`,
+                              onConfirm: () => void run(() => removeRole({ year: selectedYear, name: role })),
+                            })
+                          }
+                        />
+                      </>
+                    )}
+                  </Row>
+                )}
+              </Card>
+            );
+          })}
+          {editable && (
+            <Card>
+              <Field
+                label="New role"
+                value={roleName}
+                onChangeText={setRoleName}
+              />
+              <Btn
+                title="Add Role"
+                onPress={() =>
+                  void run(() =>
+                    upsertRole({ year: selectedYear, name: roleName })
+                  ).then((ok) => ok && setRoleName(""))
+                }
+              />
+            </Card>
+          )}
+            </>
+          )}
+
+          {structureSubTab === "divisions" && (
+            <>
           <SectionTitle>Divisions — {selectedYear}</SectionTitle>
           {(structure?.divisions ?? []).map((division) => {
             const isEditingThis = editingDivisionKey === division.name;
@@ -980,7 +1092,11 @@ export default function AdminScreen() {
               />
             </Card>
           )}
+            </>
+          )}
 
+          {structureSubTab === "universities" && (
+            <>
           <SectionTitle>Universities — {selectedYear}</SectionTitle>
           {(structure?.universities ?? []).length === 0 && (
             <Card><Muted>No universities yet.</Muted></Card>
@@ -1071,98 +1187,11 @@ export default function AdminScreen() {
               />
             </Card>
           )}
-
-          <SectionTitle>Roles — {selectedYear}</SectionTitle>
-          {(structure?.roles ?? []).length === 0 && (
-            <Card><Muted>No roles yet.</Muted></Card>
-          )}
-          {(structure?.roles ?? []).map((role) => {
-            const isEditingThis = editingRoleKey === role;
-            return (
-              <Card key={role}>
-                {isEditingThis ? (
-                  <>
-                    <Field
-                      label="Role name (rename cascades to staff assignments)"
-                      value={editingRoleFormName}
-                      onChangeText={setEditingRoleFormName}
-                    />
-                    <Row>
-                      <Btn
-                        title="Save"
-                        loading={savingEditRole}
-                        onPress={() => {
-                          setSavingEditRole(true);
-                          void run(() =>
-                            updateRole({
-                              year: selectedYear,
-                              oldName: role,
-                              newName: editingRoleFormName,
-                            })
-                          )
-                            .then((ok) => {
-                              if (ok) setEditingRoleKey(null);
-                            })
-                            .finally(() => setSavingEditRole(false));
-                        }}
-                      />
-                      <Btn
-                        title="Cancel"
-                        variant="ghost"
-                        onPress={() => setEditingRoleKey(null)}
-                      />
-                    </Row>
-                  </>
-                ) : (
-                  <Row>
-                    <View style={{ flexGrow: 1 }}>
-                      <Txt style={{ fontWeight: "600" }}>{role}</Txt>
-                    </View>
-                    {editable && (
-                      <>
-                        <IconButton
-                          name="create-outline"
-                          onPress={() => {
-                            setEditingRoleFormName(role);
-                            setEditingRoleKey(role);
-                          }}
-                        />
-                        <IconButton
-                          name="trash-outline"
-                          color={t.danger}
-                          onPress={() =>
-                            setDeleteConfirm({
-                              name: role,
-                              message: `This role can only be deleted if no one is assigned it this year.`,
-                              onConfirm: () => void run(() => removeRole({ year: selectedYear, name: role })),
-                            })
-                          }
-                        />
-                      </>
-                    )}
-                  </Row>
-                )}
-              </Card>
-            );
-          })}
-          {editable && (
-            <Card>
-              <Field
-                label="New role"
-                value={roleName}
-                onChangeText={setRoleName}
-              />
-              <Btn
-                title="Add Role"
-                onPress={() =>
-                  void run(() =>
-                    upsertRole({ year: selectedYear, name: roleName })
-                  ).then((ok) => ok && setRoleName(""))
-                }
-              />
-            </Card>
+            </>
           )}
 
+          {structureSubTab === "departments" && (
+            <>
           <SectionTitle>Departments — {selectedYear}</SectionTitle>
           {(structure?.departments ?? []).map((department) => {
             const isEditingThis = editingDepartmentKey === department.name;
@@ -1298,6 +1327,8 @@ export default function AdminScreen() {
                 }
               />
             </Card>
+          )}
+            </>
           )}
         </>
       )}
