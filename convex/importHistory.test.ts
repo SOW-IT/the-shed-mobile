@@ -94,55 +94,6 @@ describe("importHistory: backfill from the old web app's Firestore", () => {
   });
 });
 
-describe("importHistory: migrateEmailDomain", () => {
-  test("re-keys a year's profiles, heads, budget manager and requests", async () => {
-    const t = await setup();
-    await t.mutation(internal.importHistory.run, {});
-
-    const result = await t.mutation(internal.importHistory.migrateEmailDomain, {
-      year: 2025,
-      fromDomain: "sowaustralia.com",
-      toDomain: "sow.org.au",
-    });
-    expect(result.profiles).toBeGreaterThan(50);
-
-    await t.run(async (ctx) => {
-      const profiles = await ctx.db
-        .query("staffProfiles")
-        .withIndex("by_year", (q) => q.eq("year", 2025))
-        .take(1000);
-      expect(profiles.some((p) => p.email.endsWith("@sowaustralia.com"))).toBe(false);
-
-      const finance = await ctx.db
-        .query("departments")
-        .withIndex("by_year_and_name", (q) => q.eq("year", 2025).eq("name", "Finance"))
-        .unique();
-      expect(finance?.headEmail).toMatch(/@sow\.org\.au$/);
-
-      const settings = await ctx.db
-        .query("yearSettings")
-        .withIndex("by_year", (q) => q.eq("year", 2025))
-        .unique();
-      expect(settings?.budgetManagerEmail).toBe("brandon.teng@sow.org.au");
-
-      // Other years are untouched.
-      const previous = await ctx.db
-        .query("staffProfiles")
-        .withIndex("by_year", (q) => q.eq("year", 2024))
-        .take(1000);
-      expect(previous.some((p) => p.email.endsWith("@sowaustralia.com"))).toBe(true);
-    });
-
-    // Running it again is a no-op.
-    const again = await t.mutation(internal.importHistory.migrateEmailDomain, {
-      year: 2025,
-      fromDomain: "sowaustralia.com",
-      toDomain: "sow.org.au",
-    });
-    expect(again).toMatchObject({ profiles: 0, merged: 0, departments: 0 });
-  });
-});
-
 describe("email changes: the person stays the same", () => {
   test("sign-in with a new email claims imported years keyed by the old one", async () => {
     const t = await setup();

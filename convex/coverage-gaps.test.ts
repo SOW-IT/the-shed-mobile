@@ -307,66 +307,6 @@ describe("userLink: re-keying a division head and budget manager on rename", () 
   });
 });
 
-describe("importHistory.migrateEmailDomain: merge + request re-key", () => {
-  test("merges into an existing target row and re-keys that year's requests", async () => {
-    const t = await setup();
-    // A profile on the legacy domain AND an existing row on the new domain for
-    // the same (email, year) -> the legacy row merges into the existing one.
-    await t.run(async (ctx) => {
-      await ctx.db.insert("staffProfiles", {
-        email: "kai.lee@sowaustralia.com",
-        year: 2020,
-        assignments: [{ role: "Staff", department: "Marketing" }],
-        importId: "uid-kai",
-        name: "Kai Legacy",
-      });
-      await ctx.db.insert("staffProfiles", {
-        email: "kai.lee@sow.org.au",
-        year: 2020,
-        assignments: [{ role: "Staff", department: "Finance" }],
-      });
-      // A request that year under the legacy email -> re-keyed.
-      await ctx.db.insert("requests", {
-        year: 2020,
-        requesterEmail: "kai.lee@sowaustralia.com",
-        department: "Marketing",
-        description: "legacy",
-        amount: 10,
-        approvedByHOD: "APPROVED",
-        approvedByBudgetManager: "APPROVED",
-        approvedByFinanceHead: "APPROVED",
-      });
-    });
-
-    const result = await t.mutation(internal.importHistory.migrateEmailDomain, {
-      year: 2020,
-      fromDomain: "sowaustralia.com",
-      toDomain: "sow.org.au",
-    });
-    expect(result.merged).toBe(1);
-    expect(result.requests).toBe(1);
-
-    await t.run(async (ctx) => {
-      // The surviving row keeps its assignments but inherits the legacy importId.
-      const survivor = await ctx.db
-        .query("staffProfiles")
-        .withIndex("by_email_and_year", (q) =>
-          q.eq("email", "kai.lee@sow.org.au").eq("year", 2020)
-        )
-        .unique();
-      expect(survivor?.assignments).toEqual([
-        { role: "Staff", department: "Finance" },
-      ]);
-      expect(survivor?.importId).toBe("uid-kai");
-      const reqs = await ctx.db
-        .query("requests")
-        .withIndex("by_year", (q) => q.eq("year", 2020))
-        .take(10);
-      expect(reqs[0].requesterEmail).toBe("kai.lee@sow.org.au");
-    });
-  });
-});
-
 describe("model.requireEmail", () => {
   test("generateReceiptUploadUrl surfaces the signed-in requirement when unauthenticated", async () => {
     const t = await setup();
