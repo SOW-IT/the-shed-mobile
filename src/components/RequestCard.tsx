@@ -1,7 +1,6 @@
-import React from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
-import { ReactNode, useEffect, useRef, useState } from "react";
+import React, { ReactNode, useEffect, useState } from "react";
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import {
   APPROVED,
@@ -168,7 +167,7 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
 
   // L-to-R fill sweep, 3 s total. Connector sweeps 0→2 s, circle sweeps 1→3 s,
   // so the fill appears to flow off the line and into the circle during the 1 s overlap.
-  const fill = useRef(new Animated.Value(0)).current;
+  const [fill] = useState(() => new Animated.Value(0));
   const needsAnimation = active !== null;
   useEffect(() => {
     if (!needsAnimation) return;

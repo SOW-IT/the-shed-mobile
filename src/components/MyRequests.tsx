@@ -129,6 +129,7 @@ const NewRequestSheet = ({
   // Re-initialise the form each time it opens (blank, or from the prefill).
   useEffect(() => {
     if (!visible) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset form on open
     setDescription(prefill?.description ?? "");
     setAmount(prefill?.amount ?? "");
     setDepartment(prefill?.department ?? defaultDepartment);
@@ -324,6 +325,7 @@ const ReceiptSheet = ({
       first.accountNumber === "";
     if (!isDefault) return;
     const preferred = savedAccounts.find((a) => a.preferred) ?? savedAccounts[0];
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-fill on open/load
     setRecipients([{
       accountName: preferred.accountName,
       bsb: preferred.bsb,

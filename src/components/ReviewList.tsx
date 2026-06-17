@@ -51,6 +51,7 @@ const DeclineSheet = ({
   // it opens for a different request — otherwise a previously typed reason
   // carries over to the next request.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on target change
     setReason("");
     setError(null);
   }, [target]);
@@ -97,6 +98,7 @@ const PaySheet = ({
   // Reset when the sheet opens for a different request (it stays mounted, so
   // the amount/comment would otherwise persist from the last payment).
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on request change
     setPaidAmount("");
     setComment("");
     setError(null);
