@@ -935,6 +935,10 @@ export default function AdminScreen() {
                       />
                       <Btn
                         title="Save"
+                        disabled={
+                          !editingRoleFormName.trim() ||
+                          editingRoleFormName.trim() === role
+                        }
                         onPress={() => {
                           setSavingEditRole(true);
                           void run(() =>
@@ -1033,6 +1037,11 @@ export default function AdminScreen() {
                       />
                       <Btn
                         title="Save"
+                        disabled={
+                          !editingDivisionFormName.trim() ||
+                          (editingDivisionFormName.trim() === division.name &&
+                            editingDivisionFormHead === (division.headEmail ?? ""))
+                        }
                         onPress={() => {
                           setSavingEditDivision(true);
                           void run(() =>
@@ -1153,6 +1162,10 @@ export default function AdminScreen() {
                       />
                       <Btn
                         title="Save"
+                        disabled={
+                          !editingUniversityFormName.trim() ||
+                          editingUniversityFormName.trim() === university
+                        }
                         onPress={() => {
                           setSavingEditUniversity(true);
                           void run(() =>
@@ -1258,6 +1271,13 @@ export default function AdminScreen() {
                       />
                       <Btn
                         title="Save"
+                        disabled={
+                          !editingDepartmentFormName.trim() ||
+                          !editingDepartmentFormDivision ||
+                          (editingDepartmentFormName.trim() === department.name &&
+                            editingDepartmentFormDivision === department.division &&
+                            editingDepartmentFormHead === (department.headEmail ?? ""))
+                        }
                         onPress={() => {
                           setSavingEditDepartment(true);
                           void run(() =>
@@ -1408,7 +1428,10 @@ export default function AdminScreen() {
                 />
                 <Btn
                   title="Set Budget Manager"
-                  disabled={!budgetManagerValue}
+                  disabled={
+                    !budgetManagerValue ||
+                    budgetManagerValue === (structure?.budgetManagerEmail ?? "")
+                  }
                   onPress={() =>
                     void run(() =>
                       setBudgetManager({

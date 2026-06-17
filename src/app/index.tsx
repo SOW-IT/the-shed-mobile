@@ -245,7 +245,10 @@ export default function RequestsScreen() {
                     <Btn
                       title="Set Budget Manager"
                       loading={savingBudgetManager}
-                      disabled={!budgetManagerValue}
+                      disabled={
+                        !budgetManagerValue ||
+                        budgetManagerValue === (structure?.budgetManagerEmail ?? "")
+                      }
                       onPress={() => {
                         setSavingBudgetManager(true);
                         setBudgetManagerError(null);
