@@ -880,6 +880,42 @@ describe("copyYear", () => {
     expect(volunteerRows).toHaveLength(1);
   });
 
+  test("matches an existing person by importId across a changed email and updates in place", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      // Source profile carries a durable importId.
+      await ctx.db.insert("staffProfiles", {
+        email: "old.name@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Staff", department: "Finance" }],
+        importId: "person-123",
+        name: "Person",
+      });
+      // The same person already exists in the destination year under a renamed
+      // email — the copy must match by importId and update in place.
+      await ctx.db.insert("staffProfiles", {
+        email: "new.name@sow.org.au",
+        year: YEAR + 1,
+        assignments: [{ role: "Outsource" }],
+        importId: "person-123",
+        name: "Person",
+      });
+    });
+
+    await t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR + 1 });
+
+    const destRows = await t.run((ctx) =>
+      ctx.db
+        .query("staffProfiles")
+        .withIndex("by_importId", (q) => q.eq("importId", "person-123"))
+        .collect()
+    ).then((rows) => rows.filter((r) => r.year === YEAR + 1));
+    // Matched by importId — updated in place, not duplicated, email preserved.
+    expect(destRows).toHaveLength(1);
+    expect(destRows[0].email).toBe("new.name@sow.org.au");
+    expect(destRows[0].assignments).toEqual([{ role: "Staff", department: "Finance" }]);
+  });
+
   test("leaves the destination budget manager untouched when the source has none", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
