@@ -126,15 +126,18 @@ export default function RequestsScreen() {
   }, [tab]);
   const activeSegment = segments.some((s) => s.key === active) ? active : "mine";
 
-  // Year browsing: null means the live staff year (with carry-over). Picking an
-  // earlier year shows that year's requests read-only.
+  // Year browsing only applies to the "All" segment. "Mine" and "To Review"
+  // always show the live staff year (with carry-over). null = live year;
+  // picking an earlier year shows that year's requests read-only.
   const currentYear = me?.year;
   const viewingYear = selectedYear ?? currentYear ?? new Date().getFullYear();
   const isPastYear =
-    currentYear != null && selectedYear != null && selectedYear !== currentYear;
+    activeSegment === "all" &&
+    currentYear != null &&
+    selectedYear != null &&
+    selectedYear !== currentYear;
   const queryYear = isPastYear ? (selectedYear as number) : undefined;
-  const pickerYears =
-    (activeSegment === "all" ? requestYears?.all : requestYears?.mine) ?? [];
+  const pickerYears = requestYears?.all ?? [];
 
   const departmentNames = (structure?.departments ?? []).map((d) => d.name);
   // Default to a department they are Head of Department of, else the first
@@ -155,8 +158,7 @@ export default function RequestsScreen() {
   const [guideOpen, setGuideOpen] = useState(false);
   const openNewRequest = () => { setRequestPrefill(null); setNewRequestOpen(true); };
 
-  const showMakeRequest =
-    me?.profile != null && activeSegment === "mine" && !isPastYear;
+  const showMakeRequest = me?.profile != null && activeSegment === "mine";
 
   // Wired to the active list's completed-tab "reveal more" handler (or null).
   const loadMoreRef = useRef<(() => void) | null>(null);
@@ -202,7 +204,7 @@ export default function RequestsScreen() {
           <FadeInView delay={40}>
             <Segmented segments={segments} active={activeSegment} onChange={setActive} />
           </FadeInView>
-          {activeSegment !== "review" && pickerYears.length > 1 && (
+          {activeSegment === "all" && pickerYears.length > 1 && (
             <FadeInView delay={60}>
               <Row>
                 <Muted>Staff year</Muted>
@@ -264,8 +266,6 @@ export default function RequestsScreen() {
               onResubmit={(p) => { setRequestPrefill(p); setNewRequestOpen(true); }}
               onNewClose={() => setNewRequestOpen(false)}
               onShowGuide={() => setGuideOpen(true)}
-              year={queryYear}
-              readOnly={isPastYear}
             />
           )}
         </>
