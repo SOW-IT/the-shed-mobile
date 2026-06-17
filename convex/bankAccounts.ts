@@ -85,15 +85,17 @@ export const setPreferred = mutation({
 });
 
 /**
- * Adds a bank account the caller typed in directly (e.g. from the Bank tab)
- * and marks it as their preferred (auto-fill) account. Reuses an existing row
- * with the same BSB + account number rather than duplicating it.
+ * Adds a bank account the caller typed in directly (e.g. from the Bank tab).
+ * By default the account is saved without changing which account is preferred;
+ * pass `makePreferred: true` to make it the new auto-fill account. Reuses an
+ * existing row with the same BSB + account number rather than duplicating it.
  */
 export const addAccount = mutation({
   args: {
     accountName: v.string(),
     bsb: v.string(),
     accountNumber: v.string(),
+    makePreferred: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const email = await requireEmail(ctx);
@@ -104,12 +106,22 @@ export const addAccount = mutation({
     if (!bsb) throw new ConvexError("BSB is required.");
     if (!accountNumber) throw new ConvexError("Account number is required.");
 
-    const existing = await ctx.db
+    // Snapshot the caller's accounts *before* inserting so we can tell which one
+    // is currently the effective preferred: the explicitly-flagged account, or
+    // (per listMine's fallback) the most-recently-used one. Adding without
+    // opting in must not change which account is preferred.
+    const before = await ctx.db
       .query("savedBankAccounts")
-      .withIndex("by_email_bsb_accountNumber", (q) =>
-        q.eq("email", email).eq("bsb", bsb).eq("accountNumber", accountNumber)
-      )
-      .unique();
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .collect();
+    const hadExplicitPreferred = before.some((a) => a.preferred === true);
+    const priorPreferredId =
+      before.find((a) => a.preferred === true)?._id ??
+      [...before].sort((a, b) => b.lastUsedAt - a.lastUsedAt)[0]?._id;
+
+    const existing = before.find(
+      (a) => a.bsb === bsb && a.accountNumber === accountNumber
+    );
     let targetId;
     if (existing) {
       await ctx.db.patch("savedBankAccounts", existing._id, {
@@ -127,15 +139,21 @@ export const addAccount = mutation({
       });
     }
 
-    // Make the added account preferred, clearing any previous preferred flag.
-    const all = await ctx.db
-      .query("savedBankAccounts")
-      .withIndex("by_email", (q) => q.eq("email", email))
-      .collect();
-    for (const a of all) {
-      await ctx.db.patch("savedBankAccounts", a._id, {
-        preferred: a._id === targetId ? true : undefined,
-      });
+    // Opting in makes the added account preferred. Otherwise keep whatever was
+    // already preferred — but if that was only *implicit* (no explicit flag),
+    // pin it explicitly now so the freshly-bumped account can't silently usurp
+    // the preferred slot via the most-recently-used fallback.
+    const preferredId = args.makePreferred ? targetId : priorPreferredId ?? targetId;
+    if (args.makePreferred || !hadExplicitPreferred) {
+      const all = await ctx.db
+        .query("savedBankAccounts")
+        .withIndex("by_email", (q) => q.eq("email", email))
+        .collect();
+      for (const a of all) {
+        await ctx.db.patch("savedBankAccounts", a._id, {
+          preferred: a._id === preferredId ? true : undefined,
+        });
+      }
     }
     return null;
   },

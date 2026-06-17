@@ -26,6 +26,11 @@ const MORE_EMOJIS = [
   "🙌", "👏", "🤔", "😮", "😢", "😡", "🥳", "🫡", "💪", "✍️",
 ];
 
+/** Optimistic comments carry a synthetic id (`optimistic-…`) until the server
+ *  reconciles them; reactions can't target a row that doesn't exist yet. */
+const isOptimisticId = (id: Id<"requestComments">) =>
+  String(id).startsWith("optimistic-");
+
 const compactAgo = (ms: number): string => {
   const mins = Math.floor((Date.now() - ms) / 60000);
   if (mins < 1) return "now";
@@ -76,9 +81,56 @@ export const CommentsSheet = ({
   useEffect(() => {
     if (comments !== undefined) setLoaded(comments);
   }, [comments]);
-  const add = useMutation(api.comments.add);
+  // Optimistic: show the comment immediately (as "You") so the thread feels
+  // instant; the real query replaces it on response, or Convex reverts on error.
+  const add = useMutation(api.comments.add).withOptimisticUpdate(
+    (localStore, { requestId, body }) => {
+      const current = localStore.getQuery(api.comments.list, { requestId });
+      if (!current) return;
+      localStore.setQuery(api.comments.list, { requestId }, [
+        ...current,
+        {
+          id: `optimistic-${Date.now()}` as unknown as Id<"requestComments">,
+          authorEmail: "",
+          authorName: null,
+          body: body.trim(),
+          at: Date.now(),
+          isMine: true,
+          reactions: [],
+        },
+      ]);
+    }
+  );
   const markRead = useMutation(api.comments.markRead);
-  const toggleReaction = useMutation(api.comments.toggleReaction);
+  // Optimistic: toggle my reaction locally (add/remove, re-sorted by count) so
+  // the chip updates on tap instead of after the round-trip.
+  const toggleReaction = useMutation(api.comments.toggleReaction).withOptimisticUpdate(
+    (localStore, { commentId, emoji }) => {
+      const current = localStore.getQuery(api.comments.list, { requestId: request._id });
+      if (!current) return;
+      localStore.setQuery(
+        api.comments.list,
+        { requestId: request._id },
+        current.map((c) => {
+          if (c.id !== commentId) return c;
+          const mine = c.reactions.find((r) => r.emoji === emoji);
+          let reactions;
+          if (mine?.mine) {
+            reactions = c.reactions
+              .map((r) => (r.emoji === emoji ? { ...r, count: r.count - 1, mine: false } : r))
+              .filter((r) => r.count > 0);
+          } else if (mine) {
+            reactions = c.reactions.map((r) =>
+              r.emoji === emoji ? { ...r, count: r.count + 1, mine: true } : r
+            );
+          } else {
+            reactions = [...c.reactions, { emoji, count: 1, mine: true }];
+          }
+          return { ...c, reactions: [...reactions].sort((a, b) => b.count - a.count) };
+        })
+      );
+    }
+  );
 
   const [draft, setDraft] = useState("");
   const [focused, setFocused] = useState(false);
@@ -120,6 +172,9 @@ export const CommentsSheet = ({
   const react = async (commentId: Id<"requestComments">, emoji: string) => {
     setReactingTo(null);
     setMoreFor(null);
+    // The comment hasn't been persisted yet — toggling a reaction on its
+    // synthetic id would fail the mutation's id validator with a false error.
+    if (isOptimisticId(commentId)) return;
     try {
       await toggleReaction({ commentId, emoji });
     } catch (e) {
@@ -174,18 +229,20 @@ export const CommentsSheet = ({
                         </Text>
                       </Pressable>
                     ))}
-                    <Pressable
-                      hitSlop={6}
-                      accessibilityRole="button"
-                      accessibilityLabel="Add a reaction"
-                      onPress={() =>
-                        setReactingTo((current) => (current === comment.id ? null : comment.id))
-                      }
-                      style={[styles.reactionAdd, { borderColor: t.border }]}
-                    >
-                      <Ionicons name="happy-outline" size={15} color={t.muted} />
-                      <Ionicons name="add" size={12} color={t.muted} />
-                    </Pressable>
+                    {!isOptimisticId(comment.id) && (
+                      <Pressable
+                        hitSlop={6}
+                        accessibilityRole="button"
+                        accessibilityLabel="Add a reaction"
+                        onPress={() =>
+                          setReactingTo((current) => (current === comment.id ? null : comment.id))
+                        }
+                        style={[styles.reactionAdd, { borderColor: t.border }]}
+                      >
+                        <Ionicons name="happy-outline" size={15} color={t.muted} />
+                        <Ionicons name="add" size={12} color={t.muted} />
+                      </Pressable>
+                    )}
                   </View>
 
                   {reactingTo === comment.id ? (

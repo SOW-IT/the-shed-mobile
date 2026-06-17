@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { api } from "../../convex/_generated/api";
@@ -31,19 +31,42 @@ const DeclineSheet = ({
   target: { request: Doc<"requests">; step: Step } | null;
   onClose: () => void;
 }) => {
-  const decline = useMutation(api.requests.decline);
+  // Optimistic: remove the request from the approver's review list the moment
+  // they confirm, so it disappears behind the closing sheet. Reverts on error.
+  const decline = useMutation(api.requests.decline).withOptimisticUpdate(
+    (localStore, { requestId, step }) => {
+      const data = localStore.getQuery(api.requests.toReview, {});
+      if (!data) return;
+      localStore.setQuery(api.requests.toReview, {}, {
+        ...data,
+        [step]: data[step].filter((r) => r._id !== requestId),
+      });
+    }
+  );
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // The sheet stays mounted (hidden via `visible`), so reset the form whenever
+  // it opens for a different request — otherwise a previously typed reason
+  // carries over to the next request.
+  useEffect(() => {
+    setReason("");
+    setError(null);
+  }, [target]);
 
   const handleDecline = async () => {
-    if (!target) return;
+    if (!target || submitting) return;
     setError(null);
+    setSubmitting(true);
     try {
       await decline({ requestId: target.request._id, step: target.step, reason });
       setReason("");
       onClose();
     } catch (e) {
       setError(errorMessage(e));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -52,7 +75,7 @@ const DeclineSheet = ({
       <Muted>The requester will be emailed your reason.</Muted>
       <Field label="Reason (required)" value={reason} onChangeText={setReason} multiline />
       <ErrorBanner message={error} />
-      <Btn title="Decline" variant="danger" onPress={handleDecline} />
+      <Btn title="Decline" variant="danger" loading={submitting} onPress={handleDecline} />
       <Btn title="Back" variant="ghost" onPress={onClose} />
     </Sheet>
   );
@@ -74,10 +97,20 @@ const PaySheet = ({
   const [paidAmount, setPaidAmount] = useState("");
   const [comment, setComment] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [paying, setPaying] = useState(false);
+
+  // Reset when the sheet opens for a different request (it stays mounted, so
+  // the amount/comment would otherwise persist from the last payment).
+  useEffect(() => {
+    setPaidAmount("");
+    setComment("");
+    setError(null);
+  }, [request]);
 
   const handlePay = async () => {
-    if (!request) return;
+    if (!request || paying) return;
     setError(null);
+    setPaying(true);
     try {
       await pay({
         requestId: request._id,
@@ -89,6 +122,8 @@ const PaySheet = ({
       onClose();
     } catch (e) {
       setError(errorMessage(e));
+    } finally {
+      setPaying(false);
     }
   };
 
@@ -130,7 +165,7 @@ const PaySheet = ({
       />
       <Field label="Comment (optional)" value={comment} onChangeText={setComment} />
       <ErrorBanner message={error} />
-      <Btn title="Mark as Paid" variant="success" onPress={handlePay} />
+      <Btn title="Mark as Paid" variant="success" loading={paying} onPress={handlePay} />
       <Btn title="Back" variant="ghost" onPress={onClose} />
     </Sheet>
   );
@@ -147,7 +182,18 @@ const SECTIONS: { key: Exclude<Step, never>; title: string }[] = [
 export const ReviewList = () => {
   const t = useAppTheme();
   const data = useQuery(api.requests.toReview, {});
-  const approve = useMutation(api.requests.approve);
+  // Optimistic: clear the request from its review section immediately so the
+  // approval feels instant; the next pending step/payer reconciles on response.
+  const approve = useMutation(api.requests.approve).withOptimisticUpdate(
+    (localStore, { requestId, step }) => {
+      const current = localStore.getQuery(api.requests.toReview, {});
+      if (!current) return;
+      localStore.setQuery(api.requests.toReview, {}, {
+        ...current,
+        [step]: current[step].filter((r) => r._id !== requestId),
+      });
+    }
+  );
   const [declineTarget, setDeclineTarget] = useState<{
     request: Doc<"requests">;
     step: Step;
