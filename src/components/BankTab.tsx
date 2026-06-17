@@ -275,6 +275,20 @@ export const BankTab = () => {
   const isEditing = (id: Id<"savedBankAccounts">) =>
     mode === "edit" && editingId === id;
 
+  // In edit mode, keep Save disabled until a field actually differs from the
+  // saved values (mirrors the profile tab's "no change → disabled" behaviour).
+  // Compare against trimmed/digits-only drafts so cosmetic whitespace doesn't
+  // count as a change the server would just normalise away.
+  const editingAccount =
+    mode === "edit" && editingId
+      ? (savedAccounts ?? []).find((a) => a.id === editingId)
+      : undefined;
+  const editUnchanged =
+    !!editingAccount &&
+    nameDraft.trim() === editingAccount.accountName &&
+    bsbDraft === editingAccount.bsb &&
+    numberDraft === editingAccount.accountNumber;
+
   /** The add/edit form, rendered in place of a card (edit) or the add button
    *  (add) so the rest of the accounts stay visible above and below. */
   const accountForm = (isAdd: boolean) => (
@@ -313,7 +327,7 @@ export const BankTab = () => {
         <Btn
           title={isAdd ? "Add Account" : "Save"}
           onPress={() => void save()}
-          disabled={saving}
+          disabled={saving || (!isAdd && editUnchanged)}
         />
       </Row>
     </Card>
