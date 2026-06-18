@@ -53,6 +53,8 @@ export const ReceiptRecipientList = ({ request }: { request: Doc<"requests"> }) 
                 key={j}
                 style={({ pressed }) => [styles.fileLink, pressed && { opacity: 0.6 }]}
                 onPress={() => void Linking.openURL(file.url!)}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${file.name}`}
               >
                 <Ionicons name="document-attach-outline" size={15} color={t.primary} />
                 <Text
