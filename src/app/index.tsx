@@ -152,15 +152,11 @@ export default function RequestsScreen() {
   // files are gone.
   const isOlderYear =
     isPastYear && (selectedYear as number) < (currentYear as number) - 1;
-  // The calendar year of the upcoming 1 September (the rollover / purge date),
-  // measured in Sydney time so it flips exactly when the cron runs. Sept 1 is
-  // always AEST (UTC+10 — DST starts in October), so a fixed +10h shift lands
-  // the boundary on Sydney midnight regardless of the viewer's timezone.
-  const sydneyNow = new Date(Date.now() + 10 * 60 * 60 * 1000);
-  const nextRolloverYear =
-    sydneyNow.getUTCMonth() >= 8
-      ? sydneyNow.getUTCFullYear() + 1
-      : sydneyNow.getUTCFullYear();
+  // The calendar year of the upcoming 1 September (the rollover / purge date).
+  // The current staff year is named after that very date, so it IS the next
+  // rollover's calendar year — and it already flips at Sydney midnight Sept 1
+  // (see staffYearForDate), keeping the picker, me.year and this banner aligned.
+  const nextRolloverYear = currentYear as number;
 
   const departmentNames = (structure?.departments ?? []).map((d) => d.name);
   // Default to a department they are Head of Department of, else the first

@@ -235,11 +235,19 @@ export const STEP_LABELS: Record<ApprovalStep, string> = {
 };
 
 /**
- * The staff year rolls over on September 1st: from that day the app operates
- * on the next calendar year's roles, departments and requests.
+ * The staff year rolls over at midnight on September 1st, Sydney time: from
+ * that moment the app operates on the next calendar year's roles, departments
+ * and requests. Sept 1 is always AEST (UTC+10 — daylight saving starts in
+ * October), so shifting +10h and reading UTC fields lands the boundary on
+ * Sydney midnight regardless of where this runs (the Convex server is UTC; a
+ * client is in the device's timezone).
  */
-export const staffYearForDate = (date: Date): number =>
-  date.getMonth() >= 8 ? date.getFullYear() + 1 : date.getFullYear();
+export const staffYearForDate = (date: Date): number => {
+  const sydney = new Date(date.getTime() + 10 * 60 * 60 * 1000);
+  return sydney.getUTCMonth() >= 8
+    ? sydney.getUTCFullYear() + 1
+    : sydney.getUTCFullYear();
+};
 
 /**
  * Earliest staff year with any reimbursement requests (the old web app's
