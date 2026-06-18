@@ -441,13 +441,6 @@ describe("generateReceiptUploadUrl", () => {
 });
 
 describe("deleteDeclined", () => {
-  const storedFile = async (t: TestConvex<typeof schema>) => ({
-    storageId: await t.run((ctx) =>
-      ctx.storage.store(new Blob(["r"], { type: "application/pdf" }))
-    ),
-    name: "r.pdf",
-  });
-
   async function declinedRequest(t: TestConvex<typeof schema>) {
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
     const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;

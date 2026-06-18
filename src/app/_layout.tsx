@@ -42,10 +42,12 @@ const secureStorage = {
 };
 
 const tabIcon =
-  (outline: keyof typeof Ionicons.glyphMap, filled: keyof typeof Ionicons.glyphMap) =>
-  ({ color, focused }: { color: ColorValue; focused: boolean }) => (
-    <Ionicons name={focused ? filled : outline} size={23} color={color} />
-  );
+  (outline: keyof typeof Ionicons.glyphMap, filled: keyof typeof Ionicons.glyphMap) => {
+    const TabBarIcon = ({ color, focused }: { color: ColorValue; focused: boolean }) => (
+      <Ionicons name={focused ? filled : outline} size={23} color={color} />
+    );
+    return TabBarIcon;
+  };
 
 /**
  * Requests tab icon: single combined badge summing every action-required count

@@ -58,6 +58,7 @@ export const AllRequestsList = ({
     year !== undefined ? "completed" : "ongoing"
   );
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset tab on year change
     setFilter(year !== undefined ? "completed" : "ongoing");
   }, [year]);
 
@@ -71,6 +72,7 @@ export const AllRequestsList = ({
   // Completed requests are revealed a page at a time as the user scrolls down.
   const [visible, setVisible] = useState(COMPLETED_PAGE_SIZE);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset paging on filter/year change
     setVisible(COMPLETED_PAGE_SIZE);
   }, [filter, year]);
 

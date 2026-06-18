@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { makeRedirectUri } from "expo-auth-session";
 import { openAuthSessionAsync } from "expo-web-browser";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Animated,
   Image,
@@ -30,6 +30,7 @@ export const SignInScreen = () => {
     if (!code) return;
     // Remove code from URL so a page refresh doesn't re-attempt a used code.
     window.history.replaceState({}, "", window.location.pathname);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- OAuth code exchange on load
     setBusy(true);
     void signIn("google", { code })
       .catch((e: unknown) => setError(errorMessage(e)))
@@ -63,7 +64,7 @@ export const SignInScreen = () => {
   };
 
   const t = useAppTheme();
-  const scale = useRef(new Animated.Value(1)).current;
+  const [scale] = useState(() => new Animated.Value(1));
 
   return (
     <View style={[styles.fullScreen, { backgroundColor: t.background }]}>
