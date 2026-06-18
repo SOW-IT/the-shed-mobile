@@ -138,8 +138,9 @@ Builds and store submissions are **manual**, driven from GitHub Actions
 inputs:
 
 - **profile** — `staging` or `production`
-- **submit** — off = build the profile; on = submit that profile's latest build
-  to the stores
+- **auto_submit** — on (default) = build, then auto-submit the finished build to
+  the stores; off = build only. (EAS runs the submit server-side once the build
+  completes, so one run does both.)
 
 There are two app variants (defined in `app.config.js` + `eas.json`) that
 install side-by-side, so testers can keep production while testing staging:
@@ -151,18 +152,15 @@ install side-by-side, so testers can keep production while testing staging:
 
 **Ship staging first, then production:**
 
-1. **Build staging** — Run workflow: profile `staging`, submit *off*.
-2. **Submit staging** — once the build finishes (watch the Expo dashboard), Run
-   workflow again: profile `staging`, submit *on*. It lands in the *The SHED
-   Staging* app's TestFlight.
-3. **Test** on TestFlight against the dev backend.
-4. **Build production** — Run workflow: profile `production`, submit *off*.
-5. **Submit production** — after it finishes, Run workflow: profile
-   `production`, submit *on*. It lands in *The SHED*'s TestFlight. To put it on
-   the public App Store, open App Store Connect, attach the build to an App
-   Store version, complete the metadata, and **Submit for Review** (TestFlight
-   is just where uploaded builds live — promotion to the App Store is a separate
-   manual step there).
+1. **Staging** — Run workflow: profile `staging`, auto_submit *on*. It builds
+   and, when done, submits to the *The SHED Staging* app's TestFlight.
+2. **Test** on TestFlight against the dev backend.
+3. **Production** — Run workflow: profile `production`, auto_submit *on*. It
+   builds and submits to *The SHED*'s TestFlight. To put it on the public App
+   Store, open App Store Connect, attach the build to an App Store version,
+   complete the metadata, and **Submit for Review** (TestFlight is just where
+   uploaded builds live — promotion to the App Store is a separate manual step
+   there).
 
 > **First staging release only**, otherwise Google sign-in fails in the staging
 > app: run `npx eas credentials` for `au.org.sow.theshed.staging`; add the

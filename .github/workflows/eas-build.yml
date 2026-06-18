@@ -1,11 +1,9 @@
 # EAS builds + submits for iOS + Android — fully manual.
 #
 # This workflow never runs automatically (not on push, not on PRs). Trigger it
-# from the Actions tab ("Run workflow", from the main branch):
-#
-#   - Build:  profile = staging | production, submit = false
-#   - Submit: profile = staging | production, submit = true
-#             (run this after the matching build has finished)
+# from the Actions tab ("Run workflow", from the main branch): pick a profile,
+# and by default the finished build is submitted to the stores automatically
+# (EAS --auto-submit). Untick "auto_submit" to build without submitting.
 #
 #   staging     -> "The SHED Staging" (au.org.sow.theshed.staging), staging backend
 #   production  -> "The SHED" (au.org.sow.theshed), production backend
@@ -25,10 +23,10 @@ on:
         type: choice
         options: [staging, production]
         default: staging
-      submit:
-        description: "Submit the latest build to the stores (instead of building)"
+      auto_submit:
+        description: "Submit to the stores automatically after the build"
         type: boolean
-        default: false
+        default: true
 
 concurrency:
   group: eas-build-${{ github.ref }}
@@ -65,12 +63,14 @@ jobs:
           eas-version: latest
           token: ${{ env.EXPO_TOKEN }}
 
-      # Build the chosen profile.
-      - name: Build
-        if: ${{ env.EXPO_TOKEN != '' && !inputs.submit }}
-        run: eas build --platform all --profile ${{ inputs.profile }} --non-interactive --no-wait
+      # Build the chosen profile and auto-submit the finished build to the
+      # stores (EAS runs the submit server-side once the build completes, so
+      # --no-wait is fine — it uses the submit profile with the same name).
+      - name: Build + submit
+        if: ${{ env.EXPO_TOKEN != '' && inputs.auto_submit }}
+        run: eas build --platform all --profile ${{ inputs.profile }} --non-interactive --no-wait --auto-submit
 
-      # Submit the latest build for the chosen profile (run after a build finishes).
-      - name: Submit latest
-        if: ${{ env.EXPO_TOKEN != '' && inputs.submit }}
-        run: eas submit --platform all --profile ${{ inputs.profile }} --non-interactive --latest
+      # Build only (no store submission).
+      - name: Build
+        if: ${{ env.EXPO_TOKEN != '' && !inputs.auto_submit }}
+        run: eas build --platform all --profile ${{ inputs.profile }} --non-interactive --no-wait
