@@ -152,12 +152,15 @@ export default function RequestsScreen() {
   // files are gone.
   const isOlderYear =
     isPastYear && (selectedYear as number) < (currentYear as number) - 1;
-  const now = new Date();
-  // The calendar year of the upcoming 1 September (the rollover / purge date).
-  // Computed in UTC to match the cron (Sept 1 01:00 UTC) — local time could
-  // show the wrong year near the boundary for some timezones.
+  // The calendar year of the upcoming 1 September (the rollover / purge date),
+  // measured in Sydney time so it flips exactly when the cron runs. Sept 1 is
+  // always AEST (UTC+10 — DST starts in October), so a fixed +10h shift lands
+  // the boundary on Sydney midnight regardless of the viewer's timezone.
+  const sydneyNow = new Date(Date.now() + 10 * 60 * 60 * 1000);
   const nextRolloverYear =
-    now.getUTCMonth() >= 8 ? now.getUTCFullYear() + 1 : now.getUTCFullYear();
+    sydneyNow.getUTCMonth() >= 8
+      ? sydneyNow.getUTCFullYear() + 1
+      : sydneyNow.getUTCFullYear();
 
   const departmentNames = (structure?.departments ?? []).map((d) => d.name);
   // Default to a department they are Head of Department of, else the first

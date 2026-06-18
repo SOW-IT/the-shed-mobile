@@ -17,9 +17,10 @@ crons.cron("google directory sync", "0 21 * * *", internal.directorySync.run, {}
 // email IT a summary. Admins can then configure the new year from a populated copy.
 crons.cron("staff year rollover", "1 0 1 9 *", internal.admin.rollOverStaffYear, {});
 
-// Sept 1 at 01:00 UTC: purge receipt/invoice files attached to requests that
-// were paid more than a year ago. The attachment records (and names) are kept
-// so history still shows a file was there — only the download link dies.
-crons.cron("purge old receipt files", "0 1 1 9 *", internal.cleanup.purgeOldReceiptFiles, {});
+// Midnight Sept 1 Sydney time = Aug 31 14:00 UTC (Sept 1 is AEST, UTC+10 — DST
+// doesn't start until October). Purge receipt/invoice files attached to
+// requests paid more than a year ago. The attachment records (and names) are
+// kept so history still shows a file was there — only the download link dies.
+crons.cron("purge old receipt files", "0 14 31 8 *", internal.cleanup.purgeOldReceiptFiles, {});
 
 export default crons;
