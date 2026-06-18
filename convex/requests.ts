@@ -579,6 +579,37 @@ export const allRequests = query({
 });
 
 /**
+ * Every request in the given staff years, for a Finance CSV export. Finance
+ * staff only. Strictly per-year (no carry-over merge) so each selected year's
+ * rows stand alone. Reads each year in full with `.collect()` rather than the
+ * capped `yearRequests` take(500): an export must not silently truncate, and
+ * this is an explicit, on-demand action rather than a live subscription.
+ */
+export const requestsForExport = query({
+  args: { years: v.array(v.number()) },
+  handler: async (ctx, args) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    if (!isMemberOfDepartment(caller.profile, FINANCE)) {
+      throw new ConvexError("Only Finance staff can export requests.");
+    }
+    const years = [...new Set(args.years)]
+      .filter((y) => y >= EARLIEST_REQUEST_YEAR && y <= caller.year)
+      .sort((a, b) => b - a);
+    const rows: Doc<"requests">[] = [];
+    for (const year of years) {
+      const yearRows = await ctx.db
+        .query("requests")
+        .withIndex("by_year", (q) => q.eq("year", year))
+        .order("desc")
+        .collect();
+      rows.push(...yearRows);
+    }
+    return rows;
+  },
+});
+
+/**
  * Validates the caller is the approver for `step` on this request, that all
  * prior steps are approved and this one is pending. Returns the request.
  */

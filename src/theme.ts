@@ -7,6 +7,13 @@ import { Platform, TextStyle, useColorScheme, ViewStyle } from "react-native";
  *   #CD643C dark orange  #E5AD66 light orange
  */
 
+/**
+ * Animated's native driver isn't available on web (react-native-web logs a
+ * warning and falls back to JS), so gate it off there. Native keeps the
+ * native driver for performance.
+ */
+export const USE_NATIVE_DRIVER = Platform.OS !== "web";
+
 /** 4pt spacing scale. */
 export const spacing = {
   xs: 4,
@@ -89,37 +96,37 @@ export interface AppTheme {
   shadowFloat: ViewStyle;
 }
 
-const lightShadowCard: ViewStyle = {
-  shadowColor: "#0F2523",
-  shadowOpacity: 0.07,
-  shadowRadius: 14,
-  shadowOffset: { width: 0, height: 5 },
-  elevation: 2,
+const hexToRgba = (hex: string, alpha: number): string => {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
 };
 
-const lightShadowFloat: ViewStyle = {
-  shadowColor: "#0F2523",
-  shadowOpacity: 0.16,
-  shadowRadius: 22,
-  shadowOffset: { width: 0, height: 10 },
-  elevation: 8,
-};
+/**
+ * Cross-platform elevation. On web the `shadow*` style props are deprecated in
+ * favour of `boxShadow`, so emit that there; native keeps the `shadow*` props
+ * plus Android `elevation` so its rendering is unchanged.
+ */
+export const shadowStyle = (
+  color: string,
+  opacity: number,
+  radius: number,
+  offsetY: number,
+  elevation: number
+): ViewStyle =>
+  Platform.OS === "web"
+    ? { boxShadow: `0px ${offsetY}px ${radius}px ${hexToRgba(color, opacity)}` }
+    : {
+        shadowColor: color,
+        shadowOpacity: opacity,
+        shadowRadius: radius,
+        shadowOffset: { width: 0, height: offsetY },
+        elevation,
+      };
 
-const darkShadowCard: ViewStyle = {
-  shadowColor: "#000000",
-  shadowOpacity: 0.3,
-  shadowRadius: 14,
-  shadowOffset: { width: 0, height: 5 },
-  elevation: 2,
-};
-
-const darkShadowFloat: ViewStyle = {
-  shadowColor: "#000000",
-  shadowOpacity: 0.45,
-  shadowRadius: 22,
-  shadowOffset: { width: 0, height: 10 },
-  elevation: 8,
-};
+const lightShadowCard = shadowStyle("#0F2523", 0.07, 14, 5, 2);
+const lightShadowFloat = shadowStyle("#0F2523", 0.16, 22, 10, 8);
+const darkShadowCard = shadowStyle("#000000", 0.3, 14, 5, 2);
+const darkShadowFloat = shadowStyle("#000000", 0.45, 22, 10, 8);
 
 const light: AppTheme = {
   dark: false,

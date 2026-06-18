@@ -4,7 +4,7 @@ import { ReactNode, useLayoutEffect, useState } from "react";
 import { Animated, Easing, Platform, Pressable, StyleSheet, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
-import { spacing, useAppTheme } from "../theme";
+import { spacing, USE_NATIVE_DRIVER, useAppTheme } from "../theme";
 import {
   Btn,
   Card,
@@ -157,7 +157,7 @@ export const BankTab = () => {
             toValue: 0,
             duration: 340,
             easing: Easing.out(Easing.cubic),
-            useNativeDriver: true,
+            useNativeDriver: USE_NATIVE_DRIVER,
           }).start();
         }
       }

@@ -19,7 +19,7 @@ import {
   ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { radius, spacing, typography, useAppTheme } from "../theme";
+import { radius, spacing, typography, USE_NATIVE_DRIVER, useAppTheme } from "../theme";
 
 const haptic = (style = Haptics.ImpactFeedbackStyle.Light) => {
   if (Platform.OS === "web") return;
@@ -81,14 +81,14 @@ export const FadeInView = ({
         duration: 360,
         delay,
         easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
+        useNativeDriver: USE_NATIVE_DRIVER,
       }),
       Animated.timing(translateY, {
         toValue: 0,
         duration: 360,
         delay,
         easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
+        useNativeDriver: USE_NATIVE_DRIVER,
       }),
     ]).start();
   }, [opacity, translateY, delay]);
@@ -192,14 +192,14 @@ export const Toast = ({ toast }: { toast: ToastState }) => {
     opacity.setValue(0);
     lift.setValue(8);
     Animated.parallel([
-      Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
-      Animated.spring(lift, { toValue: 0, useNativeDriver: true, damping: 18, stiffness: 240 }),
+      Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: USE_NATIVE_DRIVER }),
+      Animated.spring(lift, { toValue: 0, useNativeDriver: USE_NATIVE_DRIVER, damping: 18, stiffness: 240 }),
     ]).start();
     const timer = setTimeout(() => {
       Animated.timing(opacity, {
         toValue: 0,
         duration: 400,
-        useNativeDriver: true,
+        useNativeDriver: USE_NATIVE_DRIVER,
       }).start(() => setShown(null));
     }, 2000);
     return () => clearTimeout(timer);
@@ -207,11 +207,10 @@ export const Toast = ({ toast }: { toast: ToastState }) => {
   if (!shown) return null;
   return (
     <Animated.View
-      pointerEvents="none"
       style={[
         styles.toast,
         t.shadowFloat,
-        { backgroundColor: t.text, opacity, transform: [{ translateY: lift }] },
+        { backgroundColor: t.text, opacity, transform: [{ translateY: lift }], pointerEvents: "none" },
       ]}
     >
       <Ionicons name="checkmark-circle" size={16} color={t.background} />
@@ -236,7 +235,7 @@ export const FooterAction = ({
   const t = useAppTheme();
   const [scale] = useState(() => new Animated.Value(1));
   return (
-    <View pointerEvents="box-none" style={styles.footerWrap}>
+    <View style={[styles.footerWrap, { pointerEvents: "box-none" }]}>
       <View style={styles.footerRow}>
         {onInfo && (
           <Pressable
@@ -257,10 +256,10 @@ export const FooterAction = ({
           <Pressable
             onPress={() => { haptic(); onPress(); }}
             onPressIn={() =>
-              Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 0 }).start()
+              Animated.spring(scale, { toValue: 0.97, useNativeDriver: USE_NATIVE_DRIVER, speed: 50, bounciness: 0 }).start()
             }
             onPressOut={() =>
-              Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 6 }).start()
+              Animated.spring(scale, { toValue: 1, useNativeDriver: USE_NATIVE_DRIVER, speed: 20, bounciness: 6 }).start()
             }
             disabled={disabled}
             style={[
@@ -376,7 +375,7 @@ export const Btn = ({
         onPressIn={() =>
           Animated.spring(scale, {
             toValue: 0.95,
-            useNativeDriver: true,
+            useNativeDriver: USE_NATIVE_DRIVER,
             speed: 50,
             bounciness: 0,
           }).start()
@@ -384,7 +383,7 @@ export const Btn = ({
         onPressOut={() =>
           Animated.spring(scale, {
             toValue: 1,
-            useNativeDriver: true,
+            useNativeDriver: USE_NATIVE_DRIVER,
             speed: 20,
             bounciness: 6,
           }).start()
@@ -548,7 +547,7 @@ export const OptionSheet = ({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1 }}>
         <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: t.overlay }]} onPress={onClose} />
-        <View style={styles.dialogOuter} pointerEvents="box-none">
+        <View style={[styles.dialogOuter, { pointerEvents: "box-none" }]}>
           <View style={[styles.dialog, { backgroundColor: t.card }]}>
             <Text style={[typography.headline, styles.optionSheetTitle, { color: t.text }]}>
               {retainedTitle}
@@ -901,7 +900,7 @@ export const Segmented = ({
       toValue: activeIndex * segmentWidth,
       duration: 200,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: USE_NATIVE_DRIVER,
     }).start();
   }, [activeIndex, segmentWidth, trackWidth, slide]);
   if (segments.length < 2) return null;
@@ -1002,7 +1001,7 @@ export const Sheet = ({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1 }}>
         <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: t.overlay }]} onPress={onClose} />
-        <View style={styles.dialogOuter} pointerEvents="box-none">
+        <View style={[styles.dialogOuter, { pointerEvents: "box-none" }]}>
           <View style={[styles.dialog, { backgroundColor: t.card }]}>
             {scrollable ? (
               <ScrollView contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled">
@@ -1101,7 +1100,7 @@ export const SowSpinner = ({ size = 64, onDark }: { size?: number; onDark?: bool
         toValue: 1,
         duration: 1200,
         easing: Easing.linear,
-        useNativeDriver: true,
+        useNativeDriver: USE_NATIVE_DRIVER,
       })
     );
     anim.start();

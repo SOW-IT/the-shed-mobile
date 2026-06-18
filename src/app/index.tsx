@@ -7,6 +7,7 @@ import { api } from "../../convex/_generated/api";
 import { HEAD_OF_DEPARTMENT, requestFullyApproved } from "../../shared/flow";
 import { AllRequestsList } from "@/components/AllRequestsList";
 import { BankTab } from "@/components/BankTab";
+import { ExportRequestsCard } from "@/components/ExportRequestsCsv";
 import { GuideSheet, MyRequests } from "@/components/MyRequests";
 import { ReviewList } from "@/components/ReviewList";
 import { type RequestPrefill } from "@/components/MyRequests";
@@ -257,6 +258,7 @@ export default function RequestsScreen() {
                   />
                 </FadeInView>
               )}
+              <ExportRequestsCard currentYear={me.year} />
               {me?.isFinanceHead && (
                 <>
                   <SectionTitle>Budget Manager — {me.year}</SectionTitle>

@@ -121,6 +121,70 @@ describe("allRequests authorization", () => {
   });
 });
 
+describe("requestsForExport", () => {
+  /** Inserts a paid request for `email` in `year`. */
+  const seed = (
+    t: TestConvex<typeof schema>,
+    year: number,
+    description: string
+  ) =>
+    t.run((ctx) =>
+      ctx.db.insert("requests", {
+        year,
+        requesterEmail: RACHEL,
+        department: "Marketing",
+        description,
+        amount: 100,
+        approvedByHOD: "APPROVED",
+        approvedByBudgetManager: "APPROVED",
+        approvedByFinanceHead: "APPROVED",
+        paid: true,
+      })
+    );
+
+  test("Finance gets the selected years, with out-of-range years filtered", async () => {
+    const t = await setup();
+    await seed(t, YEAR, "this year");
+    await seed(t, YEAR - 1, "last year");
+    await seed(t, 2020, "too old"); // below EARLIEST_REQUEST_YEAR
+    await seed(t, YEAR + 1, "future year"); // above the caller's staff year
+
+    const bella = asUser(t, BELLA);
+    const rows = (await bella.query(api.requests.requestsForExport, {
+      years: [YEAR + 1, YEAR, YEAR - 1, 2020],
+    }))!;
+    expect(rows.map((r) => r.description).sort()).toEqual([
+      "last year",
+      "this year",
+    ]);
+
+    // Only the requested year is returned; the other is excluded.
+    const onlyThis = (await bella.query(api.requests.requestsForExport, {
+      years: [YEAR],
+    }))!;
+    expect(onlyThis.map((r) => r.description)).toEqual(["this year"]);
+
+    // No years selected -> empty export.
+    expect(
+      await bella.query(api.requests.requestsForExport, { years: [] })
+    ).toEqual([]);
+  });
+
+  test("non-Finance staff are refused", async () => {
+    const t = await setup();
+    await expect(
+      asUser(t, RACHEL).query(api.requests.requestsForExport, { years: [YEAR] })
+    ).rejects.toThrow(/Only Finance staff/);
+  });
+
+  test("an unauthenticated caller gets null", async () => {
+    const t = await setup();
+    expect(
+      await t.query(api.requests.requestsForExport, { years: [YEAR] })
+    ).toBeNull();
+  });
+});
+
 describe("toReview director grouping", () => {
   test("a >= $5000 request awaiting the Director shows in their director bucket", async () => {
     const t = await setup();
