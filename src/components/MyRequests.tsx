@@ -25,6 +25,7 @@ import {
   Field,
   IconButton,
   LoadingState,
+  maskAccount,
   MAX_UPLOAD_BYTES,
   Muted,
   Row,
@@ -111,7 +112,6 @@ const NewRequestSheet = ({
   departments,
   defaultDepartment,
   prefill,
-  onShowGuide,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -119,9 +119,7 @@ const NewRequestSheet = ({
   defaultDepartment: string;
   /** Set when resubmitting a declined request — pre-fills the form. */
   prefill: RequestPrefill | null;
-  onShowGuide: () => void;
 }) => {
-  const t = useAppTheme();
   const submit = useMutation(api.requests.submit);
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
@@ -131,6 +129,7 @@ const NewRequestSheet = ({
   // Re-initialise the form each time it opens (blank, or from the prefill).
   useEffect(() => {
     if (!visible) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset form on open
     setDescription(prefill?.description ?? "");
     setAmount(prefill?.amount ?? "");
     setDepartment(prefill?.department ?? defaultDepartment);
@@ -205,10 +204,6 @@ type SavedAccount = {
   accountNumber: string;
   preferred: boolean;
 };
-
-/** Shows the last 4 digits of an account number behind a mask. */
-const maskAccount = (accountNumber: string) =>
-  accountNumber.length > 4 ? `••${accountNumber.slice(-4)}` : accountNumber;
 
 /**
  * Tappable chips of the caller's previously-used bank accounts. Tapping one
@@ -330,6 +325,7 @@ const ReceiptSheet = ({
       first.accountNumber === "";
     if (!isDefault) return;
     const preferred = savedAccounts.find((a) => a.preferred) ?? savedAccounts[0];
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-fill on open/load
     setRecipients([{
       accountName: preferred.accountName,
       bsb: preferred.bsb,
@@ -581,7 +577,6 @@ export const MyRequests = ({
   prefill,
   onResubmit,
   onNewClose,
-  onShowGuide,
   year,
   readOnly = false,
 }: {
@@ -591,7 +586,6 @@ export const MyRequests = ({
   prefill: RequestPrefill | null;
   onResubmit: (prefill: RequestPrefill) => void;
   onNewClose: () => void;
-  onShowGuide: () => void;
   // A past staff year to browse (read-only). Omit/undefined for the live year.
   year?: number;
   readOnly?: boolean;
@@ -724,7 +718,6 @@ export const MyRequests = ({
         departments={departments}
         defaultDepartment={defaultDepartment}
         prefill={prefill}
-        onShowGuide={onShowGuide}
       />
       <ReceiptSheet request={receiptFor} onClose={() => setReceiptFor(null)} />
       <ConfirmDialog

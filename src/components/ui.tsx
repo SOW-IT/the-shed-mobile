@@ -43,6 +43,10 @@ export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 /** Keeps only digits — for BSB / account number inputs. */
 export const digitsOnly = (text: string): string => text.replace(/[^0-9]/g, "");
 
+/** Masks an account number to its last 4 digits (e.g. ••1234). */
+export const maskAccount = (accountNumber: string): string =>
+  accountNumber.length > 4 ? `••${accountNumber.slice(-4)}` : accountNumber;
+
 /** Keeps digits and a single decimal point — for $ amount inputs. */
 export const currencyText = (text: string): string => {
   const [whole, ...decimals] = text.replace(/[^0-9.]/g, "").split(".");
@@ -68,8 +72,8 @@ export const FadeInView = ({
   delay?: number;
   style?: StyleProp<ViewStyle>;
 }) => {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(12)).current;
+  const [opacity] = useState(() => new Animated.Value(0));
+  const [translateY] = useState(() => new Animated.Value(12));
   useEffect(() => {
     Animated.parallel([
       Animated.timing(opacity, {
@@ -176,11 +180,14 @@ export type ToastState = { text: string } | null;
 
 export const Toast = ({ toast }: { toast: ToastState }) => {
   const t = useAppTheme();
-  const opacity = useRef(new Animated.Value(0)).current;
-  const lift = useRef(new Animated.Value(8)).current;
+  const [opacity] = useState(() => new Animated.Value(0));
+  const [lift] = useState(() => new Animated.Value(8));
   const [shown, setShown] = useState<ToastState>(null);
   useEffect(() => {
     if (!toast) return;
+    // Capture the toast into state so it stays rendered through the fade-out
+    // after the prop clears; the run-once animation makes this stateful.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- drives the show animation
     setShown(toast);
     opacity.setValue(0);
     lift.setValue(8);
@@ -227,7 +234,7 @@ export const FooterAction = ({
   onInfo?: () => void;
 }) => {
   const t = useAppTheme();
-  const scale = useRef(new Animated.Value(1)).current;
+  const [scale] = useState(() => new Animated.Value(1));
   return (
     <View pointerEvents="box-none" style={styles.footerWrap}>
       <View style={styles.footerRow}>
@@ -340,7 +347,7 @@ export const Btn = ({
   loading?: boolean;
 }) => {
   const t = useAppTheme();
-  const scale = useRef(new Animated.Value(1)).current;
+  const [scale] = useState(() => new Animated.Value(1));
   const background = {
     primary: t.primary,
     success: t.successSoft,
@@ -525,12 +532,18 @@ export const OptionSheet = ({
   const t = useAppTheme();
   // Retain the last content shown while the modal fades out, so resetting the
   // backing state on close (e.g. setX(null)) doesn't blank the dialog mid-fade.
+  // Reading/writing these refs during render is deliberate and synchronous (to
+  // avoid a one-frame flash on open), hence the scoped disable.
+  /* eslint-disable react-hooks/refs -- intentional retain-through-fade pattern */
   const shownTitle = useRef(title);
   const shownChildren = useRef(children);
   if (visible) {
     shownTitle.current = title;
     shownChildren.current = children;
   }
+  const retainedTitle = shownTitle.current;
+  const retainedChildren = shownChildren.current;
+  /* eslint-enable react-hooks/refs */
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1 }}>
@@ -538,10 +551,10 @@ export const OptionSheet = ({
         <View style={styles.dialogOuter} pointerEvents="box-none">
           <View style={[styles.dialog, { backgroundColor: t.card }]}>
             <Text style={[typography.headline, styles.optionSheetTitle, { color: t.text }]}>
-              {shownTitle.current}
+              {retainedTitle}
             </Text>
             <ScrollView contentContainerStyle={contentStyle ?? styles.optionList} keyboardShouldPersistTaps="handled">
-              {shownChildren.current}
+              {retainedChildren}
             </ScrollView>
           </View>
         </View>
@@ -582,8 +595,10 @@ export const ConfirmDialog = ({
   onClose: () => void;
 }) => {
   const [input, setInput] = useState("");
-  // Reset the typed text whenever the dialog opens or closes.
+  // Reset the typed text whenever the dialog closes (covers callers that flip
+  // `visible` off without going through the dialog's own close handler).
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on close
     if (!visible) setInput("");
   }, [visible]);
   // Normalise both sides: data-sourced requireText may carry stray whitespace.
@@ -873,7 +888,7 @@ export const Segmented = ({
 }) => {
   const t = useAppTheme();
   const [trackWidth, setTrackWidth] = useState(0);
-  const slide = useRef(new Animated.Value(0)).current;
+  const [slide] = useState(() => new Animated.Value(0));
   const activeIndex = Math.max(
     segments.findIndex((segment) => segment.key === active),
     0
@@ -1068,7 +1083,7 @@ export const EmptyState = ({
 export const SowSpinner = ({ size = 64, onDark }: { size?: number; onDark?: boolean }) => {
   const t = useAppTheme();
   const dark = onDark ?? t.dark;
-  const spin = useRef(new Animated.Value(0)).current;
+  const [spin] = useState(() => new Animated.Value(0));
   useEffect(() => {
     const anim = Animated.loop(
       Animated.timing(spin, {

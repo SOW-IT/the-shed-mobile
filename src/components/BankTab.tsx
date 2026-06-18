@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
-import { ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { ReactNode, useLayoutEffect, useState } from "react";
 import { Animated, Easing, Platform, Pressable, StyleSheet, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
@@ -16,6 +16,7 @@ import {
   Field,
   IconButton,
   LoadingState,
+  maskAccount,
   Muted,
   OptionRow,
   Row,
@@ -23,9 +24,6 @@ import {
   stagger,
   Txt,
 } from "./ui";
-
-const maskAccount = (accountNumber: string) =>
-  accountNumber.length > 4 ? `••${accountNumber.slice(-4)}` : accountNumber;
 
 type Mode = "none" | "add" | "edit";
 
@@ -112,9 +110,9 @@ export const BankTab = () => {
   // across re-renders — and across a card moving between the preferred slot and
   // the others list — so each card keeps its animation identity (keyed by
   // account id) even as React remounts its wrapper in a different section.
-  const cardRefs = useRef<Map<string, Measurable>>(new Map()).current;
-  const translateYs = useRef<Map<string, Animated.Value>>(new Map()).current;
-  const prevPositions = useRef<Map<string, number>>(new Map()).current;
+  const [cardRefs] = useState(() => new Map<string, Measurable>());
+  const [translateYs] = useState(() => new Map<string, Animated.Value>());
+  const [prevPositions] = useState(() => new Map<string, number>());
 
   const preferred =
     (savedAccounts ?? []).find((a) => a.preferred) ?? (savedAccounts ?? [])[0];
@@ -384,7 +382,7 @@ export const BankTab = () => {
       </FadeInView>
 
       {others.length > 0 && (
-        <FadeInView delay={stagger(2)}>
+        <FadeInView delay={stagger(2)} style={styles.othersList}>
           <SectionTitle>Other Saved Accounts</SectionTitle>
           {others.map((account) =>
             animatedWrap(
@@ -471,5 +469,9 @@ export const BankTab = () => {
 const styles = StyleSheet.create({
   bankCard: { gap: spacing.xs },
   bankRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  // Space the section header and the cards apart, matching the request lists'
+  // card rhythm (the cards are nested in one FadeInView, so they don't inherit
+  // the screen scroll's gap on their own).
+  othersList: { gap: spacing.md },
   addButton: { marginTop: spacing.lg },
 });

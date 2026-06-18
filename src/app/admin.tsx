@@ -34,7 +34,6 @@ import {
   Field,
   IconButton,
   LoadingState,
-  MultiSelect,
   Muted,
   OptionRow,
   OptionSheet,
@@ -580,7 +579,7 @@ export default function AdminScreen() {
   const renderUnassignedCard = (user: { email: string; name?: string | null }) => {
     const isAssigning = assigningUserEmail === user.email;
     return (
-      <Card key={user.email} style={{ marginBottom: spacing.sm }}>
+      <Card key={user.email}>
         {isAssigning ? (
           <>
             <Txt style={{ fontWeight: "600" }}>{user.name ?? user.email}</Txt>
@@ -638,7 +637,7 @@ export default function AdminScreen() {
       }));
     const assignmentsChanged = !sameAssignments(editingAssignments, savedAssignments);
     return (
-      <Card key={profile._id} style={{ marginBottom: spacing.sm }}>
+      <Card key={profile._id}>
         {isEditingThis ? (
           <>
             <Txt style={{ fontWeight: "600" }}>{profile.name ?? profile.email}</Txt>
@@ -864,14 +863,14 @@ export default function AdminScreen() {
             const hasAny = group.departments.length > 0 || group.divisionOnlyProfiles.length > 0;
             if (!hasAny) return null;
             return (
-              <View key={group.division}>
+              <View key={group.division} style={{ gap: spacing.md }}>
                 <SectionTitle>{group.division} — {selectedYear}</SectionTitle>
                 {group.departments.map((dept) => (
-                  <View key={dept.name}>
+                  <View key={dept.name} style={{ gap: spacing.md }}>
                     <Text
                       style={[
                         typography.label,
-                        { color: t.muted, paddingHorizontal: 4, paddingBottom: 4, paddingTop: 8 },
+                        { color: t.muted, paddingHorizontal: 4, paddingTop: 4 },
                       ]}
                     >
                       {dept.name}
@@ -886,7 +885,7 @@ export default function AdminScreen() {
 
           {/* Campus roles grouped by university */}
           {campusByUniversity.map((group) => (
-            <View key={group.university}>
+            <View key={group.university} style={{ gap: spacing.md }}>
               <SectionTitle>{group.university} — {selectedYear}</SectionTitle>
               {group.profiles.map((profile) => renderProfileCard(profile))}
             </View>

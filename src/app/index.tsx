@@ -124,6 +124,8 @@ export default function RequestsScreen() {
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const [active, setActive] = useState("mine");
   useEffect(() => {
+    // Sync the segment to the deep-link param when it changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- external param sync
     if (typeof tab === "string") setActive(tab);
   }, [tab]);
   const activeSegment = segments.some((s) => s.key === active) ? active : "mine";
@@ -272,7 +274,6 @@ export default function RequestsScreen() {
               prefill={requestPrefill}
               onResubmit={(p) => { setRequestPrefill(p); setNewRequestOpen(true); }}
               onNewClose={() => setNewRequestOpen(false)}
-              onShowGuide={() => setGuideOpen(true)}
             />
           )}
         </>
