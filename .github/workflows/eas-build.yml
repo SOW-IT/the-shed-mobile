@@ -1,11 +1,12 @@
-# EAS builds for iOS + Android.
+# EAS builds + submits for iOS + Android.
 #
-#   - Pull requests              -> `eas build --profile preview`     (internal build, no store submit)
-#   - Push to main               -> `eas build --profile production`   (build only, NO store submit)
-#   - Manual (workflow_dispatch) -> `eas build --profile production --auto-submit` (build + submit)
+#   - Push to main               -> production build (no store submit)
+#   - Manual (workflow_dispatch)  -> pick a profile (preview / production) and
+#                                    either build it, or submit its latest build
 #
-# Store submission is intentionally manual-only: merging to main never submits.
-# Submit a release by running this workflow from the Actions tab ("Run workflow").
+# Preview builds are manual: run this workflow from the Actions tab ("Run
+# workflow") with profile = preview. Submitting a build is a separate manual run
+# (tick "submit") that you trigger after the build has finished.
 #
 # One-time setup (see README):
 #   1. npx eas init            - links the repo to an EAS project
@@ -15,14 +16,23 @@
 name: EAS Build
 
 on:
-  pull_request:
   push:
     branches: [main]
-  workflow_dispatch: # production build + submit, triggered manually
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "EAS profile"
+        type: choice
+        options: [preview, production]
+        default: preview
+      submit:
+        description: "Submit the latest build to the stores (instead of building)"
+        type: boolean
+        default: false
 
 concurrency:
   group: eas-build-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -44,7 +54,7 @@ jobs:
       - name: EXPO_TOKEN not configured
         if: ${{ env.EXPO_TOKEN == '' }}
         run: |
-          echo "::warning::EXPO_TOKEN secret is not set - skipping the EAS build."
+          echo "::warning::EXPO_TOKEN secret is not set - skipping the EAS build/submit."
           echo "Create an access token at https://expo.dev/settings/access-tokens"
           echo "and add it as the EXPO_TOKEN repository secret to enable iOS/Android builds."
 
@@ -55,17 +65,17 @@ jobs:
           eas-version: latest
           token: ${{ env.EXPO_TOKEN }}
 
-      # Pull requests: build the preview profile for internal distribution. No store submit.
-      - name: Build preview (PR)
-        if: ${{ env.EXPO_TOKEN != '' && github.event_name == 'pull_request' }}
-        run: eas build --platform all --profile preview --non-interactive --no-wait
-
-      # Push to main: build the production profile. No store submit.
+      # Push to main: production build (no store submit).
       - name: Build production (main)
         if: ${{ env.EXPO_TOKEN != '' && github.event_name == 'push' }}
         run: eas build --platform all --profile production --non-interactive --no-wait
 
-      # Manual run: build production and auto-submit to the stores.
-      - name: Build + submit production
-        if: ${{ env.EXPO_TOKEN != '' && github.event_name == 'workflow_dispatch' }}
-        run: eas build --platform all --profile production --auto-submit --non-interactive --no-wait
+      # Manual: build the chosen profile (preview by default).
+      - name: Build (manual)
+        if: ${{ env.EXPO_TOKEN != '' && github.event_name == 'workflow_dispatch' && !inputs.submit }}
+        run: eas build --platform all --profile ${{ inputs.profile }} --non-interactive --no-wait
+
+      # Manual: submit the latest build for the chosen profile (run after a build finishes).
+      - name: Submit latest (manual)
+        if: ${{ env.EXPO_TOKEN != '' && github.event_name == 'workflow_dispatch' && inputs.submit }}
+        run: eas submit --platform all --profile ${{ inputs.profile }} --non-interactive --latest
