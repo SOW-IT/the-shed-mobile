@@ -142,15 +142,16 @@ describe("requestsForExport", () => {
       })
     );
 
-  test("Finance gets every request in the selected years (pre-2021 filtered)", async () => {
+  test("Finance gets the selected years, with out-of-range years filtered", async () => {
     const t = await setup();
     await seed(t, YEAR, "this year");
     await seed(t, YEAR - 1, "last year");
     await seed(t, 2020, "too old"); // below EARLIEST_REQUEST_YEAR
+    await seed(t, YEAR + 1, "future year"); // above the caller's staff year
 
     const bella = asUser(t, BELLA);
     const rows = (await bella.query(api.requests.requestsForExport, {
-      years: [YEAR, YEAR - 1, 2020],
+      years: [YEAR + 1, YEAR, YEAR - 1, 2020],
     }))!;
     expect(rows.map((r) => r.description).sort()).toEqual([
       "last year",

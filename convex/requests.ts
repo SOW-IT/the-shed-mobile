@@ -594,7 +594,7 @@ export const requestsForExport = query({
       throw new ConvexError("Only Finance staff can export requests.");
     }
     const years = [...new Set(args.years)]
-      .filter((y) => y >= EARLIEST_REQUEST_YEAR)
+      .filter((y) => y >= EARLIEST_REQUEST_YEAR && y <= caller.year)
       .sort((a, b) => b - a);
     const rows: Doc<"requests">[] = [];
     for (const year of years) {

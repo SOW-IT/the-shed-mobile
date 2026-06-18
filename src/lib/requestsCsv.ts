@@ -40,7 +40,7 @@ const isoDate = (ms: number): string => new Date(ms).toISOString();
  * injection when opened in a spreadsheet.
  */
 const escapeField = (raw: string): string => {
-  const guarded = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
+  const guarded = /^[\t\r\n ]*[=+\-@]/.test(raw) ? `'${raw}` : raw;
   return /[",\n\r]/.test(guarded)
     ? `"${guarded.replace(/"/g, '""')}"`
     : guarded;
