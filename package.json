@@ -58,7 +58,7 @@
     "lint": "expo lint",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "convex": "convex dev",
+    "convex:dev": "convex dev",
     "deploy:web": "node scripts/deploy-web.mjs"
   },
   "private": true
