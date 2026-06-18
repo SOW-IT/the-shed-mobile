@@ -154,8 +154,10 @@ export default function RequestsScreen() {
     isPastYear && (selectedYear as number) < (currentYear as number) - 1;
   const now = new Date();
   // The calendar year of the upcoming 1 September (the rollover / purge date).
+  // Computed in UTC to match the cron (Sept 1 01:00 UTC) — local time could
+  // show the wrong year near the boundary for some timezones.
   const nextRolloverYear =
-    now.getMonth() >= 8 ? now.getFullYear() + 1 : now.getFullYear();
+    now.getUTCMonth() >= 8 ? now.getUTCFullYear() + 1 : now.getUTCFullYear();
 
   const departmentNames = (structure?.departments ?? []).map((d) => d.name);
   // Default to a department they are Head of Department of, else the first
