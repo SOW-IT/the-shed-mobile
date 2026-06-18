@@ -737,9 +737,11 @@ export default function AdminScreen() {
     );
   };
 
-  // Switching the year also clears any in-progress inline edits.
+  // Switching the year also clears any in-progress inline edits and any
+  // stale error banner from the previous year.
   const onSelectYear = (y: number) => {
     setYear(y);
+    setError(null);
     setEditingUserEmail(null);
     setAssigningUserEmail(null);
     setEditingDivisionKey(null);

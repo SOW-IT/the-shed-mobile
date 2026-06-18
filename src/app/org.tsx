@@ -65,11 +65,13 @@ export default function OrgChartScreen() {
   return (
     <ChromeScreen
       floating={
-        <FloatingYearPicker
-          year={chart.year}
-          years={chart.availableYears}
-          onSelect={setSelectedYear}
-        />
+        chart.availableYears.length > 1 ? (
+          <FloatingYearPicker
+            year={chart.year}
+            years={chart.availableYears}
+            onSelect={setSelectedYear}
+          />
+        ) : undefined
       }
     >
       {/* Director */}

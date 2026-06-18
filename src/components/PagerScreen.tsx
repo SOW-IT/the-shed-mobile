@@ -1,5 +1,5 @@
 import { useQuery } from "convex/react";
-import { ReactNode } from "react";
+import { ReactNode, useRef } from "react";
 import {
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -58,31 +58,35 @@ export const PagerScreen = ({
   const me = useQuery(api.directory.me);
   // Extra bottom space so the floating footer doesn't cover the last row.
   const bottomPad = footer ? 96 : 48;
+  // The content height each tab last fired onEndReached at, so we don't re-fire
+  // on every scroll event while the user lingers near the bottom — only once the
+  // page has grown (i.e. more content actually loaded).
+  const lastEndReachedHeight = useRef<Record<string, number>>({});
 
-  const renderPage = (tab: PagerTab) => {
-    const onScroll = onEndReached
-      ? (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-          const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-          if (
-            contentSize.height - (contentOffset.y + layoutMeasurement.height) <
-            NEAR_BOTTOM
-          ) {
-            onEndReached(tab.key);
-          }
-        }
-      : undefined;
-    return (
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        style={{ backgroundColor: t.background }}
-        contentContainerStyle={[styles.page, { paddingBottom: bottomPad }]}
-        scrollEventThrottle={onEndReached ? 16 : undefined}
-        onScroll={onScroll}
-      >
-        {tab.render()}
-      </ScrollView>
-    );
-  };
+  const renderPage = (tab: PagerTab) => (
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      style={{ backgroundColor: t.background }}
+      contentContainerStyle={[styles.page, { paddingBottom: bottomPad }]}
+      scrollEventThrottle={onEndReached ? 16 : undefined}
+      onScroll={
+        onEndReached
+          ? (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+              const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+              const distanceToBottom =
+                contentSize.height - (contentOffset.y + layoutMeasurement.height);
+              const lastHeight = lastEndReachedHeight.current[tab.key] ?? -1;
+              if (distanceToBottom < NEAR_BOTTOM && contentSize.height > lastHeight) {
+                lastEndReachedHeight.current[tab.key] = contentSize.height;
+                onEndReached(tab.key);
+              }
+            }
+          : undefined
+      }
+    >
+      {tab.render()}
+    </ScrollView>
+  );
 
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: t.background }]} edges={["top"]}>
