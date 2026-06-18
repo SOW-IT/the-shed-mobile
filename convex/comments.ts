@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, QueryCtx } from "./_generated/server";
 import { getProfile, optionalProfile, requireProfile } from "./model";
-import { actionOwnerEmail, appUrl, notify } from "./requests";
+import { actionOwnerEmail, notify } from "./requests";
 import { ALLOWED_REACTIONS } from "../shared/flow";
 
 /** Display name for an email: staff profile first, directory fallback, else null. */

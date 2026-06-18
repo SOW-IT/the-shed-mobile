@@ -64,6 +64,7 @@ export const CommentsSheet = ({
   const [active, setActive] = useState(visible);
   useEffect(() => {
     if (visible) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- subscribe on open
       setActive(true);
       return;
     }
@@ -79,6 +80,7 @@ export const CommentsSheet = ({
   // instantly instead of flashing the spinner before the query resolves.
   const [loaded, setLoaded] = useState<typeof comments>(comments);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- retain last loaded thread
     if (comments !== undefined) setLoaded(comments);
   }, [comments]);
   // Optimistic: show the comment immediately (as "You") so the thread feels
@@ -87,14 +89,18 @@ export const CommentsSheet = ({
     (localStore, { requestId, body }) => {
       const current = localStore.getQuery(api.comments.list, { requestId });
       if (!current) return;
+      // Runs at mutation time (not render); the synthetic id/timestamp are
+      // replaced when the server result lands.
+      // eslint-disable-next-line react-hooks/purity -- optimistic id/timestamp
+      const now = Date.now();
       localStore.setQuery(api.comments.list, { requestId }, [
         ...current,
         {
-          id: `optimistic-${Date.now()}` as unknown as Id<"requestComments">,
+          id: `optimistic-${now}` as unknown as Id<"requestComments">,
           authorEmail: "",
           authorName: null,
           body: body.trim(),
-          at: Date.now(),
+          at: now,
           isMine: true,
           reactions: [],
         },
@@ -148,6 +154,7 @@ export const CommentsSheet = ({
   // Closing the thread also dismisses any open reaction picker.
   useEffect(() => {
     if (!visible) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- dismiss pickers on close
       setReactingTo(null);
       setMoreFor(null);
     }

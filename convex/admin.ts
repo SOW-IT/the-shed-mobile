@@ -24,7 +24,6 @@ import {
 import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
 import { internalMutation, MutationCtx, mutation, query } from "./_generated/server";
-import { IMPORT_DATA } from "./importData";
 import {
   currentStaffYear,
   getDepartment,
