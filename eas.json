@@ -34,6 +34,10 @@
   "submit": {
     "preview": {},
     "staging": {},
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "6781592871"
+      }
+    }
   }
 }
