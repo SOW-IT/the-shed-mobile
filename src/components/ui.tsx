@@ -19,6 +19,7 @@ import {
   ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { radius, spacing, typography, USE_NATIVE_DRIVER, useAppTheme } from "../theme";
 
 const haptic = (style = Haptics.ImpactFeedbackStyle.Light) => {
@@ -688,10 +689,13 @@ export const YearPill = ({
   year,
   years,
   onSelect,
+  formatLabel,
 }: {
   year: number;
   years: number[];
   onSelect: (year: number) => void;
+  /** Optional label formatter for the dropdown rows (e.g. "2026 (current)"). */
+  formatLabel?: (year: number) => string;
 }) => {
   const t = useAppTheme();
   const [open, setOpen] = useState(false);
@@ -713,7 +717,7 @@ export const YearPill = ({
         {years.map((y) => (
           <OptionRow
             key={y}
-            label={String(y)}
+            label={formatLabel ? formatLabel(y) : String(y)}
             selected={y === year}
             onPress={() => {
               onSelect(y);
@@ -1164,8 +1168,183 @@ export const Avatar = ({
   );
 };
 
+/**
+ * Top chrome for the main screens: the SOW logo (taps → Requests) on the left
+ * and the profile avatar (taps → Profile) on the right. Replaces the per-screen
+ * page titles. The logo art is a black wordmark, tinted to the theme text colour
+ * so it reads on both the cream and deep-green backgrounds.
+ */
+export const TopBar = ({
+  photo,
+  name,
+}: {
+  photo: string | null;
+  name: string | null;
+}) => {
+  const t = useAppTheme();
+  const router = useRouter();
+  return (
+    <View style={styles.topBar}>
+      <Pressable
+        onPress={() => router.push("/")}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel="Go to Requests"
+        style={({ pressed }) => pressed && { opacity: 0.6 }}
+      >
+        <Image
+          source={require("../../assets/images/the-shed-compact-logo.png")}
+          style={[styles.topBarLogo, { tintColor: t.text }]}
+          resizeMode="contain"
+        />
+      </Pressable>
+      <Pressable
+        onPress={() => router.push("/profile")}
+        accessibilityRole="button"
+        accessibilityLabel="Open your profile"
+        style={({ pressed }) => pressed && { opacity: 0.7 }}
+      >
+        <Avatar photo={photo} name={name} size={40} />
+      </Pressable>
+    </View>
+  );
+};
+
+/**
+ * Full-width, square, top-pinned tab switcher: equal-width tabs with an
+ * underline under the active one (no rounded pill). Carries the same action /
+ * unread badges as {@link Segmented}. Hidden when there are fewer than 2 tabs.
+ */
+export const TabBar = ({
+  segments,
+  active,
+  onChange,
+}: {
+  segments: Segment[];
+  active: string;
+  onChange: (key: string) => void;
+}) => {
+  const t = useAppTheme();
+  if (segments.length < 2) return null;
+  return (
+    <View style={[styles.tabBar, { borderBottomColor: t.separator }]}>
+      {segments.map((segment) => {
+        const selected = segment.key === active;
+        return (
+          <Pressable
+            key={segment.key}
+            style={styles.tab}
+            accessibilityRole="tab"
+            accessibilityState={{ selected }}
+            onPress={() => {
+              hapticSelect();
+              onChange(segment.key);
+            }}
+          >
+            <View style={styles.tabLabelRow}>
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.tabText,
+                  { color: selected ? t.text : t.muted },
+                  selected && { fontWeight: "700" },
+                ]}
+              >
+                {segment.label}
+              </Text>
+              {segment.badge ? (
+                <View style={[styles.tabBadge, { backgroundColor: t.warning }]}>
+                  <Text style={styles.tabBadgeText}>{segment.badge}</Text>
+                </View>
+              ) : null}
+              {segment.messageBadge ? (
+                <View
+                  style={[
+                    styles.tabBadge,
+                    { backgroundColor: "#ffffff", borderWidth: 1, borderColor: "#cccccc" },
+                  ]}
+                >
+                  <Text style={[styles.tabBadgeText, { color: "#333333" }]}>
+                    {segment.messageBadge}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+            <View
+              style={[
+                styles.tabIndicator,
+                { backgroundColor: selected ? t.primary : "transparent" },
+              ]}
+            />
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+};
+
+/**
+ * The year picker, fixed bottom-right above the bottom tab bar. Used on screens
+ * where the staff year matters (Org, Manage, Requests "All"). Positioned like
+ * {@link FooterAction} — the tab navigator already lays content above the bar,
+ * so a small bottom offset clears it.
+ */
+export const FloatingYearPicker = ({
+  year,
+  years,
+  onSelect,
+  formatLabel,
+}: {
+  year: number;
+  years: number[];
+  onSelect: (year: number) => void;
+  formatLabel?: (year: number) => string;
+}) => {
+  return (
+    <View pointerEvents="box-none" style={styles.floatingYearPicker}>
+      <YearPill year={year} years={years} onSelect={onSelect} formatLabel={formatLabel} />
+    </View>
+  );
+};
+
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: 48,
+    paddingVertical: spacing.sm,
+  },
+  topBarLogo: { width: 88, height: 30 },
+  tabBar: {
+    flexDirection: "row",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  tab: {
+    flex: 1,
+    alignItems: "center",
+    paddingTop: spacing.sm + 2,
+    gap: spacing.sm,
+  },
+  tabLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 4,
+  },
+  tabText: { fontSize: 13.5, letterSpacing: -0.1 },
+  tabIndicator: { height: 2.5, alignSelf: "stretch", borderRadius: 2 },
+  tabBadge: {
+    borderRadius: radius.full,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabBadgeText: { color: "#ffffff", fontSize: 11, fontWeight: "800" },
+  floatingYearPicker: { position: "absolute", right: spacing.lg, bottom: spacing.md },
   scroll: {
     padding: spacing.lg,
     paddingBottom: 48,

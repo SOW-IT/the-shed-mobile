@@ -17,7 +17,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SignInScreen } from "@/components/SignInScreen";
 import { LoadingState } from "@/components/ui";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
-import { shadowStyle, useAppTheme } from "@/theme";
+import { BOTTOM_TAB_HEIGHT, shadowStyle, useAppTheme } from "@/theme";
 import { requestFullyApproved } from "../../shared/flow";
 
 const convex = process.env.EXPO_PUBLIC_CONVEX_URL
@@ -156,7 +156,7 @@ const AppTabs = () => {
         tabBarStyle: {
           backgroundColor: t.card,
           borderTopWidth: 0,
-          height: 58 + insets.bottom,
+          height: BOTTOM_TAB_HEIGHT + insets.bottom,
           paddingBottom: Math.max(insets.bottom, 8),
           paddingTop: 8,
           ...shadowStyle(t.dark ? "#000000" : "#0F2523", t.dark ? 0.35 : 0.08, 16, -4, 12),
@@ -198,7 +198,8 @@ const AppTabs = () => {
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: tabIcon("person-circle-outline", "person-circle"),
+          // Removed from the bottom bar; still reachable via the TopBar avatar.
+          href: null,
         }}
       />
       {/* Folded into the Requests tab; routes survive for old deep links. */}

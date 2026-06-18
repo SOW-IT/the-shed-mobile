@@ -14,6 +14,13 @@ import { Platform, TextStyle, useColorScheme, ViewStyle } from "react-native";
  */
 export const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
+/**
+ * Height of the bottom tab bar, excluding the safe-area inset. Shared between
+ * the tab bar itself and floating overlays (year picker, Make Request) so they
+ * clear it consistently.
+ */
+export const BOTTOM_TAB_HEIGHT = 58;
+
 /** 4pt spacing scale. */
 export const spacing = {
   xs: 4,

@@ -1,13 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
-import { useRef, useState } from "react";
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { useState } from "react";
+import { Text, View } from "react-native";
 import {
   type Assignment,
   departmentsOf,
@@ -32,19 +26,20 @@ import {
   ErrorBanner,
   errorMessage,
   Field,
+  FloatingYearPicker,
   IconButton,
   LoadingState,
   Muted,
-  OptionRow,
-  OptionSheet,
   Row,
   Screen,
   SectionTitle,
   Segmented,
   Select,
   type ToastState,
+  Toast,
   Txt,
 } from "@/components/ui";
+import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 
 /**
  * Admin console: per-year staff roles/departments (including people who
@@ -298,11 +293,9 @@ export default function AdminScreen() {
   // Budget-manager-only callers can't switch years; they manage the live one.
   const selectedYear = budgetManagerOnly ? currentYear : year ?? currentYear;
   const editable = selectedYear === currentYear || selectedYear === currentYear + 1;
-  const [yearMenuOpen, setYearMenuOpen] = useState(false);
   const [tab, setTab] = useState<AdminTab>("users");
   const activeTab: AdminTab = budgetManagerOnly ? "other" : tab;
   const [structureSubTab, setStructureSubTab] = useState<StructureSubTab>("roles");
-  const scrollRef = useRef<ScrollView>(null);
 
   const structure = useQuery(
     api.directory.yearStructure,
@@ -744,103 +737,22 @@ export default function AdminScreen() {
     );
   };
 
-  return (
-    <Screen
-      toast={toast}
-      scrollRef={scrollRef}
-      title="Manage"
-      headerRight={
-        budgetManagerOnly ? undefined : (
-          <Pressable
-            style={({ pressed }) => [
-              styles.yearPill,
-              t.shadowCard,
-              { backgroundColor: t.card },
-              pressed && { opacity: 0.7 },
-            ]}
-            onPress={() => setYearMenuOpen(true)}
-          >
-            <Txt style={{ fontWeight: "700" }}>{selectedYear}</Txt>
-            <Ionicons name="chevron-down" size={14} color={t.muted} />
-          </Pressable>
-        )
-      }
-    >
-      <ConfirmDialog
-        visible={deleteConfirm !== null}
-        title={`Delete "${deleteConfirm?.name}"`}
-        message={deleteConfirm?.message}
-        requireText={deleteConfirm?.name}
-        onConfirm={() => deleteConfirm?.onConfirm()}
-        onClose={() => setDeleteConfirm(null)}
-      />
+  // Switching the year also clears any in-progress inline edits.
+  const onSelectYear = (y: number) => {
+    setYear(y);
+    setEditingUserEmail(null);
+    setAssigningUserEmail(null);
+    setEditingDivisionKey(null);
+    setEditingDepartmentKey(null);
+    setEditingUniversityKey(null);
+    setEditingRoleKey(null);
+  };
 
-      <ConfirmDialog
-        visible={removeProfileTarget !== null}
-        title={`Delete "${removeProfileTarget?.name ?? removeProfileTarget?.email}"`}
-        message={`Remove ${removeProfileTarget?.email} from ${selectedYear}? Their roles and department assignments for the year will be deleted.`}
-        requireText={removeProfileTarget?.name ?? removeProfileTarget?.email}
-        onConfirm={() => {
-          if (removeProfileTarget) {
-            void run(() =>
-              removeStaffProfile({
-                email: removeProfileTarget.email,
-                year: selectedYear,
-              })
-            );
-          }
-        }}
-        onClose={() => setRemoveProfileTarget(null)}
-      />
-
-      <ConfirmDialog
-        visible={syncConfirm}
-        title="Sync directory now?"
-        message="Pulls all active Google Workspace users on sow.org.au into the people picker. This also runs automatically every day."
-        destructive={false}
-        confirmLabel="Sync"
-        onConfirm={() => {
-          setSyncing(true);
-          void run(() => requestSync({})).finally(() => setSyncing(false));
-        }}
-        onClose={() => setSyncConfirm(false)}
-      />
-
-      <OptionSheet
-        visible={yearMenuOpen}
-        title="Year"
-        onClose={() => setYearMenuOpen(false)}
-      >
-        {(years ?? [currentYear, currentYear + 1]).map((y) => (
-          <OptionRow
-            key={y}
-            label={yearLabel(y)}
-            selected={y === selectedYear}
-            onPress={() => {
-              setYear(y);
-              setYearMenuOpen(false);
-              setEditingUserEmail(null);
-              setAssigningUserEmail(null);
-              setEditingDivisionKey(null);
-              setEditingDepartmentKey(null);
-              setEditingUniversityKey(null);
-              setEditingRoleKey(null);
-            }}
-          />
-        ))}
-      </OptionSheet>
-
-      {!budgetManagerOnly && (
-        <Segmented
-          segments={ADMIN_TABS}
-          active={tab}
-          onChange={(key) => { setTab(key as AdminTab); setError(null); }}
-        />
-      )}
-
+  const renderTabContent = (key: AdminTab) => (
+    <>
       <ErrorBanner message={error} />
 
-      {activeTab === "users" && (
+      {key === "users" && (
         <>
           {editable && (unassigned ?? []).length > 0 && (
             <>
@@ -901,7 +813,7 @@ export default function AdminScreen() {
         </>
       )}
 
-      {activeTab === "structure" && (
+      {key === "structure" && (
         <>
           <Segmented
             segments={STRUCTURE_SUB_TABS}
@@ -1383,7 +1295,7 @@ export default function AdminScreen() {
         </>
       )}
 
-      {activeTab === "other" && (
+      {key === "other" && (
         <>
           {isAdmin && (
             <>
@@ -1457,17 +1369,75 @@ export default function AdminScreen() {
           </Card>
         </>
       )}
-    </Screen>
+    </>
+  );
+
+  const adminTabs: PagerTab[] = budgetManagerOnly
+    ? [{ key: "other", label: "Other", render: () => renderTabContent("other") }]
+    : ADMIN_TABS.map((tabDef) => ({
+        key: tabDef.key,
+        label: tabDef.label,
+        render: () => renderTabContent(tabDef.key as AdminTab),
+      }));
+
+  return (
+    <>
+      <PagerScreen
+        tabs={adminTabs}
+        activeKey={activeTab}
+        onActiveKeyChange={(key) => {
+          setTab(key as AdminTab);
+          setError(null);
+        }}
+        floating={
+          budgetManagerOnly ? undefined : (
+            <FloatingYearPicker
+              year={selectedYear}
+              years={years ?? [currentYear, currentYear + 1]}
+              onSelect={onSelectYear}
+              formatLabel={yearLabel}
+            />
+          )
+        }
+      />
+      <ConfirmDialog
+        visible={deleteConfirm !== null}
+        title={`Delete "${deleteConfirm?.name}"`}
+        message={deleteConfirm?.message}
+        requireText={deleteConfirm?.name}
+        onConfirm={() => deleteConfirm?.onConfirm()}
+        onClose={() => setDeleteConfirm(null)}
+      />
+      <ConfirmDialog
+        visible={removeProfileTarget !== null}
+        title={`Delete "${removeProfileTarget?.name ?? removeProfileTarget?.email}"`}
+        message={`Remove ${removeProfileTarget?.email} from ${selectedYear}? Their roles and department assignments for the year will be deleted.`}
+        requireText={removeProfileTarget?.name ?? removeProfileTarget?.email}
+        onConfirm={() => {
+          if (removeProfileTarget) {
+            void run(() =>
+              removeStaffProfile({
+                email: removeProfileTarget.email,
+                year: selectedYear,
+              })
+            );
+          }
+        }}
+        onClose={() => setRemoveProfileTarget(null)}
+      />
+      <ConfirmDialog
+        visible={syncConfirm}
+        title="Sync directory now?"
+        message="Pulls all active Google Workspace users on sow.org.au into the people picker. This also runs automatically every day."
+        destructive={false}
+        confirmLabel="Sync"
+        onConfirm={() => {
+          setSyncing(true);
+          void run(() => requestSync({})).finally(() => setSyncing(false));
+        }}
+        onClose={() => setSyncConfirm(false)}
+      />
+      <Toast toast={toast} />
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  yearPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    borderRadius: radius.full,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-  },
-});
