@@ -26,6 +26,9 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
           redirectTo
         ) ||
         redirectTo.startsWith("theshedmobile://") ||
+        // Staging app variant (separate bundle id) uses its own scheme so it can
+        // be installed alongside production — see app.config.js.
+        redirectTo.startsWith("theshedmobilestaging://") ||
         redirectTo.startsWith("exp://")
       ) {
         return redirectTo;
