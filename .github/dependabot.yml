@@ -1,0 +1,10 @@
+version: 2
+updates:
+  # Keep GitHub Actions current. Actions are pinned to commit SHAs in the
+  # workflows for supply-chain integrity; Dependabot bumps those SHAs (and the
+  # trailing "# vN" comment) when new releases ship, so pinning doesn't mean
+  # going stale.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
