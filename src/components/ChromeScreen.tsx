@@ -51,6 +51,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   scroll: {
+    flexGrow: 1,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.xs,
     paddingBottom: 48,

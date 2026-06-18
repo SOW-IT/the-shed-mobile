@@ -1346,6 +1346,7 @@ const styles = StyleSheet.create({
   tabBadgeText: { color: "#ffffff", fontSize: 11, fontWeight: "800" },
   floatingYearPicker: { position: "absolute", right: spacing.lg, bottom: spacing.md },
   scroll: {
+    flexGrow: 1,
     padding: spacing.lg,
     paddingBottom: 48,
     gap: spacing.md,
@@ -1475,7 +1476,15 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   emptyMessage: { textAlign: "center", lineHeight: 18 },
-  loading: { paddingVertical: spacing.xxxl, alignItems: "center" },
+  // Fills the available space and centres the spinner so page-level loaders sit
+  // in the middle of the screen. The minHeight keeps it visible if a parent
+  // doesn't give it room to grow.
+  loading: {
+    flex: 1,
+    minHeight: 200,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   avatarFallback: { alignItems: "center", justifyContent: "center" },
   segmented: {
     flexDirection: "row",

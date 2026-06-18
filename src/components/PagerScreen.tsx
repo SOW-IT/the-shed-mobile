@@ -109,6 +109,7 @@ const styles = StyleSheet.create({
   chrome: { width: "100%", maxWidth: 720, alignSelf: "center" },
   topBarWrap: { paddingHorizontal: spacing.lg },
   page: {
+    flexGrow: 1,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     gap: spacing.md,
