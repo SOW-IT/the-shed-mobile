@@ -13,7 +13,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { radius, spacing, useAppTheme } from "../theme";
+import { radius, spacing, USE_NATIVE_DRIVER, useAppTheme } from "../theme";
 import { ErrorBanner, errorMessage, FadeInView, SowSpinner } from "./ui";
 
 export const SignInScreen = () => {
@@ -92,10 +92,10 @@ export const SignInScreen = () => {
             <Pressable
               onPress={() => void handleSignIn()}
               onPressIn={() =>
-                Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 0 }).start()
+                Animated.spring(scale, { toValue: 0.97, useNativeDriver: USE_NATIVE_DRIVER, speed: 50, bounciness: 0 }).start()
               }
               onPressOut={() =>
-                Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 6 }).start()
+                Animated.spring(scale, { toValue: 1, useNativeDriver: USE_NATIVE_DRIVER, speed: 20, bounciness: 6 }).start()
               }
               disabled={busy}
               style={[

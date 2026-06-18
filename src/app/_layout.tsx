@@ -17,7 +17,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SignInScreen } from "@/components/SignInScreen";
 import { LoadingState } from "@/components/ui";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
-import { useAppTheme } from "@/theme";
+import { shadowStyle, useAppTheme } from "@/theme";
 import { requestFullyApproved } from "../../shared/flow";
 
 const convex = process.env.EXPO_PUBLIC_CONVEX_URL
@@ -159,11 +159,7 @@ const AppTabs = () => {
           height: 58 + insets.bottom,
           paddingBottom: Math.max(insets.bottom, 8),
           paddingTop: 8,
-          shadowColor: t.dark ? "#000000" : "#0F2523",
-          shadowOpacity: t.dark ? 0.35 : 0.08,
-          shadowRadius: 16,
-          shadowOffset: { width: 0, height: -4 },
-          elevation: 12,
+          ...shadowStyle(t.dark ? "#000000" : "#0F2523", t.dark ? 0.35 : 0.08, 16, -4, 12),
         },
       }}
     >
