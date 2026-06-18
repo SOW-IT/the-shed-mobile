@@ -1,23 +1,31 @@
-﻿# Builds iOS + Android on EAS whenever main changes.
+# EAS builds for iOS + Android.
+#
+#   - Pull requests          -> `eas build --profile preview`     (internal build, no store submit)
+#   - Push to main           -> `eas build --profile production`   (build only, NO store submit)
+#   - Manual (workflow_dispatch) -> `eas build --profile production --auto-submit` (build + submit)
+#
+# Store submission is intentionally manual-only: merging to main never submits.
+# Submit a release by running this workflow from the Actions tab ("Run workflow").
 #
 # One-time setup (see README):
 #   1. npx eas init                      - links the repo to an EAS project
 #   2. npx eas credentials               - set up Apple + Android signing
-#   3. Add an EXPO_TOKEN repo secret     - https://expo.dev/accounts/[account]/settings/access-tokens
+#   3. Add an EXPO_TOKEN repo secret     - https://expo.dev/settings/access-tokens
 name: EAS Build
 
 on:
-  workflow_dispatch: # disabled until Apple Developer account is configured
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch: # production build + submit, triggered manually
 
 concurrency:
   group: eas-build-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -27,19 +35,30 @@ jobs:
       - run: npm ci
 
       - name: EXPO_TOKEN not configured
-        if: env.EXPO_TOKEN == ''
+        if: ${{ secrets.EXPO_TOKEN == '' }}
         run: |
           echo "::warning::EXPO_TOKEN secret is not set - skipping the EAS build."
           echo "Create an access token at https://expo.dev/settings/access-tokens"
           echo "and add it as the EXPO_TOKEN repository secret to enable iOS/Android builds."
 
       - name: Set up EAS
-        if: env.EXPO_TOKEN != ''
+        if: ${{ secrets.EXPO_TOKEN != '' }}
         uses: expo/expo-github-action@v8
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Build iOS + Android
-        if: env.EXPO_TOKEN != ''
+      # Pull requests: build the preview profile for internal distribution. No store submit.
+      - name: Build preview (PR)
+        if: ${{ secrets.EXPO_TOKEN != '' && github.event_name == 'pull_request' }}
+        run: eas build --platform all --profile preview --non-interactive --no-wait
+
+      # Push to main: build the production profile. No store submit.
+      - name: Build production (main)
+        if: ${{ secrets.EXPO_TOKEN != '' && github.event_name == 'push' }}
         run: eas build --platform all --profile production --non-interactive --no-wait
+
+      # Manual run: build production and auto-submit to the stores.
+      - name: Build + submit production
+        if: ${{ secrets.EXPO_TOKEN != '' && github.event_name == 'workflow_dispatch' }}
+        run: eas build --platform all --profile production --auto-submit --non-interactive --no-wait
