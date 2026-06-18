@@ -1,9 +1,11 @@
+import { v } from "convex/values";
 import { EARLIEST_REQUEST_YEAR } from "../shared/flow";
 import { internalMutation } from "./_generated/server";
 import { currentStaffYear } from "./model";
 
+const DAY_MS = 24 * 60 * 60 * 1000;
 /** Receipt files are kept for one year after a request is paid, then purged. */
-const RETENTION_MS = 365 * 24 * 60 * 60 * 1000;
+const RETENTION_DAYS = 365;
 
 /**
  * Yearly cron (Sept 1, 01:00 UTC): deletes the stored receipt/invoice files of
@@ -11,11 +13,14 @@ const RETENTION_MS = 365 * 24 * 60 * 60 * 1000;
  * kept (and flagged `deleted`) so historical requests still show that a file
  * was attached — only the download link stops working. Idempotent: attachments
  * already flagged `deleted` are skipped, so re-runs are harmless.
+ *
+ * `olderThanDays` overrides the retention window (defaults to one year); used
+ * for manual runs e.g. `npx convex run cleanup:purgeOldReceiptFiles '{"olderThanDays":730}'`.
  */
 export const purgeOldReceiptFiles = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const cutoff = Date.now() - RETENTION_MS;
+  args: { olderThanDays: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const cutoff = Date.now() - (args.olderThanDays ?? RETENTION_DAYS) * DAY_MS;
     let filesDeleted = 0;
     let requestsTouched = 0;
 
