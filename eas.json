@@ -17,6 +17,13 @@
         "buildType": "apk"
       }
     },
+    "staging": {
+      "autoIncrement": true,
+      "env": {
+        "APP_VARIANT": "staging",
+        "EXPO_PUBLIC_CONVEX_URL": "https://industrious-robin-425.convex.cloud"
+      }
+    },
     "production": {
       "autoIncrement": true,
       "env": {
@@ -26,6 +33,7 @@
   },
   "submit": {
     "preview": {},
+    "staging": {},
     "production": {}
   }
 }

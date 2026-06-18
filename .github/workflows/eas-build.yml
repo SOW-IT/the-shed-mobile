@@ -1,12 +1,14 @@
-# EAS builds + submits for iOS + Android.
+# EAS builds + submits for iOS + Android — fully manual.
 #
-#   - Push to main               -> production build (no store submit)
-#   - Manual (workflow_dispatch)  -> pick a profile (preview / production) and
-#                                    either build it, or submit its latest build
+# This workflow never runs automatically (not on push, not on PRs). Trigger it
+# from the Actions tab ("Run workflow", from the main branch):
 #
-# Preview builds are manual: run this workflow from the Actions tab ("Run
-# workflow") with profile = preview. Submitting a build is a separate manual run
-# (tick "submit") that you trigger after the build has finished.
+#   - Build:  profile = staging | production, submit = false
+#   - Submit: profile = staging | production, submit = true
+#             (run this after the matching build has finished)
+#
+#   staging     -> "The SHED Staging" (au.org.sow.theshed.staging), staging backend
+#   production  -> "The SHED" (au.org.sow.theshed), production backend
 #
 # One-time setup (see README):
 #   1. npx eas init            - links the repo to an EAS project
@@ -16,15 +18,13 @@
 name: EAS Build
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       profile:
         description: "EAS profile"
         type: choice
-        options: [preview, production]
-        default: preview
+        options: [staging, production]
+        default: staging
       submit:
         description: "Submit the latest build to the stores (instead of building)"
         type: boolean
@@ -65,17 +65,12 @@ jobs:
           eas-version: latest
           token: ${{ env.EXPO_TOKEN }}
 
-      # Push to main: production build (no store submit).
-      - name: Build production (main)
-        if: ${{ env.EXPO_TOKEN != '' && github.event_name == 'push' }}
-        run: eas build --platform all --profile production --non-interactive --no-wait
-
-      # Manual: build the chosen profile (preview by default).
-      - name: Build (manual)
-        if: ${{ env.EXPO_TOKEN != '' && github.event_name == 'workflow_dispatch' && !inputs.submit }}
+      # Build the chosen profile.
+      - name: Build
+        if: ${{ env.EXPO_TOKEN != '' && !inputs.submit }}
         run: eas build --platform all --profile ${{ inputs.profile }} --non-interactive --no-wait
 
-      # Manual: submit the latest build for the chosen profile (run after a build finishes).
-      - name: Submit latest (manual)
-        if: ${{ env.EXPO_TOKEN != '' && github.event_name == 'workflow_dispatch' && inputs.submit }}
+      # Submit the latest build for the chosen profile (run after a build finishes).
+      - name: Submit latest
+        if: ${{ env.EXPO_TOKEN != '' && inputs.submit }}
         run: eas submit --platform all --profile ${{ inputs.profile }} --non-interactive --latest
