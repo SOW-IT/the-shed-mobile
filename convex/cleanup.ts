@@ -25,14 +25,13 @@ export const purgeOldReceiptFiles = internalMutation({
     let requestsTouched = 0;
 
     // Files this old only belong to past years' requests, so iterate the
-    // bounded set of staff years rather than scanning the whole table.
+    // bounded set of staff years rather than scanning the whole table. Stream
+    // each year's requests (no fixed cap) so a busy year never leaves files
+    // beyond an arbitrary limit unpurged.
     for (let year = EARLIEST_REQUEST_YEAR; year <= currentStaffYear(); year++) {
-      const requests = await ctx.db
+      for await (const request of ctx.db
         .query("requests")
-        .withIndex("by_year", (q) => q.eq("year", year))
-        .take(500);
-
-      for (const request of requests) {
+        .withIndex("by_year", (q) => q.eq("year", year))) {
         if (
           request.paid !== true ||
           request.paidTime === undefined ||
