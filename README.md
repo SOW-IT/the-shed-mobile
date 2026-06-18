@@ -1,4 +1,4 @@
-# THE SHED — mobile
+# THE SHED
 
 Expo (React Native) + Convex app implementing the reimbursement request flow
 from [REQUESTS_FLOW.md](https://github.com/SOW-IT/theshed/blob/main/REQUESTS_FLOW.md):
