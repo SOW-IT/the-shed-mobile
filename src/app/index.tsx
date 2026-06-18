@@ -148,6 +148,10 @@ export default function RequestsScreen() {
   // next Sept 1 rollover (the retention cron), so warn before they're gone.
   const isPreviousYear =
     isPastYear && selectedYear === (currentYear as number) - 1;
+  // Two or more staff years back: a rollover has already run, so those receipt
+  // files are gone.
+  const isOlderYear =
+    isPastYear && (selectedYear as number) < (currentYear as number) - 1;
   const now = new Date();
   // The calendar year of the upcoming 1 September (the rollover / purge date).
   const nextRolloverYear =
@@ -242,6 +246,13 @@ export default function RequestsScreen() {
                 <FadeInView delay={70}>
                   <WarningBanner
                     message={`Receipt files for the ${viewingYear} staff year will be deleted on 1 September ${nextRolloverYear}, when the staff year rolls over. Download anything you need to keep.`}
+                  />
+                </FadeInView>
+              )}
+              {isOlderYear && (
+                <FadeInView delay={70}>
+                  <WarningBanner
+                    message={`Receipt files for the ${viewingYear} staff year have already been deleted and can no longer be opened. Only the file names remain for reference.`}
                   />
                 </FadeInView>
               )}
