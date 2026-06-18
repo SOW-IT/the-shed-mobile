@@ -26,8 +26,6 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -37,14 +35,14 @@ jobs:
       - run: npm ci
 
       - name: EXPO_TOKEN not configured
-        if: env.EXPO_TOKEN == ''
+        if: ${{ secrets.EXPO_TOKEN == '' }}
         run: |
           echo "::warning::EXPO_TOKEN secret is not set - skipping the EAS build."
           echo "Create an access token at https://expo.dev/settings/access-tokens"
           echo "and add it as the EXPO_TOKEN repository secret to enable iOS/Android builds."
 
       - name: Set up EAS
-        if: env.EXPO_TOKEN != ''
+        if: ${{ secrets.EXPO_TOKEN != '' }}
         uses: expo/expo-github-action@v8
         with:
           eas-version: latest
@@ -52,15 +50,15 @@ jobs:
 
       # Pull requests: build the preview profile for internal distribution. No store submit.
       - name: Build preview (PR)
-        if: env.EXPO_TOKEN != '' && github.event_name == 'pull_request'
+        if: ${{ secrets.EXPO_TOKEN != '' && github.event_name == 'pull_request' }}
         run: eas build --platform all --profile preview --non-interactive --no-wait
 
       # Push to main: build the production profile. No store submit.
       - name: Build production (main)
-        if: env.EXPO_TOKEN != '' && github.event_name == 'push'
+        if: ${{ secrets.EXPO_TOKEN != '' && github.event_name == 'push' }}
         run: eas build --platform all --profile production --non-interactive --no-wait
 
       # Manual run: build production and auto-submit to the stores.
       - name: Build + submit production
-        if: env.EXPO_TOKEN != '' && github.event_name == 'workflow_dispatch'
+        if: ${{ secrets.EXPO_TOKEN != '' && github.event_name == 'workflow_dispatch' }}
         run: eas build --platform all --profile production --auto-submit --non-interactive --no-wait
