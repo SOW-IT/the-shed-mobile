@@ -6,6 +6,7 @@ import { buildRequestsCsv, downloadCsv } from "@/lib/requestsCsv";
 import {
   Btn,
   Card,
+  ConfirmDialog,
   ErrorBanner,
   errorMessage,
   MultiSelect,
@@ -30,6 +31,13 @@ export const ExportRequestsCard = ({ currentYear }: { currentYear: number }) => 
   const [selected, setSelected] = useState<string[]>(years.map(String));
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  // Newest-first list of the chosen years for the confirmation message.
+  const chosenLabel = [...selected]
+    .map(Number)
+    .sort((a, b) => b - a)
+    .join(", ");
 
   const download = async () => {
     setDownloading(true);
@@ -70,9 +78,20 @@ export const ExportRequestsCard = ({ currentYear }: { currentYear: number }) => 
           title="Download CSV"
           loading={downloading}
           disabled={selected.length === 0}
-          onPress={() => void download()}
+          onPress={() => setConfirmOpen(true)}
         />
       </Card>
+      <ConfirmDialog
+        visible={confirmOpen}
+        title="Export requests?"
+        message={`This downloads every request for staff ${
+          selected.length === 1 ? "year" : "years"
+        } ${chosenLabel} as a CSV.`}
+        confirmLabel="Download"
+        destructive={false}
+        onConfirm={() => void download()}
+        onClose={() => setConfirmOpen(false)}
+      />
     </>
   );
 };
