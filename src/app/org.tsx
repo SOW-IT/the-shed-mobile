@@ -4,15 +4,15 @@ import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { ChromeScreen } from "@/components/ChromeScreen";
 import {
   Avatar,
   FadeInView,
+  FloatingYearPicker,
   LoadingState,
   Muted,
-  Screen,
   stagger,
   Txt,
-  YearPill,
 } from "@/components/ui";
 
 const Person = ({
@@ -56,21 +56,22 @@ export default function OrgChartScreen() {
 
   if (!chart) {
     return (
-      <Screen title="Organisation">
+      <ChromeScreen>
         <LoadingState />
-      </Screen>
+      </ChromeScreen>
     );
   }
 
   return (
-    <Screen
-      title="Organisation"
-      headerRight={
-        <YearPill
-          year={chart.year}
-          years={chart.availableYears}
-          onSelect={setSelectedYear}
-        />
+    <ChromeScreen
+      floating={
+        chart.availableYears.length > 1 ? (
+          <FloatingYearPicker
+            year={chart.year}
+            years={chart.availableYears}
+            onSelect={setSelectedYear}
+          />
+        ) : undefined
       }
     >
       {/* Director */}
@@ -176,7 +177,7 @@ export default function OrgChartScreen() {
           </View>
         </FadeInView>
       )}
-    </Screen>
+    </ChromeScreen>
   );
 }
 

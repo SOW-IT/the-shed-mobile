@@ -1,42 +1,34 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Pressable } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { HEAD_OF_DEPARTMENT, requestFullyApproved } from "../../shared/flow";
 import { AllRequestsList } from "@/components/AllRequestsList";
 import { BankTab } from "@/components/BankTab";
+import { ChromeScreen } from "@/components/ChromeScreen";
 import { ExportRequestsCard } from "@/components/ExportRequestsCsv";
 import { GuideSheet, MyRequests } from "@/components/MyRequests";
-import { ReviewList } from "@/components/ReviewList";
 import { type RequestPrefill } from "@/components/MyRequests";
+import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
+import { ReviewList } from "@/components/ReviewList";
 import {
-  Avatar,
   Btn,
   Card,
   ErrorBanner,
   errorMessage,
   FadeInView,
+  FloatingYearPicker,
   FooterAction,
   LoadingState,
   Muted,
   Row,
   Screen,
   SectionTitle,
-  Segmented,
   Select,
   Txt,
   WarningBanner,
-  YearPill,
 } from "@/components/ui";
-
-const greetingForNow = (): string => {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
-};
 
 /**
  * The Requests tab: your own requests, the ones waiting on you (approvers),
@@ -45,7 +37,6 @@ const greetingForNow = (): string => {
  */
 export default function RequestsScreen() {
   const { signOut } = useAuthActions();
-  const router = useRouter();
   const me = useQuery(api.directory.me);
   const structure = useQuery(
     api.directory.yearStructure,
@@ -185,26 +176,9 @@ export default function RequestsScreen() {
 
   if (me === undefined) return <Screen><LoadingState /></Screen>;
 
-  const firstName = me?.name?.split(" ")[0];
-
-  return (
-    <Screen
-      subtitle={greetingForNow()}
-      title={firstName ? `Hello, ${firstName}` : "Requests"}
-      headerRight={
-        me ? (
-          <Pressable
-            onPress={() => router.push("/profile")}
-            style={({ pressed }) => pressed && { opacity: 0.7 }}
-          >
-            <Avatar photo={me.photo} name={me.name} size={44} />
-          </Pressable>
-        ) : undefined
-      }
-      footer={showMakeRequest ? <FooterAction title="+ Make Request" onPress={openNewRequest} onInfo={() => setGuideOpen(true)} /> : undefined}
-      onEndReached={() => loadMoreRef.current?.()}
-    >
-      {me === null || me.profile === null ? (
+  if (me === null || me.profile === null) {
+    return (
+      <ChromeScreen>
         <FadeInView>
           <Card>
             <Txt style={{ fontSize: 18, fontWeight: "700" }}>
@@ -219,97 +193,125 @@ export default function RequestsScreen() {
             </Row>
           </Card>
         </FadeInView>
-      ) : (
+      </ChromeScreen>
+    );
+  }
+
+  // The "All" page (Finance): year-purge warnings, the Finance-Head Budget
+  // Manager control, then every request for the viewed year.
+  const renderAll = () => (
+    <>
+      {isPreviousYear && (
+        <FadeInView delay={40}>
+          <WarningBanner
+            message={`Receipt files for the ${viewingYear} staff year will be deleted on 1 September ${nextRolloverYear}, when the staff year rolls over. Download anything you need to keep.`}
+          />
+        </FadeInView>
+      )}
+      {isOlderYear && (
+        <FadeInView delay={40}>
+          <WarningBanner
+            message={`Receipt files for the ${viewingYear} staff year have already been deleted and can no longer be opened. Only the file names remain for reference.`}
+          />
+        </FadeInView>
+      )}
+      <ExportRequestsCard currentYear={me.year} />
+      {me.isFinanceHead && (
         <>
-          <FadeInView delay={40}>
-            <Segmented segments={segments} active={activeSegment} onChange={setActive} />
-          </FadeInView>
-          {activeSegment === "all" && pickerYears.length > 1 && (
-            <FadeInView delay={60}>
-              <Row>
-                <Muted>Staff year</Muted>
-                <YearPill
-                  year={viewingYear}
-                  years={pickerYears}
-                  onSelect={(y) =>
-                    setSelectedYear(y === currentYear ? null : y)
-                  }
-                />
-              </Row>
-            </FadeInView>
-          )}
-          {activeSegment === "review" ? (
-            <ReviewList />
-          ) : activeSegment === "bank" ? (
-            <BankTab />
-          ) : activeSegment === "all" ? (
-            <>
-              {isPreviousYear && (
-                <FadeInView delay={70}>
-                  <WarningBanner
-                    message={`Receipt files for the ${viewingYear} staff year will be deleted on 1 September ${nextRolloverYear}, when the staff year rolls over. Download anything you need to keep.`}
-                  />
-                </FadeInView>
-              )}
-              {isOlderYear && (
-                <FadeInView delay={70}>
-                  <WarningBanner
-                    message={`Receipt files for the ${viewingYear} staff year have already been deleted and can no longer be opened. Only the file names remain for reference.`}
-                  />
-                </FadeInView>
-              )}
-              <ExportRequestsCard currentYear={me.year} />
-              {me?.isFinanceHead && (
-                <>
-                  <SectionTitle>Budget Manager — {me.year}</SectionTitle>
-                  <Card>
-                    <Muted>Current: {structure?.budgetManagerEmail ?? "not set"}</Muted>
-                    <Select
-                      label="Budget Manager"
-                      value={budgetManagerValue}
-                      options={(financeMembers ?? []).map((p) => ({
-                        label: p.name ?? p.email,
-                        value: p.email,
-                      }))}
-                      onSelect={setNewBudgetManagerEmail}
-                      placeholder="Choose a Finance member…"
-                    />
-                    <ErrorBanner message={budgetManagerError} />
-                    <Btn
-                      title="Set Budget Manager"
-                      loading={savingBudgetManager}
-                      disabled={
-                        !budgetManagerValue ||
-                        budgetManagerValue === (structure?.budgetManagerEmail ?? "")
-                      }
-                      onPress={() => {
-                        setSavingBudgetManager(true);
-                        setBudgetManagerError(null);
-                        void setBudgetManager({ year: me.year, email: budgetManagerValue })
-                          .then(() => setNewBudgetManagerEmail(null))
-                          .catch((e) => setBudgetManagerError(errorMessage(e)))
-                          .finally(() => setSavingBudgetManager(false));
-                      }}
-                    />
-                  </Card>
-                  <SectionTitle>All Requests — {me.year}</SectionTitle>
-                </>
-              )}
-              <AllRequestsList year={queryYear} loadMoreRef={loadMoreRef} />
-            </>
-          ) : (
-            <MyRequests
-              departments={departmentNames}
-              defaultDepartment={defaultDepartment}
-              newOpen={newRequestOpen}
-              prefill={requestPrefill}
-              onResubmit={(p) => { setRequestPrefill(p); setNewRequestOpen(true); }}
-              onNewClose={() => setNewRequestOpen(false)}
+          <SectionTitle>Budget Manager — {me.year}</SectionTitle>
+          <Card>
+            <Muted>Current: {structure?.budgetManagerEmail ?? "not set"}</Muted>
+            <Select
+              label="Budget Manager"
+              value={budgetManagerValue}
+              options={(financeMembers ?? []).map((p) => ({
+                label: p.name ?? p.email,
+                value: p.email,
+              }))}
+              onSelect={setNewBudgetManagerEmail}
+              placeholder="Choose a Finance member…"
             />
-          )}
+            <ErrorBanner message={budgetManagerError} />
+            <Btn
+              title="Set Budget Manager"
+              loading={savingBudgetManager}
+              disabled={
+                !budgetManagerValue ||
+                budgetManagerValue === (structure?.budgetManagerEmail ?? "")
+              }
+              onPress={() => {
+                setSavingBudgetManager(true);
+                setBudgetManagerError(null);
+                void setBudgetManager({ year: me.year, email: budgetManagerValue })
+                  .then(() => setNewBudgetManagerEmail(null))
+                  .catch((e) => setBudgetManagerError(errorMessage(e)))
+                  .finally(() => setSavingBudgetManager(false));
+              }}
+            />
+          </Card>
+          <SectionTitle>All Requests — {me.year}</SectionTitle>
         </>
       )}
+      <AllRequestsList year={queryYear} loadMoreRef={loadMoreRef} />
+    </>
+  );
+
+  const renderTab = (key: string) => {
+    switch (key) {
+      case "review":
+        return <ReviewList />;
+      case "all":
+        return renderAll();
+      case "bank":
+        return <BankTab />;
+      default:
+        return (
+          <MyRequests
+            departments={departmentNames}
+            defaultDepartment={defaultDepartment}
+            newOpen={newRequestOpen}
+            prefill={requestPrefill}
+            onResubmit={(p) => { setRequestPrefill(p); setNewRequestOpen(true); }}
+            onNewClose={() => setNewRequestOpen(false)}
+          />
+        );
+    }
+  };
+
+  const tabs: PagerTab[] = segments.map((segment) => ({
+    ...segment,
+    render: () => renderTab(segment.key),
+  }));
+
+  return (
+    <>
+      <PagerScreen
+        tabs={tabs}
+        activeKey={activeSegment}
+        onActiveKeyChange={setActive}
+        onEndReached={(key) => {
+          if (key === "all") loadMoreRef.current?.();
+        }}
+        footer={
+          showMakeRequest ? (
+            <FooterAction
+              title="+ Make Request"
+              onPress={openNewRequest}
+              onInfo={() => setGuideOpen(true)}
+            />
+          ) : undefined
+        }
+        floating={
+          activeSegment === "all" && pickerYears.length > 1 ? (
+            <FloatingYearPicker
+              year={viewingYear}
+              years={pickerYears}
+              onSelect={(y) => setSelectedYear(y === currentYear ? null : y)}
+            />
+          ) : undefined
+        }
+      />
       <GuideSheet visible={guideOpen} onClose={() => setGuideOpen(false)} />
-    </Screen>
+    </>
   );
 }
