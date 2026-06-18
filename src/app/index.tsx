@@ -26,6 +26,7 @@ import {
   Segmented,
   Select,
   Txt,
+  WarningBanner,
   YearPill,
 } from "@/components/ui";
 
@@ -143,6 +144,15 @@ export default function RequestsScreen() {
   const queryYear = isPastYear ? (selectedYear as number) : undefined;
   const pickerYears = requestYears?.all ?? [];
 
+  // Viewing last staff year: its paid requests' receipt files get purged at the
+  // next Sept 1 rollover (the retention cron), so warn before they're gone.
+  const isPreviousYear =
+    isPastYear && selectedYear === (currentYear as number) - 1;
+  const now = new Date();
+  // The calendar year of the upcoming 1 September (the rollover / purge date).
+  const nextRolloverYear =
+    now.getMonth() >= 8 ? now.getFullYear() + 1 : now.getFullYear();
+
   const departmentNames = (structure?.departments ?? []).map((d) => d.name);
   // Default to a department they are Head of Department of, else the first
   // department in their assignments, else (for a pure Head of Division) the
@@ -228,6 +238,13 @@ export default function RequestsScreen() {
             <BankTab />
           ) : activeSegment === "all" ? (
             <>
+              {isPreviousYear && (
+                <FadeInView delay={70}>
+                  <WarningBanner
+                    message={`Receipt files for the ${viewingYear} staff year will be deleted on 1 September ${nextRolloverYear}, when the staff year rolls over. Download anything you need to keep.`}
+                  />
+                </FadeInView>
+              )}
               {me?.isFinanceHead && (
                 <>
                   <SectionTitle>Budget Manager — {me.year}</SectionTitle>

@@ -1044,6 +1044,17 @@ export const ErrorBanner = ({ message }: { message: string | null }) => {
   ) : null;
 };
 
+/** An amber advisory banner — for non-error notices the user should heed. */
+export const WarningBanner = ({ message }: { message: string | null }) => {
+  const t = useAppTheme();
+  return message ? (
+    <View style={[styles.error, { backgroundColor: t.warningSoft }]}>
+      <Ionicons name="warning-outline" size={16} color={t.warning} />
+      <Text style={[typography.caption, { color: t.warning, flex: 1 }]}>{message}</Text>
+    </View>
+  ) : null;
+};
+
 export const Muted = ({ children }: { children: ReactNode }) => {
   const t = useAppTheme();
   return <Text style={[typography.caption, { color: t.muted }]}>{children}</Text>;
