@@ -6,6 +6,6 @@ module.exports = defineConfig([
   expoConfig,
   {
     // Generated and build output — not ours to lint.
-    ignores: ["dist/*", "coverage/*", "convex/_generated/*", ".expo/*"],
+    ignores: ["dist/**", "coverage/**", "convex/_generated/**", ".expo/**"],
   },
 ]);
