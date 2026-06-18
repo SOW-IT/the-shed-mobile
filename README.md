@@ -106,10 +106,10 @@ explicit admin action.
 
 - **CI** (`.github/workflows/ci.yml`): every PR and push to `main` runs the
   typecheck and backend tests.
-- **EAS Build** (`.github/workflows/eas-build.yml`): every merge to `main`
-  (after the same quality gate) queues **iOS + Android production builds** on
-  [EAS](https://expo.dev/eas). Builds and signed artifacts appear in the Expo
-  dashboard; trigger manually any time via *Actions → EAS Build → Run workflow*.
+- **EAS Build** (`.github/workflows/eas-build.yml`): **manual only** — never
+  runs on PRs or merges. Build and store submissions are triggered by hand from
+  *Actions → EAS Build → Run workflow* (from `main`). See
+  [Releasing to TestFlight and the App Store](#releasing-to-testflight-and-the-app-store).
 - **Deploy** (`.github/workflows/deploy.yml`): every merge to `main` (after
   the same gate) deploys the **prod Convex backend** and republishes the
   **hosted web app** against it — push-to-deploy, like the web repo. Needs
@@ -129,9 +129,47 @@ npx eas credentials    # set up Apple Developer + Android keystore (EAS manages 
 
 then create an access token at <https://expo.dev/settings/access-tokens> and
 add it as the `EXPO_TOKEN` repository secret on GitHub. Until the secret
-exists, the workflow passes with a warning and skips the build step. To also
-auto-submit to TestFlight/Play Console, append `--auto-submit` to the
-`eas build` line once store credentials are configured.
+exists, the workflow passes with a warning and skips the build/submit step.
+
+### Releasing to TestFlight and the App Store
+
+Builds and store submissions are **manual**, driven from GitHub Actions
+(*Actions → EAS Build → Run workflow*, run from `main`). Each run takes two
+inputs:
+
+- **profile** — `staging` or `production`
+- **submit** — off = build the profile; on = submit that profile's latest build
+  to the stores
+
+There are two app variants (defined in `app.config.js` + `eas.json`) that
+install side-by-side, so testers can keep production while testing staging:
+
+| Profile      | App name           | Bundle id / package          | Convex backend                  |
+| ------------ | ------------------ | ---------------------------- | ------------------------------- |
+| `staging`    | The SHED Staging   | `au.org.sow.theshed.staging` | dev (`industrious-robin-425`)   |
+| `production` | The SHED           | `au.org.sow.theshed`         | prod (`outgoing-stoat-395`)     |
+
+**Ship staging first, then production:**
+
+1. **Build staging** — Run workflow: profile `staging`, submit *off*.
+2. **Submit staging** — once the build finishes (watch the Expo dashboard), Run
+   workflow again: profile `staging`, submit *on*. It lands in the *The SHED
+   Staging* app's TestFlight.
+3. **Test** on TestFlight against the dev backend.
+4. **Build production** — Run workflow: profile `production`, submit *off*.
+5. **Submit production** — after it finishes, Run workflow: profile
+   `production`, submit *on*. It lands in *The SHED*'s TestFlight. To put it on
+   the public App Store, open App Store Connect, attach the build to an App
+   Store version, complete the metadata, and **Submit for Review** (TestFlight
+   is just where uploaded builds live — promotion to the App Store is a separate
+   manual step there).
+
+> **First staging release only**, otherwise Google sign-in fails in the staging
+> app: run `npx eas credentials` for `au.org.sow.theshed.staging`; add the
+> staging Convex callback
+> `https://industrious-robin-425.convex.site/api/auth/callback/google` to the
+> Google OAuth web client; and set the Google auth env vars on the dev/staging
+> Convex deployment (`npx convex env set ...`).
 
 ## Production backend + web hosting
 
