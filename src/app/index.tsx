@@ -26,6 +26,7 @@ import {
   Segmented,
   Select,
   Txt,
+  WarningBanner,
   YearPill,
 } from "@/components/ui";
 
@@ -143,6 +144,20 @@ export default function RequestsScreen() {
   const queryYear = isPastYear ? (selectedYear as number) : undefined;
   const pickerYears = requestYears?.all ?? [];
 
+  // Viewing last staff year: its paid requests' receipt files get purged at the
+  // next Sept 1 rollover (the retention cron), so warn before they're gone.
+  const isPreviousYear =
+    isPastYear && selectedYear === (currentYear as number) - 1;
+  // Two or more staff years back: a rollover has already run, so those receipt
+  // files are gone.
+  const isOlderYear =
+    isPastYear && (selectedYear as number) < (currentYear as number) - 1;
+  // The calendar year of the upcoming 1 September (the rollover / purge date).
+  // The current staff year is named after that very date, so it IS the next
+  // rollover's calendar year — and it already flips at Sydney midnight Sept 1
+  // (see staffYearForDate), keeping the picker, me.year and this banner aligned.
+  const nextRolloverYear = currentYear as number;
+
   const departmentNames = (structure?.departments ?? []).map((d) => d.name);
   // Default to a department they are Head of Department of, else the first
   // department in their assignments, else (for a pure Head of Division) the
@@ -228,6 +243,20 @@ export default function RequestsScreen() {
             <BankTab />
           ) : activeSegment === "all" ? (
             <>
+              {isPreviousYear && (
+                <FadeInView delay={70}>
+                  <WarningBanner
+                    message={`Receipt files for the ${viewingYear} staff year will be deleted on 1 September ${nextRolloverYear}, when the staff year rolls over. Download anything you need to keep.`}
+                  />
+                </FadeInView>
+              )}
+              {isOlderYear && (
+                <FadeInView delay={70}>
+                  <WarningBanner
+                    message={`Receipt files for the ${viewingYear} staff year have already been deleted and can no longer be opened. Only the file names remain for reference.`}
+                  />
+                </FadeInView>
+              )}
               {me?.isFinanceHead && (
                 <>
                   <SectionTitle>Budget Manager — {me.year}</SectionTitle>

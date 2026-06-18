@@ -10,11 +10,18 @@ crons.cron("stale request reminders", "0 22 * * *", internal.reminders.remindSta
 // gracefully until the service-account env vars are configured).
 crons.cron("google directory sync", "0 21 * * *", internal.directorySync.run, {});
 
-// Sept 1 at 00:01 UTC: the staff year rolls over at midnight UTC Sept 1
-// (staffYearForDate keys off getMonth() in UTC), so by 00:01 currentStaffYear()
-// is already the new year. Prefill the next staff year (2 calendar years out)
-// from the new current staff year, e.g. on 2026-09-01 copy 2027 -> 2028, then
-// email IT a summary. Admins can then configure the new year from a populated copy.
-crons.cron("staff year rollover", "1 0 1 9 *", internal.admin.rollOverStaffYear, {});
+// Aug 31 14:01 UTC = 00:01 Sept 1 Sydney time: the staff year rolls over at
+// Sydney midnight Sept 1 (see staffYearForDate — Sept 1 is AEST, UTC+10), so by
+// 00:01 currentStaffYear() is already the new year. Prefill the next staff year
+// (2 calendar years out) from the new current staff year, e.g. on 2026-09-01
+// copy 2027 -> 2028, then email IT a summary. Admins can then configure the new
+// year from a populated copy.
+crons.cron("staff year rollover", "1 14 31 8 *", internal.admin.rollOverStaffYear, {});
+
+// Midnight Sept 1 Sydney time = Aug 31 14:00 UTC (Sept 1 is AEST, UTC+10 — DST
+// doesn't start until October). Purge receipt/invoice files attached to
+// requests paid more than a year ago. The attachment records (and names) are
+// kept so history still shows a file was there — only the download link dies.
+crons.cron("purge old receipt files", "0 14 31 8 *", internal.cleanup.purgeOldReceiptFiles, {});
 
 export default crons;

@@ -95,6 +95,13 @@ describe("staffYearForDate", () => {
     expect(staffYearForDate(new Date("2026-09-01"))).toBe(2027);
     expect(staffYearForDate(new Date("2026-12-31"))).toBe(2027);
   });
+
+  test("rolls over at Sydney midnight (AEST, UTC+10), not UTC midnight", () => {
+    // 13:59 UTC on Aug 31 is still 23:59 Aug 31 in Sydney → old year.
+    expect(staffYearForDate(new Date("2026-08-31T13:59:00Z"))).toBe(2026);
+    // 14:00 UTC on Aug 31 is 00:00 Sept 1 in Sydney → new year.
+    expect(staffYearForDate(new Date("2026-08-31T14:00:00Z"))).toBe(2027);
+  });
 });
 
 describe("approval predicates", () => {

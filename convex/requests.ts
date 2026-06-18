@@ -1136,7 +1136,12 @@ export const receiptAttachments = query({
         attachments: await Promise.all(
           (recipient.attachments ?? []).map(async (attachment) => ({
             name: attachment.name,
-            url: await ctx.storage.getUrl(attachment.storageId),
+            // Purged files (deleted by the yearly retention cron) keep their
+            // record but have no working link.
+            deleted: attachment.deleted ?? false,
+            url: attachment.deleted
+              ? null
+              : await ctx.storage.getUrl(attachment.storageId),
           }))
         ),
       }))

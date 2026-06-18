@@ -213,6 +213,10 @@ export default defineSchema({
                 v.object({
                   storageId: v.id("_storage"),
                   name: v.string(),
+                  // Set by the yearly purge cron once the stored file has been
+                  // deleted: the record (and name) stays so history still shows
+                  // a file was attached, but its download link no longer works.
+                  deleted: v.optional(v.boolean()),
                 })
               )
             ),

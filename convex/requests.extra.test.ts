@@ -511,6 +511,77 @@ describe("deleteDeclined", () => {
   });
 });
 
+describe("cleanup.purgeOldReceiptFiles", () => {
+  const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+
+  /** Builds a paid request with one receipt file, returning its id + storageId. */
+  async function paidRequestWithFile(t: TestConvex<typeof schema>) {
+    const id = await approvedRequest(t);
+    const file = await storedReceipt(t);
+    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
+      requestId: id,
+      recipients: [
+        { accountName: "Rachel", bsb: "123456", accountNumber: "12345678", amount: 100, attachments: [file] },
+      ],
+    });
+    await asUser(t, FIONA).mutation(api.requests.pay, { requestId: id, paidAmount: 100 });
+    return { id, storageId: file.storageId };
+  }
+
+  test("purges files of requests paid over a year ago, keeping the record", async () => {
+    const t = await setup();
+    const { id, storageId } = await paidRequestWithFile(t);
+    // Backdate payment to just over a year ago.
+    await t.run((ctx) =>
+      ctx.db.patch("requests", id, { paidTime: Date.now() - ONE_YEAR_MS - 1000 })
+    );
+
+    await t.mutation(internal.cleanup.purgeOldReceiptFiles, {});
+
+    // The stored blob is gone...
+    expect(await t.run((ctx) => ctx.storage.getUrl(storageId))).toBeNull();
+    // ...but the attachment record survives, flagged deleted, with its name.
+    const request = (await t.run((ctx) => ctx.db.get("requests", id)))!;
+    const attachment = request.receipt!.recipients[0].attachments![0];
+    expect(attachment.deleted).toBe(true);
+    expect(attachment.name).toBe("receipt.pdf");
+
+    // The query surfaces the file with no link so history still shows it.
+    const receipts = (await asUser(t, RACHEL).query(api.requests.receiptAttachments, {
+      requestId: id,
+    }))!;
+    expect(receipts[0].attachments[0]).toMatchObject({
+      name: "receipt.pdf",
+      deleted: true,
+      url: null,
+    });
+  });
+
+  test("leaves files of requests paid within the last year untouched", async () => {
+    const t = await setup();
+    const { id, storageId } = await paidRequestWithFile(t);
+    // Paid time is "now" (recent), so it must be kept.
+
+    await t.mutation(internal.cleanup.purgeOldReceiptFiles, {});
+
+    expect(await t.run((ctx) => ctx.storage.getUrl(storageId))).not.toBeNull();
+    const request = (await t.run((ctx) => ctx.db.get("requests", id)))!;
+    expect(request.receipt!.recipients[0].attachments![0].deleted).toBeUndefined();
+  });
+
+  test("is idempotent — a second run does not error on already-purged files", async () => {
+    const t = await setup();
+    const { id } = await paidRequestWithFile(t);
+    await t.run((ctx) =>
+      ctx.db.patch("requests", id, { paidTime: Date.now() - ONE_YEAR_MS - 1000 })
+    );
+    await t.mutation(internal.cleanup.purgeOldReceiptFiles, {});
+    await t.mutation(internal.cleanup.purgeOldReceiptFiles, {});
+    const request = (await t.run((ctx) => ctx.db.get("requests", id)))!;
+    expect(request.receipt!.recipients[0].attachments![0].deleted).toBe(true);
+  });
+});
+
 describe("importHistory.personHistory", () => {
   test("follows a person across emails via importId, sorted by year", async () => {
     const t = await setup();
