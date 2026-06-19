@@ -12,6 +12,46 @@ export default function Root({ children }: { children: React.ReactNode }) {
           name="viewport"
           content="width=device-width, initial-scale=1, shrink-to-fit=no"
         />
+        {/*
+          On mobile browsers, bounce visitors into the native app via the
+          custom scheme, preserving the path so deep links work
+          (the-shed-mobile.vercel.app/request/abc -> theshedmobile://request/abc).
+          If the app isn't installed, fall back to the store after a short wait.
+          Desktop browsers keep using the web app. Append #noapp to bypass.
+
+          The production scheme/package are hardcoded on purpose: the web export
+          is production-only (scripts/deploy-web.mjs builds against prod Convex
+          and deploys --prod; APP_VARIANT is never "staging" here). If a staging
+          web deployment is ever added, make these values APP_VARIANT-aware.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function () {
+                var ua = navigator.userAgent || "";
+                var isIOS = /iPhone|iPad|iPod/.test(ua) || (/Mac/.test(ua) && "ontouchend" in document);
+                var isAndroid = /Android/.test(ua);
+                if (!isIOS && !isAndroid) return;
+                if (location.hash === "#noapp") return;
+
+                var path = (location.pathname + location.search).replace(/^\\//, "");
+                var appUrl = "theshedmobile://" + path;
+                var store = isIOS
+                  ? "https://apps.apple.com/app/id6781592871"
+                  : "https://play.google.com/store/apps/details?id=au.org.sow.theshed";
+
+                // If the app opens, the tab is hidden — cancel the store fallback.
+                var fallback = setTimeout(function () { window.location = store; }, 1500);
+                document.addEventListener("visibilitychange", function () {
+                  if (document.hidden) clearTimeout(fallback);
+                });
+                window.addEventListener("pagehide", function () { clearTimeout(fallback); });
+
+                window.location = appUrl;
+              })();
+            `,
+          }}
+        />
         <ScrollViewStyleReset />
         <style
           // React Native Web Modal renders with `position:fixed` but no
