@@ -22,13 +22,37 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { radius, spacing, typography, USE_NATIVE_DRIVER, useAppTheme } from "../theme";
 
-const haptic = (style = Haptics.ImpactFeedbackStyle.Light) => {
-  if (Platform.OS === "web") return;
-  void Haptics.impactAsync(style);
-};
-const hapticSelect = () => {
+// Haptics are intentionally reserved for the bottom navigation bar only (see
+// _layout.tsx). Exported so that single caller can use the same helper; no
+// other button in the app triggers haptics.
+export const hapticSelect = () => {
   if (Platform.OS === "web") return;
   void Haptics.selectionAsync();
+};
+
+/**
+ * Shared press feedback: the element shrinks slightly while touched (and held)
+ * and springs back on release. Returns the animated scale plus the press
+ * handlers to spread onto a Pressable. Used everywhere for a consistent feel
+ * (matching the "Make Request" footer button).
+ */
+const usePressScale = (pressedScale = 0.96) => {
+  const [scale] = useState(() => new Animated.Value(1));
+  const onPressIn = () =>
+    Animated.spring(scale, {
+      toValue: pressedScale,
+      useNativeDriver: USE_NATIVE_DRIVER,
+      speed: 50,
+      bounciness: 0,
+    }).start();
+  const onPressOut = () =>
+    Animated.spring(scale, {
+      toValue: 1,
+      useNativeDriver: USE_NATIVE_DRIVER,
+      speed: 20,
+      bounciness: 6,
+    }).start();
+  return { scale, onPressIn, onPressOut };
 };
 
 export const errorMessage = (e: unknown): string =>
@@ -240,7 +264,7 @@ export const FooterAction = ({
       <View style={styles.footerRow}>
         {onInfo && (
           <Pressable
-            onPress={() => { haptic(); onInfo(); }}
+            onPress={onInfo}
             style={[styles.footerInfoBtn, { backgroundColor: t.card }, t.shadowFloat]}
           >
             <Ionicons name="information-circle-outline" size={22} color={t.primary} />
@@ -255,7 +279,7 @@ export const FooterAction = ({
           ]}
         >
           <Pressable
-            onPress={() => { haptic(); onPress(); }}
+            onPress={onPress}
             onPressIn={() =>
               Animated.spring(scale, { toValue: 0.97, useNativeDriver: USE_NATIVE_DRIVER, speed: 50, bounciness: 0 }).start()
             }
@@ -365,14 +389,7 @@ export const Btn = ({
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <Pressable
-        onPress={() => {
-          haptic(
-            variant === "danger"
-              ? Haptics.ImpactFeedbackStyle.Medium
-              : Haptics.ImpactFeedbackStyle.Light
-          );
-          onPress();
-        }}
+        onPress={onPress}
         onPressIn={() =>
           Animated.spring(scale, {
             toValue: 0.95,
@@ -437,29 +454,33 @@ export const IconButton = ({
   disabled?: boolean;
 }) => {
   const t = useAppTheme();
+  const { scale, onPressIn, onPressOut } = usePressScale();
   return (
-    <Pressable
-      hitSlop={8}
-      disabled={disabled}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      onPress={() => { hapticSelect(); onPress(); }}
-      style={({ pressed }) => [
-        styles.iconButton,
-        { width: size, height: size, backgroundColor: bg ?? t.ghost },
-        disabled && { opacity: 0.5 },
-        pressed && { opacity: 0.6 },
-      ]}
-    >
-      <Ionicons name={name} size={Math.round(size * 0.5)} color={color ?? t.ghostText} />
-      {badge != null && badge > 0 ? (
-        <View style={[styles.iconBadge, { backgroundColor: badgeColor ?? t.accent }]}>
-          <Text style={[styles.iconBadgeText, badgeTextColor ? { color: badgeTextColor } : null]}>
-            {badge > 99 ? "99+" : badge}
-          </Text>
-        </View>
-      ) : null}
-    </Pressable>
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Pressable
+        hitSlop={8}
+        disabled={disabled}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        style={[
+          styles.iconButton,
+          { width: size, height: size, backgroundColor: bg ?? t.ghost },
+          disabled && { opacity: 0.5 },
+        ]}
+      >
+        <Ionicons name={name} size={Math.round(size * 0.5)} color={color ?? t.ghostText} />
+        {badge != null && badge > 0 ? (
+          <View style={[styles.iconBadge, { backgroundColor: badgeColor ?? t.accent }]}>
+            <Text style={[styles.iconBadgeText, badgeTextColor ? { color: badgeTextColor } : null]}>
+              {badge > 99 ? "99+" : badge}
+            </Text>
+          </View>
+        ) : null}
+      </Pressable>
+    </Animated.View>
   );
 };
 
@@ -757,7 +778,7 @@ const SelectFace = ({
           disabled && { opacity: 0.6 },
           !disabled && pressed && { opacity: 0.7 },
         ]}
-        onPress={() => { hapticSelect(); onOpen(); }}
+        onPress={onOpen}
       >
         <Text
           numberOfLines={1}
@@ -812,7 +833,6 @@ export const Select = ({
             label={option.label}
             selected={option.value === value}
             onPress={() => {
-              hapticSelect();
               onSelect(option.value);
               setOpen(false);
             }}
@@ -862,7 +882,7 @@ export const MultiSelect = ({
             label={option.label}
             selected={values.includes(option.value)}
             multi
-            onPress={() => { hapticSelect(); toggle(option.value); }}
+            onPress={() => toggle(option.value)}
           />
         ))}
       </OptionSheet>
@@ -931,7 +951,7 @@ export const Segmented = ({
           <Pressable
             key={segment.key}
             style={styles.segment}
-            onPress={() => { hapticSelect(); onChange(segment.key); }}
+            onPress={() => onChange(segment.key)}
           >
             <Text
               numberOfLines={1}
@@ -1183,29 +1203,37 @@ export const TopBar = ({
 }) => {
   const t = useAppTheme();
   const router = useRouter();
+  const home = usePressScale();
+  const profile = usePressScale();
   return (
     <View style={styles.topBar}>
-      <Pressable
-        onPress={() => router.push("/")}
-        hitSlop={8}
-        accessibilityRole="button"
-        accessibilityLabel="Go to Requests"
-        style={({ pressed }) => pressed && { opacity: 0.6 }}
-      >
-        <Image
-          source={require("../../assets/images/the-shed-compact-logo.png")}
-          style={[styles.topBarLogo, { tintColor: t.text }]}
-          resizeMode="contain"
-        />
-      </Pressable>
-      <Pressable
-        onPress={() => router.push("/profile")}
-        accessibilityRole="button"
-        accessibilityLabel="Open your profile"
-        style={({ pressed }) => pressed && { opacity: 0.7 }}
-      >
-        <Avatar photo={photo} name={name} size={40} />
-      </Pressable>
+      <Animated.View style={{ transform: [{ scale: home.scale }] }}>
+        <Pressable
+          onPress={() => router.push("/")}
+          onPressIn={home.onPressIn}
+          onPressOut={home.onPressOut}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Go to Requests"
+        >
+          <Image
+            source={require("../../assets/images/the-shed-compact-logo.png")}
+            style={[styles.topBarLogo, { tintColor: t.text }]}
+            resizeMode="contain"
+          />
+        </Pressable>
+      </Animated.View>
+      <Animated.View style={{ transform: [{ scale: profile.scale }] }}>
+        <Pressable
+          onPress={() => router.push("/profile")}
+          onPressIn={profile.onPressIn}
+          onPressOut={profile.onPressOut}
+          accessibilityRole="button"
+          accessibilityLabel="Open your profile"
+        >
+          <Avatar photo={photo} name={name} size={40} />
+        </Pressable>
+      </Animated.View>
     </View>
   );
 };
@@ -1236,10 +1264,7 @@ export const TabBar = ({
             style={styles.tab}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
-            onPress={() => {
-              hapticSelect();
-              onChange(segment.key);
-            }}
+            onPress={() => onChange(segment.key)}
           >
             <View style={styles.tabLabelRow}>
               <Text
