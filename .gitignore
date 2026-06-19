@@ -58,3 +58,6 @@ example
 # Local prod data snapshot (contains PII) — never commit
 the-shed-prod-snapshot.zip
 *-snapshot.zip
+
+# Generated App Store screenshots (regenerable; contain real account data)
+/app-store-screenshots/
