@@ -18,6 +18,11 @@ export default function Root({ children }: { children: React.ReactNode }) {
           (the-shed-mobile.vercel.app/request/abc -> theshedmobile://request/abc).
           If the app isn't installed, fall back to the store after a short wait.
           Desktop browsers keep using the web app. Append #noapp to bypass.
+
+          The production scheme/package are hardcoded on purpose: the web export
+          is production-only (scripts/deploy-web.mjs builds against prod Convex
+          and deploys --prod; APP_VARIANT is never "staging" here). If a staging
+          web deployment is ever added, make these values APP_VARIANT-aware.
         */}
         <script
           dangerouslySetInnerHTML={{
