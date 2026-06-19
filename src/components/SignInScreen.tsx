@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthActions } from "@convex-dev/auth/react";
+import Constants from "expo-constants";
 import { makeRedirectUri } from "expo-auth-session";
 import { openAuthSessionAsync } from "expo-web-browser";
 import { useEffect, useState } from "react";
@@ -47,7 +48,11 @@ export const SignInScreen = () => {
         await signIn("google", { redirectTo: window.location.origin });
         return; // full-page redirect to Google
       }
-      const redirectTo = makeRedirectUri();
+      // Pass the scheme explicitly so the staging build always produces
+      // theshedmobilestaging:// rather than exp://localhost when run via
+      // Expo Go or a dev client against the staging Convex deployment.
+      const scheme = Constants.expoConfig?.scheme ?? "theshedmobile";
+      const redirectTo = makeRedirectUri({ scheme: Array.isArray(scheme) ? scheme[0] : scheme });
       const { redirect } = await signIn("google", { redirectTo });
       if (redirect) {
         const result = await openAuthSessionAsync(redirect.toString(), redirectTo);
