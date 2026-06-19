@@ -27,8 +27,15 @@ const STATUS_PRIORITY: Record<string, number> = {
   PAID: 4,
 };
 
-const sortRequests = (list: Doc<"requests">[]): Doc<"requests">[] =>
+const sortRequests = (
+  list: Doc<"requests">[],
+  unread: Record<string, number>
+): Doc<"requests">[] =>
   [...list].sort((a, b) => {
+    // Requests with unread comments float to the top (most unread first).
+    const ua = unread[a._id] ?? 0;
+    const ub = unread[b._id] ?? 0;
+    if (ua !== ub) return ub - ua;
     const pa = STATUS_PRIORITY[requestDisplayStatus(a)] ?? 9;
     const pb = STATUS_PRIORITY[requestDisplayStatus(b)] ?? 9;
     if (pa !== pb) return pa - pb;
@@ -52,6 +59,12 @@ export const AllRequestsList = ({
     api.requests.allRequests,
     year !== undefined ? { year } : {}
   );
+  // Per-request unread comment counts, to float requests with unread to the top.
+  const unread =
+    useQuery(
+      api.comments.unreadCountsForRequests,
+      requests ? { requestIds: requests.map((r) => r._id) } : "skip"
+    ) ?? {};
   // Past years (year set) are almost all completed, so default to that tab;
   // reset the default whenever the browsed year changes.
   const [filter, setFilter] = useState<"ongoing" | "completed">(
@@ -66,7 +79,8 @@ export const AllRequestsList = ({
   const filtered = sortRequests(
     (requests ?? []).filter((request) =>
       isCompleted ? requestCompleted(request) : !requestCompleted(request)
-    )
+    ),
+    unread
   );
 
   // Completed requests are revealed a page at a time as the user scrolls down.

@@ -59,10 +59,12 @@ export const ProfileView = ({ email }: { email?: string }) => {
     })
   );
 
+  const goBack = router.canGoBack() ? () => router.back() : undefined;
+
   if (!profile) {
     return (
       <View style={styles.flex} {...pan.panHandlers}>
-        <Screen title="Profile">
+        <Screen title="Profile" onBack={goBack}>
           <LoadingState />
         </Screen>
       </View>
@@ -117,7 +119,7 @@ export const ProfileView = ({ email }: { email?: string }) => {
 
   return (
     <View style={styles.flex} {...pan.panHandlers}>
-    <Screen title="Profile">
+    <Screen title="Profile" onBack={goBack}>
       <FadeInView delay={40}>
         <Card style={styles.hero}>
           <View>
