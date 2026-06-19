@@ -111,6 +111,7 @@ export const Screen = ({
   title,
   subtitle,
   headerRight,
+  onBack,
   onEndReached,
 }: {
   children?: ReactNode;
@@ -125,6 +126,8 @@ export const Screen = ({
   subtitle?: string;
   /** Rendered to the right of the title (e.g. an avatar or a year picker). */
   headerRight?: ReactNode;
+  /** When set, shows a back chevron to the left of the title. */
+  onBack?: () => void;
   /** Fired while the user scrolls within ~600px of the bottom (infinite load). */
   onEndReached?: () => void;
 }) => {
@@ -148,9 +151,20 @@ export const Screen = ({
             : undefined
         }
       >
-        {(title || headerRight) && (
+        {(title || headerRight || onBack) && (
           <FadeInView>
             <View style={styles.header}>
+              {onBack ? (
+                <Pressable
+                  onPress={onBack}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Go back"
+                  style={({ pressed }) => [styles.headerBack, pressed && { opacity: 0.6 }]}
+                >
+                  <Ionicons name="chevron-back" size={26} color={t.text} />
+                </Pressable>
+              ) : null}
               <View style={styles.headerText}>
                 {subtitle ? (
                   <Text style={[typography.caption, { color: t.muted, marginBottom: 2 }]}>
@@ -550,9 +564,27 @@ export const OptionSheet = ({
         <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: t.overlay }]} onPress={onClose} />
         <View style={[styles.dialogOuter, { pointerEvents: "box-none" }]}>
           <View style={[styles.dialog, { backgroundColor: t.card }]}>
-            <Text style={[typography.headline, styles.optionSheetTitle, { color: t.text }]}>
-              {retainedTitle}
-            </Text>
+            <View style={styles.optionSheetHeader}>
+              <Text
+                style={[typography.headline, { color: t.text, flex: 1 }]}
+                numberOfLines={1}
+              >
+                {retainedTitle}
+              </Text>
+              <Pressable
+                onPress={onClose}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                style={({ pressed }) => [
+                  styles.optionSheetClose,
+                  { backgroundColor: t.ghost },
+                  pressed && { opacity: 0.6 },
+                ]}
+              >
+                <Ionicons name="close" size={20} color={t.ghostText} />
+              </Pressable>
+            </View>
             <ScrollView contentContainerStyle={contentStyle ?? styles.optionList} keyboardShouldPersistTaps="handled">
               {retainedChildren}
             </ScrollView>
@@ -1362,6 +1394,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   headerText: { flex: 1 },
+  headerBack: { marginLeft: -6, justifyContent: "center" },
   card: {
     borderRadius: radius.lg,
     padding: spacing.lg + 2,
@@ -1420,10 +1453,21 @@ const styles = StyleSheet.create({
   },
   inputMultiline: { minHeight: 88, textAlignVertical: "top" },
   selectFace: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  optionSheetTitle: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xl,
+  optionSheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingLeft: spacing.xl,
+    paddingRight: spacing.md,
+    paddingTop: spacing.lg,
     paddingBottom: spacing.sm,
+  },
+  optionSheetClose: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
   optionList: { paddingHorizontal: spacing.md, paddingBottom: spacing.lg, gap: 2 },
   // Single uniform padding layer for dialog content (no compounding) — sides and
@@ -1528,7 +1572,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     width: "100%",
     maxWidth: 480,
-    maxHeight: "85%",
+    // Cap well below full height so there's always a clear backdrop area to
+    // tap out, and the dialog never feels like it covers the whole screen.
+    maxHeight: "70%",
     overflow: "hidden",
   },
   sheetHeader: {
