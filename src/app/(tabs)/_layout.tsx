@@ -9,6 +9,7 @@ import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { BOTTOM_TAB_HEIGHT, shadowStyle, useAppTheme } from "@/theme";
 import { requestFullyApproved } from "../../../shared/flow";
 
+/** Builds a tab-bar icon that swaps to its filled glyph when the tab is active. */
 const tabIcon =
   (outline: keyof typeof Ionicons.glyphMap, filled: keyof typeof Ionicons.glyphMap) => {
     const TabBarIcon = ({ color, focused }: { color: ColorValue; focused: boolean }) => (
