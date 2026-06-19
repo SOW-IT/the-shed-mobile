@@ -1,10 +1,8 @@
 # Build and submit to staging (TestFlight staging / staging backend).
-# Runs automatically on every push to main.
+# Manual only — trigger from the Actions tab ("Run workflow").
 name: EAS Staging
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       platform:
