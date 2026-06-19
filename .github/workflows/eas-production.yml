@@ -22,7 +22,6 @@ jobs:
   build-production:
     name: Build & submit → Production
     runs-on: ubuntu-latest
-    environment: production   # requires approval — Settings → Environments → production → Required reviewers
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     steps:
