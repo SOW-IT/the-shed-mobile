@@ -11,6 +11,10 @@
 #   - A GitHub Environment named "production" with required-reviewer protection
 name: EAS Pipeline
 
+# Only checkout is needed; keep the GITHUB_TOKEN read-only.
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main]
@@ -59,7 +63,7 @@ jobs:
       # Waits for the build to complete before this job finishes, so the
       # production job only starts after staging is confirmed built + submitted.
       - name: Build & submit to staging
-        run: eas build --platform ${{ env.EAS_PLATFORM }} --profile staging --non-interactive --auto-submit
+        run: eas build --platform "${{ env.EAS_PLATFORM }}" --profile staging --non-interactive --auto-submit
 
   build-production:
     name: Build & submit → Production
@@ -93,4 +97,4 @@ jobs:
           echo "EAS_PLATFORM=$platform" >> "$GITHUB_ENV"
 
       - name: Build & submit to production
-        run: eas build --platform ${{ env.EAS_PLATFORM }} --profile production --non-interactive --auto-submit
+        run: eas build --platform "${{ env.EAS_PLATFORM }}" --profile production --non-interactive --auto-submit
