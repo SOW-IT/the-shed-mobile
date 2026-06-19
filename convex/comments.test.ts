@@ -353,6 +353,25 @@ describe("unreadCount + markRead", () => {
     ).toBe(0);
   });
 
+  test("unreadCountsForRequests maps per-request counts, omitting zeros", async () => {
+    const t = await setup();
+    const id1 = await submit(t);
+    const id2 = await submit(t); // left with no comments
+    await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id1, body: "a" });
+    await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id1, body: "b" });
+    // Henry: id1 has 2 unread; id2 has none, so it's omitted (the > 0 filter).
+    const counts = await asUser(t, HENRY).query(
+      api.comments.unreadCountsForRequests,
+      { requestIds: [id1, id2, id1] }
+    );
+    expect(counts[id1]).toBe(2);
+    expect(counts[id2]).toBeUndefined();
+    // Unauthenticated -> empty map.
+    expect(
+      await t.query(api.comments.unreadCountsForRequests, { requestIds: [id1] })
+    ).toEqual({});
+  });
+
   test("myUnreadTotal counts unread comments on the caller's own requests", async () => {
     const t = await setup();
     // Rachel has no requests yet — zero unread.
