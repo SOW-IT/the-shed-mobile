@@ -33,7 +33,11 @@
   },
   "submit": {
     "preview": {},
-    "staging": {},
+    "staging": {
+      "ios": {
+        "ascAppId": "6781896563"
+      }
+    },
     "production": {
       "ios": {
         "ascAppId": "6781592871"
