@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SignInScreen } from "@/components/SignInScreen";
-import { LoadingState } from "@/components/ui";
+import { hapticSelect, LoadingState } from "@/components/ui";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { BOTTOM_TAB_HEIGHT, shadowStyle, useAppTheme } from "@/theme";
 import { requestFullyApproved } from "../../shared/flow";
@@ -142,6 +142,9 @@ const AppTabs = () => {
       // hidden screen like person/[email] (opened from the Org Chart tab)
       // return to /org instead of the default firstRoute (/).
       backBehavior="history"
+      // Haptics are reserved for the bottom bar: a light selection tick on
+      // every tab press (no other button in the app buzzes).
+      screenListeners={{ tabPress: () => hapticSelect() }}
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,
@@ -157,8 +160,8 @@ const AppTabs = () => {
           backgroundColor: t.card,
           borderTopWidth: 0,
           height: BOTTOM_TAB_HEIGHT + insets.bottom,
-          paddingBottom: Math.max(insets.bottom, 8),
-          paddingTop: 8,
+          paddingBottom: Math.max(insets.bottom, 4),
+          paddingTop: 4,
           ...shadowStyle(t.dark ? "#000000" : "#0F2523", t.dark ? 0.35 : 0.08, 16, -4, 12),
         },
       }}
