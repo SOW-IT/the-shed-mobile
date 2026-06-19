@@ -205,11 +205,14 @@ describe("add", () => {
       });
     });
     vi.stubGlobal("fetch", fetchMock);
-
     vi.useFakeTimers();
-    await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "any update?" });
-    await t.finishAllScheduledFunctions(vi.runAllTimers);
-    vi.useRealTimers();
+    try {
+      await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "any update?" });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
 
     expect(bodies.some((b) => b.includes("Rachel R commented"))).toBe(true);
     expect(bodies.some((b) => b.includes(RACHEL))).toBe(false);

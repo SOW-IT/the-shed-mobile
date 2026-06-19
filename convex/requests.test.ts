@@ -602,11 +602,15 @@ describe("admin and per-year rules", () => {
       });
     });
     vi.stubGlobal("fetch", fetchMock);
-
     vi.useFakeTimers();
-    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "Pens", amount: 12 });
-    await t.finishAllScheduledFunctions(vi.runAllTimers);
-    vi.useRealTimers();
+    try {
+      await asUser(t, RACHEL).mutation(api.requests.submit, { description: "Pens", amount: 12 });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+    }
 
     const pushedTokens = calls
       .filter((c) => c.url.includes("exp.host"))
