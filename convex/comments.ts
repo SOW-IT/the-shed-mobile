@@ -1,13 +1,13 @@
 import { ConvexError, v } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
-import { mutation, query, QueryCtx } from "./_generated/server";
+import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import { getProfile, optionalProfile, requireProfile } from "./model";
 import { actionOwnerEmail, notify } from "./requests";
 import { ALLOWED_REACTIONS } from "../shared/flow";
 
 /** Display name for an email: staff profile first, directory fallback, else null. */
 async function resolveName(
-  ctx: QueryCtx,
+  ctx: QueryCtx | MutationCtx,
   email: string,
   year: number
 ): Promise<string | null> {
@@ -51,13 +51,15 @@ export const add = mutation({
           ? request.requesterEmail
           : undefined;
     if (recipient) {
-      await notify(
-        ctx,
-        recipient,
-        `New comment on the $${request.amount} ${request.department} request`,
-        `${email} commented:\n"${body}"`,
-        `/request/${request._id}`
-      );
+      const authorName = (await resolveName(ctx, email, request.year)) ?? email;
+      await notify(ctx, {
+        to: recipient,
+        actor: email,
+        subject: `New comment on the $${request.amount} ${request.department} request`,
+        pushTitle: "New comment",
+        body: `${authorName} commented:\n"${body}"`,
+        url: `/request/${request._id}`,
+      });
     }
     return commentId;
   },

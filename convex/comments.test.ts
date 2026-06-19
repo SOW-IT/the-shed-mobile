@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { staffYearForDate } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import { actionOwnerEmail } from "./requests";
@@ -176,6 +176,46 @@ describe("add", () => {
     expect(list[0].authorEmail).toBe(RACHEL);
     expect(list[0].authorName).toBe("Rachel R"); // resolved from the profile
     expect(list[0].isMine).toBe(true);
+  });
+
+  test("comment notifications name the commenter rather than their email", async () => {
+    const t = await setup();
+    const id = await submit(t); // pending Henry; Rachel comments -> Henry notified
+    // Give Rachel a display name; the notification should use it.
+    await t.run(async (ctx) => {
+      const profile = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", RACHEL).eq("year", YEAR))
+        .unique();
+      await ctx.db.patch("staffProfiles", profile!._id, { name: "Rachel R" });
+    });
+    await t.run((ctx) =>
+      ctx.db.insert("pushTokens", { email: HENRY, token: "ExponentPushToken[henry]" })
+    );
+
+    const bodies: string[] = [];
+    const fetchMock = vi.fn().mockImplementation((url: string, opts: { body: string }) => {
+      const parsed = JSON.parse(opts.body);
+      if (url.includes("exp.host")) bodies.push(...parsed.map((m: { body: string }) => m.body));
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ data: [{ status: "ok" }] }),
+        text: () => Promise.resolve(""),
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.useFakeTimers();
+    try {
+      await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "any update?" });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+
+    expect(bodies.some((b) => b.includes("Rachel R commented"))).toBe(true);
+    expect(bodies.some((b) => b.includes(RACHEL))).toBe(false);
   });
 
   test("rejects a comment on a missing request", async () => {

@@ -213,6 +213,7 @@ export const ReviewList = () => {
                     <RequestCard request={request} showRequester actionRequired>
                       <IconButton
                         name="checkmark"
+                        size={40}
                         bg={t.successSoft}
                         color={t.success}
                         accessibilityLabel="Approve"
@@ -220,6 +221,7 @@ export const ReviewList = () => {
                       />
                       <IconButton
                         name="close"
+                        size={40}
                         bg={t.dangerSoft}
                         color={t.danger}
                         accessibilityLabel="Decline"
@@ -239,6 +241,7 @@ export const ReviewList = () => {
                   <RequestCard request={request} showRequester actionRequired>
                     <IconButton
                       name="cash-outline"
+                      size={40}
                       bg={t.successSoft}
                       color={t.success}
                       accessibilityLabel="Mark as paid"

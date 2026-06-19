@@ -24,6 +24,7 @@ import { rememberBankAccount } from "./bankAccounts";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import {
   currentStaffYear,
+  displayName,
   getApprovers,
   getDepartment,
   getDivision,
@@ -83,21 +84,36 @@ export const appUrl = (path?: string) =>
  */
 export const notify = async (
   ctx: MutationCtx,
-  to: string | undefined,
-  subject: string,
-  body: string,
-  url?: string
+  opts: {
+    to: string | undefined;
+    /**
+     * Who triggered this update. We never push someone for their own action —
+     * the email below is their acknowledgement — so when `to === actor` only
+     * the email is sent.
+     */
+    actor?: string;
+    /** Email subject — a full sentence with the details. */
+    subject: string;
+    /** Concise push-notification title; falls back to `subject`. */
+    pushTitle?: string;
+    body: string;
+    url?: string;
+  }
 ) => {
+  const { to, actor, subject, pushTitle, body, url } = opts;
   if (!to) return;
   await ctx.scheduler.runAfter(0, internal.emails.send, {
     to,
     subject,
     body: `${body}\n\nOpen in THE SHED: ${appUrl(url)}`,
   });
+  // Don't buzz people for something they just did themselves; the email is
+  // their receipt.
+  if (actor && to === actor) return;
   // Push body: just the lead line; the email carries the full details.
   await ctx.scheduler.runAfter(0, internal.push.send, {
     to,
-    title: subject,
+    title: pushTitle ?? subject,
     body: body.split("\n")[0],
     url,
   });
@@ -189,35 +205,39 @@ const notifyNextActor = async (
   ctx: MutationCtx,
   request: Doc<"requests">,
   approvers: Approvers,
-  fallback?: Approvers
+  fallback?: Approvers,
+  actor?: string
 ) => {
   const step = currentStep(request);
   if (step !== null) {
     const approverEmail = nextApproverEmail(request, approvers, fallback);
-    await notify(
-      ctx,
-      approverEmail,
-      `A reimbursement request of $${request.amount} needs your ${STEP_LABELS[step]} approval`,
-      `The request below is waiting on your approval in THE SHED.\n\n${requestSummary(request)}`,
-      "/review"
-    );
+    await notify(ctx, {
+      to: approverEmail,
+      actor,
+      subject: `A reimbursement request of $${request.amount} needs your ${STEP_LABELS[step]} approval`,
+      pushTitle: "Approval needed",
+      body: `The request below is waiting on your approval in THE SHED.\n\n${requestSummary(request)}`,
+      url: "/review",
+    });
   } else if (requestFullyApproved(request)) {
-    await notify(
-      ctx,
-      request.requesterEmail,
-      `Your reimbursement request of $${request.amount} has been approved`,
-      `Your request has been fully approved. Please open THE SHED and submit your receipt/invoice details.\n\n${requestSummary(request)}`,
-      `/request/${request._id}`
-    );
+    await notify(ctx, {
+      to: request.requesterEmail,
+      actor,
+      subject: `Your reimbursement request of $${request.amount} has been approved`,
+      pushTitle: "Request approved",
+      body: `Your request has been fully approved. Please open THE SHED and submit your receipt/invoice details.\n\n${requestSummary(request)}`,
+      url: `/request/${request._id}`,
+    });
     // The whole approver chain hears that the request cleared.
     for (const email of involvedApproverEmails(request, approvers, [APPROVED])) {
-      await notify(
-        ctx,
-        email,
-        `The $${request.amount} request by ${request.requesterEmail} is fully approved`,
-        `Every step has approved this request; the requester has been asked for their receipt.\n\n${requestSummary(request)}`,
-        `/request/${request._id}`
-      );
+      await notify(ctx, {
+        to: email,
+        actor,
+        subject: `The $${request.amount} request by ${request.requesterEmail} is fully approved`,
+        pushTitle: "Request approved",
+        body: `Every step has approved this request; the requester has been asked for their receipt.\n\n${requestSummary(request)}`,
+        url: `/request/${request._id}`,
+      });
     }
   }
 };
@@ -368,14 +388,15 @@ export const submit = mutation({
 
     const request = await ctx.db.get("requests", id);
     if (request) {
-      await notify(
-        ctx,
-        email,
-        `Your reimbursement request of $${request.amount} has been submitted`,
-        `Your request has been submitted and sent for approval. You'll be emailed once it's fully approved.\n\n${requestSummary(request)}`,
-        `/request/${id}`
-      );
-      await notifyNextActor(ctx, request, approvers);
+      await notify(ctx, {
+        to: email,
+        actor: email, // the submitter — acknowledge by email, don't push them
+        subject: `Your reimbursement request of $${request.amount} has been submitted`,
+        pushTitle: "Request submitted",
+        body: `Your request has been submitted and sent for approval. You'll be emailed once it's fully approved.\n\n${requestSummary(request)}`,
+        url: `/request/${id}`,
+      });
+      await notifyNextActor(ctx, request, approvers, undefined, email);
     }
     return id;
   },
@@ -713,7 +734,7 @@ export const approve = mutation({
     });
     await logEvent(ctx, args.requestId, caller.email, "approved", args.step);
     // Tell the next approver (or the requester, once fully approved).
-    await notifyNextActor(ctx, updated, approvers, currentApprovers);
+    await notifyNextActor(ctx, updated, approvers, currentApprovers, caller.email);
     return null;
   },
 });
@@ -742,23 +763,26 @@ export const decline = mutation({
       declinedTime: Date.now(),
     });
     await logEvent(ctx, args.requestId, caller.email, "declined", args.step, reason);
-    await notify(
-      ctx,
-      request.requesterEmail,
-      `Your reimbursement request of $${request.amount} has been declined`,
-      `Your request was declined at the ${STEP_LABELS[args.step]} step by ${caller.email}.\nReason: ${reason}\n\n${requestSummary(request)}`,
-      `/request/${request._id}`
-    );
+    const declinerName = await displayName(ctx, caller.email, request.year);
+    await notify(ctx, {
+      to: request.requesterEmail,
+      actor: caller.email,
+      subject: `Your reimbursement request of $${request.amount} has been declined`,
+      pushTitle: "Request declined",
+      body: `Your request was declined at the ${STEP_LABELS[args.step]} step by ${declinerName}.\nReason: ${reason}\n\n${requestSummary(request)}`,
+      url: `/request/${request._id}`,
+    });
     // Approvers who had already approved hear that it was declined downstream.
     for (const email of involvedApproverEmails(request, approvers, [APPROVED])) {
       if (email === caller.email) continue;
-      await notify(
-        ctx,
-        email,
-        `The $${request.amount} request by ${request.requesterEmail} was declined`,
-        `Declined at the ${STEP_LABELS[args.step]} step by ${caller.email}.\nReason: ${reason}\n\n${requestSummary(request)}`,
-        `/request/${request._id}`
-      );
+      await notify(ctx, {
+        to: email,
+        actor: caller.email,
+        subject: `The $${request.amount} request by ${request.requesterEmail} was declined`,
+        pushTitle: "Request declined",
+        body: `Declined at the ${STEP_LABELS[args.step]} step by ${declinerName}.\nReason: ${reason}\n\n${requestSummary(request)}`,
+        url: `/request/${request._id}`,
+      });
     }
     return null;
   },
@@ -795,12 +819,13 @@ export const cancel = mutation({
       }
     }
     for (const recipient of recipients) {
-      await notify(
-        ctx,
-        recipient,
-        `The $${request.amount} request by ${request.requesterEmail} has been cancelled`,
-        `The requester cancelled this request; no further action is needed.\n\n${requestSummary(request)}`
-      );
+      await notify(ctx, {
+        to: recipient,
+        actor: email,
+        subject: `The $${request.amount} request by ${request.requesterEmail} has been cancelled`,
+        pushTitle: "Request cancelled",
+        body: `The requester cancelled this request; no further action is needed.\n\n${requestSummary(request)}`,
+      });
     }
     // The request is gone, so its audit events go with it.
     const events = await ctx.db
@@ -1122,13 +1147,15 @@ export const submitReceipt = mutation({
       `$${totalAmount}, ${args.recipients.length} recipient${args.recipients.length === 1 ? "" : "s"}`
     );
     const approvers = await getApprovers(ctx, request.year, FINANCE);
-    await notify(
-      ctx,
-      approvers.financeHeadEmail,
-      `A receipt for $${totalAmount} is ready to pay`,
-      `${request.requesterEmail} submitted their receipt (total $${totalAmount}). Please pay the reimbursement in THE SHED.\n\n${requestSummary(request)}`,
-      "/review"
-    );
+    const requesterName = await displayName(ctx, request.requesterEmail, request.year);
+    await notify(ctx, {
+      to: approvers.financeHeadEmail,
+      actor: email,
+      subject: `A receipt for $${totalAmount} is ready to pay`,
+      pushTitle: "Receipt ready to pay",
+      body: `${requesterName} submitted their receipt (total $${totalAmount}). Please pay the reimbursement in THE SHED.\n\n${requestSummary(request)}`,
+      url: "/review",
+    });
     return null;
   },
 });
@@ -1221,23 +1248,26 @@ export const pay = mutation({
       paidTime: Date.now(),
     });
     await logEvent(ctx, args.requestId, caller.email, "paid", undefined, `$${args.paidAmount}`);
-    await notify(
-      ctx,
-      request.requesterEmail,
-      `Your reimbursement of $${args.paidAmount} has been paid`,
-      `The Finance Head (${caller.email}) has paid your reimbursement.\nPaid: $${args.paidAmount}${args.comment ? `\nComment: ${args.comment}` : ""}\n\n${requestSummary(request)}`,
-      `/request/${request._id}`
-    );
+    const payerName = await displayName(ctx, caller.email, request.year);
+    await notify(ctx, {
+      to: request.requesterEmail,
+      actor: caller.email,
+      subject: `Your reimbursement of $${args.paidAmount} has been paid`,
+      pushTitle: "Reimbursement paid",
+      body: `The Finance Head (${payerName}) has paid your reimbursement.\nPaid: $${args.paidAmount}${args.comment ? `\nComment: ${args.comment}` : ""}\n\n${requestSummary(request)}`,
+      url: `/request/${request._id}`,
+    });
     // The Budget Manager should know when the paid amount differs.
     if (args.paidAmount !== request.amount) {
       const yearApprovers = await getApprovers(ctx, request.year, request.department);
-      await notify(
-        ctx,
-        yearApprovers.budgetManagerEmail,
-        `Paid amount differs from requested amount ($${args.paidAmount} vs $${request.amount})`,
-        `Please update the budget accordingly.\n\n${requestSummary(request)}`,
-        `/request/${request._id}`
-      );
+      await notify(ctx, {
+        to: yearApprovers.budgetManagerEmail,
+        actor: caller.email,
+        subject: `Paid amount differs from requested amount ($${args.paidAmount} vs $${request.amount})`,
+        pushTitle: "Paid amount changed",
+        body: `Please update the budget accordingly.\n\n${requestSummary(request)}`,
+        url: `/request/${request._id}`,
+      });
     }
     return null;
   },
