@@ -4,7 +4,7 @@ import { useMutation, useQuery } from "convex/react";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { acronym, formatAssignment, staffYearForDate } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { radius, spacing, typography, useAppTheme } from "../theme";
@@ -45,29 +45,15 @@ export const ProfileView = ({ email }: { email?: string }) => {
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
 
   const router = useRouter();
-  // Swipe right from anywhere on the page to go back, like a native pop. Only
-  // claims clearly-horizontal rightward drags so vertical scrolling still works.
-  const [pan] = useState(() =>
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_e, g) =>
-        g.dx > 16 && Math.abs(g.dx) > Math.abs(g.dy) * 2,
-      onPanResponderRelease: (_e, g) => {
-        if (g.dx > 80 && Math.abs(g.dx) > Math.abs(g.dy) * 2 && router.canGoBack()) {
-          router.back();
-        }
-      },
-    })
-  );
-
+  // Swipe-back is handled natively by the parent Stack (which reveals the
+  // previous screen as you drag); we just expose the explicit back button.
   const goBack = router.canGoBack() ? () => router.back() : undefined;
 
   if (!profile) {
     return (
-      <View style={styles.flex} {...pan.panHandlers}>
-        <Screen title="Profile" onBack={goBack}>
-          <LoadingState />
-        </Screen>
-      </View>
+      <Screen title="Profile" onBack={goBack}>
+        <LoadingState />
+      </Screen>
     );
   }
 
@@ -118,7 +104,6 @@ export const ProfileView = ({ email }: { email?: string }) => {
   };
 
   return (
-    <View style={styles.flex} {...pan.panHandlers}>
     <Screen title="Profile" onBack={goBack}>
       <FadeInView delay={40}>
         <Card style={styles.hero}>
@@ -250,12 +235,10 @@ export const ProfileView = ({ email }: { email?: string }) => {
         onClose={() => setConfirmingSignOut(false)}
       />
     </Screen>
-    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
   hero: { alignItems: "center", paddingVertical: spacing.xxl },
   cameraBadge: {
     position: "absolute",

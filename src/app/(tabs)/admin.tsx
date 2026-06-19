@@ -16,8 +16,8 @@ import {
   roleNeedsDepartment,
   roleNeedsUniversity,
   scopeKindFor,
-} from "../../shared/flow";
-import { api } from "../../convex/_generated/api";
+} from "../../../shared/flow";
+import { api } from "../../../convex/_generated/api";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import {
   Btn,

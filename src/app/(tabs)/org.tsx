@@ -2,7 +2,7 @@ import { useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { api } from "../../convex/_generated/api";
+import { api } from "../../../convex/_generated/api";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { ChromeScreen } from "@/components/ChromeScreen";
 import {
