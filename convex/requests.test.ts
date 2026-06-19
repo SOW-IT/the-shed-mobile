@@ -579,6 +579,50 @@ describe("admin and per-year rules", () => {
     expect(tokens[0].email).toBe(HENRY);
   });
 
+  test("the submitter is emailed but never pushed for their own submission", async () => {
+    vi.stubEnv("RESEND_API_KEY", "re_test");
+    vi.stubEnv("RESEND_FROM_EMAIL", "noreply@sow.org.au");
+    const t = await setup();
+    // Devices for the submitter (Rachel) and the approver she's waiting on (her HOD, Henry).
+    await t.run((ctx) =>
+      ctx.db.insert("pushTokens", { email: RACHEL, token: "ExponentPushToken[rachel]" })
+    );
+    await t.run((ctx) =>
+      ctx.db.insert("pushTokens", { email: HENRY, token: "ExponentPushToken[henry]" })
+    );
+
+    const calls: { url: string; body: any }[] = [];
+    const fetchMock = vi.fn().mockImplementation((url: string, opts: { body: string }) => {
+      calls.push({ url, body: JSON.parse(opts.body) });
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ data: [{ status: "ok" }] }),
+        text: () => Promise.resolve(""),
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    vi.useFakeTimers();
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "Pens", amount: 12 });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    vi.useRealTimers();
+
+    const pushedTokens = calls
+      .filter((c) => c.url.includes("exp.host"))
+      .flatMap((c) => c.body.map((m: { to: string }) => m.to));
+    // The submitter's device is never pushed for their own submission...
+    expect(pushedTokens).not.toContain("ExponentPushToken[rachel]");
+    // ...but the next approver is.
+    expect(pushedTokens).toContain("ExponentPushToken[henry]");
+
+    // The submitter still gets an acknowledgement email.
+    const emailedTo = calls
+      .filter((c) => c.url.includes("resend.com"))
+      .flatMap((c) => c.body.to as string[]);
+    expect(emailedTo).toContain(RACHEL);
+  });
+
   test("staff year rolls over on September 1st", () => {
     expect(staffYearForDate(new Date("2026-06-11"))).toBe(2026);
     expect(staffYearForDate(new Date("2026-08-31"))).toBe(2026);
