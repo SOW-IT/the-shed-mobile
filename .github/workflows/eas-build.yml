@@ -1,9 +1,10 @@
 # EAS builds + submits for iOS + Android — fully manual.
 #
 # This workflow never runs automatically (not on push, not on PRs). Trigger it
-# from the Actions tab ("Run workflow", from the main branch): pick a profile,
-# and by default the finished build is submitted to the stores automatically
-# (EAS --auto-submit). Untick "auto_submit" to build without submitting.
+# from the Actions tab ("Run workflow", from the main branch): pick a profile
+# and the platform(s) to build (iOS, Android, or both), and by default the
+# finished build is submitted to the stores automatically (EAS --auto-submit).
+# Untick "auto_submit" to build without submitting.
 #
 #   staging     -> "The SHED Staging" (au.org.sow.theshed.staging), staging backend
 #   production  -> "The SHED" (au.org.sow.theshed), production backend
@@ -23,6 +24,11 @@ on:
         type: choice
         options: [staging, production]
         default: staging
+      platform:
+        description: "Platform(s) to build"
+        type: choice
+        options: [both, ios, android]
+        default: both
       auto_submit:
         description: "Submit to the stores automatically after the build"
         type: boolean
@@ -65,14 +71,23 @@ jobs:
           eas-version: latest
           token: ${{ env.EXPO_TOKEN }}
 
+      # Map the "both" choice to EAS's "all" platform value; ios/android pass
+      # through unchanged.
+      - name: Resolve platform
+        if: ${{ env.EXPO_TOKEN != '' }}
+        run: |
+          platform="${{ inputs.platform }}"
+          [ "$platform" = "both" ] && platform="all"
+          echo "EAS_PLATFORM=$platform" >> "$GITHUB_ENV"
+
       # Build the chosen profile and auto-submit the finished build to the
       # stores (EAS runs the submit server-side once the build completes, so
       # --no-wait is fine — it uses the submit profile with the same name).
       - name: Build + submit
         if: ${{ env.EXPO_TOKEN != '' && inputs.auto_submit }}
-        run: eas build --platform all --profile ${{ inputs.profile }} --non-interactive --no-wait --auto-submit
+        run: eas build --platform ${{ env.EAS_PLATFORM }} --profile ${{ inputs.profile }} --non-interactive --no-wait --auto-submit
 
       # Build only (no store submission).
       - name: Build
         if: ${{ env.EXPO_TOKEN != '' && !inputs.auto_submit }}
-        run: eas build --platform all --profile ${{ inputs.profile }} --non-interactive --no-wait
+        run: eas build --platform ${{ env.EAS_PLATFORM }} --profile ${{ inputs.profile }} --non-interactive --no-wait
