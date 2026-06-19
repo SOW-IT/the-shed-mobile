@@ -71,6 +71,20 @@ export default function RequestsScreen() {
       api.comments.unreadTotalForRequests,
       me?.profile && me.isApprover && review ? { requestIds: reviewRequestIds } : "skip"
     ) ?? 0;
+  // Unread comments across every request this year, for the "All" segment badge
+  // (Finance only). Reuses the same query the All list subscribes to, so Convex
+  // dedupes the subscription.
+  const allRequestsForBadge = useQuery(
+    api.requests.allRequests,
+    me?.isFinance ? {} : "skip"
+  );
+  const allUnreadComments =
+    useQuery(
+      api.comments.unreadTotalForRequests,
+      me?.isFinance && allRequestsForBadge
+        ? { requestIds: allRequestsForBadge.map((r) => r._id) }
+        : "skip"
+    ) ?? 0;
   const financeMembers = useQuery(
     api.admin.financeMembers,
     me?.isFinanceHead ? { year: me.year } : "skip"
@@ -109,7 +123,15 @@ export default function RequestsScreen() {
           },
         ]
       : []),
-    ...(me?.isFinance ? [{ key: "all", label: "All" }] : []),
+    ...(me?.isFinance
+      ? [
+          {
+            key: "all",
+            label: "All",
+            messageBadge: allUnreadComments > 0 ? allUnreadComments : undefined,
+          },
+        ]
+      : []),
     { key: "bank", label: "Bank" },
   ];
 

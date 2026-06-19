@@ -218,6 +218,47 @@ describe("add", () => {
     expect(bodies.some((b) => b.includes(RACHEL))).toBe(false);
   });
 
+  test("a comment notifies previous approvers, not just the current owner", async () => {
+    const t = await setup();
+    const id = await submit(t); // pending Henry (HOD)
+    // Henry approves -> he becomes a previous approver; Bella (budget manager)
+    // is now the current owner.
+    await asUser(t, HENRY).mutation(api.requests.approve, { requestId: id, step: "hod" });
+    await t.run((ctx) =>
+      ctx.db.insert("pushTokens", { email: HENRY, token: "ExponentPushToken[henry]" })
+    );
+    await t.run((ctx) =>
+      ctx.db.insert("pushTokens", { email: BELLA, token: "ExponentPushToken[bella]" })
+    );
+
+    const pushedTokens: string[] = [];
+    const fetchMock = vi.fn().mockImplementation((url: string, opts: { body: string }) => {
+      const parsed = JSON.parse(opts.body);
+      if (url.includes("exp.host")) {
+        pushedTokens.push(...parsed.map((m: { to: string }) => m.to));
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ data: [{ status: "ok" }] }),
+        text: () => Promise.resolve(""),
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.useFakeTimers();
+    try {
+      await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "any update?" });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+
+    // Current owner (Bella) and the previous approver (Henry) both get pushed.
+    expect(pushedTokens).toContain("ExponentPushToken[bella]");
+    expect(pushedTokens).toContain("ExponentPushToken[henry]");
+  });
+
   test("rejects a comment on a missing request", async () => {
     const t = await setup();
     const id = await submit(t);

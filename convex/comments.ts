@@ -1,9 +1,9 @@
 import { ConvexError, v } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
-import { getProfile, optionalProfile, requireProfile } from "./model";
-import { actionOwnerEmail, notify } from "./requests";
-import { ALLOWED_REACTIONS } from "../shared/flow";
+import { getApprovers, getProfile, optionalProfile, requireProfile } from "./model";
+import { actionOwnerEmail, involvedApproverEmails, notify } from "./requests";
+import { ALLOWED_REACTIONS, APPROVED } from "../shared/flow";
 
 /** Display name for an email: staff profile first, directory fallback, else null. */
 async function resolveName(
@@ -41,25 +41,30 @@ export const add = mutation({
       body,
     });
 
-    // Route the notification: the current action owner, unless that's the
-    // commenter — then fall back to the requester.
+    // Notify the people with a stake in the thread, deduped, never the author:
+    //  - whoever the request currently waits on (or the requester as fallback)
+    //  - everyone who has already approved it (so earlier approvers stay in the
+    //    loop on follow-up discussion).
+    const recipients = new Set<string>();
     const owner = await actionOwnerEmail(ctx, request);
-    const recipient =
-      owner && owner !== email
-        ? owner
-        : request.requesterEmail !== email
-          ? request.requesterEmail
-          : undefined;
-    if (recipient) {
+    if (owner && owner !== email) recipients.add(owner);
+    else if (request.requesterEmail !== email) recipients.add(request.requesterEmail);
+    const approvers = await getApprovers(ctx, request.year, request.department);
+    for (const approver of involvedApproverEmails(request, approvers, [APPROVED])) {
+      if (approver !== email) recipients.add(approver);
+    }
+    if (recipients.size > 0) {
       const authorName = (await resolveName(ctx, email, request.year)) ?? email;
-      await notify(ctx, {
-        to: recipient,
-        actor: email,
-        subject: `New comment on the $${request.amount} ${request.department} request`,
-        pushTitle: "New comment",
-        body: `${authorName} commented:\n"${body}"`,
-        url: `/request/${request._id}`,
-      });
+      for (const to of recipients) {
+        await notify(ctx, {
+          to,
+          actor: email,
+          subject: `New comment on the $${request.amount} ${request.department} request`,
+          pushTitle: "New comment",
+          body: `${authorName} commented:\n"${body}"`,
+          url: `/request/${request._id}`,
+        });
+      }
     }
     return commentId;
   },
@@ -166,6 +171,26 @@ export const unreadTotalForRequests = query({
       total += await unreadCountFor(ctx, requestId, caller.email);
     }
     return total;
+  },
+});
+
+/**
+ * Per-request unread counts for the caller across a set of requests — used by
+ * the "All" list to surface requests with unread discussion first. Only
+ * requests with at least one unread comment are returned, to keep the payload
+ * small.
+ */
+export const unreadCountsForRequests = query({
+  args: { requestIds: v.array(v.id("requests")) },
+  handler: async (ctx, args): Promise<Record<Id<"requests">, number>> => {
+    const caller = await optionalProfile(ctx);
+    const counts: Record<Id<"requests">, number> = {};
+    if (!caller) return counts;
+    for (const requestId of new Set(args.requestIds)) {
+      const unread = await unreadCountFor(ctx, requestId, caller.email);
+      if (unread > 0) counts[requestId] = unread;
+    }
+    return counts;
   },
 });
 
