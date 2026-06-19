@@ -29,7 +29,10 @@ export const SignInScreen = () => {
     () =>
       Platform.OS === "web" &&
       typeof window !== "undefined" &&
-      new URLSearchParams(window.location.search).has("code")
+      // Truthy check (not just .has) to match the effect below — an empty
+      // ?code= would otherwise start busy but be skipped by the effect,
+      // leaving the button stuck disabled.
+      !!new URLSearchParams(window.location.search).get("code")
   );
 
   // On web, Google redirects back to the app with ?code=XXX. ConvexAuthProvider
