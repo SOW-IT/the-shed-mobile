@@ -20,9 +20,12 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
       if (
         allowed.some((url) => redirectTo === url || redirectTo.startsWith(`${url}/`)) ||
         /^https?:\/\/localhost(:\d+)?(\/|$|\?)/.test(redirectTo) ||
-        // Vercel preview deployments of the web build (per-branch URLs), scoped
-        // to this project + team so it isn't an open redirect to any *.vercel.app.
-        /^https:\/\/the-shed-web-[a-z0-9-]+-kimchankwons-projects\.vercel\.app(\/|$|\?)/.test(
+        // Vercel preview deployments (per-branch / per-commit URLs). Scoped to
+        // our Vercel team (kimchankwons-projects) — the real security boundary,
+        // since only we can create projects there — rather than a single project
+        // name, which broke when the web project was renamed the-shed-web ->
+        // the-shed in the rebrand. Still not an open redirect to any *.vercel.app.
+        /^https:\/\/[a-z0-9-]+-kimchankwons-projects\.vercel\.app(\/|$|\?)/.test(
           redirectTo
         ) ||
         redirectTo.startsWith("theshedmobile://") ||
