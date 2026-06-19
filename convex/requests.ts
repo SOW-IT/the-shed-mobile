@@ -24,6 +24,7 @@ import { rememberBankAccount } from "./bankAccounts";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import {
   currentStaffYear,
+  displayName,
   getApprovers,
   getDepartment,
   getDivision,
@@ -762,12 +763,13 @@ export const decline = mutation({
       declinedTime: Date.now(),
     });
     await logEvent(ctx, args.requestId, caller.email, "declined", args.step, reason);
+    const declinerName = await displayName(ctx, caller.email, request.year);
     await notify(ctx, {
       to: request.requesterEmail,
       actor: caller.email,
       subject: `Your reimbursement request of $${request.amount} has been declined`,
       pushTitle: "Request declined",
-      body: `Your request was declined at the ${STEP_LABELS[args.step]} step by ${caller.email}.\nReason: ${reason}\n\n${requestSummary(request)}`,
+      body: `Your request was declined at the ${STEP_LABELS[args.step]} step by ${declinerName}.\nReason: ${reason}\n\n${requestSummary(request)}`,
       url: `/request/${request._id}`,
     });
     // Approvers who had already approved hear that it was declined downstream.
@@ -778,7 +780,7 @@ export const decline = mutation({
         actor: caller.email,
         subject: `The $${request.amount} request by ${request.requesterEmail} was declined`,
         pushTitle: "Request declined",
-        body: `Declined at the ${STEP_LABELS[args.step]} step by ${caller.email}.\nReason: ${reason}\n\n${requestSummary(request)}`,
+        body: `Declined at the ${STEP_LABELS[args.step]} step by ${declinerName}.\nReason: ${reason}\n\n${requestSummary(request)}`,
         url: `/request/${request._id}`,
       });
     }
@@ -1145,12 +1147,13 @@ export const submitReceipt = mutation({
       `$${totalAmount}, ${args.recipients.length} recipient${args.recipients.length === 1 ? "" : "s"}`
     );
     const approvers = await getApprovers(ctx, request.year, FINANCE);
+    const requesterName = await displayName(ctx, request.requesterEmail, request.year);
     await notify(ctx, {
       to: approvers.financeHeadEmail,
       actor: email,
       subject: `A receipt for $${totalAmount} is ready to pay`,
       pushTitle: "Receipt ready to pay",
-      body: `${request.requesterEmail} submitted their receipt (total $${totalAmount}). Please pay the reimbursement in THE SHED.\n\n${requestSummary(request)}`,
+      body: `${requesterName} submitted their receipt (total $${totalAmount}). Please pay the reimbursement in THE SHED.\n\n${requestSummary(request)}`,
       url: "/review",
     });
     return null;
@@ -1245,12 +1248,13 @@ export const pay = mutation({
       paidTime: Date.now(),
     });
     await logEvent(ctx, args.requestId, caller.email, "paid", undefined, `$${args.paidAmount}`);
+    const payerName = await displayName(ctx, caller.email, request.year);
     await notify(ctx, {
       to: request.requesterEmail,
       actor: caller.email,
       subject: `Your reimbursement of $${args.paidAmount} has been paid`,
       pushTitle: "Reimbursement paid",
-      body: `The Finance Head (${caller.email}) has paid your reimbursement.\nPaid: $${args.paidAmount}${args.comment ? `\nComment: ${args.comment}` : ""}\n\n${requestSummary(request)}`,
+      body: `The Finance Head (${payerName}) has paid your reimbursement.\nPaid: $${args.paidAmount}${args.comment ? `\nComment: ${args.comment}` : ""}\n\n${requestSummary(request)}`,
       url: `/request/${request._id}`,
     });
     // The Budget Manager should know when the paid amount differs.

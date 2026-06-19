@@ -65,6 +65,25 @@ export async function getProfile(
     .unique();
 }
 
+/**
+ * A person's display name for notifications: their staff profile name, the
+ * directory name as a fallback, else the raw email when we know nothing else.
+ * Used so emails never leak into notification titles/bodies.
+ */
+export async function displayName(
+  ctx: Ctx,
+  email: string,
+  year: number
+): Promise<string> {
+  const profile = await getProfile(ctx, email, year);
+  if (profile?.name) return profile.name;
+  const dirUser = await ctx.db
+    .query("directoryUsers")
+    .withIndex("by_email", (q) => q.eq("email", email))
+    .unique();
+  return dirUser?.name ?? email;
+}
+
 export interface CallerContext {
   email: string;
   year: number;
