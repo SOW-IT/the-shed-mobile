@@ -43,9 +43,12 @@ export const SignInScreen = () => {
     window.history.replaceState({}, "", window.location.pathname);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- OAuth code exchange on load
     setBusy(true);
-    void signIn("google", { code })
-      .catch((e: unknown) => setError(errorMessage(e)))
-      .finally(() => setBusy(false));
+    // Stay busy through the exchange: on success the app flips to Authenticated
+    // and this screen unmounts, so only re-enable the button if it fails.
+    void signIn("google", { code }).catch((e: unknown) => {
+      setError(errorMessage(e));
+      setBusy(false);
+    });
   }, [signIn]);
 
   const handleSignIn = async () => {
@@ -53,10 +56,11 @@ export const SignInScreen = () => {
     setBusy(true);
     try {
       if (Platform.OS === "web") {
-        // Come back to wherever this app is served from (hosted site,
-        // local dev, static preview) instead of defaulting to SITE_URL.
+        // Full-page redirect to Google (back to wherever this app is served
+        // from). Stay busy — we're navigating away, and resetting would briefly
+        // re-enable the button before the redirect actually happens.
         await signIn("google", { redirectTo: window.location.origin });
-        return; // full-page redirect to Google
+        return;
       }
       // Pass the scheme explicitly so the staging build always produces
       // theshedmobilestaging:// rather than exp://localhost when run via
@@ -68,12 +72,18 @@ export const SignInScreen = () => {
         const result = await openAuthSessionAsync(redirect.toString(), redirectTo);
         if (result.type === "success") {
           const code = new URL(result.url).searchParams.get("code");
-          if (code) await signIn("google", { code });
+          if (code) {
+            // On success the app flips to Authenticated and this screen
+            // unmounts, so stay busy rather than flicker back to clickable.
+            await signIn("google", { code });
+            return;
+          }
         }
       }
+      // No redirect, or the user dismissed the browser — re-enable the button.
+      setBusy(false);
     } catch (e) {
       setError(errorMessage(e));
-    } finally {
       setBusy(false);
     }
   };
