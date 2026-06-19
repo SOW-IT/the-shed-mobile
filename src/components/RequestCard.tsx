@@ -359,38 +359,38 @@ export const RequestCard = ({
     year: "numeric",
   });
 
-  // Collapsed summary: just the essentials plus a "View More" affordance.
+  // Collapsed summary: just the essentials. Tapping anywhere on the card
+  // expands it; a centered down-arrow hints at the affordance.
   if (collapsible && !expanded) {
     return (
-      <Card style={cardBorderStyle(status, actionRequired, t)}>
-        <View style={styles.topRow}>
-          <View style={styles.topSide}>
-            <Text style={[typography.amount, { color: t.text }]}>${request.amount}</Text>
+      <Pressable
+        onPress={() => setExpanded(true)}
+        accessibilityRole="button"
+        accessibilityLabel="View more details"
+        style={({ pressed }) => (pressed ? { opacity: 0.6 } : null)}
+      >
+        <Card style={cardBorderStyle(status, actionRequired, t)}>
+          <View style={styles.topRow}>
+            <View style={styles.topSide}>
+              <Text style={[typography.amount, { color: t.text }]}>${request.amount}</Text>
+            </View>
+            <View style={[styles.statusPill, { backgroundColor: chip.bg }]}>
+              <Text numberOfLines={1} style={[styles.statusPillText, { color: chip.fg }]}>
+                {status}
+              </Text>
+            </View>
           </View>
-          <View style={[styles.statusPill, { backgroundColor: chip.bg }]}>
-            <Text numberOfLines={1} style={[styles.statusPillText, { color: chip.fg }]}>
-              {status}
-            </Text>
-          </View>
-        </View>
-        <Text style={[typography.caption, { color: t.faint, marginTop: -6 }]}>
-          {request.department}
-          {showRequester ? ` · ${requesterName ?? request.requesterEmail}` : ""}
-          {" · "}
-          {dateLabel}
-        </Text>
-        <Pressable
-          onPress={() => setExpanded(true)}
-          accessibilityRole="button"
-          accessibilityLabel="View more details"
-          style={({ pressed }) => [styles.viewMore, pressed && { opacity: 0.6 }]}
-        >
-          <Text style={[typography.caption, { color: t.primary, fontWeight: "700" }]}>
-            View More
+          <Text style={[typography.caption, { color: t.faint, marginTop: -6 }]}>
+            {request.department}
+            {showRequester ? ` · ${requesterName ?? request.requesterEmail}` : ""}
+            {" · "}
+            {dateLabel}
           </Text>
-          <Ionicons name="chevron-down" size={14} color={t.primary} />
-        </Pressable>
-      </Card>
+          <View style={styles.expandHint}>
+            <Ionicons name="chevron-down" size={18} color={t.faint} />
+          </View>
+        </Card>
+      </Pressable>
     );
   }
 
@@ -512,6 +512,11 @@ const styles = StyleSheet.create({
     gap: 3,
     alignSelf: "flex-start",
     paddingVertical: 2,
+  },
+  expandHint: {
+    alignItems: "center",
+    marginTop: 4,
+    marginBottom: -4,
   },
   stepsRow: {
     flexDirection: "row",
