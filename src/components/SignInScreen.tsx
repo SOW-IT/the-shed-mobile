@@ -20,7 +20,17 @@ import { ErrorBanner, errorMessage, FadeInView, SowSpinner } from "./ui";
 export const SignInScreen = () => {
   const { signIn } = useAuthActions();
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  // On web, signing in is a full-page redirect to Google, so coming back
+  // re-mounts this screen with ?code=XXX in the URL. Start in the busy state
+  // when that param is present so the button is disabled/loading from the very
+  // first render through the code exchange below — the user can't re-tap it
+  // while we're actually signing them in.
+  const [busy, setBusy] = useState(
+    () =>
+      Platform.OS === "web" &&
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).has("code")
+  );
 
   // On web, Google redirects back to the app with ?code=XXX. ConvexAuthProvider
   // doesn't auto-exchange the code in Expo's web context, so we do it here.
