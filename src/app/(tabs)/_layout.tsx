@@ -6,6 +6,7 @@ import {
   Animated,
   ColorValue,
   GestureResponderEvent,
+  Platform,
   Pressable,
   PressableStateCallbackType,
   StyleProp,
@@ -77,6 +78,7 @@ type TabBarButtonProps = {
     | React.ReactNode
     | ((state: PressableStateCallbackType) => React.ReactNode);
   style?: StyleProp<ViewStyle>;
+  href?: string | null;
   onPress?: ((e: GestureResponderEvent) => void) | null;
   onPressIn?: ((e: GestureResponderEvent) => void) | null;
   onPressOut?: ((e: GestureResponderEvent) => void) | null;
@@ -91,19 +93,49 @@ type TabBarButtonProps = {
  * Tab-bar button that scales its icon on touch, giving the same press
  * feedback as the top-bar buttons (the default tab button ships with
  * `pressOpacity: 1`, i.e. no visible feedback).
+ *
+ * On web the button renders as an `<a href>`, so — like the default
+ * PlatformPressable — we must `preventDefault()` the click; otherwise the
+ * browser does a full-page navigation (reload) instead of letting Expo Router
+ * switch tabs client-side.
  */
 const AnimatedTabBarButton = ({
   children,
   style,
+  onPress,
   onPressIn,
   onPressOut,
   ...rest
 }: TabBarButtonProps) => {
   const { scale, onPressIn: scaleIn, onPressOut: scaleOut } = usePressScale();
+  const handlePress = (e: GestureResponderEvent) => {
+    if (Platform.OS === "web" && rest.href != null) {
+      const we = e as unknown as {
+        preventDefault?: () => void;
+        metaKey?: boolean;
+        altKey?: boolean;
+        ctrlKey?: boolean;
+        shiftKey?: boolean;
+        button?: number | null;
+      };
+      const hasModifier =
+        we.metaKey || we.altKey || we.ctrlKey || we.shiftKey;
+      const isLeftClick = we.button == null || we.button === 0;
+      // Only intercept plain left clicks; let cmd/ctrl/middle-click open a new
+      // tab natively.
+      if (!hasModifier && isLeftClick) {
+        we.preventDefault?.();
+        onPress?.(e);
+      }
+      return;
+    }
+    onPress?.(e);
+  };
   return (
     <Pressable
       {...rest}
       style={[style, styles.tabButton]}
+      onPress={handlePress}
       onPressIn={(e) => {
         scaleIn();
         onPressIn?.(e);
