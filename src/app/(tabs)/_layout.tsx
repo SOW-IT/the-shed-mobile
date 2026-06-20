@@ -103,7 +103,7 @@ const AnimatedTabBarButton = ({
   return (
     <Pressable
       {...rest}
-      style={style}
+      style={[style, styles.tabButton]}
       onPressIn={(e) => {
         scaleIn();
         onPressIn?.(e);
@@ -195,7 +195,7 @@ export default function TabsLayout() {
           borderTopWidth: 0,
           height: BOTTOM_TAB_HEIGHT + insets.bottom,
           paddingBottom: 0,
-          paddingTop: 4,
+          paddingTop: 2,
           ...shadowStyle(t.dark ? "#000000" : "#0F2523", t.dark ? 0.35 : 0.08, 16, -4, 12),
         },
       }}
@@ -232,6 +232,10 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
+  // Trim the default tab button's vertical padding so the bar can be shorter.
+  tabButton: {
+    paddingVertical: 0,
+  },
   // Fills the tab slot so the scaled icon stays centered.
   tabButtonInner: {
     flex: 1,
