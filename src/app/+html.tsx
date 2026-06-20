@@ -19,6 +19,14 @@ export default function Root({ children }: { children: React.ReactNode }) {
           If the app isn't installed, fall back to the store after a short wait.
           Desktop browsers keep using the web app. Append #noapp to bypass.
 
+          Crucially, the bounce is deferred until AFTER the page finishes
+          loading: setting window.location during the initial load aborts the
+          JS bundle, so a visitor who taps "Cancel" on the native "Open in app?"
+          prompt would otherwise be stranded on a blank, non-interactive shell.
+          Deferring means the working web app is already hydrated underneath, so
+          Cancel just stays on the page. We also only try once per tab session
+          and cancel the store fallback as soon as the visitor touches the page.
+
           The production scheme/package are hardcoded on purpose: the web export
           is production-only (scripts/deploy-web.mjs builds against prod Convex
           and deploys --prod; APP_VARIANT is never "staging" here). If a staging
@@ -33,21 +41,39 @@ export default function Root({ children }: { children: React.ReactNode }) {
                 var isAndroid = /Android/.test(ua);
                 if (!isIOS && !isAndroid) return;
                 if (location.hash === "#noapp") return;
+                // Try the bounce at most once per tab session, so cancelling and
+                // then using the web app doesn't keep re-triggering it.
+                try {
+                  if (sessionStorage.getItem("shedAppBounce")) return;
+                  sessionStorage.setItem("shedAppBounce", "1");
+                } catch (e) {}
 
-                var path = (location.pathname + location.search).replace(/^\\//, "");
-                var appUrl = "theshedmobile://" + path;
-                var store = isIOS
-                  ? "https://apps.apple.com/app/id6781592871"
-                  : "https://play.google.com/store/apps/details?id=au.org.sow.theshed";
+                function bounce() {
+                  var path = (location.pathname + location.search).replace(/^\\//, "");
+                  var appUrl = "theshedmobile://" + path;
+                  var store = isIOS
+                    ? "https://apps.apple.com/app/id6781592871"
+                    : "https://play.google.com/store/apps/details?id=au.org.sow.theshed";
 
-                // If the app opens, the tab is hidden — cancel the store fallback.
-                var fallback = setTimeout(function () { window.location = store; }, 1500);
-                document.addEventListener("visibilitychange", function () {
-                  if (document.hidden) clearTimeout(fallback);
-                });
-                window.addEventListener("pagehide", function () { clearTimeout(fallback); });
+                  var fallback = setTimeout(function () { window.location = store; }, 1500);
+                  var cancel = function () { clearTimeout(fallback); };
+                  // App opened -> tab hidden; or the visitor cancelled the prompt
+                  // and is interacting with the web app -> keep them here.
+                  document.addEventListener("visibilitychange", function () {
+                    if (document.hidden) cancel();
+                  });
+                  window.addEventListener("pagehide", cancel);
+                  window.addEventListener("pointerdown", cancel, { once: true });
+                  window.addEventListener("touchstart", cancel, { once: true });
+                  window.addEventListener("keydown", cancel, { once: true });
 
-                window.location = appUrl;
+                  window.location = appUrl;
+                }
+
+                // Defer until the web app has fully loaded so Cancel lands on a
+                // working page, not a half-loaded white screen.
+                if (document.readyState === "complete") bounce();
+                else window.addEventListener("load", bounce);
               })();
             `,
           }}
