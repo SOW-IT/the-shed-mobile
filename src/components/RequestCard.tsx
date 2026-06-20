@@ -274,8 +274,8 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
                   // Names + times stream in after the card opens — show blurred
                   // placeholders below each approver instead of leaving a gap.
                   <>
-                    <LoadingBar width={40} height={9} />
-                    <LoadingBar width={26} height={8} />
+                    <LoadingBar width={40} height={14} />
+                    <LoadingBar width={26} height={13} />
                   </>
                 ) : (
                   <>
@@ -580,8 +580,8 @@ const styles = StyleSheet.create({
   },
   stepActiveDot: { width: 8, height: 8, borderRadius: 4 },
   stepLabel: { fontSize: 10.5, letterSpacing: -0.1, textAlign: "center" },
-  stepName: { fontSize: 10.5, letterSpacing: -0.05, textAlign: "center" },
-  stepTime: { fontSize: 10, textAlign: "center" },
+  stepName: { fontSize: 10.5, lineHeight: 14, letterSpacing: -0.05, textAlign: "center" },
+  stepTime: { fontSize: 10, lineHeight: 13, textAlign: "center" },
   declineBox: {
     flexDirection: "row",
     alignItems: "center",
