@@ -4,6 +4,33 @@ All notable changes to **The SHED** mobile app. This project follows
 [semantic versioning](https://semver.org/); the marketing version lives in
 `app.json` and the build number auto-increments per EAS build.
 
+## [1.0.3] — 2026-06-20
+
+UI polish for request cards and the tab bars, plus web fixes. (#87)
+
+### Added
+
+- **Animated request cards.** Completed/finance cards now expand and collapse with
+  a smooth height animation; tapping the card header (or the centered chevron)
+  toggles it. (#87)
+- **Loading placeholders.** While an expanded card loads approver names/times and
+  receipt files, soft blurred placeholders show in their place instead of a gap. (#87)
+
+### Changed
+
+- **Bottom tab bar:** icons now give the same press feedback as the rest of the app,
+  the bar is slimmer, and the admin (cog) tab matches the other tabs. (#87)
+- **Sub tab bar (Mine / To Review):** the selected-tab underline slides — tracking the
+  swipe on device, animating on tab change on web. (#87)
+- **Full-width chrome:** the top bar and sub tab bar span the full screen width like the
+  bottom bar. (#87)
+
+### Fixed
+
+- Switching bottom tabs on the web app no longer triggers a full-page reload. (#87)
+- Cancelling the "open in app" prompt on mobile web no longer leaves a blank,
+  non-interactive screen. (#87)
+
 ## [1.0.2] — 2026-06-19
 
 User-facing features and polish on top of the 1.0.1 release tooling.
