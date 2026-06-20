@@ -460,6 +460,14 @@ export const RequestCard = ({
       <View style={styles.actionsRow}>
         <View style={styles.actionsLeft}>
           {children}
+          {collapsible && (
+            <IconButton
+              name="chevron-up"
+              size={40}
+              accessibilityLabel="Show less"
+              onPress={() => setExpanded(false)}
+            />
+          )}
         </View>
         <View style={styles.actionsRight}>
           <IconButton
@@ -490,16 +498,6 @@ export const RequestCard = ({
           ) : null}
         </View>
       </View>
-      {collapsible && (
-        <Pressable
-          onPress={() => setExpanded(false)}
-          accessibilityRole="button"
-          accessibilityLabel="Show less"
-          style={({ pressed }) => [styles.collapseHint, pressed && { opacity: 0.6 }]}
-        >
-          <Ionicons name="chevron-up" size={18} color={t.faint} />
-        </Pressable>
-      )}
       <CommentsSheet
         request={request}
         visible={showComments}
@@ -527,11 +525,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 4,
     marginBottom: -4,
-  },
-  collapseHint: {
-    alignItems: "center",
-    marginBottom: -4,
-    paddingVertical: 4,
   },
   stepsRow: {
     flexDirection: "row",
