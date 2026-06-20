@@ -4,7 +4,7 @@ import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { Muted, Row, Txt } from "@/components/ui";
+import { LoadingBar, Muted, Row, Txt } from "@/components/ui";
 
 /**
  * A submitted receipt's recipients: each one's bank details and receipt files
@@ -32,6 +32,13 @@ export const ReceiptRecipientList = ({ request }: { request: Doc<"requests"> }) 
           <Muted>
             BSB {recipient.bsb} · Account {recipient.accountNumber}
           </Muted>
+          {files === undefined ? (
+            // Files (signed URLs) load async — show a blurred placeholder link.
+            <View style={styles.fileLink}>
+              <Ionicons name="document-attach-outline" size={15} color={t.muted} />
+              <LoadingBar width={140} height={11} />
+            </View>
+          ) : null}
           {(files?.[i]?.attachments ?? []).map((file, j) =>
             file.deleted ? (
               // The file was purged by the retention cron; show the name so

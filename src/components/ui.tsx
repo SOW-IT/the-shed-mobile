@@ -1383,6 +1383,55 @@ export const TabBar = ({
 };
 
 /**
+ * A soft, blurred placeholder bar shown in place of async content (a person's
+ * name, a receipt file link) while it loads. The blur + gentle pulse reads as
+ * "loading" without a hard skeleton, and resolves to the real value once the
+ * query lands.
+ */
+export const LoadingBar = ({
+  width = 56,
+  height = 10,
+}: {
+  width?: number;
+  height?: number;
+}) => {
+  const t = useAppTheme();
+  const [pulse] = useState(() => new Animated.Value(0.45));
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 0.85,
+          duration: 650,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0.45,
+          duration: 650,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+  return (
+    <Animated.View
+      style={{
+        width,
+        height,
+        borderRadius: height / 2,
+        backgroundColor: t.separator,
+        opacity: pulse,
+        // Native wants the object form; web (react-native-web) wants a CSS
+        // string. Either way it frosts the placeholder while loading.
+        filter: Platform.OS === "web" ? "blur(2px)" : [{ blur: 2 }],
+      }}
+    />
+  );
+};
+
+/**
  * The year picker, fixed bottom-right above the bottom tab bar. Used on screens
  * where the staff year matters (Org, Manage, Requests "All"). Positioned like
  * {@link FooterAction} — the tab navigator already lays content above the bar,
