@@ -254,8 +254,13 @@ export default function TabsLayout() {
         options={{
           title: "Admin",
           // Admins get the full Manage screen; the Finance Head gets a
-          // restricted view (Budget Manager only).
-          href: me?.isAdmin || me?.isFinanceHead ? "/admin" : null,
+          // restricted view (Budget Manager only). When visible we OMIT `href`
+          // so the tab uses our custom AnimatedTabBarButton like the others
+          // (same height + press feedback) — expo-router swaps in its own Link
+          // button for any screen that sets `href`, which renders taller and
+          // without the scale feedback. The auto-built "/admin" href is still
+          // passed to our button, so the link target is unchanged.
+          ...(me?.isAdmin || me?.isFinanceHead ? {} : { href: null }),
           tabBarIcon: tabIcon("settings-outline", "settings"),
         }}
       />
