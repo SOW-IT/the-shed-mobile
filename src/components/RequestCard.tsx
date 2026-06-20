@@ -386,9 +386,6 @@ export const RequestCard = ({
             {" · "}
             {dateLabel}
           </Text>
-          <View style={styles.expandHint}>
-            <Ionicons name="chevron-down" size={18} color={t.faint} />
-          </View>
         </Card>
       </Pressable>
     );
@@ -520,11 +517,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 0.3,
-  },
-  expandHint: {
-    alignItems: "center",
-    marginTop: 4,
-    marginBottom: -4,
   },
   stepsRow: {
     flexDirection: "row",
