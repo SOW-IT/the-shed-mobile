@@ -1299,7 +1299,7 @@ export const TabBar = ({
     0
   );
   // Fallback driver when no external position is passed (web / tab taps).
-  const internal = useRef(new Animated.Value(activeIndex)).current;
+  const [internal] = useState(() => new Animated.Value(activeIndex));
   const pos = position ?? internal;
   useEffect(() => {
     if (position) return; // externally driven — don't fight it

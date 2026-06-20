@@ -25,11 +25,13 @@ export const PagerCarousel = ({ tabs, activeKey, renderPage, position }: Props) 
   // No swipe on web, so slide the tab-bar underline to the active tab here.
   useEffect(() => {
     if (!position) return;
-    Animated.timing(position, {
+    const animation = Animated.timing(position, {
       toValue: index,
       duration: 220,
       useNativeDriver: true,
-    }).start();
+    });
+    animation.start();
+    return () => animation.stop();
   }, [index, position]);
   const tab = tabs[index] ?? tabs[0];
   return <View style={styles.pager}>{tab ? renderPage(tab) : null}</View>;

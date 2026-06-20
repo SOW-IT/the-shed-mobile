@@ -1,5 +1,5 @@
 import { useQuery } from "convex/react";
-import { ReactNode, useRef } from "react";
+import { ReactNode, useRef, useState } from "react";
 import {
   Animated,
   NativeScrollEvent,
@@ -64,7 +64,7 @@ export const PagerScreen = ({
     tabs.findIndex((tab) => tab.key === activeKey),
     0
   );
-  const pagerPosition = useRef(new Animated.Value(initialIndex)).current;
+  const [pagerPosition] = useState(() => new Animated.Value(initialIndex));
   // Extra bottom space so the floating footer doesn't cover the last row.
   const bottomPad = footer ? 96 : 48;
   // The content height each tab last fired onEndReached at, so we don't re-fire
