@@ -273,10 +273,15 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
                 {actors === undefined ? (
                   // Names + times stream in after the card opens — show blurred
                   // placeholders below each approver instead of leaving a gap.
-                  <>
-                    <LoadingBar width={40} height={14} />
-                    <LoadingBar width={26} height={13} />
-                  </>
+                  // Only on actioned steps, which are the ones that will resolve
+                  // to a name/time (pending steps stay empty, so a bar there
+                  // would just flash and vanish on load).
+                  isApproved || isDeclined ? (
+                    <>
+                      <LoadingBar width={40} height={14} />
+                      <LoadingBar width={26} height={13} />
+                    </>
+                  ) : null
                 ) : (
                   <>
                     {displayName ? (

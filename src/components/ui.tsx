@@ -1305,7 +1305,7 @@ export const TabBar = ({
     if (position) return; // externally driven — don't fight it
     Animated.spring(internal, {
       toValue: activeIndex,
-      useNativeDriver: true,
+      useNativeDriver: USE_NATIVE_DRIVER,
       speed: 18,
       bounciness: 4,
     }).start();
@@ -1403,12 +1403,12 @@ export const LoadingBar = ({
         Animated.timing(pulse, {
           toValue: 0.85,
           duration: 650,
-          useNativeDriver: true,
+          useNativeDriver: USE_NATIVE_DRIVER,
         }),
         Animated.timing(pulse, {
           toValue: 0.45,
           duration: 650,
-          useNativeDriver: true,
+          useNativeDriver: USE_NATIVE_DRIVER,
         }),
       ])
     );

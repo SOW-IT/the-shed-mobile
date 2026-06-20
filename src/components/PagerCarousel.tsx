@@ -26,9 +26,10 @@ export const PagerCarousel = ({ tabs, activeKey, renderPage, position }: Props) 
   useEffect(() => {
     if (!position) return;
     const animation = Animated.timing(position, {
+      // This file is the web-only variant; web has no native animated module.
       toValue: index,
       duration: 220,
-      useNativeDriver: true,
+      useNativeDriver: false,
     });
     animation.start();
     return () => animation.stop();
