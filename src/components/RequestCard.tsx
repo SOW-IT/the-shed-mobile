@@ -425,7 +425,7 @@ export const RequestCard = ({
           onPress={() => setExpanded(false)}
           accessibilityRole="button"
           accessibilityLabel="Show less"
-          style={({ pressed }) => (pressed ? { opacity: 0.6 } : null)}
+          style={({ pressed }) => [styles.headerWrap, pressed && { opacity: 0.6 }]}
         >
           {expandedHeader}
         </Pressable>
@@ -505,6 +505,9 @@ export const RequestCard = ({
 };
 
 const styles = StyleSheet.create({
+  // Matches the Card's own gap so the amount→meta spacing is identical to the
+  // collapsed card, where those rows are direct Card children.
+  headerWrap: { gap: spacing.sm + 2 },
   topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   topSide: { flex: 1 },
   statusPill: {
