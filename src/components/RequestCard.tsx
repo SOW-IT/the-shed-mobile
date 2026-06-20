@@ -460,18 +460,6 @@ export const RequestCard = ({
       <View style={styles.actionsRow}>
         <View style={styles.actionsLeft}>
           {children}
-          {collapsible && (
-            <Pressable
-              onPress={() => setExpanded(false)}
-              accessibilityRole="button"
-              accessibilityLabel="Show less"
-              style={({ pressed }) => [styles.viewMore, pressed && { opacity: 0.6 }]}
-            >
-              <Text style={[typography.caption, styles.viewMoreText, { color: t.muted }]}>
-                View Less
-              </Text>
-            </Pressable>
-          )}
         </View>
         <View style={styles.actionsRight}>
           <IconButton
@@ -535,18 +523,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 0.3,
   },
-  viewMore: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    alignSelf: "flex-start",
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-  },
-  viewMoreText: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
   expandHint: {
     alignItems: "center",
     marginTop: 4,
@@ -554,7 +530,6 @@ const styles = StyleSheet.create({
   },
   collapseHint: {
     alignItems: "center",
-    marginTop: 6,
     marginBottom: -4,
     paddingVertical: 4,
   },
