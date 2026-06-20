@@ -353,12 +353,6 @@ export const RequestCard = ({
   const status = requestDisplayStatus(request);
   const chip = statusChip(status, t);
 
-  const dateLabel = new Date(request._creationTime).toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-
   // Collapsed summary: just the essentials. Tapping anywhere on the card
   // expands it; a centered down-arrow hints at the affordance.
   if (collapsible && !expanded) {
@@ -382,9 +376,12 @@ export const RequestCard = ({
           </View>
           <Text style={[typography.caption, { color: t.faint, marginTop: -6 }]}>
             {request.department}
-            {showRequester ? ` · ${requesterName ?? request.requesterEmail}` : ""}
-            {" · "}
-            {dateLabel}
+            {showRequester ? ` · ${requesterName ?? request.requesterEmail}` : ""}{" · "}
+            {new Date(request._creationTime).toLocaleDateString(undefined, {
+              day: "numeric",
+              month: "short",
+            })}{" · "}
+            {timeAgo(request._creationTime)}
           </Text>
         </Card>
       </Pressable>
