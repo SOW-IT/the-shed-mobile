@@ -28,6 +28,13 @@ export type PagerTab = {
 const NEAR_BOTTOM = 600;
 
 /**
+ * How far (px) to lower the footer to clear the screen as the swipe leaves its
+ * tab. The footer pill is ~54px tall sitting ~12px above the bottom bar, so this
+ * carries it (and its shadow) fully behind the opaque bottom tab bar.
+ */
+const FOOTER_HIDDEN_OFFSET = 120;
+
+/**
  * Page shell for the tabbed main screens (Requests, Manage): the top chrome
  * (logo + avatar) and a full-width square tab bar pinned up top, over a
  * swipeable carousel of pages. Each page scrolls independently.
@@ -43,6 +50,7 @@ export const PagerScreen = ({
   onActiveKeyChange,
   onEndReached,
   footer,
+  footerTabKey,
   floating,
 }: {
   tabs: PagerTab[];
@@ -52,6 +60,13 @@ export const PagerScreen = ({
   onEndReached?: (key: string) => void;
   /** Pinned full-width action above the bottom bar (e.g. Make Request). */
   footer?: ReactNode;
+  /**
+   * The tab the {@link footer} belongs to. When set, the footer is mounted on
+   * every page but slides down out of view as the swipe moves away from this
+   * tab, and back up on return — tracking the pager continuously. Omit to keep
+   * the footer pinned on all tabs.
+   */
+  footerTabKey?: string;
   /** Absolutely-positioned overlays (e.g. the year picker). */
   floating?: ReactNode;
 }) => {
@@ -65,8 +80,25 @@ export const PagerScreen = ({
     0
   );
   const [pagerPosition] = useState(() => new Animated.Value(initialIndex));
-  // Extra bottom space so the floating footer doesn't cover the last row.
-  const bottomPad = footer ? 96 : 48;
+  // Home index of the footer's tab — the footer slides away as the pager moves
+  // off it (see footerSlide below). Defaults to the first tab when unspecified.
+  const footerHomeIndex = footerTabKey
+    ? Math.max(
+        tabs.findIndex((tab) => tab.key === footerTabKey),
+        0
+      )
+    : 0;
+  // Lower the footer off-screen as the swipe leaves its tab (in either
+  // direction), and raise it back on return. Clamped so far-away tabs keep it
+  // fully hidden. On web this rides the 220ms tab-change animation. With no
+  // footerTabKey the footer is pinned, so it never moves.
+  const footerSlide = pagerPosition.interpolate({
+    inputRange: [footerHomeIndex - 1, footerHomeIndex, footerHomeIndex + 1],
+    outputRange: footerTabKey
+      ? [FOOTER_HIDDEN_OFFSET, 0, FOOTER_HIDDEN_OFFSET]
+      : [0, 0, 0],
+    extrapolate: "clamp",
+  });
   // The content height each tab last fired onEndReached at, so we don't re-fire
   // on every scroll event while the user lingers near the bottom — only once the
   // page has grown (i.e. more content actually loaded).
@@ -76,7 +108,16 @@ export const PagerScreen = ({
     <ScrollView
       showsVerticalScrollIndicator={false}
       style={{ backgroundColor: t.background }}
-      contentContainerStyle={[styles.page, { paddingBottom: bottomPad }]}
+      contentContainerStyle={[
+        styles.page,
+        // Only the footer's own tab needs the taller bottom inset; the others
+        // (where the footer is slid away) keep the slimmer one. A footer with no
+        // footerTabKey is pinned on every tab, so all pages get the inset.
+        {
+          paddingBottom:
+            footer && (!footerTabKey || tab.key === footerTabKey) ? 96 : 48,
+        },
+      ]}
       scrollEventThrottle={onEndReached ? 16 : undefined}
       onScroll={
         onEndReached
@@ -117,7 +158,14 @@ export const PagerScreen = ({
         renderPage={renderPage}
         position={pagerPosition}
       />
-      {footer}
+      {footer ? (
+        <Animated.View
+          pointerEvents="box-none"
+          style={[StyleSheet.absoluteFill, { transform: [{ translateY: footerSlide }] }]}
+        >
+          {footer}
+        </Animated.View>
+      ) : null}
       {floating}
     </SafeAreaView>
   );
