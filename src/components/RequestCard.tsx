@@ -394,8 +394,11 @@ export const RequestCard = ({
     );
   }
 
-  return (
-    <Card style={cardBorderStyle(status, actionRequired, t)}>
+  // The "top of the card" — amount, status, and the meta line. When the card
+  // is collapsible, tapping this area collapses it again (mirrors the title
+  // tap that expanded it).
+  const expandedHeader = (
+    <>
       <View style={styles.topRow}>
         <View style={styles.topSide}>
           <Text style={[typography.amount, { color: t.text }]}>${request.amount}</Text>
@@ -415,6 +418,23 @@ export const RequestCard = ({
         })}{" · "}
         {timeAgo(request._creationTime)}
       </Text>
+    </>
+  );
+
+  return (
+    <Card style={cardBorderStyle(status, actionRequired, t)}>
+      {collapsible ? (
+        <Pressable
+          onPress={() => setExpanded(false)}
+          accessibilityRole="button"
+          accessibilityLabel="Show less"
+          style={({ pressed }) => (pressed ? { opacity: 0.6 } : null)}
+        >
+          {expandedHeader}
+        </Pressable>
+      ) : (
+        expandedHeader
+      )}
       <Txt>{request.description}</Txt>
       <StepLine request={request} />
       {request.declineReason ? (
@@ -447,10 +467,9 @@ export const RequestCard = ({
               accessibilityLabel="Show less"
               style={({ pressed }) => [styles.viewMore, pressed && { opacity: 0.6 }]}
             >
-              <Text style={[typography.caption, { color: t.muted, fontWeight: "700" }]}>
+              <Text style={[typography.caption, styles.viewMoreText, { color: t.muted }]}>
                 View Less
               </Text>
-              <Ionicons name="chevron-up" size={14} color={t.muted} />
             </Pressable>
           )}
         </View>
@@ -483,6 +502,16 @@ export const RequestCard = ({
           ) : null}
         </View>
       </View>
+      {collapsible && (
+        <Pressable
+          onPress={() => setExpanded(false)}
+          accessibilityRole="button"
+          accessibilityLabel="Show less"
+          style={({ pressed }) => [styles.collapseHint, pressed && { opacity: 0.6 }]}
+        >
+          <Ionicons name="chevron-up" size={18} color={t.faint} />
+        </Pressable>
+      )}
       <CommentsSheet
         request={request}
         visible={showComments}
@@ -511,12 +540,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 3,
     alignSelf: "flex-start",
-    paddingVertical: 2,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  viewMoreText: {
+    fontSize: 14,
+    fontWeight: "700",
   },
   expandHint: {
     alignItems: "center",
     marginTop: 4,
     marginBottom: -4,
+  },
+  collapseHint: {
+    alignItems: "center",
+    marginTop: 6,
+    marginBottom: -4,
+    paddingVertical: 4,
   },
   stepsRow: {
     flexDirection: "row",
