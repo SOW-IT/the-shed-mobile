@@ -24,6 +24,9 @@ UI polish for request cards and the tab bars, plus web fixes. (#87)
   swipe on device, animating on tab change on web. (#87)
 - **Full-width chrome:** the top bar and sub tab bar span the full screen width like the
   bottom bar. (#87)
+- **Consistent control heights:** the bottom tab bar and the footer buttons (Make Request,
+  info) now share a single 50px height, and the tab icons sit centered without a padding
+  offset. (#90)
 
 ### Fixed
 

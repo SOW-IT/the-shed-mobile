@@ -1740,15 +1740,15 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   footerInfoBtn: {
-    width: 54,
-    height: 54,
+    width: 50,
+    height: 50,
     borderRadius: radius.lg - 2,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
   },
   footerAction: {
-    height: 54,
+    height: 50,
     borderRadius: radius.lg - 2,
     alignItems: "center",
     justifyContent: "center",

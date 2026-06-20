@@ -231,7 +231,7 @@ export default function TabsLayout() {
           // inflated) height — otherwise they sit low with a big gap above them
           // on devices with a home indicator. Web has no inset, so it's unchanged.
           paddingBottom: insets.bottom,
-          paddingTop: 2,
+          paddingTop: 0,
           ...shadowStyle(t.dark ? "#000000" : "#0F2523", t.dark ? 0.35 : 0.08, 16, -4, 12),
         },
       }}
