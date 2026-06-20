@@ -1,5 +1,5 @@
-import { ReactNode } from "react";
-import { StyleSheet, View } from "react-native";
+import { ReactNode, useEffect } from "react";
+import { Animated, StyleSheet, View } from "react-native";
 import type { PagerTab } from "@/components/PagerScreen";
 
 type Props = {
@@ -7,6 +7,8 @@ type Props = {
   activeKey: string;
   onActiveKeyChange: (key: string) => void;
   renderPage: (tab: PagerTab) => ReactNode;
+  /** Fractional page position; animated to the active tab on change. */
+  position?: Animated.Value;
 };
 
 /**
@@ -15,11 +17,20 @@ type Props = {
  * the tab bar rather than by swiping. The native variant lives in
  * PagerCarousel.native.tsx.
  */
-export const PagerCarousel = ({ tabs, activeKey, renderPage }: Props) => {
+export const PagerCarousel = ({ tabs, activeKey, renderPage, position }: Props) => {
   const index = Math.max(
     tabs.findIndex((tab) => tab.key === activeKey),
     0
   );
+  // No swipe on web, so slide the tab-bar underline to the active tab here.
+  useEffect(() => {
+    if (!position) return;
+    Animated.timing(position, {
+      toValue: index,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [index, position]);
   const tab = tabs[index] ?? tabs[0];
   return <View style={styles.pager}>{tab ? renderPage(tab) : null}</View>;
 };

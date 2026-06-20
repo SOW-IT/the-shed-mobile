@@ -1279,15 +1279,51 @@ export const TabBar = ({
   segments,
   active,
   onChange,
+  position,
 }: {
   segments: Segment[];
   active: string;
   onChange: (key: string) => void;
+  /**
+   * Fractional page position (0 = first tab, 1 = second, …). When supplied —
+   * e.g. driven by the pager's scroll on native — the selected-tab underline
+   * tracks it continuously. Without it, the underline springs to the active
+   * tab on change (the tab-to-tab animation used on web).
+   */
+  position?: Animated.Value;
 }) => {
   const t = useAppTheme();
+  const [width, setWidth] = useState(0);
+  const activeIndex = Math.max(
+    segments.findIndex((segment) => segment.key === active),
+    0
+  );
+  // Fallback driver when no external position is passed (web / tab taps).
+  const internal = useRef(new Animated.Value(activeIndex)).current;
+  const pos = position ?? internal;
+  useEffect(() => {
+    if (position) return; // externally driven — don't fight it
+    Animated.spring(internal, {
+      toValue: activeIndex,
+      useNativeDriver: true,
+      speed: 18,
+      bounciness: 4,
+    }).start();
+  }, [activeIndex, position, internal]);
+
   if (segments.length < 2) return null;
+  const segWidth = width / segments.length;
+  // position 0→1 moves the underline exactly one segment over; linear
+  // extrapolation covers any number of segments.
+  const translateX = pos.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, segWidth],
+  });
   return (
-    <View style={[styles.tabBar, { borderBottomColor: t.separator }]}>
+    <View
+      style={[styles.tabBar, { borderBottomColor: t.separator }]}
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+    >
       {segments.map((segment) => {
         const selected = segment.key === active;
         return (
@@ -1327,15 +1363,21 @@ export const TabBar = ({
                 </View>
               ) : null}
             </View>
-            <View
-              style={[
-                styles.tabIndicator,
-                { backgroundColor: selected ? t.primary : "transparent" },
-              ]}
-            />
+            {/* Transparent spacer: reserves the underline's height so the bar
+                doesn't change size when the real (absolute) indicator slides. */}
+            <View style={styles.tabIndicator} />
           </Pressable>
         );
       })}
+      {width > 0 ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.tabIndicatorBar,
+            { width: segWidth, backgroundColor: t.primary, transform: [{ translateX }] },
+          ]}
+        />
+      ) : null}
     </View>
   );
 };
@@ -1391,7 +1433,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   tabText: { fontSize: 13.5, letterSpacing: -0.1 },
-  tabIndicator: { height: 2.5, alignSelf: "stretch", borderRadius: 2 },
+  tabIndicator: { height: 2.5, alignSelf: "stretch" },
+  tabIndicatorBar: {
+    position: "absolute",
+    left: 0,
+    bottom: 0,
+    height: 2.5,
+    borderRadius: 2,
+  },
   tabBadge: {
     borderRadius: radius.full,
     minWidth: 18,

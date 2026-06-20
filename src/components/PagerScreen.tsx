@@ -1,6 +1,7 @@
 import { useQuery } from "convex/react";
 import { ReactNode, useRef } from "react";
 import {
+  Animated,
   NativeScrollEvent,
   NativeSyntheticEvent,
   ScrollView,
@@ -56,6 +57,14 @@ export const PagerScreen = ({
 }) => {
   const t = useAppTheme();
   const me = useQuery(api.directory.me);
+  // Fractional page position shared with the tab bar so its underline tracks
+  // the pager: driven continuously by swipes on native, animated on tab change
+  // on web. See PagerCarousel.
+  const initialIndex = Math.max(
+    tabs.findIndex((tab) => tab.key === activeKey),
+    0
+  );
+  const pagerPosition = useRef(new Animated.Value(initialIndex)).current;
   // Extra bottom space so the floating footer doesn't cover the last row.
   const bottomPad = footer ? 96 : 48;
   // The content height each tab last fired onEndReached at, so we don't re-fire
@@ -94,13 +103,19 @@ export const PagerScreen = ({
         <View style={styles.topBarWrap}>
           <TopBar photo={me?.photo ?? null} name={me?.name ?? null} />
         </View>
-        <TabBar segments={tabs} active={activeKey} onChange={onActiveKeyChange} />
+        <TabBar
+          segments={tabs}
+          active={activeKey}
+          onChange={onActiveKeyChange}
+          position={pagerPosition}
+        />
       </View>
       <PagerCarousel
         tabs={tabs}
         activeKey={activeKey}
         onActiveKeyChange={onActiveKeyChange}
         renderPage={renderPage}
+        position={pagerPosition}
       />
       {footer}
       {floating}
