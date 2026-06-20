@@ -227,7 +227,7 @@ export default function TabsLayout() {
           borderTopWidth: 0,
           height: BOTTOM_TAB_HEIGHT + insets.bottom,
           paddingBottom: 0,
-          paddingTop: 2,
+          paddingTop: 0,
           ...shadowStyle(t.dark ? "#000000" : "#0F2523", t.dark ? 0.35 : 0.08, 16, -4, 12),
         },
       }}
