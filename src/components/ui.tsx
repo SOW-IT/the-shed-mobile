@@ -36,7 +36,7 @@ export const hapticSelect = () => {
  * handlers to spread onto a Pressable. Used everywhere for a consistent feel
  * (matching the "Make Request" footer button).
  */
-const usePressScale = (pressedScale = 0.96) => {
+export const usePressScale = (pressedScale = 0.96) => {
   const [scale] = useState(() => new Animated.Value(1));
   const onPressIn = () =>
     Animated.spring(scale, {

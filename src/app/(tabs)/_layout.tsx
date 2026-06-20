@@ -1,10 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { Tabs } from "expo-router";
-import { ColorValue, Text, View } from "react-native";
+import {
+  AccessibilityState,
+  Animated,
+  ColorValue,
+  GestureResponderEvent,
+  Pressable,
+  PressableStateCallbackType,
+  StyleProp,
+  StyleSheet,
+  Text,
+  View,
+  ViewStyle,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
-import { hapticSelect } from "@/components/ui";
+import { hapticSelect, usePressScale } from "@/components/ui";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { BOTTOM_TAB_HEIGHT, shadowStyle, useAppTheme } from "@/theme";
 import { requestFullyApproved } from "../../../shared/flow";
@@ -56,6 +68,55 @@ const RequestsTabIcon = ({
         </View>
       )}
     </View>
+  );
+};
+
+/** Props the tab navigator hands to a custom `tabBarButton`. */
+type TabBarButtonProps = {
+  children?:
+    | React.ReactNode
+    | ((state: PressableStateCallbackType) => React.ReactNode);
+  style?: StyleProp<ViewStyle>;
+  onPress?: ((e: GestureResponderEvent) => void) | null;
+  onPressIn?: ((e: GestureResponderEvent) => void) | null;
+  onPressOut?: ((e: GestureResponderEvent) => void) | null;
+  onLongPress?: ((e: GestureResponderEvent) => void) | null;
+  accessibilityState?: AccessibilityState;
+  accessibilityLabel?: string;
+  testID?: string;
+  disabled?: boolean | null;
+};
+
+/**
+ * Tab-bar button that scales its icon on touch, giving the same press
+ * feedback as the top-bar buttons (the default tab button ships with
+ * `pressOpacity: 1`, i.e. no visible feedback).
+ */
+const AnimatedTabBarButton = ({
+  children,
+  style,
+  onPressIn,
+  onPressOut,
+  ...rest
+}: TabBarButtonProps) => {
+  const { scale, onPressIn: scaleIn, onPressOut: scaleOut } = usePressScale();
+  return (
+    <Pressable
+      {...rest}
+      style={style}
+      onPressIn={(e) => {
+        scaleIn();
+        onPressIn?.(e);
+      }}
+      onPressOut={(e) => {
+        scaleOut();
+        onPressOut?.(e);
+      }}
+    >
+      <Animated.View style={[styles.tabButtonInner, { transform: [{ scale }] }]}>
+        {children as React.ReactNode}
+      </Animated.View>
+    </Pressable>
   );
 };
 
@@ -122,6 +183,7 @@ export default function TabsLayout() {
         tabBarShowLabel: false,
         tabBarActiveTintColor: t.primary,
         tabBarInactiveTintColor: t.faint,
+        tabBarButton: (props) => <AnimatedTabBarButton {...props} />,
         tabBarBadgeStyle: {
           backgroundColor: t.accent,
           color: "#ffffff",
@@ -132,7 +194,7 @@ export default function TabsLayout() {
           backgroundColor: t.card,
           borderTopWidth: 0,
           height: BOTTOM_TAB_HEIGHT + insets.bottom,
-          paddingBottom: Math.max(insets.bottom, 4),
+          paddingBottom: 0,
           paddingTop: 4,
           ...shadowStyle(t.dark ? "#000000" : "#0F2523", t.dark ? 0.35 : 0.08, 16, -4, 12),
         },
@@ -168,3 +230,12 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  // Fills the tab slot so the scaled icon stays centered.
+  tabButtonInner: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
