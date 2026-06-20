@@ -271,17 +271,26 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
                   {STEP_LABELS[step]}
                 </Text>
                 {actors === undefined ? (
-                  <LoadingBar width={40} height={9} />
-                ) : displayName ? (
-                  <Text numberOfLines={1} style={[styles.stepName, { color: t.muted }]}>
-                    {displayName}
-                  </Text>
-                ) : null}
-                {actor?.actedAt ? (
-                  <Text style={[styles.stepTime, { color: t.faint }]}>
-                    {timeAgo(actor.actedAt)}
-                  </Text>
-                ) : null}
+                  // Names + times stream in after the card opens — show blurred
+                  // placeholders below each approver instead of leaving a gap.
+                  <>
+                    <LoadingBar width={40} height={9} />
+                    <LoadingBar width={26} height={8} />
+                  </>
+                ) : (
+                  <>
+                    {displayName ? (
+                      <Text numberOfLines={1} style={[styles.stepName, { color: t.muted }]}>
+                        {displayName}
+                      </Text>
+                    ) : null}
+                    {actor?.actedAt ? (
+                      <Text style={[styles.stepTime, { color: t.faint }]}>
+                        {timeAgo(actor.actedAt)}
+                      </Text>
+                    ) : null}
+                  </>
+                )}
               </Pressable>
             </React.Fragment>
           );
