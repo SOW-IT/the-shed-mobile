@@ -49,10 +49,20 @@ export const PagerCarousel = ({
       onPageScroll={(e: { nativeEvent: { position: number; offset: number } }) => {
         scrollPosition?.setValue(e.nativeEvent.position + e.nativeEvent.offset);
       }}
+      // Settle the underline exactly on the landed page (a final onPageScroll can
+      // stop a hair short of the integer) — but ONLY once movement stops. Doing
+      // this mid-drag is what caused the one-frame flicker: onPageSelected fires
+      // the moment the swipe crosses the half-way point while the finger is still
+      // down, and snapping to the integer there jumped the underline to its
+      // end-state for a frame before the next onPageScroll flicked it back to the
+      // live drag offset.
+      onPageScrollStateChanged={(e: { nativeEvent: { pageScrollState: string } }) => {
+        if (e.nativeEvent.pageScrollState === "idle") {
+          scrollPosition?.setValue(position.current);
+        }
+      }}
       onPageSelected={(e: { nativeEvent: { position: number } }) => {
         position.current = e.nativeEvent.position;
-        // Settle exactly on the landed page (offset can stop a hair short).
-        scrollPosition?.setValue(e.nativeEvent.position);
         if (programmatic.current) {
           programmatic.current = false;
           return;

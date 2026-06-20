@@ -226,7 +226,11 @@ export default function TabsLayout() {
           backgroundColor: t.card,
           borderTopWidth: 0,
           height: BOTTOM_TAB_HEIGHT + insets.bottom,
-          paddingBottom: 0,
+          // Reserve the safe-area inset as bottom padding so the icons centre in
+          // the BOTTOM_TAB_HEIGHT band up top instead of in the full (inset-
+          // inflated) height — otherwise they sit low with a big gap above them
+          // on devices with a home indicator. Web has no inset, so it's unchanged.
+          paddingBottom: insets.bottom,
           paddingTop: 0,
           ...shadowStyle(t.dark ? "#000000" : "#0F2523", t.dark ? 0.35 : 0.08, 16, -4, 12),
         },

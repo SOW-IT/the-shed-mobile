@@ -191,7 +191,10 @@ export default function RequestsScreen() {
   const [guideOpen, setGuideOpen] = useState(false);
   const openNewRequest = () => { setRequestPrefill(null); setNewRequestOpen(true); };
 
-  const showMakeRequest = me?.profile != null && activeSegment === "mine";
+  // Keep the footer mounted for anyone with a profile, on every segment — the
+  // PagerScreen slides it down when the swipe leaves "mine" (footerTabKey) and
+  // back up on return, so it isn't gated on the active segment here.
+  const showMakeRequest = me?.profile != null;
 
   // Wired to the active list's completed-tab "reveal more" handler (or null).
   const loadMoreRef = useRef<(() => void) | null>(null);
@@ -314,6 +317,8 @@ export default function RequestsScreen() {
         onEndReached={(key) => {
           if (key === "all") loadMoreRef.current?.();
         }}
+        // Mounted on every segment so it can slide down on swipe-away and back
+        // up on return (see footerTabKey); PagerScreen drives the animation.
         footer={
           showMakeRequest ? (
             <FooterAction
@@ -323,6 +328,7 @@ export default function RequestsScreen() {
             />
           ) : undefined
         }
+        footerTabKey="mine"
         floating={
           activeSegment === "all" && pickerYears.length > 1 ? (
             <FloatingYearPicker
