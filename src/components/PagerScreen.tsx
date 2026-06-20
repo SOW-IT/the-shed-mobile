@@ -110,7 +110,9 @@ export const PagerScreen = ({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  chrome: { width: "100%", maxWidth: 720, alignSelf: "center" },
+  // Full-width chrome (top bar + sub tab bar) so it spans the screen like the
+  // bottom tab bar; the scrolling content below stays capped at 720 + centered.
+  chrome: { width: "100%" },
   topBarWrap: { paddingHorizontal: spacing.lg },
   page: {
     flexGrow: 1,
