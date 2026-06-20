@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useRef } from "react";
-import { StyleSheet, View } from "react-native";
+import { Animated, StyleSheet, View } from "react-native";
 import PagerView from "react-native-pager-view";
 import type { PagerTab } from "@/components/PagerScreen";
 
@@ -8,6 +8,8 @@ type Props = {
   activeKey: string;
   onActiveKeyChange: (key: string) => void;
   renderPage: (tab: PagerTab) => ReactNode;
+  /** Fractional page position, updated live as the pager scrolls. */
+  position?: Animated.Value;
 };
 
 /**
@@ -22,6 +24,7 @@ export const PagerCarousel = ({
   activeKey,
   onActiveKeyChange,
   renderPage,
+  position: scrollPosition,
 }: Props) => {
   const index = Math.max(
     tabs.findIndex((tab) => tab.key === activeKey),
@@ -41,8 +44,15 @@ export const PagerCarousel = ({
       ref={pagerRef}
       style={styles.pager}
       initialPage={index}
-      onPageSelected={(e) => {
+      // Feed the live scroll position (page + 0..1 offset) to the tab bar so
+      // its underline follows the swipe.
+      onPageScroll={(e: { nativeEvent: { position: number; offset: number } }) => {
+        scrollPosition?.setValue(e.nativeEvent.position + e.nativeEvent.offset);
+      }}
+      onPageSelected={(e: { nativeEvent: { position: number } }) => {
         position.current = e.nativeEvent.position;
+        // Settle exactly on the landed page (offset can stop a hair short).
+        scrollPosition?.setValue(e.nativeEvent.position);
         if (programmatic.current) {
           programmatic.current = false;
           return;

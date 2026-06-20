@@ -1,6 +1,7 @@
 import { useQuery } from "convex/react";
-import { ReactNode, useRef } from "react";
+import { ReactNode, useRef, useState } from "react";
 import {
+  Animated,
   NativeScrollEvent,
   NativeSyntheticEvent,
   ScrollView,
@@ -56,6 +57,14 @@ export const PagerScreen = ({
 }) => {
   const t = useAppTheme();
   const me = useQuery(api.directory.me);
+  // Fractional page position shared with the tab bar so its underline tracks
+  // the pager: driven continuously by swipes on native, animated on tab change
+  // on web. See PagerCarousel.
+  const initialIndex = Math.max(
+    tabs.findIndex((tab) => tab.key === activeKey),
+    0
+  );
+  const [pagerPosition] = useState(() => new Animated.Value(initialIndex));
   // Extra bottom space so the floating footer doesn't cover the last row.
   const bottomPad = footer ? 96 : 48;
   // The content height each tab last fired onEndReached at, so we don't re-fire
@@ -94,13 +103,19 @@ export const PagerScreen = ({
         <View style={styles.topBarWrap}>
           <TopBar photo={me?.photo ?? null} name={me?.name ?? null} />
         </View>
-        <TabBar segments={tabs} active={activeKey} onChange={onActiveKeyChange} />
+        <TabBar
+          segments={tabs}
+          active={activeKey}
+          onChange={onActiveKeyChange}
+          position={pagerPosition}
+        />
       </View>
       <PagerCarousel
         tabs={tabs}
         activeKey={activeKey}
         onActiveKeyChange={onActiveKeyChange}
         renderPage={renderPage}
+        position={pagerPosition}
       />
       {footer}
       {floating}
@@ -110,7 +125,9 @@ export const PagerScreen = ({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  chrome: { width: "100%", maxWidth: 720, alignSelf: "center" },
+  // Full-width chrome (top bar + sub tab bar) so it spans the screen like the
+  // bottom tab bar; the scrolling content below stays capped at 720 + centered.
+  chrome: { width: "100%" },
   topBarWrap: { paddingHorizontal: spacing.lg },
   page: {
     flexGrow: 1,

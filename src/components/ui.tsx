@@ -36,7 +36,7 @@ export const hapticSelect = () => {
  * handlers to spread onto a Pressable. Used everywhere for a consistent feel
  * (matching the "Make Request" footer button).
  */
-const usePressScale = (pressedScale = 0.96) => {
+export const usePressScale = (pressedScale = 0.96) => {
   const [scale] = useState(() => new Animated.Value(1));
   const onPressIn = () =>
     Animated.spring(scale, {
@@ -1279,15 +1279,51 @@ export const TabBar = ({
   segments,
   active,
   onChange,
+  position,
 }: {
   segments: Segment[];
   active: string;
   onChange: (key: string) => void;
+  /**
+   * Fractional page position (0 = first tab, 1 = second, …). When supplied —
+   * e.g. driven by the pager's scroll on native — the selected-tab underline
+   * tracks it continuously. Without it, the underline springs to the active
+   * tab on change (the tab-to-tab animation used on web).
+   */
+  position?: Animated.Value;
 }) => {
   const t = useAppTheme();
+  const [width, setWidth] = useState(0);
+  const activeIndex = Math.max(
+    segments.findIndex((segment) => segment.key === active),
+    0
+  );
+  // Fallback driver when no external position is passed (web / tab taps).
+  const [internal] = useState(() => new Animated.Value(activeIndex));
+  const pos = position ?? internal;
+  useEffect(() => {
+    if (position) return; // externally driven — don't fight it
+    Animated.spring(internal, {
+      toValue: activeIndex,
+      useNativeDriver: USE_NATIVE_DRIVER,
+      speed: 18,
+      bounciness: 4,
+    }).start();
+  }, [activeIndex, position, internal]);
+
   if (segments.length < 2) return null;
+  const segWidth = width / segments.length;
+  // position 0→1 moves the underline exactly one segment over; linear
+  // extrapolation covers any number of segments.
+  const translateX = pos.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, segWidth],
+  });
   return (
-    <View style={[styles.tabBar, { borderBottomColor: t.separator }]}>
+    <View
+      style={[styles.tabBar, { borderBottomColor: t.separator }]}
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+    >
       {segments.map((segment) => {
         const selected = segment.key === active;
         return (
@@ -1327,16 +1363,71 @@ export const TabBar = ({
                 </View>
               ) : null}
             </View>
-            <View
-              style={[
-                styles.tabIndicator,
-                { backgroundColor: selected ? t.primary : "transparent" },
-              ]}
-            />
+            {/* Transparent spacer: reserves the underline's height so the bar
+                doesn't change size when the real (absolute) indicator slides. */}
+            <View style={styles.tabIndicator} />
           </Pressable>
         );
       })}
+      {width > 0 ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.tabIndicatorBar,
+            { width: segWidth, backgroundColor: t.primary, transform: [{ translateX }] },
+          ]}
+        />
+      ) : null}
     </View>
+  );
+};
+
+/**
+ * A soft, blurred placeholder bar shown in place of async content (a person's
+ * name, a receipt file link) while it loads. The blur + gentle pulse reads as
+ * "loading" without a hard skeleton, and resolves to the real value once the
+ * query lands.
+ */
+export const LoadingBar = ({
+  width = 56,
+  height = 10,
+}: {
+  width?: number;
+  height?: number;
+}) => {
+  const t = useAppTheme();
+  const [pulse] = useState(() => new Animated.Value(0.45));
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 0.85,
+          duration: 650,
+          useNativeDriver: USE_NATIVE_DRIVER,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0.45,
+          duration: 650,
+          useNativeDriver: USE_NATIVE_DRIVER,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+  return (
+    <Animated.View
+      style={{
+        width,
+        height,
+        borderRadius: height / 2,
+        backgroundColor: t.separator,
+        opacity: pulse,
+        // Native wants the object form; web (react-native-web) wants a CSS
+        // string. Either way it frosts the placeholder while loading.
+        filter: Platform.OS === "web" ? "blur(2px)" : [{ blur: 2 }],
+      }}
+    />
   );
 };
 
@@ -1391,7 +1482,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   tabText: { fontSize: 13.5, letterSpacing: -0.1 },
-  tabIndicator: { height: 2.5, alignSelf: "stretch", borderRadius: 2 },
+  tabIndicator: { height: 2.5, alignSelf: "stretch" },
+  tabIndicatorBar: {
+    position: "absolute",
+    left: 0,
+    bottom: 0,
+    height: 2.5,
+    borderRadius: 2,
+  },
   tabBadge: {
     borderRadius: radius.full,
     minWidth: 18,

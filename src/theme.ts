@@ -19,7 +19,7 @@ export const USE_NATIVE_DRIVER = Platform.OS !== "web";
  * the tab bar itself and floating overlays (year picker, Make Request) so they
  * clear it consistently.
  */
-export const BOTTOM_TAB_HEIGHT = 58;
+export const BOTTOM_TAB_HEIGHT = 46;
 
 /** 4pt spacing scale. */
 export const spacing = {

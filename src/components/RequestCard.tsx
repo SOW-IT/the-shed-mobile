@@ -16,7 +16,7 @@ import {
 import { api } from "../../convex/_generated/api";
 import { Doc, Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "../theme";
-import { Card, IconButton, Muted, Sheet, Txt } from "./ui";
+import { Card, IconButton, LoadingBar, Muted, Sheet, Txt } from "./ui";
 import { CommentsSheet } from "./CommentsSheet";
 import { ReceiptRecipientList } from "./ReceiptRecipientList";
 
@@ -270,16 +270,32 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
                 >
                   {STEP_LABELS[step]}
                 </Text>
-                {displayName ? (
-                  <Text numberOfLines={1} style={[styles.stepName, { color: t.muted }]}>
-                    {displayName}
-                  </Text>
-                ) : null}
-                {actor?.actedAt ? (
-                  <Text style={[styles.stepTime, { color: t.faint }]}>
-                    {timeAgo(actor.actedAt)}
-                  </Text>
-                ) : null}
+                {actors === undefined ? (
+                  // Names + times stream in after the card opens — show blurred
+                  // placeholders below each approver instead of leaving a gap.
+                  // Only on actioned steps, which are the ones that will resolve
+                  // to a name/time (pending steps stay empty, so a bar there
+                  // would just flash and vanish on load).
+                  isApproved || isDeclined ? (
+                    <>
+                      <LoadingBar width={40} height={14} />
+                      <LoadingBar width={26} height={13} />
+                    </>
+                  ) : null
+                ) : (
+                  <>
+                    {displayName ? (
+                      <Text numberOfLines={1} style={[styles.stepName, { color: t.muted }]}>
+                        {displayName}
+                      </Text>
+                    ) : null}
+                    {actor?.actedAt ? (
+                      <Text style={[styles.stepTime, { color: t.faint }]}>
+                        {timeAgo(actor.actedAt)}
+                      </Text>
+                    ) : null}
+                  </>
+                )}
               </Pressable>
             </React.Fragment>
           );
@@ -353,49 +369,44 @@ export const RequestCard = ({
   const status = requestDisplayStatus(request);
   const chip = statusChip(status, t);
 
-  const dateLabel = new Date(request._creationTime).toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  // Smooth expand/collapse for collapsible cards: the body is mounted only
+  // while open (or closing), and its height animates between 0 and the measured
+  // content height — which also animates the growth as names/files stream in.
+  const [bodyMounted, setBodyMounted] = useState(false);
+  const [bodyHeight, setBodyHeight] = useState(0);
+  const [heightAnim] = useState(() => new Animated.Value(0));
+  const expand = () => {
+    setBodyMounted(true);
+    setExpanded(true);
+  };
+  const collapse = () => {
+    setExpanded(false);
+    Animated.timing(heightAnim, {
+      toValue: 0,
+      duration: 200,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start(({ finished }) => {
+      if (finished) setBodyMounted(false);
+    });
+  };
+  const toggleExpanded = () => (expanded ? collapse() : expand());
+  useEffect(() => {
+    if (expanded && bodyHeight > 0) {
+      Animated.timing(heightAnim, {
+        toValue: bodyHeight,
+        duration: 260,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
+    }
+  }, [expanded, bodyHeight, heightAnim]);
 
-  // Collapsed summary: just the essentials. Tapping anywhere on the card
-  // expands it; a centered down-arrow hints at the affordance.
-  if (collapsible && !expanded) {
-    return (
-      <Pressable
-        onPress={() => setExpanded(true)}
-        accessibilityRole="button"
-        accessibilityLabel="View more details"
-        style={({ pressed }) => (pressed ? { opacity: 0.6 } : null)}
-      >
-        <Card style={cardBorderStyle(status, actionRequired, t)}>
-          <View style={styles.topRow}>
-            <View style={styles.topSide}>
-              <Text style={[typography.amount, { color: t.text }]}>${request.amount}</Text>
-            </View>
-            <View style={[styles.statusPill, { backgroundColor: chip.bg }]}>
-              <Text numberOfLines={1} style={[styles.statusPillText, { color: chip.fg }]}>
-                {status}
-              </Text>
-            </View>
-          </View>
-          <Text style={[typography.caption, { color: t.faint, marginTop: -6 }]}>
-            {request.department}
-            {showRequester ? ` · ${requesterName ?? request.requesterEmail}` : ""}
-            {" · "}
-            {dateLabel}
-          </Text>
-          <View style={styles.expandHint}>
-            <Ionicons name="chevron-down" size={18} color={t.faint} />
-          </View>
-        </Card>
-      </Pressable>
-    );
-  }
-
-  return (
-    <Card style={cardBorderStyle(status, actionRequired, t)}>
+  // The "top of the card" — amount, status, and the meta line. For collapsible
+  // cards it doubles as the toggle: tap to expand when collapsed, collapse when
+  // open.
+  const header = (
+    <>
       <View style={styles.topRow}>
         <View style={styles.topSide}>
           <Text style={[typography.amount, { color: t.text }]}>${request.amount}</Text>
@@ -415,6 +426,11 @@ export const RequestCard = ({
         })}{" · "}
         {timeAgo(request._creationTime)}
       </Text>
+    </>
+  );
+
+  const body = (
+    <>
       <Txt>{request.description}</Txt>
       <StepLine request={request} />
       {request.declineReason ? (
@@ -441,17 +457,12 @@ export const RequestCard = ({
         <View style={styles.actionsLeft}>
           {children}
           {collapsible && (
-            <Pressable
-              onPress={() => setExpanded(false)}
-              accessibilityRole="button"
+            <IconButton
+              name="chevron-up"
+              size={40}
               accessibilityLabel="Show less"
-              style={({ pressed }) => [styles.viewMore, pressed && { opacity: 0.6 }]}
-            >
-              <Text style={[typography.caption, { color: t.muted, fontWeight: "700" }]}>
-                View Less
-              </Text>
-              <Ionicons name="chevron-up" size={14} color={t.muted} />
-            </Pressable>
+              onPress={collapse}
+            />
           )}
         </View>
         <View style={styles.actionsRight}>
@@ -488,11 +499,57 @@ export const RequestCard = ({
         visible={showComments}
         onClose={() => setShowComments(false)}
       />
+    </>
+  );
+
+  return (
+    <Card style={cardBorderStyle(status, actionRequired, t)}>
+      {collapsible ? (
+        <Pressable
+          onPress={toggleExpanded}
+          accessibilityRole="button"
+          accessibilityLabel={expanded ? "Show less" : "View more details"}
+          style={({ pressed }) => [styles.headerWrap, pressed && { opacity: 0.6 }]}
+        >
+          {header}
+        </Pressable>
+      ) : (
+        header
+      )}
+      {collapsible ? (
+        bodyMounted ? (
+          <Animated.View
+            // Cancel the Card's gap above us so the header→body spacing lives
+            // inside the measured height (bodyMeasure's paddingTop) and animates
+            // with it — no constant offset to snap away on collapse.
+            style={{
+              height: heightAnim,
+              overflow: "hidden",
+              marginTop: -(spacing.sm + 2),
+            }}
+          >
+            <View
+              style={styles.bodyMeasure}
+              onLayout={(e) => setBodyHeight(e.nativeEvent.layout.height)}
+            >
+              {body}
+            </View>
+          </Animated.View>
+        ) : null
+      ) : (
+        body
+      )}
     </Card>
   );
 };
 
 const styles = StyleSheet.create({
+  // Matches the Card's own gap so the amount→meta spacing is identical to the
+  // collapsed card, where those rows are direct Card children.
+  headerWrap: { gap: spacing.sm + 2 },
+  // The animated body wrapper replaces the Card as the direct parent of these
+  // rows, so it must reproduce the Card's gap between them.
+  bodyMeasure: { gap: spacing.sm + 2, paddingTop: spacing.sm + 2 },
   topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   topSide: { flex: 1 },
   statusPill: {
@@ -505,18 +562,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 0.3,
-  },
-  viewMore: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    alignSelf: "flex-start",
-    paddingVertical: 2,
-  },
-  expandHint: {
-    alignItems: "center",
-    marginTop: 4,
-    marginBottom: -4,
   },
   stepsRow: {
     flexDirection: "row",
@@ -540,8 +585,8 @@ const styles = StyleSheet.create({
   },
   stepActiveDot: { width: 8, height: 8, borderRadius: 4 },
   stepLabel: { fontSize: 10.5, letterSpacing: -0.1, textAlign: "center" },
-  stepName: { fontSize: 10.5, letterSpacing: -0.05, textAlign: "center" },
-  stepTime: { fontSize: 10, textAlign: "center" },
+  stepName: { fontSize: 10.5, lineHeight: 14, letterSpacing: -0.05, textAlign: "center" },
+  stepTime: { fontSize: 10, lineHeight: 13, textAlign: "center" },
   declineBox: {
     flexDirection: "row",
     alignItems: "center",

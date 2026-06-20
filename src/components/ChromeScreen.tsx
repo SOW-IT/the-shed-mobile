@@ -44,10 +44,10 @@ export const ChromeScreen = ({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  // Full-width top bar so it spans the screen like the bottom tab bar; the
+  // scrolling content below stays capped at 720 + centered.
   topBarWrap: {
     width: "100%",
-    maxWidth: 720,
-    alignSelf: "center",
     paddingHorizontal: spacing.lg,
   },
   scroll: {
