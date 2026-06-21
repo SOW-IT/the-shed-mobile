@@ -754,6 +754,11 @@ export default function AdminScreen() {
   const onSelectYear = (y: number) => {
     setYear(y);
     setError(null);
+    // Clear every per-year draft so an unsaved value can't carry into — and be
+    // submitted against — a different year (the Threshold field and the Budget
+    // Manager picker both hold drafts keyed to the previously selected year).
+    setThresholdInput(null);
+    setBudgetManagerEmail(null);
     setEditingUserEmail(null);
     setAssigningUserEmail(null);
     setEditingDivisionKey(null);
