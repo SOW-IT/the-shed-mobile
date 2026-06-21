@@ -277,7 +277,21 @@ describe("approver delegation (out-of-office cover)", () => {
         fromEmail: "ghost@sow.org.au",
         toEmail: RACHEL,
       })
-    ).rejects.toThrow(); // unknown person
+    ).rejects.toThrow(); // unknown delegator
+    await expect(
+      asUser(t, ADMIN).mutation(api.admin.addDelegation, {
+        year: YEAR,
+        fromEmail: FIONA,
+        toEmail: "ghost@sow.org.au",
+      })
+    ).rejects.toThrow(); // unknown delegate
+    await expect(
+      asUser(t, ADMIN).mutation(api.admin.addDelegation, {
+        year: YEAR,
+        fromEmail: "not-an-email",
+        toEmail: RACHEL,
+      })
+    ).rejects.toThrow(); // malformed email
   });
 });
 
