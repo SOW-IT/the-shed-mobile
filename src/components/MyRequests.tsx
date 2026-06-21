@@ -338,6 +338,18 @@ const ReceiptSheet = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [request?._id, savedAccounts]);
 
+  // Clear the draft once the sheet closes, so reopening it for a DIFFERENT
+  // request never shows the previous request's recipients, amounts or attached
+  // files (which would otherwise be submitted against the new request). Mirrors
+  // PaySheet/DeclineSheet in ReviewList. Reset on close — not open — so the
+  // auto-fill effect above can still prefill from the saved account next time.
+  useEffect(() => {
+    if (request !== null) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset draft on close
+    setRecipients([emptyRecipient()]);
+    setError(null);
+  }, [request]);
+
   const updateRecipient = (index: number, patch: Partial<DraftRecipient>) =>
     setRecipients((previous) =>
       previous.map((recipient, i) => {

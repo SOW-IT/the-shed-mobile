@@ -151,7 +151,7 @@ export const unreadCount = query({
   handler: async (ctx, args) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
-    const request = await ctx.db.get(args.requestId);
+    const request = await ctx.db.get("requests", args.requestId);
     if (!request) return null;
     return await unreadCountFor(ctx, args.requestId, caller.email);
   },
@@ -227,7 +227,7 @@ export const markRead = mutation({
   args: { requestId: v.id("requests") },
   handler: async (ctx, args) => {
     const { email } = await requireProfile(ctx);
-    const request = await ctx.db.get(args.requestId);
+    const request = await ctx.db.get("requests", args.requestId);
     if (!request) throw new ConvexError("Request not found.");
     // Stamp at least the newest existing comment's creation time, not just the
     // wall clock: a comment's `_creationTime` can be >= `Date.now()` here, which
