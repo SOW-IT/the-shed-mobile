@@ -5,7 +5,7 @@ import {
   currentStep,
   DECLINED,
   DIRECTOR,
-  DIRECTOR_APPROVAL_THRESHOLD,
+  directorThresholdOr,
   EARLIEST_REQUEST_YEAR,
   FINANCE,
   HEAD_OF_DEPARTMENT,
@@ -29,6 +29,7 @@ import {
   getDepartment,
   getDivision,
   getProfile,
+  getYearSettings,
   optionalProfile,
   requireProfile,
   rolesOf,
@@ -301,7 +302,11 @@ export const submit = mutation({
     }
 
     const approvers = await getApprovers(ctx, year, department);
-    const needsDirector = args.amount >= DIRECTOR_APPROVAL_THRESHOLD;
+    // The Director-approval cutoff is configurable per year by Finance; fall
+    // back to the historical default when this year hasn't set one.
+    const yearSettings = await getYearSettings(ctx, year);
+    const needsDirector =
+      args.amount >= directorThresholdOr(yearSettings?.directorApprovalThreshold);
 
     let approvedByHOD: ApprovalStatus = PENDING;
     let approvedByBudgetManager: ApprovalStatus = PENDING;

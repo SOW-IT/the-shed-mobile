@@ -41,7 +41,8 @@ export type RequestPrefill = {
   department: string;
 };
 
-const GUIDE_STEPS = [
+/** Walkthrough steps; the Director cutoff is the year's configured threshold. */
+const buildGuideSteps = (directorThreshold: number) => [
   {
     icon: "create-outline" as const,
     title: "Submit your request",
@@ -59,8 +60,8 @@ const GUIDE_STEPS = [
   },
   {
     icon: "shield-checkmark-outline" as const,
-    title: `Director approval (≥ $${DIRECTOR_APPROVAL_THRESHOLD.toLocaleString()})`,
-    detail: `Requests at or above $${DIRECTOR_APPROVAL_THRESHOLD.toLocaleString()} also need Director sign-off.`,
+    title: `Director approval (≥ $${directorThreshold.toLocaleString()})`,
+    detail: `Requests at or above $${directorThreshold.toLocaleString()} also need Director sign-off.`,
   },
   {
     icon: "checkmark-circle-outline" as const,
@@ -82,14 +83,17 @@ const GUIDE_STEPS = [
 export const GuideSheet = ({
   visible,
   onClose,
+  directorThreshold = DIRECTOR_APPROVAL_THRESHOLD,
 }: {
   visible: boolean;
   onClose: () => void;
+  /** The live year's Director-approval cutoff; defaults to the standard $5,000. */
+  directorThreshold?: number;
 }) => {
   const t = useAppTheme();
   return (
     <Sheet visible={visible} onClose={onClose} title="How to submit a request">
-      {GUIDE_STEPS.map((step, i) => (
+      {buildGuideSteps(directorThreshold).map((step, i) => (
         <View key={i} style={styles.guideStep}>
           <View style={[styles.guideIconWrap, { backgroundColor: t.primarySoft }]}>
             <Ionicons name={step.icon} size={18} color={t.primary} />
@@ -112,6 +116,7 @@ const NewRequestSheet = ({
   departments,
   defaultDepartment,
   prefill,
+  directorThreshold,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -119,6 +124,8 @@ const NewRequestSheet = ({
   defaultDepartment: string;
   /** Set when resubmitting a declined request — pre-fills the form. */
   prefill: RequestPrefill | null;
+  /** The year's Director-approval cutoff, for the inline hint. */
+  directorThreshold: number;
 }) => {
   const submit = useMutation(api.requests.submit);
   const [description, setDescription] = useState("");
@@ -169,8 +176,8 @@ const NewRequestSheet = ({
           options={departments}
           onSelect={setDepartment}
         />
-        {Number(amount) >= DIRECTOR_APPROVAL_THRESHOLD ? (
-          <Muted>{`Requests of $${DIRECTOR_APPROVAL_THRESHOLD.toLocaleString()} or more also require Director approval.`}</Muted>
+        {Number(amount) >= directorThreshold ? (
+          <Muted>{`Requests of $${directorThreshold.toLocaleString()} or more also require Director approval.`}</Muted>
         ) : null}
         <ErrorBanner message={error} />
         <Btn title="Submit Request" onPress={handleSubmit} />
@@ -591,6 +598,7 @@ export const MyRequests = ({
   onNewClose,
   year,
   readOnly = false,
+  directorThreshold = DIRECTOR_APPROVAL_THRESHOLD,
 }: {
   departments: string[];
   defaultDepartment: string;
@@ -601,6 +609,8 @@ export const MyRequests = ({
   // A past staff year to browse (read-only). Omit/undefined for the live year.
   year?: number;
   readOnly?: boolean;
+  /** The year's Director-approval cutoff; defaults to the standard $5,000. */
+  directorThreshold?: number;
 }) => {
   const t = useAppTheme();
   const requests = useQuery(
@@ -730,6 +740,7 @@ export const MyRequests = ({
         departments={departments}
         defaultDepartment={defaultDepartment}
         prefill={prefill}
+        directorThreshold={directorThreshold}
       />
       <ReceiptSheet request={receiptFor} onClose={() => setReceiptFor(null)} />
       <ConfirmDialog

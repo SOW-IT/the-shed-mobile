@@ -114,6 +114,56 @@ describe("submission auto-approval (REQUESTS_FLOW auto-approval table)", () => {
   });
 });
 
+describe("configurable Director approval threshold", () => {
+  test("Finance Head can lower it; new requests respect the new cutoff", async () => {
+    const t = await setup();
+    await asUser(t, FIONA).mutation(api.admin.setDirectorThreshold, {
+      year: YEAR,
+      amount: 1000,
+    });
+    const rachel = asUser(t, RACHEL);
+    await rachel.mutation(api.requests.submit, { description: "below", amount: 999 });
+    await rachel.mutation(api.requests.submit, { description: "at", amount: 1000 });
+    const [below, at] = ((await rachel.query(api.requests.myRequests, {}))!).sort(
+      (a, b) => a.amount - b.amount
+    );
+    expect(below.approvedByDirector).toBeUndefined();
+    expect(at.approvedByDirector).toBe("PENDING"); // boundary: exactly the cutoff
+  });
+
+  test("raising it above an amount drops the Director step for new requests", async () => {
+    const t = await setup();
+    await asUser(t, ADMIN).mutation(api.admin.setDirectorThreshold, {
+      year: YEAR,
+      amount: 10000,
+    });
+    const rachel = asUser(t, RACHEL);
+    await rachel.mutation(api.requests.submit, { description: "now-small", amount: 5000 });
+    const [request] = (await rachel.query(api.requests.myRequests, {}))!;
+    expect(request.approvedByDirector).toBeUndefined();
+  });
+
+  test("only admins or the Finance Head can change it; a positive amount is required", async () => {
+    const t = await setup();
+    await expect(
+      asUser(t, RACHEL).mutation(api.admin.setDirectorThreshold, { year: YEAR, amount: 2000 })
+    ).rejects.toThrow();
+    await expect(
+      asUser(t, FIONA).mutation(api.admin.setDirectorThreshold, { year: YEAR, amount: 0 })
+    ).rejects.toThrow();
+    await asUser(t, FIONA).mutation(api.admin.setDirectorThreshold, { year: YEAR, amount: 3000 });
+    const structure = await asUser(t, ADMIN).query(api.directory.yearStructure, { year: YEAR });
+    expect(structure?.directorApprovalThreshold).toBe(3000);
+  });
+
+  test("backfill stamps the historical default onto the year", async () => {
+    const t = await setup();
+    await t.mutation(internal.admin.backfillDirectorThresholds, {});
+    const structure = await asUser(t, ADMIN).query(api.directory.yearStructure, { year: YEAR });
+    expect(structure?.directorApprovalThreshold).toBe(5000);
+  });
+});
+
 describe("approval chain order and authorization", () => {
   test("the full chain: HOD -> Budget Manager -> Finance Head -> receipt -> pay", async () => {
     const t = await setup();

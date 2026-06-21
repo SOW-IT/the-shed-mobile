@@ -217,8 +217,17 @@ export const formatAssignment = (a: Assignment): string => {
   return scope ? `${acronym(a.role)} → ${scope}` : acronym(a.role);
 };
 
-/** Requests at or above this amount need the Director's approval. */
+/**
+ * Default $ amount at or above which a request needs the Director's approval.
+ * Finance can override it per staff year (yearSettings.directorApprovalThreshold);
+ * this is the fallback for years that haven't set one. Historical years are
+ * backfilled to this value (admin:backfillDirectorThresholds).
+ */
 export const DIRECTOR_APPROVAL_THRESHOLD = 5000;
+
+/** The Director-approval threshold for a year, falling back to the default. */
+export const directorThresholdOr = (configured: number | null | undefined): number =>
+  configured ?? DIRECTOR_APPROVAL_THRESHOLD;
 
 export type ApprovalStatus = "PENDING" | "APPROVED" | "DECLINED";
 export const PENDING: ApprovalStatus = "PENDING";

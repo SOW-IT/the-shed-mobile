@@ -7,6 +7,8 @@ import {
   dedupeAssignments,
   departmentsOf,
   DIRECTOR,
+  DIRECTOR_APPROVAL_THRESHOLD,
+  EARLIEST_REQUEST_YEAR,
   FINANCE,
   HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
@@ -1224,24 +1226,33 @@ export const removeDepartment = mutation({
   },
 });
 
+/**
+ * Year-level finance settings (Budget Manager, Director threshold) are editable
+ * by admins OR the Finance Head (Head of the Finance department). Throws
+ * otherwise; returns the caller's email. `action` completes the error sentence.
+ */
+const requireFinanceSettingsAccess = async (
+  ctx: MutationCtx,
+  year: number,
+  action: string
+): Promise<string> => {
+  const callerEmail = await requireEmail(ctx);
+  const callerProfile = await getProfile(ctx, callerEmail, year);
+  if (!callerProfile) throw new ConvexError("No profile found for your account.");
+  if (await isAdminProfile(ctx, callerProfile)) return callerEmail;
+  const financeDept = await getDepartment(ctx, year, FINANCE);
+  if (financeDept?.headEmail !== callerEmail) {
+    throw new ConvexError(`Only admins or the Finance Head can ${action}.`);
+  }
+  return callerEmail;
+};
+
 /** The Budget Manager must be a member of the Finance department that year. */
 export const setBudgetManager = mutation({
   args: { year: v.number(), email: v.string() },
   handler: async (ctx, args) => {
     assertManagedYear(args.year);
-    // Allow admins OR the Finance Head (Head of Finance department).
-    const callerEmail = await requireEmail(ctx);
-    const callerProfile = await getProfile(ctx, callerEmail, args.year);
-    if (!callerProfile) throw new ConvexError("No profile found for your account.");
-    const isAdmin = await isAdminProfile(ctx, callerProfile);
-    if (!isAdmin) {
-      const financeDept = await getDepartment(ctx, args.year, FINANCE);
-      if (financeDept?.headEmail !== callerEmail) {
-        throw new ConvexError(
-          "Only admins or the Finance Head can set the Budget Manager."
-        );
-      }
-    }
+    await requireFinanceSettingsAccess(ctx, args.year, "set the Budget Manager");
     const email = args.email.trim().toLowerCase();
     const profile = await getProfile(ctx, email, args.year);
     if (!profile || !isMemberOfDepartment(profile, FINANCE)) {
@@ -1258,6 +1269,70 @@ export const setBudgetManager = mutation({
       year: args.year,
       budgetManagerEmail: email,
     });
+  },
+});
+
+/**
+ * The $ amount at or above which a request also needs Director approval, set
+ * per staff year by Finance (admins OR the Finance Head). Unset years fall back
+ * to DIRECTOR_APPROVAL_THRESHOLD. Only affects requests submitted from now on —
+ * existing requests keep the Director step they were created with.
+ */
+export const setDirectorThreshold = mutation({
+  args: { year: v.number(), amount: v.number() },
+  handler: async (ctx, args) => {
+    assertManagedYear(args.year);
+    await requireFinanceSettingsAccess(
+      ctx,
+      args.year,
+      "change the Director approval threshold"
+    );
+    if (!(args.amount > 0)) {
+      throw new ConvexError("The threshold must be a positive amount.");
+    }
+    const settings = await getYearSettings(ctx, args.year);
+    if (settings) {
+      await ctx.db.patch("yearSettings", settings._id, {
+        directorApprovalThreshold: args.amount,
+      });
+      return settings._id;
+    }
+    return await ctx.db.insert("yearSettings", {
+      year: args.year,
+      directorApprovalThreshold: args.amount,
+    });
+  },
+});
+
+/**
+ * One-off backfill: stamp the historical default ($5,000) onto every staff
+ * year from EARLIEST_REQUEST_YEAR through next year that hasn't already set a
+ * Director threshold, so past years show an explicit value rather than relying
+ * on the code fallback. Idempotent. Run with:
+ *   npx convex run admin:backfillDirectorThresholds
+ */
+export const backfillDirectorThresholds = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let filled = 0;
+    for (let year = EARLIEST_REQUEST_YEAR; year <= nextStaffYear(); year++) {
+      const settings = await getYearSettings(ctx, year);
+      if (settings) {
+        if (settings.directorApprovalThreshold === undefined) {
+          await ctx.db.patch("yearSettings", settings._id, {
+            directorApprovalThreshold: DIRECTOR_APPROVAL_THRESHOLD,
+          });
+          filled++;
+        }
+      } else {
+        await ctx.db.insert("yearSettings", {
+          year,
+          directorApprovalThreshold: DIRECTOR_APPROVAL_THRESHOLD,
+        });
+        filled++;
+      }
+    }
+    return { filled };
   },
 });
 

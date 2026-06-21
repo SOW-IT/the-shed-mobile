@@ -3,7 +3,11 @@ import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../../convex/_generated/api";
-import { HEAD_OF_DEPARTMENT, requestFullyApproved } from "../../../shared/flow";
+import {
+  directorThresholdOr,
+  HEAD_OF_DEPARTMENT,
+  requestFullyApproved,
+} from "../../../shared/flow";
 import { AllRequestsList } from "@/components/AllRequestsList";
 import { BankTab } from "@/components/BankTab";
 import { ChromeScreen } from "@/components/ChromeScreen";
@@ -186,6 +190,10 @@ export default function RequestsScreen() {
     )?.name ??
     "";
 
+  // The live year's Director-approval cutoff (Finance-configurable), resolved
+  // to the standard $5,000 until the setting loads or when unset.
+  const directorThreshold = directorThresholdOr(structure?.directorApprovalThreshold);
+
   const [newRequestOpen, setNewRequestOpen] = useState(false);
   const [requestPrefill, setRequestPrefill] = useState<RequestPrefill | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
@@ -298,6 +306,7 @@ export default function RequestsScreen() {
             prefill={requestPrefill}
             onResubmit={(p) => { setRequestPrefill(p); setNewRequestOpen(true); }}
             onNewClose={() => setNewRequestOpen(false)}
+            directorThreshold={directorThreshold}
           />
         );
     }
@@ -339,7 +348,11 @@ export default function RequestsScreen() {
           ) : undefined
         }
       />
-      <GuideSheet visible={guideOpen} onClose={() => setGuideOpen(false)} />
+      <GuideSheet
+        visible={guideOpen}
+        onClose={() => setGuideOpen(false)}
+        directorThreshold={directorThreshold}
+      />
     </>
   );
 }
