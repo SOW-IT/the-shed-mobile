@@ -162,6 +162,27 @@ describe("configurable Director approval threshold", () => {
     const structure = await asUser(t, ADMIN).query(api.directory.yearStructure, { year: YEAR });
     expect(structure?.directorApprovalThreshold).toBe(5000);
   });
+
+  test("setting it for a year with no settings row inserts one", async () => {
+    const t = await setup();
+    // Next year has no yearSettings row yet, so setDirectorThreshold inserts.
+    // Provision the admin there too (isAdmin keys off the "Data and IT" dept).
+    await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email: ADMIN,
+        year: YEAR + 1,
+        assignments: [{ role: "Staff", department: "Data and IT" }],
+      })
+    );
+    await asUser(t, ADMIN).mutation(api.admin.setDirectorThreshold, {
+      year: YEAR + 1,
+      amount: 4000,
+    });
+    const structure = await asUser(t, ADMIN).query(api.directory.yearStructure, {
+      year: YEAR + 1,
+    });
+    expect(structure?.directorApprovalThreshold).toBe(4000);
+  });
 });
 
 describe("approval chain order and authorization", () => {
