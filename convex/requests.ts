@@ -23,6 +23,7 @@ import { Doc, Id } from "./_generated/dataModel";
 import { rememberBankAccount } from "./bankAccounts";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import {
+  actAsEmails,
   currentStaffYear,
   displayName,
   getApprovers,
@@ -534,6 +535,17 @@ export const toReview = query({
       }
       return rolesByYear.get(y)!;
     };
+    // The approver-identities the caller can act as in a given year (themselves
+    // plus anyone who delegated to them), cached per year.
+    const actAsByYear = new Map<number, Promise<Set<string>>>();
+    const actAsIn = (y: number) => {
+      let cached = actAsByYear.get(y);
+      if (!cached) {
+        cached = actAsEmails(ctx, y, email);
+        actAsByYear.set(y, cached);
+      }
+      return cached;
+    };
 
     const hod: Doc<"requests">[] = [];
     const budgetManager: Doc<"requests">[] = [];
@@ -550,8 +562,19 @@ export const toReview = query({
         request.year === year
           ? requestYear
           : await approversFor(year, request.department);
-      const matches = (pick: (a: Approvers) => string | undefined) =>
-        pick(requestYear) === email || pick(thisYear) === email;
+      // A match if the caller IS the approver, or a delegate of them — checked
+      // against the request's own year and (for carry-overs) the current year.
+      const actAsRequestYear = await actAsIn(request.year);
+      const actAsThisYear =
+        request.year === year ? actAsRequestYear : await actAsIn(year);
+      const matches = (pick: (a: Approvers) => string | undefined) => {
+        const reqApprover = pick(requestYear);
+        const nowApprover = pick(thisYear);
+        return (
+          (reqApprover !== undefined && actAsRequestYear.has(reqApprover)) ||
+          (nowApprover !== undefined && actAsThisYear.has(nowApprover))
+        );
+      };
 
       // Ready to Pay includes the Finance Head's own requests.
       if (
@@ -571,7 +594,8 @@ export const toReview = query({
       } else if (
         step === "director" &&
         ((await callerRolesIn(request.year)).includes(DIRECTOR) ||
-          (await callerRolesIn(year)).includes(DIRECTOR))
+          (await callerRolesIn(year)).includes(DIRECTOR) ||
+          matches((a) => a.directorEmail))
       ) {
         director.push(request);
       } else if (step === "financeHead" && matches((a) => a.financeHeadEmail)) {
@@ -671,16 +695,31 @@ async function authorizeStep(
     request.year === caller.year
       ? approvers
       : await getApprovers(ctx, caller.year, request.department);
-  const matches = (pick: (a: Approvers) => string | undefined) =>
-    pick(approvers) === caller.email || pick(currentApprovers) === caller.email;
+  // The caller matches a step if they ARE its approver or a delegate of them,
+  // checked against the request's year and (for carry-overs) the current year.
+  const actAsRequest = await actAsEmails(ctx, request.year, caller.email);
+  const actAsCurrent =
+    request.year === caller.year
+      ? actAsRequest
+      : await actAsEmails(ctx, caller.year, caller.email);
+  const matches = (pick: (a: Approvers) => string | undefined) => {
+    const reqApprover = pick(approvers);
+    const nowApprover = pick(currentApprovers);
+    return (
+      (reqApprover !== undefined && actAsRequest.has(reqApprover)) ||
+      (nowApprover !== undefined && actAsCurrent.has(nowApprover))
+    );
+  };
   const requestYearProfile =
     request.year === caller.year
       ? caller.profile
       : await getProfile(ctx, caller.email, request.year);
+  // The Director step is role-based; a delegate of the Director may also act.
   const isDirector =
     rolesOf(caller.profile).includes(DIRECTOR) ||
     (requestYearProfile !== null &&
-      rolesOf(requestYearProfile).includes(DIRECTOR));
+      rolesOf(requestYearProfile).includes(DIRECTOR)) ||
+    matches((a) => a.directorEmail);
 
   const stepChecks: Record<Step, { allowed: boolean; ready: boolean }> = {
     hod: {
@@ -1231,17 +1270,27 @@ export const pay = mutation({
     ) {
       throw new ConvexError("Request not found.");
     }
-    // The Finance Head of the request's year OR the current one pays it.
+    // The Finance Head of the request's year OR the current one pays it — or a
+    // delegate standing in for either.
     const approvers = await getApprovers(ctx, request.year, FINANCE);
     const currentApprovers =
       request.year === caller.year
         ? approvers
         : await getApprovers(ctx, caller.year, FINANCE);
-    if (
-      approvers.financeHeadEmail !== caller.email &&
-      currentApprovers.financeHeadEmail !== caller.email
-    ) {
-      throw new ConvexError("Only the Finance Head can pay reimbursements.");
+    const actAsRequest = await actAsEmails(ctx, request.year, caller.email);
+    const actAsCurrent =
+      request.year === caller.year
+        ? actAsRequest
+        : await actAsEmails(ctx, caller.year, caller.email);
+    const canPay =
+      (approvers.financeHeadEmail !== undefined &&
+        actAsRequest.has(approvers.financeHeadEmail)) ||
+      (currentApprovers.financeHeadEmail !== undefined &&
+        actAsCurrent.has(currentApprovers.financeHeadEmail));
+    if (!canPay) {
+      throw new ConvexError(
+        "Only the Finance Head (or their delegate) can pay reimbursements."
+      );
     }
     if (request.receipt === undefined || request.paid !== false) {
       throw new ConvexError("This request is not awaiting payment.");

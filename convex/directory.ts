@@ -12,6 +12,7 @@ import {
 import { query } from "./_generated/server";
 import {
   currentStaffYear,
+  delegatorsForYear,
   departmentsHeadedBy,
   getApprovers,
   getProfile,
@@ -76,6 +77,9 @@ export const me = query({
     const headedDepartments = (await departmentsHeadedBy(ctx, year, email)).map(
       (d) => d.name
     );
+    // People who delegated their approver authority to the caller this year, so
+    // a stand-in sees the To Review tab even without an approver role of their own.
+    const delegatedTo = await delegatorsForYear(ctx, year, email);
     return {
       email,
       year,
@@ -95,11 +99,14 @@ export const me = query({
       isBudgetManager: approvers.budgetManagerEmail === email,
       isFinanceHead: approvers.financeHeadEmail === email,
       headedDepartments,
+      // Whether the caller is currently covering anyone as a delegate.
+      isDelegate: delegatedTo.length > 0,
       isApprover:
         headedDepartments.some((d) => d !== FINANCE) ||
         approvers.budgetManagerEmail === email ||
         approvers.financeHeadEmail === email ||
-        rolesOf(profile).includes(DIRECTOR),
+        rolesOf(profile).includes(DIRECTOR) ||
+        delegatedTo.length > 0,
     };
   },
 });

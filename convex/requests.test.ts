@@ -185,6 +185,102 @@ describe("configurable Director approval threshold", () => {
   });
 });
 
+describe("approver delegation (out-of-office cover)", () => {
+  test("a delegate can act on the requests the delegator approves", async () => {
+    const t = await setup();
+    // BELLA (Finance + Budget Manager) submits → lands straight on Finance Head.
+    await asUser(t, BELLA).mutation(api.requests.submit, { description: "x", amount: 100 });
+    const [req] = (await asUser(t, BELLA).query(api.requests.myRequests, {}))!;
+    expect(req.approvedByFinanceHead).toBe("PENDING");
+
+    // Before delegation, RACHEL (Marketing staff) can neither see nor approve it.
+    const before = await asUser(t, RACHEL).query(api.requests.toReview, {});
+    expect(before!.financeHead).toHaveLength(0);
+    await expect(
+      asUser(t, RACHEL).mutation(api.requests.approve, {
+        requestId: req._id,
+        step: "financeHead",
+      })
+    ).rejects.toThrow();
+
+    // Admin delegates the Finance Head's authority to RACHEL.
+    await asUser(t, ADMIN).mutation(api.admin.addDelegation, {
+      year: YEAR,
+      fromEmail: FIONA,
+      toEmail: RACHEL,
+    });
+
+    // RACHEL now counts as an approver, sees the request, and can approve it.
+    const me = await asUser(t, RACHEL).query(api.directory.me);
+    expect(me?.isApprover).toBe(true);
+    expect(me?.isDelegate).toBe(true);
+    const after = await asUser(t, RACHEL).query(api.requests.toReview, {});
+    expect(after!.financeHead.map((r) => r._id)).toContain(req._id);
+    await asUser(t, RACHEL).mutation(api.requests.approve, {
+      requestId: req._id,
+      step: "financeHead",
+    });
+    const [updated] = (await asUser(t, BELLA).query(api.requests.myRequests, {}))!;
+    expect(updated.approvedByFinanceHead).toBe("APPROVED");
+  });
+
+  test("removing the delegation revokes the access", async () => {
+    const t = await setup();
+    await asUser(t, BELLA).mutation(api.requests.submit, { description: "x", amount: 100 });
+    const [req] = (await asUser(t, BELLA).query(api.requests.myRequests, {}))!;
+    const id = await asUser(t, ADMIN).mutation(api.admin.addDelegation, {
+      year: YEAR,
+      fromEmail: FIONA,
+      toEmail: RACHEL,
+    });
+    await asUser(t, ADMIN).mutation(api.admin.removeDelegation, { id });
+    await expect(
+      asUser(t, RACHEL).mutation(api.requests.approve, {
+        requestId: req._id,
+        step: "financeHead",
+      })
+    ).rejects.toThrow();
+  });
+
+  test("a delegate still cannot approve their own request", async () => {
+    const t = await setup();
+    // RACHEL covers the HOD, then submits her own (HOD-pending) request.
+    await asUser(t, ADMIN).mutation(api.admin.addDelegation, {
+      year: YEAR,
+      fromEmail: HENRY,
+      toEmail: RACHEL,
+    });
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "mine", amount: 100 });
+    const [req] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    expect(req.approvedByHOD).toBe("PENDING");
+    const review = await asUser(t, RACHEL).query(api.requests.toReview, {});
+    expect(review!.hod.map((r) => r._id)).not.toContain(req._id);
+    await expect(
+      asUser(t, RACHEL).mutation(api.requests.approve, { requestId: req._id, step: "hod" })
+    ).rejects.toThrow();
+  });
+
+  test("only admins manage delegations; self-delegation and unknown people are rejected", async () => {
+    const t = await setup();
+    await expect(
+      asUser(t, RACHEL).mutation(api.admin.addDelegation, { year: YEAR, fromEmail: FIONA, toEmail: HENRY })
+    ).rejects.toThrow(); // not an admin
+    await expect(
+      asUser(t, FIONA).mutation(api.admin.addDelegation, { year: YEAR, fromEmail: FIONA, toEmail: HENRY })
+    ).rejects.toThrow(); // Finance Head is not an admin
+    await expect(
+      asUser(t, ADMIN).mutation(api.admin.addDelegation, { year: YEAR, fromEmail: FIONA, toEmail: FIONA })
+    ).rejects.toThrow(); // self-delegation
+    await expect(
+      asUser(t, ADMIN).mutation(api.admin.addDelegation, {
+        year: YEAR,
+        fromEmail: "ghost@sow.org.au",
+        toEmail: RACHEL,
+      })
+    ).rejects.toThrow(); // unknown person
+  });
+});
+
 describe("approval chain order and authorization", () => {
   test("the full chain: HOD -> Budget Manager -> Finance Head -> receipt -> pay", async () => {
     const t = await setup();
