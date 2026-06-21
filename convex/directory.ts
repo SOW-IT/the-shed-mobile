@@ -12,6 +12,7 @@ import {
 import { query } from "./_generated/server";
 import {
   currentStaffYear,
+  delegatorsForYear,
   departmentsHeadedBy,
   getApprovers,
   getProfile,
@@ -76,6 +77,15 @@ export const me = query({
     const headedDepartments = (await departmentsHeadedBy(ctx, year, email)).map(
       (d) => d.name
     );
+    // People who delegated their approver authority to the caller, so a stand-in
+    // sees the To Review tab even without an approver role of their own. Checks
+    // the current AND previous year to match toReview's carry-over window — a
+    // delegate covering last year's approver can still act on leftover requests.
+    const [delegatedTo, prevDelegatedTo] = await Promise.all([
+      delegatorsForYear(ctx, year, email),
+      delegatorsForYear(ctx, year - 1, email),
+    ]);
+    const isDelegate = delegatedTo.length > 0 || prevDelegatedTo.length > 0;
     return {
       email,
       year,
@@ -95,11 +105,14 @@ export const me = query({
       isBudgetManager: approvers.budgetManagerEmail === email,
       isFinanceHead: approvers.financeHeadEmail === email,
       headedDepartments,
+      // Whether the caller is currently covering anyone as a delegate.
+      isDelegate,
       isApprover:
         headedDepartments.some((d) => d !== FINANCE) ||
         approvers.budgetManagerEmail === email ||
         approvers.financeHeadEmail === email ||
-        rolesOf(profile).includes(DIRECTOR),
+        rolesOf(profile).includes(DIRECTOR) ||
+        isDelegate,
     };
   },
 });

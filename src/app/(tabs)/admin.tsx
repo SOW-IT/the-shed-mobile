@@ -344,6 +344,12 @@ export default function AdminScreen() {
   const removeRole = useMutation(api.admin.removeRole);
   const setBudgetManager = useMutation(api.admin.setBudgetManager);
   const setDirectorThreshold = useMutation(api.admin.setDirectorThreshold);
+  const delegations = useQuery(
+    api.admin.listDelegations,
+    me?.isAdmin ? { year: selectedYear } : "skip"
+  );
+  const addDelegation = useMutation(api.admin.addDelegation);
+  const removeDelegation = useMutation(api.admin.removeDelegation);
   const requestSync = useMutation(api.directorySync.requestSync);
   const syncState = useQuery(
     api.directorySync.list,
@@ -386,6 +392,9 @@ export default function AdminScreen() {
   const thresholdNumber = Number(thresholdValue);
   const thresholdUnchanged =
     thresholdNumber === configuredThreshold || thresholdValue.trim() === "";
+  // Approver-delegation add form (the approver being covered → their stand-in).
+  const [delegationFrom, setDelegationFrom] = useState("");
+  const [delegationTo, setDelegationTo] = useState("");
 
   // Inline editing state for user cards
   const [editingUserEmail, setEditingUserEmail] = useState<string | null>(null);
@@ -1427,6 +1436,81 @@ export default function AdminScreen() {
               </Muted>
             )}
           </Card>
+
+          {isAdmin && (
+            <>
+              <SectionTitle>Approver Delegation — {selectedYear}</SectionTitle>
+              <Card>
+                <Muted>
+                  Cover an approver while they&apos;re away: their delegate can
+                  approve, decline and pay everything the approver could, for
+                  this staff year. Remove it when they&apos;re back.
+                </Muted>
+                {(delegations ?? []).length === 0 ? (
+                  <Muted>No delegations set.</Muted>
+                ) : (
+                  (delegations ?? []).map((d) => (
+                    <Row key={d.id}>
+                      <Txt style={{ flexGrow: 1 }}>
+                        {(nameByEmail.get(d.fromEmail) ?? d.fromEmail) +
+                          "  →  " +
+                          (nameByEmail.get(d.toEmail) ?? d.toEmail)}
+                      </Txt>
+                      {editable && (
+                        <IconButton
+                          name="close"
+                          size={32}
+                          color={t.danger}
+                          accessibilityLabel="Remove delegation"
+                          onPress={() => void run(() => removeDelegation({ id: d.id }))}
+                        />
+                      )}
+                    </Row>
+                  ))
+                )}
+                {editable && (
+                  <>
+                    <Select
+                      label="Approver (being covered)"
+                      value={delegationFrom}
+                      options={personOptions}
+                      onSelect={setDelegationFrom}
+                      placeholder="Choose the approver…"
+                    />
+                    <Select
+                      label="Delegate (acting on their behalf)"
+                      value={delegationTo}
+                      options={personOptions}
+                      onSelect={setDelegationTo}
+                      placeholder="Choose the stand-in…"
+                    />
+                    <Btn
+                      title="Add Delegation"
+                      disabled={
+                        !delegationFrom ||
+                        !delegationTo ||
+                        delegationFrom === delegationTo
+                      }
+                      onPress={() =>
+                        void run(() =>
+                          addDelegation({
+                            year: selectedYear,
+                            fromEmail: delegationFrom,
+                            toEmail: delegationTo,
+                          })
+                        ).then((ok) => {
+                          if (ok) {
+                            setDelegationFrom("");
+                            setDelegationTo("");
+                          }
+                        })
+                      }
+                    />
+                  </>
+                )}
+              </Card>
+            </>
+          )}
         </>
       )}
     </>

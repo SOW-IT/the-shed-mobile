@@ -28,6 +28,7 @@ import { Doc } from "./_generated/dataModel";
 import { internalMutation, MutationCtx, mutation, query } from "./_generated/server";
 import {
   currentStaffYear,
+  DELEGATION_QUERY_LIMIT,
   getDepartment,
   getProfile,
   getYearSettings,
@@ -1360,6 +1361,80 @@ export const financeMembers = query({
     return profiles
       .filter((p) => isMemberOfDepartment(p, FINANCE))
       .map((p) => ({ email: p.email, name: p.name ?? null }));
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Approver delegation (out-of-office cover): a delegate may act on every
+// request the delegator could approve/decline/pay. Admin-managed; the read
+// side lives in model.ts (delegatorsForYear / actAsEmails) so requests.ts can
+// widen its approver checks.
+// ---------------------------------------------------------------------------
+
+/** All approver delegations for a year, with names resolved. Admins only. */
+export const listDelegations = query({
+  args: { year: v.number() },
+  handler: async (ctx, args) => {
+    if ((await optionalEmail(ctx)) === null) return null; // auth attaching
+    await requireAdmin(ctx);
+    const rows = await ctx.db
+      .query("approverDelegations")
+      .withIndex("by_year", (q) => q.eq("year", args.year))
+      .take(DELEGATION_QUERY_LIMIT);
+    return rows.map((r) => ({
+      id: r._id,
+      fromEmail: r.fromEmail,
+      toEmail: r.toEmail,
+    }));
+  },
+});
+
+/**
+ * Delegate every approval the `from` person could do to the `to` person for the
+ * year. Both must have a profile that year, and differ. Idempotent per pair.
+ */
+export const addDelegation = mutation({
+  args: { year: v.number(), fromEmail: v.string(), toEmail: v.string() },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    assertManagedYear(args.year);
+    const fromEmail = args.fromEmail.trim().toLowerCase();
+    const toEmail = args.toEmail.trim().toLowerCase();
+    if (!fromEmail.includes("@") || !toEmail.includes("@")) {
+      throw new ConvexError("Pick valid people.");
+    }
+    if (fromEmail === toEmail) {
+      throw new ConvexError("Pick two different people.");
+    }
+    if (!(await getProfile(ctx, fromEmail, args.year))) {
+      throw new ConvexError(`${fromEmail} has no profile for ${args.year}.`);
+    }
+    if (!(await getProfile(ctx, toEmail, args.year))) {
+      throw new ConvexError(`${toEmail} has no profile for ${args.year}.`);
+    }
+    const existing = await ctx.db
+      .query("approverDelegations")
+      .withIndex("by_year_and_from_and_to", (q) =>
+        q.eq("year", args.year).eq("fromEmail", fromEmail).eq("toEmail", toEmail)
+      )
+      .unique();
+    if (existing) return existing._id;
+    return await ctx.db.insert("approverDelegations", {
+      year: args.year,
+      fromEmail,
+      toEmail,
+    });
+  },
+});
+
+/** Remove a delegation by id (admins only). Any year, for cleanup. */
+export const removeDelegation = mutation({
+  args: { id: v.id("approverDelegations") },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const row = await ctx.db.get("approverDelegations", args.id);
+    if (row) await ctx.db.delete("approverDelegations", args.id);
+    return null;
   },
 });
 

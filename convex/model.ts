@@ -13,6 +13,14 @@ import { MutationCtx, QueryCtx } from "./_generated/server";
 
 type Ctx = QueryCtx | MutationCtx;
 
+/**
+ * Read bound shared by every approver-delegation query (delegatorsForYear here
+ * and admin.listDelegations) so the authorization set can't silently disagree
+ * with the admin list. Delegations are admin-created — a single person being a
+ * delegate of hundreds of approvers is implausible, so this never truncates.
+ */
+export const DELEGATION_QUERY_LIMIT = 500;
+
 export const currentStaffYear = () => staffYearForDate(new Date());
 export const nextStaffYear = () => currentStaffYear() + 1;
 
@@ -210,6 +218,35 @@ export async function getYearSettings(
     .query("yearSettings")
     .withIndex("by_year", (q) => q.eq("year", year))
     .unique();
+}
+
+/**
+ * Emails that have delegated their approver authority to `email` for `year`
+ * (out-of-office cover). Bounded; a person covers at most a handful of others.
+ */
+export async function delegatorsForYear(
+  ctx: Ctx,
+  year: number,
+  email: string
+): Promise<string[]> {
+  const rows = await ctx.db
+    .query("approverDelegations")
+    .withIndex("by_year_and_to", (q) => q.eq("year", year).eq("toEmail", email))
+    .take(DELEGATION_QUERY_LIMIT);
+  return rows.map((r) => r.fromEmail);
+}
+
+/**
+ * The set of approver-identities `email` may act as for `year`: themselves plus
+ * anyone who delegated their authority to them. Used to widen the "is the
+ * caller this step's approver?" checks so a delegate can stand in.
+ */
+export async function actAsEmails(
+  ctx: Ctx,
+  year: number,
+  email: string
+): Promise<Set<string>> {
+  return new Set([email, ...(await delegatorsForYear(ctx, year, email))]);
 }
 
 export interface Approvers {

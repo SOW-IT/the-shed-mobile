@@ -131,6 +131,20 @@ export default defineSchema({
     directorApprovalThreshold: v.optional(v.number()),
   }).index("by_year", ["year"]),
 
+  // Approver delegations (out-of-office cover): for `year`, the delegate
+  // (`toEmail`) may act on every request the delegator (`fromEmail`) could
+  // approve, decline or pay. Admin-managed; one row per (year, from, to).
+  approverDelegations: defineTable({
+    year: v.number(),
+    fromEmail: v.string(), // the approver being covered; lowercase
+    toEmail: v.string(), // the person acting on their behalf; lowercase
+  })
+    .index("by_year", ["year"])
+    // Hot path: everyone who delegated TO a given person this year.
+    .index("by_year_and_to", ["year", "toEmail"])
+    // Exact lookup for dedupe-on-add.
+    .index("by_year_and_from_and_to", ["year", "fromEmail", "toEmail"]),
+
   // Bank accounts a person has used on a receipt, remembered so they don't
   // re-type BSB/account each time. Owned by email; auto-saved on receipt
   // submission and deletable by the owner. Deduped per (email, bsb, account).

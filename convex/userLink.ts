@@ -12,8 +12,9 @@ const LEGACY_EMAIL_DOMAINS = ["sowaustralia.com"];
 
 /**
  * Re-keys every email-keyed reference from oldEmail to newEmail: staff
- * profiles, requests, department headships, Budget Manager assignments and
- * push tokens. Runs when a signed-in account's Google email changes.
+ * profiles, requests, department headships, Budget Manager assignments,
+ * approver delegations and push tokens. Runs when a signed-in account's Google
+ * email changes.
  */
 async function rekeyEmail(ctx: MutationCtx, oldEmail: string, newEmail: string) {
   const profiles = await ctx.db
@@ -63,6 +64,38 @@ async function rekeyEmail(ctx: MutationCtx, oldEmail: string, newEmail: string) 
     if (setting.budgetManagerEmail === oldEmail) {
       await ctx.db.patch("yearSettings", setting._id, {
         budgetManagerEmail: newEmail,
+      });
+    }
+  }
+
+  // Approver delegations are email-keyed on both ends; rekey either side so a
+  // renamed approver keeps their cover and a reused old address doesn't inherit
+  // a stale grant. Few rows (admin-created), so scan-and-filter like the
+  // headships above rather than adding a non-year index.
+  const delegations = await ctx.db.query("approverDelegations").take(2000);
+  for (const delegation of delegations) {
+    const nextFrom = delegation.fromEmail === oldEmail ? newEmail : delegation.fromEmail;
+    const nextTo = delegation.toEmail === oldEmail ? newEmail : delegation.toEmail;
+    if (nextFrom === delegation.fromEmail && nextTo === delegation.toEmail) continue;
+    // Convex indexes aren't unique, so a colliding patch wouldn't error — but it
+    // would leave two identical (year, from, to) rows, which later breaks
+    // addDelegation's unique() dedup lookup. If the rekey would collapse this
+    // row onto an existing pair (or into a meaningless self-delegation), drop it
+    // instead — mirroring the staffProfiles collision handling above.
+    const collidesWithExisting =
+      nextFrom !== nextTo &&
+      (await ctx.db
+        .query("approverDelegations")
+        .withIndex("by_year_and_from_and_to", (q) =>
+          q.eq("year", delegation.year).eq("fromEmail", nextFrom).eq("toEmail", nextTo)
+        )
+        .first()) !== null;
+    if (nextFrom === nextTo || collidesWithExisting) {
+      await ctx.db.delete("approverDelegations", delegation._id);
+    } else {
+      await ctx.db.patch("approverDelegations", delegation._id, {
+        fromEmail: nextFrom,
+        toEmail: nextTo,
       });
     }
   }
