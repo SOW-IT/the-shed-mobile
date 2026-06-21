@@ -1482,3 +1482,83 @@ describe("role mutations fail fast on the 1000-profile cap", () => {
     ).rejects.toThrow(/Too many profiles to update in one go/);
   });
 });
+
+describe("not-serving (leavers) list", () => {
+  const NEWBIE = "newbie@sow.org.au"; // signed in, no profile
+
+  test("deleting a profile moves the person to the not-serving list", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // A directory entry lets her name resolve once she's a leaver (she never
+    // signed in, so there's no users row).
+    await t.run((ctx) =>
+      ctx.db.insert("directoryUsers", { email: BELLA, name: "Bella B" })
+    );
+    await admin.mutation(api.admin.removeStaffProfile, { email: BELLA, year: YEAR });
+    const leavers = (await admin.query(api.admin.listLeavers, { year: YEAR }))!;
+    expect(leavers.find((l) => l.email === BELLA)?.name).toBe("Bella B");
+  });
+
+  test("an unassigned user can be marked not-serving and moved back", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await t.run((ctx) => ctx.db.insert("users", { email: NEWBIE, name: "New Bie" }));
+    // Starts in the unassigned pool.
+    let unassigned = (await admin.query(api.admin.listUnassignedUsers, { year: YEAR }))!;
+    expect(unassigned.map((u) => u.email)).toContain(NEWBIE);
+
+    // Marked not-serving → out of unassigned, into the leavers list (name resolved).
+    await admin.mutation(api.admin.markLeaving, { email: NEWBIE, year: YEAR });
+    unassigned = (await admin.query(api.admin.listUnassignedUsers, { year: YEAR }))!;
+    expect(unassigned.map((u) => u.email)).not.toContain(NEWBIE);
+    const leavers = (await admin.query(api.admin.listLeavers, { year: YEAR }))!;
+    expect(leavers.find((l) => l.email === NEWBIE)?.name).toBe("New Bie");
+
+    // Moved back → returns to unassigned, gone from leavers.
+    await admin.mutation(api.admin.unmarkLeaving, { email: NEWBIE, year: YEAR });
+    unassigned = (await admin.query(api.admin.listUnassignedUsers, { year: YEAR }))!;
+    expect(unassigned.map((u) => u.email)).toContain(NEWBIE);
+    expect((await admin.query(api.admin.listLeavers, { year: YEAR }))!).toHaveLength(0);
+  });
+
+  test("assigning a profile clears the not-serving mark (both code paths)", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // Legacy roles path.
+    await admin.mutation(api.admin.markLeaving, { email: "leg@sow.org.au", year: YEAR });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "leg@sow.org.au",
+      year: YEAR,
+      roles: ["Staff"],
+      department: "Finance",
+    });
+    // Per-assignment path.
+    await admin.mutation(api.admin.markLeaving, { email: "asg@sow.org.au", year: YEAR });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "asg@sow.org.au",
+      year: YEAR,
+      assignments: [{ role: "Staff", department: "Finance" }],
+    });
+    expect((await admin.query(api.admin.listLeavers, { year: YEAR }))!).toHaveLength(0);
+  });
+
+  test("a leaver row for someone who holds a profile is hidden", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // Bella still has a profile; a stray leaver row for her must not surface.
+    await t.run((ctx) => ctx.db.insert("leavers", { year: YEAR, email: BELLA }));
+    const leavers = (await admin.query(api.admin.listLeavers, { year: YEAR }))!;
+    expect(leavers.map((l) => l.email)).not.toContain(BELLA);
+  });
+
+  test("not-serving changes are only allowed for managed years", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await expect(
+      admin.mutation(api.admin.markLeaving, { email: NEWBIE, year: YEAR - 1 })
+    ).rejects.toThrow(/manage/);
+    await expect(
+      admin.mutation(api.admin.unmarkLeaving, { email: NEWBIE, year: YEAR - 1 })
+    ).rejects.toThrow(/manage/);
+  });
+});

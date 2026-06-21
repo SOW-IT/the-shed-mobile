@@ -317,6 +317,10 @@ export default function AdminScreen() {
     api.admin.listUnassignedUsers,
     me?.isAdmin && editable ? { year: selectedYear } : "skip"
   );
+  const leavers = useQuery(
+    api.admin.listLeavers,
+    me?.isAdmin && editable ? { year: selectedYear } : "skip"
+  );
   const people = useQuery(
     api.admin.people,
     me?.isAdmin ? { year: selectedYear } : "skip"
@@ -330,6 +334,8 @@ export default function AdminScreen() {
 
   const setStaffProfile = useMutation(api.admin.setStaffProfile);
   const removeStaffProfile = useMutation(api.admin.removeStaffProfile);
+  const markLeaving = useMutation(api.admin.markLeaving);
+  const unmarkLeaving = useMutation(api.admin.unmarkLeaving);
   const upsertDivision = useMutation(api.admin.upsertDivision);
   const updateDivision = useMutation(api.admin.updateDivision);
   const removeDivision = useMutation(api.admin.removeDivision);
@@ -624,6 +630,15 @@ export default function AdminScreen() {
               {user.name ? <Muted>{user.email}</Muted> : null}
             </View>
             <Btn
+              title="Not serving"
+              variant="ghost"
+              onPress={() =>
+                void run(() =>
+                  markLeaving({ email: user.email, year: selectedYear })
+                )
+              }
+            />
+            <Btn
               title="Assign"
               variant="ghost"
               onPress={() => startAssign(user.email)}
@@ -633,6 +648,27 @@ export default function AdminScreen() {
       </Card>
     );
   };
+
+  // A person parked in the "not serving" list — movable back to unassigned.
+  const renderLeaverCard = (user: { email: string; name?: string | null }) => (
+    <Card key={user.email}>
+      <Row>
+        <View style={{ flexGrow: 1 }}>
+          <Txt style={{ fontWeight: "600" }}>{user.name ?? user.email}</Txt>
+          {user.name ? <Muted>{user.email}</Muted> : null}
+        </View>
+        <Btn
+          title="Move to unassigned"
+          variant="ghost"
+          onPress={() =>
+            void run(() =>
+              unmarkLeaving({ email: user.email, year: selectedYear })
+            )
+          }
+        />
+      </Row>
+    </Card>
+  );
 
   // Renders the collapsed or expanded card for an assigned profile.
   const renderProfileCard = (profile: NonNullable<typeof profiles>[number]) => {
@@ -795,6 +831,15 @@ export default function AdminScreen() {
                 In directory, no assignment — {selectedYear} ({directoryOnlyUnassigned.length})
               </SectionTitle>
               {directoryOnlyUnassigned.map((user) => renderUnassignedCard(user))}
+            </>
+          )}
+
+          {editable && (leavers ?? []).length > 0 && (
+            <>
+              <SectionTitle>
+                Not serving — {selectedYear} ({(leavers ?? []).length})
+              </SectionTitle>
+              {(leavers ?? []).map((user) => renderLeaverCard(user))}
             </>
           )}
 
@@ -1555,7 +1600,7 @@ export default function AdminScreen() {
       <ConfirmDialog
         visible={removeProfileTarget !== null}
         title={`Delete "${removeProfileTarget?.name ?? removeProfileTarget?.email}"`}
-        message={`Remove ${removeProfileTarget?.email} from ${selectedYear}? Their roles and department assignments for the year will be deleted.`}
+        message={`Remove ${removeProfileTarget?.email} from ${selectedYear}? Their roles and department assignments for the year will be deleted and they'll move to the "Not serving" list.`}
         requireText={removeProfileTarget?.name ?? removeProfileTarget?.email}
         onConfirm={() => {
           if (removeProfileTarget) {

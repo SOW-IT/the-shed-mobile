@@ -25,7 +25,7 @@ import {
 } from "../shared/flow";
 import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
-import { internalMutation, MutationCtx, mutation, query } from "./_generated/server";
+import { internalMutation, MutationCtx, mutation, query, QueryCtx } from "./_generated/server";
 import {
   currentStaffYear,
   DELEGATION_QUERY_LIMIT,
@@ -48,6 +48,40 @@ const assertManagedYear = (year: number) => {
       `You can only manage ${currentStaffYear()} and ${nextStaffYear()}.`
     );
   }
+};
+
+/**
+ * Add or remove a person from the year's "not serving" list (idempotent). One
+ * row per (year, email): set when a profile is deleted or marked leaving,
+ * cleared when they're moved back to the unassigned pool or reassigned.
+ */
+const setLeaver = async (
+  ctx: MutationCtx,
+  year: number,
+  email: string,
+  leaving: boolean
+) => {
+  const existing = await ctx.db
+    .query("leavers")
+    .withIndex("by_year_and_email", (q) => q.eq("year", year).eq("email", email))
+    .unique();
+  if (leaving && !existing) {
+    await ctx.db.insert("leavers", { year, email });
+  } else if (!leaving && existing) {
+    await ctx.db.delete("leavers", existing._id);
+  }
+};
+
+/** The set of emails parked in the year's "not serving" list. */
+const leaverEmailSet = async (
+  ctx: QueryCtx,
+  year: number
+): Promise<Set<string>> => {
+  const rows = await ctx.db
+    .query("leavers")
+    .withIndex("by_year", (q) => q.eq("year", year))
+    .take(1000);
+  return new Set(rows.map((r) => r.email));
 };
 
 /** The role names assignable in a given year: the year's data-driven catalog, or the built-in ROLES when none exists yet. */
@@ -309,6 +343,8 @@ export const setStaffProfile = mutation({
         }
       }
 
+      // Assigning a profile means they're serving again — clear any leaver row.
+      await setLeaver(ctx, args.year, email, false);
       if (existing) {
         await ctx.db.patch("staffProfiles", existing._id, {
           assignments,
@@ -473,6 +509,8 @@ export const setStaffProfile = mutation({
       }
     }
 
+    // Assigning a profile means they're serving again — clear any leaver row.
+    await setLeaver(ctx, args.year, email, false);
     let profileId;
     if (existing) {
       await ctx.db.patch("staffProfiles", existing._id, {
@@ -526,6 +564,8 @@ export const removeStaffProfile = mutation({
         await ctx.db.patch("divisions", div._id, { headEmail: undefined });
       }
     }
+    // A deleted profile moves the person to the year's "not serving" list.
+    await setLeaver(ctx, args.year, email, true);
     return null;
   },
 });
@@ -567,9 +607,11 @@ export const listUnassignedUsers = query({
     const directoryNameByEmail = new Map(
       directoryUsers.map((u) => [u.email, u.name ?? null] as const)
     );
+    // People parked in the "not serving" list belong there, not in unassigned.
+    const leaverEmails = await leaverEmailSet(ctx, args.year);
     const unassigned: { email: string; name: string | null }[] = [];
     for (const user of users) {
-      if (!user.email) continue;
+      if (!user.email || leaverEmails.has(user.email)) continue;
       const profile = await getProfile(ctx, user.email, args.year);
       if (!profile) {
         unassigned.push({
@@ -579,6 +621,62 @@ export const listUnassignedUsers = query({
       }
     }
     return unassigned;
+  },
+});
+
+/**
+ * People marked "not serving" for the year, with names resolved. Excludes
+ * anyone who now holds a profile (defensive — a reassign clears the leaver row).
+ * Admins only.
+ */
+export const listLeavers = query({
+  args: { year: v.number() },
+  handler: async (ctx, args) => {
+    if ((await optionalEmail(ctx)) === null) return null; // auth attaching
+    await requireAdmin(ctx);
+    const rows = await ctx.db
+      .query("leavers")
+      .withIndex("by_year", (q) => q.eq("year", args.year))
+      .take(1000);
+    const directoryUsers = await ctx.db.query("directoryUsers").take(4000);
+    const directoryNameByEmail = new Map(
+      directoryUsers.map((u) => [u.email, u.name ?? null] as const)
+    );
+    const leavers: { email: string; name: string | null }[] = [];
+    for (const row of rows) {
+      if (await getProfile(ctx, row.email, args.year)) continue;
+      const user = await ctx.db
+        .query("users")
+        .withIndex("email", (q) => q.eq("email", row.email))
+        .first();
+      leavers.push({
+        email: row.email,
+        name: user?.name ?? directoryNameByEmail.get(row.email) ?? null,
+      });
+    }
+    return leavers;
+  },
+});
+
+/** Park an unassigned person in the year's "not serving" list. Admins only. */
+export const markLeaving = mutation({
+  args: { email: v.string(), year: v.number() },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    assertManagedYear(args.year);
+    await setLeaver(ctx, args.year, args.email.trim().toLowerCase(), true);
+    return null;
+  },
+});
+
+/** Move a person out of "not serving" and back into the unassigned pool. */
+export const unmarkLeaving = mutation({
+  args: { email: v.string(), year: v.number() },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    assertManagedYear(args.year);
+    await setLeaver(ctx, args.year, args.email.trim().toLowerCase(), false);
+    return null;
   },
 });
 

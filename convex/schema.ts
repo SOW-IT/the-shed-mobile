@@ -145,6 +145,17 @@ export default defineSchema({
     // Exact lookup for dedupe-on-add.
     .index("by_year_and_from_and_to", ["year", "fromEmail", "toEmail"]),
 
+  // People marked "not serving" for a year — they had (or could have had) a
+  // staff profile but are no longer assigned. Deleting a staffProfile moves the
+  // person here; admins move them between this list and the unassigned pool.
+  // Per (year, email); managed years only.
+  leavers: defineTable({
+    year: v.number(),
+    email: v.string(), // lowercase
+  })
+    .index("by_year", ["year"])
+    .index("by_year_and_email", ["year", "email"]),
+
   // Bank accounts a person has used on a receipt, remembered so they don't
   // re-type BSB/account each time. Owned by email; auto-saved on receipt
   // submission and deletable by the owner. Deduped per (email, bsb, account).
