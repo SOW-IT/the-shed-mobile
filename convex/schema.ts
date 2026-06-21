@@ -125,6 +125,10 @@ export default defineSchema({
   yearSettings: defineTable({
     year: v.number(),
     budgetManagerEmail: v.optional(v.string()),
+    // The $ amount at or above which a request also needs the Director's
+    // approval. Unset falls back to DIRECTOR_APPROVAL_THRESHOLD (the historical
+    // default); Finance can change it per year. See shared/flow.ts.
+    directorApprovalThreshold: v.optional(v.number()),
   }).index("by_year", ["year"]),
 
   // Bank accounts a person has used on a receipt, remembered so they don't

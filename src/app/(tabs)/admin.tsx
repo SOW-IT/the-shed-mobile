@@ -6,6 +6,7 @@ import {
   type Assignment,
   departmentsOf,
   DIRECTOR,
+  DIRECTOR_APPROVAL_THRESHOLD,
   divisionsOf,
   formatAssignment,
   HEAD_OF_DEPARTMENT,
@@ -23,6 +24,7 @@ import {
   Btn,
   Card,
   ConfirmDialog,
+  currencyText,
   ErrorBanner,
   errorMessage,
   Field,
@@ -341,6 +343,7 @@ export default function AdminScreen() {
   const updateRole = useMutation(api.admin.updateRole);
   const removeRole = useMutation(api.admin.removeRole);
   const setBudgetManager = useMutation(api.admin.setBudgetManager);
+  const setDirectorThreshold = useMutation(api.admin.setDirectorThreshold);
   const requestSync = useMutation(api.directorySync.requestSync);
   const syncState = useQuery(
     api.directorySync.list,
@@ -374,6 +377,15 @@ export default function AdminScreen() {
   const [budgetManagerEmail, setBudgetManagerEmail] = useState<string | null>(null);
   const budgetManagerValue =
     budgetManagerEmail ?? structure?.budgetManagerEmail ?? "";
+  // Director-threshold form — null means "untouched". The field shows the year's
+  // configured value, or the standard default when none is set.
+  const [thresholdInput, setThresholdInput] = useState<string | null>(null);
+  const configuredThreshold = structure?.directorApprovalThreshold ?? null;
+  const thresholdValue =
+    thresholdInput ?? String(configuredThreshold ?? DIRECTOR_APPROVAL_THRESHOLD);
+  const thresholdNumber = Number(thresholdValue);
+  const thresholdUnchanged =
+    thresholdNumber === configuredThreshold || thresholdValue.trim() === "";
 
   // Inline editing state for user cards
   const [editingUserEmail, setEditingUserEmail] = useState<string | null>(null);
@@ -742,6 +754,11 @@ export default function AdminScreen() {
   const onSelectYear = (y: number) => {
     setYear(y);
     setError(null);
+    // Clear every per-year draft so an unsaved value can't carry into — and be
+    // submitted against — a different year (the Threshold field and the Budget
+    // Manager picker both hold drafts keyed to the previously selected year).
+    setThresholdInput(null);
+    setBudgetManagerEmail(null);
     setEditingUserEmail(null);
     setAssigningUserEmail(null);
     setEditingDivisionKey(null);
@@ -1367,6 +1384,47 @@ export default function AdminScreen() {
                 disabled
                 placeholder="Not set"
               />
+            )}
+          </Card>
+
+          <SectionTitle>Director Approval Threshold — {selectedYear}</SectionTitle>
+          <Card>
+            <Muted>
+              Requests at or above this amount also need the Director&apos;s
+              approval.
+              {configuredThreshold == null
+                ? ` Using the standard default of $${DIRECTOR_APPROVAL_THRESHOLD.toLocaleString()}.`
+                : ""}{" "}
+              Only affects requests submitted from now on.
+            </Muted>
+            {editable ? (
+              <>
+                <Field
+                  label="Threshold ($)"
+                  value={thresholdValue}
+                  onChangeText={(text) => setThresholdInput(currencyText(text))}
+                  keyboardType="numeric"
+                />
+                <Btn
+                  title="Set Threshold"
+                  disabled={!(thresholdNumber > 0) || thresholdUnchanged}
+                  onPress={() =>
+                    void run(() =>
+                      setDirectorThreshold({
+                        year: selectedYear,
+                        amount: thresholdNumber,
+                      })
+                    ).then((ok) => ok && setThresholdInput(null))
+                  }
+                />
+              </>
+            ) : (
+              <Muted>
+                Threshold: $
+                {(
+                  configuredThreshold ?? DIRECTOR_APPROVAL_THRESHOLD
+                ).toLocaleString()}
+              </Muted>
             )}
           </Card>
         </>

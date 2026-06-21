@@ -390,6 +390,7 @@ export const yearStructure = query({
       universities: universities.map((u) => u.name),
       roles: roles.map((r) => r.name),
       budgetManagerEmail: settings?.budgetManagerEmail ?? null,
+      directorApprovalThreshold: settings?.directorApprovalThreshold ?? null,
     };
   },
 });
