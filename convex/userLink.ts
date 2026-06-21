@@ -74,11 +74,29 @@ async function rekeyEmail(ctx: MutationCtx, oldEmail: string, newEmail: string) 
   // headships above rather than adding a non-year index.
   const delegations = await ctx.db.query("approverDelegations").take(2000);
   for (const delegation of delegations) {
-    const patch: { fromEmail?: string; toEmail?: string } = {};
-    if (delegation.fromEmail === oldEmail) patch.fromEmail = newEmail;
-    if (delegation.toEmail === oldEmail) patch.toEmail = newEmail;
-    if (patch.fromEmail !== undefined || patch.toEmail !== undefined) {
-      await ctx.db.patch("approverDelegations", delegation._id, patch);
+    const nextFrom = delegation.fromEmail === oldEmail ? newEmail : delegation.fromEmail;
+    const nextTo = delegation.toEmail === oldEmail ? newEmail : delegation.toEmail;
+    if (nextFrom === delegation.fromEmail && nextTo === delegation.toEmail) continue;
+    // Convex indexes aren't unique, so a colliding patch wouldn't error — but it
+    // would leave two identical (year, from, to) rows, which later breaks
+    // addDelegation's unique() dedup lookup. If the rekey would collapse this
+    // row onto an existing pair (or into a meaningless self-delegation), drop it
+    // instead — mirroring the staffProfiles collision handling above.
+    const collidesWithExisting =
+      nextFrom !== nextTo &&
+      (await ctx.db
+        .query("approverDelegations")
+        .withIndex("by_year_and_from_and_to", (q) =>
+          q.eq("year", delegation.year).eq("fromEmail", nextFrom).eq("toEmail", nextTo)
+        )
+        .first()) !== null;
+    if (nextFrom === nextTo || collidesWithExisting) {
+      await ctx.db.delete("approverDelegations", delegation._id);
+    } else {
+      await ctx.db.patch("approverDelegations", delegation._id, {
+        fromEmail: nextFrom,
+        toEmail: nextTo,
+      });
     }
   }
 

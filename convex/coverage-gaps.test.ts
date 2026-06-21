@@ -338,6 +338,39 @@ describe("userLink: re-keying approver delegations on rename", () => {
     // No stale references to the old address survive.
     expect(list.some((d) => d.fromEmail === HENRY || d.toEmail === HENRY)).toBe(false);
   });
+
+  test("a rename that would duplicate an existing delegation drops the old row", async () => {
+    const t = await setup();
+    const NEW = "henry.new@sow.org.au";
+    // A delegation already exists under Henry's FUTURE address (NEW → Bella),
+    // plus an unrelated one (Fiona → Bella) that the rename must leave untouched.
+    await t.run((ctx) =>
+      ctx.db.insert("approverDelegations", { year: YEAR, fromEmail: NEW, toEmail: BELLA })
+    );
+    await asUser(t, ADMIN).mutation(api.admin.addDelegation, {
+      year: YEAR,
+      fromEmail: FIONA,
+      toEmail: BELLA,
+    });
+    // Henry (old address) also delegates to Bella — after the rename this collides.
+    await asUser(t, ADMIN).mutation(api.admin.addDelegation, {
+      year: YEAR,
+      fromEmail: HENRY,
+      toEmail: BELLA,
+    });
+
+    const userId = await t.run((ctx) => ctx.db.insert("users", { email: HENRY }));
+    await t.mutation(internal.userLink.link, { userId });
+    await t.run((ctx) => ctx.db.patch("users", userId, { email: NEW }));
+    await t.mutation(internal.userLink.link, { userId });
+
+    // Exactly one NEW → Bella row survives (the colliding old row was dropped),
+    // the unrelated Fiona → Bella row is intact, and no stale HENRY row remains.
+    const list = (await asUser(t, ADMIN).query(api.admin.listDelegations, { year: YEAR }))!;
+    expect(list.filter((d) => d.fromEmail === NEW && d.toEmail === BELLA)).toHaveLength(1);
+    expect(list.some((d) => d.fromEmail === FIONA && d.toEmail === BELLA)).toBe(true);
+    expect(list.some((d) => d.fromEmail === HENRY)).toBe(false);
+  });
 });
 
 describe("model.requireEmail", () => {
