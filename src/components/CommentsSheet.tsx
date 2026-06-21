@@ -108,6 +108,9 @@ export const CommentsSheet = ({
     }
   );
   const markRead = useMutation(api.comments.markRead);
+  // Also clear any in-app notifications about this request once its thread is
+  // open — reading the comment marks the "new comment" notification read too.
+  const markNotificationsRead = useMutation(api.notifications.markReadForRequest);
   // Optimistic: toggle my reaction locally (add/remove, re-sorted by count) so
   // the chip updates on tap instead of after the round-trip.
   const toggleReaction = useMutation(api.comments.toggleReaction).withOptimisticUpdate(
@@ -148,8 +151,11 @@ export const CommentsSheet = ({
 
   // Clear the unread badge while the thread is open (including as new ones land).
   useEffect(() => {
-    if (visible && comments) void markRead({ requestId: request._id });
-  }, [visible, comments, markRead, request._id]);
+    if (visible && comments) {
+      void markRead({ requestId: request._id });
+      void markNotificationsRead({ requestId: request._id });
+    }
+  }, [visible, comments, markRead, markNotificationsRead, request._id]);
 
   // Closing the thread also dismisses any open reaction picker.
   useEffect(() => {

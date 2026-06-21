@@ -64,6 +64,31 @@ export const markRead = mutation({
   },
 });
 
+/**
+ * Marks the caller's notifications for one request read — called when they open
+ * that request (or its comment thread), so a notification clears once they've
+ * actually seen what it was about. No-ops gracefully while auth is attaching.
+ */
+export const markReadForRequest = mutation({
+  args: { requestId: v.id("requests") },
+  handler: async (ctx, args) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    const rows = await ctx.db
+      .query("notifications")
+      .withIndex("by_user_and_request", (q) =>
+        q.eq("userEmail", caller.email).eq("requestId", args.requestId)
+      )
+      .take(200);
+    for (const notification of rows) {
+      if (!notification.read) {
+        await ctx.db.patch("notifications", notification._id, { read: true });
+      }
+    }
+    return null;
+  },
+});
+
 /** Marks all of the caller's notifications read, in bounded batches. */
 export const markAllRead = mutation({
   args: {},

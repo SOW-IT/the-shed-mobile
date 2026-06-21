@@ -260,10 +260,15 @@ export default defineSchema({
     title: v.string(),
     body: v.string(),
     url: v.optional(v.string()),
+    // The request this notification is about, when any — so it can be auto-read
+    // once that request (or its comment thread) is opened.
+    requestId: v.optional(v.id("requests")),
     read: v.boolean(),
   })
     // Newest-first feed for one user.
     .index("by_user", ["userEmail"])
     // Unread lookup for the badge and mark-all-read.
-    .index("by_user_and_read", ["userEmail", "read"]),
+    .index("by_user_and_read", ["userEmail", "read"])
+    // The caller's notifications for one request, for contextual mark-as-read.
+    .index("by_user_and_request", ["userEmail", "requestId"]),
 });

@@ -1,5 +1,6 @@
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams } from "expo-router";
+import { useEffect } from "react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { RequestCard } from "@/components/RequestCard";
@@ -18,6 +19,13 @@ export default function RequestDetailScreen() {
     api.requests.get,
     id ? { requestId: id as Id<"requests"> } : "skip"
   );
+  // Opening the request is "seeing" what its notifications were about, so clear
+  // them (e.g. landing here from a push or a tapped in-app notification).
+  const markNotificationsRead = useMutation(api.notifications.markReadForRequest);
+  const requestId = request?._id;
+  useEffect(() => {
+    if (requestId) void markNotificationsRead({ requestId });
+  }, [requestId, markNotificationsRead]);
 
   if (request === undefined) {
     return (
