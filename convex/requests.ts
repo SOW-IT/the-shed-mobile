@@ -100,9 +100,15 @@ export const notify = async (
     pushTitle?: string;
     body: string;
     url?: string;
+    /**
+     * The request this is about, so the in-app notification can be auto-read
+     * when that request is viewed. Defaults to the id parsed from a
+     * `/request/<id>` url, so most callers needn't pass it.
+     */
+    requestId?: Id<"requests">;
   }
 ) => {
-  const { to, actor, subject, pushTitle, body, url } = opts;
+  const { to, actor, subject, pushTitle, body, url, requestId } = opts;
   if (!to) return;
   await ctx.scheduler.runAfter(0, internal.emails.send, {
     to,
@@ -116,12 +122,19 @@ export const notify = async (
   // Lead line only; the email carries the full details. Shared by the push and
   // the in-app notification feed.
   const lead = body.split("\n")[0];
+  // Link to the request — explicit id, else parsed from a /request/<id> url —
+  // so opening that request later marks this notification read.
+  const urlMatch = url?.match(/^\/request\/(.+)$/);
+  const linkedRequestId =
+    requestId ??
+    (urlMatch ? (ctx.db.normalizeId("requests", urlMatch[1]) ?? undefined) : undefined);
   // In-app notification history (mirrors the push), with an unread badge.
   await ctx.db.insert("notifications", {
     userEmail: to,
     title,
     body: lead,
     url,
+    ...(linkedRequestId ? { requestId: linkedRequestId } : {}),
     read: false,
   });
   await ctx.scheduler.runAfter(0, internal.push.send, {
@@ -231,6 +244,7 @@ const notifyNextActor = async (
       pushTitle: "Approval needed",
       body: `The request below is waiting on your approval in THE SHED.\n\n${requestSummary(request)}`,
       url: "/review",
+      requestId: request._id, // url is /review, so link the request explicitly
     });
   } else if (requestFullyApproved(request)) {
     await notify(ctx, {
@@ -1210,6 +1224,7 @@ export const submitReceipt = mutation({
       pushTitle: "Receipt ready to pay",
       body: `${requesterName} submitted their receipt (total $${totalAmount}). Please pay the reimbursement in THE SHED.\n\n${requestSummary(request)}`,
       url: "/review",
+      requestId: request._id, // url is /review, so link the request explicitly
     });
     return null;
   },

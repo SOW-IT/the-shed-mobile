@@ -329,6 +329,38 @@ describe("in-app notifications", () => {
       asUser(t, RACHEL).mutation(api.notifications.markRead, { id: feed![0].id })
     ).rejects.toThrow();
   });
+
+  test("a request's notifications clear once that request is opened", async () => {
+    const t = await setup();
+    // Rachel submits → Henry (HOD) gets an approval-needed notification, linked
+    // to the request explicitly (its url is /review).
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
+    const [req] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(1);
+    // Henry comments → Rachel (the requester) gets a comment notification, linked
+    // to the request via its /request/<id> url.
+    await asUser(t, HENRY).mutation(api.comments.add, { requestId: req._id, body: "why?" });
+    expect(await asUser(t, RACHEL).query(api.notifications.unreadCount, {})).toBe(1);
+
+    // Opening the request (or its thread) clears each person's notification for it.
+    await asUser(t, HENRY).mutation(api.notifications.markReadForRequest, { requestId: req._id });
+    expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(0);
+    await asUser(t, RACHEL).mutation(api.notifications.markReadForRequest, { requestId: req._id });
+    expect(await asUser(t, RACHEL).query(api.notifications.unreadCount, {})).toBe(0);
+  });
+
+  test("opening one request leaves other requests' notifications unread", async () => {
+    const t = await setup();
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "a", amount: 100 });
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "b", amount: 200 });
+    const reqs = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(2);
+    await asUser(t, HENRY).mutation(api.notifications.markReadForRequest, {
+      requestId: reqs[0]._id,
+    });
+    // Only the opened request's notification cleared; the other stays unread.
+    expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(1);
+  });
 });
 
 describe("approval chain order and authorization", () => {
