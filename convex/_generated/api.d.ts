@@ -21,6 +21,7 @@ import type * as http from "../http.js";
 import type * as importData from "../importData.js";
 import type * as importHistory from "../importHistory.js";
 import type * as model from "../model.js";
+import type * as notifications from "../notifications.js";
 import type * as profile from "../profile.js";
 import type * as push from "../push.js";
 import type * as reminders from "../reminders.js";
@@ -47,6 +48,7 @@ declare const fullApi: ApiFromModules<{
   importData: typeof importData;
   importHistory: typeof importHistory;
   model: typeof model;
+  notifications: typeof notifications;
   profile: typeof profile;
   push: typeof push;
   reminders: typeof reminders;

@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import * as Haptics from "expo-haptics";
 import { Children, ReactNode, Ref, useEffect, useRef, useState } from "react";
@@ -20,6 +21,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { api } from "../../convex/_generated/api";
 import { radius, spacing, typography, USE_NATIVE_DRIVER, useAppTheme } from "../theme";
 
 // Haptics are intentionally reserved for the bottom navigation bar only (see
@@ -1236,7 +1238,9 @@ export const TopBar = ({
   const t = useAppTheme();
   const router = useRouter();
   const home = usePressScale();
+  const bell = usePressScale();
   const profile = usePressScale();
+  const unread = useQuery(api.notifications.unreadCount, {}) ?? 0;
   return (
     <View style={styles.topBar}>
       <Animated.View style={{ transform: [{ scale: home.scale }] }}>
@@ -1255,17 +1259,44 @@ export const TopBar = ({
           />
         </Pressable>
       </Animated.View>
-      <Animated.View style={{ transform: [{ scale: profile.scale }] }}>
-        <Pressable
-          onPress={() => router.push("/profile")}
-          onPressIn={profile.onPressIn}
-          onPressOut={profile.onPressOut}
-          accessibilityRole="button"
-          accessibilityLabel="Open your profile"
-        >
-          <Avatar photo={photo} name={name} size={40} />
-        </Pressable>
-      </Animated.View>
+      <View style={styles.topBarRight}>
+        <Animated.View style={{ transform: [{ scale: bell.scale }] }}>
+          <Pressable
+            onPress={() => router.push("/notifications" as never)}
+            onPressIn={bell.onPressIn}
+            onPressOut={bell.onPressOut}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={
+              unread > 0 ? `Notifications, ${unread} unread` : "Notifications"
+            }
+          >
+            <Ionicons
+              name={unread > 0 ? "notifications" : "notifications-outline"}
+              size={24}
+              color={t.text}
+            />
+            {unread > 0 ? (
+              <View style={[styles.topBarBadge, { backgroundColor: t.accent }]}>
+                <Text style={styles.topBarBadgeText}>
+                  {unread > 99 ? "99+" : unread}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
+        </Animated.View>
+        <Animated.View style={{ transform: [{ scale: profile.scale }] }}>
+          <Pressable
+            onPress={() => router.push("/profile")}
+            onPressIn={profile.onPressIn}
+            onPressOut={profile.onPressOut}
+            accessibilityRole="button"
+            accessibilityLabel="Open your profile"
+          >
+            <Avatar photo={photo} name={name} size={40} />
+          </Pressable>
+        </Animated.View>
+      </View>
     </View>
   );
 };
@@ -1464,6 +1495,19 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingVertical: spacing.sm,
   },
+  topBarRight: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  topBarBadge: {
+    position: "absolute",
+    top: -5,
+    right: -7,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  topBarBadgeText: { color: "#ffffff", fontSize: 10, fontWeight: "800" },
   topBarLogo: { width: 88, height: 30 },
   tabBar: {
     flexDirection: "row",
