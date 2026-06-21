@@ -251,4 +251,19 @@ export default defineSchema({
     .index("by_year_and_requester", ["year", "requesterEmail"])
     .index("by_requester", ["requesterEmail"])
     .index("by_year_and_department", ["year", "department"]),
+
+  // In-app notification feed: a row per recipient per flow event, mirroring the
+  // push/email a person gets so they have an in-app history with an unread
+  // badge. Written by requests.ts `notify`; `url` is the in-app route to open.
+  notifications: defineTable({
+    userEmail: v.string(), // recipient, lowercase
+    title: v.string(),
+    body: v.string(),
+    url: v.optional(v.string()),
+    read: v.boolean(),
+  })
+    // Newest-first feed for one user.
+    .index("by_user", ["userEmail"])
+    // Unread lookup for the badge and mark-all-read.
+    .index("by_user_and_read", ["userEmail", "read"]),
 });

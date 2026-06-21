@@ -295,6 +295,42 @@ describe("approver delegation (out-of-office cover)", () => {
   });
 });
 
+describe("in-app notifications", () => {
+  test("a flow event notifies the recipient, not the actor", async () => {
+    const t = await setup();
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
+    // The submitter's own acknowledgement isn't added to their own feed.
+    expect(await asUser(t, RACHEL).query(api.notifications.unreadCount, {})).toBe(0);
+    // The HOD (the next approver) gets one.
+    expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(1);
+    const feed = await asUser(t, HENRY).query(api.notifications.list, {});
+    expect(feed).toHaveLength(1);
+    expect(feed![0].read).toBe(false);
+    expect(feed![0].title).toMatch(/approval/i);
+  });
+
+  test("mark one / mark all read clears the unread count", async () => {
+    const t = await setup();
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "a", amount: 100 });
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "b", amount: 200 });
+    expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(2);
+    const feed = await asUser(t, HENRY).query(api.notifications.list, {});
+    await asUser(t, HENRY).mutation(api.notifications.markRead, { id: feed![0].id });
+    expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(1);
+    await asUser(t, HENRY).mutation(api.notifications.markAllRead, {});
+    expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(0);
+  });
+
+  test("a notification can only be marked read by its owner", async () => {
+    const t = await setup();
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
+    const feed = await asUser(t, HENRY).query(api.notifications.list, {});
+    await expect(
+      asUser(t, RACHEL).mutation(api.notifications.markRead, { id: feed![0].id })
+    ).rejects.toThrow();
+  });
+});
+
 describe("approval chain order and authorization", () => {
   test("the full chain: HOD -> Budget Manager -> Finance Head -> receipt -> pay", async () => {
     const t = await setup();

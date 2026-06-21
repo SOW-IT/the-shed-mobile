@@ -112,11 +112,22 @@ export const notify = async (
   // Don't buzz people for something they just did themselves; the email is
   // their receipt.
   if (actor && to === actor) return;
-  // Push body: just the lead line; the email carries the full details.
+  const title = pushTitle ?? subject;
+  // Lead line only; the email carries the full details. Shared by the push and
+  // the in-app notification feed.
+  const lead = body.split("\n")[0];
+  // In-app notification history (mirrors the push), with an unread badge.
+  await ctx.db.insert("notifications", {
+    userEmail: to,
+    title,
+    body: lead,
+    url,
+    read: false,
+  });
   await ctx.scheduler.runAfter(0, internal.push.send, {
     to,
-    title: pushTitle ?? subject,
-    body: body.split("\n")[0],
+    title,
+    body: lead,
     url,
   });
 };

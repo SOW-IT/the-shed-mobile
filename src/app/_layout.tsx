@@ -46,6 +46,7 @@ const RootStack = () => (
   >
     <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
     <Stack.Screen name="profile" />
+    <Stack.Screen name="notifications" />
     <Stack.Screen name="person/[email]" />
     <Stack.Screen name="request/[id]" />
     {/* Folded into the Requests tab; routes survive for old deep links. */}
