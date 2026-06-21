@@ -74,14 +74,18 @@ export const markReadForRequest = mutation({
   handler: async (ctx, args) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
-    const rows = await ctx.db
-      .query("notifications")
-      .withIndex("by_user_and_request", (q) =>
-        q.eq("userEmail", caller.email).eq("requestId", args.requestId)
-      )
-      .take(200);
-    for (const notification of rows) {
-      if (!notification.read) {
+    for (;;) {
+      const unread = await ctx.db
+        .query("notifications")
+        .withIndex("by_user_and_request_and_read", (q) =>
+          q
+            .eq("userEmail", caller.email)
+            .eq("requestId", args.requestId)
+            .eq("read", false)
+        )
+        .take(200);
+      if (unread.length === 0) break;
+      for (const notification of unread) {
         await ctx.db.patch("notifications", notification._id, { read: true });
       }
     }

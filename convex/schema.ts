@@ -269,6 +269,7 @@ export default defineSchema({
     .index("by_user", ["userEmail"])
     // Unread lookup for the badge and mark-all-read.
     .index("by_user_and_read", ["userEmail", "read"])
-    // The caller's notifications for one request, for contextual mark-as-read.
-    .index("by_user_and_request", ["userEmail", "requestId"]),
+    // The caller's unread notifications for one request, for contextual
+    // mark-as-read (the `read` suffix lets us query only the unread rows).
+    .index("by_user_and_request_and_read", ["userEmail", "requestId", "read"]),
 });
