@@ -1456,13 +1456,15 @@ export default function AdminScreen() {
                           "  →  " +
                           (nameByEmail.get(d.toEmail) ?? d.toEmail)}
                       </Txt>
-                      <IconButton
-                        name="close"
-                        size={32}
-                        color={t.danger}
-                        accessibilityLabel="Remove delegation"
-                        onPress={() => void run(() => removeDelegation({ id: d.id }))}
-                      />
+                      {editable && (
+                        <IconButton
+                          name="close"
+                          size={32}
+                          color={t.danger}
+                          accessibilityLabel="Remove delegation"
+                          onPress={() => void run(() => removeDelegation({ id: d.id }))}
+                        />
+                      )}
                     </Row>
                   ))
                 )}

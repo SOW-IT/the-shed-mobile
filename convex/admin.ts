@@ -28,6 +28,7 @@ import { Doc } from "./_generated/dataModel";
 import { internalMutation, MutationCtx, mutation, query } from "./_generated/server";
 import {
   currentStaffYear,
+  DELEGATION_QUERY_LIMIT,
   getDepartment,
   getProfile,
   getYearSettings,
@@ -1379,7 +1380,7 @@ export const listDelegations = query({
     const rows = await ctx.db
       .query("approverDelegations")
       .withIndex("by_year", (q) => q.eq("year", args.year))
-      .take(500);
+      .take(DELEGATION_QUERY_LIMIT);
     return rows.map((r) => ({
       id: r._id,
       fromEmail: r.fromEmail,

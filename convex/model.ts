@@ -13,6 +13,14 @@ import { MutationCtx, QueryCtx } from "./_generated/server";
 
 type Ctx = QueryCtx | MutationCtx;
 
+/**
+ * Read bound shared by every approver-delegation query (delegatorsForYear here
+ * and admin.listDelegations) so the authorization set can't silently disagree
+ * with the admin list. Delegations are admin-created — a single person being a
+ * delegate of hundreds of approvers is implausible, so this never truncates.
+ */
+export const DELEGATION_QUERY_LIMIT = 500;
+
 export const currentStaffYear = () => staffYearForDate(new Date());
 export const nextStaffYear = () => currentStaffYear() + 1;
 
@@ -224,7 +232,7 @@ export async function delegatorsForYear(
   const rows = await ctx.db
     .query("approverDelegations")
     .withIndex("by_year_and_to", (q) => q.eq("year", year).eq("toEmail", email))
-    .take(200);
+    .take(DELEGATION_QUERY_LIMIT);
   return rows.map((r) => r.fromEmail);
 }
 

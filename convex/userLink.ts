@@ -12,8 +12,9 @@ const LEGACY_EMAIL_DOMAINS = ["sowaustralia.com"];
 
 /**
  * Re-keys every email-keyed reference from oldEmail to newEmail: staff
- * profiles, requests, department headships, Budget Manager assignments and
- * push tokens. Runs when a signed-in account's Google email changes.
+ * profiles, requests, department headships, Budget Manager assignments,
+ * approver delegations and push tokens. Runs when a signed-in account's Google
+ * email changes.
  */
 async function rekeyEmail(ctx: MutationCtx, oldEmail: string, newEmail: string) {
   const profiles = await ctx.db
@@ -64,6 +65,20 @@ async function rekeyEmail(ctx: MutationCtx, oldEmail: string, newEmail: string) 
       await ctx.db.patch("yearSettings", setting._id, {
         budgetManagerEmail: newEmail,
       });
+    }
+  }
+
+  // Approver delegations are email-keyed on both ends; rekey either side so a
+  // renamed approver keeps their cover and a reused old address doesn't inherit
+  // a stale grant. Few rows (admin-created), so scan-and-filter like the
+  // headships above rather than adding a non-year index.
+  const delegations = await ctx.db.query("approverDelegations").take(2000);
+  for (const delegation of delegations) {
+    const patch: { fromEmail?: string; toEmail?: string } = {};
+    if (delegation.fromEmail === oldEmail) patch.fromEmail = newEmail;
+    if (delegation.toEmail === oldEmail) patch.toEmail = newEmail;
+    if (patch.fromEmail !== undefined || patch.toEmail !== undefined) {
+      await ctx.db.patch("approverDelegations", delegation._id, patch);
     }
   }
 

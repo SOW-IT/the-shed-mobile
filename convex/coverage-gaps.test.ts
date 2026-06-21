@@ -307,6 +307,39 @@ describe("userLink: re-keying a division head and budget manager on rename", () 
   });
 });
 
+describe("userLink: re-keying approver delegations on rename", () => {
+  test("a renamed account carries its delegations on both the from and to sides", async () => {
+    const t = await setup();
+    // Henry is covered FOR Fiona (he's her delegate) and also delegates his own
+    // authority TO Bella — so his email appears on both ends.
+    await asUser(t, ADMIN).mutation(api.admin.addDelegation, {
+      year: YEAR,
+      fromEmail: FIONA,
+      toEmail: HENRY,
+    });
+    await asUser(t, ADMIN).mutation(api.admin.addDelegation, {
+      year: YEAR,
+      fromEmail: HENRY,
+      toEmail: BELLA,
+    });
+
+    const userId = await t.run((ctx) => ctx.db.insert("users", { email: HENRY }));
+    await t.mutation(internal.userLink.link, { userId });
+    await t.run((ctx) => ctx.db.patch("users", userId, { email: "henry.new@sow.org.au" }));
+    await t.mutation(internal.userLink.link, { userId });
+
+    const list = (await asUser(t, ADMIN).query(api.admin.listDelegations, { year: YEAR }))!;
+    expect(
+      list.some((d) => d.fromEmail === FIONA && d.toEmail === "henry.new@sow.org.au")
+    ).toBe(true);
+    expect(
+      list.some((d) => d.fromEmail === "henry.new@sow.org.au" && d.toEmail === BELLA)
+    ).toBe(true);
+    // No stale references to the old address survive.
+    expect(list.some((d) => d.fromEmail === HENRY || d.toEmail === HENRY)).toBe(false);
+  });
+});
+
 describe("model.requireEmail", () => {
   test("generateReceiptUploadUrl surfaces the signed-in requirement when unauthenticated", async () => {
     const t = await setup();
