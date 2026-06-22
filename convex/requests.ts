@@ -1162,8 +1162,8 @@ const RECEIPT_PROMPT =
   "date is the purchase date as YYYY-MM-DD. Use null for anything you can't read " +
   "confidently — never guess.";
 
-/** Base64-encode bytes without Buffer (works in the V8 + edge runtimes). */
-const bytesToBase64 = (bytes: Uint8Array): string => {
+/** Base64-encode bytes without Buffer (works in the V8 + edge runtimes). Exported for tests. */
+export const bytesToBase64 = (bytes: Uint8Array): string => {
   let binary = "";
   const chunk = 0x8000;
   for (let i = 0; i < bytes.length; i += chunk) {
@@ -1172,8 +1172,8 @@ const bytesToBase64 = (bytes: Uint8Array): string => {
   return btoa(binary);
 };
 
-/** Validate/normalise the model's JSON into ReceiptFields. */
-const parseReceiptFields = (text: unknown): ReceiptFields => {
+/** Validate/normalise the model's JSON into ReceiptFields. Exported for tests. */
+export const parseReceiptFields = (text: unknown): ReceiptFields => {
   if (typeof text !== "string") return NO_RECEIPT_FIELDS;
   try {
     const parsed = JSON.parse(text) as Record<string, unknown>;

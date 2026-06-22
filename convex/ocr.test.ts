@@ -2,6 +2,7 @@
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { api } from "./_generated/api";
+import { bytesToBase64, parseReceiptFields } from "./requests";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -174,5 +175,48 @@ describe("requests.extractReceipt (Gemini OCR action)", () => {
     const result = await asUser(t).action(api.requests.extractReceipt, { storageId });
     expect(result).toEqual({ amount: null, vendor: null, date: null });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+// Direct helper tests — run in the plain test runtime (not inside an action), so
+// their coverage is registered consistently across OSes/runtimes.
+describe("receipt-field helpers", () => {
+  test("bytesToBase64 encodes small and multi-chunk inputs", () => {
+    expect(bytesToBase64(new Uint8Array([0x66, 0x61, 0x6b, 0x65]))).toBe("ZmFrZQ==");
+    // Larger than one 0x8000 chunk, to exercise the loop's second iteration.
+    const big = new Uint8Array(0x8000 + 5).fill(65);
+    expect(atob(bytesToBase64(big)).length).toBe(big.length);
+  });
+
+  test("parseReceiptFields keeps valid fields (trimming the vendor)", () => {
+    expect(
+      parseReceiptFields(
+        JSON.stringify({ amount: 42.5, vendor: "  Bunnings  ", date: "2026-06-20" })
+      )
+    ).toEqual({ amount: 42.5, vendor: "Bunnings", date: "2026-06-20" });
+  });
+
+  test("parseReceiptFields rejects implausible / unreadable fields", () => {
+    expect(
+      parseReceiptFields(
+        JSON.stringify({ amount: "lots", vendor: "   ", date: "20/06/2026" })
+      )
+    ).toEqual({ amount: null, vendor: null, date: null });
+    expect(
+      parseReceiptFields(JSON.stringify({ amount: -3, vendor: 7, date: 0 }))
+    ).toEqual({ amount: null, vendor: null, date: null });
+  });
+
+  test("parseReceiptFields tolerates non-strings and bad JSON", () => {
+    expect(parseReceiptFields(undefined)).toEqual({
+      amount: null,
+      vendor: null,
+      date: null,
+    });
+    expect(parseReceiptFields("not json {")).toEqual({
+      amount: null,
+      vendor: null,
+      date: null,
+    });
   });
 });
