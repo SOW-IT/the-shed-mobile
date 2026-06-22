@@ -21,7 +21,7 @@ import {
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { rememberBankAccount } from "./bankAccounts";
-import { action, mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
+import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import {
   actAsEmails,
   currentStaffYear,
@@ -1136,125 +1136,6 @@ export const generateReceiptUploadUrl = mutation({
   handler: async (ctx) => {
     await requireProfile(ctx);
     return await ctx.storage.generateUploadUrl();
-  },
-});
-
-/** Fields read off a receipt by the OCR pass; null where unreadable. */
-export type ReceiptFields = {
-  amount: number | null;
-  vendor: string | null;
-  date: string | null;
-};
-const NO_RECEIPT_FIELDS: ReceiptFields = { amount: null, vendor: null, date: null };
-
-/**
- * Upper bound on a blob we'll pull into memory, base64-encode and ship to
- * Gemini. Receipts are small images/PDFs (the client caps uploads at 2MB); this
- * generous ceiling just stops a signed-in caller forcing OCR on a huge blob.
- */
-const MAX_RECEIPT_OCR_BYTES = 10 * 1024 * 1024;
-
-const RECEIPT_PROMPT =
-  "This image is a receipt or tax invoice. Return ONLY JSON of the form " +
-  '{"amount": number|null, "vendor": string|null, "date": string|null} where ' +
-  "amount is the grand total actually paid including any GST/tax (a number, no " +
-  "currency symbol or thousands separators), vendor is the business name, and " +
-  "date is the purchase date as YYYY-MM-DD. Use null for anything you can't read " +
-  "confidently — never guess.";
-
-/** Base64-encode bytes without Buffer (works in the V8 + edge runtimes). Exported for tests. */
-export const bytesToBase64 = (bytes: Uint8Array): string => {
-  let binary = "";
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  }
-  return btoa(binary);
-};
-
-/** Validate/normalise the model's JSON into ReceiptFields. Exported for tests. */
-export const parseReceiptFields = (text: unknown): ReceiptFields => {
-  if (typeof text !== "string") return NO_RECEIPT_FIELDS;
-  try {
-    const parsed = JSON.parse(text) as Record<string, unknown>;
-    const amount =
-      typeof parsed.amount === "number" && parsed.amount > 0 ? parsed.amount : null;
-    const vendor =
-      typeof parsed.vendor === "string" && parsed.vendor.trim()
-        ? parsed.vendor.trim()
-        : null;
-    const date =
-      typeof parsed.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date)
-        ? parsed.date
-        : null;
-    return { amount, vendor, date };
-  } catch {
-    return NO_RECEIPT_FIELDS;
-  }
-};
-
-/**
- * Reads amount/vendor/date off an uploaded receipt image via Google Gemini
- * Flash, to pre-fill the receipt form (the user still reviews + confirms).
- * Best-effort: returns all-null when GOOGLE_GEMINI_API_KEY is unset or the call
- * fails, so the feature simply no-ops rather than blocking receipt submission.
- */
-export const extractReceipt = action({
-  args: { storageId: v.id("_storage") },
-  handler: async (ctx, args): Promise<ReceiptFields> => {
-    if (!(await ctx.auth.getUserIdentity())) {
-      throw new ConvexError("You must be signed in.");
-    }
-    const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
-    if (!apiKey) return NO_RECEIPT_FIELDS; // feature off until configured
-    const blob = await ctx.storage.get(args.storageId);
-    if (!blob) return NO_RECEIPT_FIELDS;
-    const mimeType = blob.type || "image/jpeg";
-    // Only OCR receipt-shaped blobs, and bound the size before we read it all
-    // into memory and base64-expand it. Anything else silently no-ops.
-    if (
-      !(mimeType.startsWith("image/") || mimeType === "application/pdf") ||
-      blob.size > MAX_RECEIPT_OCR_BYTES
-    ) {
-      return NO_RECEIPT_FIELDS;
-    }
-    const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
-    // Best-effort: any transport, parsing or provider failure falls back to
-    // all-null so the feature no-ops rather than blocking receipt submission.
-    try {
-      const base64 = bytesToBase64(new Uint8Array(await blob.arrayBuffer()));
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  { text: RECEIPT_PROMPT },
-                  { inline_data: { mime_type: mimeType, data: base64 } },
-                ],
-              },
-            ],
-            generationConfig: { responseMimeType: "application/json", temperature: 0 },
-          }),
-        }
-      );
-      if (!response.ok) {
-        console.error(
-          "Gemini OCR error",
-          response.status,
-          await response.text().catch(() => "")
-        );
-        return NO_RECEIPT_FIELDS;
-      }
-      const data = await response.json();
-      return parseReceiptFields(data?.candidates?.[0]?.content?.parts?.[0]?.text);
-    } catch (error) {
-      console.error("Gemini OCR failed", error);
-      return NO_RECEIPT_FIELDS;
-    }
   },
 });
 
