@@ -33,6 +33,11 @@ export const PagerCarousel = ({
   const pagerRef = useRef<PagerView>(null);
   const position = useRef(index);
   const programmatic = useRef(false);
+  // The previous scroll state, so we only settle the underline on a real
+  // settling→idle transition (gesture released + animated to rest) rather than
+  // any "idle" — pager-view also emits idle mid-drag (a slow drag pausing on a
+  // page boundary with the finger still down), and snapping there is the flicker.
+  const scrollState = useRef<string>("idle");
   useEffect(() => {
     if (position.current === index) return;
     programmatic.current = true;
@@ -50,16 +55,18 @@ export const PagerCarousel = ({
         scrollPosition?.setValue(e.nativeEvent.position + e.nativeEvent.offset);
       }}
       // Settle the underline exactly on the landed page (a final onPageScroll can
-      // stop a hair short of the integer) — but ONLY once movement stops. Doing
-      // this mid-drag is what caused the one-frame flicker: onPageSelected fires
-      // the moment the swipe crosses the half-way point while the finger is still
-      // down, and snapping to the integer there jumped the underline to its
-      // end-state for a frame before the next onPageScroll flicked it back to the
-      // live drag offset.
+      // stop a hair short of the integer) — but ONLY on a settling→idle
+      // transition, i.e. after the finger lifts and the pager animates to rest.
+      // A bare "idle" also fires mid-drag (a slow drag pausing on a boundary with
+      // the finger still down); snapping to the integer there jumps the underline
+      // to its end-state for a frame before the next onPageScroll flicks it back
+      // to the live offset — the back-and-forth flicker.
       onPageScrollStateChanged={(e: { nativeEvent: { pageScrollState: string } }) => {
-        if (e.nativeEvent.pageScrollState === "idle") {
+        const state = e.nativeEvent.pageScrollState;
+        if (state === "idle" && scrollState.current === "settling") {
           scrollPosition?.setValue(position.current);
         }
+        scrollState.current = state;
       }}
       onPageSelected={(e: { nativeEvent: { position: number } }) => {
         position.current = e.nativeEvent.position;

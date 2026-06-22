@@ -4,6 +4,47 @@ All notable changes to **The SHED** mobile app. This project follows
 [semantic versioning](https://semver.org/); the marketing version lives in
 `app.json` and the build number auto-increments per EAS build.
 
+## [1.0.4] — 2026-06-22
+
+Approvals flexibility (configurable Director cutoff, delegation), an in-app
+notification center, admin "Not serving" management, and swipe/receipt fixes.
+
+### Added
+
+- **Configurable Director-approval threshold.** The amount at or above which a
+  request also needs the Director's approval is now a per-year Finance setting,
+  editable from Admin → Other, instead of a hardcoded $5,000. Only new requests
+  are affected; existing requests keep the steps they were created with. (#92)
+- **Approver delegation (out-of-office cover).** An admin can delegate one
+  person's approver authority to a stand-in for a staff year — the delegate can
+  approve, decline and pay everything the approver could. Self-review stays
+  blocked. Managed from Admin → Other. (#93)
+- **In-app notification center.** A bell in the top bar (with an unread badge)
+  opens a Notifications feed of every flow event that pinged you — newest first;
+  tap one to mark it read and jump to its target, or "Mark all read". (#94)
+- **Admin "Not serving" list.** Admins can park people who are no longer assigned
+  for a staff year in a "Not serving" pool in Admin → Users — deleting a profile
+  moves them there automatically, and (re)assigning clears the mark. (#96)
+
+### Changed
+
+- **Make Request button slides with the swipe.** The `+ Make Request` footer now
+  slides down off-screen as the swipe leaves the "Mine" tab and back up on return,
+  tracking the pager, instead of hard mounting/unmounting. (#89)
+- **Notifications auto-mark read.** Opening a request (or its comment thread) now
+  clears that request's notifications — you no longer have to tap them in the feed.
+  Read notifications stay in the feed as history. (#95)
+
+### Fixed
+
+- **Sub tab bar:** the selected-tab underline no longer flickers to its end-state
+  mid-swipe — it stays glued to the finger throughout the drag. (#89)
+- **Bottom tab bar:** icons now sit centered on devices with a home indicator,
+  instead of low with a gap above them. (#89)
+- **Receipt form:** entering recipient/amount/file for one request, cancelling, and
+  opening another request's receipt form no longer carries the first request's draft
+  over. (#91)
+
 ## [1.0.3] — 2026-06-20
 
 UI polish for request cards and the tab bars, plus web fixes. (#87)
