@@ -188,6 +188,9 @@ const NewRequestSheet = ({
 
 type DraftFile = { storageId: Id<"_storage">; name: string };
 type DraftRecipient = {
+  /** Stable per-session id so async OCR results land on the right recipient
+   *  even if the list is reordered/removed or another scan starts meanwhile. */
+  id: string;
   accountName: string;
   bsb: string;
   accountNumber: string;
@@ -195,7 +198,10 @@ type DraftRecipient = {
   files: DraftFile[];
   saveAccount: boolean;
 };
+let recipientIdCounter = 0;
+const newRecipientId = () => `r${++recipientIdCounter}`;
 const emptyRecipient = (): DraftRecipient => ({
+  id: newRecipientId(),
   accountName: "",
   bsb: "",
   accountNumber: "",
@@ -314,10 +320,11 @@ const ReceiptSheet = ({
   const forgetAccount = useMutation(api.bankAccounts.remove);
   const [recipients, setRecipients] = useState<DraftRecipient[]>([emptyRecipient()]);
   const [uploading, setUploading] = useState(false);
-  // OCR pre-fill: the recipient being scanned, and the fields read per recipient.
-  const [scanningIndex, setScanningIndex] = useState<number | null>(null);
+  // OCR pre-fill: the recipient being scanned, and the fields read per recipient
+  // — both keyed by the recipient's stable id, not its array position.
+  const [scanningId, setScanningId] = useState<string | null>(null);
   const [scanned, setScanned] = useState<
-    Record<number, { amount: number | null; vendor: string | null; date: string | null }>
+    Record<string, { amount: number | null; vendor: string | null; date: string | null }>
   >({});
   const [error, setError] = useState<string | null>(null);
   // Set when the receipt total exceeds the request and we need a confirmation.
@@ -340,6 +347,7 @@ const ReceiptSheet = ({
     const preferred = savedAccounts.find((a) => a.preferred) ?? savedAccounts[0];
     // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-fill on open/load
     setRecipients([{
+      id: newRecipientId(),
       accountName: preferred.accountName,
       bsb: preferred.bsb,
       accountNumber: preferred.accountNumber,
@@ -361,7 +369,7 @@ const ReceiptSheet = ({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset draft on close
     setRecipients([emptyRecipient()]);
     setScanned({});
-    setScanningIndex(null);
+    setScanningId(null);
     setError(null);
   }, [request]);
 
@@ -389,6 +397,9 @@ const ReceiptSheet = ({
 
   const attachFiles = async (index: number) => {
     setError(null);
+    // Pin the recipient's stable id now, so a scan kicked off below still
+    // targets this recipient after the async upload even if the list shifts.
+    const recipientId = recipients[index]?.id;
     try {
       const result = await DocumentPicker.getDocumentAsync({
         multiple: true,
@@ -426,7 +437,9 @@ const ReceiptSheet = ({
         )
       );
       // Read the first attached file to pre-fill this recipient (best-effort).
-      if (uploaded.length > 0) void autofillFromReceipt(index, uploaded[0].storageId);
+      if (uploaded.length > 0 && recipientId) {
+        void autofillFromReceipt(recipientId, uploaded[0].storageId);
+      }
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -436,15 +449,26 @@ const ReceiptSheet = ({
 
   // OCR the receipt and pre-fill the recipient's amount (only when blank, so a
   // typed value is never overwritten); the scanned fields show as a hint.
-  const autofillFromReceipt = async (index: number, storageId: Id<"_storage">) => {
-    setScanningIndex(index);
+  const autofillFromReceipt = async (
+    recipientId: string,
+    storageId: Id<"_storage">
+  ) => {
+    setScanningId(recipientId);
     try {
       const fields = await extractReceipt({ storageId });
-      setScanned((previous) => ({ ...previous, [index]: fields }));
+      // Nothing read (disabled/no-op/error) → don't record a "scan", so the hint
+      // doesn't claim a successful scan that read nothing.
+      const readSomething =
+        fields.amount != null || fields.vendor != null || fields.date != null;
+      if (readSomething) {
+        setScanned((previous) => ({ ...previous, [recipientId]: fields }));
+      }
       if (fields.amount != null) {
+        // Match by stable id — the recipient may have moved (or be gone) since
+        // the scan started; if gone, this is a no-op.
         setRecipients((previous) =>
-          previous.map((recipient, i) =>
-            i === index && recipient.amount.trim() === ""
+          previous.map((recipient) =>
+            recipient.id === recipientId && recipient.amount.trim() === ""
               ? { ...recipient, amount: String(fields.amount) }
               : recipient
           )
@@ -453,15 +477,15 @@ const ReceiptSheet = ({
     } catch {
       // OCR is a convenience; failures are silent — the user just types it in.
     } finally {
-      setScanningIndex((current) => (current === index ? null : current));
+      setScanningId((current) => (current === recipientId ? null : current));
     }
   };
 
   // Shows "Scanning…" while OCR runs, then a summary of what was read off the
   // receipt (flagging when it's over the approved amount).
-  const renderScanHint = (index: number) => {
-    if (scanningIndex === index) return <Muted>Scanning receipt…</Muted>;
-    const scan = scanned[index];
+  const renderScanHint = (recipientId: string) => {
+    if (scanningId === recipientId) return <Muted>Scanning receipt…</Muted>;
+    const scan = scanned[recipientId];
     if (!scan) return null;
     const parts = ["Scanned"];
     if (scan.vendor) parts.push(scan.vendor);
@@ -529,7 +553,7 @@ const ReceiptSheet = ({
   return (
     <Sheet visible={request !== null} onClose={onClose} title="Submit Receipt">
       {recipients.map((recipient, index) => (
-        <View key={index} style={{ gap: 10 }}>
+        <View key={recipient.id} style={{ gap: 10 }}>
           <Row>
             <Txt style={{ fontWeight: "700", flexGrow: 1 }}>
               Recipient {index + 1}
@@ -586,7 +610,7 @@ const ReceiptSheet = ({
             }
             keyboardType="numeric"
           />
-          {renderScanHint(index)}
+          {renderScanHint(recipient.id)}
           {recipient.files.map((file, fileIndex) => (
             <Row key={`${file.storageId}-${fileIndex}`}>
               <Muted>📎 {file.name}</Muted>

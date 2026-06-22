@@ -135,4 +135,44 @@ describe("requests.extractReceipt (Gemini OCR action)", () => {
     expect(result).toEqual({ amount: null, vendor: null, date: null });
     expect(error).toHaveBeenCalledWith("Gemini OCR error", 500, "boom");
   });
+
+  test("logs and returns null fields when the Gemini call throws", async () => {
+    const t = convexTest(schema, modules);
+    vi.stubEnv("GOOGLE_GEMINI_API_KEY", "k");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network")));
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const storageId = await storeImage(t);
+    const result = await asUser(t).action(api.requests.extractReceipt, { storageId });
+    expect(result).toEqual({ amount: null, vendor: null, date: null });
+    expect(error).toHaveBeenCalledWith("Gemini OCR failed", expect.any(Error));
+  });
+
+  test("returns null fields when the response body fails to parse", async () => {
+    const t = convexTest(schema, modules);
+    vi.stubEnv("GOOGLE_GEMINI_API_KEY", "k");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.reject(new Error("bad json")),
+      })
+    );
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const storageId = await storeImage(t);
+    const result = await asUser(t).action(api.requests.extractReceipt, { storageId });
+    expect(result).toEqual({ amount: null, vendor: null, date: null });
+  });
+
+  test("skips OCR (no fetch) for a non-image, non-PDF blob", async () => {
+    const t = convexTest(schema, modules);
+    vi.stubEnv("GOOGLE_GEMINI_API_KEY", "k");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const storageId = await t.run((ctx) =>
+      ctx.storage.store(new Blob(["#!/bin/sh"], { type: "text/plain" }))
+    );
+    const result = await asUser(t).action(api.requests.extractReceipt, { storageId });
+    expect(result).toEqual({ amount: null, vendor: null, date: null });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

@@ -1147,6 +1147,13 @@ export type ReceiptFields = {
 };
 const NO_RECEIPT_FIELDS: ReceiptFields = { amount: null, vendor: null, date: null };
 
+/**
+ * Upper bound on a blob we'll pull into memory, base64-encode and ship to
+ * Gemini. Receipts are small images/PDFs (the client caps uploads at 2MB); this
+ * generous ceiling just stops a signed-in caller forcing OCR on a huge blob.
+ */
+const MAX_RECEIPT_OCR_BYTES = 10 * 1024 * 1024;
+
 const RECEIPT_PROMPT =
   "This image is a receipt or tax invoice. Return ONLY JSON of the form " +
   '{"amount": number|null, "vendor": string|null, "date": string|null} where ' +
@@ -1203,32 +1210,51 @@ export const extractReceipt = action({
     const blob = await ctx.storage.get(args.storageId);
     if (!blob) return NO_RECEIPT_FIELDS;
     const mimeType = blob.type || "image/jpeg";
-    const base64 = bytesToBase64(new Uint8Array(await blob.arrayBuffer()));
-    const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: RECEIPT_PROMPT },
-                { inline_data: { mime_type: mimeType, data: base64 } },
-              ],
-            },
-          ],
-          generationConfig: { responseMimeType: "application/json", temperature: 0 },
-        }),
-      }
-    );
-    if (!response.ok) {
-      console.error("Gemini OCR error", response.status, await response.text());
+    // Only OCR receipt-shaped blobs, and bound the size before we read it all
+    // into memory and base64-expand it. Anything else silently no-ops.
+    if (
+      !(mimeType.startsWith("image/") || mimeType === "application/pdf") ||
+      blob.size > MAX_RECEIPT_OCR_BYTES
+    ) {
       return NO_RECEIPT_FIELDS;
     }
-    const data = await response.json();
-    return parseReceiptFields(data?.candidates?.[0]?.content?.parts?.[0]?.text);
+    const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+    // Best-effort: any transport, parsing or provider failure falls back to
+    // all-null so the feature no-ops rather than blocking receipt submission.
+    try {
+      const base64 = bytesToBase64(new Uint8Array(await blob.arrayBuffer()));
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  { text: RECEIPT_PROMPT },
+                  { inline_data: { mime_type: mimeType, data: base64 } },
+                ],
+              },
+            ],
+            generationConfig: { responseMimeType: "application/json", temperature: 0 },
+          }),
+        }
+      );
+      if (!response.ok) {
+        console.error(
+          "Gemini OCR error",
+          response.status,
+          await response.text().catch(() => "")
+        );
+        return NO_RECEIPT_FIELDS;
+      }
+      const data = await response.json();
+      return parseReceiptFields(data?.candidates?.[0]?.content?.parts?.[0]?.text);
+    } catch (error) {
+      console.error("Gemini OCR failed", error);
+      return NO_RECEIPT_FIELDS;
+    }
   },
 });
 
