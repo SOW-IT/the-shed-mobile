@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import * as DocumentPicker from "expo-document-picker";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
@@ -309,10 +309,16 @@ const ReceiptSheet = ({
 }) => {
   const submitReceipt = useMutation(api.requests.submitReceipt);
   const generateUploadUrl = useMutation(api.requests.generateReceiptUploadUrl);
+  const extractReceipt = useAction(api.requests.extractReceipt);
   const savedAccounts = useQuery(api.bankAccounts.listMine, {});
   const forgetAccount = useMutation(api.bankAccounts.remove);
   const [recipients, setRecipients] = useState<DraftRecipient[]>([emptyRecipient()]);
   const [uploading, setUploading] = useState(false);
+  // OCR pre-fill: the recipient being scanned, and the fields read per recipient.
+  const [scanningIndex, setScanningIndex] = useState<number | null>(null);
+  const [scanned, setScanned] = useState<
+    Record<number, { amount: number | null; vendor: string | null; date: string | null }>
+  >({});
   const [error, setError] = useState<string | null>(null);
   // Set when the receipt total exceeds the request and we need a confirmation.
   const [confirmExceeds, setConfirmExceeds] = useState<{ total: number } | null>(
@@ -354,6 +360,8 @@ const ReceiptSheet = ({
     if (request !== null) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset draft on close
     setRecipients([emptyRecipient()]);
+    setScanned({});
+    setScanningIndex(null);
     setError(null);
   }, [request]);
 
@@ -417,11 +425,53 @@ const ReceiptSheet = ({
             : recipient
         )
       );
+      // Read the first attached file to pre-fill this recipient (best-effort).
+      if (uploaded.length > 0) void autofillFromReceipt(index, uploaded[0].storageId);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
       setUploading(false);
     }
+  };
+
+  // OCR the receipt and pre-fill the recipient's amount (only when blank, so a
+  // typed value is never overwritten); the scanned fields show as a hint.
+  const autofillFromReceipt = async (index: number, storageId: Id<"_storage">) => {
+    setScanningIndex(index);
+    try {
+      const fields = await extractReceipt({ storageId });
+      setScanned((previous) => ({ ...previous, [index]: fields }));
+      if (fields.amount != null) {
+        setRecipients((previous) =>
+          previous.map((recipient, i) =>
+            i === index && recipient.amount.trim() === ""
+              ? { ...recipient, amount: String(fields.amount) }
+              : recipient
+          )
+        );
+      }
+    } catch {
+      // OCR is a convenience; failures are silent — the user just types it in.
+    } finally {
+      setScanningIndex((current) => (current === index ? null : current));
+    }
+  };
+
+  // Shows "Scanning…" while OCR runs, then a summary of what was read off the
+  // receipt (flagging when it's over the approved amount).
+  const renderScanHint = (index: number) => {
+    if (scanningIndex === index) return <Muted>Scanning receipt…</Muted>;
+    const scan = scanned[index];
+    if (!scan) return null;
+    const parts = ["Scanned"];
+    if (scan.vendor) parts.push(scan.vendor);
+    if (scan.date) parts.push(scan.date);
+    if (scan.amount != null) parts.push(`$${scan.amount}`);
+    const over =
+      request != null && scan.amount != null && scan.amount > request.amount
+        ? ` — over the approved $${request.amount}`
+        : "";
+    return <Muted>{parts.join(" · ") + over}</Muted>;
   };
 
   const send = async () => {
@@ -536,6 +586,7 @@ const ReceiptSheet = ({
             }
             keyboardType="numeric"
           />
+          {renderScanHint(index)}
           {recipient.files.map((file, fileIndex) => (
             <Row key={`${file.storageId}-${fileIndex}`}>
               <Muted>📎 {file.name}</Muted>
