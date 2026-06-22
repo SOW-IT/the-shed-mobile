@@ -25,6 +25,10 @@ notification center, admin "Not serving" management, and swipe/receipt fixes.
 - **Admin "Not serving" list.** Admins can park people who are no longer assigned
   for a staff year in a "Not serving" pool in Admin → Users — deleting a profile
   moves them there automatically, and (re)assigning clears the mark. (#96)
+- **Receipt scanning (OCR).** Attaching a receipt reads the amount, vendor and
+  date off the image and pre-fills the recipient's amount when it's blank — you
+  always review before submitting. A hint shows what was read and flags when it's
+  over the approved amount. Off until a Gemini key is configured. (#99)
 
 ### Changed
 
