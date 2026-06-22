@@ -137,6 +137,24 @@ describe("requests.extractReceipt (Gemini OCR action)", () => {
     expect(error).toHaveBeenCalledWith("Gemini OCR error", 500, "boom");
   });
 
+  test("tolerates a non-ok response whose body also fails to read", async () => {
+    const t = convexTest(schema, modules);
+    vi.stubEnv("GOOGLE_GEMINI_API_KEY", "k");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 502,
+        text: () => Promise.reject(new Error("no body")),
+      })
+    );
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const storageId = await storeImage(t);
+    const result = await asUser(t).action(api.requests.extractReceipt, { storageId });
+    expect(result).toEqual({ amount: null, vendor: null, date: null });
+    expect(error).toHaveBeenCalledWith("Gemini OCR error", 502, "");
+  });
+
   test("logs and returns null fields when the Gemini call throws", async () => {
     const t = convexTest(schema, modules);
     vi.stubEnv("GOOGLE_GEMINI_API_KEY", "k");
