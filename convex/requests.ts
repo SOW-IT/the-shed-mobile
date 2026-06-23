@@ -1215,17 +1215,33 @@ export const submitReceipt = mutation({
       undefined,
       `$${totalAmount}, ${args.recipients.length} recipient${args.recipients.length === 1 ? "" : "s"}`
     );
+    // Notify the Finance Head of the request's year AND the current one
+    // (deduped), so a request that carried over a Finance-Head change still
+    // reaches whoever can actually pay it now — mirroring notifyNextActor's
+    // carry-over fallback, and toReview/pay which both accept either year's head.
     const approvers = await getApprovers(ctx, request.year, FINANCE);
+    const currentYear = currentStaffYear();
+    const currentApprovers =
+      request.year === currentYear
+        ? approvers
+        : await getApprovers(ctx, currentYear, FINANCE);
     const requesterName = await displayName(ctx, request.requesterEmail, request.year);
-    await notify(ctx, {
-      to: approvers.financeHeadEmail,
-      actor: email,
-      subject: `A receipt for $${totalAmount} is ready to pay`,
-      pushTitle: "Receipt ready to pay",
-      body: `${requesterName} submitted their receipt (total $${totalAmount}). Please pay the reimbursement in THE SHED.\n\n${requestSummary(request)}`,
-      url: "/review",
-      requestId: request._id, // url is /review, so link the request explicitly
-    });
+    const financeHeads = new Set(
+      [approvers.financeHeadEmail, currentApprovers.financeHeadEmail].filter(
+        (e): e is string => e !== undefined
+      )
+    );
+    for (const financeHead of financeHeads) {
+      await notify(ctx, {
+        to: financeHead,
+        actor: email,
+        subject: `A receipt for $${totalAmount} is ready to pay`,
+        pushTitle: "Receipt ready to pay",
+        body: `${requesterName} submitted their receipt (total $${totalAmount}). Please pay the reimbursement in THE SHED.\n\n${requestSummary(request)}`,
+        url: "/review",
+        requestId: request._id, // url is /review, so link the request explicitly
+      });
+    }
     return null;
   },
 });
