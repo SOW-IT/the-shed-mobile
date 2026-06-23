@@ -293,6 +293,39 @@ describe("approver delegation (out-of-office cover)", () => {
       })
     ).rejects.toThrow(); // malformed email
   });
+
+  test("a delegate of the Director can approve the Director step", async () => {
+    const t = await setup();
+    // Henry (Marketing HOD) submits a >= $5000 request → his HOD auto-approves;
+    // Bella clears the Budget Manager step; now it waits on the Director.
+    await asUser(t, HENRY).mutation(api.requests.submit, { description: "big", amount: 6000 });
+    const [req] = (await asUser(t, HENRY).query(api.requests.myRequests, {}))!;
+    await asUser(t, BELLA).mutation(api.requests.approve, {
+      requestId: req._id,
+      step: "budgetManager",
+    });
+
+    // Rachel is not the Director, so she can neither see nor approve it.
+    await expect(
+      asUser(t, RACHEL).mutation(api.requests.approve, { requestId: req._id, step: "director" })
+    ).rejects.toThrow();
+    expect(
+      (await asUser(t, RACHEL).query(api.requests.toReview, {}))!.director
+    ).toHaveLength(0);
+
+    // Admin delegates the Director's authority to Rachel — now she can.
+    await asUser(t, ADMIN).mutation(api.admin.addDelegation, {
+      year: YEAR,
+      fromEmail: DAN,
+      toEmail: RACHEL,
+    });
+    expect(
+      (await asUser(t, RACHEL).query(api.requests.toReview, {}))!.director.map((r) => r._id)
+    ).toContain(req._id);
+    await asUser(t, RACHEL).mutation(api.requests.approve, { requestId: req._id, step: "director" });
+    const [updated] = (await asUser(t, HENRY).query(api.requests.myRequests, {}))!;
+    expect(updated.approvedByDirector).toBe("APPROVED");
+  });
 });
 
 describe("in-app notifications", () => {
@@ -364,6 +397,76 @@ describe("in-app notifications", () => {
 });
 
 describe("approval chain order and authorization", () => {
+  test("a >= $5000 chain runs HOD -> Budget Manager -> Director -> Finance Head", async () => {
+    const t = await setup();
+    const rachel = asUser(t, RACHEL);
+    await rachel.mutation(api.requests.submit, { description: "big", amount: 6000 });
+    const [request] = (await rachel.query(api.requests.myRequests, {}))!;
+    expect(request.approvedByDirector).toBe("PENDING");
+
+    // The Director can't jump ahead of the HOD / Budget Manager steps.
+    await expect(
+      asUser(t, DAN).mutation(api.requests.approve, { requestId: request._id, step: "director" })
+    ).rejects.toThrow(/not waiting on that step/);
+
+    await asUser(t, HENRY).mutation(api.requests.approve, { requestId: request._id, step: "hod" });
+    await asUser(t, BELLA).mutation(api.requests.approve, {
+      requestId: request._id,
+      step: "budgetManager",
+    });
+    // Dan holds the Director role and approves the (now-ready) Director step.
+    await asUser(t, DAN).mutation(api.requests.approve, { requestId: request._id, step: "director" });
+    await asUser(t, FIONA).mutation(api.requests.approve, {
+      requestId: request._id,
+      step: "financeHead",
+    });
+
+    const [done] = (await rachel.query(api.requests.myRequests, {}))!;
+    expect(done.approvedByDirector).toBe("APPROVED");
+    expect(done.approvedByFinanceHead).toBe("APPROVED");
+  });
+
+  test("submitReceipt notifies the current Finance Head on a carried-over request", async () => {
+    const t = await setup();
+    // Last year's Finance dept had a different head who has since left; Fiona is
+    // this year's Finance Head.
+    await t.run((ctx) =>
+      ctx.db.insert("departments", {
+        year: YEAR - 1,
+        name: "Finance",
+        division: "Governance",
+        headEmail: "oldfiona@sow.org.au",
+      })
+    );
+    // A fully-approved carry-over from last year by Rachel, awaiting a receipt.
+    const requestId = await t.run((ctx) =>
+      ctx.db.insert("requests", {
+        year: YEAR - 1,
+        requesterEmail: RACHEL,
+        department: "Marketing",
+        description: "carried",
+        amount: 100,
+        approvedByHOD: "APPROVED",
+        approvedByBudgetManager: "APPROVED",
+        approvedByFinanceHead: "APPROVED",
+      })
+    );
+    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
+      requestId,
+      recipients: [
+        {
+          accountName: "R",
+          bsb: "0",
+          accountNumber: "1",
+          amount: 100,
+          attachments: [await storedReceipt(t)],
+        },
+      ],
+    });
+    // The current Finance Head is told to pay it, not just last year's departed one.
+    expect(await asUser(t, FIONA).query(api.notifications.unreadCount, {})).toBe(1);
+  });
+
   test("the full chain: HOD -> Budget Manager -> Finance Head -> receipt -> pay", async () => {
     const t = await setup();
     const rachel = asUser(t, RACHEL);
