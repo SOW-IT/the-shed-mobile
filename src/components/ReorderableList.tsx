@@ -109,6 +109,7 @@ function ReorderableRow({
   id,
   index,
   disabled,
+  active,
   gap,
   heightsRef,
   onDragStart,
@@ -122,6 +123,8 @@ function ReorderableRow({
   id: string;
   index: number;
   disabled: boolean;
+  /** This row is the one being dragged — lift it above its siblings. */
+  active: boolean;
   gap: number;
   heightsRef: React.MutableRefObject<Map<string, number>>;
   onDragStart: (id: string, index: number) => void;
@@ -187,7 +190,9 @@ function ReorderableRow({
       onLayout={(e: LayoutChangeEvent) => {
         heightsRef.current.set(id, e.nativeEvent.layout.height);
       }}
-      style={{ marginBottom: gap }}
+      // Lift the dragged row above its siblings so it slides over (not under)
+      // the cards it passes. zIndex governs iOS/web stacking; elevation Android.
+      style={[{ marginBottom: gap }, active && styles.activeRow]}
     >
       <Animated.View
         style={{
@@ -426,6 +431,7 @@ export function ReorderableList<T>({
             disabled={
               !reorderEnabled || (draggingKey !== null && draggingKey !== id)
             }
+            active={draggingKey === id}
             gap={gap}
             heightsRef={heightsRef}
             onDragStart={handleDragStart}
@@ -454,5 +460,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingRight: spacing.sm,
     justifyContent: "center",
+  },
+  activeRow: {
+    zIndex: 20,
+    elevation: 8,
   },
 });

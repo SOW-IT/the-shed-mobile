@@ -30,6 +30,8 @@ import {
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 const ROSTER_PAGE_SIZE = 30;
+/** The not-signed-in list starts short; "Load more" reveals the rest. */
+const UNSIGNED_PAGE_SIZE = 10;
 
 /** Subtitle for a roster row. */
 const memberSubtitle = (member: {
@@ -99,7 +101,7 @@ export default function EventAttendanceScreen() {
     notes?: string;
   } | null>(null);
   const [editUnlocked, setEditUnlocked] = useState(false);
-  const [unsignedLimit, setUnsignedLimit] = useState(ROSTER_PAGE_SIZE);
+  const [unsignedLimit, setUnsignedLimit] = useState(UNSIGNED_PAGE_SIZE);
   const [signedInLimit, setSignedInLimit] = useState(ROSTER_PAGE_SIZE);
   const [searchLimit, setSearchLimit] = useState(ROSTER_PAGE_SIZE);
 
@@ -138,7 +140,7 @@ export default function EventAttendanceScreen() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset paging when roster/search changes
-    setUnsignedLimit(ROSTER_PAGE_SIZE);
+    setUnsignedLimit(UNSIGNED_PAGE_SIZE);
     setSignedInLimit(ROSTER_PAGE_SIZE);
     setSearchLimit(ROSTER_PAGE_SIZE);
   }, [search, signedInKeys]);
@@ -391,7 +393,7 @@ export default function EventAttendanceScreen() {
                   title={`Load more (${unsignedList.length - visibleUnsigned.length} left)`}
                   variant="ghost"
                   onPress={() =>
-                    setUnsignedLimit((limit) => limit + ROSTER_PAGE_SIZE)
+                    setUnsignedLimit((limit) => limit + UNSIGNED_PAGE_SIZE)
                   }
                 />
               ) : null}

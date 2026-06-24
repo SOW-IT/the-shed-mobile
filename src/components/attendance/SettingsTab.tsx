@@ -6,6 +6,7 @@ import { Id } from "../../../convex/_generated/dataModel";
 import { TAG_COLOUR_NAMES, tagColourHex } from "../../../shared/attendanceTags";
 import { subgroupColour, subgroupLabel } from "../../../shared/rollcall";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
+import type { SaveControls } from "@/components/attendance/MetadataTab";
 import {
   Btn,
   Card,
@@ -25,8 +26,27 @@ type TagDraft = {
   subgroups?: string[];
 };
 
+/** Normalised tag shape for change detection (order-independent subgroups). */
+const normalizeTag = (tag: TagDraft) => ({
+  id: tag.id,
+  name: tag.name.trim(),
+  colour: tag.colour ?? "",
+  subgroups: [...(tag.subgroups ?? [])].sort(),
+});
+
+const tagsEqual = (a: TagDraft[], b: TagDraft[]) =>
+  JSON.stringify(a.map(normalizeTag)) === JSON.stringify(b.map(normalizeTag));
+
 /** Event tag colours and names for the current staff year. */
-export function SettingsTab({ year, subgroups }: { year: number; subgroups: string[] }) {
+export function SettingsTab({
+  year,
+  subgroups,
+  onSaveStateChange,
+}: {
+  year: number;
+  subgroups: string[];
+  onSaveStateChange?: (controls: SaveControls) => void;
+}) {
   const t = useAppTheme();
   const tags = useQuery(api.attendanceTags.list, { year });
   const saveTags = useMutation(api.attendanceTags.saveAll);
@@ -54,10 +74,14 @@ export function SettingsTab({ year, subgroups }: { year: number; subgroups: stri
     }
   }, [tags]);
 
-  if (tags === undefined) return <LoadingState />;
-
-  const addTag = () =>
-    setTagDrafts((prev) => [...prev, { name: "", colour: "blue" }]);
+  const serverTagDrafts: TagDraft[] = (tags ?? []).map((tag) => ({
+    id: tag._id,
+    name: tag.name,
+    colour: tag.colour,
+    subgroups: tag.subgroups,
+  }));
+  const tagsChanged =
+    tagDeletes.length > 0 || !tagsEqual(tagDrafts, serverTagDrafts);
 
   const saveTagsNow = async () => {
     setSaving(true);
@@ -70,6 +94,22 @@ export function SettingsTab({ year, subgroups }: { year: number; subgroups: stri
       setSaving(false);
     }
   };
+
+  // Report save state up so the screen can render the sliding footer button.
+  // Re-runs whenever the drafts change so the registered `save` is never stale.
+  useEffect(() => {
+    onSaveStateChange?.({
+      dirty: tagsChanged,
+      saving,
+      save: () => void saveTagsNow(),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tagsChanged, saving, tagDrafts, tagDeletes]);
+
+  if (tags === undefined) return <LoadingState />;
+
+  const addTag = () =>
+    setTagDrafts((prev) => [...prev, { name: "", colour: "blue" }]);
 
   return (
     <>
@@ -166,7 +206,6 @@ export function SettingsTab({ year, subgroups }: { year: number; subgroups: stri
         </Card>
       ))}
       <Btn title="Add tag" variant="ghost" onPress={addTag} />
-      <Btn title="Save tags" onPress={() => void saveTagsNow()} loading={saving} />
 
       {error ? (
         <Txt style={[typography.caption, { color: t.danger, marginTop: spacing.sm }]}>

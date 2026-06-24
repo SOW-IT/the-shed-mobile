@@ -115,14 +115,23 @@ const renderSelectOptionEditor = (
   </View>
 );
 
+/** Save state reported up so the screen can render a sliding footer action. */
+export type SaveControls = {
+  dirty: boolean;
+  saving: boolean;
+  save: () => void;
+};
+
 export function MetadataTab({
   year,
   subgroups,
   defaultSubgroup,
+  onSaveStateChange,
 }: {
   year: number;
   subgroups: string[];
   defaultSubgroup?: string | null;
+  onSaveStateChange?: (controls: SaveControls) => void;
 }) {
   const t = useAppTheme();
   const metadata = useQuery(api.attendanceMetadata.list, { year });
@@ -182,8 +191,6 @@ export function MetadataTab({
     });
   };
 
-  if (metadata === undefined) return <LoadingState />;
-
   const metadataChanged =
     metaDeletes.length > 0 || !fieldsEqual(metaDrafts, savedFields);
 
@@ -202,6 +209,19 @@ export function MetadataTab({
       setSaving(false);
     }
   };
+
+  // Report save state up so the screen can render the sliding footer button.
+  // Re-runs whenever the drafts change so the registered `save` is never stale.
+  useEffect(() => {
+    onSaveStateChange?.({
+      dirty: metadataChanged,
+      saving,
+      save: () => void saveMetaNow(),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metadataChanged, saving, metaDrafts, metaDeletes]);
+
+  if (metadata === undefined) return <LoadingState />;
 
   return (
     <>
@@ -399,12 +419,6 @@ export function MetadataTab({
           );
           setExpandedKeys((prev) => new Set(prev).add(draftKey));
         }}
-      />
-      <Btn
-        title="Save metadata"
-        disabled={!metadataChanged || saving}
-        onPress={() => void saveMetaNow()}
-        loading={saving}
       />
 
       {error ? (

@@ -9,7 +9,7 @@ import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
 import { EventsTab } from "@/components/attendance/EventsTab";
 import { MembersTab } from "@/components/attendance/MembersTab";
-import { MetadataTab } from "@/components/attendance/MetadataTab";
+import { MetadataTab, type SaveControls } from "@/components/attendance/MetadataTab";
 import { SettingsTab } from "@/components/attendance/SettingsTab";
 import { FloatingYearPicker, FooterAction, LoadingState } from "@/components/ui";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
@@ -44,6 +44,11 @@ export default function AttendanceScreen() {
   const [memberSheetId, setMemberSheetId] = useState<Id<"attendanceMembers"> | null>(
     null
   );
+  // Save controls reported by the Tags / Metadata tabs, surfaced as sliding
+  // footer buttons (like "Create event").
+  const noSave: SaveControls = { dirty: false, saving: false, save: () => {} };
+  const [tagsSave, setTagsSave] = useState<SaveControls>(noSave);
+  const [metaSave, setMetaSave] = useState<SaveControls>(noSave);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset campus filter on year change
@@ -111,8 +116,28 @@ export default function AttendanceScreen() {
         <FooterAction title="+ Create member" onPress={openCreateMember} />
       ),
     });
+    items.push({
+      tabKey: "settings",
+      node: (
+        <FooterAction
+          title={tagsSave.saving ? "Saving…" : "Save tags"}
+          disabled={!tagsSave.dirty || tagsSave.saving}
+          onPress={tagsSave.save}
+        />
+      ),
+    });
+    items.push({
+      tabKey: "metadata",
+      node: (
+        <FooterAction
+          title={metaSave.saving ? "Saving…" : "Save metadata"}
+          disabled={!metaSave.dirty || metaSave.saving}
+          onPress={metaSave.save}
+        />
+      ),
+    });
     return items;
-  }, [subgroup, subgroups, readOnly]);
+  }, [subgroup, subgroups, readOnly, tagsSave, metaSave]);
 
   if (me === undefined || subgroups === undefined || metadata === undefined) {
     return <LoadingState />;
@@ -147,7 +172,13 @@ export default function AttendanceScreen() {
           {
             key: "settings",
             label: "Tags",
-            render: () => <SettingsTab year={year} subgroups={subgroups} />,
+            render: () => (
+              <SettingsTab
+                year={year}
+                subgroups={subgroups}
+                onSaveStateChange={setTagsSave}
+              />
+            ),
           },
           {
             key: "metadata",
@@ -157,6 +188,7 @@ export default function AttendanceScreen() {
                 year={year}
                 subgroups={subgroups}
                 defaultSubgroup={subgroup}
+                onSaveStateChange={setMetaSave}
               />
             ),
           },
