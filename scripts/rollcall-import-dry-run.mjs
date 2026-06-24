@@ -394,9 +394,25 @@ function normaliseText(value) {
   return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+/**
+ * Roster year for an event date. The old rollcall web app rolled its member
+ * roster (groups/<g>/members/<year>/members) over on OCTOBER 1: events in
+ * Jan–Sep reference that calendar year's roster, events in Oct–Dec reference
+ * the next year's. Attendance is matched against the single roster loaded for
+ * the import run, so events must be bucketed on this same Oct 1 boundary.
+ *
+ * Earlier this used the plain calendar year, which orphaned the attendance of
+ * every Oct–Dec event (their references point at next year's roster, which is
+ * never loaded in that run). It is deliberately NOT the reimbursement app's
+ * Sep 1 staff year (shared/flow.ts `staffYearForDate`) — that boundary would
+ * pull September events away from the 2025 roster they actually reference.
+ * Verified against the embedded member references in the 2026-06 export.
+ */
 function sourceYear(dateValue) {
   const date = new Date(dateValue);
-  return date.getFullYear();
+  return date.getUTCMonth() >= 9
+    ? date.getUTCFullYear() + 1
+    : date.getUTCFullYear();
 }
 
 function memberDuplicateKey(member) {

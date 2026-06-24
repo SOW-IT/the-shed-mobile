@@ -218,6 +218,7 @@ export function ReorderableList<T>({
   gap = spacing.sm,
   reorderEnabled = true,
 }: ReorderableListProps<T>) {
+  const containerRef = useRef<Measurable | null>(null);
   const cardRefs = useRef(new Map<string, Measurable>());
   const translateYs = useRef(new Map<string, Animated.Value>());
   const previewTranslateYs = useRef(new Map<string, Animated.Value>());
@@ -404,22 +405,36 @@ export function ReorderableList<T>({
         if (!nextPositions.has(key)) translateYs.current.delete(key);
       }
     };
-    for (const id of ids) {
-      const node = cardRefs.current.get(id);
-      if (!node) {
-        if (--remaining === 0) finish();
-        continue;
+    // Measure each card's top relative to the list container, not the window.
+    // Window/viewport coordinates drift by the scroll offset, so a row dropped
+    // after the user scrolled would FLIP from a stale position and the whole
+    // list would appear to slide up and settle back. Container-relative tops
+    // cancel the scroll (card and container move together), so unmoved rows
+    // read identical positions across renders and only reordered rows animate.
+    const measureCards = (containerY: number | null) => {
+      for (const id of ids) {
+        const node = cardRefs.current.get(id);
+        if (!node) {
+          if (--remaining === 0) finish();
+          continue;
+        }
+        measureY(node, (y) => {
+          if (y != null) nextPositions.set(id, containerY != null ? y - containerY : y);
+          if (--remaining === 0) finish();
+        });
       }
-      measureY(node, (y) => {
-        if (y != null) nextPositions.set(id, y);
-        if (--remaining === 0) finish();
-      });
-    }
+    };
+    if (containerRef.current) measureY(containerRef.current, measureCards);
+    else measureCards(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderKey, draggingKey]);
 
   return (
-    <View>
+    <View
+      ref={(node) => {
+        containerRef.current = node as unknown as Measurable | null;
+      }}
+    >
       {/* eslint-disable react-hooks/refs -- lazy Animated.Value cache per row */}
       {items.map((item, index) => {
         const id = keyExtractor(item, index);
