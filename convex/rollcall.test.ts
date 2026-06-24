@@ -224,6 +224,40 @@ describe("mergeLegacyStaffMembers (staff-year-aware relink)", () => {
 });
 
 describe("staff year derivation for events", () => {
+  test("a Sep–Dec attendee with no profile this staff year falls back to the calendar-year member", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    // Nov 2025 event (staff year 2026); the attendee was staff in 2025 (has a
+    // calendar-year overlay) but is not in 2026 profiles → show as the member.
+    const eventId = await t.run(async (ctx) => {
+      const dateStart = Date.UTC(2025, 10, 1, 9, 0, 0);
+      await ctx.db.insert("attendanceMembers", {
+        year: 2025,
+        name: "Jane Doe",
+        email: "jane.doe@sowaustralia.com",
+        staffEmail: "jane.doe@sowaustralia.com",
+      });
+      const e = await ctx.db.insert("events", {
+        year: 2025,
+        name: "Nov",
+        dateStart,
+        dateEnd: dateStart + 3600_000,
+        subgroups: [USYD],
+      });
+      await ctx.db.insert("attendance", {
+        eventId: e,
+        email: "jane.doe@sowaustralia.com",
+        year: 2025,
+        signInTime: dateStart,
+      });
+      return e;
+    });
+    const listed = await leader.query(api.attendance.listByEvent, { eventId });
+    expect(listed).toHaveLength(1);
+    expect(listed[0].kind).toBe("member");
+    expect(listed[0].name).toBe("Jane Doe");
+  });
+
   test("a Sep–Dec event shows the next staff year's roles/campus", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);

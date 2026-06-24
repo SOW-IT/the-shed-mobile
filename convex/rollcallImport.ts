@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { assignmentsOf, rolesOfLike } from "../shared/flow";
+import { assignmentsOf, rolesOfLike, staffYearForDate } from "../shared/flow";
 import {
   CAMPUS_FIELD_KEY,
   canonicalizeGenderOptionId,
@@ -721,5 +721,86 @@ export const repairGenderMetadata = mutation({
     }
 
     return { fieldPatched, membersPatched };
+  },
+});
+
+/**
+ * Read-only audit of how every attendance row in a (calendar) year resolves:
+ * staff (matched to a profile of the event-date staff year, either SOW domain),
+ * a plain attendance member, or a problem. `memberShouldBeStaff` flags rows
+ * still pointing at a member whose email matches a staff profile (i.e. a missed
+ * link); `noProfileEmail` flags email rows with no profile for that staff year.
+ */
+export const auditAttendanceMapping = mutation({
+  args: { year: v.number() },
+  handler: async (ctx, { year }) => {
+    await requireAdmin(ctx);
+    const events = await ctx.db
+      .query("events")
+      .withIndex("by_year", (q) => q.eq("year", year))
+      .collect();
+
+    let total = 0;
+    let staffByEmail = 0;
+    let plainMember = 0;
+    const memberShouldBeStaff: Record<string, unknown>[] = [];
+    const noProfileEmail: Record<string, unknown>[] = [];
+    const missingMember: Record<string, unknown>[] = [];
+    const noIdentifier = 0;
+
+    for (const event of events) {
+      const profileYear = staffYearForDate(new Date(event.dateStart));
+      const rows = await ctx.db
+        .query("attendance")
+        .withIndex("by_event", (q) => q.eq("eventId", event._id))
+        .collect();
+      for (const row of rows) {
+        total++;
+        const findProfile = async (email: string | undefined) => {
+          for (const candidate of staffEmailCandidates(email)) {
+            const profile = await getProfile(ctx, candidate, profileYear);
+            if (profile) return profile;
+          }
+          return null;
+        };
+        if (row.email) {
+          if (await findProfile(row.email)) staffByEmail++;
+          else noProfileEmail.push({ event: event.name, email: row.email, staffYear: profileYear });
+        } else if (row.memberId) {
+          const member = await ctx.db.get(row.memberId);
+          if (!member) {
+            missingMember.push({ event: event.name, memberId: row.memberId });
+            continue;
+          }
+          const profile = await findProfile(member.email);
+          if (profile) {
+            memberShouldBeStaff.push({
+              event: event.name,
+              member: member.name,
+              email: member.email,
+              profile: profile.email,
+              staffYear: profileYear,
+            });
+          } else {
+            plainMember++;
+          }
+        }
+      }
+    }
+
+    return {
+      year,
+      events: events.length,
+      total,
+      staffByEmail,
+      plainMember,
+      memberShouldBeStaffCount: memberShouldBeStaff.length,
+      noProfileEmailCount: noProfileEmail.length,
+      missingMemberCount: missingMember.length,
+      noIdentifier,
+      memberShouldBeStaff: memberShouldBeStaff.slice(0, 40),
+      noProfileEmail: noProfileEmail.slice(0, 40),
+      missingMember: missingMember.slice(0, 20),
+    };
   },
 });

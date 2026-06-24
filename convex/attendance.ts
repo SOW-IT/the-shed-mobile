@@ -6,6 +6,7 @@ import {
 } from "../shared/attendanceMemberMeta";
 import { compareAttendanceFrequency, memberMatchesEventCampus, normalizeSubgroups, subgroupMatches } from "../shared/rollcall";
 import { staffEmailCandidates } from "../shared/rollcallImport";
+import { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { getProfile, optionalProfile, requireProfile } from "./model";
 
@@ -289,12 +290,20 @@ export const listByEvent = query({
         if (profile) break;
       }
       const resolvedEmail = profile?.email.toLowerCase() ?? email.toLowerCase();
-      const shadow = await ctx.db
-        .query("attendanceMembers")
-        .withIndex("by_year_and_staff_email", (q) =>
-          q.eq("year", event.year).eq("staffEmail", resolvedEmail)
-        )
-        .unique();
+      // The attendance member overlay for the event's calendar year (either SOW
+      // domain), used as the fallback identity when no staff profile applies for
+      // the event-date staff year (e.g. a Sep–Dec event by someone who was staff
+      // last staff year but isn't this one).
+      let shadow: Doc<"attendanceMembers"> | null = null;
+      for (const candidate of staffEmailCandidates(resolvedEmail)) {
+        shadow = await ctx.db
+          .query("attendanceMembers")
+          .withIndex("by_year_and_staff_email", (q) =>
+            q.eq("year", event.year).eq("staffEmail", candidate)
+          )
+          .unique();
+        if (shadow) break;
+      }
       const assignments = profile ? assignmentsOf(profile) : [];
       const roles = [...new Set(assignments.map((assignment) => assignment.role))];
       const campuses = [
@@ -312,8 +321,12 @@ export const listByEvent = query({
         row: {
           ...row,
           email: resolvedEmail,
-          name: profile?.name ?? resolvedEmail,
-          kind: "staff" as const,
+          // Staff profile name wins; otherwise fall back to the calendar-year
+          // attendance member's name rather than showing a bare email.
+          name: profile?.name ?? shadow?.name ?? resolvedEmail,
+          // Without a staff profile for this staff year, this person is shown as
+          // the calendar-year attendance member, not staff.
+          kind: profile ? ("staff" as const) : ("member" as const),
           roles,
           campuses,
           // The staff-year profile's campus wins over a (possibly stale) overlay.
