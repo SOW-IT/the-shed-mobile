@@ -27,11 +27,14 @@ const identity = `{email:'${email}',subject:'${email}',issuer:'rollcall-import'}
 const calendarYearOf = (ms) =>
   new Date(ms + 10 * 60 * 60 * 1000).getUTCFullYear();
 
+// Runs against the already-deployed dev functions (push once with
+// `npx convex dev --once` before applying). Embedded events can be large, so we
+// never pass a whole big event in one arg — attendance is chunked per event.
 function runConvex(functionName, args) {
   const jsonArgs = JSON.stringify(args);
   const output = execFileSync(
     command,
-    [convexMain, "run", "--push", "--identity", identity, functionName, jsonArgs],
+    [convexMain, "run", "--identity", identity, functionName, jsonArgs],
     { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
   );
   const jsonStart = output.indexOf("{");
@@ -129,19 +132,29 @@ const importEvents = report.events
   }))
   .filter((event) => !sourceGroup || event.sourceImportId.startsWith(`${sourceGroup}/`));
 
+// Import one event at a time, splitting its attendees into chunks small enough
+// to pass as a single CLI arg (a busy event can have 1000+ embedded rows). The
+// event upsert is idempotent, so repeating it per chunk just accumulates
+// attendance.
+const MEMBER_CHUNK_SIZE = 80;
 let importedEvents = 0;
 let importedAttendance = 0;
 let skipped = 0;
-for (const chunk of chunks(importEvents, 1)) {
-  const result = runConvex("rollcallImport:importEvents", {
-    year,
-    tagMap,
-    fieldMapByYear,
-    events: chunk,
-  });
-  importedEvents += result.importedEvents;
-  importedAttendance += result.importedAttendance;
-  skipped += result.skipped;
+for (const event of importEvents) {
+  const memberChunks = event.members.length
+    ? chunks(event.members, MEMBER_CHUNK_SIZE)
+    : [[]];
+  for (const memberChunk of memberChunks) {
+    const result = runConvex("rollcallImport:importEvents", {
+      year,
+      tagMap,
+      fieldMapByYear,
+      events: [{ ...event, members: memberChunk }],
+    });
+    importedAttendance += result.importedAttendance;
+    skipped += result.skipped;
+  }
+  importedEvents++;
   console.log(
     `Imported events: ${importedEvents}/${importEvents.length} ` +
       `(attendance ${importedAttendance}, skipped ${skipped})`
