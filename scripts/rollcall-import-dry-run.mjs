@@ -613,6 +613,23 @@ for (const event of events) {
   });
 }
 
+// A few source event docs parse to a non-unique id (e.g. several SOW-group
+// events share the doc id "placeholder"), which would collapse them onto one
+// row under the importer's upsert-by-sourceImportId. Disambiguate every member
+// of a colliding id with its start time so no event is silently dropped.
+const eventIdCounts = new Map();
+for (const event of events) {
+  eventIdCounts.set(
+    event.sourceImportId,
+    (eventIdCounts.get(event.sourceImportId) ?? 0) + 1
+  );
+}
+for (const event of events) {
+  if ((eventIdCounts.get(event.sourceImportId) ?? 0) > 1) {
+    event.sourceImportId = `${event.sourceImportId}#${event.dateStart}`;
+  }
+}
+
 const membersByDuplicateKey = new Map();
 for (const member of members) {
   const key = memberDuplicateKey(member);
