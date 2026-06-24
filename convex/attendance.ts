@@ -395,6 +395,11 @@ export const signOut = mutation({
   },
   handler: async (ctx, { eventId, email, memberId }) => {
     await requireProfile(ctx);
+    // Mirror signIn's contract: exactly one identifier, so an ambiguous call
+    // can't silently leave the member row behind when email lookup misses.
+    if (!!email === !!memberId) {
+      throw new ConvexError("Provide either email or memberId.");
+    }
     if (email) {
       const lower = email.trim().toLowerCase();
       const existing = await ctx.db

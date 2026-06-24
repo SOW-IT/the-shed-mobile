@@ -537,6 +537,31 @@ describe("guards + edge cases", () => {
     ).toEqual([]);
   });
 
+  test("signOut requires exactly one identifier", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const { dateStart, dateEnd } = window();
+    const eventId = await leader.mutation(api.events.create, {
+      name: "E",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+    const memberId = await leader.mutation(api.attendanceMembers.create, {
+      year: YEAR,
+      name: "G",
+    });
+    // Neither identifier.
+    await expect(
+      leader.mutation(api.attendance.signOut, { eventId })
+    ).rejects.toThrow(/either email or memberId/i);
+    // Both identifiers.
+    await expect(
+      leader.mutation(api.attendance.signOut, { eventId, email: STAFF, memberId })
+    ).rejects.toThrow(/either email or memberId/i);
+  });
+
   test("signIn and signOut by memberId", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);

@@ -49,7 +49,11 @@ const personKey = (row: {
   email?: string | null;
   memberId?: string | null;
 }): string =>
-  row.email ? `staff:${row.email}` : row.memberId ? `member:${row.memberId}` : "";
+  row.email
+    ? `staff:${row.email.toLowerCase()}`
+    : row.memberId
+      ? `member:${row.memberId}`
+      : "";
 
 const signedInSubtitle = (signInTime: number, notes?: string): string => {
   const base = formatSignInTime(signInTime);

@@ -59,8 +59,11 @@ async function validateEventFields(
       throw new ConvexError(`Unknown sub-group "${subgroup}" for ${year}.`);
     }
   }
-  if (args.tagIds?.length) {
-    for (const tagId of args.tagIds) {
+  // Dedupe so the same tag can't be stored twice (which would surface duplicate
+  // pills and duplicate React keys in the events list).
+  const uniqueTagIds = args.tagIds?.length ? [...new Set(args.tagIds)] : undefined;
+  if (uniqueTagIds) {
+    for (const tagId of uniqueTagIds) {
       const tag = await ctx.db.get(tagId);
       if (!tag || tag.year !== year) {
         throw new ConvexError("One or more tags are invalid for this year.");
@@ -73,7 +76,7 @@ async function validateEventFields(
     dateStart: args.dateStart,
     dateEnd: args.dateEnd,
     subgroups: uniqueSubgroups,
-    tagIds: args.tagIds?.length ? args.tagIds : undefined,
+    tagIds: uniqueTagIds,
   };
 }
 
