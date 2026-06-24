@@ -1,9 +1,11 @@
 import { useQuery } from "convex/react";
-import { ReactNode, useRef, useState } from "react";
+import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
+  Easing,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  Platform,
   ScrollView,
   StyleSheet,
   View,
@@ -34,6 +36,26 @@ const NEAR_BOTTOM = 600;
  */
 const FOOTER_HIDDEN_OFFSET = 120;
 
+/** How quickly the footer snaps into place after a swipe is released. */
+const FOOTER_SETTLE_MS = 140;
+
+export type PagerScrollState = "idle" | "dragging" | "settling";
+
+export type PagerTabFooter = {
+  tabKey: string;
+  node: ReactNode;
+};
+
+const footerYForPosition = (
+  pos: number,
+  homeIndex: number,
+  hasTabFooters: boolean
+) => {
+  if (!hasTabFooters) return 0;
+  const dist = Math.abs(pos - homeIndex);
+  return Math.min(dist, 1) * FOOTER_HIDDEN_OFFSET;
+};
+
 /**
  * Page shell for the tabbed main screens (Requests, Manage): the top chrome
  * (logo + avatar) and a full-width square tab bar pinned up top, over a
@@ -51,6 +73,7 @@ export const PagerScreen = ({
   onEndReached,
   footer,
   footerTabKey,
+  footers,
   floating,
 }: {
   tabs: PagerTab[];
@@ -67,6 +90,8 @@ export const PagerScreen = ({
    * the footer pinned on all tabs.
    */
   footerTabKey?: string;
+  /** One sliding footer per tab (e.g. Create event + Create member). */
+  footers?: PagerTabFooter[];
   /** Absolutely-positioned overlays (e.g. the year picker). */
   floating?: ReactNode;
 }) => {
@@ -80,25 +105,92 @@ export const PagerScreen = ({
     0
   );
   const [pagerPosition] = useState(() => new Animated.Value(initialIndex));
-  // Home index of the footer's tab — the footer slides away as the pager moves
-  // off it (see footerSlide below). Defaults to the first tab when unspecified.
-  const footerHomeIndex = footerTabKey
-    ? Math.max(
-        tabs.findIndex((tab) => tab.key === footerTabKey),
-        0
-      )
-    : 0;
-  // Lower the footer off-screen as the swipe leaves its tab (in either
-  // direction), and raise it back on return. Clamped so far-away tabs keep it
-  // fully hidden. On web this rides the 220ms tab-change animation. With no
-  // footerTabKey the footer is pinned, so it never moves.
-  const footerSlide = pagerPosition.interpolate({
-    inputRange: [footerHomeIndex - 1, footerHomeIndex, footerHomeIndex + 1],
-    outputRange: footerTabKey
-      ? [FOOTER_HIDDEN_OFFSET, 0, FOOTER_HIDDEN_OFFSET]
-      : [0, 0, 0],
-    extrapolate: "clamp",
-  });
+  const footerAnimsRef = useRef<Record<string, Animated.Value>>({});
+  const footerScrollState = useRef<PagerScrollState>("idle");
+
+  const footerItems: PagerTabFooter[] =
+    footers && footers.length > 0
+      ? footers
+      : footer && footerTabKey
+        ? [{ tabKey: footerTabKey, node: footer }]
+        : [];
+  const footerTabKeys = new Set(footerItems.map((item) => item.tabKey));
+
+  const activeIndex = Math.max(
+    tabs.findIndex((tab) => tab.key === activeKey),
+    0
+  );
+
+  const homeIndexFor = useCallback(
+    (tabKey: string) => Math.max(tabs.findIndex((tab) => tab.key === tabKey), 0),
+    [tabs]
+  );
+
+  const yForFooter = useCallback(
+    (pos: number, tabKey: string) =>
+      footerYForPosition(pos, homeIndexFor(tabKey), footerItems.length > 0),
+    [footerItems.length, homeIndexFor]
+  );
+
+  const ensureFooterAnim = useCallback(
+    (tabKey: string, initialY: number) => {
+      if (!footerAnimsRef.current[tabKey]) {
+        footerAnimsRef.current[tabKey] = new Animated.Value(initialY);
+      }
+      return footerAnimsRef.current[tabKey];
+    },
+    []
+  );
+
+  const setAllFooterPositions = useCallback(
+    (pos: number, animate: boolean) => {
+      for (const item of footerItems) {
+        const y = yForFooter(pos, item.tabKey);
+        const anim = ensureFooterAnim(item.tabKey, y);
+        if (animate) {
+          Animated.timing(anim, {
+            toValue: y,
+            duration: FOOTER_SETTLE_MS,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }).start();
+        } else {
+          anim.setValue(y);
+        }
+      }
+    },
+    [ensureFooterAnim, footerItems, yForFooter]
+  );
+
+  // Tab taps and web tab changes — no native pager bounce to follow.
+  useEffect(() => {
+    if (footerItems.length === 0) return;
+    if (footerScrollState.current === "dragging") return;
+    setAllFooterPositions(activeIndex, true);
+  }, [activeIndex, footerItems.length, setAllFooterPositions]);
+
+  // While the finger is down, track the pager continuously.
+  useEffect(() => {
+    if (footerItems.length === 0 || Platform.OS === "web") return;
+    const id = pagerPosition.addListener(({ value }) => {
+      if (footerScrollState.current !== "dragging") return;
+      setAllFooterPositions(value, false);
+    });
+    return () => pagerPosition.removeListener(id);
+  }, [footerItems.length, pagerPosition, setAllFooterPositions]);
+
+  const onPagerScrollStateChange = useCallback(
+    (state: PagerScrollState, scrollPos: number, settledIndex?: number) => {
+      if (footerItems.length === 0) return;
+      footerScrollState.current = state;
+      if (state === "dragging") {
+        setAllFooterPositions(scrollPos, false);
+      } else if (state === "idle" && settledIndex !== undefined) {
+        setAllFooterPositions(settledIndex, true);
+      }
+    },
+    [footerItems.length, setAllFooterPositions]
+  );
   // The content height each tab last fired onEndReached at, so we don't re-fire
   // on every scroll event while the user lingers near the bottom — only once the
   // page has grown (i.e. more content actually loaded).
@@ -114,8 +206,7 @@ export const PagerScreen = ({
         // (where the footer is slid away) keep the slimmer one. A footer with no
         // footerTabKey is pinned on every tab, so all pages get the inset.
         {
-          paddingBottom:
-            footer && (!footerTabKey || tab.key === footerTabKey) ? 96 : 48,
+          paddingBottom: footerTabKeys.has(tab.key) ? 96 : 48,
         },
       ]}
       scrollEventThrottle={onEndReached ? 16 : undefined}
@@ -157,15 +248,23 @@ export const PagerScreen = ({
         onActiveKeyChange={onActiveKeyChange}
         renderPage={renderPage}
         position={pagerPosition}
+        onScrollStateChange={onPagerScrollStateChange}
       />
-      {footer ? (
-        <Animated.View
-          pointerEvents="box-none"
-          style={[StyleSheet.absoluteFill, { transform: [{ translateY: footerSlide }] }]}
-        >
-          {footer}
-        </Animated.View>
-      ) : null}
+      {footerItems.map((item) => {
+        const anim = ensureFooterAnim(item.tabKey, yForFooter(activeIndex, item.tabKey));
+        return (
+          <Animated.View
+            key={item.tabKey}
+            pointerEvents="box-none"
+            style={[
+              StyleSheet.absoluteFill,
+              { transform: [{ translateY: anim }] },
+            ]}
+          >
+            {item.node}
+          </Animated.View>
+        );
+      })}
       {floating}
     </SafeAreaView>
   );

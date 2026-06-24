@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
+import { universityColour } from "../../../shared/flow";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { ChromeScreen } from "@/components/ChromeScreen";
 import {
@@ -165,7 +166,10 @@ export default function OrgChartScreen() {
                   style={[
                     styles.deptCard,
                     t.shadowCard,
-                    { backgroundColor: t.card, borderLeftColor: t.primary },
+                    {
+                      backgroundColor: t.card,
+                      borderLeftColor: universityColour(u.name) ?? t.primary,
+                    },
                   ]}
                 >
                   <Text style={[typography.label, { color: t.faint }]}>{u.name}</Text>

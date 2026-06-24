@@ -301,18 +301,55 @@ export default defineSchema({
     dateEnd: v.number(),
     // University names (e.g. "University of Sydney") and/or the literal "ALL".
     subgroups: v.array(v.string()),
+    tagIds: v.optional(v.array(v.id("attendanceTags"))),
   }).index("by_year", ["year"]),
 
-  // One row per (event, person). The person is the durable `email`; `year`
-  // mirrors the event's so a person's history stays queryable across years.
+  // Event category tags (e.g. "Weekly Meeting"), per staff year.
+  attendanceTags: defineTable({
+    year: v.number(),
+    name: v.string(),
+    colour: v.optional(v.string()),
+  })
+    .index("by_year", ["year"])
+    .index("by_year_and_name", ["year", "name"]),
+
+  // Dynamic member fields (Year, Gender, Campus, Role, …), per staff year.
+  attendanceMetadata: defineTable({
+    year: v.number(),
+    key: v.string(),
+    type: v.union(v.literal("select"), v.literal("input")),
+    order: v.number(),
+    values: v.optional(v.record(v.string(), v.string())),
+    /** When true, select values seeded from org data cannot be removed. */
+    lockedValues: v.optional(v.array(v.string())),
+  }).index("by_year", ["year"]),
+
+  // Attendance pool members. Rows with `staffEmail` hold metadata for a staff
+  // profile; rows without are attendance-only people.
+  attendanceMembers: defineTable({
+    year: v.number(),
+    name: v.string(),
+    email: v.optional(v.string()),
+    staffEmail: v.optional(v.string()),
+    metadata: v.optional(v.record(v.string(), v.string())),
+  })
+    .index("by_year", ["year"])
+    .index("by_year_and_name", ["year", "name"])
+    .index("by_year_and_staff_email", ["year", "staffEmail"]),
+
+  // One row per (event, person). Staff use `email`; extra members use
+  // `memberId`. Exactly one identifier should be set.
   attendance: defineTable({
     eventId: v.id("events"),
-    email: v.string(), // lowercase, the staff person signed in
+    email: v.optional(v.string()),
+    memberId: v.optional(v.id("attendanceMembers")),
     year: v.number(),
     signInTime: v.number(),
     notes: v.optional(v.string()),
   })
     .index("by_event", ["eventId"])
     .index("by_event_and_email", ["eventId", "email"])
-    .index("by_email", ["email"]),
+    .index("by_event_and_member", ["eventId", "memberId"])
+    .index("by_email", ["email"])
+    .index("by_member", ["memberId"]),
 });

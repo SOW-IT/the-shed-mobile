@@ -254,9 +254,9 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="rollcall"
+        name="attendance"
         options={{
-          title: "Roll-call",
+          title: "Attendance",
           tabBarIcon: tabIcon("checkbox-outline", "checkbox"),
         }}
       />

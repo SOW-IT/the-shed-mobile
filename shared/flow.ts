@@ -77,8 +77,28 @@ export const DISPLAY_ACRONYMS: Record<string, string> = {
   "University of Sydney": "USYD",
   "University of Technology, Sydney": "UTS",
   "Australian Catholic University": "ACU",
+  "Western Sydney University": "WSU",
 };
 export const acronym = (name: string): string => DISPLAY_ACRONYMS[name] ?? name;
+
+/**
+ * Brand colour per campus, keyed by acronym (see DISPLAY_ACRONYMS). "SOW" is
+ * the whole-org colour (used by the Attendance "ALL" sub-group). Shared so the
+ * org chart and the Attendance screens tint campuses identically.
+ */
+export const UNIVERSITY_COLOURS: Record<string, string> = {
+  USYD: "#B5403D",
+  UNSW: "#619445",
+  UTS: "#3B5499",
+  MACQ: "#F2C259",
+  ACU: "#57427A",
+  WSU: "#990033",
+  SOW: "#000000",
+};
+
+/** The brand colour for a campus by full name or acronym, if one is known. */
+export const universityColour = (name: string): string | undefined =>
+  UNIVERSITY_COLOURS[acronym(name)];
 
 /** Roles that take a department; the exceptions belong elsewhere. */
 export const roleNeedsDepartment = (role: string): boolean =>

@@ -10,6 +10,9 @@
 
 import type * as admin from "../admin.js";
 import type * as attendance from "../attendance.js";
+import type * as attendanceMembers from "../attendanceMembers.js";
+import type * as attendanceMetadata from "../attendanceMetadata.js";
+import type * as attendanceTags from "../attendanceTags.js";
 import type * as auth from "../auth.js";
 import type * as bankAccounts from "../bankAccounts.js";
 import type * as cleanup from "../cleanup.js";
@@ -39,6 +42,9 @@ import type {
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   attendance: typeof attendance;
+  attendanceMembers: typeof attendanceMembers;
+  attendanceMetadata: typeof attendanceMetadata;
+  attendanceTags: typeof attendanceTags;
   auth: typeof auth;
   bankAccounts: typeof bankAccounts;
   cleanup: typeof cleanup;

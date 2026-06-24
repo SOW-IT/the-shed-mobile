@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Pressable, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { staffYearForDate } from "../../../shared/flow";
-import { formatEventDate, subgroupLabel } from "../../../shared/rollcall";
+import { formatEventDate, subgroupColour, subgroupLabel } from "../../../shared/rollcall";
 import {
   Card,
   Chip,
@@ -25,6 +25,7 @@ export default function SubgroupEventsScreen() {
   const { subgroup } = useLocalSearchParams<{ subgroup: string }>();
   const year = staffYearForDate(new Date());
   const events = useQuery(api.events.listBySubgroup, { year, subgroup });
+  const accent = subgroupColour(subgroup);
 
   if (events === undefined) return <LoadingState />;
 
@@ -39,12 +40,18 @@ export default function SubgroupEventsScreen() {
           <EmptyState
             icon="calendar-outline"
             title="No events yet"
-            message="Create an event to take a roll-call."
+            message="Create an event to take attendance."
           />
         ) : (
           events.map((event, i) => (
             <FadeInView key={event._id} delay={stagger(i)}>
-              <Card style={{ marginBottom: spacing.sm }}>
+              <Card
+                style={{
+                  marginBottom: spacing.sm,
+                  borderLeftWidth: event.collaborative ? 0 : 4,
+                  borderLeftColor: accent,
+                }}
+              >
                 <Pressable
                   style={({ pressed }) => [
                     { flexDirection: "row", alignItems: "center", gap: 10 },
@@ -52,7 +59,7 @@ export default function SubgroupEventsScreen() {
                   ]}
                   onPress={() =>
                     router.push({
-                      pathname: "/rollcall/event/[eventId]",
+                      pathname: "/attendance/event/[eventId]",
                       params: { eventId: event._id },
                     })
                   }
@@ -90,7 +97,7 @@ export default function SubgroupEventsScreen() {
         title="New event"
         onPress={() =>
           router.push({
-            pathname: "/rollcall/event/new",
+            pathname: "/attendance/event/new",
             params: { subgroup },
           })
         }
@@ -103,6 +110,7 @@ const styles = {
   badgeRow: {
     flexDirection: "row" as const,
     flexWrap: "wrap" as const,
+    alignItems: "center" as const,
     gap: 6,
     marginTop: 4,
   },

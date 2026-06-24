@@ -1,34 +1,49 @@
+import { Avatar } from "@/components/ui";
+import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
-import { memo } from "react";
-import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { memo, useCallback, useState } from "react";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
+  Easing,
   interpolate,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
   withTiming,
 } from "react-native-reanimated";
-import { Avatar } from "@/components/ui";
-import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 /**
- * A single roll-call row with a native, gesture-driven swipe — the React Native
- * analogue of time-to-rollcall's GSAP draggable cards.
+ * A roll-call row with bidirectional swipe gestures (time-to-rollcall style):
  *
- *  - mode "suggested": a person not yet signed in. Swipe RIGHT (green) to sign
- *    them in. The row flings off to the right and `onAction` fires.
- *  - mode "signedIn": a person already present. Swipe LEFT (red) to sign them
- *    out. The row flings off to the left and `onAction` fires.
+ *  - Swipe LEFT: primary action — sign in (not signed in) or sign out (signed in).
+ *    Past the commit distance (or fast fling), the row flings off and `onAction` fires.
+ *    A shorter drag snaps open to preview; tap the revealed strip to commit.
+ *  - Swipe RIGHT: edit — snaps open to show the pencil; full swipe or tap the strip
+ *    to open the edit modal.
  *
- * A partial swipe that doesn't cross the threshold springs back. The coloured
- * action layer behind the card fades in as you drag, so the gesture reads. A
- * plain tap also commits, as a pointer-friendly fallback on web.
+ * Tap on the card when closed commits the primary action; when snapped open, tap closes.
  */
 
-const SWIPE_THRESHOLD = 0.32; // fraction of row width to commit
-const VELOCITY_COMMIT = 900; // px/s fling that commits regardless of distance
+/** Minimum drag (px) before snapping to the revealed affordance. */
+const REVEAL_THRESHOLD = 47;
+/** How far the row snaps when revealing an action without committing. */
+const SNAP_POSITION = 47;
+/** Extra distance credited when already snapped open (easier to commit). */
+const REVEALED_BONUS = 80;
+const FRESH_BONUS = 20;
+/** px/ms — matches time-to-rollcall velocity threshold (1.2). */
+const VELOCITY_COMMIT = 1200;
+
+/** Snap / reset duration — matches time-to-rollcall (0.3s). */
+const SLIDE_MS = 280;
+const slideTo = (toValue: number) =>
+  withTiming(toValue, {
+    duration: SLIDE_MS,
+    easing: Easing.out(Easing.cubic),
+  });
+
+type SnapVisual = "closed" | "primary" | "edit";
 
 export type AttendanceRowMode = "suggested" | "signedIn";
 
@@ -37,8 +52,10 @@ export interface AttendanceRowProps {
   subtitle?: string;
   photo?: string | null;
   mode: AttendanceRowMode;
-  /** Fired once the swipe (or tap) commits — sign in / sign out. */
+  /** Sign in / sign out — fired after a left swipe (or tap). */
   onAction: () => void;
+  /** Member edit — fired after a right swipe past the commit distance. Row stays in the list. */
+  onEdit?: () => void;
 }
 
 function AttendanceRowBase({
@@ -47,51 +64,140 @@ function AttendanceRowBase({
   photo,
   mode,
   onAction,
+  onEdit,
 }: AttendanceRowProps) {
   const t = useAppTheme();
-  const { width } = useWindowDimensions();
-  const rowWidth = Math.min(width, 720) - spacing.lg * 2;
-  const commitDir = mode === "suggested" ? 1 : -1; // right vs left
-  const actionColor = mode === "suggested" ? t.success : t.danger;
-  const actionIcon = mode === "suggested" ? "checkmark-circle" : "arrow-undo";
+  const { width: screenWidth } = useWindowDimensions();
+  const rowWidth = Math.min(screenWidth, 720) - spacing.lg * 2;
+  const commitDistance = screenWidth / 2;
+  const primaryColor = mode === "suggested" ? t.success : t.danger;
+  const primaryIcon =
+    mode === "suggested" ? "arrow-forward" : "arrow-undo";
+  const trailingIcon =
+    mode === "suggested" ? "chevron-back" : "checkmark-circle";
 
   const translateX = useSharedValue(0);
+  const startX = useSharedValue(0);
   const itemHeight = useSharedValue(72);
   const opacity = useSharedValue(1);
+  const editSnapped = useSharedValue(false);
+  const primarySnapped = useSharedValue(false);
+  const [snapVisual, setSnapVisual] = useState<SnapVisual>("closed");
 
-  const fling = () => {
+  const setSnapClosed = useCallback(() => setSnapVisual("closed"), []);
+  const setSnapPrimary = useCallback(() => setSnapVisual("primary"), []);
+  const setSnapEdit = useCallback(() => setSnapVisual("edit"), []);
+
+  const flingPrimary = () => {
     "worklet";
-    translateX.value = withTiming(commitDir * rowWidth, { duration: 180 });
+    editSnapped.value = false;
+    primarySnapped.value = false;
+    runOnJS(setSnapClosed)();
+    translateX.value = withTiming(-rowWidth, { duration: 180 });
     opacity.value = withTiming(0, { duration: 180 });
     itemHeight.value = withTiming(0, { duration: 200 }, (done) => {
       if (done) runOnJS(onAction)();
     });
   };
 
+  const commitEdit = () => {
+    "worklet";
+    if (onEdit) runOnJS(onEdit)();
+    editSnapped.value = false;
+    primarySnapped.value = false;
+    runOnJS(setSnapClosed)();
+    translateX.value = slideTo(0);
+  };
+
+  const resetSnap = () => {
+    "worklet";
+    editSnapped.value = false;
+    primarySnapped.value = false;
+    runOnJS(setSnapClosed)();
+    translateX.value = slideTo(0);
+  };
+
+  const onPrimaryStripPress = () => {
+    editSnapped.value = false;
+    primarySnapped.value = false;
+    setSnapClosed();
+    translateX.value = withTiming(-rowWidth, { duration: 180 });
+    opacity.value = withTiming(0, { duration: 180 });
+    itemHeight.value = withTiming(0, { duration: 200 }, (done) => {
+      if (done) onAction();
+    });
+  };
+
+  const onEditStripPress = () => {
+    if (!onEdit) return;
+    editSnapped.value = false;
+    primarySnapped.value = false;
+    setSnapClosed();
+    onEdit();
+    translateX.value = slideTo(0);
+  };
+
   const pan = Gesture.Pan()
     .activeOffsetX([-12, 12])
     .failOffsetY([-14, 14])
+    .onStart(() => {
+      startX.value = translateX.value;
+    })
     .onUpdate((e) => {
-      // Only allow dragging in the committable direction.
-      const x = e.translationX;
-      translateX.value = commitDir === 1 ? Math.max(0, x) : Math.min(0, x);
+      translateX.value = startX.value + e.translationX;
     })
     .onEnd((e) => {
-      const dragged = Math.abs(translateX.value);
-      const flung = e.velocityX * commitDir > VELOCITY_COMMIT;
-      if (dragged > rowWidth * SWIPE_THRESHOLD || flung) {
-        fling();
-      } else {
-        translateX.value = withSpring(0, { damping: 18, stiffness: 220 });
+      const x = translateX.value;
+      const leftDrag = -x;
+      const rightDrag = x;
+
+      if (
+        leftDrag + (primarySnapped.value ? REVEALED_BONUS : FRESH_BONUS) >
+          commitDistance ||
+        e.velocityX < -VELOCITY_COMMIT
+      ) {
+        flingPrimary();
+        return;
       }
+
+      if (
+        onEdit &&
+        (rightDrag + (editSnapped.value ? REVEALED_BONUS : FRESH_BONUS) >
+          commitDistance ||
+          e.velocityX > VELOCITY_COMMIT)
+      ) {
+        commitEdit();
+        return;
+      }
+
+      if (!primarySnapped.value && leftDrag > REVEAL_THRESHOLD) {
+        primarySnapped.value = true;
+        editSnapped.value = false;
+        runOnJS(setSnapPrimary)();
+        translateX.value = slideTo(-SNAP_POSITION);
+        return;
+      }
+
+      if (onEdit && !editSnapped.value && rightDrag > REVEAL_THRESHOLD) {
+        editSnapped.value = true;
+        primarySnapped.value = false;
+        runOnJS(setSnapEdit)();
+        translateX.value = slideTo(SNAP_POSITION);
+        return;
+      }
+
+      resetSnap();
     });
 
   const tap = Gesture.Tap()
     .maxDistance(8)
     .onEnd((_e, success) => {
-      // Only commit a tap that actually recognised — a cancelled/failed tap
-      // shouldn't sign someone in or out (RNGH v2 passes `success`).
-      if (success) fling();
+      if (!success) return;
+      if (editSnapped.value || primarySnapped.value) {
+        resetSnap();
+        return;
+      }
+      flingPrimary();
     });
 
   const composed = Gesture.Exclusive(pan, tap);
@@ -105,34 +211,76 @@ function AttendanceRowBase({
     height: itemHeight.value,
   }));
 
-  const actionLayerStyle = useAnimatedStyle(() => {
+  const primaryLayerStyle = useAnimatedStyle(() => {
     const progress = Math.min(
-      Math.abs(translateX.value) / (rowWidth * SWIPE_THRESHOLD),
+      Math.max(-translateX.value, 0) / SNAP_POSITION,
       1
     );
-    return {
-      opacity: interpolate(progress, [0, 1], [0, 1]),
-    };
+    return { opacity: interpolate(progress, [0, 1], [0, 1]) };
+  });
+
+  const editLayerStyle = useAnimatedStyle(() => {
+    const progress = Math.min(
+      Math.max(translateX.value, 0) / SNAP_POSITION,
+      1
+    );
+    return { opacity: onEdit ? interpolate(progress, [0, 1], [0, 1]) : 0 };
   });
 
   return (
     <Animated.View style={[styles.container, containerStyle]}>
-      {/* Coloured action layer revealed underneath as the card slides away. */}
+      {/* Edit — revealed when swiping right */}
       <Animated.View
+        pointerEvents="none"
         style={[
           styles.actionLayer,
-          actionLayerStyle,
+          editLayerStyle,
           {
-            backgroundColor: actionColor,
-            alignItems: mode === "suggested" ? "flex-start" : "flex-end",
+            backgroundColor: t.muted,
+            alignItems: "flex-start",
           },
         ]}
       >
-        <Ionicons name={actionIcon} size={22} color="#fff" />
+        <Ionicons name="pencil" size={22} color="#fff" />
       </Animated.View>
 
+      {/* Sign in / out — revealed when swiping left */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.actionLayer,
+          primaryLayerStyle,
+          {
+            backgroundColor: primaryColor,
+            alignItems: "flex-end",
+          },
+        ]}
+      >
+        <Ionicons name={primaryIcon} size={22} color="#fff" />
+      </Animated.View>
+
+      {snapVisual === "edit" && onEdit ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Edit member"
+          style={[styles.actionHit, styles.editHit, { width: SNAP_POSITION }]}
+          onPress={onEditStripPress}
+        />
+      ) : null}
+
+      {snapVisual === "primary" ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={mode === "suggested" ? "Sign in" : "Sign out"}
+          style={[styles.actionHit, styles.primaryHit, { width: SNAP_POSITION }]}
+          onPress={onPrimaryStripPress}
+        />
+      ) : null}
+
       <GestureDetector gesture={composed}>
-        <Animated.View style={[styles.card, { backgroundColor: t.card }, cardStyle]}>
+        <Animated.View
+          style={[styles.card, { backgroundColor: t.card, zIndex: 2 }, cardStyle]}
+        >
           <Avatar photo={photo ?? null} name={name} size={40} />
           <View style={styles.text}>
             <Text style={[typography.headline, { color: t.text }]} numberOfLines={1}>
@@ -144,11 +292,7 @@ function AttendanceRowBase({
               </Text>
             ) : null}
           </View>
-          <Ionicons
-            name={mode === "suggested" ? "arrow-forward-circle-outline" : "checkmark-circle"}
-            size={22}
-            color={mode === "suggested" ? t.faint : t.success}
-          />
+          <Ionicons name={trailingIcon} size={22} color={t.faint} />
         </Animated.View>
       </GestureDetector>
     </Animated.View>
@@ -170,8 +314,17 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderRadius: radius.lg,
     justifyContent: "center",
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.md,
   },
+  actionHit: {
+    position: "absolute",
+    top: 0,
+    height: 72,
+    zIndex: 1,
+    borderRadius: radius.lg,
+  },
+  editHit: { left: 0 },
+  primaryHit: { right: 0 },
   card: {
     flexDirection: "row",
     alignItems: "center",

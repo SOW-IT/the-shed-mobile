@@ -53,7 +53,7 @@ export default function NewEventScreen() {
         subgroups: selected,
       });
       router.replace({
-        pathname: "/rollcall/event/[eventId]",
+        pathname: "/attendance/event/[eventId]",
         params: { eventId },
       });
     } catch (e) {
@@ -79,8 +79,8 @@ export default function NewEventScreen() {
       />
       <Muted>
         Pick two or more sub-groups to make this a collaborative event — it
-        appears in each sub-group&apos;s list and shares one roll-call drawn from
-        SOW&apos;s staff for the year.
+        appears in each sub-group&apos;s list and shares one attendance list drawn
+        from SOW&apos;s staff for the year.
       </Muted>
       {collaborative ? <Chip label="Collaborative event" /> : null}
       {error ? (

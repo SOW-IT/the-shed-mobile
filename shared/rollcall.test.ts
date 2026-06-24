@@ -1,9 +1,11 @@
 import { describe, expect, test } from "vitest";
 import {
   ALL_SUBGROUP,
+  defaultAttendanceSubgroup,
   defaultEventWindow,
   formatEventDate,
   formatSignInTime,
+  subgroupColour,
   subgroupLabel,
 } from "./rollcall";
 
@@ -22,6 +24,17 @@ describe("subgroupLabel", () => {
   });
 });
 
+describe("subgroupColour", () => {
+  test("ALL uses the whole-org SOW colour", () => {
+    expect(subgroupColour(ALL_SUBGROUP)).toBe("#000000");
+  });
+
+  test("a known campus uses its brand colour", () => {
+    expect(subgroupColour("University of Sydney")).toBe("#B5403D");
+    expect(subgroupColour("University of New South Wales")).toBe("#619445");
+  });
+});
+
 describe("defaultEventWindow", () => {
   test("starts ~now and runs exactly two hours", () => {
     const before = Date.now();
@@ -30,6 +43,28 @@ describe("defaultEventWindow", () => {
     expect(dateStart).toBeGreaterThanOrEqual(before);
     expect(dateStart).toBeLessThanOrEqual(after);
     expect(dateEnd - dateStart).toBe(2 * 60 * 60 * 1000);
+  });
+});
+
+describe("defaultAttendanceSubgroup", () => {
+  const subgroups = [ALL_SUBGROUP, "University of Sydney", "Macquarie University"];
+
+  test("picks the profile campus when present in the year's list", () => {
+    expect(
+      defaultAttendanceSubgroup(subgroups, [
+        { role: "Student Leader", university: "University of Sydney" },
+      ])
+    ).toBe("University of Sydney");
+  });
+
+  test("falls back to ALL when the profile has no campus", () => {
+    expect(defaultAttendanceSubgroup(subgroups, [{ role: "Staff" }])).toBe(
+      ALL_SUBGROUP
+    );
+  });
+
+  test("returns null for an empty list", () => {
+    expect(defaultAttendanceSubgroup([], [])).toBeNull();
   });
 });
 

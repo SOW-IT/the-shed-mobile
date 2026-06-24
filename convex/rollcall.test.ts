@@ -188,6 +188,34 @@ describe("events + roll-call", () => {
     expect(rows.map((r) => r.email)).toEqual([LEADER]);
   });
 
+  test("notes are stored per event attendance row", async () => {
+    const leader = asUser(t, LEADER);
+    const { dateStart, dateEnd } = window();
+    const eventId = await leader.mutation(api.events.create, {
+      name: "Notes event",
+      dateStart,
+      dateEnd,
+      subgroups: [ALL_SUBGROUP],
+    });
+    await leader.mutation(api.attendance.signIn, { eventId, email: LEADER });
+    const [row] = await leader.query(api.attendance.listByEvent, { eventId });
+    expect(row.notes).toBeUndefined();
+
+    await leader.mutation(api.attendance.updateRecord, {
+      attendanceId: row._id,
+      notes: "  Vegetarian meal  ",
+    });
+    const [updated] = await leader.query(api.attendance.listByEvent, { eventId });
+    expect(updated.notes).toBe("Vegetarian meal");
+
+    await leader.mutation(api.attendance.updateRecord, {
+      attendanceId: row._id,
+      notes: "   ",
+    });
+    const [cleared] = await leader.query(api.attendance.listByEvent, { eventId });
+    expect(cleared.notes).toBeUndefined();
+  });
+
   test("duplicate sub-groups are de-duped (not falsely collaborative)", async () => {
     const leader = asUser(t, LEADER);
     const { dateStart, dateEnd } = window();

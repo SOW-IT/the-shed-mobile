@@ -50,10 +50,10 @@ const RootStack = () => (
     <Stack.Screen name="notifications" />
     <Stack.Screen name="person/[email]" />
     <Stack.Screen name="request/[id]" />
-    {/* Roll-call: sub-group events + the roll-call itself, pushed over the tabs. */}
-    <Stack.Screen name="rollcall/[subgroup]" />
-    <Stack.Screen name="rollcall/event/new" />
-    <Stack.Screen name="rollcall/event/[eventId]" />
+    {/* Attendance: sub-group events + the roll-call itself, pushed over the tabs. */}
+    <Stack.Screen name="attendance/[subgroup]" />
+    <Stack.Screen name="attendance/event/new" />
+    <Stack.Screen name="attendance/event/[eventId]" />
     {/* Folded into the Requests tab; routes survive for old deep links. */}
     <Stack.Screen name="review" />
     <Stack.Screen name="all" />

@@ -1,7 +1,7 @@
 import { ReactNode, useEffect, useRef } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 import PagerView from "react-native-pager-view";
-import type { PagerTab } from "@/components/PagerScreen";
+import type { PagerScrollState, PagerTab } from "@/components/PagerScreen";
 
 type Props = {
   tabs: PagerTab[];
@@ -10,6 +10,11 @@ type Props = {
   renderPage: (tab: PagerTab) => ReactNode;
   /** Fractional page position, updated live as the pager scrolls. */
   position?: Animated.Value;
+  onScrollStateChange?: (
+    state: PagerScrollState,
+    scrollPos: number,
+    settledIndex?: number
+  ) => void;
 };
 
 /**
@@ -25,6 +30,7 @@ export const PagerCarousel = ({
   onActiveKeyChange,
   renderPage,
   position: scrollPosition,
+  onScrollStateChange,
 }: Props) => {
   const index = Math.max(
     tabs.findIndex((tab) => tab.key === activeKey),
@@ -38,6 +44,7 @@ export const PagerCarousel = ({
   // any "idle" — pager-view also emits idle mid-drag (a slow drag pausing on a
   // page boundary with the finger still down), and snapping there is the flicker.
   const scrollState = useRef<string>("idle");
+  const lastScroll = useRef(index);
   useEffect(() => {
     if (position.current === index) return;
     programmatic.current = true;
@@ -52,7 +59,9 @@ export const PagerCarousel = ({
       // Feed the live scroll position (page + 0..1 offset) to the tab bar so
       // its underline follows the swipe.
       onPageScroll={(e: { nativeEvent: { position: number; offset: number } }) => {
-        scrollPosition?.setValue(e.nativeEvent.position + e.nativeEvent.offset);
+        const value = e.nativeEvent.position + e.nativeEvent.offset;
+        lastScroll.current = value;
+        scrollPosition?.setValue(value);
       }}
       // Settle the underline exactly on the landed page (a final onPageScroll can
       // stop a hair short of the integer) — but ONLY on a settling→idle
@@ -62,9 +71,12 @@ export const PagerCarousel = ({
       // to its end-state for a frame before the next onPageScroll flicks it back
       // to the live offset — the back-and-forth flicker.
       onPageScrollStateChanged={(e: { nativeEvent: { pageScrollState: string } }) => {
-        const state = e.nativeEvent.pageScrollState;
+        const state = e.nativeEvent.pageScrollState as PagerScrollState;
         if (state === "idle" && scrollState.current === "settling") {
           scrollPosition?.setValue(position.current);
+          onScrollStateChange?.("idle", lastScroll.current, position.current);
+        } else if (state === "dragging" || state === "settling") {
+          onScrollStateChange?.(state, lastScroll.current);
         }
         scrollState.current = state;
       }}

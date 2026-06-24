@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { staffYearForDate } from "../shared/flow";
 import { ALL_SUBGROUP } from "../shared/rollcall";
-import { Doc } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 import { QueryCtx, mutation, query } from "./_generated/server";
 import { optionalProfile, requireProfile } from "./model";
 
@@ -17,9 +17,16 @@ async function attendanceCount(
   return rows.length;
 }
 
-const annotate = (event: Doc<"events">) => ({
+async function resolveTags(ctx: QueryCtx, year: number, tagIds?: Id<"attendanceTags">[]) {
+  if (!tagIds?.length) return [];
+  const tags = await Promise.all(tagIds.map((id) => ctx.db.get(id)));
+  return tags.filter((t): t is NonNullable<typeof t> => !!t && t.year === year);
+}
+
+const annotate = async (ctx: QueryCtx, event: Doc<"events">) => ({
   ...event,
   collaborative: event.subgroups.length > 1,
+  tags: await resolveTags(ctx, event.year, event.tagIds),
 });
 
 /**
@@ -31,7 +38,6 @@ const annotate = (event: Doc<"events">) => ({
 export const listBySubgroup = query({
   args: { year: v.number(), subgroup: v.string() },
   handler: async (ctx, { year, subgroup }) => {
-    // Staff-only: an authenticated user without a staff profile sees nothing.
     if (!(await optionalProfile(ctx))) return [];
     const events = await ctx.db
       .query("events")
@@ -40,7 +46,7 @@ export const listBySubgroup = query({
     const matching = events.filter((e) => e.subgroups.includes(subgroup));
     const withCounts = await Promise.all(
       matching.map(async (event) => ({
-        ...annotate(event),
+        ...(await annotate(ctx, event)),
         attendanceCount: await attendanceCount(ctx, event._id),
       }))
     );
@@ -56,7 +62,6 @@ export const listBySubgroup = query({
 export const subgroups = query({
   args: { year: v.number() },
   handler: async (ctx, { year }) => {
-    // Staff-only: an authenticated user without a staff profile sees nothing.
     if (!(await optionalProfile(ctx))) return [];
     const universities = await ctx.db
       .query("universities")
@@ -72,10 +77,9 @@ export const subgroups = query({
 export const get = query({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {
-    // Staff-only: an authenticated user without a staff profile sees nothing.
     if (!(await optionalProfile(ctx))) return null;
     const event = await ctx.db.get(eventId);
-    return event ? annotate(event) : null;
+    return event ? await annotate(ctx, event) : null;
   },
 });
 
@@ -91,21 +95,20 @@ export const create = mutation({
     dateStart: v.number(),
     dateEnd: v.number(),
     subgroups: v.array(v.string()),
+    tagIds: v.optional(v.array(v.id("attendanceTags"))),
   },
-  handler: async (ctx, { name, dateStart, dateEnd, subgroups }) => {
+  handler: async (ctx, { name, dateStart, dateEnd, subgroups, tagIds }) => {
     await requireProfile(ctx);
     const trimmed = name.trim();
     if (!trimmed) throw new ConvexError("Give the event a name.");
     if (subgroups.length === 0) {
       throw new ConvexError("Pick at least one sub-group for the event.");
     }
-    // De-dupe so ["USYD","USYD"] can't falsely mark an event collaborative.
     const uniqueSubgroups = [...new Set(subgroups)];
     if (dateEnd < dateStart) {
       throw new ConvexError("Event end can't be before its start.");
     }
     const year = staffYearForDate(new Date(dateStart));
-    // Guard: every sub-group must be "ALL" or a real campus for this year.
     const universities = await ctx.db
       .query("universities")
       .withIndex("by_year_and_name", (q) => q.eq("year", year))
@@ -116,12 +119,21 @@ export const create = mutation({
         throw new ConvexError(`Unknown sub-group "${subgroup}" for ${year}.`);
       }
     }
+    if (tagIds?.length) {
+      for (const tagId of tagIds) {
+        const tag = await ctx.db.get(tagId);
+        if (!tag || tag.year !== year) {
+          throw new ConvexError("One or more tags are invalid for this year.");
+        }
+      }
+    }
     return await ctx.db.insert("events", {
       year,
       name: trimmed,
       dateStart,
       dateEnd,
       subgroups: uniqueSubgroups,
+      tagIds: tagIds?.length ? tagIds : undefined,
     });
   },
 });

@@ -507,6 +507,7 @@ export const Field = ({
   placeholder,
   keyboardType,
   multiline,
+  disabled,
 }: {
   label: string;
   value: string;
@@ -514,32 +515,45 @@ export const Field = ({
   placeholder?: string;
   keyboardType?: "default" | "numeric" | "email-address";
   multiline?: boolean;
+  /** Read-only with a lock affordance, matching locked Select fields. */
+  disabled?: boolean;
 }) => {
   const t = useAppTheme();
   const [focused, setFocused] = useState(false);
   return (
     <View style={styles.field}>
       <Text style={[typography.label, { color: t.muted }]}>{label}</Text>
-      <TextInput
+      <View
         style={[
-          styles.input,
+          styles.inputRow,
           {
             backgroundColor: t.inputBackground,
-            color: t.text,
-            borderColor: focused ? t.primary : "transparent",
+            borderColor: focused && !disabled ? t.primary : "transparent",
           },
-          multiline && styles.inputMultiline,
+          disabled && { opacity: 0.6 },
         ]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={t.faint}
-        keyboardType={keyboardType}
-        autoCapitalize="none"
-        multiline={multiline}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-      />
+      >
+        <TextInput
+          style={[
+            styles.inputInner,
+            { color: t.text },
+            multiline && styles.inputMultiline,
+          ]}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={t.faint}
+          keyboardType={keyboardType}
+          autoCapitalize="none"
+          multiline={multiline}
+          editable={!disabled}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+        />
+        {disabled ? (
+          <Ionicons name="lock-closed-outline" size={16} color={t.faint} />
+        ) : null}
+      </View>
     </View>
   );
 };
@@ -558,6 +572,7 @@ export const OptionSheet = ({
   onClose,
   children,
   contentStyle,
+  footer,
 }: {
   visible: boolean;
   title: string;
@@ -565,22 +580,28 @@ export const OptionSheet = ({
   children: ReactNode;
   /** Overrides the default option-list padding — use for non-list content. */
   contentStyle?: StyleProp<ViewStyle>;
+  /** Pinned action row below scrolling content. */
+  footer?: ReactNode;
 }) => {
   const t = useAppTheme();
-  // Retain the last content shown while the modal fades out, so resetting the
-  // backing state on close (e.g. setX(null)) doesn't blank the dialog mid-fade.
-  // Reading/writing these refs during render is deliberate and synchronous (to
-  // avoid a one-frame flash on open), hence the scoped disable.
   /* eslint-disable react-hooks/refs -- intentional retain-through-fade pattern */
   const shownTitle = useRef(title);
   const shownChildren = useRef(children);
+  const shownFooter = useRef(footer);
   if (visible) {
     shownTitle.current = title;
     shownChildren.current = children;
+    shownFooter.current = footer;
   }
   const retainedTitle = shownTitle.current;
   const retainedChildren = shownChildren.current;
+  const retainedFooter = shownFooter.current;
   /* eslint-enable react-hooks/refs */
+  const hasFooter = retainedFooter != null;
+  const bodyStyle = [
+    contentStyle ?? styles.optionList,
+    hasFooter && styles.sheetContentWithFooter,
+  ];
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1 }}>
@@ -608,9 +629,18 @@ export const OptionSheet = ({
                 <Ionicons name="close" size={20} color={t.ghostText} />
               </Pressable>
             </View>
-            <ScrollView contentContainerStyle={contentStyle ?? styles.optionList} keyboardShouldPersistTaps="handled">
+            <ScrollView
+              style={styles.sheetScroll}
+              contentContainerStyle={bodyStyle}
+              keyboardShouldPersistTaps="handled"
+            >
               {retainedChildren}
             </ScrollView>
+            {hasFooter ? (
+              <View style={[styles.sheetFooter, { borderTopColor: t.separator }]}>
+                {retainedFooter}
+              </View>
+            ) : null}
           </View>
         </View>
       </View>
@@ -665,7 +695,26 @@ export const ConfirmDialog = ({
     onClose();
   };
   return (
-    <OptionSheet visible={visible} title={title} onClose={close} contentStyle={styles.confirmContent}>
+    <OptionSheet
+      visible={visible}
+      title={title}
+      onClose={close}
+      contentStyle={styles.confirmContent}
+      footer={
+        <Row spread>
+          <Btn title={cancelLabel} variant="ghost" onPress={close} />
+          <Btn
+            title={confirmLabel}
+            variant={destructive ? "danger" : "primary"}
+            disabled={confirmDisabled}
+            onPress={() => {
+              onConfirm();
+              close();
+            }}
+          />
+        </Row>
+      }
+    >
       {message ? <Muted>{message}</Muted> : null}
       {requireText !== undefined && (
         <Field
@@ -675,18 +724,6 @@ export const ConfirmDialog = ({
           placeholder={requireText}
         />
       )}
-      <Row spread>
-        <Btn title={cancelLabel} variant="ghost" onPress={close} />
-        <Btn
-          title={confirmLabel}
-          variant={destructive ? "danger" : "primary"}
-          disabled={confirmDisabled}
-          onPress={() => {
-            onConfirm();
-            close();
-          }}
-        />
-      </Row>
     </OptionSheet>
   );
 };
@@ -1028,32 +1065,66 @@ export const Sheet = ({
   children,
   scrollable = true,
   title,
+  contentStyle,
+  footer,
 }: {
   visible: boolean;
   onClose: () => void;
   children: ReactNode;
   scrollable?: boolean;
-  /** Headline rendered above the content, with a close affordance. */
+  /** Headline pinned above scrolling content, with a close affordance. */
   title?: string;
+  /** Overrides default body padding — use for non-form content. */
+  contentStyle?: StyleProp<ViewStyle>;
+  /** Pinned action row below scrolling content (e.g. Save). */
+  footer?: ReactNode;
 }) => {
   const t = useAppTheme();
+  /* eslint-disable react-hooks/refs -- retain-through-fade (see OptionSheet) */
+  const shownTitle = useRef(title);
+  const shownChildren = useRef(children);
+  const shownFooter = useRef(footer);
+  if (visible) {
+    shownTitle.current = title;
+    shownChildren.current = children;
+    shownFooter.current = footer;
+  }
+  const retainedTitle = shownTitle.current;
+  const retainedChildren = shownChildren.current;
+  const retainedFooter = shownFooter.current;
+  /* eslint-enable react-hooks/refs */
 
-  const header = title ? (
-    <View style={styles.sheetHeader}>
-      <Text style={[typography.title, { color: t.text, flex: 1 }]}>{title}</Text>
-      <Pressable
-        hitSlop={8}
-        onPress={onClose}
-        style={({ pressed }) => [
-          styles.sheetClose,
-          { backgroundColor: t.ghost },
-          pressed && { opacity: 0.6 },
-        ]}
-      >
-        <Ionicons name="close" size={18} color={t.ghostText} />
-      </Pressable>
-    </View>
-  ) : null;
+  const hasFooter = retainedFooter != null;
+
+  const header =
+    retainedTitle !== undefined && retainedTitle !== "" ? (
+      <View style={styles.optionSheetHeader}>
+        <Text
+          style={[typography.headline, { color: t.text, flex: 1 }]}
+          numberOfLines={2}
+        >
+          {retainedTitle}
+        </Text>
+        <Pressable
+          hitSlop={8}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+          style={({ pressed }) => [
+            styles.optionSheetClose,
+            { backgroundColor: t.ghost },
+            pressed && { opacity: 0.6 },
+          ]}
+        >
+          <Ionicons name="close" size={20} color={t.ghostText} />
+        </Pressable>
+      </View>
+    ) : null;
+
+  const bodyStyle = [
+    contentStyle ?? styles.sheetContent,
+    hasFooter && styles.sheetContentWithFooter,
+  ];
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -1061,17 +1132,24 @@ export const Sheet = ({
         <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: t.overlay }]} onPress={onClose} />
         <View style={[styles.dialogOuter, { pointerEvents: "box-none" }]}>
           <View style={[styles.dialog, { backgroundColor: t.card }]}>
+            {header}
             {scrollable ? (
-              <ScrollView contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled">
-                {header}
-                {children}
+              <ScrollView
+                style={styles.sheetScroll}
+                contentContainerStyle={bodyStyle}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator
+              >
+                {retainedChildren}
               </ScrollView>
             ) : (
-              <View style={styles.sheetContent}>
-                {header}
-                {children}
-              </View>
+              <View style={[styles.sheetScroll, bodyStyle]}>{retainedChildren}</View>
             )}
+            {hasFooter ? (
+              <View style={[styles.sheetFooter, { borderTopColor: t.separator }]}>
+                {retainedFooter}
+              </View>
+            ) : null}
           </View>
         </View>
       </View>
@@ -1618,6 +1696,20 @@ const styles = StyleSheet.create({
     fontSize: 15,
     minHeight: 46,
   },
+  inputRow: {
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    paddingHorizontal: 14,
+    minHeight: 46,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  inputInner: {
+    flex: 1,
+    fontSize: 15,
+    paddingVertical: 11,
+  },
   inputMultiline: { minHeight: 88, textAlignVertical: "top" },
   selectFace: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   optionSheetHeader: {
@@ -1743,21 +1835,25 @@ const styles = StyleSheet.create({
     // tap out, and the dialog never feels like it covers the whole screen.
     maxHeight: "70%",
     overflow: "hidden",
+    flexDirection: "column",
   },
-  sheetHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    marginBottom: spacing.xs,
+  sheetScroll: { flexShrink: 1 },
+  sheetContent: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xxl,
+    gap: spacing.sm + 2,
   },
-  sheetClose: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.full,
-    alignItems: "center",
-    justifyContent: "center",
+  sheetContentWithFooter: {
+    paddingBottom: spacing.xxl + spacing.lg,
   },
-  sheetContent: { padding: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.sm + 2 },
+  sheetFooter: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
+    gap: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
   toast: {
     position: "absolute",
     bottom: 28,
