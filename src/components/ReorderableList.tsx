@@ -13,7 +13,6 @@ import Reanimated, {
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withTiming,
 } from "react-native-reanimated";
 import { spacing, USE_NATIVE_DRIVER, useAppTheme } from "@/theme";
 
@@ -155,7 +154,8 @@ function ReorderableRow({
       finished.value = true;
       dragging.value = false;
       runOnJS(onDragFinish)(id, e.translationY);
-      dragY.value = withTiming(0, { duration: 180 });
+      // Reset instantly — FLIP handles the settle animation from drop position
+      dragY.value = 0;
     })
     .onFinalize(() => {
       dragging.value = false;
@@ -216,9 +216,15 @@ export function ReorderableList<T>({
   const cardRefs = useRef(new Map<string, Measurable>());
   const translateYs = useRef(new Map<string, Animated.Value>());
   const previewTranslateYs = useRef(new Map<string, Animated.Value>());
+  const previewAnimsRef = useRef(new Map<string, Animated.CompositeAnimation>());
   const prevPositions = useRef(new Map<string, number>());
   const heightsRef = useRef(new Map<string, number>());
   const dragStateRef = useRef<DragState | null>(null);
+  const dropInfoRef = useRef<{
+    id: string;
+    deltaY: number;
+    previewOffsets: Map<string, number>;
+  } | null>(null);
 
   const [draggingKey, setDraggingKey] = useState<string | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
@@ -250,6 +256,8 @@ export function ReorderableList<T>({
   };
 
   const resetPreviewOffsets = useCallback(() => {
+    previewAnimsRef.current.forEach((anim) => anim.stop());
+    previewAnimsRef.current.clear();
     previewTranslateYs.current.forEach((ty) => ty.setValue(0));
   }, []);
 
@@ -280,6 +288,24 @@ export function ReorderableList<T>({
     (id: string, deltaY: number) => {
       const drag = dragStateRef.current;
       dragStateRef.current = null;
+
+      // Snapshot preview offsets BEFORE resetting, so FLIP can start from the
+      // visual position instead of the card's original slot.
+      if (drag && drag.id === id) {
+        const draggedHeight = heightsRef.current.get(id) ?? 0;
+        const previewOffsets = new Map<string, number>();
+        items.forEach((item, index) => {
+          const rowId = keyExtractor(item, index);
+          if (rowId !== id) {
+            previewOffsets.set(
+              rowId,
+              getPreviewOffset(index, drag.from, drag.hover, draggedHeight, gap)
+            );
+          }
+        });
+        dropInfoRef.current = { id, deltaY, previewOffsets };
+      }
+
       setDraggingKey(null);
       setHoverIndex(null);
       resetPreviewOffsets();
@@ -290,7 +316,7 @@ export function ReorderableList<T>({
         onReorder(reorderItems(items, drag.from, to));
       }
     },
-    [gap, heightsInOrder, items, onReorder, resetPreviewOffsets]
+    [gap, heightsInOrder, items, keyExtractor, onReorder, resetPreviewOffsets]
   );
 
   // Shift non-dragged rows into the hovered slot while dragging (data order stays fixed).
@@ -309,7 +335,19 @@ export function ReorderableList<T>({
         draggedHeight,
         gap
       );
-      getPreviewTranslateY(rowId).setValue(offset);
+      // Stop any in-flight preview animation before starting a new one.
+      previewAnimsRef.current.get(rowId)?.stop();
+      const ty = getPreviewTranslateY(rowId);
+      const anim = Animated.timing(ty, {
+        toValue: offset,
+        duration: 150,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: USE_NATIVE_DRIVER,
+      });
+      previewAnimsRef.current.set(rowId, anim);
+      anim.start(({ finished: done }) => {
+        if (done) previewAnimsRef.current.delete(rowId);
+      });
     });
   }, [gap, hoverIndex, items, keyExtractor]);
 
@@ -324,12 +362,29 @@ export function ReorderableList<T>({
     const nextPositions = new Map<string, number>();
     let remaining = ids.length;
     const finish = () => {
+      // Consume drop info so we adjust FLIP start positions from the visual
+      // position where the user released (not the card's original slot).
+      const dropInfo = dropInfoRef.current;
+      dropInfoRef.current = null;
+
       for (const id of ids) {
         const oldY = prevPositions.current.get(id);
         const newY = nextPositions.get(id);
-        if (oldY != null && newY != null && Math.abs(oldY - newY) > 0.5) {
+        if (oldY == null || newY == null) continue;
+
+        // Adjust starting position to where the card visually was at drop.
+        let startY = oldY;
+        if (dropInfo) {
+          if (id === dropInfo.id) {
+            startY = oldY + dropInfo.deltaY;
+          } else {
+            startY = oldY + (dropInfo.previewOffsets.get(id) ?? 0);
+          }
+        }
+
+        if (Math.abs(startY - newY) > 0.5) {
           const ty = getTranslateY(id);
-          ty.setValue(oldY - newY);
+          ty.setValue(startY - newY);
           Animated.timing(ty, {
             toValue: 0,
             duration: 340,
