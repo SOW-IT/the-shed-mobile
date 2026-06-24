@@ -1,5 +1,5 @@
 import { ConvexError, v } from "convex/values";
-import { assignmentsOf, roleNeedsUniversity } from "../shared/flow";
+import { assignmentsOf, roleNeedsUniversity, staffYearForDate } from "../shared/flow";
 import {
   CAMPUS_FIELD_KEY,
   formatMetadataFieldValue,
@@ -63,6 +63,11 @@ export const roster = query({
   handler: async (ctx, { year, subgroup, eventId }) => {
     if (!(await optionalProfile(ctx))) return [];
     const event = eventId ? await ctx.db.get(eventId) : null;
+    // Members + metadata live under the event's (calendar) year, but staff
+    // roles/campus are read from the profile of the *staff* year of the event's
+    // date — so Jan–Aug events use that year's profiles and Sep–Dec events use
+    // the next staff year's (post-rollover) roles, matched by email.
+    const profileYear = event ? staffYearForDate(new Date(event.dateStart)) : year;
     const metadataFields = (
       await ctx.db
         .query("attendanceMetadata")
@@ -77,7 +82,7 @@ export const roster = query({
 
     const profiles = await ctx.db
       .query("staffProfiles")
-      .withIndex("by_year", (q) => q.eq("year", year))
+      .withIndex("by_year", (q) => q.eq("year", profileYear))
       .collect();
     const extras = await ctx.db
       .query("attendanceMembers")
@@ -144,7 +149,8 @@ export const roster = query({
         name: p.name ?? p.email,
         roles,
         campuses,
-        university: resolveUniversity(metadataFields, shadow?.metadata, campuses),
+        // The staff-year profile's campus wins over a (possibly stale) overlay.
+        university: campuses[0] ?? resolveUniversity(metadataFields, shadow?.metadata, campuses),
         subtitle: subtitle || undefined,
         photo: user?.image ?? null,
       };
@@ -235,6 +241,9 @@ export const listByEvent = query({
     if (!(await optionalProfile(ctx))) return [];
     const event = await ctx.db.get(eventId);
     if (!event) return [];
+    // Staff roles/campus come from the profile of the event date's *staff* year
+    // (Sep 1 rollover); the event itself stays under its stored calendar year.
+    const profileYear = staffYearForDate(new Date(event.dateStart));
     const metadataFields = (
       await ctx.db
         .query("attendanceMetadata")
@@ -268,7 +277,7 @@ export const listByEvent = query({
     // so past-year legacy attendees line up with the roster's staff entries.
     type AttendanceDoc = (typeof rows)[number];
     const staffRowFor = async (row: AttendanceDoc, canonical: string) => {
-      const profile = await getProfile(ctx, canonical, event.year);
+      const profile = await getProfile(ctx, canonical, profileYear);
       const shadow = await ctx.db
         .query("attendanceMembers")
         .withIndex("by_year_and_staff_email", (q) =>
@@ -296,7 +305,8 @@ export const listByEvent = query({
           kind: "staff" as const,
           roles,
           campuses,
-          university: resolveUniversity(metadataFields, shadow?.metadata, campuses),
+          // The staff-year profile's campus wins over a (possibly stale) overlay.
+          university: campuses[0] ?? resolveUniversity(metadataFields, shadow?.metadata, campuses),
           subtitle: metadataSubtitle(shadow?.metadata) || undefined,
           photo: user?.image ?? null,
         },

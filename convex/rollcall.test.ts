@@ -137,6 +137,62 @@ describe("legacy import matching", () => {
   });
 });
 
+describe("staff year derivation for events", () => {
+  test("a Sep–Dec event shows the next staff year's roles/campus", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    // Oct 15 2023: calendar year 2023, but staff year 2024 (Sep 1 rollover).
+    const dateStart = Date.UTC(2023, 9, 15, 9, 0, 0);
+    const CAL = 2023;
+    const STAFF_YEAR = staffYearForDate(new Date(dateStart));
+    expect(STAFF_YEAR).toBe(2024);
+
+    // Past-year profiles/events can't go through admin mutations (year guard),
+    // so seed them directly — mirroring imported data: the event keeps its
+    // calendar year, and LEADER's campus differs per staff year.
+    const eventId = await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: LEADER,
+        year: CAL,
+        assignments: [{ role: "Student Leader", university: USYD }],
+      });
+      await ctx.db.insert("staffProfiles", {
+        email: LEADER,
+        year: STAFF_YEAR,
+        assignments: [{ role: "Student Leader", university: MACQ }],
+      });
+      const id = await ctx.db.insert("events", {
+        year: CAL,
+        name: "Oct event",
+        dateStart,
+        dateEnd: dateStart + 3600_000,
+        subgroups: [USYD],
+      });
+      await ctx.db.insert("attendance", {
+        eventId: id,
+        email: LEADER,
+        year: CAL,
+        signInTime: dateStart,
+      });
+      return id;
+    });
+
+    // listByEvent: campus comes from the staff-year (2024 → MACQ) profile.
+    const listed = await leader.query(api.attendance.listByEvent, { eventId });
+    expect(listed).toHaveLength(1);
+    expect(listed[0].kind).toBe("staff");
+    expect(listed[0].university).toBe(MACQ);
+
+    // roster (event-scoped) resolves the same staff-year profile.
+    const roster = await leader.query(api.attendance.roster, {
+      year: CAL,
+      eventId,
+    });
+    const leaderRow = roster.find((m) => m.email === LEADER)!;
+    expect(leaderRow.campuses).toEqual([MACQ]);
+  });
+});
+
 describe("roster (the shared member pool)", () => {
   test("every campus shares one pool: all of the year's staff profiles", async () => {
     const t = await setup();
@@ -784,11 +840,13 @@ describe("guards + edge cases", () => {
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
     const fields = await leader.query(api.attendanceMetadata.list, { year: YEAR });
     const genderField = fields.find((f) => f.key === "Gender")!;
+    const campusField = fields.find((f) => f.key === "Campus")!;
     const maleId = Object.entries(genderField.values ?? {}).find(([, v]) => v === "Male")?.[0]!;
     const memberId = await leader.mutation(api.attendanceMembers.create, {
       year: YEAR,
       name: "Test Member",
-      metadata: { [genderField._id]: maleId },
+      // A non-staff member's campus comes from their own metadata value.
+      metadata: { [genderField._id]: maleId, [campusField._id]: USYD },
     });
     const { dateStart, dateEnd } = window();
     const eventId = await leader.mutation(api.events.create, {
@@ -801,6 +859,7 @@ describe("guards + edge cases", () => {
     const rows = await leader.query(api.attendance.listByEvent, { eventId });
     const row = rows.find((r) => r.name === "Test Member");
     expect(row?.subtitle).toContain("Male");
+    expect(row?.university).toBe(USYD);
   });
 
   test("roster enriches staff shadows and listByEvent handles edge rows", async () => {
