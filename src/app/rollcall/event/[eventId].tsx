@@ -57,14 +57,15 @@ export default function RollCallScreen() {
   const [search, setSearch] = useState("");
 
   const signedInEmails = useMemo(
-    () => new Set((attendance ?? []).map((a) => a.email)),
+    () =>
+      new Set((attendance ?? []).map((a) => a.email.trim().toLowerCase())),
     [attendance]
   );
 
   const suggested = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (roster ?? [])
-      .filter((m) => !signedInEmails.has(m.email))
+      .filter((m) => !signedInEmails.has(m.email.trim().toLowerCase()))
       .filter((m) =>
         q
           ? m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)

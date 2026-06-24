@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { assignmentsOf, roleNeedsUniversity } from "../shared/flow";
 import { mutation, query } from "./_generated/server";
-import { getProfile, optionalEmail, requireProfile } from "./model";
+import { getProfile, optionalProfile, requireProfile } from "./model";
 
 /**
  * The shared member pool for a year: every `staffProfile`, regardless of
@@ -13,7 +13,8 @@ import { getProfile, optionalEmail, requireProfile } from "./model";
 export const roster = query({
   args: { year: v.number() },
   handler: async (ctx, { year }) => {
-    if ((await optionalEmail(ctx)) === null) return [];
+    // Staff-only: an authenticated user without a staff profile sees nothing.
+    if (!(await optionalProfile(ctx))) return [];
     const profiles = await ctx.db
       .query("staffProfiles")
       .withIndex("by_year", (q) => q.eq("year", year))
@@ -45,7 +46,8 @@ export const roster = query({
 export const listByEvent = query({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {
-    if ((await optionalEmail(ctx)) === null) return [];
+    // Staff-only: an authenticated user without a staff profile sees nothing.
+    if (!(await optionalProfile(ctx))) return [];
     const event = await ctx.db.get(eventId);
     if (!event) return [];
     const rows = await ctx.db
@@ -70,6 +72,7 @@ export const signIn = mutation({
     const event = await ctx.db.get(eventId);
     if (!event) throw new ConvexError("Event not found.");
     const lower = email.trim().toLowerCase();
+    if (!lower) throw new ConvexError("A person's email is required.");
     const existing = await ctx.db
       .query("attendance")
       .withIndex("by_event_and_email", (q) =>

@@ -88,8 +88,10 @@ function AttendanceRowBase({
 
   const tap = Gesture.Tap()
     .maxDistance(8)
-    .onEnd(() => {
-      fling();
+    .onEnd((_e, success) => {
+      // Only commit a tap that actually recognised — a cancelled/failed tap
+      // shouldn't sign someone in or out (RNGH v2 passes `success`).
+      if (success) fling();
     });
 
   const composed = Gesture.Exclusive(pan, tap);

@@ -31,6 +31,7 @@ export default function NewEventScreen() {
   // Preselect the sub-group we came from, if any.
   const [selected, setSelected] = useState<string[]>(subgroup ? [subgroup] : []);
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   if (subgroups === undefined) return <LoadingState />;
 
@@ -38,6 +39,10 @@ export default function NewEventScreen() {
   const collaborative = selected.length > 1;
 
   const submit = async () => {
+    // Guard against rapid double-taps creating duplicate events before the
+    // screen navigates away.
+    if (submitting) return;
+    setSubmitting(true);
     setError(null);
     const { dateStart, dateEnd } = defaultEventWindow();
     try {
@@ -53,6 +58,7 @@ export default function NewEventScreen() {
       });
     } catch (e) {
       setError(errorMessage(e));
+      setSubmitting(false);
     }
   };
 
@@ -83,7 +89,8 @@ export default function NewEventScreen() {
       <Btn
         title="Create event"
         onPress={() => void submit()}
-        disabled={selected.length === 0 || !name.trim()}
+        loading={submitting}
+        disabled={submitting || selected.length === 0 || !name.trim()}
       />
     </Screen>
   );

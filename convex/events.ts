@@ -3,7 +3,7 @@ import { staffYearForDate } from "../shared/flow";
 import { ALL_SUBGROUP } from "../shared/rollcall";
 import { Doc } from "./_generated/dataModel";
 import { QueryCtx, mutation, query } from "./_generated/server";
-import { optionalEmail, requireProfile } from "./model";
+import { optionalProfile, requireProfile } from "./model";
 
 /** Quick attendance count for an event, without loading the rows themselves. */
 async function attendanceCount(
@@ -31,7 +31,8 @@ const annotate = (event: Doc<"events">) => ({
 export const listBySubgroup = query({
   args: { year: v.number(), subgroup: v.string() },
   handler: async (ctx, { year, subgroup }) => {
-    if ((await optionalEmail(ctx)) === null) return [];
+    // Staff-only: an authenticated user without a staff profile sees nothing.
+    if (!(await optionalProfile(ctx))) return [];
     const events = await ctx.db
       .query("events")
       .withIndex("by_year", (q) => q.eq("year", year))
@@ -55,7 +56,8 @@ export const listBySubgroup = query({
 export const subgroups = query({
   args: { year: v.number() },
   handler: async (ctx, { year }) => {
-    if ((await optionalEmail(ctx)) === null) return [];
+    // Staff-only: an authenticated user without a staff profile sees nothing.
+    if (!(await optionalProfile(ctx))) return [];
     const universities = await ctx.db
       .query("universities")
       .withIndex("by_year_and_name", (q) => q.eq("year", year))
@@ -70,7 +72,8 @@ export const subgroups = query({
 export const get = query({
   args: { eventId: v.id("events") },
   handler: async (ctx, { eventId }) => {
-    if ((await optionalEmail(ctx)) === null) return null;
+    // Staff-only: an authenticated user without a staff profile sees nothing.
+    if (!(await optionalProfile(ctx))) return null;
     const event = await ctx.db.get(eventId);
     return event ? annotate(event) : null;
   },
@@ -96,6 +99,8 @@ export const create = mutation({
     if (subgroups.length === 0) {
       throw new ConvexError("Pick at least one sub-group for the event.");
     }
+    // De-dupe so ["USYD","USYD"] can't falsely mark an event collaborative.
+    const uniqueSubgroups = [...new Set(subgroups)];
     if (dateEnd < dateStart) {
       throw new ConvexError("Event end can't be before its start.");
     }
@@ -106,7 +111,7 @@ export const create = mutation({
       .withIndex("by_year_and_name", (q) => q.eq("year", year))
       .collect();
     const valid = new Set([ALL_SUBGROUP, ...universities.map((u) => u.name)]);
-    for (const subgroup of subgroups) {
+    for (const subgroup of uniqueSubgroups) {
       if (!valid.has(subgroup)) {
         throw new ConvexError(`Unknown sub-group "${subgroup}" for ${year}.`);
       }
@@ -116,7 +121,7 @@ export const create = mutation({
       name: trimmed,
       dateStart,
       dateEnd,
-      subgroups,
+      subgroups: uniqueSubgroups,
     });
   },
 });

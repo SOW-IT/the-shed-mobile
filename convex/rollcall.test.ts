@@ -188,6 +188,20 @@ describe("events + roll-call", () => {
     expect(rows.map((r) => r.email)).toEqual([LEADER]);
   });
 
+  test("duplicate sub-groups are de-duped (not falsely collaborative)", async () => {
+    const leader = asUser(t, LEADER);
+    const { dateStart, dateEnd } = window();
+    const id = await leader.mutation(api.events.create, {
+      name: "Dup",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD, USYD],
+    });
+    const got = await leader.query(api.events.get, { eventId: id });
+    expect(got!.subgroups).toEqual([USYD]);
+    expect(got!.collaborative).toBe(false);
+  });
+
   test("collaborative event (2+ sub-groups) shows under each", async () => {
     const leader = asUser(t, LEADER);
     const { dateStart, dateEnd } = window();
@@ -279,6 +293,49 @@ describe("validation + permissions", () => {
         subgroups: [USYD],
       })
     ).rejects.toThrow(/No role\/department assigned/i);
+  });
+
+  test("an outsider (no staff profile) can't read roll-call data", async () => {
+    const t = await setup();
+    const outsider = asUser(t, OUTSIDER);
+    const { dateStart, dateEnd } = window();
+    const eventId = await asUser(t, LEADER).mutation(api.events.create, {
+      name: "E",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    expect(await outsider.query(api.events.subgroups, { year: YEAR })).toEqual(
+      []
+    );
+    expect(
+      await outsider.query(api.events.listBySubgroup, {
+        year: YEAR,
+        subgroup: USYD,
+      })
+    ).toEqual([]);
+    expect(await outsider.query(api.attendance.roster, { year: YEAR })).toEqual(
+      []
+    );
+    expect(
+      await outsider.query(api.attendance.listByEvent, { eventId })
+    ).toEqual([]);
+    expect(await outsider.query(api.events.get, { eventId })).toBeNull();
+  });
+
+  test("signIn rejects a blank email", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const { dateStart, dateEnd } = window();
+    const eventId = await leader.mutation(api.events.create, {
+      name: "E",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    await expect(
+      leader.mutation(api.attendance.signIn, { eventId, email: "   " })
+    ).rejects.toThrow(/email is required/i);
   });
 });
 
