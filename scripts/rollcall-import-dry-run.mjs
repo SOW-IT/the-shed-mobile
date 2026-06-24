@@ -492,10 +492,12 @@ const events = [];
 // Every source member doc across the rosters a staff year's events can point
 // at, keyed by its full sourceImportId (`<g>/members/<rosterYear>/members/<id>`)
 // — exactly what `sourceReferenceId(row.member)` produces. A staff year N spans
-// source rosters N-1 (its September events) and N (Oct N-1 onward), so we load
-// both and resolve each attendance reference against whichever it names.
+// source rosters N-1 (its September events) and N (Oct N-1 onward); some legacy
+// Oct–Dec events also reference the *next* roster (N+1), so load that too and
+// resolve each attendance reference against whichever it names. Extra rosters
+// are harmless — matching is by exact sourceImportId, never a fuzzy guess.
 const memberDocBySourceId = new Map();
-const ROSTER_YEARS = [year - 1, year];
+const ROSTER_YEARS = [year - 1, year, year + 1];
 
 for (const group of groups) {
   const subgroup = UNIVERSITY_IDS[group.id] ?? group.name ?? group.id;
