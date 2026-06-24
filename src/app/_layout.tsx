@@ -4,6 +4,7 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
 import { Platform, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SignInScreen } from "@/components/SignInScreen";
 import { LoadingState } from "@/components/ui";
@@ -49,6 +50,10 @@ const RootStack = () => (
     <Stack.Screen name="notifications" />
     <Stack.Screen name="person/[email]" />
     <Stack.Screen name="request/[id]" />
+    {/* Roll-call: sub-group events + the roll-call itself, pushed over the tabs. */}
+    <Stack.Screen name="rollcall/[subgroup]" />
+    <Stack.Screen name="rollcall/event/new" />
+    <Stack.Screen name="rollcall/event/[eventId]" />
     {/* Folded into the Requests tab; routes survive for old deep links. */}
     <Stack.Screen name="review" />
     <Stack.Screen name="all" />
@@ -71,27 +76,31 @@ export default function RootLayout() {
     );
   }
   return (
-    <ThemeProvider value={navTheme}>
-      <StatusBar style="auto" />
-      <View style={{ flex: 1, backgroundColor: Platform.OS === "web" ? "transparent" : t.background }}>
-        <ErrorBoundary>
-          <ConvexAuthProvider
-            client={convex}
-            storage={Platform.OS === "web" ? undefined : secureStorage}
-            shouldHandleCode={Platform.OS !== "web"}
-          >
-            <AuthLoading>
-              <LoadingState />
-            </AuthLoading>
-            <Unauthenticated>
-              <SignInScreen />
-            </Unauthenticated>
-            <Authenticated>
-              <RootStack />
-            </Authenticated>
-          </ConvexAuthProvider>
-        </ErrorBoundary>
-      </View>
-    </ThemeProvider>
+    // Root host for react-native-gesture-handler so the roll-call swipe rows
+    // receive touches (required on native; harmless on web).
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider value={navTheme}>
+        <StatusBar style="auto" />
+        <View style={{ flex: 1, backgroundColor: Platform.OS === "web" ? "transparent" : t.background }}>
+          <ErrorBoundary>
+            <ConvexAuthProvider
+              client={convex}
+              storage={Platform.OS === "web" ? undefined : secureStorage}
+              shouldHandleCode={Platform.OS !== "web"}
+            >
+              <AuthLoading>
+                <LoadingState />
+              </AuthLoading>
+              <Unauthenticated>
+                <SignInScreen />
+              </Unauthenticated>
+              <Authenticated>
+                <RootStack />
+              </Authenticated>
+            </ConvexAuthProvider>
+          </ErrorBoundary>
+        </View>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }

@@ -283,4 +283,36 @@ export default defineSchema({
     // The caller's unread notifications for one request, for contextual
     // mark-as-read (the `read` suffix lets us query only the unread rows).
     .index("by_user_and_request_and_read", ["userEmail", "requestId", "read"]),
+
+  // ───────────────────────────── Roll-call ─────────────────────────────
+  // A lightweight attendance feature ported from time-to-rollcall. SOW is the
+  // implicit org; its sub-groups are the campuses (the per-year `universities`
+  // rows) plus the synthetic "ALL". Every sub-group shares ONE member pool —
+  // all of the year's `staffProfiles` — so an event's sub-groups are just the
+  // campus label(s) it's run under, never a different roster.
+
+  // An event belongs to a staff `year` and is tagged with one or more
+  // sub-groups (university names, or the literal "ALL"). Two+ sub-groups ⇒ a
+  // collaborative event that appears under each. Dates are epoch-ms.
+  events: defineTable({
+    year: v.number(),
+    name: v.string(),
+    dateStart: v.number(),
+    dateEnd: v.number(),
+    // University names (e.g. "University of Sydney") and/or the literal "ALL".
+    subgroups: v.array(v.string()),
+  }).index("by_year", ["year"]),
+
+  // One row per (event, person). The person is the durable `email`; `year`
+  // mirrors the event's so a person's history stays queryable across years.
+  attendance: defineTable({
+    eventId: v.id("events"),
+    email: v.string(), // lowercase, the staff person signed in
+    year: v.number(),
+    signInTime: v.number(),
+    notes: v.optional(v.string()),
+  })
+    .index("by_event", ["eventId"])
+    .index("by_event_and_email", ["eventId", "email"])
+    .index("by_email", ["email"]),
 });
