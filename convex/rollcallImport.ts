@@ -14,8 +14,8 @@ import {
 import { canonicalSubgroup, normalizeSubgroups, SOW_SUBGROUP } from "../shared/rollcall";
 import {
   canonicalImportMemberName,
-  canonicalStaffEmail,
   canonicalStaffEmailFromLegacy,
+  staffEmailCandidates,
 } from "../shared/rollcallImport";
 import { Id } from "./_generated/dataModel";
 import { MutationCtx, mutation } from "./_generated/server";
@@ -523,31 +523,36 @@ export const mergeLegacyStaffMembers = mutation({
 
     for (const member of members) {
       if (member.staffEmail) continue;
-      // Map the member to a staff-profile email, treating @sowaustralia.com and
-      // @sow.org.au as the same person (and the Daniel Kim Snr name case). Only
-      // @sow.org.au addresses can belong to a staff profile, so anything else
-      // (personal/campus emails) is left as a plain member.
+      // Candidate staff emails for this member, treating @sowaustralia.com and
+      // @sow.org.au as the same person (profiles changed domain between staff
+      // years), plus the Daniel Kim Snr name case. Personal/campus emails
+      // produce no staff candidate and stay plain members.
+      const candidates = staffEmailCandidates(member.email);
       const legacy = canonicalStaffEmailForLegacyMember(member);
-      const direct = canonicalStaffEmail(member.email);
-      const targetEmail =
-        legacy ?? (direct?.endsWith("@sow.org.au") ? direct : null);
-      if (!targetEmail) continue;
+      if (legacy && !candidates.includes(legacy)) candidates.unshift(legacy);
+      if (candidates.length === 0) continue;
 
       // A calendar-year import spans two staff years (Sep 1 rollover), so a
       // member may be staff in either `year` (Jan–Aug events) or `year + 1`
-      // (Sep–Dec events). Match against whichever has the profile.
-      const profile =
-        (await getProfile(ctx, targetEmail, year)) ??
-        (await getProfile(ctx, targetEmail, year + 1));
+      // (Sep–Dec events). Match against whichever year/domain has the profile;
+      // the profile's own email becomes the link target.
+      let profile: Awaited<ReturnType<typeof getProfile>> = null;
+      for (const candidate of candidates) {
+        profile =
+          (await getProfile(ctx, candidate, year)) ??
+          (await getProfile(ctx, candidate, year + 1));
+        if (profile) break;
+      }
       if (!profile) {
         skipped.push({
           memberId: member._id,
           name: member.name,
           email: member.email,
-          reason: `No staff profile found for ${targetEmail}`,
+          reason: `No staff profile found for ${member.email ?? member.name}`,
         });
         continue;
       }
+      const targetEmail = profile.email.toLowerCase();
 
       const existingOverlay = await ctx.db
         .query("attendanceMembers")

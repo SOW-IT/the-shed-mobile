@@ -55,3 +55,24 @@ export function canonicalStaffEmail(
   }
   return lower;
 }
+
+const SOW_STAFF_DOMAINS = ["sow.org.au", "sowaustralia.com"] as const;
+
+/**
+ * Both staff-domain spellings of a SOW email, newest domain first. Staff
+ * profiles changed domain over time — older staff years use
+ * `first.last@sowaustralia.com`, newer ones `first.last@sow.org.au` — so
+ * matching a member to a profile has to try both. A non-SOW (personal) email
+ * returns just itself, so it can never collide with a staff profile.
+ */
+export function staffEmailCandidates(email: string | undefined): string[] {
+  const lower = normalizedEmail(email);
+  if (!lower) return [];
+  const at = lower.lastIndexOf("@");
+  const local = lower.slice(0, at);
+  const domain = lower.slice(at + 1);
+  if (SOW_STAFF_DOMAINS.includes(domain as (typeof SOW_STAFF_DOMAINS)[number])) {
+    return SOW_STAFF_DOMAINS.map((d) => `${local}@${d}`);
+  }
+  return [lower];
+}

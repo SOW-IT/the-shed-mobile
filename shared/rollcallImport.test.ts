@@ -4,7 +4,27 @@ import {
   canonicalStaffEmail,
   canonicalStaffEmailFromLegacy,
   resolveImportStaffEmail,
+  staffEmailCandidates,
 } from "./rollcallImport";
+
+describe("staffEmailCandidates", () => {
+  it("returns both SOW domains for a SOW email", () => {
+    expect(staffEmailCandidates("jane.doe@sowaustralia.com")).toEqual([
+      "jane.doe@sow.org.au",
+      "jane.doe@sowaustralia.com",
+    ]);
+    expect(staffEmailCandidates("jane.doe@sow.org.au")).toEqual([
+      "jane.doe@sow.org.au",
+      "jane.doe@sowaustralia.com",
+    ]);
+  });
+
+  it("returns a personal email unchanged and nothing for blanks", () => {
+    expect(staffEmailCandidates("jane@gmail.com")).toEqual(["jane@gmail.com"]);
+    expect(staffEmailCandidates(undefined)).toEqual([]);
+    expect(staffEmailCandidates("not-an-email")).toEqual([]);
+  });
+});
 
 describe("canonicalStaffEmail", () => {
   it("maps a dotted legacy address to the staff domain", () => {

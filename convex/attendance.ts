@@ -5,7 +5,7 @@ import {
   formatMetadataFieldValue,
 } from "../shared/attendanceMemberMeta";
 import { compareAttendanceFrequency, memberMatchesEventCampus, normalizeSubgroups, subgroupMatches } from "../shared/rollcall";
-import { canonicalStaffEmail } from "../shared/rollcallImport";
+import { staffEmailCandidates } from "../shared/rollcallImport";
 import { mutation, query } from "./_generated/server";
 import { getProfile, optionalProfile, requireProfile } from "./model";
 
@@ -89,21 +89,26 @@ export const roster = query({
       .withIndex("by_year", (q) => q.eq("year", year))
       .collect();
 
-    // Overlay rows link to a staff profile either by their explicit staffEmail
-    // or — for legacy imports (first.last@sowaustralia.com) — by the canonical
-    // email of their stored address, when it belongs to a profile this year.
+    // Overlay rows link to a staff profile by matching either their explicit
+    // staffEmail or their stored address against the year's profile emails,
+    // trying both SOW domains (older staff years use @sowaustralia.com, newer
+    // @sow.org.au). The matched key is always the profile's actual email.
     const profileEmails = new Set(profiles.map((p) => p.email.toLowerCase()));
+    const matchProfileEmail = (email: string | undefined): string | undefined =>
+      staffEmailCandidates(email).find((c) => profileEmails.has(c));
     const shadowByEmail = new Map<string, (typeof extras)[number]>();
     const pureExtras: typeof extras = [];
     for (const m of extras) {
+      const matched = matchProfileEmail(m.staffEmail) ?? matchProfileEmail(m.email);
+      if (matched) {
+        if (!shadowByEmail.has(matched)) shadowByEmail.set(matched, m);
+        continue;
+      }
+      // A staffEmail that matches no profile this year stays hidden (not a pure
+      // extra), preserving prior behaviour for stale overlays.
       if (m.staffEmail) {
         const key = m.staffEmail.toLowerCase();
         if (!shadowByEmail.has(key)) shadowByEmail.set(key, m);
-        continue;
-      }
-      const canonical = canonicalStaffEmail(m.email);
-      if (canonical && profileEmails.has(canonical)) {
-        if (!shadowByEmail.has(canonical)) shadowByEmail.set(canonical, m);
         continue;
       }
       pureExtras.push(m);
@@ -273,15 +278,21 @@ export const listByEvent = query({
       .withIndex("by_event", (q) => q.eq("eventId", eventId))
       .collect();
 
-    // Shape a signed-in row from a staff profile, keyed by the canonical email
-    // so past-year legacy attendees line up with the roster's staff entries.
+    // Shape a signed-in row from a staff profile. The person's email is matched
+    // against the staff-year profiles trying both SOW domains, and the row is
+    // keyed by the profile's actual email so it lines up with the roster.
     type AttendanceDoc = (typeof rows)[number];
-    const staffRowFor = async (row: AttendanceDoc, canonical: string) => {
-      const profile = await getProfile(ctx, canonical, profileYear);
+    const staffRowFor = async (row: AttendanceDoc, email: string) => {
+      let profile: Awaited<ReturnType<typeof getProfile>> = null;
+      for (const candidate of staffEmailCandidates(email)) {
+        profile = await getProfile(ctx, candidate, profileYear);
+        if (profile) break;
+      }
+      const resolvedEmail = profile?.email.toLowerCase() ?? email.toLowerCase();
       const shadow = await ctx.db
         .query("attendanceMembers")
         .withIndex("by_year_and_staff_email", (q) =>
-          q.eq("year", event.year).eq("staffEmail", canonical)
+          q.eq("year", event.year).eq("staffEmail", resolvedEmail)
         )
         .unique();
       const assignments = profile ? assignmentsOf(profile) : [];
@@ -300,8 +311,8 @@ export const listByEvent = query({
         profile,
         row: {
           ...row,
-          email: canonical,
-          name: profile?.name ?? canonical,
+          email: resolvedEmail,
+          name: profile?.name ?? resolvedEmail,
           kind: "staff" as const,
           roles,
           campuses,
@@ -316,16 +327,14 @@ export const listByEvent = query({
     const withNames = await Promise.all(
       rows.map(async (row) => {
         if (row.email) {
-          return (await staffRowFor(row, canonicalStaffEmail(row.email) ?? row.email))
-            .row;
+          return (await staffRowFor(row, row.email)).row;
         }
         if (row.memberId) {
           const member = await ctx.db.get(row.memberId);
-          // A legacy imported member whose canonical email belongs to a staff
-          // profile this year is shown (and de-duplicated) as that staff member.
-          const canonical = canonicalStaffEmail(member?.email);
-          if (canonical) {
-            const built = await staffRowFor(row, canonical);
+          // A staff member whose email (either SOW domain) belongs to a profile
+          // this year is shown (and de-duplicated) as that staff member.
+          if (member?.email) {
+            const built = await staffRowFor(row, member.email);
             if (built.profile) return built.row;
           }
           return {

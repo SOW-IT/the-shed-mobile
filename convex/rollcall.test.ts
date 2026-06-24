@@ -135,6 +135,23 @@ describe("legacy import matching", () => {
     expect(listed[0].kind).toBe("member");
     expect(listed[0].name).toBe("Ghost Person");
   });
+
+  test("a stale staff overlay with no matching profile is hidden", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    // An overlay flagged as staff whose email matches no profile this year is
+    // neither a staff row nor a plain member — it stays hidden.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("attendanceMembers", {
+        year: YEAR,
+        name: "Ghost Staff",
+        email: "ghost@sow.org.au",
+        staffEmail: "ghost@sow.org.au",
+      });
+    });
+    const roster = await leader.query(api.attendance.roster, { year: YEAR });
+    expect(roster.some((m) => m.name === "Ghost Staff")).toBe(false);
+  });
 });
 
 describe("mergeLegacyStaffMembers (staff-year-aware relink)", () => {
