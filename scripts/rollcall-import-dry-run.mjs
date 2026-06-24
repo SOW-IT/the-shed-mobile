@@ -395,24 +395,25 @@ function normaliseText(value) {
 }
 
 /**
- * Roster year for an event date. The old rollcall web app rolled its member
- * roster (groups/<g>/members/<year>/members) over on OCTOBER 1: events in
- * Jan–Sep reference that calendar year's roster, events in Oct–Dec reference
- * the next year's. Attendance is matched against the single roster loaded for
- * the import run, so events must be bucketed on this same Oct 1 boundary.
+ * The staff year an event belongs to — the SOW staff year rolls over on
+ * September 1 (Sydney), matching shared/flow.ts `staffYearForDate` and how the
+ * live app stores `events.year` (convex/events.ts). So an event is bucketed
+ * here exactly as it would be if created in the app: Sep–Dec of year N-1 and
+ * Jan–Aug of year N both land in staff year N.
  *
- * Earlier this used the plain calendar year, which orphaned the attendance of
- * every Oct–Dec event (their references point at next year's roster, which is
- * never loaded in that run). It is deliberately NOT the reimbursement app's
- * Sep 1 staff year (shared/flow.ts `staffYearForDate`) — that boundary would
- * pull September events away from the 2025 roster they actually reference.
- * Verified against the embedded member references in the 2026-06 export.
+ * This is a DIFFERENT boundary from the old web app's member roster, which
+ * rolled over ~October 1 (groups/<g>/members/<year>/members). The two can't be
+ * collapsed into one bucketing rule — September events belong to the next staff
+ * year but still reference the previous roster — so each attendance row's member
+ * is resolved against whichever source roster its reference actually points at
+ * (see memberDocBySourceId) and embedded on the event, decoupling event-year
+ * from roster-year. Verified against the 2026-06 export.
  */
-function sourceYear(dateValue) {
-  const date = new Date(dateValue);
-  return date.getUTCMonth() >= 9
-    ? date.getUTCFullYear() + 1
-    : date.getUTCFullYear();
+function eventStaffYear(dateValue) {
+  const sydney = new Date(new Date(dateValue).getTime() + 10 * 60 * 60 * 1000);
+  return sydney.getUTCMonth() >= 8
+    ? sydney.getUTCFullYear() + 1
+    : sydney.getUTCFullYear();
 }
 
 function memberDuplicateKey(member) {
@@ -488,14 +489,23 @@ const metadataByKey = new Map();
 const tagsByName = new Map();
 const members = [];
 const events = [];
+// Every source member doc across the rosters a staff year's events can point
+// at, keyed by its full sourceImportId (`<g>/members/<rosterYear>/members/<id>`)
+// — exactly what `sourceReferenceId(row.member)` produces. A staff year N spans
+// source rosters N-1 (its September events) and N (Oct N-1 onward), so we load
+// both and resolve each attendance reference against whichever it names.
+const memberDocBySourceId = new Map();
+const ROSTER_YEARS = [year - 1, year];
 
 for (const group of groups) {
   const subgroup = UNIVERSITY_IDS[group.id] ?? group.name ?? group.id;
-  const [metadata, tags, groupMembers, groupEvents] = await Promise.all([
+  const [metadata, tags, groupEvents, ...rosters] = await Promise.all([
     listDocs(`groups/${group.id}/metadata`),
     listDocs(`groups/${group.id}/tags`),
-    listDocs(`groups/${group.id}/members/${year}/members`),
     listDocs(`groups/${group.id}/events`),
+    ...ROSTER_YEARS.map((rosterYear) =>
+      listDocs(`groups/${group.id}/members/${rosterYear}/members`)
+    ),
   ]);
 
   for (const field of metadata) {
@@ -531,17 +541,26 @@ for (const group of groups) {
     });
   }
 
-  for (const member of groupMembers) {
-    members.push({
-      ...member,
-      sourceGroupId: group.id,
-      sourceGroupName: group.name,
-      subgroup,
-    });
-  }
+  ROSTER_YEARS.forEach((rosterYear, index) => {
+    for (const member of rosters[index]) {
+      const sourceImportId = `${group.id}/members/${rosterYear}/members/${member.id}`;
+      const enriched = {
+        ...member,
+        sourceGroupId: group.id,
+        sourceGroupName: group.name,
+        subgroup,
+        rosterYear,
+        sourceImportId,
+      };
+      memberDocBySourceId.set(sourceImportId, enriched);
+      // The sign-in pool for this staff year is its own roster (rosterYear ===
+      // year); the year-1 roster is loaded only to resolve September references.
+      if (rosterYear === year) members.push(enriched);
+    }
+  });
 
   for (const event of groupEvents) {
-    if (event.dateStart && sourceYear(event.dateStart) !== year) continue;
+    if (event.dateStart && eventStaffYear(event.dateStart) !== year) continue;
     events.push({
       sourceGroupId: group.id,
       sourceGroupName: group.name,
@@ -558,13 +577,40 @@ for (const group of groups) {
           return mapped === "ALL" ? SOW_SUBGROUP : mapped;
         })
         .filter(Boolean),
+      // Keep the raw attendance references for now; they're resolved against the
+      // complete member map in a second pass below (a reference can point at a
+      // member in a group that hasn't been loaded yet).
       members: asArray(event.members).map((row) => ({
-        memberId: sourceReferenceId(row.member),
+        source: sourceReferenceId(row.member),
         signInTime: row.signInTime,
         notes: row.notes,
       })),
     });
   }
+}
+
+// Second pass: now that every group's rosters are loaded, resolve each
+// attendance reference and embed the member's identity + metadata, so the
+// import never has to guess which roster year a reference lives in.
+// `resolved: false` flags a reference whose member doc is in neither roster
+// (genuinely dangling source data).
+for (const event of events) {
+  event.members = event.members.map((row) => {
+    const doc = row.source ? memberDocBySourceId.get(row.source) : undefined;
+    const rawName =
+      typeof doc?.name === "string" ? doc.name.trim() : String(doc?.name ?? "");
+    const email = validEmail(doc?.email);
+    return {
+      source: row.source,
+      resolved: Boolean(doc),
+      name: doc ? canonicalImportMemberName(rawName) : undefined,
+      email,
+      staffEmail: doc ? resolveImportStaffEmail({ name: rawName, email }) : undefined,
+      metadata: doc?.metadata && typeof doc.metadata === "object" ? doc.metadata : {},
+      signInTime: row.signInTime,
+      notes: row.notes,
+    };
+  });
 }
 
 const membersByDuplicateKey = new Map();
@@ -630,7 +676,7 @@ const report = {
       sourceGroupName: member.sourceGroupName,
       subgroup: member.subgroup,
       id: member.id,
-      sourceImportId: `${member.sourceGroupId}/members/${year}/members/${member.id}`,
+      sourceImportId: member.sourceImportId,
       name,
       email,
       staffEmail,

@@ -489,6 +489,85 @@ export const summary = mutation({
   },
 });
 
+/**
+ * Wipe every roll-call row for the given staff year(s): events and their
+ * attendance, attendance members, metadata fields, and tags. Lets a year be
+ * re-imported from a clean slate so a corrected import never leaves stale or
+ * duplicate rows behind. Attendance is removed both via each event and by a
+ * final sweep, so rows whose event lives in another year (none should, but be
+ * safe) can't be orphaned. Admin-only; intended for dev re-imports.
+ */
+export const resetYears = mutation({
+  args: { years: v.array(v.number()) },
+  returns: v.object({
+    events: v.number(),
+    attendance: v.number(),
+    members: v.number(),
+    metadata: v.number(),
+    tags: v.number(),
+  }),
+  handler: async (ctx, { years }) => {
+    await requireAdmin(ctx);
+    const yearSet = new Set(years);
+    let events = 0;
+    let attendance = 0;
+    let members = 0;
+    let metadata = 0;
+    let tags = 0;
+
+    for (const year of years) {
+      const eventRows = await ctx.db
+        .query("events")
+        .withIndex("by_year", (q) => q.eq("year", year))
+        .collect();
+      for (const event of eventRows) {
+        const rows = await ctx.db
+          .query("attendance")
+          .withIndex("by_event", (q) => q.eq("eventId", event._id))
+          .collect();
+        for (const row of rows) {
+          await ctx.db.delete(row._id);
+          attendance++;
+        }
+        await ctx.db.delete(event._id);
+        events++;
+      }
+      for (const member of await ctx.db
+        .query("attendanceMembers")
+        .withIndex("by_year", (q) => q.eq("year", year))
+        .collect()) {
+        await ctx.db.delete(member._id);
+        members++;
+      }
+      for (const field of await ctx.db
+        .query("attendanceMetadata")
+        .withIndex("by_year", (q) => q.eq("year", year))
+        .collect()) {
+        await ctx.db.delete(field._id);
+        metadata++;
+      }
+      for (const tag of await ctx.db
+        .query("attendanceTags")
+        .withIndex("by_year", (q) => q.eq("year", year))
+        .collect()) {
+        await ctx.db.delete(tag._id);
+        tags++;
+      }
+    }
+
+    // Final sweep for any attendance row in these years whose event was already
+    // gone (so a re-import can't collide with a leftover sign-in).
+    for (const row of await ctx.db.query("attendance").take(20000)) {
+      if (yearSet.has(row.year)) {
+        await ctx.db.delete(row._id);
+        attendance++;
+      }
+    }
+
+    return { events, attendance, members, metadata, tags };
+  },
+});
+
 export const mergeLegacyStaffMembers = mutation({
   args: { year: v.number() },
   returns: v.object({
