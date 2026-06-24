@@ -37,3 +37,21 @@ export function resolveImportStaffEmail(member: {
     canonicalStaffEmailFromLegacy(member) ?? normalizedEmail(member.email)
   );
 }
+
+/**
+ * Email-only legacy mapping for matching past-year attendance to staff
+ * profiles at read time: `first.last@sowaustralia.com` → `first.last@sow.org.au`.
+ * Any other (already-canonical or non-staff) email is returned lowercased, so
+ * this is a no-op for current data.
+ */
+export function canonicalStaffEmail(
+  email: string | undefined
+): string | undefined {
+  const lower = normalizedEmail(email);
+  if (!lower) return undefined;
+  if (lower.endsWith("@sowaustralia.com")) {
+    const localPart = lower.slice(0, -"@sowaustralia.com".length);
+    if (localPart.includes(".")) return `${localPart}@sow.org.au`;
+  }
+  return lower;
+}

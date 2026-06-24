@@ -70,6 +70,73 @@ describe("subgroups", () => {
   });
 });
 
+describe("legacy import matching", () => {
+  test("a first.last@sowaustralia.com member folds into that year's staff profile", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const leader = asUser(t, LEADER);
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "jane.doe@sow.org.au",
+      year: YEAR,
+      roles: ["Staff"],
+      department: "Missions",
+    });
+    await admin.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+    // Legacy imported member: old @sowaustralia.com address, no staffEmail.
+    const memberId = await admin.mutation(api.attendanceMembers.create, {
+      year: YEAR,
+      name: "Old Jane",
+      email: "jane.doe@sowaustralia.com",
+    });
+
+    // Roster: folded into the single staff row, not shown as a separate member.
+    const roster = await leader.query(api.attendance.roster, { year: YEAR });
+    expect(roster.filter((m) => m.email === "jane.doe@sow.org.au")).toHaveLength(1);
+    expect(roster.some((m) => m.name === "Old Jane")).toBe(false);
+
+    // listByEvent: signing the legacy member in shows them as the staff person.
+    const { dateStart, dateEnd } = window();
+    const eventId = await admin.mutation(api.events.create, {
+      name: "E",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    await admin.mutation(api.attendance.signIn, { eventId, memberId });
+    const listed = await leader.query(api.attendance.listByEvent, { eventId });
+    expect(listed).toHaveLength(1);
+    expect(listed[0].kind).toBe("staff");
+    expect(listed[0].email).toBe("jane.doe@sow.org.au");
+    expect(listed[0].roles).toContain("Staff");
+  });
+
+  test("an unmatched legacy member stays a plain attendance member", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const leader = asUser(t, LEADER);
+    await admin.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+    // No profile for ghost.person@sow.org.au this year.
+    const memberId = await admin.mutation(api.attendanceMembers.create, {
+      year: YEAR,
+      name: "Ghost Person",
+      email: "ghost.person@sowaustralia.com",
+    });
+    const roster = await leader.query(api.attendance.roster, { year: YEAR });
+    expect(roster.some((m) => m.name === "Ghost Person")).toBe(true);
+    const { dateStart, dateEnd } = window();
+    const eventId = await admin.mutation(api.events.create, {
+      name: "E",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    await admin.mutation(api.attendance.signIn, { eventId, memberId });
+    const listed = await leader.query(api.attendance.listByEvent, { eventId });
+    expect(listed[0].kind).toBe("member");
+    expect(listed[0].name).toBe("Ghost Person");
+  });
+});
+
 describe("roster (the shared member pool)", () => {
   test("every campus shares one pool: all of the year's staff profiles", async () => {
     const t = await setup();

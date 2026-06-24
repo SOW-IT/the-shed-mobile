@@ -5,6 +5,7 @@ import {
   formatMetadataFieldValue,
 } from "../shared/attendanceMemberMeta";
 import { compareAttendanceFrequency, memberMatchesEventCampus, normalizeSubgroups, subgroupMatches } from "../shared/rollcall";
+import { canonicalStaffEmail } from "../shared/rollcallImport";
 import { mutation, query } from "./_generated/server";
 import { getProfile, optionalProfile, requireProfile } from "./model";
 
@@ -83,12 +84,25 @@ export const roster = query({
       .withIndex("by_year", (q) => q.eq("year", year))
       .collect();
 
-    const shadowByEmail = new Map(
-      extras
-        .filter((m) => m.staffEmail)
-        .map((m) => [m.staffEmail!.toLowerCase(), m])
-    );
-    const pureExtras = extras.filter((m) => !m.staffEmail);
+    // Overlay rows link to a staff profile either by their explicit staffEmail
+    // or — for legacy imports (first.last@sowaustralia.com) — by the canonical
+    // email of their stored address, when it belongs to a profile this year.
+    const profileEmails = new Set(profiles.map((p) => p.email.toLowerCase()));
+    const shadowByEmail = new Map<string, (typeof extras)[number]>();
+    const pureExtras: typeof extras = [];
+    for (const m of extras) {
+      if (m.staffEmail) {
+        const key = m.staffEmail.toLowerCase();
+        if (!shadowByEmail.has(key)) shadowByEmail.set(key, m);
+        continue;
+      }
+      const canonical = canonicalStaffEmail(m.email);
+      if (canonical && profileEmails.has(canonical)) {
+        if (!shadowByEmail.has(canonical)) shadowByEmail.set(canonical, m);
+        continue;
+      }
+      pureExtras.push(m);
+    }
 
     const metadataSubtitle = (
       metadata: Record<string, string> | undefined
@@ -249,41 +263,61 @@ export const listByEvent = query({
       .query("attendance")
       .withIndex("by_event", (q) => q.eq("eventId", eventId))
       .collect();
+
+    // Shape a signed-in row from a staff profile, keyed by the canonical email
+    // so past-year legacy attendees line up with the roster's staff entries.
+    type AttendanceDoc = (typeof rows)[number];
+    const staffRowFor = async (row: AttendanceDoc, canonical: string) => {
+      const profile = await getProfile(ctx, canonical, event.year);
+      const shadow = await ctx.db
+        .query("attendanceMembers")
+        .withIndex("by_year_and_staff_email", (q) =>
+          q.eq("year", event.year).eq("staffEmail", canonical)
+        )
+        .unique();
+      const assignments = profile ? assignmentsOf(profile) : [];
+      const roles = [...new Set(assignments.map((assignment) => assignment.role))];
+      const campuses = [
+        ...new Set(
+          assignments.flatMap((assignment) =>
+            assignment.university && roleNeedsUniversity(assignment.role)
+              ? [assignment.university]
+              : []
+          )
+        ),
+      ];
+      const user = profile?.userId ? await ctx.db.get(profile.userId) : null;
+      return {
+        profile,
+        row: {
+          ...row,
+          email: canonical,
+          name: profile?.name ?? canonical,
+          kind: "staff" as const,
+          roles,
+          campuses,
+          university: resolveUniversity(metadataFields, shadow?.metadata, campuses),
+          subtitle: metadataSubtitle(shadow?.metadata) || undefined,
+          photo: user?.image ?? null,
+        },
+      };
+    };
+
     const withNames = await Promise.all(
       rows.map(async (row) => {
         if (row.email) {
-          const profile = await getProfile(ctx, row.email, event.year);
-          const shadow = await ctx.db
-            .query("attendanceMembers")
-            .withIndex("by_year_and_staff_email", (q) =>
-              q.eq("year", event.year).eq("staffEmail", row.email)
-            )
-            .unique();
-          const assignments = profile ? assignmentsOf(profile) : [];
-          const roles = [...new Set(assignments.map((assignment) => assignment.role))];
-          const campuses = [
-            ...new Set(
-              assignments.flatMap((assignment) =>
-                assignment.university && roleNeedsUniversity(assignment.role)
-                  ? [assignment.university]
-                  : []
-              )
-            ),
-          ];
-          const user = profile?.userId ? await ctx.db.get(profile.userId) : null;
-          return {
-            ...row,
-            name: profile?.name ?? row.email,
-            kind: "staff" as const,
-            roles,
-            campuses,
-            university: resolveUniversity(metadataFields, shadow?.metadata, campuses),
-            subtitle: metadataSubtitle(shadow?.metadata) || undefined,
-            photo: user?.image ?? null,
-          };
+          return (await staffRowFor(row, canonicalStaffEmail(row.email) ?? row.email))
+            .row;
         }
         if (row.memberId) {
           const member = await ctx.db.get(row.memberId);
+          // A legacy imported member whose canonical email belongs to a staff
+          // profile this year is shown (and de-duplicated) as that staff member.
+          const canonical = canonicalStaffEmail(member?.email);
+          if (canonical) {
+            const built = await staffRowFor(row, canonical);
+            if (built.profile) return built.row;
+          }
           return {
             ...row,
             name: member?.name ?? "Unknown",
