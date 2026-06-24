@@ -116,6 +116,27 @@ describe("events + roll-call", () => {
     ).toHaveLength(0);
   });
 
+  test("multiple events under a sub-group come back newest first", async () => {
+    const leader = asUser(t, LEADER);
+    const older = await leader.mutation(api.events.create, {
+      name: "Older",
+      dateStart: Date.now() - 86_400_000,
+      dateEnd: Date.now() - 86_400_000 + 3600_000,
+      subgroups: [USYD],
+    });
+    const newer = await leader.mutation(api.events.create, {
+      name: "Newer",
+      dateStart: Date.now(),
+      dateEnd: Date.now() + 3600_000,
+      subgroups: [USYD],
+    });
+    const list = await leader.query(api.events.listBySubgroup, {
+      year: YEAR,
+      subgroup: USYD,
+    });
+    expect(list.map((e) => e._id)).toEqual([newer, older]);
+  });
+
   test("sign in is idempotent; sign out removes; counts track", async () => {
     const leader = asUser(t, LEADER);
     const { dateStart, dateEnd } = window();
@@ -184,6 +205,10 @@ describe("events + roll-call", () => {
       expect(list.map((e) => e._id)).toContain(id);
       expect(list.find((e) => e._id === id)!.collaborative).toBe(true);
     }
+    // events.get annotates the single event with the same collaborative flag.
+    const got = await leader.query(api.events.get, { eventId: id });
+    expect(got).not.toBeNull();
+    expect(got!.collaborative).toBe(true);
   });
 
   test("remove deletes the event and its attendance", async () => {
@@ -254,5 +279,67 @@ describe("validation + permissions", () => {
         subgroups: [USYD],
       })
     ).rejects.toThrow(/No role\/department assigned/i);
+  });
+});
+
+describe("guards + edge cases", () => {
+  test("queries return empty / null for an unauthenticated caller", async () => {
+    const t = await setup();
+    const { dateStart, dateEnd } = window();
+    const eventId = await asUser(t, LEADER).mutation(api.events.create, {
+      name: "E",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    // No identity → every read degrades gracefully rather than leaking data.
+    expect(await t.query(api.events.subgroups, { year: YEAR })).toEqual([]);
+    expect(await t.query(api.attendance.roster, { year: YEAR })).toEqual([]);
+    expect(
+      await t.query(api.events.listBySubgroup, { year: YEAR, subgroup: USYD })
+    ).toEqual([]);
+    expect(await t.query(api.events.get, { eventId })).toBeNull();
+    expect(await t.query(api.attendance.listByEvent, { eventId })).toEqual([]);
+  });
+
+  test("get / remove / signIn handle a missing event gracefully", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const { dateStart, dateEnd } = window();
+    const eventId = await leader.mutation(api.events.create, {
+      name: "E",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    await leader.mutation(api.events.remove, { eventId });
+    // The stale id now resolves to nothing.
+    expect(await leader.query(api.events.get, { eventId })).toBeNull();
+    // Removing an already-gone event is a no-op.
+    await expect(
+      leader.mutation(api.events.remove, { eventId })
+    ).resolves.toBeNull();
+    // Signing into a missing event is rejected.
+    await expect(
+      leader.mutation(api.attendance.signIn, { eventId, email: LEADER })
+    ).rejects.toThrow(/Event not found/i);
+  });
+
+  test("signing out someone who isn't signed in is a no-op", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const { dateStart, dateEnd } = window();
+    const eventId = await leader.mutation(api.events.create, {
+      name: "E",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    await expect(
+      leader.mutation(api.attendance.signOut, { eventId, email: STAFF })
+    ).resolves.toBeNull();
+    expect(
+      await leader.query(api.attendance.listByEvent, { eventId })
+    ).toEqual([]);
   });
 });
