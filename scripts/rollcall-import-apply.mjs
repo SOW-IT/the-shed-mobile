@@ -7,9 +7,7 @@ const REPORT_PATH = path.resolve(
   process.argv.find((arg) => arg.startsWith("--report="))?.split("=")[1] ??
     "rollcall-import-dry-run.json"
 );
-const MEMBER_CHUNK_SIZE = 10;
 const year = Number(process.argv.find((arg) => arg.startsWith("--year="))?.split("=")[1] ?? 2026);
-const eventsOnly = process.argv.includes("--events-only");
 const prepareOnly = process.argv.includes("--prepare-only");
 const sourceGroup = process.argv
   .find((arg) => arg.startsWith("--source-group="))
@@ -22,6 +20,12 @@ const email =
 const command = process.execPath;
 const convexMain = path.resolve("node_modules", "convex", "bin", "main.js");
 const identity = `{email:'${email}',subject:'${email}',issuer:'rollcall-import'}`;
+
+// Member rows live under their event's CALENDAR year (Sydney), while the events
+// themselves are bucketed by staff year (see the dry-run). Keep in sync with
+// convex/rollcallImport.ts calendarYearOf and shared/flow.ts staffYearForDate.
+const calendarYearOf = (ms) =>
+  new Date(ms + 10 * 60 * 60 * 1000).getUTCFullYear();
 
 function runConvex(functionName, args) {
   const jsonArgs = JSON.stringify(args);
@@ -48,22 +52,36 @@ if (report.year !== year) {
   throw new Error(`Report year ${report.year} does not match requested year ${year}`);
 }
 
-if (report.duplicateCount > 0) {
-  console.log(`Importing with ${report.duplicateCount} duplicate-name groups kept separate.`);
-}
-
-const preparedMetadata = runConvex("rollcallImport:prepare", {
-  year,
-  metadata: report.metadata.map(({ key, type, order, values, subgroup, sourceIds }) => ({
+const metadataPayload = report.metadata.map(
+  ({ key, type, order, values, subgroup, sourceIds }) => ({
     key,
     type,
     order,
     values,
     subgroup,
     sourceIds: [...new Set(sourceIds ?? [])],
-  })),
-  tags: [],
-});
+  })
+);
+
+// Member fields (and the per-field id mapping) live under each calendar year the
+// events touch — a staff year spans the previous calendar year's Sep–Dec events
+// and this calendar year's Jan–Aug events, so prepare both and key the field
+// maps by calendar year for importEvents.
+const calendarYears = [
+  ...new Set(report.events.map((event) => calendarYearOf(event.dateStart))),
+].sort();
+const fieldMapByYear = {};
+for (const calendarYear of calendarYears) {
+  const prepared = runConvex("rollcallImport:prepare", {
+    year: calendarYear,
+    metadata: metadataPayload,
+    tags: [],
+  });
+  fieldMapByYear[String(calendarYear)] = prepared.fieldMap;
+  console.log(`Prepared metadata for calendar year ${calendarYear}.`);
+}
+
+// Tags live under the staff year, since events (which reference them) do.
 const preparedTags = runConvex("rollcallImport:prepare", {
   year,
   metadata: [],
@@ -74,46 +92,19 @@ const preparedTags = runConvex("rollcallImport:prepare", {
     sourceIds: [...new Set(sourceIds ?? [])],
   })),
 });
-const prepared = {
-  fieldMap: preparedMetadata.fieldMap,
-  tagMap: preparedTags.tagMap,
-};
-console.log("Prepared metadata/tags.");
+const tagMap = preparedTags.tagMap;
+console.log("Prepared tags.");
+
 if (prepareOnly) {
   writeFileSync(
     path.resolve("coverage-tmp", "rollcall-import-result.json"),
-    JSON.stringify({ preparedOnly: true, year }, null, 2)
+    JSON.stringify({ preparedOnly: true, year, calendarYears }, null, 2)
   );
   process.exit(0);
 }
 
-const importMembers = report.members.map(
-  ({ sourceImportId, name, email, staffEmail, subgroup, metadata }) => ({
-    sourceImportId,
-    name,
-    email: staffEmail ?? email,
-    subgroup,
-    metadata: Object.fromEntries(
-      Object.entries(metadata ?? {}).filter((entry) => typeof entry[1] === "string")
-    ),
-  })
-);
-const canonicalByEmail = new Map();
-for (const member of importMembers) {
-  if (member.email) canonicalByEmail.set(member.email, member.sourceImportId);
-}
-const memberAliasMap = Object.fromEntries(
-  importMembers
-    .filter(
-      (member) =>
-        member.email &&
-        canonicalByEmail.get(member.email) &&
-        canonicalByEmail.get(member.email) !== member.sourceImportId
-    )
-    .map((member) => [member.sourceImportId, canonicalByEmail.get(member.email)])
-);
-const importEvents = report.events.map(
-  ({ sourceImportId, name, dateStart, dateEnd, subgroup, collaboration, tagIds, members }) => ({
+const importEvents = report.events
+  .map(({ sourceImportId, name, dateStart, dateEnd, subgroup, collaboration, tagIds, members }) => ({
     sourceImportId,
     name,
     dateStart,
@@ -121,52 +112,49 @@ const importEvents = report.events.map(
     subgroup,
     collaboration,
     tagIds,
-    members,
-  })
-).filter((event) => !sourceGroup || event.sourceImportId.startsWith(`${sourceGroup}/`));
-
-let importedMembers = 0;
-let staffOverlays = 0;
-if (!eventsOnly) {
-  for (const chunk of chunks(importMembers, MEMBER_CHUNK_SIZE)) {
-    const result = runConvex("rollcallImport:importMembers", {
-      year,
-      fieldMap: prepared.fieldMap,
-      members: chunk,
-    });
-    importedMembers += result.imported;
-    staffOverlays += result.staffOverlays;
-    console.log(`Imported members: ${importedMembers}/${importMembers.length}`);
-  }
-}
+    members: members.map(
+      ({ source, resolved, name, email, staffEmail, metadata, signInTime, notes }) => ({
+        source,
+        resolved,
+        name,
+        email,
+        staffEmail,
+        metadata: Object.fromEntries(
+          Object.entries(metadata ?? {}).filter((entry) => typeof entry[1] === "string")
+        ),
+        signInTime,
+        notes,
+      })
+    ),
+  }))
+  .filter((event) => !sourceGroup || event.sourceImportId.startsWith(`${sourceGroup}/`));
 
 let importedEvents = 0;
 let importedAttendance = 0;
+let skipped = 0;
 for (const chunk of chunks(importEvents, 1)) {
   const result = runConvex("rollcallImport:importEvents", {
     year,
-    tagMap: prepared.tagMap,
-    memberAliasMap,
+    tagMap,
+    fieldMapByYear,
     events: chunk,
   });
   importedEvents += result.importedEvents;
   importedAttendance += result.importedAttendance;
-  console.log(`Imported events: ${importedEvents}/${importEvents.length}`);
+  skipped += result.skipped;
+  console.log(
+    `Imported events: ${importedEvents}/${importEvents.length} ` +
+      `(attendance ${importedAttendance}, skipped ${skipped})`
+  );
 }
 
 const summary = runConvex("rollcallImport:summary", { year });
-const mergeLegacy =
-  eventsOnly
-    ? undefined
-    : runConvex("rollcallImport:mergeLegacyStaffMembers", { year });
 const result = {
   year,
-  duplicateCount: report.duplicateCount,
-  importedMembers,
-  staffOverlays,
+  calendarYears,
   importedEvents,
   importedAttendance,
-  mergeLegacy,
+  skipped,
   summary,
 };
 writeFileSync(

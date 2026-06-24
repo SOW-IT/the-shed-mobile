@@ -45,6 +45,21 @@ const memberInput = v.object({
   metadata: v.optional(v.record(v.string(), v.string())),
 });
 
+// One signed-in attendee on an imported event, already resolved by the dry-run
+// against whichever source roster its reference pointed at (so the importer
+// never has to guess the roster year). `staffEmail` is the legacy-normalised
+// candidate; `metadata` keys are the OLD per-field ids, remapped via fieldMap.
+const eventMemberInput = v.object({
+  source: v.optional(v.string()),
+  resolved: v.optional(v.boolean()),
+  name: v.optional(v.string()),
+  email: v.optional(v.string()),
+  staffEmail: v.optional(v.string()),
+  metadata: v.optional(v.record(v.string(), v.string())),
+  signInTime: v.optional(v.number()),
+  notes: v.optional(v.string()),
+});
+
 const eventInput = v.object({
   sourceImportId: v.string(),
   name: v.string(),
@@ -53,13 +68,7 @@ const eventInput = v.object({
   subgroup: v.string(),
   collaboration: v.array(v.string()),
   tagIds: v.array(v.string()),
-  members: v.array(
-    v.object({
-      memberId: v.optional(v.string()),
-      signInTime: v.optional(v.number()),
-      notes: v.optional(v.string()),
-    })
-  ),
+  members: v.array(eventMemberInput),
 });
 
 const optionIdForLabel = (
@@ -71,6 +80,16 @@ const optionIdForLabel = (
   }
   return label;
 };
+
+/**
+ * The calendar year of an event date (Sydney). Member rows and their metadata
+ * fields live under this, while the event itself and a staff attendee's
+ * role/campus live under the staff year (Sep 1 rollover). For a Sep–Dec event
+ * the two differ by one, which is the whole reason they're tracked separately.
+ */
+function calendarYearOf(dateMs: number): number {
+  return new Date(dateMs + 10 * 60 * 60 * 1000).getUTCFullYear();
+}
 
 async function fieldsForYear(ctx: MutationCtx, year: number) {
   return await ctx.db
@@ -351,16 +370,42 @@ export const importMembers = mutation({
 
 export const importEvents = mutation({
   args: {
+    // The staff year (Sep 1 rollover) the events belong to — what `events.year`
+    // stores and how the live app lists them.
     year: v.number(),
     tagMap: v.record(v.string(), v.id("attendanceTags")),
-    memberAliasMap: v.optional(v.record(v.string(), v.string())),
+    // Calendar-year -> (old Firestore field id -> attendanceMetadata id). Member
+    // fields live under each event's CALENDAR year, so an event spanning the
+    // Sep 1 rollover reads its members' field map from `year - 1` or `year`.
+    fieldMapByYear: v.record(
+      v.string(),
+      v.record(v.string(), v.id("attendanceMetadata"))
+    ),
     events: v.array(eventInput),
   },
-  returns: v.object({ importedEvents: v.number(), importedAttendance: v.number() }),
-  handler: async (ctx, { year, tagMap, memberAliasMap, events }) => {
+  returns: v.object({
+    importedEvents: v.number(),
+    importedAttendance: v.number(),
+    skipped: v.number(),
+  }),
+  handler: async (ctx, { year, tagMap, fieldMapByYear, events }) => {
     await requireAdmin(ctx);
     let importedEvents = 0;
     let importedAttendance = 0;
+    let skipped = 0;
+    // Member fields are looked up per calendar year; cache them per run.
+    const fieldsByYear = new Map<
+      number,
+      Awaited<ReturnType<typeof fieldsForYear>>
+    >();
+    const fieldsFor = async (cy: number) => {
+      const cached = fieldsByYear.get(cy);
+      if (cached) return cached;
+      const rows = await fieldsForYear(ctx, cy);
+      fieldsByYear.set(cy, rows);
+      return rows;
+    };
+
     for (const event of events) {
       const subgroups = normalizeSubgroups([
         event.subgroup,
@@ -389,60 +434,112 @@ export const importEvents = mutation({
       if (existing) await ctx.db.patch(existing._id, patch);
       importedEvents++;
 
+      // Member rows + their metadata fields live under the event's CALENDAR
+      // year; a staff attendee's role/campus comes from the STAFF-year profile.
+      const calendarYear = calendarYearOf(event.dateStart);
+      const fieldMap = fieldMapByYear[String(calendarYear)] ?? {};
+      const fields = await fieldsFor(calendarYear);
+      const fieldsByKey = new Map(fields.map((field) => [field.key, field]));
+
       for (const row of event.members) {
-        if (!row.memberId) continue;
-        const memberSourceId = memberAliasMap?.[row.memberId] ?? row.memberId;
-        const member = await ctx.db
-          .query("attendanceMembers")
-          .withIndex("by_year_and_sourceImportId", (q) =>
-            q.eq("year", year).eq("sourceImportId", memberSourceId)
-          )
-          .unique();
-        if (!member) continue;
+        const displayName = canonicalImportMemberName(row.name ?? "");
+        // A reference the dry-run couldn't resolve to a source member doc has no
+        // identity to import, so it's counted and skipped rather than guessed.
+        if (!row.resolved || !displayName) {
+          skipped++;
+          continue;
+        }
+        // Staff iff the attendee's email (either SOW domain) maps to a profile
+        // of the event-date staff year; that's what makes them link to the
+        // staffProfile for role/campus.
+        let profile: Awaited<ReturnType<typeof getProfile>> = null;
+        for (const candidate of staffEmailCandidates(row.staffEmail ?? row.email)) {
+          profile = await getProfile(ctx, candidate, year);
+          if (profile) break;
+        }
+        const baseMetadata = await metadataForMember(
+          ctx,
+          calendarYear,
+          row.metadata,
+          fieldMap,
+          fieldsByKey
+        );
+        const metadata = profile
+          ? staffLockedMetadata(fields, profile, baseMetadata)
+          : baseMetadata;
         const signInTime = row.signInTime ?? event.dateStart;
-        if (member.staffEmail) {
-          const existingAttendance = await ctx.db
-            .query("attendance")
-            .withIndex("by_event_and_email", (q) =>
-              q.eq("eventId", eventId).eq("email", member.staffEmail)
+
+        // Every attendee resolves to an attendanceMember under the calendar
+        // year; attendance then links by memberId only (never a bare email).
+        let memberId: Id<"attendanceMembers">;
+        if (profile) {
+          const staffEmail = profile.email.toLowerCase();
+          const overlay = await ctx.db
+            .query("attendanceMembers")
+            .withIndex("by_year_and_staff_email", (q) =>
+              q.eq("year", calendarYear).eq("staffEmail", staffEmail)
             )
             .unique();
-          const attendancePatch = {
-            eventId,
-            email: member.staffEmail,
-            year,
-            signInTime,
-            notes: row.notes?.trim() || undefined,
+          const memberPatch = {
+            year: calendarYear,
+            name: profile.name ?? displayName,
+            email: staffEmail,
+            staffEmail,
+            sourceImportId: row.source,
+            metadata,
           };
-          if (existingAttendance) {
-            await ctx.db.patch(existingAttendance._id, attendancePatch);
+          if (overlay) {
+            await ctx.db.patch(overlay._id, memberPatch);
+            memberId = overlay._id;
           } else {
-            await ctx.db.insert("attendance", attendancePatch);
+            memberId = await ctx.db.insert("attendanceMembers", memberPatch);
           }
         } else {
-          const existingAttendance = await ctx.db
-            .query("attendance")
-            .withIndex("by_event_and_member", (q) =>
-              q.eq("eventId", eventId).eq("memberId", member._id)
-            )
-            .unique();
-          const attendancePatch = {
-            eventId,
-            memberId: member._id,
-            year,
-            signInTime,
-            notes: row.notes?.trim() || undefined,
+          const existingMember = row.source
+            ? await ctx.db
+                .query("attendanceMembers")
+                .withIndex("by_year_and_sourceImportId", (q) =>
+                  q.eq("year", calendarYear).eq("sourceImportId", row.source)
+                )
+                .unique()
+            : null;
+          const memberPatch = {
+            year: calendarYear,
+            name: displayName,
+            email: row.email,
+            sourceImportId: row.source,
+            metadata,
           };
-          if (existingAttendance) {
-            await ctx.db.patch(existingAttendance._id, attendancePatch);
+          if (existingMember) {
+            await ctx.db.patch(existingMember._id, memberPatch);
+            memberId = existingMember._id;
           } else {
-            await ctx.db.insert("attendance", attendancePatch);
+            memberId = await ctx.db.insert("attendanceMembers", memberPatch);
           }
+        }
+
+        const existingAttendance = await ctx.db
+          .query("attendance")
+          .withIndex("by_event_and_member", (q) =>
+            q.eq("eventId", eventId).eq("memberId", memberId)
+          )
+          .unique();
+        const attendancePatch = {
+          eventId,
+          memberId,
+          year,
+          signInTime,
+          notes: row.notes?.trim() || undefined,
+        };
+        if (existingAttendance) {
+          await ctx.db.patch(existingAttendance._id, attendancePatch);
+        } else {
+          await ctx.db.insert("attendance", attendancePatch);
         }
         importedAttendance++;
       }
     }
-    return { importedEvents, importedAttendance };
+    return { importedEvents, importedAttendance, skipped };
   },
 });
 

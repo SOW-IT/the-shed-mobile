@@ -64,15 +64,19 @@ export const roster = query({
   handler: async (ctx, { year, subgroup, eventId }) => {
     if (!(await optionalProfile(ctx))) return [];
     const event = eventId ? await ctx.db.get(eventId) : null;
-    // Members + metadata live under the event's (calendar) year, but staff
+    // Members + metadata live under the event's CALENDAR year, but staff
     // roles/campus are read from the profile of the *staff* year of the event's
     // date — so Jan–Aug events use that year's profiles and Sep–Dec events use
-    // the next staff year's (post-rollover) roles, matched by email.
+    // the next staff year's (post-rollover) roles, matched by email. Without an
+    // event in context both default to the asked-for year.
     const profileYear = event ? staffYearForDate(new Date(event.dateStart)) : year;
+    const memberYear = event
+      ? new Date(event.dateStart + 10 * 60 * 60 * 1000).getUTCFullYear()
+      : year;
     const metadataFields = (
       await ctx.db
         .query("attendanceMetadata")
-        .withIndex("by_year", (q) => q.eq("year", year))
+        .withIndex("by_year", (q) => q.eq("year", memberYear))
         .collect()
     )
       .filter(
@@ -87,7 +91,7 @@ export const roster = query({
       .collect();
     const extras = await ctx.db
       .query("attendanceMembers")
-      .withIndex("by_year", (q) => q.eq("year", year))
+      .withIndex("by_year", (q) => q.eq("year", memberYear))
       .collect();
 
     // Overlay rows link to a staff profile by matching either their explicit
@@ -122,7 +126,7 @@ export const roster = query({
         .map((f) => {
           const raw = metadata?.[f._id];
           if (!raw) return null;
-          return formatMetadataFieldValue(f.key, raw, year, f.values);
+          return formatMetadataFieldValue(f.key, raw, memberYear, f.values);
         })
         .filter(Boolean)
         .join(" · ");
@@ -174,7 +178,7 @@ export const roster = query({
         .map((f) => {
           const raw = m.metadata?.[f._id];
           if (!raw) return null;
-          return formatMetadataFieldValue(f.key, raw, year, f.values);
+          return formatMetadataFieldValue(f.key, raw, memberYear, f.values);
         })
         .filter(Boolean)
         .join(" · "),
@@ -248,12 +252,17 @@ export const listByEvent = query({
     const event = await ctx.db.get(eventId);
     if (!event) return [];
     // Staff roles/campus come from the profile of the event date's *staff* year
-    // (Sep 1 rollover); the event itself stays under its stored calendar year.
+    // (Sep 1 rollover); member fields (Year, Gender, …) and the attendance-member
+    // overlays come from the event's CALENDAR year, which for a Sep–Dec event is
+    // one less than its staff year.
     const profileYear = staffYearForDate(new Date(event.dateStart));
+    const calendarYear = new Date(
+      event.dateStart + 10 * 60 * 60 * 1000
+    ).getUTCFullYear();
     const metadataFields = (
       await ctx.db
         .query("attendanceMetadata")
-        .withIndex("by_year", (q) => q.eq("year", event.year))
+        .withIndex("by_year", (q) => q.eq("year", calendarYear))
         .collect()
     )
       .filter(
@@ -270,7 +279,7 @@ export const listByEvent = query({
         .map((field) => {
           const raw = metadata?.[field._id];
           if (!raw) return null;
-          return formatMetadataFieldValue(field.key, raw, event.year, field.values);
+          return formatMetadataFieldValue(field.key, raw, calendarYear, field.values);
         })
         .filter(Boolean)
         .join(" · ");
@@ -299,7 +308,7 @@ export const listByEvent = query({
         shadow = await ctx.db
           .query("attendanceMembers")
           .withIndex("by_year_and_staff_email", (q) =>
-            q.eq("year", event.year).eq("staffEmail", candidate)
+            q.eq("year", calendarYear).eq("staffEmail", candidate)
           )
           .unique();
         if (shadow) break;
