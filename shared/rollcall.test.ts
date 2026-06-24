@@ -15,7 +15,16 @@ import {
   SOW_SUBGROUP,
   subgroupColour,
   subgroupLabel,
+  subgroupMatches,
 } from "./rollcall";
+
+describe("subgroupMatches", () => {
+  test("same canonical form matches", () => {
+    expect(subgroupMatches("SOW", "ALL")).toBe(true);
+    expect(subgroupMatches("University of Sydney", "University of Sydney")).toBe(true);
+    expect(subgroupMatches("University of Sydney", "Macquarie University")).toBe(false);
+  });
+});
 
 describe("canonicalSubgroup", () => {
   test("folds legacy ALL to SOW", () => {
@@ -116,6 +125,10 @@ describe("defaultAttendanceSubgroup", () => {
   test("returns null for an empty list", () => {
     expect(defaultAttendanceSubgroup([], [])).toBeNull();
   });
+
+  test("returns first subgroup when assignments is undefined", () => {
+    expect(defaultAttendanceSubgroup(subgroups, undefined)).toBe(SOW_SUBGROUP);
+  });
 });
 
 describe("eventHasEnded", () => {
@@ -189,6 +202,30 @@ describe("compareAttendanceFrequency", () => {
         false,
         "E",
         "F"
+      )
+    ).toBeLessThan(0);
+
+    // latestDelta branch: same total, higher latest wins (a comes first → negative)
+    expect(
+      compareAttendanceFrequency(
+        { tagMatches: 0, subgroupMatches: 0, total: 5, latest: 200 },
+        { tagMatches: 0, subgroupMatches: 0, total: 5, latest: 100 },
+        false,
+        false,
+        "G",
+        "H"
+      )
+    ).toBeLessThan(0);
+
+    // localeCompare branch: all scores identical, sort by name
+    expect(
+      compareAttendanceFrequency(
+        { tagMatches: 0, subgroupMatches: 0, total: 5, latest: 100 },
+        { tagMatches: 0, subgroupMatches: 0, total: 5, latest: 100 },
+        false,
+        false,
+        "Alice",
+        "Bob"
       )
     ).toBeLessThan(0);
   });

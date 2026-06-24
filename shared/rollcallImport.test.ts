@@ -10,6 +10,11 @@ describe("canonicalImportMemberName", () => {
     expect(canonicalImportMemberName("Daniel Kim Snr")).toBe("Daniel Kim");
     expect(canonicalImportMemberName("  daniel   kim   snr ")).toBe("Daniel Kim");
   });
+
+  it("passes through an ordinary name unchanged", () => {
+    expect(canonicalImportMemberName("Normal Name")).toBe("Normal Name");
+    expect(canonicalImportMemberName("  Jane   Doe  ")).toBe("Jane Doe");
+  });
 });
 
 describe("canonicalStaffEmailFromLegacy", () => {

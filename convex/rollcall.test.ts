@@ -215,6 +215,20 @@ describe("events + roll-call", () => {
     });
     const [cleared] = await leader.query(api.attendance.listByEvent, { eventId });
     expect(cleared.notes).toBeUndefined();
+
+    // signInTime update branch
+    const newTime = Date.now() - 60_000;
+    await leader.mutation(api.attendance.updateRecord, {
+      attendanceId: row._id,
+      signInTime: newTime,
+    });
+    const [timed] = await leader.query(api.attendance.listByEvent, { eventId });
+    expect(timed.signInTime).toBe(newTime);
+
+    // empty patch (no-op): passing neither notes nor signInTime
+    await expect(
+      leader.mutation(api.attendance.updateRecord, { attendanceId: row._id })
+    ).resolves.toBeNull();
   });
 
   test("duplicate sub-groups are de-duped (not falsely collaborative)", async () => {
@@ -513,6 +527,11 @@ describe("guards + edge cases", () => {
     await expect(
       leader.mutation(api.attendance.signOut, { eventId, email: STAFF })
     ).resolves.toBeNull();
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+    const memberId = await leader.mutation(api.attendanceMembers.create, { year: YEAR, name: "G" });
+    await expect(
+      leader.mutation(api.attendance.signOut, { eventId, memberId })
+    ).resolves.toBeNull();
     expect(
       await leader.query(api.attendance.listByEvent, { eventId })
     ).toEqual([]);
@@ -556,6 +575,140 @@ describe("guards + edge cases", () => {
         })) as typeof memberId,
       })
     ).rejects.toThrow(/Member not found/i);
+  });
+
+  test("events.update patches name, dates, subgroups, and tags", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const { dateStart, dateEnd } = window();
+    await leader.mutation(api.attendanceTags.saveAll, {
+      year: YEAR,
+      tags: [{ name: "Social", colour: "blue" }],
+      deleteIds: [],
+    });
+    const [tag] = await leader.query(api.attendanceTags.list, { year: YEAR });
+    const eventId = await leader.mutation(api.events.create, {
+      name: "Original",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    await leader.mutation(api.events.update, {
+      eventId,
+      name: "Updated",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD, MACQ],
+      tagIds: [tag._id],
+    });
+    const got = await leader.query(api.events.get, { eventId });
+    expect(got?.name).toBe("Updated");
+    expect(got?.collaborative).toBe(true);
+    expect(got?.tags?.[0]?.name).toBe("Social");
+    // Update a deleted event to exercise the "Event not found" guard
+    const staleId = await leader.mutation(api.events.create, {
+      name: "Stale",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    await leader.mutation(api.events.remove, { eventId: staleId });
+    await expect(
+      leader.mutation(api.events.update, {
+        eventId: staleId,
+        name: "X",
+        dateStart,
+        dateEnd,
+        subgroups: [USYD],
+      })
+    ).rejects.toThrow(/Event not found/i);
+  });
+
+  test("deleting a tag removes it from any events that reference it", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const { dateStart, dateEnd } = window();
+    await leader.mutation(api.attendanceTags.saveAll, {
+      year: YEAR,
+      tags: [{ name: "Outreach", colour: "red" }],
+      deleteIds: [],
+    });
+    const [tag] = await leader.query(api.attendanceTags.list, { year: YEAR });
+    const eventId = await leader.mutation(api.events.create, {
+      name: "Tagged Event",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+      tagIds: [tag._id],
+    });
+    expect((await leader.query(api.events.get, { eventId }))?.tags?.[0]?.name).toBe("Outreach");
+    await leader.mutation(api.attendanceTags.saveAll, {
+      year: YEAR,
+      tags: [],
+      deleteIds: [tag._id],
+    });
+    const after = await leader.query(api.events.get, { eventId });
+    expect(after?.tags ?? []).toEqual([]);
+  });
+
+  test("roster with eventId ranks members by attendance history and tag matches", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const { dateStart, dateEnd } = window();
+
+    await leader.mutation(api.attendanceTags.saveAll, {
+      year: YEAR,
+      tags: [{ name: "Outreach", colour: "orange" }],
+      deleteIds: [],
+    });
+    const [tag] = await leader.query(api.attendanceTags.list, { year: YEAR });
+
+    const pastId = await leader.mutation(api.events.create, {
+      name: "Past",
+      dateStart: dateStart - 86_400_000,
+      dateEnd: dateEnd - 86_400_000,
+      subgroups: [USYD],
+      tagIds: [tag._id],
+    });
+    await leader.mutation(api.attendance.signIn, { eventId: pastId, email: LEADER });
+
+    const targetId = await leader.mutation(api.events.create, {
+      name: "Target",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+      tagIds: [tag._id],
+    });
+
+    const roster = await leader.query(api.attendance.roster, { year: YEAR, eventId: targetId });
+    expect(roster.length).toBeGreaterThan(0);
+    // LEADER attended the past tagged event → tagMatches > 0, ranks first
+    expect(roster[0].email).toBe(LEADER);
+  });
+
+  test("listByEvent formats member metadata in subtitle", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+    const fields = await leader.query(api.attendanceMetadata.list, { year: YEAR });
+    const genderField = fields.find((f) => f.key === "Gender")!;
+    const maleId = Object.entries(genderField.values ?? {}).find(([, v]) => v === "Male")?.[0]!;
+    const memberId = await leader.mutation(api.attendanceMembers.create, {
+      year: YEAR,
+      name: "Test Member",
+      metadata: { [genderField._id]: maleId },
+    });
+    const { dateStart, dateEnd } = window();
+    const eventId = await leader.mutation(api.events.create, {
+      name: "E",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    await leader.mutation(api.attendance.signIn, { eventId, memberId });
+    const rows = await leader.query(api.attendance.listByEvent, { eventId });
+    const row = rows.find((r) => r.name === "Test Member");
+    expect(row?.subtitle).toContain("Male");
   });
 
   test("roster enriches staff shadows and listByEvent handles edge rows", async () => {

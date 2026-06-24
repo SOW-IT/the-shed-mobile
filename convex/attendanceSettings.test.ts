@@ -48,6 +48,50 @@ async function setup() {
 
 const window = () => ({ dateStart: Date.now(), dateEnd: Date.now() + 3600_000 });
 
+describe("attendance tags (branch coverage)", () => {
+  test("updating a tag with subgroups stores the normalised subgroup list", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceTags.saveAll, {
+      year: YEAR,
+      tags: [{ name: "Retreat", colour: "purple" }],
+      deleteIds: [],
+    });
+    const [tag] = await leader.query(api.attendanceTags.list, { year: YEAR });
+    await leader.mutation(api.attendanceTags.saveAll, {
+      year: YEAR,
+      tags: [{ id: tag._id, name: "Retreat", colour: "purple", subgroups: [USYD, "ALL"] }],
+      deleteIds: [],
+    });
+    const [updated] = await leader.query(api.attendanceTags.list, { year: YEAR });
+    expect(updated.subgroups).toContain(USYD);
+  });
+
+  test("deleteIds skips tags that don't exist", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceTags.saveAll, {
+      year: YEAR,
+      tags: [{ name: "Keep", colour: "blue" }],
+      deleteIds: [],
+    });
+    const [tag] = await leader.query(api.attendanceTags.list, { year: YEAR });
+    await leader.mutation(api.attendanceTags.saveAll, {
+      year: YEAR,
+      tags: [],
+      deleteIds: [tag._id],
+    });
+    // Tag is gone; deleting the same stale id again is silently ignored.
+    await expect(
+      leader.mutation(api.attendanceTags.saveAll, {
+        year: YEAR,
+        tags: [],
+        deleteIds: [tag._id],
+      })
+    ).resolves.toBeNull();
+  });
+});
+
 describe("attendance tags", () => {
   test("list is staff-only and sorted by name", async () => {
     const t = await setup();
@@ -340,6 +384,68 @@ describe("attendance metadata", () => {
 });
 
 describe("attendance members", () => {
+  test("optionIdForLabel fallback: campus not in field values returns the label", async () => {
+    // Seed metadata first, then add a new university that the campus field
+    // doesn't know about. When list() runs staffLockedMetadata() for the new
+    // staff member it calls optionIdForLabel which falls through to "return label".
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+    await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: "Late Uni" });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: OUTSIDER,
+      year: YEAR,
+      roles: ["Student Leader"],
+      university: "Late Uni",
+    });
+    const page = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      paginationOpts: { numItems: 100, cursor: null },
+    });
+    // The row exists even when the campus id can't be found in the field values
+    expect(page.page.some((r) => r.email === OUTSIDER)).toBe(true);
+  });
+
+  test("staffLockedMetadata clears role when profile has no role assignment", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+    const fields = await leader.query(api.attendanceMetadata.list, { year: YEAR });
+    const roleField = fields.find((f) => f.key === "Role")!;
+
+    // Insert a staff profile with empty assignments directly to bypass the
+    // API constraint ("Pick at least one role"), then verify staffLockedMetadata
+    // deletes the role key from the shadow's metadata (the else-branch at line 75).
+    const profileId = await t.run(async (ctx) => {
+      return await ctx.db.insert("staffProfiles", {
+        email: OUTSIDER,
+        year: YEAR,
+        name: "No-Role User",
+        assignments: [],
+      });
+    });
+    const shadowId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
+      year: YEAR,
+      staffEmail: OUTSIDER,
+    });
+    const roleOptionId = Object.keys(roleField.values ?? {})[0]!;
+    await leader.mutation(api.attendanceMembers.update, {
+      memberId: shadowId,
+      name: "ignored",
+      metadata: { [roleField._id]: roleOptionId },
+    });
+    const page = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      paginationOpts: { numItems: 100, cursor: null },
+    });
+    const row = page.page.find((r) => r.email === OUTSIDER);
+    // The locked metadata should not have a role set (profile has no role)
+    expect(row?.metadata[roleField._id]).toBeUndefined();
+    // Clean up the spurious profile (no_role is not valid in the real app)
+    await t.run(async (ctx) => { await ctx.db.delete(profileId); });
+  });
+
   test("list combines staff profiles with attendance-only members", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
@@ -597,5 +703,84 @@ describe("attendance members", () => {
         name: "Ghost",
       })
     ).rejects.toThrow(/Member not found/i);
+  });
+});
+
+describe("metadata saveAll edge cases", () => {
+  test("deleting a locked field throws ConvexError", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+    const fields = await leader.query(api.attendanceMetadata.list, { year: YEAR });
+    const yearField = fields.find((f) => f.key === "Year")!;
+    await expect(
+      leader.mutation(api.attendanceMetadata.saveAll, {
+        year: YEAR,
+        fields: [],
+        deleteIds: [yearField._id],
+      })
+    ).rejects.toThrow(/Cannot delete locked/i);
+  });
+
+  test("deleting a custom field strips its value from members that have it", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+    await leader.mutation(api.attendanceMetadata.saveAll, {
+      year: YEAR,
+      fields: [{ key: "Track", type: "input", order: 99 }],
+      deleteIds: [],
+    });
+    const fields = await leader.query(api.attendanceMetadata.list, { year: YEAR });
+    const trackField = fields.find((f) => f.key === "Track")!;
+    const memberId = await leader.mutation(api.attendanceMembers.create, {
+      year: YEAR,
+      name: "Trackee",
+      metadata: { [trackField._id]: "Morning" },
+    });
+    await leader.mutation(api.attendanceMetadata.saveAll, {
+      year: YEAR,
+      fields: [],
+      deleteIds: [trackField._id],
+    });
+    const member = await leader.query(api.attendanceMembers.get, { memberId });
+    expect(member?.metadata?.[trackField._id]).toBeUndefined();
+  });
+
+  test("saving a field with a locked value removed throws ConvexError", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+    await leader.mutation(api.attendanceMetadata.saveAll, {
+      year: YEAR,
+      fields: [
+        {
+          key: "Track",
+          type: "select",
+          order: 99,
+          values: { "1": "Morning", "2": "Evening" },
+          lockedValues: ["Morning"],
+        },
+      ],
+      deleteIds: [],
+    });
+    const fields = await leader.query(api.attendanceMetadata.list, { year: YEAR });
+    const trackField = fields.find((f) => f.key === "Track")!;
+    await expect(
+      leader.mutation(api.attendanceMetadata.saveAll, {
+        year: YEAR,
+        fields: [
+          {
+            id: trackField._id,
+            key: "Track",
+            type: "select",
+            order: 99,
+            values: { "2": "Evening" },
+            lockedValues: ["Morning"],
+          },
+        ],
+        deleteIds: [],
+      })
+    ).rejects.toThrow(/Cannot remove locked value/i);
   });
 });

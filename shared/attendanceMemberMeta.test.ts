@@ -4,6 +4,7 @@ import {
   encodeYearMetadataValue,
   formatMetadataFieldValue,
   isCommencementStaffYear,
+  isLockedSelectOption,
   metadataFieldAllowsCustomOptions,
   orderedSelectOptions,
   partitionSelectOptions,
@@ -97,11 +98,23 @@ describe("gender and field helpers", () => {
     expect(canonicalizeGenderValues({ "2": "Male", "3": "Female" })).toEqual(
       GENDER_VALUES
     );
+    // Value that is neither "male" nor "female" — exercises the implicit else branch
+    expect(canonicalizeGenderValues({ "5": "Custom" })).toEqual(GENDER_VALUES);
+  });
+
+  test("isLockedSelectOption returns false when lockedValues is undefined", () => {
+    expect(isLockedSelectOption("id", "Label", undefined)).toBe(false);
+    expect(isLockedSelectOption("id", "Label", ["Label"])).toBe(true);
+    expect(isLockedSelectOption("id", "Other", ["id"])).toBe(true);
   });
 
   test("canonicalizeGenderOptionId maps legacy Female id", () => {
     expect(canonicalizeGenderOptionId("3", { "3": "Female" })).toBe("2");
     expect(canonicalizeGenderOptionId("2", { "2": "Male" })).toBe("1");
+    // stored id is "1" or "2" but label is not male/female — pass through
+    expect(canonicalizeGenderOptionId("1", { "1": "Other" })).toBe("1");
+    // stored id is not "1" or "2" and label doesn't match — pass through
+    expect(canonicalizeGenderOptionId("99", {})).toBe("99");
   });
 
   test("metadataFieldAllowsCustomOptions", () => {
@@ -119,6 +132,18 @@ describe("gender and field helpers", () => {
       resolveCommencementStaffYear("not-a-year", 2026, YEAR_OPTIONS)
     ).toBeNull();
     expect(formatMetadataFieldValue("Notes", "hello", 2026)).toBe("hello");
+  });
+
+  test("partitionSelectOptions sort covers bi-in-order branch", () => {
+    // Alpha (ai=0) and Beta (ai=1) are label-matched; Xenon (ai=-1) is id-matched.
+    // Placing Xenon last in the object ensures it is inserted last by the sort's
+    // internal pass, so it gets compared as `a` against Alpha (bi=0) and Beta
+    // (bi=1), triggering the `if (bi >= 0) return 1` branch (line 220).
+    const { locked } = partitionSelectOptions(
+      { a: "Alpha", b: "Beta", x: "Xenon" },
+      ["Alpha", "Beta", "x"]
+    );
+    expect(locked.map((o) => o.label)).toEqual(["Alpha", "Beta", "Xenon"]);
   });
 
   test("partitionSelectOptions respects locked id and numeric custom order", () => {
