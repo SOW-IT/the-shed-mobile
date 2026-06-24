@@ -16,7 +16,6 @@ import { staffYearForDate } from "../../../../shared/flow";
 import { AttendanceRow } from "@/components/AttendanceRow";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
-import { ReorderableList } from "@/components/ReorderableList";
 import {
   Btn,
   Chip,
@@ -79,7 +78,6 @@ export default function EventAttendanceScreen() {
   );
   const signIn = useMutation(api.attendance.signIn);
   const signOut = useMutation(api.attendance.signOut);
-  const updateRecord = useMutation(api.attendance.updateRecord);
   const ensureForStaff = useMutation(api.attendanceMembers.ensureForStaff);
   const metadataFields = useQuery(
     api.attendanceMetadata.list,
@@ -104,7 +102,6 @@ export default function EventAttendanceScreen() {
   const [unsignedLimit, setUnsignedLimit] = useState(ROSTER_PAGE_SIZE);
   const [signedInLimit, setSignedInLimit] = useState(ROSTER_PAGE_SIZE);
   const [searchLimit, setSearchLimit] = useState(ROSTER_PAGE_SIZE);
-  const [signedInOrder, setSignedInOrder] = useState<Id<"attendance">[]>([]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset unlock when opening another event
@@ -146,27 +143,8 @@ export default function EventAttendanceScreen() {
     setSearchLimit(ROSTER_PAGE_SIZE);
   }, [search, signedInKeys]);
 
-  useEffect(() => {
-    if (!attendance) return;
-    const ids = attendance.map((row) => row._id);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync local drag order from server rows
-    setSignedInOrder((prev) => {
-      const same =
-        prev.length === ids.length && prev.every((id, index) => id === ids[index]);
-      return same ? prev : ids;
-    });
-  }, [attendance]);
-
-  const orderedAttendance = useMemo(() => {
-    const rows = attendance ?? [];
-    const byId = new Map(rows.map((row) => [row._id, row]));
-    const ordered = signedInOrder.flatMap((id) => {
-      const row = byId.get(id);
-      return row ? [row] : [];
-    });
-    const seen = new Set(ordered.map((row) => row._id));
-    return [...ordered, ...rows.filter((row) => !seen.has(row._id))];
-  }, [attendance, signedInOrder]);
+  // Signed-in members display newest-first, as returned by the backend.
+  const signedInList = useMemo(() => attendance ?? [], [attendance]);
 
   const unsignedList = useMemo(() => {
     return (roster ?? []).filter((m) => !signedInKeys.has(m.key));
@@ -182,29 +160,8 @@ export default function EventAttendanceScreen() {
   }, [roster, isSearching, searchQuery]);
 
   const visibleUnsigned = unsignedList.slice(0, unsignedLimit);
-  const visibleSignedIn = orderedAttendance.slice(0, signedInLimit);
+  const visibleSignedIn = signedInList.slice(0, signedInLimit);
   const visibleSearchResults = searchResults.slice(0, searchLimit);
-
-  const reorderSignedIn = (rows: typeof orderedAttendance) => {
-    if (!canEdit) return;
-    setSignedInOrder(rows.map((row) => row._id));
-    const slots = orderedAttendance
-      .map((row) => row.signInTime)
-      .sort((a, b) => b - a);
-    rows.forEach((row, index) => {
-      const signInTime = slots[index];
-      if (signInTime !== undefined && row.signInTime !== signInTime) {
-        void updateRecord({ attendanceId: row._id, signInTime });
-      }
-    });
-  };
-
-  const reorderVisibleSignedIn = (visibleRows: typeof orderedAttendance) => {
-    if (!canEdit) return;
-    const visibleIds = new Set(visibleRows.map((row) => row._id));
-    const tail = orderedAttendance.filter((row) => !visibleIds.has(row._id));
-    reorderSignedIn([...visibleRows, ...tail]);
-  };
 
   if (event === undefined || attendance === undefined || subgroups === undefined) {
     return <LoadingState />;
@@ -441,39 +398,28 @@ export default function EventAttendanceScreen() {
             </>
           )}
 
-          {orderedAttendance.length > 0 ? (
+          {signedInList.length > 0 ? (
             <>
               <Text style={[typography.label, styles.section, { color: t.muted }]}>
-                Signed in · {orderedAttendance.length}
+                Signed in · {signedInList.length}
               </Text>
-              <ReorderableList
-                items={visibleSignedIn}
-                keyExtractor={(row) => row._id}
-                reorderEnabled={canEdit}
-                onReorder={reorderVisibleSignedIn}
-                renderItem={(a, _index, { dragHandle }) => (
-                  <View style={styles.draggableRow}>
-                    {canEdit ? (
-                      <View style={styles.dragHandleSlot}>{dragHandle}</View>
-                    ) : null}
-                    <View style={styles.draggableContent}>
-                      <AttendanceRow
-                        name={a.name}
-                        subtitle={signedInSubtitle(a.signInTime, a.notes)}
-                        photo={a.photo ?? null}
-                        university={a.university}
-                        mode="signedIn"
-                        disabled={!canEdit}
-                        onAction={() => onSignOut(a)}
-                        onEdit={canEdit ? () => editSignedIn(a) : undefined}
-                      />
-                    </View>
-                  </View>
-                )}
-              />
-              {visibleSignedIn.length < orderedAttendance.length ? (
+              {visibleSignedIn.map((a, index) => (
+                <FadeInView key={a._id} delay={Math.min(index, 6) * 35}>
+                  <AttendanceRow
+                    name={a.name}
+                    subtitle={signedInSubtitle(a.signInTime, a.notes)}
+                    photo={a.photo ?? null}
+                    university={a.university}
+                    mode="signedIn"
+                    disabled={!canEdit}
+                    onAction={() => onSignOut(a)}
+                    onEdit={canEdit ? () => editSignedIn(a) : undefined}
+                  />
+                </FadeInView>
+              ))}
+              {visibleSignedIn.length < signedInList.length ? (
                 <Btn
-                  title={`Load more (${orderedAttendance.length - visibleSignedIn.length} left)`}
+                  title={`Load more (${signedInList.length - visibleSignedIn.length} left)`}
                   variant="ghost"
                   onPress={() =>
                     setSignedInLimit((limit) => limit + ROSTER_PAGE_SIZE)
@@ -553,19 +499,4 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 15 },
   section: { marginTop: spacing.md, marginBottom: spacing.sm },
-  draggableRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  dragHandleSlot: {
-    width: 34,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: spacing.xs,
-    marginBottom: spacing.sm,
-  },
-  draggableContent: {
-    flex: 1,
-    minWidth: 0,
-  },
 });
