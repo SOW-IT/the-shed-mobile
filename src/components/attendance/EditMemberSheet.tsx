@@ -4,6 +4,12 @@ import { View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Doc, Id } from "../../../convex/_generated/dataModel";
 import {
+  encodeYearMetadataValue,
+  orderedSelectOptions,
+  STUDENT_YEAR_FIELD_KEY,
+  yearOptionIdForStoredValue,
+} from "../../../shared/attendanceMemberMeta";
+import {
   Btn,
   errorMessage,
   Field,
@@ -55,6 +61,7 @@ export function EditMemberSheet({
     if (!visible) return;
     if (memberId && row === undefined) return;
     if (memberId && row) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset form when sheet opens
       setName(row.name);
       setEmail(row.email ?? "");
       setMetadata(row.metadata ?? {});
@@ -153,20 +160,44 @@ export function EditMemberSheet({
             field.type === "select" ? (
               <Select
                 key={field._id}
-                label={field.key}
-                value={metadata[field._id] ?? ""}
+                label={
+                  field.key === STUDENT_YEAR_FIELD_KEY
+                    ? `${field.key} (in ${year})`
+                    : field.key
+                }
+                value={
+                  field.key === STUDENT_YEAR_FIELD_KEY && field.values
+                    ? yearOptionIdForStoredValue(
+                        metadata[field._id] ?? "",
+                        year,
+                        field.values
+                      )
+                    : (metadata[field._id] ?? "")
+                }
                 options={[
                   { label: "—", value: "" },
-                  ...Object.entries(field.values ?? {}).map(([id, label]) => ({
-                    label,
-                    value: id,
-                  })),
+                  ...orderedSelectOptions(field.values, field.lockedValues).map(
+                    ({ id, label }) => ({ label, value: id })
+                  ),
                 ]}
                 onSelect={(v) =>
                   setMetadata((prev) => {
                     const next = { ...prev };
-                    if (!v) delete next[field._id];
-                    else next[field._id] = v;
+                    if (!v) {
+                      delete next[field._id];
+                      return next;
+                    }
+                    if (field.key === STUDENT_YEAR_FIELD_KEY && field.values) {
+                      const encoded = encodeYearMetadataValue(
+                        v,
+                        year,
+                        field.values
+                      );
+                      if (encoded) next[field._id] = encoded;
+                      else delete next[field._id];
+                    } else {
+                      next[field._id] = v;
+                    }
                     return next;
                   })
                 }

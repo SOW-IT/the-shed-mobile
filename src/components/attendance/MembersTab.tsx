@@ -5,6 +5,7 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { universityColour } from "../../../shared/flow";
 import { contrastingText } from "../../../shared/rollcall";
+import { orderedSelectOptions } from "../../../shared/attendanceMemberMeta";
 import {
   Avatar,
   Btn,
@@ -59,6 +60,7 @@ export function MembersTab({
   }, [search]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset paging on filter change
     setCursor(null);
     setAccumulated([]);
   }, [debouncedSearch, sortKey, sortAsc, filters, year]);
@@ -74,6 +76,7 @@ export function MembersTab({
 
   useEffect(() => {
     if (!page?.page) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- append paginated member rows
     setAccumulated((prev) => {
       if (!cursor) return page.page;
       const seen = new Set(prev.map((r) => r.key));
@@ -127,10 +130,9 @@ export function MembersTab({
             options={[
               { label: "All", value: "all" },
               { label: "Unselected", value: "unset" },
-              ...Object.entries(field.values ?? {}).map(([id, label]) => ({
-                label,
-                value: id,
-              })),
+              ...orderedSelectOptions(field.values, field.lockedValues).map(
+                ({ id, label }) => ({ label, value: id })
+              ),
             ]}
             onSelect={(v) =>
               setFilters((prev) => {
@@ -179,9 +181,9 @@ export function MembersTab({
                     if (row.memberId) {
                       onEditMember(row.memberId as Id<"attendanceMembers">);
                     } else if (row.kind === "staff" && row.email) {
-                      void ensureForStaff({ year, staffEmail: row.email }).then(
-                        onEditMember
-                      );
+                      void ensureForStaff({ year, staffEmail: row.email })
+                        .then(onEditMember)
+                        .catch((e) => console.error("ensureForStaff failed", e));
                     }
                   }}
                 >

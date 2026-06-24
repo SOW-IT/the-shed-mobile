@@ -1,5 +1,5 @@
 import { useQuery } from "convex/react";
-import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Easing,
@@ -108,13 +108,22 @@ export const PagerScreen = ({
   const footerAnimsRef = useRef<Record<string, Animated.Value>>({});
   const footerScrollState = useRef<PagerScrollState>("idle");
 
-  const footerItems: PagerTabFooter[] =
-    footers && footers.length > 0
-      ? footers
-      : footer && footerTabKey
-        ? [{ tabKey: footerTabKey, node: footer }]
-        : [];
-  const footerTabKeys = new Set(footerItems.map((item) => item.tabKey));
+  const footerPinned = !!(footer && !footerTabKey && !(footers?.length));
+
+  const footerItems: PagerTabFooter[] = useMemo(() => {
+    if (footers && footers.length > 0) return footers;
+    if (footer && footerTabKey) return [{ tabKey: footerTabKey, node: footer }];
+    if (footer) return [{ tabKey: tabs[0]?.key ?? "_pinned", node: footer }];
+    return [];
+  }, [footers, footer, footerTabKey, tabs]);
+
+  const footerTabKeys = useMemo(
+    () =>
+      footerPinned
+        ? new Set(tabs.map((tab) => tab.key))
+        : new Set(footerItems.map((item) => item.tabKey)),
+    [footerPinned, footerItems, tabs]
+  );
 
   const activeIndex = Math.max(
     tabs.findIndex((tab) => tab.key === activeKey),
@@ -128,8 +137,12 @@ export const PagerScreen = ({
 
   const yForFooter = useCallback(
     (pos: number, tabKey: string) =>
-      footerYForPosition(pos, homeIndexFor(tabKey), footerItems.length > 0),
-    [footerItems.length, homeIndexFor]
+      footerYForPosition(
+        pos,
+        homeIndexFor(tabKey),
+        footerItems.length > 0 && !footerPinned
+      ),
+    [footerItems.length, footerPinned, homeIndexFor]
   );
 
   const ensureFooterAnim = useCallback(
@@ -250,6 +263,7 @@ export const PagerScreen = ({
         position={pagerPosition}
         onScrollStateChange={onPagerScrollStateChange}
       />
+      {/* eslint-disable react-hooks/refs -- lazy Animated.Value cache (BankTab pattern) */}
       {footerItems.map((item) => {
         const anim = ensureFooterAnim(item.tabKey, yForFooter(activeIndex, item.tabKey));
         return (
@@ -265,6 +279,7 @@ export const PagerScreen = ({
           </Animated.View>
         );
       })}
+      {/* eslint-enable react-hooks/refs */}
       {floating}
     </SafeAreaView>
   );

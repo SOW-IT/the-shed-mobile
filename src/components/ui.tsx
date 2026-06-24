@@ -596,7 +596,6 @@ export const OptionSheet = ({
   const retainedTitle = shownTitle.current;
   const retainedChildren = shownChildren.current;
   const retainedFooter = shownFooter.current;
-  /* eslint-enable react-hooks/refs */
   const hasFooter = retainedFooter != null;
   const bodyStyle = [
     contentStyle ?? styles.optionList,
@@ -646,6 +645,7 @@ export const OptionSheet = ({
       </View>
     </Modal>
   );
+  /* eslint-enable react-hooks/refs */
 };
 
 /**
@@ -1092,8 +1092,6 @@ export const Sheet = ({
   const retainedTitle = shownTitle.current;
   const retainedChildren = shownChildren.current;
   const retainedFooter = shownFooter.current;
-  /* eslint-enable react-hooks/refs */
-
   const hasFooter = retainedFooter != null;
 
   const header =
@@ -1155,6 +1153,7 @@ export const Sheet = ({
       </View>
     </Modal>
   );
+  /* eslint-enable react-hooks/refs */
 };
 
 export const Chip = ({ label }: { label: string }) => {

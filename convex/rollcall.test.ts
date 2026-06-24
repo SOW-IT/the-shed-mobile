@@ -364,6 +364,56 @@ describe("validation + permissions", () => {
     await expect(
       leader.mutation(api.attendance.signIn, { eventId, email: "   " })
     ).rejects.toThrow(/email is required/i);
+    await expect(
+      leader.mutation(api.attendance.signIn, { eventId })
+    ).rejects.toThrow(/either email or memberId/i);
+  });
+
+  test("create rejects invalid tags and accepts valid ones", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const { dateStart, dateEnd } = window();
+    await leader.mutation(api.attendanceTags.saveAll, {
+      year: YEAR,
+      tags: [{ name: "Social", colour: "blue" }],
+      deleteIds: [],
+    });
+    const [tag] = await leader.query(api.attendanceTags.list, { year: YEAR });
+    const eventId = await leader.mutation(api.events.create, {
+      name: "Tagged",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+      tagIds: [tag._id],
+    });
+    const got = await leader.query(api.events.get, { eventId });
+    expect(got?.tags?.[0]?.name).toBe("Social");
+    await expect(
+      leader.mutation(api.events.create, {
+        name: "Bad tag",
+        dateStart,
+        dateEnd,
+        subgroups: [USYD],
+        tagIds: [tag._id, tag._id],
+      })
+    ).resolves.toBeTruthy();
+    await leader.mutation(api.attendanceTags.saveAll, {
+      year: YEAR + 1,
+      tags: [{ name: "Other year", colour: "red" }],
+      deleteIds: [],
+    });
+    const [otherYearTag] = await leader.query(api.attendanceTags.list, {
+      year: YEAR + 1,
+    });
+    await expect(
+      leader.mutation(api.events.create, {
+        name: "Wrong year tag",
+        dateStart,
+        dateEnd,
+        subgroups: [USYD],
+        tagIds: [otherYearTag._id],
+      })
+    ).rejects.toThrow(/invalid for this year/i);
   });
 });
 
@@ -426,5 +476,82 @@ describe("guards + edge cases", () => {
     expect(
       await leader.query(api.attendance.listByEvent, { eventId })
     ).toEqual([]);
+  });
+
+  test("signIn and signOut by memberId", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+    const memberId = await leader.mutation(api.attendanceMembers.create, {
+      year: YEAR,
+      name: "Guest",
+    });
+    const { dateStart, dateEnd } = window();
+    const eventId = await leader.mutation(api.events.create, {
+      name: "E",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    const attendanceId = await leader.mutation(api.attendance.signIn, {
+      eventId,
+      memberId,
+    });
+    expect(
+      await leader.mutation(api.attendance.signIn, { eventId, memberId })
+    ).toBe(attendanceId);
+    await leader.mutation(api.attendance.signOut, { eventId, memberId });
+    const listed = await leader.query(api.attendance.listByEvent, { eventId });
+    expect(listed).toEqual([]);
+    await leader.mutation(api.attendance.signIn, { eventId, memberId });
+    expect(
+      (await leader.query(api.attendance.listByEvent, { eventId }))[0]?.name
+    ).toBe("Guest");
+    await expect(
+      leader.mutation(api.attendance.signIn, {
+        eventId,
+        memberId: (await leader.mutation(api.attendanceMembers.create, {
+          year: YEAR + 1,
+          name: "Wrong year",
+        })) as typeof memberId,
+      })
+    ).rejects.toThrow(/Member not found/i);
+  });
+
+  test("roster enriches staff shadows and listByEvent handles edge rows", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+    const fields = await leader.query(api.attendanceMetadata.list, { year: YEAR });
+    const yearField = fields.find((f) => f.key === "Year")!;
+    const shadowId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
+      year: YEAR,
+      staffEmail: LEADER,
+    });
+    await leader.mutation(api.attendanceMembers.update, {
+      memberId: shadowId,
+      name: "ignored",
+      metadata: { [yearField._id]: String(YEAR) },
+    });
+    const roster = await leader.query(api.attendance.roster, { year: YEAR });
+    const leaderRow = roster.find((r) => r.email === LEADER);
+    expect(leaderRow?.subtitle).toContain("1");
+
+    const { dateStart, dateEnd } = window();
+    const eventId = await leader.mutation(api.events.create, {
+      name: "E",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("attendance", {
+        eventId,
+        year: YEAR,
+        signInTime: Date.now(),
+      });
+    });
+    const listed = await leader.query(api.attendance.listByEvent, { eventId });
+    expect(listed.some((r) => r.name === "Unknown")).toBe(true);
   });
 });

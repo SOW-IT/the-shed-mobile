@@ -37,11 +37,13 @@ const VELOCITY_COMMIT = 1200;
 
 /** Snap / reset duration — matches time-to-rollcall (0.3s). */
 const SLIDE_MS = 280;
-const slideTo = (toValue: number) =>
-  withTiming(toValue, {
+const slideTo = (toValue: number) => {
+  "worklet";
+  return withTiming(toValue, {
     duration: SLIDE_MS,
     easing: Easing.out(Easing.cubic),
   });
+};
 
 type SnapVisual = "closed" | "primary" | "edit";
 
@@ -69,7 +71,7 @@ function AttendanceRowBase({
   const t = useAppTheme();
   const { width: screenWidth } = useWindowDimensions();
   const rowWidth = Math.min(screenWidth, 720) - spacing.lg * 2;
-  const commitDistance = screenWidth / 2;
+  const commitDistance = rowWidth / 2;
   const primaryColor = mode === "suggested" ? t.success : t.danger;
   const primaryIcon =
     mode === "suggested" ? "arrow-forward" : "arrow-undo";
@@ -124,7 +126,7 @@ function AttendanceRowBase({
     translateX.value = withTiming(-rowWidth, { duration: 180 });
     opacity.value = withTiming(0, { duration: 180 });
     itemHeight.value = withTiming(0, { duration: 200 }, (done) => {
-      if (done) onAction();
+      if (done) runOnJS(onAction)();
     });
   };
 
@@ -279,6 +281,11 @@ function AttendanceRowBase({
 
       <GestureDetector gesture={composed}>
         <Animated.View
+          accessibilityRole="button"
+          accessibilityLabel={
+            mode === "suggested" ? `Sign in ${name}` : `Sign out ${name}`
+          }
+          onAccessibilityTap={onPrimaryStripPress}
           style={[styles.card, { backgroundColor: t.card, zIndex: 2 }, cardStyle]}
         >
           <Avatar photo={photo ?? null} name={name} size={40} />

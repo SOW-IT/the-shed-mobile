@@ -33,11 +33,13 @@ export default function AttendanceScreen() {
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset campus filter on year change
     setSelectedSubgroup(null);
   }, [year]);
 
   useEffect(() => {
     if (!subgroups?.length || selectedSubgroup !== null) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- default campus once subgroups load
     setSelectedSubgroup(
       defaultAttendanceSubgroup(subgroups, me?.profile?.assignments) ?? subgroups[0]
     );
@@ -52,6 +54,7 @@ export default function AttendanceScreen() {
       tab === "metadata" ||
       tab === "events"
     ) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- deep-link tab param
       setActive(tab);
     }
   }, [tab]);

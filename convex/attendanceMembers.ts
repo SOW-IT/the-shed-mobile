@@ -5,6 +5,12 @@ import {
   roleNeedsUniversity,
   rolesOfLike,
 } from "../shared/flow";
+import {
+  formatMetadataFieldValue,
+  STUDENT_YEAR_FIELD_KEY,
+  yearMetadataSortKey,
+  yearOptionIdForStoredValue,
+} from "../shared/attendanceMemberMeta";
 import { mutation, query } from "./_generated/server";
 import { getProfile, optionalProfile, requireProfile } from "./model";
 
@@ -29,6 +35,7 @@ type MetadataField = {
 const metadataLabel = (
   fields: MetadataField[],
   metadata: Record<string, string> | undefined,
+  viewingStaffYear: number,
   excludeKeys: string[] = []
 ): string => {
   if (!metadata) return "";
@@ -38,8 +45,12 @@ const metadataLabel = (
     .map((f) => {
       const raw = metadata[f._id];
       if (!raw) return null;
-      if (f.values?.[raw]) return f.values[raw];
-      return raw;
+      return formatMetadataFieldValue(
+        f.key,
+        raw,
+        viewingStaffYear,
+        f.values
+      );
     })
     .filter(Boolean)
     .join(" · ");
@@ -78,10 +89,13 @@ export const list = query({
     if (!(await optionalProfile(ctx))) {
       return { page: [], isDone: true, continueCursor: "" };
     }
-    const metadataFields = await ctx.db
-      .query("attendanceMetadata")
-      .withIndex("by_year", (q) => q.eq("year", args.year))
-      .collect();
+    const metadataFields = (
+      await ctx.db
+        .query("attendanceMetadata")
+        .withIndex("by_year", (q) => q.eq("year", args.year))
+        .collect()
+    ).sort((a, b) => a.order - b.order);
+    const yearField = metadataFields.find((f) => f.key === STUDENT_YEAR_FIELD_KEY);
 
     const profiles = await ctx.db
       .query("staffProfiles")
@@ -114,7 +128,12 @@ export const list = query({
       ];
       const user = p.userId ? await ctx.db.get(p.userId) : null;
       const orgSubtitle = staffSubtitle(roles);
-      const metaSubtitle = metadataLabel(metadataFields, shadow?.metadata, ["Campus"]);
+      const metaSubtitle = metadataLabel(
+        metadataFields,
+        shadow?.metadata,
+        args.year,
+        ["Campus"]
+      );
       const subtitle = [orgSubtitle, metaSubtitle].filter(Boolean).join(" · ");
       const university = resolveUniversity(
         metadataFields,
@@ -142,7 +161,7 @@ export const list = query({
         name: m.name,
         email: m.email,
         memberId: m._id,
-        subtitle: metadataLabel(metadataFields, m.metadata, ["Campus"]),
+        subtitle: metadataLabel(metadataFields, m.metadata, args.year, ["Campus"]),
         university,
         metadata: m.metadata ?? {},
       });
@@ -164,6 +183,22 @@ export const list = query({
         if (!value || value === "all") continue;
         if (value === "unset") {
           filtered = filtered.filter((r) => !r.metadata[fieldId]);
+        } else if (
+          yearField &&
+          fieldId === yearField._id &&
+          yearField.values
+        ) {
+          filtered = filtered.filter((r) => {
+            const stored = r.metadata[fieldId];
+            if (!stored) return false;
+            return (
+              yearOptionIdForStoredValue(
+                stored,
+                args.year,
+                yearField.values!
+              ) === value
+            );
+          });
         } else {
           filtered = filtered.filter((r) => r.metadata[fieldId] === value);
         }
@@ -178,6 +213,17 @@ export const list = query({
       if (sortKey === "name") {
         av = a.name;
         bv = b.name;
+      } else if (yearField && sortKey === yearField._id) {
+        av = yearMetadataSortKey(
+          a.metadata[sortKey] ?? "",
+          args.year,
+          yearField.values
+        );
+        bv = yearMetadataSortKey(
+          b.metadata[sortKey] ?? "",
+          args.year,
+          yearField.values
+        );
       } else {
         av = a.metadata[sortKey] ?? "";
         bv = b.metadata[sortKey] ?? "";

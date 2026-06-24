@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { assignmentsOf, roleNeedsUniversity } from "../shared/flow";
+import { formatMetadataFieldValue } from "../shared/attendanceMemberMeta";
 import { mutation, query } from "./_generated/server";
 import { getProfile, optionalProfile, requireProfile } from "./model";
 
@@ -22,10 +23,12 @@ export const roster = query({
   args: { year: v.number() },
   handler: async (ctx, { year }) => {
     if (!(await optionalProfile(ctx))) return [];
-    const metadataFields = await ctx.db
-      .query("attendanceMetadata")
-      .withIndex("by_year", (q) => q.eq("year", year))
-      .collect();
+    const metadataFields = (
+      await ctx.db
+        .query("attendanceMetadata")
+        .withIndex("by_year", (q) => q.eq("year", year))
+        .collect()
+    ).sort((a, b) => a.order - b.order);
 
     const profiles = await ctx.db
       .query("staffProfiles")
@@ -50,7 +53,7 @@ export const roster = query({
         .map((f) => {
           const raw = metadata?.[f._id];
           if (!raw) return null;
-          return f.values?.[raw] ?? raw;
+          return formatMetadataFieldValue(f.key, raw, year, f.values);
         })
         .filter(Boolean)
         .join(" · ");
@@ -97,7 +100,7 @@ export const roster = query({
         .map((f) => {
           const raw = m.metadata?.[f._id];
           if (!raw) return null;
-          return f.values?.[raw] ?? raw;
+          return formatMetadataFieldValue(f.key, raw, year, f.values);
         })
         .filter(Boolean)
         .join(" · "),

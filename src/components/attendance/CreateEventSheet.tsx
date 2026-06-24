@@ -74,6 +74,7 @@ export function CreateEventSheet({
 
   useEffect(() => {
     if (visible) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset wizard when sheet opens
       setStep(0);
       setName("");
       setSelectedTags([]);
@@ -82,6 +83,7 @@ export function CreateEventSheet({
       setStartTime(defaultTime(17));
       setEndTime(defaultTime(19));
       setError(null);
+      setSubmitting(false);
     }
   }, [visible, subgroup]);
 

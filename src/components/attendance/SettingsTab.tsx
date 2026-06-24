@@ -31,6 +31,7 @@ export function SettingsTab({ year }: { year: number }) {
 
   useEffect(() => {
     if (tags) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync drafts from server
       setTagDrafts(tags.map((tag) => ({ id: tag._id, name: tag.name, colour: tag.colour })));
       setTagDeletes([]);
     }

@@ -1,14 +1,17 @@
 import { ConvexError, v } from "convex/values";
 import { ROLES } from "../shared/flow";
+import {
+  sanitizeGenderValues,
+  STUDENT_YEAR_FIELD_KEY,
+  STUDENT_YEAR_LEVELS,
+} from "../shared/attendanceMemberMeta";
 import { mutation, query } from "./_generated/server";
 import { optionalProfile, requireProfile } from "./model";
 
-const DEFAULT_YEARS = ["1", "2", "3", "4", "5", "Alumni"];
-const DEFAULT_GENDERS = ["1", "2", "3"];
+const DEFAULT_GENDERS = ["1", "2"];
 const DEFAULT_GENDER_LABELS: Record<string, string> = {
   "1": "Male",
   "2": "Female",
-  "3": "Other",
 };
 
 /** A locked token may be a select option id (key) or its display label. */
@@ -23,8 +26,7 @@ const nextNumericKey = (values: Record<string, string>): number =>
 /** Add org-sourced labels to a select map, preserving custom entries. */
 const mergeSelectValues = (
   values: Record<string, string>,
-  labels: string[],
-  ensureOther = false
+  labels: string[]
 ): Record<string, string> => {
   const out = { ...values };
   const existing = new Set(Object.values(out));
@@ -34,9 +36,6 @@ const mergeSelectValues = (
       out[String(nextKey++)] = label;
       existing.add(label);
     }
-  }
-  if (ensureOther && !existing.has("Other")) {
-    out[String(nextKey)] = "Other";
   }
   return out;
 };
@@ -64,8 +63,22 @@ export const list = query({
     const orgRoles = [...new Set([...ROLES, ...roleRows.map((r) => r.name)])];
 
     return rows.sort((a, b) => a.order - b.order).map((field) => {
+      if (field.key === "Gender" && field.type === "select") {
+        const values = sanitizeGenderValues(field.values ?? DEFAULT_GENDER_LABELS);
+        return {
+          ...field,
+          values,
+          lockedValues: [...DEFAULT_GENDERS, "Male", "Female"],
+        };
+      }
+      if (field.key === STUDENT_YEAR_FIELD_KEY && field.type === "select") {
+        return {
+          ...field,
+          lockedValues: [...STUDENT_YEAR_LEVELS],
+        };
+      }
       if (field.key === "Campus" && field.type === "select") {
-        const values = mergeSelectValues(field.values ?? {}, universityNames, true);
+        const values = mergeSelectValues(field.values ?? {}, universityNames);
         return {
           ...field,
           values,
@@ -104,7 +117,6 @@ export const ensureDefaults = mutation({
     universities.forEach((u, i) => {
       campusValues[String(i + 1)] = u.name;
     });
-    campusValues[String(universities.length + 1)] = "Other";
 
     const roleRows = await ctx.db
       .query("roles")
@@ -117,16 +129,17 @@ export const ensureDefaults = mutation({
     });
 
     const yearValues: Record<string, string> = {};
-    DEFAULT_YEARS.forEach((label, i) => {
+    STUDENT_YEAR_LEVELS.forEach((label, i) => {
       yearValues[String(i + 1)] = label;
     });
 
     await ctx.db.insert("attendanceMetadata", {
       year,
-      key: "Year",
+      key: STUDENT_YEAR_FIELD_KEY,
       type: "select",
       order: 0,
       values: yearValues,
+      lockedValues: [...STUDENT_YEAR_LEVELS],
     });
     await ctx.db.insert("attendanceMetadata", {
       year,
@@ -199,14 +212,20 @@ export const saveAll = mutation({
       keys.add(key.toLowerCase());
 
       let values = field.type === "select" ? { ...(field.values ?? {}) } : undefined;
-      if (key === "Campus" && values) {
-        values = mergeSelectValues(values, universityNames, true);
+      if (key === "Gender" && values) {
+        values = sanitizeGenderValues(values);
+      } else if (key === "Campus" && values) {
+        values = mergeSelectValues(values, universityNames);
       } else if (key === "Role" && values) {
         values = mergeSelectValues(values, orgRoles);
       }
 
       const lockedValues =
-        key === "Campus"
+        key === "Gender"
+          ? [...DEFAULT_GENDERS, "Male", "Female"]
+          : key === STUDENT_YEAR_FIELD_KEY
+            ? [...STUDENT_YEAR_LEVELS]
+            : key === "Campus"
           ? [...new Set([...(field.lockedValues ?? []), ...universityNames])]
           : key === "Role"
             ? [...new Set([...(field.lockedValues ?? []), ...orgRoles])]

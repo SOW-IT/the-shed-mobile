@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   ALL_SUBGROUP,
+  contrastingText,
   defaultAttendanceSubgroup,
   defaultEventWindow,
   formatEventDate,
@@ -32,6 +33,17 @@ describe("subgroupColour", () => {
   test("a known campus uses its brand colour", () => {
     expect(subgroupColour("University of Sydney")).toBe("#B5403D");
     expect(subgroupColour("University of New South Wales")).toBe("#619445");
+  });
+
+  test("an unknown campus falls back to slate", () => {
+    expect(subgroupColour("Unknown Uni")).toBe("#64748b");
+  });
+});
+
+describe("contrastingText", () => {
+  test("picks black on light backgrounds and white on dark ones", () => {
+    expect(contrastingText("#ffffff")).toBe("#000000");
+    expect(contrastingText("#000000")).toBe("#ffffff");
   });
 });
 
