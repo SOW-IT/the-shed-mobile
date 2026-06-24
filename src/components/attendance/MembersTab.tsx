@@ -21,9 +21,12 @@ const PAGE_SIZE = 30;
 export function MembersTab({
   year,
   onEditMember,
+  readOnly = false,
 }: {
   year: number;
   onEditMember: (memberId: Id<"attendanceMembers">) => void;
+  /** A closed (past) year — members are view-only, tapping does nothing. */
+  readOnly?: boolean;
 }) {
   const t = useAppTheme();
   const ensureDefaults = useMutation(api.attendanceMetadata.ensureDefaults);
@@ -244,15 +247,17 @@ export function MembersTab({
             return (
               <Pressable
                 key={row.key}
+                disabled={readOnly}
                 style={({ pressed }) => [
                   styles.memberRow,
                   {
                     backgroundColor: t.card,
                     borderColor: campusColour ?? t.separator,
                   },
-                  pressed && { opacity: 0.66 },
+                  pressed && !readOnly && { opacity: 0.66 },
                 ]}
                 onPress={() => {
+                  if (readOnly) return;
                   if (row.memberId) {
                     onEditMember(row.memberId as Id<"attendanceMembers">);
                   } else if (row.kind === "staff" && row.email) {

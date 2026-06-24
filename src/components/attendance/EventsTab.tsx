@@ -64,11 +64,14 @@ export function EventsTab({
   subgroups,
   selectedSubgroup,
   onSelectedSubgroupChange,
+  readOnly = false,
 }: {
   year: number;
   subgroups: string[];
   selectedSubgroup: string | null;
   onSelectedSubgroupChange: (subgroup: string) => void;
+  /** A closed (past) year — events are view-only, no inline editing. */
+  readOnly?: boolean;
 }) {
   const t = useAppTheme();
   const router = useRouter();
@@ -263,20 +266,22 @@ export function EventsTab({
                           ATTENDANCE: {event.attendanceCount}
                         </Text>
                       </Pressable>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`Edit ${event.name}`}
-                        onPress={() => setEditingEventId(event._id)}
-                        style={({ pressed }) => [
-                          styles.editButton,
-                          { borderColor: t.primary, backgroundColor: t.background },
-                          pressed && { opacity: 0.7 },
-                        ]}
-                      >
-                        <Text style={[styles.editButtonText, { color: t.primary }]}>
-                          Edit
-                        </Text>
-                      </Pressable>
+                      {readOnly ? null : (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Edit ${event.name}`}
+                          onPress={() => setEditingEventId(event._id)}
+                          style={({ pressed }) => [
+                            styles.editButton,
+                            { borderColor: t.primary, backgroundColor: t.background },
+                            pressed && { opacity: 0.7 },
+                          ]}
+                        >
+                          <Text style={[styles.editButtonText, { color: t.primary }]}>
+                            Edit
+                          </Text>
+                        </Pressable>
+                      )}
                     </View>
                   </View>
                 </FadeInView>

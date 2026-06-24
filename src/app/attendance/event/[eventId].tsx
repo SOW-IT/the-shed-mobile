@@ -12,6 +12,7 @@ import {
   SOW_SUBGROUP,
   subgroupLabel,
 } from "../../../../shared/rollcall";
+import { staffYearForDate } from "../../../../shared/flow";
 import { AttendanceRow } from "@/components/AttendanceRow";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
@@ -106,8 +107,11 @@ export default function EventAttendanceScreen() {
     setEditUnlocked(false);
   }, [event?._id]);
 
+  // A genuinely past staff year is strictly view-only — no "Enable editing"
+  // escape hatch (that's reserved for events that have merely ended this year).
+  const pastYear = event != null && event.year < staffYearForDate(new Date());
   const pastEvent = event != null && eventHasEnded(event.dateEnd);
-  const canEdit = !pastEvent || editUnlocked;
+  const canEdit = !pastYear && (!pastEvent || editUnlocked);
 
   const closeEdit = () => {
     setEditOpen(false);
@@ -273,7 +277,7 @@ export default function EventAttendanceScreen() {
       subtitle="Attendance"
       onBack={() => router.back()}
       footer={
-        pastEvent && !editUnlocked ? (
+        !pastYear && pastEvent && !editUnlocked ? (
           <FooterAction
             title="+ Enable editing"
             onPress={() => {
@@ -321,7 +325,11 @@ export default function EventAttendanceScreen() {
         ))}
       </View>
 
-      {pastEvent && !editUnlocked ? (
+      {pastYear ? (
+        <Text style={[typography.caption, { color: t.muted, marginBottom: spacing.sm }]}>
+          This event is from a past year and is view-only.
+        </Text>
+      ) : pastEvent && !editUnlocked ? (
         <Text style={[typography.caption, { color: t.muted, marginBottom: spacing.sm }]}>
           This event has ended. Tap Enable editing below to change attendance.
         </Text>
