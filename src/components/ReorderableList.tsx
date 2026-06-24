@@ -395,6 +395,9 @@ export function ReorderableList<T>({
       }
       prevPositions.current.clear();
       nextPositions.forEach((y, id) => prevPositions.current.set(id, y));
+      for (const key of translateYs.current.keys()) {
+        if (!nextPositions.has(key)) translateYs.current.delete(key);
+      }
     };
     for (const id of ids) {
       const node = cardRefs.current.get(id);

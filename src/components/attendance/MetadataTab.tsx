@@ -384,7 +384,7 @@ export function MetadataTab({
         title="Add field"
         variant="ghost"
         onPress={() => {
-          const draftKey = `new-${Date.now()}`;
+          const draftKey = `new-${Date.now()}-${Math.random().toString(36).slice(2)}`;
           setMetaDrafts((prev) =>
             reindexFields([
               ...prev,

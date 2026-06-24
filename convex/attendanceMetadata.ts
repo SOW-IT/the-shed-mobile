@@ -237,12 +237,20 @@ export const saveAll = mutation({
 
     const keys = new Set<string>();
     for (const field of fields) {
-      const key = field.key.trim();
-      if (!key) throw new ConvexError("Every metadata field needs a name.");
-      if (keys.has(key.toLowerCase())) {
+      const rawKey = field.key.trim();
+      if (!rawKey) throw new ConvexError("Every metadata field needs a name.");
+      // Canonicalize reserved key names regardless of input casing.
+      const lk = rawKey.toLowerCase();
+      const key =
+        lk === CAMPUS_FIELD_KEY.toLowerCase() ? CAMPUS_FIELD_KEY :
+        lk === ROLE_FIELD_KEY.toLowerCase() ? ROLE_FIELD_KEY :
+        lk === GENDER_FIELD_KEY.toLowerCase() ? GENDER_FIELD_KEY :
+        lk === STUDENT_YEAR_FIELD_KEY.toLowerCase() ? STUDENT_YEAR_FIELD_KEY :
+        rawKey;
+      if (keys.has(lk)) {
         throw new ConvexError(`Duplicate metadata field "${key}".`);
       }
-      keys.add(key.toLowerCase());
+      keys.add(lk);
 
       let values = field.type === "select" ? { ...(field.values ?? {}) } : undefined;
       const subgroup = LOCKED_FIELD_KEYS.has(key)
