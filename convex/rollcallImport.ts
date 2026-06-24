@@ -330,9 +330,7 @@ export const importMembers = mutation({
         staffOverlays++;
         const existing = await ctx.db
           .query("attendanceMembers")
-          .withIndex("by_year_and_staff_email", (q) =>
-            q.eq("year", year).eq("staffEmail", profile.email)
-          )
+          .withIndex("by_staff_email", (q) => q.eq("staffEmail", profile.email))
           .unique();
         const patch = {
           name: profile.name ?? displayName,
@@ -342,15 +340,15 @@ export const importMembers = mutation({
           metadata,
         };
         if (existing) await ctx.db.patch(existing._id, patch);
-        else await ctx.db.insert("attendanceMembers", { year, ...patch });
+        else await ctx.db.insert("attendanceMembers", patch);
         imported++;
         continue;
       }
 
       const existing = await ctx.db
         .query("attendanceMembers")
-        .withIndex("by_year_and_sourceImportId", (q) =>
-          q.eq("year", year).eq("sourceImportId", member.sourceImportId)
+        .withIndex("by_source_import_id", (q) =>
+          q.eq("sourceImportId", member.sourceImportId)
         )
         .unique();
       const patch = {
@@ -361,7 +359,7 @@ export const importMembers = mutation({
       };
       if (!patch.name) continue;
       if (existing) await ctx.db.patch(existing._id, patch);
-      else await ctx.db.insert("attendanceMembers", { year, ...patch });
+      else await ctx.db.insert("attendanceMembers", patch);
       imported++;
     }
     return { imported, staffOverlays };
@@ -476,12 +474,9 @@ export const importEvents = mutation({
           const staffEmail = profile.email.toLowerCase();
           const overlay = await ctx.db
             .query("attendanceMembers")
-            .withIndex("by_year_and_staff_email", (q) =>
-              q.eq("year", calendarYear).eq("staffEmail", staffEmail)
-            )
+            .withIndex("by_staff_email", (q) => q.eq("staffEmail", staffEmail))
             .unique();
           const memberPatch = {
-            year: calendarYear,
             name: profile.name ?? displayName,
             email: staffEmail,
             staffEmail,
@@ -498,13 +493,12 @@ export const importEvents = mutation({
           const existingMember = row.source
             ? await ctx.db
                 .query("attendanceMembers")
-                .withIndex("by_year_and_sourceImportId", (q) =>
-                  q.eq("year", calendarYear).eq("sourceImportId", row.source)
+                .withIndex("by_source_import_id", (q) =>
+                  q.eq("sourceImportId", row.source)
                 )
                 .unique()
             : null;
           const memberPatch = {
-            year: calendarYear,
             name: displayName,
             email: row.email,
             sourceImportId: row.source,
@@ -570,8 +564,7 @@ export const summary = mutation({
       members: (
         await ctx.db
           .query("attendanceMembers")
-          .withIndex("by_year", (q) => q.eq("year", year))
-          .take(5000)
+          .collect()
       ).length,
       events: (
         await ctx.db
@@ -633,11 +626,7 @@ export const resetYears = mutation({
         if (!progressed) break;
       }
 
-      for (const table of [
-        "attendanceMembers",
-        "attendanceMetadata",
-        "attendanceTags",
-      ] as const) {
+      for (const table of ["attendanceMetadata", "attendanceTags"] as const) {
         while (deleted < limit) {
           const docs = await ctx.db
             .query(table)
@@ -656,13 +645,12 @@ export const resetYears = mutation({
     // `done` once nothing for any year remains (a handful of cheap probes).
     let done = true;
     for (const year of years) {
-      const [ev, mem, meta, tag] = await Promise.all([
+      const [ev, meta, tag] = await Promise.all([
         ctx.db.query("events").withIndex("by_year", (q) => q.eq("year", year)).first(),
-        ctx.db.query("attendanceMembers").withIndex("by_year", (q) => q.eq("year", year)).first(),
         ctx.db.query("attendanceMetadata").withIndex("by_year", (q) => q.eq("year", year)).first(),
         ctx.db.query("attendanceTags").withIndex("by_year", (q) => q.eq("year", year)).first(),
       ]);
-      if (ev || mem || meta || tag) {
+      if (ev || meta || tag) {
         done = false;
         break;
       }
@@ -692,7 +680,6 @@ export const mergeLegacyStaffMembers = mutation({
     const fields = await fieldsForYear(ctx, year);
     const members = await ctx.db
       .query("attendanceMembers")
-      .withIndex("by_year", (q) => q.eq("year", year))
       .collect();
     let mergedMembers = 0;
     let attendanceMoved = 0;
@@ -739,9 +726,7 @@ export const mergeLegacyStaffMembers = mutation({
 
       const existingOverlay = await ctx.db
         .query("attendanceMembers")
-        .withIndex("by_year_and_staff_email", (q) =>
-          q.eq("year", year).eq("staffEmail", targetEmail)
-        )
+        .withIndex("by_staff_email", (q) => q.eq("staffEmail", targetEmail))
         .unique();
       const mergedMetadata = staffLockedMetadata(fields, profile, {
         ...(member.metadata ?? {}),
@@ -756,7 +741,6 @@ export const mergeLegacyStaffMembers = mutation({
         });
       } else {
         await ctx.db.insert("attendanceMembers", {
-          year,
           name: profile.name ?? member.name,
           email: targetEmail,
           staffEmail: targetEmail,
@@ -890,7 +874,6 @@ export const repairGenderMetadata = mutation({
     let membersPatched = 0;
     const members = await ctx.db
       .query("attendanceMembers")
-      .withIndex("by_year", (q) => q.eq("year", year))
       .collect();
     for (const member of members) {
       const raw = member.metadata?.[genderField._id];

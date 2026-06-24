@@ -14,6 +14,7 @@ import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import { CampusMark } from "@/components/CampusMark";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import {
+  Btn,
   EmptyState,
   FadeInView,
   LoadingState,
@@ -64,25 +65,44 @@ export function EventsTab({
   subgroups,
   selectedSubgroup,
   onSelectedSubgroupChange,
-  readOnly = false,
 }: {
   year: number;
   subgroups: string[];
   selectedSubgroup: string | null;
   onSelectedSubgroupChange: (subgroup: string) => void;
-  /** A closed (past) year — events are view-only, no inline editing. */
-  readOnly?: boolean;
 }) {
   const t = useAppTheme();
   const router = useRouter();
   const subgroup = selectedSubgroup ?? subgroups[0] ?? null;
   const [now, setNow] = useState(() => Date.now());
-  const events = useQuery(
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [accumulated, setAccumulated] = useState<
+    NonNullable<ReturnType<typeof useQuery<typeof api.events.listBySubgroup>>>["events"]
+  >([]);
+
+  const page = useQuery(
     api.events.listBySubgroup,
-    subgroup ? { year, subgroup } : "skip"
+    subgroup ? { subgroup, cursor: cursor ?? null } : "skip"
   );
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on subgroup change
+    setCursor(null);
+    setAccumulated([]);
+  }, [subgroup]);
+
+  useEffect(() => {
+    if (!page?.events) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- append paginated events
+    setAccumulated((prev) => {
+      if (!cursor) return page.events;
+      const seen = new Set(prev.map((e) => e._id));
+      return [...prev, ...page.events.filter((e) => !seen.has(e._id))];
+    });
+  }, [page, cursor]);
+
   const [editingEventId, setEditingEventId] = useState<Id<"events"> | null>(null);
-  const editingEvent = events?.find((event) => event._id === editingEventId);
+  const editingEvent = accumulated.find((event) => event._id === editingEventId);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 60_000);
@@ -134,9 +154,9 @@ export function EventsTab({
             })}
           </View>
 
-          {events === undefined ? (
+          {page === undefined && accumulated.length === 0 ? (
             <LoadingState />
-          ) : events.length === 0 ? (
+          ) : accumulated.length === 0 ? (
             <EmptyState
               icon="calendar-outline"
               title="No events yet"
@@ -144,7 +164,7 @@ export function EventsTab({
             />
           ) : (
             <View style={styles.eventsList}>
-            {events.map((event, i) => {
+            {accumulated.map((event, i) => {
               const ownerSubgroup = event.subgroups[0] ?? subgroup;
               const ownerColour = subgroupColour(ownerSubgroup);
               const isExternalEvent =
@@ -266,22 +286,20 @@ export function EventsTab({
                           ATTENDANCE: {event.attendanceCount}
                         </Text>
                       </Pressable>
-                      {readOnly ? null : (
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel={`Edit ${event.name}`}
-                          onPress={() => setEditingEventId(event._id)}
-                          style={({ pressed }) => [
-                            styles.editButton,
-                            { borderColor: t.primary, backgroundColor: t.background },
-                            pressed && { opacity: 0.7 },
-                          ]}
-                        >
-                          <Text style={[styles.editButtonText, { color: t.primary }]}>
-                            Edit
-                          </Text>
-                        </Pressable>
-                      )}
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Edit ${event.name}`}
+                        onPress={() => setEditingEventId(event._id)}
+                        style={({ pressed }) => [
+                          styles.editButton,
+                          { borderColor: t.primary, backgroundColor: t.background },
+                          pressed && { opacity: 0.7 },
+                        ]}
+                      >
+                        <Text style={[styles.editButtonText, { color: t.primary }]}>
+                          Edit
+                        </Text>
+                      </Pressable>
                     </View>
                   </View>
                 </FadeInView>
@@ -289,6 +307,13 @@ export function EventsTab({
             })}
             </View>
           )}
+          {page && !page.isDone ? (
+            <Btn
+              title="Load more"
+              variant="ghost"
+              onPress={() => setCursor(page.continueCursor)}
+            />
+          ) : null}
         </>
       )}
       {editingEvent && subgroup ? (

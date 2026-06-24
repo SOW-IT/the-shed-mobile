@@ -214,7 +214,6 @@ export const saveAll = mutation({
       }
       const members = await ctx.db
         .query("attendanceMembers")
-        .withIndex("by_year", (q) => q.eq("year", year))
         .collect();
       for (const member of members) {
         if (!member.metadata?.[id]) continue;

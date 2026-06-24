@@ -85,10 +85,7 @@ export default function EventAttendanceScreen() {
     api.attendanceMetadata.list,
     event ? { year: event.year, subgroup: eventSubgroup } : "skip"
   );
-  const subgroups = useQuery(
-    api.events.subgroups,
-    event ? { year: event.year } : "skip"
-  );
+  const subgroups = useQuery(api.events.subgroups);
 
   const [search, setSearch] = useState("");
   const [eventEditOpen, setEventEditOpen] = useState(false);
@@ -210,7 +207,6 @@ export default function EventAttendanceScreen() {
       let id = opts.memberId;
       if (!id && opts.staffEmail) {
         id = await ensureForStaff({
-          year: event.year,
           staffEmail: opts.staffEmail,
         });
       }

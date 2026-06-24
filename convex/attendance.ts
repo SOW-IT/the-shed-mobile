@@ -91,7 +91,6 @@ export const roster = query({
       .collect();
     const extras = await ctx.db
       .query("attendanceMembers")
-      .withIndex("by_year", (q) => q.eq("year", memberYear))
       .collect();
 
     // Overlay rows link to a staff profile by matching either their explicit
@@ -307,9 +306,7 @@ export const listByEvent = query({
       for (const candidate of staffEmailCandidates(resolvedEmail)) {
         shadow = await ctx.db
           .query("attendanceMembers")
-          .withIndex("by_year_and_staff_email", (q) =>
-            q.eq("year", calendarYear).eq("staffEmail", candidate)
-          )
+          .withIndex("by_staff_email", (q) => q.eq("staffEmail", candidate))
           .unique();
         if (shadow) break;
       }
@@ -420,7 +417,7 @@ export const signIn = mutation({
     }
 
     const member = memberId ? await ctx.db.get(memberId) : null;
-    if (!member || member.year !== event.year) {
+    if (!member) {
       throw new ConvexError("Member not found.");
     }
     const existing = await ctx.db

@@ -426,7 +426,6 @@ describe("attendance members", () => {
       });
     });
     const shadowId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
-      year: YEAR,
       staffEmail: OUTSIDER,
     });
     const roleOptionId = Object.keys(roleField.values ?? {})[0]!;
@@ -451,7 +450,6 @@ describe("attendance members", () => {
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
     const memberId = await leader.mutation(api.attendanceMembers.create, {
-      year: YEAR,
       name: "Guest Member",
       email: "guest@example.com",
     });
@@ -480,12 +478,10 @@ describe("attendance members", () => {
     )?.[0]!;
 
     await leader.mutation(api.attendanceMembers.create, {
-      year: YEAR,
       name: "Zara Alpha",
       metadata: { [yearField._id]: String(YEAR - 2) },
     });
     await leader.mutation(api.attendanceMembers.create, {
-      year: YEAR,
       name: "Beta Guest",
       metadata: { [yearField._id]: String(YEAR - 1) },
     });
@@ -505,7 +501,6 @@ describe("attendance members", () => {
     )?.[0]!;
 
     await leader.mutation(api.attendanceMembers.create, {
-      year: YEAR,
       name: "Meta Guest",
       metadata: { [genderField._id]: genderMaleId },
     });
@@ -555,7 +550,6 @@ describe("attendance members", () => {
     });
     const otherId = "99";
     const shadowId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
-      year: YEAR,
       staffEmail: LEADER,
     });
     const refreshedFields = await leader.query(api.attendanceMetadata.list, { year: YEAR });
@@ -629,12 +623,10 @@ describe("attendance members", () => {
     const yearField = fields.find((f) => f.key === "Year")!;
 
     const shadowId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
-      year: YEAR,
       staffEmail: LEADER,
     });
     expect(
       await leader.mutation(api.attendanceMembers.ensureForStaff, {
-        year: YEAR,
         staffEmail: LEADER,
       })
     ).toBe(shadowId);
@@ -650,7 +642,6 @@ describe("attendance members", () => {
     expect(shadow?.metadata?.[yearField._id]).toBe(String(YEAR));
 
     const guestId = await leader.mutation(api.attendanceMembers.create, {
-      year: YEAR,
       name: "Guest",
     });
     await leader.mutation(api.attendanceMembers.update, {
@@ -674,21 +665,18 @@ describe("attendance members", () => {
 
     await expect(
       leader.mutation(api.attendanceMembers.ensureForStaff, {
-        year: YEAR,
         staffEmail: "   ",
       })
     ).rejects.toThrow(/email is required/i);
     await expect(
       leader.mutation(api.attendanceMembers.ensureForStaff, {
-        year: YEAR,
         staffEmail: OUTSIDER,
       })
     ).rejects.toThrow(/not found/i);
     await expect(
-      leader.mutation(api.attendanceMembers.create, { year: YEAR, name: "  " })
+      leader.mutation(api.attendanceMembers.create, { name: "  " })
     ).rejects.toThrow(/Name is required/i);
     const guest2 = await leader.mutation(api.attendanceMembers.create, {
-      year: YEAR,
       name: "Guest Two",
     });
     await expect(
@@ -734,7 +722,6 @@ describe("metadata saveAll edge cases", () => {
     const fields = await leader.query(api.attendanceMetadata.list, { year: YEAR });
     const trackField = fields.find((f) => f.key === "Track")!;
     const memberId = await leader.mutation(api.attendanceMembers.create, {
-      year: YEAR,
       name: "Trackee",
       metadata: { [trackField._id]: "Morning" },
     });

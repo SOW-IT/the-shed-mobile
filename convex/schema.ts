@@ -332,19 +332,18 @@ export default defineSchema({
   }).index("by_year", ["year"]),
 
   // Attendance pool members. Rows with `staffEmail` hold metadata for a staff
-  // profile; rows without are attendance-only people.
+  // profile; rows without are attendance-only people. Members are year-less —
+  // the same row (and memberId) is reused across all staff years.
   attendanceMembers: defineTable({
-    year: v.number(),
     name: v.string(),
     email: v.optional(v.string()),
     staffEmail: v.optional(v.string()),
     sourceImportId: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.string())),
   })
-    .index("by_year", ["year"])
-    .index("by_year_and_name", ["year", "name"])
-    .index("by_year_and_sourceImportId", ["year", "sourceImportId"])
-    .index("by_year_and_staff_email", ["year", "staffEmail"]),
+    .index("by_staff_email", ["staffEmail"])
+    .index("by_source_import_id", ["sourceImportId"])
+    .index("by_name", ["name"]),
 
   // One row per (event, person). Staff use `email`; extra members use
   // `memberId`. Exactly one identifier should be set.

@@ -3,7 +3,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { Text } from "react-native";
 import { api } from "../../../../convex/_generated/api";
-import { staffYearForDate } from "../../../../shared/flow";
 import { defaultEventWindow, subgroupLabel } from "../../../../shared/rollcall";
 import {
   Btn,
@@ -22,9 +21,7 @@ export default function NewEventScreen() {
   const t = useAppTheme();
   const router = useRouter();
   const { subgroup } = useLocalSearchParams<{ subgroup?: string }>();
-  const year = staffYearForDate(new Date());
-
-  const subgroups = useQuery(api.events.subgroups, { year });
+  const subgroups = useQuery(api.events.subgroups);
   const createEvent = useMutation(api.events.create);
 
   const [name, setName] = useState("");

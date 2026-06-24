@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { staffYearForDate } from "../shared/flow";
+const EVENTS_PAGE_SIZE = 20;
 import { eventIncludesSubgroup, normalizeSubgroups, SOW_SUBGROUP } from "../shared/rollcall";
 import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx, QueryCtx, mutation, query } from "./_generated/server";
@@ -81,41 +82,49 @@ async function validateEventFields(
 }
 
 /**
- * Events for one sub-group in a year, newest first. A sub-group is a campus
- * (university name) or the literal "SOW"; an event appears here when its
- * `subgroups` array contains the asked-for one. Each row carries a quick
- * attendance count and a `collaborative` flag (2+ sub-groups).
+ * Events for one sub-group across all years, newest first, paginated.
+ * Returns the first `numItems` (default 20) events plus a `continueCursor`
+ * for subsequent pages. Annotates only the current page to keep reads cheap.
  */
 export const listBySubgroup = query({
-  args: { year: v.number(), subgroup: v.string() },
-  handler: async (ctx, { year, subgroup }) => {
-    if (!(await optionalProfile(ctx))) return [];
-    const events = await ctx.db
-      .query("events")
-      .withIndex("by_year", (q) => q.eq("year", year))
-      .collect();
-    const matching = events.filter((e) =>
-      eventIncludesSubgroup(e.subgroups, subgroup)
-    );
+  args: {
+    subgroup: v.string(),
+    cursor: v.optional(v.union(v.string(), v.null())),
+    numItems: v.optional(v.number()),
+  },
+  handler: async (ctx, { subgroup, cursor, numItems = EVENTS_PAGE_SIZE }) => {
+    const empty = { events: [], isDone: true, continueCursor: null } as const;
+    if (!(await optionalProfile(ctx))) return empty;
+    const all = await ctx.db.query("events").collect();
+    const matching = all
+      .filter((e) => eventIncludesSubgroup(e.subgroups, subgroup))
+      .sort((a, b) => b.dateStart - a.dateStart);
+    const start = cursor ? Number(cursor) : 0;
+    const page = matching.slice(start, start + numItems);
     const withCounts = await Promise.all(
-      matching.map(async (event) => ({
+      page.map(async (event) => ({
         ...(await annotate(ctx, event)),
         attendanceCount: await attendanceCount(ctx, event._id),
       }))
     );
-    return withCounts.sort((a, b) => b.dateStart - a.dateStart);
+    const next = start + numItems;
+    return {
+      events: withCounts,
+      isDone: next >= matching.length,
+      continueCursor: next >= matching.length ? null : String(next),
+    };
   },
 });
 
 /**
- * The roll-call sub-groups for a year: org-wide "SOW" plus every campus
- * (the year's `universities` rows). Data-driven — campuses come straight from
- * the universities table, so years keep their own campus list.
+ * The roll-call sub-groups: org-wide "SOW" plus every campus in the current
+ * staff year's `universities` table.
  */
 export const subgroups = query({
-  args: { year: v.number() },
-  handler: async (ctx, { year }) => {
+  args: {},
+  handler: async (ctx) => {
     if (!(await optionalProfile(ctx))) return [];
+    const year = staffYearForDate(new Date());
     const universities = await ctx.db
       .query("universities")
       .withIndex("by_year_and_name", (q) => q.eq("year", year))

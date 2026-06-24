@@ -4,6 +4,7 @@ import {
   assignmentsOf,
   roleNeedsUniversity,
   rolesOfLike,
+  staffYearForDate,
 } from "../shared/flow";
 import {
   CAMPUS_FIELD_KEY,
@@ -148,7 +149,6 @@ export const list = query({
       .collect();
     const extra = await ctx.db
       .query("attendanceMembers")
-      .withIndex("by_year", (q) => q.eq("year", args.year))
       .collect();
 
     const shadowByEmail = new Map(
@@ -298,9 +298,10 @@ export const get = query({
     if (!(await optionalProfile(ctx))) return null;
     const row = await ctx.db.get(memberId);
     if (!row?.staffEmail) return row;
-    const profile = await getProfile(ctx, row.staffEmail, row.year);
+    const currentYear = staffYearForDate(new Date());
+    const profile = await getProfile(ctx, row.staffEmail, currentYear);
     if (!profile) return row;
-    const fields = await metadataFieldsForYear(ctx, row.year);
+    const fields = await metadataFieldsForYear(ctx, currentYear);
     return {
       ...row,
       name: profile.name ?? row.name,
@@ -310,25 +311,23 @@ export const get = query({
   },
 });
 
-/** Ensure a metadata overlay exists for a staff profile in this year. */
+/** Ensure a metadata overlay exists for a staff profile. */
 export const ensureForStaff = mutation({
-  args: { year: v.number(), staffEmail: v.string() },
-  handler: async (ctx, { year, staffEmail }) => {
+  args: { staffEmail: v.string() },
+  handler: async (ctx, { staffEmail }) => {
     await requireProfile(ctx);
     const email = staffEmail.trim().toLowerCase();
     if (!email) throw new ConvexError("Staff email is required.");
     const existing = await ctx.db
       .query("attendanceMembers")
-      .withIndex("by_year_and_staff_email", (q) =>
-        q.eq("year", year).eq("staffEmail", email)
-      )
+      .withIndex("by_staff_email", (q) => q.eq("staffEmail", email))
       .unique();
     if (existing) return existing._id;
-    const profile = await getProfile(ctx, email, year);
+    const currentYear = staffYearForDate(new Date());
+    const profile = await getProfile(ctx, email, currentYear);
     if (!profile) throw new ConvexError("Staff profile not found.");
-    const fields = await metadataFieldsForYear(ctx, year);
+    const fields = await metadataFieldsForYear(ctx, currentYear);
     return await ctx.db.insert("attendanceMembers", {
-      year,
       name: profile.name ?? email,
       email,
       staffEmail: email,
@@ -339,17 +338,15 @@ export const ensureForStaff = mutation({
 
 export const create = mutation({
   args: {
-    year: v.number(),
     name: v.string(),
     email: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.string())),
   },
-  handler: async (ctx, { year, name, email, metadata }) => {
+  handler: async (ctx, { name, email, metadata }) => {
     await requireProfile(ctx);
     const trimmed = name.trim();
     if (!trimmed) throw new ConvexError("Name is required.");
     return await ctx.db.insert("attendanceMembers", {
-      year,
       name: trimmed,
       email: email?.trim() || undefined,
       metadata,
@@ -369,9 +366,10 @@ export const update = mutation({
     const row = await ctx.db.get(memberId);
     if (!row) throw new ConvexError("Member not found.");
     if (row.staffEmail) {
-      const profile = await getProfile(ctx, row.staffEmail, row.year);
+      const currentYear = staffYearForDate(new Date());
+      const profile = await getProfile(ctx, row.staffEmail, currentYear);
       if (!profile) throw new ConvexError("Staff profile not found.");
-      const fields = await metadataFieldsForYear(ctx, row.year);
+      const fields = await metadataFieldsForYear(ctx, currentYear);
       await ctx.db.patch(memberId, {
         name: profile.name ?? row.name,
         email: profile.email,

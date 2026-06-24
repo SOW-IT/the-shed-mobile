@@ -3,7 +3,6 @@ import { useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Pressable, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
-import { staffYearForDate } from "../../../shared/flow";
 import { formatEventDate, subgroupColour, subgroupLabel } from "../../../shared/rollcall";
 import {
   Card,
@@ -23,11 +22,10 @@ export default function SubgroupEventsScreen() {
   const t = useAppTheme();
   const router = useRouter();
   const { subgroup } = useLocalSearchParams<{ subgroup: string }>();
-  const year = staffYearForDate(new Date());
-  const events = useQuery(api.events.listBySubgroup, { year, subgroup });
+  const result = useQuery(api.events.listBySubgroup, { subgroup });
   const accent = subgroupColour(subgroup);
 
-  if (events === undefined) return <LoadingState />;
+  if (result === undefined) return <LoadingState />;
 
   return (
     <>
@@ -36,14 +34,14 @@ export default function SubgroupEventsScreen() {
         subtitle="Events"
         onBack={() => router.back()}
       >
-        {events.length === 0 ? (
+        {result.events.length === 0 ? (
           <EmptyState
             icon="calendar-outline"
             title="No events yet"
             message="Create an event to take attendance."
           />
         ) : (
-          events.map((event, i) => (
+          result.events.map((event, i) => (
             <FadeInView key={event._id} delay={stagger(i)}>
               <Card
                 style={{

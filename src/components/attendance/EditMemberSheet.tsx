@@ -89,7 +89,7 @@ export function EditMemberSheet({
       if (memberId) {
         await update({ memberId, name, email: email || undefined, metadata });
       } else {
-        await create({ year, name, email: email || undefined, metadata });
+        await create({ name, email: email || undefined, metadata });
       }
       if (eventAttendance) {
         await updateAttendance({

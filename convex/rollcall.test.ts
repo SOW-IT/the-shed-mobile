@@ -52,9 +52,7 @@ const window = () => ({ dateStart: Date.now(), dateEnd: Date.now() + 3600_000 })
 describe("subgroups", () => {
   test("lists ALL plus the year's campuses, sorted", async () => {
     const t = await setup();
-    const subgroups = await asUser(t, LEADER).query(api.events.subgroups, {
-      year: YEAR,
-    });
+    const subgroups = await asUser(t, LEADER).query(api.events.subgroups, {});
     // SOW is always first; the campuses follow, alphabetically sorted.
     expect(subgroups[0]).toBe(SOW_SUBGROUP);
     expect(ALL_SUBGROUP).toBe(SOW_SUBGROUP);
@@ -66,7 +64,7 @@ describe("subgroups", () => {
 
   test("returns [] for an unauthenticated caller", async () => {
     const t = await setup();
-    expect(await t.query(api.events.subgroups, { year: YEAR })).toEqual([]);
+    expect(await t.query(api.events.subgroups, {})).toEqual([]);
   });
 });
 
@@ -84,7 +82,6 @@ describe("legacy import matching", () => {
     await admin.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
     // Legacy imported member: old @sowaustralia.com address, no staffEmail.
     const memberId = await admin.mutation(api.attendanceMembers.create, {
-      year: YEAR,
       name: "Old Jane",
       email: "jane.doe@sowaustralia.com",
     });
@@ -117,7 +114,6 @@ describe("legacy import matching", () => {
     await admin.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
     // No profile for ghost.person@sow.org.au this year.
     const memberId = await admin.mutation(api.attendanceMembers.create, {
-      year: YEAR,
       name: "Ghost Person",
       email: "ghost.person@sowaustralia.com",
     });
@@ -143,7 +139,6 @@ describe("legacy import matching", () => {
     // neither a staff row nor a plain member — it stays hidden.
     await t.run(async (ctx) => {
       await ctx.db.insert("attendanceMembers", {
-        year: YEAR,
         name: "Ghost Staff",
         email: "ghost@sow.org.au",
         staffEmail: "ghost@sow.org.au",
@@ -180,12 +175,10 @@ describe("mergeLegacyStaffMembers (staff-year-aware relink)", () => {
         subgroups: [USYD],
       });
       const a = await ctx.db.insert("attendanceMembers", {
-        year: 2025,
         name: "Leader Legacy",
         email: LEADER, // leader@sow.org.au
       });
       const b = await ctx.db.insert("attendanceMembers", {
-        year: 2025,
         name: "Jane Doe",
         email: "jane.doe@sowaustralia.com",
       });
@@ -232,7 +225,6 @@ describe("staff year derivation for events", () => {
     const eventId = await t.run(async (ctx) => {
       const dateStart = Date.UTC(2025, 10, 1, 9, 0, 0);
       await ctx.db.insert("attendanceMembers", {
-        year: 2025,
         name: "Jane Doe",
         email: "jane.doe@sowaustralia.com",
         staffEmail: "jane.doe@sowaustralia.com",
@@ -346,17 +338,14 @@ describe("events + roll-call", () => {
       dateEnd,
       subgroups: [USYD],
     });
-    const list = await leader.query(api.events.listBySubgroup, {
-      year: YEAR,
-      subgroup: USYD,
-    });
-    expect(list).toHaveLength(1);
-    expect(list[0]._id).toEqual(id);
-    expect(list[0].collaborative).toBe(false);
-    expect(list[0].attendanceCount).toBe(0);
+    const list = await leader.query(api.events.listBySubgroup, { subgroup: USYD });
+    expect(list.events).toHaveLength(1);
+    expect(list.events[0]._id).toEqual(id);
+    expect(list.events[0].collaborative).toBe(false);
+    expect(list.events[0].attendanceCount).toBe(0);
     // Not under a campus it wasn't tagged with.
     expect(
-      await leader.query(api.events.listBySubgroup, { year: YEAR, subgroup: MACQ })
+      (await leader.query(api.events.listBySubgroup, { subgroup: MACQ })).events
     ).toHaveLength(0);
   });
 
@@ -374,11 +363,8 @@ describe("events + roll-call", () => {
       dateEnd: Date.now() + 3600_000,
       subgroups: [USYD],
     });
-    const list = await leader.query(api.events.listBySubgroup, {
-      year: YEAR,
-      subgroup: USYD,
-    });
-    expect(list.map((e) => e._id)).toEqual([newer, older]);
+    const list = await leader.query(api.events.listBySubgroup, { subgroup: USYD });
+    expect(list.events.map((e) => e._id)).toEqual([newer, older]);
   });
 
   test("sign in is idempotent; sign out removes; counts track", async () => {
@@ -398,21 +384,15 @@ describe("events + roll-call", () => {
     let rows = await leader.query(api.attendance.listByEvent, { eventId });
     expect(rows.map((r) => r.email).sort()).toEqual([LEADER, STAFF].sort());
 
-    let list = await leader.query(api.events.listBySubgroup, {
-      year: YEAR,
-      subgroup: USYD,
-    });
-    expect(list[0].attendanceCount).toBe(2);
+    let list = await leader.query(api.events.listBySubgroup, { subgroup: USYD });
+    expect(list.events[0].attendanceCount).toBe(2);
 
     await leader.mutation(api.attendance.signOut, { eventId, email: STAFF });
     rows = await leader.query(api.attendance.listByEvent, { eventId });
     expect(rows.map((r) => r.email)).toEqual([LEADER]);
 
-    list = await leader.query(api.events.listBySubgroup, {
-      year: YEAR,
-      subgroup: USYD,
-    });
-    expect(list[0].attendanceCount).toBe(1);
+    list = await leader.query(api.events.listBySubgroup, { subgroup: USYD });
+    expect(list.events[0].attendanceCount).toBe(1);
   });
 
   test("email is normalised to lowercase on sign-in", async () => {
@@ -498,12 +478,9 @@ describe("events + roll-call", () => {
       subgroups: [USYD, MACQ],
     });
     for (const subgroup of [USYD, MACQ]) {
-      const list = await leader.query(api.events.listBySubgroup, {
-        year: YEAR,
-        subgroup,
-      });
-      expect(list.map((e) => e._id)).toContain(id);
-      expect(list.find((e) => e._id === id)!.collaborative).toBe(true);
+      const list = await leader.query(api.events.listBySubgroup, { subgroup });
+      expect(list.events.map((e) => e._id)).toContain(id);
+      expect(list.events.find((e) => e._id === id)!.collaborative).toBe(true);
     }
     // events.get annotates the single event with the same collaborative flag.
     const got = await leader.query(api.events.get, { eventId: id });
@@ -520,16 +497,10 @@ describe("events + roll-call", () => {
       dateEnd,
       subgroups: [USYD, SOW_SUBGROUP],
     });
-    const usyd = await leader.query(api.events.listBySubgroup, {
-      year: YEAR,
-      subgroup: USYD,
-    });
-    const sow = await leader.query(api.events.listBySubgroup, {
-      year: YEAR,
-      subgroup: SOW_SUBGROUP,
-    });
-    expect(usyd.map((e) => e._id)).toContain(id);
-    expect(sow.map((e) => e._id)).toContain(id);
+    const usyd = await leader.query(api.events.listBySubgroup, { subgroup: USYD });
+    const sow = await leader.query(api.events.listBySubgroup, { subgroup: SOW_SUBGROUP });
+    expect(usyd.events.map((e) => e._id)).toContain(id);
+    expect(sow.events.map((e) => e._id)).toContain(id);
   });
 
   test("legacy ALL collaboration values still match the SOW list", async () => {
@@ -541,11 +512,8 @@ describe("events + roll-call", () => {
       dateEnd,
       subgroups: [USYD, "ALL"],
     });
-    const sow = await leader.query(api.events.listBySubgroup, {
-      year: YEAR,
-      subgroup: SOW_SUBGROUP,
-    });
-    expect(sow.map((e) => e._id)).toContain(id);
+    const sow = await leader.query(api.events.listBySubgroup, { subgroup: SOW_SUBGROUP });
+    expect(sow.events.map((e) => e._id)).toContain(id);
     const got = await leader.query(api.events.get, { eventId: id });
     expect(got!.subgroups).toEqual([USYD, SOW_SUBGROUP]);
   });
@@ -630,14 +598,9 @@ describe("validation + permissions", () => {
       dateEnd,
       subgroups: [USYD],
     });
-    expect(await outsider.query(api.events.subgroups, { year: YEAR })).toEqual(
-      []
-    );
+    expect(await outsider.query(api.events.subgroups, {})).toEqual([]);
     expect(
-      await outsider.query(api.events.listBySubgroup, {
-        year: YEAR,
-        subgroup: USYD,
-      })
+      (await outsider.query(api.events.listBySubgroup, { subgroup: USYD })).events
     ).toEqual([]);
     expect(await outsider.query(api.attendance.roster, { year: YEAR })).toEqual(
       []
@@ -725,10 +688,10 @@ describe("guards + edge cases", () => {
       subgroups: [USYD],
     });
     // No identity → every read degrades gracefully rather than leaking data.
-    expect(await t.query(api.events.subgroups, { year: YEAR })).toEqual([]);
+    expect(await t.query(api.events.subgroups, {})).toEqual([]);
     expect(await t.query(api.attendance.roster, { year: YEAR })).toEqual([]);
     expect(
-      await t.query(api.events.listBySubgroup, { year: YEAR, subgroup: USYD })
+      (await t.query(api.events.listBySubgroup, { subgroup: USYD })).events
     ).toEqual([]);
     expect(await t.query(api.events.get, { eventId })).toBeNull();
     expect(await t.query(api.attendance.listByEvent, { eventId })).toEqual([]);
@@ -771,7 +734,7 @@ describe("guards + edge cases", () => {
       leader.mutation(api.attendance.signOut, { eventId, email: STAFF })
     ).resolves.toBeNull();
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
-    const memberId = await leader.mutation(api.attendanceMembers.create, { year: YEAR, name: "G" });
+    const memberId = await leader.mutation(api.attendanceMembers.create, { name: "G" });
     await expect(
       leader.mutation(api.attendance.signOut, { eventId, memberId })
     ).resolves.toBeNull();
@@ -791,10 +754,7 @@ describe("guards + edge cases", () => {
       subgroups: [USYD],
     });
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
-    const memberId = await leader.mutation(api.attendanceMembers.create, {
-      year: YEAR,
-      name: "G",
-    });
+    const memberId = await leader.mutation(api.attendanceMembers.create, { name: "G" });
     // Neither identifier.
     await expect(
       leader.mutation(api.attendance.signOut, { eventId })
@@ -810,7 +770,6 @@ describe("guards + edge cases", () => {
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
     const memberId = await leader.mutation(api.attendanceMembers.create, {
-      year: YEAR,
       name: "Guest",
     });
     const { dateStart, dateEnd } = window();
@@ -834,15 +793,6 @@ describe("guards + edge cases", () => {
     expect(
       (await leader.query(api.attendance.listByEvent, { eventId }))[0]?.name
     ).toBe("Guest");
-    await expect(
-      leader.mutation(api.attendance.signIn, {
-        eventId,
-        memberId: (await leader.mutation(api.attendanceMembers.create, {
-          year: YEAR + 1,
-          name: "Wrong year",
-        })) as typeof memberId,
-      })
-    ).rejects.toThrow(/Member not found/i);
   });
 
   test("events.update patches name, dates, subgroups, and tags", async () => {
@@ -963,7 +913,6 @@ describe("guards + edge cases", () => {
     const campusField = fields.find((f) => f.key === "Campus")!;
     const maleId = Object.entries(genderField.values ?? {}).find(([, v]) => v === "Male")?.[0]!;
     const memberId = await leader.mutation(api.attendanceMembers.create, {
-      year: YEAR,
       name: "Test Member",
       // A non-staff member's campus comes from their own metadata value.
       metadata: { [genderField._id]: maleId, [campusField._id]: USYD },
@@ -989,7 +938,6 @@ describe("guards + edge cases", () => {
     const fields = await leader.query(api.attendanceMetadata.list, { year: YEAR });
     const yearField = fields.find((f) => f.key === "Year")!;
     const shadowId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
-      year: YEAR,
       staffEmail: LEADER,
     });
     await leader.mutation(api.attendanceMembers.update, {
