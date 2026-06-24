@@ -504,8 +504,9 @@ export default function AdminScreen() {
     : assignableRoles;
 
   // Profiles grouped by division > department for the org-chart-style list.
+  const leaverEmails = new Set((leavers ?? []).map((u) => u.email));
   const directoryOnlyUnassigned = (syncState?.users ?? []).filter(
-    (u) => !u.hasProfile && !unassignedEmails.has(u.email)
+    (u) => !u.hasProfile && !unassignedEmails.has(u.email) && !leaverEmails.has(u.email)
   );
   const groupedProfiles = (structure?.divisions ?? []).map((div) => {
     const seenInDepartments = new Set<string>();
@@ -629,18 +630,21 @@ export default function AdminScreen() {
               <Txt style={{ fontWeight: "600" }}>{user.name ?? user.email}</Txt>
               {user.name ? <Muted>{user.email}</Muted> : null}
             </View>
-            <Btn
-              title="Not serving"
-              variant="ghost"
+            <IconButton
+              name="log-out-outline"
+              size={40}
+              color={t.danger}
+              accessibilityLabel="Leaving"
               onPress={() =>
                 void run(() =>
                   markLeaving({ email: user.email, year: selectedYear })
                 )
               }
             />
-            <Btn
-              title="Assign"
-              variant="ghost"
+            <IconButton
+              name="person-add-outline"
+              size={40}
+              accessibilityLabel="Assign"
               onPress={() => startAssign(user.email)}
             />
           </Row>
@@ -837,7 +841,7 @@ export default function AdminScreen() {
           {editable && (leavers ?? []).length > 0 && (
             <>
               <SectionTitle>
-                Not serving — {selectedYear} ({(leavers ?? []).length})
+                Leaving — {selectedYear} ({(leavers ?? []).length})
               </SectionTitle>
               {(leavers ?? []).map((user) => renderLeaverCard(user))}
             </>
