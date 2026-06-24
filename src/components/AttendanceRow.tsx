@@ -20,7 +20,7 @@ import Animated, {
  *
  *  - Swipe LEFT: primary action — sign in (not signed in) or sign out (signed in).
  *    Past the commit distance (or fast fling), the row flings off and `onAction` fires.
- *    A shorter drag snaps open to preview; tap the revealed strip to commit.
+ *    A shorter drag snaps open to preview (visual only); only a full drag or fling commits.
  *  - Swipe RIGHT: edit — snaps open to show the pencil; full swipe or tap the strip
  *    to open the edit modal.
  *
@@ -129,17 +129,6 @@ function AttendanceRowBase({
     primarySnapped.value = false;
     runOnJS(setSnapClosed)();
     translateX.value = slideTo(0);
-  };
-
-  const onPrimaryStripPress = () => {
-    editSnapped.value = false;
-    primarySnapped.value = false;
-    setSnapClosed();
-    translateX.value = withTiming(-rowWidth, { duration: 180 });
-    opacity.value = withTiming(0, { duration: 180 });
-    itemHeight.value = withTiming(0, { duration: 200 }, (done) => {
-      if (done) runOnJS(onAction)();
-    });
   };
 
   const onEditStripPress = () => {
@@ -281,15 +270,6 @@ function AttendanceRowBase({
           accessibilityLabel="Edit member"
           style={[styles.actionHit, styles.editHit, { width: SNAP_POSITION }]}
           onPress={onEditStripPress}
-        />
-      ) : null}
-
-      {snapVisual === "primary" ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={mode === "suggested" ? "Sign in" : "Sign out"}
-          style={[styles.actionHit, styles.primaryHit, { width: SNAP_POSITION }]}
-          onPress={onPrimaryStripPress}
         />
       ) : null}
 
