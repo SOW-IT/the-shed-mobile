@@ -14,6 +14,7 @@ import {
 import { canonicalSubgroup, normalizeSubgroups, SOW_SUBGROUP } from "../shared/rollcall";
 import {
   canonicalImportMemberName,
+  canonicalStaffEmail,
   canonicalStaffEmailFromLegacy,
 } from "../shared/rollcallImport";
 import { Id } from "./_generated/dataModel";
@@ -522,10 +523,22 @@ export const mergeLegacyStaffMembers = mutation({
 
     for (const member of members) {
       if (member.staffEmail) continue;
-      const targetEmail = canonicalStaffEmailForLegacyMember(member);
+      // Map the member to a staff-profile email, treating @sowaustralia.com and
+      // @sow.org.au as the same person (and the Daniel Kim Snr name case). Only
+      // @sow.org.au addresses can belong to a staff profile, so anything else
+      // (personal/campus emails) is left as a plain member.
+      const legacy = canonicalStaffEmailForLegacyMember(member);
+      const direct = canonicalStaffEmail(member.email);
+      const targetEmail =
+        legacy ?? (direct?.endsWith("@sow.org.au") ? direct : null);
       if (!targetEmail) continue;
 
-      const profile = await getProfile(ctx, targetEmail, year);
+      // A calendar-year import spans two staff years (Sep 1 rollover), so a
+      // member may be staff in either `year` (Jan–Aug events) or `year + 1`
+      // (Sep–Dec events). Match against whichever has the profile.
+      const profile =
+        (await getProfile(ctx, targetEmail, year)) ??
+        (await getProfile(ctx, targetEmail, year + 1));
       if (!profile) {
         skipped.push({
           memberId: member._id,

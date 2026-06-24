@@ -137,6 +137,75 @@ describe("legacy import matching", () => {
   });
 });
 
+describe("mergeLegacyStaffMembers (staff-year-aware relink)", () => {
+  test("links @sow.org.au and @sowaustralia.com members to the next staff year's profile", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // Calendar import year 2025; the staff profiles live in staff year 2026
+    // (the next managed year in tests). LEADER's profile is seeded by setup
+    // under YEAR (2026); add a second dotted-email staff profile for 2026.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "jane.doe@sow.org.au",
+      year: 2026,
+      roles: ["Student Leader"],
+      university: USYD,
+    });
+
+    // Two legacy members under calendar year 2025 with NO staffEmail: one
+    // already stored as @sow.org.au, one still @sowaustralia.com (vice versa).
+    const { m1, m2, eventId } = await t.run(async (ctx) => {
+      const dateStart = Date.UTC(2025, 10, 1, 9, 0, 0); // Nov 2025 → staff year 2026
+      const eId = await ctx.db.insert("events", {
+        year: 2025,
+        name: "Nov event",
+        dateStart,
+        dateEnd: dateStart + 3600_000,
+        subgroups: [USYD],
+      });
+      const a = await ctx.db.insert("attendanceMembers", {
+        year: 2025,
+        name: "Leader Legacy",
+        email: LEADER, // leader@sow.org.au
+      });
+      const b = await ctx.db.insert("attendanceMembers", {
+        year: 2025,
+        name: "Jane Doe",
+        email: "jane.doe@sowaustralia.com",
+      });
+      await ctx.db.insert("attendance", { eventId: eId, memberId: a, year: 2025, signInTime: dateStart });
+      await ctx.db.insert("attendance", { eventId: eId, memberId: b, year: 2025, signInTime: dateStart });
+      return { m1: a, m2: b, eventId: eId };
+    });
+
+    const res = await admin.mutation(api.rollcallImport.mergeLegacyStaffMembers, {
+      year: 2025,
+    });
+    expect(res.mergedMembers).toBe(2);
+    expect(res.attendanceMoved).toBe(2);
+
+    const after = await t.run(async (ctx) => {
+      const att = await ctx.db
+        .query("attendance")
+        .withIndex("by_event", (q) => q.eq("eventId", eventId))
+        .collect();
+      return {
+        att: att.map((a) => ({ email: a.email, memberId: a.memberId })).sort((x, y) =>
+          (x.email ?? "").localeCompare(y.email ?? "")
+        ),
+        oldM1: await ctx.db.get(m1),
+        oldM2: await ctx.db.get(m2),
+      };
+    });
+    // Legacy member rows removed, attendance now keyed by the staff email.
+    expect(after.oldM1).toBeNull();
+    expect(after.oldM2).toBeNull();
+    expect(after.att).toEqual([
+      { email: "jane.doe@sow.org.au", memberId: undefined },
+      { email: LEADER, memberId: undefined },
+    ]);
+  });
+});
+
 describe("staff year derivation for events", () => {
   test("a Sep–Dec event shows the next staff year's roles/campus", async () => {
     const t = await setup();
