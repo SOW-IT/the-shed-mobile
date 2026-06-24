@@ -9,12 +9,15 @@ import {
   eventHasEnded,
   formatEventDate,
   formatSignInTime,
+  SOW_SUBGROUP,
   subgroupLabel,
 } from "../../../../shared/rollcall";
 import { AttendanceRow } from "@/components/AttendanceRow";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
+import { ReorderableList } from "@/components/ReorderableList";
 import {
+  Btn,
   Chip,
   EmptyState,
   FadeInView,
@@ -25,6 +28,8 @@ import {
   Screen,
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
+
+const ROSTER_PAGE_SIZE = 30;
 
 /** Subtitle for a roster row. */
 const memberSubtitle = (member: {
@@ -61,17 +66,19 @@ export default function EventAttendanceScreen() {
 
   const event = useQuery(api.events.get, { eventId: evId });
   const attendance = useQuery(api.attendance.listByEvent, { eventId: evId });
+  const eventSubgroup = event?.subgroups[0];
   // The roll-call pool is the year's shared staff roster.
   const roster = useQuery(
     api.attendance.roster,
-    event ? { year: event.year } : "skip"
+    event ? { year: event.year, subgroup: eventSubgroup, eventId: evId } : "skip"
   );
   const signIn = useMutation(api.attendance.signIn);
   const signOut = useMutation(api.attendance.signOut);
+  const updateRecord = useMutation(api.attendance.updateRecord);
   const ensureForStaff = useMutation(api.attendanceMembers.ensureForStaff);
   const metadataFields = useQuery(
     api.attendanceMetadata.list,
-    event ? { year: event.year } : "skip"
+    event ? { year: event.year, subgroup: eventSubgroup } : "skip"
   );
   const subgroups = useQuery(
     api.events.subgroups,
@@ -89,6 +96,10 @@ export default function EventAttendanceScreen() {
     notes?: string;
   } | null>(null);
   const [editUnlocked, setEditUnlocked] = useState(false);
+  const [unsignedLimit, setUnsignedLimit] = useState(ROSTER_PAGE_SIZE);
+  const [signedInLimit, setSignedInLimit] = useState(ROSTER_PAGE_SIZE);
+  const [searchLimit, setSearchLimit] = useState(ROSTER_PAGE_SIZE);
+  const [signedInOrder, setSignedInOrder] = useState<Id<"attendance">[]>([]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset unlock when opening another event
@@ -108,17 +119,84 @@ export default function EventAttendanceScreen() {
     [attendance]
   );
 
-  const suggested = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return (roster ?? [])
-      .filter((m) => !signedInKeys.has(m.key))
-      .filter((m) =>
-        q
-          ? m.name.toLowerCase().includes(q) ||
-            (m.email?.toLowerCase().includes(q) ?? false)
-          : true
-      );
-  }, [roster, signedInKeys, search]);
+  const attendanceByKey = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof attendance>[number]>();
+    for (const row of attendance ?? []) {
+      const key = personKey(row);
+      if (key) map.set(key, row);
+    }
+    return map;
+  }, [attendance]);
+
+  const searchQuery = search.trim().toLowerCase();
+  const isSearching = searchQuery.length > 0;
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset paging when roster/search changes
+    setUnsignedLimit(ROSTER_PAGE_SIZE);
+    setSignedInLimit(ROSTER_PAGE_SIZE);
+    setSearchLimit(ROSTER_PAGE_SIZE);
+  }, [search, signedInKeys]);
+
+  useEffect(() => {
+    if (!attendance) return;
+    const ids = attendance.map((row) => row._id);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync local drag order from server rows
+    setSignedInOrder((prev) => {
+      const same =
+        prev.length === ids.length && prev.every((id, index) => id === ids[index]);
+      return same ? prev : ids;
+    });
+  }, [attendance]);
+
+  const orderedAttendance = useMemo(() => {
+    const rows = attendance ?? [];
+    const byId = new Map(rows.map((row) => [row._id, row]));
+    const ordered = signedInOrder.flatMap((id) => {
+      const row = byId.get(id);
+      return row ? [row] : [];
+    });
+    const seen = new Set(ordered.map((row) => row._id));
+    return [...ordered, ...rows.filter((row) => !seen.has(row._id))];
+  }, [attendance, signedInOrder]);
+
+  const unsignedList = useMemo(() => {
+    return (roster ?? []).filter((m) => !signedInKeys.has(m.key));
+  }, [roster, signedInKeys]);
+
+  const searchResults = useMemo(() => {
+    if (!isSearching) return [];
+    return (roster ?? []).filter(
+      (m) =>
+        m.name.toLowerCase().includes(searchQuery) ||
+        (m.email?.toLowerCase().includes(searchQuery) ?? false)
+    );
+  }, [roster, isSearching, searchQuery]);
+
+  const visibleUnsigned = unsignedList.slice(0, unsignedLimit);
+  const visibleSignedIn = orderedAttendance.slice(0, signedInLimit);
+  const visibleSearchResults = searchResults.slice(0, searchLimit);
+
+  const reorderSignedIn = (rows: typeof orderedAttendance) => {
+    if (!canEdit) return;
+    setSignedInOrder(rows.map((row) => row._id));
+    const slots = orderedAttendance
+      .map((row) => row.signInTime)
+      .sort((a, b) => b - a);
+    rows.forEach((row, index) => {
+      const signInTime = slots[index];
+      if (signInTime !== undefined && row.signInTime !== signInTime) {
+        void updateRecord({ attendanceId: row._id, signInTime });
+      }
+    });
+  };
+
+  const reorderVisibleSignedIn = (visibleRows: typeof orderedAttendance) => {
+    if (!canEdit) return;
+    const visibleIds = new Set(visibleRows.map((row) => row._id));
+    const tail = orderedAttendance.filter((row) => !visibleIds.has(row._id));
+    reorderSignedIn([...visibleRows, ...tail]);
+  };
 
   if (event === undefined || attendance === undefined || subgroups === undefined) {
     return <LoadingState />;
@@ -197,7 +275,7 @@ export default function EventAttendanceScreen() {
       footer={
         pastEvent && !editUnlocked ? (
           <FooterAction
-            title="Enable editing"
+            title="+ Enable editing"
             onPress={() => {
               hapticSelect();
               setEditUnlocked(true);
@@ -212,11 +290,15 @@ export default function EventAttendanceScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Edit event"
-            onPress={() => setEventEditOpen(true)}
+            disabled={!canEdit}
+            onPress={() => {
+              if (!canEdit) return;
+              setEventEditOpen(true);
+            }}
             style={({ pressed }) => [
               styles.editEventButton,
-              { borderColor: t.primary },
-              pressed && { opacity: 0.7 },
+              { borderColor: t.primary, opacity: canEdit ? 1 : 0.4 },
+              pressed && canEdit && { opacity: 0.7 },
             ]}
           >
             <Text style={[typography.caption, styles.editEventText, { color: t.primary }]}>
@@ -255,51 +337,140 @@ export default function EventAttendanceScreen() {
           placeholder="Search members…"
           placeholderTextColor={t.faint}
           autoCapitalize="none"
-          editable={canEdit}
         />
       </View>
 
-      {attendance.length > 0 ? (
+      {isSearching ? (
         <>
           <Text style={[typography.label, styles.section, { color: t.muted }]}>
-            Signed in · {attendance.length}
+            Results · {searchResults.length}
           </Text>
-          {attendance.map((a) => (
-            <AttendanceRow
-              key={a._id}
-              name={a.name}
-              subtitle={signedInSubtitle(a.signInTime, a.notes)}
-              mode="signedIn"
-              disabled={!canEdit}
-              onAction={() => onSignOut(a)}
-              onEdit={() => editSignedIn(a)}
-            />
-          ))}
+          {searchResults.length === 0 ? (
+            <Muted>No members match your search.</Muted>
+          ) : (
+            <>
+              {visibleSearchResults.map((m, index) => {
+                const signedIn = signedInKeys.has(m.key);
+                const attendanceRow = attendanceByKey.get(m.key);
+                return (
+                  <FadeInView key={m.key} delay={Math.min(index, 6) * 35}>
+                    <AttendanceRow
+                      name={m.name}
+                      subtitle={
+                        signedIn && attendanceRow
+                          ? signedInSubtitle(attendanceRow.signInTime, attendanceRow.notes)
+                          : memberSubtitle(m)
+                      }
+                      photo={m.photo ?? null}
+                      university={m.university}
+                      mode={signedIn ? "signedIn" : "suggested"}
+                      highlightSignedIn={signedIn}
+                      disabled={!canEdit}
+                      onAction={() => {
+                        if (signedIn && attendanceRow) onSignOut(attendanceRow);
+                        else onSignIn(m);
+                      }}
+                      onEdit={
+                        canEdit
+                          ? () =>
+                              signedIn && attendanceRow
+                                ? editSignedIn(attendanceRow)
+                                : editRosterEntry(m)
+                          : undefined
+                      }
+                    />
+                  </FadeInView>
+                );
+              })}
+              {visibleSearchResults.length < searchResults.length ? (
+                <Btn
+                  title={`Load more (${searchResults.length - visibleSearchResults.length} left)`}
+                  variant="ghost"
+                  onPress={() =>
+                    setSearchLimit((limit) => limit + ROSTER_PAGE_SIZE)
+                  }
+                />
+              ) : null}
+            </>
+          )}
         </>
-      ) : null}
-
-      <Text style={[typography.label, styles.section, { color: t.muted }]}>
-        Not signed in · {suggested.length}
-      </Text>
-      {suggested.length === 0 ? (
-        <Muted>
-          {search
-            ? "No members match your search."
-            : "Everyone in the pool is signed in 🎉"}
-        </Muted>
       ) : (
-        suggested.map((m, index) => (
-          <FadeInView key={m.key} delay={Math.min(index, 6) * 35}>
-            <AttendanceRow
-              name={m.name}
-              subtitle={memberSubtitle(m)}
-              mode="suggested"
-              disabled={!canEdit}
-              onAction={() => onSignIn(m)}
-              onEdit={() => editRosterEntry(m)}
-            />
-          </FadeInView>
-        ))
+        <>
+          <Text style={[typography.label, styles.section, { color: t.muted }]}>
+            Not signed in · {unsignedList.length}
+          </Text>
+          {unsignedList.length === 0 ? (
+            <Muted>Everyone in the pool is signed in 🎉</Muted>
+          ) : (
+            <>
+              {visibleUnsigned.map((m, index) => (
+                <FadeInView key={m.key} delay={Math.min(index, 6) * 35}>
+                  <AttendanceRow
+                    name={m.name}
+                    subtitle={memberSubtitle(m)}
+                    photo={m.photo ?? null}
+                    university={m.university}
+                    mode="suggested"
+                    disabled={!canEdit}
+                    onAction={() => onSignIn(m)}
+                    onEdit={canEdit ? () => editRosterEntry(m) : undefined}
+                  />
+                </FadeInView>
+              ))}
+              {visibleUnsigned.length < unsignedList.length ? (
+                <Btn
+                  title={`Load more (${unsignedList.length - visibleUnsigned.length} left)`}
+                  variant="ghost"
+                  onPress={() =>
+                    setUnsignedLimit((limit) => limit + ROSTER_PAGE_SIZE)
+                  }
+                />
+              ) : null}
+            </>
+          )}
+
+          {orderedAttendance.length > 0 ? (
+            <>
+              <Text style={[typography.label, styles.section, { color: t.muted }]}>
+                Signed in · {orderedAttendance.length}
+              </Text>
+              <ReorderableList
+                items={visibleSignedIn}
+                keyExtractor={(row) => row._id}
+                reorderEnabled={canEdit}
+                onReorder={reorderVisibleSignedIn}
+                renderItem={(a, _index, { dragHandle }) => (
+                  <View style={styles.draggableRow}>
+                    {canEdit ? (
+                      <View style={styles.dragHandleSlot}>{dragHandle}</View>
+                    ) : null}
+                    <View style={styles.draggableContent}>
+                      <AttendanceRow
+                        name={a.name}
+                        subtitle={signedInSubtitle(a.signInTime, a.notes)}
+                        photo={a.photo ?? null}
+                        university={a.university}
+                        mode="signedIn"
+                        disabled={!canEdit}
+                        onAction={() => onSignOut(a)}
+                        onEdit={canEdit ? () => editSignedIn(a) : undefined}
+                      />
+                    </View>
+                  </View>
+                )}
+              />
+              {visibleSignedIn.length < orderedAttendance.length ? (
+                <Btn
+                  title={`Load more (${orderedAttendance.length - visibleSignedIn.length} left)`}
+                  variant="ghost"
+                  onPress={() =>
+                    setSignedInLimit((limit) => limit + ROSTER_PAGE_SIZE)
+                  }
+                />
+              ) : null}
+            </>
+          ) : null}
+        </>
       )}
       <View style={{ height: spacing.xxl }} />
 
@@ -316,8 +487,9 @@ export default function EventAttendanceScreen() {
       <CreateEventSheet
         visible={eventEditOpen}
         onClose={() => setEventEditOpen(false)}
+        onDeleted={() => router.back()}
         year={event.year}
-        subgroup={event.subgroups[0] ?? "ALL"}
+        subgroup={event.subgroups[0] ?? SOW_SUBGROUP}
         subgroups={subgroups}
         event={event}
       />
@@ -369,4 +541,19 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 15 },
   section: { marginTop: spacing.md, marginBottom: spacing.sm },
+  draggableRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  dragHandleSlot: {
+    width: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  draggableContent: {
+    flex: 1,
+    minWidth: 0,
+  },
 });

@@ -1,4 +1,5 @@
 import { ConvexError, v } from "convex/values";
+import { normalizeSubgroups } from "../shared/rollcall";
 import { mutation, query } from "./_generated/server";
 import { optionalProfile, requireProfile } from "./model";
 
@@ -22,6 +23,7 @@ export const saveAll = mutation({
         id: v.optional(v.id("attendanceTags")),
         name: v.string(),
         colour: v.optional(v.string()),
+        subgroups: v.optional(v.array(v.string())),
       })
     ),
     deleteIds: v.array(v.id("attendanceTags")),
@@ -30,7 +32,19 @@ export const saveAll = mutation({
     await requireProfile(ctx);
     for (const id of deleteIds) {
       const row = await ctx.db.get(id);
-      if (row?.year === year) await ctx.db.delete(id);
+      if (!row || row.year !== year) continue;
+      const events = await ctx.db
+        .query("events")
+        .withIndex("by_year", (q) => q.eq("year", year))
+        .collect();
+      for (const event of events) {
+        if (!event.tagIds?.includes(id)) continue;
+        const tagIds = event.tagIds.filter((tagId) => tagId !== id);
+        await ctx.db.patch(event._id, {
+          tagIds: tagIds.length > 0 ? tagIds : undefined,
+        });
+      }
+      await ctx.db.delete(id);
     }
     const names = new Set<string>();
     for (const tag of tags) {
@@ -42,9 +56,22 @@ export const saveAll = mutation({
       if (tag.id) {
         const existing = await ctx.db.get(tag.id);
         if (!existing || existing.year !== year) continue;
-        await ctx.db.patch(tag.id, { name, colour: tag.colour });
+        await ctx.db.patch(tag.id, {
+          name,
+          colour: tag.colour,
+          subgroups: tag.subgroups?.length
+            ? normalizeSubgroups(tag.subgroups)
+            : undefined,
+        });
       } else {
-        await ctx.db.insert("attendanceTags", { year, name, colour: tag.colour });
+        await ctx.db.insert("attendanceTags", {
+          year,
+          name,
+          colour: tag.colour,
+          subgroups: tag.subgroups?.length
+            ? normalizeSubgroups(tag.subgroups)
+            : undefined,
+        });
       }
     }
   },

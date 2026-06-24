@@ -287,28 +287,33 @@ export default defineSchema({
   // ───────────────────────────── Roll-call ─────────────────────────────
   // A lightweight attendance feature ported from time-to-rollcall. SOW is the
   // implicit org; its sub-groups are the campuses (the per-year `universities`
-  // rows) plus the synthetic "ALL". Every sub-group shares ONE member pool —
+  // rows) plus org-wide "SOW". Every sub-group shares ONE member pool —
   // all of the year's `staffProfiles` — so an event's sub-groups are just the
   // campus label(s) it's run under, never a different roster.
 
   // An event belongs to a staff `year` and is tagged with one or more
-  // sub-groups (university names, or the literal "ALL"). Two+ sub-groups ⇒ a
+  // sub-groups (university names, or the literal "SOW"). Two+ sub-groups ⇒ a
   // collaborative event that appears under each. Dates are epoch-ms.
   events: defineTable({
     year: v.number(),
     name: v.string(),
     dateStart: v.number(),
     dateEnd: v.number(),
-    // University names (e.g. "University of Sydney") and/or the literal "ALL".
+    sourceImportId: v.optional(v.string()),
+    // University names (e.g. "University of Sydney") and/or "SOW".
     subgroups: v.array(v.string()),
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
-  }).index("by_year", ["year"]),
+  })
+    .index("by_year", ["year"])
+    .index("by_year_and_sourceImportId", ["year", "sourceImportId"]),
 
   // Event category tags (e.g. "Weekly Meeting"), per staff year.
   attendanceTags: defineTable({
     year: v.number(),
     name: v.string(),
     colour: v.optional(v.string()),
+    // Undefined/empty means global. Otherwise this tag only applies to these sub-groups.
+    subgroups: v.optional(v.array(v.string())),
   })
     .index("by_year", ["year"])
     .index("by_year_and_name", ["year", "name"]),
@@ -320,6 +325,8 @@ export default defineSchema({
     type: v.union(v.literal("select"), v.literal("input")),
     order: v.number(),
     values: v.optional(v.record(v.string(), v.string())),
+    // Undefined means global. Otherwise this field is only relevant for this sub-group.
+    subgroup: v.optional(v.string()),
     /** When true, select values seeded from org data cannot be removed. */
     lockedValues: v.optional(v.array(v.string())),
   }).index("by_year", ["year"]),
@@ -331,10 +338,12 @@ export default defineSchema({
     name: v.string(),
     email: v.optional(v.string()),
     staffEmail: v.optional(v.string()),
+    sourceImportId: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.string())),
   })
     .index("by_year", ["year"])
     .index("by_year_and_name", ["year", "name"])
+    .index("by_year_and_sourceImportId", ["year", "sourceImportId"])
     .index("by_year_and_staff_email", ["year", "staffEmail"]),
 
   // One row per (event, person). Staff use `email`; extra members use

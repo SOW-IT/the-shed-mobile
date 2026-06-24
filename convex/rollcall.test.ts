@@ -2,7 +2,7 @@
 import { convexTest, type TestConvex } from "convex-test";
 import { beforeEach, describe, expect, test } from "vitest";
 import { staffYearForDate } from "../shared/flow";
-import { ALL_SUBGROUP } from "../shared/rollcall";
+import { ALL_SUBGROUP, SOW_SUBGROUP } from "../shared/rollcall";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
 
@@ -55,8 +55,9 @@ describe("subgroups", () => {
     const subgroups = await asUser(t, LEADER).query(api.events.subgroups, {
       year: YEAR,
     });
-    // "ALL" is always first; the campuses follow, alphabetically sorted.
-    expect(subgroups[0]).toBe(ALL_SUBGROUP);
+    // SOW is always first; the campuses follow, alphabetically sorted.
+    expect(subgroups[0]).toBe(SOW_SUBGROUP);
+    expect(ALL_SUBGROUP).toBe(SOW_SUBGROUP);
     expect(subgroups).toContain(USYD);
     expect(subgroups).toContain(MACQ);
     const campuses = subgroups.slice(1);
@@ -251,6 +252,45 @@ describe("events + roll-call", () => {
     const got = await leader.query(api.events.get, { eventId: id });
     expect(got).not.toBeNull();
     expect(got!.collaborative).toBe(true);
+  });
+
+  test("campus event collaborating with org-wide SOW appears under SOW", async () => {
+    const leader = asUser(t, LEADER);
+    const { dateStart, dateEnd } = window();
+    const id = await leader.mutation(api.events.create, {
+      name: "SEASONS",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD, SOW_SUBGROUP],
+    });
+    const usyd = await leader.query(api.events.listBySubgroup, {
+      year: YEAR,
+      subgroup: USYD,
+    });
+    const sow = await leader.query(api.events.listBySubgroup, {
+      year: YEAR,
+      subgroup: SOW_SUBGROUP,
+    });
+    expect(usyd.map((e) => e._id)).toContain(id);
+    expect(sow.map((e) => e._id)).toContain(id);
+  });
+
+  test("legacy ALL collaboration values still match the SOW list", async () => {
+    const leader = asUser(t, LEADER);
+    const { dateStart, dateEnd } = window();
+    const id = await leader.mutation(api.events.create, {
+      name: "Legacy collab",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD, "ALL"],
+    });
+    const sow = await leader.query(api.events.listBySubgroup, {
+      year: YEAR,
+      subgroup: SOW_SUBGROUP,
+    });
+    expect(sow.map((e) => e._id)).toContain(id);
+    const got = await leader.query(api.events.get, { eventId: id });
+    expect(got!.subgroups).toEqual([USYD, SOW_SUBGROUP]);
   });
 
   test("remove deletes the event and its attendance", async () => {

@@ -1065,6 +1065,7 @@ export const Sheet = ({
   children,
   scrollable = true,
   title,
+  headerRight,
   contentStyle,
   footer,
 }: {
@@ -1074,6 +1075,8 @@ export const Sheet = ({
   scrollable?: boolean;
   /** Headline pinned above scrolling content, with a close affordance. */
   title?: string;
+  /** Optional action rendered beside close (e.g. destructive trash icon). */
+  headerRight?: ReactNode;
   /** Overrides default body padding — use for non-form content. */
   contentStyle?: StyleProp<ViewStyle>;
   /** Pinned action row below scrolling content (e.g. Save). */
@@ -1103,6 +1106,7 @@ export const Sheet = ({
         >
           {retainedTitle}
         </Text>
+        {headerRight}
         <Pressable
           hitSlop={8}
           onPress={onClose}

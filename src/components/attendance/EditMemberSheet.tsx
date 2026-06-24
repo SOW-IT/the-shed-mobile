@@ -1,11 +1,14 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Doc, Id } from "../../../convex/_generated/dataModel";
 import {
+  CAMPUS_FIELD_KEY,
   encodeYearMetadataValue,
   orderedSelectOptions,
+  ROLE_FIELD_KEY,
   STUDENT_YEAR_FIELD_KEY,
   yearOptionIdForStoredValue,
 } from "../../../shared/attendanceMemberMeta";
@@ -56,6 +59,8 @@ export function EditMemberSheet({
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteText, setDeleteText] = useState("");
 
   useEffect(() => {
     if (!visible) return;
@@ -72,6 +77,8 @@ export function EditMemberSheet({
     }
     setNotes(eventAttendance?.notes ?? "");
     setError(null);
+    setDeleteOpen(false);
+    setDeleteText("");
   }, [visible, memberId, row, eventAttendance?.attendanceId, eventAttendance?.notes]);
 
   const submit = async () => {
@@ -118,6 +125,29 @@ export function EditMemberSheet({
       visible={visible}
       onClose={onClose}
       title={memberId ? "Edit member" : "New member"}
+      headerRight={
+        memberId && !isStaffOverlay && !loading ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Delete member"
+            hitSlop={8}
+            onPress={() => setDeleteOpen(true)}
+            style={({ pressed }) => [
+              {
+                width: 34,
+                height: 34,
+                borderRadius: 17,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: t.dangerSoft,
+              },
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Ionicons name="trash-outline" size={18} color={t.danger} />
+          </Pressable>
+        ) : null
+      }
       footer={
         loading ? null : (
           <View style={{ gap: spacing.sm }}>
@@ -127,13 +157,6 @@ export function EditMemberSheet({
               loading={submitting}
               disabled={!isStaffOverlay && !name.trim()}
             />
-            {memberId && !isStaffOverlay ? (
-              <Btn
-                title="Delete"
-                variant="danger"
-                onPress={() => void onDelete()}
-              />
-            ) : null}
           </View>
         )
       }
@@ -156,8 +179,11 @@ export function EditMemberSheet({
             keyboardType="email-address"
             disabled={isStaffOverlay}
           />
-          {metadataFields.map((field) =>
-            field.type === "select" ? (
+          {metadataFields.map((field) => {
+            const lockedForStaff =
+              isStaffOverlay &&
+              (field.key === CAMPUS_FIELD_KEY || field.key === ROLE_FIELD_KEY);
+            return field.type === "select" ? (
               <Select
                 key={field._id}
                 label={
@@ -180,6 +206,7 @@ export function EditMemberSheet({
                     ({ id, label }) => ({ label, value: id })
                   ),
                 ]}
+                disabled={lockedForStaff}
                 onSelect={(v) =>
                   setMetadata((prev) => {
                     const next = { ...prev };
@@ -210,9 +237,10 @@ export function EditMemberSheet({
                 onChangeText={(v) =>
                   setMetadata((prev) => ({ ...prev, [field._id]: v }))
                 }
+                disabled={lockedForStaff}
               />
-            )
-          )}
+            );
+          })}
           {eventAttendance ? (
             <Field
               label="Notes"
@@ -225,6 +253,31 @@ export function EditMemberSheet({
           {error ? (
             <Txt style={[typography.caption, { color: t.danger }]}>{error}</Txt>
           ) : null}
+          <Sheet
+            visible={deleteOpen}
+            onClose={() => setDeleteOpen(false)}
+            title="Delete member"
+            footer={
+              <Btn
+                title="Delete member"
+                variant="danger"
+                loading={submitting}
+                disabled={deleteText.trim() !== name.trim()}
+                onPress={() => void onDelete()}
+              />
+            }
+          >
+            <Txt style={[typography.body, { color: t.text }]}>
+              This deletes the member and removes this member from every event they are
+              signed into. Type their name to confirm.
+            </Txt>
+            <Field
+              label="Member name"
+              value={deleteText}
+              onChangeText={setDeleteText}
+              placeholder={name}
+            />
+          </Sheet>
         </>
       )}
     </Sheet>

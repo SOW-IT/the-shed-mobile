@@ -117,13 +117,15 @@ export default function AttendanceScreen() {
     },
     {
       key: "settings",
-      label: "Settings",
-      render: () => <SettingsTab year={year} />,
+      label: "Tags",
+      render: () => <SettingsTab year={year} subgroups={subgroups} />,
     },
     {
       key: "metadata",
       label: "Metadata",
-      render: () => <MetadataTab year={year} />,
+      render: () => (
+        <MetadataTab year={year} subgroups={subgroups} defaultSubgroup={subgroup} />
+      ),
     },
   ];
 

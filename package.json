@@ -61,6 +61,10 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "convex:dev": "convex dev",
+    "migrate:sow-subgroup": "node scripts/migrate-sow-subgroup.mjs",
+    "repair:gender-metadata": "node scripts/repair-gender-metadata.mjs",
+    "rollcall-import:dry-run": "node scripts/rollcall-import-dry-run.mjs",
+    "rollcall-import:apply": "node scripts/rollcall-import-apply.mjs",
     "deploy:web": "node scripts/deploy-web.mjs"
   },
   "private": true

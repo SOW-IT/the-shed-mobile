@@ -1,6 +1,10 @@
 import { ConvexError, v } from "convex/values";
 import { assignmentsOf, roleNeedsUniversity } from "../shared/flow";
-import { formatMetadataFieldValue } from "../shared/attendanceMemberMeta";
+import {
+  CAMPUS_FIELD_KEY,
+  formatMetadataFieldValue,
+} from "../shared/attendanceMemberMeta";
+import { compareAttendanceFrequency, memberMatchesEventCampus, normalizeSubgroups, subgroupMatches } from "../shared/rollcall";
 import { mutation, query } from "./_generated/server";
 import { getProfile, optionalProfile, requireProfile } from "./model";
 
@@ -12,23 +16,63 @@ export type RosterEntry = {
   name: string;
   roles: string[];
   campuses: string[];
+  university?: string;
   subtitle?: string;
+  photo?: string | null;
 };
+
+type MetadataField = {
+  _id: string;
+  key: string;
+  values?: Record<string, string>;
+};
+
+const resolveUniversity = (
+  fields: MetadataField[],
+  metadata: Record<string, string> | undefined,
+  orgCampuses: string[] = []
+): string | undefined => {
+  const campusField = fields.find((field) => field.key === CAMPUS_FIELD_KEY);
+  if (campusField && metadata) {
+    const raw = metadata[campusField._id];
+    if (raw) {
+      const label = campusField.values?.[raw] ?? raw;
+      if (label && label !== "Other") return label;
+    }
+  }
+  return orgCampuses[0];
+};
+
+const personKey = (row: {
+  email?: string | null;
+  memberId?: string | null;
+}): string =>
+  row.email ? `staff:${row.email}` : row.memberId ? `member:${row.memberId}` : "";
 
 /**
  * The shared member pool for a year: every `staffProfile` plus attendance-only
  * members. Each entry carries roles/campuses or metadata for the row subtitle.
  */
 export const roster = query({
-  args: { year: v.number() },
-  handler: async (ctx, { year }) => {
+  args: {
+    year: v.number(),
+    subgroup: v.optional(v.string()),
+    eventId: v.optional(v.id("events")),
+  },
+  handler: async (ctx, { year, subgroup, eventId }) => {
     if (!(await optionalProfile(ctx))) return [];
+    const event = eventId ? await ctx.db.get(eventId) : null;
     const metadataFields = (
       await ctx.db
         .query("attendanceMetadata")
         .withIndex("by_year", (q) => q.eq("year", year))
         .collect()
-    ).sort((a, b) => a.order - b.order);
+    )
+      .filter(
+        (field) =>
+          !subgroup || !field.subgroup || subgroupMatches(field.subgroup, subgroup)
+      )
+      .sort((a, b) => a.order - b.order);
 
     const profiles = await ctx.db
       .query("staffProfiles")
@@ -58,7 +102,7 @@ export const roster = query({
         .filter(Boolean)
         .join(" · ");
 
-    const staffRows: RosterEntry[] = profiles.map((p) => {
+    const staffRows: RosterEntry[] = await Promise.all(profiles.map(async (p) => {
       const shadow = shadowByEmail.get(p.email.toLowerCase());
       const assignments = assignmentsOf(p);
       const roles = [...new Set(assignments.map((a) => a.role))];
@@ -77,6 +121,7 @@ export const roster = query({
             : "";
       const metaSubtitle = metadataSubtitle(shadow?.metadata);
       const subtitle = [orgSubtitle, metaSubtitle].filter(Boolean).join(" · ");
+      const user = p.userId ? await ctx.db.get(p.userId) : null;
       return {
         key: `staff:${p.email}`,
         kind: "staff" as const,
@@ -85,9 +130,11 @@ export const roster = query({
         name: p.name ?? p.email,
         roles,
         campuses,
+        university: resolveUniversity(metadataFields, shadow?.metadata, campuses),
         subtitle: subtitle || undefined,
+        photo: user?.image ?? null,
       };
-    });
+    }));
 
     const extraRows: RosterEntry[] = pureExtras.map((m) => ({
       key: `member:${m._id}`,
@@ -96,6 +143,7 @@ export const roster = query({
       name: m.name,
       roles: [],
       campuses: [],
+      university: resolveUniversity(metadataFields, m.metadata),
       subtitle: metadataFields
         .map((f) => {
           const raw = m.metadata?.[f._id];
@@ -106,8 +154,59 @@ export const roster = query({
         .join(" · "),
     }));
 
-    return [...staffRows, ...extraRows].sort((a, b) =>
-      a.name.localeCompare(b.name)
+    const rows = [...staffRows, ...extraRows];
+    if (!event) return rows.sort((a, b) => a.name.localeCompare(b.name));
+
+    const eventTagIds = new Set((event.tagIds ?? []).map(String));
+    const eventSubgroups = new Set(normalizeSubgroups(event.subgroups));
+    const historyEvents = await ctx.db
+      .query("events")
+      .withIndex("by_year", (q) => q.eq("year", year))
+      .collect();
+    const scores = new Map<
+      string,
+      { tagMatches: number; subgroupMatches: number; total: number; latest: number }
+    >();
+    for (const historyEvent of historyEvents) {
+      if (historyEvent._id === event._id) continue;
+      const historyAttendance = await ctx.db
+        .query("attendance")
+        .withIndex("by_event", (q) => q.eq("eventId", historyEvent._id))
+        .collect();
+      for (const row of historyAttendance) {
+        const key = personKey(row);
+        if (!key) continue;
+        const score = scores.get(key) ?? {
+          tagMatches: 0,
+          subgroupMatches: 0,
+          total: 0,
+          latest: 0,
+        };
+        score.total += 1;
+        if ((historyEvent.tagIds ?? []).some((tagId) => eventTagIds.has(String(tagId)))) {
+          score.tagMatches += 1;
+        }
+        if (
+          historyEvent.subgroups.some((historySubgroup) =>
+            eventSubgroups.has(historySubgroup)
+          )
+        ) {
+          score.subgroupMatches += 1;
+        }
+        score.latest = Math.max(score.latest, historyEvent.dateStart);
+        scores.set(key, score);
+      }
+    }
+
+    return rows.sort((a, b) =>
+      compareAttendanceFrequency(
+        scores.get(a.key),
+        scores.get(b.key),
+        memberMatchesEventCampus(eventSubgroups, a),
+        memberMatchesEventCampus(eventSubgroups, b),
+        a.name,
+        b.name
+      )
     );
   },
 });
@@ -122,6 +221,30 @@ export const listByEvent = query({
     if (!(await optionalProfile(ctx))) return [];
     const event = await ctx.db.get(eventId);
     if (!event) return [];
+    const metadataFields = (
+      await ctx.db
+        .query("attendanceMetadata")
+        .withIndex("by_year", (q) => q.eq("year", event.year))
+        .collect()
+    )
+      .filter(
+        (field) =>
+          !event.subgroups[0] ||
+          !field.subgroup ||
+          subgroupMatches(field.subgroup, event.subgroups[0])
+      )
+      .sort((a, b) => a.order - b.order);
+    const metadataSubtitle = (
+      metadata: Record<string, string> | undefined
+    ): string =>
+      metadataFields
+        .map((field) => {
+          const raw = metadata?.[field._id];
+          if (!raw) return null;
+          return formatMetadataFieldValue(field.key, raw, event.year, field.values);
+        })
+        .filter(Boolean)
+        .join(" · ");
     const rows = await ctx.db
       .query("attendance")
       .withIndex("by_event", (q) => q.eq("eventId", eventId))
@@ -130,10 +253,33 @@ export const listByEvent = query({
       rows.map(async (row) => {
         if (row.email) {
           const profile = await getProfile(ctx, row.email, event.year);
+          const shadow = await ctx.db
+            .query("attendanceMembers")
+            .withIndex("by_year_and_staff_email", (q) =>
+              q.eq("year", event.year).eq("staffEmail", row.email)
+            )
+            .unique();
+          const assignments = profile ? assignmentsOf(profile) : [];
+          const roles = [...new Set(assignments.map((assignment) => assignment.role))];
+          const campuses = [
+            ...new Set(
+              assignments.flatMap((assignment) =>
+                assignment.university && roleNeedsUniversity(assignment.role)
+                  ? [assignment.university]
+                  : []
+              )
+            ),
+          ];
+          const user = profile?.userId ? await ctx.db.get(profile.userId) : null;
           return {
             ...row,
             name: profile?.name ?? row.email,
             kind: "staff" as const,
+            roles,
+            campuses,
+            university: resolveUniversity(metadataFields, shadow?.metadata, campuses),
+            subtitle: metadataSubtitle(shadow?.metadata) || undefined,
+            photo: user?.image ?? null,
           };
         }
         if (row.memberId) {
@@ -142,9 +288,23 @@ export const listByEvent = query({
             ...row,
             name: member?.name ?? "Unknown",
             kind: "member" as const,
+            roles: [],
+            campuses: [],
+            university: resolveUniversity(metadataFields, member?.metadata),
+            subtitle: metadataSubtitle(member?.metadata) || undefined,
+            photo: null,
           };
         }
-        return { ...row, name: "Unknown", kind: "staff" as const };
+        return {
+          ...row,
+          name: "Unknown",
+          kind: "staff" as const,
+          roles: [],
+          campuses: [],
+          university: undefined,
+          subtitle: undefined,
+          photo: null,
+        };
       })
     );
     return withNames.sort((a, b) => b.signInTime - a.signInTime);

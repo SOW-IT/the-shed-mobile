@@ -31,6 +31,7 @@ import type * as profile from "../profile.js";
 import type * as push from "../push.js";
 import type * as reminders from "../reminders.js";
 import type * as requests from "../requests.js";
+import type * as rollcallImport from "../rollcallImport.js";
 import type * as userLink from "../userLink.js";
 
 import type {
@@ -63,6 +64,7 @@ declare const fullApi: ApiFromModules<{
   push: typeof push;
   reminders: typeof reminders;
   requests: typeof requests;
+  rollcallImport: typeof rollcallImport;
   userLink: typeof userLink;
 }>;
 

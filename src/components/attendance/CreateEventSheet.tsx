@@ -1,10 +1,11 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Doc, Id } from "../../../convex/_generated/dataModel";
-import { subgroupLabel } from "../../../shared/rollcall";
+import { subgroupLabel, subgroupMatches } from "../../../shared/rollcall";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import { CampusMark } from "@/components/CampusMark";
 import {
@@ -60,6 +61,7 @@ type EditableEvent = Pick<
 export function CreateEventSheet({
   visible,
   onClose,
+  onDeleted,
   year,
   subgroup,
   subgroups,
@@ -67,6 +69,8 @@ export function CreateEventSheet({
 }: {
   visible: boolean;
   onClose: () => void;
+  /** Called after a successful delete (e.g. navigate away from the event screen). */
+  onDeleted?: () => void;
   year: number;
   subgroup: string;
   subgroups: string[];
@@ -81,6 +85,7 @@ export function CreateEventSheet({
   const ensureMetadata = useMutation(api.attendanceMetadata.ensureDefaults);
   const createEvent = useMutation(api.events.create);
   const updateEvent = useMutation(api.events.update);
+  const removeEvent = useMutation(api.events.remove);
 
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
@@ -91,6 +96,9 @@ export function CreateEventSheet({
   const [endTime, setEndTime] = useState(defaultTime(19));
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteText, setDeleteText] = useState("");
+  const eventName = event?.name ?? "";
 
   useEffect(() => {
     if (visible) void ensureMetadata({ year: formYear });
@@ -108,11 +116,20 @@ export function CreateEventSheet({
       setEndTime(event ? timeInputFromMs(event.dateEnd) : defaultTime(19));
       setError(null);
       setSubmitting(false);
+      setDeleteOpen(false);
+      setDeleteText("");
     }
   }, [visible, ownerGroup, event]);
 
   const steps = ["Name", "Tags", "Collaboration", "Schedule"];
   const maxStep = steps.length - 1;
+  const visibleTags = (tags ?? []).filter(
+    (tag) =>
+      !tag.subgroups?.length ||
+      tag.subgroups.some((tagSubgroup) =>
+        collaborators.some((collaborator) => subgroupMatches(tagSubgroup, collaborator))
+      )
+  );
 
   const toggleTag = (id: Id<"attendanceTags">) => {
     setSelectedTags((prev) =>
@@ -168,11 +185,50 @@ export function CreateEventSheet({
     }
   };
 
+  const onDelete = async () => {
+    if (!event || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await removeEvent({ eventId: event._id });
+      setDeleteOpen(false);
+      onClose();
+      onDeleted?.();
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <Sheet
       visible={visible}
       onClose={onClose}
       title={`${isEditing ? "Edit event" : "New event"} · ${steps[step]}`}
+      headerRight={
+        isEditing ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Delete event"
+            hitSlop={8}
+            onPress={() => setDeleteOpen(true)}
+            style={({ pressed }) => [
+              {
+                width: 34,
+                height: 34,
+                borderRadius: 17,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: t.dangerSoft,
+              },
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Ionicons name="trash-outline" size={18} color={t.danger} />
+          </Pressable>
+        ) : null
+      }
       footer={
         <View style={{ flexDirection: "row", gap: spacing.sm }}>
           {step > 0 ? (
@@ -221,7 +277,7 @@ export function CreateEventSheet({
         <View style={{ gap: spacing.sm }}>
           <Txt style={[typography.label, { color: t.muted }]}>Tags</Txt>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {(tags ?? []).map((tag) => (
+            {visibleTags.map((tag) => (
               <AttendanceTagPill
                 key={tag._id}
                 name={tag.name}
@@ -231,8 +287,8 @@ export function CreateEventSheet({
               />
             ))}
           </View>
-          {(tags ?? []).length === 0 ? (
-            <Txt style={{ color: t.faint }}>Add tags in Settings first.</Txt>
+          {visibleTags.length === 0 ? (
+            <Txt style={{ color: t.faint }}>Add tags in Tags first.</Txt>
           ) : null}
         </View>
       ) : null}
@@ -291,6 +347,34 @@ export function CreateEventSheet({
         <Txt style={[typography.caption, { color: t.danger, marginTop: spacing.sm }]}>
           {error}
         </Txt>
+      ) : null}
+
+      {isEditing ? (
+        <Sheet
+          visible={deleteOpen}
+          onClose={() => setDeleteOpen(false)}
+          title="Delete event"
+          footer={
+            <Btn
+              title="Delete event"
+              variant="danger"
+              loading={submitting}
+              disabled={deleteText.trim() !== eventName.trim()}
+              onPress={() => void onDelete()}
+            />
+          }
+        >
+          <Txt style={[typography.body, { color: t.text }]}>
+            This permanently deletes the event and all attendance records for it. Type the
+            event name to confirm.
+          </Txt>
+          <Field
+            label="Event name"
+            value={deleteText}
+            onChangeText={setDeleteText}
+            placeholder={eventName}
+          />
+        </Sheet>
       ) : null}
     </Sheet>
   );

@@ -154,7 +154,7 @@ describe("attendance metadata", () => {
     expect(Object.values(role?.values ?? {})).toContain("Volunteer");
   });
 
-  test("list is staff-only and strips Gender Other", async () => {
+  test("list is staff-only and strips Gender Other but keeps Female", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
@@ -162,6 +162,8 @@ describe("attendance metadata", () => {
     const fields = await leader.query(api.attendanceMetadata.list, { year: YEAR });
     const gender = fields.find((f) => f.key === "Gender");
     expect(Object.values(gender?.values ?? {})).not.toContain("Other");
+    expect(Object.values(gender?.values ?? {})).toContain("Female");
+    expect(Object.values(gender?.values ?? {})).toContain("Male");
   });
 
   test("saveAll creates, patches, and guards locked values", async () => {
@@ -196,22 +198,25 @@ describe("attendance metadata", () => {
 
     const gender = fields.find((f) => f.key === "Gender")!;
 
-    await expect(
-      leader.mutation(api.attendanceMetadata.saveAll, {
-        year: YEAR,
-        fields: [
-          {
-            id: gender._id,
-            key: "Gender",
-            type: "select",
-            order: 1,
-            values: { "2": "Female" },
-            lockedValues: gender.lockedValues,
-          },
-        ],
-        deleteIds: [],
-      })
-    ).rejects.toThrow(/locked value/i);
+    await leader.mutation(api.attendanceMetadata.saveAll, {
+      year: YEAR,
+      fields: [
+        {
+          id: gender._id,
+          key: "Gender",
+          type: "select",
+          order: 1,
+          values: { "2": "Female" },
+          lockedValues: gender.lockedValues,
+        },
+      ],
+      deleteIds: [],
+    });
+    const withGender = await leader.query(api.attendanceMetadata.list, { year: YEAR });
+    expect(withGender.find((f) => f.key === "Gender")?.values).toEqual({
+      "1": "Male",
+      "2": "Female",
+    });
 
     await expect(
       leader.mutation(api.attendanceMetadata.saveAll, {
@@ -427,6 +432,7 @@ describe("attendance members", () => {
     expect(byMetaSort.page.length).toBeGreaterThan(0);
 
     const campusField = fields.find((f) => f.key === "Campus")!;
+    const roleField = fields.find((f) => f.key === "Role")!;
     await leader.mutation(api.attendanceMetadata.saveAll, {
       year: YEAR,
       fields: [
@@ -446,18 +452,28 @@ describe("attendance members", () => {
       year: YEAR,
       staffEmail: LEADER,
     });
+    const refreshedFields = await leader.query(api.attendanceMetadata.list, { year: YEAR });
+    const refreshedCampus = refreshedFields.find((f) => f.key === "Campus")!;
+    const refreshedRole = refreshedFields.find((f) => f.key === "Role")!;
+    const usydId = Object.entries(refreshedCampus.values ?? {}).find(
+      ([, label]) => label === USYD
+    )?.[0]!;
+    const leaderRoleId = Object.entries(refreshedRole.values ?? {}).find(
+      ([, label]) => label === "Student Leader"
+    )?.[0]!;
     await leader.mutation(api.attendanceMembers.update, {
       memberId: shadowId,
       name: "ignored",
-      metadata: { [campusField._id]: otherId },
+      metadata: { [refreshedCampus._id]: otherId, [roleField._id]: "Member" },
     });
     const listed = await leader.query(api.attendanceMembers.list, {
       year: YEAR,
       paginationOpts: { numItems: 50, cursor: null },
     });
-    expect(
-      listed.page.find((r) => r.email === LEADER)?.university
-    ).toBe(USYD);
+    const staffRow = listed.page.find((r) => r.email === LEADER);
+    expect(staffRow?.university).toBe(USYD);
+    expect(staffRow?.metadata[refreshedCampus._id]).toBe(usydId);
+    expect(staffRow?.metadata[refreshedRole._id]).toBe(leaderRoleId);
 
     const unset = await leader.query(api.attendanceMembers.list, {
       year: YEAR,

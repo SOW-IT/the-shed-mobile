@@ -3,6 +3,8 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { memo, useCallback, useState } from "react";
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { universityColour } from "../../shared/flow";
+import { contrastingText, subgroupLabel } from "../../shared/rollcall";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   Easing,
@@ -22,7 +24,7 @@ import Animated, {
  *  - Swipe RIGHT: edit — snaps open to show the pencil; full swipe or tap the strip
  *    to open the edit modal.
  *
- * Tap on the card when closed commits the primary action; when snapped open, tap closes.
+ * Tap on the card only closes a snapped-open preview — sign-in/out requires a swipe.
  */
 
 /** Minimum drag (px) before snapping to the revealed affordance. */
@@ -53,6 +55,7 @@ export interface AttendanceRowProps {
   name: string;
   subtitle?: string;
   photo?: string | null;
+  university?: string;
   mode: AttendanceRowMode;
   /** When true, swipes and taps do not fire actions (past event, editing locked). */
   disabled?: boolean;
@@ -60,26 +63,32 @@ export interface AttendanceRowProps {
   onAction: () => void;
   /** Member edit — fired after a right swipe past the commit distance. Row stays in the list. */
   onEdit?: () => void;
+  /** Blue-tinted card background (e.g. signed-in member visible while searching). */
+  highlightSignedIn?: boolean;
 }
 
 function AttendanceRowBase({
   name,
   subtitle,
   photo,
+  university,
   mode,
   disabled = false,
   onAction,
   onEdit,
+  highlightSignedIn = false,
 }: AttendanceRowProps) {
   const t = useAppTheme();
   const { width: screenWidth } = useWindowDimensions();
   const rowWidth = Math.min(screenWidth, 720) - spacing.lg * 2;
   const commitDistance = rowWidth / 2;
   const primaryColor = mode === "suggested" ? t.success : t.danger;
+  const campusColour = university ? universityColour(university) : undefined;
+  const campusPillLabel = university ? subgroupLabel(university) : "OTHER";
+  const campusPillBackground = campusColour ?? t.ghost;
+  const campusPillText = campusColour ? contrastingText(campusColour) : t.ghostText;
   const primaryIcon =
     mode === "suggested" ? "arrow-forward" : "arrow-undo";
-  const trailingIcon =
-    mode === "suggested" ? "chevron-back" : "checkmark-circle";
 
   const translateX = useSharedValue(0);
   const startX = useSharedValue(0);
@@ -202,12 +211,10 @@ function AttendanceRowBase({
       if (!success || disabled) return;
       if (editSnapped.value || primarySnapped.value) {
         resetSnap();
-        return;
       }
-      flingPrimary();
     });
 
-  const composed = Gesture.Exclusive(pan, tap);
+  const composed = Gesture.Simultaneous(pan, tap);
 
   const cardStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
@@ -289,11 +296,16 @@ function AttendanceRowBase({
       <GestureDetector gesture={composed}>
         <Animated.View
           accessibilityRole="button"
-          accessibilityLabel={
-            mode === "suggested" ? `Sign in ${name}` : `Sign out ${name}`
-          }
-          onAccessibilityTap={onPrimaryStripPress}
-          style={[styles.card, { backgroundColor: t.card, zIndex: 2 }, cardStyle]}
+          accessibilityLabel={name}
+          style={[
+            styles.card,
+            {
+              backgroundColor: highlightSignedIn ? t.primarySoft : t.card,
+              borderColor: campusColour ?? t.separator,
+              zIndex: 2,
+            },
+            cardStyle,
+          ]}
         >
           <Avatar photo={photo ?? null} name={name} size={40} />
           <View style={styles.text}>
@@ -306,7 +318,25 @@ function AttendanceRowBase({
               </Text>
             ) : null}
           </View>
-          <Ionicons name={trailingIcon} size={22} color={t.faint} />
+          <View
+            style={[
+              styles.campusPill,
+              {
+                backgroundColor: campusPillBackground,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                typography.caption,
+                styles.campusPillText,
+                { color: campusPillText },
+              ]}
+              numberOfLines={1}
+            >
+              {campusPillLabel}
+            </Text>
+          </View>
         </Animated.View>
       </GestureDetector>
     </Animated.View>
@@ -346,9 +376,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
-    height: 72,
-    paddingHorizontal: spacing.lg,
+    minHeight: 72,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
     borderRadius: radius.lg,
+    borderWidth: 1.5,
   },
   text: { flex: 1, gap: 2 },
+  campusPill: {
+    maxWidth: 92,
+    borderRadius: radius.full,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  campusPillText: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.1,
+  },
 });

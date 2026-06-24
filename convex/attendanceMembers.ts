@@ -6,7 +6,9 @@ import {
   rolesOfLike,
 } from "../shared/flow";
 import {
+  CAMPUS_FIELD_KEY,
   formatMetadataFieldValue,
+  ROLE_FIELD_KEY,
   STUDENT_YEAR_FIELD_KEY,
   yearMetadataSortKey,
   yearOptionIdForStoredValue,
@@ -30,6 +32,49 @@ type MetadataField = {
   _id: string;
   key: string;
   values?: Record<string, string>;
+};
+
+const metadataFieldsForYear = async (
+  ctx: Parameters<typeof getProfile>[0],
+  year: number
+): Promise<MetadataField[]> =>
+  (
+    await ctx.db
+      .query("attendanceMetadata")
+      .withIndex("by_year", (q) => q.eq("year", year))
+      .collect()
+  ).sort((a, b) => a.order - b.order);
+
+const optionIdForLabel = (field: MetadataField, label: string): string => {
+  for (const [id, value] of Object.entries(field.values ?? {})) {
+    if (value === label) return id;
+  }
+  return label;
+};
+
+const staffLockedMetadata = (
+  fields: MetadataField[],
+  profile: Parameters<typeof assignmentsOf>[0],
+  metadata: Record<string, string> | undefined
+): Record<string, string> => {
+  const next = { ...(metadata ?? {}) };
+  const campusField = fields.find((f) => f.key === CAMPUS_FIELD_KEY);
+  const roleField = fields.find((f) => f.key === ROLE_FIELD_KEY);
+  const assignments = assignmentsOf(profile);
+  const campus = [
+    ...new Set(assignments.flatMap((a) => (a.university ? [a.university] : []))),
+  ][0];
+  const role = rolesOfLike(profile)[0];
+
+  if (campusField) {
+    if (campus) next[campusField._id] = optionIdForLabel(campusField, campus);
+    else delete next[campusField._id];
+  }
+  if (roleField) {
+    if (role) next[roleField._id] = optionIdForLabel(roleField, role);
+    else delete next[roleField._id];
+  }
+  return next;
 };
 
 const metadataLabel = (
@@ -117,6 +162,7 @@ export const list = query({
 
     for (const p of profiles) {
       const shadow = shadowByEmail.get(p.email.toLowerCase());
+      const metadata = staffLockedMetadata(metadataFields, p, shadow?.metadata);
       const assignments = assignmentsOf(p);
       const roles = rolesOfLike(p);
       const campuses = [
@@ -130,14 +176,14 @@ export const list = query({
       const orgSubtitle = staffSubtitle(roles);
       const metaSubtitle = metadataLabel(
         metadataFields,
-        shadow?.metadata,
+        metadata,
         args.year,
-        ["Campus"]
+        [CAMPUS_FIELD_KEY, ROLE_FIELD_KEY]
       );
       const subtitle = [orgSubtitle, metaSubtitle].filter(Boolean).join(" · ");
       const university = resolveUniversity(
         metadataFields,
-        shadow?.metadata,
+        metadata,
         campuses
       );
       rows.push({
@@ -148,7 +194,7 @@ export const list = query({
         memberId: shadow?._id,
         subtitle: subtitle || undefined,
         university,
-        metadata: shadow?.metadata ?? {},
+        metadata,
         photo: user?.image ?? null,
       });
     }
@@ -250,7 +296,17 @@ export const get = query({
   args: { memberId: v.id("attendanceMembers") },
   handler: async (ctx, { memberId }) => {
     if (!(await optionalProfile(ctx))) return null;
-    return await ctx.db.get(memberId);
+    const row = await ctx.db.get(memberId);
+    if (!row?.staffEmail) return row;
+    const profile = await getProfile(ctx, row.staffEmail, row.year);
+    if (!profile) return row;
+    const fields = await metadataFieldsForYear(ctx, row.year);
+    return {
+      ...row,
+      name: profile.name ?? row.name,
+      email: profile.email,
+      metadata: staffLockedMetadata(fields, profile, row.metadata),
+    };
   },
 });
 
@@ -270,12 +326,13 @@ export const ensureForStaff = mutation({
     if (existing) return existing._id;
     const profile = await getProfile(ctx, email, year);
     if (!profile) throw new ConvexError("Staff profile not found.");
+    const fields = await metadataFieldsForYear(ctx, year);
     return await ctx.db.insert("attendanceMembers", {
       year,
       name: profile.name ?? email,
       email,
       staffEmail: email,
-      metadata: {},
+      metadata: staffLockedMetadata(fields, profile, {}),
     });
   },
 });
@@ -312,7 +369,14 @@ export const update = mutation({
     const row = await ctx.db.get(memberId);
     if (!row) throw new ConvexError("Member not found.");
     if (row.staffEmail) {
-      await ctx.db.patch(memberId, { metadata });
+      const profile = await getProfile(ctx, row.staffEmail, row.year);
+      if (!profile) throw new ConvexError("Staff profile not found.");
+      const fields = await metadataFieldsForYear(ctx, row.year);
+      await ctx.db.patch(memberId, {
+        name: profile.name ?? row.name,
+        email: profile.email,
+        metadata: staffLockedMetadata(fields, profile, metadata),
+      });
       return;
     }
     const trimmed = name.trim();

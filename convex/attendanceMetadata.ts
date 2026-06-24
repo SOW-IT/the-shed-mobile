@@ -1,18 +1,26 @@
 import { ConvexError, v } from "convex/values";
 import { ROLES } from "../shared/flow";
 import {
-  sanitizeGenderValues,
+  CAMPUS_FIELD_KEY,
+  canonicalizeGenderValues,
+  GENDER_FIELD_KEY,
+  GENDER_OPTION_IDS,
+  GENDER_VALUES,
+  ROLE_FIELD_KEY,
   STUDENT_YEAR_FIELD_KEY,
   STUDENT_YEAR_LEVELS,
+  STUDENT_YEAR_VALUES,
 } from "../shared/attendanceMemberMeta";
+import { canonicalSubgroup, subgroupMatches } from "../shared/rollcall";
 import { mutation, query } from "./_generated/server";
 import { optionalProfile, requireProfile } from "./model";
 
-const DEFAULT_GENDERS = ["1", "2"];
-const DEFAULT_GENDER_LABELS: Record<string, string> = {
-  "1": "Male",
-  "2": "Female",
-};
+const LOCKED_FIELD_KEYS = new Set([
+  STUDENT_YEAR_FIELD_KEY,
+  GENDER_FIELD_KEY,
+  CAMPUS_FIELD_KEY,
+  ROLE_FIELD_KEY,
+]);
 
 /** A locked token may be a select option id (key) or its display label. */
 const lockedValuePresent = (
@@ -42,8 +50,8 @@ const mergeSelectValues = (
 
 /** List metadata field definitions for a staff year, ordered. */
 export const list = query({
-  args: { year: v.number() },
-  handler: async (ctx, { year }) => {
+  args: { year: v.number(), subgroup: v.optional(v.string()) },
+  handler: async (ctx, { year, subgroup }) => {
     if (!(await optionalProfile(ctx))) return [];
     const [rows, universities, roleRows] = await Promise.all([
       ctx.db
@@ -62,18 +70,27 @@ export const list = query({
     const universityNames = universities.map((u) => u.name);
     const orgRoles = [...new Set([...ROLES, ...roleRows.map((r) => r.name)])];
 
-    return rows.sort((a, b) => a.order - b.order).map((field) => {
-      if (field.key === "Gender" && field.type === "select") {
-        const values = sanitizeGenderValues(field.values ?? DEFAULT_GENDER_LABELS);
+    return rows
+      .filter(
+        (field) =>
+          !subgroup || !field.subgroup || subgroupMatches(field.subgroup, subgroup)
+      )
+      .sort((a, b) => a.order - b.order)
+      .map((field) => {
+      if (field.key === GENDER_FIELD_KEY && field.type === "select") {
+        const values = canonicalizeGenderValues(field.values);
         return {
           ...field,
           values,
-          lockedValues: [...DEFAULT_GENDERS, "Male", "Female"],
+          subgroup: undefined,
+          lockedValues: [...GENDER_OPTION_IDS, "Male", "Female"],
         };
       }
       if (field.key === STUDENT_YEAR_FIELD_KEY && field.type === "select") {
         return {
           ...field,
+          values: STUDENT_YEAR_VALUES,
+          subgroup: undefined,
           lockedValues: [...STUDENT_YEAR_LEVELS],
         };
       }
@@ -82,6 +99,7 @@ export const list = query({
         return {
           ...field,
           values,
+          subgroup: undefined,
           lockedValues: [...new Set([...(field.lockedValues ?? []), ...universityNames])],
         };
       }
@@ -90,11 +108,12 @@ export const list = query({
         return {
           ...field,
           values,
+          subgroup: undefined,
           lockedValues: [...new Set([...(field.lockedValues ?? []), ...orgRoles])],
         };
       }
-      return field;
-    });
+        return field;
+      });
   },
 });
 
@@ -128,26 +147,23 @@ export const ensureDefaults = mutation({
       roleValues[String(i + 1)] = name;
     });
 
-    const yearValues: Record<string, string> = {};
-    STUDENT_YEAR_LEVELS.forEach((label, i) => {
-      yearValues[String(i + 1)] = label;
-    });
-
     await ctx.db.insert("attendanceMetadata", {
       year,
       key: STUDENT_YEAR_FIELD_KEY,
       type: "select",
       order: 0,
-      values: yearValues,
+      values: STUDENT_YEAR_VALUES,
+      subgroup: undefined,
       lockedValues: [...STUDENT_YEAR_LEVELS],
     });
     await ctx.db.insert("attendanceMetadata", {
       year,
-      key: "Gender",
+      key: GENDER_FIELD_KEY,
       type: "select",
       order: 1,
-      values: DEFAULT_GENDER_LABELS,
-      lockedValues: DEFAULT_GENDERS,
+      values: GENDER_VALUES,
+      subgroup: undefined,
+      lockedValues: [...GENDER_OPTION_IDS],
     });
     await ctx.db.insert("attendanceMetadata", {
       year,
@@ -155,6 +171,7 @@ export const ensureDefaults = mutation({
       type: "select",
       order: 2,
       values: campusValues,
+      subgroup: undefined,
       lockedValues: universities.map((u) => u.name),
     });
     await ctx.db.insert("attendanceMetadata", {
@@ -163,6 +180,7 @@ export const ensureDefaults = mutation({
       type: "select",
       order: 3,
       values: roleValues,
+      subgroup: undefined,
       lockedValues: lockedRoles,
     });
     return 4;
@@ -180,6 +198,7 @@ export const saveAll = mutation({
         type: v.union(v.literal("select"), v.literal("input")),
         order: v.number(),
         values: v.optional(v.record(v.string(), v.string())),
+        subgroup: v.optional(v.string()),
         lockedValues: v.optional(v.array(v.string())),
       })
     ),
@@ -189,7 +208,21 @@ export const saveAll = mutation({
     await requireProfile(ctx);
     for (const id of deleteIds) {
       const row = await ctx.db.get(id);
-      if (row?.year === year) await ctx.db.delete(id);
+      if (!row || row.year !== year) continue;
+      if (LOCKED_FIELD_KEYS.has(row.key)) {
+        throw new ConvexError(`Cannot delete locked metadata field "${row.key}".`);
+      }
+      const members = await ctx.db
+        .query("attendanceMembers")
+        .withIndex("by_year", (q) => q.eq("year", year))
+        .collect();
+      for (const member of members) {
+        if (!member.metadata?.[id]) continue;
+        const metadata = { ...member.metadata };
+        delete metadata[id];
+        await ctx.db.patch(member._id, { metadata });
+      }
+      await ctx.db.delete(id);
     }
     const universities = await ctx.db
       .query("universities")
@@ -212,8 +245,15 @@ export const saveAll = mutation({
       keys.add(key.toLowerCase());
 
       let values = field.type === "select" ? { ...(field.values ?? {}) } : undefined;
-      if (key === "Gender" && values) {
-        values = sanitizeGenderValues(values);
+      const subgroup = LOCKED_FIELD_KEYS.has(key)
+        ? undefined
+        : field.subgroup?.trim()
+          ? canonicalSubgroup(field.subgroup.trim())
+          : undefined;
+      if (key === GENDER_FIELD_KEY && values) {
+        values = canonicalizeGenderValues(values);
+      } else if (key === STUDENT_YEAR_FIELD_KEY) {
+        values = STUDENT_YEAR_VALUES;
       } else if (key === "Campus" && values) {
         values = mergeSelectValues(values, universityNames);
       } else if (key === "Role" && values) {
@@ -221,8 +261,8 @@ export const saveAll = mutation({
       }
 
       const lockedValues =
-        key === "Gender"
-          ? [...DEFAULT_GENDERS, "Male", "Female"]
+        key === GENDER_FIELD_KEY
+          ? [...GENDER_OPTION_IDS, "Male", "Female"]
           : key === STUDENT_YEAR_FIELD_KEY
             ? [...STUDENT_YEAR_LEVELS]
             : key === "Campus"
@@ -248,6 +288,7 @@ export const saveAll = mutation({
           type: field.type,
           order: field.order,
           values: field.type === "select" ? values : undefined,
+          subgroup,
           lockedValues,
         });
       } else {
@@ -257,6 +298,7 @@ export const saveAll = mutation({
           type: field.type,
           order: field.order,
           values: field.type === "select" ? values : undefined,
+          subgroup,
           lockedValues,
         });
       }

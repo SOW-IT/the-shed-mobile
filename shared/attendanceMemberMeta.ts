@@ -1,15 +1,31 @@
 /**
  * Attendance member metadata helpers — Year is stored as the staff year the
- * person was in first year; the displayed level (1–5, Alumni) is derived from
+ * person was in first year; the displayed level (1–5, 6+) is derived from
  * that commencement year and the calendar staff year being viewed.
  */
 
 export const STUDENT_YEAR_FIELD_KEY = "Year";
 export const GENDER_FIELD_KEY = "Gender";
+
+export const GENDER_VALUES: Record<string, string> = {
+  "1": "Male",
+  "2": "Female",
+};
+
+export const GENDER_OPTION_IDS = ["1", "2"] as const;
 export const CAMPUS_FIELD_KEY = "Campus";
 export const ROLE_FIELD_KEY = "Role";
 
-export const STUDENT_YEAR_LEVELS = ["1", "2", "3", "4", "5", "Alumni"] as const;
+export const STUDENT_YEAR_LEVELS = ["1", "2", "3", "4", "5", "6+"] as const;
+
+export const STUDENT_YEAR_VALUES: Record<string, string> = {
+  "1": "1",
+  "2": "2",
+  "3": "3",
+  "4": "4",
+  "5": "5",
+  "6": "6+",
+};
 
 const COMMENCEMENT_YEAR_MIN = 2000;
 const COMMENCEMENT_YEAR_MAX = 2100;
@@ -32,7 +48,7 @@ export const studentYearLevelFromCommencement = (
 ): string | null => {
   const level = viewingStaffYear - commencementStaffYear + 1;
   if (level < 1) return null;
-  if (level >= 6) return "Alumni";
+  if (level >= 6) return "6+";
   return String(level);
 };
 
@@ -41,7 +57,9 @@ export const commencementStaffYearFromLevel = (
   levelLabel: string,
   viewingStaffYear: number
 ): number | null => {
-  if (levelLabel === "Alumni") return viewingStaffYear - 5;
+  if (levelLabel === "Alumni" || levelLabel === "6+" || levelLabel === "6") {
+    return viewingStaffYear - 5;
+  }
   const n = parseInt(levelLabel, 10);
   if (!Number.isFinite(n) || n < 1 || n > 5) return null;
   return viewingStaffYear - (n - 1);
@@ -113,7 +131,7 @@ export const encodeYearMetadataValue = (
   return commencement !== null ? String(commencement) : null;
 };
 
-/** Sort key for Year metadata (numeric level, Alumni last). */
+/** Sort key for Year metadata (numeric level, 6+ last). */
 export const yearMetadataSortKey = (
   stored: string,
   viewingStaffYear: number,
@@ -126,20 +144,46 @@ export const yearMetadataSortKey = (
   );
   if (commencement === null) return "";
   const level = studentYearLevelFromCommencement(commencement, viewingStaffYear);
-  if (level === "Alumni") return "6";
+  if (level === "6+") return "6";
   return level ?? "";
 };
 
-/** Remove "Other" from Gender select options. */
+/** Remove "Other" from Gender select options (by label only — id "3" may be Female in imports). */
 export const sanitizeGenderValues = (
   values: Record<string, string>
 ): Record<string, string> => {
   const out: Record<string, string> = {};
   for (const [id, label] of Object.entries(values)) {
-    if (label === "Other" || id === "3") continue;
+    if (label.trim().toLowerCase() === "other") continue;
     out[id] = label;
   }
   return out;
+};
+
+/** Normalise Gender options to canonical ids: 1 = Male, 2 = Female. */
+export const canonicalizeGenderValues = (
+  values: Record<string, string> | undefined
+): Record<string, string> => {
+  const sanitized = sanitizeGenderValues(values ?? {});
+  const out = { ...GENDER_VALUES };
+  for (const label of Object.values(sanitized)) {
+    const lower = label.trim().toLowerCase();
+    if (lower === "male") out["1"] = "Male";
+    else if (lower === "female") out["2"] = "Female";
+  }
+  return out;
+};
+
+/** Map a stored gender option id to the canonical Male/Female ids. */
+export const canonicalizeGenderOptionId = (
+  stored: string,
+  fieldValues?: Record<string, string>
+): string => {
+  const label = fieldValues?.[stored]?.trim().toLowerCase();
+  if (label === "male") return "1";
+  if (label === "female") return "2";
+  if (stored === "1" || stored === "2") return stored;
+  return stored;
 };
 
 export type MetadataSelectOption = { id: string; label: string };

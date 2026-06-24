@@ -8,6 +8,9 @@ import {
   orderedSelectOptions,
   partitionSelectOptions,
   resolveCommencementStaffYear,
+  canonicalizeGenderOptionId,
+  canonicalizeGenderValues,
+  GENDER_VALUES,
   sanitizeGenderValues,
   studentYearLevelFromCommencement,
   yearMetadataSortKey,
@@ -20,7 +23,7 @@ const YEAR_OPTIONS: Record<string, string> = {
   "3": "3",
   "4": "4",
   "5": "5",
-  "6": "Alumni",
+  "6": "6+",
 };
 
 describe("student year from commencement", () => {
@@ -28,12 +31,13 @@ describe("student year from commencement", () => {
     expect(studentYearLevelFromCommencement(2024, 2024)).toBe("1");
     expect(studentYearLevelFromCommencement(2024, 2025)).toBe("2");
     expect(studentYearLevelFromCommencement(2024, 2028)).toBe("5");
-    expect(studentYearLevelFromCommencement(2024, 2029)).toBe("Alumni");
+    expect(studentYearLevelFromCommencement(2024, 2029)).toBe("6+");
   });
 
   test("picking a level stores the implied commencement year", () => {
     expect(commencementStaffYearFromLevel("1", 2026)).toBe(2026);
     expect(commencementStaffYearFromLevel("3", 2026)).toBe(2024);
+    expect(commencementStaffYearFromLevel("6+", 2026)).toBe(2021);
     expect(commencementStaffYearFromLevel("Alumni", 2026)).toBe(2021);
     expect(
       encodeYearMetadataValue("3", 2026, YEAR_OPTIONS)
@@ -80,10 +84,24 @@ describe("partitionSelectOptions", () => {
 });
 
 describe("gender and field helpers", () => {
-  test("sanitizeGenderValues removes Other", () => {
+  test("sanitizeGenderValues removes Other by label only", () => {
     expect(
       sanitizeGenderValues({ "1": "Male", "2": "Female", "3": "Other" })
     ).toEqual({ "1": "Male", "2": "Female" });
+    expect(
+      sanitizeGenderValues({ "2": "Male", "3": "Female" })
+    ).toEqual({ "2": "Male", "3": "Female" });
+  });
+
+  test("canonicalizeGenderValues normalises import ids", () => {
+    expect(canonicalizeGenderValues({ "2": "Male", "3": "Female" })).toEqual(
+      GENDER_VALUES
+    );
+  });
+
+  test("canonicalizeGenderOptionId maps legacy Female id", () => {
+    expect(canonicalizeGenderOptionId("3", { "3": "Female" })).toBe("2");
+    expect(canonicalizeGenderOptionId("2", { "2": "Male" })).toBe("1");
   });
 
   test("metadataFieldAllowsCustomOptions", () => {

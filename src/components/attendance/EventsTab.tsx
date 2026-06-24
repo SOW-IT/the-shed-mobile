@@ -8,12 +8,12 @@ import {
   contrastingText,
   subgroupColour,
   subgroupLabel,
+  subgroupMatches,
 } from "../../../shared/rollcall";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import { CampusMark } from "@/components/CampusMark";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import {
-  Chip,
   EmptyState,
   FadeInView,
   LoadingState,
@@ -140,111 +140,149 @@ export function EventsTab({
               message="Create an event to take attendance."
             />
           ) : (
-            events.map((event, i) => (
-              <FadeInView key={event._id} delay={stagger(i)}>
-                <View
-                  style={[
-                    styles.eventRow,
-                    {
-                      borderBottomColor: t.separator,
-                      backgroundColor: t.background,
-                    },
-                  ]}
-                >
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.eventContent,
-                      pressed && { opacity: 0.62 },
+            <View style={styles.eventsList}>
+            {events.map((event, i) => {
+              const ownerSubgroup = event.subgroups[0] ?? subgroup;
+              const ownerColour = subgroupColour(ownerSubgroup);
+              const isExternalEvent =
+                subgroup != null && !subgroupMatches(ownerSubgroup, subgroup);
+              const openEvent = () =>
+                router.push({
+                  pathname: "/attendance/event/[eventId]",
+                  params: { eventId: event._id },
+                });
+
+              return (
+                <FadeInView key={event._id} delay={stagger(i)}>
+                  <View
+                    style={[
+                      styles.eventRow,
+                      i > 0 && {
+                        borderTopWidth: StyleSheet.hairlineWidth,
+                        borderTopColor: t.separator,
+                      },
+                      {
+                        borderLeftWidth: isExternalEvent ? 4 : 0,
+                        borderLeftColor: isExternalEvent ? ownerColour : "transparent",
+                        backgroundColor: t.background,
+                      },
                     ]}
-                    onPress={() =>
-                      router.push({
-                        pathname: "/attendance/event/[eventId]",
-                        params: { eventId: event._id },
-                      })
-                    }
                   >
-                    <View style={styles.eventTopLine}>
-                      <Text
-                        style={[typography.caption, styles.eventDate, { color: t.muted }]}
-                      >
-                        {formatEventRange(event.dateStart, event.dateEnd)}
-                      </Text>
-                      {(() => {
-                        const status = eventStatus(event.dateStart, event.dateEnd, now);
-                        const tone = statusTone(status, t);
-                        return (
-                          <View style={[styles.statusPill, { backgroundColor: tone.bg }]}>
-                            <Text style={[styles.statusText, { color: tone.fg }]}>
-                              {status}
-                            </Text>
-                          </View>
-                        );
-                      })()}
-                    </View>
-
-                    <View style={styles.badgeRow}>
-                      {event.collaborative ? <Chip label="Collaborative" /> : null}
-                      {event.subgroups.map((s) => {
-                        const colour = subgroupColour(s);
-                        return (
-                          <View
-                            key={s}
-                            style={[
-                              styles.subgroupPill,
-                              {
-                                backgroundColor: colour,
-                              },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                typography.caption,
-                                styles.subgroupPillText,
-                                { color: contrastingText(colour) },
-                              ]}
-                            >
-                              {subgroupLabel(s)}
-                            </Text>
-                          </View>
-                        );
-                      })}
-                      {event.tags?.map((tag) => (
-                        <AttendanceTagPill
-                          key={tag._id}
-                          name={tag.name}
-                          colour={tag.colour}
-                          small
-                        />
-                      ))}
-                    </View>
-
-                    <Text style={[typography.title, styles.eventName, { color: t.text }]}>
-                      {event.name}
-                    </Text>
-                  </Pressable>
-
-                  <View style={styles.attendanceLine}>
-                    <Text style={[typography.label, { color: t.text }]}>
-                      ATTENDANCE: {event.attendanceCount}
-                    </Text>
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel={`Edit ${event.name}`}
-                      onPress={() => setEditingEventId(event._id)}
-                      style={({ pressed }) => [
-                        styles.editButton,
-                        { borderColor: t.primary, backgroundColor: t.background },
-                        pressed && { opacity: 0.7 },
-                      ]}
+                      accessibilityLabel={`Open ${event.name}`}
+                      onPress={openEvent}
+                      style={({ pressed }) => [pressed && { opacity: 0.76 }]}
                     >
-                      <Text style={[styles.editButtonText, { color: t.primary }]}>
-                        Edit
-                      </Text>
+                      <View style={styles.eventContent}>
+                        <View style={styles.eventTopLine}>
+                          <Text
+                            style={[
+                              typography.caption,
+                              styles.eventDate,
+                              { color: t.muted },
+                            ]}
+                          >
+                            {formatEventRange(event.dateStart, event.dateEnd)}
+                          </Text>
+                          {(() => {
+                            const status = eventStatus(
+                              event.dateStart,
+                              event.dateEnd,
+                              now
+                            );
+                            const tone = statusTone(status, t);
+                            return (
+                              <View
+                                style={[styles.statusPill, { backgroundColor: tone.bg }]}
+                              >
+                                <Text style={[styles.statusText, { color: tone.fg }]}>
+                                  {status}
+                                </Text>
+                              </View>
+                            );
+                          })()}
+                        </View>
+
+                        <View style={styles.badgeRow}>
+                          {event.subgroups
+                            .filter((s) => s !== subgroup)
+                            .map((s) => {
+                              const colour = subgroupColour(s);
+                              return (
+                                <View
+                                  key={s}
+                                  style={[
+                                    styles.subgroupPill,
+                                    {
+                                      backgroundColor: colour,
+                                    },
+                                  ]}
+                                >
+                                  <Text
+                                    style={[
+                                      typography.caption,
+                                      styles.subgroupPillText,
+                                      { color: contrastingText(colour) },
+                                    ]}
+                                  >
+                                    {subgroupLabel(s)}
+                                  </Text>
+                                </View>
+                              );
+                            })}
+                          {event.tags?.map((tag) => (
+                            <AttendanceTagPill
+                              key={tag._id}
+                              name={tag.name}
+                              colour={tag.colour}
+                              small
+                            />
+                          ))}
+                        </View>
+
+                        <Text
+                          style={[typography.title, styles.eventName, { color: t.text }]}
+                        >
+                          {event.name}
+                        </Text>
+                      </View>
                     </Pressable>
+
+                    <View style={styles.attendanceLine}>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Open ${event.name}`}
+                        onPress={openEvent}
+                        style={({ pressed }) => [
+                          styles.attendancePressable,
+                          pressed && { opacity: 0.76 },
+                        ]}
+                      >
+                        <Text style={[typography.label, { color: t.text }]}>
+                          ATTENDANCE: {event.attendanceCount}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Edit ${event.name}`}
+                        onPress={() => setEditingEventId(event._id)}
+                        style={({ pressed }) => [
+                          styles.editButton,
+                          { borderColor: t.primary, backgroundColor: t.background },
+                          pressed && { opacity: 0.7 },
+                        ]}
+                      >
+                        <Text style={[styles.editButtonText, { color: t.primary }]}>
+                          Edit
+                        </Text>
+                      </Pressable>
+                    </View>
                   </View>
-                </View>
-              </FadeInView>
-            ))
+                </FadeInView>
+              );
+            })}
+            </View>
           )}
         </>
       )}
@@ -280,10 +318,15 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     padding: 0,
   },
+  eventsList: {
+    borderRadius: radius.md,
+    overflow: "hidden",
+  },
   eventRow: {
-    paddingVertical: spacing.lg,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: spacing.md,
+    paddingVertical: spacing.md,
+    paddingRight: spacing.md,
+    paddingLeft: spacing.md,
+    gap: spacing.sm,
   },
   eventContent: {
     gap: spacing.md,
@@ -325,6 +368,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: spacing.md,
+  },
+  attendancePressable: {
+    flex: 1,
   },
   editButton: {
     borderWidth: 1.5,

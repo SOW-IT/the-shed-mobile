@@ -11,15 +11,51 @@ import { DISPLAY_ACRONYMS, UNIVERSITY_COLOURS, universityColour } from "./flow";
  * `subgroups` array and listed alongside the per-year campuses; never the name
  * of a real `universities` row.
  */
-export const ALL_SUBGROUP = "ALL";
+export const SOW_SUBGROUP = "SOW";
+
+/** @deprecated Alias for {@link SOW_SUBGROUP}; legacy data may still use "ALL". */
+export const ALL_SUBGROUP = SOW_SUBGROUP;
+
+/** Legacy stored ids for the org-wide sub-group. */
+export const SOW_SUBGROUP_ALIASES = new Set(["ALL", SOW_SUBGROUP]);
+
+/** Canonical stored id for a sub-group (campus name or {@link SOW_SUBGROUP}). */
+export const canonicalSubgroup = (subgroup: string): string =>
+  subgroup === "ALL" ? SOW_SUBGROUP : subgroup;
+
+/** De-duplicated sub-groups with legacy "ALL" values folded to {@link SOW_SUBGROUP}. */
+export const normalizeSubgroups = (subgroups: string[]): string[] => {
+  const out: string[] = [];
+  for (const subgroup of subgroups) {
+    const canonical = canonicalSubgroup(subgroup);
+    if (!out.includes(canonical)) out.push(canonical);
+  }
+  return out;
+};
+
+/** True when two subgroup ids refer to the same campus or org-wide group. */
+export const subgroupMatches = (a: string, b: string): boolean =>
+  canonicalSubgroup(a) === canonicalSubgroup(b);
+
+/** True when an event's sub-groups include the asked-for campus or org-wide group. */
+export const eventIncludesSubgroup = (
+  eventSubgroups: string[],
+  subgroup: string
+): boolean =>
+  normalizeSubgroups(eventSubgroups).includes(canonicalSubgroup(subgroup));
+
+const isOrgWideSubgroup = (subgroup: string): boolean =>
+  canonicalSubgroup(subgroup) === SOW_SUBGROUP;
 
 /** Short label for a sub-group: a campus acronym (USYD…) or "SOW" for org-wide. */
 export const subgroupLabel = (subgroup: string): string =>
-  subgroup === ALL_SUBGROUP ? "SOW" : (DISPLAY_ACRONYMS[subgroup] ?? subgroup);
+  isOrgWideSubgroup(subgroup)
+    ? "SOW"
+    : (DISPLAY_ACRONYMS[subgroup] ?? subgroup);
 
-/** Brand colour for a sub-group; the synthetic ALL uses the whole-org SOW colour. */
+/** Brand colour for a sub-group; org-wide SOW uses the whole-org colour. */
 export const subgroupColour = (subgroup: string): string =>
-  subgroup === ALL_SUBGROUP
+  isOrgWideSubgroup(subgroup)
     ? UNIVERSITY_COLOURS.SOW
     : (universityColour(subgroup) ?? "#64748b");
 
@@ -63,6 +99,51 @@ export const formatSignInTime = (ms: number): string =>
 /** True once the scheduled event window has closed — roll-call edits need an explicit unlock. */
 export const eventHasEnded = (dateEnd: number, now = Date.now()): boolean => now > dateEnd;
 
+/** Historical attendance counts used to rank likely attendees for an event. */
+export type AttendanceFrequencyScore = {
+  tagMatches: number;
+  subgroupMatches: number;
+  total: number;
+  latest: number;
+};
+
+/** True when a member's campus metadata or org assignment matches the event's sub-groups. */
+export const memberMatchesEventCampus = (
+  eventSubgroups: ReadonlySet<string>,
+  member: { university?: string; campuses: string[] }
+): boolean => {
+  const labels = [member.university, ...member.campuses].filter(
+    (label): label is string => Boolean(label)
+  );
+  return labels.some((label) => eventSubgroups.has(label));
+};
+
+/**
+ * Sort roster rows for an event: same-tag history, same sub-group history, campus
+ * match, overall attendance, recency, then name.
+ */
+export const compareAttendanceFrequency = (
+  aScore: AttendanceFrequencyScore | undefined,
+  bScore: AttendanceFrequencyScore | undefined,
+  aCampusMatch: boolean,
+  bCampusMatch: boolean,
+  aName: string,
+  bName: string
+): number => {
+  const tagDelta = (bScore?.tagMatches ?? 0) - (aScore?.tagMatches ?? 0);
+  if (tagDelta !== 0) return tagDelta;
+  const subgroupDelta =
+    (bScore?.subgroupMatches ?? 0) - (aScore?.subgroupMatches ?? 0);
+  if (subgroupDelta !== 0) return subgroupDelta;
+  const campusDelta = Number(bCampusMatch) - Number(aCampusMatch);
+  if (campusDelta !== 0) return campusDelta;
+  const totalDelta = (bScore?.total ?? 0) - (aScore?.total ?? 0);
+  if (totalDelta !== 0) return totalDelta;
+  const latestDelta = (bScore?.latest ?? 0) - (aScore?.latest ?? 0);
+  if (latestDelta !== 0) return latestDelta;
+  return aName.localeCompare(bName);
+};
+
 /** Minimal assignment shape for picking a default campus filter. */
 export type ProfileAssignment = {
   role: string;
@@ -71,7 +152,7 @@ export type ProfileAssignment = {
 
 /**
  * Default events sub-group for attendance: the viewer's campus when listed,
- * otherwise the org-wide "ALL" entry (first in the list).
+ * otherwise the org-wide "SOW" entry (first in the list).
  */
 export const defaultAttendanceSubgroup = (
   subgroups: string[],

@@ -1,6 +1,6 @@
 import { ImageSourcePropType } from "react-native";
 import { acronym } from "../../shared/flow";
-import { ALL_SUBGROUP } from "../../shared/rollcall";
+import { SOW_SUBGROUP } from "../../shared/rollcall";
 
 /**
  * Coloured campus wordmarks, keyed by acronym (see shared/flow DISPLAY_ACRONYMS).
@@ -15,7 +15,7 @@ const LOGOS: Record<string, ImageSourcePropType> = {
   MACQ: require("../../assets/images/MQU-yellow.png"),
 };
 
-/** SOW mark for the org-wide "ALL" sub-group — light on dark UI, dark on light UI. */
+/** SOW mark for the org-wide sub-group — light on dark UI, dark on light UI. */
 export const sowLogo = (darkTheme: boolean): ImageSourcePropType =>
   darkTheme
     ? require("../../assets/images/mark-cream.png")
@@ -25,9 +25,11 @@ export const sowLogo = (darkTheme: boolean): ImageSourcePropType =>
 export const universityLogo = (name: string): ImageSourcePropType | null =>
   LOGOS[acronym(name)] ?? null;
 
-/** Wordmark for an attendance sub-group (campus name or the synthetic ALL). */
+/** Wordmark for an attendance sub-group (campus name or org-wide "SOW"). */
 export const subgroupLogo = (
   subgroup: string,
   darkTheme = false
 ): ImageSourcePropType | null =>
-  subgroup === ALL_SUBGROUP ? sowLogo(darkTheme) : universityLogo(subgroup);
+  subgroup === SOW_SUBGROUP || subgroup === "ALL"
+    ? sowLogo(darkTheme)
+    : universityLogo(subgroup);

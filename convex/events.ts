@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { staffYearForDate } from "../shared/flow";
-import { ALL_SUBGROUP } from "../shared/rollcall";
+import { eventIncludesSubgroup, normalizeSubgroups, SOW_SUBGROUP } from "../shared/rollcall";
 import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx, QueryCtx, mutation, query } from "./_generated/server";
 import { optionalProfile, requireProfile } from "./model";
@@ -47,13 +47,13 @@ async function validateEventFields(
   if (args.dateEnd < args.dateStart) {
     throw new ConvexError("Event end can't be before its start.");
   }
-  const uniqueSubgroups = [...new Set(args.subgroups)];
+  const uniqueSubgroups = normalizeSubgroups([...new Set(args.subgroups)]);
   const year = staffYearForDate(new Date(args.dateStart));
   const universities = await ctx.db
     .query("universities")
     .withIndex("by_year_and_name", (q) => q.eq("year", year))
     .collect();
-  const valid = new Set([ALL_SUBGROUP, ...universities.map((u) => u.name)]);
+  const valid = new Set([SOW_SUBGROUP, ...universities.map((u) => u.name)]);
   for (const subgroup of uniqueSubgroups) {
     if (!valid.has(subgroup)) {
       throw new ConvexError(`Unknown sub-group "${subgroup}" for ${year}.`);
@@ -79,7 +79,7 @@ async function validateEventFields(
 
 /**
  * Events for one sub-group in a year, newest first. A sub-group is a campus
- * (university name) or the literal "ALL"; an event appears here when its
+ * (university name) or the literal "SOW"; an event appears here when its
  * `subgroups` array contains the asked-for one. Each row carries a quick
  * attendance count and a `collaborative` flag (2+ sub-groups).
  */
@@ -91,7 +91,9 @@ export const listBySubgroup = query({
       .query("events")
       .withIndex("by_year", (q) => q.eq("year", year))
       .collect();
-    const matching = events.filter((e) => e.subgroups.includes(subgroup));
+    const matching = events.filter((e) =>
+      eventIncludesSubgroup(e.subgroups, subgroup)
+    );
     const withCounts = await Promise.all(
       matching.map(async (event) => ({
         ...(await annotate(ctx, event)),
@@ -103,7 +105,7 @@ export const listBySubgroup = query({
 });
 
 /**
- * The roll-call sub-groups for a year: the synthetic "ALL" plus every campus
+ * The roll-call sub-groups for a year: org-wide "SOW" plus every campus
  * (the year's `universities` rows). Data-driven — campuses come straight from
  * the universities table, so years keep their own campus list.
  */
@@ -116,7 +118,7 @@ export const subgroups = query({
       .withIndex("by_year_and_name", (q) => q.eq("year", year))
       .collect();
     return [
-      ALL_SUBGROUP,
+      SOW_SUBGROUP,
       ...universities.map((u) => u.name).sort((a, b) => a.localeCompare(b)),
     ];
   },
@@ -189,15 +191,17 @@ export const update = mutation({
 
 export const remove = mutation({
   args: { eventId: v.id("events") },
+  returns: v.null(),
   handler: async (ctx, { eventId }) => {
     await requireProfile(ctx);
     const event = await ctx.db.get(eventId);
-    if (!event) return;
+    if (!event) return null;
     const rows = await ctx.db
       .query("attendance")
       .withIndex("by_event", (q) => q.eq("eventId", eventId))
       .collect();
     for (const row of rows) await ctx.db.delete(row._id);
     await ctx.db.delete(eventId);
+    return null;
   },
 });

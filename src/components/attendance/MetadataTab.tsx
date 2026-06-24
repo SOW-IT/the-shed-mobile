@@ -10,6 +10,7 @@ import {
   partitionSelectOptions,
   ROLE_FIELD_KEY,
 } from "../../../shared/attendanceMemberMeta";
+import { subgroupColour, subgroupLabel } from "../../../shared/rollcall";
 import { ReorderableList } from "@/components/ReorderableList";
 import {
   Btn,
@@ -19,9 +20,10 @@ import {
   LoadingState,
   Muted,
   Select,
+  Sheet,
   Txt,
 } from "@/components/ui";
-import { spacing, typography, useAppTheme } from "@/theme";
+import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 type FieldDraft = {
   id?: Id<"attendanceMetadata">;
@@ -31,10 +33,12 @@ type FieldDraft = {
   type: "select" | "input";
   order: number;
   values?: Record<string, string>;
+  subgroup?: string;
   lockedValues?: string[];
 };
 
 const LOCKED_FIELD_KEYS = new Set(["Year", "Gender", "Campus", "Role"]);
+const GLOBAL_ONLY_FIELD_KEYS = new Set(["Year", "Gender", "Campus", "Role", "Notes"]);
 
 const typeLabel = (type: FieldDraft["type"]) =>
   type === "select" ? "Select" : "Text input";
@@ -46,13 +50,14 @@ const reindexFields = (fields: FieldDraft[]) =>
 
 const normalizeFieldsForCompare = (fields: FieldDraft[]) =>
   reindexFields(fields).map(
-    ({ id, draftKey, key, type, order, values, lockedValues }) => ({
+    ({ id, draftKey, key, type, order, values, subgroup, lockedValues }) => ({
       id,
       draftKey,
       key,
       type,
       order,
       values: values ?? {},
+      subgroup,
       lockedValues: lockedValues ?? [],
     })
   );
@@ -110,7 +115,15 @@ const renderSelectOptionEditor = (
   </View>
 );
 
-export function MetadataTab({ year }: { year: number }) {
+export function MetadataTab({
+  year,
+  subgroups,
+  defaultSubgroup,
+}: {
+  year: number;
+  subgroups: string[];
+  defaultSubgroup?: string | null;
+}) {
   const t = useAppTheme();
   const metadata = useQuery(api.attendanceMetadata.list, { year });
   const ensureDefaults = useMutation(api.attendanceMetadata.ensureDefaults);
@@ -120,6 +133,9 @@ export function MetadataTab({ year }: { year: number }) {
   const [savedFields, setSavedFields] = useState<FieldDraft[]>([]);
   const [metaDeletes, setMetaDeletes] = useState<Id<"attendanceMetadata">[]>([]);
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
+  const [scopeIndex, setScopeIndex] = useState<number | null>(null);
+  const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
+  const [deleteText, setDeleteText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -137,6 +153,7 @@ export function MetadataTab({ year }: { year: number }) {
           type: f.type,
           order: f.order,
           values: f.values,
+          subgroup: f.subgroup,
           lockedValues: f.lockedValues,
         }))
       );
@@ -147,6 +164,7 @@ export function MetadataTab({ year }: { year: number }) {
           type: f.type,
           order: f.order,
           values: f.values,
+          subgroup: f.subgroup,
           lockedValues: f.lockedValues,
         }))
       );
@@ -200,7 +218,11 @@ export function MetadataTab({ year }: { year: number }) {
           return (
             <Card
               style={[
-                { marginBottom: 0 },
+                {
+                  marginBottom: 0,
+                  borderWidth: field.subgroup ? 2 : StyleSheet.hairlineWidth,
+                  borderColor: field.subgroup ? subgroupColour(field.subgroup) : t.separator,
+                },
                 dragging && { shadowOpacity: 0.2, elevation: 4 },
               ]}
             >
@@ -221,6 +243,11 @@ export function MetadataTab({ year }: { year: number }) {
                       {field.key.trim() || "New field"}
                     </Text>
                     <Muted>{typeLabel(field.type)}</Muted>
+                    <Muted>
+                      {field.subgroup
+                        ? `Specific to ${subgroupLabel(field.subgroup)}`
+                        : "Applies to all groups"}
+                    </Muted>
                   </View>
                   <Ionicons
                     name={expanded ? "chevron-up" : "chevron-down"}
@@ -266,6 +293,16 @@ export function MetadataTab({ year }: { year: number }) {
                         )
                       )
                     }
+                  />
+                  <Btn
+                    title={
+                      field.subgroup
+                        ? `Group: ${subgroupLabel(field.subgroup)}`
+                        : "Group: all groups"
+                    }
+                    variant="ghost"
+                    disabled={GLOBAL_ONLY_FIELD_KEYS.has(field.key)}
+                    onPress={() => setScopeIndex(i)}
                   />
                   {field.type === "select"
                     ? (() => {
@@ -331,13 +368,8 @@ export function MetadataTab({ year }: { year: number }) {
                       title="Delete field"
                       variant="danger"
                       onPress={() => {
-                        setMetaDeletes((d) => [...d, field.id!]);
-                        setMetaDrafts((prev) => reindexFields(prev.filter((_, j) => j !== i)));
-                        setExpandedKeys((prev) => {
-                          const next = new Set(prev);
-                          next.delete(key);
-                          return next;
-                        });
+                        setDeleteIndex(i);
+                        setDeleteText("");
                       }}
                     />
                   ) : null}
@@ -356,7 +388,13 @@ export function MetadataTab({ year }: { year: number }) {
           setMetaDrafts((prev) =>
             reindexFields([
               ...prev,
-              { draftKey, key: "", type: "input", order: prev.length },
+              {
+                draftKey,
+                key: "",
+                type: "input",
+                order: prev.length,
+                subgroup: defaultSubgroup ?? undefined,
+              },
             ])
           );
           setExpandedKeys((prev) => new Set(prev).add(draftKey));
@@ -374,6 +412,99 @@ export function MetadataTab({ year }: { year: number }) {
           {error}
         </Txt>
       ) : null}
+      <Sheet
+        visible={scopeIndex !== null}
+        onClose={() => setScopeIndex(null)}
+        title="Metadata group"
+      >
+        <View style={styles.scopeRow}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              if (scopeIndex === null) return;
+              setMetaDrafts((prev) =>
+                prev.map((x, j) => (j === scopeIndex ? { ...x, subgroup: undefined } : x))
+              );
+              setScopeIndex(null);
+            }}
+          >
+            <Txt
+              style={[
+                styles.scopePill,
+                {
+                  color: t.ghostText,
+                  backgroundColor: t.ghost,
+                  borderColor: !metaDrafts[scopeIndex ?? -1]?.subgroup ? t.primary : t.separator,
+                },
+              ]}
+            >
+              All groups
+            </Txt>
+          </Pressable>
+          {subgroups.map((subgroup) => (
+            <Pressable
+              key={subgroup}
+              accessibilityRole="button"
+              onPress={() => {
+                if (scopeIndex === null) return;
+                setMetaDrafts((prev) =>
+                  prev.map((x, j) => (j === scopeIndex ? { ...x, subgroup } : x))
+                );
+                setScopeIndex(null);
+              }}
+            >
+              <Txt
+                style={[
+                  styles.scopePill,
+                  {
+                    color: "#ffffff",
+                    backgroundColor: subgroupColour(subgroup),
+                    borderColor:
+                      metaDrafts[scopeIndex ?? -1]?.subgroup === subgroup
+                        ? t.primary
+                        : subgroupColour(subgroup),
+                  },
+                ]}
+              >
+                {subgroupLabel(subgroup)}
+              </Txt>
+            </Pressable>
+          ))}
+        </View>
+      </Sheet>
+      <Sheet
+        visible={deleteIndex !== null}
+        onClose={() => setDeleteIndex(null)}
+        title="Delete metadata"
+        footer={
+          <Btn
+            title="Delete metadata"
+            variant="danger"
+            disabled={
+              deleteIndex === null ||
+              deleteText.trim() !== metaDrafts[deleteIndex]?.key.trim()
+            }
+            onPress={() => {
+              if (deleteIndex === null) return;
+              const field = metaDrafts[deleteIndex];
+              if (field?.id) setMetaDeletes((d) => [...d, field.id!]);
+              setMetaDrafts((prev) => reindexFields(prev.filter((_, j) => j !== deleteIndex)));
+              setDeleteIndex(null);
+            }}
+          />
+        }
+      >
+        <Muted>
+          This deletes this metadata field and removes its saved value from every member
+          that has it. Type the metadata name to confirm.
+        </Muted>
+        <Field
+          label="Metadata name"
+          value={deleteText}
+          onChangeText={setDeleteText}
+          placeholder={deleteIndex !== null ? metaDrafts[deleteIndex]?.key : ""}
+        />
+      </Sheet>
     </>
   );
 }
@@ -388,5 +519,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
+  },
+  scopeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  scopePill: {
+    overflow: "hidden",
+    borderWidth: 2,
+    borderRadius: radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    fontWeight: "700",
   },
 });
