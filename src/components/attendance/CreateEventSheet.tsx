@@ -3,8 +3,8 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
-import { Id } from "../../../convex/_generated/dataModel";
-import { ALL_SUBGROUP, subgroupLabel } from "../../../shared/rollcall";
+import { Doc, Id } from "../../../convex/_generated/dataModel";
+import { subgroupLabel } from "../../../shared/rollcall";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import { CampusMark } from "@/components/CampusMark";
 import {
@@ -39,24 +39,48 @@ const defaultDate = (): string => {
 const defaultTime = (hour: number): string =>
   `${String(hour).padStart(2, "0")}:00`;
 
+const dateInputFromMs = (ms: number): string => {
+  const d = new Date(ms);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
+const timeInputFromMs = (ms: number): string => {
+  const d = new Date(ms);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(
+    d.getMinutes()
+  ).padStart(2, "0")}`;
+};
+
+type EditableEvent = Pick<
+  Doc<"events">,
+  "_id" | "year" | "name" | "dateStart" | "dateEnd" | "subgroups" | "tagIds"
+>;
+
 export function CreateEventSheet({
   visible,
   onClose,
   year,
   subgroup,
   subgroups,
+  event,
 }: {
   visible: boolean;
   onClose: () => void;
   year: number;
   subgroup: string;
   subgroups: string[];
+  event?: EditableEvent;
 }) {
   const t = useAppTheme();
   const router = useRouter();
-  const tags = useQuery(api.attendanceTags.list, { year });
+  const formYear = event?.year ?? year;
+  const isEditing = event !== undefined;
+  const ownerGroup = event?.subgroups[0] ?? subgroup;
+  const tags = useQuery(api.attendanceTags.list, { year: formYear });
   const ensureMetadata = useMutation(api.attendanceMetadata.ensureDefaults);
   const createEvent = useMutation(api.events.create);
+  const updateEvent = useMutation(api.events.update);
 
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
@@ -69,28 +93,25 @@ export function CreateEventSheet({
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (visible) void ensureMetadata({ year });
-  }, [visible, year, ensureMetadata]);
+    if (visible) void ensureMetadata({ year: formYear });
+  }, [visible, formYear, ensureMetadata]);
 
   useEffect(() => {
     if (visible) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- reset wizard when sheet opens
       setStep(0);
-      setName("");
-      setSelectedTags([]);
-      setCollaborators([subgroup]);
-      setDateStr(defaultDate());
-      setStartTime(defaultTime(17));
-      setEndTime(defaultTime(19));
+      setName(event?.name ?? "");
+      setSelectedTags(event?.tagIds ?? []);
+      setCollaborators(event?.subgroups ?? [ownerGroup]);
+      setDateStr(event ? dateInputFromMs(event.dateStart) : defaultDate());
+      setStartTime(event ? timeInputFromMs(event.dateStart) : defaultTime(17));
+      setEndTime(event ? timeInputFromMs(event.dateEnd) : defaultTime(19));
       setError(null);
       setSubmitting(false);
     }
-  }, [visible, subgroup]);
+  }, [visible, ownerGroup, event]);
 
-  const isCampus = subgroup !== ALL_SUBGROUP;
-  const steps = isCampus
-    ? ["Name", "Tags", "Collaboration", "Schedule"]
-    : ["Name", "Tags", "Schedule"];
+  const steps = ["Name", "Tags", "Collaboration", "Schedule"];
   const maxStep = steps.length - 1;
 
   const toggleTag = (id: Id<"attendanceTags">) => {
@@ -100,10 +121,11 @@ export function CreateEventSheet({
   };
 
   const toggleCollaborator = (sg: string) => {
+    if (sg === ownerGroup) return;
     setCollaborators((prev) => {
       if (prev.includes(sg)) {
         const next = prev.filter((x) => x !== sg);
-        return next.length ? next : [subgroup];
+        return next.includes(ownerGroup) ? next : [ownerGroup, ...next];
       }
       return [...prev, sg];
     });
@@ -122,13 +144,19 @@ export function CreateEventSheet({
     }
     if (dateEnd <= dateStart) dateEnd = dateStart + 2 * 60 * 60 * 1000;
     try {
-      const eventId = await createEvent({
+      const payload = {
         name,
         dateStart,
         dateEnd,
         subgroups: collaborators,
         tagIds: selectedTags.length ? selectedTags : undefined,
-      });
+      };
+      if (event) {
+        await updateEvent({ eventId: event._id, ...payload });
+        onClose();
+        return;
+      }
+      const eventId = await createEvent(payload);
       onClose();
       router.push({
         pathname: "/attendance/event/[eventId]",
@@ -144,7 +172,7 @@ export function CreateEventSheet({
     <Sheet
       visible={visible}
       onClose={onClose}
-      title={`New event · ${steps[step]}`}
+      title={`${isEditing ? "Edit event" : "New event"} · ${steps[step]}`}
       footer={
         <View style={{ flexDirection: "row", gap: spacing.sm }}>
           {step > 0 ? (
@@ -157,7 +185,11 @@ export function CreateEventSheet({
               disabled={step === 0 && !name.trim()}
             />
           ) : (
-            <Btn title="Create" onPress={() => void submit()} loading={submitting} />
+            <Btn
+              title={isEditing ? "Save" : "Create"}
+              onPress={() => void submit()}
+              loading={submitting}
+            />
           )}
         </View>
       }
@@ -205,34 +237,40 @@ export function CreateEventSheet({
         </View>
       ) : null}
 
-      {isCampus && step === 2 ? (
+      {step === 2 ? (
         <View style={{ gap: spacing.sm }}>
           <Txt style={[typography.label, { color: t.muted }]}>
             Collaboration — other groups can see this event
           </Txt>
           {subgroups
-            .filter((sg) => sg !== subgroup)
-            .map((sg) => (
-              <Pressable
-                key={sg}
-                onPress={() => toggleCollaborator(sg)}
-                style={({ pressed }) => [
-                  {
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: 10,
-                    borderRadius: 10,
-                    borderWidth: 2,
-                    borderColor: collaborators.includes(sg) ? t.primary : t.border,
-                    opacity: pressed ? 0.7 : 1,
-                  },
-                ]}
-              >
-                <CampusMark campus={sg} size="sm" />
-                <Txt>{subgroupLabel(sg)}</Txt>
-              </Pressable>
-            ))}
+            .map((sg) => {
+              const isOwner = sg === ownerGroup;
+              return (
+                <Pressable
+                  key={sg}
+                  disabled={isOwner}
+                  onPress={() => toggleCollaborator(sg)}
+                  style={({ pressed }) => [
+                    {
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: 10,
+                      borderRadius: 10,
+                      borderWidth: 2,
+                      borderColor: collaborators.includes(sg) ? t.primary : t.border,
+                      opacity: pressed ? 0.7 : isOwner ? 0.62 : 1,
+                    },
+                  ]}
+                >
+                  <CampusMark campus={sg} size="sm" />
+                  <Txt>
+                    {subgroupLabel(sg)}
+                    {isOwner ? " · owner" : ""}
+                  </Txt>
+                </Pressable>
+              );
+            })}
         </View>
       ) : null}
 

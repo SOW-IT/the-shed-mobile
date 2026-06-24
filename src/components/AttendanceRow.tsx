@@ -54,6 +54,8 @@ export interface AttendanceRowProps {
   subtitle?: string;
   photo?: string | null;
   mode: AttendanceRowMode;
+  /** When true, swipes and taps do not fire actions (past event, editing locked). */
+  disabled?: boolean;
   /** Sign in / sign out — fired after a left swipe (or tap). */
   onAction: () => void;
   /** Member edit — fired after a right swipe past the commit distance. Row stays in the list. */
@@ -65,6 +67,7 @@ function AttendanceRowBase({
   subtitle,
   photo,
   mode,
+  disabled = false,
   onAction,
   onEdit,
 }: AttendanceRowProps) {
@@ -140,6 +143,7 @@ function AttendanceRowBase({
   };
 
   const pan = Gesture.Pan()
+    .enabled(!disabled)
     .activeOffsetX([-12, 12])
     .failOffsetY([-14, 14])
     .onStart(() => {
@@ -192,9 +196,10 @@ function AttendanceRowBase({
     });
 
   const tap = Gesture.Tap()
+    .enabled(!disabled)
     .maxDistance(8)
     .onEnd((_e, success) => {
-      if (!success) return;
+      if (!success || disabled) return;
       if (editSnapped.value || primarySnapped.value) {
         resetSnap();
         return;
@@ -230,7 +235,9 @@ function AttendanceRowBase({
   });
 
   return (
-    <Animated.View style={[styles.container, containerStyle]}>
+    <Animated.View
+      style={[styles.container, containerStyle, disabled && styles.disabled]}
+    >
       {/* Edit — revealed when swiping right */}
       <Animated.View
         pointerEvents="none"
@@ -312,6 +319,9 @@ const styles = StyleSheet.create({
   container: {
     justifyContent: "center",
     marginBottom: spacing.sm,
+  },
+  disabled: {
+    opacity: 0.55,
   },
   actionLayer: {
     position: "absolute",

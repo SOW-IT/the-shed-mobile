@@ -1,6 +1,6 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
-import { useLocalSearchParams } from "expo-router";
+import { Redirect, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import {
@@ -208,6 +208,8 @@ export default function RequestsScreen() {
   const loadMoreRef = useRef<(() => void) | null>(null);
 
   if (me === undefined) return <Screen><LoadingState /></Screen>;
+
+  if (me?.isCampusLeader) return <Redirect href="/attendance" />;
 
   if (me === null || me.profile === null) {
     return (

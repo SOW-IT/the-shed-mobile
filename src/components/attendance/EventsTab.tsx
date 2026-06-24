@@ -1,9 +1,9 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
+import { Id } from "../../../convex/_generated/dataModel";
 import {
   contrastingText,
   subgroupColour,
@@ -11,12 +11,12 @@ import {
 } from "../../../shared/rollcall";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import { CampusMark } from "@/components/CampusMark";
+import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import {
   Chip,
   EmptyState,
   FadeInView,
   LoadingState,
-  Muted,
   stagger,
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
@@ -78,6 +78,8 @@ export function EventsTab({
     api.events.listBySubgroup,
     subgroup ? { year, subgroup } : "skip"
   );
+  const [editingEventId, setEditingEventId] = useState<Id<"events"> | null>(null);
+  const editingEvent = events?.find((event) => event._id === editingEventId);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 60_000);
@@ -86,10 +88,6 @@ export function EventsTab({
 
   return (
     <>
-      <View style={{ marginBottom: spacing.sm }}>
-        <Muted>SOW · {year}</Muted>
-      </View>
-
       {subgroups.length === 0 ? (
         <EmptyState
           icon="people-outline"
@@ -144,91 +142,122 @@ export function EventsTab({
           ) : (
             events.map((event, i) => (
               <FadeInView key={event._id} delay={stagger(i)}>
-                <Pressable
-                  style={({ pressed }) => [
+                <View
+                  style={[
                     styles.eventRow,
                     {
                       borderBottomColor: t.separator,
                       backgroundColor: t.background,
                     },
-                    pressed && { opacity: 0.62 },
                   ]}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/attendance/event/[eventId]",
-                      params: { eventId: event._id },
-                    })
-                  }
                 >
-                  <View style={styles.eventTopLine}>
-                    <Text style={[typography.caption, styles.eventDate, { color: t.muted }]}>
-                      {formatEventRange(event.dateStart, event.dateEnd)}
-                    </Text>
-                    {(() => {
-                      const status = eventStatus(event.dateStart, event.dateEnd, now);
-                      const tone = statusTone(status, t);
-                      return (
-                        <View style={[styles.statusPill, { backgroundColor: tone.bg }]}>
-                          <Text style={[styles.statusText, { color: tone.fg }]}>
-                            {status}
-                          </Text>
-                        </View>
-                      );
-                    })()}
-                  </View>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.eventContent,
+                      pressed && { opacity: 0.62 },
+                    ]}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/attendance/event/[eventId]",
+                        params: { eventId: event._id },
+                      })
+                    }
+                  >
+                    <View style={styles.eventTopLine}>
+                      <Text
+                        style={[typography.caption, styles.eventDate, { color: t.muted }]}
+                      >
+                        {formatEventRange(event.dateStart, event.dateEnd)}
+                      </Text>
+                      {(() => {
+                        const status = eventStatus(event.dateStart, event.dateEnd, now);
+                        const tone = statusTone(status, t);
+                        return (
+                          <View style={[styles.statusPill, { backgroundColor: tone.bg }]}>
+                            <Text style={[styles.statusText, { color: tone.fg }]}>
+                              {status}
+                            </Text>
+                          </View>
+                        );
+                      })()}
+                    </View>
 
-                  <View style={styles.badgeRow}>
-                    {event.collaborative ? <Chip label="Collaborative" /> : null}
-                    {event.subgroups.map((s) => {
-                      const colour = subgroupColour(s);
-                      return (
-                        <View
-                          key={s}
-                          style={[
-                            styles.subgroupPill,
-                            {
-                              backgroundColor: colour,
-                            },
-                          ]}
-                        >
-                          <Text
+                    <View style={styles.badgeRow}>
+                      {event.collaborative ? <Chip label="Collaborative" /> : null}
+                      {event.subgroups.map((s) => {
+                        const colour = subgroupColour(s);
+                        return (
+                          <View
+                            key={s}
                             style={[
-                              typography.caption,
-                              styles.subgroupPillText,
-                              { color: contrastingText(colour) },
+                              styles.subgroupPill,
+                              {
+                                backgroundColor: colour,
+                              },
                             ]}
                           >
-                            {subgroupLabel(s)}
-                          </Text>
-                        </View>
-                      );
-                    })}
-                    {event.tags?.map((tag) => (
-                      <AttendanceTagPill
-                        key={tag._id}
-                        name={tag.name}
-                        colour={tag.colour}
-                        small
-                      />
-                    ))}
-                  </View>
+                            <Text
+                              style={[
+                                typography.caption,
+                                styles.subgroupPillText,
+                                { color: contrastingText(colour) },
+                              ]}
+                            >
+                              {subgroupLabel(s)}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                      {event.tags?.map((tag) => (
+                        <AttendanceTagPill
+                          key={tag._id}
+                          name={tag.name}
+                          colour={tag.colour}
+                          small
+                        />
+                      ))}
+                    </View>
 
-                  <Text style={[typography.title, styles.eventName, { color: t.text }]}>
-                    {event.name}
-                  </Text>
+                    <Text style={[typography.title, styles.eventName, { color: t.text }]}>
+                      {event.name}
+                    </Text>
+                  </Pressable>
 
                   <View style={styles.attendanceLine}>
                     <Text style={[typography.label, { color: t.text }]}>
                       ATTENDANCE: {event.attendanceCount}
                     </Text>
-                    <Ionicons name="chevron-forward" size={18} color={t.faint} />
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Edit ${event.name}`}
+                      onPress={() => setEditingEventId(event._id)}
+                      style={({ pressed }) => [
+                        styles.editButton,
+                        { borderColor: t.primary, backgroundColor: t.background },
+                        pressed && { opacity: 0.7 },
+                      ]}
+                    >
+                      <Text style={[styles.editButtonText, { color: t.primary }]}>
+                        Edit
+                      </Text>
+                    </Pressable>
                   </View>
-                </Pressable>
+                </View>
               </FadeInView>
             ))
           )}
         </>
       )}
+      {editingEvent && subgroup ? (
+        <CreateEventSheet
+          visible={editingEvent !== undefined}
+          onClose={() => setEditingEventId(null)}
+          year={editingEvent.year}
+          subgroup={editingEvent.subgroups[0] ?? subgroup}
+          subgroups={subgroups}
+          event={editingEvent}
+        />
+      ) : null}
     </>
   );
 }
@@ -254,6 +283,9 @@ const styles = StyleSheet.create({
   eventRow: {
     paddingVertical: spacing.lg,
     borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: spacing.md,
+  },
+  eventContent: {
     gap: spacing.md,
   },
   eventTopLine: {
@@ -294,4 +326,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: spacing.md,
   },
+  editButton: {
+    borderWidth: 1.5,
+    borderRadius: radius.full,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+  },
+  editButtonText: { fontSize: 13, fontWeight: "700" },
 });

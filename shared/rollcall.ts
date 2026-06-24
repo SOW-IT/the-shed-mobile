@@ -13,9 +13,9 @@ import { DISPLAY_ACRONYMS, UNIVERSITY_COLOURS, universityColour } from "./flow";
  */
 export const ALL_SUBGROUP = "ALL";
 
-/** Short label for a sub-group: a campus acronym (USYD…) or "ALL" unchanged. */
+/** Short label for a sub-group: a campus acronym (USYD…) or "SOW" for org-wide. */
 export const subgroupLabel = (subgroup: string): string =>
-  subgroup === ALL_SUBGROUP ? ALL_SUBGROUP : (DISPLAY_ACRONYMS[subgroup] ?? subgroup);
+  subgroup === ALL_SUBGROUP ? "SOW" : (DISPLAY_ACRONYMS[subgroup] ?? subgroup);
 
 /** Brand colour for a sub-group; the synthetic ALL uses the whole-org SOW colour. */
 export const subgroupColour = (subgroup: string): string =>
@@ -59,6 +59,9 @@ export const formatSignInTime = (ms: number): string =>
     hour: "numeric",
     minute: "2-digit",
   });
+
+/** True once the scheduled event window has closed — roll-call edits need an explicit unlock. */
+export const eventHasEnded = (dateEnd: number, now = Date.now()): boolean => now > dateEnd;
 
 /** Minimal assignment shape for picking a default campus filter. */
 export type ProfileAssignment = {

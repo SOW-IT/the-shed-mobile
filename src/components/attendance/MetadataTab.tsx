@@ -44,6 +44,23 @@ const rowKey = (field: FieldDraft) => field.id ?? field.draftKey ?? field.key;
 const reindexFields = (fields: FieldDraft[]) =>
   fields.map((field, order) => ({ ...field, order }));
 
+const normalizeFieldsForCompare = (fields: FieldDraft[]) =>
+  reindexFields(fields).map(
+    ({ id, draftKey, key, type, order, values, lockedValues }) => ({
+      id,
+      draftKey,
+      key,
+      type,
+      order,
+      values: values ?? {},
+      lockedValues: lockedValues ?? [],
+    })
+  );
+
+const fieldsEqual = (a: FieldDraft[], b: FieldDraft[]) =>
+  JSON.stringify(normalizeFieldsForCompare(a)) ===
+  JSON.stringify(normalizeFieldsForCompare(b));
+
 const addSelectOption = (values: Record<string, string> | undefined) => {
   const next = { ...(values ?? {}) };
   const nextId = String(
@@ -100,6 +117,7 @@ export function MetadataTab({ year }: { year: number }) {
   const saveMetadata = useMutation(api.attendanceMetadata.saveAll);
 
   const [metaDrafts, setMetaDrafts] = useState<FieldDraft[]>([]);
+  const [savedFields, setSavedFields] = useState<FieldDraft[]>([]);
   const [metaDeletes, setMetaDeletes] = useState<Id<"attendanceMetadata">[]>([]);
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +131,16 @@ export function MetadataTab({ year }: { year: number }) {
     if (metadata) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- sync drafts from server
       setMetaDrafts(
+        metadata.map((f) => ({
+          id: f._id,
+          key: f.key,
+          type: f.type,
+          order: f.order,
+          values: f.values,
+          lockedValues: f.lockedValues,
+        }))
+      );
+      setSavedFields(
         metadata.map((f) => ({
           id: f._id,
           key: f.key,
@@ -138,6 +166,9 @@ export function MetadataTab({ year }: { year: number }) {
 
   if (metadata === undefined) return <LoadingState />;
 
+  const metadataChanged =
+    metaDeletes.length > 0 || !fieldsEqual(metaDrafts, savedFields);
+
   const saveMetaNow = async () => {
     setSaving(true);
     setError(null);
@@ -156,15 +187,6 @@ export function MetadataTab({ year }: { year: number }) {
 
   return (
     <>
-      <View style={{ marginBottom: spacing.md }}>
-        <Muted>
-          Member fields for {year}. Drag the grip to reorder — the same order
-          applies in the edit member sheet. Campus and Role include options from
-          the org structure; you can add more below them. Year is derived from
-          when someone was in first year and advances each staff year.
-        </Muted>
-      </View>
-
       <ReorderableList
         items={metaDrafts}
         keyExtractor={(field) => rowKey(field)}
@@ -340,7 +362,12 @@ export function MetadataTab({ year }: { year: number }) {
           setExpandedKeys((prev) => new Set(prev).add(draftKey));
         }}
       />
-      <Btn title="Save metadata" onPress={() => void saveMetaNow()} loading={saving} />
+      <Btn
+        title="Save metadata"
+        disabled={!metadataChanged || saving}
+        onPress={() => void saveMetaNow()}
+        loading={saving}
+      />
 
       {error ? (
         <Txt style={[typography.caption, { color: t.danger, marginTop: spacing.sm }]}>

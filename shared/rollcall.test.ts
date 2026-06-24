@@ -4,6 +4,7 @@ import {
   contrastingText,
   defaultAttendanceSubgroup,
   defaultEventWindow,
+  eventHasEnded,
   formatEventDate,
   formatSignInTime,
   subgroupColour,
@@ -11,8 +12,8 @@ import {
 } from "./rollcall";
 
 describe("subgroupLabel", () => {
-  test("the synthetic ALL sub-group is left unchanged", () => {
-    expect(subgroupLabel(ALL_SUBGROUP)).toBe("ALL");
+  test("the synthetic ALL sub-group displays as SOW", () => {
+    expect(subgroupLabel(ALL_SUBGROUP)).toBe("SOW");
   });
 
   test("a known campus collapses to its acronym", () => {
@@ -77,6 +78,15 @@ describe("defaultAttendanceSubgroup", () => {
 
   test("returns null for an empty list", () => {
     expect(defaultAttendanceSubgroup([], [])).toBeNull();
+  });
+});
+
+describe("eventHasEnded", () => {
+  test("is false before dateEnd and true after", () => {
+    const end = 1_700_000_000_000;
+    expect(eventHasEnded(end, end - 1)).toBe(false);
+    expect(eventHasEnded(end, end)).toBe(false);
+    expect(eventHasEnded(end, end + 1)).toBe(true);
   });
 });
 

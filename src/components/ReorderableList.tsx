@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { ReactNode, useCallback, useLayoutEffect, useRef, useState } from "react";
 import {
   Animated,
   Easing,
@@ -54,6 +54,13 @@ type ReorderableListProps<T> = {
   reorderEnabled?: boolean;
 };
 
+type DragState = {
+  id: string;
+  from: number;
+  hover: number;
+};
+
+/** Slot index for the dragged row's center given a fixed start index and finger delta. */
 const getTargetIndex = (
   from: number,
   deltaY: number,
@@ -74,6 +81,31 @@ const getTargetIndex = (
   return heights.length - 1;
 };
 
+/** Visual shift for non-dragged rows while hovering over a new slot. */
+const getPreviewOffset = (
+  index: number,
+  from: number,
+  hover: number,
+  draggedHeight: number,
+  gap: number
+): number => {
+  if (from === hover) return 0;
+  const shift = draggedHeight + gap;
+  if (from < hover) {
+    if (index > from && index <= hover) return -shift;
+  } else if (index >= hover && index < from) {
+    return shift;
+  }
+  return 0;
+};
+
+const reorderItems = <T,>(list: T[], from: number, to: number): T[] => {
+  const next = [...list];
+  const [removed] = next.splice(from, 1);
+  next.splice(to, 0, removed);
+  return next;
+};
+
 function ReorderableRow({
   id,
   index,
@@ -81,57 +113,53 @@ function ReorderableRow({
   gap,
   heightsRef,
   onDragStart,
-  onDragEnd,
-  onMove,
+  onDragMove,
+  onDragFinish,
   registerCard,
   flipTranslateY,
+  previewTranslateY,
   children,
 }: {
   id: string;
   index: number;
   disabled: boolean;
   gap: number;
-  heightsRef: React.MutableRefObject<number[]>;
+  heightsRef: React.MutableRefObject<Map<string, number>>;
   onDragStart: (id: string, index: number) => void;
-  onDragEnd: () => void;
-  onMove: (from: number, to: number) => void;
+  onDragMove: (id: string, deltaY: number) => void;
+  onDragFinish: (id: string, deltaY: number) => void;
   registerCard: (id: string, node: Measurable | null) => void;
   flipTranslateY: Animated.Value;
+  previewTranslateY: Animated.Value;
   children: (dragHandle: ReactNode) => ReactNode;
 }) {
   const t = useAppTheme();
   const dragY = useSharedValue(0);
   const dragging = useSharedValue(false);
+  const finished = useSharedValue(false);
 
-  /* eslint-disable react-hooks/refs -- heightsRef read in pan gesture handler */
   const pan = Gesture.Pan()
     .enabled(!disabled)
     .activeOffsetY([-6, 6])
     .onStart(() => {
+      finished.value = false;
       dragging.value = true;
       runOnJS(onDragStart)(id, index);
     })
     .onUpdate((e) => {
       dragY.value = e.translationY;
+      runOnJS(onDragMove)(id, e.translationY);
     })
     .onEnd((e) => {
+      if (finished.value) return;
+      finished.value = true;
       dragging.value = false;
-      const target = getTargetIndex(
-        index,
-        e.translationY,
-        heightsRef.current,
-        gap
-      );
-      if (target !== index) runOnJS(onMove)(index, target);
+      runOnJS(onDragFinish)(id, e.translationY);
       dragY.value = withTiming(0, { duration: 180 });
-      runOnJS(onDragEnd)();
     })
     .onFinalize(() => {
       dragging.value = false;
-      dragY.value = withTiming(0, { duration: 180 });
-      runOnJS(onDragEnd)();
     });
-  /* eslint-enable react-hooks/refs */
 
   const dragStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: dragY.value }],
@@ -157,14 +185,20 @@ function ReorderableRow({
       ref={(node) => registerCard(id, node as unknown as Measurable | null)}
       collapsable={false}
       onLayout={(e: LayoutChangeEvent) => {
-        heightsRef.current[index] = e.nativeEvent.layout.height;
+        heightsRef.current.set(id, e.nativeEvent.layout.height);
       }}
       style={{ marginBottom: gap }}
     >
-      <Animated.View style={{ transform: [{ translateY: flipTranslateY }] }}>
-        <Reanimated.View style={dragStyle}>
-          {children(handle)}
-        </Reanimated.View>
+      <Animated.View
+        style={{
+          transform: [
+            {
+              translateY: Animated.add(flipTranslateY, previewTranslateY),
+            },
+          ],
+        }}
+      >
+        <Reanimated.View style={dragStyle}>{children(handle)}</Reanimated.View>
       </Animated.View>
     </View>
   );
@@ -181,12 +215,21 @@ export function ReorderableList<T>({
 }: ReorderableListProps<T>) {
   const cardRefs = useRef(new Map<string, Measurable>());
   const translateYs = useRef(new Map<string, Animated.Value>());
+  const previewTranslateYs = useRef(new Map<string, Animated.Value>());
   const prevPositions = useRef(new Map<string, number>());
-  const heightsRef = useRef<number[]>([]);
+  const heightsRef = useRef(new Map<string, number>());
+  const dragStateRef = useRef<DragState | null>(null);
 
   const [draggingKey, setDraggingKey] = useState<string | null>(null);
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   const orderKey = items.map((item, i) => keyExtractor(item, i)).join("|");
+
+  const heightsInOrder = useCallback(
+    () =>
+      items.map((item, i) => heightsRef.current.get(keyExtractor(item, i)) ?? 0),
+    [items, keyExtractor]
+  );
 
   const getTranslateY = (id: string) => {
     let value = translateYs.current.get(id);
@@ -197,11 +240,80 @@ export function ReorderableList<T>({
     return value;
   };
 
+  const getPreviewTranslateY = (id: string) => {
+    let value = previewTranslateYs.current.get(id);
+    if (!value) {
+      value = new Animated.Value(0);
+      previewTranslateYs.current.set(id, value);
+    }
+    return value;
+  };
+
+  const resetPreviewOffsets = useCallback(() => {
+    previewTranslateYs.current.forEach((ty) => ty.setValue(0));
+  }, []);
+
   const registerCard = (id: string, node: Measurable | null) => {
     if (node) cardRefs.current.set(id, node);
     else cardRefs.current.delete(id);
   };
 
+  const handleDragStart = useCallback((id: string, index: number) => {
+    dragStateRef.current = { id, from: index, hover: index };
+    setDraggingKey(id);
+    setHoverIndex(index);
+  }, []);
+
+  const handleDragMove = useCallback(
+    (id: string, deltaY: number) => {
+      const drag = dragStateRef.current;
+      if (!drag || drag.id !== id) return;
+      const target = getTargetIndex(drag.from, deltaY, heightsInOrder(), gap);
+      if (target === drag.hover) return;
+      dragStateRef.current = { ...drag, hover: target };
+      setHoverIndex(target);
+    },
+    [gap, heightsInOrder]
+  );
+
+  const handleDragFinish = useCallback(
+    (id: string, deltaY: number) => {
+      const drag = dragStateRef.current;
+      dragStateRef.current = null;
+      setDraggingKey(null);
+      setHoverIndex(null);
+      resetPreviewOffsets();
+
+      if (!drag || drag.id !== id) return;
+      const to = getTargetIndex(drag.from, deltaY, heightsInOrder(), gap);
+      if (to !== drag.from) {
+        onReorder(reorderItems(items, drag.from, to));
+      }
+    },
+    [gap, heightsInOrder, items, onReorder, resetPreviewOffsets]
+  );
+
+  // Shift non-dragged rows into the hovered slot while dragging (data order stays fixed).
+  useLayoutEffect(() => {
+    const drag = dragStateRef.current;
+    if (!drag || hoverIndex == null) return;
+
+    const draggedHeight = heightsRef.current.get(drag.id) ?? 0;
+    items.forEach((item, index) => {
+      const rowId = keyExtractor(item, index);
+      if (rowId === drag.id) return;
+      const offset = getPreviewOffset(
+        index,
+        drag.from,
+        hoverIndex,
+        draggedHeight,
+        gap
+      );
+      getPreviewTranslateY(rowId).setValue(offset);
+    });
+  }, [gap, hoverIndex, items, keyExtractor]);
+
+  // FLIP settle after a committed reorder (not during drag).
   useLayoutEffect(() => {
     if (draggingKey) return;
     const ids = items.map((item, i) => keyExtractor(item, i));
@@ -243,14 +355,6 @@ export function ReorderableList<T>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderKey, draggingKey]);
 
-  const moveItem = (from: number, to: number) => {
-    if (from === to) return;
-    const next = [...items];
-    const [removed] = next.splice(from, 1);
-    next.splice(to, 0, removed);
-    onReorder(next);
-  };
-
   return (
     <View>
       {/* eslint-disable react-hooks/refs -- lazy Animated.Value cache per row */}
@@ -266,11 +370,12 @@ export function ReorderableList<T>({
             }
             gap={gap}
             heightsRef={heightsRef}
-            onDragStart={(key) => setDraggingKey(key)}
-            onDragEnd={() => setDraggingKey(null)}
-            onMove={moveItem}
+            onDragStart={handleDragStart}
+            onDragMove={handleDragMove}
+            onDragFinish={handleDragFinish}
             registerCard={registerCard}
             flipTranslateY={getTranslateY(id)}
+            previewTranslateY={getPreviewTranslateY(id)}
           >
             {(dragHandle) =>
               renderItem(item, index, {
