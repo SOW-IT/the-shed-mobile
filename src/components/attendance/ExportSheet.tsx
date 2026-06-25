@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
+import { DateTimePicker } from "@expo/ui/community/datetime-picker";
 import { useConvex, useQuery } from "convex/react";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, View } from "react-native";
+import { Platform, Pressable, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import {
@@ -21,7 +22,6 @@ import {
   Btn,
   ErrorBanner,
   errorMessage,
-  Field,
   MultiSelect,
   Muted,
   Sheet,
@@ -40,16 +40,86 @@ const LOCKED_FIELD_KEYS = new Set<string>([
 /** Base columns that are always exported and can't be turned off. */
 const ALWAYS_COLUMNS = ["Sign In", "Name", "Email"];
 
-/** Parse a YYYY-MM-DD string to ms at the given edge of that local day. */
-const parseDay = (value: string, edge: "start" | "end"): number | null => {
-  const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return null;
-  const [, y, m, d] = match;
-  const date =
-    edge === "start"
-      ? new Date(Number(y), Number(m) - 1, Number(d), 0, 0, 0, 0)
-      : new Date(Number(y), Number(m) - 1, Number(d), 23, 59, 59, 999);
-  return Number.isNaN(date.getTime()) ? null : date.getTime();
+/** Earliest selectable export date. */
+const MIN_DATE = new Date(2024, 0, 1);
+
+const pad = (n: number) => String(n).padStart(2, "0");
+const formatDay = (ms: number): string => {
+  const d = new Date(ms);
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
+};
+const startOfDay = (ms: number): number => {
+  const d = new Date(ms);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+};
+const endOfDay = (ms: number): number => {
+  const d = new Date(ms);
+  d.setHours(23, 59, 59, 999);
+  return d.getTime();
+};
+const clamp = (ms: number, min: number, max: number): number =>
+  Math.min(Math.max(ms, min), max);
+
+/** A tappable date field showing the chosen day (or a placeholder) with a clear affordance. */
+const DateField = ({
+  label,
+  value,
+  active,
+  onOpen,
+  onClear,
+}: {
+  label: string;
+  value?: number;
+  active: boolean;
+  onOpen: () => void;
+  onClear: () => void;
+}) => {
+  const t = useAppTheme();
+  return (
+    <View style={{ flex: 1, gap: 4 }}>
+      <Txt style={[typography.label, { color: t.muted }]}>{label}</Txt>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${label} date`}
+        onPress={onOpen}
+        style={({ pressed }) => [
+          {
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+            height: 44,
+            paddingHorizontal: 12,
+            borderRadius: 10,
+            borderWidth: 1.5,
+            borderColor: active ? t.primary : "transparent",
+            backgroundColor: t.inputBackground,
+            opacity: pressed ? 0.7 : 1,
+          },
+        ]}
+      >
+        <Ionicons name="calendar-outline" size={16} color={t.faint} />
+        <Txt
+          style={[
+            typography.body,
+            { flex: 1, color: value ? t.text : t.faint },
+          ]}
+        >
+          {value ? formatDay(value) : "Any"}
+        </Txt>
+        {value ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Clear ${label} date`}
+            hitSlop={8}
+            onPress={onClear}
+          >
+            <Ionicons name="close-circle" size={16} color={t.faint} />
+          </Pressable>
+        ) : null}
+      </Pressable>
+    </View>
+  );
 };
 
 const ToggleRow = ({
@@ -122,8 +192,11 @@ export function ExportSheet({
   const fields = useQuery(api.attendanceMetadata.list, { year, subgroup });
   const tags = useQuery(api.attendanceTags.list, isEvent ? "skip" : { year });
 
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [fromMs, setFromMs] = useState<number | undefined>(undefined);
+  const [toMs, setToMs] = useState<number | undefined>(undefined);
+  const [picking, setPicking] = useState<"from" | "to" | null>(null);
+  // Captured at mount and refreshed on open so the picker's max is "today".
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [selectedTags, setSelectedTags] = useState<Id<"attendanceTags">[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<string[] | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -133,8 +206,10 @@ export function ExportSheet({
   useEffect(() => {
     if (!visible) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on open
-    setFromDate("");
-    setToDate("");
+    setFromMs(undefined);
+    setToMs(undefined);
+    setPicking(null);
+    setNowMs(Date.now());
     setSelectedTags([]);
     setSelectedKeys(null);
     setDownloading(false);
@@ -168,20 +243,9 @@ export function ExportSheet({
 
   const download = async () => {
     setError(null);
-    const dateStart = fromDate ? parseDay(fromDate, "start") : undefined;
-    const dateEnd = toDate ? parseDay(toDate, "end") : undefined;
-    if (fromDate && dateStart === null) {
-      setError("Enter a valid From date (YYYY-MM-DD) or leave it blank.");
-      return;
-    }
-    if (toDate && dateEnd === null) {
-      setError("Enter a valid To date (YYYY-MM-DD) or leave it blank.");
-      return;
-    }
-    if (dateStart != null && dateEnd != null && dateEnd < dateStart) {
-      setError("The To date can't be before the From date.");
-      return;
-    }
+    // Whole-day bounds; the picker's min/max already keep From ≤ To ≤ today.
+    const dateStart = fromMs != null ? startOfDay(fromMs) : undefined;
+    const dateEnd = toMs != null ? endOfDay(toMs) : undefined;
     // Keep chosen fields in their canonical (ordered) order for the columns.
     const chosenKeys = orderedFieldKeys.filter(isSelected);
 
@@ -199,8 +263,8 @@ export function ExportSheet({
       } else {
         const data = await convex.query(api.attendanceExport.eventsForExport, {
           subgroup,
-          dateStart: dateStart ?? undefined,
-          dateEnd: dateEnd ?? undefined,
+          dateStart,
+          dateEnd,
           tagIds: selectedTags.length ? selectedTags : undefined,
         });
         if (!data) throw new Error("You need to be signed in to export.");
@@ -255,23 +319,73 @@ export function ExportSheet({
             Time range (optional)
           </Txt>
           <View style={{ flexDirection: "row", gap: spacing.sm }}>
-            <View style={{ flex: 1 }}>
-              <Field
-                label="From (YYYY-MM-DD)"
-                value={fromDate}
-                onChangeText={setFromDate}
-                placeholder="all time"
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Field
-                label="To (YYYY-MM-DD)"
-                value={toDate}
-                onChangeText={setToDate}
-                placeholder="all time"
-              />
-            </View>
+            <DateField
+              label="From"
+              value={fromMs}
+              active={picking === "from"}
+              onOpen={() => setPicking(picking === "from" ? null : "from")}
+              onClear={() => {
+                setFromMs(undefined);
+                setPicking(null);
+              }}
+            />
+            <DateField
+              label="To"
+              value={toMs}
+              active={picking === "to"}
+              onOpen={() => setPicking(picking === "to" ? null : "to")}
+              onClear={() => {
+                setToMs(undefined);
+                setPicking(null);
+              }}
+            />
           </View>
+          {picking ? (
+            <View style={{ marginTop: spacing.sm, alignItems: "center" }}>
+              {(() => {
+                const today = nowMs;
+                const minDate =
+                  picking === "from"
+                    ? MIN_DATE
+                    : fromMs != null
+                      ? new Date(fromMs)
+                      : MIN_DATE;
+                const maxDate =
+                  picking === "from" && toMs != null
+                    ? new Date(toMs)
+                    : new Date(today);
+                const current = picking === "from" ? fromMs : toMs;
+                const initial = clamp(
+                  current ?? (picking === "from" ? MIN_DATE.getTime() : today),
+                  minDate.getTime(),
+                  maxDate.getTime()
+                );
+                return (
+                  <DateTimePicker
+                    mode="date"
+                    display={Platform.OS === "ios" ? "inline" : "default"}
+                    value={new Date(initial)}
+                    minimumDate={minDate}
+                    maximumDate={maxDate}
+                    accentColor={t.primary}
+                    onValueChange={(_event, date) => {
+                      if (picking === "from") setFromMs(date.getTime());
+                      else setToMs(date.getTime());
+                      if (Platform.OS !== "ios") setPicking(null);
+                    }}
+                    onDismiss={() => setPicking(null)}
+                  />
+                );
+              })()}
+              {Platform.OS === "ios" ? (
+                <Btn
+                  title="Done"
+                  variant="ghost"
+                  onPress={() => setPicking(null)}
+                />
+              ) : null}
+            </View>
+          ) : null}
 
           <Txt style={[typography.label, styles.heading, { color: t.muted }]}>
             Tags (optional)
