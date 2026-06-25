@@ -115,30 +115,24 @@ export const list = query({
       continueCursor = result.continueCursor;
     }
 
-    // Resolve actor display names once per distinct actor in the page. Names are
-    // looked up against the current staff year — close enough for a label.
+    // Resolve each distinct actor's display name once (looked up against the
+    // current staff year — close enough for a label), then label the rows.
     const year = staffYearForDate(new Date());
-    const names = new Map<string, string>();
-    const page = await Promise.all(
-      rows.map(async (row) => {
-        let actorName = names.get(row.actorEmail);
-        if (actorName === undefined) {
-          actorName = await displayName(ctx, row.actorEmail, year);
-          names.set(row.actorEmail, actorName);
-        }
-        return {
-          id: row._id,
-          at: row._creationTime,
-          actorEmail: row.actorEmail,
-          actorName,
-          entityType: row.entityType,
-          action: row.action,
-          summary: row.summary,
-          eventId: row.eventId ?? null,
-          detail: row.detail ?? null,
-        };
-      })
-    );
+    const nameByActor: Record<string, string> = {};
+    for (const email of new Set(rows.map((r) => r.actorEmail))) {
+      nameByActor[email] = await displayName(ctx, email, year);
+    }
+    const page = rows.map((row) => ({
+      id: row._id,
+      at: row._creationTime,
+      actorEmail: row.actorEmail,
+      actorName: nameByActor[row.actorEmail],
+      entityType: row.entityType,
+      action: row.action,
+      summary: row.summary,
+      eventId: row.eventId ?? null,
+      detail: row.detail ?? null,
+    }));
 
     return { page, isDone, continueCursor };
   },
