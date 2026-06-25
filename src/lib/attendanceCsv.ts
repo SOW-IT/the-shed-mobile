@@ -1,20 +1,12 @@
-import { csvLine, escapeField } from "./csv";
+import { csvLine } from "./csv";
 import { subgroupLabel } from "../../shared/rollcall";
 import type { ExportEvent } from "../../convex/attendanceExport";
 
 /** Re-exported so UI code can type the export payload without reaching into Convex. */
 export type ExportEventForCsv = ExportEvent;
 
-/** Column headers in order: event-level columns, then attendee columns. */
-const COLUMN_HEADERS = [
-  "Start Date",
-  "End Date",
-  "Tags",
-  "Collaboration",
-  "Sign In",
-  "Name",
-  "Email",
-] as const;
+/** Per-attendee table columns, before the chosen metadata fields and Notes. */
+const ATTENDEE_HEADERS = ["Sign In", "Name", "Email"] as const;
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -31,42 +23,42 @@ const formatDateTime = (ms: number): string => {
 };
 
 /**
- * Builds the CSV. Each event is its own titled section: a title row with the
- * event name, the column header, then one row per signed-in person. The chosen
- * metadata fields become columns (in the given order) between Email and Notes.
- * Sections are separated by a blank line; an event with no attendance still
- * appears as a titled, header-only section so it isn't silently dropped.
+ * Builds the CSV. Each event is its own section: an event-level info block
+ * (name, dates, tags, collaboration — written once for the event, not repeated
+ * per person), a blank line, then an attendee table whose columns are the
+ * per-person fields: Sign In, Name, Email, the chosen metadata fields (in
+ * order), then Notes. Sections are separated by a blank line; an event with no
+ * attendance still appears as its info block + header so it isn't dropped.
  */
 export const buildAttendanceCsv = (
   events: ExportEvent[],
   fieldKeys: string[]
 ): string => {
-  const header = csvLine([...COLUMN_HEADERS, ...fieldKeys, "Notes"]);
+  const tableHeader = csvLine([...ATTENDEE_HEADERS, ...fieldKeys, "Notes"]);
   const sections = events.map((event) => {
     const collaboration = event.collaborators.map(subgroupLabel).join(", ");
-    const eventCells = [
-      formatDateTime(event.dateStart),
-      formatDateTime(event.dateEnd),
-      event.tags.join(", "),
-      collaboration,
+    // Event-level info: one label/value row each, specific to the event.
+    const info = [
+      csvLine(["Event", event.name]),
+      csvLine(["Start Date", formatDateTime(event.dateStart)]),
+      csvLine(["End Date", formatDateTime(event.dateEnd)]),
+      csvLine(["Tags", event.tags.join(", ")]),
+      csvLine(["Collaboration", collaboration]),
     ];
-    // The event name is the section title, not a column.
-    const lines = [escapeField(event.name), header];
-    for (const row of event.rows) {
-      lines.push(
-        csvLine([
-          ...eventCells,
-          formatDateTime(row.signInTime),
-          row.name,
-          row.email,
-          ...fieldKeys.map((key) => row.metadata[key] ?? ""),
-          row.notes ?? "",
-        ])
-      );
-    }
-    return lines.join("\r\n");
+    const rows = event.rows.map((row) =>
+      csvLine([
+        formatDateTime(row.signInTime),
+        row.name,
+        row.email,
+        ...fieldKeys.map((key) => row.metadata[key] ?? ""),
+        row.notes ?? "",
+      ])
+    );
+    return [...info, "", tableHeader, ...rows].join("\r\n");
   });
-  return sections.join("\r\n\r\n");
+  // Two blank lines between events, so a section break is distinct from the
+  // single blank line separating an event's info block from its table.
+  return sections.join("\r\n\r\n\r\n");
 };
 
 /** A filesystem-safe slug for the export filename (e.g. campus label). */

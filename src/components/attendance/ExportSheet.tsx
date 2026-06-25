@@ -18,6 +18,7 @@ import {
   type ExportEventForCsv,
 } from "@/lib/attendanceCsv";
 import { downloadCsv } from "@/lib/csvDownload";
+import { WebDateInput } from "@/components/WebDateTimeInput";
 import {
   Btn,
   ErrorBanner,
@@ -73,48 +74,6 @@ const fromInputDate = (value: string): number | undefined => {
   if (!y || !m || !d) return undefined;
   const date = new Date(y, m - 1, d);
   return Number.isNaN(date.getTime()) ? undefined : date.getTime();
-};
-
-/** Web-only date field backed by the browser's native <input type="date">. */
-const WebDateInput = ({
-  label,
-  value,
-  min,
-  max,
-  onChange,
-}: {
-  label: string;
-  value?: number;
-  min: string;
-  max: string;
-  onChange: (ms: number | undefined) => void;
-}) => {
-  const t = useAppTheme();
-  return (
-    <View style={{ flex: 1, gap: 4 }}>
-      <Txt style={[typography.label, { color: t.muted }]}>{label}</Txt>
-      <input
-        type="date"
-        value={value ? toInputDate(value) : ""}
-        min={min}
-        max={max}
-        onChange={(e) => onChange(fromInputDate(e.target.value))}
-        style={{
-          width: "100%",
-          height: 44,
-          padding: "0 12px",
-          borderRadius: 10,
-          border: "none",
-          boxSizing: "border-box",
-          backgroundColor: t.inputBackground,
-          color: t.text,
-          fontSize: 15,
-          fontFamily: "inherit",
-          accentColor: t.primary,
-        }}
-      />
-    </View>
-  );
 };
 
 /** A tappable date field showing the chosen day (or a placeholder) with a clear affordance. */
@@ -387,17 +346,17 @@ export function ExportSheet({
               <>
                 <WebDateInput
                   label="From"
-                  value={fromMs}
+                  value={fromMs ? toInputDate(fromMs) : ""}
                   min={toInputDate(MIN_DATE.getTime())}
                   max={toInputDate(toMs ?? nowMs)}
-                  onChange={setFromMs}
+                  onChange={(s) => setFromMs(fromInputDate(s))}
                 />
                 <WebDateInput
                   label="To"
-                  value={toMs}
+                  value={toMs ? toInputDate(toMs) : ""}
                   min={toInputDate(fromMs ?? MIN_DATE.getTime())}
                   max={toInputDate(nowMs)}
-                  onChange={setToMs}
+                  onChange={(s) => setToMs(fromInputDate(s))}
                 />
               </>
             ) : (
