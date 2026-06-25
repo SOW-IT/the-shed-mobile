@@ -339,7 +339,6 @@ describe("attendanceExport", () => {
     // An event with no sub-groups falls back to the org-wide "SOW".
     const emptyId = await t.run(async (ctx) =>
       ctx.db.insert("events", {
-        year: YEAR,
         name: "No Subgroups",
         dateStart: Date.now(),
         dateEnd: Date.now() + DAY,

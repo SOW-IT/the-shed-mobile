@@ -1,4 +1,5 @@
 import { ConvexError, v } from "convex/values";
+import { staffYearStartMs } from "../shared/flow";
 import { normalizeSubgroups } from "../shared/rollcall";
 import { mutation, query } from "./_generated/server";
 import { optionalProfile, requireProfile } from "./model";
@@ -33,9 +34,14 @@ export const saveAll = mutation({
     for (const id of deleteIds) {
       const row = await ctx.db.get(id);
       if (!row || row.year !== year) continue;
+      // Events of this staff year, by start-date range (events store no year).
       const events = await ctx.db
         .query("events")
-        .withIndex("by_year", (q) => q.eq("year", year))
+        .withIndex("by_dateStart", (q) =>
+          q
+            .gte("dateStart", staffYearStartMs(year))
+            .lt("dateStart", staffYearStartMs(year + 1))
+        )
         .collect();
       for (const event of events) {
         if (!event.tagIds?.includes(id)) continue;

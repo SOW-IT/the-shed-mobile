@@ -153,7 +153,6 @@ const MEMBER_CHUNK_SIZE = 60;
 function importMemberChunk(event, members) {
   try {
     const result = runConvex("rollcallImport:importEvents", {
-      year,
       tagMap,
       fieldMapByYear,
       events: [{ ...event, members }],

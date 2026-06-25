@@ -291,11 +291,16 @@ export default defineSchema({
   // all of the year's `staffProfiles` — so an event's sub-groups are just the
   // campus label(s) it's run under, never a different roster.
 
-  // An event belongs to a staff `year` and is tagged with one or more
-  // sub-groups (university names, or the literal "SOW"). Two+ sub-groups ⇒ a
-  // collaborative event that appears under each. Dates are epoch-ms.
+  // An event is tagged with one or more sub-groups (university names, or the
+  // literal "SOW"). Two+ sub-groups ⇒ a collaborative event that appears under
+  // each. Dates are epoch-ms. The staff year is NOT stored — it's derived from
+  // dateStart via `eventStaffYear` (shared/flow.ts); year-scoped reads use the
+  // `by_dateStart` range index (a staff year is a contiguous start-date window).
   events: defineTable({
-    year: v.number(),
+    // Deprecated: superseded by deriving the staff year from dateStart. Kept as
+    // optional only until `admin:stripEventYear` has cleared it from every row,
+    // then removed in the narrow PR. No code reads or writes it.
+    year: v.optional(v.number()),
     name: v.string(),
     dateStart: v.number(),
     dateEnd: v.number(),
@@ -304,8 +309,8 @@ export default defineSchema({
     subgroups: v.array(v.string()),
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
   })
-    .index("by_year", ["year"])
-    .index("by_year_and_sourceImportId", ["year", "sourceImportId"]),
+    .index("by_dateStart", ["dateStart"])
+    .index("by_sourceImportId", ["sourceImportId"]),
 
   // Event category tags (e.g. "Weekly Meeting"), per staff year.
   attendanceTags: defineTable({

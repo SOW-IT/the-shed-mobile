@@ -1728,6 +1728,33 @@ export const rollOverStaffYear = internalMutation({
   },
 });
 
+/**
+ * One-shot migration for dropping the deprecated `events.year` column. The
+ * staff year is now derived from `dateStart` (see eventStaffYear), so this
+ * clears the stale stored field from every event that still carries it
+ * (patching a field to `undefined` deletes it in Convex). Batched to stay
+ * within mutation limits and re-run until `done`; idempotent.
+ *
+ * Deploy order (mirrors the staffProfiles strip): deploy this widen PR, then
+ * run `npx convex run admin:stripEventYear` on dev AND `--prod` until `done`,
+ * and only THEN deploy the narrow PR that removes `year` from the schema —
+ * otherwise `convex deploy` fails schema validation on events still holding it.
+ */
+export const stripEventYear = internalMutation({
+  args: { limit: v.optional(v.number()) },
+  returns: v.object({ cleared: v.number(), done: v.boolean() }),
+  handler: async (ctx, { limit = 500 }) => {
+    const batch = await ctx.db
+      .query("events")
+      .filter((q) => q.neq(q.field("year"), undefined))
+      .take(limit);
+    for (const event of batch) {
+      await ctx.db.patch(event._id, { year: undefined });
+    }
+    return { cleared: batch.length, done: batch.length < limit };
+  },
+});
+
 /** SOW's organisation structure: division -> departments. */
 const ORG_STRUCTURE: Record<string, string[]> = {
   Governance: ["Data and IT", FINANCE, "Compliance"],
