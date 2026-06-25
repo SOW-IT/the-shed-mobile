@@ -1,7 +1,7 @@
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { staffYearForDate } from "../shared/flow";
-import { Doc, Id } from "./_generated/dataModel";
+import { Id } from "./_generated/dataModel";
 import { MutationCtx, query } from "./_generated/server";
 import { displayName, optionalProfile } from "./model";
 
@@ -43,19 +43,22 @@ export async function logAttendanceAction(
   await ctx.db.insert("attendanceAuditLog", entry);
 }
 
-// Free-text search scans at most this many of the most-recent matching rows.
-// More than enough for an audit convenience search; keeps the read bounded.
-const SEARCH_SCAN_LIMIT = 1000;
+// The list reads newest-first from the most selective index, bounded to this
+// many recent rows; residual filters and free-text search are applied in code.
+const AUDIT_SCAN_LIMIT = 1000;
 
 /**
  * Paginated, filterable, searchable audit feed for the Attendance → Audit tab.
  * Visible to any signed-in staff member. Newest first.
  *
- * Browse/filter (no `search`) uses Convex cursor pagination over the most
- * specific index for the active filter. Free-text `search` instead scans the
- * most-recent {@link SEARCH_SCAN_LIMIT} matching rows and paginates them with a
- * numeric offset cursor (same approach as `attendanceMembers.list`), so a query
- * that filters most rows out still returns full pages.
+ * Reads the most selective index for the active filter (`by_event` when an event
+ * is chosen, else `by_actor` when only an actor is, else the default order),
+ * bounded to the most recent {@link AUDIT_SCAN_LIMIT} rows. Every other
+ * dimension — a residual `actorEmail` alongside an `eventId`, the `entityType`,
+ * and free-text `search` — is then narrowed in TypeScript (Convex queries should
+ * not use `.filter()`), so combining filters always matches the UI selection.
+ * Pagination is a numeric offset cursor over the filtered rows, mirroring
+ * `attendanceMembers.list`.
  */
 export const list = query({
   args: {
@@ -73,47 +76,41 @@ export const list = query({
     const { eventId, actorEmail, entityType } = args;
     const search = args.search?.trim().toLowerCase();
 
-    // The most specific index for the active filter, newest-first, with the
-    // optional entity-type narrowing applied in the query.
-    const base = eventId
-      ? ctx.db
+    const scanned = eventId
+      ? await ctx.db
           .query("attendanceAuditLog")
           .withIndex("by_event", (q) => q.eq("eventId", eventId))
+          .order("desc")
+          .take(AUDIT_SCAN_LIMIT)
       : actorEmail
-        ? ctx.db
+        ? await ctx.db
             .query("attendanceAuditLog")
             .withIndex("by_actor", (q) => q.eq("actorEmail", actorEmail))
-        : ctx.db.query("attendanceAuditLog");
-    const ordered = base
-      .order("desc")
-      .filter((q) =>
-        entityType ? q.eq(q.field("entityType"), entityType) : true
-      );
+            .order("desc")
+            .take(AUDIT_SCAN_LIMIT)
+        : await ctx.db
+            .query("attendanceAuditLog")
+            .order("desc")
+            .take(AUDIT_SCAN_LIMIT);
 
-    let rows: Doc<"attendanceAuditLog">[];
-    let isDone: boolean;
-    let continueCursor: string;
-
-    if (search) {
-      const scanned = await ordered.take(SEARCH_SCAN_LIMIT);
-      const matched = scanned.filter(
-        (r) =>
+    // Residual narrowing in code: `actorEmail` is applied even when `by_event`
+    // is the chosen index, so the Event + Performed-by filters combine.
+    const matched = scanned.filter(
+      (r) =>
+        (!actorEmail || r.actorEmail === actorEmail) &&
+        (!entityType || r.entityType === entityType) &&
+        (!search ||
           r.summary.toLowerCase().includes(search) ||
-          r.actorEmail.toLowerCase().includes(search)
-      );
-      const start = args.paginationOpts.cursor
-        ? Number(args.paginationOpts.cursor)
-        : 0;
-      const end = start + args.paginationOpts.numItems;
-      rows = matched.slice(start, end);
-      isDone = end >= matched.length;
-      continueCursor = isDone ? "" : String(end);
-    } else {
-      const result = await ordered.paginate(args.paginationOpts);
-      rows = result.page;
-      isDone = result.isDone;
-      continueCursor = result.continueCursor;
-    }
+          r.actorEmail.toLowerCase().includes(search))
+    );
+
+    const start = args.paginationOpts.cursor
+      ? Number(args.paginationOpts.cursor)
+      : 0;
+    const end = start + args.paginationOpts.numItems;
+    const rows = matched.slice(start, end);
+    const isDone = end >= matched.length;
+    const continueCursor = isDone ? "" : String(end);
 
     // Resolve each distinct actor's display name once (looked up against the
     // current staff year — close enough for a label), then label the rows.

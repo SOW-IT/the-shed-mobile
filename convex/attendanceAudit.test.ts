@@ -158,6 +158,22 @@ describe("attendance audit logging", () => {
     });
     expect(bySearch.page).toHaveLength(1);
     expect(bySearch.page[0].summary).toContain("Beta");
+
+    // Event + actor combine: eventA was created by STAFF, so filtering it by a
+    // different actor must return nothing (not every row for the event).
+    const eventPlusOtherActor = await viewer.query(api.attendanceAudit.list, {
+      eventId: eventA,
+      actorEmail: OTHER,
+      paginationOpts: opts,
+    });
+    expect(eventPlusOtherActor.page).toHaveLength(0);
+
+    const eventPlusRightActor = await viewer.query(api.attendanceAudit.list, {
+      eventId: eventA,
+      actorEmail: STAFF,
+      paginationOpts: opts,
+    });
+    expect(eventPlusRightActor.page).toHaveLength(1);
   });
 
   test("list filters by entity type", async () => {
