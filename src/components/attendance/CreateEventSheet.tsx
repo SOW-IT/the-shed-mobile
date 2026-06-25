@@ -150,6 +150,7 @@ export function CreateEventSheet({
     setSubmitting(false);
     setDeleteOpen(false);
     setDeleteText("");
+    setConfirmCancel(false);
     setInitial(snapshot);
   }, [visible, ownerGroup, event]);
 
