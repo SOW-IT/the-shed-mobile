@@ -572,9 +572,21 @@ export const summary = mutation({
           .withIndex("by_year", (q) => q.eq("year", year))
           .take(1000)
       ).length,
-      attendance: (await ctx.db.query("attendance").take(10000)).filter(
-        (row) => row.year === year
-      ).length,
+      attendance: (
+        await Promise.all(
+          (
+            await ctx.db
+              .query("events")
+              .withIndex("by_year", (q) => q.eq("year", year))
+              .take(1000)
+          ).map((e) =>
+            ctx.db
+              .query("attendance")
+              .withIndex("by_event", (q) => q.eq("eventId", e._id))
+              .collect()
+          )
+        )
+      ).reduce((sum, rows) => sum + rows.length, 0),
     };
   },
 });

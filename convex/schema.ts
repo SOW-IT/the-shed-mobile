@@ -351,7 +351,6 @@ export default defineSchema({
     eventId: v.id("events"),
     email: v.optional(v.string()),
     memberId: v.optional(v.id("attendanceMembers")),
-    year: v.number(),
     signInTime: v.number(),
     notes: v.optional(v.string()),
   })

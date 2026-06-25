@@ -411,7 +411,6 @@ export const signIn = mutation({
       return await ctx.db.insert("attendance", {
         eventId,
         email: lower,
-        year: event.year,
         signInTime: Date.now(),
       });
     }
@@ -430,7 +429,6 @@ export const signIn = mutation({
     return await ctx.db.insert("attendance", {
       eventId,
       memberId,
-      year: event.year,
       signInTime: Date.now(),
     });
   },

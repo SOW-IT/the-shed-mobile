@@ -203,8 +203,8 @@ describe("mergeLegacyStaffMembers (staff-year-aware relink)", () => {
         name: "Jane Doe",
         email: "jane.doe@sowaustralia.com",
       });
-      await ctx.db.insert("attendance", { eventId: eId, memberId: a, year: 2025, signInTime: dateStart });
-      await ctx.db.insert("attendance", { eventId: eId, memberId: b, year: 2025, signInTime: dateStart });
+      await ctx.db.insert("attendance", { eventId: eId, memberId: a, signInTime: dateStart });
+      await ctx.db.insert("attendance", { eventId: eId, memberId: b, signInTime: dateStart });
       return { m1: a, m2: b, eventId: eId };
     });
 
@@ -260,7 +260,6 @@ describe("staff year derivation for events", () => {
       await ctx.db.insert("attendance", {
         eventId: e,
         email: "jane.doe@sowaustralia.com",
-        year: 2025,
         signInTime: dateStart,
       });
       return e;
@@ -304,7 +303,6 @@ describe("staff year derivation for events", () => {
       await ctx.db.insert("attendance", {
         eventId: id,
         email: LEADER,
-        year: CAL,
         signInTime: dateStart,
       });
       return id;
@@ -980,7 +978,6 @@ describe("guards + edge cases", () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("attendance", {
         eventId,
-        year: YEAR,
         signInTime: Date.now(),
       });
     });

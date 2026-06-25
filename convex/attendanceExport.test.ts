@@ -288,7 +288,6 @@ describe("attendanceExport", () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("attendance", {
         eventId: eventId as Id<"events">,
-        year: YEAR,
         signInTime: Date.now(),
       });
     });
