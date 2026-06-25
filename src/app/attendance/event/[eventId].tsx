@@ -12,7 +12,7 @@ import {
   SOW_SUBGROUP,
   subgroupLabel,
 } from "../../../../shared/rollcall";
-import { staffYearForDate } from "../../../../shared/flow";
+import { eventStaffYear, staffYearForDate } from "../../../../shared/flow";
 import { AttendanceRow } from "@/components/AttendanceRow";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
@@ -77,14 +77,14 @@ export default function EventAttendanceScreen() {
   // The roll-call pool is the year's shared staff roster.
   const roster = useQuery(
     api.attendance.roster,
-    event ? { year: event.year, subgroup: eventSubgroup, eventId: evId } : "skip"
+    event ? { year: eventStaffYear(event.dateStart), subgroup: eventSubgroup, eventId: evId } : "skip"
   );
   const signIn = useMutation(api.attendance.signIn);
   const signOut = useMutation(api.attendance.signOut);
   const ensureForStaff = useMutation(api.attendanceMembers.ensureForStaff);
   const metadataFields = useQuery(
     api.attendanceMetadata.list,
-    event ? { year: event.year, subgroup: eventSubgroup } : "skip"
+    event ? { year: eventStaffYear(event.dateStart), subgroup: eventSubgroup } : "skip"
   );
   const subgroups = useQuery(api.events.subgroups);
 
@@ -111,7 +111,7 @@ export default function EventAttendanceScreen() {
 
   // A genuinely past staff year is strictly view-only — no "Enable editing"
   // escape hatch (that's reserved for events that have merely ended this year).
-  const pastYear = event != null && event.year < staffYearForDate(new Date());
+  const pastYear = event != null && eventStaffYear(event.dateStart) < staffYearForDate(new Date());
   const pastEvent = event != null && eventHasEnded(event.dateEnd);
   const canEdit = !pastYear && (!pastEvent || editUnlocked);
 
@@ -448,7 +448,7 @@ export default function EventAttendanceScreen() {
         <EditMemberSheet
           visible={editOpen}
           onClose={closeEdit}
-          year={event.year}
+          year={eventStaffYear(event.dateStart)}
           memberId={editMemberId}
           metadataFields={metadataFields}
           eventAttendance={editAttendance}
@@ -458,7 +458,7 @@ export default function EventAttendanceScreen() {
         visible={eventEditOpen}
         onClose={() => setEventEditOpen(false)}
         onDeleted={() => router.back()}
-        year={event.year}
+        year={eventStaffYear(event.dateStart)}
         subgroup={event.subgroups[0] ?? SOW_SUBGROUP}
         subgroups={subgroups}
         event={event}
@@ -466,7 +466,7 @@ export default function EventAttendanceScreen() {
       <ExportSheet
         visible={exportOpen}
         onClose={() => setExportOpen(false)}
-        year={event.year}
+        year={eventStaffYear(event.dateStart)}
         subgroup={event.subgroups[0] ?? SOW_SUBGROUP}
         eventId={evId}
       />

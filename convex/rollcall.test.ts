@@ -189,7 +189,6 @@ describe("mergeLegacyStaffMembers (staff-year-aware relink)", () => {
     const { m1, m2, eventId } = await t.run(async (ctx) => {
       const dateStart = Date.UTC(2025, 10, 1, 9, 0, 0); // Nov 2025 → staff year 2026
       const eId = await ctx.db.insert("events", {
-        year: 2025,
         name: "Nov event",
         dateStart,
         dateEnd: dateStart + 3600_000,
@@ -251,7 +250,6 @@ describe("staff year derivation for events", () => {
         staffEmail: "jane.doe@sowaustralia.com",
       });
       const e = await ctx.db.insert("events", {
-        year: 2025,
         name: "Nov",
         dateStart,
         dateEnd: dateStart + 3600_000,
@@ -294,7 +292,6 @@ describe("staff year derivation for events", () => {
         assignments: [{ role: "Student Leader", university: MACQ }],
       });
       const id = await ctx.db.insert("events", {
-        year: CAL,
         name: "Oct event",
         dateStart,
         dateEnd: dateStart + 3600_000,

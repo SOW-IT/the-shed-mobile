@@ -1,8 +1,9 @@
 import { ConvexError, v } from "convex/values";
 import {
   assignmentsOf,
+  eventStaffYear,
   roleNeedsUniversity,
-  staffYearForDate,
+  staffYearStartMs,
   sydneyCalendarYear,
 } from "../shared/flow";
 import {
@@ -74,7 +75,7 @@ export const roster = query({
     // date — so Jan–Sep events use that year's profiles and Oct–Dec events use
     // the next staff year's (post-rollover) roles, matched by email. Without an
     // event in context both default to the asked-for year.
-    const profileYear = event ? staffYearForDate(new Date(event.dateStart)) : year;
+    const profileYear = event ? eventStaffYear(event.dateStart) : year;
     const memberYear = event
       ? sydneyCalendarYear(new Date(event.dateStart))
       : year;
@@ -193,9 +194,15 @@ export const roster = query({
 
     const eventTagIds = new Set((event.tagIds ?? []).map(String));
     const eventSubgroups = new Set(normalizeSubgroups(event.subgroups));
+    // Same staff year as the open event, by start-date range (events carry no
+    // stored year — see eventStaffYear/staffYearStartMs).
     const historyEvents = await ctx.db
       .query("events")
-      .withIndex("by_year", (q) => q.eq("year", year))
+      .withIndex("by_dateStart", (q) =>
+        q
+          .gte("dateStart", staffYearStartMs(year))
+          .lt("dateStart", staffYearStartMs(year + 1))
+      )
       .collect();
     const scores = new Map<
       string,
@@ -259,7 +266,7 @@ export const listByEvent = query({
     // (Oct 1 rollover); member fields (Year, Gender, …) and the attendance-member
     // overlays come from the event's CALENDAR year, which for an Oct–Dec event is
     // one less than its staff year.
-    const profileYear = staffYearForDate(new Date(event.dateStart));
+    const profileYear = eventStaffYear(event.dateStart);
     const calendarYear = sydneyCalendarYear(new Date(event.dateStart));
     const metadataFields = (
       await ctx.db

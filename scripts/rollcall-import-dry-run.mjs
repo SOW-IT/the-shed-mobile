@@ -396,10 +396,11 @@ function normaliseText(value) {
 
 /**
  * The staff year an event belongs to — the SOW staff year rolls over on
- * October 1 (Sydney), matching shared/flow.ts `staffYearForDate` and how the
- * live app stores `events.year` (convex/events.ts). So an event is bucketed
- * here exactly as it would be if created in the app: Oct–Dec of year N-1 and
- * Jan–Sep of year N both land in staff year N.
+ * October 1 (Sydney), matching shared/flow.ts `staffYearForDate`/`eventStaffYear`
+ * and how the live app derives an event's staff year from its start date
+ * (events store no `year` column — see convex/events.ts). So an event is
+ * bucketed here exactly as it would be when created in the app: Oct–Dec of year
+ * N-1 and Jan–Sep of year N both land in staff year N.
  *
  * This now coincides with the old web app's member roster, which also rolled
  * over ~October 1 (groups/<g>/members/<year>/members). They are still kept

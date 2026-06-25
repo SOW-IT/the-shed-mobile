@@ -1,5 +1,5 @@
 import { ConvexError, v } from "convex/values";
-import { staffYearForDate } from "../shared/flow";
+import { eventStaffYear, staffYearForDate } from "../shared/flow";
 const EVENTS_PAGE_SIZE = 20;
 import { eventIncludesSubgroup, normalizeSubgroups, SOW_SUBGROUP } from "../shared/rollcall";
 import { Doc, Id } from "./_generated/dataModel";
@@ -27,7 +27,7 @@ async function resolveTags(ctx: QueryCtx, year: number, tagIds?: Id<"attendanceT
 const annotate = async (ctx: QueryCtx, event: Doc<"events">) => ({
   ...event,
   collaborative: event.subgroups.length > 1,
-  tags: await resolveTags(ctx, event.year, event.tagIds),
+  tags: await resolveTags(ctx, eventStaffYear(event.dateStart), event.tagIds),
 });
 
 async function validateEventFields(
@@ -49,7 +49,9 @@ async function validateEventFields(
     throw new ConvexError("Event end can't be before its start.");
   }
   const uniqueSubgroups = normalizeSubgroups([...new Set(args.subgroups)]);
-  const year = staffYearForDate(new Date(args.dateStart));
+  // Staff year of the start date — used here only to validate sub-groups and
+  // tags against that year's catalog; it is NOT stored (derived on read).
+  const year = eventStaffYear(args.dateStart);
   const universities = await ctx.db
     .query("universities")
     .withIndex("by_year_and_name", (q) => q.eq("year", year))
@@ -72,7 +74,6 @@ async function validateEventFields(
     }
   }
   return {
-    year,
     name: trimmed,
     dateStart: args.dateStart,
     dateEnd: args.dateEnd,

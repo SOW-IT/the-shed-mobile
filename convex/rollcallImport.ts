@@ -1,5 +1,11 @@
 import { v } from "convex/values";
-import { assignmentsOf, rolesOfLike, staffYearForDate } from "../shared/flow";
+import {
+  assignmentsOf,
+  eventStaffYear,
+  rolesOfLike,
+  staffYearForDate,
+  staffYearStartMs,
+} from "../shared/flow";
 import {
   CAMPUS_FIELD_KEY,
   canonicalizeGenderOptionId,
@@ -20,6 +26,22 @@ import {
 import { Id } from "./_generated/dataModel";
 import { MutationCtx, mutation } from "./_generated/server";
 import { getProfile, requireAdmin } from "./model";
+
+/**
+ * Events whose start date falls in staff year `year`. Events store no `year`
+ * column — the staff year is derived from dateStart, and a staff year is a
+ * contiguous start-date window (see staffYearStartMs), so this range query on
+ * `by_dateStart` replaces the dropped `by_year` index. Returns the unexecuted
+ * query so callers can `.take`/`.collect`/`.first`.
+ */
+const eventsInStaffYear = (ctx: MutationCtx, year: number) =>
+  ctx.db
+    .query("events")
+    .withIndex("by_dateStart", (q) =>
+      q
+        .gte("dateStart", staffYearStartMs(year))
+        .lt("dateStart", staffYearStartMs(year + 1))
+    );
 
 const metadataField = v.object({
   key: v.string(),
@@ -368,9 +390,6 @@ export const importMembers = mutation({
 
 export const importEvents = mutation({
   args: {
-    // The staff year (Oct 1 rollover) the events belong to — what `events.year`
-    // stores and how the live app lists them.
-    year: v.number(),
     tagMap: v.record(v.string(), v.id("attendanceTags")),
     // Calendar-year -> (old Firestore field id -> attendanceMetadata id). Member
     // fields live under each event's CALENDAR year, so an event spanning the
@@ -386,7 +405,7 @@ export const importEvents = mutation({
     importedAttendance: v.number(),
     skipped: v.number(),
   }),
-  handler: async (ctx, { year, tagMap, fieldMapByYear, events }) => {
+  handler: async (ctx, { tagMap, fieldMapByYear, events }) => {
     await requireAdmin(ctx);
     let importedEvents = 0;
     let importedAttendance = 0;
@@ -413,14 +432,15 @@ export const importEvents = mutation({
         const tagId = tagMap[sourceId];
         return tagId ? [tagId] : [];
       });
+      // Dedup by source id alone — it's globally unique per source event, and
+      // the event no longer stores a year to key on.
       const existing = await ctx.db
         .query("events")
-        .withIndex("by_year_and_sourceImportId", (q) =>
-          q.eq("year", year).eq("sourceImportId", event.sourceImportId)
+        .withIndex("by_sourceImportId", (q) =>
+          q.eq("sourceImportId", event.sourceImportId)
         )
         .unique();
       const patch = {
-        year,
         name: event.name.trim() || "Untitled event",
         dateStart: event.dateStart,
         dateEnd: event.dateEnd,
@@ -433,8 +453,10 @@ export const importEvents = mutation({
       importedEvents++;
 
       // Member rows + their metadata fields live under the event's CALENDAR
-      // year; a staff attendee's role/campus comes from the STAFF-year profile.
+      // year; a staff attendee's role/campus comes from the STAFF-year profile,
+      // derived from the event's start date (events store no year).
       const calendarYear = calendarYearOf(event.dateStart);
+      const staffYear = eventStaffYear(event.dateStart);
       const fieldMap = fieldMapByYear[String(calendarYear)] ?? {};
       const fields = await fieldsFor(calendarYear);
       const fieldsByKey = new Map(fields.map((field) => [field.key, field]));
@@ -452,7 +474,7 @@ export const importEvents = mutation({
         // staffProfile for role/campus.
         let profile: Awaited<ReturnType<typeof getProfile>> = null;
         for (const candidate of staffEmailCandidates(row.staffEmail ?? row.email)) {
-          profile = await getProfile(ctx, candidate, year);
+          profile = await getProfile(ctx, candidate, staffYear);
           if (profile) break;
         }
         const baseMetadata = await metadataForMember(
@@ -521,7 +543,6 @@ export const importEvents = mutation({
         const attendancePatch = {
           eventId,
           memberId,
-          year,
           signInTime,
           notes: row.notes?.trim() || undefined,
         };
@@ -566,20 +587,10 @@ export const summary = mutation({
           .query("attendanceMembers")
           .collect()
       ).length,
-      events: (
-        await ctx.db
-          .query("events")
-          .withIndex("by_year", (q) => q.eq("year", year))
-          .take(1000)
-      ).length,
+      events: (await eventsInStaffYear(ctx, year).take(1000)).length,
       attendance: (
         await Promise.all(
-          (
-            await ctx.db
-              .query("events")
-              .withIndex("by_year", (q) => q.eq("year", year))
-              .take(1000)
-          ).map((e) =>
+          (await eventsInStaffYear(ctx, year).take(1000)).map((e) =>
             ctx.db
               .query("attendance")
               .withIndex("by_event", (q) => q.eq("eventId", e._id))
@@ -610,10 +621,7 @@ export const resetYears = mutation({
     for (const year of years) {
       // Drain attendance per event, then delete the (empty) event.
       while (deleted < limit) {
-        const eventBatch = await ctx.db
-          .query("events")
-          .withIndex("by_year", (q) => q.eq("year", year))
-          .take(20);
+        const eventBatch = await eventsInStaffYear(ctx, year).take(20);
         if (eventBatch.length === 0) break;
         let progressed = false;
         for (const event of eventBatch) {
@@ -658,7 +666,7 @@ export const resetYears = mutation({
     let done = true;
     for (const year of years) {
       const [ev, meta, tag] = await Promise.all([
-        ctx.db.query("events").withIndex("by_year", (q) => q.eq("year", year)).first(),
+        eventsInStaffYear(ctx, year).first(),
         ctx.db.query("attendanceMetadata").withIndex("by_year", (q) => q.eq("year", year)).first(),
         ctx.db.query("attendanceTags").withIndex("by_year", (q) => q.eq("year", year)).first(),
       ]);
@@ -814,10 +822,7 @@ export const migrateOrgWideSubgroupToSow = mutation({
     let tags = 0;
     let metadata = 0;
 
-    for (const event of await ctx.db
-      .query("events")
-      .withIndex("by_year", (q) => q.eq("year", year))
-      .collect()) {
+    for (const event of await eventsInStaffYear(ctx, year).collect()) {
       const normalized = normalizeSubgroups(event.subgroups);
       const changed =
         normalized.length !== event.subgroups.length ||
@@ -913,10 +918,7 @@ export const auditAttendanceMapping = mutation({
   args: { year: v.number() },
   handler: async (ctx, { year }) => {
     await requireAdmin(ctx);
-    const events = await ctx.db
-      .query("events")
-      .withIndex("by_year", (q) => q.eq("year", year))
-      .collect();
+    const events = await eventsInStaffYear(ctx, year).collect();
 
     let total = 0;
     let staffByEmail = 0;

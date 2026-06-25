@@ -13,10 +13,12 @@ import {
   requestDeclined,
   requestDisplayStatus,
   requestFullyApproved,
+  eventStaffYear,
   roleNeedsDepartment,
   roleNeedsUniversity,
   rolesNeedUniversity,
   staffYearForDate,
+  staffYearStartMs,
   sydneyCalendarYear,
   stepsForRequest,
 } from "./flow";
@@ -102,6 +104,31 @@ describe("staffYearForDate", () => {
     expect(staffYearForDate(new Date("2026-09-30T13:59:00Z"))).toBe(2026);
     // 14:00 UTC on Sep 30 is 00:00 Oct 1 in Sydney → new year.
     expect(staffYearForDate(new Date("2026-09-30T14:00:00Z"))).toBe(2027);
+  });
+});
+
+describe("eventStaffYear", () => {
+  test("derives the staff year from a start-date epoch (start-date wins)", () => {
+    expect(eventStaffYear(Date.parse("2026-09-30T13:59:00Z"))).toBe(2026);
+    expect(eventStaffYear(Date.parse("2026-09-30T14:00:00Z"))).toBe(2027);
+    expect(eventStaffYear(Date.parse("2026-06-11T00:00:00Z"))).toBe(2026);
+  });
+});
+
+describe("staffYearStartMs", () => {
+  test("is the first instant of the staff year (Sydney midnight Oct 1)", () => {
+    // Staff year 2027 begins at 00:00 Oct 1 2026 Sydney = Sep 30 2026 14:00 UTC.
+    expect(staffYearStartMs(2027)).toBe(Date.parse("2026-09-30T14:00:00Z"));
+    expect(eventStaffYear(staffYearStartMs(2027))).toBe(2027);
+    expect(eventStaffYear(staffYearStartMs(2027) - 1)).toBe(2026);
+  });
+
+  test("bounds a contiguous start-date window for each staff year", () => {
+    // Every date in [start(Y), start(Y+1)) derives to Y, and only those.
+    for (const year of [2025, 2026, 2027]) {
+      expect(eventStaffYear(staffYearStartMs(year))).toBe(year);
+      expect(eventStaffYear(staffYearStartMs(year + 1) - 1)).toBe(year);
+    }
   });
 });
 

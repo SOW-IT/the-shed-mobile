@@ -280,6 +280,26 @@ export const staffYearForDate = (date: Date): number => {
 };
 
 /**
+ * The staff year an event belongs to, derived from its start date (epoch ms).
+ * Events carry no stored `year` column — this is the single place that maps an
+ * event to its staff year, so it always tracks `staffYearForDate`. An event
+ * spanning the rollover is bucketed by where it STARTS.
+ */
+export const eventStaffYear = (dateStart: number): number =>
+  staffYearForDate(new Date(dateStart));
+
+/**
+ * The first instant (epoch ms) of staff year `year` — i.e. Sydney midnight on
+ * October 1 of the previous calendar year (AEST, UTC+10 → Sep 30 14:00 UTC).
+ * A staff year is a contiguous start-date window, so the events with
+ * `eventStaffYear(dateStart) === year` are exactly those with
+ * `staffYearStartMs(year) <= dateStart < staffYearStartMs(year + 1)`. This lets
+ * a `by_dateStart` range query stand in for the dropped `by_year` index.
+ */
+export const staffYearStartMs = (year: number): number =>
+  Date.UTC(year - 1, 8, 30, 14, 0, 0, 0);
+
+/**
  * The calendar year in Sydney — which is what attendance members and metadata
  * are keyed by. The year only ever rolls over at Jan 1, which is always inside
  * AEDT (UTC+11 — Australian daylight saving runs October→April), so shifting
