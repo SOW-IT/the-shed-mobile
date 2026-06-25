@@ -16,6 +16,7 @@ import {
   Btn,
   errorMessage,
   Field,
+  LoadingState,
   Select,
   Sheet,
   Txt,
@@ -162,7 +163,7 @@ export function EditMemberSheet({
       }
     >
       {loading ? (
-        <Txt style={typography.body}>Loading…</Txt>
+        <LoadingState />
       ) : (
         <>
           <Field
