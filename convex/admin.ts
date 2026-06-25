@@ -1729,29 +1729,48 @@ export const rollOverStaffYear = internalMutation({
 });
 
 /**
- * One-shot migration for dropping the deprecated `events.year` column. The
- * staff year is now derived from `dateStart` (see eventStaffYear), so this
- * clears the stale stored field from every event that still carries it
- * (patching a field to `undefined` deletes it in Convex). Batched to stay
- * within mutation limits and re-run until `done`; idempotent.
+ * One-shot migration for dropping the deprecated staff `year` columns. The
+ * staff year is now derived from an event's `dateStart` (see eventStaffYear),
+ * and `attendance` never needed its own copy (it's scoped through its event).
+ * This clears the stale field from every `events` AND `attendance` row that
+ * still carries it (patching a field to `undefined` deletes it in Convex).
+ * Batched per table to stay within mutation limits; re-run until `done`;
+ * idempotent.
  *
- * Deploy order (mirrors the staffProfiles strip): deploy this widen PR, then
- * run `npx convex run admin:stripEventYear` on dev AND `--prod` until `done`,
+ * Deploy order (mirrors the staffProfiles strip): deploy this PR (both `year`
+ * fields are optional, so it validates against rows still holding them), then
+ * run `npx convex run admin:stripLegacyYear` on dev AND `--prod` until `done`,
  * and only THEN deploy the narrow PR that removes `year` from the schema —
- * otherwise `convex deploy` fails schema validation on events still holding it.
+ * otherwise `convex deploy` fails schema validation on rows still holding it.
  */
-export const stripEventYear = internalMutation({
+export const stripLegacyYear = internalMutation({
   args: { limit: v.optional(v.number()) },
-  returns: v.object({ cleared: v.number(), done: v.boolean() }),
+  returns: v.object({
+    events: v.number(),
+    attendance: v.number(),
+    done: v.boolean(),
+  }),
   handler: async (ctx, { limit = 500 }) => {
-    const batch = await ctx.db
+    const events = await ctx.db
       .query("events")
       .filter((q) => q.neq(q.field("year"), undefined))
       .take(limit);
-    for (const event of batch) {
+    for (const event of events) {
       await ctx.db.patch(event._id, { year: undefined });
     }
-    return { cleared: batch.length, done: batch.length < limit };
+    const attendance = await ctx.db
+      .query("attendance")
+      .filter((q) => q.neq(q.field("year"), undefined))
+      .take(limit);
+    for (const row of attendance) {
+      await ctx.db.patch(row._id, { year: undefined });
+    }
+    // Neither table filled a whole batch ⇒ nothing left to clear.
+    return {
+      events: events.length,
+      attendance: attendance.length,
+      done: events.length < limit && attendance.length < limit,
+    };
   },
 });
 
