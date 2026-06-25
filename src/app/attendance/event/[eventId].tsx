@@ -6,20 +6,22 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import {
+  contrastingText,
   eventHasEnded,
   formatEventDate,
   formatSignInTime,
   SOW_SUBGROUP,
+  subgroupColour,
   subgroupLabel,
 } from "../../../../shared/rollcall";
 import { eventStaffYear, sydneyCalendarYear } from "../../../../shared/flow";
 import { AttendanceRow } from "@/components/AttendanceRow";
+import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
 import { ExportSheet } from "@/components/attendance/ExportSheet";
 import {
   Btn,
-  Chip,
   EmptyState,
   FadeInView,
   FooterAction,
@@ -295,9 +297,24 @@ export default function EventAttendanceScreen() {
       </View>
 
       <View style={styles.badgeRow}>
-        {event.collaborative ? <Chip label="Collaborative" /> : null}
-        {event.subgroups.map((s) => (
-          <Chip key={s} label={subgroupLabel(s)} />
+        {event.subgroups.map((s) => {
+          const colour = subgroupColour(s);
+          return (
+            <View key={s} style={[styles.subgroupPill, { backgroundColor: colour }]}>
+              <Text
+                style={[
+                  typography.caption,
+                  styles.subgroupPillText,
+                  { color: contrastingText(colour) },
+                ]}
+              >
+                {subgroupLabel(s)}
+              </Text>
+            </View>
+          );
+        })}
+        {event.tags?.map((tag) => (
+          <AttendanceTagPill key={tag._id} name={tag.name} colour={tag.colour} small />
         ))}
       </View>
 
@@ -505,7 +522,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 6,
+    alignItems: "center",
     marginBottom: spacing.sm,
+  },
+  subgroupPill: {
+    borderRadius: radius.full,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+  },
+  subgroupPillText: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.2,
   },
   search: {
     flexDirection: "row",

@@ -266,17 +266,28 @@ export const FooterAction = ({
   onPress,
   disabled,
   onInfo,
+  note,
 }: {
   title: string;
   onPress: () => void;
   disabled?: boolean;
   /** Optional info icon button rendered to the left of the main pill. */
   onInfo?: () => void;
+  /** Optional advisory text shown in the warning colour above the pill. */
+  note?: string | null;
 }) => {
   const t = useAppTheme();
   const [scale] = useState(() => new Animated.Value(1));
   return (
     <View style={[styles.footerWrap, { pointerEvents: "box-none" }]}>
+      {note ? (
+        <View style={styles.footerNote} pointerEvents="none">
+          <Ionicons name="warning-outline" size={14} color={t.warning} />
+          <Text style={[typography.caption, { color: t.warning, fontWeight: "700" }]}>
+            {note}
+          </Text>
+        </View>
+      ) : null}
       <View style={styles.footerRow}>
         {onInfo && (
           <Pressable
@@ -1890,6 +1901,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
+  },
+  footerNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginBottom: spacing.sm,
   },
   footerInfoBtn: {
     width: 50,

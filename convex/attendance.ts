@@ -10,7 +10,7 @@ import {
   CAMPUS_FIELD_KEY,
   formatMetadataFieldValue,
 } from "../shared/attendanceMemberMeta";
-import { compareAttendanceFrequency, memberMatchesEventCampus, normalizeSubgroups, subgroupMatches } from "../shared/rollcall";
+import { compareAttendanceFrequency, memberMatchesEventCampus, normalizeSubgroups, personDisplayName, subgroupMatches } from "../shared/rollcall";
 import { staffEmailCandidates } from "../shared/rollcallImport";
 import { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
@@ -166,7 +166,7 @@ export const roster = query({
         kind: "staff" as const,
         email: p.email,
         memberId: shadow?._id,
-        name: p.name ?? p.email,
+        name: personDisplayName(p.name, p.email),
         roles,
         campuses,
         // The staff-year profile's campus wins over a (possibly stale) overlay.
@@ -343,8 +343,9 @@ export const listByEvent = query({
           ...row,
           email: resolvedEmail,
           // Staff profile name wins; otherwise fall back to the calendar-year
-          // attendance member's name rather than showing a bare email.
-          name: profile?.name ?? shadow?.name ?? resolvedEmail,
+          // attendance member's name, or a readable name derived from the email
+          // rather than showing a bare `first.last@…` address.
+          name: personDisplayName(profile?.name ?? shadow?.name, resolvedEmail),
           // Without a staff profile for this staff year, this person is shown as
           // the calendar-year attendance member, not staff.
           kind: profile ? ("staff" as const) : ("member" as const),

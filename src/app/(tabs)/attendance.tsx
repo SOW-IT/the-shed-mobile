@@ -11,7 +11,7 @@ import { EventsTab } from "@/components/attendance/EventsTab";
 import { MembersTab } from "@/components/attendance/MembersTab";
 import { MetadataTab, type SaveControls } from "@/components/attendance/MetadataTab";
 import { SettingsTab } from "@/components/attendance/SettingsTab";
-import { FooterAction, LoadingState } from "@/components/ui";
+import { ConfirmDialog, FooterAction, LoadingState } from "@/components/ui";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 
 export default function AttendanceScreen() {
@@ -33,6 +33,8 @@ export default function AttendanceScreen() {
   const noSave: SaveControls = { dirty: false, saving: false, save: () => {} };
   const [tagsSave, setTagsSave] = useState<SaveControls>(noSave);
   const [metaSave, setMetaSave] = useState<SaveControls>(noSave);
+  const [confirmSaveTags, setConfirmSaveTags] = useState(false);
+  const [confirmSaveMeta, setConfirmSaveMeta] = useState(false);
 
   useEffect(() => {
     if (!subgroups?.length || selectedSubgroup !== null) return;
@@ -91,7 +93,8 @@ export default function AttendanceScreen() {
         <FooterAction
           title={tagsSave.saving ? "Saving…" : "Save tags"}
           disabled={!tagsSave.dirty || tagsSave.saving}
-          onPress={tagsSave.save}
+          note={tagsSave.dirty && !tagsSave.saving ? "You have unsaved changes" : null}
+          onPress={() => setConfirmSaveTags(true)}
         />
       ),
     });
@@ -101,7 +104,8 @@ export default function AttendanceScreen() {
         <FooterAction
           title={metaSave.saving ? "Saving…" : "Save metadata"}
           disabled={!metaSave.dirty || metaSave.saving}
-          onPress={metaSave.save}
+          note={metaSave.dirty && !metaSave.saving ? "You have unsaved changes" : null}
+          onPress={() => setConfirmSaveMeta(true)}
         />
       ),
     });
@@ -180,6 +184,24 @@ export default function AttendanceScreen() {
         staffYear={year}
         memberId={memberSheetId}
         metadataFields={metadata}
+      />
+      <ConfirmDialog
+        visible={confirmSaveTags}
+        title="Save tags"
+        message="Apply these tag changes? They take effect across all events that use them."
+        confirmLabel="Save tags"
+        destructive={false}
+        onConfirm={tagsSave.save}
+        onClose={() => setConfirmSaveTags(false)}
+      />
+      <ConfirmDialog
+        visible={confirmSaveMeta}
+        title="Save metadata"
+        message="Apply these metadata changes? They update the fields shown for every member."
+        confirmLabel="Save metadata"
+        destructive={false}
+        onConfirm={metaSave.save}
+        onClose={() => setConfirmSaveMeta(false)}
       />
     </>
   );

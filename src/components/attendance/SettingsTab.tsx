@@ -5,9 +5,9 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { TAG_COLOUR_NAMES, tagColourHex } from "../../../shared/attendanceTags";
-import { subgroupColour, subgroupLabel } from "../../../shared/rollcall";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import type { SaveControls } from "@/components/attendance/MetadataTab";
+import { SubgroupScopePicker } from "@/components/attendance/SubgroupScopePicker";
 import {
   Btn,
   Card,
@@ -194,42 +194,27 @@ export function SettingsTab({
 
           <View style={{ gap: spacing.xs }}>
             <Muted>Applies to</Muted>
-            <View style={styles.scopeRow}>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() =>
-                  setTagDrafts((prev) =>
-                    prev.map((x, j) => (j === i ? { ...x, subgroups: undefined } : x))
-                  )
-                }
-              >
-                <AttendanceTagPill name="All groups" selected={!tag.subgroups?.length} small />
-              </Pressable>
-              {subgroups.map((subgroup) => (
-                <Pressable
-                  key={subgroup}
-                  accessibilityRole="button"
-                  onPress={() =>
-                    setTagDrafts((prev) =>
-                      prev.map((x, j) => {
-                        if (j !== i) return x;
-                        const set = new Set(x.subgroups ?? []);
-                        if (set.has(subgroup)) set.delete(subgroup);
-                        else set.add(subgroup);
-                        return { ...x, subgroups: [...set] };
-                      })
-                    )
-                  }
-                >
-                  <AttendanceTagPill
-                    name={subgroupLabel(subgroup)}
-                    selected={tag.subgroups?.includes(subgroup)}
-                    colour={subgroupColour(subgroup)}
-                    small
-                  />
-                </Pressable>
-              ))}
-            </View>
+            <SubgroupScopePicker
+              subgroups={subgroups}
+              allSelected={!tag.subgroups?.length}
+              isSelected={(subgroup) => !!tag.subgroups?.includes(subgroup)}
+              onSelectAll={() =>
+                setTagDrafts((prev) =>
+                  prev.map((x, j) => (j === i ? { ...x, subgroups: undefined } : x))
+                )
+              }
+              onToggle={(subgroup) =>
+                setTagDrafts((prev) =>
+                  prev.map((x, j) => {
+                    if (j !== i) return x;
+                    const set = new Set(x.subgroups ?? []);
+                    if (set.has(subgroup)) set.delete(subgroup);
+                    else set.add(subgroup);
+                    return { ...x, subgroups: set.size ? [...set] : undefined };
+                  })
+                )
+              }
+            />
           </View>
         </Card>
       ))}
@@ -300,10 +285,5 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
-  },
-  scopeRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
   },
 });
