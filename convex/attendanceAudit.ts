@@ -1,7 +1,7 @@
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { staffYearForDate } from "../shared/flow";
-import { Id } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx, query } from "./_generated/server";
 import { displayName, optionalProfile } from "./model";
 
@@ -43,22 +43,27 @@ export async function logAttendanceAction(
   await ctx.db.insert("attendanceAuditLog", entry);
 }
 
-// The list reads newest-first from the most selective index, bounded to this
-// many recent rows; residual filters and free-text search are applied in code.
-const AUDIT_SCAN_LIMIT = 1000;
+// Safety bound on how many underlying rows a single list() call will read while
+// hunting for `numItems` matches. If a sparse filter exhausts this budget before
+// filling a page, we return what we have with a live cursor so the client can
+// resume — completeness is preserved across calls, only the per-call work is
+// capped (no rows ever become unreachable).
+const MAX_ROWS_SCANNED_PER_CALL = 2000;
 
 /**
  * Paginated, filterable, searchable audit feed for the Attendance → Audit tab.
  * Visible to any signed-in staff member. Newest first.
  *
  * Reads the most selective index for the active filter (`by_event` when an event
- * is chosen, else `by_actor` when only an actor is, else the default order),
- * bounded to the most recent {@link AUDIT_SCAN_LIMIT} rows. Every other
- * dimension — a residual `actorEmail` alongside an `eventId`, the `entityType`,
- * and free-text `search` — is then narrowed in TypeScript (Convex queries should
- * not use `.filter()`), so combining filters always matches the UI selection.
- * Pagination is a numeric offset cursor over the filtered rows, mirroring
- * `attendanceMembers.list`.
+ * is chosen, else `by_actor` when only an actor is, else the default order) and
+ * walks it with Convex cursor pagination, applying every other dimension — a
+ * residual `actorEmail` alongside an `eventId`, the `entityType`, and free-text
+ * `search` — in TypeScript (Convex queries should not use `.filter()`). It
+ * accumulates matches page-by-page until it has `numItems` of them or the index
+ * is exhausted, so combining filters always matches the UI selection and no
+ * matching row is ever skipped. The returned `continueCursor` is the underlying
+ * index cursor (page-aligned), and `isDone` reflects true index exhaustion —
+ * never a truncated in-memory window.
  */
 export const list = query({
   args: {
@@ -75,42 +80,50 @@ export const list = query({
 
     const { eventId, actorEmail, entityType } = args;
     const search = args.search?.trim().toLowerCase();
+    const { numItems } = args.paginationOpts;
 
-    const scanned = eventId
-      ? await ctx.db
-          .query("attendanceAuditLog")
-          .withIndex("by_event", (q) => q.eq("eventId", eventId))
-          .order("desc")
-          .take(AUDIT_SCAN_LIMIT)
-      : actorEmail
-        ? await ctx.db
-            .query("attendanceAuditLog")
-            .withIndex("by_actor", (q) => q.eq("actorEmail", actorEmail))
-            .order("desc")
-            .take(AUDIT_SCAN_LIMIT)
-        : await ctx.db
-            .query("attendanceAuditLog")
-            .order("desc")
-            .take(AUDIT_SCAN_LIMIT);
+    // A fresh query for the active filter's most selective index (query builders
+    // are single-use, so we rebuild it each pagination step).
+    const indexed = () => {
+      const q = ctx.db.query("attendanceAuditLog");
+      if (eventId) return q.withIndex("by_event", (i) => i.eq("eventId", eventId));
+      if (actorEmail)
+        return q.withIndex("by_actor", (i) => i.eq("actorEmail", actorEmail));
+      return q;
+    };
+    const matchesResidual = (r: {
+      actorEmail: string;
+      entityType: string;
+      summary: string;
+    }) =>
+      (!actorEmail || r.actorEmail === actorEmail) &&
+      (!entityType || r.entityType === entityType) &&
+      (!search ||
+        r.summary.toLowerCase().includes(search) ||
+        r.actorEmail.toLowerCase().includes(search));
 
-    // Residual narrowing in code: `actorEmail` is applied even when `by_event`
-    // is the chosen index, so the Event + Performed-by filters combine.
-    const matched = scanned.filter(
-      (r) =>
-        (!actorEmail || r.actorEmail === actorEmail) &&
-        (!entityType || r.entityType === entityType) &&
-        (!search ||
-          r.summary.toLowerCase().includes(search) ||
-          r.actorEmail.toLowerCase().includes(search))
-    );
-
-    const start = args.paginationOpts.cursor
-      ? Number(args.paginationOpts.cursor)
-      : 0;
-    const end = start + args.paginationOpts.numItems;
-    const rows = matched.slice(start, end);
-    const isDone = end >= matched.length;
-    const continueCursor = isDone ? "" : String(end);
+    const matched: Doc<"attendanceAuditLog">[] = [];
+    let cursor = args.paginationOpts.cursor;
+    let isDone = false;
+    let scanned = 0;
+    // Walk the index page-by-page. Each step requests only the rows still needed,
+    // so a step never yields more matches than `numItems` (no overshoot) and its
+    // cursor stays page-aligned for the next call.
+    while (matched.length < numItems) {
+      const batch = await indexed()
+        .order("desc")
+        .paginate({ numItems: numItems - matched.length, cursor: cursor ?? null });
+      for (const r of batch.page) if (matchesResidual(r)) matched.push(r);
+      scanned += batch.page.length;
+      cursor = batch.continueCursor;
+      if (batch.isDone) {
+        isDone = true;
+        break;
+      }
+      if (scanned >= MAX_ROWS_SCANNED_PER_CALL) break;
+    }
+    const rows = matched;
+    const continueCursor = isDone ? "" : cursor;
 
     // Resolve each distinct actor's display name once (looked up against the
     // current staff year — close enough for a label), then label the rows.
