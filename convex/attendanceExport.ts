@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { staffYearForDate } from "../shared/flow";
+import { staffYearForDate, sydneyCalendarYear } from "../shared/flow";
 import {
   formatMetadataFieldValue,
   resolveCommencementStaffYear,
@@ -107,9 +107,7 @@ async function resolveExportEvents(
   const out: ExportEvent[] = [];
   for (const event of events) {
     const staffYear = staffYearForDate(new Date(event.dateStart));
-    const calendarYear = new Date(
-      event.dateStart + 10 * 60 * 60 * 1000
-    ).getUTCFullYear();
+    const calendarYear = sydneyCalendarYear(new Date(event.dateStart));
     const profiles = await loadProfiles(staffYear);
     const fields = await loadFields(calendarYear);
     const attendanceRows = await ctx.db
@@ -239,6 +237,9 @@ export const eventsForExport = query({
       ? new Set(tagIds.map((id) => String(id)))
       : null;
 
+    // Scoped by date range, not staff year, on purpose: an export may span the
+    // Sept-1 rollover (or several years). Each event still resolves its own
+    // staff/calendar year for profiles and member fields in resolveExportEvents.
     const all = await ctx.db.query("events").collect();
     const events = all
       .filter((e) => eventIncludesSubgroup(e.subgroups, subgroup))

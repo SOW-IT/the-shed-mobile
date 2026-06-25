@@ -578,6 +578,24 @@ describe("attendance members", () => {
     expect(rows[0].staffEmail).toBe(STAFF);
   });
 
+  test("ensureForStaff won't adopt an unlinked member without a staff profile", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    // OUTSIDER has no staff profile this year, but exists as a plain member.
+    const memberId = await leader.mutation(api.attendanceMembers.create, {
+      name: "Outside Person",
+      email: OUTSIDER,
+    });
+    await expect(
+      leader.mutation(api.attendanceMembers.ensureForStaff, {
+        staffEmail: OUTSIDER,
+      })
+    ).rejects.toThrow(/not found/i);
+    // The plain member is left untouched — not converted to a staff overlay.
+    const row = await t.run((ctx) => ctx.db.get(memberId));
+    expect(row?.staffEmail).toBeUndefined();
+  });
+
   test("search, filter, sort, and paginate", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);

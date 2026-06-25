@@ -370,6 +370,12 @@ export const ensureForStaff = mutation({
       .withIndex("by_staff_email", (q) => q.eq("staffEmail", email))
       .unique();
     if (existing) return existing._id;
+    // Verify this email really is a staff profile for the current year BEFORE
+    // adopting/creating an overlay — a mistyped or stale email must not convert
+    // a plain member into a staff overlay (which would then hide it from `list`).
+    const currentYear = staffYearForDate(new Date());
+    const profile = await getProfile(ctx, email, currentYear);
+    if (!profile) throw new ConvexError("Staff profile not found.");
     // Adopt an unlinked attendance-only row whose plain email matches this
     // staff member (e.g. they were added as a member before being provisioned
     // as staff) — link it instead of inserting a duplicate.
@@ -381,9 +387,6 @@ export const ensureForStaff = mutation({
       await ctx.db.patch(unlinked._id, { staffEmail: email });
       return unlinked._id;
     }
-    const currentYear = staffYearForDate(new Date());
-    const profile = await getProfile(ctx, email, currentYear);
-    if (!profile) throw new ConvexError("Staff profile not found.");
     const fields = await metadataFieldsForYear(ctx, currentYear);
     return await ctx.db.insert("attendanceMembers", {
       name: profile.name ?? email,
