@@ -164,10 +164,20 @@ const NewRequestSheet = ({
     }
   };
 
+  // Every close path (footer Cancel, header X, backdrop, swipe) routes here so a
+  // dirty draft always confirms before being discarded.
+  const requestClose = () => {
+    if (dirty) {
+      setConfirmCancel(true);
+      return;
+    }
+    onClose();
+  };
+
   return (
     <Sheet
       visible={visible}
-      onClose={onClose}
+      onClose={requestClose}
       title="New Request"
       footer={
         <Row spread>
@@ -175,7 +185,7 @@ const NewRequestSheet = ({
             title="Cancel"
             variant="ghost"
             disabled={!dirty}
-            onPress={() => setConfirmCancel(true)}
+            onPress={requestClose}
           />
           <Btn title="Submit Request" onPress={handleSubmit} />
         </Row>

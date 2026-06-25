@@ -198,11 +198,15 @@ export function MetadataTab({
   const saveMetaNow = async () => {
     setSaving(true);
     setError(null);
+    const nextFields = reindexFields(metaDrafts);
     try {
-      await saveMetadata({
-        fields: reindexFields(metaDrafts),
-        deleteIds: metaDeletes,
-      });
+      await saveMetadata({ fields: nextFields, deleteIds: metaDeletes });
+      // Advance the local saved snapshot so the footer clears immediately,
+      // without waiting for the `list` query to round-trip (which would briefly
+      // leave the form "dirty" and let a revert undo the just-saved changes).
+      setMetaDrafts(nextFields);
+      setSavedFields(nextFields);
+      setMetaDeletes([]);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
