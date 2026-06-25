@@ -96,6 +96,40 @@ export const formatSignInTime = (ms: number): string =>
     minute: "2-digit",
   });
 
+/**
+ * Turn an email local part like `first.last@sow.org.au` into a readable
+ * "First Last". Splits on the usual separators (`.`, `_`, `-`, `+`) and
+ * title-cases each word. Returns null when the address doesn't look like a
+ * name (e.g. synthetic `@legacy.invalid` or numeric handles).
+ */
+export const displayNameFromEmail = (email: string): string | null => {
+  const local = email.split("@")[0]?.trim();
+  if (!local) return null;
+  const words = local
+    .split(/[._\-+]+/)
+    .map((w) => w.trim())
+    .filter(Boolean);
+  // Skip anything that isn't alphabetic name-shaped (e.g. "admin", "u12345").
+  if (words.length === 0 || !words.every((w) => /^[a-z]+$/i.test(w))) return null;
+  return words.map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+};
+
+/**
+ * The name to show for a person. Uses their stored name unless it's missing or
+ * is just their email address, in which case it derives "First Last" from the
+ * email's local part (falling back to the raw email when that isn't possible).
+ */
+export const personDisplayName = (
+  name: string | null | undefined,
+  email: string | null | undefined
+): string => {
+  const trimmed = name?.trim();
+  const lowerEmail = email?.trim().toLowerCase();
+  if (trimmed && trimmed.toLowerCase() !== lowerEmail) return trimmed;
+  if (lowerEmail) return displayNameFromEmail(lowerEmail) ?? lowerEmail;
+  return trimmed ?? "";
+};
+
 /** True once the scheduled event window has closed — roll-call edits need an explicit unlock. */
 export const eventHasEnded = (dateEnd: number, now = Date.now()): boolean => now > dateEnd;
 

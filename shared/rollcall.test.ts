@@ -6,17 +6,51 @@ import {
   contrastingText,
   defaultAttendanceSubgroup,
   defaultEventWindow,
+  displayNameFromEmail,
   eventHasEnded,
   eventIncludesSubgroup,
   formatEventDate,
   formatSignInTime,
   memberMatchesEventCampus,
   normalizeSubgroups,
+  personDisplayName,
   SOW_SUBGROUP,
   subgroupColour,
   subgroupLabel,
   subgroupMatches,
 } from "./rollcall";
+
+describe("displayNameFromEmail", () => {
+  test("title-cases a first.last local part", () => {
+    expect(displayNameFromEmail("first.last@sow.org.au")).toBe("First Last");
+    expect(displayNameFromEmail("JANE.DOE@sow.org.au")).toBe("Jane Doe");
+    expect(displayNameFromEmail("mary_anne-smith@sow.org.au")).toBe("Mary Anne Smith");
+  });
+
+  test("returns null for non-name-shaped addresses", () => {
+    expect(displayNameFromEmail("u12345@sow.org.au")).toBeNull();
+    expect(displayNameFromEmail("admin")).toBe("Admin");
+    expect(displayNameFromEmail("")).toBeNull();
+  });
+});
+
+describe("personDisplayName", () => {
+  test("keeps a real stored name", () => {
+    expect(personDisplayName("Jane Doe", "first.last@sow.org.au")).toBe("Jane Doe");
+  });
+
+  test("derives a name when the stored name is the email", () => {
+    expect(personDisplayName("first.last@sow.org.au", "first.last@sow.org.au")).toBe(
+      "First Last"
+    );
+    expect(personDisplayName(null, "first.last@sow.org.au")).toBe("First Last");
+    expect(personDisplayName(undefined, "first.last@sow.org.au")).toBe("First Last");
+  });
+
+  test("falls back to the raw email when no name can be derived", () => {
+    expect(personDisplayName(null, "u12345@sow.org.au")).toBe("u12345@sow.org.au");
+  });
+});
 
 describe("subgroupMatches", () => {
   test("same canonical form matches", () => {

@@ -12,6 +12,7 @@ import {
 } from "../../../shared/attendanceMemberMeta";
 import { subgroupColour, subgroupLabel } from "../../../shared/rollcall";
 import { ReorderableList } from "@/components/ReorderableList";
+import { SubgroupScopePicker } from "@/components/attendance/SubgroupScopePicker";
 import {
   Btn,
   Card,
@@ -23,7 +24,7 @@ import {
   Sheet,
   Txt,
 } from "@/components/ui";
-import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { spacing, typography, useAppTheme } from "@/theme";
 
 type FieldDraft = {
   id?: Id<"attendanceMetadata">;
@@ -428,60 +429,25 @@ export function MetadataTab({
         onClose={() => setScopeIndex(null)}
         title="Metadata group"
       >
-        <View style={styles.scopeRow}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              if (scopeIndex === null) return;
-              setMetaDrafts((prev) =>
-                prev.map((x, j) => (j === scopeIndex ? { ...x, subgroup: undefined } : x))
-              );
-              setScopeIndex(null);
-            }}
-          >
-            <Txt
-              style={[
-                styles.scopePill,
-                {
-                  color: t.ghostText,
-                  backgroundColor: t.ghost,
-                  borderColor: !metaDrafts[scopeIndex ?? -1]?.subgroup ? t.primary : t.separator,
-                },
-              ]}
-            >
-              All groups
-            </Txt>
-          </Pressable>
-          {subgroups.map((subgroup) => (
-            <Pressable
-              key={subgroup}
-              accessibilityRole="button"
-              onPress={() => {
-                if (scopeIndex === null) return;
-                setMetaDrafts((prev) =>
-                  prev.map((x, j) => (j === scopeIndex ? { ...x, subgroup } : x))
-                );
-                setScopeIndex(null);
-              }}
-            >
-              <Txt
-                style={[
-                  styles.scopePill,
-                  {
-                    color: "#ffffff",
-                    backgroundColor: subgroupColour(subgroup),
-                    borderColor:
-                      metaDrafts[scopeIndex ?? -1]?.subgroup === subgroup
-                        ? t.primary
-                        : subgroupColour(subgroup),
-                  },
-                ]}
-              >
-                {subgroupLabel(subgroup)}
-              </Txt>
-            </Pressable>
-          ))}
-        </View>
+        <SubgroupScopePicker
+          subgroups={subgroups}
+          allSelected={!metaDrafts[scopeIndex ?? -1]?.subgroup}
+          isSelected={(subgroup) => metaDrafts[scopeIndex ?? -1]?.subgroup === subgroup}
+          onSelectAll={() => {
+            if (scopeIndex === null) return;
+            setMetaDrafts((prev) =>
+              prev.map((x, j) => (j === scopeIndex ? { ...x, subgroup: undefined } : x))
+            );
+            setScopeIndex(null);
+          }}
+          onToggle={(subgroup) => {
+            if (scopeIndex === null) return;
+            setMetaDrafts((prev) =>
+              prev.map((x, j) => (j === scopeIndex ? { ...x, subgroup } : x))
+            );
+            setScopeIndex(null);
+          }}
+        />
       </Sheet>
       <Sheet
         visible={deleteIndex !== null}
@@ -530,18 +496,5 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-  },
-  scopeRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  scopePill: {
-    overflow: "hidden",
-    borderWidth: 2,
-    borderRadius: radius.full,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    fontWeight: "700",
   },
 });

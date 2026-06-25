@@ -253,40 +253,44 @@ export function EventsTab({
                         </View>
 
                         <View style={styles.badgeRow}>
-                          {event.subgroups
-                            .filter((s) => s !== subgroup)
-                            .map((s) => {
-                              const colour = subgroupColour(s);
-                              return (
-                                <View
-                                  key={s}
-                                  style={[
-                                    styles.subgroupPill,
-                                    {
-                                      backgroundColor: colour,
-                                    },
-                                  ]}
-                                >
-                                  <Text
+                          <View style={styles.badgeGroup}>
+                            {event.tags?.map((tag) => (
+                              <AttendanceTagPill
+                                key={tag._id}
+                                name={tag.name}
+                                colour={tag.colour}
+                                small
+                              />
+                            ))}
+                          </View>
+                          <View style={[styles.badgeGroup, styles.badgeGroupRight]}>
+                            {event.subgroups
+                              .filter((s) => s !== subgroup)
+                              .map((s) => {
+                                const colour = subgroupColour(s);
+                                return (
+                                  <View
+                                    key={s}
                                     style={[
-                                      typography.caption,
-                                      styles.subgroupPillText,
-                                      { color: contrastingText(colour) },
+                                      styles.subgroupPill,
+                                      {
+                                        backgroundColor: colour,
+                                      },
                                     ]}
                                   >
-                                    {subgroupLabel(s)}
-                                  </Text>
-                                </View>
-                              );
-                            })}
-                          {event.tags?.map((tag) => (
-                            <AttendanceTagPill
-                              key={tag._id}
-                              name={tag.name}
-                              colour={tag.colour}
-                              small
-                            />
-                          ))}
+                                    <Text
+                                      style={[
+                                        typography.caption,
+                                        styles.subgroupPillText,
+                                        { color: contrastingText(colour) },
+                                      ]}
+                                    >
+                                      {subgroupLabel(s)}
+                                    </Text>
+                                  </View>
+                                );
+                              })}
+                          </View>
                         </View>
 
                         <Text
@@ -425,9 +429,19 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 11, fontWeight: "800", letterSpacing: 0.2 },
   badgeRow: {
     flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  badgeGroup: {
+    flexDirection: "row",
     flexWrap: "wrap",
     gap: 6,
     alignItems: "center",
+    flexShrink: 1,
+  },
+  badgeGroupRight: {
+    justifyContent: "flex-end",
   },
   subgroupPill: {
     borderRadius: radius.full,
