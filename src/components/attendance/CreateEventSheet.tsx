@@ -204,6 +204,37 @@ export function CreateEventSheet({
     }
   };
 
+  // Edit mode: Save is only enabled once something actually changed. Compare the
+  // form fields against the values the sheet was initialised with from `event`.
+  const sameMembers = <T,>(a: readonly T[], b: readonly T[]) =>
+    a.length === b.length && a.every((x) => b.includes(x));
+  const dirty =
+    !event ||
+    name !== event.name ||
+    !sameMembers(selectedTags, event.tagIds ?? []) ||
+    !sameMembers(collaborators, event.subgroups) ||
+    dateStr !== dateInputFromMs(event.dateStart) ||
+    startTime !== timeInputFromMs(event.dateStart) ||
+    endTime !== timeInputFromMs(event.dateEnd);
+
+  // First step's left action cancels; later steps step back. On the last step
+  // the right action saves/creates; edit mode also keeps a Save in the middle.
+  const isLastStep = step >= maxStep;
+  const leftButton =
+    step === 0 ? (
+      <Btn title="Cancel" variant="ghost" onPress={onClose} />
+    ) : (
+      <Btn title="Back" variant="ghost" onPress={() => setStep((s) => s - 1)} />
+    );
+  const saveButton = (
+    <Btn
+      title="Save"
+      onPress={() => void submit()}
+      loading={submitting}
+      disabled={!dirty}
+    />
+  );
+
   return (
     <Sheet
       visible={visible}
@@ -233,38 +264,61 @@ export function CreateEventSheet({
         ) : null
       }
       footer={
-        <View style={{ flexDirection: "row", gap: spacing.sm }}>
-          {step > 0 ? (
-            <Btn title="Back" variant="ghost" onPress={() => setStep((s) => s - 1)} />
-          ) : null}
-          {step < maxStep ? (
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: spacing.sm,
+          }}
+        >
+          {leftButton}
+          {/* Edit mode keeps Save reachable from every step; on the last step it
+              moves to the right (where it replaces Next). */}
+          {isEditing && !isLastStep ? saveButton : null}
+          {!isLastStep ? (
             <Btn
               title="Next"
               onPress={() => setStep((s) => s + 1)}
               disabled={step === 0 && !name.trim()}
             />
+          ) : isEditing ? (
+            saveButton
           ) : (
-            <Btn
-              title={isEditing ? "Save" : "Create"}
-              onPress={() => void submit()}
-              loading={submitting}
-            />
+            <Btn title="Create" onPress={() => void submit()} loading={submitting} />
           )}
         </View>
       }
     >
-      <View style={{ flexDirection: "row", gap: 6, marginBottom: spacing.md }}>
-        {steps.map((_, i) => (
-          <View
-            key={i}
-            style={{
-              flex: 1,
-              height: 4,
-              borderRadius: 2,
-              backgroundColor: i <= step ? t.primary : t.border,
-            }}
-          />
-        ))}
+      <View style={{ flexDirection: "row", gap: 6, marginBottom: spacing.sm }}>
+        {steps.map((label, i) => {
+          // Step back freely; only step forward once the name is filled (the
+          // same guard the Next button uses).
+          const reachable = i <= step || !!name.trim();
+          return (
+            <Pressable
+              key={i}
+              accessibilityRole="button"
+              accessibilityLabel={`Step ${i + 1}: ${label}`}
+              accessibilityState={{ selected: i === step }}
+              disabled={!reachable}
+              onPress={() => setStep(i)}
+              // Tall, tappable hit area around a slim progress bar.
+              style={({ pressed }) => [
+                { flex: 1, paddingVertical: 10 },
+                pressed && reachable && { opacity: 0.6 },
+              ]}
+            >
+              <View
+                style={{
+                  height: 6,
+                  borderRadius: 3,
+                  backgroundColor: i <= step ? t.primary : t.border,
+                }}
+              />
+            </Pressable>
+          );
+        })}
       </View>
 
       {step === 0 ? (
