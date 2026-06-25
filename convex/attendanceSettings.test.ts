@@ -381,6 +381,48 @@ describe("attendance metadata", () => {
       await leader.query(api.attendanceMetadata.list, { year: YEAR + 1 })
     ).toHaveLength(otherYearFields.length);
   });
+
+  test("Role/Campus locked values stay synced to the roles/universities tables", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+
+    // Add a custom role + campus, persist the snapshot, then remove them.
+    await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Volunteer" });
+    await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: "Temp Uni" });
+    const seeded = await leader.query(api.attendanceMetadata.list, { year: YEAR });
+    expect(seeded.find((f) => f.key === "Role")!.lockedValues).toContain("Volunteer");
+    expect(seeded.find((f) => f.key === "Campus")!.lockedValues).toContain("Temp Uni");
+    // Persist so the stored snapshot records Volunteer/Temp Uni as locked.
+    await leader.mutation(api.attendanceMetadata.saveAll, {
+      year: YEAR,
+      fields: seeded
+        .filter((f) => f.key === "Role" || f.key === "Campus")
+        .map((f) => ({
+          id: f._id,
+          key: f.key,
+          type: f.type,
+          order: f.order,
+          values: f.values,
+          lockedValues: f.lockedValues,
+        })),
+      deleteIds: [],
+    });
+
+    await admin.mutation(api.admin.removeRole, { year: YEAR, name: "Volunteer" });
+    await admin.mutation(api.admin.removeUniversity, { year: YEAR, name: "Temp Uni" });
+
+    // After removal the lock set follows the tables, dropping the stale entries
+    // even though they remain in the persisted snapshot.
+    const after = await leader.query(api.attendanceMetadata.list, { year: YEAR });
+    const role = after.find((f) => f.key === "Role")!;
+    const campus = after.find((f) => f.key === "Campus")!;
+    expect(role.lockedValues).not.toContain("Volunteer");
+    expect(role.lockedValues).toContain("Staff"); // base ROLES stay locked
+    expect(campus.lockedValues).not.toContain("Temp Uni");
+    expect(campus.lockedValues).toContain(USYD); // still-present campus stays locked
+  });
 });
 
 describe("attendance members", () => {

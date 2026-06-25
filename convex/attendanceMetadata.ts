@@ -100,7 +100,9 @@ export const list = query({
           ...field,
           values,
           subgroup: undefined,
-          lockedValues: [...new Set([...(field.lockedValues ?? []), ...universityNames])],
+          // Synced to the year's `universities` table — not the stored snapshot —
+          // so a campus removed there is no longer locked here.
+          lockedValues: universityNames,
         };
       }
       if (field.key === "Role" && field.type === "select") {
@@ -109,7 +111,9 @@ export const list = query({
           ...field,
           values,
           subgroup: undefined,
-          lockedValues: [...new Set([...(field.lockedValues ?? []), ...orgRoles])],
+          // Synced to the year's `roles` table (plus the base ROLES) — not the
+          // stored snapshot — so a role removed there is no longer locked here.
+          lockedValues: orgRoles,
         };
       }
         return field;
@@ -272,10 +276,12 @@ export const saveAll = mutation({
           ? [...GENDER_OPTION_IDS, "Male", "Female"]
           : key === STUDENT_YEAR_FIELD_KEY
             ? [...STUDENT_YEAR_LEVELS]
-            : key === "Campus"
-          ? [...new Set([...(field.lockedValues ?? []), ...universityNames])]
+            : // Campus/Role lock sets are the live universities/roles tables for
+              // this staff year, not the (possibly stale) incoming snapshot.
+              key === "Campus"
+          ? universityNames
           : key === "Role"
-            ? [...new Set([...(field.lockedValues ?? []), ...orgRoles])]
+            ? orgRoles
             : field.lockedValues;
 
       if (field.type === "select" && values) {
