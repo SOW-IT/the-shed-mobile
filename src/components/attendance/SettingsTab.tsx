@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
@@ -12,6 +13,7 @@ import {
   Card,
   errorMessage,
   Field,
+  IconButton,
   LoadingState,
   Muted,
   Sheet,
@@ -55,7 +57,6 @@ export function SettingsTab({
   const [tagDeletes, setTagDeletes] = useState<Id<"attendanceTags">[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [colourIndex, setColourIndex] = useState<number | null>(null);
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
   const [deleteText, setDeleteText] = useState("");
 
@@ -126,6 +127,28 @@ export function SettingsTab({
             },
           ]}
         >
+          <View style={styles.cardHeader}>
+            <AttendanceTagPill
+              name={tag.name.trim() || "New tag"}
+              colour={tag.colour}
+            />
+            <IconButton
+              name={tag.id ? "trash-outline" : "close"}
+              size={32}
+              color={tag.id ? t.danger : t.ghostText}
+              bg={tag.id ? t.dangerSoft : t.ghost}
+              accessibilityLabel={tag.id ? "Remove tag" : "Discard tag"}
+              onPress={() => {
+                if (tag.id) {
+                  setDeleteIndex(i);
+                  setDeleteText("");
+                } else {
+                  setTagDrafts((prev) => prev.filter((_, j) => j !== i));
+                }
+              }}
+            />
+          </View>
+
           <Field
             label="Name"
             value={tag.name}
@@ -133,21 +156,42 @@ export function SettingsTab({
               setTagDrafts((prev) => prev.map((x, j) => (j === i ? { ...x, name } : x)))
             }
           />
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setColourIndex(i)}
-            style={({ pressed }) => [
-              styles.colourButton,
-              { borderColor: t.separator },
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <AttendanceTagPill
-              name={tag.colour ? `Colour: ${tag.colour}` : "Choose colour"}
-              colour={tag.colour}
-              small
-            />
-          </Pressable>
+
+          <View style={{ gap: spacing.xs }}>
+            <Muted>Colour</Muted>
+            <View style={styles.swatchRow}>
+              {TAG_COLOUR_NAMES.map((colour) => {
+                const hex = tagColourHex(colour);
+                const selected = tag.colour === colour;
+                return (
+                  <Pressable
+                    key={colour}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Colour ${colour}`}
+                    accessibilityState={{ selected }}
+                    onPress={() =>
+                      setTagDrafts((prev) =>
+                        prev.map((x, j) => (j === i ? { ...x, colour } : x))
+                      )
+                    }
+                    style={({ pressed }) => [
+                      styles.swatch,
+                      {
+                        backgroundColor: hex,
+                        borderColor: selected ? t.text : "transparent",
+                      },
+                      pressed && { opacity: 0.7 },
+                    ]}
+                  >
+                    {selected ? (
+                      <Ionicons name="checkmark" size={16} color="#fff" />
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
           <View style={{ gap: spacing.xs }}>
             <Muted>Applies to</Muted>
             <View style={styles.scopeRow}>
@@ -187,22 +231,6 @@ export function SettingsTab({
               ))}
             </View>
           </View>
-          {tag.id ? (
-            <Btn
-              title="Remove"
-              variant="danger"
-              onPress={() => {
-                setDeleteIndex(i);
-                setDeleteText("");
-              }}
-            />
-          ) : (
-            <Btn
-              title="Discard"
-              variant="ghost"
-              onPress={() => setTagDrafts((prev) => prev.filter((_, j) => j !== i))}
-            />
-          )}
         </Card>
       ))}
       <Btn title="Add tag" variant="ghost" onPress={addTag} />
@@ -212,33 +240,6 @@ export function SettingsTab({
           {error}
         </Txt>
       ) : null}
-      <Sheet
-        visible={colourIndex !== null}
-        onClose={() => setColourIndex(null)}
-        title="Choose tag colour"
-      >
-        <View style={styles.scopeRow}>
-          {TAG_COLOUR_NAMES.map((colour) => (
-            <Pressable
-              key={colour}
-              onPress={() => {
-                if (colourIndex === null) return;
-                setTagDrafts((prev) =>
-                  prev.map((x, j) => (j === colourIndex ? { ...x, colour } : x))
-                );
-                setColourIndex(null);
-              }}
-            >
-              <AttendanceTagPill
-                name={colour}
-                colour={colour}
-                selected={tagDrafts[colourIndex ?? -1]?.colour === colour}
-                small
-              />
-            </Pressable>
-          ))}
-        </View>
-      </Sheet>
       <Sheet
         visible={deleteIndex !== null}
         onClose={() => setDeleteIndex(null)}
@@ -281,11 +282,24 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     borderWidth: 2,
   },
-  colourButton: {
-    alignSelf: "flex-start",
-    borderWidth: StyleSheet.hairlineWidth,
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  swatchRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  swatch: {
+    width: 32,
+    height: 32,
     borderRadius: radius.full,
-    padding: 2,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
   },
   scopeRow: {
     flexDirection: "row",

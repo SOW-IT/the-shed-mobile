@@ -4,6 +4,41 @@ All notable changes to **The SHED** mobile app. This project follows
 [semantic versioning](https://semver.org/); the marketing version lives in
 `app.json` and the build number auto-increments per EAS build.
 
+## [1.1.0] — 2026-06-25
+
+Attendance (roll-call) arrives — a full attendance tab ported from
+time-to-rollcall for tracking who turns up to events, per campus and staff year.
+
+### Added
+
+- **Attendance tab.** Run events under one or more sub-groups (each campus, plus
+  org-wide "SOW"), sign people in from a live roster, and manage a shared member
+  pool. Collaborative events span several campuses and appear under each; events
+  load 20 at a time with a "Load more" button. (#103)
+- **Member metadata & tags.** Per-staff-year fields (Year, Gender, Campus, Role)
+  describe each member, with an admin editor; Year is captured as the university
+  level. Events can be labelled with colour-coded category tags. (#103)
+- **CSV export.** Export roll-call attendance for a date range to CSV, using
+  native date pickers on device and a web date picker in the browser. (#105)
+- **Duplicate-name guard.** Creating a member whose name already exists now shows
+  an inline warning and a confirmation step that lists the existing member(s) and
+  their metadata, so you can be sure before adding another person with that name.
+  (#105)
+
+### Changed
+
+- **Members are one consolidated, year-less list.** A person is a single member
+  reused across every staff year (same id), instead of a separate row per year.
+  Staff members map to their staff profile for the event's year. (#103)
+- **Role/Campus locked values stay synced.** The non-removable options for the
+  Role and Campus fields are read live from that staff year's roles/universities
+  tables, so removing one there unlocks it here instead of sticking around. (#106)
+
+### Removed
+
+- **Unused template assets.** Dropped Expo starter art and other unreferenced
+  images to slim the bundle. (#104)
+
 ## [1.0.4] — 2026-06-22
 
 Approvals flexibility (configurable Director cutoff, delegation), an in-app

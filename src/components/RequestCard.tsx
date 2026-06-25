@@ -16,7 +16,16 @@ import {
 import { api } from "../../convex/_generated/api";
 import { Doc, Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "../theme";
-import { Card, IconButton, LoadingBar, Muted, Sheet, Txt } from "./ui";
+import {
+  Card,
+  IconButton,
+  LoadingBar,
+  LoadingState,
+  Muted,
+  Sheet,
+  SowSpinner,
+  Txt,
+} from "./ui";
 import { CommentsSheet } from "./CommentsSheet";
 import { ReceiptRecipientList } from "./ReceiptRecipientList";
 
@@ -58,7 +67,13 @@ const EVENT_LABELS: Record<string, string> = {
 const History = ({ request }: { request: Doc<"requests"> }) => {
   const t = useAppTheme();
   const trail = useQuery(api.requests.auditTrail, { requestId: request._id });
-  if (!trail) return <Muted>Loading history…</Muted>;
+  if (!trail) {
+    return (
+      <View style={{ alignItems: "center", paddingVertical: spacing.md }}>
+        <SowSpinner size={28} />
+      </View>
+    );
+  }
   return (
     <View style={[styles.history, { backgroundColor: t.inputBackground }]}>
       {trail.map((event, index) => (
@@ -119,7 +134,7 @@ const StepInfoModal = ({
       title={step ? STEP_LABELS[step] : ""}
     >
       {!info ? (
-        <Muted>Loading…</Muted>
+        <LoadingState />
       ) : (
         <>
           <View style={{ gap: 2 }}>

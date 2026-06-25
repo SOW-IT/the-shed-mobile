@@ -16,6 +16,7 @@ import { staffYearForDate } from "../../../../shared/flow";
 import { AttendanceRow } from "@/components/AttendanceRow";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
+import { ExportSheet } from "@/components/attendance/ExportSheet";
 import {
   Btn,
   Chip,
@@ -89,6 +90,7 @@ export default function EventAttendanceScreen() {
 
   const [search, setSearch] = useState("");
   const [eventEditOpen, setEventEditOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editMemberId, setEditMemberId] = useState<Id<"attendanceMembers"> | null>(
     null
@@ -267,6 +269,18 @@ export default function EventAttendanceScreen() {
             <Text style={[typography.caption, styles.editEventText, { color: t.primary }]}>
               Edit
             </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Export event attendance"
+            onPress={() => setExportOpen(true)}
+            style={({ pressed }) => [
+              styles.editEventButton,
+              { borderColor: t.primary },
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Ionicons name="download-outline" size={14} color={t.primary} />
           </Pressable>
           <View style={[styles.countPill, { backgroundColor: t.primarySoft }]}>
             <Ionicons name="people" size={14} color={t.primary} />
@@ -448,6 +462,13 @@ export default function EventAttendanceScreen() {
         subgroup={event.subgroups[0] ?? SOW_SUBGROUP}
         subgroups={subgroups}
         event={event}
+      />
+      <ExportSheet
+        visible={exportOpen}
+        onClose={() => setExportOpen(false)}
+        year={event.year}
+        subgroup={event.subgroups[0] ?? SOW_SUBGROUP}
+        eventId={evId}
       />
     </Screen>
   );

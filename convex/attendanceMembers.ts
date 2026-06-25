@@ -14,6 +14,7 @@ import {
   yearMetadataSortKey,
   yearOptionIdForStoredValue,
 } from "../shared/attendanceMemberMeta";
+import { staffEmailCandidates } from "../shared/rollcallImport";
 import { mutation, query } from "./_generated/server";
 import { getProfile, optionalProfile, requireProfile } from "./model";
 
@@ -151,12 +152,33 @@ export const list = query({
       .query("attendanceMembers")
       .collect();
 
-    const shadowByEmail = new Map(
-      extra
-        .filter((m) => m.staffEmail)
-        .map((m) => [m.staffEmail!.toLowerCase(), m])
-    );
-    const pureExtras = extra.filter((m) => !m.staffEmail);
+    // Link attendance-member rows to this year's staff profiles so a person is
+    // shown once. An overlay matches a profile either by its explicit
+    // `staffEmail` or by its plain `email` (e.g. someone added as an
+    // attendance-only member *before* being provisioned as staff, who has no
+    // `staffEmail` link). Matching against THIS year's profiles means a year in
+    // which the person wasn't yet staff still lists them as a plain member —
+    // they appear as whatever they were that year, not retroactively as staff.
+    const profileEmails = new Set(profiles.map((p) => p.email.toLowerCase()));
+    const matchProfileEmail = (email: string | undefined): string | undefined =>
+      staffEmailCandidates(email).find((c) => profileEmails.has(c));
+    const shadowByEmail = new Map<string, (typeof extra)[number]>();
+    const pureExtras: typeof extra = [];
+    for (const m of extra) {
+      const matched = matchProfileEmail(m.staffEmail) ?? matchProfileEmail(m.email);
+      if (matched) {
+        if (!shadowByEmail.has(matched)) shadowByEmail.set(matched, m);
+        continue;
+      }
+      // A staffEmail that matches no profile this year stays hidden (not a pure
+      // extra), preserving prior behaviour for stale overlays.
+      if (m.staffEmail) {
+        const key = m.staffEmail.toLowerCase();
+        if (!shadowByEmail.has(key)) shadowByEmail.set(key, m);
+        continue;
+      }
+      pureExtras.push(m);
+    }
 
     const rows: MemberRow[] = [];
 
@@ -311,6 +333,31 @@ export const get = query({
   },
 });
 
+/**
+ * Members whose name matches `name` (case-insensitively, trimmed), with their
+ * metadata. Powers the "a member with this name already exists" warning and the
+ * confirm-before-create prompt in the new-member form, so an admin can see who
+ * they might be duplicating before adding another person with the same name.
+ */
+export const byName = query({
+  args: { name: v.string() },
+  handler: async (ctx, { name }) => {
+    if (!(await optionalProfile(ctx))) return [];
+    const normalized = name.trim().toLowerCase();
+    if (!normalized) return [];
+    const members = await ctx.db.query("attendanceMembers").collect();
+    return members
+      .filter((m) => m.name.trim().toLowerCase() === normalized)
+      .map((m) => ({
+        _id: m._id,
+        name: m.name,
+        email: m.email,
+        staffEmail: m.staffEmail,
+        metadata: m.metadata ?? {},
+      }));
+  },
+});
+
 /** Ensure a metadata overlay exists for a staff profile. */
 export const ensureForStaff = mutation({
   args: { staffEmail: v.string() },
@@ -323,6 +370,17 @@ export const ensureForStaff = mutation({
       .withIndex("by_staff_email", (q) => q.eq("staffEmail", email))
       .unique();
     if (existing) return existing._id;
+    // Adopt an unlinked attendance-only row whose plain email matches this
+    // staff member (e.g. they were added as a member before being provisioned
+    // as staff) — link it instead of inserting a duplicate.
+    const candidates = staffEmailCandidates(email);
+    const unlinked = (await ctx.db.query("attendanceMembers").collect()).find(
+      (m) => !m.staffEmail && m.email && candidates.includes(m.email.toLowerCase())
+    );
+    if (unlinked) {
+      await ctx.db.patch(unlinked._id, { staffEmail: email });
+      return unlinked._id;
+    }
     const currentYear = staffYearForDate(new Date());
     const profile = await getProfile(ctx, email, currentYear);
     if (!profile) throw new ConvexError("Staff profile not found.");

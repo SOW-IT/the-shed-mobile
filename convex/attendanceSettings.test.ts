@@ -509,6 +509,75 @@ describe("attendance members", () => {
     ).toEqual({ page: [], isDone: true, continueCursor: "" });
   });
 
+  test("dedupes an attendance-only member who later becomes staff, per year", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+    // Added as an attendance-only member (no staffEmail) under the email that
+    // is a staff profile this year — the rollover-duplicate scenario.
+    const memberId = await leader.mutation(api.attendanceMembers.create, {
+      name: "Future Leader",
+      email: LEADER,
+    });
+
+    // This year (LEADER holds a profile): one combined staff row, not two.
+    const thisYear = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    const staffRow = thisYear.page.find((r) => r.key === `staff:${LEADER}`);
+    expect(staffRow?.memberId).toBe(memberId);
+    expect(thisYear.page.some((r) => r.key === `member:${memberId}`)).toBe(false);
+
+    // A year in which LEADER held no profile: shown as the plain member they
+    // were then, not retroactively promoted to staff.
+    const pastYear = await leader.query(api.attendanceMembers.list, {
+      year: YEAR - 5,
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(pastYear.page.some((r) => r.key === `member:${memberId}`)).toBe(true);
+    expect(pastYear.page.some((r) => r.key === `staff:${LEADER}`)).toBe(false);
+  });
+
+  test("list hides a stale staff overlay whose email has no profile this year", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+    const ghostId = await t.run(async (ctx) =>
+      ctx.db.insert("attendanceMembers", {
+        name: "Ghost",
+        email: "ghost@sow.org.au",
+        staffEmail: "ghost@sow.org.au",
+      })
+    );
+    const page = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(page.page.some((r) => r.memberId === ghostId)).toBe(false);
+    expect(page.page.some((r) => r.name === "Ghost")).toBe(false);
+  });
+
+  test("ensureForStaff adopts an existing unlinked member instead of duplicating", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+    // STAFF was added as an attendance-only member before being linked.
+    const memberId = await leader.mutation(api.attendanceMembers.create, {
+      name: "Staff Person",
+      email: STAFF,
+    });
+    const ensured = await leader.mutation(api.attendanceMembers.ensureForStaff, {
+      staffEmail: STAFF,
+    });
+    expect(ensured).toBe(memberId);
+    const rows = (
+      await t.run(async (ctx) => ctx.db.query("attendanceMembers").collect())
+    ).filter((m) => m.email === STAFF);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].staffEmail).toBe(STAFF);
+  });
+
   test("search, filter, sort, and paginate", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
@@ -811,5 +880,47 @@ describe("metadata saveAll edge cases", () => {
         deleteIds: [],
       })
     ).rejects.toThrow(/Cannot remove locked value/i);
+  });
+});
+
+describe("attendanceMembers.byName", () => {
+  test("matches case-insensitively, trims, and is staff-only", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+    const fields = await leader.query(api.attendanceMetadata.list, { year: YEAR });
+    const campus = fields.find((f) => f.key === "Campus")!;
+    const usydId = Object.entries(campus.values ?? {}).find(
+      ([, label]) => label === USYD
+    )![0];
+
+    await leader.mutation(api.attendanceMembers.create, {
+      name: "Jane Doe",
+      email: "jane@example.com",
+      metadata: { [campus._id]: usydId },
+    });
+    await leader.mutation(api.attendanceMembers.create, { name: "Jane Doe" });
+    await leader.mutation(api.attendanceMembers.create, { name: "Someone Else" });
+
+    // Unauthenticated callers get nothing.
+    expect(await t.query(api.attendanceMembers.byName, { name: "Jane Doe" })).toEqual(
+      []
+    );
+    // Empty/whitespace name short-circuits.
+    expect(await leader.query(api.attendanceMembers.byName, { name: "  " })).toEqual(
+      []
+    );
+
+    const matches = await leader.query(api.attendanceMembers.byName, {
+      name: "  jane DOE ",
+    });
+    expect(matches).toHaveLength(2);
+    expect(matches.map((m) => m.name).sort()).toEqual(["Jane Doe", "Jane Doe"]);
+    const withCampus = matches.find((m) => m.email === "jane@example.com")!;
+    expect(withCampus.metadata[campus._id]).toBe(usydId);
+
+    expect(
+      await leader.query(api.attendanceMembers.byName, { name: "nobody" })
+    ).toEqual([]);
   });
 });
