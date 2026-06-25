@@ -37,10 +37,7 @@ export function SubgroupScopePicker({
         <View
           style={[
             styles.ring,
-            {
-              borderColor: allSelected ? t.primary : "transparent",
-              borderWidth: allSelected ? 2.5 : 0,
-            },
+            { borderColor: allSelected ? t.primary : "transparent" },
           ]}
         >
           <View
@@ -68,10 +65,7 @@ export function SubgroupScopePicker({
             <View
               style={[
                 styles.ring,
-                {
-                  borderColor: selected ? colour : "transparent",
-                  borderWidth: selected ? 2.5 : 0,
-                },
+                { borderColor: selected ? colour : "transparent" },
               ]}
             >
               <CampusMark campus={sg} variant="circle" circleDiameter={MARK} />
@@ -93,9 +87,13 @@ const styles = StyleSheet.create({
   slot: {
     alignItems: "center",
   },
-  /** Selection ring hugging the circular mark — no rectangular chip padding. */
+  /**
+   * Selection ring hugging the circular mark. The border is always present so
+   * selecting/deselecting only toggles its colour — keeps the layout stable.
+   */
   ring: {
     borderRadius: 999,
+    borderWidth: 2.5,
     padding: 0,
   },
   allCircle: {

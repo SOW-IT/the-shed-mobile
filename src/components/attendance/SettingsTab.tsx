@@ -210,7 +210,7 @@ export function SettingsTab({
                     const set = new Set(x.subgroups ?? []);
                     if (set.has(subgroup)) set.delete(subgroup);
                     else set.add(subgroup);
-                    return { ...x, subgroups: [...set] };
+                    return { ...x, subgroups: set.size ? [...set] : undefined };
                   })
                 )
               }

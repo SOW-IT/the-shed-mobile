@@ -29,7 +29,7 @@ describe("displayNameFromEmail", () => {
 
   test("returns null for non-name-shaped addresses", () => {
     expect(displayNameFromEmail("u12345@sow.org.au")).toBeNull();
-    expect(displayNameFromEmail("admin")).toBe("Admin");
+    expect(displayNameFromEmail("admin@sow.org.au")).toBeNull();
     expect(displayNameFromEmail("")).toBeNull();
   });
 });

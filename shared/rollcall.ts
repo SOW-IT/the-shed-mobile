@@ -109,8 +109,8 @@ export const displayNameFromEmail = (email: string): string | null => {
     .split(/[._\-+]+/)
     .map((w) => w.trim())
     .filter(Boolean);
-  // Skip anything that isn't alphabetic name-shaped (e.g. "admin", "u12345").
-  if (words.length === 0 || !words.every((w) => /^[a-z]+$/i.test(w))) return null;
+  // Skip anything that isn't a multi-word alphabetic name (e.g. "admin", "u12345").
+  if (words.length < 2 || !words.every((w) => /^[a-z]+$/i.test(w))) return null;
   return words.map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(" ");
 };
 

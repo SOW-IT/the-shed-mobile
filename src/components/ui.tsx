@@ -281,7 +281,7 @@ export const FooterAction = ({
   return (
     <View style={[styles.footerWrap, { pointerEvents: "box-none" }]}>
       {note ? (
-        <View style={styles.footerNote}>
+        <View style={styles.footerNote} pointerEvents="none">
           <Ionicons name="warning-outline" size={14} color={t.warning} />
           <Text style={[typography.caption, { color: t.warning, fontWeight: "700" }]}>
             {note}

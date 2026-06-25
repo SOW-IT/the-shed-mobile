@@ -265,7 +265,7 @@ export function EventsTab({
                           </View>
                           <View style={[styles.badgeGroup, styles.badgeGroupRight]}>
                             {event.subgroups
-                              .filter((s) => s !== subgroup)
+                              .filter((s) => subgroup == null || !subgroupMatches(s, subgroup))
                               .map((s) => {
                                 const colour = subgroupColour(s);
                                 return (
