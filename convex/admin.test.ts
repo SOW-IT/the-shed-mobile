@@ -969,6 +969,53 @@ describe("rollOverStaffYear", () => {
   });
 });
 
+describe("stripEventYear", () => {
+  const makeEvent = (
+    t: TestConvex<typeof schema>,
+    fields: { year?: number; name: string; day: number }
+  ) =>
+    t.run((ctx) =>
+      ctx.db.insert("events", {
+        ...(fields.year !== undefined ? { year: fields.year } : {}),
+        name: fields.name,
+        dateStart: Date.UTC(2030, 0, fields.day),
+        dateEnd: Date.UTC(2030, 0, fields.day) + 3600_000,
+        subgroups: ["SOW"],
+      })
+    );
+
+  test("clears the deprecated year column and is idempotent", async () => {
+    const t = await setup();
+    const withYear = await makeEvent(t, { year: 2030, name: "Has year", day: 1 });
+    const withoutYear = await makeEvent(t, { name: "No year", day: 2 });
+
+    const first = await t.mutation(internal.admin.stripEventYear, {});
+    expect(first).toEqual({ cleared: 1, done: true });
+    expect((await t.run((ctx) => ctx.db.get(withYear)))?.year).toBeUndefined();
+    expect((await t.run((ctx) => ctx.db.get(withoutYear)))?.year).toBeUndefined();
+
+    // Re-running has nothing left to clear.
+    const second = await t.mutation(internal.admin.stripEventYear, {});
+    expect(second).toEqual({ cleared: 0, done: true });
+  });
+
+  test("reports done: false while a full batch remains", async () => {
+    const t = await setup();
+    await makeEvent(t, { year: 2030, name: "E0", day: 1 });
+    await makeEvent(t, { year: 2030, name: "E1", day: 2 });
+    await makeEvent(t, { year: 2030, name: "E2", day: 3 });
+
+    expect(await t.mutation(internal.admin.stripEventYear, { limit: 2 })).toEqual({
+      cleared: 2,
+      done: false,
+    });
+    expect(await t.mutation(internal.admin.stripEventYear, { limit: 2 })).toEqual({
+      cleared: 1,
+      done: true,
+    });
+  });
+});
+
 describe("listStaffProfiles directory name fallback", () => {
   test("uses the synced directory name when the profile has no name yet", async () => {
     const t = await setup();
