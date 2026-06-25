@@ -333,6 +333,31 @@ export const get = query({
   },
 });
 
+/**
+ * Members whose name matches `name` (case-insensitively, trimmed), with their
+ * metadata. Powers the "a member with this name already exists" warning and the
+ * confirm-before-create prompt in the new-member form, so an admin can see who
+ * they might be duplicating before adding another person with the same name.
+ */
+export const byName = query({
+  args: { name: v.string() },
+  handler: async (ctx, { name }) => {
+    if (!(await optionalProfile(ctx))) return [];
+    const normalized = name.trim().toLowerCase();
+    if (!normalized) return [];
+    const members = await ctx.db.query("attendanceMembers").collect();
+    return members
+      .filter((m) => m.name.trim().toLowerCase() === normalized)
+      .map((m) => ({
+        _id: m._id,
+        name: m.name,
+        email: m.email,
+        staffEmail: m.staffEmail,
+        metadata: m.metadata ?? {},
+      }));
+  },
+});
+
 /** Ensure a metadata overlay exists for a staff profile. */
 export const ensureForStaff = mutation({
   args: { staffEmail: v.string() },

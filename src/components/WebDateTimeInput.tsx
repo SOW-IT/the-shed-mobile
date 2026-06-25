@@ -15,6 +15,9 @@ import { typography, useAppTheme, type AppTheme } from "@/theme";
 
 const inputStyle = (t: AppTheme): CSSProperties => ({
   width: "100%",
+  // Let the native date control shrink with its flex column instead of forcing
+  // its intrinsic width and spilling out of the row on narrow (mobile) screens.
+  minWidth: 0,
   height: 44,
   padding: "0 12px",
   borderRadius: 10,
@@ -42,7 +45,7 @@ export const WebDateInput = ({
 }) => {
   const t = useAppTheme();
   return (
-    <View style={{ flex: 1, gap: 4 }}>
+    <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
       <Txt style={[typography.label, { color: t.muted }]}>{label}</Txt>
       <input
         type="date"
@@ -67,7 +70,7 @@ export const WebTimeInput = ({
 }) => {
   const t = useAppTheme();
   return (
-    <View style={{ flex: 1, gap: 4 }}>
+    <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
       <Txt style={[typography.label, { color: t.muted }]}>{label}</Txt>
       <input
         type="time"

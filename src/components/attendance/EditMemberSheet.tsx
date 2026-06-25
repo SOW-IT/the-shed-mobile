@@ -7,6 +7,7 @@ import { Doc, Id } from "../../../convex/_generated/dataModel";
 import {
   CAMPUS_FIELD_KEY,
   encodeYearMetadataValue,
+  formatMetadataFieldValue,
   orderedSelectOptions,
   ROLE_FIELD_KEY,
   STUDENT_YEAR_FIELD_KEY,
@@ -62,6 +63,21 @@ export function EditMemberSheet({
   const [submitting, setSubmitting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteText, setDeleteText] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  // Existing members sharing this name — only checked while creating, so an
+  // admin is warned (and must confirm) before adding a duplicate person.
+  const duplicates = useQuery(
+    api.attendanceMembers.byName,
+    visible && !memberId && name.trim() ? { name: name.trim() } : "skip"
+  );
+  const hasDuplicate = !memberId && (duplicates?.length ?? 0) > 0;
+
+  const metadataSummary = (meta: Record<string, string>) =>
+    metadataFields
+      .map((f) => formatMetadataFieldValue(f.key, meta[f._id] ?? "", year, f.values))
+      .filter(Boolean)
+      .join(" · ");
 
   useEffect(() => {
     if (!visible) return;
@@ -80,7 +96,17 @@ export function EditMemberSheet({
     setError(null);
     setDeleteOpen(false);
     setDeleteText("");
+    setConfirmOpen(false);
   }, [visible, memberId, row, eventAttendance?.attendanceId, eventAttendance?.notes]);
+
+  // New members with a name clash go through a confirmation step first.
+  const handleSave = () => {
+    if (hasDuplicate) {
+      setConfirmOpen(true);
+      return;
+    }
+    void submit();
+  };
 
   const submit = async () => {
     if (submitting) return;
@@ -154,7 +180,7 @@ export function EditMemberSheet({
           <View style={{ gap: spacing.sm }}>
             <Btn
               title="Save"
-              onPress={() => void submit()}
+              onPress={handleSave}
               loading={submitting}
               disabled={!isStaffOverlay && !name.trim()}
             />
@@ -173,6 +199,13 @@ export function EditMemberSheet({
             placeholder="Full name"
             disabled={isStaffOverlay}
           />
+          {hasDuplicate ? (
+            <Txt
+              style={[typography.caption, { color: t.warning, marginTop: 4 }]}
+            >
+              A member with this name already exists.
+            </Txt>
+          ) : null}
           <Field
             label="Email (optional)"
             value={email}
@@ -278,6 +311,62 @@ export function EditMemberSheet({
               onChangeText={setDeleteText}
               placeholder={name}
             />
+          </Sheet>
+          <Sheet
+            visible={confirmOpen}
+            onClose={() => setConfirmOpen(false)}
+            title="Name already exists"
+            footer={
+              <Btn
+                title="Create anyway"
+                variant="danger"
+                loading={submitting}
+                onPress={() => {
+                  setConfirmOpen(false);
+                  void submit();
+                }}
+              />
+            }
+          >
+            <Txt style={[typography.body, { color: t.text }]}>
+              {(duplicates?.length ?? 0) === 1
+                ? `A member named "${name.trim()}" already exists:`
+                : `${duplicates?.length} members named "${name.trim()}" already exist:`}
+            </Txt>
+            {(duplicates ?? []).map((dup) => {
+              const summary = metadataSummary(dup.metadata);
+              return (
+                <View
+                  key={dup._id}
+                  style={{
+                    gap: 2,
+                    marginTop: spacing.sm,
+                    paddingLeft: spacing.sm,
+                    borderLeftWidth: 2,
+                    borderLeftColor: t.warning,
+                  }}
+                >
+                  <Txt style={[typography.headline, { color: t.text }]}>
+                    {dup.name}
+                  </Txt>
+                  {dup.email ? (
+                    <Txt style={[typography.caption, { color: t.muted }]}>
+                      {dup.email}
+                    </Txt>
+                  ) : null}
+                  {summary ? (
+                    <Txt style={[typography.caption, { color: t.muted }]}>
+                      {summary}
+                    </Txt>
+                  ) : null}
+                </View>
+              );
+            })}
+            <Txt
+              style={[typography.body, { color: t.text, marginTop: spacing.md }]}
+            >
+              Are you sure you want to create another member with the same name?
+            </Txt>
           </Sheet>
         </>
       )}

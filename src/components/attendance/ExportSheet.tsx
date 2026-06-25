@@ -94,7 +94,7 @@ const DateField = ({
   // The clear button is a sibling (not nested) so tapping it can't bubble up
   // and re-trigger the field's open/close toggle.
   return (
-    <View style={{ flex: 1, gap: 4 }}>
+    <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
       <Txt style={[typography.label, { color: t.muted }]}>{label}</Txt>
       <View
         style={{
@@ -229,7 +229,8 @@ export function ExportSheet({
     if (!visible) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on open
     setFromMs(undefined);
-    setToMs(undefined);
+    // End date defaults to today; the start date is required before exporting.
+    setToMs(Date.now());
     setPicking(null);
     setNowMs(Date.now());
     setSelectedTags([]);
@@ -322,7 +323,8 @@ export function ExportSheet({
         <Btn
           title="Export CSV"
           loading={downloading}
-          disabled={fields === undefined}
+          // Group export needs a start date; event export has no range.
+          disabled={fields === undefined || (!isEvent && fromMs == null)}
           onPress={() => void download()}
         />
       }
@@ -339,7 +341,7 @@ export function ExportSheet({
       {!isEvent ? (
         <>
           <Txt style={[typography.label, styles.heading, { color: t.muted }]}>
-            Time range (optional)
+            Time range
           </Txt>
           <View style={{ flexDirection: "row", gap: spacing.sm }}>
             {Platform.OS === "web" ? (
@@ -384,6 +386,16 @@ export function ExportSheet({
               </>
             )}
           </View>
+          {fromMs == null ? (
+            <Txt
+              style={[
+                typography.caption,
+                { color: t.muted, marginTop: spacing.xs },
+              ]}
+            >
+              Pick a start date to export. End date defaults to today.
+            </Txt>
+          ) : null}
           {Platform.OS !== "web" && picking ? (
             <View style={{ marginTop: spacing.sm, alignItems: "center" }}>
               {(() => {

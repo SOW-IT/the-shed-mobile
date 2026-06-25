@@ -882,3 +882,45 @@ describe("metadata saveAll edge cases", () => {
     ).rejects.toThrow(/Cannot remove locked value/i);
   });
 });
+
+describe("attendanceMembers.byName", () => {
+  test("matches case-insensitively, trims, and is staff-only", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+    const fields = await leader.query(api.attendanceMetadata.list, { year: YEAR });
+    const campus = fields.find((f) => f.key === "Campus")!;
+    const usydId = Object.entries(campus.values ?? {}).find(
+      ([, label]) => label === USYD
+    )![0];
+
+    await leader.mutation(api.attendanceMembers.create, {
+      name: "Jane Doe",
+      email: "jane@example.com",
+      metadata: { [campus._id]: usydId },
+    });
+    await leader.mutation(api.attendanceMembers.create, { name: "Jane Doe" });
+    await leader.mutation(api.attendanceMembers.create, { name: "Someone Else" });
+
+    // Unauthenticated callers get nothing.
+    expect(await t.query(api.attendanceMembers.byName, { name: "Jane Doe" })).toEqual(
+      []
+    );
+    // Empty/whitespace name short-circuits.
+    expect(await leader.query(api.attendanceMembers.byName, { name: "  " })).toEqual(
+      []
+    );
+
+    const matches = await leader.query(api.attendanceMembers.byName, {
+      name: "  jane DOE ",
+    });
+    expect(matches).toHaveLength(2);
+    expect(matches.map((m) => m.name).sort()).toEqual(["Jane Doe", "Jane Doe"]);
+    const withCampus = matches.find((m) => m.email === "jane@example.com")!;
+    expect(withCampus.metadata[campus._id]).toBe(usydId);
+
+    expect(
+      await leader.query(api.attendanceMembers.byName, { name: "nobody" })
+    ).toEqual([]);
+  });
+});
