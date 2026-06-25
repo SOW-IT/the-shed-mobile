@@ -7,6 +7,7 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
+import { AuditTab } from "@/components/attendance/AuditTab";
 import { EventsTab } from "@/components/attendance/EventsTab";
 import { MembersTab } from "@/components/attendance/MembersTab";
 import { MetadataTab, type SaveControls } from "@/components/attendance/MetadataTab";
@@ -58,6 +59,7 @@ export default function AttendanceScreen() {
       tab === "members" ||
       tab === "settings" ||
       tab === "metadata" ||
+      tab === "audit" ||
       tab === "events"
     ) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- deep-link tab param
@@ -172,6 +174,11 @@ export default function AttendanceScreen() {
           onSaveStateChange={setMetaSave}
         />
       ),
+    },
+    {
+      key: "audit",
+      label: "Audit",
+      render: () => <AuditTab />,
     },
   ];
 

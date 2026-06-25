@@ -4,6 +4,18 @@ All notable changes to **The SHED** mobile app. This project follows
 [semantic versioning](https://semver.org/); the marketing version lives in
 `app.json` and the build number auto-increments per EAS build.
 
+## [Unreleased]
+
+### Added
+
+- **Attendance audit trail.** Every attendance-area change is now recorded with
+  who did it and when — events created/updated/deleted, members
+  created/updated/deleted, tags and member fields changed, and every roll-call
+  sign-in, record edit and sign-out. A new **Audit** tab in the Attendance area
+  shows the activity newest-first, searchable and filterable by action type, the
+  person who performed it, and the event it relates to. Log entries are immutable
+  and snapshot names so they stay readable after the subject is deleted.
+
 ## [1.1.0] — 2026-06-25
 
 Attendance (roll-call) arrives — a full attendance tab ported from

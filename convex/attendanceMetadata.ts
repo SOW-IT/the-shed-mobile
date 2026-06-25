@@ -14,6 +14,7 @@ import {
 import { canonicalSubgroup, subgroupMatches } from "../shared/rollcall";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { currentStaffYear, optionalProfile, requireProfile } from "./model";
+import { logAttendanceAction } from "./attendanceAudit";
 
 const LOCKED_FIELD_KEYS = new Set([
   STUDENT_YEAR_FIELD_KEY,
@@ -203,7 +204,7 @@ export const saveAll = mutation({
     deleteIds: v.array(v.id("attendanceMetadata")),
   },
   handler: async (ctx, { fields, deleteIds }) => {
-    await requireProfile(ctx);
+    const { email: actorEmail } = await requireProfile(ctx);
     const orgYear = currentStaffYear();
     for (const id of deleteIds) {
       const row = await ctx.db.get(id);
@@ -221,6 +222,12 @@ export const saveAll = mutation({
         await ctx.db.patch(member._id, { metadata });
       }
       await ctx.db.delete(id);
+      await logAttendanceAction(ctx, {
+        actorEmail,
+        entityType: "metadata",
+        action: "metadata.delete",
+        summary: `Deleted member field "${row.key}"`,
+      });
     }
     const universities = await ctx.db
       .query("universities")
@@ -291,14 +298,35 @@ export const saveAll = mutation({
       if (field.id) {
         const existing = await ctx.db.get(field.id);
         if (!existing) continue;
+        const nextValues = field.type === "select" ? values : undefined;
+        // saveAll rewrites every field on each save; only log fields that
+        // actually changed so the trail isn't flooded with no-op "updates".
+        const changed =
+          existing.key !== key ||
+          existing.type !== field.type ||
+          existing.order !== field.order ||
+          (existing.subgroup ?? undefined) !== (subgroup ?? undefined) ||
+          JSON.stringify(existing.values ?? null) !==
+            JSON.stringify(nextValues ?? null);
         await ctx.db.patch(field.id, {
           key,
           type: field.type,
           order: field.order,
-          values: field.type === "select" ? values : undefined,
+          values: nextValues,
           subgroup,
           lockedValues,
         });
+        if (changed) {
+          await logAttendanceAction(ctx, {
+            actorEmail,
+            entityType: "metadata",
+            action: "metadata.update",
+            summary:
+              existing.key !== key
+                ? `Renamed member field "${existing.key}" → "${key}"`
+                : `Updated member field "${key}"`,
+          });
+        }
       } else {
         await ctx.db.insert("attendanceMetadata", {
           key,
@@ -307,6 +335,12 @@ export const saveAll = mutation({
           values: field.type === "select" ? values : undefined,
           subgroup,
           lockedValues,
+        });
+        await logAttendanceAction(ctx, {
+          actorEmail,
+          entityType: "metadata",
+          action: "metadata.create",
+          summary: `Created member field "${key}"`,
         });
       }
     }

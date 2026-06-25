@@ -308,6 +308,32 @@ export default defineSchema({
     .index("by_dateStart", ["dateStart"])
     .index("by_sourceImportId", ["sourceImportId"]),
 
+  // Immutable audit trail of attendance-area actions: who did what, when
+  // (_creationTime). One row per write — event/member/tag/metadata changes and
+  // every roll-call sign-in/edit/sign-out. Rows are never updated or deleted
+  // (they survive their subject's deletion), so `summary` snapshots names. Read
+  // by the Attendance → Audit tab; see convex/attendanceAudit.ts.
+  attendanceAuditLog: defineTable({
+    actorEmail: v.string(), // who performed it, lowercase
+    // Coarse subject kind, drives the UI icon and the entity-type filter.
+    entityType: v.union(
+      v.literal("event"),
+      v.literal("member"),
+      v.literal("tag"),
+      v.literal("metadata"),
+      v.literal("attendance")
+    ),
+    // Machine key, e.g. "event.create", "member.delete", "attendance.signIn".
+    action: v.string(),
+    summary: v.string(), // human-readable, with name snapshots
+    eventId: v.optional(v.id("events")), // for "filter by event"
+    memberId: v.optional(v.id("attendanceMembers")),
+    subjectEmail: v.optional(v.string()), // person signed in/out (staff, no member row)
+    detail: v.optional(v.string()), // extra context (e.g. before → after)
+  })
+    .index("by_event", ["eventId"])
+    .index("by_actor", ["actorEmail"]),
+
   // Event category tags (e.g. "Weekly Meeting"), per staff year.
   attendanceTags: defineTable({
     year: v.number(),

@@ -1,10 +1,12 @@
 import { ConvexError, v } from "convex/values";
 import { eventStaffYear, staffYearForDate } from "../shared/flow";
-const EVENTS_PAGE_SIZE = 20;
 import { eventIncludesSubgroup, normalizeSubgroups, SOW_SUBGROUP } from "../shared/rollcall";
 import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx, QueryCtx, mutation, query } from "./_generated/server";
 import { optionalProfile, requireProfile } from "./model";
+import { logAttendanceAction } from "./attendanceAudit";
+
+const EVENTS_PAGE_SIZE = 20;
 
 /** Quick attendance count for an event, without loading the rows themselves. */
 async function attendanceCount(
@@ -161,7 +163,7 @@ export const create = mutation({
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
   },
   handler: async (ctx, { name, dateStart, dateEnd, subgroups, tagIds }) => {
-    await requireProfile(ctx);
+    const { email } = await requireProfile(ctx);
     const eventFields = await validateEventFields(ctx, {
       name,
       dateStart,
@@ -169,7 +171,15 @@ export const create = mutation({
       subgroups,
       tagIds,
     });
-    return await ctx.db.insert("events", eventFields);
+    const eventId = await ctx.db.insert("events", eventFields);
+    await logAttendanceAction(ctx, {
+      actorEmail: email,
+      entityType: "event",
+      action: "event.create",
+      summary: `Created event "${eventFields.name}" (${eventFields.subgroups.join(", ")})`,
+      eventId,
+    });
+    return eventId;
   },
 });
 
@@ -187,7 +197,7 @@ export const update = mutation({
     ctx,
     { eventId, name, dateStart, dateEnd, subgroups, tagIds }
   ) => {
-    await requireProfile(ctx);
+    const { email } = await requireProfile(ctx);
     const existing = await ctx.db.get(eventId);
     if (!existing) throw new ConvexError("Event not found.");
     const eventFields = await validateEventFields(ctx, {
@@ -198,6 +208,22 @@ export const update = mutation({
       tagIds,
     });
     await ctx.db.patch(eventId, eventFields);
+    const changes: string[] = [];
+    if (existing.name !== eventFields.name) changes.push("name");
+    if (existing.dateStart !== eventFields.dateStart) changes.push("start date");
+    if (existing.dateEnd !== eventFields.dateEnd) changes.push("end date");
+    if (existing.subgroups.join() !== eventFields.subgroups.join())
+      changes.push("sub-groups");
+    if ((existing.tagIds ?? []).join() !== (eventFields.tagIds ?? []).join())
+      changes.push("tags");
+    await logAttendanceAction(ctx, {
+      actorEmail: email,
+      entityType: "event",
+      action: "event.update",
+      summary: `Updated event "${eventFields.name}"`,
+      eventId,
+      detail: changes.length ? `Changed: ${changes.join(", ")}` : undefined,
+    });
     return null;
   },
 });
@@ -206,7 +232,7 @@ export const remove = mutation({
   args: { eventId: v.id("events") },
   returns: v.null(),
   handler: async (ctx, { eventId }) => {
-    await requireProfile(ctx);
+    const { email } = await requireProfile(ctx);
     const event = await ctx.db.get(eventId);
     if (!event) return null;
     const rows = await ctx.db
@@ -215,6 +241,14 @@ export const remove = mutation({
       .collect();
     for (const row of rows) await ctx.db.delete(row._id);
     await ctx.db.delete(eventId);
+    await logAttendanceAction(ctx, {
+      actorEmail: email,
+      entityType: "event",
+      action: "event.delete",
+      summary: `Deleted event "${event.name}"`,
+      detail:
+        rows.length > 0 ? `Removed ${rows.length} attendance record(s)` : undefined,
+    });
     return null;
   },
 });
