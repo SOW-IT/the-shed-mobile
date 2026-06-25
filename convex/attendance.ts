@@ -79,12 +79,9 @@ export const roster = query({
     const memberYear = event
       ? sydneyCalendarYear(new Date(event.dateStart))
       : year;
-    const metadataFields = (
-      await ctx.db
-        .query("attendanceMetadata")
-        .withIndex("by_year", (q) => q.eq("year", memberYear))
-        .collect()
-    )
+    // Metadata fields are global; `memberYear` is only the calendar year the
+    // student "Year" level is displayed against.
+    const metadataFields = (await ctx.db.query("attendanceMetadata").collect())
       .filter(
         (field) =>
           !subgroup || !field.subgroup || subgroupMatches(field.subgroup, subgroup)
@@ -268,12 +265,9 @@ export const listByEvent = query({
     // one less than its staff year.
     const profileYear = eventStaffYear(event.dateStart);
     const calendarYear = sydneyCalendarYear(new Date(event.dateStart));
-    const metadataFields = (
-      await ctx.db
-        .query("attendanceMetadata")
-        .withIndex("by_year", (q) => q.eq("year", calendarYear))
-        .collect()
-    )
+    // Metadata fields are global; `calendarYear` is only the year the student
+    // "Year" level is displayed against.
+    const metadataFields = (await ctx.db.query("attendanceMetadata").collect())
       .filter(
         (field) =>
           !event.subgroups[0] ||

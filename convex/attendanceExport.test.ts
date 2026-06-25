@@ -46,7 +46,7 @@ async function setup() {
     department: "Missions",
   });
   const leader = asUser(t, LEADER);
-  await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+  await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
   return { t, leader };
 }
 
@@ -79,7 +79,7 @@ describe("attendanceExport", () => {
 
     // A pure attendance-only member with custom metadata on a select field.
     const yearField = (
-      await leader.query(api.attendanceMetadata.list, { year: YEAR })
+      await leader.query(api.attendanceMetadata.list, { })
     ).find((f) => f.key === "Year")!;
     const guestId = await leader.mutation(api.attendanceMembers.create, {
       name: "Guest Member",
@@ -224,7 +224,6 @@ describe("attendanceExport", () => {
     const { leader } = await setup();
     // A custom select field scoped to USYD only.
     await leader.mutation(api.attendanceMetadata.saveAll, {
-      year: YEAR,
       fields: [
         {
           key: "House",
@@ -238,7 +237,6 @@ describe("attendanceExport", () => {
     });
     const house = (
       await leader.query(api.attendanceMetadata.list, {
-        year: YEAR,
         subgroup: USYD,
       })
     ).find((f) => f.key === "House")!;

@@ -28,7 +28,7 @@ export function MembersTab({
   const t = useAppTheme();
   const ensureDefaults = useMutation(api.attendanceMetadata.ensureDefaults);
   const ensureForStaff = useMutation(api.attendanceMembers.ensureForStaff);
-  const metadata = useQuery(api.attendanceMetadata.list, { year });
+  const metadata = useQuery(api.attendanceMetadata.list, {});
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -51,8 +51,8 @@ export function MembersTab({
   >([]);
 
   useEffect(() => {
-    void ensureDefaults({ year });
-  }, [year, ensureDefaults]);
+    void ensureDefaults({});
+  }, [ensureDefaults]);
 
   useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(search), 400);

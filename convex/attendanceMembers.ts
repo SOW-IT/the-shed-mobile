@@ -5,6 +5,7 @@ import {
   roleNeedsUniversity,
   rolesOfLike,
   staffYearForDate,
+  sydneyCalendarYear,
 } from "../shared/flow";
 import {
   CAMPUS_FIELD_KEY,
@@ -36,16 +37,12 @@ type MetadataField = {
   values?: Record<string, string>;
 };
 
-const metadataFieldsForYear = async (
-  ctx: Parameters<typeof getProfile>[0],
-  year: number
+const allMetadataFields = async (
+  ctx: Parameters<typeof getProfile>[0]
 ): Promise<MetadataField[]> =>
-  (
-    await ctx.db
-      .query("attendanceMetadata")
-      .withIndex("by_year", (q) => q.eq("year", year))
-      .collect()
-  ).sort((a, b) => a.order - b.order);
+  (await ctx.db.query("attendanceMetadata").collect()).sort(
+    (a, b) => a.order - b.order
+  );
 
 const optionIdForLabel = (field: MetadataField, label: string): string => {
   for (const [id, value] of Object.entries(field.values ?? {})) {
@@ -136,12 +133,10 @@ export const list = query({
     if (!(await optionalProfile(ctx))) {
       return { page: [], isDone: true, continueCursor: "" };
     }
-    const metadataFields = (
-      await ctx.db
-        .query("attendanceMetadata")
-        .withIndex("by_year", (q) => q.eq("year", args.year))
-        .collect()
-    ).sort((a, b) => a.order - b.order);
+    // Metadata fields are global; the student "Year" level is shown relative to
+    // the current calendar year. Staff profiles are still per staff year.
+    const viewingYear = sydneyCalendarYear(new Date());
+    const metadataFields = await allMetadataFields(ctx);
     const yearField = metadataFields.find((f) => f.key === STUDENT_YEAR_FIELD_KEY);
 
     const profiles = await ctx.db
@@ -199,7 +194,7 @@ export const list = query({
       const metaSubtitle = metadataLabel(
         metadataFields,
         metadata,
-        args.year,
+        viewingYear,
         [CAMPUS_FIELD_KEY, ROLE_FIELD_KEY]
       );
       const subtitle = [orgSubtitle, metaSubtitle].filter(Boolean).join(" · ");
@@ -229,7 +224,7 @@ export const list = query({
         name: m.name,
         email: m.email,
         memberId: m._id,
-        subtitle: metadataLabel(metadataFields, m.metadata, args.year, ["Campus"]),
+        subtitle: metadataLabel(metadataFields, m.metadata, viewingYear, ["Campus"]),
         university,
         metadata: m.metadata ?? {},
       });
@@ -262,7 +257,7 @@ export const list = query({
             return (
               yearOptionIdForStoredValue(
                 stored,
-                args.year,
+                viewingYear,
                 yearField.values!
               ) === value
             );
@@ -284,12 +279,12 @@ export const list = query({
       } else if (yearField && sortKey === yearField._id) {
         av = yearMetadataSortKey(
           a.metadata[sortKey] ?? "",
-          args.year,
+          viewingYear,
           yearField.values
         );
         bv = yearMetadataSortKey(
           b.metadata[sortKey] ?? "",
-          args.year,
+          viewingYear,
           yearField.values
         );
       } else {
@@ -323,7 +318,7 @@ export const get = query({
     const currentYear = staffYearForDate(new Date());
     const profile = await getProfile(ctx, row.staffEmail, currentYear);
     if (!profile) return row;
-    const fields = await metadataFieldsForYear(ctx, currentYear);
+    const fields = await allMetadataFields(ctx);
     return {
       ...row,
       name: profile.name ?? row.name,
@@ -387,7 +382,7 @@ export const ensureForStaff = mutation({
       await ctx.db.patch(unlinked._id, { staffEmail: email });
       return unlinked._id;
     }
-    const fields = await metadataFieldsForYear(ctx, currentYear);
+    const fields = await allMetadataFields(ctx);
     return await ctx.db.insert("attendanceMembers", {
       name: profile.name ?? email,
       email,
@@ -430,7 +425,7 @@ export const update = mutation({
       const currentYear = staffYearForDate(new Date());
       const profile = await getProfile(ctx, row.staffEmail, currentYear);
       if (!profile) throw new ConvexError("Staff profile not found.");
-      const fields = await metadataFieldsForYear(ctx, currentYear);
+      const fields = await allMetadataFields(ctx);
       await ctx.db.patch(memberId, {
         name: profile.name ?? row.name,
         email: profile.email,

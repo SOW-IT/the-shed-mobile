@@ -1,7 +1,7 @@
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "convex/react";
-import { staffYearForDate } from "../../../shared/flow";
+import { staffYearForDate, sydneyCalendarYear } from "../../../shared/flow";
 import { defaultAttendanceSubgroup } from "../../../shared/rollcall";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -17,9 +17,12 @@ import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 export default function AttendanceScreen() {
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const me = useQuery(api.directory.me);
+  // Staff year scopes events/tags/profiles; the calendar year is only the
+  // viewing year for the student "Year" level (metadata fields are global).
   const year = me?.year ?? staffYearForDate(new Date());
+  const calendarYear = sydneyCalendarYear(new Date());
   const subgroups = useQuery(api.events.subgroups);
-  const metadata = useQuery(api.attendanceMetadata.list, { year });
+  const metadata = useQuery(api.attendanceMetadata.list, {});
   const [active, setActive] = useState("events");
   const [selectedSubgroup, setSelectedSubgroup] = useState<string | null>(null);
   const [createEventOpen, setCreateEventOpen] = useState(false);
@@ -145,7 +148,6 @@ export default function AttendanceScreen() {
       label: "Metadata",
       render: () => (
         <MetadataTab
-          year={year}
           subgroups={subgroups}
           defaultSubgroup={subgroup}
           onSaveStateChange={setMetaSave}
@@ -174,7 +176,7 @@ export default function AttendanceScreen() {
       <EditMemberSheet
         visible={memberSheetOpen}
         onClose={() => setMemberSheetOpen(false)}
-        year={year}
+        year={calendarYear}
         memberId={memberSheetId}
         metadataFields={metadata}
       />

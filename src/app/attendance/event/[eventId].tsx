@@ -12,7 +12,11 @@ import {
   SOW_SUBGROUP,
   subgroupLabel,
 } from "../../../../shared/rollcall";
-import { eventStaffYear, staffYearForDate } from "../../../../shared/flow";
+import {
+  eventStaffYear,
+  staffYearForDate,
+  sydneyCalendarYear,
+} from "../../../../shared/flow";
 import { AttendanceRow } from "@/components/AttendanceRow";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
@@ -84,7 +88,7 @@ export default function EventAttendanceScreen() {
   const ensureForStaff = useMutation(api.attendanceMembers.ensureForStaff);
   const metadataFields = useQuery(
     api.attendanceMetadata.list,
-    event ? { year: eventStaffYear(event.dateStart), subgroup: eventSubgroup } : "skip"
+    event ? { subgroup: eventSubgroup } : "skip"
   );
   const subgroups = useQuery(api.events.subgroups);
 
@@ -448,7 +452,7 @@ export default function EventAttendanceScreen() {
         <EditMemberSheet
           visible={editOpen}
           onClose={closeEdit}
-          year={eventStaffYear(event.dateStart)}
+          year={sydneyCalendarYear(new Date(event.dateStart))}
           memberId={editMemberId}
           metadataFields={metadataFields}
           eventAttendance={editAttendance}

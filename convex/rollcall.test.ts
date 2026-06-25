@@ -79,7 +79,7 @@ describe("legacy import matching", () => {
       roles: ["Staff"],
       department: "Missions",
     });
-    await admin.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+    await admin.mutation(api.attendanceMetadata.ensureDefaults, { });
     // Legacy imported member: old @sowaustralia.com address, no staffEmail.
     const memberId = await admin.mutation(api.attendanceMembers.create, {
       name: "Old Jane",
@@ -111,7 +111,7 @@ describe("legacy import matching", () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     const leader = asUser(t, LEADER);
-    await admin.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+    await admin.mutation(api.attendanceMetadata.ensureDefaults, { });
     // No profile for ghost.person@sow.org.au this year.
     const memberId = await admin.mutation(api.attendanceMembers.create, {
       name: "Ghost Person",
@@ -749,7 +749,7 @@ describe("guards + edge cases", () => {
     await expect(
       leader.mutation(api.attendance.signOut, { eventId, email: STAFF })
     ).resolves.toBeNull();
-    await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const memberId = await leader.mutation(api.attendanceMembers.create, { name: "G" });
     await expect(
       leader.mutation(api.attendance.signOut, { eventId, memberId })
@@ -769,7 +769,7 @@ describe("guards + edge cases", () => {
       dateEnd,
       subgroups: [USYD],
     });
-    await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const memberId = await leader.mutation(api.attendanceMembers.create, { name: "G" });
     // Neither identifier.
     await expect(
@@ -784,7 +784,7 @@ describe("guards + edge cases", () => {
   test("signIn and signOut by memberId", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
-    await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const memberId = await leader.mutation(api.attendanceMembers.create, {
       name: "Guest",
     });
@@ -923,8 +923,8 @@ describe("guards + edge cases", () => {
   test("listByEvent formats member metadata in subtitle", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
-    await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
-    const fields = await leader.query(api.attendanceMetadata.list, { year: YEAR });
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
+    const fields = await leader.query(api.attendanceMetadata.list, { });
     const genderField = fields.find((f) => f.key === "Gender")!;
     const campusField = fields.find((f) => f.key === "Campus")!;
     const maleId = Object.entries(genderField.values ?? {}).find(([, v]) => v === "Male")?.[0]!;
@@ -950,8 +950,8 @@ describe("guards + edge cases", () => {
   test("roster enriches staff shadows and listByEvent handles edge rows", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
-    await leader.mutation(api.attendanceMetadata.ensureDefaults, { year: YEAR });
-    const fields = await leader.query(api.attendanceMetadata.list, { year: YEAR });
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
+    const fields = await leader.query(api.attendanceMetadata.list, { });
     const yearField = fields.find((f) => f.key === "Year")!;
     const shadowId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
       staffEmail: LEADER,

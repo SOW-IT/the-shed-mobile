@@ -43,7 +43,6 @@ export type ExportEvent = {
 };
 
 type MemberDoc = Doc<"attendanceMembers">;
-type MetadataField = Doc<"attendanceMetadata">;
 
 const first = <T>(arr: (T | null | undefined)[]): T | null =>
   arr.find((x): x is T => !!x) ?? null;
@@ -87,29 +86,17 @@ async function resolveExportEvents(
     }
     return map;
   };
-  const fieldsByYear = new Map<number, MetadataField[]>();
-  const loadFields = async (year: number) => {
-    let fields = fieldsByYear.get(year);
-    if (!fields) {
-      const rows = await ctx.db
-        .query("attendanceMetadata")
-        .withIndex("by_year", (q) => q.eq("year", year))
-        .collect();
-      // Req: a group only ever exports the metadata it can see.
-      fields = rows
-        .filter((f) => !f.subgroup || subgroupMatches(f.subgroup, subgroup))
-        .sort((a, b) => a.order - b.order);
-      fieldsByYear.set(year, fields);
-    }
-    return fields;
-  };
+  // Metadata fields are global; a group only ever exports the metadata it can
+  // see. Loaded once for the whole export.
+  const fields = (await ctx.db.query("attendanceMetadata").collect())
+    .filter((f) => !f.subgroup || subgroupMatches(f.subgroup, subgroup))
+    .sort((a, b) => a.order - b.order);
 
   const out: ExportEvent[] = [];
   for (const event of events) {
     const staffYear = staffYearForDate(new Date(event.dateStart));
     const calendarYear = sydneyCalendarYear(new Date(event.dateStart));
     const profiles = await loadProfiles(staffYear);
-    const fields = await loadFields(calendarYear);
     const attendanceRows = await ctx.db
       .query("attendance")
       .withIndex("by_event", (q) => q.eq("eventId", event._id))
