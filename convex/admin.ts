@@ -23,6 +23,7 @@ import {
   STAFF_ROLE,
   STAFF_SIDE_ROLES,
 } from "../shared/flow";
+import { displayNameFromEmail, normalizeSubgroups, SOW_SUBGROUP } from "../shared/rollcall";
 import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
 import { internalMutation, MutationCtx, mutation, query, QueryCtx } from "./_generated/server";
@@ -1432,6 +1433,67 @@ export const backfillDirectorThresholds = internalMutation({
       }
     }
     return { filled };
+  },
+});
+
+/**
+ * An empty/undefined tag `subgroups` scope has always meant "applies to all
+ * groups" implicitly. The Tags picker no longer offers an explicit "All"
+ * option, so make that scope explicit: fill every such tag with all of its
+ * year's groups (SOW + that year's universities). Idempotent — tags that
+ * already have a scope are left untouched.
+ */
+export const fillTagScopesWithAllGroups = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const tags = await ctx.db.query("attendanceTags").collect();
+    const subgroupsByYear = new Map<number, string[]>();
+    let filled = 0;
+    for (const tag of tags) {
+      if (tag.subgroups?.length) continue;
+      let all = subgroupsByYear.get(tag.year);
+      if (!all) {
+        const universities = await ctx.db
+          .query("universities")
+          .withIndex("by_year_and_name", (q) => q.eq("year", tag.year))
+          .collect();
+        all = normalizeSubgroups([
+          SOW_SUBGROUP,
+          ...universities.map((u) => u.name),
+        ]);
+        subgroupsByYear.set(tag.year, all);
+      }
+      if (all.length === 0) continue;
+      await ctx.db.patch(tag._id, { subgroups: all });
+      filled++;
+    }
+    return { filled, total: tags.length };
+  },
+});
+
+/**
+ * One-off backfill: many imported staff profiles have no `name` (or carry their
+ * email as the name), so the app falls back to showing the bare address. Derive
+ * a readable "First Last" from the email's local part for those profiles.
+ * Profiles that already have a real name, or whose email isn't name-shaped
+ * (e.g. synthetic `@legacy.invalid` or numeric handles), are left untouched.
+ * Idempotent.
+ */
+export const nameStaffProfilesFromEmail = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const profiles = await ctx.db.query("staffProfiles").collect();
+    let updated = 0;
+    for (const p of profiles) {
+      const name = p.name?.trim();
+      // Only touch profiles whose visible name is just the email (or missing).
+      if (name && name.toLowerCase() !== p.email.toLowerCase()) continue;
+      const derived = displayNameFromEmail(p.email);
+      if (!derived) continue;
+      await ctx.db.patch(p._id, { name: derived });
+      updated++;
+    }
+    return { updated, total: profiles.length };
   },
 });
 

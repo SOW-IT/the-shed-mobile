@@ -15,6 +15,7 @@ import {
   yearMetadataSortKey,
   yearOptionIdForStoredValue,
 } from "../shared/attendanceMemberMeta";
+import { personDisplayName } from "../shared/rollcall";
 import { staffEmailCandidates } from "../shared/rollcallImport";
 import { mutation, query } from "./_generated/server";
 import { getProfile, optionalProfile, requireProfile } from "./model";
@@ -206,7 +207,7 @@ export const list = query({
       rows.push({
         key: `staff:${p.email}`,
         kind: "staff",
-        name: p.name ?? p.email,
+        name: personDisplayName(p.name, p.email),
         email: p.email,
         memberId: shadow?._id,
         subtitle: subtitle || undefined,

@@ -30,11 +30,18 @@ export default function AttendanceScreen() {
   const [memberSheetId, setMemberSheetId] = useState<Id<"attendanceMembers"> | null>(
     null
   );
-  const noSave: SaveControls = { dirty: false, saving: false, save: () => {} };
+  const noSave: SaveControls = {
+    dirty: false,
+    saving: false,
+    save: () => {},
+    revert: () => {},
+  };
   const [tagsSave, setTagsSave] = useState<SaveControls>(noSave);
   const [metaSave, setMetaSave] = useState<SaveControls>(noSave);
   const [confirmSaveTags, setConfirmSaveTags] = useState(false);
   const [confirmSaveMeta, setConfirmSaveMeta] = useState(false);
+  const [confirmRevertTags, setConfirmRevertTags] = useState(false);
+  const [confirmRevertMeta, setConfirmRevertMeta] = useState(false);
 
   useEffect(() => {
     if (!subgroups?.length || selectedSubgroup !== null) return;
@@ -95,6 +102,10 @@ export default function AttendanceScreen() {
           disabled={!tagsSave.dirty || tagsSave.saving}
           note={tagsSave.dirty && !tagsSave.saving ? "You have unsaved changes" : null}
           onPress={() => setConfirmSaveTags(true)}
+          cancel={{
+            onPress: () => setConfirmRevertTags(true),
+            disabled: !tagsSave.dirty || tagsSave.saving,
+          }}
         />
       ),
     });
@@ -106,6 +117,10 @@ export default function AttendanceScreen() {
           disabled={!metaSave.dirty || metaSave.saving}
           note={metaSave.dirty && !metaSave.saving ? "You have unsaved changes" : null}
           onPress={() => setConfirmSaveMeta(true)}
+          cancel={{
+            onPress: () => setConfirmRevertMeta(true),
+            disabled: !metaSave.dirty || metaSave.saving,
+          }}
         />
       ),
     });
@@ -202,6 +217,22 @@ export default function AttendanceScreen() {
         destructive={false}
         onConfirm={metaSave.save}
         onClose={() => setConfirmSaveMeta(false)}
+      />
+      <ConfirmDialog
+        visible={confirmRevertTags}
+        title="Discard changes"
+        message="Discard your unsaved tag changes? This can't be undone."
+        confirmLabel="Discard changes"
+        onConfirm={tagsSave.revert}
+        onClose={() => setConfirmRevertTags(false)}
+      />
+      <ConfirmDialog
+        visible={confirmRevertMeta}
+        title="Discard changes"
+        message="Discard your unsaved metadata changes? This can't be undone."
+        confirmLabel="Discard changes"
+        onConfirm={metaSave.revert}
+        onClose={() => setConfirmRevertMeta(false)}
       />
     </>
   );

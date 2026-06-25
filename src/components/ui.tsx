@@ -267,6 +267,7 @@ export const FooterAction = ({
   disabled,
   onInfo,
   note,
+  cancel,
 }: {
   title: string;
   onPress: () => void;
@@ -275,6 +276,8 @@ export const FooterAction = ({
   onInfo?: () => void;
   /** Optional advisory text shown in the warning colour above the pill. */
   note?: string | null;
+  /** Optional secondary (Cancel) button rendered to the left, sharing width. */
+  cancel?: { onPress: () => void; disabled?: boolean; title?: string };
 }) => {
   const t = useAppTheme();
   const [scale] = useState(() => new Animated.Value(1));
@@ -297,6 +300,29 @@ export const FooterAction = ({
             <Ionicons name="information-circle-outline" size={22} color={t.primary} />
           </Pressable>
         )}
+        {cancel ? (
+          <View
+            style={[
+              { flex: 1, borderRadius: radius.lg - 2 },
+              t.shadowFloat,
+            ]}
+          >
+            <Pressable
+              onPress={cancel.onPress}
+              disabled={cancel.disabled}
+              style={({ pressed }) => [
+                styles.footerAction,
+                { backgroundColor: t.card, borderWidth: 1.5, borderColor: t.border },
+                cancel.disabled && { opacity: 0.5 },
+                pressed && !cancel.disabled && { opacity: 0.7 },
+              ]}
+            >
+              <Text style={[styles.footerActionText, { color: t.text }]}>
+                {cancel.title ?? "Cancel"}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
         {/* Match the pill's radius so the shadow container's corners don't
             show through behind the rounded button (visible on web). */}
         <Animated.View
@@ -610,7 +636,9 @@ export const OptionSheet = ({
   const hasFooter = retainedFooter != null;
   const bodyStyle = [
     contentStyle ?? styles.optionList,
-    hasFooter && styles.sheetContentWithFooter,
+    // Default option lists get extra room above the footer; callers passing a
+    // custom contentStyle (e.g. ConfirmDialog) manage their own footer spacing.
+    hasFooter && !contentStyle && styles.sheetContentWithFooter,
   ];
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -1757,7 +1785,8 @@ const styles = StyleSheet.create({
   confirmContent: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.sm,
-    paddingBottom: spacing.xl,
+    // Tight bottom inset so the message sits close to the footer actions.
+    paddingBottom: spacing.md,
     gap: 14,
   },
   optionRow: {

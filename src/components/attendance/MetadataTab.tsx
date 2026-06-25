@@ -121,6 +121,8 @@ export type SaveControls = {
   dirty: boolean;
   saving: boolean;
   save: () => void;
+  /** Discards unsaved edits, restoring the last-saved server state. */
+  revert: () => void;
 };
 
 export function MetadataTab({
@@ -196,16 +198,27 @@ export function MetadataTab({
   const saveMetaNow = async () => {
     setSaving(true);
     setError(null);
+    const nextFields = reindexFields(metaDrafts);
     try {
-      await saveMetadata({
-        fields: reindexFields(metaDrafts),
-        deleteIds: metaDeletes,
-      });
+      await saveMetadata({ fields: nextFields, deleteIds: metaDeletes });
+      // Advance the local saved snapshot so the footer clears immediately,
+      // without waiting for the `list` query to round-trip (which would briefly
+      // leave the form "dirty" and let a revert undo the just-saved changes).
+      setMetaDrafts(nextFields);
+      setSavedFields(nextFields);
+      setMetaDeletes([]);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
       setSaving(false);
     }
+  };
+
+  const revertMeta = () => {
+    setMetaDrafts(savedFields);
+    setMetaDeletes([]);
+    setExpandedKeys(new Set());
+    setError(null);
   };
 
   // Report save state up so the screen can render the sliding footer button.
@@ -215,9 +228,10 @@ export function MetadataTab({
       dirty: metadataChanged,
       saving,
       save: () => void saveMetaNow(),
+      revert: revertMeta,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [metadataChanged, saving, metaDrafts, metaDeletes]);
+  }, [metadataChanged, saving, metaDrafts, metaDeletes, savedFields]);
 
   if (metadata === undefined) return <LoadingState />;
 
@@ -431,14 +445,16 @@ export function MetadataTab({
       >
         <SubgroupScopePicker
           subgroups={subgroups}
-          allSelected={!metaDrafts[scopeIndex ?? -1]?.subgroup}
           isSelected={(subgroup) => metaDrafts[scopeIndex ?? -1]?.subgroup === subgroup}
-          onSelectAll={() => {
-            if (scopeIndex === null) return;
-            setMetaDrafts((prev) =>
-              prev.map((x, j) => (j === scopeIndex ? { ...x, subgroup: undefined } : x))
-            );
-            setScopeIndex(null);
+          allOption={{
+            selected: !metaDrafts[scopeIndex ?? -1]?.subgroup,
+            onSelect: () => {
+              if (scopeIndex === null) return;
+              setMetaDrafts((prev) =>
+                prev.map((x, j) => (j === scopeIndex ? { ...x, subgroup: undefined } : x))
+              );
+              setScopeIndex(null);
+            },
           }}
           onToggle={(subgroup) => {
             if (scopeIndex === null) return;

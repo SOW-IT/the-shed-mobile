@@ -132,6 +132,16 @@ const NewRequestSheet = ({
   const [amount, setAmount] = useState("");
   const [department, setDepartment] = useState(defaultDepartment);
   const [error, setError] = useState<string | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+
+  // The form's initial (pristine) values — blank, or the prefill when resubmitting.
+  const initialDescription = prefill?.description ?? "";
+  const initialAmount = prefill?.amount ?? "";
+  const initialDepartment = prefill?.department ?? defaultDepartment;
+  const dirty =
+    description !== initialDescription ||
+    amount !== initialAmount ||
+    department !== initialDepartment;
 
   // Re-initialise the form each time it opens (blank, or from the prefill).
   useEffect(() => {
@@ -154,16 +164,31 @@ const NewRequestSheet = ({
     }
   };
 
+  // Every close path (footer Cancel, header X, backdrop, swipe) routes here so a
+  // dirty draft always confirms before being discarded.
+  const requestClose = () => {
+    if (dirty) {
+      setConfirmCancel(true);
+      return;
+    }
+    onClose();
+  };
+
   return (
     <Sheet
       visible={visible}
-      onClose={onClose}
+      onClose={requestClose}
       title="New Request"
       footer={
-        <View style={{ gap: spacing.sm }}>
+        <Row spread>
+          <Btn
+            title="Cancel"
+            variant="ghost"
+            disabled={!dirty}
+            onPress={requestClose}
+          />
           <Btn title="Submit Request" onPress={handleSubmit} />
-          <Btn title="Cancel" variant="ghost" onPress={onClose} />
-        </View>
+        </Row>
       }
     >
         <Field
@@ -190,6 +215,14 @@ const NewRequestSheet = ({
           <Muted>{`Requests of $${directorThreshold.toLocaleString()} or more also require Director approval.`}</Muted>
         ) : null}
         <ErrorBanner message={error} />
+        <ConfirmDialog
+          visible={confirmCancel}
+          title="Discard request"
+          message="Discard this request? Anything you've entered will be lost."
+          confirmLabel="Discard"
+          onConfirm={onClose}
+          onClose={() => setConfirmCancel(false)}
+        />
       </Sheet>
   );
 };

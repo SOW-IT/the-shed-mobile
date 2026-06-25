@@ -22,6 +22,7 @@ import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
 import { ExportSheet } from "@/components/attendance/ExportSheet";
 import {
   Btn,
+  ConfirmDialog,
   EmptyState,
   FadeInView,
   FooterAction,
@@ -102,6 +103,7 @@ export default function EventAttendanceScreen() {
     notes?: string;
   } | null>(null);
   const [editUnlocked, setEditUnlocked] = useState(false);
+  const [confirmEnableEdit, setConfirmEnableEdit] = useState(false);
   const [unsignedLimit, setUnsignedLimit] = useState(UNSIGNED_PAGE_SIZE);
   const [signedInLimit, setSignedInLimit] = useState(ROSTER_PAGE_SIZE);
   const [searchLimit, setSearchLimit] = useState(ROSTER_PAGE_SIZE);
@@ -243,12 +245,13 @@ export default function EventAttendanceScreen() {
       subtitle="Attendance"
       onBack={() => router.back()}
       footer={
-        pastEvent && !editUnlocked ? (
+        pastEvent ? (
           <FooterAction
-            title="+ Enable editing"
+            title={editUnlocked ? "Disable editing" : "Enable editing"}
             onPress={() => {
               hapticSelect();
-              setEditUnlocked(true);
+              if (editUnlocked) setEditUnlocked(false);
+              else setConfirmEnableEdit(true);
             }}
           />
         ) : undefined
@@ -486,6 +489,15 @@ export default function EventAttendanceScreen() {
         year={eventStaffYear(event.dateStart)}
         subgroup={event.subgroups[0] ?? SOW_SUBGROUP}
         eventId={evId}
+      />
+      <ConfirmDialog
+        visible={confirmEnableEdit}
+        title="Enable editing"
+        message="This event has ended. Enable editing to change its attendance?"
+        confirmLabel="Enable editing"
+        destructive={false}
+        onConfirm={() => setEditUnlocked(true)}
+        onClose={() => setConfirmEnableEdit(false)}
       />
     </Screen>
   );

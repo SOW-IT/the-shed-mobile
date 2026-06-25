@@ -1562,3 +1562,96 @@ describe("not-serving (leavers) list", () => {
     ).rejects.toThrow(/manage/);
   });
 });
+
+describe("fillTagScopesWithAllGroups", () => {
+  test("fills only unscoped tags with every group of their year, idempotently", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: "UTS" });
+
+    const { unscopedId, emptyId, scopedId } = await t.run(async (ctx) => ({
+      unscopedId: await ctx.db.insert("attendanceTags", { year: YEAR, name: "Meeting" }),
+      emptyId: await ctx.db.insert("attendanceTags", {
+        year: YEAR,
+        name: "Social",
+        subgroups: [],
+      }),
+      scopedId: await ctx.db.insert("attendanceTags", {
+        year: YEAR,
+        name: "Campus only",
+        subgroups: ["UTS"],
+      }),
+    }));
+
+    const first = await t.mutation(internal.admin.fillTagScopesWithAllGroups, {});
+    expect(first.filled).toBe(2);
+    expect(first.total).toBe(3);
+
+    const after = await t.run(async (ctx) => ({
+      unscoped: await ctx.db.get(unscopedId),
+      empty: await ctx.db.get(emptyId),
+      scoped: await ctx.db.get(scopedId),
+    }));
+    // Both unscoped tags get the same full group list for the year (SOW + every
+    // university), and it must include the one we added.
+    expect(after.unscoped!.subgroups).toEqual(expect.arrayContaining(["SOW", "UTS"]));
+    expect([...after.empty!.subgroups!].sort()).toEqual(
+      [...after.unscoped!.subgroups!].sort()
+    );
+    // An already-scoped tag is left untouched.
+    expect(after.scoped!.subgroups).toEqual(["UTS"]);
+
+    // Re-running fills nothing more.
+    const second = await t.mutation(internal.admin.fillTagScopesWithAllGroups, {});
+    expect(second.filled).toBe(0);
+  });
+});
+
+describe("nameStaffProfilesFromEmail", () => {
+  test("derives readable names only for email/blank-named profiles, idempotently", async () => {
+    const t = await setup();
+
+    const ids = await t.run(async (ctx) => ({
+      // name missing -> derive
+      blank: await ctx.db.insert("staffProfiles", {
+        email: "jane.doe@sow.org.au",
+        year: YEAR,
+      }),
+      // name is the email -> derive
+      emailName: await ctx.db.insert("staffProfiles", {
+        email: "john.smith@sow.org.au",
+        year: YEAR,
+        name: "john.smith@sow.org.au",
+      }),
+      // real name -> keep
+      realName: await ctx.db.insert("staffProfiles", {
+        email: "mq.leader@sow.org.au",
+        year: YEAR,
+        name: "Mary Quant",
+      }),
+      // non-name-shaped email -> can't derive, leave as-is
+      legacy: await ctx.db.insert("staffProfiles", {
+        email: "u12345@legacy.invalid",
+        year: YEAR,
+      }),
+    }));
+
+    const first = await t.mutation(internal.admin.nameStaffProfilesFromEmail, {});
+    expect(first.updated).toBe(2);
+
+    const after = await t.run(async (ctx) => ({
+      blank: await ctx.db.get(ids.blank),
+      emailName: await ctx.db.get(ids.emailName),
+      realName: await ctx.db.get(ids.realName),
+      legacy: await ctx.db.get(ids.legacy),
+    }));
+    expect(after.blank!.name).toBe("Jane Doe");
+    expect(after.emailName!.name).toBe("John Smith");
+    expect(after.realName!.name).toBe("Mary Quant");
+    expect(after.legacy!.name).toBeUndefined();
+
+    // Re-running changes nothing.
+    const second = await t.mutation(internal.admin.nameStaffProfilesFromEmail, {});
+    expect(second.updated).toBe(0);
+  });
+});
