@@ -132,6 +132,27 @@ describe("legacy import matching", () => {
     expect(listed[0].name).toBe("Ghost Person");
   });
 
+  test("signing in with a non-existent member id throws", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const { dateStart, dateEnd } = window();
+    const eventId = await admin.mutation(api.events.create, {
+      name: "E",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    // A member id that has since been deleted (e.g. consolidated away).
+    const memberId = await t.run(async (ctx) => {
+      const id = await ctx.db.insert("attendanceMembers", { name: "Gone" });
+      await ctx.db.delete(id);
+      return id;
+    });
+    await expect(
+      admin.mutation(api.attendance.signIn, { eventId, memberId })
+    ).rejects.toThrow("Member not found");
+  });
+
   test("a stale staff overlay with no matching profile is hidden", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
