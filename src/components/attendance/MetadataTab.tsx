@@ -121,6 +121,8 @@ export type SaveControls = {
   dirty: boolean;
   saving: boolean;
   save: () => void;
+  /** Discards unsaved edits, restoring the last-saved server state. */
+  revert: () => void;
 };
 
 export function MetadataTab({
@@ -208,6 +210,13 @@ export function MetadataTab({
     }
   };
 
+  const revertMeta = () => {
+    setMetaDrafts(savedFields);
+    setMetaDeletes([]);
+    setExpandedKeys(new Set());
+    setError(null);
+  };
+
   // Report save state up so the screen can render the sliding footer button.
   // Re-runs whenever the drafts change so the registered `save` is never stale.
   useEffect(() => {
@@ -215,9 +224,10 @@ export function MetadataTab({
       dirty: metadataChanged,
       saving,
       save: () => void saveMetaNow(),
+      revert: revertMeta,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [metadataChanged, saving, metaDrafts, metaDeletes]);
+  }, [metadataChanged, saving, metaDrafts, metaDeletes, savedFields]);
 
   if (metadata === undefined) return <LoadingState />;
 

@@ -96,6 +96,12 @@ export function SettingsTab({
     }
   };
 
+  const revertTags = () => {
+    setTagDrafts(serverTagDrafts);
+    setTagDeletes([]);
+    setError(null);
+  };
+
   // Report save state up so the screen can render the sliding footer button.
   // Re-runs whenever the drafts change so the registered `save` is never stale.
   useEffect(() => {
@@ -103,6 +109,7 @@ export function SettingsTab({
       dirty: tagsChanged,
       saving,
       save: () => void saveTagsNow(),
+      revert: revertTags,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tagsChanged, saving, tagDrafts, tagDeletes]);
