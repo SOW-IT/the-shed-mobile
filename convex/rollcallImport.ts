@@ -84,7 +84,7 @@ const optionIdForLabel = (
 /**
  * The calendar year of an event date (Sydney). Member rows and their metadata
  * fields live under this, while the event itself and a staff attendee's
- * role/campus live under the staff year (Sep 1 rollover). For a Sep–Dec event
+ * role/campus live under the staff year (Oct 1 rollover). For an Oct–Dec event
  * the two differ by one, which is the whole reason they're tracked separately.
  */
 function calendarYearOf(dateMs: number): number {
@@ -368,13 +368,13 @@ export const importMembers = mutation({
 
 export const importEvents = mutation({
   args: {
-    // The staff year (Sep 1 rollover) the events belong to — what `events.year`
+    // The staff year (Oct 1 rollover) the events belong to — what `events.year`
     // stores and how the live app lists them.
     year: v.number(),
     tagMap: v.record(v.string(), v.id("attendanceTags")),
     // Calendar-year -> (old Firestore field id -> attendanceMetadata id). Member
     // fields live under each event's CALENDAR year, so an event spanning the
-    // Sep 1 rollover reads its members' field map from `year - 1` or `year`.
+    // Oct 1 rollover reads its members' field map from `year - 1` or `year`.
     fieldMapByYear: v.record(
       v.string(),
       v.record(v.string(), v.id("attendanceMetadata"))
@@ -714,9 +714,9 @@ export const mergeLegacyStaffMembers = mutation({
       if (legacy && !candidates.includes(legacy)) candidates.unshift(legacy);
       if (candidates.length === 0) continue;
 
-      // A calendar-year import spans two staff years (Sep 1 rollover), so a
-      // member may be staff in either `year` (Jan–Aug events) or `year + 1`
-      // (Sep–Dec events). Match against whichever year/domain has the profile;
+      // A calendar-year import spans two staff years (Oct 1 rollover), so a
+      // member may be staff in either `year` (Jan–Sep events) or `year + 1`
+      // (Oct–Dec events). Match against whichever year/domain has the profile;
       // the profile's own email becomes the link target.
       let profile: Awaited<ReturnType<typeof getProfile>> = null;
       for (const candidate of candidates) {

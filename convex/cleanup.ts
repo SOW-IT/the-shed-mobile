@@ -8,9 +8,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const RETENTION_DAYS = 365;
 
 /**
- * Yearly cron (midnight Sept 1 Sydney time = Aug 31 14:00 UTC): deletes the
+ * Yearly cron (midnight Oct 1 Sydney time = Sep 30 14:00 UTC): deletes the
  * stored receipt/invoice files of every request that was paid more than a year
- * ago, aligning with the Sept 1 staff-year rollover. The attachment records are
+ * ago, aligning with the Oct 1 staff-year rollover. The attachment records are
  * kept (and flagged `deleted`) so historical requests still show that a file
  * was attached — only the download link stops working. Idempotent: attachments
  * already flagged `deleted` are skipped, so re-runs are harmless.

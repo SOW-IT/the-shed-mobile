@@ -78,8 +78,8 @@ const metadataPayload = report.metadata.map(
 );
 
 // Member fields (and the per-field id mapping) live under each calendar year the
-// events touch — a staff year spans the previous calendar year's Sep–Dec events
-// and this calendar year's Jan–Aug events, so prepare both and key the field
+// events touch — a staff year spans the previous calendar year's Oct–Dec events
+// and this calendar year's Jan–Sep events, so prepare both and key the field
 // maps by calendar year for importEvents.
 const calendarYears = [
   ...new Set(report.events.map((event) => calendarYearOf(event.dateStart))),

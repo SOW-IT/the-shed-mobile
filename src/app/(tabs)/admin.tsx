@@ -48,7 +48,7 @@ import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
  * haven't signed in yet, by email), divisions, departments and the Budget
  * Manager — split into Users / Structure / Other tabs. Admins can EDIT the
  * current year and the next one (next-year changes take effect at the
- * September 1 rollover) and VIEW any past year.
+ * October 1 rollover) and VIEW any past year.
  */
 
 type DeleteConfirm = { name: string; message: string; onConfirm: () => void };
@@ -483,7 +483,7 @@ export default function AdminScreen() {
     y === currentYear
       ? `${y} (current)`
       : y === currentYear + 1
-        ? `${y} (from Sep 1)`
+        ? `${y} (from Oct 1)`
         : `${y}`;
 
   // Assignable roles come from the YEAR's role catalog (mirroring universities)

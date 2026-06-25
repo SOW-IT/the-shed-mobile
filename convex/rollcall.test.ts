@@ -273,7 +273,7 @@ describe("staff year derivation for events", () => {
   test("a Sep–Dec event shows the next staff year's roles/campus", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
-    // Oct 15 2023: calendar year 2023, but staff year 2024 (Sep 1 rollover).
+    // Oct 15 2023: calendar year 2023, but staff year 2024 (Oct 1 rollover).
     const dateStart = Date.UTC(2023, 9, 15, 9, 0, 0);
     const CAL = 2023;
     const STAFF_YEAR = staffYearForDate(new Date(dateStart));

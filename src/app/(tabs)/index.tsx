@@ -163,16 +163,16 @@ export default function RequestsScreen() {
   const pickerYears = requestYears?.all ?? [];
 
   // Viewing last staff year: its paid requests' receipt files get purged at the
-  // next Sept 1 rollover (the retention cron), so warn before they're gone.
+  // next Oct 1 rollover (the retention cron), so warn before they're gone.
   const isPreviousYear =
     isPastYear && selectedYear === (currentYear as number) - 1;
   // Two or more staff years back: a rollover has already run, so those receipt
   // files are gone.
   const isOlderYear =
     isPastYear && (selectedYear as number) < (currentYear as number) - 1;
-  // The calendar year of the upcoming 1 September (the rollover / purge date).
+  // The calendar year of the upcoming 1 October (the rollover / purge date).
   // The current staff year is named after that very date, so it IS the next
-  // rollover's calendar year — and it already flips at Sydney midnight Sept 1
+  // rollover's calendar year — and it already flips at Sydney midnight Oct 1
   // (see staffYearForDate), keeping the picker, me.year and this banner aligned.
   const nextRolloverYear = currentYear as number;
 
@@ -239,7 +239,7 @@ export default function RequestsScreen() {
       {isPreviousYear && (
         <FadeInView delay={40}>
           <WarningBanner
-            message={`Receipt files for the ${viewingYear} staff year will be deleted on 1 September ${nextRolloverYear}, when the staff year rolls over. Download anything you need to keep.`}
+            message={`Receipt files for the ${viewingYear} staff year will be deleted on 1 October ${nextRolloverYear}, when the staff year rolls over. Download anything you need to keep.`}
           />
         </FadeInView>
       )}
