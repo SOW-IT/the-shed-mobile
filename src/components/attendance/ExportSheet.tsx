@@ -61,6 +61,62 @@ const endOfDay = (ms: number): number => {
 const clamp = (ms: number, min: number, max: number): number =>
   Math.min(Math.max(ms, min), max);
 
+/** ms → "YYYY-MM-DD" for an <input type="date"> value/min/max (web). */
+const toInputDate = (ms: number): string => {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+/** "YYYY-MM-DD" → ms at local midnight, or undefined when cleared/invalid. */
+const fromInputDate = (value: string): number | undefined => {
+  if (!value) return undefined;
+  const [y, m, d] = value.split("-").map(Number);
+  if (!y || !m || !d) return undefined;
+  const date = new Date(y, m - 1, d);
+  return Number.isNaN(date.getTime()) ? undefined : date.getTime();
+};
+
+/** Web-only date field backed by the browser's native <input type="date">. */
+const WebDateInput = ({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  value?: number;
+  min: string;
+  max: string;
+  onChange: (ms: number | undefined) => void;
+}) => {
+  const t = useAppTheme();
+  return (
+    <View style={{ flex: 1, gap: 4 }}>
+      <Txt style={[typography.label, { color: t.muted }]}>{label}</Txt>
+      <input
+        type="date"
+        value={value ? toInputDate(value) : ""}
+        min={min}
+        max={max}
+        onChange={(e) => onChange(fromInputDate(e.target.value))}
+        style={{
+          width: "100%",
+          height: 44,
+          padding: "0 12px",
+          borderRadius: 10,
+          border: "none",
+          boxSizing: "border-box",
+          backgroundColor: t.inputBackground,
+          color: t.text,
+          fontSize: 15,
+          fontFamily: "inherit",
+          accentColor: t.primary,
+        }}
+      />
+    </View>
+  );
+};
+
 /** A tappable date field showing the chosen day (or a placeholder) with a clear affordance. */
 const DateField = ({
   label,
@@ -327,28 +383,49 @@ export function ExportSheet({
             Time range (optional)
           </Txt>
           <View style={{ flexDirection: "row", gap: spacing.sm }}>
-            <DateField
-              label="From"
-              value={fromMs}
-              active={picking === "from"}
-              onOpen={() => setPicking(picking === "from" ? null : "from")}
-              onClear={() => {
-                setFromMs(undefined);
-                setPicking(null);
-              }}
-            />
-            <DateField
-              label="To"
-              value={toMs}
-              active={picking === "to"}
-              onOpen={() => setPicking(picking === "to" ? null : "to")}
-              onClear={() => {
-                setToMs(undefined);
-                setPicking(null);
-              }}
-            />
+            {Platform.OS === "web" ? (
+              <>
+                <WebDateInput
+                  label="From"
+                  value={fromMs}
+                  min={toInputDate(MIN_DATE.getTime())}
+                  max={toInputDate(toMs ?? nowMs)}
+                  onChange={setFromMs}
+                />
+                <WebDateInput
+                  label="To"
+                  value={toMs}
+                  min={toInputDate(fromMs ?? MIN_DATE.getTime())}
+                  max={toInputDate(nowMs)}
+                  onChange={setToMs}
+                />
+              </>
+            ) : (
+              <>
+                <DateField
+                  label="From"
+                  value={fromMs}
+                  active={picking === "from"}
+                  onOpen={() => setPicking(picking === "from" ? null : "from")}
+                  onClear={() => {
+                    setFromMs(undefined);
+                    setPicking(null);
+                  }}
+                />
+                <DateField
+                  label="To"
+                  value={toMs}
+                  active={picking === "to"}
+                  onOpen={() => setPicking(picking === "to" ? null : "to")}
+                  onClear={() => {
+                    setToMs(undefined);
+                    setPicking(null);
+                  }}
+                />
+              </>
+            )}
           </View>
-          {picking ? (
+          {Platform.OS !== "web" && picking ? (
             <View style={{ marginTop: spacing.sm, alignItems: "center" }}>
               {(() => {
                 const today = nowMs;
