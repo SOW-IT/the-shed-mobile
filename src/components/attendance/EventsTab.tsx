@@ -10,9 +10,11 @@ import {
   subgroupLabel,
   subgroupMatches,
 } from "../../../shared/rollcall";
+import { Ionicons } from "@expo/vector-icons";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import { CampusMark } from "@/components/CampusMark";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
+import { ExportSheet } from "@/components/attendance/ExportSheet";
 import {
   Btn,
   EmptyState,
@@ -103,6 +105,7 @@ export function EventsTab({
 
   const [editingEventId, setEditingEventId] = useState<Id<"events"> | null>(null);
   const editingEvent = accumulated.find((event) => event._id === editingEventId);
+  const [exportOpen, setExportOpen] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 60_000);
@@ -153,6 +156,27 @@ export function EventsTab({
               );
             })}
           </View>
+
+          {subgroup ? (
+            <View style={styles.toolbar}>
+              <Text style={[typography.label, { color: t.muted }]}>EVENTS</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Export attendance"
+                onPress={() => setExportOpen(true)}
+                style={({ pressed }) => [
+                  styles.exportButton,
+                  { borderColor: t.primary, backgroundColor: t.background },
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Ionicons name="download-outline" size={15} color={t.primary} />
+                <Text style={[styles.exportButtonText, { color: t.primary }]}>
+                  Export
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
 
           {page === undefined && accumulated.length === 0 ? (
             <LoadingState />
@@ -326,6 +350,14 @@ export function EventsTab({
           event={editingEvent}
         />
       ) : null}
+      {subgroup ? (
+        <ExportSheet
+          visible={exportOpen}
+          onClose={() => setExportOpen(false)}
+          year={year}
+          subgroup={subgroup}
+        />
+      ) : null}
     </>
   );
 }
@@ -348,6 +380,22 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     padding: 0,
   },
+  toolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.sm,
+  },
+  exportButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1.5,
+    borderRadius: radius.full,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  exportButtonText: { fontSize: 13, fontWeight: "700" },
   eventsList: {
     borderRadius: radius.md,
     overflow: "hidden",
