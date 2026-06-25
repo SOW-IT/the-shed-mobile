@@ -979,10 +979,10 @@ describe("admin and per-year rules", () => {
     expect(emailedTo).toContain(RACHEL);
   });
 
-  test("staff year rolls over on September 1st", () => {
+  test("staff year rolls over on October 1st", () => {
     expect(staffYearForDate(new Date("2026-06-11"))).toBe(2026);
-    expect(staffYearForDate(new Date("2026-08-31"))).toBe(2026);
-    expect(staffYearForDate(new Date("2026-09-01"))).toBe(2027);
+    expect(staffYearForDate(new Date("2026-09-30"))).toBe(2026);
+    expect(staffYearForDate(new Date("2026-10-01"))).toBe(2027);
     expect(staffYearForDate(new Date("2026-12-31"))).toBe(2027);
   });
 });

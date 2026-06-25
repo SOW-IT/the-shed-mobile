@@ -442,7 +442,7 @@ const yearRequests = async (ctx: QueryCtx | MutationCtx, year: number) =>
 
 /**
  * The current year's requests plus the previous year's still-incomplete ones,
- * so in-flight requests survive the September 1 rollover instead of being
+ * so in-flight requests survive the October 1 rollover instead of being
  * orphaned. (Also used by the stale-request reminder cron.)
  */
 export const openRequestsAcrossYears = async (

@@ -396,22 +396,26 @@ function normaliseText(value) {
 
 /**
  * The staff year an event belongs to — the SOW staff year rolls over on
- * September 1 (Sydney), matching shared/flow.ts `staffYearForDate` and how the
+ * October 1 (Sydney), matching shared/flow.ts `staffYearForDate` and how the
  * live app stores `events.year` (convex/events.ts). So an event is bucketed
- * here exactly as it would be if created in the app: Sep–Dec of year N-1 and
- * Jan–Aug of year N both land in staff year N.
+ * here exactly as it would be if created in the app: Oct–Dec of year N-1 and
+ * Jan–Sep of year N both land in staff year N.
  *
- * This is a DIFFERENT boundary from the old web app's member roster, which
- * rolled over ~October 1 (groups/<g>/members/<year>/members). The two can't be
- * collapsed into one bucketing rule — September events belong to the next staff
- * year but still reference the previous roster — so each attendance row's member
- * is resolved against whichever source roster its reference actually points at
- * (see memberDocBySourceId) and embedded on the event, decoupling event-year
- * from roster-year. Verified against the 2026-06 export.
+ * This now coincides with the old web app's member roster, which also rolled
+ * over ~October 1 (groups/<g>/members/<year>/members). They are still kept
+ * decoupled in code — an attendance row's member is resolved against whichever
+ * source roster its reference actually points at (see memberDocBySourceId) and
+ * embedded on the event — so a future divergence wouldn't break bucketing.
+ * Verified against the 2026-06 export.
+ *
+ * NOTE: historical `events.year` values already imported under the previous
+ * Sept-1 boundary were bucketed one calendar year later for September events; a
+ * re-run with this Oct-1 rule re-buckets those, which is intentional alignment
+ * with the new rollover but is a data change to be aware of.
  */
 function eventStaffYear(dateValue) {
   const sydney = new Date(new Date(dateValue).getTime() + 10 * 60 * 60 * 1000);
-  return sydney.getUTCMonth() >= 8
+  return sydney.getUTCMonth() >= 9
     ? sydney.getUTCFullYear() + 1
     : sydney.getUTCFullYear();
 }
@@ -491,11 +495,12 @@ const members = [];
 const events = [];
 // Every source member doc across the rosters a staff year's events can point
 // at, keyed by its full sourceImportId (`<g>/members/<rosterYear>/members/<id>`)
-// — exactly what `sourceReferenceId(row.member)` produces. A staff year N spans
-// source rosters N-1 (its September events) and N (Oct N-1 onward); some legacy
-// Oct–Dec events also reference the *next* roster (N+1), so load that too and
-// resolve each attendance reference against whichever it names. Extra rosters
-// are harmless — matching is by exact sourceImportId, never a fuzzy guess.
+// — exactly what `sourceReferenceId(row.member)` produces. The Oct 1 staff year
+// now lines up with the web app's ~Oct 1 member roster, but that roster boundary
+// is imprecise, so an event near the rollover may reference the adjacent roster
+// (N-1 or N+1). Load N-1, N and N+1 and resolve each attendance reference against
+// whichever it names. Extra rosters are harmless — matching is by exact
+// sourceImportId, never a fuzzy guess.
 const memberDocBySourceId = new Map();
 const ROSTER_YEARS = [year - 1, year, year + 1];
 
@@ -556,7 +561,8 @@ for (const group of groups) {
       };
       memberDocBySourceId.set(sourceImportId, enriched);
       // The sign-in pool for this staff year is its own roster (rosterYear ===
-      // year); the year-1 roster is loaded only to resolve September references.
+      // year); the adjacent rosters are loaded only to resolve references from
+      // events that sit near the imprecise ~Oct 1 roster boundary.
       if (rosterYear === year) members.push(enriched);
     }
   });

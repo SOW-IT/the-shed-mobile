@@ -52,7 +52,7 @@ export const get = query({
       for (const h of imported) history.set(h._id, h);
     }
     // Future years (admins pre-provision the next staff year) stay hidden
-    // until the year actually starts at the September 1st rollover.
+    // until the year actually starts at the October 1st rollover.
     const serviceHistory = [...history.values()]
       .filter((h) => h.year <= currentStaffYear())
       .sort((a, b) => b.year - a.year);

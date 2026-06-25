@@ -71,7 +71,7 @@ export const roster = query({
     const event = eventId ? await ctx.db.get(eventId) : null;
     // Members + metadata live under the event's CALENDAR year, but staff
     // roles/campus are read from the profile of the *staff* year of the event's
-    // date — so Jan–Aug events use that year's profiles and Sep–Dec events use
+    // date — so Jan–Sep events use that year's profiles and Oct–Dec events use
     // the next staff year's (post-rollover) roles, matched by email. Without an
     // event in context both default to the asked-for year.
     const profileYear = event ? staffYearForDate(new Date(event.dateStart)) : year;
@@ -256,8 +256,8 @@ export const listByEvent = query({
     const event = await ctx.db.get(eventId);
     if (!event) return [];
     // Staff roles/campus come from the profile of the event date's *staff* year
-    // (Sep 1 rollover); member fields (Year, Gender, …) and the attendance-member
-    // overlays come from the event's CALENDAR year, which for a Sep–Dec event is
+    // (Oct 1 rollover); member fields (Year, Gender, …) and the attendance-member
+    // overlays come from the event's CALENDAR year, which for an Oct–Dec event is
     // one less than its staff year.
     const profileYear = staffYearForDate(new Date(event.dateStart));
     const calendarYear = sydneyCalendarYear(new Date(event.dateStart));
@@ -303,7 +303,7 @@ export const listByEvent = query({
       const resolvedEmail = profile?.email.toLowerCase() ?? email.toLowerCase();
       // The attendance member overlay for the event's calendar year (either SOW
       // domain), used as the fallback identity when no staff profile applies for
-      // the event-date staff year (e.g. a Sep–Dec event by someone who was staff
+      // the event-date staff year (e.g. an Oct–Dec event by someone who was staff
       // last staff year but isn't this one).
       let shadow: Doc<"attendanceMembers"> | null = null;
       for (const candidate of staffEmailCandidates(resolvedEmail)) {

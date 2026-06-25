@@ -264,16 +264,17 @@ export const STEP_LABELS: Record<ApprovalStep, string> = {
 };
 
 /**
- * The staff year rolls over at midnight on September 1st, Sydney time: from
+ * The staff year rolls over at midnight on October 1st, Sydney time: from
  * that moment the app operates on the next calendar year's roles, departments
- * and requests. Sept 1 is always AEST (UTC+10 — daylight saving starts in
- * October), so shifting +10h and reading UTC fields lands the boundary on
- * Sydney midnight regardless of where this runs (the Convex server is UTC; a
- * client is in the device's timezone).
+ * and requests. Midnight Oct 1 is always AEST (UTC+10 — daylight saving starts
+ * at 2am on the first Sunday of October, which is on or after Oct 1, so the
+ * boundary instant is never inside DST), so shifting +10h and reading UTC
+ * fields lands the boundary on Sydney midnight regardless of where this runs
+ * (the Convex server is UTC; a client is in the device's timezone).
  */
 export const staffYearForDate = (date: Date): number => {
   const sydney = new Date(date.getTime() + 10 * 60 * 60 * 1000);
-  return sydney.getUTCMonth() >= 8
+  return sydney.getUTCMonth() >= 9
     ? sydney.getUTCFullYear() + 1
     : sydney.getUTCFullYear();
 };
@@ -283,7 +284,7 @@ export const staffYearForDate = (date: Date): number => {
  * are keyed by. The year only ever rolls over at Jan 1, which is always inside
  * AEDT (UTC+11 — Australian daylight saving runs October→April), so shifting
  * +11h and reading the UTC year lands the boundary on Sydney midnight wherever
- * this runs. (Contrast staffYearForDate, whose Sept 1 boundary is AEST, +10.)
+ * this runs. (Contrast staffYearForDate, whose Oct 1 boundary is AEST, +10.)
  */
 export const sydneyCalendarYear = (date: Date): number =>
   new Date(date.getTime() + 11 * 60 * 60 * 1000).getUTCFullYear();

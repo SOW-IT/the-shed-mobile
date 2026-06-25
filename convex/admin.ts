@@ -1694,12 +1694,12 @@ export const copyYear = internalMutation({
 const ROLLOVER_NOTIFY_EMAIL = "it@sow.org.au";
 
 /**
- * Sept 1 rollover (cron): on that day the staff year advances, so
+ * Oct 1 rollover (cron): on that day the staff year advances, so
  * currentStaffYear() is already next calendar year and nextStaffYear() the one
  * after. Prefills the new next staff year (2 calendar years out) from the new
  * current staff year so admins can start configuring it from a populated copy,
  * then emails IT a summary of what was copied.
- * e.g. firing on 2026-09-01 copies 2027 -> 2028.
+ * e.g. firing on 2026-10-01 copies 2027 -> 2028.
  */
 export const rollOverStaffYear = internalMutation({
   args: {},

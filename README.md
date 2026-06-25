@@ -15,7 +15,7 @@ from [REQUESTS_FLOW.md](https://github.com/SOW-IT/theshed/blob/main/REQUESTS_FLO
   Budget Manager's own, Director's own ≥ $5k, Finance Head's own; Finance
   department requests have no HOD step).
 - **Per-year roles and departments** (`staffProfiles`, `departments`,
-  `divisions`, keyed by year). The staff year rolls over on **September 1**:
+  `divisions`, keyed by year). The staff year rolls over on **October 1**:
   admins can prepare the next year in advance and it takes effect
   automatically. In-flight requests **carry over** the rollover — they stay
   visible and are approved/paid by the approvers of the request's own year.
@@ -230,7 +230,7 @@ npm test
 
 13 `convex-test` tests cover the auto-approval matrix, approval ordering and
 authorization, decline behaviour, admin permissions, the Budget
-Manager-must-be-Finance rule, and the September 1 rollover.
+Manager-must-be-Finance rule, and the October 1 rollover.
 
 ## Not yet implemented
 

@@ -238,7 +238,7 @@ export const eventsForExport = query({
       : null;
 
     // Scoped by date range, not staff year, on purpose: an export may span the
-    // Sept-1 rollover (or several years). Each event still resolves its own
+    // Oct-1 rollover (or several years). Each event still resolves its own
     // staff/calendar year for profiles and member fields in resolveExportEvents.
     const all = await ctx.db.query("events").collect();
     const events = all
