@@ -56,7 +56,7 @@ const timeInputFromMs = (ms: number): string => {
 
 type EditableEvent = Pick<
   Doc<"events">,
-  "_id" | "year" | "name" | "dateStart" | "dateEnd" | "subgroups" | "tagIds"
+  "_id" | "name" | "dateStart" | "dateEnd" | "subgroups" | "tagIds"
 >;
 
 export function CreateEventSheet({
@@ -79,7 +79,9 @@ export function CreateEventSheet({
 }) {
   const t = useAppTheme();
   const router = useRouter();
-  const formYear = event?.year ?? year;
+  // The event's staff year is derived by callers from its start date and passed
+  // in as `year` (events no longer store a year column).
+  const formYear = year;
   const isEditing = event !== undefined;
   const ownerGroup = event?.subgroups[0] ?? subgroup;
   const tags = useQuery(api.attendanceTags.list, { year: formYear });

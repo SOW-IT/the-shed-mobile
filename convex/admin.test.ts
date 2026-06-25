@@ -3,7 +3,6 @@ import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, test } from "vitest";
 import { staffYearForDate } from "../shared/flow";
 import { api, internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -967,76 +966,6 @@ describe("rollOverStaffYear", () => {
     expect((email!.args[0] as { subject: string }).subject).toContain(
       `${YEAR} copied to ${YEAR + 1}`
     );
-  });
-});
-
-describe("stripLegacyYear", () => {
-  const makeEvent = (
-    t: TestConvex<typeof schema>,
-    fields: { year?: number; name: string; day: number }
-  ) =>
-    t.run((ctx) =>
-      ctx.db.insert("events", {
-        ...(fields.year !== undefined ? { year: fields.year } : {}),
-        name: fields.name,
-        dateStart: Date.UTC(2030, 0, fields.day),
-        dateEnd: Date.UTC(2030, 0, fields.day) + 3600_000,
-        subgroups: ["SOW"],
-      })
-    );
-
-  const makeAttendance = (
-    t: TestConvex<typeof schema>,
-    eventId: Id<"events">,
-    year?: number
-  ) =>
-    t.run((ctx) =>
-      ctx.db.insert("attendance", {
-        eventId,
-        email: "p@sow.org.au",
-        signInTime: Date.UTC(2030, 0, 1),
-        ...(year !== undefined ? { year } : {}),
-      })
-    );
-
-  test("clears the deprecated year column from events and attendance, idempotently", async () => {
-    const t = await setup();
-    const eventWithYear = await makeEvent(t, { year: 2030, name: "Has year", day: 1 });
-    const eventNoYear = await makeEvent(t, { name: "No year", day: 2 });
-    const attWithYear = await makeAttendance(t, eventWithYear, 2025);
-    const attNoYear = await makeAttendance(t, eventNoYear);
-
-    const first = await t.mutation(internal.admin.stripLegacyYear, {});
-    expect(first).toEqual({ events: 1, attendance: 1, done: true });
-    expect((await t.run((ctx) => ctx.db.get(eventWithYear)))?.year).toBeUndefined();
-    expect((await t.run((ctx) => ctx.db.get(eventNoYear)))?.year).toBeUndefined();
-    expect((await t.run((ctx) => ctx.db.get(attWithYear)))?.year).toBeUndefined();
-    expect((await t.run((ctx) => ctx.db.get(attNoYear)))?.year).toBeUndefined();
-
-    // Re-running has nothing left to clear.
-    expect(await t.mutation(internal.admin.stripLegacyYear, {})).toEqual({
-      events: 0,
-      attendance: 0,
-      done: true,
-    });
-  });
-
-  test("reports done: false while a full batch remains", async () => {
-    const t = await setup();
-    await makeEvent(t, { year: 2030, name: "E0", day: 1 });
-    await makeEvent(t, { year: 2030, name: "E1", day: 2 });
-    await makeEvent(t, { year: 2030, name: "E2", day: 3 });
-
-    expect(await t.mutation(internal.admin.stripLegacyYear, { limit: 2 })).toEqual({
-      events: 2,
-      attendance: 0,
-      done: false,
-    });
-    expect(await t.mutation(internal.admin.stripLegacyYear, { limit: 2 })).toEqual({
-      events: 1,
-      attendance: 0,
-      done: true,
-    });
   });
 });
 
