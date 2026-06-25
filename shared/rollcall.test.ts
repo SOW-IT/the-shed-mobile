@@ -50,6 +50,11 @@ describe("personDisplayName", () => {
   test("falls back to the raw email when no name can be derived", () => {
     expect(personDisplayName(null, "u12345@sow.org.au")).toBe("u12345@sow.org.au");
   });
+
+  test("returns an empty string when there is neither a name nor an email", () => {
+    expect(personDisplayName(null, null)).toBe("");
+    expect(personDisplayName("", undefined)).toBe("");
+  });
 });
 
 describe("subgroupMatches", () => {
