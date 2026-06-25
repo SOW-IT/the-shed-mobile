@@ -29,11 +29,17 @@ export const downloadCsv = async (
   if (file.exists) file.delete();
   file.create();
   file.write(csv);
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(file.uri, {
-      mimeType: "text/csv",
-      UTI: "public.comma-separated-values-text",
-      dialogTitle,
-    });
+  // The cache file holds attendee names/emails, so always remove it once the
+  // share sheet closes (or if sharing was unavailable / threw).
+  try {
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(file.uri, {
+        mimeType: "text/csv",
+        UTI: "public.comma-separated-values-text",
+        dialogTitle,
+      });
+    }
+  } finally {
+    if (file.exists) file.delete();
   }
 };

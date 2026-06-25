@@ -246,13 +246,15 @@ export const eventsForExport = query({
  * in or the event is gone.
  */
 export const eventForExport = query({
-  args: { eventId: v.id("events") },
-  handler: async (ctx, { eventId }) => {
+  args: { eventId: v.id("events"), subgroup: v.optional(v.string()) },
+  handler: async (ctx, { eventId, subgroup }) => {
     if (!(await optionalProfile(ctx))) return null;
     const event = await ctx.db.get(eventId);
     if (!event) return null;
-    const subgroup = normalizeSubgroups(event.subgroups)[0] ?? "SOW";
-    const [resolved] = await resolveExportEvents(ctx, [event], subgroup);
-    return resolved ? { subgroup, event: resolved } : null;
+    // Scope metadata to the caller's active sub-group when given (the event
+    // screen passes the one it's viewing); otherwise fall back to the owner.
+    const scope = subgroup ?? normalizeSubgroups(event.subgroups)[0] ?? "SOW";
+    const [resolved] = await resolveExportEvents(ctx, [event], scope);
+    return resolved ? { subgroup: scope, event: resolved } : null;
   },
 });

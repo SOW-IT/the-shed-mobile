@@ -76,48 +76,55 @@ const DateField = ({
   onClear: () => void;
 }) => {
   const t = useAppTheme();
+  // The clear button is a sibling (not nested) so tapping it can't bubble up
+  // and re-trigger the field's open/close toggle.
   return (
     <View style={{ flex: 1, gap: 4 }}>
       <Txt style={[typography.label, { color: t.muted }]}>{label}</Txt>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${label} date`}
-        onPress={onOpen}
-        style={({ pressed }) => [
-          {
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 8,
-            height: 44,
-            paddingHorizontal: 12,
-            borderRadius: 10,
-            borderWidth: 1.5,
-            borderColor: active ? t.primary : "transparent",
-            backgroundColor: t.inputBackground,
-            opacity: pressed ? 0.7 : 1,
-          },
-        ]}
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          height: 44,
+          paddingHorizontal: 12,
+          borderRadius: 10,
+          borderWidth: 1.5,
+          borderColor: active ? t.primary : "transparent",
+          backgroundColor: t.inputBackground,
+        }}
       >
-        <Ionicons name="calendar-outline" size={16} color={t.faint} />
-        <Txt
-          style={[
-            typography.body,
-            { flex: 1, color: value ? t.text : t.faint },
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${label} date`}
+          onPress={onOpen}
+          style={({ pressed }) => [
+            { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
+            pressed && { opacity: 0.7 },
           ]}
         >
-          {value ? formatDay(value) : "Any"}
-        </Txt>
+          <Ionicons name="calendar-outline" size={16} color={t.faint} />
+          <Txt
+            style={[
+              typography.body,
+              { flex: 1, color: value ? t.text : t.faint },
+            ]}
+          >
+            {value ? formatDay(value) : "Any"}
+          </Txt>
+        </Pressable>
         {value ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Clear ${label} date`}
             hitSlop={8}
             onPress={onClear}
+            style={({ pressed }) => [pressed && { opacity: 0.6 }]}
           >
             <Ionicons name="close-circle" size={16} color={t.faint} />
           </Pressable>
         ) : null}
-      </Pressable>
+      </View>
     </View>
   );
 };
@@ -256,6 +263,7 @@ export function ExportSheet({
       if (isEvent) {
         const data = await convex.query(api.attendanceExport.eventForExport, {
           eventId,
+          subgroup,
         });
         if (!data) throw new Error("This event is no longer available.");
         exportEvents = [data.event];

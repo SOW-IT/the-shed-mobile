@@ -307,6 +307,13 @@ describe("attendanceExport", () => {
     expect(single!.event.name).toBe("Solo");
     expect(single!.event.rows).toHaveLength(1);
 
+    // An explicit subgroup from the caller wins over the event's owner.
+    const scoped = await leader.query(api.attendanceExport.eventForExport, {
+      eventId: someEvent,
+      subgroup: MACQ,
+    });
+    expect(scoped!.subgroup).toBe(MACQ);
+
     // Missing event → null.
     await leader.mutation(api.events.remove, { eventId: someEvent });
     expect(
