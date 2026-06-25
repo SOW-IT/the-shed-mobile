@@ -358,6 +358,11 @@ export default defineSchema({
     memberId: v.optional(v.id("attendanceMembers")),
     signInTime: v.number(),
     notes: v.optional(v.string()),
+    // Deprecated: an old import wrote a staff `year` here that nothing reads
+    // (attendance is scoped through its event). Kept as optional only so deploys
+    // validate against rows that still carry it until `admin:stripLegacyYear`
+    // has cleared them; removed in the narrow PR. No code reads or writes it.
+    year: v.optional(v.number()),
   })
     .index("by_event", ["eventId"])
     .index("by_event_and_email", ["eventId", "email"])
