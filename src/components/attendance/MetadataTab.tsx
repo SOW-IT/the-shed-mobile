@@ -431,14 +431,16 @@ export function MetadataTab({
       >
         <SubgroupScopePicker
           subgroups={subgroups}
-          allSelected={!metaDrafts[scopeIndex ?? -1]?.subgroup}
           isSelected={(subgroup) => metaDrafts[scopeIndex ?? -1]?.subgroup === subgroup}
-          onSelectAll={() => {
-            if (scopeIndex === null) return;
-            setMetaDrafts((prev) =>
-              prev.map((x, j) => (j === scopeIndex ? { ...x, subgroup: undefined } : x))
-            );
-            setScopeIndex(null);
+          allOption={{
+            selected: !metaDrafts[scopeIndex ?? -1]?.subgroup,
+            onSelect: () => {
+              if (scopeIndex === null) return;
+              setMetaDrafts((prev) =>
+                prev.map((x, j) => (j === scopeIndex ? { ...x, subgroup: undefined } : x))
+              );
+              setScopeIndex(null);
+            },
           }}
           onToggle={(subgroup) => {
             if (scopeIndex === null) return;

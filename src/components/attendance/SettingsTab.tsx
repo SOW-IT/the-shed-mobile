@@ -110,7 +110,12 @@ export function SettingsTab({
   if (tags === undefined) return <LoadingState />;
 
   const addTag = () =>
-    setTagDrafts((prev) => [...prev, { name: "", colour: "blue" }]);
+    // New tags apply to all groups by default (explicit, so a later group add
+    // doesn't silently change scope).
+    setTagDrafts((prev) => [
+      ...prev,
+      { name: "", colour: "blue", subgroups: [...subgroups] },
+    ]);
 
   return (
     <>
@@ -196,21 +201,21 @@ export function SettingsTab({
             <Muted>Applies to</Muted>
             <SubgroupScopePicker
               subgroups={subgroups}
-              allSelected={!tag.subgroups?.length}
-              isSelected={(subgroup) => !!tag.subgroups?.includes(subgroup)}
-              onSelectAll={() =>
-                setTagDrafts((prev) =>
-                  prev.map((x, j) => (j === i ? { ...x, subgroups: undefined } : x))
-                )
+              // An empty/undefined scope means "all groups", so default every
+              // group to selected; the user narrows by deselecting.
+              isSelected={(subgroup) =>
+                tag.subgroups?.length ? tag.subgroups.includes(subgroup) : true
               }
               onToggle={(subgroup) =>
                 setTagDrafts((prev) =>
                   prev.map((x, j) => {
                     if (j !== i) return x;
-                    const set = new Set(x.subgroups ?? []);
+                    // Materialise the effective set (all groups when unset) so
+                    // the stored scope is always explicit.
+                    const set = new Set(x.subgroups?.length ? x.subgroups : subgroups);
                     if (set.has(subgroup)) set.delete(subgroup);
                     else set.add(subgroup);
-                    return { ...x, subgroups: set.size ? [...set] : undefined };
+                    return { ...x, subgroups: [...set] };
                   })
                 )
               }

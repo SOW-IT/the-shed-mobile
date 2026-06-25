@@ -610,7 +610,9 @@ export const OptionSheet = ({
   const hasFooter = retainedFooter != null;
   const bodyStyle = [
     contentStyle ?? styles.optionList,
-    hasFooter && styles.sheetContentWithFooter,
+    // Default option lists get extra room above the footer; callers passing a
+    // custom contentStyle (e.g. ConfirmDialog) manage their own footer spacing.
+    hasFooter && !contentStyle && styles.sheetContentWithFooter,
   ];
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -1757,7 +1759,8 @@ const styles = StyleSheet.create({
   confirmContent: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.sm,
-    paddingBottom: spacing.xl,
+    // Tight bottom inset so the message sits close to the footer actions.
+    paddingBottom: spacing.md,
     gap: 14,
   },
   optionRow: {

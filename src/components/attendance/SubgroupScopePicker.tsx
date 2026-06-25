@@ -4,52 +4,57 @@ import { CampusMark } from "@/components/CampusMark";
 import { spacing, useAppTheme } from "@/theme";
 
 const MARK = 40;
+/** Unselected marks fade back so the selected groups read as active. */
+const FADED_OPACITY = 0.35;
 
 /**
  * Group scope selector that mirrors the Events tab's group picker: each group
- * shows its branded logo circle and an "All" circle sits first. Selection draws
- * a ring around the mark. Works for both multi-select (tags) and single-select
- * (metadata) — the caller decides what "selected" means per group.
+ * shows its branded logo circle. Selected groups draw a coloured ring and sit
+ * at full opacity; unselected groups are dimmed. An optional leading "All"
+ * circle is shown for single-select callers (metadata); the Tags picker omits
+ * it and instead selects every group by default.
  */
 export function SubgroupScopePicker({
   subgroups,
-  allSelected,
   isSelected,
-  onSelectAll,
   onToggle,
+  allOption,
 }: {
   subgroups: string[];
-  allSelected: boolean;
   isSelected: (subgroup: string) => boolean;
-  onSelectAll: () => void;
   onToggle: (subgroup: string) => void;
+  /** When provided, render a leading "All groups" circle (single-select). */
+  allOption?: { selected: boolean; onSelect: () => void };
 }) {
   const t = useAppTheme();
   return (
     <View style={styles.row}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="All groups"
-        accessibilityState={{ selected: allSelected }}
-        onPress={onSelectAll}
-        style={({ pressed }) => [styles.slot, pressed && { opacity: 0.7 }]}
-      >
-        <View
-          style={[
-            styles.ring,
-            { borderColor: allSelected ? t.primary : "transparent" },
-          ]}
+      {allOption ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="All groups"
+          accessibilityState={{ selected: allOption.selected }}
+          onPress={allOption.onSelect}
+          style={({ pressed }) => [styles.slot, pressed && { opacity: 0.7 }]}
         >
           <View
             style={[
-              styles.allCircle,
-              { backgroundColor: t.ghost, borderColor: t.separator },
+              styles.ring,
+              { borderColor: allOption.selected ? t.primary : "transparent" },
+              !allOption.selected && { opacity: FADED_OPACITY },
             ]}
           >
-            <Text style={[styles.allText, { color: t.ghostText }]}>All</Text>
+            <View
+              style={[
+                styles.allCircle,
+                { backgroundColor: t.ghost, borderColor: t.separator },
+              ]}
+            >
+              <Text style={[styles.allText, { color: t.ghostText }]}>All</Text>
+            </View>
           </View>
-        </View>
-      </Pressable>
+        </Pressable>
+      ) : null}
       {subgroups.map((sg) => {
         const selected = isSelected(sg);
         const colour = subgroupColour(sg);
@@ -66,6 +71,7 @@ export function SubgroupScopePicker({
               style={[
                 styles.ring,
                 { borderColor: selected ? colour : "transparent" },
+                !selected && { opacity: FADED_OPACITY },
               ]}
             >
               <CampusMark campus={sg} variant="circle" circleDiameter={MARK} />
