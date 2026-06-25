@@ -28,13 +28,17 @@ export function EditMemberSheet({
   visible,
   onClose,
   year,
+  staffYear,
   memberId,
   metadataFields,
   eventAttendance,
 }: {
   visible: boolean;
   onClose: () => void;
+  /** Calendar year the student "Year" level is shown/encoded against. */
   year: number;
+  /** Staff year a staff overlay's profile (name/email/locked Campus/Role) is read from. */
+  staffYear: number;
   memberId: Id<"attendanceMembers"> | null;
   metadataFields: Doc<"attendanceMetadata">[];
   /** When editing from an event roll-call, notes are stored on the attendance row. */
@@ -46,7 +50,7 @@ export function EditMemberSheet({
   const t = useAppTheme();
   const row = useQuery(
     api.attendanceMembers.get,
-    visible && memberId ? { memberId } : "skip"
+    visible && memberId ? { memberId, staffYear } : "skip"
   );
   const create = useMutation(api.attendanceMembers.create);
   const update = useMutation(api.attendanceMembers.update);
@@ -114,7 +118,13 @@ export function EditMemberSheet({
     setError(null);
     try {
       if (memberId) {
-        await update({ memberId, name, email: email || undefined, metadata });
+        await update({
+          memberId,
+          name,
+          email: email || undefined,
+          metadata,
+          staffYear,
+        });
       } else {
         await create({ name, email: email || undefined, metadata });
       }

@@ -12,8 +12,8 @@ import {
   STUDENT_YEAR_VALUES,
 } from "../shared/attendanceMemberMeta";
 import { canonicalSubgroup, subgroupMatches } from "../shared/rollcall";
-import { mutation, query } from "./_generated/server";
-import { optionalProfile, requireProfile } from "./model";
+import { internalMutation, mutation, query } from "./_generated/server";
+import { currentStaffYear, optionalProfile, requireProfile } from "./model";
 
 const LOCKED_FIELD_KEYS = new Set([
   STUDENT_YEAR_FIELD_KEY,
@@ -48,23 +48,24 @@ const mergeSelectValues = (
   return out;
 };
 
-/** List metadata field definitions for a staff year, ordered. */
+/**
+ * List the (global) metadata field definitions, ordered. Campus/Role select
+ * options are kept in sync with the CURRENT staff year's universities/roles.
+ */
 export const list = query({
-  args: { year: v.number(), subgroup: v.optional(v.string()) },
-  handler: async (ctx, { year, subgroup }) => {
+  args: { subgroup: v.optional(v.string()) },
+  handler: async (ctx, { subgroup }) => {
     if (!(await optionalProfile(ctx))) return [];
+    const orgYear = currentStaffYear();
     const [rows, universities, roleRows] = await Promise.all([
-      ctx.db
-        .query("attendanceMetadata")
-        .withIndex("by_year", (q) => q.eq("year", year))
-        .collect(),
+      ctx.db.query("attendanceMetadata").collect(),
       ctx.db
         .query("universities")
-        .withIndex("by_year_and_name", (q) => q.eq("year", year))
+        .withIndex("by_year_and_name", (q) => q.eq("year", orgYear))
         .collect(),
       ctx.db
         .query("roles")
-        .withIndex("by_year_and_name", (q) => q.eq("year", year))
+        .withIndex("by_year_and_name", (q) => q.eq("year", orgYear))
         .collect(),
     ]);
     const universityNames = universities.map((u) => u.name);
@@ -121,20 +122,18 @@ export const list = query({
   },
 });
 
-/** Seed Year, Gender, Campus, Role fields when none exist for the year. */
+/** Seed the global Year, Gender, Campus, Role fields when none exist yet. */
 export const ensureDefaults = mutation({
-  args: { year: v.number() },
-  handler: async (ctx, { year }) => {
+  args: {},
+  handler: async (ctx) => {
     await requireProfile(ctx);
-    const existing = await ctx.db
-      .query("attendanceMetadata")
-      .withIndex("by_year", (q) => q.eq("year", year))
-      .collect();
+    const existing = await ctx.db.query("attendanceMetadata").collect();
     if (existing.length > 0) return existing.length;
 
+    const orgYear = currentStaffYear();
     const universities = await ctx.db
       .query("universities")
-      .withIndex("by_year_and_name", (q) => q.eq("year", year))
+      .withIndex("by_year_and_name", (q) => q.eq("year", orgYear))
       .collect();
     const campusValues: Record<string, string> = {};
     universities.forEach((u, i) => {
@@ -143,7 +142,7 @@ export const ensureDefaults = mutation({
 
     const roleRows = await ctx.db
       .query("roles")
-      .withIndex("by_year_and_name", (q) => q.eq("year", year))
+      .withIndex("by_year_and_name", (q) => q.eq("year", orgYear))
       .collect();
     const roleValues: Record<string, string> = {};
     const lockedRoles = [...new Set([...ROLES, ...roleRows.map((r) => r.name)])];
@@ -152,7 +151,6 @@ export const ensureDefaults = mutation({
     });
 
     await ctx.db.insert("attendanceMetadata", {
-      year,
       key: STUDENT_YEAR_FIELD_KEY,
       type: "select",
       order: 0,
@@ -161,7 +159,6 @@ export const ensureDefaults = mutation({
       lockedValues: [...STUDENT_YEAR_LEVELS],
     });
     await ctx.db.insert("attendanceMetadata", {
-      year,
       key: GENDER_FIELD_KEY,
       type: "select",
       order: 1,
@@ -170,7 +167,6 @@ export const ensureDefaults = mutation({
       lockedValues: [...GENDER_OPTION_IDS],
     });
     await ctx.db.insert("attendanceMetadata", {
-      year,
       key: "Campus",
       type: "select",
       order: 2,
@@ -179,7 +175,6 @@ export const ensureDefaults = mutation({
       lockedValues: universities.map((u) => u.name),
     });
     await ctx.db.insert("attendanceMetadata", {
-      year,
       key: "Role",
       type: "select",
       order: 3,
@@ -191,10 +186,9 @@ export const ensureDefaults = mutation({
   },
 });
 
-/** Replace all metadata fields for a year (settings editor). */
+/** Replace all (global) metadata fields (settings editor). */
 export const saveAll = mutation({
   args: {
-    year: v.number(),
     fields: v.array(
       v.object({
         id: v.optional(v.id("attendanceMetadata")),
@@ -208,11 +202,12 @@ export const saveAll = mutation({
     ),
     deleteIds: v.array(v.id("attendanceMetadata")),
   },
-  handler: async (ctx, { year, fields, deleteIds }) => {
+  handler: async (ctx, { fields, deleteIds }) => {
     await requireProfile(ctx);
+    const orgYear = currentStaffYear();
     for (const id of deleteIds) {
       const row = await ctx.db.get(id);
-      if (!row || row.year !== year) continue;
+      if (!row) continue;
       if (LOCKED_FIELD_KEYS.has(row.key)) {
         throw new ConvexError(`Cannot delete locked metadata field "${row.key}".`);
       }
@@ -229,12 +224,12 @@ export const saveAll = mutation({
     }
     const universities = await ctx.db
       .query("universities")
-      .withIndex("by_year_and_name", (q) => q.eq("year", year))
+      .withIndex("by_year_and_name", (q) => q.eq("year", orgYear))
       .collect();
     const universityNames = universities.map((u) => u.name);
     const roleRows = await ctx.db
       .query("roles")
-      .withIndex("by_year_and_name", (q) => q.eq("year", year))
+      .withIndex("by_year_and_name", (q) => q.eq("year", orgYear))
       .collect();
     const orgRoles = [...new Set([...ROLES, ...roleRows.map((r) => r.name)])];
 
@@ -295,7 +290,7 @@ export const saveAll = mutation({
       }
       if (field.id) {
         const existing = await ctx.db.get(field.id);
-        if (!existing || existing.year !== year) continue;
+        if (!existing) continue;
         await ctx.db.patch(field.id, {
           key,
           type: field.type,
@@ -306,7 +301,6 @@ export const saveAll = mutation({
         });
       } else {
         await ctx.db.insert("attendanceMetadata", {
-          year,
           key,
           type: field.type,
           order: field.order,
@@ -316,5 +310,93 @@ export const saveAll = mutation({
         });
       }
     }
+  },
+});
+
+/**
+ * One-off migration: collapse the old per-year metadata rows into a single
+ * global set — one row per (key, sub-group) — and clear the deprecated `year`
+ * column. Member metadata keys are remapped to the surviving field id; for
+ * select fields the stored option ids are remapped BY LABEL, so a member's
+ * value keeps its meaning even when two years numbered their options
+ * differently. Idempotent: re-run
+ * `npx convex run attendanceMetadata:consolidateAttendanceMetadata` (and --prod)
+ * until it reports `merged: 0, cleared: 0`. The narrow follow-up then drops the
+ * column. Mirrors the events/attendance `stripLegacyYear` rollout.
+ */
+export const consolidateAttendanceMetadata = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("attendanceMetadata").collect();
+    const groupKey = (r: (typeof rows)[number]) =>
+      `${r.key} ${canonicalSubgroup(r.subgroup ?? "")}`;
+    const groups = new Map<string, typeof rows>();
+    for (const r of rows) {
+      const g = groups.get(groupKey(r)) ?? [];
+      g.push(r);
+      groups.set(groupKey(r), g);
+    }
+
+    const members = await ctx.db.query("attendanceMembers").collect();
+    let merged = 0;
+    let cleared = 0;
+
+    for (const group of groups.values()) {
+      // Deterministic survivor: lowest order, then earliest created.
+      const sorted = [...group].sort(
+        (a, b) => a.order - b.order || a._creationTime - b._creationTime
+      );
+      const survivor = sorted[0];
+      const losers = sorted.slice(1);
+
+      const survivorValues = { ...(survivor.values ?? {}) };
+      const idForLabel = new Map<string, string>();
+      for (const [id, label] of Object.entries(survivorValues)) {
+        if (!idForLabel.has(label)) idForLabel.set(label, id);
+      }
+      const ensureLabel = (label: string): string => {
+        const existing = idForLabel.get(label);
+        if (existing) return existing;
+        const id = String(nextNumericKey(survivorValues));
+        survivorValues[id] = label;
+        idForLabel.set(label, id);
+        return id;
+      };
+
+      for (const loser of losers) {
+        for (const label of Object.values(loser.values ?? {})) ensureLabel(label);
+        const remapOption = (value: string): string => {
+          if (loser.type !== "select") return value;
+          const label = loser.values?.[value];
+          // No label ⇒ not an option id (e.g. a Year commencement year) — keep.
+          return label === undefined ? value : ensureLabel(label);
+        };
+        for (const member of members) {
+          const meta = member.metadata;
+          if (!meta || meta[loser._id] === undefined) continue;
+          const next = { ...meta };
+          const value = next[loser._id];
+          delete next[loser._id];
+          // Don't clobber a value already stored under the survivor id.
+          if (next[survivor._id] === undefined) {
+            next[survivor._id] = remapOption(value);
+          }
+          await ctx.db.patch(member._id, { metadata: next });
+          member.metadata = next; // keep in sync for later groups
+        }
+        await ctx.db.delete(loser._id);
+        merged++;
+      }
+
+      if (survivor.type === "select") {
+        await ctx.db.patch(survivor._id, { values: survivorValues });
+      }
+      if (survivor.year !== undefined) {
+        await ctx.db.patch(survivor._id, { year: undefined });
+        cleared++;
+      }
+    }
+
+    return { groups: groups.size, merged, cleared };
   },
 });

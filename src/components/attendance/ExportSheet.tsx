@@ -211,7 +211,8 @@ export function ExportSheet({
   const isEvent = eventId !== undefined;
 
   // Only the metadata fields this sub-group can see (req: group-scoped list).
-  const fields = useQuery(api.attendanceMetadata.list, { year, subgroup });
+  // Metadata fields are global; tags are still per staff year.
+  const fields = useQuery(api.attendanceMetadata.list, { subgroup });
   const tags = useQuery(api.attendanceTags.list, isEvent ? "skip" : { year });
 
   const [fromMs, setFromMs] = useState<number | undefined>(undefined);

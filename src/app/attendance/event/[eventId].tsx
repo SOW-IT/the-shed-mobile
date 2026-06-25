@@ -12,7 +12,7 @@ import {
   SOW_SUBGROUP,
   subgroupLabel,
 } from "../../../../shared/rollcall";
-import { eventStaffYear, staffYearForDate } from "../../../../shared/flow";
+import { eventStaffYear, sydneyCalendarYear } from "../../../../shared/flow";
 import { AttendanceRow } from "@/components/AttendanceRow";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
@@ -84,7 +84,7 @@ export default function EventAttendanceScreen() {
   const ensureForStaff = useMutation(api.attendanceMembers.ensureForStaff);
   const metadataFields = useQuery(
     api.attendanceMetadata.list,
-    event ? { year: eventStaffYear(event.dateStart), subgroup: eventSubgroup } : "skip"
+    event ? { subgroup: eventSubgroup } : "skip"
   );
   const subgroups = useQuery(api.events.subgroups);
 
@@ -109,11 +109,11 @@ export default function EventAttendanceScreen() {
     setEditUnlocked(false);
   }, [event?._id]);
 
-  // A genuinely past staff year is strictly view-only — no "Enable editing"
-  // escape hatch (that's reserved for events that have merely ended this year).
-  const pastYear = event != null && eventStaffYear(event.dateStart) < staffYearForDate(new Date());
+  // Any event — including past years — can be edited; an event that has merely
+  // ended asks for an explicit "Enable editing" tap first to avoid accidental
+  // changes. Members are editable wherever attendance is.
   const pastEvent = event != null && eventHasEnded(event.dateEnd);
-  const canEdit = !pastYear && (!pastEvent || editUnlocked);
+  const canEdit = !pastEvent || editUnlocked;
 
   const closeEdit = () => {
     setEditOpen(false);
@@ -210,6 +210,9 @@ export default function EventAttendanceScreen() {
       if (!id && opts.staffEmail) {
         id = await ensureForStaff({
           staffEmail: opts.staffEmail,
+          // Verify the profile against the event's staff year, matching the
+          // roster, so an Oct–Dec event resolves the right year's profile.
+          staffYear: event ? eventStaffYear(event.dateStart) : undefined,
         });
       }
       if (id) openMemberEdit(id);
@@ -238,7 +241,7 @@ export default function EventAttendanceScreen() {
       subtitle="Attendance"
       onBack={() => router.back()}
       footer={
-        !pastYear && pastEvent && !editUnlocked ? (
+        pastEvent && !editUnlocked ? (
           <FooterAction
             title="+ Enable editing"
             onPress={() => {
@@ -298,11 +301,7 @@ export default function EventAttendanceScreen() {
         ))}
       </View>
 
-      {pastYear ? (
-        <Text style={[typography.caption, { color: t.muted, marginBottom: spacing.sm }]}>
-          This event is from a past year and is view-only.
-        </Text>
-      ) : pastEvent && !editUnlocked ? (
+      {pastEvent && !editUnlocked ? (
         <Text style={[typography.caption, { color: t.muted, marginBottom: spacing.sm }]}>
           This event has ended. Tap Enable editing below to change attendance.
         </Text>
@@ -448,7 +447,8 @@ export default function EventAttendanceScreen() {
         <EditMemberSheet
           visible={editOpen}
           onClose={closeEdit}
-          year={eventStaffYear(event.dateStart)}
+          year={sydneyCalendarYear(new Date(event.dateStart))}
+          staffYear={eventStaffYear(event.dateStart)}
           memberId={editMemberId}
           metadataFields={metadataFields}
           eventAttendance={editAttendance}

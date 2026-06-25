@@ -104,8 +104,8 @@ export function CreateEventSheet({
   const eventName = event?.name ?? "";
 
   useEffect(() => {
-    if (visible) void ensureMetadata({ year: formYear });
-  }, [visible, formYear, ensureMetadata]);
+    if (visible) void ensureMetadata({});
+  }, [visible, ensureMetadata]);
 
   useEffect(() => {
     if (visible) {

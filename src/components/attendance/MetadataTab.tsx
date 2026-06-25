@@ -123,18 +123,16 @@ export type SaveControls = {
 };
 
 export function MetadataTab({
-  year,
   subgroups,
   defaultSubgroup,
   onSaveStateChange,
 }: {
-  year: number;
   subgroups: string[];
   defaultSubgroup?: string | null;
   onSaveStateChange?: (controls: SaveControls) => void;
 }) {
   const t = useAppTheme();
-  const metadata = useQuery(api.attendanceMetadata.list, { year });
+  const metadata = useQuery(api.attendanceMetadata.list, {});
   const ensureDefaults = useMutation(api.attendanceMetadata.ensureDefaults);
   const saveMetadata = useMutation(api.attendanceMetadata.saveAll);
 
@@ -149,8 +147,8 @@ export function MetadataTab({
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    void ensureDefaults({ year });
-  }, [year, ensureDefaults]);
+    void ensureDefaults({});
+  }, [ensureDefaults]);
 
   useEffect(() => {
     if (metadata) {
@@ -199,7 +197,6 @@ export function MetadataTab({
     setError(null);
     try {
       await saveMetadata({
-        year,
         fields: reindexFields(metaDrafts),
         deleteIds: metaDeletes,
       });

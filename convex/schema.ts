@@ -319,9 +319,15 @@ export default defineSchema({
     .index("by_year", ["year"])
     .index("by_year_and_name", ["year", "name"]),
 
-  // Dynamic member fields (Year, Gender, Campus, Role, …), per staff year.
+  // Dynamic member fields (Year, Gender, Campus, Role, …). Global, NOT per year:
+  // one row per (key, subgroup), shared across all years, since member metadata
+  // (`attendanceMembers.metadata`) is itself year-less and references these ids.
+  // The student "Year" level is derived for a viewing calendar year at display
+  // time — the field definition carries no year. `year` is a deprecated column
+  // kept optional only until `admin:consolidateAttendanceMetadata` has merged
+  // the old per-year rows in every environment; the narrow follow-up drops it.
   attendanceMetadata: defineTable({
-    year: v.number(),
+    year: v.optional(v.number()),
     key: v.string(),
     type: v.union(v.literal("select"), v.literal("input")),
     order: v.number(),

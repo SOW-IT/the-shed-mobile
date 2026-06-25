@@ -5,6 +5,7 @@ import {
   roleNeedsUniversity,
   rolesOfLike,
   staffYearForDate,
+  sydneyCalendarYear,
 } from "../shared/flow";
 import {
   CAMPUS_FIELD_KEY,
@@ -36,16 +37,12 @@ type MetadataField = {
   values?: Record<string, string>;
 };
 
-const metadataFieldsForYear = async (
-  ctx: Parameters<typeof getProfile>[0],
-  year: number
+const allMetadataFields = async (
+  ctx: Parameters<typeof getProfile>[0]
 ): Promise<MetadataField[]> =>
-  (
-    await ctx.db
-      .query("attendanceMetadata")
-      .withIndex("by_year", (q) => q.eq("year", year))
-      .collect()
-  ).sort((a, b) => a.order - b.order);
+  (await ctx.db.query("attendanceMetadata").collect()).sort(
+    (a, b) => a.order - b.order
+  );
 
 const optionIdForLabel = (field: MetadataField, label: string): string => {
   for (const [id, value] of Object.entries(field.values ?? {})) {
@@ -136,12 +133,10 @@ export const list = query({
     if (!(await optionalProfile(ctx))) {
       return { page: [], isDone: true, continueCursor: "" };
     }
-    const metadataFields = (
-      await ctx.db
-        .query("attendanceMetadata")
-        .withIndex("by_year", (q) => q.eq("year", args.year))
-        .collect()
-    ).sort((a, b) => a.order - b.order);
+    // Metadata fields are global; the student "Year" level is shown relative to
+    // the current calendar year. Staff profiles are still per staff year.
+    const viewingYear = sydneyCalendarYear(new Date());
+    const metadataFields = await allMetadataFields(ctx);
     const yearField = metadataFields.find((f) => f.key === STUDENT_YEAR_FIELD_KEY);
 
     const profiles = await ctx.db
@@ -199,7 +194,7 @@ export const list = query({
       const metaSubtitle = metadataLabel(
         metadataFields,
         metadata,
-        args.year,
+        viewingYear,
         [CAMPUS_FIELD_KEY, ROLE_FIELD_KEY]
       );
       const subtitle = [orgSubtitle, metaSubtitle].filter(Boolean).join(" · ");
@@ -229,7 +224,7 @@ export const list = query({
         name: m.name,
         email: m.email,
         memberId: m._id,
-        subtitle: metadataLabel(metadataFields, m.metadata, args.year, ["Campus"]),
+        subtitle: metadataLabel(metadataFields, m.metadata, viewingYear, ["Campus"]),
         university,
         metadata: m.metadata ?? {},
       });
@@ -262,7 +257,7 @@ export const list = query({
             return (
               yearOptionIdForStoredValue(
                 stored,
-                args.year,
+                viewingYear,
                 yearField.values!
               ) === value
             );
@@ -284,12 +279,12 @@ export const list = query({
       } else if (yearField && sortKey === yearField._id) {
         av = yearMetadataSortKey(
           a.metadata[sortKey] ?? "",
-          args.year,
+          viewingYear,
           yearField.values
         );
         bv = yearMetadataSortKey(
           b.metadata[sortKey] ?? "",
-          args.year,
+          viewingYear,
           yearField.values
         );
       } else {
@@ -313,17 +308,25 @@ export const list = query({
   },
 });
 
-/** Load a single attendance member row for editing. */
+/**
+ * Load a single attendance member row for editing. For a staff overlay the
+ * name/email and locked Campus/Role come from the profile of `staffYear` (the
+ * event's staff year when editing from a roll-call), so it stays aligned with
+ * how the roster resolves that same person; defaults to the current staff year.
+ */
 export const get = query({
-  args: { memberId: v.id("attendanceMembers") },
-  handler: async (ctx, { memberId }) => {
+  args: {
+    memberId: v.id("attendanceMembers"),
+    staffYear: v.optional(v.number()),
+  },
+  handler: async (ctx, { memberId, staffYear }) => {
     if (!(await optionalProfile(ctx))) return null;
     const row = await ctx.db.get(memberId);
     if (!row?.staffEmail) return row;
-    const currentYear = staffYearForDate(new Date());
-    const profile = await getProfile(ctx, row.staffEmail, currentYear);
+    const profileYear = staffYear ?? staffYearForDate(new Date());
+    const profile = await getProfile(ctx, row.staffEmail, profileYear);
     if (!profile) return row;
-    const fields = await metadataFieldsForYear(ctx, currentYear);
+    const fields = await allMetadataFields(ctx);
     return {
       ...row,
       name: profile.name ?? row.name,
@@ -360,8 +363,8 @@ export const byName = query({
 
 /** Ensure a metadata overlay exists for a staff profile. */
 export const ensureForStaff = mutation({
-  args: { staffEmail: v.string() },
-  handler: async (ctx, { staffEmail }) => {
+  args: { staffEmail: v.string(), staffYear: v.optional(v.number()) },
+  handler: async (ctx, { staffEmail, staffYear }) => {
     await requireProfile(ctx);
     const email = staffEmail.trim().toLowerCase();
     if (!email) throw new ConvexError("Staff email is required.");
@@ -370,11 +373,12 @@ export const ensureForStaff = mutation({
       .withIndex("by_staff_email", (q) => q.eq("staffEmail", email))
       .unique();
     if (existing) return existing._id;
-    // Verify this email really is a staff profile for the current year BEFORE
-    // adopting/creating an overlay — a mistyped or stale email must not convert
-    // a plain member into a staff overlay (which would then hide it from `list`).
-    const currentYear = staffYearForDate(new Date());
-    const profile = await getProfile(ctx, email, currentYear);
+    // Verify this email really is a staff profile for `staffYear` (the event's
+    // staff year when editing from a roll-call; defaults to the current one)
+    // BEFORE adopting/creating an overlay — a mistyped or stale email must not
+    // convert a plain member into a staff overlay (hiding it from `list`).
+    const profileYear = staffYear ?? staffYearForDate(new Date());
+    const profile = await getProfile(ctx, email, profileYear);
     if (!profile) throw new ConvexError("Staff profile not found.");
     // Adopt an unlinked attendance-only row whose plain email matches this
     // staff member (e.g. they were added as a member before being provisioned
@@ -387,7 +391,7 @@ export const ensureForStaff = mutation({
       await ctx.db.patch(unlinked._id, { staffEmail: email });
       return unlinked._id;
     }
-    const fields = await metadataFieldsForYear(ctx, currentYear);
+    const fields = await allMetadataFields(ctx);
     return await ctx.db.insert("attendanceMembers", {
       name: profile.name ?? email,
       email,
@@ -421,16 +425,17 @@ export const update = mutation({
     name: v.string(),
     email: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.string())),
+    staffYear: v.optional(v.number()),
   },
-  handler: async (ctx, { memberId, name, email, metadata }) => {
+  handler: async (ctx, { memberId, name, email, metadata, staffYear }) => {
     await requireProfile(ctx);
     const row = await ctx.db.get(memberId);
     if (!row) throw new ConvexError("Member not found.");
     if (row.staffEmail) {
-      const currentYear = staffYearForDate(new Date());
-      const profile = await getProfile(ctx, row.staffEmail, currentYear);
+      const profileYear = staffYear ?? staffYearForDate(new Date());
+      const profile = await getProfile(ctx, row.staffEmail, profileYear);
       if (!profile) throw new ConvexError("Staff profile not found.");
-      const fields = await metadataFieldsForYear(ctx, currentYear);
+      const fields = await allMetadataFields(ctx);
       await ctx.db.patch(memberId, {
         name: profile.name ?? row.name,
         email: profile.email,

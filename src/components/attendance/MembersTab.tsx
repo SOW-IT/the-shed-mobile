@@ -28,7 +28,7 @@ export function MembersTab({
   const t = useAppTheme();
   const ensureDefaults = useMutation(api.attendanceMetadata.ensureDefaults);
   const ensureForStaff = useMutation(api.attendanceMembers.ensureForStaff);
-  const metadata = useQuery(api.attendanceMetadata.list, { year });
+  const metadata = useQuery(api.attendanceMetadata.list, {});
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -51,8 +51,8 @@ export function MembersTab({
   >([]);
 
   useEffect(() => {
-    void ensureDefaults({ year });
-  }, [year, ensureDefaults]);
+    void ensureDefaults({});
+  }, [ensureDefaults]);
 
   useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(search), 400);
@@ -63,7 +63,7 @@ export function MembersTab({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset paging on filter change
     setCursor(null);
     setAccumulated([]);
-  }, [debouncedSearch, sortKey, sortAsc, filters]);
+  }, [debouncedSearch, sortKey, sortAsc, filters, year]);
 
   const page = useQuery(api.attendanceMembers.list, {
     year,
@@ -256,7 +256,7 @@ export function MembersTab({
                   if (row.memberId) {
                     onEditMember(row.memberId as Id<"attendanceMembers">);
                   } else if (row.kind === "staff" && row.email) {
-                    void ensureForStaff({ staffEmail: row.email })
+                    void ensureForStaff({ staffEmail: row.email, staffYear: year })
                       .then(onEditMember)
                       .catch((e) => console.error("ensureForStaff failed", e));
                   }
