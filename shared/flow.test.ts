@@ -17,6 +17,7 @@ import {
   roleNeedsUniversity,
   rolesNeedUniversity,
   staffYearForDate,
+  sydneyCalendarYear,
   stepsForRequest,
 } from "./flow";
 
@@ -101,6 +102,22 @@ describe("staffYearForDate", () => {
     expect(staffYearForDate(new Date("2026-08-31T13:59:00Z"))).toBe(2026);
     // 14:00 UTC on Aug 31 is 00:00 Sept 1 in Sydney → new year.
     expect(staffYearForDate(new Date("2026-08-31T14:00:00Z"))).toBe(2027);
+  });
+});
+
+describe("sydneyCalendarYear", () => {
+  test("returns the Sydney calendar year, mid-year", () => {
+    expect(sydneyCalendarYear(new Date("2026-06-15"))).toBe(2026);
+  });
+
+  test("rolls over at Sydney midnight (AEDT, UTC+11) on Jan 1", () => {
+    // Jan 1 in Sydney is always inside daylight saving (AEDT, +11), so Sydney
+    // midnight Jan 1 2026 is 13:00 UTC on Dec 31 2025.
+    // 12:59 UTC Dec 31 is still 23:59 Dec 31 in Sydney → old year.
+    expect(sydneyCalendarYear(new Date("2025-12-31T12:59:00Z"))).toBe(2025);
+    // 13:00 UTC Dec 31 is 00:00 Jan 1 in Sydney → new year. (A +10h offset
+    // would wrongly keep this in 2025.)
+    expect(sydneyCalendarYear(new Date("2025-12-31T13:00:00Z"))).toBe(2026);
   });
 });
 

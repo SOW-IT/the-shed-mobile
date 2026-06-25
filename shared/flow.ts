@@ -279,6 +279,16 @@ export const staffYearForDate = (date: Date): number => {
 };
 
 /**
+ * The calendar year in Sydney — which is what attendance members and metadata
+ * are keyed by. The year only ever rolls over at Jan 1, which is always inside
+ * AEDT (UTC+11 — Australian daylight saving runs October→April), so shifting
+ * +11h and reading the UTC year lands the boundary on Sydney midnight wherever
+ * this runs. (Contrast staffYearForDate, whose Sept 1 boundary is AEST, +10.)
+ */
+export const sydneyCalendarYear = (date: Date): number =>
+  new Date(date.getTime() + 11 * 60 * 60 * 1000).getUTCFullYear();
+
+/**
  * Earliest staff year with any reimbursement requests (the old web app's
  * history starts here). Bounds the requests year picker so it never offers
  * years that can't have requests, even though the org structure goes back

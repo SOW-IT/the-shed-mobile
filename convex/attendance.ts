@@ -1,5 +1,10 @@
 import { ConvexError, v } from "convex/values";
-import { assignmentsOf, roleNeedsUniversity, staffYearForDate } from "../shared/flow";
+import {
+  assignmentsOf,
+  roleNeedsUniversity,
+  staffYearForDate,
+  sydneyCalendarYear,
+} from "../shared/flow";
 import {
   CAMPUS_FIELD_KEY,
   formatMetadataFieldValue,
@@ -71,7 +76,7 @@ export const roster = query({
     // event in context both default to the asked-for year.
     const profileYear = event ? staffYearForDate(new Date(event.dateStart)) : year;
     const memberYear = event
-      ? new Date(event.dateStart + 10 * 60 * 60 * 1000).getUTCFullYear()
+      ? sydneyCalendarYear(new Date(event.dateStart))
       : year;
     const metadataFields = (
       await ctx.db
@@ -255,9 +260,7 @@ export const listByEvent = query({
     // overlays come from the event's CALENDAR year, which for a Sep–Dec event is
     // one less than its staff year.
     const profileYear = staffYearForDate(new Date(event.dateStart));
-    const calendarYear = new Date(
-      event.dateStart + 10 * 60 * 60 * 1000
-    ).getUTCFullYear();
+    const calendarYear = sydneyCalendarYear(new Date(event.dateStart));
     const metadataFields = (
       await ctx.db
         .query("attendanceMetadata")
