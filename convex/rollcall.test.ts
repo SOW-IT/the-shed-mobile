@@ -982,3 +982,132 @@ describe("guards + edge cases", () => {
     expect(listed.some((r) => r.name === "Unknown")).toBe(true);
   });
 });
+
+describe("listByEvent de-duplicates one person signed in twice", () => {
+  test("an email and a memberId sign-in for the same staff person collapse to one row", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
+    // LEADER's staff overlay gives them a memberId as well as their email.
+    const memberId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
+      staffEmail: LEADER,
+    });
+    const { dateStart, dateEnd } = window();
+    const eventId = await admin.mutation(api.events.create, {
+      name: "E",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    // Both identifiers sign the same person in (e.g. legacy/imported data).
+    await admin.mutation(api.attendance.signIn, { eventId, email: LEADER });
+    await admin.mutation(api.attendance.signIn, { eventId, memberId });
+    const listed = await leader.query(api.attendance.listByEvent, { eventId });
+    expect(listed).toHaveLength(1);
+    expect(listed[0].email).toBe(LEADER);
+    expect(listed[0].kind).toBe("staff");
+  });
+});
+
+describe("collaborative events surface every sub-group's metadata", () => {
+  test("a field scoped to a collaborator shows on the roll-call; a single-group event hides it", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
+    // A field relevant only to MACQ.
+    const houseFieldId = await t.run(async (ctx) =>
+      ctx.db.insert("attendanceMetadata", {
+        year: YEAR,
+        key: "House",
+        type: "input" as const,
+        order: 9,
+        subgroup: MACQ,
+      })
+    );
+    const memberId = await admin.mutation(api.attendanceMembers.create, {
+      name: "Houserson",
+      metadata: { [houseFieldId]: "Red" },
+    });
+    const { dateStart, dateEnd } = window();
+
+    // Collaborative across USYD (owner) + MACQ: the MACQ field is shown.
+    const collab = await admin.mutation(api.events.create, {
+      name: "Collab",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD, MACQ],
+    });
+    await admin.mutation(api.attendance.signIn, { eventId: collab, memberId });
+    const collabRows = await leader.query(api.attendance.listByEvent, {
+      eventId: collab,
+    });
+    expect(collabRows.find((r) => r.name === "Houserson")?.subtitle ?? "").toContain(
+      "Red"
+    );
+    // The roster (suggested pool) applies the same union — the MACQ field shows
+    // for the collaborative event even though USYD is the asked-for sub-group.
+    const collabRoster = await leader.query(api.attendance.roster, {
+      year: YEAR,
+      subgroup: USYD,
+      eventId: collab,
+    });
+    expect(
+      collabRoster.find((r) => r.name === "Houserson")?.subtitle ?? ""
+    ).toContain("Red");
+
+    // A USYD-only event hides the MACQ-scoped field.
+    const usydOnly = await admin.mutation(api.events.create, {
+      name: "USYD only",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    await admin.mutation(api.attendance.signIn, { eventId: usydOnly, memberId });
+    const usydRows = await leader.query(api.attendance.listByEvent, {
+      eventId: usydOnly,
+    });
+    expect(
+      usydRows.find((r) => r.name === "Houserson")?.subtitle ?? ""
+    ).not.toContain("Red");
+  });
+});
+
+describe("roster without an event scopes metadata to the asked-for sub-group", () => {
+  test("a sub-group-scoped field shows only for that sub-group", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
+    const houseFieldId = await t.run(async (ctx) =>
+      ctx.db.insert("attendanceMetadata", {
+        year: YEAR,
+        key: "House",
+        type: "input" as const,
+        order: 9,
+        subgroup: MACQ,
+      })
+    );
+    await admin.mutation(api.attendanceMembers.create, {
+      name: "Scoped Member",
+      metadata: { [houseFieldId]: "Red" },
+    });
+    // No event in context: the MACQ-only field is hidden for USYD…
+    const usyd = await leader.query(api.attendance.roster, {
+      year: YEAR,
+      subgroup: USYD,
+    });
+    expect(
+      usyd.find((r) => r.name === "Scoped Member")?.subtitle ?? ""
+    ).not.toContain("Red");
+    // …and shown for MACQ.
+    const macq = await leader.query(api.attendance.roster, {
+      year: YEAR,
+      subgroup: MACQ,
+    });
+    expect(
+      macq.find((r) => r.name === "Scoped Member")?.subtitle ?? ""
+    ).toContain("Red");
+  });
+});

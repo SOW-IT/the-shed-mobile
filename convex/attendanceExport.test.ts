@@ -350,3 +350,58 @@ describe("attendanceExport", () => {
     expect(fallback!.event.collaborative).toBe(false);
   });
 });
+
+describe("attendanceExport de-duplication", () => {
+  test("a person signed in by both email and memberId exports as one row", async () => {
+    const { leader } = await setup();
+    const eventId = await leader.mutation(api.events.create, {
+      name: "Weekly Meeting",
+      ...window(),
+      subgroups: [USYD],
+    });
+    // LEADER's overlay gives them a memberId alongside their email; both sign in.
+    const memberId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
+      staffEmail: LEADER,
+    });
+    await leader.mutation(api.attendance.signIn, { eventId, email: LEADER });
+    await leader.mutation(api.attendance.signIn, { eventId, memberId });
+
+    const data = await leader.query(api.attendanceExport.eventForExport, {
+      eventId,
+      subgroup: USYD,
+    });
+    expect(data!.event.rows).toHaveLength(1);
+    expect(data!.event.rows[0].email).toBe(LEADER);
+    expect(data!.event.attendanceCount).toBe(1);
+  });
+
+  test("merging two rows for one person keeps the earliest sign-in", async () => {
+    const { t, leader } = await setup();
+    const eventId = await leader.mutation(api.events.create, {
+      name: "Weekly Meeting",
+      ...window(),
+      subgroups: [USYD],
+    });
+    const memberId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
+      staffEmail: LEADER,
+    });
+    // The email row is inserted first but signed in LATER than the memberId row,
+    // so de-dup must replace it with the earlier memberId sign-in.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("attendance", {
+        eventId,
+        email: LEADER,
+        signInTime: 2000,
+      });
+      await ctx.db.insert("attendance", { eventId, memberId, signInTime: 1000 });
+    });
+
+    const data = await leader.query(api.attendanceExport.eventForExport, {
+      eventId,
+      subgroup: USYD,
+    });
+    expect(data!.event.rows).toHaveLength(1);
+    expect(data!.event.rows[0].email).toBe(LEADER);
+    expect(data!.event.rows[0].signInTime).toBe(1000);
+  });
+});
