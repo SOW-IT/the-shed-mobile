@@ -1,6 +1,6 @@
 import { ReactNode, useEffect } from "react";
 import { Animated, StyleSheet, View } from "react-native";
-import type { PagerTab } from "@/components/PagerScreen";
+import type { PagerScrollState, PagerTab } from "@/components/PagerScreen";
 
 type Props = {
   tabs: PagerTab[];
@@ -9,6 +9,11 @@ type Props = {
   renderPage: (tab: PagerTab) => ReactNode;
   /** Fractional page position; animated to the active tab on change. */
   position?: Animated.Value;
+  onScrollStateChange?: (
+    state: PagerScrollState,
+    scrollPos: number,
+    settledIndex?: number
+  ) => void;
 };
 
 /**

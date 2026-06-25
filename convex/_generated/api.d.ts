@@ -9,6 +9,10 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as attendance from "../attendance.js";
+import type * as attendanceMembers from "../attendanceMembers.js";
+import type * as attendanceMetadata from "../attendanceMetadata.js";
+import type * as attendanceTags from "../attendanceTags.js";
 import type * as auth from "../auth.js";
 import type * as bankAccounts from "../bankAccounts.js";
 import type * as cleanup from "../cleanup.js";
@@ -17,6 +21,7 @@ import type * as crons from "../crons.js";
 import type * as directory from "../directory.js";
 import type * as directorySync from "../directorySync.js";
 import type * as emails from "../emails.js";
+import type * as events from "../events.js";
 import type * as http from "../http.js";
 import type * as importData from "../importData.js";
 import type * as importHistory from "../importHistory.js";
@@ -26,6 +31,7 @@ import type * as profile from "../profile.js";
 import type * as push from "../push.js";
 import type * as reminders from "../reminders.js";
 import type * as requests from "../requests.js";
+import type * as rollcallImport from "../rollcallImport.js";
 import type * as userLink from "../userLink.js";
 
 import type {
@@ -36,6 +42,10 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  attendance: typeof attendance;
+  attendanceMembers: typeof attendanceMembers;
+  attendanceMetadata: typeof attendanceMetadata;
+  attendanceTags: typeof attendanceTags;
   auth: typeof auth;
   bankAccounts: typeof bankAccounts;
   cleanup: typeof cleanup;
@@ -44,6 +54,7 @@ declare const fullApi: ApiFromModules<{
   directory: typeof directory;
   directorySync: typeof directorySync;
   emails: typeof emails;
+  events: typeof events;
   http: typeof http;
   importData: typeof importData;
   importHistory: typeof importHistory;
@@ -53,6 +64,7 @@ declare const fullApi: ApiFromModules<{
   push: typeof push;
   reminders: typeof reminders;
   requests: typeof requests;
+  rollcallImport: typeof rollcallImport;
   userLink: typeof userLink;
 }>;
 

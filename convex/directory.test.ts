@@ -128,6 +128,27 @@ describe("me", () => {
     const me = (await asUser(t, RACHEL).query(api.directory.me, {}))!;
     expect(me.isApprover).toBe(false);
     expect(me.isAdmin).toBe(false);
+    expect(me.isCampusLeader).toBe(false);
+  });
+
+  test("campus role assignments are flagged for attendance-first navigation", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertUniversity, {
+      year: YEAR,
+      name: "University of Sydney",
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "sl@sow.org.au",
+      year: YEAR,
+      roles: ["Student Leader"],
+      university: "University of Sydney",
+    });
+    const sl = (await asUser(t, "sl@sow.org.au").query(api.directory.me, {}))!;
+    expect(sl.isCampusLeader).toBe(true);
+    expect((await asUser(t, RACHEL).query(api.directory.me, {}))!.isCampusLeader).toBe(
+      false
+    );
   });
 });
 

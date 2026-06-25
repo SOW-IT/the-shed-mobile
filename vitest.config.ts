@@ -15,6 +15,8 @@ export default defineConfig({
         "convex/env.d.ts",
         // Generated data table (scripts/build-import-data.py), not logic.
         "convex/importData.ts",
+        // One-shot admin migration tool (scripts/rollcall-import-apply.mjs).
+        "convex/rollcallImport.ts",
         // Framework registration with no testable branches: provider/route/
         // cron wiring that would only exercise convexAuth/httpRouter/cronJobs.
         "convex/auth.ts",

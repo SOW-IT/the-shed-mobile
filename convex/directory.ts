@@ -113,6 +113,8 @@ export const me = query({
         approvers.financeHeadEmail === email ||
         rolesOf(profile).includes(DIRECTOR) ||
         isDelegate,
+      /** President / VP / Executive / Student Leader — attendance-first UX. */
+      isCampusLeader: assignmentsOf(profile).some((a) => roleNeedsUniversity(a.role)),
     };
   },
 });

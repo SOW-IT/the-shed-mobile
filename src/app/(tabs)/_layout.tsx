@@ -146,33 +146,36 @@ const AnimatedTabBarButton = ({
       }}
     >
       <Animated.View style={[styles.tabButtonInner, { transform: [{ scale }] }]}>
-        {children as React.ReactNode}
+        {typeof children === "function"
+          ? children({ pressed: false })
+          : children}
       </Animated.View>
     </Pressable>
   );
 };
 
 /**
- * The bottom tab navigator: Requests, Org Chart, Admin. Detail screens
- * (profile, person, request) live in the parent Stack so they push as cards
- * with a native, interactive swipe-back over the tabs.
+ * The bottom tab navigator. Tab order and the launch tab depend on role:
+ * campus leaders (President / VP / Executive / Student Leader) get Attendance
+ * first and no Requests tab; everyone else gets Requests → Attendance → Org → Admin.
  */
 export default function TabsLayout() {
   const me = useQuery(api.directory.me);
   const t = useAppTheme();
   const insets = useSafeAreaInsets();
   usePushRegistration();
+
+  const isCampusLeader = me?.isCampusLeader ?? false;
+  const showAdminTab = me?.isAdmin || me?.isFinanceHead;
+
   // Mine: action count (requests fully approved but awaiting receipt submission).
   const myRequests = useQuery(api.requests.myRequests, me?.profile ? {} : "skip");
   const mineActionCount = (myRequests ?? []).filter(
     (r) => requestFullyApproved(r) && !r.receipt
   ).length;
-  // Mine: unread comment count across the user's own requests.
   const mineUnread =
     useQuery(api.comments.myUnreadTotal, me?.profile ? {} : "skip") ?? 0;
 
-  // To Review: action count (requests waiting on the approver).
-  // Convex dedupes this subscription with the Requests tab's own query.
   const review = useQuery(
     api.requests.toReview,
     me?.profile && me.isApprover ? {} : "skip"
@@ -184,7 +187,6 @@ export default function TabsLayout() {
       review.financeHead.length +
       review.readyToPay.length
     : 0;
-  // To Review: unread comment count across the review queue.
   const reviewRequestIds = review
     ? [
         ...review.hod.map((r) => r._id),
@@ -200,15 +202,12 @@ export default function TabsLayout() {
       me?.profile && me.isApprover && review ? { requestIds: reviewRequestIds } : "skip"
     ) ?? 0;
 
-  // Combined tab badge: every action + every unread message across both segments.
   const tabTotal = mineActionCount + mineUnread + reviewActionCount + reviewUnread;
+
   return (
     <Tabs
-      // Back (browser back / Android hardware back) returns to the last
-      // visited tab rather than always the first tab.
+      initialRouteName={isCampusLeader ? "attendance" : "index"}
       backBehavior="history"
-      // Haptics are reserved for the bottom bar: a light selection tick on
-      // every tab press (no other button in the app buzzes).
       screenListeners={{ tabPress: () => hapticSelect() }}
       screenOptions={{
         headerShown: false,
@@ -226,24 +225,30 @@ export default function TabsLayout() {
           backgroundColor: t.card,
           borderTopWidth: 0,
           height: BOTTOM_TAB_HEIGHT + insets.bottom,
-          // Reserve the safe-area inset as bottom padding so the icons centre in
-          // the BOTTOM_TAB_HEIGHT band up top instead of in the full (inset-
-          // inflated) height — otherwise they sit low with a big gap above them
-          // on devices with a home indicator. Web has no inset, so it's unchanged.
           paddingBottom: insets.bottom,
           paddingTop: 0,
           ...shadowStyle(t.dark ? "#000000" : "#0F2523", t.dark ? 0.35 : 0.08, 16, -4, 12),
         },
       }}
     >
+      {/* Keep screens in a fixed declaration order so Expo Router registers tab
+          bar slots correctly. Hidden tabs use href: null (they don't appear in
+          the bar but still occupy their slot in the route list). */}
       <Tabs.Screen
         name="index"
         options={{
           title: "Requests",
+          ...(isCampusLeader ? { href: null } : {}),
           tabBarIcon: ({ color, focused }) => (
             <RequestsTabIcon color={color} focused={focused} total={tabTotal} />
           ),
-          // Both counts are rendered inline by RequestsTabIcon; no tabBarBadge needed.
+        }}
+      />
+      <Tabs.Screen
+        name="attendance"
+        options={{
+          title: "Attendance",
+          tabBarIcon: tabIcon("checkbox-outline", "checkbox"),
         }}
       />
       <Tabs.Screen
@@ -257,14 +262,7 @@ export default function TabsLayout() {
         name="admin"
         options={{
           title: "Admin",
-          // Admins get the full Manage screen; the Finance Head gets a
-          // restricted view (Budget Manager only). When visible we OMIT `href`
-          // so the tab uses our custom AnimatedTabBarButton like the others
-          // (same height + press feedback) — expo-router swaps in its own Link
-          // button for any screen that sets `href`, which renders taller and
-          // without the scale feedback. The auto-built "/admin" href is still
-          // passed to our button, so the link target is unchanged.
-          ...(me?.isAdmin || me?.isFinanceHead ? {} : { href: null }),
+          ...(showAdminTab ? {} : { href: null }),
           tabBarIcon: tabIcon("settings-outline", "settings"),
         }}
       />
@@ -273,11 +271,9 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
-  // Trim the default tab button's vertical padding so the bar can be shorter.
   tabButton: {
     paddingVertical: 0,
   },
-  // Fills the tab slot so the scaled icon stays centered.
   tabButtonInner: {
     flex: 1,
     alignItems: "center",

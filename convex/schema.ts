@@ -283,4 +283,81 @@ export default defineSchema({
     // The caller's unread notifications for one request, for contextual
     // mark-as-read (the `read` suffix lets us query only the unread rows).
     .index("by_user_and_request_and_read", ["userEmail", "requestId", "read"]),
+
+  // ───────────────────────────── Roll-call ─────────────────────────────
+  // A lightweight attendance feature ported from time-to-rollcall. SOW is the
+  // implicit org; its sub-groups are the campuses (the per-year `universities`
+  // rows) plus org-wide "SOW". Every sub-group shares ONE member pool —
+  // all of the year's `staffProfiles` — so an event's sub-groups are just the
+  // campus label(s) it's run under, never a different roster.
+
+  // An event belongs to a staff `year` and is tagged with one or more
+  // sub-groups (university names, or the literal "SOW"). Two+ sub-groups ⇒ a
+  // collaborative event that appears under each. Dates are epoch-ms.
+  events: defineTable({
+    year: v.number(),
+    name: v.string(),
+    dateStart: v.number(),
+    dateEnd: v.number(),
+    sourceImportId: v.optional(v.string()),
+    // University names (e.g. "University of Sydney") and/or "SOW".
+    subgroups: v.array(v.string()),
+    tagIds: v.optional(v.array(v.id("attendanceTags"))),
+  })
+    .index("by_year", ["year"])
+    .index("by_year_and_sourceImportId", ["year", "sourceImportId"]),
+
+  // Event category tags (e.g. "Weekly Meeting"), per staff year.
+  attendanceTags: defineTable({
+    year: v.number(),
+    name: v.string(),
+    colour: v.optional(v.string()),
+    // Undefined/empty means global. Otherwise this tag only applies to these sub-groups.
+    subgroups: v.optional(v.array(v.string())),
+  })
+    .index("by_year", ["year"])
+    .index("by_year_and_name", ["year", "name"]),
+
+  // Dynamic member fields (Year, Gender, Campus, Role, …), per staff year.
+  attendanceMetadata: defineTable({
+    year: v.number(),
+    key: v.string(),
+    type: v.union(v.literal("select"), v.literal("input")),
+    order: v.number(),
+    values: v.optional(v.record(v.string(), v.string())),
+    // Undefined means global. Otherwise this field is only relevant for this sub-group.
+    subgroup: v.optional(v.string()),
+    /** When true, select values seeded from org data cannot be removed. */
+    lockedValues: v.optional(v.array(v.string())),
+  }).index("by_year", ["year"]),
+
+  // Attendance pool members. Rows with `staffEmail` hold metadata for a staff
+  // profile; rows without are attendance-only people. Members are year-less —
+  // the same row (and memberId) is reused across all staff years.
+  attendanceMembers: defineTable({
+    name: v.string(),
+    email: v.optional(v.string()),
+    staffEmail: v.optional(v.string()),
+    sourceImportId: v.optional(v.string()),
+    metadata: v.optional(v.record(v.string(), v.string())),
+  })
+    .index("by_staff_email", ["staffEmail"])
+    .index("by_source_import_id", ["sourceImportId"])
+    .index("by_name", ["name"]),
+
+  // One row per (event, person). Staff use `email`; extra members use
+  // `memberId`. Exactly one identifier should be set.
+  attendance: defineTable({
+    eventId: v.id("events"),
+    email: v.optional(v.string()),
+    memberId: v.optional(v.id("attendanceMembers")),
+    year: v.number(),
+    signInTime: v.number(),
+    notes: v.optional(v.string()),
+  })
+    .index("by_event", ["eventId"])
+    .index("by_event_and_email", ["eventId", "email"])
+    .index("by_event_and_member", ["eventId", "memberId"])
+    .index("by_email", ["email"])
+    .index("by_member", ["memberId"]),
 });

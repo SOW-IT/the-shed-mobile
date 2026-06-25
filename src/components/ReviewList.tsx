@@ -72,12 +72,25 @@ const DeclineSheet = ({
   };
 
   return (
-    <Sheet visible={target !== null} onClose={onClose} title="Decline Request">
+    <Sheet
+      visible={target !== null}
+      onClose={onClose}
+      title="Decline Request"
+      footer={
+        <View style={{ gap: spacing.sm }}>
+          <Btn
+            title="Decline"
+            variant="danger"
+            loading={submitting}
+            onPress={handleDecline}
+          />
+          <Btn title="Back" variant="ghost" onPress={onClose} />
+        </View>
+      }
+    >
       <Muted>The requester will be emailed your reason.</Muted>
       <Field label="Reason (required)" value={reason} onChangeText={setReason} multiline />
       <ErrorBanner message={error} />
-      <Btn title="Decline" variant="danger" loading={submitting} onPress={handleDecline} />
-      <Btn title="Back" variant="ghost" onPress={onClose} />
     </Sheet>
   );
 };
@@ -125,7 +138,22 @@ const PaySheet = ({
   };
 
   return (
-    <Sheet visible={request !== null} onClose={onClose} title="Pay Reimbursement">
+    <Sheet
+      visible={request !== null}
+      onClose={onClose}
+      title="Pay Reimbursement"
+      footer={
+        <View style={{ gap: spacing.sm }}>
+          <Btn
+            title="Mark as Paid"
+            variant="success"
+            loading={paying}
+            onPress={handlePay}
+          />
+          <Btn title="Back" variant="ghost" onPress={onClose} />
+        </View>
+      }
+    >
       <Muted>Only pay after you have sent the money to the account.</Muted>
       {request ? <ReceiptRecipientList request={request} /> : null}
       <Field
@@ -136,8 +164,6 @@ const PaySheet = ({
       />
       <Field label="Comment (optional)" value={comment} onChangeText={setComment} />
       <ErrorBanner message={error} />
-      <Btn title="Mark as Paid" variant="success" loading={paying} onPress={handlePay} />
-      <Btn title="Back" variant="ghost" onPress={onClose} />
     </Sheet>
   );
 };

@@ -155,7 +155,17 @@ const NewRequestSheet = ({
   };
 
   return (
-    <Sheet visible={visible} onClose={onClose} title="New Request">
+    <Sheet
+      visible={visible}
+      onClose={onClose}
+      title="New Request"
+      footer={
+        <View style={{ gap: spacing.sm }}>
+          <Btn title="Submit Request" onPress={handleSubmit} />
+          <Btn title="Cancel" variant="ghost" onPress={onClose} />
+        </View>
+      }
+    >
         <Field
           label="Description"
           value={description}
@@ -180,8 +190,6 @@ const NewRequestSheet = ({
           <Muted>{`Requests of $${directorThreshold.toLocaleString()} or more also require Director approval.`}</Muted>
         ) : null}
         <ErrorBanner message={error} />
-        <Btn title="Submit Request" onPress={handleSubmit} />
-        <Btn title="Cancel" variant="ghost" onPress={onClose} />
       </Sheet>
   );
 };
@@ -484,7 +492,17 @@ const ReceiptSheet = ({
   };
 
   return (
-    <Sheet visible={request !== null} onClose={onClose} title="Submit Receipt">
+    <Sheet
+      visible={request !== null}
+      onClose={onClose}
+      title="Submit Receipt"
+      footer={
+        <View style={{ gap: spacing.sm }}>
+          <Btn title="Submit Receipt" onPress={handleSubmit} disabled={uploading} />
+          <Btn title="Cancel" variant="ghost" onPress={onClose} />
+        </View>
+      }
+    >
       {recipients.map((recipient, index) => (
         <View key={recipient.id} style={{ gap: 10 }}>
           <Row>
@@ -576,8 +594,6 @@ const ReceiptSheet = ({
         onPress={() => setRecipients((previous) => [...previous, emptyRecipient()])}
       />
       <ErrorBanner message={error} />
-      <Btn title="Submit Receipt" onPress={handleSubmit} disabled={uploading} />
-      <Btn title="Cancel" variant="ghost" onPress={onClose} />
       <ConfirmDialog
         visible={confirmExceeds !== null}
         title="Receipt exceeds request"
