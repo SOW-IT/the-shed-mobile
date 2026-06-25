@@ -222,6 +222,10 @@ export function SettingsTab({
                     const set = new Set(x.subgroups?.length ? x.subgroups : subgroups);
                     if (set.has(subgroup)) set.delete(subgroup);
                     else set.add(subgroup);
+                    // Keep at least one group: an empty array persists as "all
+                    // groups", so deselecting the last one would paradoxically
+                    // re-scope the tag to everything.
+                    if (set.size === 0) return x;
                     return { ...x, subgroups: [...set] };
                   })
                 )
