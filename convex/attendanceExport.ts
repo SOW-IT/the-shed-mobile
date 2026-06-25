@@ -136,7 +136,7 @@ async function resolveExportEvents(
     const shadowFor = (email: string) =>
       first(staffEmailCandidates(email).map((c) => memberByStaffEmail.get(c)));
 
-    const rows: ExportRow[] = attendanceRows
+    const resolvedRows: ExportRow[] = attendanceRows
       .map((row): ExportRow => {
         if (row.email) {
           const profile = profileFor(row.email);
@@ -181,8 +181,30 @@ async function resolveExportEvents(
           notes: row.notes,
           metadata: {},
         };
-      })
-      .sort((a, b) => b.signInTime - a.signInTime);
+      });
+    // Collapse rows that resolve to the same staff email — a person can have
+    // both an `email` and a `memberId` sign-in (legacy/imported data) that
+    // resolve to one profile; export them once (earliest sign-in). Rows without
+    // an email (unresolved members) can't be merged and pass through.
+    const byEmail = new Map<string, ExportRow>();
+    const rows: ExportRow[] = [];
+    for (const row of resolvedRows) {
+      if (!row.email) {
+        rows.push(row);
+        continue;
+      }
+      const existing = byEmail.get(row.email);
+      if (!existing) {
+        byEmail.set(row.email, row);
+        rows.push(row);
+      } else if (row.signInTime < existing.signInTime) {
+        existing.signInTime = row.signInTime;
+        existing.notes = row.notes;
+        existing.metadata = row.metadata;
+        existing.name = row.name;
+      }
+    }
+    rows.sort((a, b) => b.signInTime - a.signInTime);
 
     const tags = await Promise.all(
       (event.tagIds ?? []).map((id) => ctx.db.get(id))
@@ -199,7 +221,7 @@ async function resolveExportEvents(
       tags: tags
         .filter((t): t is Doc<"attendanceTags"> => !!t)
         .map((t) => t.name),
-      attendanceCount: attendanceRows.length,
+      attendanceCount: rows.length,
       rows,
     });
   }

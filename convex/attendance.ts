@@ -80,12 +80,20 @@ export const roster = query({
       ? sydneyCalendarYear(new Date(event.dateStart))
       : year;
     // Metadata fields are global; `memberYear` is only the calendar year the
-    // student "Year" level is displayed against.
+    // student "Year" level is displayed against. For an event, surface metadata
+    // for any of its sub-groups (a collaborative event spans several); without
+    // one, fall back to the single asked-for group.
+    const eventFieldSubgroups = event ? normalizeSubgroups(event.subgroups) : [];
     const metadataFields = (await ctx.db.query("attendanceMetadata").collect())
-      .filter(
-        (field) =>
-          !subgroup || !field.subgroup || subgroupMatches(field.subgroup, subgroup)
-      )
+      .filter((field) => {
+        if (!field.subgroup) return true;
+        if (event) {
+          return eventFieldSubgroups.some((sg) =>
+            subgroupMatches(field.subgroup!, sg)
+          );
+        }
+        return !subgroup || subgroupMatches(field.subgroup, subgroup);
+      })
       .sort((a, b) => a.order - b.order);
 
     const profiles = await ctx.db
@@ -225,7 +233,7 @@ export const roster = query({
           score.tagMatches += 1;
         }
         if (
-          historyEvent.subgroups.some((historySubgroup) =>
+          normalizeSubgroups(historyEvent.subgroups).some((historySubgroup) =>
             eventSubgroups.has(historySubgroup)
           )
         ) {
@@ -266,13 +274,16 @@ export const listByEvent = query({
     const profileYear = eventStaffYear(event.dateStart);
     const calendarYear = sydneyCalendarYear(new Date(event.dateStart));
     // Metadata fields are global; `calendarYear` is only the year the student
-    // "Year" level is displayed against.
+    // "Year" level is displayed against. A collaborative event participates in
+    // every one of its sub-groups, so it shows the metadata relevant to any of
+    // them (not just the first/owner).
+    const fieldSubgroups = normalizeSubgroups(event.subgroups);
     const metadataFields = (await ctx.db.query("attendanceMetadata").collect())
       .filter(
         (field) =>
-          !event.subgroups[0] ||
+          fieldSubgroups.length === 0 ||
           !field.subgroup ||
-          subgroupMatches(field.subgroup, event.subgroups[0])
+          fieldSubgroups.some((sg) => subgroupMatches(field.subgroup!, sg))
       )
       .sort((a, b) => a.order - b.order);
     const metadataSubtitle = (
@@ -383,7 +394,23 @@ export const listByEvent = query({
         };
       })
     );
-    return withNames.sort((a, b) => b.signInTime - a.signInTime);
+    // Collapse rows that resolve to the same person — a staff member can have
+    // both an `email` sign-in and a `memberId` sign-in (e.g. legacy/imported
+    // data) that resolve to one profile; show them once, keeping the earliest
+    // sign-in. Members without an email can't be merged, so they pass through.
+    const byIdentity = new Map<string, (typeof withNames)[number]>();
+    for (const row of withNames) {
+      const identity = row.email
+        ? `email:${row.email}`
+        : row.memberId
+          ? `member:${row.memberId}`
+          : `row:${row._id}`;
+      const existing = byIdentity.get(identity);
+      if (!existing || row.signInTime < existing.signInTime) {
+        byIdentity.set(identity, row);
+      }
+    }
+    return [...byIdentity.values()].sort((a, b) => b.signInTime - a.signInTime);
   },
 });
 
