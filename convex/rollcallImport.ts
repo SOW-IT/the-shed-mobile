@@ -113,11 +113,10 @@ function calendarYearOf(dateMs: number): number {
   return new Date(dateMs + 10 * 60 * 60 * 1000).getUTCFullYear();
 }
 
-async function fieldsForYear(ctx: MutationCtx, year: number) {
-  return await ctx.db
-    .query("attendanceMetadata")
-    .withIndex("by_year", (q) => q.eq("year", year))
-    .take(100);
+// Metadata fields are global (not year-scoped), so import resolves against the
+// single shared set regardless of which year's data is being loaded.
+async function allMetadataFields(ctx: MutationCtx) {
+  return await ctx.db.query("attendanceMetadata").take(100);
 }
 
 const normalizedEmail = (email: string | undefined): string | undefined => {
@@ -126,7 +125,7 @@ const normalizedEmail = (email: string | undefined): string | undefined => {
 };
 
 const staffLockedMetadata = (
-  fields: Awaited<ReturnType<typeof fieldsForYear>>,
+  fields: Awaited<ReturnType<typeof allMetadataFields>>,
   profile: NonNullable<Awaited<ReturnType<typeof getProfile>>>,
   metadata: Record<string, string> | undefined
 ): Record<string, string> => {
@@ -173,11 +172,11 @@ async function metadataForMember(
   year: number,
   raw: Record<string, string> | undefined,
   fieldMap: Record<string, Id<"attendanceMetadata">>,
-  fieldsByKey: Map<string, Awaited<ReturnType<typeof fieldsForYear>>[number]>,
+  fieldsByKey: Map<string, Awaited<ReturnType<typeof allMetadataFields>>[number]>,
   staffEmail?: string
 ) {
   const out: Record<string, string> = {};
-  const fieldRows = await fieldsForYear(ctx, year);
+  const fieldRows = await allMetadataFields(ctx);
   const byId = new Map(fieldRows.map((field) => [field._id, field]));
   for (const [oldFieldId, value] of Object.entries(raw ?? {})) {
     const fieldId = fieldMap[oldFieldId];
@@ -232,7 +231,7 @@ export const prepare = mutation({
   }),
   handler: async (ctx, { year, metadata, tags }) => {
     await requireAdmin(ctx);
-    const existingFields = await fieldsForYear(ctx, year);
+    const existingFields = await allMetadataFields(ctx);
     const fieldMap: Record<string, Id<"attendanceMetadata">> = {};
 
     for (const field of metadata) {
@@ -259,17 +258,12 @@ export const prepare = mutation({
           ? { lockedValues: [...GENDER_OPTION_IDS, "Male", "Female"] }
           : {}),
       };
-      const id =
-        existing?._id ??
-        (await ctx.db.insert("attendanceMetadata", {
-          year,
-          ...patch,
-        }));
+      const id = existing?._id ?? (await ctx.db.insert("attendanceMetadata", patch));
       if (existing) await ctx.db.patch(existing._id, patch);
       for (const oldId of field.sourceIds ?? []) fieldMap[oldId] = id;
     }
 
-    const fieldsAfter = await fieldsForYear(ctx, year);
+    const fieldsAfter = await allMetadataFields(ctx);
     for (const field of metadata) {
       const row = fieldsAfter.find(
         (candidate) => candidate.key.toLowerCase() === field.key.toLowerCase()
@@ -322,7 +316,7 @@ export const importMembers = mutation({
   returns: v.object({ imported: v.number(), staffOverlays: v.number() }),
   handler: async (ctx, { year, fieldMap, members }) => {
     await requireAdmin(ctx);
-    const fields = await fieldsForYear(ctx, year);
+    const fields = await allMetadataFields(ctx);
     const fieldsByKey = new Map(fields.map((field) => [field.key, field]));
     let imported = 0;
     let staffOverlays = 0;
@@ -413,12 +407,12 @@ export const importEvents = mutation({
     // Member fields are looked up per calendar year; cache them per run.
     const fieldsByYear = new Map<
       number,
-      Awaited<ReturnType<typeof fieldsForYear>>
+      Awaited<ReturnType<typeof allMetadataFields>>
     >();
     const fieldsFor = async (cy: number) => {
       const cached = fieldsByYear.get(cy);
       if (cached) return cached;
-      const rows = await fieldsForYear(ctx, cy);
+      const rows = await allMetadataFields(ctx);
       fieldsByYear.set(cy, rows);
       return rows;
     };
@@ -570,12 +564,8 @@ export const summary = mutation({
   handler: async (ctx, { year }) => {
     await requireAdmin(ctx);
     return {
-      metadata: (
-        await ctx.db
-          .query("attendanceMetadata")
-          .withIndex("by_year", (q) => q.eq("year", year))
-          .take(1000)
-      ).length,
+      // Metadata is global (not year-scoped), so this is the whole shared set.
+      metadata: (await ctx.db.query("attendanceMetadata").take(1000)).length,
       tags: (
         await ctx.db
           .query("attendanceTags")
@@ -646,18 +636,18 @@ export const resetYears = mutation({
         if (!progressed) break;
       }
 
-      for (const table of ["attendanceMetadata", "attendanceTags"] as const) {
-        while (deleted < limit) {
-          const docs = await ctx.db
-            .query(table)
-            .withIndex("by_year", (q) => q.eq("year", year))
-            .take(200);
-          if (docs.length === 0) break;
-          for (const doc of docs) {
-            await ctx.db.delete(doc._id);
-            deleted++;
-            if (deleted >= limit) break;
-          }
+      // Tags are year-scoped; metadata is global and shared across years, so a
+      // per-year reset leaves it alone.
+      while (deleted < limit) {
+        const docs = await ctx.db
+          .query("attendanceTags")
+          .withIndex("by_year", (q) => q.eq("year", year))
+          .take(200);
+        if (docs.length === 0) break;
+        for (const doc of docs) {
+          await ctx.db.delete(doc._id);
+          deleted++;
+          if (deleted >= limit) break;
         }
       }
     }
@@ -665,12 +655,11 @@ export const resetYears = mutation({
     // `done` once nothing for any year remains (a handful of cheap probes).
     let done = true;
     for (const year of years) {
-      const [ev, meta, tag] = await Promise.all([
+      const [ev, tag] = await Promise.all([
         eventsInStaffYear(ctx, year).first(),
-        ctx.db.query("attendanceMetadata").withIndex("by_year", (q) => q.eq("year", year)).first(),
         ctx.db.query("attendanceTags").withIndex("by_year", (q) => q.eq("year", year)).first(),
       ]);
-      if (ev || meta || tag) {
+      if (ev || tag) {
         done = false;
         break;
       }
@@ -697,7 +686,7 @@ export const mergeLegacyStaffMembers = mutation({
   }),
   handler: async (ctx, { year }) => {
     await requireAdmin(ctx);
-    const fields = await fieldsForYear(ctx, year);
+    const fields = await allMetadataFields(ctx);
     const members = await ctx.db
       .query("attendanceMembers")
       .collect();
@@ -848,10 +837,8 @@ export const migrateOrgWideSubgroupToSow = mutation({
       }
     }
 
-    for (const field of await ctx.db
-      .query("attendanceMetadata")
-      .withIndex("by_year", (q) => q.eq("year", year))
-      .collect()) {
+    // Metadata is global (not year-scoped) — canonicalise the whole shared set.
+    for (const field of await ctx.db.query("attendanceMetadata").collect()) {
       if (!field.subgroup) continue;
       const canonical = canonicalSubgroup(field.subgroup);
       if (canonical !== field.subgroup) {
@@ -873,7 +860,7 @@ export const repairGenderMetadata = mutation({
   }),
   handler: async (ctx, { year }) => {
     await requireAdmin(ctx);
-    const fields = await fieldsForYear(ctx, year);
+    const fields = await allMetadataFields(ctx);
     const genderField = fields.find((field) => field.key === GENDER_FIELD_KEY);
     if (!genderField) {
       return { fieldPatched: false, membersPatched: 0 };

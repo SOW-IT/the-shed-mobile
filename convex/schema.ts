@@ -326,8 +326,9 @@ export default defineSchema({
   // time — the field definition carries no year. `year` is a deprecated column
   // kept optional only until `admin:consolidateAttendanceMetadata` has merged
   // the old per-year rows in every environment; the narrow follow-up drops it.
+  // Metadata fields are global (not year-scoped) — the same set applies to every
+  // staff year, so there is no `year` column.
   attendanceMetadata: defineTable({
-    year: v.optional(v.number()),
     key: v.string(),
     type: v.union(v.literal("select"), v.literal("input")),
     order: v.number(),
@@ -336,7 +337,7 @@ export default defineSchema({
     subgroup: v.optional(v.string()),
     /** When true, select values seeded from org data cannot be removed. */
     lockedValues: v.optional(v.array(v.string())),
-  }).index("by_year", ["year"]),
+  }),
 
   // Attendance pool members. Rows with `staffEmail` hold metadata for a staff
   // profile; rows without are attendance-only people. Members are year-less —
