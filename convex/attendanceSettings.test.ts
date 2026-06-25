@@ -929,33 +929,29 @@ describe("attendanceMembers.byName", () => {
 });
 
 describe("consolidateAttendanceMetadata migration", () => {
-  test("merges per-year fields into one global set and remaps member metadata", async () => {
+  test("merges duplicate fields into one global set and remaps member metadata", async () => {
     const t = convexTest(schema, modules);
-    // Pre-consolidation shape: two legacy per-year Gender rows with DIFFERENT
+    // Pre-consolidation shape: two duplicate Gender rows with DIFFERENT
     // option-id schemes, plus an input "Notes" pair, inserted directly.
     const ids = await t.run(async (ctx) => {
       const genderA = await ctx.db.insert("attendanceMetadata", {
-        year: 2025,
         key: "Gender",
         type: "select" as const,
         order: 1,
         values: { "1": "Male", "2": "Female" },
       });
       const genderB = await ctx.db.insert("attendanceMetadata", {
-        year: 2026,
         key: "Gender",
         type: "select" as const,
         order: 1,
         values: { "1": "Female", "2": "Male", "3": "Other" },
       });
       const notesA = await ctx.db.insert("attendanceMetadata", {
-        year: 2025,
         key: "Notes",
         type: "input" as const,
         order: 2,
       });
       const notesB = await ctx.db.insert("attendanceMetadata", {
-        year: 2026,
         key: "Notes",
         type: "input" as const,
         order: 2,
@@ -988,7 +984,6 @@ describe("consolidateAttendanceMetadata migration", () => {
       {}
     );
     expect(result.merged).toBe(2);
-    expect(result.cleared).toBe(2);
 
     const rows = await t.run(async (ctx) =>
       ctx.db.query("attendanceMetadata").collect()
@@ -996,7 +991,6 @@ describe("consolidateAttendanceMetadata migration", () => {
     const gender = rows.filter((r) => r.key === "Gender");
     expect(gender).toHaveLength(1);
     expect(gender[0]._id).toBe(ids.genderA);
-    expect(gender[0].year).toBeUndefined();
     // The survivor gained the loser-only "Other" label.
     expect(Object.values(gender[0].values ?? {})).toContain("Other");
     expect(rows.filter((r) => r.key === "Notes")).toHaveLength(1);
@@ -1017,12 +1011,11 @@ describe("consolidateAttendanceMetadata migration", () => {
     // Q: the input value moves to the survivor input field.
     expect((await meta(ids.q))[ids.notesA]).toBe("hi");
 
-    // Idempotent: a second run merges/clears nothing.
+    // Idempotent: a second run merges nothing.
     const again = await t.mutation(
       internal.attendanceMetadata.consolidateAttendanceMetadata,
       {}
     );
     expect(again.merged).toBe(0);
-    expect(again.cleared).toBe(0);
   });
 });

@@ -314,15 +314,16 @@ export const saveAll = mutation({
 });
 
 /**
- * One-off migration: collapse the old per-year metadata rows into a single
- * global set — one row per (key, sub-group) — and clear the deprecated `year`
- * column. Member metadata keys are remapped to the surviving field id; for
- * select fields the stored option ids are remapped BY LABEL, so a member's
- * value keeps its meaning even when two years numbered their options
- * differently. Idempotent: re-run
- * `npx convex run attendanceMetadata:consolidateAttendanceMetadata` (and --prod)
- * until it reports `merged: 0, cleared: 0`. The narrow follow-up then drops the
- * column. Mirrors the events/attendance `stripLegacyYear` rollout.
+ * Collapse any duplicate metadata rows into a single global set — one row per
+ * (key, sub-group). Member metadata keys are remapped to the surviving field id;
+ * for select fields the stored option ids are remapped BY LABEL, so a member's
+ * value keeps its meaning even when two rows numbered their options differently.
+ * Idempotent: re-run `npx convex run
+ * attendanceMetadata:consolidateAttendanceMetadata` (and --prod) until it reports
+ * `merged: 0`.
+ *
+ * Originally the per-year → global consolidation (it also cleared the now-removed
+ * `year` column); kept as an idempotent dedupe safety net.
  */
 export const consolidateAttendanceMetadata = internalMutation({
   args: {},
@@ -339,7 +340,6 @@ export const consolidateAttendanceMetadata = internalMutation({
 
     const members = await ctx.db.query("attendanceMembers").collect();
     let merged = 0;
-    let cleared = 0;
 
     for (const group of groups.values()) {
       // Deterministic survivor: lowest order, then earliest created.
@@ -391,12 +391,8 @@ export const consolidateAttendanceMetadata = internalMutation({
       if (survivor.type === "select") {
         await ctx.db.patch(survivor._id, { values: survivorValues });
       }
-      if (survivor.year !== undefined) {
-        await ctx.db.patch(survivor._id, { year: undefined });
-        cleared++;
-      }
     }
 
-    return { groups: groups.size, merged, cleared };
+    return { groups: groups.size, merged };
   },
 });

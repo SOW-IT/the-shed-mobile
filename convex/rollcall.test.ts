@@ -1019,7 +1019,6 @@ describe("collaborative events surface every sub-group's metadata", () => {
     // A field relevant only to MACQ.
     const houseFieldId = await t.run(async (ctx) =>
       ctx.db.insert("attendanceMetadata", {
-        year: YEAR,
         key: "House",
         type: "input" as const,
         order: 9,
@@ -1082,7 +1081,6 @@ describe("roster without an event scopes metadata to the asked-for sub-group", (
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const houseFieldId = await t.run(async (ctx) =>
       ctx.db.insert("attendanceMetadata", {
-        year: YEAR,
         key: "House",
         type: "input" as const,
         order: 9,
