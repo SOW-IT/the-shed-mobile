@@ -23,7 +23,7 @@ import {
   STAFF_ROLE,
   STAFF_SIDE_ROLES,
 } from "../shared/flow";
-import { normalizeSubgroups, SOW_SUBGROUP } from "../shared/rollcall";
+import { displayNameFromEmail, normalizeSubgroups, SOW_SUBGROUP } from "../shared/rollcall";
 import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
 import { internalMutation, MutationCtx, mutation, query, QueryCtx } from "./_generated/server";
@@ -1468,6 +1468,32 @@ export const fillTagScopesWithAllGroups = internalMutation({
       filled++;
     }
     return { filled, total: tags.length };
+  },
+});
+
+/**
+ * One-off backfill: many imported staff profiles have no `name` (or carry their
+ * email as the name), so the app falls back to showing the bare address. Derive
+ * a readable "First Last" from the email's local part for those profiles.
+ * Profiles that already have a real name, or whose email isn't name-shaped
+ * (e.g. synthetic `@legacy.invalid` or numeric handles), are left untouched.
+ * Idempotent.
+ */
+export const nameStaffProfilesFromEmail = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const profiles = await ctx.db.query("staffProfiles").collect();
+    let updated = 0;
+    for (const p of profiles) {
+      const name = p.name?.trim();
+      // Only touch profiles whose visible name is just the email (or missing).
+      if (name && name.toLowerCase() !== p.email.toLowerCase()) continue;
+      const derived = displayNameFromEmail(p.email);
+      if (!derived) continue;
+      await ctx.db.patch(p._id, { name: derived });
+      updated++;
+    }
+    return { updated, total: profiles.length };
   },
 });
 
