@@ -76,21 +76,15 @@ export const saveAll = mutation({
             ? normalizeSubgroups(tag.subgroups)
             : undefined,
         });
-        if (existing.name !== name) {
-          await logAttendanceAction(ctx, {
-            actorEmail,
-            entityType: "tag",
-            action: "tag.update",
-            summary: `Renamed tag "${existing.name}" → "${name}"`,
-          });
-        } else {
-          await logAttendanceAction(ctx, {
-            actorEmail,
-            entityType: "tag",
-            action: "tag.update",
-            summary: `Updated tag "${name}"`,
-          });
-        }
+        await logAttendanceAction(ctx, {
+          actorEmail,
+          entityType: "tag",
+          action: "tag.update",
+          summary:
+            existing.name !== name
+              ? `Renamed tag "${existing.name}" → "${name}"`
+              : `Updated tag "${name}"`,
+        });
       } else {
         await ctx.db.insert("attendanceTags", {
           year,

@@ -299,7 +299,7 @@ describe("audit logging across attendance mutations", () => {
   const actionsFor = async (t: TestConvex<typeof schema>) =>
     (await allLogs(t)).map((l) => l.action);
 
-  test("event update logs changes, and a no-op update logs without detail", async () => {
+  test("event update logs real changes only; a no-op save logs nothing", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
     const { dateStart, dateEnd } = window();
@@ -310,6 +310,7 @@ describe("audit logging across attendance mutations", () => {
       subgroups: [USYD],
     });
 
+    // Real change → one logged update with a detail of what changed.
     await staff.mutation(api.events.update, {
       eventId,
       name: "Renamed",
@@ -318,6 +319,7 @@ describe("audit logging across attendance mutations", () => {
       subgroups: [USYD, "SOW"],
       tagIds: [],
     });
+    // No-op save (identical values) → nothing logged.
     await staff.mutation(api.events.update, {
       eventId,
       name: "Renamed",
@@ -328,10 +330,8 @@ describe("audit logging across attendance mutations", () => {
     });
 
     const updates = (await allLogs(t)).filter((l) => l.action === "event.update");
-    expect(updates).toHaveLength(2);
-    const withDetail = updates.find((l) => l.detail);
-    expect(withDetail?.detail).toContain("name");
-    expect(updates.some((l) => !l.detail)).toBe(true);
+    expect(updates).toHaveLength(1);
+    expect(updates[0].detail).toContain("name");
   });
 
   test("event delete notes removed attendance records only when present", async () => {
@@ -410,6 +410,28 @@ describe("audit logging across attendance mutations", () => {
     ); // plain + ensureForStaff overlay
     const del = (await allLogs(t)).find((l) => l.action === "member.delete");
     expect(del?.detail).toContain("attendance record");
+  });
+
+  test("ensureForStaff logs an update when it adopts an unlinked member", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    // An attendance-only row whose plain email matches a staff member, with no
+    // staffEmail link yet — ensureForStaff should adopt (link) it, not insert.
+    const preexisting = await staff.mutation(api.attendanceMembers.create, {
+      name: "Pre Existing",
+      email: STAFF,
+    });
+    const adopted = await staff.mutation(api.attendanceMembers.ensureForStaff, {
+      staffEmail: STAFF,
+      staffYear: YEAR,
+    });
+    expect(adopted).toBe(preexisting); // linked the same row, no duplicate
+
+    const linkLog = (await allLogs(t)).find(
+      (l) => l.action === "member.update" && l.summary.includes("Linked")
+    );
+    expect(linkLog?.memberId).toBe(preexisting);
+    expect(linkLog?.subjectEmail).toBe(STAFF);
   });
 
   test("tags log create, rename, plain update and delete", async () => {

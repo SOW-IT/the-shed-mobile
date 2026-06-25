@@ -216,14 +216,18 @@ export const update = mutation({
       changes.push("sub-groups");
     if ((existing.tagIds ?? []).join() !== (eventFields.tagIds ?? []).join())
       changes.push("tags");
-    await logAttendanceAction(ctx, {
-      actorEmail: email,
-      entityType: "event",
-      action: "event.update",
-      summary: `Updated event "${eventFields.name}"`,
-      eventId,
-      detail: changes.length ? `Changed: ${changes.join(", ")}` : undefined,
-    });
+    // Only log a genuine change, matching the tag/metadata saveAll paths — a
+    // no-op save shouldn't flood the trail with misleading "Updated" rows.
+    if (changes.length) {
+      await logAttendanceAction(ctx, {
+        actorEmail: email,
+        entityType: "event",
+        action: "event.update",
+        summary: `Updated event "${eventFields.name}"`,
+        eventId,
+        detail: `Changed: ${changes.join(", ")}`,
+      });
+    }
     return null;
   },
 });

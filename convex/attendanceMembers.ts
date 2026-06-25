@@ -391,6 +391,14 @@ export const ensureForStaff = mutation({
     );
     if (unlinked) {
       await ctx.db.patch(unlinked._id, { staffEmail: email });
+      await logAttendanceAction(ctx, {
+        actorEmail,
+        entityType: "member",
+        action: "member.update",
+        summary: `Linked staff member "${profile.name ?? email}" to the attendance pool`,
+        memberId: unlinked._id,
+        subjectEmail: email,
+      });
       return unlinked._id;
     }
     const fields = await allMetadataFields(ctx);
