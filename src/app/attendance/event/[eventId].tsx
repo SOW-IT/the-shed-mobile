@@ -214,6 +214,9 @@ export default function EventAttendanceScreen() {
       if (!id && opts.staffEmail) {
         id = await ensureForStaff({
           staffEmail: opts.staffEmail,
+          // Verify the profile against the event's staff year, matching the
+          // roster, so an Oct–Dec event resolves the right year's profile.
+          staffYear: event ? eventStaffYear(event.dateStart) : undefined,
         });
       }
       if (id) openMemberEdit(id);
@@ -453,6 +456,7 @@ export default function EventAttendanceScreen() {
           visible={editOpen}
           onClose={closeEdit}
           year={sydneyCalendarYear(new Date(event.dateStart))}
+          staffYear={eventStaffYear(event.dateStart)}
           memberId={editMemberId}
           metadataFields={metadataFields}
           eventAttendance={editAttendance}

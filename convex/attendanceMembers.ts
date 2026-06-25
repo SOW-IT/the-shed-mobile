@@ -308,15 +308,23 @@ export const list = query({
   },
 });
 
-/** Load a single attendance member row for editing. */
+/**
+ * Load a single attendance member row for editing. For a staff overlay the
+ * name/email and locked Campus/Role come from the profile of `staffYear` (the
+ * event's staff year when editing from a roll-call), so it stays aligned with
+ * how the roster resolves that same person; defaults to the current staff year.
+ */
 export const get = query({
-  args: { memberId: v.id("attendanceMembers") },
-  handler: async (ctx, { memberId }) => {
+  args: {
+    memberId: v.id("attendanceMembers"),
+    staffYear: v.optional(v.number()),
+  },
+  handler: async (ctx, { memberId, staffYear }) => {
     if (!(await optionalProfile(ctx))) return null;
     const row = await ctx.db.get(memberId);
     if (!row?.staffEmail) return row;
-    const currentYear = staffYearForDate(new Date());
-    const profile = await getProfile(ctx, row.staffEmail, currentYear);
+    const profileYear = staffYear ?? staffYearForDate(new Date());
+    const profile = await getProfile(ctx, row.staffEmail, profileYear);
     if (!profile) return row;
     const fields = await allMetadataFields(ctx);
     return {
@@ -355,8 +363,8 @@ export const byName = query({
 
 /** Ensure a metadata overlay exists for a staff profile. */
 export const ensureForStaff = mutation({
-  args: { staffEmail: v.string() },
-  handler: async (ctx, { staffEmail }) => {
+  args: { staffEmail: v.string(), staffYear: v.optional(v.number()) },
+  handler: async (ctx, { staffEmail, staffYear }) => {
     await requireProfile(ctx);
     const email = staffEmail.trim().toLowerCase();
     if (!email) throw new ConvexError("Staff email is required.");
@@ -365,11 +373,12 @@ export const ensureForStaff = mutation({
       .withIndex("by_staff_email", (q) => q.eq("staffEmail", email))
       .unique();
     if (existing) return existing._id;
-    // Verify this email really is a staff profile for the current year BEFORE
-    // adopting/creating an overlay — a mistyped or stale email must not convert
-    // a plain member into a staff overlay (which would then hide it from `list`).
-    const currentYear = staffYearForDate(new Date());
-    const profile = await getProfile(ctx, email, currentYear);
+    // Verify this email really is a staff profile for `staffYear` (the event's
+    // staff year when editing from a roll-call; defaults to the current one)
+    // BEFORE adopting/creating an overlay — a mistyped or stale email must not
+    // convert a plain member into a staff overlay (hiding it from `list`).
+    const profileYear = staffYear ?? staffYearForDate(new Date());
+    const profile = await getProfile(ctx, email, profileYear);
     if (!profile) throw new ConvexError("Staff profile not found.");
     // Adopt an unlinked attendance-only row whose plain email matches this
     // staff member (e.g. they were added as a member before being provisioned
@@ -416,14 +425,15 @@ export const update = mutation({
     name: v.string(),
     email: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.string())),
+    staffYear: v.optional(v.number()),
   },
-  handler: async (ctx, { memberId, name, email, metadata }) => {
+  handler: async (ctx, { memberId, name, email, metadata, staffYear }) => {
     await requireProfile(ctx);
     const row = await ctx.db.get(memberId);
     if (!row) throw new ConvexError("Member not found.");
     if (row.staffEmail) {
-      const currentYear = staffYearForDate(new Date());
-      const profile = await getProfile(ctx, row.staffEmail, currentYear);
+      const profileYear = staffYear ?? staffYearForDate(new Date());
+      const profile = await getProfile(ctx, row.staffEmail, profileYear);
       if (!profile) throw new ConvexError("Staff profile not found.");
       const fields = await allMetadataFields(ctx);
       await ctx.db.patch(memberId, {

@@ -177,6 +177,7 @@ export default function AttendanceScreen() {
         visible={memberSheetOpen}
         onClose={() => setMemberSheetOpen(false)}
         year={calendarYear}
+        staffYear={year}
         memberId={memberSheetId}
         metadataFields={metadata}
       />
