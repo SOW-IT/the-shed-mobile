@@ -1,6 +1,10 @@
 import { v } from "convex/values";
 import { staffYearForDate } from "../shared/flow";
-import { formatMetadataFieldValue } from "../shared/attendanceMemberMeta";
+import {
+  formatMetadataFieldValue,
+  resolveCommencementStaffYear,
+  STUDENT_YEAR_FIELD_KEY,
+} from "../shared/attendanceMemberMeta";
 import {
   eventIncludesSubgroup,
   normalizeSubgroups,
@@ -120,6 +124,17 @@ async function resolveExportEvents(
       for (const field of fields) {
         const raw = source?.[field._id];
         if (!raw) continue;
+        // Year exports the member's commencement (start) staff year, not the
+        // year level relative to the event — so it's stable across events.
+        if (field.key === STUDENT_YEAR_FIELD_KEY) {
+          const startYear = resolveCommencementStaffYear(
+            raw,
+            calendarYear,
+            field.values
+          );
+          if (startYear !== null) result[field.key] = String(startYear);
+          continue;
+        }
         const label = formatMetadataFieldValue(
           field.key,
           raw,

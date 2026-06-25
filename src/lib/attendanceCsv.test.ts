@@ -32,25 +32,27 @@ const baseEvent = (
 });
 
 describe("buildAttendanceCsv", () => {
-  test("emits base columns, chosen metadata columns, then Notes", () => {
+  test("titles each section with the event name; split Start/End Date columns", () => {
     const csv = buildAttendanceCsv([baseEvent()], ["Gender", "Campus"]);
-    const [header, row] = csv.split("\r\n");
+    const [title, header, row] = csv.split("\r\n");
+    // Event name is the section title, not a column.
+    expect(title).toBe("Weekly Meeting");
     expect(header).toBe(
-      "Event,Date,Tags,Collaboration,Sign In,Name,Email,Gender,Campus,Notes"
+      "Start Date,End Date,Tags,Collaboration,Sign In,Name,Email,Gender,Campus,Notes"
     );
     expect(row).toBe(
-      "Weekly Meeting,04.03.2026–04.03.2026 19:00,Weekly,,04.03.2026 17:05,Ada Lovelace,ada@sow.org.au,Female,University of Sydney,early"
+      "04.03.2026 17:00,04.03.2026 19:00,Weekly,,04.03.2026 17:05,Ada Lovelace,ada@sow.org.au,Female,University of Sydney,early"
     );
   });
 
   test("only includes the metadata columns that were chosen", () => {
     const csv = buildAttendanceCsv([baseEvent()], ["Gender"]);
-    const [header, row] = csv.split("\r\n");
+    const [, header, row] = csv.split("\r\n");
     expect(header).toBe(
-      "Event,Date,Tags,Collaboration,Sign In,Name,Email,Gender,Notes"
+      "Start Date,End Date,Tags,Collaboration,Sign In,Name,Email,Gender,Notes"
     );
-    // Campus value is dropped because the column wasn't selected.
-    expect(row).not.toContain("University of Sydney,University of Sydney");
+    // Campus column is dropped because it wasn't selected.
+    expect(row).not.toContain("University of Sydney");
     expect(row).toContain("Female");
   });
 
@@ -65,7 +67,7 @@ describe("buildAttendanceCsv", () => {
         },
       ],
     });
-    const row = buildAttendanceCsv([event], ["Gender"]).split("\r\n")[1];
+    const row = buildAttendanceCsv([event], ["Gender"]).split("\r\n")[2];
     expect(row.endsWith(",,")).toBe(true); // empty Gender + empty Notes
   });
 
@@ -74,15 +76,24 @@ describe("buildAttendanceCsv", () => {
       collaborative: true,
       collaborators: ["Macquarie University"],
     });
-    const row = buildAttendanceCsv([event], []).split("\r\n")[1];
+    const row = buildAttendanceCsv([event], []).split("\r\n")[2];
     expect(row).toContain("MACQ");
   });
 
-  test("an event with no attendance still produces one summary row", () => {
+  test("multiple events become separate titled sections", () => {
+    const a = baseEvent({ _id: "a", name: "Event A" });
+    const b = baseEvent({ _id: "b", name: "Event B" });
+    const sections = buildAttendanceCsv([a, b], []).split("\r\n\r\n");
+    expect(sections).toHaveLength(2);
+    expect(sections[0].startsWith("Event A\r\nStart Date,")).toBe(true);
+    expect(sections[1].startsWith("Event B\r\nStart Date,")).toBe(true);
+  });
+
+  test("an event with no attendance still appears as a titled, header-only section", () => {
     const event = baseEvent({ rows: [], attendanceCount: 0 });
     const lines = buildAttendanceCsv([event], ["Gender"]).split("\r\n");
-    expect(lines).toHaveLength(2); // header + one empty summary row
-    expect(lines[1].startsWith("Weekly Meeting,")).toBe(true);
+    expect(lines).toHaveLength(2); // title + header, no data rows
+    expect(lines[0]).toBe("Weekly Meeting");
   });
 
   test("defangs formula-injection and escapes commas/quotes", () => {
@@ -97,9 +108,9 @@ describe("buildAttendanceCsv", () => {
         },
       ],
     });
-    const row = buildAttendanceCsv([event], []).split("\r\n")[1];
-    expect(row).toContain("'=cmd|calc"); // formula trigger neutralised
-    expect(row).toContain('"Smith, ""Bob"""'); // comma + quotes escaped
+    const lines = buildAttendanceCsv([event], []).split("\r\n");
+    expect(lines[0]).toBe("'=cmd|calc"); // title's formula trigger neutralised
+    expect(lines[2]).toContain('"Smith, ""Bob"""'); // comma + quotes escaped
   });
 });
 

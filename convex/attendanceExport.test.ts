@@ -91,6 +91,17 @@ describe("attendanceExport", () => {
       memberId: guestId,
     });
 
+    // A member whose stored Year is neither a commencement year nor a valid
+    // legacy level — it can't be resolved, so Year is omitted for them.
+    const unknownYearId = await leader.mutation(api.attendanceMembers.create, {
+      name: "Unknown Year",
+      metadata: { [yearField._id]: "9999" },
+    });
+    await leader.mutation(api.attendance.signIn, {
+      eventId,
+      memberId: unknownYearId,
+    });
+
     const data = await leader.query(api.attendanceExport.eventsForExport, {
       subgroup: USYD,
     });
@@ -98,7 +109,7 @@ describe("attendanceExport", () => {
     expect(data!.events).toHaveLength(1);
     const event = data!.events[0];
     expect(event.name).toBe("Weekly Meeting");
-    expect(event.attendanceCount).toBe(2);
+    expect(event.attendanceCount).toBe(3);
     expect(event.collaborative).toBe(false);
 
     const staffRow = event.rows.find((r) => r.email === LEADER)!;
@@ -107,7 +118,11 @@ describe("attendanceExport", () => {
 
     const guestRow = event.rows.find((r) => r.name === "Guest Member")!;
     expect(guestRow.email).toBe("guest@example.com");
-    expect(guestRow.metadata.Year).toBe("3"); // commenced 2 staff years ago
+    // Year maps to the member's commencement (start) staff year, not a level.
+    expect(guestRow.metadata.Year).toBe(String(YEAR - 2));
+
+    const unknownRow = event.rows.find((r) => r.name === "Unknown Year")!;
+    expect(unknownRow.metadata.Year).toBeUndefined();
   });
 
   test("a member whose email is a staff profile is exported as that staff member", async () => {
