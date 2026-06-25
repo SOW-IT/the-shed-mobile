@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Doc, Id } from "../../../convex/_generated/dataModel";
@@ -11,6 +11,7 @@ import { CampusMark } from "@/components/CampusMark";
 import { WebDateInput, WebTimeInput } from "@/components/WebDateTimeInput";
 import {
   Btn,
+  ConfirmDialog,
   errorMessage,
   Field,
   Sheet,
@@ -101,27 +102,55 @@ export function CreateEventSheet({
   const [submitting, setSubmitting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteText, setDeleteText] = useState("");
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  // The editable fields captured when the sheet opened — the baseline the Save
+  // button and the discard guard compare against (independent of later `event`
+  // refreshes from the parent).
+  const [initial, setInitial] = useState({
+    name: "",
+    tags: [] as Id<"attendanceTags">[],
+    collaborators: [subgroup],
+    dateStr: defaultDate(),
+    startTime: defaultTime(17),
+    endTime: defaultTime(19),
+  });
+  const openedRef = useRef(false);
   const eventName = event?.name ?? "";
 
   useEffect(() => {
     if (visible) void ensureMetadata({});
   }, [visible, ensureMetadata]);
 
+  // Initialise the wizard once per opening. Gating on the open transition keeps
+  // a background `event` refresh from clobbering in-progress edits or moving the
+  // dirty baseline.
   useEffect(() => {
-    if (visible) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset wizard when sheet opens
-      setStep(0);
-      setName(event?.name ?? "");
-      setSelectedTags(event?.tagIds ?? []);
-      setCollaborators(event?.subgroups ?? [ownerGroup]);
-      setDateStr(event ? dateInputFromMs(event.dateStart) : defaultDate());
-      setStartTime(event ? timeInputFromMs(event.dateStart) : defaultTime(17));
-      setEndTime(event ? timeInputFromMs(event.dateEnd) : defaultTime(19));
-      setError(null);
-      setSubmitting(false);
-      setDeleteOpen(false);
-      setDeleteText("");
+    if (!visible) {
+      openedRef.current = false;
+      return;
     }
+    if (openedRef.current) return;
+    openedRef.current = true;
+    const snapshot = {
+      name: event?.name ?? "",
+      tags: event?.tagIds ?? [],
+      collaborators: event?.subgroups ?? [ownerGroup],
+      dateStr: event ? dateInputFromMs(event.dateStart) : defaultDate(),
+      startTime: event ? timeInputFromMs(event.dateStart) : defaultTime(17),
+      endTime: event ? timeInputFromMs(event.dateEnd) : defaultTime(19),
+    };
+    setStep(0);
+    setName(snapshot.name);
+    setSelectedTags(snapshot.tags);
+    setCollaborators(snapshot.collaborators);
+    setDateStr(snapshot.dateStr);
+    setStartTime(snapshot.startTime);
+    setEndTime(snapshot.endTime);
+    setError(null);
+    setSubmitting(false);
+    setDeleteOpen(false);
+    setDeleteText("");
+    setInitial(snapshot);
   }, [visible, ownerGroup, event]);
 
   const steps = ["Name", "Tags", "Collaboration", "Schedule"];
@@ -204,25 +233,34 @@ export function CreateEventSheet({
     }
   };
 
-  // Edit mode: Save is only enabled once something actually changed. Compare the
-  // form fields against the values the sheet was initialised with from `event`.
+  // Something changed since the sheet opened — compared against the snapshot
+  // (not the live `event` prop, which can refresh underneath us).
   const sameMembers = <T,>(a: readonly T[], b: readonly T[]) =>
     a.length === b.length && a.every((x) => b.includes(x));
   const dirty =
-    !event ||
-    name !== event.name ||
-    !sameMembers(selectedTags, event.tagIds ?? []) ||
-    !sameMembers(collaborators, event.subgroups) ||
-    dateStr !== dateInputFromMs(event.dateStart) ||
-    startTime !== timeInputFromMs(event.dateStart) ||
-    endTime !== timeInputFromMs(event.dateEnd);
+    name !== initial.name ||
+    !sameMembers(selectedTags, initial.tags) ||
+    !sameMembers(collaborators, initial.collaborators) ||
+    dateStr !== initial.dateStr ||
+    startTime !== initial.startTime ||
+    endTime !== initial.endTime;
+
+  // Cancelling or any backdrop/X dismissal confirms first when there are unsaved
+  // edits, so in-progress work isn't dropped silently.
+  const requestClose = () => {
+    if (dirty) {
+      setConfirmCancel(true);
+      return;
+    }
+    onClose();
+  };
 
   // First step's left action cancels; later steps step back. On the last step
   // the right action saves/creates; edit mode also keeps a Save in the middle.
   const isLastStep = step >= maxStep;
   const leftButton =
     step === 0 ? (
-      <Btn title="Cancel" variant="ghost" onPress={onClose} />
+      <Btn title="Cancel" variant="ghost" onPress={requestClose} />
     ) : (
       <Btn title="Back" variant="ghost" onPress={() => setStep((s) => s - 1)} />
     );
@@ -238,7 +276,7 @@ export function CreateEventSheet({
   return (
     <Sheet
       visible={visible}
-      onClose={onClose}
+      onClose={requestClose}
       title={`${isEditing ? "Edit event" : "New event"} · ${steps[step]}`}
       headerRight={
         isEditing ? (
@@ -453,6 +491,19 @@ export function CreateEventSheet({
           />
         </Sheet>
       ) : null}
+
+      <ConfirmDialog
+        visible={confirmCancel}
+        title="Discard changes"
+        message={
+          isEditing
+            ? "Discard your unsaved changes to this event?"
+            : "Discard this new event? Anything you've entered will be lost."
+        }
+        confirmLabel="Discard"
+        onConfirm={onClose}
+        onClose={() => setConfirmCancel(false)}
+      />
     </Sheet>
   );
 }
