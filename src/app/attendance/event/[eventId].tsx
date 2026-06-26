@@ -155,6 +155,11 @@ export default function EventAttendanceScreen() {
   // changes. Members are editable wherever attendance is.
   const pastEvent = event != null && eventHasEnded(event.dateEnd);
   const canEdit = !pastEvent || editUnlocked;
+  // Adding a missed attendee (not-signed → signed) is always allowed, even on a
+  // past event, so a roll-call can be completed after the fact. Removing people
+  // and editing details stay behind "Enable editing" (canEdit) to guard against
+  // accidental changes to a finished event.
+  const canSignIn = true;
 
   const closeEdit = () => {
     setEditOpen(false);
@@ -385,7 +390,7 @@ export default function EventAttendanceScreen() {
     setOptimisticSignedIn((prev) => new Map(prev).set(m.key, m));
   };
   const onSignIn = (m: NonNullable<typeof roster>[number]) => {
-    if (!canEdit) return;
+    if (!canSignIn) return;
     hapticSelect();
     if (m.kind === "staff" && m.email) {
       void signIn({ eventId: evId, email: m.email });
@@ -531,7 +536,8 @@ export default function EventAttendanceScreen() {
 
       {pastEvent && !editUnlocked ? (
         <Text style={[typography.caption, { color: t.muted, marginBottom: spacing.sm }]}>
-          This event has ended. Tap Enable editing below to change attendance.
+          This event has ended. You can still sign people in; tap Enable editing
+          below to sign people out or edit attendance.
         </Text>
       ) : null}
 
@@ -573,7 +579,9 @@ export default function EventAttendanceScreen() {
                       university={m.university}
                       mode={signedIn ? "signedIn" : "suggested"}
                       highlightSignedIn={signedIn}
-                      disabled={!canEdit}
+                      // A not-signed-in match can always be signed in (even on a
+                      // locked past event); signing out stays behind Enable editing.
+                      disabled={signedIn ? !canEdit : !canSignIn}
                       onAction={() => {
                         if (signedIn && attendanceRow) onSignOut(attendanceRow);
                         else onSignIn(m);
@@ -635,7 +643,9 @@ export default function EventAttendanceScreen() {
                     photo={m.photo ?? null}
                     university={m.university}
                     mode="suggested"
-                    disabled={!canEdit || isAnimating}
+                    // Sign-in is allowed even on a locked past event (canSignIn);
+                    // editing the member's details still needs Enable editing.
+                    disabled={!canSignIn || isAnimating}
                     entering={isEntering}
                     exiting={isExiting}
                     revealTrigger={revealTriggers.get(m.key) ?? 0}
