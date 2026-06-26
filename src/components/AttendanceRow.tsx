@@ -248,7 +248,7 @@ function AttendanceRowBase({
       Math.max(-translateX.value, 0) / SNAP_POSITION,
       1
     );
-    return { opacity: interpolate(progress, [0, 1], [0, 1]) };
+    return { opacity: interpolate(progress, [0, 1], [0, 1]) * opacity.value };
   });
 
   const editLayerStyle = useAnimatedStyle(() => {
@@ -256,7 +256,7 @@ function AttendanceRowBase({
       Math.max(translateX.value, 0) / SNAP_POSITION,
       1
     );
-    return { opacity: onEdit ? interpolate(progress, [0, 1], [0, 1]) : 0 };
+    return { opacity: onEdit ? interpolate(progress, [0, 1], [0, 1]) * opacity.value : 0 };
   });
 
   return (

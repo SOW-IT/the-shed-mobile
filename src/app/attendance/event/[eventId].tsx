@@ -517,23 +517,26 @@ export default function EventAttendanceScreen() {
                 const isEntering = optimisticSignedOut.has(m.key) || remoteSignedOut.has(m.key);
                 const isExiting = remoteSignedIn.has(m.key);
                 const isAnimating = isEntering || isExiting;
-                return (
-                  <FadeInView key={m.key} delay={isAnimating ? 0 : Math.min(index, 6) * 35}>
-                    <AttendanceRow
-                      name={m.name}
-                      subtitle={memberSubtitle(m)}
-                      photo={m.photo ?? null}
-                      university={m.university}
-                      mode="suggested"
-                      disabled={!canEdit || isAnimating}
-                      entering={isEntering}
-                      exiting={isExiting}
-                      onExited={isExiting ? () => setRemoteSignedIn((s) => { const n = new Set(s); n.delete(m.key); return n; }) : undefined}
-                      onActionStart={isAnimating ? undefined : () => onSignInStart(m)}
-                      onAction={() => { if (!isAnimating) onSignIn(m); }}
-                      onEdit={canEdit && !isAnimating ? () => editRosterEntry(m) : undefined}
-                    />
-                  </FadeInView>
+                const row = (
+                  <AttendanceRow
+                    name={m.name}
+                    subtitle={memberSubtitle(m)}
+                    photo={m.photo ?? null}
+                    university={m.university}
+                    mode="suggested"
+                    disabled={!canEdit || isAnimating}
+                    entering={isEntering}
+                    exiting={isExiting}
+                    onExited={isExiting ? () => setRemoteSignedIn((s) => { const n = new Set(s); n.delete(m.key); return n; }) : undefined}
+                    onActionStart={isAnimating ? undefined : () => onSignInStart(m)}
+                    onAction={() => { if (!isAnimating) onSignIn(m); }}
+                    onEdit={canEdit && !isAnimating ? () => editRosterEntry(m) : undefined}
+                  />
+                );
+                return isAnimating ? (
+                  <View key={m.key}>{row}</View>
+                ) : (
+                  <FadeInView key={m.key} delay={Math.min(index, 6) * 35}>{row}</FadeInView>
                 );
               })}
               {visibleUnsigned.length < unsignedList.length ? (
@@ -557,23 +560,26 @@ export default function EventAttendanceScreen() {
                 const isEntering = (a._id as string).startsWith("optimistic:");
                 const isExiting = remoteSignedOut.has(personKey(a));
                 const isAnimating = isEntering || isExiting;
-                return (
-                  <FadeInView key={a._id} delay={isAnimating ? 0 : Math.min(index, 6) * 35}>
-                    <AttendanceRow
-                      name={a.name}
-                      subtitle={signedInSubtitle(a.signInTime, a.notes)}
-                      photo={a.photo ?? null}
-                      university={a.university}
-                      mode="signedIn"
-                      disabled={!canEdit || isAnimating}
-                      entering={isEntering}
-                      exiting={isExiting}
-                      onExited={isExiting ? () => setRemoteSignedOut((s) => { const n = new Set(s); n.delete(personKey(a)); return n; }) : undefined}
-                      onActionStart={isAnimating ? undefined : () => onSignOutStart(a)}
-                      onAction={() => { if (!isAnimating) onSignOut(a); }}
-                      onEdit={canEdit && !isAnimating ? () => editSignedIn(a) : undefined}
-                    />
-                  </FadeInView>
+                const row = (
+                  <AttendanceRow
+                    name={a.name}
+                    subtitle={signedInSubtitle(a.signInTime, a.notes)}
+                    photo={a.photo ?? null}
+                    university={a.university}
+                    mode="signedIn"
+                    disabled={!canEdit || isAnimating}
+                    entering={isEntering}
+                    exiting={isExiting}
+                    onExited={isExiting ? () => setRemoteSignedOut((s) => { const n = new Set(s); n.delete(personKey(a)); return n; }) : undefined}
+                    onActionStart={isAnimating ? undefined : () => onSignOutStart(a)}
+                    onAction={() => { if (!isAnimating) onSignOut(a); }}
+                    onEdit={canEdit && !isAnimating ? () => editSignedIn(a) : undefined}
+                  />
+                );
+                return isAnimating ? (
+                  <View key={a._id}>{row}</View>
+                ) : (
+                  <FadeInView key={a._id} delay={Math.min(index, 6) * 35}>{row}</FadeInView>
                 );
               })}
               {visibleSignedIn.length < signedInList.length ? (
