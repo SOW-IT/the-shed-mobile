@@ -158,57 +158,33 @@ export default function EventAttendanceScreen() {
   const prevSignedInKeysRef = useRef<Set<string>>(new Set());
 
   // Sync optimistic + remote animation state whenever signedInKeys changes.
+  // Reads optimisticSignedIn/Out directly (not via updater) so classification
+  // happens against the snapshot at the moment the query fires — not against
+  // state after a prior updater has already mutated it.
   useEffect(() => {
     const prev = prevSignedInKeysRef.current;
     const next = signedInKeys;
-
-    // Keys newly signed in this update.
-    const added = [...next].filter((k) => !prev.has(k));
-    // Keys newly signed out this update.
-    const removed = [...prev].filter((k) => !next.has(k));
-
-    // Remove our own optimistic entries that have been confirmed.
-    setOptimisticSignedIn((o) => {
-      if (o.size === 0) return o;
-      const n = new Map(o);
-      let changed = false;
-      for (const key of added) { if (n.has(key)) { n.delete(key); changed = true; } }
-      return changed ? n : o;
-    });
-    setOptimisticSignedOut((o) => {
-      if (o.size === 0) return o;
-      const n = new Set(o);
-      let changed = false;
-      for (const key of removed) { if (n.has(key)) { n.delete(key); changed = true; } }
-      return changed ? n : o;
-    });
-
-    // Remote sign-ins: appeared in query but we didn't trigger them.
-    setOptimisticSignedIn((ours) => {
-      const genuinelyRemote = added.filter((k) => !ours.has(k));
-      if (genuinelyRemote.length === 0) return ours;
-      setRemoteSignedIn((r) => {
-        const n = new Set(r);
-        for (const k of genuinelyRemote) n.add(k);
-        return n;
-      });
-      return ours;
-    });
-
-    // Remote sign-outs: disappeared from query but we didn't trigger them.
-    setOptimisticSignedOut((ours) => {
-      const genuinelyRemote = removed.filter((k) => !ours.has(k));
-      if (genuinelyRemote.length === 0) return ours;
-      setRemoteSignedOut((r) => {
-        const n = new Set(r);
-        for (const k of genuinelyRemote) n.add(k);
-        return n;
-      });
-      return ours;
-    });
-
     prevSignedInKeysRef.current = next;
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional sync
+
+    const added = [...next].filter((k) => !prev.has(k));
+    const removed = [...prev].filter((k) => !next.has(k));
+    if (added.length === 0 && removed.length === 0) return;
+
+    // Classify using the current snapshot of optimistic state.
+    const confirmedSignedIn = added.filter((k) => optimisticSignedIn.has(k));
+    const genuinelyRemoteSignedIn = added.filter((k) => !optimisticSignedIn.has(k));
+    const confirmedSignedOut = removed.filter((k) => optimisticSignedOut.has(k));
+    const genuinelyRemoteSignedOut = removed.filter((k) => !optimisticSignedOut.has(k));
+
+    if (confirmedSignedIn.length > 0)
+      setOptimisticSignedIn((o) => { const n = new Map(o); for (const k of confirmedSignedIn) n.delete(k); return n.size < o.size ? n : o; });
+    if (confirmedSignedOut.length > 0)
+      setOptimisticSignedOut((o) => { const n = new Set(o); for (const k of confirmedSignedOut) n.delete(k); return n.size < o.size ? n : o; });
+    if (genuinelyRemoteSignedIn.length > 0)
+      setRemoteSignedIn((r) => { const n = new Set(r); for (const k of genuinelyRemoteSignedIn) n.add(k); return n; });
+    if (genuinelyRemoteSignedOut.length > 0)
+      setRemoteSignedOut((r) => { const n = new Set(r); for (const k of genuinelyRemoteSignedOut) n.add(k); return n; });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- optimisticSignedIn/Out read as snapshot; only re-run when query fires
   }, [signedInKeys]);
 
   const searchQuery = search.trim().toLowerCase();
