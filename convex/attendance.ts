@@ -14,7 +14,8 @@ import { compareAttendanceFrequency, memberMatchesEventCampus, normalizeSubgroup
 import { staffEmailCandidates } from "../shared/rollcallImport";
 import { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
-import { getProfile, optionalProfile, requireProfile } from "./model";
+import { displayName, getProfile, optionalProfile, requireProfile } from "./model";
+import { logAttendanceAction } from "./attendanceAudit";
 
 export type RosterEntry = {
   key: string;
@@ -423,7 +424,7 @@ export const signIn = mutation({
     memberId: v.optional(v.id("attendanceMembers")),
   },
   handler: async (ctx, { eventId, email, memberId }) => {
-    await requireProfile(ctx);
+    const { email: actorEmail } = await requireProfile(ctx);
     const event = await ctx.db.get(eventId);
     if (!event) throw new ConvexError("Event not found.");
     if (!!email === !!memberId) {
@@ -440,11 +441,21 @@ export const signIn = mutation({
         )
         .unique();
       if (existing) return existing._id;
-      return await ctx.db.insert("attendance", {
+      const id = await ctx.db.insert("attendance", {
         eventId,
         email: lower,
         signInTime: Date.now(),
       });
+      const who = await displayName(ctx, lower, eventStaffYear(event.dateStart));
+      await logAttendanceAction(ctx, {
+        actorEmail,
+        entityType: "attendance",
+        action: "attendance.signIn",
+        summary: `${who} signed in to "${event.name}"`,
+        eventId,
+        subjectEmail: lower,
+      });
+      return id;
     }
 
     const member = memberId ? await ctx.db.get(memberId) : null;
@@ -458,11 +469,20 @@ export const signIn = mutation({
       )
       .unique();
     if (existing) return existing._id;
-    return await ctx.db.insert("attendance", {
+    const id = await ctx.db.insert("attendance", {
       eventId,
       memberId,
       signInTime: Date.now(),
     });
+    await logAttendanceAction(ctx, {
+      actorEmail,
+      entityType: "attendance",
+      action: "attendance.signIn",
+      summary: `${member.name} signed in to "${event.name}"`,
+      eventId,
+      memberId,
+    });
+    return id;
   },
 });
 
@@ -474,7 +494,7 @@ export const updateRecord = mutation({
     signInTime: v.optional(v.number()),
   },
   handler: async (ctx, { attendanceId, notes, signInTime }) => {
-    await requireProfile(ctx);
+    const { email: actorEmail } = await requireProfile(ctx);
     const row = await ctx.db.get(attendanceId);
     if (!row) throw new ConvexError("Attendance record not found.");
     const patch: { notes?: string; signInTime?: number } = {};
@@ -485,6 +505,30 @@ export const updateRecord = mutation({
     if (signInTime !== undefined) patch.signInTime = signInTime;
     if (Object.keys(patch).length === 0) return;
     await ctx.db.patch(attendanceId, patch);
+    const event = await ctx.db.get(row.eventId);
+    const who = row.memberId
+      ? (await ctx.db.get(row.memberId))?.name ?? "A member"
+      : row.email
+        ? await displayName(
+            ctx,
+            row.email,
+            event ? eventStaffYear(event.dateStart) : sydneyCalendarYear(new Date())
+          )
+        : "A member";
+    const fields = [
+      patch.notes !== undefined ? "notes" : null,
+      patch.signInTime !== undefined ? "sign-in time" : null,
+    ].filter(Boolean);
+    await logAttendanceAction(ctx, {
+      actorEmail,
+      entityType: "attendance",
+      action: "attendance.update",
+      summary: `Edited ${who}'s record for "${event?.name ?? "an event"}"`,
+      eventId: row.eventId,
+      memberId: row.memberId,
+      subjectEmail: row.email,
+      detail: fields.length ? `Changed: ${fields.join(", ")}` : undefined,
+    });
   },
 });
 
@@ -496,12 +540,13 @@ export const signOut = mutation({
     memberId: v.optional(v.id("attendanceMembers")),
   },
   handler: async (ctx, { eventId, email, memberId }) => {
-    await requireProfile(ctx);
+    const { email: actorEmail } = await requireProfile(ctx);
     // Mirror signIn's contract: exactly one identifier, so an ambiguous call
     // can't silently leave the member row behind when email lookup misses.
     if (!!email === !!memberId) {
       throw new ConvexError("Provide either email or memberId.");
     }
+    const event = await ctx.db.get(eventId);
     if (email) {
       const lower = email.trim().toLowerCase();
       const existing = await ctx.db
@@ -510,7 +555,22 @@ export const signOut = mutation({
           q.eq("eventId", eventId).eq("email", lower)
         )
         .unique();
-      if (existing) await ctx.db.delete(existing._id);
+      if (existing) {
+        await ctx.db.delete(existing._id);
+        const who = await displayName(
+          ctx,
+          lower,
+          event ? eventStaffYear(event.dateStart) : sydneyCalendarYear(new Date())
+        );
+        await logAttendanceAction(ctx, {
+          actorEmail,
+          entityType: "attendance",
+          action: "attendance.signOut",
+          summary: `${who} signed out of "${event?.name ?? "an event"}"`,
+          eventId,
+          subjectEmail: lower,
+        });
+      }
       return;
     }
     if (memberId) {
@@ -520,7 +580,18 @@ export const signOut = mutation({
           q.eq("eventId", eventId).eq("memberId", memberId)
         )
         .unique();
-      if (existing) await ctx.db.delete(existing._id);
+      if (existing) {
+        await ctx.db.delete(existing._id);
+        const member = await ctx.db.get(memberId);
+        await logAttendanceAction(ctx, {
+          actorEmail,
+          entityType: "attendance",
+          action: "attendance.signOut",
+          summary: `${member?.name ?? "A member"} signed out of "${event?.name ?? "an event"}"`,
+          eventId,
+          memberId,
+        });
+      }
     }
   },
 });

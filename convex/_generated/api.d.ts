@@ -10,6 +10,7 @@
 
 import type * as admin from "../admin.js";
 import type * as attendance from "../attendance.js";
+import type * as attendanceAudit from "../attendanceAudit.js";
 import type * as attendanceExport from "../attendanceExport.js";
 import type * as attendanceMembers from "../attendanceMembers.js";
 import type * as attendanceMetadata from "../attendanceMetadata.js";
@@ -44,6 +45,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   attendance: typeof attendance;
+  attendanceAudit: typeof attendanceAudit;
   attendanceExport: typeof attendanceExport;
   attendanceMembers: typeof attendanceMembers;
   attendanceMetadata: typeof attendanceMetadata;

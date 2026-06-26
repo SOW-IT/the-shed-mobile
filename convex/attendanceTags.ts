@@ -3,6 +3,7 @@ import { staffYearStartMs } from "../shared/flow";
 import { normalizeSubgroups } from "../shared/rollcall";
 import { mutation, query } from "./_generated/server";
 import { optionalProfile, requireProfile } from "./model";
+import { logAttendanceAction } from "./attendanceAudit";
 
 export const list = query({
   args: { year: v.number() },
@@ -30,7 +31,7 @@ export const saveAll = mutation({
     deleteIds: v.array(v.id("attendanceTags")),
   },
   handler: async (ctx, { year, tags, deleteIds }) => {
-    await requireProfile(ctx);
+    const { email: actorEmail } = await requireProfile(ctx);
     for (const id of deleteIds) {
       const row = await ctx.db.get(id);
       if (!row || row.year !== year) continue;
@@ -51,6 +52,12 @@ export const saveAll = mutation({
         });
       }
       await ctx.db.delete(id);
+      await logAttendanceAction(ctx, {
+        actorEmail,
+        entityType: "tag",
+        action: "tag.delete",
+        summary: `Deleted tag "${row.name}"`,
+      });
     }
     const names = new Set<string>();
     for (const tag of tags) {
@@ -69,6 +76,15 @@ export const saveAll = mutation({
             ? normalizeSubgroups(tag.subgroups)
             : undefined,
         });
+        await logAttendanceAction(ctx, {
+          actorEmail,
+          entityType: "tag",
+          action: "tag.update",
+          summary:
+            existing.name !== name
+              ? `Renamed tag "${existing.name}" → "${name}"`
+              : `Updated tag "${name}"`,
+        });
       } else {
         await ctx.db.insert("attendanceTags", {
           year,
@@ -77,6 +93,12 @@ export const saveAll = mutation({
           subgroups: tag.subgroups?.length
             ? normalizeSubgroups(tag.subgroups)
             : undefined,
+        });
+        await logAttendanceAction(ctx, {
+          actorEmail,
+          entityType: "tag",
+          action: "tag.create",
+          summary: `Created tag "${name}"`,
         });
       }
     }

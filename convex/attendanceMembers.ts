@@ -19,6 +19,7 @@ import { personDisplayName } from "../shared/rollcall";
 import { staffEmailCandidates } from "../shared/rollcallImport";
 import { mutation, query } from "./_generated/server";
 import { getProfile, optionalProfile, requireProfile } from "./model";
+import { logAttendanceAction } from "./attendanceAudit";
 
 export type MemberRow = {
   key: string;
@@ -366,7 +367,7 @@ export const byName = query({
 export const ensureForStaff = mutation({
   args: { staffEmail: v.string(), staffYear: v.optional(v.number()) },
   handler: async (ctx, { staffEmail, staffYear }) => {
-    await requireProfile(ctx);
+    const { email: actorEmail } = await requireProfile(ctx);
     const email = staffEmail.trim().toLowerCase();
     if (!email) throw new ConvexError("Staff email is required.");
     const existing = await ctx.db
@@ -390,15 +391,32 @@ export const ensureForStaff = mutation({
     );
     if (unlinked) {
       await ctx.db.patch(unlinked._id, { staffEmail: email });
+      await logAttendanceAction(ctx, {
+        actorEmail,
+        entityType: "member",
+        action: "member.update",
+        summary: `Linked staff member "${profile.name ?? email}" to the attendance pool`,
+        memberId: unlinked._id,
+        subjectEmail: email,
+      });
       return unlinked._id;
     }
     const fields = await allMetadataFields(ctx);
-    return await ctx.db.insert("attendanceMembers", {
+    const memberId = await ctx.db.insert("attendanceMembers", {
       name: profile.name ?? email,
       email,
       staffEmail: email,
       metadata: staffLockedMetadata(fields, profile, {}),
     });
+    await logAttendanceAction(ctx, {
+      actorEmail,
+      entityType: "member",
+      action: "member.create",
+      summary: `Added staff member "${profile.name ?? email}" to the attendance pool`,
+      memberId,
+      subjectEmail: email,
+    });
+    return memberId;
   },
 });
 
@@ -409,14 +427,22 @@ export const create = mutation({
     metadata: v.optional(v.record(v.string(), v.string())),
   },
   handler: async (ctx, { name, email, metadata }) => {
-    await requireProfile(ctx);
+    const { email: actorEmail } = await requireProfile(ctx);
     const trimmed = name.trim();
     if (!trimmed) throw new ConvexError("Name is required.");
-    return await ctx.db.insert("attendanceMembers", {
+    const memberId = await ctx.db.insert("attendanceMembers", {
       name: trimmed,
       email: email?.trim() || undefined,
       metadata,
     });
+    await logAttendanceAction(ctx, {
+      actorEmail,
+      entityType: "member",
+      action: "member.create",
+      summary: `Created member "${trimmed}"`,
+      memberId,
+    });
+    return memberId;
   },
 });
 
@@ -429,7 +455,7 @@ export const update = mutation({
     staffYear: v.optional(v.number()),
   },
   handler: async (ctx, { memberId, name, email, metadata, staffYear }) => {
-    await requireProfile(ctx);
+    const { email: actorEmail } = await requireProfile(ctx);
     const row = await ctx.db.get(memberId);
     if (!row) throw new ConvexError("Member not found.");
     if (row.staffEmail) {
@@ -442,6 +468,14 @@ export const update = mutation({
         email: profile.email,
         metadata: staffLockedMetadata(fields, profile, metadata),
       });
+      await logAttendanceAction(ctx, {
+        actorEmail,
+        entityType: "member",
+        action: "member.update",
+        summary: `Updated member "${profile.name ?? row.name}"`,
+        memberId,
+        subjectEmail: row.staffEmail,
+      });
       return;
     }
     const trimmed = name.trim();
@@ -451,13 +485,20 @@ export const update = mutation({
       email: email?.trim() || undefined,
       metadata,
     });
+    await logAttendanceAction(ctx, {
+      actorEmail,
+      entityType: "member",
+      action: "member.update",
+      summary: `Updated member "${trimmed}"`,
+      memberId,
+    });
   },
 });
 
 export const remove = mutation({
   args: { memberId: v.id("attendanceMembers") },
   handler: async (ctx, { memberId }) => {
-    await requireProfile(ctx);
+    const { email: actorEmail } = await requireProfile(ctx);
     const row = await ctx.db.get(memberId);
     if (!row) return;
     const signed = await ctx.db
@@ -466,5 +507,14 @@ export const remove = mutation({
       .collect();
     for (const s of signed) await ctx.db.delete(s._id);
     await ctx.db.delete(memberId);
+    await logAttendanceAction(ctx, {
+      actorEmail,
+      entityType: "member",
+      action: "member.delete",
+      summary: `Deleted member "${row.name}"`,
+      subjectEmail: row.staffEmail ?? row.email,
+      detail:
+        signed.length > 0 ? `Removed ${signed.length} attendance record(s)` : undefined,
+    });
   },
 });
