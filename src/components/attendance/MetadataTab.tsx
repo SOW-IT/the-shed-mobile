@@ -395,7 +395,19 @@ export function MetadataTab({
                       }
                     />
                   ) : null}
-                  {field.id && !fieldLocked ? (
+                  {!field.id ? (
+                    // An unsaved draft holds no data, so it can be discarded
+                    // outright — no confirmation needed.
+                    <Btn
+                      title="Remove field"
+                      variant="ghost"
+                      onPress={() =>
+                        setMetaDrafts((prev) =>
+                          reindexFields(prev.filter((_, j) => j !== i))
+                        )
+                      }
+                    />
+                  ) : !fieldLocked ? (
                     <Btn
                       title="Delete field"
                       variant="danger"
