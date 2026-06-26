@@ -1,7 +1,7 @@
 import { Avatar } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { universityColour } from "../../shared/flow";
 import { contrastingText, subgroupLabel } from "../../shared/rollcall";
@@ -61,10 +61,23 @@ export interface AttendanceRowProps {
   disabled?: boolean;
   /** Sign in / sign out — fired after a left swipe (or tap). */
   onAction: () => void;
+  /** Fired the moment a left swipe commits (before the collapse animation completes). */
+  onActionStart?: () => void;
   /** Member edit — fired after a right swipe past the commit distance. Row stays in the list. */
   onEdit?: () => void;
   /** Blue-tinted card background (e.g. signed-in member visible while searching). */
   highlightSignedIn?: boolean;
+  /** When true, row enters from height 0 → 72 on mount (for optimistic list insertion). */
+  entering?: boolean;
+  /** When set to true after mount, collapses the row and calls onExited when done. */
+  exiting?: boolean;
+  /** Called after the exit collapse animation completes. */
+  onExited?: () => void;
+  /**
+   * Increment to trigger an expand animation on an already-mounted row
+   * (used when the row above is swiped away and this one needs to slide in).
+   */
+  revealTrigger?: number;
 }
 
 function AttendanceRowBase({
@@ -75,8 +88,13 @@ function AttendanceRowBase({
   mode,
   disabled = false,
   onAction,
+  onActionStart,
   onEdit,
   highlightSignedIn = false,
+  entering = false,
+  exiting = false,
+  onExited,
+  revealTrigger = 0,
 }: AttendanceRowProps) {
   const t = useAppTheme();
   const { width: screenWidth } = useWindowDimensions();
@@ -92,11 +110,40 @@ function AttendanceRowBase({
 
   const translateX = useSharedValue(0);
   const startX = useSharedValue(0);
-  const itemHeight = useSharedValue(72);
-  const opacity = useSharedValue(1);
+  const itemHeight = useSharedValue(entering ? 0 : 72);
+  const opacity = useSharedValue(entering ? 0 : 1);
+  const marginBottomValue = useSharedValue(entering ? 0 : spacing.sm);
   const editSnapped = useSharedValue(false);
   const primarySnapped = useSharedValue(false);
   const [snapVisual, setSnapVisual] = useState<SnapVisual>("closed");
+
+  /* eslint-disable react-hooks/immutability -- these are Reanimated shared
+     values, mutated through their `.value` API inside effects and worklets; the
+     React Compiler immutability rule doesn't model Reanimated's mutable refs. */
+  useEffect(() => {
+    if (!entering) return;
+    itemHeight.value = withTiming(72, { duration: 200, easing: Easing.out(Easing.cubic) });
+    marginBottomValue.value = withTiming(spacing.sm, { duration: 200, easing: Easing.out(Easing.cubic) });
+    opacity.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.cubic) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally runs once on mount
+  }, []);
+
+  useEffect(() => {
+    if (!exiting) return;
+    opacity.value = withTiming(0, { duration: 180 });
+    itemHeight.value = withTiming(0, { duration: 200 }, (done) => {
+      if (done && onExited) runOnJS(onExited)();
+    });
+    marginBottomValue.value = withTiming(0, { duration: 200 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when exiting flips true
+  }, [exiting]);
+
+  useEffect(() => {
+    if (revealTrigger === 0) return;
+    opacity.value = 0;
+    opacity.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.cubic) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when trigger increments
+  }, [revealTrigger]);
 
   const setSnapClosed = useCallback(() => setSnapVisual("closed"), []);
   const setSnapPrimary = useCallback(() => setSnapVisual("primary"), []);
@@ -107,12 +154,15 @@ function AttendanceRowBase({
     editSnapped.value = false;
     primarySnapped.value = false;
     runOnJS(setSnapClosed)();
+    if (onActionStart) runOnJS(onActionStart)();
     translateX.value = withTiming(-rowWidth, { duration: 180 });
     opacity.value = withTiming(0, { duration: 180 });
+    marginBottomValue.value = withTiming(0, { duration: 200 });
     itemHeight.value = withTiming(0, { duration: 200 }, (done) => {
       if (done) runOnJS(onAction)();
     });
   };
+  /* eslint-enable react-hooks/immutability */
 
   const commitEdit = () => {
     "worklet";
@@ -212,6 +262,7 @@ function AttendanceRowBase({
 
   const containerStyle = useAnimatedStyle(() => ({
     height: itemHeight.value,
+    marginBottom: marginBottomValue.value,
   }));
 
   const primaryLayerStyle = useAnimatedStyle(() => {
@@ -219,7 +270,7 @@ function AttendanceRowBase({
       Math.max(-translateX.value, 0) / SNAP_POSITION,
       1
     );
-    return { opacity: interpolate(progress, [0, 1], [0, 1]) };
+    return { opacity: interpolate(progress, [0, 1], [0, 1]) * opacity.value };
   });
 
   const editLayerStyle = useAnimatedStyle(() => {
@@ -227,7 +278,7 @@ function AttendanceRowBase({
       Math.max(translateX.value, 0) / SNAP_POSITION,
       1
     );
-    return { opacity: onEdit ? interpolate(progress, [0, 1], [0, 1]) : 0 };
+    return { opacity: onEdit ? interpolate(progress, [0, 1], [0, 1]) * opacity.value : 0 };
   });
 
   return (
@@ -328,7 +379,6 @@ export const AttendanceRow = memo(AttendanceRowBase);
 const styles = StyleSheet.create({
   container: {
     justifyContent: "center",
-    marginBottom: spacing.sm,
   },
   disabled: {
     opacity: 0.55,

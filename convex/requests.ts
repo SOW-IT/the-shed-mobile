@@ -1001,6 +1001,120 @@ export const deleteDeclined = mutation({
   },
 });
 
+const NUDGE_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 1 nudge per person per request per day
+
+/**
+ * Emails allowed to nudge a request: the requester and any approver who has
+ * already approved (a participant other than the current action owner). Shared
+ * by `canNudge` and `nudge` so the UI button and the mutation stay in sync.
+ */
+async function nudgeParticipantEmails(
+  ctx: QueryCtx | MutationCtx,
+  request: Doc<"requests">
+): Promise<Set<string>> {
+  const approvers = await getApprovers(ctx, request.year, request.department);
+  return new Set([
+    request.requesterEmail,
+    ...involvedApproverEmails(request, approvers, [APPROVED]),
+  ]);
+}
+
+/**
+ * When the signed-in user may next nudge this request. Mirrors the `nudge`
+ * mutation's eligibility: the caller must be a participant (requester or an
+ * approver who has approved) and the request must be waiting on someone else.
+ *
+ * Returns the timestamp from which a nudge is allowed (0 = right now), or null
+ * if the caller is never eligible for this request. The client derives the
+ * disabled state from this value with a timer, so the button re-enables when
+ * the cooldown lapses — a subscribed query alone wouldn't re-run on time
+ * passing, hence no `Date.now()` here. The mutation stays the source of truth.
+ */
+export const canNudge = query({
+  args: { requestId: v.id("requests") },
+  returns: v.union(v.number(), v.null()),
+  handler: async (ctx, args) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    const request = await ctx.db.get("requests", args.requestId);
+    if (!request || requestCompleted(request)) return null;
+    if (!(await nudgeParticipantEmails(ctx, request)).has(caller.email)) return null;
+    const to = await actionOwnerEmail(ctx, request);
+    if (!to || to === caller.email) return null;
+    const recent = await ctx.db
+      .query("requestNudges")
+      .withIndex("by_nudger_and_request", (q) =>
+        q.eq("nudgerEmail", caller.email).eq("requestId", args.requestId)
+      )
+      .order("desc")
+      .first();
+    return recent ? recent.sentAt + NUDGE_COOLDOWN_MS : 0;
+  },
+});
+
+/**
+ * Send a manual nudge to whoever a request is currently waiting on. Rate-
+ * limited to one nudge per person per request per day. Any participant who
+ * is not the current action owner may nudge: the requester and any approver
+ * who has already approved.
+ */
+export const nudge = mutation({
+  args: { requestId: v.id("requests") },
+  handler: async (ctx, args) => {
+    const caller = await requireProfile(ctx);
+    const request = await ctx.db.get("requests", args.requestId);
+    if (!request) throw new ConvexError("Request not found.");
+    if (requestCompleted(request)) throw new ConvexError("This request is already completed.");
+
+    // Rate-limit: one nudge per person per request per 24 hours.
+    const recent = await ctx.db
+      .query("requestNudges")
+      .withIndex("by_nudger_and_request", (q) =>
+        q.eq("nudgerEmail", caller.email).eq("requestId", args.requestId)
+      )
+      .order("desc")
+      .first();
+    if (recent && Date.now() - recent.sentAt < NUDGE_COOLDOWN_MS) {
+      throw new ConvexError("You already nudged this request today. Try again tomorrow.");
+    }
+
+    // Determine the current action owner.
+    const to = await actionOwnerEmail(ctx, request);
+    if (!to) throw new ConvexError("No one to nudge right now.");
+    if (to === caller.email) throw new ConvexError("This request is currently waiting on you.");
+
+    // Only participants may nudge someone else: the requester or an approver who
+    // has already approved. Otherwise any signed-in user could nudge unrelated
+    // requests. (The action owner above is excluded with a clearer message.)
+    if (!(await nudgeParticipantEmails(ctx, request)).has(caller.email)) {
+      throw new ConvexError("Only the requester or an approver on this request can nudge it.");
+    }
+
+    await ctx.db.insert("requestNudges", {
+      requestId: args.requestId,
+      nudgerEmail: caller.email,
+      sentAt: Date.now(),
+    });
+
+    const nudgerName = await displayName(ctx, caller.email, request.year);
+    await notify(ctx, {
+      to,
+      actor: caller.email,
+      subject: `Nudge: a $${request.amount} request is waiting on you`,
+      pushTitle: "You've been nudged",
+      body: `${nudgerName} is waiting on your action for a $${request.amount} request.\n\n${requestSummary(request)}`,
+      // Approval- and payment-awaiting nudges land on the review queue (finance
+      // acts there); a receipt-awaiting nudge goes to the requester's detail view.
+      url:
+        currentStep(request) !== null || (request.receipt && request.paid === false)
+          ? "/review"
+          : `/request/${request._id}`,
+      requestId: args.requestId,
+    });
+    return null;
+  },
+});
+
 /** A single request, for the detail screen push notifications land on. */
 export const get = query({
   args: { requestId: v.id("requests") },

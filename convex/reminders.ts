@@ -11,8 +11,19 @@ import { internalMutation, MutationCtx } from "./_generated/server";
 import { currentStaffYear, getApprovers, type Approvers } from "./model";
 import { appUrl, openRequestsAcrossYears } from "./requests";
 
-/** A request is considered stale after a week without movement. */
-const STALE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Reminder schedule (measured from last movement):
+ *   1st nudge  → after 1 day
+ *   2nd nudge  → after 3 days
+ *   subsequent → every 7 days (weekly)
+ */
+const reminderDelayMs = (count: number): number => {
+  if (count === 0) return DAY_MS;
+  if (count === 1) return 3 * DAY_MS;
+  return 7 * DAY_MS;
+};
 
 const remind = async (
   ctx: MutationCtx,
@@ -34,11 +45,10 @@ const remind = async (
 };
 
 /**
- * Daily cron: nudges whoever a request is waiting on once it has sat still
- * for 7+ days (approver of the pending step, the requester for a missing
- * receipt, or the Finance Head for an unpaid receipt). The audit trail
- * supplies the last-movement time; lastReminderAt stops daily re-nagging,
- * so an untouched request gets one nudge per week.
+ * Daily cron: nudges whoever a request is waiting on once it goes stale.
+ * Schedule: 1st reminder after 1 day of no movement, 2nd after 3 days, then
+ * every 7 days thereafter. The audit trail supplies the last-movement time;
+ * lastReminderAt / reminderCount track how many have gone out.
  */
 export const remindStale = internalMutation({
   args: {},
@@ -58,8 +68,18 @@ export const remindStale = internalMutation({
         request._creationTime,
         ...events.map((event) => event._creationTime)
       );
-      const lastTouch = Math.max(lastMovement, request.lastReminderAt ?? 0);
-      if (now - lastTouch < STALE_AFTER_MS) continue;
+      // Legacy rows may carry a lastReminderAt without a reminderCount; treat
+      // them as already having had one reminder so they aren't re-sent as a
+      // fresh first reminder after deploy.
+      const count = request.reminderCount ?? (request.lastReminderAt ? 1 : 0);
+      // Next reminder is due `reminderDelayMs(count)` after the later of the
+      // last reminder and the last movement — a newer approval/receipt/payment
+      // event restarts the clock — or after last movement for the very first.
+      const baseline =
+        count === 0
+          ? lastMovement
+          : Math.max(lastMovement, request.lastReminderAt ?? lastMovement);
+      if (now - baseline < reminderDelayMs(count)) continue;
 
       // Approvers of the request's own year, falling back to this year's
       // officeholders (carry-overs may outlive a departed approver).
@@ -97,9 +117,12 @@ export const remindStale = internalMutation({
       }
       if (!to) continue;
 
-      const days = Math.floor((now - lastMovement) / (24 * 60 * 60 * 1000));
+      const days = Math.floor((now - lastMovement) / DAY_MS);
       await remind(ctx, to, request, waitingOn, days, url);
-      await ctx.db.patch("requests", request._id, { lastReminderAt: now });
+      await ctx.db.patch("requests", request._id, {
+        lastReminderAt: now,
+        reminderCount: count + 1,
+      });
     }
     return null;
   },
