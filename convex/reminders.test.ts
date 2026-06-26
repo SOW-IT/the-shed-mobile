@@ -17,15 +17,15 @@ const FIONA = "fiona@sow.org.au"; // Finance head
 const asUser = (t: TestConvex<typeof schema>, email: string) =>
   t.withIdentity({ email, subject: email, issuer: "test" });
 
-/** canNudge now returns the next-allowed timestamp (0 = now) or null; this
+/** canNudge returns null (ineligible) or { onCooldown, remainingMs }; this
  *  collapses it back to "can the user nudge right now?". */
 const canNudgeNow = async (
   t: TestConvex<typeof schema>,
   email: string,
   requestId: Awaited<ReturnType<typeof pendingRequest>>
 ) => {
-  const at = await asUser(t, email).query(api.requests.canNudge, { requestId });
-  return at !== null && at <= Date.now();
+  const s = await asUser(t, email).query(api.requests.canNudge, { requestId });
+  return s !== null && !s.onCooldown;
 };
 
 const storedReceipt = async (t: TestConvex<typeof schema>) => ({
