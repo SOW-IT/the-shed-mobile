@@ -653,41 +653,44 @@ const NudgeButton = ({
   onNudge,
 }: {
   request: Doc<"requests">;
-  onNudge: (request: Doc<"requests">) => void;
+  onNudge: (request: Doc<"requests">, nudgeableAt: number | null) => void;
 }) => {
   const t = useAppTheme();
-  // `canNudge` returns the timestamp from which a nudge is allowed (0 = now),
-  // or null when never eligible. Derive `able` with a timer so the button
-  // re-enables when the 24h cooldown lapses (the query won't re-run on time).
+  // `canNudge` returns the timestamp from which a nudge is allowed (0 = now,
+  // a future value while on cooldown), or null when the caller is never
+  // eligible. The icon stays enabled whenever eligible — the cooldown is shown
+  // (and the action blocked) in the confirmation modal instead.
   const nudgeableAt = useQuery(api.requests.canNudge, { requestId: request._id });
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (nudgeableAt == null) return;
-    const remaining = nudgeableAt - Date.now();
-    if (remaining <= 0) return;
-    const id = setTimeout(() => setNow(Date.now()), remaining);
-    return () => clearTimeout(id);
-  }, [nudgeableAt]);
-  const able = nudgeableAt != null && now >= nudgeableAt;
+  const eligible = nudgeableAt != null;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={able ? "Nudge approver" : "Already nudged today"}
-      disabled={!able}
-      onPress={() => onNudge(request)}
+      accessibilityLabel="Nudge approver"
+      disabled={!eligible}
+      onPress={() => onNudge(request, nudgeableAt ?? null)}
       style={({ pressed }) => [
         nudgeButtonStyle,
-        able ? { backgroundColor: t.primarySoft } : undefined,
-        pressed && able ? { opacity: 0.7 } : undefined,
+        eligible ? { backgroundColor: t.primarySoft } : undefined,
+        pressed && eligible ? { opacity: 0.7 } : undefined,
       ]}
     >
       <MaterialCommunityIcons
         name="hand-pointing-up"
         size={22}
-        color={able ? t.primary : t.faint}
+        color={eligible ? t.primary : t.faint}
       />
     </Pressable>
   );
+};
+
+/** "5h 23m" / "12m" / "under a minute" for a remaining cooldown in ms. */
+const formatCooldown = (ms: number): string => {
+  const mins = Math.ceil(ms / 60000);
+  if (mins < 1) return "under a minute";
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  return `${m}m`;
 };
 
 /** The signed-in user's own requests: list, new-request and receipt forms. */
@@ -730,6 +733,7 @@ export const MyRequests = ({
     message: string;
     confirmLabel: string;
     destructive?: boolean;
+    confirmDisabled?: boolean;
     onConfirm: () => void;
   } | null>(null);
 
@@ -852,15 +856,21 @@ export const MyRequests = ({
                   {canNudgeRequest && (
                     <NudgeButton
                       request={request}
-                      onNudge={(r) =>
+                      onNudge={(r, nudgeableAt) => {
+                        const remaining =
+                          nudgeableAt != null ? nudgeableAt - Date.now() : 0;
+                        const onCooldown = remaining > 0;
                         setConfirm({
                           title: "Send a nudge?",
-                          message: `This will send a reminder to whoever needs to action your $${r.amount} request ("${r.description}"). You can only nudge once per day.`,
+                          message: onCooldown
+                            ? `You can only nudge once per day. You can nudge again in ${formatCooldown(remaining)}.`
+                            : `This will send a reminder to whoever needs to action your $${r.amount} request ("${r.description}"). You can only nudge once per day.`,
                           confirmLabel: "Send Nudge",
                           destructive: false,
+                          confirmDisabled: onCooldown,
                           onConfirm: () => void handleNudge(r._id),
-                        })
-                      }
+                        });
+                      }}
                     />
                   )}
                 </RequestCard>
@@ -883,6 +893,7 @@ export const MyRequests = ({
         message={confirm?.message}
         confirmLabel={confirm?.confirmLabel}
         destructive={confirm?.destructive ?? true}
+        confirmDisabled={confirm?.confirmDisabled ?? false}
         onConfirm={() => confirm?.onConfirm()}
         onClose={() => setConfirm(null)}
       />

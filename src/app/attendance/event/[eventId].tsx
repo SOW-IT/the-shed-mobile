@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import {
@@ -36,6 +36,12 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 const ROSTER_PAGE_SIZE = 30;
 /** The not-signed-in list starts short; "Load more" reveals the rest. */
 const UNSIGNED_PAGE_SIZE = 10;
+/**
+ * Fixed height of the not-signed-in list viewport (it scrolls internally). Kept
+ * constant so signing people in/out — which adds/removes rows — never changes
+ * the height of the surrounding page, avoiding layout jumps under the list.
+ */
+const UNSIGNED_LIST_HEIGHT = 360;
 
 /** Subtitle for a roster row. */
 const memberSubtitle = (member: {
@@ -598,7 +604,12 @@ export default function EventAttendanceScreen() {
           {unsignedList.length === 0 ? (
             <Muted>Everyone in the pool is signed in 🎉</Muted>
           ) : (
-            <>
+            <ScrollView
+              style={styles.unsignedScroll}
+              nestedScrollEnabled
+              showsVerticalScrollIndicator
+              keyboardShouldPersistTaps="handled"
+            >
               {visibleUnsigned.map((m, index) => {
                 const isEntering =
                   optimisticSignedOut.has(m.key) ||
@@ -640,7 +651,7 @@ export default function EventAttendanceScreen() {
                   }
                 />
               ) : null}
-            </>
+            </ScrollView>
           )}
 
           {signedInList.length > 0 ? (
@@ -793,4 +804,5 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 15 },
   section: { marginTop: spacing.md, marginBottom: spacing.sm },
+  unsignedScroll: { height: UNSIGNED_LIST_HEIGHT },
 });

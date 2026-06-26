@@ -106,15 +106,23 @@ export const notify = async (
      * `/request/<id>` url, so most callers needn't pass it.
      */
     requestId?: Id<"requests">;
+    /**
+     * Whether to also send an email. Defaults to true. Set false for high-fanout
+     * pushes (e.g. notifying every campus staffer of a new event) where an email
+     * blast would be spam — those get the push + in-app feed entry only.
+     */
+    email?: boolean;
   }
 ) => {
-  const { to, actor, subject, pushTitle, body, url, requestId } = opts;
+  const { to, actor, subject, pushTitle, body, url, requestId, email = true } = opts;
   if (!to) return;
-  await ctx.scheduler.runAfter(0, internal.emails.send, {
-    to,
-    subject,
-    body: `${body}\n\nOpen in THE SHED: ${appUrl(url)}`,
-  });
+  if (email) {
+    await ctx.scheduler.runAfter(0, internal.emails.send, {
+      to,
+      subject,
+      body: `${body}\n\nOpen in THE SHED: ${appUrl(url)}`,
+    });
+  }
   // Don't buzz people for something they just did themselves; the email is
   // their receipt.
   if (actor && to === actor) return;

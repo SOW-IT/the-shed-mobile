@@ -552,6 +552,47 @@ describe("events + roll-call", () => {
   });
 });
 
+describe("new-event notifications", () => {
+  const notifsFor = (t: TestConvex<typeof schema>, email: string) =>
+    t.run((ctx) =>
+      ctx.db
+        .query("notifications")
+        .withIndex("by_user", (q) => q.eq("userEmail", email))
+        .collect()
+    );
+
+  test("a campus event notifies that campus's staff, not others or the creator", async () => {
+    const t = await setup();
+    const { dateStart, dateEnd } = window();
+    // STAFF (department, no campus) creates a USYD event.
+    await asUser(t, STAFF).mutation(api.events.create, {
+      name: "USYD Outreach",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    const leaderNotifs = await notifsFor(t, LEADER);
+    expect(leaderNotifs).toHaveLength(1); // Student Leader at USYD
+    expect(leaderNotifs[0].title.toLowerCase()).toContain("new event");
+    expect(leaderNotifs[0].url).toMatch(/^\/attendance\/event\//);
+    // Department staff without that campus, and the creator, are not notified.
+    expect(await notifsFor(t, STAFF)).toHaveLength(0);
+  });
+
+  test("an org-wide (SOW) event notifies all staff except the creator", async () => {
+    const t = await setup();
+    const { dateStart, dateEnd } = window();
+    await asUser(t, LEADER).mutation(api.events.create, {
+      name: "All-SOW Camp",
+      dateStart,
+      dateEnd,
+      subgroups: [SOW_SUBGROUP],
+    });
+    expect(await notifsFor(t, STAFF)).toHaveLength(1); // org-wide reaches dept staff
+    expect(await notifsFor(t, LEADER)).toHaveLength(0); // creator excluded
+  });
+});
+
 describe("validation + permissions", () => {
   test("create rejects empty name, no sub-groups, bad dates, unknown sub-group", async () => {
     const t = await setup();

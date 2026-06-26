@@ -704,6 +704,7 @@ export const ConfirmDialog = ({
   cancelLabel = "Cancel",
   destructive = true,
   requireText,
+  confirmDisabled: confirmDisabledProp = false,
   onConfirm,
   onClose,
 }: {
@@ -715,6 +716,8 @@ export const ConfirmDialog = ({
   destructive?: boolean;
   /** When set, require the user to type this exact text before confirming. */
   requireText?: string;
+  /** Externally disable the confirm button (e.g. an active cooldown). */
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onClose: () => void;
 }) => {
@@ -728,7 +731,8 @@ export const ConfirmDialog = ({
   // Normalise both sides: data-sourced requireText may carry stray whitespace.
   const normalizedRequired = requireText?.trim();
   const confirmDisabled =
-    normalizedRequired !== undefined && input.trim() !== normalizedRequired;
+    confirmDisabledProp ||
+    (normalizedRequired !== undefined && input.trim() !== normalizedRequired);
   const close = () => {
     setInput("");
     onClose();
