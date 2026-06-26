@@ -176,6 +176,52 @@ describe("stale reminder schedule", () => {
     expect(request?.reminderCount).toBe(3);
   });
 
+  test("advancing a step resets the tier: the next approver is reminded after 1 day, not 7", async () => {
+    const t = await setup();
+    const id = await pendingRequest(t);
+
+    // Drive the HOD step up to the weekly tier (1st after 1d, 2nd after 3d,
+    // 3rd after 7d) so reminderCount reaches 3.
+    advanceDays(1.1);
+    await t.mutation(internal.reminders.remindStale, {});
+    advanceDays(3.1);
+    await t.mutation(internal.reminders.remindStale, {});
+    advanceDays(7.1);
+    await t.mutation(internal.reminders.remindStale, {});
+    let request = await t.run((ctx) => ctx.db.get("requests", id));
+    expect(request?.reminderCount).toBe(3);
+
+    // HOD approves — the request moves to the Budget Manager. This movement is
+    // newer than the last reminder, so the schedule should restart.
+    await asUser(t, HENRY).mutation(api.requests.approve, { requestId: id, step: "hod" });
+
+    // 1 day after the move is enough for the Budget Manager's first reminder
+    // (fast tier), even though the request had reached the weekly tier at HOD.
+    advanceDays(1.1);
+    await t.mutation(internal.reminders.remindStale, {});
+    request = await t.run((ctx) => ctx.db.get("requests", id));
+    expect(request?.reminderCount).toBe(1);
+  });
+
+  test("a step that has not moved keeps its weekly tier (no spurious reset)", async () => {
+    const t = await setup();
+    const id = await pendingRequest(t);
+
+    advanceDays(1.1);
+    await t.mutation(internal.reminders.remindStale, {});
+    advanceDays(3.1);
+    await t.mutation(internal.reminders.remindStale, {});
+    advanceDays(7.1);
+    await t.mutation(internal.reminders.remindStale, {});
+
+    // Still on the HOD step, no movement: 1 day later is too soon for the next
+    // weekly reminder, so nothing fires and the tier stays put.
+    advanceDays(1);
+    await t.mutation(internal.reminders.remindStale, {});
+    const request = await t.run((ctx) => ctx.db.get("requests", id));
+    expect(request?.reminderCount).toBe(3);
+  });
+
   test("completed requests are never reminded", async () => {
     const t = await setup();
     const id = await pendingRequest(t);
