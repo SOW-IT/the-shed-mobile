@@ -198,7 +198,14 @@ export function MetadataTab({
   const saveMetaNow = async () => {
     setSaving(true);
     setError(null);
-    const nextFields = reindexFields(metaDrafts);
+    // Drop the client-only draftKey: it isn't a mutation arg, and clearing it
+    // marks these rows as persisted so the fast "Remove field" path no longer
+    // applies to a just-saved field before the list query rehydrates its id.
+    const nextFields = reindexFields(metaDrafts).map((field) => {
+      const persisted = { ...field };
+      delete persisted.draftKey;
+      return persisted;
+    });
     try {
       await saveMetadata({ fields: nextFields, deleteIds: metaDeletes });
       // Advance the local saved snapshot so the footer clears immediately,
@@ -395,7 +402,20 @@ export function MetadataTab({
                       }
                     />
                   ) : null}
-                  {field.id && !fieldLocked ? (
+                  {field.draftKey ? (
+                    // A never-saved draft (tracked by its draftKey, which is
+                    // cleared on save) holds no data, so it can be discarded
+                    // outright — no confirmation needed.
+                    <Btn
+                      title="Remove field"
+                      variant="ghost"
+                      onPress={() =>
+                        setMetaDrafts((prev) =>
+                          reindexFields(prev.filter((_, j) => j !== i))
+                        )
+                      }
+                    />
+                  ) : field.id && !fieldLocked ? (
                     <Btn
                       title="Delete field"
                       variant="danger"
