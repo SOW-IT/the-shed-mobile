@@ -116,7 +116,7 @@ function calendarYearOf(dateMs: number): number {
 // Metadata fields are global (not year-scoped), so import resolves against the
 // single shared set regardless of which year's data is being loaded.
 async function allMetadataFields(ctx: MutationCtx) {
-  return await ctx.db.query("attendanceMetadata").take(100);
+  return await ctx.db.query("attendanceMetadata").collect();
 }
 
 const normalizedEmail = (email: string | undefined): string | undefined => {
@@ -173,11 +173,12 @@ async function metadataForMember(
   raw: Record<string, string> | undefined,
   fieldMap: Record<string, Id<"attendanceMetadata">>,
   fieldsByKey: Map<string, Awaited<ReturnType<typeof allMetadataFields>>[number]>,
+  // By-id over the FULL field list (fieldsByKey collapses duplicate-key rows, so
+  // it can't see subgroup-specific fields). Precomputed once by the caller.
+  byId: Map<string, Awaited<ReturnType<typeof allMetadataFields>>[number]>,
   staffEmail?: string
 ) {
   const out: Record<string, string> = {};
-  const fieldRows = await allMetadataFields(ctx);
-  const byId = new Map(fieldRows.map((field) => [field._id, field]));
   for (const [oldFieldId, value] of Object.entries(raw ?? {})) {
     const fieldId = fieldMap[oldFieldId];
     const field = fieldId ? byId.get(fieldId) : null;
@@ -237,8 +238,14 @@ export const prepare = mutation({
     for (const field of metadata) {
       const key = field.key.trim();
       if (!key) continue;
+      // A field's global identity is (key, sub-group) — same as the consolidation
+      // migration — so a sub-grouped field never collides with a global one of
+      // the same name.
+      const subgroup = field.subgroup ? canonicalSubgroup(field.subgroup) : undefined;
       const existing = existingFields.find(
-        (row) => row.key.toLowerCase() === key.toLowerCase()
+        (row) =>
+          row.key.toLowerCase() === key.toLowerCase() &&
+          canonicalSubgroup(row.subgroup ?? "") === canonicalSubgroup(subgroup ?? "")
       );
       const values =
         field.type === "select"
@@ -253,7 +260,7 @@ export const prepare = mutation({
         type: field.type,
         order: field.order,
         values,
-        subgroup: field.subgroup ? canonicalSubgroup(field.subgroup) : undefined,
+        subgroup,
         ...(key === GENDER_FIELD_KEY
           ? { lockedValues: [...GENDER_OPTION_IDS, "Male", "Female"] }
           : {}),
@@ -265,8 +272,13 @@ export const prepare = mutation({
 
     const fieldsAfter = await allMetadataFields(ctx);
     for (const field of metadata) {
+      // Match the same (key, sub-group) identity as the upsert above, so a
+      // sub-grouped field's sourceIds don't remap onto a same-key global field.
+      const subgroup = field.subgroup ? canonicalSubgroup(field.subgroup) : undefined;
       const row = fieldsAfter.find(
-        (candidate) => candidate.key.toLowerCase() === field.key.toLowerCase()
+        (candidate) =>
+          candidate.key.toLowerCase() === field.key.toLowerCase() &&
+          canonicalSubgroup(candidate.subgroup ?? "") === canonicalSubgroup(subgroup ?? "")
       );
       if (!row) continue;
       fieldMap[field.key] = row._id;
@@ -318,6 +330,7 @@ export const importMembers = mutation({
     await requireAdmin(ctx);
     const fields = await allMetadataFields(ctx);
     const fieldsByKey = new Map(fields.map((field) => [field.key, field]));
+    const fieldsById = new Map(fields.map((field) => [field._id, field]));
     let imported = 0;
     let staffOverlays = 0;
     for (const member of members) {
@@ -340,6 +353,7 @@ export const importMembers = mutation({
         member.metadata,
         fieldMap,
         fieldsByKey,
+        fieldsById,
         profile?.email
       );
       if (profile) {
@@ -454,6 +468,7 @@ export const importEvents = mutation({
       const fieldMap = fieldMapByYear[String(calendarYear)] ?? {};
       const fields = await fieldsFor(calendarYear);
       const fieldsByKey = new Map(fields.map((field) => [field.key, field]));
+      const fieldsById = new Map(fields.map((field) => [field._id, field]));
 
       for (const row of event.members) {
         const displayName = canonicalImportMemberName(row.name ?? "");
@@ -476,7 +491,8 @@ export const importEvents = mutation({
           calendarYear,
           row.metadata,
           fieldMap,
-          fieldsByKey
+          fieldsByKey,
+          fieldsById
         );
         const metadata = profile
           ? staffLockedMetadata(fields, profile, baseMetadata)
