@@ -73,6 +73,11 @@ export interface AttendanceRowProps {
   exiting?: boolean;
   /** Called after the exit collapse animation completes. */
   onExited?: () => void;
+  /**
+   * Increment to trigger an expand animation on an already-mounted row
+   * (used when the row above is swiped away and this one needs to slide in).
+   */
+  revealTrigger?: number;
 }
 
 function AttendanceRowBase({
@@ -89,6 +94,7 @@ function AttendanceRowBase({
   entering = false,
   exiting = false,
   onExited,
+  revealTrigger = 0,
 }: AttendanceRowProps) {
   const t = useAppTheme();
   const { width: screenWidth } = useWindowDimensions();
@@ -125,6 +131,15 @@ function AttendanceRowBase({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when exiting flips true
   }, [exiting]);
+
+  useEffect(() => {
+    if (revealTrigger === 0) return;
+    itemHeight.value = 0;
+    opacity.value = 0;
+    itemHeight.value = withTiming(72, { duration: 200, easing: Easing.out(Easing.cubic) });
+    opacity.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.cubic) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when trigger increments
+  }, [revealTrigger]);
 
   const setSnapClosed = useCallback(() => setSnapVisual("closed"), []);
   const setSnapPrimary = useCallback(() => setSnapVisual("primary"), []);

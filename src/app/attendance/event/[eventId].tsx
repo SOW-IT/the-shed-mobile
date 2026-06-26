@@ -107,6 +107,12 @@ export default function EventAttendanceScreen() {
   const [remoteSignedIn, setRemoteSignedIn] = useState<Set<string>>(new Set());
   const [remoteSignedOut, setRemoteSignedOut] = useState<Set<string>>(new Set());
 
+  // Reveal triggers: incremented when the row above is swiped, so the next
+  // row in the list plays a slide-in animation simultaneously.
+  const [revealTriggers, setRevealTriggers] = useState<Map<string, number>>(new Map());
+  const triggerReveal = (key: string) =>
+    setRevealTriggers((prev) => new Map(prev).set(key, (prev.get(key) ?? 0) + 1));
+
   const [search, setSearch] = useState("");
   const [eventEditOpen, setEventEditOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -517,6 +523,7 @@ export default function EventAttendanceScreen() {
                 const isEntering = optimisticSignedOut.has(m.key) || remoteSignedOut.has(m.key);
                 const isExiting = remoteSignedIn.has(m.key);
                 const isAnimating = isEntering || isExiting;
+                const nextKey = visibleUnsigned[index + 1]?.key;
                 const row = (
                   <AttendanceRow
                     name={m.name}
@@ -527,8 +534,9 @@ export default function EventAttendanceScreen() {
                     disabled={!canEdit || isAnimating}
                     entering={isEntering}
                     exiting={isExiting}
+                    revealTrigger={revealTriggers.get(m.key) ?? 0}
                     onExited={isExiting ? () => setRemoteSignedIn((s) => { const n = new Set(s); n.delete(m.key); return n; }) : undefined}
-                    onActionStart={isAnimating ? undefined : () => onSignInStart(m)}
+                    onActionStart={isAnimating ? undefined : () => { onSignInStart(m); if (nextKey) triggerReveal(nextKey); }}
                     onAction={() => { if (!isAnimating) onSignIn(m); }}
                     onEdit={canEdit && !isAnimating ? () => editRosterEntry(m) : undefined}
                   />
@@ -561,6 +569,8 @@ export default function EventAttendanceScreen() {
                 const isEntering = (a._id as string).startsWith("optimistic:");
                 const isExiting = remoteSignedOut.has(personKey(a));
                 const isAnimating = isEntering || isExiting;
+                const aKey = personKey(a);
+                const nextKey = personKey(visibleSignedIn[index + 1] ?? {});
                 const row = (
                   <AttendanceRow
                     name={a.name}
@@ -571,8 +581,9 @@ export default function EventAttendanceScreen() {
                     disabled={!canEdit || isAnimating}
                     entering={isEntering}
                     exiting={isExiting}
-                    onExited={isExiting ? () => setRemoteSignedOut((s) => { const n = new Set(s); n.delete(personKey(a)); return n; }) : undefined}
-                    onActionStart={isAnimating ? undefined : () => onSignOutStart(a)}
+                    revealTrigger={revealTriggers.get(aKey) ?? 0}
+                    onExited={isExiting ? () => setRemoteSignedOut((s) => { const n = new Set(s); n.delete(aKey); return n; }) : undefined}
+                    onActionStart={isAnimating ? undefined : () => { onSignOutStart(a); if (nextKey) triggerReveal(nextKey); }}
                     onAction={() => { if (!isAnimating) onSignOut(a); }}
                     onEdit={canEdit && !isAnimating ? () => editSignedIn(a) : undefined}
                   />
