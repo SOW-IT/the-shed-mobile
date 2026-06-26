@@ -512,6 +512,71 @@ describe("audit logging across attendance mutations", () => {
     );
   });
 
+  test("swapping two member fields logs a swap, not generic updates", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    await staff.mutation(api.attendanceMetadata.saveAll, {
+      fields: [
+        { key: "Alpha", type: "input", order: 0 },
+        { key: "Beta", type: "input", order: 1 },
+      ],
+      deleteIds: [],
+    });
+    const fields = await staff.query(api.attendanceMetadata.list, {});
+    const alpha = fields.find((f) => f.key === "Alpha")!;
+    const beta = fields.find((f) => f.key === "Beta")!;
+
+    // Swap their positions only.
+    await staff.mutation(api.attendanceMetadata.saveAll, {
+      fields: [
+        { id: alpha._id, key: "Alpha", type: "input", order: 1 },
+        { id: beta._id, key: "Beta", type: "input", order: 0 },
+      ],
+      deleteIds: [],
+    });
+
+    const meta = (await allLogs(t)).filter((l) => l.entityType === "metadata");
+    const reorders = meta.filter((l) => l.action === "metadata.reorder");
+    expect(reorders).toHaveLength(1);
+    expect(reorders[0].summary).toContain("Swapped order");
+    expect(reorders[0].summary).toContain("Alpha");
+    expect(reorders[0].summary).toContain("Beta");
+    // The swap must not also emit generic "Updated member field" rows.
+    expect(meta.filter((l) => l.action === "metadata.update")).toHaveLength(0);
+  });
+
+  test("reordering several member fields logs one reorder event", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    await staff.mutation(api.attendanceMetadata.saveAll, {
+      fields: [
+        { key: "One", type: "input", order: 0 },
+        { key: "Two", type: "input", order: 1 },
+        { key: "Three", type: "input", order: 2 },
+      ],
+      deleteIds: [],
+    });
+    const fields = await staff.query(api.attendanceMetadata.list, {});
+    const id = (k: string) => fields.find((f) => f.key === k)!._id;
+
+    // Rotate all three (not a clean two-field swap).
+    await staff.mutation(api.attendanceMetadata.saveAll, {
+      fields: [
+        { id: id("One"), key: "One", type: "input", order: 2 },
+        { id: id("Two"), key: "Two", type: "input", order: 0 },
+        { id: id("Three"), key: "Three", type: "input", order: 1 },
+      ],
+      deleteIds: [],
+    });
+
+    const reorders = (await allLogs(t)).filter(
+      (l) => l.action === "metadata.reorder"
+    );
+    expect(reorders).toHaveLength(1);
+    expect(reorders[0].summary).toContain("Reordered member fields");
+    expect(reorders[0].summary).not.toContain("Swapped");
+  });
+
   test("roll-call by email logs sign-in, record edit and sign-out", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);

@@ -240,6 +240,9 @@ export const saveAll = mutation({
       .collect();
     const orgRoles = [...new Set([...ROLES, ...roleRows.map((r) => r.name)])];
 
+    // Fields whose ONLY change this save is their position. Collected here and
+    // reported as a single reorder event, rather than vague per-field "updates".
+    const reorders: { key: string; from: number; to: number }[] = [];
     const keys = new Set<string>();
     for (const field of fields) {
       const rawKey = field.key.trim();
@@ -299,12 +302,13 @@ export const saveAll = mutation({
         const existing = await ctx.db.get(field.id);
         if (!existing) continue;
         const nextValues = field.type === "select" ? values : undefined;
-        // saveAll rewrites every field on each save; only log fields that
-        // actually changed so the trail isn't flooded with no-op "updates".
-        const changed =
+        // saveAll rewrites every field on each save; classify what actually
+        // changed so the trail isn't flooded with no-op "updates" and so a pure
+        // reorder reads as a reorder rather than a generic field update.
+        const orderChanged = existing.order !== field.order;
+        const contentChanged =
           existing.key !== key ||
           existing.type !== field.type ||
-          existing.order !== field.order ||
           (existing.subgroup ?? undefined) !== (subgroup ?? undefined) ||
           JSON.stringify(existing.values ?? null) !==
             JSON.stringify(nextValues ?? null);
@@ -316,7 +320,7 @@ export const saveAll = mutation({
           subgroup,
           lockedValues,
         });
-        if (changed) {
+        if (contentChanged) {
           await logAttendanceAction(ctx, {
             actorEmail,
             entityType: "metadata",
@@ -326,6 +330,9 @@ export const saveAll = mutation({
                 ? `Renamed member field "${existing.key}" → "${key}"`
                 : `Updated member field "${key}"`,
           });
+        } else if (orderChanged) {
+          // Position-only change: defer to one consolidated reorder event below.
+          reorders.push({ key, from: existing.order, to: field.order });
         }
       } else {
         await ctx.db.insert("attendanceMetadata", {
@@ -343,6 +350,25 @@ export const saveAll = mutation({
           summary: `Created member field "${key}"`,
         });
       }
+    }
+
+    if (reorders.length) {
+      // A clean two-field exchange (e.g. moving a field up/down one slot) reads
+      // as a swap; anything larger is a general reorder.
+      const isSwap =
+        reorders.length === 2 &&
+        reorders[0].from === reorders[1].to &&
+        reorders[1].from === reorders[0].to;
+      await logAttendanceAction(ctx, {
+        actorEmail,
+        entityType: "metadata",
+        action: "metadata.reorder",
+        summary: isSwap
+          ? `Swapped order of member fields "${reorders[0].key}" and "${reorders[1].key}"`
+          : `Reordered member fields: ${reorders
+              .map((r) => `"${r.key}"`)
+              .join(", ")}`,
+      });
     }
   },
 });
