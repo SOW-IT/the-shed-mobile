@@ -553,6 +553,9 @@ describe("events + roll-call", () => {
 });
 
 describe("new-event notifications", () => {
+  const LEADER2 = "leader2@sow.org.au"; // second Student Leader at USYD
+  const MACQ_LEADER = "macqleader@sow.org.au"; // Student Leader at Macquarie
+
   const notifsFor = (t: TestConvex<typeof schema>, email: string) =>
     t.run((ctx) =>
       ctx.db
@@ -561,33 +564,48 @@ describe("new-event notifications", () => {
         .collect()
     );
 
-  test("a campus event notifies that campus's staff, not others or the creator", async () => {
-    const t = await setup();
+  // create() schedules the fan-out; run it deterministically here (a
+  // runAfter(0) job isn't picked up by finishInProgressScheduledFunctions).
+  const createAndDeliver = async (
+    t: TestConvex<typeof schema>,
+    creator: string,
+    subgroups: string[]
+  ) => {
     const { dateStart, dateEnd } = window();
-    // STAFF (department, no campus) creates a USYD event.
-    await asUser(t, STAFF).mutation(api.events.create, {
-      name: "USYD Outreach",
+    const eventId = await asUser(t, creator).mutation(api.events.create, {
+      name: "Outreach",
       dateStart,
       dateEnd,
-      subgroups: [USYD],
+      subgroups,
     });
-    const leaderNotifs = await notifsFor(t, LEADER);
-    expect(leaderNotifs).toHaveLength(1); // Student Leader at USYD
-    expect(leaderNotifs[0].title.toLowerCase()).toContain("new event");
-    expect(leaderNotifs[0].url).toMatch(/^\/attendance\/event\//);
-    // Department staff without that campus, and the creator, are not notified.
-    expect(await notifsFor(t, STAFF)).toHaveLength(0);
+    await t.mutation(internal.events.notifyNewEvent, { eventId, actorEmail: creator });
+  };
+
+  test("a campus event notifies that campus's staff — not other campuses or the creator", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: LEADER2, year: YEAR, roles: ["Student Leader"], university: USYD,
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: MACQ_LEADER, year: YEAR, roles: ["Student Leader"], university: MACQ,
+    });
+
+    // Creator is itself a USYD leader (in-scope) — proves the creator is still excluded.
+    await createAndDeliver(t, LEADER, [USYD]);
+
+    const leader2Notifs = await notifsFor(t, LEADER2);
+    expect(leader2Notifs).toHaveLength(1); // another USYD leader is notified
+    expect(leader2Notifs[0].title.toLowerCase()).toContain("new event");
+    expect(leader2Notifs[0].url).toMatch(/^\/attendance\/event\//);
+    expect(await notifsFor(t, LEADER)).toHaveLength(0); // in-scope creator excluded
+    expect(await notifsFor(t, MACQ_LEADER)).toHaveLength(0); // other campus excluded
+    expect(await notifsFor(t, STAFF)).toHaveLength(0); // no campus assignment
   });
 
   test("an org-wide (SOW) event notifies all staff except the creator", async () => {
     const t = await setup();
-    const { dateStart, dateEnd } = window();
-    await asUser(t, LEADER).mutation(api.events.create, {
-      name: "All-SOW Camp",
-      dateStart,
-      dateEnd,
-      subgroups: [SOW_SUBGROUP],
-    });
+    await createAndDeliver(t, LEADER, [SOW_SUBGROUP]);
     expect(await notifsFor(t, STAFF)).toHaveLength(1); // org-wide reaches dept staff
     expect(await notifsFor(t, LEADER)).toHaveLength(0); // creator excluded
   });

@@ -11,8 +11,15 @@ import {
   SOW_SUBGROUP,
   subgroupLabel,
 } from "../shared/rollcall";
+import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import { MutationCtx, QueryCtx, mutation, query } from "./_generated/server";
+import {
+  MutationCtx,
+  QueryCtx,
+  internalMutation,
+  mutation,
+  query,
+} from "./_generated/server";
 import { optionalProfile, requireProfile } from "./model";
 import { notify } from "./requests";
 import { logAttendanceAction } from "./attendanceAudit";
@@ -205,6 +212,21 @@ async function notifyStaffOfNewEvent(
 }
 
 /**
+ * Background fan-out for {@link notifyStaffOfNewEvent}, scheduled by `create`
+ * so the (potentially org-wide) notification work runs off the event-creation
+ * request path — a transient failure here never aborts the event insert.
+ */
+export const notifyNewEvent = internalMutation({
+  args: { eventId: v.id("events"), actorEmail: v.string() },
+  handler: async (ctx, { eventId, actorEmail }) => {
+    const event = await ctx.db.get(eventId);
+    if (!event) return null;
+    await notifyStaffOfNewEvent(ctx, event, actorEmail);
+    return null;
+  },
+});
+
+/**
  * Create an event tagged with one or more sub-groups. Any signed-in staff
  * member may run a roll-call, so this only requires a profile. The year is the
  * staff year of the start date, derived server-side so it always matches the
@@ -235,7 +257,11 @@ export const create = mutation({
       summary: `Created event "${eventFields.name}" (${eventFields.subgroups.join(", ")})`,
       eventId,
     });
-    await notifyStaffOfNewEvent(ctx, { _id: eventId, ...eventFields }, email);
+    // Fan out the staff notifications off the request path (see notifyNewEvent).
+    await ctx.scheduler.runAfter(0, internal.events.notifyNewEvent, {
+      eventId,
+      actorEmail: email,
+    });
     return eventId;
   },
 });

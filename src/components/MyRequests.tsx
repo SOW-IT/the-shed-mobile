@@ -648,26 +648,28 @@ const ReceiptSheet = ({
  * Finger-tap nudge button for a single request. Owns its own `canNudge` query
  * so hook rules are satisfied inside a list render.
  */
+type NudgeStatus = { onCooldown: boolean; remainingMs: number };
+
 const NudgeButton = ({
   request,
   onNudge,
 }: {
   request: Doc<"requests">;
-  onNudge: (request: Doc<"requests">, nudgeableAt: number | null) => void;
+  onNudge: (request: Doc<"requests">, status: NudgeStatus | null) => void;
 }) => {
   const t = useAppTheme();
-  // `canNudge` returns the timestamp from which a nudge is allowed (0 = now,
-  // a future value while on cooldown), or null when the caller is never
-  // eligible. The icon stays enabled whenever eligible — the cooldown is shown
-  // (and the action blocked) in the confirmation modal instead.
-  const nudgeableAt = useQuery(api.requests.canNudge, { requestId: request._id });
-  const eligible = nudgeableAt != null;
+  // `canNudge` returns null when the caller is never eligible, else a
+  // server-derived { onCooldown, remainingMs }. The icon stays enabled whenever
+  // eligible — the cooldown is shown (and the action blocked) in the
+  // confirmation modal instead.
+  const status = useQuery(api.requests.canNudge, { requestId: request._id });
+  const eligible = status != null;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel="Nudge approver"
       disabled={!eligible}
-      onPress={() => onNudge(request, nudgeableAt ?? null)}
+      onPress={() => onNudge(request, status ?? null)}
       style={({ pressed }) => [
         nudgeButtonStyle,
         eligible ? { backgroundColor: t.primarySoft } : undefined,
@@ -856,14 +858,12 @@ export const MyRequests = ({
                   {canNudgeRequest && (
                     <NudgeButton
                       request={request}
-                      onNudge={(r, nudgeableAt) => {
-                        const remaining =
-                          nudgeableAt != null ? nudgeableAt - Date.now() : 0;
-                        const onCooldown = remaining > 0;
+                      onNudge={(r, status) => {
+                        const onCooldown = status?.onCooldown ?? false;
                         setConfirm({
                           title: "Send a nudge?",
                           message: onCooldown
-                            ? `You can only nudge once per day. You can nudge again in ${formatCooldown(remaining)}.`
+                            ? `You can only nudge once per day. You can nudge again in ${formatCooldown(status?.remainingMs ?? 0)}.`
                             : `This will send a reminder to whoever needs to action your $${r.amount} request ("${r.description}"). You can only nudge once per day.`,
                           confirmLabel: "Send Nudge",
                           destructive: false,
