@@ -350,9 +350,18 @@ export default function EventAttendanceScreen() {
 
   // Optimistic counts: base server count ± pending swipes, so the pill and
   // section headers update the moment a swipe commits rather than waiting for
-  // the Convex round-trip to confirm.
+  // the Convex round-trip to confirm. Only count optimistic entries the server
+  // hasn't reflected yet (sign-ins not yet in attendance, sign-outs still in
+  // it); the cleanup effect clears them a render later, so without this guard
+  // the confirming render briefly double-counts and the pill flickers ±1.
+  const pendingSignedIn = [...optimisticSignedIn.keys()].filter(
+    (k) => !signedInKeys.has(k)
+  ).length;
+  const pendingSignedOut = [...optimisticSignedOut].filter((k) =>
+    signedInKeys.has(k)
+  ).length;
   const optimisticSignedInCount =
-    (attendance?.length ?? 0) + optimisticSignedIn.size - optimisticSignedOut.size;
+    (attendance?.length ?? 0) + pendingSignedIn - pendingSignedOut;
   const rosterSize = roster?.length ?? 0;
   const optimisticUnsignedCount = Math.max(0, rosterSize - optimisticSignedInCount);
 

@@ -68,10 +68,20 @@ export const remindStale = internalMutation({
         request._creationTime,
         ...events.map((event) => event._creationTime)
       );
+      // A movement after the last reminder (an approval/receipt/payment that
+      // advanced the request — typically to a NEW action owner) restarts the
+      // whole tiered schedule, so the next person to act gets the fast 1-day →
+      // 3-day cadence rather than inheriting the previous step's slow weekly
+      // tier. Without this reset, every approver after the first would wait up
+      // to 7 days for their first reminder.
+      const movedSinceReminder =
+        request.lastReminderAt !== undefined && lastMovement > request.lastReminderAt;
       // Legacy rows may carry a lastReminderAt without a reminderCount; treat
       // them as already having had one reminder so they aren't re-sent as a
       // fresh first reminder after deploy.
-      const count = request.reminderCount ?? (request.lastReminderAt ? 1 : 0);
+      const count = movedSinceReminder
+        ? 0
+        : (request.reminderCount ?? (request.lastReminderAt ? 1 : 0));
       // Next reminder is due `reminderDelayMs(count)` after the later of the
       // last reminder and the last movement — a newer approval/receipt/payment
       // event restarts the clock — or after last movement for the very first.
