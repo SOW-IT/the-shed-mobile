@@ -14,10 +14,12 @@ import {
   memberMatchesEventCampus,
   normalizeSubgroups,
   personDisplayName,
+  nextDateForWeekday,
   SOW_SUBGROUP,
   subgroupColour,
   subgroupLabel,
   subgroupMatches,
+  weeklyMeetingSlot,
 } from "./rollcall";
 
 describe("displayNameFromEmail", () => {
@@ -54,6 +56,54 @@ describe("personDisplayName", () => {
   test("returns an empty string when there is neither a name nor an email", () => {
     expect(personDisplayName(null, null)).toBe("");
     expect(personDisplayName("", undefined)).toBe("");
+  });
+});
+
+describe("weeklyMeetingSlot", () => {
+  test("maps each campus to its weekly meeting slot", () => {
+    expect(weeklyMeetingSlot("Macquarie University")).toEqual({
+      weekday: 3,
+      startHour: 16,
+      endHour: 18,
+    });
+    expect(weeklyMeetingSlot("University of New South Wales")).toEqual({
+      weekday: 3,
+      startHour: 17,
+      endHour: 19,
+    });
+    expect(weeklyMeetingSlot("University of Technology, Sydney")).toEqual({
+      weekday: 2,
+      startHour: 17,
+      endHour: 19,
+    });
+    expect(weeklyMeetingSlot("University of Sydney")).toEqual({
+      weekday: 2,
+      startHour: 17,
+      endHour: 19,
+    });
+  });
+
+  test("returns null for sub-groups without a slot", () => {
+    expect(weeklyMeetingSlot(SOW_SUBGROUP)).toBeNull();
+    expect(weeklyMeetingSlot("Unknown University")).toBeNull();
+  });
+});
+
+describe("nextDateForWeekday", () => {
+  test("returns the same day when the weekday already matches", () => {
+    // 2026-06-24 is a Wednesday (getDay() === 3).
+    const wed = new Date(2026, 5, 24);
+    const next = nextDateForWeekday(3, wed);
+    expect(next.getFullYear()).toBe(2026);
+    expect(next.getMonth()).toBe(5);
+    expect(next.getDate()).toBe(24);
+  });
+
+  test("advances to the next matching weekday otherwise", () => {
+    // From Wed 2026-06-24, the next Tuesday (2) is 2026-06-30.
+    const next = nextDateForWeekday(2, new Date(2026, 5, 24));
+    expect(next.getDate()).toBe(30);
+    expect(next.getDay()).toBe(2);
   });
 });
 
