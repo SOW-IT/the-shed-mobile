@@ -113,6 +113,10 @@ export default function EventAttendanceScreen() {
   const triggerReveal = (key: string) =>
     setRevealTriggers((prev) => new Map(prev).set(key, (prev.get(key) ?? 0) + 1));
 
+  // Keys that transitioned from optimistic → real this session. Their real rows
+  // must not re-run the FadeInView entrance since the row was already visible.
+  const [suppressFadeIn, setSuppressFadeIn] = useState<Set<string>>(new Set());
+
   const [search, setSearch] = useState("");
   const [eventEditOpen, setEventEditOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -182,8 +186,10 @@ export default function EventAttendanceScreen() {
     const confirmedSignedOut = removed.filter((k) => optimisticSignedOut.has(k));
     const genuinelyRemoteSignedOut = removed.filter((k) => !optimisticSignedOut.has(k));
 
-    if (confirmedSignedIn.length > 0)
+    if (confirmedSignedIn.length > 0) {
       setOptimisticSignedIn((o) => { const n = new Map(o); for (const k of confirmedSignedIn) n.delete(k); return n.size < o.size ? n : o; });
+      setSuppressFadeIn((s) => { const n = new Set(s); for (const k of confirmedSignedIn) n.add(k); return n; });
+    }
     if (confirmedSignedOut.length > 0)
       setOptimisticSignedOut((o) => { const n = new Set(o); for (const k of confirmedSignedOut) n.delete(k); return n.size < o.size ? n : o; });
     if (genuinelyRemoteSignedIn.length > 0)
@@ -512,6 +518,53 @@ export default function EventAttendanceScreen() {
         </>
       ) : (
         <>
+          {signedInList.length > 0 ? (
+            <>
+              <Text style={[typography.label, styles.section, { color: t.muted }]}>
+                Signed in · {signedInList.length}
+              </Text>
+              {visibleSignedIn.map((a, index) => {
+                const isEntering = (a._id as string).startsWith("optimistic:");
+                const isExiting = remoteSignedOut.has(personKey(a));
+                const isAnimating = isEntering || isExiting;
+                const aKey = personKey(a);
+                const isSuppressed = suppressFadeIn.has(aKey);
+                const nextKey = personKey(visibleSignedIn[index + 1] ?? {});
+                const row = (
+                  <AttendanceRow
+                    name={a.name}
+                    subtitle={signedInSubtitle(a.signInTime, a.notes)}
+                    photo={a.photo ?? null}
+                    university={a.university}
+                    mode="signedIn"
+                    disabled={!canEdit || isAnimating}
+                    entering={isEntering}
+                    exiting={isExiting}
+                    revealTrigger={revealTriggers.get(aKey) ?? 0}
+                    onExited={isExiting ? () => setRemoteSignedOut((s) => { const n = new Set(s); n.delete(aKey); return n; }) : undefined}
+                    onActionStart={isAnimating ? undefined : () => { onSignOutStart(a); if (nextKey) triggerReveal(nextKey); }}
+                    onAction={() => { if (!isAnimating) onSignOut(a); }}
+                    onEdit={canEdit && !isAnimating ? () => editSignedIn(a) : undefined}
+                  />
+                );
+                return isAnimating || isSuppressed ? (
+                  <View key={a._id}>{row}</View>
+                ) : (
+                  <FadeInView key={a._id} delay={Math.min(index, 12) * 35}>{row}</FadeInView>
+                );
+              })}
+              {visibleSignedIn.length < signedInList.length ? (
+                <Btn
+                  title={`Load more (${signedInList.length - visibleSignedIn.length} left)`}
+                  variant="ghost"
+                  onPress={() =>
+                    setSignedInLimit((limit) => limit + ROSTER_PAGE_SIZE)
+                  }
+                />
+              ) : null}
+            </>
+          ) : null}
+
           <Text style={[typography.label, styles.section, { color: t.muted }]}>
             Not signed in · {unsignedList.length}
           </Text>
@@ -523,6 +576,7 @@ export default function EventAttendanceScreen() {
                 const isEntering = optimisticSignedOut.has(m.key) || remoteSignedOut.has(m.key);
                 const isExiting = remoteSignedIn.has(m.key);
                 const isAnimating = isEntering || isExiting;
+                const staggerIndex = visibleSignedIn.length + index;
                 const nextKey = visibleUnsigned[index + 1]?.key;
                 const row = (
                   <AttendanceRow
@@ -544,7 +598,7 @@ export default function EventAttendanceScreen() {
                 return isAnimating ? (
                   <View key={m.key}>{row}</View>
                 ) : (
-                  <FadeInView key={m.key} delay={Math.min(index, 6) * 35}>{row}</FadeInView>
+                  <FadeInView key={m.key} delay={Math.min(staggerIndex, 12) * 35}>{row}</FadeInView>
                 );
               })}
               {visibleUnsigned.length < unsignedList.length ? (
@@ -558,53 +612,6 @@ export default function EventAttendanceScreen() {
               ) : null}
             </>
           )}
-
-          {signedInList.length > 0 ? (
-            <>
-              <Text style={[typography.label, styles.section, { color: t.muted }]}>
-                Signed in · {signedInList.length}
-              </Text>
-              {visibleSignedIn.map((a, index) => {
-                const staggerIndex = visibleUnsigned.length + index;
-                const isEntering = (a._id as string).startsWith("optimistic:");
-                const isExiting = remoteSignedOut.has(personKey(a));
-                const isAnimating = isEntering || isExiting;
-                const aKey = personKey(a);
-                const nextKey = personKey(visibleSignedIn[index + 1] ?? {});
-                const row = (
-                  <AttendanceRow
-                    name={a.name}
-                    subtitle={signedInSubtitle(a.signInTime, a.notes)}
-                    photo={a.photo ?? null}
-                    university={a.university}
-                    mode="signedIn"
-                    disabled={!canEdit || isAnimating}
-                    entering={isEntering}
-                    exiting={isExiting}
-                    revealTrigger={revealTriggers.get(aKey) ?? 0}
-                    onExited={isExiting ? () => setRemoteSignedOut((s) => { const n = new Set(s); n.delete(aKey); return n; }) : undefined}
-                    onActionStart={isAnimating ? undefined : () => { onSignOutStart(a); if (nextKey) triggerReveal(nextKey); }}
-                    onAction={() => { if (!isAnimating) onSignOut(a); }}
-                    onEdit={canEdit && !isAnimating ? () => editSignedIn(a) : undefined}
-                  />
-                );
-                return isAnimating ? (
-                  <View key={a._id}>{row}</View>
-                ) : (
-                  <FadeInView key={a._id} delay={Math.min(staggerIndex, 12) * 35}>{row}</FadeInView>
-                );
-              })}
-              {visibleSignedIn.length < signedInList.length ? (
-                <Btn
-                  title={`Load more (${signedInList.length - visibleSignedIn.length} left)`}
-                  variant="ghost"
-                  onPress={() =>
-                    setSignedInLimit((limit) => limit + ROSTER_PAGE_SIZE)
-                  }
-                />
-              ) : null}
-            </>
-          ) : null}
         </>
       )}
       <View style={{ height: spacing.xxl }} />

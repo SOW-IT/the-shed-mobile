@@ -134,9 +134,7 @@ function AttendanceRowBase({
 
   useEffect(() => {
     if (revealTrigger === 0) return;
-    itemHeight.value = 0;
     opacity.value = 0;
-    itemHeight.value = withTiming(72, { duration: 200, easing: Easing.out(Easing.cubic) });
     opacity.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.cubic) });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when trigger increments
   }, [revealTrigger]);
