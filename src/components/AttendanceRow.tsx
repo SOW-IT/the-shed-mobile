@@ -117,6 +117,9 @@ function AttendanceRowBase({
   const primarySnapped = useSharedValue(false);
   const [snapVisual, setSnapVisual] = useState<SnapVisual>("closed");
 
+  /* eslint-disable react-hooks/immutability -- these are Reanimated shared
+     values, mutated through their `.value` API inside effects and worklets; the
+     React Compiler immutability rule doesn't model Reanimated's mutable refs. */
   useEffect(() => {
     if (!entering) return;
     itemHeight.value = withTiming(72, { duration: 200, easing: Easing.out(Easing.cubic) });
@@ -159,6 +162,7 @@ function AttendanceRowBase({
       if (done) runOnJS(onAction)();
     });
   };
+  /* eslint-enable react-hooks/immutability */
 
   const commitEdit = () => {
     "worklet";

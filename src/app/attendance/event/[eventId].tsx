@@ -230,19 +230,21 @@ export default function EventAttendanceScreen() {
       .filter((a): a is NonNullable<typeof attendance>[number] => a != null);
     const withExiting = exitingRows.length > 0 ? [...exitingRows, ...real] : real;
     if (enteringKeys.size === 0) return withExiting;
+    // eslint-disable-next-line react-hooks/purity -- optimistic placeholder timestamp, replaced on confirm
+    const now = Date.now();
     const pending = [...enteringKeys]
       .map((key) => rosterByKey.get(key))
       .filter((m): m is NonNullable<typeof roster>[number] => m != null)
       .map((m) => ({
         _id: `optimistic:${m.key}` as NonNullable<typeof attendance>[number]["_id"],
-        _creationTime: Date.now(),
+        _creationTime: now,
         eventId: evId,
         name: m.name,
         photo: m.photo ?? null,
         university: m.university,
         email: m.email ?? null,
         memberId: m.memberId ?? null,
-        signInTime: Date.now(),
+        signInTime: now,
         notes: undefined,
         key: m.key,
       })) as unknown as NonNullable<typeof attendance>;
@@ -275,6 +277,9 @@ export default function EventAttendanceScreen() {
   // smoothly rather than the new row popping in at full height. The first
   // population is skipped — FadeInView handles the initial staggered entrance.
   const prevUnsignedKeysRef = useRef<Set<string> | null>(null);
+  /* eslint-disable react-hooks/refs -- intentionally diff against the previous
+     render's snapshot so a newly-appearing row mounts with entering=true; the
+     ref is committed in the effect below, after this read. */
   const newlyAddedUnsigned = useMemo(() => {
     const prev = prevUnsignedKeysRef.current;
     if (prev === null) return new Set<string>();
@@ -282,6 +287,7 @@ export default function EventAttendanceScreen() {
     for (const m of unsignedList) if (!prev.has(m.key)) added.add(m.key);
     return added;
   }, [unsignedList]);
+  /* eslint-enable react-hooks/refs */
   useEffect(() => {
     prevUnsignedKeysRef.current = new Set(unsignedList.map((m) => m.key));
   }, [unsignedList]);
