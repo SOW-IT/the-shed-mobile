@@ -116,7 +116,7 @@ function calendarYearOf(dateMs: number): number {
 // Metadata fields are global (not year-scoped), so import resolves against the
 // single shared set regardless of which year's data is being loaded.
 async function allMetadataFields(ctx: MutationCtx) {
-  return await ctx.db.query("attendanceMetadata").take(100);
+  return await ctx.db.query("attendanceMetadata").collect();
 }
 
 const normalizedEmail = (email: string | undefined): string | undefined => {
@@ -176,8 +176,10 @@ async function metadataForMember(
   staffEmail?: string
 ) {
   const out: Record<string, string> = {};
-  const fieldRows = await allMetadataFields(ctx);
-  const byId = new Map(fieldRows.map((field) => [field._id, field]));
+  // Reuse the caller's prefetched global field set (same rows) — no per-member read.
+  const byId = new Map(
+    [...fieldsByKey.values()].map((field) => [field._id, field])
+  );
   for (const [oldFieldId, value] of Object.entries(raw ?? {})) {
     const fieldId = fieldMap[oldFieldId];
     const field = fieldId ? byId.get(fieldId) : null;
@@ -237,8 +239,14 @@ export const prepare = mutation({
     for (const field of metadata) {
       const key = field.key.trim();
       if (!key) continue;
+      // A field's global identity is (key, sub-group) — same as the consolidation
+      // migration — so a sub-grouped field never collides with a global one of
+      // the same name.
+      const subgroup = field.subgroup ? canonicalSubgroup(field.subgroup) : undefined;
       const existing = existingFields.find(
-        (row) => row.key.toLowerCase() === key.toLowerCase()
+        (row) =>
+          row.key.toLowerCase() === key.toLowerCase() &&
+          canonicalSubgroup(row.subgroup ?? "") === canonicalSubgroup(subgroup ?? "")
       );
       const values =
         field.type === "select"
@@ -253,7 +261,7 @@ export const prepare = mutation({
         type: field.type,
         order: field.order,
         values,
-        subgroup: field.subgroup ? canonicalSubgroup(field.subgroup) : undefined,
+        subgroup,
         ...(key === GENDER_FIELD_KEY
           ? { lockedValues: [...GENDER_OPTION_IDS, "Male", "Female"] }
           : {}),
