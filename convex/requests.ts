@@ -1004,8 +1004,26 @@ export const deleteDeclined = mutation({
 const NUDGE_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 1 nudge per person per request per day
 
 /**
- * Whether the signed-in user can nudge this request right now.
- * Returns false if they already nudged within the last 24 hours.
+ * Emails allowed to nudge a request: the requester and any approver who has
+ * already approved (a participant other than the current action owner). Shared
+ * by `canNudge` and `nudge` so the UI button and the mutation stay in sync.
+ */
+async function nudgeParticipantEmails(
+  ctx: QueryCtx | MutationCtx,
+  request: Doc<"requests">
+): Promise<Set<string>> {
+  const approvers = await getApprovers(ctx, request.year, request.department);
+  return new Set([
+    request.requesterEmail,
+    ...involvedApproverEmails(request, approvers, [APPROVED]),
+  ]);
+}
+
+/**
+ * Whether the signed-in user can nudge this request right now. Mirrors the
+ * `nudge` mutation's eligibility: the caller must be a participant (requester
+ * or an approver who has approved), the request must be waiting on someone
+ * else, and they must not have nudged within the last 24 hours.
  */
 export const canNudge = query({
   args: { requestId: v.id("requests") },
@@ -1014,6 +1032,9 @@ export const canNudge = query({
     if (!caller) return false;
     const request = await ctx.db.get("requests", args.requestId);
     if (!request || requestCompleted(request)) return false;
+    if (!(await nudgeParticipantEmails(ctx, request)).has(caller.email)) return false;
+    const to = await actionOwnerEmail(ctx, request);
+    if (!to || to === caller.email) return false;
     const recent = await ctx.db
       .query("requestNudges")
       .withIndex("by_nudger_and_request", (q) =>
@@ -1057,6 +1078,13 @@ export const nudge = mutation({
     if (!to) throw new ConvexError("No one to nudge right now.");
     if (to === caller.email) throw new ConvexError("This request is currently waiting on you.");
 
+    // Only participants may nudge someone else: the requester or an approver who
+    // has already approved. Otherwise any signed-in user could nudge unrelated
+    // requests. (The action owner above is excluded with a clearer message.)
+    if (!(await nudgeParticipantEmails(ctx, request)).has(caller.email)) {
+      throw new ConvexError("Only the requester or an approver on this request can nudge it.");
+    }
+
     await ctx.db.insert("requestNudges", {
       requestId: args.requestId,
       nudgerEmail: caller.email,
@@ -1070,7 +1098,12 @@ export const nudge = mutation({
       subject: `Nudge: a $${request.amount} request is waiting on you`,
       pushTitle: "You've been nudged",
       body: `${nudgerName} is waiting on your action for a $${request.amount} request.\n\n${requestSummary(request)}`,
-      url: currentStep(request) !== null ? "/review" : `/request/${request._id}`,
+      // Approval- and payment-awaiting nudges land on the review queue (finance
+      // acts there); a receipt-awaiting nudge goes to the requester's detail view.
+      url:
+        currentStep(request) !== null || (request.receipt && request.paid === false)
+          ? "/review"
+          : `/request/${request._id}`,
       requestId: args.requestId,
     });
     return null;

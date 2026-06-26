@@ -68,10 +68,17 @@ export const remindStale = internalMutation({
         request._creationTime,
         ...events.map((event) => event._creationTime)
       );
-      const count = request.reminderCount ?? 0;
-      // Next reminder is due `reminderDelayMs(count)` after the last reminder
-      // (or after last movement for the very first one).
-      const baseline = count === 0 ? lastMovement : (request.lastReminderAt ?? lastMovement);
+      // Legacy rows may carry a lastReminderAt without a reminderCount; treat
+      // them as already having had one reminder so they aren't re-sent as a
+      // fresh first reminder after deploy.
+      const count = request.reminderCount ?? (request.lastReminderAt ? 1 : 0);
+      // Next reminder is due `reminderDelayMs(count)` after the later of the
+      // last reminder and the last movement — a newer approval/receipt/payment
+      // event restarts the clock — or after last movement for the very first.
+      const baseline =
+        count === 0
+          ? lastMovement
+          : Math.max(lastMovement, request.lastReminderAt ?? lastMovement);
       if (now - baseline < reminderDelayMs(count)) continue;
 
       // Approvers of the request's own year, falling back to this year's

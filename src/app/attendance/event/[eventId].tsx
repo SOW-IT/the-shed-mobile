@@ -105,7 +105,12 @@ export default function EventAttendanceScreen() {
   // their source list with exiting=true while they collapse, and in the
   // destination list with entering=true while they expand.
   const [remoteSignedIn, setRemoteSignedIn] = useState<Set<string>>(new Set());
-  const [remoteSignedOut, setRemoteSignedOut] = useState<Set<string>>(new Set());
+  // Maps key → the removed attendance row, captured from the snapshot before
+  // the server dropped it, so the exiting signed-in row can still render its
+  // collapse (the refreshed server list no longer contains that row).
+  const [remoteSignedOut, setRemoteSignedOut] = useState<
+    Map<string, NonNullable<typeof attendance>[number]>
+  >(new Map());
 
   // Reveal triggers: incremented when the row above is swiped, so the next
   // row in the list plays a slide-in animation simultaneously.
@@ -164,14 +169,33 @@ export default function EventAttendanceScreen() {
     return map;
   }, [attendance]);
 
-  // Track previous signedInKeys to detect remote changes.
+  // Track previous signedInKeys to detect remote changes, the prior attendance
+  // snapshot to recover a row the server has already dropped, and whether the
+  // first (initial-load) snapshot has been seeded.
   const prevSignedInKeysRef = useRef<Set<string>>(new Set());
+  const prevAttendanceByKeyRef = useRef<
+    Map<string, NonNullable<typeof attendance>[number]>
+  >(new Map());
+  const remoteSyncInitializedRef = useRef(false);
 
   // Sync optimistic + remote animation state whenever signedInKeys changes.
   // Reads optimisticSignedIn/Out directly (not via updater) so classification
   // happens against the snapshot at the moment the query fires — not against
   // state after a prior updater has already mutated it.
   useEffect(() => {
+    const prevByKey = prevAttendanceByKeyRef.current;
+    prevAttendanceByKeyRef.current = attendanceByKey;
+
+    // Don't classify the first loaded snapshot as remote changes: once
+    // attendance has loaded, seed the baseline from it and bail, so only later
+    // updates run the remote transfer animations.
+    if (!remoteSyncInitializedRef.current) {
+      if (attendance === undefined) return;
+      remoteSyncInitializedRef.current = true;
+      prevSignedInKeysRef.current = signedInKeys;
+      return;
+    }
+
     const prev = prevSignedInKeysRef.current;
     const next = signedInKeys;
     prevSignedInKeysRef.current = next;
@@ -195,8 +219,17 @@ export default function EventAttendanceScreen() {
     if (genuinelyRemoteSignedIn.length > 0)
       setRemoteSignedIn((r) => { const n = new Set(r); for (const k of genuinelyRemoteSignedIn) n.add(k); return n; });
     if (genuinelyRemoteSignedOut.length > 0)
-      setRemoteSignedOut((r) => { const n = new Set(r); for (const k of genuinelyRemoteSignedOut) n.add(k); return n; });
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- optimisticSignedIn/Out read as snapshot; only re-run when query fires
+      setRemoteSignedOut((r) => {
+        const n = new Map(r);
+        // Capture the removed row from the prior snapshot; the current server
+        // list no longer has it, so without this the exit row never renders.
+        for (const k of genuinelyRemoteSignedOut) {
+          const row = prevByKey.get(k);
+          if (row) n.set(k, row);
+        }
+        return n;
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- optimisticSignedIn/Out + attendance read as snapshot; only re-run when query fires
   }, [signedInKeys]);
 
   const searchQuery = search.trim().toLowerCase();
@@ -224,10 +257,9 @@ export default function EventAttendanceScreen() {
     // to avoid duplicate keys in the render until the cleanup effect fires.
     const enteringKeys = new Set([...optimisticSignedIn.keys(), ...remoteSignedIn]);
     const real = (attendance ?? []).filter((a) => !enteringKeys.has(personKey(a)));
-    // Exiting rows: retain in list for their collapse animation.
-    const exitingRows = [...remoteSignedOut]
-      .map((key) => attendanceByKey.get(key))
-      .filter((a): a is NonNullable<typeof attendance>[number] => a != null);
+    // Exiting rows: the refreshed server list already dropped them, so render
+    // the stored snapshot rows until their collapse animation completes.
+    const exitingRows = [...remoteSignedOut.values()];
     const withExiting = exitingRows.length > 0 ? [...exitingRows, ...real] : real;
     if (enteringKeys.size === 0) return withExiting;
     // eslint-disable-next-line react-hooks/purity -- optimistic placeholder timestamp, replaced on confirm
@@ -249,14 +281,14 @@ export default function EventAttendanceScreen() {
         key: m.key,
       })) as unknown as NonNullable<typeof attendance>;
     return [...pending, ...withExiting];
-  }, [attendance, optimisticSignedIn, remoteSignedIn, remoteSignedOut, attendanceByKey, rosterByKey, evId]);
+  }, [attendance, optimisticSignedIn, remoteSignedIn, remoteSignedOut, rosterByKey, evId]);
 
   // Not-signed-in members. Prepend optimistic/remote sign-outs as entering rows.
   // Also retain remotely signed-in rows (exiting=true) until their collapse completes.
   const unsignedList = useMemo(() => {
     // Entering keys — shown as dedicated rows; suppress their real counterpart
     // to avoid duplicate keys until the cleanup effect fires.
-    const enteringKeys = new Set([...optimisticSignedOut, ...remoteSignedOut]);
+    const enteringKeys = new Set([...optimisticSignedOut, ...remoteSignedOut.keys()]);
     const real = (roster ?? []).filter(
       (m) => !signedInKeys.has(m.key) && !enteringKeys.has(m.key)
     );
@@ -273,24 +305,33 @@ export default function EventAttendanceScreen() {
   }, [roster, signedInKeys, optimisticSignedOut, remoteSignedIn, remoteSignedOut, rosterByKey]);
 
   // Members that newly appear in the not-signed-in list since the previous
-  // render. Their card expands its height in (0 → 72) so the list grows
+  // commit. Their card expands its height in (0 → 72) so the list grows
   // smoothly rather than the new row popping in at full height. The first
   // population is skipped — FadeInView handles the initial staggered entrance.
-  const prevUnsignedKeysRef = useRef<Set<string> | null>(null);
-  /* eslint-disable react-hooks/refs -- intentionally diff against the previous
-     render's snapshot so a newly-appearing row mounts with entering=true; the
-     ref is committed in the effect below, after this read. */
-  const newlyAddedUnsigned = useMemo(() => {
-    const prev = prevUnsignedKeysRef.current;
-    if (prev === null) return new Set<string>();
+  //
+  // Computed with React's setState-during-render pattern (storing info derived
+  // from the previous render) so the row mounts already knowing it is new,
+  // without reading a ref during render.
+  const unsignedKeySig = useMemo(
+    () => unsignedList.map((m) => m.key).join(" "),
+    [unsignedList]
+  );
+  const [prevUnsignedSig, setPrevUnsignedSig] = useState<string | null>(null);
+  const [newlyAddedUnsigned, setNewlyAddedUnsigned] = useState<Set<string>>(
+    () => new Set()
+  );
+  if (prevUnsignedSig !== unsignedKeySig) {
+    const prevKeys =
+      prevUnsignedSig === null
+        ? null
+        : new Set(prevUnsignedSig.split(" ").filter(Boolean));
     const added = new Set<string>();
-    for (const m of unsignedList) if (!prev.has(m.key)) added.add(m.key);
-    return added;
-  }, [unsignedList]);
-  /* eslint-enable react-hooks/refs */
-  useEffect(() => {
-    prevUnsignedKeysRef.current = new Set(unsignedList.map((m) => m.key));
-  }, [unsignedList]);
+    if (prevKeys) {
+      for (const m of unsignedList) if (!prevKeys.has(m.key)) added.add(m.key);
+    }
+    setPrevUnsignedSig(unsignedKeySig);
+    setNewlyAddedUnsigned(added);
+  }
 
   const searchResults = useMemo(() => {
     if (!isSearching) return [];
@@ -630,7 +671,7 @@ export default function EventAttendanceScreen() {
                     entering={isEntering}
                     exiting={isExiting}
                     revealTrigger={revealTriggers.get(aKey) ?? 0}
-                    onExited={isExiting ? () => setRemoteSignedOut((s) => { const n = new Set(s); n.delete(aKey); return n; }) : undefined}
+                    onExited={isExiting ? () => setRemoteSignedOut((s) => { const n = new Map(s); n.delete(aKey); return n; }) : undefined}
                     onActionStart={isAnimating ? undefined : () => { onSignOutStart(a); if (nextKey) triggerReveal(nextKey); }}
                     onAction={() => { if (!isAnimating) onSignOut(a); }}
                     onEdit={canEdit && !isAnimating ? () => editSignedIn(a) : undefined}

@@ -277,6 +277,17 @@ describe("nudge", () => {
     ).rejects.toThrow(/waiting on you/);
   });
 
+  test("a profiled non-participant cannot nudge", async () => {
+    const t = await setup();
+    const id = await pendingRequest(t);
+    // Request is waiting on HENRY (HOD). BELLA (Budget Manager) hasn't approved
+    // yet and isn't the requester, so she's not a participant who may nudge.
+    expect(await asUser(t, BELLA).query(api.requests.canNudge, { requestId: id })).toBe(false);
+    await expect(
+      asUser(t, BELLA).mutation(api.requests.nudge, { requestId: id })
+    ).rejects.toThrow(/requester or an approver/);
+  });
+
   test("canNudge returns false for a completed request", async () => {
     const t = await setup();
     const id = await pendingRequest(t);
