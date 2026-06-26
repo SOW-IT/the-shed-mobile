@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
@@ -101,6 +101,12 @@ export default function EventAttendanceScreen() {
     new Set()
   );
 
+  // Remote animation state: rows changed by another client. We hold them in
+  // their source list with exiting=true while they collapse, and in the
+  // destination list with entering=true while they expand.
+  const [remoteSignedIn, setRemoteSignedIn] = useState<Set<string>>(new Set());
+  const [remoteSignedOut, setRemoteSignedOut] = useState<Set<string>>(new Set());
+
   const [search, setSearch] = useState("");
   const [eventEditOpen, setEventEditOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -148,27 +154,61 @@ export default function EventAttendanceScreen() {
     return map;
   }, [attendance]);
 
-  // Remove optimistic entries once the real query has caught up.
+  // Track previous signedInKeys to detect remote changes.
+  const prevSignedInKeysRef = useRef<Set<string>>(new Set());
+
+  // Sync optimistic + remote animation state whenever signedInKeys changes.
   useEffect(() => {
-    setOptimisticSignedIn((prev) => {
-      if (prev.size === 0) return prev;
-      const next = new Map(prev);
+    const prev = prevSignedInKeysRef.current;
+    const next = signedInKeys;
+
+    // Keys newly signed in this update.
+    const added = [...next].filter((k) => !prev.has(k));
+    // Keys newly signed out this update.
+    const removed = [...prev].filter((k) => !next.has(k));
+
+    // Remove our own optimistic entries that have been confirmed.
+    setOptimisticSignedIn((o) => {
+      if (o.size === 0) return o;
+      const n = new Map(o);
       let changed = false;
-      for (const key of prev.keys()) {
-        if (signedInKeys.has(key)) { next.delete(key); changed = true; }
-      }
-      return changed ? next : prev;
+      for (const key of added) { if (n.has(key)) { n.delete(key); changed = true; } }
+      return changed ? n : o;
     });
-    setOptimisticSignedOut((prev) => {
-      if (prev.size === 0) return prev;
-      const next = new Set(prev);
+    setOptimisticSignedOut((o) => {
+      if (o.size === 0) return o;
+      const n = new Set(o);
       let changed = false;
-      for (const key of prev) {
-        if (!signedInKeys.has(key)) { next.delete(key); changed = true; }
-      }
-      return changed ? next : prev;
+      for (const key of removed) { if (n.has(key)) { n.delete(key); changed = true; } }
+      return changed ? n : o;
     });
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional cleanup
+
+    // Remote sign-ins: appeared in query but we didn't trigger them.
+    setOptimisticSignedIn((ours) => {
+      const genuinelyRemote = added.filter((k) => !ours.has(k));
+      if (genuinelyRemote.length === 0) return ours;
+      setRemoteSignedIn((r) => {
+        const n = new Set(r);
+        for (const k of genuinelyRemote) n.add(k);
+        return n;
+      });
+      return ours;
+    });
+
+    // Remote sign-outs: disappeared from query but we didn't trigger them.
+    setOptimisticSignedOut((ours) => {
+      const genuinelyRemote = removed.filter((k) => !ours.has(k));
+      if (genuinelyRemote.length === 0) return ours;
+      setRemoteSignedOut((r) => {
+        const n = new Set(r);
+        for (const k of genuinelyRemote) n.add(k);
+        return n;
+      });
+      return ours;
+    });
+
+    prevSignedInKeysRef.current = next;
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional sync
   }, [signedInKeys]);
 
   const searchQuery = search.trim().toLowerCase();
@@ -189,40 +229,54 @@ export default function EventAttendanceScreen() {
   }, [roster]);
 
   // Signed-in members display newest-first, as returned by the backend.
-  // Prepend optimistic sign-ins (entering from height 0) so they appear in
-  // the destination list immediately. Do NOT filter out optimistic sign-outs
-  // here — that row must stay mounted in this list until its own collapse
-  // animation completes and the mutation fires.
+  // Prepend optimistic/remote sign-ins (entering from height 0). Also retain
+  // remotely signed-out rows (exiting=true) until their collapse completes.
   const signedInList = useMemo(() => {
+    // Real rows, plus remote sign-outs held for their exit animation.
     const real = attendance ?? [];
-    if (optimisticSignedIn.size === 0) return real;
-    const pending = [...optimisticSignedIn.values()].map((m) => ({
-      _id: `optimistic:${m.key}` as NonNullable<typeof attendance>[number]["_id"],
-      _creationTime: Date.now(),
-      eventId: evId,
-      name: m.name,
-      photo: m.photo ?? null,
-      university: m.university,
-      email: m.email ?? null,
-      memberId: m.memberId ?? null,
-      signInTime: Date.now(),
-      notes: undefined,
-      key: m.key,
-    })) as unknown as NonNullable<typeof attendance>;
-    return [...pending, ...real];
-  }, [attendance, optimisticSignedIn, evId]);
+    const exitingRows = [...remoteSignedOut]
+      .map((key) => attendanceByKey.get(key))
+      .filter((a): a is NonNullable<typeof attendance>[number] => a != null);
+    const withExiting = exitingRows.length > 0 ? [...exitingRows, ...real] : real;
+    // Prepend optimistic + remote sign-ins as entering rows.
+    const enteringKeys = new Set([...optimisticSignedIn.keys(), ...remoteSignedIn]);
+    if (enteringKeys.size === 0) return withExiting;
+    const pending = [...enteringKeys]
+      .map((key) => rosterByKey.get(key))
+      .filter((m): m is NonNullable<typeof roster>[number] => m != null)
+      .map((m) => ({
+        _id: `optimistic:${m.key}` as NonNullable<typeof attendance>[number]["_id"],
+        _creationTime: Date.now(),
+        eventId: evId,
+        name: m.name,
+        photo: m.photo ?? null,
+        university: m.university,
+        email: m.email ?? null,
+        memberId: m.memberId ?? null,
+        signInTime: Date.now(),
+        notes: undefined,
+        key: m.key,
+      })) as unknown as NonNullable<typeof attendance>;
+    return [...pending, ...withExiting];
+  }, [attendance, optimisticSignedIn, remoteSignedIn, remoteSignedOut, attendanceByKey, rosterByKey, evId]);
 
-  // Not-signed-in members. Prepend optimistic sign-outs (entering from height 0)
-  // so they appear in the destination list immediately. Do NOT exclude optimistic
-  // sign-ins here — that row must stay mounted until its collapse and mutation fire.
+  // Not-signed-in members. Prepend optimistic/remote sign-outs as entering rows.
+  // Also retain remotely signed-in rows (exiting=true) until their collapse completes.
   const unsignedList = useMemo(() => {
+    // Real unsigned rows, plus remote sign-ins held for their exit animation.
     const real = (roster ?? []).filter((m) => !signedInKeys.has(m.key));
-    if (optimisticSignedOut.size === 0) return real;
-    const pending = [...optimisticSignedOut]
+    const exitingRows = [...remoteSignedIn]
       .map((key) => rosterByKey.get(key))
       .filter((m): m is NonNullable<typeof roster>[number] => m != null);
-    return [...pending, ...real];
-  }, [roster, signedInKeys, optimisticSignedOut, rosterByKey]);
+    const withExiting = exitingRows.length > 0 ? [...exitingRows, ...real] : real;
+    // Prepend optimistic + remote sign-outs as entering rows.
+    const enteringKeys = new Set([...optimisticSignedOut, ...remoteSignedOut]);
+    if (enteringKeys.size === 0) return withExiting;
+    const pending = [...enteringKeys]
+      .map((key) => rosterByKey.get(key))
+      .filter((m): m is NonNullable<typeof roster>[number] => m != null);
+    return [...pending, ...withExiting];
+  }, [roster, signedInKeys, optimisticSignedOut, remoteSignedIn, remoteSignedOut, rosterByKey]);
 
   const searchResults = useMemo(() => {
     if (!isSearching) return [];
@@ -480,20 +534,24 @@ export default function EventAttendanceScreen() {
           ) : (
             <>
               {visibleUnsigned.map((m, index) => {
-                const isOptimistic = optimisticSignedOut.has(m.key);
+                const isEntering = optimisticSignedOut.has(m.key) || remoteSignedOut.has(m.key);
+                const isExiting = remoteSignedIn.has(m.key);
+                const isAnimating = isEntering || isExiting;
                 return (
-                  <FadeInView key={m.key} delay={isOptimistic ? 0 : Math.min(index, 6) * 35}>
+                  <FadeInView key={m.key} delay={isAnimating ? 0 : Math.min(index, 6) * 35}>
                     <AttendanceRow
                       name={m.name}
                       subtitle={memberSubtitle(m)}
                       photo={m.photo ?? null}
                       university={m.university}
                       mode="suggested"
-                      disabled={!canEdit || isOptimistic}
-                      entering={isOptimistic}
-                      onActionStart={isOptimistic ? undefined : () => onSignInStart(m)}
-                      onAction={() => { if (!isOptimistic) onSignIn(m); }}
-                      onEdit={canEdit && !isOptimistic ? () => editRosterEntry(m) : undefined}
+                      disabled={!canEdit || isAnimating}
+                      entering={isEntering}
+                      exiting={isExiting}
+                      onExited={isExiting ? () => setRemoteSignedIn((s) => { const n = new Set(s); n.delete(m.key); return n; }) : undefined}
+                      onActionStart={isAnimating ? undefined : () => onSignInStart(m)}
+                      onAction={() => { if (!isAnimating) onSignIn(m); }}
+                      onEdit={canEdit && !isAnimating ? () => editRosterEntry(m) : undefined}
                     />
                   </FadeInView>
                 );
@@ -516,20 +574,24 @@ export default function EventAttendanceScreen() {
                 Signed in · {signedInList.length}
               </Text>
               {visibleSignedIn.map((a, index) => {
-                const isOptimistic = (a._id as string).startsWith("optimistic:");
+                const isEntering = (a._id as string).startsWith("optimistic:");
+                const isExiting = remoteSignedOut.has(personKey(a));
+                const isAnimating = isEntering || isExiting;
                 return (
-                  <FadeInView key={a._id} delay={isOptimistic ? 0 : Math.min(index, 6) * 35}>
+                  <FadeInView key={a._id} delay={isAnimating ? 0 : Math.min(index, 6) * 35}>
                     <AttendanceRow
                       name={a.name}
                       subtitle={signedInSubtitle(a.signInTime, a.notes)}
                       photo={a.photo ?? null}
                       university={a.university}
                       mode="signedIn"
-                      disabled={!canEdit || isOptimistic}
-                      entering={isOptimistic}
-                      onActionStart={isOptimistic ? undefined : () => onSignOutStart(a)}
-                      onAction={() => { if (!isOptimistic) onSignOut(a); }}
-                      onEdit={canEdit && !isOptimistic ? () => editSignedIn(a) : undefined}
+                      disabled={!canEdit || isAnimating}
+                      entering={isEntering}
+                      exiting={isExiting}
+                      onExited={isExiting ? () => setRemoteSignedOut((s) => { const n = new Set(s); n.delete(personKey(a)); return n; }) : undefined}
+                      onActionStart={isAnimating ? undefined : () => onSignOutStart(a)}
+                      onAction={() => { if (!isAnimating) onSignOut(a); }}
+                      onEdit={canEdit && !isAnimating ? () => editSignedIn(a) : undefined}
                     />
                   </FadeInView>
                 );

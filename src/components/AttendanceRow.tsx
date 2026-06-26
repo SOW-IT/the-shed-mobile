@@ -69,6 +69,10 @@ export interface AttendanceRowProps {
   highlightSignedIn?: boolean;
   /** When true, row enters from height 0 → 72 on mount (for optimistic list insertion). */
   entering?: boolean;
+  /** When set to true after mount, collapses the row and calls onExited when done. */
+  exiting?: boolean;
+  /** Called after the exit collapse animation completes. */
+  onExited?: () => void;
 }
 
 function AttendanceRowBase({
@@ -83,6 +87,8 @@ function AttendanceRowBase({
   onEdit,
   highlightSignedIn = false,
   entering = false,
+  exiting = false,
+  onExited,
 }: AttendanceRowProps) {
   const t = useAppTheme();
   const { width: screenWidth } = useWindowDimensions();
@@ -110,6 +116,15 @@ function AttendanceRowBase({
     opacity.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.cubic) });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally runs once on mount
   }, []);
+
+  useEffect(() => {
+    if (!exiting) return;
+    opacity.value = withTiming(0, { duration: 180 });
+    itemHeight.value = withTiming(0, { duration: 200 }, (done) => {
+      if (done && onExited) runOnJS(onExited)();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when exiting flips true
+  }, [exiting]);
 
   const setSnapClosed = useCallback(() => setSnapVisual("closed"), []);
   const setSnapPrimary = useCallback(() => setSnapVisual("primary"), []);

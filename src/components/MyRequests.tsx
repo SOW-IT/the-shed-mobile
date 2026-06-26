@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import * as DocumentPicker from "expo-document-picker";
 import { useEffect, useState } from "react";
@@ -658,15 +658,23 @@ const NudgeButton = ({
   const t = useAppTheme();
   const able = useQuery(api.requests.canNudge, { requestId: request._id });
   return (
-    <IconButton
-      name="finger-print"
-      size={40}
+    <Pressable
+      accessibilityRole="button"
       accessibilityLabel={able ? "Nudge approver" : "Already nudged today"}
-      color={able ? t.primary : t.faint}
-      bg={able ? t.primarySoft : undefined}
       disabled={!able}
       onPress={() => onNudge(request)}
-    />
+      style={({ pressed }) => [
+        nudgeButtonStyle,
+        able ? { backgroundColor: t.primarySoft } : undefined,
+        pressed && able ? { opacity: 0.7 } : undefined,
+      ]}
+    >
+      <MaterialCommunityIcons
+        name="hand-pointing-up"
+        size={22}
+        color={able ? t.primary : t.faint}
+      />
+    </Pressable>
   );
 };
 
@@ -709,6 +717,7 @@ export const MyRequests = ({
     title: string;
     message: string;
     confirmLabel: string;
+    destructive?: boolean;
     onConfirm: () => void;
   } | null>(null);
 
@@ -836,6 +845,7 @@ export const MyRequests = ({
                           title: "Send a nudge?",
                           message: `This will send a reminder to whoever needs to action your $${r.amount} request ("${r.description}"). You can only nudge once per day.`,
                           confirmLabel: "Send Nudge",
+                          destructive: false,
                           onConfirm: () => void handleNudge(r._id),
                         })
                       }
@@ -860,11 +870,20 @@ export const MyRequests = ({
         title={confirm?.title ?? ""}
         message={confirm?.message}
         confirmLabel={confirm?.confirmLabel}
+        destructive={confirm?.destructive ?? true}
         onConfirm={() => confirm?.onConfirm()}
         onClose={() => setConfirm(null)}
       />
     </>
   );
+};
+
+const nudgeButtonStyle = {
+  width: 40,
+  height: 40,
+  borderRadius: 20,
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
 };
 
 const styles = StyleSheet.create({
