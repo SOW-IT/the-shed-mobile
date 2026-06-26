@@ -557,6 +557,7 @@ export default function EventAttendanceScreen() {
                 Signed in · {signedInList.length}
               </Text>
               {visibleSignedIn.map((a, index) => {
+                const staggerIndex = visibleUnsigned.length + index;
                 const isEntering = (a._id as string).startsWith("optimistic:");
                 const isExiting = remoteSignedOut.has(personKey(a));
                 const isAnimating = isEntering || isExiting;
@@ -579,7 +580,7 @@ export default function EventAttendanceScreen() {
                 return isAnimating ? (
                   <View key={a._id}>{row}</View>
                 ) : (
-                  <FadeInView key={a._id} delay={Math.min(index, 6) * 35}>{row}</FadeInView>
+                  <FadeInView key={a._id} delay={Math.min(staggerIndex, 12) * 35}>{row}</FadeInView>
                 );
               })}
               {visibleSignedIn.length < signedInList.length ? (
