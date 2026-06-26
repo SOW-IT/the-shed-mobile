@@ -59,6 +59,40 @@ export const subgroupColour = (subgroup: string): string =>
     ? UNIVERSITY_COLOURS.SOW
     : (universityColour(subgroup) ?? "#64748b");
 
+/**
+ * A campus's recurring weekly-meeting slot, used to pre-fill the schedule when
+ * an event is tagged "Weekly Meeting" (mirrors the time-to-rollcall defaults).
+ */
+export type WeeklyMeetingSlot = {
+  /** 0=Sun … 6=Sat. */
+  weekday: number;
+  startHour: number;
+  endHour: number;
+};
+
+/** The tag name that triggers the weekly-meeting schedule pre-fill. */
+export const WEEKLY_MEETING_TAG_NAME = "Weekly Meeting";
+
+// Keyed by campus acronym (see DISPLAY_ACRONYMS): Macquarie meets Wed 4–6pm,
+// UNSW Wed 5–7pm, UTS and USyd Tue 5–7pm.
+const WEEKLY_MEETING_SLOTS: Record<string, WeeklyMeetingSlot> = {
+  MACQ: { weekday: 3, startHour: 16, endHour: 18 },
+  UNSW: { weekday: 3, startHour: 17, endHour: 19 },
+  UTS: { weekday: 2, startHour: 17, endHour: 19 },
+  USYD: { weekday: 2, startHour: 17, endHour: 19 },
+};
+
+/** The weekly-meeting slot for a sub-group, or null when it has none. */
+export const weeklyMeetingSlot = (subgroup: string): WeeklyMeetingSlot | null =>
+  WEEKLY_MEETING_SLOTS[subgroupLabel(subgroup)] ?? null;
+
+/** The next date (today or later) that falls on `weekday`, at local midnight. */
+export const nextDateForWeekday = (weekday: number, from = new Date()): Date => {
+  const d = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  d.setDate(d.getDate() + ((weekday - d.getDay() + 7) % 7));
+  return d;
+};
+
 /** Text colour that reads on a solid campus brand background. */
 export const contrastingText = (hex: string): string => {
   const r = parseInt(hex.slice(1, 3), 16);
