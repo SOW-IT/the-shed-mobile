@@ -656,7 +656,19 @@ const NudgeButton = ({
   onNudge: (request: Doc<"requests">) => void;
 }) => {
   const t = useAppTheme();
-  const able = useQuery(api.requests.canNudge, { requestId: request._id });
+  // `canNudge` returns the timestamp from which a nudge is allowed (0 = now),
+  // or null when never eligible. Derive `able` with a timer so the button
+  // re-enables when the 24h cooldown lapses (the query won't re-run on time).
+  const nudgeableAt = useQuery(api.requests.canNudge, { requestId: request._id });
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (nudgeableAt == null) return;
+    const remaining = nudgeableAt - Date.now();
+    if (remaining <= 0) return;
+    const id = setTimeout(() => setNow(Date.now()), remaining);
+    return () => clearTimeout(id);
+  }, [nudgeableAt]);
+  const able = nudgeableAt != null && now >= nudgeableAt;
   return (
     <Pressable
       accessibilityRole="button"

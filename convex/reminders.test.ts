@@ -17,6 +17,17 @@ const FIONA = "fiona@sow.org.au"; // Finance head
 const asUser = (t: TestConvex<typeof schema>, email: string) =>
   t.withIdentity({ email, subject: email, issuer: "test" });
 
+/** canNudge now returns the next-allowed timestamp (0 = now) or null; this
+ *  collapses it back to "can the user nudge right now?". */
+const canNudgeNow = async (
+  t: TestConvex<typeof schema>,
+  email: string,
+  requestId: Awaited<ReturnType<typeof pendingRequest>>
+) => {
+  const at = await asUser(t, email).query(api.requests.canNudge, { requestId });
+  return at !== null && at <= Date.now();
+};
+
 const storedReceipt = async (t: TestConvex<typeof schema>) => ({
   storageId: await t.run((ctx) =>
     ctx.storage.store(new Blob(["receipt"], { type: "application/pdf" }))
@@ -202,11 +213,11 @@ describe("nudge", () => {
     const t = await setup();
     const id = await pendingRequest(t);
 
-    expect(await asUser(t, RACHEL).query(api.requests.canNudge, { requestId: id })).toBe(true);
+    expect(await canNudgeNow(t, RACHEL, id)).toBe(true);
 
     await asUser(t, RACHEL).mutation(api.requests.nudge, { requestId: id });
 
-    expect(await asUser(t, RACHEL).query(api.requests.canNudge, { requestId: id })).toBe(false);
+    expect(await canNudgeNow(t, RACHEL, id)).toBe(false);
   });
 
   test("different users can each nudge independently within the same day", async () => {
@@ -282,7 +293,7 @@ describe("nudge", () => {
     const id = await pendingRequest(t);
     // Request is waiting on HENRY (HOD). BELLA (Budget Manager) hasn't approved
     // yet and isn't the requester, so she's not a participant who may nudge.
-    expect(await asUser(t, BELLA).query(api.requests.canNudge, { requestId: id })).toBe(false);
+    expect(await asUser(t, BELLA).query(api.requests.canNudge, { requestId: id })).toBeNull();
     await expect(
       asUser(t, BELLA).mutation(api.requests.nudge, { requestId: id })
     ).rejects.toThrow(/requester or an approver/);
@@ -294,6 +305,6 @@ describe("nudge", () => {
     await approveRequest(t, id);
     await completeRequest(t, id);
 
-    expect(await asUser(t, RACHEL).query(api.requests.canNudge, { requestId: id })).toBe(false);
+    expect(await canNudgeNow(t, RACHEL, id)).toBe(false);
   });
 });

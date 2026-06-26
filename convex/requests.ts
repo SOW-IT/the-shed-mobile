@@ -1020,21 +1020,27 @@ async function nudgeParticipantEmails(
 }
 
 /**
- * Whether the signed-in user can nudge this request right now. Mirrors the
- * `nudge` mutation's eligibility: the caller must be a participant (requester
- * or an approver who has approved), the request must be waiting on someone
- * else, and they must not have nudged within the last 24 hours.
+ * When the signed-in user may next nudge this request. Mirrors the `nudge`
+ * mutation's eligibility: the caller must be a participant (requester or an
+ * approver who has approved) and the request must be waiting on someone else.
+ *
+ * Returns the timestamp from which a nudge is allowed (0 = right now), or null
+ * if the caller is never eligible for this request. The client derives the
+ * disabled state from this value with a timer, so the button re-enables when
+ * the cooldown lapses — a subscribed query alone wouldn't re-run on time
+ * passing, hence no `Date.now()` here. The mutation stays the source of truth.
  */
 export const canNudge = query({
   args: { requestId: v.id("requests") },
+  returns: v.union(v.number(), v.null()),
   handler: async (ctx, args) => {
     const caller = await optionalProfile(ctx);
-    if (!caller) return false;
+    if (!caller) return null;
     const request = await ctx.db.get("requests", args.requestId);
-    if (!request || requestCompleted(request)) return false;
-    if (!(await nudgeParticipantEmails(ctx, request)).has(caller.email)) return false;
+    if (!request || requestCompleted(request)) return null;
+    if (!(await nudgeParticipantEmails(ctx, request)).has(caller.email)) return null;
     const to = await actionOwnerEmail(ctx, request);
-    if (!to || to === caller.email) return false;
+    if (!to || to === caller.email) return null;
     const recent = await ctx.db
       .query("requestNudges")
       .withIndex("by_nudger_and_request", (q) =>
@@ -1042,8 +1048,7 @@ export const canNudge = query({
       )
       .order("desc")
       .first();
-    if (!recent) return true;
-    return Date.now() - recent.sentAt >= NUDGE_COOLDOWN_MS;
+    return recent ? recent.sentAt + NUDGE_COOLDOWN_MS : 0;
   },
 });
 
