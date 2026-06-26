@@ -644,6 +644,32 @@ const ReceiptSheet = ({
   );
 };
 
+/**
+ * Finger-tap nudge button for a single request. Owns its own `canNudge` query
+ * so hook rules are satisfied inside a list render.
+ */
+const NudgeButton = ({
+  request,
+  onNudge,
+}: {
+  request: Doc<"requests">;
+  onNudge: (request: Doc<"requests">) => void;
+}) => {
+  const t = useAppTheme();
+  const able = useQuery(api.requests.canNudge, { requestId: request._id });
+  return (
+    <IconButton
+      name="finger-print"
+      size={40}
+      accessibilityLabel={able ? "Nudge approver" : "Already nudged today"}
+      color={able ? t.primary : t.faint}
+      bg={able ? t.primarySoft : undefined}
+      disabled={!able}
+      onPress={() => onNudge(request)}
+    />
+  );
+};
+
 /** The signed-in user's own requests: list, new-request and receipt forms. */
 export const MyRequests = ({
   departments,
@@ -675,9 +701,10 @@ export const MyRequests = ({
   );
   const cancel = useMutation(api.requests.cancel);
   const deleteDeclined = useMutation(api.requests.deleteDeclined);
+  const sendNudge = useMutation(api.requests.nudge);
   const [receiptFor, setReceiptFor] = useState<Doc<"requests"> | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Drives the in-app confirmation for cancelling or deleting a request.
+  // Drives the in-app confirmation for cancelling, deleting, or nudging a request.
   const [confirm, setConfirm] = useState<{
     title: string;
     message: string;
@@ -711,6 +738,15 @@ export const MyRequests = ({
     }
   };
 
+  const handleNudge = async (requestId: Id<"requests">) => {
+    setError(null);
+    try {
+      await sendNudge({ requestId });
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
   return (
     <>
       <ErrorBanner message={error} />
@@ -739,6 +775,13 @@ export const MyRequests = ({
           .map((request, index) => {
             const needsReceipt =
               !readOnly && requestFullyApproved(request) && !request.receipt;
+            // Nudge is available when the request is in-flight (waiting on
+            // an approver or on payment) and the requester can't act right now.
+            const canNudgeRequest =
+              !readOnly &&
+              !requestCompleted(request) &&
+              !requestDeclined(request) &&
+              !needsReceipt;
             return (
               <FadeInView key={request._id} delay={stagger(index)}>
                 <RequestCard
@@ -783,6 +826,19 @@ export const MyRequests = ({
                       color={t.primary}
                       accessibilityLabel="Resubmit request"
                       onPress={() => resubmit(request)}
+                    />
+                  )}
+                  {canNudgeRequest && (
+                    <NudgeButton
+                      request={request}
+                      onNudge={(r) =>
+                        setConfirm({
+                          title: "Send a nudge?",
+                          message: `This will send a reminder to whoever needs to action your $${r.amount} request ("${r.description}"). You can only nudge once per day.`,
+                          confirmLabel: "Send Nudge",
+                          onConfirm: () => void handleNudge(r._id),
+                        })
+                      }
                     />
                   )}
                 </RequestCard>

@@ -226,6 +226,8 @@ export default defineSchema({
     declinedTime: v.optional(v.number()),
     // When the last stale-request reminder went out (cooldown marker).
     lastReminderAt: v.optional(v.number()),
+    // How many automated stale-request reminders have been sent (1=1d, 2=3d, 3+=weekly).
+    reminderCount: v.optional(v.number()),
 
     receipt: v.optional(
       v.object({
@@ -283,6 +285,16 @@ export default defineSchema({
     // The caller's unread notifications for one request, for contextual
     // mark-as-read (the `read` suffix lets us query only the unread rows).
     .index("by_user_and_request_and_read", ["userEmail", "requestId", "read"]),
+
+  // Manual nudges sent by people waiting on a request (requester or anyone in
+  // the approval chain). Rate-limited: one nudge per user per request per day.
+  requestNudges: defineTable({
+    requestId: v.id("requests"),
+    nudgerEmail: v.string(), // who sent the nudge, lowercase
+    sentAt: v.number(), // ms timestamp
+  })
+    .index("by_request", ["requestId"])
+    .index("by_nudger_and_request", ["nudgerEmail", "requestId"]),
 
   // ───────────────────────────── Roll-call ─────────────────────────────
   // A lightweight attendance feature ported from time-to-rollcall. SOW is the
