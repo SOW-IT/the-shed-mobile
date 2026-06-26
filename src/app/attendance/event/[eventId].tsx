@@ -232,14 +232,15 @@ export default function EventAttendanceScreen() {
   // Prepend optimistic/remote sign-ins (entering from height 0). Also retain
   // remotely signed-out rows (exiting=true) until their collapse completes.
   const signedInList = useMemo(() => {
-    // Real rows, plus remote sign-outs held for their exit animation.
-    const real = attendance ?? [];
+    // Entering keys — shown as synthetic rows; suppress their real counterpart
+    // to avoid duplicate keys in the render until the cleanup effect fires.
+    const enteringKeys = new Set([...optimisticSignedIn.keys(), ...remoteSignedIn]);
+    const real = (attendance ?? []).filter((a) => !enteringKeys.has(personKey(a)));
+    // Exiting rows: retain in list for their collapse animation.
     const exitingRows = [...remoteSignedOut]
       .map((key) => attendanceByKey.get(key))
       .filter((a): a is NonNullable<typeof attendance>[number] => a != null);
     const withExiting = exitingRows.length > 0 ? [...exitingRows, ...real] : real;
-    // Prepend optimistic + remote sign-ins as entering rows.
-    const enteringKeys = new Set([...optimisticSignedIn.keys(), ...remoteSignedIn]);
     if (enteringKeys.size === 0) return withExiting;
     const pending = [...enteringKeys]
       .map((key) => rosterByKey.get(key))
@@ -263,14 +264,17 @@ export default function EventAttendanceScreen() {
   // Not-signed-in members. Prepend optimistic/remote sign-outs as entering rows.
   // Also retain remotely signed-in rows (exiting=true) until their collapse completes.
   const unsignedList = useMemo(() => {
-    // Real unsigned rows, plus remote sign-ins held for their exit animation.
-    const real = (roster ?? []).filter((m) => !signedInKeys.has(m.key));
+    // Entering keys — shown as dedicated rows; suppress their real counterpart
+    // to avoid duplicate keys until the cleanup effect fires.
+    const enteringKeys = new Set([...optimisticSignedOut, ...remoteSignedOut]);
+    const real = (roster ?? []).filter(
+      (m) => !signedInKeys.has(m.key) && !enteringKeys.has(m.key)
+    );
+    // Exiting rows: retain in list for their collapse animation.
     const exitingRows = [...remoteSignedIn]
       .map((key) => rosterByKey.get(key))
       .filter((m): m is NonNullable<typeof roster>[number] => m != null);
     const withExiting = exitingRows.length > 0 ? [...exitingRows, ...real] : real;
-    // Prepend optimistic + remote sign-outs as entering rows.
-    const enteringKeys = new Set([...optimisticSignedOut, ...remoteSignedOut]);
     if (enteringKeys.size === 0) return withExiting;
     const pending = [...enteringKeys]
       .map((key) => rosterByKey.get(key))
