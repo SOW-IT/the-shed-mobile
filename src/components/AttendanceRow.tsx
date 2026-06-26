@@ -112,6 +112,7 @@ function AttendanceRowBase({
   const startX = useSharedValue(0);
   const itemHeight = useSharedValue(entering ? 0 : 72);
   const opacity = useSharedValue(entering ? 0 : 1);
+  const marginBottomValue = useSharedValue(entering ? 0 : spacing.sm);
   const editSnapped = useSharedValue(false);
   const primarySnapped = useSharedValue(false);
   const [snapVisual, setSnapVisual] = useState<SnapVisual>("closed");
@@ -119,6 +120,7 @@ function AttendanceRowBase({
   useEffect(() => {
     if (!entering) return;
     itemHeight.value = withTiming(72, { duration: 200, easing: Easing.out(Easing.cubic) });
+    marginBottomValue.value = withTiming(spacing.sm, { duration: 200, easing: Easing.out(Easing.cubic) });
     opacity.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.cubic) });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally runs once on mount
   }, []);
@@ -129,6 +131,7 @@ function AttendanceRowBase({
     itemHeight.value = withTiming(0, { duration: 200 }, (done) => {
       if (done && onExited) runOnJS(onExited)();
     });
+    marginBottomValue.value = withTiming(0, { duration: 200 });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when exiting flips true
   }, [exiting]);
 
@@ -151,6 +154,7 @@ function AttendanceRowBase({
     if (onActionStart) runOnJS(onActionStart)();
     translateX.value = withTiming(-rowWidth, { duration: 180 });
     opacity.value = withTiming(0, { duration: 180 });
+    marginBottomValue.value = withTiming(0, { duration: 200 });
     itemHeight.value = withTiming(0, { duration: 200 }, (done) => {
       if (done) runOnJS(onAction)();
     });
@@ -254,6 +258,7 @@ function AttendanceRowBase({
 
   const containerStyle = useAnimatedStyle(() => ({
     height: itemHeight.value,
+    marginBottom: marginBottomValue.value,
   }));
 
   const primaryLayerStyle = useAnimatedStyle(() => {
@@ -370,7 +375,6 @@ export const AttendanceRow = memo(AttendanceRowBase);
 const styles = StyleSheet.create({
   container: {
     justifyContent: "center",
-    marginBottom: spacing.sm,
   },
   disabled: {
     opacity: 0.55,
