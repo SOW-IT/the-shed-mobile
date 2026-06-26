@@ -91,6 +91,16 @@ export default function EventAttendanceScreen() {
   );
   const subgroups = useQuery(api.events.subgroups);
 
+  // Optimistic state: track sign-ins/outs that have been swiped but not yet
+  // confirmed by the Convex query. This keeps total list height constant during
+  // the swipe animation.
+  const [optimisticSignedIn, setOptimisticSignedIn] = useState<
+    Map<string, NonNullable<typeof roster>[number]>
+  >(new Map());
+  const [optimisticSignedOut, setOptimisticSignedOut] = useState<Set<string>>(
+    new Set()
+  );
+
   const [search, setSearch] = useState("");
   const [eventEditOpen, setEventEditOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -138,6 +148,29 @@ export default function EventAttendanceScreen() {
     return map;
   }, [attendance]);
 
+  // Remove optimistic entries once the real query has caught up.
+  useEffect(() => {
+    setOptimisticSignedIn((prev) => {
+      if (prev.size === 0) return prev;
+      const next = new Map(prev);
+      let changed = false;
+      for (const key of prev.keys()) {
+        if (signedInKeys.has(key)) { next.delete(key); changed = true; }
+      }
+      return changed ? next : prev;
+    });
+    setOptimisticSignedOut((prev) => {
+      if (prev.size === 0) return prev;
+      const next = new Set(prev);
+      let changed = false;
+      for (const key of prev) {
+        if (!signedInKeys.has(key)) { next.delete(key); changed = true; }
+      }
+      return changed ? next : prev;
+    });
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional cleanup
+  }, [signedInKeys]);
+
   const searchQuery = search.trim().toLowerCase();
   const isSearching = searchQuery.length > 0;
 
@@ -149,11 +182,47 @@ export default function EventAttendanceScreen() {
   }, [search, signedInKeys]);
 
   // Signed-in members display newest-first, as returned by the backend.
-  const signedInList = useMemo(() => attendance ?? [], [attendance]);
+  const rosterByKey = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof roster>[number]>();
+    for (const m of roster ?? []) map.set(m.key, m);
+    return map;
+  }, [roster]);
 
+  // Signed-in members display newest-first, as returned by the backend.
+  // Prepend optimistic sign-ins (entering from height 0) so they appear in
+  // the destination list immediately. Do NOT filter out optimistic sign-outs
+  // here — that row must stay mounted in this list until its own collapse
+  // animation completes and the mutation fires.
+  const signedInList = useMemo(() => {
+    const real = attendance ?? [];
+    if (optimisticSignedIn.size === 0) return real;
+    const pending = [...optimisticSignedIn.values()].map((m) => ({
+      _id: `optimistic:${m.key}` as NonNullable<typeof attendance>[number]["_id"],
+      _creationTime: Date.now(),
+      eventId: evId,
+      name: m.name,
+      photo: m.photo ?? null,
+      university: m.university,
+      email: m.email ?? null,
+      memberId: m.memberId ?? null,
+      signInTime: Date.now(),
+      notes: undefined,
+      key: m.key,
+    })) as unknown as NonNullable<typeof attendance>;
+    return [...pending, ...real];
+  }, [attendance, optimisticSignedIn, evId]);
+
+  // Not-signed-in members. Prepend optimistic sign-outs (entering from height 0)
+  // so they appear in the destination list immediately. Do NOT exclude optimistic
+  // sign-ins here — that row must stay mounted until its collapse and mutation fire.
   const unsignedList = useMemo(() => {
-    return (roster ?? []).filter((m) => !signedInKeys.has(m.key));
-  }, [roster, signedInKeys]);
+    const real = (roster ?? []).filter((m) => !signedInKeys.has(m.key));
+    if (optimisticSignedOut.size === 0) return real;
+    const pending = [...optimisticSignedOut]
+      .map((key) => rosterByKey.get(key))
+      .filter((m): m is NonNullable<typeof roster>[number] => m != null);
+    return [...pending, ...real];
+  }, [roster, signedInKeys, optimisticSignedOut, rosterByKey]);
 
   const searchResults = useMemo(() => {
     if (!isSearching) return [];
@@ -180,6 +249,9 @@ export default function EventAttendanceScreen() {
   }
   if (roster === undefined) return <LoadingState />;
 
+  const onSignInStart = (m: NonNullable<typeof roster>[number]) => {
+    setOptimisticSignedIn((prev) => new Map(prev).set(m.key, m));
+  };
   const onSignIn = (m: NonNullable<typeof roster>[number]) => {
     if (!canEdit) return;
     hapticSelect();
@@ -188,6 +260,10 @@ export default function EventAttendanceScreen() {
     } else if (m.memberId) {
       void signIn({ eventId: evId, memberId: m.memberId as Id<"attendanceMembers"> });
     }
+  };
+  const onSignOutStart = (a: NonNullable<typeof attendance>[number]) => {
+    const key = personKey(a);
+    if (key) setOptimisticSignedOut((prev) => new Set(prev).add(key));
   };
   const onSignOut = (a: NonNullable<typeof attendance>[number]) => {
     if (!canEdit) return;
@@ -403,20 +479,25 @@ export default function EventAttendanceScreen() {
             <Muted>Everyone in the pool is signed in 🎉</Muted>
           ) : (
             <>
-              {visibleUnsigned.map((m, index) => (
-                <FadeInView key={m.key} delay={Math.min(index, 6) * 35}>
-                  <AttendanceRow
-                    name={m.name}
-                    subtitle={memberSubtitle(m)}
-                    photo={m.photo ?? null}
-                    university={m.university}
-                    mode="suggested"
-                    disabled={!canEdit}
-                    onAction={() => onSignIn(m)}
-                    onEdit={canEdit ? () => editRosterEntry(m) : undefined}
-                  />
-                </FadeInView>
-              ))}
+              {visibleUnsigned.map((m, index) => {
+                const isOptimistic = optimisticSignedOut.has(m.key);
+                return (
+                  <FadeInView key={m.key} delay={isOptimistic ? 0 : Math.min(index, 6) * 35}>
+                    <AttendanceRow
+                      name={m.name}
+                      subtitle={memberSubtitle(m)}
+                      photo={m.photo ?? null}
+                      university={m.university}
+                      mode="suggested"
+                      disabled={!canEdit || isOptimistic}
+                      entering={isOptimistic}
+                      onActionStart={isOptimistic ? undefined : () => onSignInStart(m)}
+                      onAction={() => { if (!isOptimistic) onSignIn(m); }}
+                      onEdit={canEdit && !isOptimistic ? () => editRosterEntry(m) : undefined}
+                    />
+                  </FadeInView>
+                );
+              })}
               {visibleUnsigned.length < unsignedList.length ? (
                 <Btn
                   title={`Load more (${unsignedList.length - visibleUnsigned.length} left)`}
@@ -434,20 +515,25 @@ export default function EventAttendanceScreen() {
               <Text style={[typography.label, styles.section, { color: t.muted }]}>
                 Signed in · {signedInList.length}
               </Text>
-              {visibleSignedIn.map((a, index) => (
-                <FadeInView key={a._id} delay={Math.min(index, 6) * 35}>
-                  <AttendanceRow
-                    name={a.name}
-                    subtitle={signedInSubtitle(a.signInTime, a.notes)}
-                    photo={a.photo ?? null}
-                    university={a.university}
-                    mode="signedIn"
-                    disabled={!canEdit}
-                    onAction={() => onSignOut(a)}
-                    onEdit={canEdit ? () => editSignedIn(a) : undefined}
-                  />
-                </FadeInView>
-              ))}
+              {visibleSignedIn.map((a, index) => {
+                const isOptimistic = (a._id as string).startsWith("optimistic:");
+                return (
+                  <FadeInView key={a._id} delay={isOptimistic ? 0 : Math.min(index, 6) * 35}>
+                    <AttendanceRow
+                      name={a.name}
+                      subtitle={signedInSubtitle(a.signInTime, a.notes)}
+                      photo={a.photo ?? null}
+                      university={a.university}
+                      mode="signedIn"
+                      disabled={!canEdit || isOptimistic}
+                      entering={isOptimistic}
+                      onActionStart={isOptimistic ? undefined : () => onSignOutStart(a)}
+                      onAction={() => { if (!isOptimistic) onSignOut(a); }}
+                      onEdit={canEdit && !isOptimistic ? () => editSignedIn(a) : undefined}
+                    />
+                  </FadeInView>
+                );
+              })}
               {visibleSignedIn.length < signedInList.length ? (
                 <Btn
                   title={`Load more (${signedInList.length - visibleSignedIn.length} left)`}

@@ -1,7 +1,7 @@
 import { Avatar } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { universityColour } from "../../shared/flow";
 import { contrastingText, subgroupLabel } from "../../shared/rollcall";
@@ -61,10 +61,14 @@ export interface AttendanceRowProps {
   disabled?: boolean;
   /** Sign in / sign out — fired after a left swipe (or tap). */
   onAction: () => void;
+  /** Fired the moment a left swipe commits (before the collapse animation completes). */
+  onActionStart?: () => void;
   /** Member edit — fired after a right swipe past the commit distance. Row stays in the list. */
   onEdit?: () => void;
   /** Blue-tinted card background (e.g. signed-in member visible while searching). */
   highlightSignedIn?: boolean;
+  /** When true, row enters from height 0 → 72 on mount (for optimistic list insertion). */
+  entering?: boolean;
 }
 
 function AttendanceRowBase({
@@ -75,8 +79,10 @@ function AttendanceRowBase({
   mode,
   disabled = false,
   onAction,
+  onActionStart,
   onEdit,
   highlightSignedIn = false,
+  entering = false,
 }: AttendanceRowProps) {
   const t = useAppTheme();
   const { width: screenWidth } = useWindowDimensions();
@@ -92,11 +98,18 @@ function AttendanceRowBase({
 
   const translateX = useSharedValue(0);
   const startX = useSharedValue(0);
-  const itemHeight = useSharedValue(72);
-  const opacity = useSharedValue(1);
+  const itemHeight = useSharedValue(entering ? 0 : 72);
+  const opacity = useSharedValue(entering ? 0 : 1);
   const editSnapped = useSharedValue(false);
   const primarySnapped = useSharedValue(false);
   const [snapVisual, setSnapVisual] = useState<SnapVisual>("closed");
+
+  useEffect(() => {
+    if (!entering) return;
+    itemHeight.value = withTiming(72, { duration: 200, easing: Easing.out(Easing.cubic) });
+    opacity.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.cubic) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally runs once on mount
+  }, []);
 
   const setSnapClosed = useCallback(() => setSnapVisual("closed"), []);
   const setSnapPrimary = useCallback(() => setSnapVisual("primary"), []);
@@ -107,6 +120,7 @@ function AttendanceRowBase({
     editSnapped.value = false;
     primarySnapped.value = false;
     runOnJS(setSnapClosed)();
+    if (onActionStart) runOnJS(onActionStart)();
     translateX.value = withTiming(-rowWidth, { duration: 180 });
     opacity.value = withTiming(0, { duration: 180 });
     itemHeight.value = withTiming(0, { duration: 200 }, (done) => {
