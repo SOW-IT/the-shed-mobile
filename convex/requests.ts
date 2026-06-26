@@ -106,15 +106,23 @@ export const notify = async (
      * `/request/<id>` url, so most callers needn't pass it.
      */
     requestId?: Id<"requests">;
+    /**
+     * Whether to also send an email. Defaults to true. Set false for high-fanout
+     * pushes (e.g. notifying every campus staffer of a new event) where an email
+     * blast would be spam — those get the push + in-app feed entry only.
+     */
+    email?: boolean;
   }
 ) => {
-  const { to, actor, subject, pushTitle, body, url, requestId } = opts;
+  const { to, actor, subject, pushTitle, body, url, requestId, email = true } = opts;
   if (!to) return;
-  await ctx.scheduler.runAfter(0, internal.emails.send, {
-    to,
-    subject,
-    body: `${body}\n\nOpen in THE SHED: ${appUrl(url)}`,
-  });
+  if (email) {
+    await ctx.scheduler.runAfter(0, internal.emails.send, {
+      to,
+      subject,
+      body: `${body}\n\nOpen in THE SHED: ${appUrl(url)}`,
+    });
+  }
   // Don't buzz people for something they just did themselves; the email is
   // their receipt.
   if (actor && to === actor) return;
@@ -1020,19 +1028,22 @@ async function nudgeParticipantEmails(
 }
 
 /**
- * When the signed-in user may next nudge this request. Mirrors the `nudge`
- * mutation's eligibility: the caller must be a participant (requester or an
- * approver who has approved) and the request must be waiting on someone else.
+ * Whether the signed-in user may nudge this request, and the cooldown state.
+ * Mirrors the `nudge` mutation's eligibility: the caller must be a participant
+ * (requester or an approver who has approved) and the request must be waiting
+ * on someone else.
  *
- * Returns the timestamp from which a nudge is allowed (0 = right now), or null
- * if the caller is never eligible for this request. The client derives the
- * disabled state from this value with a timer, so the button re-enables when
- * the cooldown lapses — a subscribed query alone wouldn't re-run on time
- * passing, hence no `Date.now()` here. The mutation stays the source of truth.
+ * Returns null when the caller is never eligible (the button is hidden). When
+ * eligible, returns a server-derived `{ onCooldown, remainingMs }` so the UI
+ * shows the cooldown without trusting the device clock; the mutation stays the
+ * authoritative gate.
  */
 export const canNudge = query({
   args: { requestId: v.id("requests") },
-  returns: v.union(v.number(), v.null()),
+  returns: v.union(
+    v.object({ onCooldown: v.boolean(), remainingMs: v.number() }),
+    v.null()
+  ),
   handler: async (ctx, args) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
@@ -1048,7 +1059,10 @@ export const canNudge = query({
       )
       .order("desc")
       .first();
-    return recent ? recent.sentAt + NUDGE_COOLDOWN_MS : 0;
+    const remainingMs = recent
+      ? Math.max(0, recent.sentAt + NUDGE_COOLDOWN_MS - Date.now())
+      : 0;
+    return { onCooldown: remainingMs > 0, remainingMs };
   },
 });
 

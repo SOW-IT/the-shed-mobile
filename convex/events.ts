@@ -1,9 +1,27 @@
 import { ConvexError, v } from "convex/values";
-import { eventStaffYear, staffYearForDate } from "../shared/flow";
-import { eventIncludesSubgroup, normalizeSubgroups, SOW_SUBGROUP } from "../shared/rollcall";
+import {
+  assignmentsOf,
+  eventStaffYear,
+  roleNeedsUniversity,
+  staffYearForDate,
+} from "../shared/flow";
+import {
+  eventIncludesSubgroup,
+  normalizeSubgroups,
+  SOW_SUBGROUP,
+  subgroupLabel,
+} from "../shared/rollcall";
+import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import { MutationCtx, QueryCtx, mutation, query } from "./_generated/server";
+import {
+  MutationCtx,
+  QueryCtx,
+  internalMutation,
+  mutation,
+  query,
+} from "./_generated/server";
 import { optionalProfile, requireProfile } from "./model";
+import { notify } from "./requests";
 import { logAttendanceAction } from "./attendanceAudit";
 
 const EVENTS_PAGE_SIZE = 20;
@@ -149,6 +167,66 @@ export const get = query({
 });
 
 /**
+ * Push + in-app notify the staff in an event's group(s) that it was created.
+ * A campus sub-group notifies staff whose assignment includes that campus; the
+ * org-wide "SOW" sub-group notifies every staff member of the event's year.
+ * No email — a fan-out blast would be spam — and never the creator themselves.
+ */
+async function notifyStaffOfNewEvent(
+  ctx: MutationCtx,
+  event: { _id: Id<"events">; name: string; dateStart: number; subgroups: string[] },
+  actorEmail: string
+) {
+  const year = eventStaffYear(event.dateStart);
+  const subgroupSet = new Set(event.subgroups);
+  const orgWide = subgroupSet.has(SOW_SUBGROUP);
+  const profiles = await ctx.db
+    .query("staffProfiles")
+    .withIndex("by_year", (q) => q.eq("year", year))
+    .collect();
+  const actor = actorEmail.toLowerCase();
+  const recipients = new Set<string>();
+  for (const p of profiles) {
+    const email = p.email.toLowerCase();
+    if (email === actor) continue; // don't notify the creator
+    const inGroup =
+      orgWide ||
+      assignmentsOf(p).some(
+        (a) =>
+          a.university && roleNeedsUniversity(a.role) && subgroupSet.has(a.university)
+      );
+    if (inGroup) recipients.add(email);
+  }
+  const where = event.subgroups.map(subgroupLabel).join(", ");
+  for (const to of recipients) {
+    await notify(ctx, {
+      to,
+      actor: actorEmail,
+      email: false,
+      subject: `New event: ${event.name}`,
+      pushTitle: "New event",
+      body: `${event.name} — ${where}`,
+      url: `/attendance/event/${event._id}`,
+    });
+  }
+}
+
+/**
+ * Background fan-out for {@link notifyStaffOfNewEvent}, scheduled by `create`
+ * so the (potentially org-wide) notification work runs off the event-creation
+ * request path — a transient failure here never aborts the event insert.
+ */
+export const notifyNewEvent = internalMutation({
+  args: { eventId: v.id("events"), actorEmail: v.string() },
+  handler: async (ctx, { eventId, actorEmail }) => {
+    const event = await ctx.db.get(eventId);
+    if (!event) return null;
+    await notifyStaffOfNewEvent(ctx, event, actorEmail);
+    return null;
+  },
+});
+
+/**
  * Create an event tagged with one or more sub-groups. Any signed-in staff
  * member may run a roll-call, so this only requires a profile. The year is the
  * staff year of the start date, derived server-side so it always matches the
@@ -178,6 +256,11 @@ export const create = mutation({
       action: "event.create",
       summary: `Created event "${eventFields.name}" (${eventFields.subgroups.join(", ")})`,
       eventId,
+    });
+    // Fan out the staff notifications off the request path (see notifyNewEvent).
+    await ctx.scheduler.runAfter(0, internal.events.notifyNewEvent, {
+      eventId,
+      actorEmail: email,
     });
     return eventId;
   },
