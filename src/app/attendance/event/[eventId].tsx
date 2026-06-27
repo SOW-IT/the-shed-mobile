@@ -645,9 +645,11 @@ export default function EventAttendanceScreen() {
           future/ongoing events always (canEdit is true), a finished event only
           after "Enable editing" is tapped. While searching it's hidden when no
           not-signed-in member matches, so it never shows an empty header. */}
-      {canEdit && (!isSearching || filteredUnsignedList.length > 0) ? (
+      {canEdit ? (
         <>
-          {/* Not-signed-in list sits above the signed-in list. The signed-in
+          {/* Not-signed-in list sits above the signed-in list. Like the signed-in
+              section it stays visible during a search even with no matches — the
+              title and count remain with an empty list under them. The signed-in
               rows are still staggered first (see staggerIndex below), so on
               initial load they animate in before the not-signed-in remainder. */}
           <View style={[styles.section, styles.sectionHeader]}>
@@ -655,7 +657,11 @@ export default function EventAttendanceScreen() {
             <CountChip count={optimisticUnsignedCount} />
           </View>
           {filteredUnsignedList.length === 0 ? (
-            <Muted>Everyone in the pool is signed in 🎉</Muted>
+            // No "everyone's in 🎉" while searching — that reads as a no-match
+            // empty list, so just leave the list empty under the header.
+            isSearching ? null : (
+              <Muted>Everyone in the pool is signed in 🎉</Muted>
+            )
           ) : (
             <ScrollView
               style={styles.unsignedScroll}
