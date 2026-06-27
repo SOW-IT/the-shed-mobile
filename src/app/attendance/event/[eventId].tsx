@@ -332,6 +332,15 @@ export default function EventAttendanceScreen() {
   const [newlyAddedUnsigned, setNewlyAddedUnsigned] = useState<Set<string>>(
     () => new Set()
   );
+  // This screen reuses one instance across events (see the editUnlocked reset
+  // above), so drop the unsigned baseline when the event changes — otherwise the
+  // next event's first resolved roster would diff against the previous event's
+  // signature and flag its rows as newly added (stuck entering/disabled).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset per-event baseline
+    setPrevUnsignedSig(null);
+    setNewlyAddedUnsigned(new Set());
+  }, [event?._id]);
   // Wait for the roster to load before seeding the baseline: an empty
   // loading-render signature ("") would otherwise consume the null sentinel, so
   // the first real population would diff against "" and flag every row as newly
