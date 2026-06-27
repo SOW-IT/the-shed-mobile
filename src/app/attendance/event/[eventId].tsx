@@ -419,12 +419,6 @@ export default function EventAttendanceScreen() {
 
   const visibleUnsigned = filteredUnsignedList.slice(0, unsignedLimit);
   const visibleSignedIn = filteredSignedInList.slice(0, signedInLimit);
-  // True when a search is active but neither list has a match — drives the
-  // single "No members match" message in place of the per-section empty states.
-  const noSearchMatches =
-    isSearching &&
-    filteredUnsignedList.length === 0 &&
-    filteredSignedInList.length === 0;
 
   if (event === undefined || attendance === undefined || subgroups === undefined) {
     return <LoadingState />;
@@ -643,11 +637,9 @@ export default function EventAttendanceScreen() {
         ) : null}
       </View>
 
-      {/* While searching, both lists below are filtered in place; if neither has
-          a match this single message stands in for their empty states. */}
-      {noSearchMatches ? (
-        <Muted>No members match your search.</Muted>
-      ) : null}
+      {/* While searching, both lists below are filtered in place. The "Signed
+          in" section stays visible even with no matches (see its condition
+          below); counts always show the event total, not the filtered subset. */}
 
       {/* The not-signed-in roster only appears once the event is editable:
           future/ongoing events always (canEdit is true), a finished event only
@@ -660,9 +652,7 @@ export default function EventAttendanceScreen() {
               initial load they animate in before the not-signed-in remainder. */}
           <View style={[styles.section, styles.sectionHeader]}>
             <Text style={[typography.label, { color: t.muted }]}>Not signed in</Text>
-            <CountChip
-              count={isSearching ? filteredUnsignedList.length : optimisticUnsignedCount}
-            />
+            <CountChip count={optimisticUnsignedCount} />
           </View>
           {filteredUnsignedList.length === 0 ? (
             <Muted>Everyone in the pool is signed in 🎉</Muted>
@@ -721,13 +711,14 @@ export default function EventAttendanceScreen() {
         </>
       ) : null}
 
-      {filteredSignedInList.length > 0 ? (
+      {/* Shown whenever there are signed-in people, and also kept visible during
+          a search even with no matches — so the "Signed in" title and its total
+          count stay put with an empty list under them rather than vanishing. */}
+      {isSearching || filteredSignedInList.length > 0 ? (
         <>
           <View style={[styles.section, styles.sectionHeader]}>
             <Text style={[typography.label, { color: t.muted }]}>Signed in</Text>
-            <CountChip
-              count={isSearching ? filteredSignedInList.length : optimisticSignedInCount}
-            />
+            <CountChip count={optimisticSignedInCount} />
           </View>
               {/* Wrapped so the Screen scroll's outer `gap` doesn't stack on top
                   of each row's marginBottom — keeps the row spacing tight and
