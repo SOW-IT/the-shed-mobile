@@ -123,14 +123,9 @@ function AttendanceRowBase({
 
   const translateX = useSharedValue(0);
   const startX = useSharedValue(0);
-  // Which third of the card the active gesture started in — gates whether a
-  // swipe/tap may act, and on which side. Captured on touch-down.
+  // Which third of the card the gesture began in — gates whether a swipe/tap may
+  // act, and on which side. Captured in onBegin (cross-platform; works on web).
   const startZone = useSharedValue<"left" | "right" | "middle">("middle");
-  // Raw touch-down position, used to decide horizontal vs. vertical intent
-  // under manual activation (so a middle-third or vertical drag scrolls the page
-  // instead of being captured by this row).
-  const startTouchX = useSharedValue(0);
-  const startTouchY = useSharedValue(0);
   const itemHeight = useSharedValue(entering ? 0 : 72);
   const opacity = useSharedValue(entering ? 0 : 1);
   const marginBottomValue = useSharedValue(entering ? 0 : spacing.sm);
@@ -213,59 +208,40 @@ function AttendanceRowBase({
 
   const pan = Gesture.Pan()
     .enabled(!disabled)
-    // Manual activation so the row only captures the touch once we've confirmed
-    // a horizontal swipe that began in an outer third. A middle-third grab, or a
-    // vertical drag, is failed here and falls through to the page/list scroll.
-    .manualActivation(true)
-    .onTouchesDown((e) => {
-      const touch = e.changedTouches[0];
+    // Declarative activation (vs. manualActivation + onTouchesDown/Move): a
+    // horizontal drag past 12px captures the row, while a vertical drag fails so
+    // the page/list keeps scrolling. The low-level touch-event APIs aren't
+    // supported on react-native-gesture-handler's web backend, so the zone
+    // gating below lives in onBegin/onUpdate/onEnd — which run on web too.
+    .activeOffsetX([-12, 12])
+    .failOffsetY([-14, 14])
+    .onBegin((e) => {
       startX.value = translateX.value;
-      startTouchX.value = touch.x;
-      startTouchY.value = touch.y;
       // Anchor the gesture to the third it began in. The right third drives the
       // primary (left-revealing) action; the left third drives edit (right-
-      // revealing); the middle third is inert.
+      // revealing); the middle third is inert (it only ever scrolls).
       const third = rowWidth / 3;
       startZone.value =
-        touch.x < third ? "left" : touch.x > rowWidth - third ? "right" : "middle";
-    })
-    .onTouchesMove((e, state) => {
-      const touch = e.changedTouches[0];
-      const dx = touch.x - startTouchX.value;
-      const dy = touch.y - startTouchY.value;
-      // Middle third never captures — let the page scroll (vertical OR horizontal).
-      if (startZone.value === "middle") {
-        state.fail();
-        return;
-      }
-      // Left third with no edit handler has nothing to reveal — fall through to
-      // scroll rather than capturing a no-op swipe.
-      if (startZone.value === "left" && !onEdit) {
-        state.fail();
-        return;
-      }
-      // Right third with the primary action disabled (e.g. a protected
-      // past-event attendee) likewise falls through to scroll.
-      if (startZone.value === "right" && actionDisabled) {
-        state.fail();
-        return;
-      }
-      // A predominantly vertical drag yields to the list's vertical scroll.
-      if (Math.abs(dy) > 14 && Math.abs(dy) >= Math.abs(dx)) {
-        state.fail();
-        return;
-      }
-      // A clear horizontal swipe from an outer third captures the row.
-      if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) {
-        state.activate();
-      }
+        e.x < third ? "left" : e.x > rowWidth - third ? "right" : "middle";
     })
     .onUpdate((e) => {
       const next = startX.value + e.translationX;
-      // Only allow the card to move in the direction its start-zone permits, so
-      // a right-third grab can pull the arrow open (leftward) but not the pencil,
-      // and vice versa. A middle-third grab doesn't move the card at all.
-      if (startZone.value === "right") translateX.value = Math.min(0, next);
+      // An already-open card can be dragged from anywhere on it — not just its
+      // action third — so the whole card swipes back to closed (or on to commit).
+      // It stays on its own side (clamped to one side of 0).
+      if (primarySnapped.value) {
+        translateX.value = Math.max(-rowWidth, Math.min(0, next));
+        return;
+      }
+      if (editSnapped.value) {
+        translateX.value = Math.min(rowWidth, Math.max(0, next));
+        return;
+      }
+      // Closed: move only in the direction the start-zone permits. The middle
+      // third — and a disabled side (right with actionDisabled, left with no
+      // onEdit) — never moves the card, so the swipe reads as a no-op.
+      if (startZone.value === "right" && !actionDisabled)
+        translateX.value = Math.min(0, next);
       else if (startZone.value === "left" && onEdit)
         translateX.value = Math.max(0, next);
     })
@@ -274,7 +250,35 @@ function AttendanceRowBase({
       const leftDrag = -x;
       const rightDrag = x;
 
-      if (startZone.value === "right") {
+      // Already open: a swipe from anywhere on the card commits if pushed on,
+      // closes if dragged back past the halfway point (or flung back), else
+      // re-snaps to the open preview.
+      if (primarySnapped.value) {
+        if (leftDrag + REVEALED_BONUS > commitDistance || e.velocityX < -VELOCITY_COMMIT) {
+          flingPrimary();
+          return;
+        }
+        if (x > -SNAP_POSITION / 2 || e.velocityX > VELOCITY_COMMIT) {
+          resetSnap();
+          return;
+        }
+        translateX.value = slideTo(-SNAP_POSITION);
+        return;
+      }
+      if (editSnapped.value) {
+        if (rightDrag + REVEALED_BONUS > commitDistance || e.velocityX > VELOCITY_COMMIT) {
+          commitEdit();
+          return;
+        }
+        if (x < SNAP_POSITION / 2 || e.velocityX < -VELOCITY_COMMIT) {
+          resetSnap();
+          return;
+        }
+        translateX.value = slideTo(SNAP_POSITION);
+        return;
+      }
+
+      if (startZone.value === "right" && !actionDisabled) {
         if (
           leftDrag + (primarySnapped.value ? REVEALED_BONUS : FRESH_BONUS) >
             commitDistance ||

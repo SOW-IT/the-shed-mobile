@@ -537,8 +537,9 @@ export default function EventAttendanceScreen() {
 
       {pastEvent && !editUnlocked ? (
         <Text style={[typography.caption, { color: t.muted, marginBottom: spacing.sm }]}>
-          This event has ended. You can still sign people in; tap Enable editing
-          below to sign people out or edit attendance.
+          This event has ended. You can still sign people in, but signed-in
+          attendees can no longer be signed out. Tap Enable editing below to edit
+          attendance details.
         </Text>
       ) : null}
 
@@ -583,13 +584,9 @@ export default function EventAttendanceScreen() {
                       // A not-signed-in match can always be signed in (even on a
                       // locked past event); signing out stays behind Enable editing.
                       disabled={signedIn ? !canEdit : !canSignIn}
-                      // Protect during/before-event attendees from sign-out on a
-                      // past event (matches the main signed-in list).
-                      actionDisabled={
-                        signedIn && attendanceRow
-                          ? !canReverseSignIn(event, attendanceRow.signInTime)
-                          : false
-                      }
+                      // No signing out on a finished event (matches the main
+                      // signed-in list); not-signed-in matches stay sign-in-able.
+                      actionDisabled={signedIn ? !canReverseSignIn(event) : false}
                       onAction={() => {
                         if (signedIn && attendanceRow) onSignOut(attendanceRow);
                         else onSignIn(m);
@@ -686,6 +683,10 @@ export default function EventAttendanceScreen() {
               <Text style={[typography.label, styles.section, { color: t.muted }]}>
                 Signed in · {optimisticSignedInCount}
               </Text>
+              {/* Wrapped so the Screen scroll's outer `gap` doesn't stack on top
+                  of each row's marginBottom — keeps the row spacing tight and
+                  matching the not-signed-in list (which sits in its own scroll). */}
+              <View>
               {visibleSignedIn.map((a, index) => {
                 const isEntering = (a._id as string).startsWith("optimistic:");
                 const isExiting = remoteSignedOut.has(personKey(a));
@@ -706,10 +707,10 @@ export default function EventAttendanceScreen() {
                     university={a.university}
                     mode="signedIn"
                     disabled={!canEdit || isAnimating}
-                    // Past-event attendees signed in during/before the event are
-                    // protected: editable, but not sign-out-able. Only post-event
-                    // (retroactive) sign-ins can be reversed.
-                    actionDisabled={!canReverseSignIn(event, a.signInTime)}
+                    // Once an event has ended, attendees can't be signed out
+                    // (the roll-call is locked); they stay editable via Enable
+                    // editing. Sign-in remains available to complete the list.
+                    actionDisabled={!canReverseSignIn(event)}
                     entering={isEntering}
                     exiting={isExiting}
                     revealTrigger={revealTriggers.get(aKey) ?? 0}
@@ -734,6 +735,7 @@ export default function EventAttendanceScreen() {
                   }
                 />
               ) : null}
+              </View>
             </>
           ) : null}
         </>
