@@ -37,12 +37,15 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 const ROSTER_PAGE_SIZE = 30;
 /** The not-signed-in list starts short; "Load more" reveals the rest. */
 const UNSIGNED_PAGE_SIZE = 10;
+/** One AttendanceRow's vertical footprint: the 72px card + its bottom margin. */
+const UNSIGNED_ROW_HEIGHT = 72 + spacing.sm;
 /**
- * Fixed height of the not-signed-in list viewport (it scrolls internally). Kept
- * constant so signing people in/out — which adds/removes rows — never changes
- * the height of the surrounding page, avoiding layout jumps under the list.
+ * Fixed height of the not-signed-in list viewport (it scrolls internally), sized
+ * to show exactly three member cards. Kept constant so signing people in/out —
+ * which adds/removes rows — never changes the height of the surrounding page,
+ * avoiding layout jumps under the list.
  */
-const UNSIGNED_LIST_HEIGHT = 360;
+const UNSIGNED_LIST_HEIGHT = UNSIGNED_ROW_HEIGHT * 3;
 
 /** Subtitle for a roster row. */
 const memberSubtitle = (member: {
@@ -74,6 +77,20 @@ const signedInSubtitle = (signInTime: number, notes?: string): string => {
   const preview = trimmed.length > 36 ? `${trimmed.slice(0, 36)}…` : trimmed;
   return `${base} · ${preview}`;
 };
+
+/** Rounded people-count chip — reused for the header total and the two section
+ *  headers so the "signed in / not signed in" counts share one consistent look. */
+function CountChip({ count }: { count: number }) {
+  const t = useAppTheme();
+  return (
+    <View style={[styles.countPill, { backgroundColor: t.primarySoft }]}>
+      <Ionicons name="people" size={14} color={t.primary} />
+      <Text style={[typography.caption, { color: t.primary, fontWeight: "700" }]}>
+        {count}
+      </Text>
+    </View>
+  );
+}
 
 export default function EventAttendanceScreen() {
   const t = useAppTheme();
@@ -510,34 +527,8 @@ export default function EventAttendanceScreen() {
       title={event.name}
       subtitle="Attendance"
       onBack={() => router.back()}
-      footer={
-        isSearching && canEdit ? (
-          // Searching with editing available: offer to create whoever was typed
-          // (and sign them straight in). Takes the footer slot over the past-event
-          // editing toggle, which is still reachable by clearing the search.
-          <FooterAction
-            title={`Create "${
-              search.trim().length > 22
-                ? `${search.trim().slice(0, 22)}…`
-                : search.trim()
-            }"`}
-            onPress={openCreateMember}
-          />
-        ) : pastEvent ? (
-          <FooterAction
-            title={editUnlocked ? "Disable editing" : "Enable editing"}
-            onPress={() => {
-              hapticSelect();
-              if (editUnlocked) setEditUnlocked(false);
-              else setConfirmEnableEdit(true);
-            }}
-          />
-        ) : undefined
-      }
-    >
-      <View style={styles.metaRow}>
-        <Muted>{formatEventDate(event.dateStart)}</Muted>
-        <View style={styles.metaActions}>
+      headerRight={
+        <View style={styles.headerActions}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Edit event"
@@ -568,13 +559,36 @@ export default function EventAttendanceScreen() {
           >
             <Ionicons name="download-outline" size={14} color={t.primary} />
           </Pressable>
-          <View style={[styles.countPill, { backgroundColor: t.primarySoft }]}>
-            <Ionicons name="people" size={14} color={t.primary} />
-            <Text style={[typography.caption, { color: t.primary, fontWeight: "700" }]}>
-              {optimisticSignedInCount}
-            </Text>
-          </View>
+          <CountChip count={optimisticSignedInCount} />
         </View>
+      }
+      footer={
+        isSearching && canEdit ? (
+          // Searching with editing available: offer to create whoever was typed
+          // (and sign them straight in). Takes the footer slot over the past-event
+          // editing toggle, which is still reachable by clearing the search.
+          <FooterAction
+            title={`Create "${
+              search.trim().length > 22
+                ? `${search.trim().slice(0, 22)}…`
+                : search.trim()
+            }"`}
+            onPress={openCreateMember}
+          />
+        ) : pastEvent ? (
+          <FooterAction
+            title={editUnlocked ? "Disable editing" : "Enable editing"}
+            onPress={() => {
+              hapticSelect();
+              if (editUnlocked) setEditUnlocked(false);
+              else setConfirmEnableEdit(true);
+            }}
+          />
+        ) : undefined
+      }
+    >
+      <View style={styles.metaRow}>
+        <Muted>{formatEventDate(event.dateStart)}</Muted>
       </View>
 
       <View style={styles.badgeRow}>
@@ -644,10 +658,12 @@ export default function EventAttendanceScreen() {
           {/* Not-signed-in list sits above the signed-in list. The signed-in
               rows are still staggered first (see staggerIndex below), so on
               initial load they animate in before the not-signed-in remainder. */}
-          <Text style={[typography.label, styles.section, { color: t.muted }]}>
-            Not signed in ·{" "}
-            {isSearching ? filteredUnsignedList.length : optimisticUnsignedCount}
-          </Text>
+          <View style={[styles.section, styles.sectionHeader]}>
+            <Text style={[typography.label, { color: t.muted }]}>Not signed in</Text>
+            <CountChip
+              count={isSearching ? filteredUnsignedList.length : optimisticUnsignedCount}
+            />
+          </View>
           {filteredUnsignedList.length === 0 ? (
             <Muted>Everyone in the pool is signed in 🎉</Muted>
           ) : (
@@ -707,10 +723,12 @@ export default function EventAttendanceScreen() {
 
       {filteredSignedInList.length > 0 ? (
         <>
-          <Text style={[typography.label, styles.section, { color: t.muted }]}>
-            Signed in ·{" "}
-            {isSearching ? filteredSignedInList.length : optimisticSignedInCount}
-          </Text>
+          <View style={[styles.section, styles.sectionHeader]}>
+            <Text style={[typography.label, { color: t.muted }]}>Signed in</Text>
+            <CountChip
+              count={isSearching ? filteredSignedInList.length : optimisticSignedInCount}
+            />
+          </View>
               {/* Wrapped so the Screen scroll's outer `gap` doesn't stack on top
                   of each row's marginBottom — keeps the row spacing tight and
                   matching the not-signed-in list (which sits in its own scroll). */}
@@ -828,10 +846,15 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: spacing.sm,
   },
-  metaActions: {
+  headerActions: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   editEventButton: {
     borderWidth: 1.5,
