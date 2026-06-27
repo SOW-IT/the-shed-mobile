@@ -231,6 +231,12 @@ function AttendanceRowBase({
         state.fail();
         return;
       }
+      // Left third with no edit handler has nothing to reveal — fall through to
+      // scroll rather than capturing a no-op swipe.
+      if (startZone.value === "left" && !onEdit) {
+        state.fail();
+        return;
+      }
       // A predominantly vertical drag yields to the list's vertical scroll.
       if (Math.abs(dy) > 14 && Math.abs(dy) >= Math.abs(dx)) {
         state.fail();
