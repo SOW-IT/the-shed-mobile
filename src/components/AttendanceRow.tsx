@@ -238,10 +238,13 @@ function AttendanceRowBase({
       // landed, so the card is swipeable from anywhere. A leftward drag reveals
       // the primary action; a rightward drag reveals edit. A disabled side
       // (left-drag with actionDisabled, right-drag with no onEdit) stays put.
+      // A disabled side snaps back to 0 rather than holding its last offset, so
+      // reversing direction past the origin into the disabled side cancels the
+      // drag instead of leaving the card stuck open on the just-dragged side.
       if (next < 0) {
-        if (!actionDisabled) translateX.value = Math.max(-rowWidth, next);
+        translateX.value = actionDisabled ? 0 : Math.max(-rowWidth, next);
       } else if (next > 0) {
-        if (onEdit) translateX.value = Math.min(rowWidth, next);
+        translateX.value = onEdit ? Math.min(rowWidth, next) : 0;
       } else {
         translateX.value = 0;
       }
