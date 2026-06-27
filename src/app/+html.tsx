@@ -93,6 +93,11 @@ export default function Root({ children }: { children: React.ReactNode }) {
               @media (prefers-color-scheme: dark) {
                 html, body, #root, #root > div { background-color: #0F2523; }
               }
+              /* react-native-web renders TextInput as <input>/<textarea>; the
+                 browser's blue focus ring looks like a stray rectangle inside
+                 the styled field, so drop it on text inputs app-wide. Scoped to
+                 inputs/textareas only, leaving button/link focus rings intact. */
+              input:focus, textarea:focus { outline: none; }
             `,
           }}
         />
