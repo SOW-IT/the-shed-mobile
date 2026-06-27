@@ -290,6 +290,14 @@ export const FooterAction = ({
   const [lift] = useState(() => new Animated.Value(0));
   useEffect(() => {
     if (Platform.OS !== "ios") return;
+    // The footer can mount while the keyboard is already open (e.g. the Create
+    // action appears mid-search), and no willShow fires for it — so seed the
+    // lift from the live keyboard metrics, otherwise it sits under the keyboard
+    // until the next hide/show cycle.
+    if (Keyboard.isVisible()) {
+      const metrics = Keyboard.metrics();
+      if (metrics) lift.setValue(metrics.height);
+    }
     const show = Keyboard.addListener("keyboardWillShow", (e) => {
       Animated.timing(lift, {
         toValue: e.endCoordinates.height,

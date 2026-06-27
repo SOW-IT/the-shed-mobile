@@ -79,12 +79,25 @@ const signedInSubtitle = (signInTime: number, notes?: string): string => {
 };
 
 /** Rounded people-count chip — reused for the header total and the two section
- *  headers so the "signed in / not signed in" counts share one consistent look. */
-function CountChip({ count }: { count: number }) {
+ *  headers so the "signed in / not signed in" counts share one consistent look.
+ *  Takes a contextual label so the header chip (which has no adjacent text)
+ *  announces e.g. "12 signed in" rather than a bare number to screen readers. */
+function CountChip({
+  count,
+  accessibilityLabel,
+}: {
+  count: number;
+  accessibilityLabel: string;
+}) {
   const t = useAppTheme();
   return (
-    <View style={[styles.countPill, { backgroundColor: t.primarySoft }]}>
-      <Ionicons name="people" size={14} color={t.primary} />
+    <View
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={accessibilityLabel}
+      style={[styles.countPill, { backgroundColor: t.primarySoft }]}
+    >
+      <Ionicons name="people" size={14} color={t.primary} accessible={false} />
       <Text style={[typography.caption, { color: t.primary, fontWeight: "700" }]}>
         {count}
       </Text>
@@ -553,7 +566,10 @@ export default function EventAttendanceScreen() {
           >
             <Ionicons name="download-outline" size={14} color={t.primary} />
           </Pressable>
-          <CountChip count={optimisticSignedInCount} />
+          <CountChip
+            count={optimisticSignedInCount}
+            accessibilityLabel={`${optimisticSignedInCount} signed in`}
+          />
         </View>
       }
       footer={
@@ -654,7 +670,10 @@ export default function EventAttendanceScreen() {
               initial load they animate in before the not-signed-in remainder. */}
           <View style={[styles.section, styles.sectionHeader]}>
             <Text style={[typography.label, { color: t.muted }]}>Not signed in</Text>
-            <CountChip count={optimisticUnsignedCount} />
+            <CountChip
+              count={optimisticUnsignedCount}
+              accessibilityLabel={`${optimisticUnsignedCount} not signed in`}
+            />
           </View>
           {filteredUnsignedList.length === 0 ? (
             // No "everyone's in 🎉" while searching — that reads as a no-match
@@ -724,7 +743,10 @@ export default function EventAttendanceScreen() {
         <>
           <View style={[styles.section, styles.sectionHeader]}>
             <Text style={[typography.label, { color: t.muted }]}>Signed in</Text>
-            <CountChip count={optimisticSignedInCount} />
+            <CountChip
+              count={optimisticSignedInCount}
+              accessibilityLabel={`${optimisticSignedInCount} signed in`}
+            />
           </View>
               {/* Wrapped so the Screen scroll's outer `gap` doesn't stack on top
                   of each row's marginBottom — keeps the row spacing tight and
