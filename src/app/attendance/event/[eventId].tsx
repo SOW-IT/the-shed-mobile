@@ -37,12 +37,15 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 const ROSTER_PAGE_SIZE = 30;
 /** The not-signed-in list starts short; "Load more" reveals the rest. */
 const UNSIGNED_PAGE_SIZE = 10;
+/** One AttendanceRow's vertical footprint: the 72px card + its bottom margin. */
+const UNSIGNED_ROW_HEIGHT = 72 + spacing.sm;
 /**
- * Fixed height of the not-signed-in list viewport (it scrolls internally). Kept
- * constant so signing people in/out — which adds/removes rows — never changes
- * the height of the surrounding page, avoiding layout jumps under the list.
+ * Fixed height of the not-signed-in list viewport (it scrolls internally), sized
+ * to show exactly three member cards. Kept constant so signing people in/out —
+ * which adds/removes rows — never changes the height of the surrounding page,
+ * avoiding layout jumps under the list.
  */
-const UNSIGNED_LIST_HEIGHT = 360;
+const UNSIGNED_LIST_HEIGHT = UNSIGNED_ROW_HEIGHT * 3;
 
 /** Subtitle for a roster row. */
 const memberSubtitle = (member: {
@@ -74,6 +77,33 @@ const signedInSubtitle = (signInTime: number, notes?: string): string => {
   const preview = trimmed.length > 36 ? `${trimmed.slice(0, 36)}…` : trimmed;
   return `${base} · ${preview}`;
 };
+
+/** Rounded people-count chip — reused for the header total and the two section
+ *  headers so the "signed in / not signed in" counts share one consistent look.
+ *  Takes a contextual label so the header chip (which has no adjacent text)
+ *  announces e.g. "12 signed in" rather than a bare number to screen readers. */
+function CountChip({
+  count,
+  accessibilityLabel,
+}: {
+  count: number;
+  accessibilityLabel: string;
+}) {
+  const t = useAppTheme();
+  return (
+    <View
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={accessibilityLabel}
+      style={[styles.countPill, { backgroundColor: t.primarySoft }]}
+    >
+      <Ionicons name="people" size={14} color={t.primary} accessible={false} />
+      <Text style={[typography.caption, { color: t.primary, fontWeight: "700" }]}>
+        {count}
+      </Text>
+    </View>
+  );
+}
 
 export default function EventAttendanceScreen() {
   const t = useAppTheme();
@@ -402,12 +432,6 @@ export default function EventAttendanceScreen() {
 
   const visibleUnsigned = filteredUnsignedList.slice(0, unsignedLimit);
   const visibleSignedIn = filteredSignedInList.slice(0, signedInLimit);
-  // True when a search is active but neither list has a match — drives the
-  // single "No members match" message in place of the per-section empty states.
-  const noSearchMatches =
-    isSearching &&
-    filteredUnsignedList.length === 0 &&
-    filteredSignedInList.length === 0;
 
   if (event === undefined || attendance === undefined || subgroups === undefined) {
     return <LoadingState />;
@@ -510,34 +534,8 @@ export default function EventAttendanceScreen() {
       title={event.name}
       subtitle="Attendance"
       onBack={() => router.back()}
-      footer={
-        isSearching && canEdit ? (
-          // Searching with editing available: offer to create whoever was typed
-          // (and sign them straight in). Takes the footer slot over the past-event
-          // editing toggle, which is still reachable by clearing the search.
-          <FooterAction
-            title={`Create "${
-              search.trim().length > 22
-                ? `${search.trim().slice(0, 22)}…`
-                : search.trim()
-            }"`}
-            onPress={openCreateMember}
-          />
-        ) : pastEvent ? (
-          <FooterAction
-            title={editUnlocked ? "Disable editing" : "Enable editing"}
-            onPress={() => {
-              hapticSelect();
-              if (editUnlocked) setEditUnlocked(false);
-              else setConfirmEnableEdit(true);
-            }}
-          />
-        ) : undefined
-      }
-    >
-      <View style={styles.metaRow}>
-        <Muted>{formatEventDate(event.dateStart)}</Muted>
-        <View style={styles.metaActions}>
+      headerRight={
+        <View style={styles.headerActions}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Edit event"
@@ -568,13 +566,39 @@ export default function EventAttendanceScreen() {
           >
             <Ionicons name="download-outline" size={14} color={t.primary} />
           </Pressable>
-          <View style={[styles.countPill, { backgroundColor: t.primarySoft }]}>
-            <Ionicons name="people" size={14} color={t.primary} />
-            <Text style={[typography.caption, { color: t.primary, fontWeight: "700" }]}>
-              {optimisticSignedInCount}
-            </Text>
-          </View>
+          <CountChip
+            count={optimisticSignedInCount}
+            accessibilityLabel={`${optimisticSignedInCount} signed in`}
+          />
         </View>
+      }
+      footer={
+        isSearching && canEdit ? (
+          // Searching with editing available: offer to create whoever was typed
+          // (and sign them straight in). Takes the footer slot over the past-event
+          // editing toggle, which is still reachable by clearing the search.
+          <FooterAction
+            title={`Create "${
+              search.trim().length > 22
+                ? `${search.trim().slice(0, 22)}…`
+                : search.trim()
+            }"`}
+            onPress={openCreateMember}
+          />
+        ) : pastEvent ? (
+          <FooterAction
+            title={editUnlocked ? "Disable editing" : "Enable editing"}
+            onPress={() => {
+              hapticSelect();
+              if (editUnlocked) setEditUnlocked(false);
+              else setConfirmEnableEdit(true);
+            }}
+          />
+        ) : undefined
+      }
+    >
+      <View style={styles.metaRow}>
+        <Muted>{formatEventDate(event.dateStart)}</Muted>
       </View>
 
       <View style={styles.badgeRow}>
@@ -629,27 +653,34 @@ export default function EventAttendanceScreen() {
         ) : null}
       </View>
 
-      {/* While searching, both lists below are filtered in place; if neither has
-          a match this single message stands in for their empty states. */}
-      {noSearchMatches ? (
-        <Muted>No members match your search.</Muted>
-      ) : null}
+      {/* While searching, both lists below are filtered in place. The "Signed
+          in" section stays visible even with no matches (see its condition
+          below); counts always show the event total, not the filtered subset. */}
 
       {/* The not-signed-in roster only appears once the event is editable:
           future/ongoing events always (canEdit is true), a finished event only
           after "Enable editing" is tapped. While searching it's hidden when no
           not-signed-in member matches, so it never shows an empty header. */}
-      {canEdit && (!isSearching || filteredUnsignedList.length > 0) ? (
+      {canEdit ? (
         <>
-          {/* Not-signed-in list sits above the signed-in list. The signed-in
+          {/* Not-signed-in list sits above the signed-in list. Like the signed-in
+              section it stays visible during a search even with no matches — the
+              title and count remain with an empty list under them. The signed-in
               rows are still staggered first (see staggerIndex below), so on
               initial load they animate in before the not-signed-in remainder. */}
-          <Text style={[typography.label, styles.section, { color: t.muted }]}>
-            Not signed in ·{" "}
-            {isSearching ? filteredUnsignedList.length : optimisticUnsignedCount}
-          </Text>
+          <View style={[styles.section, styles.sectionHeader]}>
+            <Text style={[typography.label, { color: t.muted }]}>Not signed in</Text>
+            <CountChip
+              count={optimisticUnsignedCount}
+              accessibilityLabel={`${optimisticUnsignedCount} not signed in`}
+            />
+          </View>
           {filteredUnsignedList.length === 0 ? (
-            <Muted>Everyone in the pool is signed in 🎉</Muted>
+            // No "everyone's in 🎉" while searching — that reads as a no-match
+            // empty list, so just leave the list empty under the header.
+            isSearching ? null : (
+              <Muted>Everyone in the pool is signed in 🎉</Muted>
+            )
           ) : (
             <ScrollView
               style={styles.unsignedScroll}
@@ -705,12 +736,18 @@ export default function EventAttendanceScreen() {
         </>
       ) : null}
 
-      {filteredSignedInList.length > 0 ? (
+      {/* Shown whenever there are signed-in people, and also kept visible during
+          a search even with no matches — so the "Signed in" title and its total
+          count stay put with an empty list under them rather than vanishing. */}
+      {isSearching || filteredSignedInList.length > 0 ? (
         <>
-          <Text style={[typography.label, styles.section, { color: t.muted }]}>
-            Signed in ·{" "}
-            {isSearching ? filteredSignedInList.length : optimisticSignedInCount}
-          </Text>
+          <View style={[styles.section, styles.sectionHeader]}>
+            <Text style={[typography.label, { color: t.muted }]}>Signed in</Text>
+            <CountChip
+              count={optimisticSignedInCount}
+              accessibilityLabel={`${optimisticSignedInCount} signed in`}
+            />
+          </View>
               {/* Wrapped so the Screen scroll's outer `gap` doesn't stack on top
                   of each row's marginBottom — keeps the row spacing tight and
                   matching the not-signed-in list (which sits in its own scroll). */}
@@ -828,10 +865,15 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: spacing.sm,
   },
-  metaActions: {
+  headerActions: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   editEventButton: {
     borderWidth: 1.5,

@@ -7,6 +7,7 @@ import {
   Animated,
   Easing,
   Image,
+  Keyboard,
   Modal,
   Platform,
   Pressable,
@@ -281,8 +282,48 @@ export const FooterAction = ({
 }) => {
   const t = useAppTheme();
   const [scale] = useState(() => new Animated.Value(1));
+  // Lifts the pinned footer above the software keyboard. iOS keyboards overlay
+  // content, so we translate the bar up by the keyboard height (synced to the
+  // keyboard's own show/hide animation). Android resizes the window by default
+  // (softwareKeyboardLayoutMode "resize"), which already clears a bottom-anchored
+  // footer, and web has no software keyboard — so this is iOS-only.
+  const [lift] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    // The footer can mount while the keyboard is already open (e.g. the Create
+    // action appears mid-search), and no willShow fires for it — so seed the
+    // lift from the live keyboard metrics, otherwise it sits under the keyboard
+    // until the next hide/show cycle.
+    if (Keyboard.isVisible()) {
+      const metrics = Keyboard.metrics();
+      if (metrics) lift.setValue(metrics.height);
+    }
+    const show = Keyboard.addListener("keyboardWillShow", (e) => {
+      Animated.timing(lift, {
+        toValue: e.endCoordinates.height,
+        duration: e.duration || 250,
+        useNativeDriver: true,
+      }).start();
+    });
+    const hide = Keyboard.addListener("keyboardWillHide", (e) => {
+      Animated.timing(lift, {
+        toValue: 0,
+        duration: e?.duration || 250,
+        useNativeDriver: true,
+      }).start();
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [lift]);
   return (
-    <View style={[styles.footerWrap, { pointerEvents: "box-none" }]}>
+    <Animated.View
+      style={[
+        styles.footerWrap,
+        { transform: [{ translateY: Animated.multiply(lift, -1) }], pointerEvents: "box-none" },
+      ]}
+    >
       {note ? (
         <View style={styles.footerNote} pointerEvents="none">
           <Ionicons name="warning-outline" size={14} color={t.warning} />
@@ -350,7 +391,7 @@ export const FooterAction = ({
           </Pressable>
         </Animated.View>
       </View>
-    </View>
+    </Animated.View>
   );
 };
 
