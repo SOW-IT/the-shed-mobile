@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import {
@@ -610,7 +610,13 @@ export default function EventAttendanceScreen() {
       <View style={[styles.search, { backgroundColor: t.inputBackground }]}>
         <Ionicons name="search" size={16} color={t.faint} />
         <TextInput
-          style={[styles.searchInput, { color: t.text }]}
+          style={[
+            styles.searchInput,
+            { color: t.text },
+            // react-native-web renders TextInput as an <input>; drop the
+            // browser's blue focus ring so it matches the native field.
+            Platform.OS === "web" ? styles.searchInputWeb : null,
+          ]}
           value={search}
           onChangeText={setSearch}
           placeholder="Search members…"
@@ -875,6 +881,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   searchInput: { flex: 1, fontSize: 15 },
+  // Web-only: zero out the <input> focus ring (RN's TextStyle only accepts a
+  // numeric outlineWidth, not outlineStyle:"none"). Applied via Platform.OS.
+  searchInputWeb: { outlineWidth: 0 },
   section: { marginTop: spacing.md, marginBottom: spacing.sm },
   unsignedScroll: { height: UNSIGNED_LIST_HEIGHT },
 });
