@@ -65,6 +65,12 @@ export interface AttendanceRowProps {
   mode: AttendanceRowMode;
   /** When true, swipes and taps do not fire actions (past event, editing locked). */
   disabled?: boolean;
+  /**
+   * Disables only the primary (sign in/out) gesture while leaving edit usable —
+   * e.g. a protected attendee on a past event who may be relabelled but not
+   * signed out. The right-side swipe/tap falls through to scroll.
+   */
+  actionDisabled?: boolean;
   /** Sign in / sign out — fired after a left swipe (or tap). */
   onAction: () => void;
   /** Fired the moment a left swipe commits (before the collapse animation completes). */
@@ -93,6 +99,7 @@ function AttendanceRowBase({
   university,
   mode,
   disabled = false,
+  actionDisabled = false,
   onAction,
   onActionStart,
   onEdit,
@@ -237,6 +244,12 @@ function AttendanceRowBase({
         state.fail();
         return;
       }
+      // Right third with the primary action disabled (e.g. a protected
+      // past-event attendee) likewise falls through to scroll.
+      if (startZone.value === "right" && actionDisabled) {
+        state.fail();
+        return;
+      }
       // A predominantly vertical drag yields to the list's vertical scroll.
       if (Math.abs(dy) > 14 && Math.abs(dy) >= Math.abs(dx)) {
         state.fail();
@@ -318,7 +331,7 @@ function AttendanceRowBase({
       // right third reveals the arrow, the left third reveals the pencil. The
       // middle third does nothing.
       const third = rowWidth / 3;
-      if (e.x > rowWidth - third) {
+      if (e.x > rowWidth - third && !actionDisabled) {
         primarySnapped.value = true;
         editSnapped.value = false;
         runOnJS(setSnapPrimary)();

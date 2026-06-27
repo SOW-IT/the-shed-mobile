@@ -10,7 +10,7 @@ import {
   CAMPUS_FIELD_KEY,
   formatMetadataFieldValue,
 } from "../shared/attendanceMemberMeta";
-import { compareAttendanceFrequency, memberMatchesEventCampus, normalizeSubgroups, personDisplayName, subgroupMatches } from "../shared/rollcall";
+import { canReverseSignIn, compareAttendanceFrequency, memberMatchesEventCampus, normalizeSubgroups, personDisplayName, subgroupMatches } from "../shared/rollcall";
 import { staffEmailCandidates } from "../shared/rollcallImport";
 import { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
@@ -556,6 +556,11 @@ export const signOut = mutation({
         )
         .unique();
       if (existing) {
+        if (event && !canReverseSignIn(event, existing.signInTime)) {
+          throw new ConvexError(
+            "This attendee was signed in during the event and can't be removed. Only sign-ins added after the event ended can be reversed."
+          );
+        }
         await ctx.db.delete(existing._id);
         const who = await displayName(
           ctx,
@@ -581,6 +586,11 @@ export const signOut = mutation({
         )
         .unique();
       if (existing) {
+        if (event && !canReverseSignIn(event, existing.signInTime)) {
+          throw new ConvexError(
+            "This attendee was signed in during the event and can't be removed. Only sign-ins added after the event ended can be reversed."
+          );
+        }
         await ctx.db.delete(existing._id);
         const member = await ctx.db.get(memberId);
         await logAttendanceAction(ctx, {

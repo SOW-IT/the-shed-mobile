@@ -6,6 +6,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import {
+  canReverseSignIn,
   contrastingText,
   eventHasEnded,
   formatEventDate,
@@ -582,6 +583,13 @@ export default function EventAttendanceScreen() {
                       // A not-signed-in match can always be signed in (even on a
                       // locked past event); signing out stays behind Enable editing.
                       disabled={signedIn ? !canEdit : !canSignIn}
+                      // Protect during/before-event attendees from sign-out on a
+                      // past event (matches the main signed-in list).
+                      actionDisabled={
+                        signedIn && attendanceRow
+                          ? !canReverseSignIn(event, attendanceRow.signInTime)
+                          : false
+                      }
                       onAction={() => {
                         if (signedIn && attendanceRow) onSignOut(attendanceRow);
                         else onSignIn(m);
@@ -698,6 +706,10 @@ export default function EventAttendanceScreen() {
                     university={a.university}
                     mode="signedIn"
                     disabled={!canEdit || isAnimating}
+                    // Past-event attendees signed in during/before the event are
+                    // protected: editable, but not sign-out-able. Only post-event
+                    // (retroactive) sign-ins can be reversed.
+                    actionDisabled={!canReverseSignIn(event, a.signInTime)}
                     entering={isEntering}
                     exiting={isExiting}
                     revealTrigger={revealTriggers.get(aKey) ?? 0}
