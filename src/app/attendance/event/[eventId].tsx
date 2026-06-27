@@ -332,7 +332,11 @@ export default function EventAttendanceScreen() {
   const [newlyAddedUnsigned, setNewlyAddedUnsigned] = useState<Set<string>>(
     () => new Set()
   );
-  if (prevUnsignedSig !== unsignedKeySig) {
+  // Wait for the roster to load before seeding the baseline: an empty
+  // loading-render signature ("") would otherwise consume the null sentinel, so
+  // the first real population would diff against "" and flag every row as newly
+  // added — leaving the whole list stuck `entering` (and therefore disabled).
+  if (roster !== undefined && prevUnsignedSig !== unsignedKeySig) {
     const prevKeys =
       prevUnsignedSig === null
         ? null
