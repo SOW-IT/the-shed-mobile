@@ -428,7 +428,7 @@ describe("events + roll-call", () => {
     expect(rows.map((r) => r.email)).toEqual([LEADER]);
   });
 
-  test("past event: signed-in attendees can't be signed out (staff + member paths)", async () => {
+  test("past event: an attendee from before/during the event can't be signed out (staff + member paths)", async () => {
     const leader = asUser(t, LEADER);
     const dateStart = Date.now() - 3 * 86_400_000;
     const dateEnd = dateStart + 3600_000; // ended ~3 days ago
@@ -452,26 +452,26 @@ describe("events + roll-call", () => {
       });
       return { eventId, memberId };
     });
-    // Both the email and member sign-out paths are blocked once the event ended.
+    // Both the email and member sign-out paths are blocked for genuine attendees.
     await expect(
       leader.mutation(api.attendance.signOut, { eventId, email: STAFF })
-    ).rejects.toThrow(/can no longer be signed out/i);
+    ).rejects.toThrow(/can't be removed/i);
     await expect(
       leader.mutation(api.attendance.signOut, { eventId, memberId })
-    ).rejects.toThrow(/can no longer be signed out/i);
+    ).rejects.toThrow(/can't be removed/i);
     // Both rows are still there.
     const rows = await leader.query(api.attendance.listByEvent, { eventId });
     expect(rows).toHaveLength(2);
   });
 
-  test("past event: even a post-event (retroactive) sign-in can't be signed out", async () => {
+  test("past event: a retroactive (post-event) sign-in can still be signed out", async () => {
     const leader = asUser(t, LEADER);
     const dateStart = Date.now() - 3 * 86_400_000;
     const dateEnd = dateStart + 3600_000;
     const eventId = await t.run((ctx) =>
       ctx.db.insert("events", { name: "Past", dateStart, dateEnd, subgroups: [USYD] })
     );
-    // Added a day AFTER the event ended — still locked.
+    // Added a day AFTER the event ended — a mistaken late add, so reversible.
     await t.run((ctx) =>
       ctx.db.insert("attendance", {
         eventId,
@@ -479,11 +479,9 @@ describe("events + roll-call", () => {
         signInTime: dateEnd + 86_400_000,
       })
     );
-    await expect(
-      leader.mutation(api.attendance.signOut, { eventId, email: STAFF })
-    ).rejects.toThrow(/can no longer be signed out/i);
+    await leader.mutation(api.attendance.signOut, { eventId, email: STAFF });
     const rows = await leader.query(api.attendance.listByEvent, { eventId });
-    expect(rows).toHaveLength(1);
+    expect(rows).toHaveLength(0);
   });
 
   test("ongoing event: an attendee can be signed out normally", async () => {

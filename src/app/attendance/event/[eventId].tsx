@@ -155,12 +155,12 @@ export default function EventAttendanceScreen() {
   // ended asks for an explicit "Enable editing" tap first to avoid accidental
   // changes. Members are editable wherever attendance is.
   const pastEvent = event != null && eventHasEnded(event.dateEnd);
+  // On a finished event every change — signing missed people in, signing out a
+  // retroactive add, editing details — is gated behind an explicit "Enable
+  // editing" tap (canEdit). Attendees who were signed in before/during the event
+  // stay locked even then (see canReverseSignIn), so the real roll-call can't be
+  // erased — those rows render greyed-out.
   const canEdit = !pastEvent || editUnlocked;
-  // Adding a missed attendee (not-signed → signed) is always allowed, even on a
-  // past event, so a roll-call can be completed after the fact. Removing people
-  // and editing details stay behind "Enable editing" (canEdit) to guard against
-  // accidental changes to a finished event.
-  const canSignIn = true;
 
   const closeEdit = () => {
     setEditOpen(false);
@@ -391,7 +391,7 @@ export default function EventAttendanceScreen() {
     setOptimisticSignedIn((prev) => new Map(prev).set(m.key, m));
   };
   const onSignIn = (m: NonNullable<typeof roster>[number]) => {
-    if (!canSignIn) return;
+    if (!canEdit) return;
     hapticSelect();
     if (m.kind === "staff" && m.email) {
       void signIn({ eventId: evId, email: m.email });
@@ -537,9 +537,8 @@ export default function EventAttendanceScreen() {
 
       {pastEvent && !editUnlocked ? (
         <Text style={[typography.caption, { color: t.muted, marginBottom: spacing.sm }]}>
-          This event has ended. You can still sign people in, but signed-in
-          attendees can no longer be signed out. Tap Enable editing below to edit
-          attendance details.
+          This event has ended. Tap Enable editing below to sign in a missed
+          attendee or fix details. People who attended cannot be signed out.
         </Text>
       ) : null}
 
@@ -581,12 +580,13 @@ export default function EventAttendanceScreen() {
                       university={m.university}
                       mode={signedIn ? "signedIn" : "suggested"}
                       highlightSignedIn={signedIn}
-                      // A not-signed-in match can always be signed in (even on a
-                      // locked past event); signing out stays behind Enable editing.
-                      disabled={signedIn ? !canEdit : !canSignIn}
-                      // No signing out on a finished event (matches the main
-                      // signed-in list); not-signed-in matches stay sign-in-able.
-                      actionDisabled={signedIn ? !canReverseSignIn(event) : false}
+                      // Mirrors the lists: everything is gated behind Enable
+                      // editing, and a before/during-event attendee stays locked.
+                      disabled={
+                        signedIn && attendanceRow
+                          ? !canReverseSignIn(event, attendanceRow.signInTime) || !canEdit
+                          : !canEdit
+                      }
                       onAction={() => {
                         if (signedIn && attendanceRow) onSignOut(attendanceRow);
                         else onSignIn(m);
@@ -648,9 +648,9 @@ export default function EventAttendanceScreen() {
                     photo={m.photo ?? null}
                     university={m.university}
                     mode="suggested"
-                    // Sign-in is allowed even on a locked past event (canSignIn);
-                    // editing the member's details still needs Enable editing.
-                    disabled={!canSignIn || isAnimating}
+                    // Greyed/locked until editing is enabled; then swipe to sign
+                    // a missed attendee in (and edit their details).
+                    disabled={!canEdit || isAnimating}
                     entering={isEntering}
                     exiting={isExiting}
                     revealTrigger={revealTriggers.get(m.key) ?? 0}
@@ -706,11 +706,12 @@ export default function EventAttendanceScreen() {
                     photo={a.photo ?? null}
                     university={a.university}
                     mode="signedIn"
-                    disabled={!canEdit || isAnimating}
-                    // Once an event has ended, attendees can't be signed out
-                    // (the roll-call is locked); they stay editable via Enable
-                    // editing. Sign-in remains available to complete the list.
-                    actionDisabled={!canReverseSignIn(event)}
+                    // Attendees signed in before/during a finished event are
+                    // locked (greyed, never sign-out-able). A retroactive add is
+                    // editable once editing is enabled. Both honour canEdit.
+                    disabled={
+                      !canReverseSignIn(event, a.signInTime) || !canEdit || isAnimating
+                    }
                     entering={isEntering}
                     exiting={isExiting}
                     revealTrigger={revealTriggers.get(aKey) ?? 0}

@@ -556,9 +556,9 @@ export const signOut = mutation({
         )
         .unique();
       if (existing) {
-        if (event && !canReverseSignIn(event)) {
+        if (event && !canReverseSignIn(event, existing.signInTime)) {
           throw new ConvexError(
-            "This event has ended, so attendees can no longer be signed out. You can still sign people in."
+            "This attendee was signed in during the event and can't be removed. Only sign-ins added after the event ended can be reversed."
           );
         }
         await ctx.db.delete(existing._id);
@@ -586,9 +586,9 @@ export const signOut = mutation({
         )
         .unique();
       if (existing) {
-        if (event && !canReverseSignIn(event)) {
+        if (event && !canReverseSignIn(event, existing.signInTime)) {
           throw new ConvexError(
-            "This event has ended, so attendees can no longer be signed out. You can still sign people in."
+            "This attendee was signed in during the event and can't be removed. Only sign-ins added after the event ended can be reversed."
           );
         }
         await ctx.db.delete(existing._id);
