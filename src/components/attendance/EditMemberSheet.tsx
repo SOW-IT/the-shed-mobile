@@ -32,6 +32,8 @@ export function EditMemberSheet({
   memberId,
   metadataFields,
   eventAttendance,
+  prefillName,
+  onCreated,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -46,6 +48,12 @@ export function EditMemberSheet({
     attendanceId: Id<"attendance">;
     notes?: string;
   } | null;
+  /** In create mode (memberId null), seeds the Name field — e.g. the roll-call
+   *  search text, so "Create member" opens with the typed name already filled. */
+  prefillName?: string;
+  /** Fired after a new member is created, with the new id, so the caller can act
+   *  on it (e.g. sign them straight in to the event). Not fired when editing. */
+  onCreated?: (memberId: Id<"attendanceMembers">) => void;
 }) {
   const t = useAppTheme();
   const row = useQuery(
@@ -92,7 +100,7 @@ export function EditMemberSheet({
       setEmail(row.email ?? "");
       setMetadata(row.metadata ?? {});
     } else if (!memberId) {
-      setName("");
+      setName(prefillName ?? "");
       setEmail("");
       setMetadata({});
     }
@@ -101,7 +109,7 @@ export function EditMemberSheet({
     setDeleteOpen(false);
     setDeleteText("");
     setConfirmOpen(false);
-  }, [visible, memberId, row, eventAttendance?.attendanceId, eventAttendance?.notes]);
+  }, [visible, memberId, row, eventAttendance?.attendanceId, eventAttendance?.notes, prefillName]);
 
   // New members with a name clash go through a confirmation step first.
   const handleSave = () => {
@@ -117,6 +125,7 @@ export function EditMemberSheet({
     setSubmitting(true);
     setError(null);
     try {
+      let createdId: Id<"attendanceMembers"> | null = null;
       if (memberId) {
         await update({
           memberId,
@@ -126,7 +135,7 @@ export function EditMemberSheet({
           staffYear,
         });
       } else {
-        await create({ name, email: email || undefined, metadata });
+        createdId = await create({ name, email: email || undefined, metadata });
       }
       if (eventAttendance) {
         await updateAttendance({
@@ -135,6 +144,7 @@ export function EditMemberSheet({
         });
       }
       onClose();
+      if (createdId) onCreated?.(createdId);
     } catch (e) {
       setError(errorMessage(e));
     } finally {

@@ -133,6 +133,8 @@ export default function EventAttendanceScreen() {
   const [eventEditOpen, setEventEditOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [createMemberOpen, setCreateMemberOpen] = useState(false);
+  const [createPrefillName, setCreatePrefillName] = useState("");
   const [editMemberId, setEditMemberId] = useState<Id<"attendanceMembers"> | null>(
     null
   );
@@ -144,7 +146,6 @@ export default function EventAttendanceScreen() {
   const [confirmEnableEdit, setConfirmEnableEdit] = useState(false);
   const [unsignedLimit, setUnsignedLimit] = useState(UNSIGNED_PAGE_SIZE);
   const [signedInLimit, setSignedInLimit] = useState(ROSTER_PAGE_SIZE);
-  const [searchLimit, setSearchLimit] = useState(ROSTER_PAGE_SIZE);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset unlock when opening another event
@@ -251,7 +252,6 @@ export default function EventAttendanceScreen() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset paging when roster/search changes
     setUnsignedLimit(UNSIGNED_PAGE_SIZE);
     setSignedInLimit(ROSTER_PAGE_SIZE);
-    setSearchLimit(ROSTER_PAGE_SIZE);
   }, [search, signedInKeys]);
 
   // Signed-in members display newest-first, as returned by the backend.
@@ -358,14 +358,30 @@ export default function EventAttendanceScreen() {
     setNewlyAddedUnsigned(added);
   }
 
-  const searchResults = useMemo(() => {
-    if (!isSearching) return [];
-    return (roster ?? []).filter(
-      (m) =>
-        m.name.toLowerCase().includes(searchQuery) ||
-        (m.email?.toLowerCase().includes(searchQuery) ?? false)
-    );
-  }, [roster, isSearching, searchQuery]);
+  // While searching, the two lists below are filtered in place by name/email —
+  // there's no separate "Results" list. An empty query passes everything through.
+  const filteredUnsignedList = useMemo(
+    () =>
+      isSearching
+        ? unsignedList.filter(
+            (m) =>
+              m.name.toLowerCase().includes(searchQuery) ||
+              (m.email?.toLowerCase().includes(searchQuery) ?? false)
+          )
+        : unsignedList,
+    [unsignedList, isSearching, searchQuery]
+  );
+  const filteredSignedInList = useMemo(
+    () =>
+      isSearching
+        ? signedInList.filter(
+            (a) =>
+              a.name.toLowerCase().includes(searchQuery) ||
+              (a.email?.toLowerCase().includes(searchQuery) ?? false)
+          )
+        : signedInList,
+    [signedInList, isSearching, searchQuery]
+  );
 
   // Optimistic counts: base server count ± pending swipes, so the pill and
   // section headers update the moment a swipe commits rather than waiting for
@@ -384,9 +400,14 @@ export default function EventAttendanceScreen() {
   const rosterSize = roster?.length ?? 0;
   const optimisticUnsignedCount = Math.max(0, rosterSize - optimisticSignedInCount);
 
-  const visibleUnsigned = unsignedList.slice(0, unsignedLimit);
-  const visibleSignedIn = signedInList.slice(0, signedInLimit);
-  const visibleSearchResults = searchResults.slice(0, searchLimit);
+  const visibleUnsigned = filteredUnsignedList.slice(0, unsignedLimit);
+  const visibleSignedIn = filteredSignedInList.slice(0, signedInLimit);
+  // True when a search is active but neither list has a match — drives the
+  // single "No members match" message in place of the per-section empty states.
+  const noSearchMatches =
+    isSearching &&
+    filteredUnsignedList.length === 0 &&
+    filteredSignedInList.length === 0;
 
   if (event === undefined || attendance === undefined || subgroups === undefined) {
     return <LoadingState />;
@@ -426,6 +447,24 @@ export default function EventAttendanceScreen() {
   const openMemberEdit = (memberId: Id<"attendanceMembers">) => {
     setEditMemberId(memberId);
     setEditOpen(true);
+  };
+
+  // Create a brand-new member from the current search text. The sheet opens in
+  // create mode with the name prefilled; on save, onMemberCreated signs them in.
+  const openCreateMember = () => {
+    if (!canEdit) return;
+    hapticSelect();
+    setCreatePrefillName(search.trim());
+    setCreateMemberOpen(true);
+  };
+
+  const onMemberCreated = (memberId: Id<"attendanceMembers">) => {
+    if (!canEdit) return;
+    hapticSelect();
+    void signIn({ eventId: evId, memberId });
+    // Clear the search so the freshly signed-in member is visible at the top of
+    // the signed-in list rather than hidden behind the search results.
+    setSearch("");
   };
 
   const openEdit = async (opts: {
@@ -472,7 +511,19 @@ export default function EventAttendanceScreen() {
       subtitle="Attendance"
       onBack={() => router.back()}
       footer={
-        pastEvent ? (
+        isSearching && canEdit ? (
+          // Searching with editing available: offer to create whoever was typed
+          // (and sign them straight in). Takes the footer slot over the past-event
+          // editing toggle, which is still reachable by clearing the search.
+          <FooterAction
+            title={`Create "${
+              search.trim().length > 22
+                ? `${search.trim().slice(0, 22)}…`
+                : search.trim()
+            }"`}
+            onPress={openCreateMember}
+          />
+        ) : pastEvent ? (
           <FooterAction
             title={editUnlocked ? "Disable editing" : "Enable editing"}
             onPress={() => {
@@ -566,83 +617,38 @@ export default function EventAttendanceScreen() {
           placeholderTextColor={t.faint}
           autoCapitalize="none"
         />
+        {search.length > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Clear search"
+            hitSlop={8}
+            onPress={() => setSearch("")}
+          >
+            <Ionicons name="close-circle" size={18} color={t.faint} />
+          </Pressable>
+        ) : null}
       </View>
 
-      {isSearching ? (
+      {/* While searching, both lists below are filtered in place; if neither has
+          a match this single message stands in for their empty states. */}
+      {noSearchMatches ? (
+        <Muted>No members match your search.</Muted>
+      ) : null}
+
+      {/* The not-signed-in roster only appears once the event is editable:
+          future/ongoing events always (canEdit is true), a finished event only
+          after "Enable editing" is tapped. While searching it's hidden when no
+          not-signed-in member matches, so it never shows an empty header. */}
+      {canEdit && (!isSearching || filteredUnsignedList.length > 0) ? (
         <>
-          <Text style={[typography.label, styles.section, { color: t.muted }]}>
-            Results · {searchResults.length}
-          </Text>
-          {searchResults.length === 0 ? (
-            <Muted>No members match your search.</Muted>
-          ) : (
-            <>
-              {visibleSearchResults.map((m, index) => {
-                const signedIn = signedInKeys.has(m.key);
-                const attendanceRow = attendanceByKey.get(m.key);
-                return (
-                  <FadeInView key={m.key} delay={Math.min(index, 6) * 35}>
-                    <AttendanceRow
-                      name={m.name}
-                      subtitle={
-                        signedIn && attendanceRow
-                          ? signedInSubtitle(attendanceRow.signInTime, attendanceRow.notes)
-                          : memberSubtitle(m)
-                      }
-                      photo={m.photo ?? null}
-                      university={m.university}
-                      mode={signedIn ? "signedIn" : "suggested"}
-                      highlightSignedIn={signedIn}
-                      // Mirrors the lists: everything is gated behind Enable
-                      // editing, and a before/during-event attendee stays locked.
-                      disabled={
-                        signedIn && attendanceRow
-                          ? !canReverseSignIn(event, attendanceRow.signInTime) || !canEdit
-                          : !canEdit
-                      }
-                      onAction={() => {
-                        if (signedIn && attendanceRow) onSignOut(attendanceRow);
-                        else onSignIn(m);
-                      }}
-                      onEdit={
-                        canEdit
-                          ? () =>
-                              signedIn && attendanceRow
-                                ? editSignedIn(attendanceRow)
-                                : editRosterEntry(m)
-                          : undefined
-                      }
-                    />
-                  </FadeInView>
-                );
-              })}
-              {visibleSearchResults.length < searchResults.length ? (
-                <Btn
-                  title={`Load more (${searchResults.length - visibleSearchResults.length} left)`}
-                  variant="ghost"
-                  onPress={() =>
-                    setSearchLimit((limit) => limit + ROSTER_PAGE_SIZE)
-                  }
-                />
-              ) : null}
-            </>
-          )}
-        </>
-      ) : (
-        <>
-          {/* The not-signed-in roster only appears once the event is editable:
-              future/ongoing events always (canEdit is true), a finished event
-              only after "Enable editing" is tapped. Until then there's nothing
-              to sign in/out, so the list is hidden rather than shown greyed. */}
-          {canEdit ? (
-            <>
           {/* Not-signed-in list sits above the signed-in list. The signed-in
               rows are still staggered first (see staggerIndex below), so on
               initial load they animate in before the not-signed-in remainder. */}
           <Text style={[typography.label, styles.section, { color: t.muted }]}>
-            Not signed in · {optimisticUnsignedCount}
+            Not signed in ·{" "}
+            {isSearching ? filteredUnsignedList.length : optimisticUnsignedCount}
           </Text>
-          {unsignedList.length === 0 ? (
+          {filteredUnsignedList.length === 0 ? (
             <Muted>Everyone in the pool is signed in 🎉</Muted>
           ) : (
             <ScrollView
@@ -685,9 +691,9 @@ export default function EventAttendanceScreen() {
                   <FadeInView key={m.key} delay={Math.min(staggerIndex, 12) * 35}>{row}</FadeInView>
                 );
               })}
-              {visibleUnsigned.length < unsignedList.length ? (
+              {visibleUnsigned.length < filteredUnsignedList.length ? (
                 <Btn
-                  title={`Load more (${unsignedList.length - visibleUnsigned.length} left)`}
+                  title={`Load more (${filteredUnsignedList.length - visibleUnsigned.length} left)`}
                   variant="ghost"
                   onPress={() =>
                     setUnsignedLimit((limit) => limit + UNSIGNED_PAGE_SIZE)
@@ -696,14 +702,15 @@ export default function EventAttendanceScreen() {
               ) : null}
             </ScrollView>
           )}
-            </>
-          ) : null}
+        </>
+      ) : null}
 
-          {signedInList.length > 0 ? (
-            <>
-              <Text style={[typography.label, styles.section, { color: t.muted }]}>
-                Signed in · {optimisticSignedInCount}
-              </Text>
+      {filteredSignedInList.length > 0 ? (
+        <>
+          <Text style={[typography.label, styles.section, { color: t.muted }]}>
+            Signed in ·{" "}
+            {isSearching ? filteredSignedInList.length : optimisticSignedInCount}
+          </Text>
               {/* Wrapped so the Screen scroll's outer `gap` doesn't stack on top
                   of each row's marginBottom — keeps the row spacing tight and
                   matching the not-signed-in list (which sits in its own scroll). */}
@@ -748,9 +755,9 @@ export default function EventAttendanceScreen() {
                   <FadeInView key={rowKey} delay={Math.min(index, 12) * 35}>{row}</FadeInView>
                 );
               })}
-              {visibleSignedIn.length < signedInList.length ? (
+              {visibleSignedIn.length < filteredSignedInList.length ? (
                 <Btn
-                  title={`Load more (${signedInList.length - visibleSignedIn.length} left)`}
+                  title={`Load more (${filteredSignedInList.length - visibleSignedIn.length} left)`}
                   variant="ghost"
                   onPress={() =>
                     setSignedInLimit((limit) => limit + ROSTER_PAGE_SIZE)
@@ -760,8 +767,6 @@ export default function EventAttendanceScreen() {
               </View>
             </>
           ) : null}
-        </>
-      )}
       <View style={{ height: spacing.xxl }} />
 
       {metadataFields ? (
@@ -773,6 +778,18 @@ export default function EventAttendanceScreen() {
           memberId={editMemberId}
           metadataFields={metadataFields}
           eventAttendance={editAttendance}
+        />
+      ) : null}
+      {metadataFields ? (
+        <EditMemberSheet
+          visible={createMemberOpen}
+          onClose={() => setCreateMemberOpen(false)}
+          year={sydneyCalendarYear(new Date(event.dateStart))}
+          staffYear={eventStaffYear(event.dateStart)}
+          memberId={null}
+          metadataFields={metadataFields}
+          prefillName={createPrefillName}
+          onCreated={onMemberCreated}
         />
       ) : null}
       <CreateEventSheet
