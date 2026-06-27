@@ -417,7 +417,14 @@ function AttendanceRowBase({
         />
       ) : null}
 
-      <GestureDetector gesture={composed}>
+      {/* touchAction="pan-y" (web only): react-native-gesture-handler's web
+          backend sets the card's CSS touch-action to "none" by default, which
+          tells the browser not to scroll when a touch starts on the card — so a
+          vertical drag begun on a card was swallowed and the list never scrolled
+          (failOffsetY can't help once the browser is told not to scroll). pan-y
+          hands vertical panning back to the browser (native list scroll) while
+          the handler still owns horizontal swipes. No-op on native. */}
+      <GestureDetector gesture={composed} touchAction="pan-y">
         <Animated.View
           accessibilityRole="button"
           accessibilityLabel={name}
