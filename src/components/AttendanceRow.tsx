@@ -16,15 +16,21 @@ import Animated, {
 } from "react-native-reanimated";
 
 /**
- * A roll-call row with bidirectional swipe gestures (time-to-rollcall style):
+ * A roll-call row with edge-anchored swipe gestures (time-to-rollcall style).
+ * A gesture only acts when the touch STARTS within the outer third of the card
+ * on the matching side, so a grab in the middle third never triggers an action
+ * (and never fights the vertical list scroll):
  *
- *  - Swipe LEFT: primary action — sign in (not signed in) or sign out (signed in).
- *    Past the commit distance (or fast fling), the row flings off and `onAction` fires.
- *    A shorter drag snaps open to preview (visual only); only a full drag or fling commits.
- *  - Swipe RIGHT: edit — snaps open to show the pencil; full swipe or tap the strip
- *    to open the edit modal.
+ *  - RIGHT third → primary action (sign in / sign out). Drag left to reveal the
+ *    arrow; past the commit distance (or a fast fling) the row flings off and
+ *    `onAction` fires. A shorter drag — or a tap on the right third — snaps open
+ *    to the arrow preview (visual only); only a full drag or fling commits.
+ *  - LEFT third → edit. Drag right to reveal the pencil; a full swipe (or tapping
+ *    the revealed strip) opens the edit modal. A tap on the left third snaps open
+ *    the pencil preview.
  *
- * Tap on the card only closes a snapped-open preview — sign-in/out requires a swipe.
+ * Tapping the card while a preview is open closes it; a tap in the middle third
+ * does nothing.
  */
 
 /** Minimum drag (px) before snapping to the revealed affordance. */
@@ -59,6 +65,12 @@ export interface AttendanceRowProps {
   mode: AttendanceRowMode;
   /** When true, swipes and taps do not fire actions (past event, editing locked). */
   disabled?: boolean;
+  /**
+   * Disables only the primary (sign in/out) gesture while leaving edit usable —
+   * e.g. a protected attendee on a past event who may be relabelled but not
+   * signed out. The right-side swipe/tap falls through to scroll.
+   */
+  actionDisabled?: boolean;
   /** Sign in / sign out — fired after a left swipe (or tap). */
   onAction: () => void;
   /** Fired the moment a left swipe commits (before the collapse animation completes). */
@@ -87,6 +99,7 @@ function AttendanceRowBase({
   university,
   mode,
   disabled = false,
+  actionDisabled = false,
   onAction,
   onActionStart,
   onEdit,
@@ -110,6 +123,14 @@ function AttendanceRowBase({
 
   const translateX = useSharedValue(0);
   const startX = useSharedValue(0);
+  // Which third of the card the active gesture started in — gates whether a
+  // swipe/tap may act, and on which side. Captured on touch-down.
+  const startZone = useSharedValue<"left" | "right" | "middle">("middle");
+  // Raw touch-down position, used to decide horizontal vs. vertical intent
+  // under manual activation (so a middle-third or vertical drag scrolls the page
+  // instead of being captured by this row).
+  const startTouchX = useSharedValue(0);
+  const startTouchY = useSharedValue(0);
   const itemHeight = useSharedValue(entering ? 0 : 72);
   const opacity = useSharedValue(entering ? 0 : 1);
   const marginBottomValue = useSharedValue(entering ? 0 : spacing.sm);
@@ -192,51 +213,104 @@ function AttendanceRowBase({
 
   const pan = Gesture.Pan()
     .enabled(!disabled)
-    .activeOffsetX([-12, 12])
-    .failOffsetY([-14, 14])
-    .onStart(() => {
+    // Manual activation so the row only captures the touch once we've confirmed
+    // a horizontal swipe that began in an outer third. A middle-third grab, or a
+    // vertical drag, is failed here and falls through to the page/list scroll.
+    .manualActivation(true)
+    .onTouchesDown((e) => {
+      const touch = e.changedTouches[0];
       startX.value = translateX.value;
+      startTouchX.value = touch.x;
+      startTouchY.value = touch.y;
+      // Anchor the gesture to the third it began in. The right third drives the
+      // primary (left-revealing) action; the left third drives edit (right-
+      // revealing); the middle third is inert.
+      const third = rowWidth / 3;
+      startZone.value =
+        touch.x < third ? "left" : touch.x > rowWidth - third ? "right" : "middle";
+    })
+    .onTouchesMove((e, state) => {
+      const touch = e.changedTouches[0];
+      const dx = touch.x - startTouchX.value;
+      const dy = touch.y - startTouchY.value;
+      // Middle third never captures — let the page scroll (vertical OR horizontal).
+      if (startZone.value === "middle") {
+        state.fail();
+        return;
+      }
+      // Left third with no edit handler has nothing to reveal — fall through to
+      // scroll rather than capturing a no-op swipe.
+      if (startZone.value === "left" && !onEdit) {
+        state.fail();
+        return;
+      }
+      // Right third with the primary action disabled (e.g. a protected
+      // past-event attendee) likewise falls through to scroll.
+      if (startZone.value === "right" && actionDisabled) {
+        state.fail();
+        return;
+      }
+      // A predominantly vertical drag yields to the list's vertical scroll.
+      if (Math.abs(dy) > 14 && Math.abs(dy) >= Math.abs(dx)) {
+        state.fail();
+        return;
+      }
+      // A clear horizontal swipe from an outer third captures the row.
+      if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) {
+        state.activate();
+      }
     })
     .onUpdate((e) => {
-      translateX.value = startX.value + e.translationX;
+      const next = startX.value + e.translationX;
+      // Only allow the card to move in the direction its start-zone permits, so
+      // a right-third grab can pull the arrow open (leftward) but not the pencil,
+      // and vice versa. A middle-third grab doesn't move the card at all.
+      if (startZone.value === "right") translateX.value = Math.min(0, next);
+      else if (startZone.value === "left" && onEdit)
+        translateX.value = Math.max(0, next);
     })
     .onEnd((e) => {
       const x = translateX.value;
       const leftDrag = -x;
       const rightDrag = x;
 
-      if (
-        leftDrag + (primarySnapped.value ? REVEALED_BONUS : FRESH_BONUS) >
-          commitDistance ||
-        e.velocityX < -VELOCITY_COMMIT
-      ) {
-        flingPrimary();
+      if (startZone.value === "right") {
+        if (
+          leftDrag + (primarySnapped.value ? REVEALED_BONUS : FRESH_BONUS) >
+            commitDistance ||
+          e.velocityX < -VELOCITY_COMMIT
+        ) {
+          flingPrimary();
+          return;
+        }
+        if (!primarySnapped.value && leftDrag > REVEAL_THRESHOLD) {
+          primarySnapped.value = true;
+          editSnapped.value = false;
+          runOnJS(setSnapPrimary)();
+          translateX.value = slideTo(-SNAP_POSITION);
+          return;
+        }
+        resetSnap();
         return;
       }
 
-      if (
-        onEdit &&
-        (rightDrag + (editSnapped.value ? REVEALED_BONUS : FRESH_BONUS) >
-          commitDistance ||
-          e.velocityX > VELOCITY_COMMIT)
-      ) {
-        commitEdit();
-        return;
-      }
-
-      if (!primarySnapped.value && leftDrag > REVEAL_THRESHOLD) {
-        primarySnapped.value = true;
-        editSnapped.value = false;
-        runOnJS(setSnapPrimary)();
-        translateX.value = slideTo(-SNAP_POSITION);
-        return;
-      }
-
-      if (onEdit && !editSnapped.value && rightDrag > REVEAL_THRESHOLD) {
-        editSnapped.value = true;
-        primarySnapped.value = false;
-        runOnJS(setSnapEdit)();
-        translateX.value = slideTo(SNAP_POSITION);
+      if (startZone.value === "left" && onEdit) {
+        if (
+          rightDrag + (editSnapped.value ? REVEALED_BONUS : FRESH_BONUS) >
+            commitDistance ||
+          e.velocityX > VELOCITY_COMMIT
+        ) {
+          commitEdit();
+          return;
+        }
+        if (!editSnapped.value && rightDrag > REVEAL_THRESHOLD) {
+          editSnapped.value = true;
+          primarySnapped.value = false;
+          runOnJS(setSnapEdit)();
+          translateX.value = slideTo(SNAP_POSITION);
+          return;
+        }
+        resetSnap();
         return;
       }
 
@@ -246,10 +320,27 @@ function AttendanceRowBase({
   const tap = Gesture.Tap()
     .enabled(!disabled)
     .maxDistance(8)
-    .onEnd((_e, success) => {
+    .onEnd((e, success) => {
       if (!success || disabled) return;
+      // A tap with a preview already open just closes it.
       if (editSnapped.value || primarySnapped.value) {
         resetSnap();
+        return;
+      }
+      // Otherwise a tap in an outer third pops open that side's preview: the
+      // right third reveals the arrow, the left third reveals the pencil. The
+      // middle third does nothing.
+      const third = rowWidth / 3;
+      if (e.x > rowWidth - third && !actionDisabled) {
+        primarySnapped.value = true;
+        editSnapped.value = false;
+        runOnJS(setSnapPrimary)();
+        translateX.value = slideTo(-SNAP_POSITION);
+      } else if (onEdit && e.x < third) {
+        editSnapped.value = true;
+        primarySnapped.value = false;
+        runOnJS(setSnapEdit)();
+        translateX.value = slideTo(SNAP_POSITION);
       }
     });
 

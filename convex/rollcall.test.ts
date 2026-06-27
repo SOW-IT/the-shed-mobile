@@ -428,6 +428,78 @@ describe("events + roll-call", () => {
     expect(rows.map((r) => r.email)).toEqual([LEADER]);
   });
 
+  test("past event: an attendee signed in during the event can't be signed out (staff + member paths)", async () => {
+    const leader = asUser(t, LEADER);
+    const dateStart = Date.now() - 3 * 86_400_000;
+    const dateEnd = dateStart + 3600_000; // ended ~3 days ago
+    const { eventId, memberId } = await t.run(async (ctx) => {
+      const eventId = await ctx.db.insert("events", {
+        name: "Past",
+        dateStart,
+        dateEnd,
+        subgroups: [USYD],
+      });
+      // A staff attendee and a member attendee, both signed in mid-event.
+      await ctx.db.insert("attendance", {
+        eventId,
+        email: STAFF,
+        signInTime: dateStart + 600_000,
+      });
+      const memberId = await ctx.db.insert("attendanceMembers", { name: "Guest" });
+      await ctx.db.insert("attendance", {
+        eventId,
+        memberId,
+        signInTime: dateStart + 600_000,
+      });
+      return { eventId, memberId };
+    });
+    // Both the email and member sign-out paths are blocked.
+    await expect(
+      leader.mutation(api.attendance.signOut, { eventId, email: STAFF })
+    ).rejects.toThrow(/can't be removed/i);
+    await expect(
+      leader.mutation(api.attendance.signOut, { eventId, memberId })
+    ).rejects.toThrow(/can't be removed/i);
+    // Both rows are still there.
+    const rows = await leader.query(api.attendance.listByEvent, { eventId });
+    expect(rows).toHaveLength(2);
+  });
+
+  test("past event: a retroactive (post-event) sign-in can still be reversed", async () => {
+    const leader = asUser(t, LEADER);
+    const dateStart = Date.now() - 3 * 86_400_000;
+    const dateEnd = dateStart + 3600_000;
+    const eventId = await t.run((ctx) =>
+      ctx.db.insert("events", { name: "Past", dateStart, dateEnd, subgroups: [USYD] })
+    );
+    // Added a day AFTER the event ended → reversible.
+    await t.run((ctx) =>
+      ctx.db.insert("attendance", {
+        eventId,
+        email: STAFF,
+        signInTime: dateEnd + 86_400_000,
+      })
+    );
+    await leader.mutation(api.attendance.signOut, { eventId, email: STAFF });
+    const rows = await leader.query(api.attendance.listByEvent, { eventId });
+    expect(rows).toHaveLength(0);
+  });
+
+  test("ongoing event: an attendee can be signed out normally", async () => {
+    const leader = asUser(t, LEADER);
+    const { dateStart, dateEnd } = window(); // live (ends in 1h)
+    const eventId = await leader.mutation(api.events.create, {
+      name: "Live",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    await leader.mutation(api.attendance.signIn, { eventId, email: STAFF });
+    await leader.mutation(api.attendance.signOut, { eventId, email: STAFF });
+    const rows = await leader.query(api.attendance.listByEvent, { eventId });
+    expect(rows).toHaveLength(0);
+  });
+
   test("notes are stored per event attendance row", async () => {
     const leader = asUser(t, LEADER);
     const { dateStart, dateEnd } = window();
