@@ -226,10 +226,20 @@ function AttendanceRowBase({
     })
     .onUpdate((e) => {
       const next = startX.value + e.translationX;
-      // Move only in the direction the start-zone permits. The middle third —
-      // and a disabled side (right with actionDisabled, left with no onEdit) —
-      // never moves the card, so the gesture reads as a no-op and the swipe is
-      // effectively ignored even though it activated.
+      // An already-open card can be dragged from anywhere on it — not just its
+      // action third — so the whole card swipes back to closed (or on to commit).
+      // It stays on its own side (clamped to one side of 0).
+      if (primarySnapped.value) {
+        translateX.value = Math.max(-rowWidth, Math.min(0, next));
+        return;
+      }
+      if (editSnapped.value) {
+        translateX.value = Math.min(rowWidth, Math.max(0, next));
+        return;
+      }
+      // Closed: move only in the direction the start-zone permits. The middle
+      // third — and a disabled side (right with actionDisabled, left with no
+      // onEdit) — never moves the card, so the swipe reads as a no-op.
       if (startZone.value === "right" && !actionDisabled)
         translateX.value = Math.min(0, next);
       else if (startZone.value === "left" && onEdit)
@@ -239,6 +249,34 @@ function AttendanceRowBase({
       const x = translateX.value;
       const leftDrag = -x;
       const rightDrag = x;
+
+      // Already open: a swipe from anywhere on the card commits if pushed on,
+      // closes if dragged back past the halfway point (or flung back), else
+      // re-snaps to the open preview.
+      if (primarySnapped.value) {
+        if (leftDrag + REVEALED_BONUS > commitDistance || e.velocityX < -VELOCITY_COMMIT) {
+          flingPrimary();
+          return;
+        }
+        if (x > -SNAP_POSITION / 2 || e.velocityX > VELOCITY_COMMIT) {
+          resetSnap();
+          return;
+        }
+        translateX.value = slideTo(-SNAP_POSITION);
+        return;
+      }
+      if (editSnapped.value) {
+        if (rightDrag + REVEALED_BONUS > commitDistance || e.velocityX > VELOCITY_COMMIT) {
+          commitEdit();
+          return;
+        }
+        if (x < SNAP_POSITION / 2 || e.velocityX < -VELOCITY_COMMIT) {
+          resetSnap();
+          return;
+        }
+        translateX.value = slideTo(SNAP_POSITION);
+        return;
+      }
 
       if (startZone.value === "right" && !actionDisabled) {
         if (
