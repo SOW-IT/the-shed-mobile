@@ -208,13 +208,18 @@ function AttendanceRowBase({
 
   const pan = Gesture.Pan()
     .enabled(!disabled)
-    // Declarative activation (vs. manualActivation + onTouchesDown/Move): a
-    // horizontal drag past 12px captures the row, while a vertical drag fails so
-    // the page/list keeps scrolling. The low-level touch-event APIs aren't
-    // supported on react-native-gesture-handler's web backend, so the zone
-    // gating below lives in onBegin/onUpdate/onEnd — which run on web too.
-    .activeOffsetX([-12, 12])
-    .failOffsetY([-14, 14])
+    // Declarative activation (vs. manualActivation + onTouchesDown/Move): the
+    // row only captures the touch for a clearly horizontal drag (past 16px on
+    // X). A vertical drag fails the pan first (at 10px on Y) so the touch falls
+    // through to the surrounding scroll views — the inner not-signed-in list
+    // first, then the page once it reaches its end. failOffsetY is intentionally
+    // tighter than activeOffsetX so a near-vertical (slightly diagonal) scroll
+    // releases instead of being swallowed as a no-op — including when the thumb
+    // starts on the inert middle third of a card. The low-level touch-event APIs
+    // aren't supported on react-native-gesture-handler's web backend, so the
+    // zone gating below lives in onBegin/onUpdate/onEnd — which run on web too.
+    .activeOffsetX([-16, 16])
+    .failOffsetY([-10, 10])
     .onBegin((e) => {
       startX.value = translateX.value;
       // Anchor the gesture to the third it began in. The right third drives the

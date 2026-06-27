@@ -630,6 +630,12 @@ export default function EventAttendanceScreen() {
         </>
       ) : (
         <>
+          {/* The not-signed-in roster only appears once the event is editable:
+              future/ongoing events always (canEdit is true), a finished event
+              only after "Enable editing" is tapped. Until then there's nothing
+              to sign in/out, so the list is hidden rather than shown greyed. */}
+          {canEdit ? (
+            <>
           {/* Not-signed-in list sits above the signed-in list. The signed-in
               rows are still staggered first (see staggerIndex below), so on
               initial load they animate in before the not-signed-in remainder. */}
@@ -661,16 +667,16 @@ export default function EventAttendanceScreen() {
                     photo={m.photo ?? null}
                     university={m.university}
                     mode="suggested"
-                    // Greyed/locked until editing is enabled; then swipe to sign
-                    // a missed attendee in (and edit their details).
-                    disabled={!canEdit || isAnimating}
+                    // The list only renders when canEdit, so a row is locked
+                    // only while its enter/exit animation plays.
+                    disabled={isAnimating}
                     entering={isEntering}
                     exiting={isExiting}
                     revealTrigger={revealTriggers.get(m.key) ?? 0}
                     onExited={isExiting ? () => setRemoteSignedIn((s) => { const n = new Set(s); n.delete(m.key); return n; }) : undefined}
                     onActionStart={isAnimating ? undefined : () => { onSignInStart(m); if (nextKey) triggerReveal(nextKey); }}
                     onAction={() => { if (!isAnimating) onSignIn(m); }}
-                    onEdit={canEdit && !isAnimating ? () => editRosterEntry(m) : undefined}
+                    onEdit={!isAnimating ? () => editRosterEntry(m) : undefined}
                   />
                 );
                 return isAnimating ? (
@@ -690,6 +696,8 @@ export default function EventAttendanceScreen() {
               ) : null}
             </ScrollView>
           )}
+            </>
+          ) : null}
 
           {signedInList.length > 0 ? (
             <>
