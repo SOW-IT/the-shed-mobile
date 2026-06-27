@@ -170,14 +170,16 @@ export const eventHasEnded = (dateEnd: number, now = Date.now()): boolean => now
 /**
  * Whether a sign-in may be reversed (signed out) on a given event.
  *
- * Ongoing/future events are reversible. Once an event has ended its attendance
- * is locked: people can still be signed in after the fact (to complete the
- * roll-call) but no one can be signed out, so the record can't be erased.
+ * Ongoing/future events are reversible. On a *finished* event the genuine
+ * roll-call is locked: anyone signed in before or during the event can't be
+ * signed out. Only a sign-in recorded AFTER the event ended — a retroactive
+ * addition — can be undone, so a mistaken late add isn't trapped.
  */
 export const canReverseSignIn = (
   event: { dateEnd: number },
+  signInTime: number,
   now = Date.now()
-): boolean => !eventHasEnded(event.dateEnd, now);
+): boolean => !eventHasEnded(event.dateEnd, now) || signInTime > event.dateEnd;
 
 /** Historical attendance counts used to rank likely attendees for an event. */
 export type AttendanceFrequencyScore = {
