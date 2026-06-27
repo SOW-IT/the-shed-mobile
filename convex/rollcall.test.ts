@@ -428,27 +428,41 @@ describe("events + roll-call", () => {
     expect(rows.map((r) => r.email)).toEqual([LEADER]);
   });
 
-  test("past event: an attendee signed in during the event can't be signed out", async () => {
+  test("past event: an attendee signed in during the event can't be signed out (staff + member paths)", async () => {
     const leader = asUser(t, LEADER);
     const dateStart = Date.now() - 3 * 86_400_000;
     const dateEnd = dateStart + 3600_000; // ended ~3 days ago
-    const eventId = await t.run((ctx) =>
-      ctx.db.insert("events", { name: "Past", dateStart, dateEnd, subgroups: [USYD] })
-    );
-    // Signed in mid-event → protected.
-    await t.run((ctx) =>
-      ctx.db.insert("attendance", {
+    const { eventId, memberId } = await t.run(async (ctx) => {
+      const eventId = await ctx.db.insert("events", {
+        name: "Past",
+        dateStart,
+        dateEnd,
+        subgroups: [USYD],
+      });
+      // A staff attendee and a member attendee, both signed in mid-event.
+      await ctx.db.insert("attendance", {
         eventId,
         email: STAFF,
         signInTime: dateStart + 600_000,
-      })
-    );
+      });
+      const memberId = await ctx.db.insert("attendanceMembers", { name: "Guest" });
+      await ctx.db.insert("attendance", {
+        eventId,
+        memberId,
+        signInTime: dateStart + 600_000,
+      });
+      return { eventId, memberId };
+    });
+    // Both the email and member sign-out paths are blocked.
     await expect(
       leader.mutation(api.attendance.signOut, { eventId, email: STAFF })
     ).rejects.toThrow(/can't be removed/i);
-    // Row is still there.
+    await expect(
+      leader.mutation(api.attendance.signOut, { eventId, memberId })
+    ).rejects.toThrow(/can't be removed/i);
+    // Both rows are still there.
     const rows = await leader.query(api.attendance.listByEvent, { eventId });
-    expect(rows.map((r) => r.email)).toEqual([STAFF]);
+    expect(rows).toHaveLength(2);
   });
 
   test("past event: a retroactive (post-event) sign-in can still be reversed", async () => {
