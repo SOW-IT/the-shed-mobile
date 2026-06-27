@@ -16,18 +16,19 @@ import Animated, {
 } from "react-native-reanimated";
 
 /**
- * A roll-call row with edge-anchored swipe gestures (time-to-rollcall style).
- * A gesture only acts when the touch STARTS within the outer third of the card
- * on the matching side, so a grab in the middle third never triggers an action
- * (and never fights the vertical list scroll):
+ * A roll-call row with direction-based swipe gestures (time-to-rollcall style).
+ * A horizontal drag anywhere on the card acts; the side is chosen by the drag
+ * DIRECTION rather than where the finger landed, so the whole card is swipeable.
+ * A vertical drag fails the pan first (see failOffsetY below) so it falls through
+ * to the surrounding list scroll instead of dragging the card:
  *
- *  - RIGHT third → primary action (sign in / sign out). Drag left to reveal the
- *    arrow; past the commit distance (or a fast fling) the row flings off and
- *    `onAction` fires. A shorter drag — or a tap on the right third — snaps open
- *    to the arrow preview (visual only); only a full drag or fling commits.
- *  - LEFT third → edit. Drag right to reveal the pencil; a full swipe (or tapping
- *    the revealed strip) opens the edit modal. A tap on the left third snaps open
- *    the pencil preview.
+ *  - Drag LEFT → primary action (sign in / sign out). Reveals the arrow; past the
+ *    commit distance (or a fast fling) the row flings off and `onAction` fires. A
+ *    shorter drag — or a tap on the right third — snaps open to the arrow preview
+ *    (visual only); only a full drag or fling commits.
+ *  - Drag RIGHT → edit. Reveals the pencil; a full swipe (or tapping the revealed
+ *    strip) opens the edit modal. A tap on the left third snaps open the pencil
+ *    preview.
  *
  * Tapping the card while a preview is open closes it; a tap in the middle third
  * does nothing.
@@ -123,9 +124,6 @@ function AttendanceRowBase({
 
   const translateX = useSharedValue(0);
   const startX = useSharedValue(0);
-  // Which third of the card the gesture began in — gates whether a swipe/tap may
-  // act, and on which side. Captured in onBegin (cross-platform; works on web).
-  const startZone = useSharedValue<"left" | "right" | "middle">("middle");
   const itemHeight = useSharedValue(entering ? 0 : 72);
   const opacity = useSharedValue(entering ? 0 : 1);
   const marginBottomValue = useSharedValue(entering ? 0 : spacing.sm);
@@ -214,26 +212,20 @@ function AttendanceRowBase({
     // through to the surrounding scroll views — the inner not-signed-in list
     // first, then the page once it reaches its end. failOffsetY is intentionally
     // tighter than activeOffsetX so a near-vertical (slightly diagonal) scroll
-    // releases instead of being swallowed as a no-op — including when the thumb
-    // starts on the inert middle third of a card. The low-level touch-event APIs
-    // aren't supported on react-native-gesture-handler's web backend, so the
-    // zone gating below lives in onBegin/onUpdate/onEnd — which run on web too.
+    // releases instead of being swallowed — so a vertical scroll started
+    // anywhere on a card falls through to the list. The low-level touch-event
+    // APIs aren't supported on react-native-gesture-handler's web backend, so
+    // the direction gating below lives in onUpdate/onEnd — which run on web too.
     .activeOffsetX([-16, 16])
     .failOffsetY([-10, 10])
-    .onBegin((e) => {
+    .onBegin(() => {
       startX.value = translateX.value;
-      // Anchor the gesture to the third it began in. The right third drives the
-      // primary (left-revealing) action; the left third drives edit (right-
-      // revealing); the middle third is inert (it only ever scrolls).
-      const third = rowWidth / 3;
-      startZone.value =
-        e.x < third ? "left" : e.x > rowWidth - third ? "right" : "middle";
     })
     .onUpdate((e) => {
       const next = startX.value + e.translationX;
-      // An already-open card can be dragged from anywhere on it — not just its
-      // action third — so the whole card swipes back to closed (or on to commit).
-      // It stays on its own side (clamped to one side of 0).
+      // An already-open card can be dragged from anywhere on it so the whole
+      // card swipes back to closed (or on to commit). It stays on its own side
+      // (clamped to one side of 0).
       if (primarySnapped.value) {
         translateX.value = Math.max(-rowWidth, Math.min(0, next));
         return;
@@ -242,13 +234,17 @@ function AttendanceRowBase({
         translateX.value = Math.min(rowWidth, Math.max(0, next));
         return;
       }
-      // Closed: move only in the direction the start-zone permits. The middle
-      // third — and a disabled side (right with actionDisabled, left with no
-      // onEdit) — never moves the card, so the swipe reads as a no-op.
-      if (startZone.value === "right" && !actionDisabled)
-        translateX.value = Math.min(0, next);
-      else if (startZone.value === "left" && onEdit)
-        translateX.value = Math.max(0, next);
+      // Closed: the side follows the drag DIRECTION, not where the finger
+      // landed, so the card is swipeable from anywhere. A leftward drag reveals
+      // the primary action; a rightward drag reveals edit. A disabled side
+      // (left-drag with actionDisabled, right-drag with no onEdit) stays put.
+      if (next < 0) {
+        if (!actionDisabled) translateX.value = Math.max(-rowWidth, next);
+      } else if (next > 0) {
+        if (onEdit) translateX.value = Math.min(rowWidth, next);
+      } else {
+        translateX.value = 0;
+      }
     })
     .onEnd((e) => {
       const x = translateX.value;
@@ -283,16 +279,14 @@ function AttendanceRowBase({
         return;
       }
 
-      if (startZone.value === "right" && !actionDisabled) {
-        if (
-          leftDrag + (primarySnapped.value ? REVEALED_BONUS : FRESH_BONUS) >
-            commitDistance ||
-          e.velocityX < -VELOCITY_COMMIT
-        ) {
+      // Closed: commit by the resulting drag direction. A leftward drag drives
+      // the primary action; a rightward drag drives edit.
+      if (x < 0 && !actionDisabled) {
+        if (leftDrag + FRESH_BONUS > commitDistance || e.velocityX < -VELOCITY_COMMIT) {
           flingPrimary();
           return;
         }
-        if (!primarySnapped.value && leftDrag > REVEAL_THRESHOLD) {
+        if (leftDrag > REVEAL_THRESHOLD) {
           primarySnapped.value = true;
           editSnapped.value = false;
           runOnJS(setSnapPrimary)();
@@ -303,16 +297,12 @@ function AttendanceRowBase({
         return;
       }
 
-      if (startZone.value === "left" && onEdit) {
-        if (
-          rightDrag + (editSnapped.value ? REVEALED_BONUS : FRESH_BONUS) >
-            commitDistance ||
-          e.velocityX > VELOCITY_COMMIT
-        ) {
+      if (x > 0 && onEdit) {
+        if (rightDrag + FRESH_BONUS > commitDistance || e.velocityX > VELOCITY_COMMIT) {
           commitEdit();
           return;
         }
-        if (!editSnapped.value && rightDrag > REVEAL_THRESHOLD) {
+        if (rightDrag > REVEAL_THRESHOLD) {
           editSnapped.value = true;
           primarySnapped.value = false;
           runOnJS(setSnapEdit)();
