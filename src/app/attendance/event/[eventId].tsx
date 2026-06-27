@@ -133,6 +133,8 @@ export default function EventAttendanceScreen() {
   const [eventEditOpen, setEventEditOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [createMemberOpen, setCreateMemberOpen] = useState(false);
+  const [createPrefillName, setCreatePrefillName] = useState("");
   const [editMemberId, setEditMemberId] = useState<Id<"attendanceMembers"> | null>(
     null
   );
@@ -428,6 +430,24 @@ export default function EventAttendanceScreen() {
     setEditOpen(true);
   };
 
+  // Create a brand-new member from the current search text. The sheet opens in
+  // create mode with the name prefilled; on save, onMemberCreated signs them in.
+  const openCreateMember = () => {
+    if (!canEdit) return;
+    hapticSelect();
+    setCreatePrefillName(search.trim());
+    setCreateMemberOpen(true);
+  };
+
+  const onMemberCreated = (memberId: Id<"attendanceMembers">) => {
+    if (!canEdit) return;
+    hapticSelect();
+    void signIn({ eventId: evId, memberId });
+    // Clear the search so the freshly signed-in member is visible at the top of
+    // the signed-in list rather than hidden behind the search results.
+    setSearch("");
+  };
+
   const openEdit = async (opts: {
     memberId?: Id<"attendanceMembers">;
     staffEmail?: string;
@@ -472,7 +492,19 @@ export default function EventAttendanceScreen() {
       subtitle="Attendance"
       onBack={() => router.back()}
       footer={
-        pastEvent ? (
+        isSearching && canEdit ? (
+          // Searching with editing available: offer to create whoever was typed
+          // (and sign them straight in). Takes the footer slot over the past-event
+          // editing toggle, which is still reachable by clearing the search.
+          <FooterAction
+            title={`Create "${
+              search.trim().length > 22
+                ? `${search.trim().slice(0, 22)}…`
+                : search.trim()
+            }"`}
+            onPress={openCreateMember}
+          />
+        ) : pastEvent ? (
           <FooterAction
             title={editUnlocked ? "Disable editing" : "Enable editing"}
             onPress={() => {
@@ -773,6 +805,18 @@ export default function EventAttendanceScreen() {
           memberId={editMemberId}
           metadataFields={metadataFields}
           eventAttendance={editAttendance}
+        />
+      ) : null}
+      {metadataFields ? (
+        <EditMemberSheet
+          visible={createMemberOpen}
+          onClose={() => setCreateMemberOpen(false)}
+          year={sydneyCalendarYear(new Date(event.dateStart))}
+          staffYear={eventStaffYear(event.dateStart)}
+          memberId={null}
+          metadataFields={metadataFields}
+          prefillName={createPrefillName}
+          onCreated={onMemberCreated}
         />
       ) : null}
       <CreateEventSheet
