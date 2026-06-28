@@ -14,15 +14,22 @@ import { typography, useAppTheme, type AppTheme } from "@/theme";
  */
 
 const inputStyle = (t: AppTheme): CSSProperties => ({
+  // Native date/time controls have a wide intrinsic size and (on iOS Safari in
+  // particular) ignore `width`, so they spill out of their flex column on narrow
+  // mobile screens. display:block + width/maxWidth:100% + minWidth:0 force them
+  // to fill — and never exceed — the container instead. -webkit-appearance:none
+  // makes Safari honour the width while the field still opens the native picker.
+  display: "block",
   width: "100%",
-  // Let the native date control shrink with its flex column instead of forcing
-  // its intrinsic width and spilling out of the row on narrow (mobile) screens.
+  maxWidth: "100%",
   minWidth: 0,
   height: 44,
   padding: "0 12px",
   borderRadius: 10,
   border: "none",
   boxSizing: "border-box",
+  WebkitAppearance: "none",
+  appearance: "none",
   backgroundColor: t.inputBackground,
   color: t.text,
   fontSize: 15,
