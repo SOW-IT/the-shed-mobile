@@ -640,9 +640,7 @@ export const toReview = query({
   },
 });
 
-/** How many of the caller's most recent audit events to scan, and how many
- *  reviewed requests to return, for the "Reviewed" list. */
-const REVIEWED_SCAN_LIMIT = 200;
+/** How many reviewed requests to return for the "Reviewed" list. */
 const REVIEWED_LIMIT = 50;
 
 /**
@@ -656,21 +654,25 @@ export const reviewed = query({
   handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
-    // The caller's own audit events, newest first (the index's implicit
-    // _creationTime tiebreaker), then narrowed to approve/decline actions and
-    // deduped to one entry per request (an approver can act on more than one
-    // step of the same request, e.g. a Director who is also its HOD).
-    const events = await ctx.db
+    // Stream the caller's own audit events newest first (the index's implicit
+    // _creationTime tiebreaker) and collect approve/decline actions, deduped to
+    // one entry per request (an approver can act on more than one step of the
+    // same request, e.g. a Director who is also its HOD). Filtering and deduping
+    // happen DURING the scan so a fixed pre-filter limit can never drop older
+    // valid cards — we stop only once REVIEWED_LIMIT unique requests are found
+    // or the actor's events run out.
+    const seen = new Set<string>();
+    const reviewedIds: Id<"requests">[] = [];
+    for await (const event of ctx.db
       .query("requestEvents")
       .withIndex("by_actor", (q) => q.eq("actorEmail", caller.email))
-      .order("desc")
-      .take(REVIEWED_SCAN_LIMIT);
-    const seen = new Set<string>();
-    const reviewedIds = events
-      .filter((e) => e.action === "approved" || e.action === "declined")
-      .map((e) => e.requestId)
-      .filter((id) => (seen.has(id) ? false : (seen.add(id), true)))
-      .slice(0, REVIEWED_LIMIT);
+      .order("desc")) {
+      if (event.action !== "approved" && event.action !== "declined") continue;
+      if (seen.has(event.requestId)) continue;
+      seen.add(event.requestId);
+      reviewedIds.push(event.requestId);
+      if (reviewedIds.length >= REVIEWED_LIMIT) break;
+    }
     const docs = await Promise.all(
       reviewedIds.map((id) => ctx.db.get("requests", id))
     );

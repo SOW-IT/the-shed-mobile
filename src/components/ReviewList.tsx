@@ -229,7 +229,10 @@ export const ReviewList = () => {
   return (
     <>
       <ErrorBanner message={error} />
-      {data == null ? (
+      {data == null || reviewed === undefined ? (
+        // Wait for BOTH the pending list and the reviewed history before
+        // deciding what to show, so "All caught up" can't flash before the
+        // Reviewed section resolves.
         <LoadingState />
       ) : !hasAnything && !hasReviewed ? (
         <EmptyState
