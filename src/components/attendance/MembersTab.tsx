@@ -238,10 +238,10 @@ export function MembersTab({
               ? universityColour(row.university)
               : undefined;
             const campusPillLabel =
-              row.roles.some((role) => !roleNeedsUniversity(role))
-                ? "STAFF"
-                : row.university
-                  ? subgroupLabel(row.university)
+              row.university
+                ? subgroupLabel(row.university)
+                : row.roles.some((role) => !roleNeedsUniversity(role))
+                  ? "STAFF"
                   : "OTHER";
             const campusPillBackground = campusColour ?? t.ghost;
             const campusPillText = campusColour

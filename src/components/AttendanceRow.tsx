@@ -135,7 +135,7 @@ function AttendanceRowBase({
   const campusColour = university ? universityColour(university) : undefined;
   const hasStaffRole = roles.some((role) => !roleNeedsUniversity(role));
   const campusPillLabel =
-    hasStaffRole ? "STAFF" : university ? subgroupLabel(university) : "OTHER";
+    university ? subgroupLabel(university) : hasStaffRole ? "STAFF" : "OTHER";
   const campusPillBackground = campusColour ?? t.ghost;
   const campusPillText = campusColour ? contrastingText(campusColour) : t.ghostText;
   const primaryIcon =
