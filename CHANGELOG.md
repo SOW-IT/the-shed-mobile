@@ -6,6 +6,16 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Reversed sign-ins stay where they land.** Signing out (reversing) a roll-call
+  attendee now pins them to the top of the "Not signed in" list and keeps them
+  there after the change saves, instead of letting the row jump back down into
+  its ranked position a moment later. (#141)
+- **No grey flash on roll-call cards.** A member card is no longer greyed out
+  while its sign-in/out is still saving — it stays full-strength but can't be
+  swiped again until the change settles. (#141)
+
 ## [1.1.1] — 2026-06-28
 
 A wave of attendance/roll-call polish, request reminders, and sign-in and
