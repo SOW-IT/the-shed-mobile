@@ -497,7 +497,7 @@ describe("events + roll-call", () => {
   test("listBySubgroup accepts legacy and malformed cursors", async () => {
     const leader = asUser(t, LEADER);
     const base = Date.now();
-    await leader.mutation(api.events.create, {
+    const older = await leader.mutation(api.events.create, {
       name: "Older",
       dateStart: base - 20_000,
       dateEnd: base - 20_000 + 3600_000,
@@ -535,6 +535,19 @@ describe("events + roll-call", () => {
     expect(legacy.events).toEqual([]);
     expect(legacy.isDone).toBe(true);
     expect(legacy.continueCursor).toBeNull();
+
+    const malicious = await leader.query(api.events.listBySubgroup, {
+      subgroup: USYD,
+      cursor: `event-subgroup:${JSON.stringify({
+        dbCursor: null,
+        dbIsDone: true,
+        bufferedIds: ["not-a-convex-id", older],
+      })}`,
+      numItems: 1,
+    });
+    expect(malicious.events.map((e) => e._id)).toEqual([older]);
+    expect(malicious.isDone).toBe(true);
+    expect(malicious.continueCursor).toBeNull();
   });
 
   test("sign in is idempotent; sign out removes; counts track", async () => {

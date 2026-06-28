@@ -56,7 +56,9 @@ const decodeListBySubgroupCursor = (
       dbCursor: typeof parsed.dbCursor === "string" ? parsed.dbCursor : null,
       dbIsDone: parsed.dbIsDone === true,
       bufferedIds: Array.isArray(parsed.bufferedIds)
-        ? (parsed.bufferedIds.filter((id) => typeof id === "string") as Id<"events">[])
+        ? (parsed.bufferedIds
+            .filter((id) => typeof id === "string")
+            .slice(0, EVENTS_SCAN_BATCH_SIZE) as Id<"events">[])
         : [],
     };
   } catch {
@@ -161,7 +163,9 @@ export const listBySubgroup = query({
     const decodedCursor = decodeListBySubgroupCursor(cursor);
     const page: Doc<"events">[] = [];
     const remainingBufferedIds: Id<"events">[] = [];
-    for (const eventId of decodedCursor.bufferedIds) {
+    for (const rawEventId of decodedCursor.bufferedIds) {
+      const eventId = ctx.db.normalizeId("events", rawEventId);
+      if (!eventId) continue;
       const event = await ctx.db.get(eventId);
       if (!event) continue;
       if (page.length < pageSize) {
