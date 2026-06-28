@@ -1,3 +1,19 @@
+import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
+import { CampusMark } from "@/components/CampusMark";
+import {
+  NativeDateInput,
+  NativeTimeInput,
+} from "@/components/NativeDateTimeField";
+import {
+  Btn,
+  ConfirmDialog,
+  errorMessage,
+  Field,
+  Sheet,
+  Txt,
+} from "@/components/ui";
+import { WebDateInput, WebTimeInput } from "@/components/WebDateTimeInput";
+import { spacing, typography, useAppTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useRouter } from "expo-router";
@@ -12,19 +28,6 @@ import {
   WEEKLY_MEETING_TAG_NAME,
   weeklyMeetingSlot,
 } from "../../../shared/rollcall";
-import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
-import { CampusMark } from "@/components/CampusMark";
-import { NativeDateInput, NativeTimeInput } from "@/components/NativeDateTimeField";
-import { WebDateInput, WebTimeInput } from "@/components/WebDateTimeInput";
-import {
-  Btn,
-  ConfirmDialog,
-  errorMessage,
-  Field,
-  Sheet,
-  Txt,
-} from "@/components/ui";
-import { spacing, typography, useAppTheme } from "@/theme";
 
 const parseDateTime = (dateStr: string, timeStr: string): number | null => {
   const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -35,7 +38,7 @@ const parseDateTime = (dateStr: string, timeStr: string): number | null => {
     Number(match[2]) - 1,
     Number(match[3]),
     Number(timeMatch[1]),
-    Number(timeMatch[2])
+    Number(timeMatch[2]),
   );
   return d.getTime();
 };
@@ -58,7 +61,7 @@ const dateInputFromMs = (ms: number): string => {
 const timeInputFromMs = (ms: number): string => {
   const d = new Date(ms);
   return `${String(d.getHours()).padStart(2, "0")}:${String(
-    d.getMinutes()
+    d.getMinutes(),
   ).padStart(2, "0")}`;
 };
 
@@ -130,8 +133,12 @@ export function CreateEventSheet({
   // date/time pre-filled from that slot on the Schedule step.
   const weeklyMeetingTagIds = new Set(
     (tags ?? [])
-      .filter((tag) => tag.name.trim().toLowerCase() === WEEKLY_MEETING_TAG_NAME.toLowerCase())
-      .map((tag) => tag._id)
+      .filter(
+        (tag) =>
+          tag.name.trim().toLowerCase() ===
+          WEEKLY_MEETING_TAG_NAME.toLowerCase(),
+      )
+      .map((tag) => tag._id),
   );
   const slot = selectedTags.some((id) => weeklyMeetingTagIds.has(id))
     ? weeklyMeetingSlot(ownerGroup)
@@ -195,13 +202,15 @@ export function CreateEventSheet({
     (tag) =>
       !tag.subgroups?.length ||
       tag.subgroups.some((tagSubgroup) =>
-        collaborators.some((collaborator) => subgroupMatches(tagSubgroup, collaborator))
-      )
+        collaborators.some((collaborator) =>
+          subgroupMatches(tagSubgroup, collaborator),
+        ),
+      ),
   );
 
   const toggleTag = (id: Id<"attendanceTags">) => {
     setSelectedTags((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
   };
 
@@ -359,7 +368,11 @@ export function CreateEventSheet({
           ) : isEditing ? (
             saveButton
           ) : (
-            <Btn title="Create" onPress={() => void submit()} loading={submitting} />
+            <Btn
+              title="Create"
+              onPress={() => void submit()}
+              loading={submitting}
+            />
           )}
         </View>
       }
@@ -427,37 +440,38 @@ export function CreateEventSheet({
       {step === 2 ? (
         <View style={{ gap: spacing.sm }}>
           <Txt style={[typography.label, { color: t.muted }]}>
-            Collaboration — other groups can see this event
+            Allow other groups to view this event
           </Txt>
-          {subgroups
-            .map((sg) => {
-              const isOwner = sg === ownerGroup;
-              return (
-                <Pressable
-                  key={sg}
-                  disabled={isOwner}
-                  onPress={() => toggleCollaborator(sg)}
-                  style={({ pressed }) => [
-                    {
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 10,
-                      padding: 10,
-                      borderRadius: 10,
-                      borderWidth: 2,
-                      borderColor: collaborators.includes(sg) ? t.primary : t.border,
-                      opacity: pressed ? 0.7 : isOwner ? 0.62 : 1,
-                    },
-                  ]}
-                >
-                  <CampusMark campus={sg} size="sm" />
-                  <Txt>
-                    {subgroupLabel(sg)}
-                    {isOwner ? " · owner" : ""}
-                  </Txt>
-                </Pressable>
-              );
-            })}
+          {subgroups.map((sg) => {
+            const isOwner = sg === ownerGroup;
+            return (
+              <Pressable
+                key={sg}
+                disabled={isOwner}
+                onPress={() => toggleCollaborator(sg)}
+                style={({ pressed }) => [
+                  {
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: 10,
+                    borderRadius: 10,
+                    borderWidth: 2,
+                    borderColor: collaborators.includes(sg)
+                      ? t.primary
+                      : t.border,
+                    opacity: pressed ? 0.7 : isOwner ? 0.62 : 1,
+                  },
+                ]}
+              >
+                <CampusMark campus={sg} size="sm" />
+                <Txt>
+                  {subgroupLabel(sg)}
+                  {isOwner ? " · owner" : ""}
+                </Txt>
+              </Pressable>
+            );
+          })}
         </View>
       ) : null}
 
@@ -465,7 +479,11 @@ export function CreateEventSheet({
         <View style={{ gap: spacing.sm }}>
           {Platform.OS === "web" ? (
             <>
-              <WebDateInput label="Date" value={dateStr} onChange={setDateStr} />
+              <WebDateInput
+                label="Date"
+                value={dateStr}
+                onChange={setDateStr}
+              />
               <View style={{ flexDirection: "row", gap: spacing.sm }}>
                 <WebTimeInput
                   label="Start time"
@@ -481,7 +499,11 @@ export function CreateEventSheet({
             </>
           ) : (
             <>
-              <NativeDateInput label="Date" value={dateStr} onChange={setDateStr} />
+              <NativeDateInput
+                label="Date"
+                value={dateStr}
+                onChange={setDateStr}
+              />
               <View style={{ flexDirection: "row", gap: spacing.sm }}>
                 <NativeTimeInput
                   label="Start time"
@@ -500,7 +522,12 @@ export function CreateEventSheet({
       ) : null}
 
       {error ? (
-        <Txt style={[typography.caption, { color: t.danger, marginTop: spacing.sm }]}>
+        <Txt
+          style={[
+            typography.caption,
+            { color: t.danger, marginTop: spacing.sm },
+          ]}
+        >
           {error}
         </Txt>
       ) : null}
@@ -521,8 +548,9 @@ export function CreateEventSheet({
           }
         >
           <Txt style={[typography.body, { color: t.text }]}>
-            This permanently deletes the event and all attendance records for it.
-            Type <Txt style={{ fontWeight: "800" }}>{eventName.trim()}</Txt> to confirm.
+            This permanently deletes the event and all attendance records for
+            it. Type <Txt style={{ fontWeight: "800" }}>{eventName.trim()}</Txt>{" "}
+            to confirm.
           </Txt>
           <Field
             label="Event name"
