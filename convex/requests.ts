@@ -61,6 +61,7 @@ const stepValidator = v.union(
 );
 
 const REQUEST_CLEANUP_BATCH_SIZE = 200;
+const LIVE_REQUESTS_PER_YEAR_LIMIT = 1000;
 
 const requestSummary = (r: Doc<"requests">) =>
   `Requester: ${r.requesterEmail}\nDepartment: ${r.department}\nAmount: $${r.amount}\nDescription: ${r.description}`;
@@ -449,21 +450,18 @@ export const submit = mutation({
   },
 });
 
-const yearRequests = async (ctx: QueryCtx | MutationCtx, year: number) => {
-  const rows: Doc<"requests">[] = [];
-  for await (const request of ctx.db
+const yearRequests = async (ctx: QueryCtx | MutationCtx, year: number) =>
+  await ctx.db
     .query("requests")
     .withIndex("by_year", (q) => q.eq("year", year))
-    .order("desc")) {
-    rows.push(request);
-  }
-  return rows;
-};
+    .order("desc")
+    .take(LIVE_REQUESTS_PER_YEAR_LIMIT);
 
 /**
- * The current year's requests plus the previous year's still-incomplete ones,
- * so in-flight requests survive the October 1 rollover instead of being
- * orphaned. (Also used by the stale-request reminder cron.)
+ * The current year's live request window plus the previous year's
+ * still-incomplete requests, so in-flight requests survive the October 1
+ * rollover instead of being orphaned. Full unbounded year reads are reserved
+ * for the explicit CSV export query below, not live subscriptions.
  */
 export const openRequestsAcrossYears = async (
   ctx: QueryCtx | MutationCtx,
@@ -739,7 +737,9 @@ export const reviewed = query({
 
 /**
  * All requests across the organisation — Finance staff only. Includes the
- * previous year's still-incomplete requests.
+ * previous year's still-incomplete requests for the live staff year. Live reads
+ * are explicitly bounded per year; Finance CSV export is the full unbounded
+ * read path.
  */
 export const allRequests = query({
   args: { year: v.optional(v.number()) },
@@ -762,8 +762,8 @@ export const allRequests = query({
  * Every request in the given staff years, for a Finance CSV export. Finance
  * staff only. Strictly per-year (no carry-over merge) so each selected year's
  * rows stand alone. Reads each year in full with `.collect()` rather than the
- * capped `yearRequests` take(500): an export must not silently truncate, and
- * this is an explicit, on-demand action rather than a live subscription.
+ * bounded live `yearRequests`: an export must not silently truncate, and this
+ * is an explicit, on-demand action rather than a live subscription.
  */
 export const requestsForExport = query({
   args: { years: v.array(v.number()) },

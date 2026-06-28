@@ -23,9 +23,10 @@ This PR now includes fixes for the highest-impact quick wins from the audit:
   `typecheck` script was added, and npm Dependabot coverage was added.
 - Attendance tag/metadata writes now require an admin or campus leader instead
   of any provisioned staff profile.
-- The riskiest silent query caps/scans were reduced: Finance year request reads
-  no longer truncate at 500, event lists paginate from the date index, and
-  roll-call roster history is bounded.
+- The riskiest silent query caps/scans were reduced: Finance live request reads
+  use an explicit high-water bound while CSV export remains the full-read path,
+  event lists paginate from the date index, and roll-call roster history is
+  bounded.
 
 Remaining recommendations in this report are mostly medium/large refactors:
 splitting large modules, deeper read-model indexing, and redesigning comment
