@@ -156,9 +156,8 @@ export default function AttendanceScreen() {
     {
       key: "members",
       label: "Members",
-      // Index 1 is MembersTab's search bar (index 0 is the grouped filter
-      // block) — pin it so it stays reachable while the member list scrolls.
-      stickyHeaderIndices: [1],
+      // Owns its ScrollView so its search bar can be a sticky header.
+      selfScrolling: true,
       render: () => (
         <MembersTab year={year} onEditMember={openEditMember} />
       ),
@@ -188,9 +187,8 @@ export default function AttendanceScreen() {
     {
       key: "audit",
       label: "Audit",
-      // Index 0 is AuditTab's grouped filter + search block — pin it so both
-      // stay reachable while the activity list scrolls.
-      stickyHeaderIndices: [0],
+      // Owns its ScrollView so its filter + search block can be a sticky header.
+      selfScrolling: true,
       render: () => <AuditTab />,
     },
   ];

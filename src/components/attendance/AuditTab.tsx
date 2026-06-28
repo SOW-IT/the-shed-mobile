@@ -1,10 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { Btn, EmptyState, LoadingState, Select } from "@/components/ui";
+import {
+  PAGER_PAGE_BOTTOM_INSET,
+  PAGER_PAGE_CONTENT,
+} from "@/components/PagerScreen";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 const PAGE_SIZE = 30;
@@ -139,7 +143,17 @@ export function AuditTab() {
   );
 
   return (
-    <>
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      // Index 0 is the grouped filter + search block — pin it so both stay
+      // reachable while the activity list scrolls under them.
+      stickyHeaderIndices={[0]}
+      style={{ backgroundColor: t.background }}
+      contentContainerStyle={[
+        PAGER_PAGE_CONTENT,
+        { paddingBottom: PAGER_PAGE_BOTTOM_INSET },
+      ]}
+    >
       {/* Sticky: the filter controls and search bar pin to the top while the
           activity list scrolls under them. The opaque page-background wrapper
           masks rows passing behind the rounded controls. */}
@@ -298,7 +312,7 @@ export function AuditTab() {
           ) : null}
         </>
       )}
-    </>
+    </ScrollView>
   );
 }
 

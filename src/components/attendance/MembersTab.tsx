@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { roleNeedsUniversity, universityColour } from "../../../shared/flow";
@@ -14,6 +14,10 @@ import {
   LoadingState,
   Select,
 } from "@/components/ui";
+import {
+  PAGER_PAGE_BOTTOM_INSET_WITH_FOOTER,
+  PAGER_PAGE_CONTENT,
+} from "@/components/PagerScreen";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 const PAGE_SIZE = 30;
@@ -103,7 +107,17 @@ export function MembersTab({
   if (metadata === undefined) return <LoadingState />;
 
   return (
-    <>
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      // Index 1 is the search bar (index 0 is the grouped filter block) — pin it
+      // so it stays reachable while the member list scrolls under it.
+      stickyHeaderIndices={[1]}
+      style={{ backgroundColor: t.background }}
+      contentContainerStyle={[
+        PAGER_PAGE_CONTENT,
+        { paddingBottom: PAGER_PAGE_BOTTOM_INSET_WITH_FOOTER },
+      ]}
+    >
       {/* Everything above the search bar is grouped into one element so the
           search bar stays at a fixed child index (1) for the page's
           stickyHeaderIndices, regardless of whether the filter panel is open. */}
@@ -326,7 +340,7 @@ export function MembersTab({
           ) : null}
         </View>
       )}
-    </>
+    </ScrollView>
   );
 }
 

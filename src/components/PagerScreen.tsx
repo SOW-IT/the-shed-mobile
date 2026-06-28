@@ -25,10 +25,14 @@ export type PagerTab = {
   messageBadge?: number;
   render: () => ReactNode;
   /**
-   * Indices (into the children returned by {@link render}) that should pin to
-   * the top of the page while the rest scrolls under them — e.g. a search bar.
+   * Render the tab's own scroll container instead of wrapping {@link render} in
+   * the shared page ScrollView. Needed when the tab requires `stickyHeaderIndices`
+   * (sticky search bars): those indices only target a ScrollView's *direct*
+   * children, so the elements must live in a ScrollView the tab owns. Use the
+   * exported {@link PAGER_PAGE_CONTENT} style + bottom-inset constants so the
+   * page metrics match the shared container.
    */
-  stickyHeaderIndices?: number[];
+  selfScrolling?: boolean;
 };
 
 /** How close to the bottom (px) before onEndReached fires. */
@@ -218,10 +222,14 @@ export const PagerScreen = ({
   // page has grown (i.e. more content actually loaded).
   const lastEndReachedHeight = useRef<Record<string, number>>({});
 
-  const renderPage = (tab: PagerTab) => (
+  const renderPage = (tab: PagerTab) =>
+    // A self-scrolling tab owns its ScrollView (so it can use stickyHeaderIndices
+    // on its own direct children); render it as-is.
+    tab.selfScrolling ? (
+      tab.render()
+    ) : (
     <ScrollView
       showsVerticalScrollIndicator={false}
-      stickyHeaderIndices={tab.stickyHeaderIndices}
       style={{ backgroundColor: t.background }}
       contentContainerStyle={[
         styles.page,
@@ -250,7 +258,7 @@ export const PagerScreen = ({
     >
       {tab.render()}
     </ScrollView>
-  );
+    );
 
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: t.background }]} edges={["top"]}>
@@ -311,3 +319,13 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
 });
+
+/**
+ * `contentContainerStyle` for a self-scrolling tab's own ScrollView, so its page
+ * metrics (padding, gap, max width, centering) match the shared container.
+ */
+export const PAGER_PAGE_CONTENT = styles.page;
+/** Bottom inset for a self-scrolling tab without a footer pill. */
+export const PAGER_PAGE_BOTTOM_INSET = 48;
+/** Bottom inset for a self-scrolling tab that has a footer pill. */
+export const PAGER_PAGE_BOTTOM_INSET_WITH_FOOTER = 96;
