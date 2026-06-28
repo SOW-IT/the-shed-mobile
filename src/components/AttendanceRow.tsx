@@ -46,6 +46,13 @@ const VELOCITY_COMMIT = 1200;
 
 /** Snap / reset duration — matches time-to-rollcall (0.3s). */
 const SLIDE_MS = 280;
+
+/**
+ * Duration of a row's entrance (height/opacity grow-in). Exported so callers
+ * that gate on the entrance finishing — e.g. clearing a "newly added" flag in
+ * the roster screen — stay in sync with this value instead of hard-coding it.
+ */
+export const ATTENDANCE_ROW_ENTER_MS = 200;
 const slideTo = (toValue: number) => {
   "worklet";
   return withTiming(toValue, {
@@ -152,9 +159,10 @@ function AttendanceRowBase({
      React Compiler immutability rule doesn't model Reanimated's mutable refs. */
   useEffect(() => {
     if (!entering) return;
-    itemHeight.value = withTiming(72, { duration: 200, easing: Easing.out(Easing.cubic) });
-    marginBottomValue.value = withTiming(spacing.sm, { duration: 200, easing: Easing.out(Easing.cubic) });
-    opacity.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.cubic) });
+    const enter = { duration: ATTENDANCE_ROW_ENTER_MS, easing: Easing.out(Easing.cubic) };
+    itemHeight.value = withTiming(72, enter);
+    marginBottomValue.value = withTiming(spacing.sm, enter);
+    opacity.value = withTiming(1, enter);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally runs once on mount
   }, []);
 

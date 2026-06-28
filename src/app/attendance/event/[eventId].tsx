@@ -17,7 +17,7 @@ import {
   subgroupLabel,
 } from "../../../../shared/rollcall";
 import { eventStaffYear, sydneyCalendarYear } from "../../../../shared/flow";
-import { AttendanceRow } from "@/components/AttendanceRow";
+import { AttendanceRow, ATTENDANCE_ROW_ENTER_MS } from "@/components/AttendanceRow";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
@@ -47,6 +47,10 @@ const UNSIGNED_ROW_HEIGHT = 72 + spacing.sm;
  * avoiding layout jumps under the list.
  */
 const UNSIGNED_LIST_HEIGHT = UNSIGNED_ROW_HEIGHT * 3;
+
+/** When to drop a row's "newly added" lock — a hair past its entrance grow-in,
+ *  derived from the row's own animation duration so the two stay in sync. */
+const NEWLY_ADDED_CLEAR_MS = ATTENDANCE_ROW_ENTER_MS + 40;
 
 /** Subtitle for a roster row. */
 const memberSubtitle = (member: {
@@ -440,7 +444,19 @@ export default function EventAttendanceScreen() {
   // would only unlock on the next list change (such as signing someone else in).
   useEffect(() => {
     if (newlyAddedUnsigned.size === 0) return;
-    const timer = setTimeout(() => setNewlyAddedUnsigned(new Set()), 240);
+    const keys = newlyAddedUnsigned;
+    const timer = setTimeout(() => {
+      // Clearing the flag flips a row's wrapper from View → FadeInView, which
+      // remounts it and would replay the entrance. Suppress every key we clear
+      // (not just locally-reversed ones) so remote sign-outs and backend-created
+      // members keep a stable wrapper and their entrance stays one-shot.
+      setSuppressUnsignedFadeIn((s) => {
+        const n = new Set(s);
+        for (const k of keys) n.add(k);
+        return n;
+      });
+      setNewlyAddedUnsigned((prev) => (prev === keys ? new Set() : prev));
+    }, NEWLY_ADDED_CLEAR_MS);
     return () => clearTimeout(timer);
   }, [newlyAddedUnsigned]);
 
