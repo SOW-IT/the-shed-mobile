@@ -271,6 +271,12 @@ export const Toast = ({ toast }: { toast: ToastState }) => {
   );
 };
 
+// iOS keyboard animation curve. Animated.timing's default ease-in-out starts
+// slowly, so even with the keyboard's own duration the footer visibly lagged a
+// beat behind it. This front-loaded curve (fast out, ease into place) tracks the
+// keyboard, so the bar rises with it at the same speed.
+const KEYBOARD_EASING = Easing.bezier(0.38, 0.7, 0.125, 1);
+
 /** Floating full-width pill action pinned above the tab bar. */
 export const FooterAction = ({
   title,
@@ -279,6 +285,7 @@ export const FooterAction = ({
   onInfo,
   note,
   cancel,
+  bottomOffset = 0,
 }: {
   title: string;
   onPress: () => void;
@@ -289,6 +296,12 @@ export const FooterAction = ({
   note?: string | null;
   /** Optional secondary (Cancel) button rendered to the left, sharing width. */
   cancel?: { onPress: () => void; disabled?: boolean; title?: string };
+  /**
+   * Extra px to raise the footer above its default bottom gap. Used on screens
+   * without a bottom tab bar (e.g. the event attendance page) so the pill clears
+   * the home indicator and sits a little higher instead of hugging the edge.
+   */
+  bottomOffset?: number;
 }) => {
   const t = useAppTheme();
   const [scale] = useState(() => new Animated.Value(1));
@@ -312,6 +325,7 @@ export const FooterAction = ({
       Animated.timing(lift, {
         toValue: e.endCoordinates.height,
         duration: e.duration || 250,
+        easing: KEYBOARD_EASING,
         useNativeDriver: true,
       }).start();
     });
@@ -319,6 +333,7 @@ export const FooterAction = ({
       Animated.timing(lift, {
         toValue: 0,
         duration: e?.duration || 250,
+        easing: KEYBOARD_EASING,
         useNativeDriver: true,
       }).start();
     });
@@ -331,6 +346,7 @@ export const FooterAction = ({
     <Animated.View
       style={[
         styles.footerWrap,
+        bottomOffset ? { bottom: spacing.md + bottomOffset } : null,
         { transform: [{ translateY: Animated.multiply(lift, -1) }], pointerEvents: "box-none" },
       ]}
     >

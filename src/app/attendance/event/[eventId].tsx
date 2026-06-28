@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import {
@@ -108,6 +109,11 @@ function CountChip({
 export default function EventAttendanceScreen() {
   const t = useAppTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  // This screen is a pushed route with no bottom tab bar, so the footer would
+  // otherwise hug the very bottom edge. Lift it to clear the home indicator and
+  // sit a little higher.
+  const footerBottomOffset = insets.bottom + spacing.sm;
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
   const evId = eventId as Id<"events">;
 
@@ -589,6 +595,7 @@ export default function EventAttendanceScreen() {
                 : search.trim()
             }"`}
             onPress={openCreateMember}
+            bottomOffset={footerBottomOffset}
           />
         ) : pastEvent ? (
           <FooterAction
@@ -598,6 +605,7 @@ export default function EventAttendanceScreen() {
               if (editUnlocked) setEditUnlocked(false);
               else setConfirmEnableEdit(true);
             }}
+            bottomOffset={footerBottomOffset}
           />
         ) : undefined
       }
