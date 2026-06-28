@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { subgroupColour, subgroupLabel } from "../../../shared/rollcall";
 import { CampusMark } from "@/components/CampusMark";
+import { FadeInView, stagger } from "@/components/ui";
 import { spacing, useAppTheme } from "@/theme";
 
 const MARK = 40;
@@ -55,28 +56,29 @@ export function SubgroupScopePicker({
           </View>
         </Pressable>
       ) : null}
-      {subgroups.map((sg) => {
+      {subgroups.map((sg, i) => {
         const selected = isSelected(sg);
         const colour = subgroupColour(sg);
         return (
-          <Pressable
-            key={sg}
-            accessibilityRole="button"
-            accessibilityLabel={subgroupLabel(sg)}
-            accessibilityState={{ selected }}
-            onPress={() => onToggle(sg)}
-            style={({ pressed }) => [styles.slot, pressed && { opacity: 0.7 }]}
-          >
-            <View
-              style={[
-                styles.ring,
-                { borderColor: selected ? colour : "transparent" },
-                !selected && { opacity: FADED_OPACITY },
-              ]}
+          <FadeInView key={sg} delay={stagger(i)}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={subgroupLabel(sg)}
+              accessibilityState={{ selected }}
+              onPress={() => onToggle(sg)}
+              style={({ pressed }) => [styles.slot, pressed && { opacity: 0.7 }]}
             >
-              <CampusMark campus={sg} variant="circle" circleDiameter={MARK} />
-            </View>
-          </Pressable>
+              <View
+                style={[
+                  styles.ring,
+                  { borderColor: selected ? colour : "transparent" },
+                  !selected && { opacity: FADED_OPACITY },
+                ]}
+              >
+                <CampusMark campus={sg} variant="circle" circleDiameter={MARK} />
+              </View>
+            </Pressable>
+          </FadeInView>
         );
       })}
     </View>

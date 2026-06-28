@@ -21,9 +21,19 @@ import {
   ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Reanimated, {
+  cancelAnimation,
+  Easing as ReanimatedEasing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from "react-native-reanimated";
 import { useRouter } from "expo-router";
 import { api } from "../../convex/_generated/api";
 import { radius, spacing, typography, USE_NATIVE_DRIVER, useAppTheme } from "../theme";
+
+const ReanimatedImage = Reanimated.createAnimatedComponent(Image);
 
 // Haptics are intentionally reserved for the bottom navigation bar only (see
 // _layout.tsx). Exported so that single caller can use the same helper; no
@@ -1304,32 +1314,34 @@ export const EmptyState = ({
   );
 };
 
-/** SOW logo that rotates continuously — used as the app's loading spinner. */
+/** SOW logo that rotates continuously — used as the app's loading spinner.
+ * Uses react-native-reanimated so the rotation runs on the UI thread and
+ * never freezes when the JS thread is busy (e.g. during heavy renders). */
 export const SowSpinner = ({ size = 64, onDark }: { size?: number; onDark?: boolean }) => {
   const t = useAppTheme();
   const dark = onDark ?? t.dark;
-  const [spin] = useState(() => new Animated.Value(0));
+  const rotation = useSharedValue(0);
   useEffect(() => {
-    const anim = Animated.loop(
-      Animated.timing(spin, {
-        toValue: 1,
-        duration: 1200,
-        easing: Easing.linear,
-        useNativeDriver: USE_NATIVE_DRIVER,
-      })
+    rotation.value = withRepeat(
+      withTiming(360, { duration: 1200, easing: ReanimatedEasing.linear }),
+      -1,
+      false
     );
-    anim.start();
-    return () => anim.stop();
-  }, [spin]);
-  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
+    return () => { cancelAnimation(rotation); };
+  }, [rotation]);
+  const animatedStyle = useAnimatedStyle(() => ({
+    width: size,
+    height: size,
+    transform: [{ rotate: `${rotation.value}deg` }],
+  }));
   return (
-    <Animated.Image
+    <ReanimatedImage
       source={
         dark
           ? require("../../assets/images/splash-icon-dark.png")
           : require("../../assets/images/splash-icon.png")
       }
-      style={{ width: size, height: size, transform: [{ rotate }] }}
+      style={animatedStyle}
       resizeMode="contain"
       accessibilityLabel="Loading"
     />
