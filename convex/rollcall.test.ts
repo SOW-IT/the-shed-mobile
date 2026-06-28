@@ -545,6 +545,15 @@ describe("events + roll-call", () => {
       expect(result.events.map((e) => e._id)).toEqual([newer]);
     }
 
+    // A "done" cursor with nothing buffered is never emitted, so a corrupt/stale
+    // one must restart rather than report an empty done page that hides events.
+    const corruptDone = await leader.query(api.events.listBySubgroup, {
+      subgroup: USYD,
+      cursor: `event-subgroup:${JSON.stringify({ dbIsDone: true, bufferedIds: [] })}`,
+      numItems: 1,
+    });
+    expect(corruptDone.events.map((e) => e._id)).toEqual([newer]);
+
     const malicious = await leader.query(api.events.listBySubgroup, {
       subgroup: USYD,
       cursor: `event-subgroup:${JSON.stringify({

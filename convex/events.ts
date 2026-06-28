@@ -62,23 +62,27 @@ const decodeListBySubgroupCursor = (
   if (!cursor.startsWith(prefix)) {
     return { dbCursor: asPaginatorCursor(cursor), dbIsDone: false, bufferedIds: [] };
   }
+  const fresh = { dbCursor: null, dbIsDone: false, bufferedIds: [] };
   try {
     const parsed = JSON.parse(cursor.slice(prefix.length)) as {
       dbCursor?: unknown;
       dbIsDone?: unknown;
       bufferedIds?: unknown;
     };
-    return {
-      dbCursor: asPaginatorCursor(parsed.dbCursor),
-      dbIsDone: parsed.dbIsDone === true,
-      bufferedIds: Array.isArray(parsed.bufferedIds)
-        ? (parsed.bufferedIds
-            .filter((id) => typeof id === "string")
-            .slice(0, EVENTS_SCAN_BATCH_SIZE) as Id<"events">[])
-        : [],
-    };
+    const bufferedIds = Array.isArray(parsed.bufferedIds)
+      ? (parsed.bufferedIds
+          .filter((id) => typeof id === "string")
+          .slice(0, EVENTS_SCAN_BATCH_SIZE) as Id<"events">[])
+      : [];
+    const dbIsDone = parsed.dbIsDone === true;
+    // We never emit a "done" cursor with nothing buffered (encode only wraps a
+    // cursor while there's more to return), so this combination is corrupt or
+    // stale — restart rather than returning an empty "done" page that hides
+    // real events.
+    if (dbIsDone && bufferedIds.length === 0) return fresh;
+    return { dbCursor: asPaginatorCursor(parsed.dbCursor), dbIsDone, bufferedIds };
   } catch {
-    return { dbCursor: null, dbIsDone: false, bufferedIds: [] };
+    return fresh;
   }
 };
 
