@@ -394,17 +394,17 @@ describe("events + roll-call", () => {
   test("listBySubgroup paginates through interleaved non-matching events", async () => {
     const leader = asUser(t, LEADER);
     const base = Date.now();
-    const older = await leader.mutation(api.events.create, {
-      name: "Older",
+    const oldest = await leader.mutation(api.events.create, {
+      name: "Oldest",
       dateStart: base - 86_400_000,
       dateEnd: base - 86_400_000 + 3600_000,
       subgroups: [USYD],
     });
-    await leader.mutation(api.events.create, {
-      name: "Other 1",
-      dateStart: base - 60_000,
-      dateEnd: base - 60_000 + 3600_000,
-      subgroups: [MACQ],
+    const older = await leader.mutation(api.events.create, {
+      name: "Older",
+      dateStart: base - 45_000,
+      dateEnd: base - 45_000 + 3600_000,
+      subgroups: [USYD],
     });
     await leader.mutation(api.events.create, {
       name: "Other 2",
@@ -421,18 +421,18 @@ describe("events + roll-call", () => {
 
     const first = await leader.query(api.events.listBySubgroup, {
       subgroup: USYD,
-      numItems: 1,
+      numItems: 2,
     });
-    expect(first.events.map((e) => e._id)).toEqual([newer]);
+    expect(first.events.map((e) => e._id)).toEqual([newer, older]);
     expect(first.isDone).toBe(false);
     expect(first.continueCursor).toBeTruthy();
 
     const second = await leader.query(api.events.listBySubgroup, {
       subgroup: USYD,
       cursor: first.continueCursor,
-      numItems: 1,
+      numItems: 2,
     });
-    expect(second.events.map((e) => e._id)).toEqual([older]);
+    expect(second.events.map((e) => e._id)).toEqual([oldest]);
     expect(second.isDone).toBe(true);
     expect(second.continueCursor).toBeNull();
   });

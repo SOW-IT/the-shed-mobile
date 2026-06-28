@@ -131,13 +131,17 @@ export const listBySubgroup = query({
       !isDone &&
       scanned < MAX_EVENTS_SCANNED_PER_PAGE
     ) {
+      const batchSize = Math.min(
+        pageSize - page.length,
+        MAX_EVENTS_SCANNED_PER_PAGE - scanned
+      );
       const batch = await ctx.db
         .query("events")
         .withIndex("by_dateStart")
         .order("desc")
         .paginate({
           cursor: continueCursor,
-          numItems: pageSize,
+          numItems: batchSize,
         });
       continueCursor = batch.continueCursor;
       isDone = batch.isDone;
