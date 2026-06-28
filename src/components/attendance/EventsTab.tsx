@@ -107,36 +107,37 @@ export function EventsTab({
       ) : (
         <>
           <View style={styles.campusRow}>
-            {subgroups.map((sg) => {
+            {subgroups.map((sg, i) => {
               const active = sg === subgroup;
               const colour = subgroupColour(sg);
               return (
-                <Pressable
-                  key={sg}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                  onPress={() => onSelectedSubgroupChange(sg)}
-                  style={({ pressed }) => [
-                    styles.campusSlot,
-                    pressed && { opacity: 0.7 },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.campusRing,
-                      {
-                        borderColor: active ? colour : "transparent",
-                        borderWidth: active ? 2.5 : 0,
-                      },
+                <FadeInView key={sg} delay={stagger(i)}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    onPress={() => onSelectedSubgroupChange(sg)}
+                    style={({ pressed }) => [
+                      styles.campusSlot,
+                      pressed && { opacity: 0.7 },
                     ]}
                   >
-                    <CampusMark
-                      campus={sg}
-                      variant="circle"
-                      circleDiameter={CAMPUS_MARK}
-                    />
-                  </View>
-                </Pressable>
+                    <View
+                      style={[
+                        styles.campusRing,
+                        {
+                          borderColor: active ? colour : "transparent",
+                          borderWidth: active ? 2.5 : 0,
+                        },
+                      ]}
+                    >
+                      <CampusMark
+                        campus={sg}
+                        variant="circle"
+                        circleDiameter={CAMPUS_MARK}
+                      />
+                    </View>
+                  </Pressable>
+                </FadeInView>
               );
             })}
           </View>
