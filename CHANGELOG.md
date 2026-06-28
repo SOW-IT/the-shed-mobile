@@ -28,6 +28,10 @@ All notable changes to **The SHED** mobile app. This project follows
   now be acted on right away, instead of staying locked until another sign-in
   refreshed the roster. The card also no longer replays a reappear animation once
   the change finishes saving — it settles in place. (#144)
+- **Steadier attendance layout.** The not-signed-in list keeps its three-card
+  height even when no one is signed in yet, the Members tab uses the same spacing
+  between cards as the roll-call lists, and the footer action buttons sit a little
+  higher off the bottom. (#145)
 
 ## [1.1.1] — 2026-06-28
 

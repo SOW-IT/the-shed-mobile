@@ -117,7 +117,7 @@ export default function EventAttendanceScreen() {
   // This screen is a pushed route with no bottom tab bar, so the footer would
   // otherwise hug the very bottom edge. Lift it to clear the home indicator and
   // sit a little higher.
-  const footerBottomOffset = insets.bottom + spacing.sm;
+  const footerBottomOffset = insets.bottom + spacing.xl;
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
   const evId = eventId as Id<"events">;
 
@@ -1027,5 +1027,9 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 15 },
   section: { marginTop: spacing.md, marginBottom: spacing.sm },
-  unsignedScroll: { height: UNSIGNED_LIST_HEIGHT },
+  // flexGrow/Shrink 0 pins the viewport to exactly three cards: react-native-web's
+  // ScrollView base style sets flexGrow 1, so when the signed-in list is empty the
+  // page content is short, the Screen's scroll container stretches, and this list
+  // would otherwise grow past its height (showing ~5 cards). Keep it rigid.
+  unsignedScroll: { height: UNSIGNED_LIST_HEIGHT, flexGrow: 0, flexShrink: 0 },
 });
