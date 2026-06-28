@@ -264,7 +264,11 @@ export function SettingsTab({
         }
       >
         <Muted>
-          This removes the tag from all events that use it. Type the tag name to confirm.
+          This removes the tag from all events that use it. Type{" "}
+          <Txt style={{ fontWeight: "800" }}>
+            {deleteIndex !== null ? tagDrafts[deleteIndex]?.name : ""}
+          </Txt>{" "}
+          to confirm.
         </Muted>
         <Field
           label="Tag name"

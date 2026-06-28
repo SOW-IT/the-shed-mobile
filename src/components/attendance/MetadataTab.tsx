@@ -509,7 +509,11 @@ export function MetadataTab({
       >
         <Muted>
           This deletes this metadata field and removes its saved value from every member
-          that has it. Type the metadata name to confirm.
+          that has it. Type{" "}
+          <Txt style={{ fontWeight: "800" }}>
+            {deleteIndex !== null ? metaDrafts[deleteIndex]?.key : ""}
+          </Txt>{" "}
+          to confirm.
         </Muted>
         <Field
           label="Metadata name"

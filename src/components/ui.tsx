@@ -806,12 +806,20 @@ export const ConfirmDialog = ({
     >
       {message ? <Muted>{message}</Muted> : null}
       {requireText !== undefined && (
-        <Field
-          label={`Type "${requireText}" to confirm`}
-          value={input}
-          onChangeText={setInput}
-          placeholder={requireText}
-        />
+        <>
+          {/* Spell out — in bold — exactly what has to be typed to unlock the
+              confirm button, so the required name can't be missed. */}
+          <Txt>
+            Type <Txt style={{ fontWeight: "800" }}>{normalizedRequired}</Txt> to
+            confirm.
+          </Txt>
+          <Field
+            label="Name"
+            value={input}
+            onChangeText={setInput}
+            placeholder={requireText}
+          />
+        </>
       )}
     </OptionSheet>
   );
