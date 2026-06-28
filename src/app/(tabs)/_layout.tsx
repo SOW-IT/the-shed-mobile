@@ -89,7 +89,7 @@ type TabBarButtonProps = {
   disabled?: boolean | null;
 };
 
-const inactivePressableState = { pressed: false, hovered: false };
+const inactivePressableState = { pressed: false, hovered: false, focused: false };
 
 /**
  * Tab-bar button that scales its icon on touch, giving the same press
