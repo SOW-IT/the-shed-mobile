@@ -23,10 +23,57 @@ import {
 import { optionalProfile, requireProfile } from "./model";
 import { notify } from "./requests";
 import { logAttendanceAction } from "./attendanceAudit";
+import { paginator } from "convex-helpers/server/pagination";
+import schema from "./schema";
 
 const EVENTS_PAGE_SIZE = 20;
 const MAX_EVENTS_PAGE_SIZE = 50;
+const EVENTS_SCAN_BATCH_SIZE = 100;
 const MAX_EVENTS_SCANNED_PER_PAGE = 1000;
+
+type ListBySubgroupCursor = {
+  dbCursor: string | null;
+  dbIsDone: boolean;
+  bufferedIds: Id<"events">[];
+};
+
+const encodeListBySubgroupCursor = (cursor: ListBySubgroupCursor) =>
+  `event-subgroup:${JSON.stringify(cursor)}`;
+
+// `paginator` (convex-helpers) encodes its cursor as a JSON array string, so a
+// valid db cursor always starts with "[". Anything else — an opaque cursor left
+// over from the old built-in `.paginate()` deploy, or junk — would make
+// `paginator.paginate()` throw, so we drop it and restart from the newest row.
+const asPaginatorCursor = (value: unknown): string | null =>
+  typeof value === "string" && value.startsWith("[") ? value : null;
+
+const decodeListBySubgroupCursor = (
+  cursor: string | null | undefined
+): ListBySubgroupCursor => {
+  if (!cursor) return { dbCursor: null, dbIsDone: false, bufferedIds: [] };
+  const prefix = "event-subgroup:";
+  if (!cursor.startsWith(prefix)) {
+    return { dbCursor: asPaginatorCursor(cursor), dbIsDone: false, bufferedIds: [] };
+  }
+  try {
+    const parsed = JSON.parse(cursor.slice(prefix.length)) as {
+      dbCursor?: unknown;
+      dbIsDone?: unknown;
+      bufferedIds?: unknown;
+    };
+    return {
+      dbCursor: asPaginatorCursor(parsed.dbCursor),
+      dbIsDone: parsed.dbIsDone === true,
+      bufferedIds: Array.isArray(parsed.bufferedIds)
+        ? (parsed.bufferedIds
+            .filter((id) => typeof id === "string")
+            .slice(0, EVENTS_SCAN_BATCH_SIZE) as Id<"events">[])
+        : [],
+    };
+  } catch {
+    return { dbCursor: null, dbIsDone: false, bufferedIds: [] };
+  }
+};
 
 /** Quick attendance count for an event, without loading the rows themselves. */
 async function attendanceCount(
@@ -122,20 +169,40 @@ export const listBySubgroup = query({
       Math.max(1, Math.floor(numItems)),
       MAX_EVENTS_PAGE_SIZE
     );
+    const decodedCursor = decodeListBySubgroupCursor(cursor);
     const page: Doc<"events">[] = [];
-    let continueCursor = cursor ?? null;
-    let isDone = false;
+    const remainingBufferedIds: Id<"events">[] = [];
+    for (const rawEventId of decodedCursor.bufferedIds) {
+      const eventId = ctx.db.normalizeId("events", rawEventId);
+      if (!eventId) continue;
+      const event = await ctx.db.get(eventId);
+      if (!event) continue;
+      if (!eventIncludesSubgroup(event.subgroups, subgroup)) continue;
+      if (page.length < pageSize) {
+        page.push(event);
+      } else {
+        remainingBufferedIds.push(eventId);
+      }
+    }
+    let continueCursor = decodedCursor.dbCursor;
+    let isDone = decodedCursor.dbIsDone;
     let scanned = 0;
     while (
       page.length < pageSize &&
+      remainingBufferedIds.length === 0 &&
       !isDone &&
       scanned < MAX_EVENTS_SCANNED_PER_PAGE
     ) {
       const batchSize = Math.min(
-        pageSize - page.length,
+        EVENTS_SCAN_BATCH_SIZE,
         MAX_EVENTS_SCANNED_PER_PAGE - scanned
       );
-      const batch = await ctx.db
+      // Use convex-helpers' `paginator` rather than the built-in
+      // `ctx.db...paginate()`: a single Convex function may only call the
+      // built-in `.paginate()` once, but a sparse subgroup forces this loop to
+      // scan several batches, which threw "multiple paginated queries in a
+      // single function call". `paginator` has no such limit.
+      const batch = await paginator(ctx.db, schema)
         .query("events")
         .withIndex("by_dateStart")
         .order("desc")
@@ -148,8 +215,11 @@ export const listBySubgroup = query({
       scanned += batch.page.length;
       for (const event of batch.page) {
         if (!eventIncludesSubgroup(event.subgroups, subgroup)) continue;
-        page.push(event);
-        if (page.length >= pageSize) break;
+        if (page.length < pageSize) {
+          page.push(event);
+        } else {
+          remainingBufferedIds.push(event._id);
+        }
       }
       if (batch.page.length === 0) break;
     }
@@ -159,10 +229,17 @@ export const listBySubgroup = query({
         attendanceCount: await attendanceCount(ctx, event._id),
       }))
     );
+    const hasMore = remainingBufferedIds.length > 0 || !isDone;
     return {
       events: withCounts,
-      isDone,
-      continueCursor: isDone ? null : continueCursor,
+      isDone: !hasMore,
+      continueCursor: hasMore
+        ? encodeListBySubgroupCursor({
+            dbCursor: continueCursor,
+            dbIsDone: isDone,
+            bufferedIds: remainingBufferedIds,
+          })
+        : null,
     };
   },
 });
