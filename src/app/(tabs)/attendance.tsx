@@ -91,7 +91,7 @@ export default function AttendanceScreen() {
           <FooterAction
             title="+ Create event"
             onPress={() => setCreateEventOpen(true)}
-            bottomOffset={FOOTER_LIFT}
+            avoidKeyboard={active === "events"}
           />
         ),
       });
@@ -102,7 +102,7 @@ export default function AttendanceScreen() {
         <FooterAction
           title="+ Create member"
           onPress={openCreateMember}
-          bottomOffset={FOOTER_LIFT}
+          avoidKeyboard={active === "members"}
         />
       ),
     });
@@ -114,6 +114,7 @@ export default function AttendanceScreen() {
           disabled={!tagsSave.dirty || tagsSave.saving}
           note={tagsSave.dirty && !tagsSave.saving ? "You have unsaved changes" : null}
           onPress={() => setConfirmSaveTags(true)}
+          avoidKeyboard={active === "settings"}
           cancel={{
             onPress: () => setConfirmRevertTags(true),
             disabled: !tagsSave.dirty || tagsSave.saving,
@@ -130,6 +131,7 @@ export default function AttendanceScreen() {
           disabled={!metaSave.dirty || metaSave.saving}
           note={metaSave.dirty && !metaSave.saving ? "You have unsaved changes" : null}
           onPress={() => setConfirmSaveMeta(true)}
+          avoidKeyboard={active === "metadata"}
           cancel={{
             onPress: () => setConfirmRevertMeta(true),
             disabled: !metaSave.dirty || metaSave.saving,
@@ -139,7 +141,7 @@ export default function AttendanceScreen() {
       ),
     });
     return items;
-  }, [subgroup, subgroups, tagsSave, metaSave]);
+  }, [active, subgroup, subgroups, tagsSave, metaSave]);
 
   if (me === undefined || subgroups === undefined || metadata === undefined) {
     return <LoadingState />;
