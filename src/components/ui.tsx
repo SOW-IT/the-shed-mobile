@@ -324,7 +324,9 @@ export const FooterAction = ({
     const show = Keyboard.addListener("keyboardWillShow", (e) => {
       Animated.timing(lift, {
         toValue: e.endCoordinates.height,
-        duration: e.duration || 250,
+        // `??` not `||`: iOS may report a real duration of 0 (no animation),
+        // which should stay 0, not fall back to 250ms and desync the lift.
+        duration: e.duration ?? 250,
         easing: KEYBOARD_EASING,
         useNativeDriver: true,
       }).start();
@@ -332,7 +334,7 @@ export const FooterAction = ({
     const hide = Keyboard.addListener("keyboardWillHide", (e) => {
       Animated.timing(lift, {
         toValue: 0,
-        duration: e?.duration || 250,
+        duration: e?.duration ?? 250,
         easing: KEYBOARD_EASING,
         useNativeDriver: true,
       }).start();
@@ -344,10 +346,11 @@ export const FooterAction = ({
   }, [lift]);
   return (
     <Animated.View
+      pointerEvents="box-none"
       style={[
         styles.footerWrap,
         bottomOffset ? { bottom: spacing.md + bottomOffset } : null,
-        { transform: [{ translateY: Animated.multiply(lift, -1) }], pointerEvents: "box-none" },
+        { transform: [{ translateY: Animated.multiply(lift, -1) }] },
       ]}
     >
       {note ? (
