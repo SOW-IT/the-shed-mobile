@@ -17,6 +17,8 @@ import { mutation, query } from "./_generated/server";
 import { displayName, getProfile, optionalProfile, requireProfile } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
 
+const ROSTER_HISTORY_EVENT_LIMIT = 60;
+
 export type RosterEntry = {
   key: string;
   kind: "staff" | "member";
@@ -209,7 +211,8 @@ export const roster = query({
           .gte("dateStart", staffYearStartMs(year))
           .lt("dateStart", staffYearStartMs(year + 1))
       )
-      .collect();
+      .order("desc")
+      .take(ROSTER_HISTORY_EVENT_LIMIT);
     const scores = new Map<
       string,
       { tagMatches: number; subgroupMatches: number; total: number; latest: number }

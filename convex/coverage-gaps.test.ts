@@ -190,6 +190,17 @@ describe("receiptAttachments: current-year Finance Head on a carried-over reques
     });
     expect(files).toHaveLength(1);
     expect(files![0].attachments[0].name).toBe("receipt.pdf");
+
+    await asUser(t, ADMIN).mutation(api.admin.addDelegation, {
+      year: YEAR,
+      fromEmail: FIONA,
+      toEmail: HENRY,
+    });
+    const delegateFiles = await asUser(t, HENRY).query(
+      api.requests.receiptAttachments,
+      { requestId }
+    );
+    expect(delegateFiles).toHaveLength(1);
   });
 });
 

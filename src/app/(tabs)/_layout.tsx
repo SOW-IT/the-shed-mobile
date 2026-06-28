@@ -89,6 +89,8 @@ type TabBarButtonProps = {
   disabled?: boolean | null;
 };
 
+const inactivePressableState = { pressed: false, hovered: false, focused: false };
+
 /**
  * Tab-bar button that scales its icon on touch, giving the same press
  * feedback as the top-bar buttons (the default tab button ships with
@@ -147,7 +149,7 @@ const AnimatedTabBarButton = ({
     >
       <Animated.View style={[styles.tabButtonInner, { transform: [{ scale }] }]}>
         {typeof children === "function"
-          ? children({ pressed: false })
+          ? children(inactivePressableState)
           : children}
       </Animated.View>
     </Pressable>

@@ -25,6 +25,8 @@ import { notify } from "./requests";
 import { logAttendanceAction } from "./attendanceAudit";
 
 const EVENTS_PAGE_SIZE = 20;
+const MAX_EVENTS_PAGE_SIZE = 50;
+const MAX_EVENTS_SCANNED_PER_PAGE = 1000;
 
 /** Quick attendance count for an event, without loading the rows themselves. */
 async function attendanceCount(
@@ -116,23 +118,51 @@ export const listBySubgroup = query({
   handler: async (ctx, { subgroup, cursor, numItems = EVENTS_PAGE_SIZE }) => {
     const empty = { events: [], isDone: true, continueCursor: null } as const;
     if (!(await optionalProfile(ctx))) return empty;
-    const all = await ctx.db.query("events").collect();
-    const matching = all
-      .filter((e) => eventIncludesSubgroup(e.subgroups, subgroup))
-      .sort((a, b) => b.dateStart - a.dateStart);
-    const start = cursor ? Number(cursor) : 0;
-    const page = matching.slice(start, start + numItems);
+    const pageSize = Math.min(
+      Math.max(1, Math.floor(numItems)),
+      MAX_EVENTS_PAGE_SIZE
+    );
+    const page: Doc<"events">[] = [];
+    let continueCursor = cursor ?? null;
+    let isDone = false;
+    let scanned = 0;
+    while (
+      page.length < pageSize &&
+      !isDone &&
+      scanned < MAX_EVENTS_SCANNED_PER_PAGE
+    ) {
+      const batchSize = Math.min(
+        pageSize - page.length,
+        MAX_EVENTS_SCANNED_PER_PAGE - scanned
+      );
+      const batch = await ctx.db
+        .query("events")
+        .withIndex("by_dateStart")
+        .order("desc")
+        .paginate({
+          cursor: continueCursor,
+          numItems: batchSize,
+        });
+      continueCursor = batch.continueCursor;
+      isDone = batch.isDone;
+      scanned += batch.page.length;
+      for (const event of batch.page) {
+        if (!eventIncludesSubgroup(event.subgroups, subgroup)) continue;
+        page.push(event);
+        if (page.length >= pageSize) break;
+      }
+      if (batch.page.length === 0) break;
+    }
     const withCounts = await Promise.all(
       page.map(async (event) => ({
         ...(await annotate(ctx, event)),
         attendanceCount: await attendanceCount(ctx, event._id),
       }))
     );
-    const next = start + numItems;
     return {
       events: withCounts,
-      isDone: next >= matching.length,
-      continueCursor: next >= matching.length ? null : String(next),
+      isDone,
+      continueCursor: isDone ? null : continueCursor,
     };
   },
 });

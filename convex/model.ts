@@ -2,9 +2,11 @@ import { ConvexError } from "convex/values";
 import {
   ADMIN_DEPARTMENTS,
   ADMIN_DIVISIONS,
+  assignmentsOf,
   departmentsOf,
   DIRECTOR,
   FINANCE,
+  roleNeedsUniversity,
   rolesOfLike,
   staffYearForDate,
 } from "../shared/flow";
@@ -148,6 +150,30 @@ export async function requireAdmin(ctx: Ctx): Promise<CallerContext> {
     throw new ConvexError(
       "Only admins (Data and IT / Human Resources division) can do this."
     );
+  }
+  return caller;
+}
+
+/**
+ * Attendance settings/catalogue managers: full admins plus campus leaders.
+ * Roll-call actions can stay broad, but shared tags/metadata should not be
+ * mutable by every staff profile.
+ */
+export async function isAttendanceManagerProfile(
+  ctx: Ctx,
+  profile: Doc<"staffProfiles">
+): Promise<boolean> {
+  if (await isAdminProfile(ctx, profile)) return true;
+  return assignmentsOf(profile).some(
+    (assignment) =>
+      assignment.university !== undefined && roleNeedsUniversity(assignment.role)
+  );
+}
+
+export async function requireAttendanceManager(ctx: Ctx): Promise<CallerContext> {
+  const caller = await requireProfile(ctx);
+  if (!(await isAttendanceManagerProfile(ctx, caller.profile))) {
+    throw new ConvexError("Only admins or campus leaders can manage attendance settings.");
   }
   return caller;
 }

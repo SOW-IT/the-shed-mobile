@@ -365,6 +365,14 @@ describe("events + roll-call", () => {
     ).toHaveLength(0);
   });
 
+  test("listBySubgroup returns a completed empty page when no events match", async () => {
+    const leader = asUser(t, LEADER);
+    const list = await leader.query(api.events.listBySubgroup, { subgroup: USYD });
+    expect(list.events).toEqual([]);
+    expect(list.isDone).toBe(true);
+    expect(list.continueCursor).toBeNull();
+  });
+
   test("multiple events under a sub-group come back newest first", async () => {
     const leader = asUser(t, LEADER);
     const older = await leader.mutation(api.events.create, {
@@ -381,6 +389,52 @@ describe("events + roll-call", () => {
     });
     const list = await leader.query(api.events.listBySubgroup, { subgroup: USYD });
     expect(list.events.map((e) => e._id)).toEqual([newer, older]);
+  });
+
+  test("listBySubgroup paginates through interleaved non-matching events", async () => {
+    const leader = asUser(t, LEADER);
+    const base = Date.now();
+    const oldest = await leader.mutation(api.events.create, {
+      name: "Oldest",
+      dateStart: base - 86_400_000,
+      dateEnd: base - 86_400_000 + 3600_000,
+      subgroups: [USYD],
+    });
+    const older = await leader.mutation(api.events.create, {
+      name: "Older",
+      dateStart: base - 45_000,
+      dateEnd: base - 45_000 + 3600_000,
+      subgroups: [USYD],
+    });
+    await leader.mutation(api.events.create, {
+      name: "Other 2",
+      dateStart: base - 30_000,
+      dateEnd: base - 30_000 + 3600_000,
+      subgroups: [MACQ],
+    });
+    const newer = await leader.mutation(api.events.create, {
+      name: "Newer",
+      dateStart: base,
+      dateEnd: base + 3600_000,
+      subgroups: [USYD],
+    });
+
+    const first = await leader.query(api.events.listBySubgroup, {
+      subgroup: USYD,
+      numItems: 2,
+    });
+    expect(first.events.map((e) => e._id)).toEqual([newer, older]);
+    expect(first.isDone).toBe(false);
+    expect(first.continueCursor).toBeTruthy();
+
+    const second = await leader.query(api.events.listBySubgroup, {
+      subgroup: USYD,
+      cursor: first.continueCursor,
+      numItems: 2,
+    });
+    expect(second.events.map((e) => e._id)).toEqual([oldest]);
+    expect(second.isDone).toBe(true);
+    expect(second.continueCursor).toBeNull();
   });
 
   test("sign in is idempotent; sign out removes; counts track", async () => {

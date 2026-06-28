@@ -1,12 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { formatEventDate, subgroupColour, subgroupLabel } from "../../../shared/rollcall";
 import {
   Card,
   Chip,
+  Btn,
   EmptyState,
   FadeInView,
   FooterAction,
@@ -22,10 +24,40 @@ export default function SubgroupEventsScreen() {
   const t = useAppTheme();
   const router = useRouter();
   const { subgroup } = useLocalSearchParams<{ subgroup: string }>();
-  const result = useQuery(api.events.listBySubgroup, { subgroup });
+  const [pagination, setPagination] = useState<{
+    subgroup: string;
+    cursor: string | null;
+  }>({
+    subgroup,
+    cursor: null,
+  });
+  const [events, setEvents] = useState<
+    NonNullable<ReturnType<typeof useQuery<typeof api.events.listBySubgroup>>>["events"]
+  >([]);
+  const cursor = pagination.subgroup === subgroup ? pagination.cursor : null;
+  const result = useQuery(api.events.listBySubgroup, {
+    subgroup,
+    cursor: cursor ?? null,
+  });
   const accent = subgroupColour(subgroup);
 
-  if (result === undefined) return <LoadingState />;
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset pagination on route param change
+    setPagination({ subgroup, cursor: null });
+    setEvents([]);
+  }, [subgroup]);
+
+  useEffect(() => {
+    if (!result?.events) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- append the latest Convex page into local pagination state
+    setEvents((prev) => {
+      if (!cursor) return result.events;
+      const seen = new Set(prev.map((event) => event._id));
+      return [...prev, ...result.events.filter((event) => !seen.has(event._id))];
+    });
+  }, [result, cursor]);
+
+  if (result === undefined && events.length === 0) return <LoadingState />;
 
   return (
     <>
@@ -34,14 +66,20 @@ export default function SubgroupEventsScreen() {
         subtitle="Events"
         onBack={() => router.back()}
       >
-        {result.events.length === 0 ? (
+        {events.length === 0 && result?.isDone ? (
           <EmptyState
             icon="calendar-outline"
             title="No events yet"
             message="Create an event to take attendance."
           />
+        ) : events.length === 0 ? (
+          <EmptyState
+            icon="search-outline"
+            title="Looking for older events"
+            message="Load more to keep scanning this subgroup's history."
+          />
         ) : (
-          result.events.map((event, i) => (
+          events.map((event, i) => (
             <FadeInView key={event._id} delay={stagger(i)}>
               <Card
                 style={{
@@ -89,6 +127,13 @@ export default function SubgroupEventsScreen() {
             </FadeInView>
           ))
         )}
+        {result && !result.isDone ? (
+          <Btn
+            title="Load more"
+            variant="ghost"
+            onPress={() => setPagination({ subgroup, cursor: result.continueCursor })}
+          />
+        ) : null}
         <View style={{ height: spacing.xxl }} />
       </Screen>
       <FooterAction

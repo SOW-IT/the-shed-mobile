@@ -1414,6 +1414,202 @@ describe("deadlock prevention and validation fixes", () => {
     ).rejects.toThrow(/positive/);
   });
 
+  test("receipt attachment limits reject oversized payloads", async () => {
+    const t = await setup();
+    const rachel = asUser(t, RACHEL);
+    await rachel.mutation(api.requests.submit, { description: "x", amount: 100 });
+    const [request] = (await rachel.query(api.requests.myRequests, {}))!;
+    await asUser(t, HENRY).mutation(api.requests.approve, { requestId: request._id, step: "hod" });
+    await asUser(t, BELLA).mutation(api.requests.approve, { requestId: request._id, step: "budgetManager" });
+    await asUser(t, FIONA).mutation(api.requests.approve, { requestId: request._id, step: "financeHead" });
+
+    const file = await storedReceipt(t);
+    const attempt = (recipients: {
+      accountName: string;
+      bsb: string;
+      accountNumber: string;
+      amount: number;
+      attachments?: { storageId: typeof file.storageId; name: string }[];
+    }[]) =>
+      rachel.mutation(api.requests.submitReceipt, {
+        requestId: request._id,
+        recipients,
+      });
+
+    await expect(
+      attempt(
+        Array.from({ length: 21 }, (_, i) => ({
+          accountName: `R${i}`,
+          bsb: "0",
+          accountNumber: "1",
+          amount: 1,
+        }))
+      )
+    ).rejects.toThrow(/at most 20 recipients/i);
+
+    await expect(
+      attempt([
+        {
+          accountName: "R",
+          bsb: "0",
+          accountNumber: "1",
+          amount: 100,
+          attachments: Array.from({ length: 11 }, () => file),
+        },
+      ])
+    ).rejects.toThrow(/at most 10 attachments/i);
+
+    await expect(
+      attempt([
+        {
+          accountName: "R",
+          bsb: "0",
+          accountNumber: "1",
+          amount: 100,
+          attachments: [{ ...file, name: "x".repeat(201) }],
+        },
+      ])
+    ).rejects.toThrow(/200 characters/i);
+
+    const bigFile = {
+      storageId: await t.run((ctx) =>
+        ctx.storage.store(
+          new Blob(["x".repeat(2 * 1024 * 1024 + 1)], {
+            type: "application/pdf",
+          })
+        )
+      ),
+      name: "too-big.pdf",
+    };
+    await expect(
+      attempt([
+        {
+          accountName: "R",
+          bsb: "0",
+          accountNumber: "1",
+          amount: 100,
+          attachments: [bigFile],
+        },
+      ])
+    ).rejects.toThrow(/2MB or smaller/i);
+
+    await expect(
+      attempt(
+        Array.from({ length: 6 }, (_, i) => ({
+          accountName: `R${i}`,
+          bsb: "0",
+          accountNumber: "1",
+          amount: 10,
+          attachments: Array.from({ length: 9 }, () => file),
+        }))
+      )
+    ).rejects.toThrow(/at most 50 attachments/i);
+  });
+
+  test("receipt files must be uploaded after the request is approved", async () => {
+    vi.useFakeTimers({ now: new Date("2026-06-01T00:00:00Z"), toFake: ["Date"] });
+    try {
+      const t = await setup();
+      const rachel = asUser(t, RACHEL);
+      await rachel.mutation(api.requests.submit, { description: "x", amount: 100 });
+      const [request] = (await rachel.query(api.requests.myRequests, {}))!;
+      const staleFile = await storedReceipt(t);
+
+      vi.setSystemTime(new Date("2026-06-01T00:01:00Z"));
+      await asUser(t, HENRY).mutation(api.requests.approve, { requestId: request._id, step: "hod" });
+      await asUser(t, BELLA).mutation(api.requests.approve, {
+        requestId: request._id,
+        step: "budgetManager",
+      });
+      await asUser(t, FIONA).mutation(api.requests.approve, {
+        requestId: request._id,
+        step: "financeHead",
+      });
+
+      await expect(
+        rachel.mutation(api.requests.submitReceipt, {
+          requestId: request._id,
+          recipients: [
+            {
+              accountName: "R",
+              bsb: "0",
+              accountNumber: "1",
+              amount: 100,
+              attachments: [staleFile],
+            },
+          ],
+        })
+      ).rejects.toThrow(/uploaded after the request is approved/i);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("deleteDeclined removes request nudges", async () => {
+    const t = await setup();
+    const rachel = asUser(t, RACHEL);
+    await rachel.mutation(api.requests.submit, { description: "x", amount: 100 });
+    const [request] = (await rachel.query(api.requests.myRequests, {}))!;
+    await asUser(t, HENRY).mutation(api.requests.decline, {
+      requestId: request._id,
+      step: "hod",
+      reason: "No",
+    });
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 201; i++) {
+        await ctx.db.insert("requestNudges", {
+          requestId: request._id,
+          nudgerEmail: HENRY,
+          sentAt: Date.now() + i,
+        });
+      }
+    });
+
+    vi.useFakeTimers();
+    try {
+      await rachel.mutation(api.requests.deleteDeclined, { requestId: request._id });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
+    const nudges = await t.run((ctx) =>
+      ctx.db
+        .query("requestNudges")
+        .withIndex("by_request", (q) => q.eq("requestId", request._id))
+        .collect()
+    );
+    expect(nudges).toEqual([]);
+  });
+
+  test("cancel removes request nudges", async () => {
+    const t = await setup();
+    const rachel = asUser(t, RACHEL);
+    await rachel.mutation(api.requests.submit, { description: "x", amount: 100 });
+    const [request] = (await rachel.query(api.requests.myRequests, {}))!;
+    await t.run((ctx) =>
+      ctx.db.insert("requestNudges", {
+        requestId: request._id,
+        nudgerEmail: HENRY,
+        sentAt: Date.now(),
+      })
+    );
+
+    vi.useFakeTimers();
+    try {
+      await rachel.mutation(api.requests.cancel, { requestId: request._id });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
+    const nudges = await t.run((ctx) =>
+      ctx.db
+        .query("requestNudges")
+        .withIndex("by_request", (q) => q.eq("requestId", request._id))
+        .collect()
+    );
+    expect(nudges).toEqual([]);
+  });
+
   test("in-flight previous-year requests survive the rollover end to end", async () => {
     const t = await setup();
     // Last year's org chart: the same people held the roles.
@@ -1602,6 +1798,30 @@ describe("deadlock prevention and validation fixes", () => {
         requestId: request._id,
       })
     ).toBeNull();
+
+    const requesterView = await rachel.query(api.requests.get, {
+      requestId: request._id,
+    });
+    expect(requesterView?.receipt?.recipients).toHaveLength(2);
+    const unrelatedView = await asUser(t, HENRY).query(api.requests.get, {
+      requestId: request._id,
+    });
+    expect(unrelatedView?.receipt?.totalAmount).toBe(300);
+    expect(unrelatedView?.receipt?.recipients).toEqual([]);
+
+    await asUser(t, ADMIN).mutation(api.admin.addDelegation, {
+      year: YEAR,
+      fromEmail: FIONA,
+      toEmail: HENRY,
+    });
+    const delegateView = await asUser(t, HENRY).query(api.requests.get, {
+      requestId: request._id,
+    });
+    expect(delegateView?.receipt?.recipients).toHaveLength(2);
+    const delegateFiles = await asUser(t, HENRY).query(api.requests.receiptAttachments, {
+      requestId: request._id,
+    });
+    expect(delegateFiles).toHaveLength(2);
   });
 
   test("requests can be submitted on behalf of another department", async () => {

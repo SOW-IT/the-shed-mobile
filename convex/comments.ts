@@ -245,7 +245,7 @@ export const markRead = mutation({
       )
       .unique();
     if (existing) {
-      await ctx.db.patch("commentReads", existing._id, { lastReadAt });
+      await ctx.db.patch(existing._id, { lastReadAt });
     } else {
       await ctx.db.insert("commentReads", {
         requestId: args.requestId,
