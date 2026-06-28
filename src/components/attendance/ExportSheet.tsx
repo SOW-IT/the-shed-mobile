@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import { DateTimePicker } from "@expo/ui/community/datetime-picker";
 import { useConvex, useQuery } from "convex/react";
 import { useEffect, useMemo, useState } from "react";
 import { Platform, Pressable, View } from "react-native";
@@ -18,6 +17,7 @@ import {
   type ExportEventForCsv,
 } from "@/lib/attendanceCsv";
 import { downloadCsv } from "@/lib/csvDownload";
+import { NativeDateInput } from "@/components/NativeDateTimeField";
 import { WebDateInput } from "@/components/WebDateTimeInput";
 import {
   Btn,
@@ -45,10 +45,6 @@ const ALWAYS_COLUMNS = ["Sign In", "Name", "Email"];
 const MIN_DATE = new Date(2024, 0, 1);
 
 const pad = (n: number) => String(n).padStart(2, "0");
-const formatDay = (ms: number): string => {
-  const d = new Date(ms);
-  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
-};
 const startOfDay = (ms: number): number => {
   const d = new Date(ms);
   d.setHours(0, 0, 0, 0);
@@ -59,10 +55,8 @@ const endOfDay = (ms: number): number => {
   d.setHours(23, 59, 59, 999);
   return d.getTime();
 };
-const clamp = (ms: number, min: number, max: number): number =>
-  Math.min(Math.max(ms, min), max);
 
-/** ms → "YYYY-MM-DD" for an <input type="date"> value/min/max (web). */
+/** ms → "YYYY-MM-DD" for a date field value/min/max. */
 const toInputDate = (ms: number): string => {
   const d = new Date(ms);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -74,74 +68,6 @@ const fromInputDate = (value: string): number | undefined => {
   if (!y || !m || !d) return undefined;
   const date = new Date(y, m - 1, d);
   return Number.isNaN(date.getTime()) ? undefined : date.getTime();
-};
-
-/** A tappable date field showing the chosen day (or a placeholder) with a clear affordance. */
-const DateField = ({
-  label,
-  value,
-  active,
-  onOpen,
-  onClear,
-}: {
-  label: string;
-  value?: number;
-  active: boolean;
-  onOpen: () => void;
-  onClear: () => void;
-}) => {
-  const t = useAppTheme();
-  // The clear button is a sibling (not nested) so tapping it can't bubble up
-  // and re-trigger the field's open/close toggle.
-  return (
-    <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
-      <Txt style={[typography.label, { color: t.muted }]}>{label}</Txt>
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 8,
-          height: 44,
-          paddingHorizontal: 12,
-          borderRadius: 10,
-          borderWidth: 1.5,
-          borderColor: active ? t.primary : "transparent",
-          backgroundColor: t.inputBackground,
-        }}
-      >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${label} date`}
-          onPress={onOpen}
-          style={({ pressed }) => [
-            { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
-            pressed && { opacity: 0.7 },
-          ]}
-        >
-          <Ionicons name="calendar-outline" size={16} color={t.faint} />
-          <Txt
-            style={[
-              typography.body,
-              { flex: 1, color: value ? t.text : t.faint },
-            ]}
-          >
-            {value ? formatDay(value) : "Any"}
-          </Txt>
-        </Pressable>
-        {value ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Clear ${label} date`}
-            hitSlop={8}
-            onPress={onClear}
-            style={({ pressed }) => [pressed && { opacity: 0.6 }]}
-          >
-            <Ionicons name="close-circle" size={16} color={t.faint} />
-          </Pressable>
-        ) : null}
-      </View>
-    </View>
-  );
 };
 
 const ToggleRow = ({
@@ -217,7 +143,6 @@ export function ExportSheet({
 
   const [fromMs, setFromMs] = useState<number | undefined>(undefined);
   const [toMs, setToMs] = useState<number | undefined>(undefined);
-  const [picking, setPicking] = useState<"from" | "to" | null>(null);
   // Captured at mount and refreshed on open so the picker's max is "today".
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [selectedTags, setSelectedTags] = useState<Id<"attendanceTags">[]>([]);
@@ -232,7 +157,6 @@ export function ExportSheet({
     setFromMs(undefined);
     // End date defaults to today; the start date is required before exporting.
     setToMs(Date.now());
-    setPicking(null);
     setNowMs(Date.now());
     setSelectedTags([]);
     setSelectedKeys(null);
@@ -364,25 +288,23 @@ export function ExportSheet({
               </>
             ) : (
               <>
-                <DateField
+                <NativeDateInput
                   label="From"
-                  value={fromMs}
-                  active={picking === "from"}
-                  onOpen={() => setPicking(picking === "from" ? null : "from")}
-                  onClear={() => {
-                    setFromMs(undefined);
-                    setPicking(null);
-                  }}
+                  value={fromMs ? toInputDate(fromMs) : ""}
+                  min={toInputDate(MIN_DATE.getTime())}
+                  max={toInputDate(toMs ?? nowMs)}
+                  placeholder="Any"
+                  onChange={(s) => setFromMs(fromInputDate(s))}
+                  onClear={() => setFromMs(undefined)}
                 />
-                <DateField
+                <NativeDateInput
                   label="To"
-                  value={toMs}
-                  active={picking === "to"}
-                  onOpen={() => setPicking(picking === "to" ? null : "to")}
-                  onClear={() => {
-                    setToMs(undefined);
-                    setPicking(null);
-                  }}
+                  value={toMs ? toInputDate(toMs) : ""}
+                  min={toInputDate(fromMs ?? MIN_DATE.getTime())}
+                  max={toInputDate(nowMs)}
+                  placeholder="Any"
+                  onChange={(s) => setToMs(fromInputDate(s))}
+                  onClear={() => setToMs(undefined)}
                 />
               </>
             )}
@@ -396,52 +318,6 @@ export function ExportSheet({
             >
               Pick a start date to export. End date defaults to today.
             </Txt>
-          ) : null}
-          {Platform.OS !== "web" && picking ? (
-            <View style={{ marginTop: spacing.sm, alignItems: "center" }}>
-              {(() => {
-                const today = nowMs;
-                const minDate =
-                  picking === "from"
-                    ? MIN_DATE
-                    : fromMs != null
-                      ? new Date(fromMs)
-                      : MIN_DATE;
-                const maxDate =
-                  picking === "from" && toMs != null
-                    ? new Date(toMs)
-                    : new Date(today);
-                const current = picking === "from" ? fromMs : toMs;
-                const initial = clamp(
-                  current ?? (picking === "from" ? MIN_DATE.getTime() : today),
-                  minDate.getTime(),
-                  maxDate.getTime()
-                );
-                return (
-                  <DateTimePicker
-                    mode="date"
-                    display={Platform.OS === "ios" ? "inline" : "default"}
-                    value={new Date(initial)}
-                    minimumDate={minDate}
-                    maximumDate={maxDate}
-                    accentColor={t.primary}
-                    onValueChange={(_event, date) => {
-                      if (picking === "from") setFromMs(date.getTime());
-                      else setToMs(date.getTime());
-                      if (Platform.OS !== "ios") setPicking(null);
-                    }}
-                    onDismiss={() => setPicking(null)}
-                  />
-                );
-              })()}
-              {Platform.OS === "ios" ? (
-                <Btn
-                  title="Done"
-                  variant="ghost"
-                  onPress={() => setPicking(null)}
-                />
-              ) : null}
-            </View>
           ) : null}
 
           <Txt style={[typography.label, styles.heading, { color: t.muted }]}>

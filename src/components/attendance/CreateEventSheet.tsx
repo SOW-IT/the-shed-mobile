@@ -14,6 +14,7 @@ import {
 } from "../../../shared/rollcall";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import { CampusMark } from "@/components/CampusMark";
+import { NativeDateInput, NativeTimeInput } from "@/components/NativeDateTimeField";
 import { WebDateInput, WebTimeInput } from "@/components/WebDateTimeInput";
 import {
   Btn,
@@ -480,14 +481,19 @@ export function CreateEventSheet({
             </>
           ) : (
             <>
-              <Field
-                label="Date (YYYY-MM-DD)"
-                value={dateStr}
-                onChangeText={setDateStr}
-                placeholder="2026-06-24"
-              />
-              <Field label="Start time (HH:MM)" value={startTime} onChangeText={setStartTime} />
-              <Field label="End time (HH:MM)" value={endTime} onChangeText={setEndTime} />
+              <NativeDateInput label="Date" value={dateStr} onChange={setDateStr} />
+              <View style={{ flexDirection: "row", gap: spacing.sm }}>
+                <NativeTimeInput
+                  label="Start time"
+                  value={startTime}
+                  onChange={setStartTime}
+                />
+                <NativeTimeInput
+                  label="End time"
+                  value={endTime}
+                  onChange={setEndTime}
+                />
+              </View>
             </>
           )}
         </View>
