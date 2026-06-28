@@ -17,7 +17,7 @@ import {
   subgroupLabel,
 } from "../../../../shared/rollcall";
 import { eventStaffYear, sydneyCalendarYear } from "../../../../shared/flow";
-import { AttendanceRow } from "@/components/AttendanceRow";
+import { AttendanceRow, ATTENDANCE_ROW_ENTER_MS } from "@/components/AttendanceRow";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
@@ -47,6 +47,10 @@ const UNSIGNED_ROW_HEIGHT = 72 + spacing.sm;
  * avoiding layout jumps under the list.
  */
 const UNSIGNED_LIST_HEIGHT = UNSIGNED_ROW_HEIGHT * 3;
+
+/** When to drop a row's "newly added" lock — a hair past its entrance grow-in,
+ *  derived from the row's own animation duration so the two stay in sync. */
+const NEWLY_ADDED_CLEAR_MS = ATTENDANCE_ROW_ENTER_MS + 40;
 
 /** Subtitle for a roster row. */
 const memberSubtitle = (member: {
@@ -170,6 +174,12 @@ export default function EventAttendanceScreen() {
   // Keys that transitioned from optimistic → real this session. Their real rows
   // must not re-run the FadeInView entrance since the row was already visible.
   const [suppressFadeIn, setSuppressFadeIn] = useState<Set<string>>(new Set());
+  // Same idea for the not-signed-in list: once a reversed (signed-out) member's
+  // optimistic entrance has confirmed, keep their row wrapped in a plain View so
+  // it doesn't flip to FadeInView and replay a reappear animation.
+  const [suppressUnsignedFadeIn, setSuppressUnsignedFadeIn] = useState<Set<string>>(
+    new Set()
+  );
 
   const [search, setSearch] = useState("");
   const [eventEditOpen, setEventEditOpen] = useState(false);
@@ -280,8 +290,10 @@ export default function EventAttendanceScreen() {
       setOptimisticSignedIn((o) => { const n = new Map(o); for (const k of confirmedSignedIn) n.delete(k); return n.size < o.size ? n : o; });
       setSuppressFadeIn((s) => { const n = new Set(s); for (const k of confirmedSignedIn) n.add(k); return n; });
     }
-    if (confirmedSignedOut.length > 0)
+    if (confirmedSignedOut.length > 0) {
       setOptimisticSignedOut((o) => { const n = new Set(o); for (const k of confirmedSignedOut) n.delete(k); return n.size < o.size ? n : o; });
+      setSuppressUnsignedFadeIn((s) => { const n = new Set(s); for (const k of confirmedSignedOut) n.add(k); return n; });
+    }
     if (genuinelyRemoteSignedIn.length > 0)
       setRemoteSignedIn((r) => { const n = new Set(r); for (const k of genuinelyRemoteSignedIn) n.add(k); return n; });
     if (genuinelyRemoteSignedOut.length > 0)
@@ -405,6 +417,7 @@ export default function EventAttendanceScreen() {
     setPrevUnsignedSig(null);
     setNewlyAddedUnsigned(new Set());
     setSignedOutOrder([]);
+    setSuppressUnsignedFadeIn(new Set());
   }, [event?._id]);
   // Wait for the roster to load before seeding the baseline: an empty
   // loading-render signature ("") would otherwise consume the null sentinel, so
@@ -422,6 +435,30 @@ export default function EventAttendanceScreen() {
     setPrevUnsignedSig(unsignedKeySig);
     setNewlyAddedUnsigned(added);
   }
+
+  // The newly-added flag only drives the one-shot entrance animation (and the
+  // brief lock while it plays), so clear it once the animation is done. Without
+  // this, a row that appears and then stays put — e.g. a reversed (signed-out)
+  // member pinned to the top — keeps its `entering`/disabled state forever,
+  // because the list signature never changes again to recompute the set. It
+  // would only unlock on the next list change (such as signing someone else in).
+  useEffect(() => {
+    if (newlyAddedUnsigned.size === 0) return;
+    const keys = newlyAddedUnsigned;
+    const timer = setTimeout(() => {
+      // Clearing the flag flips a row's wrapper from View → FadeInView, which
+      // remounts it and would replay the entrance. Suppress every key we clear
+      // (not just locally-reversed ones) so remote sign-outs and backend-created
+      // members keep a stable wrapper and their entrance stays one-shot.
+      setSuppressUnsignedFadeIn((s) => {
+        const n = new Set(s);
+        for (const k of keys) n.add(k);
+        return n;
+      });
+      setNewlyAddedUnsigned((prev) => (prev === keys ? new Set() : prev));
+    }, NEWLY_ADDED_CLEAR_MS);
+    return () => clearTimeout(timer);
+  }, [newlyAddedUnsigned]);
 
   // While searching, the two lists below are filtered in place by name/email —
   // there's no separate "Results" list. An empty query passes everything through.
@@ -749,6 +786,7 @@ export default function EventAttendanceScreen() {
                   newlyAddedUnsigned.has(m.key);
                 const isExiting = remoteSignedIn.has(m.key);
                 const isAnimating = isEntering || isExiting;
+                const isSuppressed = suppressUnsignedFadeIn.has(m.key);
                 const staggerIndex = visibleSignedIn.length + index;
                 const nextKey = visibleUnsigned[index + 1]?.key;
                 const row = (
@@ -771,7 +809,7 @@ export default function EventAttendanceScreen() {
                     onEdit={!isAnimating ? () => editRosterEntry(m) : undefined}
                   />
                 );
-                return isAnimating ? (
+                return isAnimating || isSuppressed ? (
                   <View key={m.key}>{row}</View>
                 ) : (
                   <FadeInView key={m.key} delay={Math.min(staggerIndex, 12) * 35}>{row}</FadeInView>

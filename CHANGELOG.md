@@ -27,6 +27,11 @@ All notable changes to **The SHED** mobile app. This project follows
   logos — the selection ring is always reserved and just colours in. In dark
   mode the SOW ring now shows in its cream logo colour instead of an invisible
   black. (#146)
+- **Reversed members are immediately actionable.** After signing a roll-call
+  attendee back out, their card (pinned to the top of the not-signed-in list) can
+  now be acted on right away, instead of staying locked until another sign-in
+  refreshed the roster. The card also no longer replays a reappear animation once
+  the change finishes saving — it settles in place. (#144)
 - **Steadier attendance layout.** The not-signed-in list keeps its three-card
   height even when no one is signed in yet, the Members tab uses the same spacing
   between cards as the roll-call lists, and the footer action buttons sit a little
