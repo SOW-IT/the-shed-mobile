@@ -206,7 +206,11 @@ export default defineSchema({
     step: v.optional(v.string()), // hod | budgetManager | director | financeHead
     actorEmail: v.string(),
     detail: v.optional(v.string()),
-  }).index("by_request", ["requestId"]),
+  })
+    .index("by_request", ["requestId"])
+    // Drives the "Reviewed" list: an approver's own approve/decline events,
+    // newest first (the implicit _creationTime tiebreaker).
+    .index("by_actor", ["actorEmail"]),
 
   requests: defineTable({
     year: v.number(),
