@@ -2,7 +2,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuthActions } from "@convex-dev/auth/react";
 import Constants from "expo-constants";
 import { makeRedirectUri } from "expo-auth-session";
-import { openAuthSessionAsync } from "expo-web-browser";
+import * as Linking from "expo-linking";
+import { maybeCompleteAuthSession, openAuthSessionAsync } from "expo-web-browser";
 import { useEffect, useState } from "react";
 import {
   Animated,
@@ -16,6 +17,24 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { radius, spacing, USE_NATIVE_DRIVER, useAppTheme } from "../theme";
 import { ErrorBanner, errorMessage, FadeInView, SowSpinner } from "./ui";
+
+// Dismiss any auth session left dangling by a previous redirect so the next one
+// resolves cleanly (recommended for redirect-based auth; no-op on native at
+// import time, relevant for the web popup flow).
+maybeCompleteAuthSession();
+
+/** Pull the OAuth `code` from a redirect URL. `Linking.parse` understands the
+ *  app's custom scheme (theshedmobile://…) more reliably than the URL polyfill,
+ *  with `new URL` as a fallback for https redirects. */
+const codeFromUrl = (url: string): string | null => {
+  const fromExpo = Linking.parse(url).queryParams?.code;
+  if (typeof fromExpo === "string") return fromExpo;
+  try {
+    return new URL(url).searchParams.get("code");
+  } catch {
+    return null;
+  }
+};
 
 export const SignInScreen = () => {
   const { signIn } = useAuthActions();
@@ -71,19 +90,45 @@ export const SignInScreen = () => {
       const scheme = Constants.expoConfig?.scheme ?? "theshedmobile";
       const redirectTo = makeRedirectUri({ scheme: Array.isArray(scheme) ? scheme[0] : scheme });
       const { redirect } = await signIn("google", { redirectTo });
-      if (redirect) {
-        const result = await openAuthSessionAsync(redirect.toString(), redirectTo);
-        if (result.type === "success") {
-          const code = new URL(result.url).searchParams.get("code");
-          if (code) {
-            // On success the app flips to Authenticated and this screen
-            // unmounts, so stay busy rather than flicker back to clickable.
-            await signIn("google", { code });
-            return;
-          }
-        }
+      if (!redirect) {
+        setBusy(false);
+        return;
       }
-      // No redirect, or the user dismissed the browser — re-enable the button.
+      // Capture the OAuth redirect from whichever source delivers it first: the
+      // auth-session result, or a deep-link event. On a fresh install the first
+      // iOS ASWebAuthenticationSession can resolve as "dismiss"/"cancel" even
+      // though the redirect actually fired (cold session + the one-time consent
+      // prompt) — that dropped the code and left the user un-signed-in until a
+      // second attempt warmed the session. When the session fails to swallow the
+      // redirect, the OS hands theshedmobile://…?code= to the app as a normal
+      // deep link, so this Linking listener recovers it on that first try.
+      const redirectUrl = await new Promise<string | null>((resolve) => {
+        let settled = false;
+        const finish = (url: string | null) => {
+          if (settled) return;
+          settled = true;
+          sub.remove();
+          resolve(url);
+        };
+        // Only settle on a deep link that actually carries the OAuth `code` —
+        // an unrelated universal/notification link arriving mid-session must not
+        // consume the promise and drop the real redirect.
+        const sub = Linking.addEventListener("url", (e) => {
+          if (codeFromUrl(e.url)) finish(e.url);
+        });
+        void openAuthSessionAsync(redirect.toString(), redirectTo).then(
+          (result) => finish(result.type === "success" ? result.url : null),
+          () => finish(null)
+        );
+      });
+      const code = redirectUrl ? codeFromUrl(redirectUrl) : null;
+      if (code) {
+        // On success the app flips to Authenticated and this screen unmounts, so
+        // stay busy rather than flicker back to clickable.
+        await signIn("google", { code });
+        return;
+      }
+      // No redirect captured, or the user dismissed the browser — re-enable.
       setBusy(false);
     } catch (e) {
       setError(errorMessage(e));
