@@ -133,11 +133,12 @@ export function CreateEventSheet({
   // date/time pre-filled from that slot on the Schedule step.
   const weeklyMeetingTagIds = new Set(
     (tags ?? [])
-      .filter(
-        (tag) =>
+      .filter((tag) => {
+        return (
           tag.name.trim().toLowerCase() ===
-          WEEKLY_MEETING_TAG_NAME.toLowerCase(),
-      )
+          WEEKLY_MEETING_TAG_NAME.toLowerCase()
+        );
+      })
       .map((tag) => tag._id),
   );
   const slot = selectedTags.some((id) => weeklyMeetingTagIds.has(id))
@@ -199,13 +200,16 @@ export function CreateEventSheet({
     setEndTime(defaultTime(slotEnd!));
   }, [isEditing, step, maxStep, slotWeekday, slotStart, slotEnd]);
   const visibleTags = (tags ?? []).filter(
-    (tag) =>
-      !tag.subgroups?.length ||
-      tag.subgroups.some((tagSubgroup) =>
-        collaborators.some((collaborator) =>
-          subgroupMatches(tagSubgroup, collaborator),
-        ),
-      ),
+    (tag) => {
+      return (
+        !tag.subgroups?.length ||
+        tag.subgroups.some((tagSubgroup) => {
+          return collaborators.some((collaborator) => {
+            return subgroupMatches(tagSubgroup, collaborator);
+          });
+        })
+      );
+    },
   );
 
   const toggleTag = (id: Id<"attendanceTags">) => {
