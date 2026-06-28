@@ -560,18 +560,35 @@ describe("events + roll-call", () => {
     expect(malformed.events.map((e) => e._id)).toEqual([newer]);
     expect(malformed.continueCursor).toBeTruthy();
 
-    const rawCursor = JSON.parse(
-      malformed.continueCursor!.slice("event-subgroup:".length)
-    ).dbCursor;
-    expect(typeof rawCursor).toBe("string");
+    // An opaque cursor left over from the previous deploy's built-in
+    // `.paginate()` (not our wrapped format, not a paginator cursor) must be
+    // ignored and pagination restarted, never fed to paginator (which throws).
     const legacy = await leader.query(api.events.listBySubgroup, {
       subgroup: USYD,
-      cursor: rawCursor,
+      cursor: "opaque-legacy-paginate-cursor",
       numItems: 1,
     });
-    expect(legacy.events).toEqual([]);
-    expect(legacy.isDone).toBe(true);
-    expect(legacy.continueCursor).toBeNull();
+    expect(legacy.events.map((e) => e._id)).toEqual([newer]);
+
+    // A truncated/corrupt value that merely starts with "[" must not be fed to
+    // paginator (it would throw) — it should be rejected and pagination restart.
+    for (const corrupt of ["[", `event-subgroup:${JSON.stringify({ dbCursor: "[" })}`]) {
+      const result = await leader.query(api.events.listBySubgroup, {
+        subgroup: USYD,
+        cursor: corrupt,
+        numItems: 1,
+      });
+      expect(result.events.map((e) => e._id)).toEqual([newer]);
+    }
+
+    // A "done" cursor with nothing buffered is never emitted, so a corrupt/stale
+    // one must restart rather than report an empty done page that hides events.
+    const corruptDone = await leader.query(api.events.listBySubgroup, {
+      subgroup: USYD,
+      cursor: `event-subgroup:${JSON.stringify({ dbIsDone: true, bufferedIds: [] })}`,
+      numItems: 1,
+    });
+    expect(corruptDone.events.map((e) => e._id)).toEqual([newer]);
 
     const malicious = await leader.query(api.events.listBySubgroup, {
       subgroup: USYD,

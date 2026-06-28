@@ -23,9 +23,12 @@ import {
 import { optionalProfile, requireProfile } from "./model";
 import { notify } from "./requests";
 import { logAttendanceAction } from "./attendanceAudit";
+import { paginator } from "convex-helpers/server/pagination";
+import schema from "./schema";
 
 const EVENTS_PAGE_SIZE = 20;
 const MAX_EVENTS_PAGE_SIZE = 50;
+const EVENTS_SCAN_BATCH_SIZE = 100;
 const MAX_EVENTS_SCANNED_PER_PAGE = 1000;
 
 type ListBySubgroupCursor = {
@@ -37,31 +40,49 @@ type ListBySubgroupCursor = {
 const encodeListBySubgroupCursor = (cursor: ListBySubgroupCursor) =>
   `event-subgroup:${JSON.stringify(cursor)}`;
 
+// `paginator` (convex-helpers) encodes its cursor as a JSON array string.
+// Anything else — an opaque cursor left over from the old built-in
+// `.paginate()` deploy, or junk — would make `paginator.paginate()` throw, so we
+// drop it and restart from the newest row. Parse fully (not just a `[` prefix)
+// so a truncated/corrupt value like "[" can't slip through and crash paginator.
+const asPaginatorCursor = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  try {
+    return Array.isArray(JSON.parse(value)) ? value : null;
+  } catch {
+    return null;
+  }
+};
+
 const decodeListBySubgroupCursor = (
   cursor: string | null | undefined
 ): ListBySubgroupCursor => {
   if (!cursor) return { dbCursor: null, dbIsDone: false, bufferedIds: [] };
   const prefix = "event-subgroup:";
   if (!cursor.startsWith(prefix)) {
-    return { dbCursor: cursor, dbIsDone: false, bufferedIds: [] };
+    return { dbCursor: asPaginatorCursor(cursor), dbIsDone: false, bufferedIds: [] };
   }
+  const fresh = { dbCursor: null, dbIsDone: false, bufferedIds: [] };
   try {
     const parsed = JSON.parse(cursor.slice(prefix.length)) as {
       dbCursor?: unknown;
       dbIsDone?: unknown;
       bufferedIds?: unknown;
     };
-    return {
-      dbCursor: typeof parsed.dbCursor === "string" ? parsed.dbCursor : null,
-      dbIsDone: parsed.dbIsDone === true,
-      bufferedIds: Array.isArray(parsed.bufferedIds)
-        ? (parsed.bufferedIds
-            .filter((id) => typeof id === "string")
-            .slice(0, MAX_EVENTS_SCANNED_PER_PAGE) as Id<"events">[])
-        : [],
-    };
+    const bufferedIds = Array.isArray(parsed.bufferedIds)
+      ? (parsed.bufferedIds
+          .filter((id) => typeof id === "string")
+          .slice(0, EVENTS_SCAN_BATCH_SIZE) as Id<"events">[])
+      : [];
+    const dbIsDone = parsed.dbIsDone === true;
+    // We never emit a "done" cursor with nothing buffered (encode only wraps a
+    // cursor while there's more to return), so this combination is corrupt or
+    // stale — restart rather than returning an empty "done" page that hides
+    // real events.
+    if (dbIsDone && bufferedIds.length === 0) return fresh;
+    return { dbCursor: asPaginatorCursor(parsed.dbCursor), dbIsDone, bufferedIds };
   } catch {
-    return { dbCursor: null, dbIsDone: false, bufferedIds: [] };
+    return fresh;
   }
 };
 
@@ -176,17 +197,33 @@ export const listBySubgroup = query({
     }
     let continueCursor = decodedCursor.dbCursor;
     let isDone = decodedCursor.dbIsDone;
-    if (page.length < pageSize && remainingBufferedIds.length === 0 && !isDone) {
-      const batch = await ctx.db
+    let scanned = 0;
+    while (
+      page.length < pageSize &&
+      remainingBufferedIds.length === 0 &&
+      !isDone &&
+      scanned < MAX_EVENTS_SCANNED_PER_PAGE
+    ) {
+      const batchSize = Math.min(
+        EVENTS_SCAN_BATCH_SIZE,
+        MAX_EVENTS_SCANNED_PER_PAGE - scanned
+      );
+      // Use convex-helpers' `paginator` rather than the built-in
+      // `ctx.db...paginate()`: a single Convex function may only call the
+      // built-in `.paginate()` once, but a sparse subgroup forces this loop to
+      // scan several batches, which threw "multiple paginated queries in a
+      // single function call". `paginator` has no such limit.
+      const batch = await paginator(ctx.db, schema)
         .query("events")
         .withIndex("by_dateStart")
         .order("desc")
         .paginate({
           cursor: continueCursor,
-          numItems: MAX_EVENTS_SCANNED_PER_PAGE,
+          numItems: batchSize,
         });
       continueCursor = batch.continueCursor;
       isDone = batch.isDone;
+      scanned += batch.page.length;
       for (const event of batch.page) {
         if (!eventIncludesSubgroup(event.subgroups, subgroup)) continue;
         if (page.length < pageSize) {
@@ -195,6 +232,7 @@ export const listBySubgroup = query({
           remainingBufferedIds.push(event._id);
         }
       }
+      if (batch.page.length === 0) break;
     }
     const withCounts = await Promise.all(
       page.map(async (event) => ({
@@ -210,8 +248,6 @@ export const listBySubgroup = query({
         ? encodeListBySubgroupCursor({
             dbCursor: continueCursor,
             dbIsDone: isDone,
-            // Buffered IDs can reach one scanned batch, but stay bounded by the
-            // single paginate() call above so the cursor payload remains capped.
             bufferedIds: remainingBufferedIds,
           })
         : null,

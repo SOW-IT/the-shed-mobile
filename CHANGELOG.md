@@ -6,6 +6,11 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-06-29
+
+Attendance footer polish, plus a fix for the events list server error on
+quieter groups.
+
 ### Changed
 
 - **Staff show as staff in attendance chips.** Attendance group chips now label
@@ -40,6 +45,28 @@ All notable changes to **The SHED** mobile app. This project follows
   height even when no one is signed in yet, the Members tab uses the same spacing
   between cards as the roll-call lists, and the footer action buttons sit a little
   higher off the bottom. (#145)
+- **Only the active tab's footer follows the keyboard.** On the Attendance
+  screen, just the action button for the tab you're on (e.g. "+ Create member"
+  on Members) now lifts above the software keyboard; the other tabs' hidden
+  footers stay put instead of riding up into view. The lift also keeps a
+  consistent gap above the keyboard regardless of how high the footer normally
+  rests, so every footer lines up at the same height once the keyboard is open —
+  including the event roster's "Create …" button, which otherwise keeps its
+  higher resting position. The footer also snaps between its keyboard-up and
+  keyboard-down positions faster than the keyboard's own animation.
+- **Consistent footer height for the create buttons.** The "+ Create event"
+  (Events tab) and "+ Create member" (Members tab) footers now sit at the same
+  distance from the bottom as the "+ Make Request" button, instead of resting a
+  little higher.
+
+### Fixed
+
+- **Events list no longer errors for quieter groups.** Opening the Events tab for
+  a group with no recent events (e.g. a campus whose latest events are far down
+  the list) no longer triggers a `events:listBySubgroup` server error. The scan
+  now pages through the events table via `convex-helpers`' `paginator`, which —
+  unlike the built-in `.paginate()` — can be called more than once per query, so
+  sparse groups are found without crashing.
 
 ## [1.1.1] — 2026-06-28
 

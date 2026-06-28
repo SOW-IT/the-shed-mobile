@@ -91,7 +91,6 @@ export default function AttendanceScreen() {
           <FooterAction
             title="+ Create event"
             onPress={() => setCreateEventOpen(true)}
-            bottomOffset={FOOTER_LIFT}
             avoidKeyboard={active === "events"}
           />
         ),
@@ -103,7 +102,6 @@ export default function AttendanceScreen() {
         <FooterAction
           title="+ Create member"
           onPress={openCreateMember}
-          bottomOffset={FOOTER_LIFT}
           avoidKeyboard={active === "members"}
         />
       ),
