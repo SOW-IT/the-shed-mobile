@@ -6,6 +6,21 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Reversed sign-ins stay where they land.** Signing out (reversing) a roll-call
+  attendee now pins them to the top of the "Not signed in" list and keeps them
+  there after the change saves, instead of letting the row jump back down into
+  its ranked position a moment later. (#141)
+- **No grey flash on roll-call cards.** A member card is no longer greyed out
+  while its sign-in/out is still saving — it stays full-strength but can't be
+  swiped again until the change settles. (#141)
+
+## [1.1.1] — 2026-06-28
+
+A wave of attendance/roll-call polish, request reminders, and sign-in and
+date-picker fixes on top of the 1.1.0 attendance release.
+
 ### Added
 
 - **Attendance audit trail.** Every attendance-area change is now recorded with
@@ -14,7 +29,54 @@ All notable changes to **The SHED** mobile app. This project follows
   sign-in, record edit and sign-out. A new **Audit** tab in the Attendance area
   shows the activity newest-first, searchable and filterable by action type, the
   person who performed it, and the event it relates to. Log entries are immutable
-  and snapshot names so they stay readable after the subject is deleted.
+  and snapshot names so they stay readable after the subject is deleted. (#117)
+- **Reviewed history for approvers.** A new **Reviewed** section on the Review tab
+  lists the requests you have already approved or declined, newest-first, and
+  approving now asks you to confirm first. The "To Review" tab is now just
+  "Review". (#136)
+- **Request reminders & manual nudge.** Pending approvals now send tiered
+  reminders that escalate over time, with a manual **nudge** (and a cooldown) to
+  ping the current approver, plus notifications when an attendance event is
+  created. (#119, #122)
+- **Create a member straight from roll-call.** Searching roll-call for someone who
+  isn't a member yet lets you create them and sign them in in one step. (#130)
+- **Native date/time pickers.** Date and time selection on device now opens the
+  native picker in its own sheet with a Done button, used by event create/edit and
+  CSV export. (#137)
+- **Weekly Meeting schedule pre-fill.** Creating a Weekly Meeting event now
+  pre-fills its schedule. (#120)
+
+### Changed
+
+- **Staff-year rollover moved to October 1** (from September 1), to match SOW's
+  calendar. (#108)
+- **Make Request keeps your draft.** Closing the Make Request sheet no longer asks
+  to discard — your in-progress request is preserved and only cleared after a
+  successful submit. Type-to-confirm delete prompts now **bold** the exact text
+  you need to type. (#139, #121)
+- **Attendance roll-call interactions.** Row swipes are edge-anchored and work from
+  anywhere on a card while vertical scrolling passes through; past-event sign-in is
+  gated behind an explicit edit, sign-out is protected on past events, and locked
+  attendees are greyed out. (#124, #125, #126, #127, #128, #129)
+- **Attendance layout & motion.** Actions moved into the header row with a 3-card
+  list and section count chips, tidier header meta, and a Reanimated SowSpinner
+  with staggered group-picker animations. (#131, #133, #135)
+- **Attendance metadata is global.** Member metadata and tag scopes now apply
+  across staff years rather than per-year, with tag scope defaulting to all
+  groups. (#111, #114, #115, #116)
+
+### Fixed
+
+- **iOS first sign-in.** Fixed a fresh-install case where the first Google sign-in
+  could drop the OAuth redirect and leave you signed out until a second
+  attempt. (#138)
+- **Reminder schedule resets** when a request advances to the next step, so the
+  next approver starts on a fresh schedule. (#123)
+- **Web date/time pickers** no longer overflow on narrow screens. (#134)
+- **Web vertical scroll** no longer gets stuck when it starts on a member
+  card. (#132)
+- **Sydney calendar year** correctness and hardened staff-profile provisioning for
+  attendance. (#107, #112)
 
 ## [1.1.0] — 2026-06-25
 
