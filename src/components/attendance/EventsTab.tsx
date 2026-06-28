@@ -133,7 +133,7 @@ export function EventsTab({
                     <View
                       style={[
                         styles.campusRing,
-                        { borderColor: active ? ringColour : "transparent" },
+                        active && { borderColor: ringColour },
                       ]}
                     >
                       <CampusMark

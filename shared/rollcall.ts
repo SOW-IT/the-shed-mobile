@@ -44,6 +44,7 @@ export const eventIncludesSubgroup = (
 ): boolean =>
   normalizeSubgroups(eventSubgroups).includes(canonicalSubgroup(subgroup));
 
+/** True when a sub-group id refers to the org-wide SOW group. */
 export const isOrgWideSubgroup = (subgroup: string): boolean =>
   canonicalSubgroup(subgroup) === SOW_SUBGROUP;
 
