@@ -110,7 +110,12 @@ export const SignInScreen = () => {
           sub.remove();
           resolve(url);
         };
-        const sub = Linking.addEventListener("url", (e) => finish(e.url));
+        // Only settle on a deep link that actually carries the OAuth `code` —
+        // an unrelated universal/notification link arriving mid-session must not
+        // consume the promise and drop the real redirect.
+        const sub = Linking.addEventListener("url", (e) => {
+          if (codeFromUrl(e.url)) finish(e.url);
+        });
         void openAuthSessionAsync(redirect.toString(), redirectTo).then(
           (result) => finish(result.type === "success" ? result.url : null),
           () => finish(null)
