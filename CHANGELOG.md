@@ -45,7 +45,14 @@ All notable changes to **The SHED** mobile app. This project follows
   on Members) now lifts above the software keyboard; the other tabs' hidden
   footers stay put instead of riding up into view. The lift also keeps a
   consistent gap above the keyboard regardless of how high the footer normally
-  rests.
+  rests, so every footer lines up at the same height once the keyboard is open —
+  including the event roster's "Create …" button, which otherwise keeps its
+  higher resting position. The footer also snaps between its keyboard-up and
+  keyboard-down positions faster than the keyboard's own animation.
+- **Consistent footer height for the create buttons.** The "+ Create event"
+  (Events tab) and "+ Create member" (Members tab) footers now sit at the same
+  distance from the bottom as the "+ Make Request" button, instead of resting a
+  little higher.
 
 ### Fixed
 

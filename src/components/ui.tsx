@@ -277,6 +277,14 @@ export const Toast = ({ toast }: { toast: ToastState }) => {
 // keyboard, so the bar rises with it at the same speed.
 const KEYBOARD_EASING = Easing.bezier(0.38, 0.7, 0.125, 1);
 
+// Run the lift quicker than the keyboard's own animation so the footer snaps
+// between its down/up positions instead of gliding the full keyboard duration.
+const KEYBOARD_LIFT_DURATION_SCALE = 0.6;
+const liftDuration = (keyboardDuration: number | undefined) =>
+  // `??` not `||`: iOS may report a real duration of 0 (no animation), which
+  // should stay 0, not fall back to 250ms.
+  Math.round((keyboardDuration ?? 250) * KEYBOARD_LIFT_DURATION_SCALE);
+
 /** Floating full-width pill action pinned above the tab bar. */
 export const FooterAction = ({
   title,
@@ -330,9 +338,7 @@ export const FooterAction = ({
     const show = Keyboard.addListener("keyboardWillShow", (e) => {
       Animated.timing(lift, {
         toValue: keyboardLift(e.endCoordinates.height),
-        // `??` not `||`: iOS may report a real duration of 0 (no animation),
-        // which should stay 0, not fall back to 250ms and desync the lift.
-        duration: e.duration ?? 250,
+        duration: liftDuration(e.duration),
         easing: KEYBOARD_EASING,
         useNativeDriver: true,
       }).start();
@@ -340,7 +346,7 @@ export const FooterAction = ({
     const hide = Keyboard.addListener("keyboardWillHide", (e) => {
       Animated.timing(lift, {
         toValue: 0,
-        duration: e?.duration ?? 250,
+        duration: liftDuration(e?.duration),
         easing: KEYBOARD_EASING,
         useNativeDriver: true,
       }).start();
