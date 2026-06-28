@@ -40,12 +40,19 @@ type ListBySubgroupCursor = {
 const encodeListBySubgroupCursor = (cursor: ListBySubgroupCursor) =>
   `event-subgroup:${JSON.stringify(cursor)}`;
 
-// `paginator` (convex-helpers) encodes its cursor as a JSON array string, so a
-// valid db cursor always starts with "[". Anything else — an opaque cursor left
-// over from the old built-in `.paginate()` deploy, or junk — would make
-// `paginator.paginate()` throw, so we drop it and restart from the newest row.
-const asPaginatorCursor = (value: unknown): string | null =>
-  typeof value === "string" && value.startsWith("[") ? value : null;
+// `paginator` (convex-helpers) encodes its cursor as a JSON array string.
+// Anything else — an opaque cursor left over from the old built-in
+// `.paginate()` deploy, or junk — would make `paginator.paginate()` throw, so we
+// drop it and restart from the newest row. Parse fully (not just a `[` prefix)
+// so a truncated/corrupt value like "[" can't slip through and crash paginator.
+const asPaginatorCursor = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  try {
+    return Array.isArray(JSON.parse(value)) ? value : null;
+  } catch {
+    return null;
+  }
+};
 
 const decodeListBySubgroupCursor = (
   cursor: string | null | undefined

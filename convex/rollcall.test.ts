@@ -534,6 +534,17 @@ describe("events + roll-call", () => {
     });
     expect(legacy.events.map((e) => e._id)).toEqual([newer]);
 
+    // A truncated/corrupt value that merely starts with "[" must not be fed to
+    // paginator (it would throw) — it should be rejected and pagination restart.
+    for (const corrupt of ["[", `event-subgroup:${JSON.stringify({ dbCursor: "[" })}`]) {
+      const result = await leader.query(api.events.listBySubgroup, {
+        subgroup: USYD,
+        cursor: corrupt,
+        numItems: 1,
+      });
+      expect(result.events.map((e) => e._id)).toEqual([newer]);
+    }
+
     const malicious = await leader.query(api.events.listBySubgroup, {
       subgroup: USYD,
       cursor: `event-subgroup:${JSON.stringify({
