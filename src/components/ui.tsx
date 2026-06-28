@@ -1720,7 +1720,9 @@ const styles = StyleSheet.create({
   floatingYearPicker: { position: "absolute", right: spacing.lg, bottom: spacing.md },
   scroll: {
     flexGrow: 1,
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    // Tight top padding so the back/title row sits close to the top of the screen.
+    paddingTop: spacing.sm,
     paddingBottom: 48,
     gap: spacing.md,
     maxWidth: 720,
