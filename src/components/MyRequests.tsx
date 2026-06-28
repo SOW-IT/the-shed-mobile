@@ -132,25 +132,26 @@ const NewRequestSheet = ({
   const [amount, setAmount] = useState("");
   const [department, setDepartment] = useState(defaultDepartment);
   const [error, setError] = useState<string | null>(null);
-  const [confirmCancel, setConfirmCancel] = useState(false);
 
-  // The form's initial (pristine) values — blank, or the prefill when resubmitting.
-  const initialDescription = prefill?.description ?? "";
-  const initialAmount = prefill?.amount ?? "";
-  const initialDepartment = prefill?.department ?? defaultDepartment;
-  const dirty =
-    description !== initialDescription ||
-    amount !== initialAmount ||
-    department !== initialDepartment;
-
-  // Re-initialise the form each time it opens (blank, or from the prefill).
+  // Apply a resubmit prefill when one arrives (its identity changes). The plain
+  // "Make Request" path passes prefill=null and deliberately leaves any
+  // in-progress draft untouched — so cancelling the sheet and reopening it keeps
+  // whatever was typed (description / amount / department) exactly as it was
+  // left. The draft is only cleared after a successful submit.
   useEffect(() => {
-    if (!visible) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset form on open
-    setDescription(prefill?.description ?? "");
-    setAmount(prefill?.amount ?? "");
-    setDepartment(prefill?.department ?? defaultDepartment);
-  }, [visible, prefill, defaultDepartment]);
+    if (!prefill) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- load resubmit prefill
+    setDescription(prefill.description);
+    setAmount(prefill.amount);
+    setDepartment(prefill.department);
+  }, [prefill]);
+
+  // Adopt the default department once it resolves, without clobbering a value the
+  // user (or a prefill) already chose.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- late default adoption
+    if (department === "" && defaultDepartment !== "") setDepartment(defaultDepartment);
+  }, [defaultDepartment, department]);
 
   const handleSubmit = async () => {
     setError(null);
@@ -158,35 +159,23 @@ const NewRequestSheet = ({
       await submit({ description, amount: Number(amount), department });
       setDescription("");
       setAmount("");
+      setDepartment(defaultDepartment);
       onClose();
     } catch (e) {
       setError(errorMessage(e));
     }
   };
 
-  // Every close path (footer Cancel, header X, backdrop, swipe) routes here so a
-  // dirty draft always confirms before being discarded.
-  const requestClose = () => {
-    if (dirty) {
-      setConfirmCancel(true);
-      return;
-    }
-    onClose();
-  };
-
   return (
     <Sheet
       visible={visible}
-      onClose={requestClose}
+      // Cancelling (footer Cancel, header X, backdrop, swipe) just closes — the
+      // draft is kept in state for next time, no discard confirmation.
+      onClose={onClose}
       title="New Request"
       footer={
         <Row spread>
-          <Btn
-            title="Cancel"
-            variant="ghost"
-            disabled={!dirty}
-            onPress={requestClose}
-          />
+          <Btn title="Cancel" variant="ghost" onPress={onClose} />
           <Btn title="Submit Request" onPress={handleSubmit} />
         </Row>
       }
@@ -215,14 +204,6 @@ const NewRequestSheet = ({
           <Muted>{`Requests of $${directorThreshold.toLocaleString()} or more also require Director approval.`}</Muted>
         ) : null}
         <ErrorBanner message={error} />
-        <ConfirmDialog
-          visible={confirmCancel}
-          title="Discard request"
-          message="Discard this request? Anything you've entered will be lost."
-          confirmLabel="Discard"
-          onConfirm={onClose}
-          onClose={() => setConfirmCancel(false)}
-        />
       </Sheet>
   );
 };
