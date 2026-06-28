@@ -14,6 +14,11 @@ import { MetadataTab, type SaveControls } from "@/components/attendance/Metadata
 import { SettingsTab } from "@/components/attendance/SettingsTab";
 import { ConfirmDialog, FooterAction, LoadingState } from "@/components/ui";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
+import { spacing } from "@/theme";
+
+// Lift the tab footers a little higher off the bottom bar. All tabs share one Y
+// (the footer slides between them on swipe), so they all use the same offset.
+const FOOTER_LIFT = spacing.lg;
 
 export default function AttendanceScreen() {
   const { tab } = useLocalSearchParams<{ tab?: string }>();
@@ -86,6 +91,7 @@ export default function AttendanceScreen() {
           <FooterAction
             title="+ Create event"
             onPress={() => setCreateEventOpen(true)}
+            bottomOffset={FOOTER_LIFT}
           />
         ),
       });
@@ -93,7 +99,11 @@ export default function AttendanceScreen() {
     items.push({
       tabKey: "members",
       node: (
-        <FooterAction title="+ Create member" onPress={openCreateMember} />
+        <FooterAction
+          title="+ Create member"
+          onPress={openCreateMember}
+          bottomOffset={FOOTER_LIFT}
+        />
       ),
     });
     items.push({
@@ -108,6 +118,7 @@ export default function AttendanceScreen() {
             onPress: () => setConfirmRevertTags(true),
             disabled: !tagsSave.dirty || tagsSave.saving,
           }}
+          bottomOffset={FOOTER_LIFT}
         />
       ),
     });
@@ -123,6 +134,7 @@ export default function AttendanceScreen() {
             onPress: () => setConfirmRevertMeta(true),
             disabled: !metaSave.dirty || metaSave.saving,
           }}
+          bottomOffset={FOOTER_LIFT}
         />
       ),
     });

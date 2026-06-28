@@ -228,7 +228,10 @@ export function MembersTab({
       ) : accumulated.length === 0 ? (
         <EmptyState icon="people-outline" title="No members match" />
       ) : (
-        <>
+        // Wrapped in a View so the page's outer `gap` doesn't stack on top of each
+        // row's marginBottom — keeps the inter-card spacing equal to the signed-in
+        // / not-signed-in lists (a single spacing.sm gap).
+        <View>
           {accumulated.map((row) => {
             const campusColour = row.university
               ? universityColour(row.university)
@@ -308,7 +311,7 @@ export function MembersTab({
               onPress={() => setCursor(page.continueCursor)}
             />
           ) : null}
-        </>
+        </View>
       )}
     </>
   );
