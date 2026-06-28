@@ -44,7 +44,7 @@ export const eventIncludesSubgroup = (
 ): boolean =>
   normalizeSubgroups(eventSubgroups).includes(canonicalSubgroup(subgroup));
 
-const isOrgWideSubgroup = (subgroup: string): boolean =>
+export const isOrgWideSubgroup = (subgroup: string): boolean =>
   canonicalSubgroup(subgroup) === SOW_SUBGROUP;
 
 /** Short label for a sub-group: a campus acronym (USYD…) or "SOW" for org-wide. */
