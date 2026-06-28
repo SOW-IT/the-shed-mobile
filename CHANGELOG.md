@@ -6,6 +6,11 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-06-29
+
+Attendance footer polish, plus a fix for the events list server error on
+quieter groups.
+
 ### Changed
 
 - **Staff show as staff in attendance chips.** Attendance group chips now label
