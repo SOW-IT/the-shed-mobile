@@ -140,7 +140,6 @@ export const Screen = ({
   headerRight,
   onBack,
   onEndReached,
-  compactHeader = false,
 }: {
   children?: ReactNode;
   toast?: ToastState;
@@ -158,8 +157,6 @@ export const Screen = ({
   onBack?: () => void;
   /** Fired while the user scrolls within ~600px of the bottom (infinite load). */
   onEndReached?: () => void;
-  /** Trims the gap above the header (back/title row) for denser screens. */
-  compactHeader?: boolean;
 }) => {
   const t = useAppTheme();
   return (
@@ -183,7 +180,7 @@ export const Screen = ({
       >
         {(title || headerRight || onBack) && (
           <FadeInView>
-            <View style={[styles.header, compactHeader && styles.headerCompact]}>
+            <View style={styles.header}>
               {onBack ? (
                 <Pressable
                   onPress={onBack}
@@ -1734,10 +1731,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
-    marginTop: spacing.sm,
+    marginTop: 0,
     marginBottom: spacing.sm,
   },
-  headerCompact: { marginTop: 0 },
   headerText: { flex: 1 },
   headerBack: { marginLeft: -6, justifyContent: "center" },
   card: {

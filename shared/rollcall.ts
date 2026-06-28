@@ -123,6 +123,22 @@ export const formatEventDate = (dateStart: number): string => {
   return `${date} · ${time}`;
 };
 
+/** Event date + time span as shown in the events list, e.g.
+ *  "24.06.25, 5:00 pm - 7:00 pm". */
+export const formatEventRange = (startMs: number, endMs: number): string => {
+  const twoDigit = (value: number) => String(value).padStart(2, "0");
+  const start = new Date(startMs);
+  const end = new Date(endMs);
+  const date = `${twoDigit(start.getDate())}.${twoDigit(
+    start.getMonth() + 1
+  )}.${String(start.getFullYear()).slice(-2)}`;
+  const time = (dateValue: Date) =>
+    dateValue
+      .toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+      .toLowerCase();
+  return `${date}, ${time(start)} - ${time(end)}`;
+};
+
 /** Clock time for a sign-in row, e.g. "5:03 PM". */
 export const formatSignInTime = (ms: number): string =>
   new Date(ms).toLocaleTimeString(undefined, {

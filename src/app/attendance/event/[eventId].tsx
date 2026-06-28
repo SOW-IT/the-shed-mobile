@@ -9,7 +9,7 @@ import {
   canReverseSignIn,
   contrastingText,
   eventHasEnded,
-  formatEventDate,
+  formatEventRange,
   formatSignInTime,
   SOW_SUBGROUP,
   subgroupColour,
@@ -534,7 +534,6 @@ export default function EventAttendanceScreen() {
       title={event.name}
       subtitle="Attendance"
       onBack={() => router.back()}
-      compactHeader
       headerRight={
         <View style={styles.headerMeta}>
           <View style={styles.headerActions}>
@@ -574,7 +573,7 @@ export default function EventAttendanceScreen() {
           />
           </View>
           <Text style={[typography.caption, { color: t.muted }]}>
-            {formatEventDate(event.dateStart)}
+            {formatEventRange(event.dateStart, event.dateEnd)}
           </Text>
         </View>
       }
@@ -746,10 +745,10 @@ export default function EventAttendanceScreen() {
         </>
       ) : null}
 
-      {/* Shown whenever there are signed-in people, and also kept visible during
-          a search even with no matches — so the "Signed in" title and its total
-          count stay put with an empty list under them rather than vanishing. */}
-      {isSearching || filteredSignedInList.length > 0 ? (
+      {/* Always shown — the "Signed in" title and total count stay put even with
+          zero signed-in members (or no search matches), with an empty list under
+          them, so the layout below "Not signed in" never shifts. */}
+      {(
         <>
           <View style={[styles.section, styles.sectionHeader]}>
             <Text style={[typography.label, { color: t.muted }]}>Signed in</Text>
@@ -813,7 +812,7 @@ export default function EventAttendanceScreen() {
               ) : null}
               </View>
             </>
-          ) : null}
+          )}
       <View style={{ height: spacing.xxl }} />
 
       {metadataFields ? (
@@ -904,12 +903,15 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: spacing.sm,
-    marginBottom: spacing.sm,
+    // Negative vertical margins trim the scroll's spacing.md gaps above and
+    // below the badge row so it sits closer to the header and the search box.
+    marginTop: -spacing.xs,
+    marginBottom: -spacing.xs,
   },
   badgeGroup: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 4,
+    gap: 6,
     alignItems: "center",
     flexShrink: 1,
   },
