@@ -15,6 +15,10 @@ All notable changes to **The SHED** mobile app. This project follows
 - **No grey flash on roll-call cards.** A member card is no longer greyed out
   while its sign-in/out is still saving — it stays full-strength but can't be
   swiped again until the change settles. (#141)
+- **Event attendance footer rises with the keyboard.** On the event attendance
+  page the action button now lifts at the same speed as the keyboard instead of
+  trailing behind it, and sits a little higher so it clears the bottom edge on a
+  screen with no tab bar. (#142)
 
 ## [1.1.1] — 2026-06-28
 
