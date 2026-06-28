@@ -224,7 +224,13 @@ describe("cancel validation", () => {
     const t = await setup();
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
     const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
-    await asUser(t, RACHEL).mutation(api.requests.cancel, { requestId: request._id });
+    vi.useFakeTimers();
+    try {
+      await asUser(t, RACHEL).mutation(api.requests.cancel, { requestId: request._id });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
     // Gone, with its events.
     const events = await t.run((ctx) =>
       ctx.db
@@ -526,7 +532,13 @@ describe("deleteDeclined", () => {
     await asUser(t, RACHEL).mutation(api.comments.toggleReaction, { commentId: comment.id, emoji: "👍" });
     await asUser(t, RACHEL).mutation(api.comments.markRead, { requestId: id });
 
-    await asUser(t, RACHEL).mutation(api.requests.deleteDeclined, { requestId: id });
+    vi.useFakeTimers();
+    try {
+      await asUser(t, RACHEL).mutation(api.requests.deleteDeclined, { requestId: id });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
 
     // Request is gone.
     expect(await asUser(t, RACHEL).query(api.requests.get, { requestId: id })).toBeNull();

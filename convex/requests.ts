@@ -21,7 +21,13 @@ import {
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { rememberBankAccount } from "./bankAccounts";
-import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
+import {
+  internalMutation,
+  mutation,
+  MutationCtx,
+  query,
+  QueryCtx,
+} from "./_generated/server";
 import {
   actAsEmails,
   currentStaffYear,
@@ -53,6 +59,8 @@ const stepValidator = v.union(
   v.literal("director"),
   v.literal("financeHead")
 );
+
+const REQUEST_CLEANUP_BATCH_SIZE = 200;
 
 const requestSummary = (r: Doc<"requests">) =>
   `Requester: ${r.requesterEmail}\nDepartment: ${r.department}\nAmount: $${r.amount}\nDescription: ${r.description}`;
@@ -954,6 +962,37 @@ export const decline = mutation({
   },
 });
 
+export const cleanupRequestAuditAndNudges = internalMutation({
+  args: { requestId: v.id("requests") },
+  handler: async (ctx, { requestId }) => {
+    const events = await ctx.db
+      .query("requestEvents")
+      .withIndex("by_request", (q) => q.eq("requestId", requestId))
+      .take(REQUEST_CLEANUP_BATCH_SIZE);
+    for (const event of events) {
+      await ctx.db.delete("requestEvents", event._id);
+    }
+
+    const nudges = await ctx.db
+      .query("requestNudges")
+      .withIndex("by_request", (q) => q.eq("requestId", requestId))
+      .take(REQUEST_CLEANUP_BATCH_SIZE);
+    for (const nudge of nudges) {
+      await ctx.db.delete("requestNudges", nudge._id);
+    }
+
+    if (
+      events.length === REQUEST_CLEANUP_BATCH_SIZE ||
+      nudges.length === REQUEST_CLEANUP_BATCH_SIZE
+    ) {
+      await ctx.scheduler.runAfter(0, internal.requests.cleanupRequestAuditAndNudges, {
+        requestId,
+      });
+    }
+    return null;
+  },
+});
+
 /** The requester can cancel while the request is not paid and not declined. */
 export const cancel = mutation({
   args: { requestId: v.id("requests") },
@@ -993,27 +1032,9 @@ export const cancel = mutation({
         body: `The requester cancelled this request; no further action is needed.\n\n${requestSummary(request)}`,
       });
     }
-    // The request is gone, so its audit events go with it.
-    for (;;) {
-      const events = await ctx.db
-        .query("requestEvents")
-        .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
-        .take(200);
-      if (events.length === 0) break;
-      for (const event of events) {
-        await ctx.db.delete("requestEvents", event._id);
-      }
-    }
-    for (;;) {
-      const nudges = await ctx.db
-        .query("requestNudges")
-        .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
-        .take(200);
-      if (nudges.length === 0) break;
-      for (const nudge of nudges) {
-        await ctx.db.delete("requestNudges", nudge._id);
-      }
-    }
+    await ctx.scheduler.runAfter(0, internal.requests.cleanupRequestAuditAndNudges, {
+      requestId: args.requestId,
+    });
     // ...along with its comment thread, reactions and read markers. Drained in
     // batches so a request with an unusually long thread leaves no orphans.
     for (;;) {
@@ -1067,27 +1088,9 @@ export const deleteDeclined = mutation({
     if (!requestDeclined(request)) {
       throw new ConvexError("Only declined requests can be deleted this way.");
     }
-    // Clean up audit events.
-    for (;;) {
-      const events = await ctx.db
-        .query("requestEvents")
-        .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
-        .take(200);
-      if (events.length === 0) break;
-      for (const event of events) {
-        await ctx.db.delete("requestEvents", event._id);
-      }
-    }
-    for (;;) {
-      const nudges = await ctx.db
-        .query("requestNudges")
-        .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
-        .take(200);
-      if (nudges.length === 0) break;
-      for (const nudge of nudges) {
-        await ctx.db.delete("requestNudges", nudge._id);
-      }
-    }
+    await ctx.scheduler.runAfter(0, internal.requests.cleanupRequestAuditAndNudges, {
+      requestId: args.requestId,
+    });
     // Clean up comment thread, reactions, and read markers.
     for (;;) {
       const comments = await ctx.db

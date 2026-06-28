@@ -1516,15 +1516,23 @@ describe("deadlock prevention and validation fixes", () => {
       step: "hod",
       reason: "No",
     });
-    await t.run((ctx) =>
-      ctx.db.insert("requestNudges", {
-        requestId: request._id,
-        nudgerEmail: HENRY,
-        sentAt: Date.now(),
-      })
-    );
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 201; i++) {
+        await ctx.db.insert("requestNudges", {
+          requestId: request._id,
+          nudgerEmail: HENRY,
+          sentAt: Date.now() + i,
+        });
+      }
+    });
 
-    await rachel.mutation(api.requests.deleteDeclined, { requestId: request._id });
+    vi.useFakeTimers();
+    try {
+      await rachel.mutation(api.requests.deleteDeclined, { requestId: request._id });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
     const nudges = await t.run((ctx) =>
       ctx.db
         .query("requestNudges")
@@ -1547,7 +1555,13 @@ describe("deadlock prevention and validation fixes", () => {
       })
     );
 
-    await rachel.mutation(api.requests.cancel, { requestId: request._id });
+    vi.useFakeTimers();
+    try {
+      await rachel.mutation(api.requests.cancel, { requestId: request._id });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
     const nudges = await t.run((ctx) =>
       ctx.db
         .query("requestNudges")
