@@ -24,10 +24,17 @@ export default function SubgroupEventsScreen() {
   const t = useAppTheme();
   const router = useRouter();
   const { subgroup } = useLocalSearchParams<{ subgroup: string }>();
-  const [cursor, setCursor] = useState<string | null>(null);
+  const [pagination, setPagination] = useState<{
+    subgroup: string;
+    cursor: string | null;
+  }>({
+    subgroup,
+    cursor: null,
+  });
   const [events, setEvents] = useState<
     NonNullable<ReturnType<typeof useQuery<typeof api.events.listBySubgroup>>>["events"]
   >([]);
+  const cursor = pagination.subgroup === subgroup ? pagination.cursor : null;
   const result = useQuery(api.events.listBySubgroup, {
     subgroup,
     cursor: cursor ?? null,
@@ -36,7 +43,7 @@ export default function SubgroupEventsScreen() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset pagination on route param change
-    setCursor(null);
+    setPagination({ subgroup, cursor: null });
     setEvents([]);
   }, [subgroup]);
 
@@ -59,11 +66,17 @@ export default function SubgroupEventsScreen() {
         subtitle="Events"
         onBack={() => router.back()}
       >
-        {events.length === 0 ? (
+        {events.length === 0 && result?.isDone ? (
           <EmptyState
             icon="calendar-outline"
             title="No events yet"
             message="Create an event to take attendance."
+          />
+        ) : events.length === 0 ? (
+          <EmptyState
+            icon="search-outline"
+            title="Looking for older events"
+            message="Load more to keep scanning this subgroup's history."
           />
         ) : (
           events.map((event, i) => (
@@ -118,7 +131,7 @@ export default function SubgroupEventsScreen() {
           <Btn
             title="Load more"
             variant="ghost"
-            onPress={() => setCursor(result.continueCursor)}
+            onPress={() => setPagination({ subgroup, cursor: result.continueCursor })}
           />
         ) : null}
         <View style={{ height: spacing.xxl }} />
