@@ -170,6 +170,12 @@ export default function EventAttendanceScreen() {
   // Keys that transitioned from optimistic → real this session. Their real rows
   // must not re-run the FadeInView entrance since the row was already visible.
   const [suppressFadeIn, setSuppressFadeIn] = useState<Set<string>>(new Set());
+  // Same idea for the not-signed-in list: once a reversed (signed-out) member's
+  // optimistic entrance has confirmed, keep their row wrapped in a plain View so
+  // it doesn't flip to FadeInView and replay a reappear animation.
+  const [suppressUnsignedFadeIn, setSuppressUnsignedFadeIn] = useState<Set<string>>(
+    new Set()
+  );
 
   const [search, setSearch] = useState("");
   const [eventEditOpen, setEventEditOpen] = useState(false);
@@ -280,8 +286,10 @@ export default function EventAttendanceScreen() {
       setOptimisticSignedIn((o) => { const n = new Map(o); for (const k of confirmedSignedIn) n.delete(k); return n.size < o.size ? n : o; });
       setSuppressFadeIn((s) => { const n = new Set(s); for (const k of confirmedSignedIn) n.add(k); return n; });
     }
-    if (confirmedSignedOut.length > 0)
+    if (confirmedSignedOut.length > 0) {
       setOptimisticSignedOut((o) => { const n = new Set(o); for (const k of confirmedSignedOut) n.delete(k); return n.size < o.size ? n : o; });
+      setSuppressUnsignedFadeIn((s) => { const n = new Set(s); for (const k of confirmedSignedOut) n.add(k); return n; });
+    }
     if (genuinelyRemoteSignedIn.length > 0)
       setRemoteSignedIn((r) => { const n = new Set(r); for (const k of genuinelyRemoteSignedIn) n.add(k); return n; });
     if (genuinelyRemoteSignedOut.length > 0)
@@ -405,6 +413,7 @@ export default function EventAttendanceScreen() {
     setPrevUnsignedSig(null);
     setNewlyAddedUnsigned(new Set());
     setSignedOutOrder([]);
+    setSuppressUnsignedFadeIn(new Set());
   }, [event?._id]);
   // Wait for the roster to load before seeding the baseline: an empty
   // loading-render signature ("") would otherwise consume the null sentinel, so
@@ -761,6 +770,7 @@ export default function EventAttendanceScreen() {
                   newlyAddedUnsigned.has(m.key);
                 const isExiting = remoteSignedIn.has(m.key);
                 const isAnimating = isEntering || isExiting;
+                const isSuppressed = suppressUnsignedFadeIn.has(m.key);
                 const staggerIndex = visibleSignedIn.length + index;
                 const nextKey = visibleUnsigned[index + 1]?.key;
                 const row = (
@@ -783,7 +793,7 @@ export default function EventAttendanceScreen() {
                     onEdit={!isAnimating ? () => editRosterEntry(m) : undefined}
                   />
                 );
-                return isAnimating ? (
+                return isAnimating || isSuppressed ? (
                   <View key={m.key}>{row}</View>
                 ) : (
                   <FadeInView key={m.key} delay={Math.min(staggerIndex, 12) * 35}>{row}</FadeInView>
