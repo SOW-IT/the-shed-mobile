@@ -62,6 +62,9 @@ describe("attendance tags (branch coverage)", () => {
     await expect(
       staff.mutation(api.attendanceMetadata.ensureDefaults, {})
     ).rejects.toThrow(/admins or campus leaders/i);
+    await expect(
+      staff.mutation(api.attendanceMetadata.saveAll, { fields: [], deleteIds: [] })
+    ).rejects.toThrow(/admins or campus leaders/i);
   });
 
   test("updating a tag with subgroups stores the normalised subgroup list", async () => {

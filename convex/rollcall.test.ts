@@ -391,18 +391,31 @@ describe("events + roll-call", () => {
     expect(list.events.map((e) => e._id)).toEqual([newer, older]);
   });
 
-  test("listBySubgroup paginates from the newest matching event", async () => {
+  test("listBySubgroup paginates through interleaved non-matching events", async () => {
     const leader = asUser(t, LEADER);
+    const base = Date.now();
     const older = await leader.mutation(api.events.create, {
       name: "Older",
-      dateStart: Date.now() - 86_400_000,
-      dateEnd: Date.now() - 86_400_000 + 3600_000,
+      dateStart: base - 86_400_000,
+      dateEnd: base - 86_400_000 + 3600_000,
       subgroups: [USYD],
+    });
+    await leader.mutation(api.events.create, {
+      name: "Other 1",
+      dateStart: base - 60_000,
+      dateEnd: base - 60_000 + 3600_000,
+      subgroups: [MACQ],
+    });
+    await leader.mutation(api.events.create, {
+      name: "Other 2",
+      dateStart: base - 30_000,
+      dateEnd: base - 30_000 + 3600_000,
+      subgroups: [MACQ],
     });
     const newer = await leader.mutation(api.events.create, {
       name: "Newer",
-      dateStart: Date.now(),
-      dateEnd: Date.now() + 3600_000,
+      dateStart: base,
+      dateEnd: base + 3600_000,
       subgroups: [USYD],
     });
 

@@ -1436,6 +1436,9 @@ export const submitReceipt = mutation({
     if (args.recipients.length > MAX_RECEIPT_RECIPIENTS) {
       throw new ConvexError(`Receipts can have at most ${MAX_RECEIPT_RECIPIENTS} recipients.`);
     }
+    // Convex storage metadata has no uploader identity, so bind receipt files
+    // to this request's receipt-eligible window before storing references.
+    const receiptUploadReadyAt = request.approvedTime ?? request._creationTime;
     let attachmentCount = 0;
     for (const recipient of args.recipients) {
       if (!recipient.accountName.trim()) {
@@ -1463,6 +1466,9 @@ export const submitReceipt = mutation({
         if (!metadata) throw new ConvexError("One or more receipt files were not uploaded.");
         if (metadata.size > MAX_RECEIPT_FILE_BYTES) {
           throw new ConvexError("Receipt files must be 2MB or smaller.");
+        }
+        if (metadata._creationTime < receiptUploadReadyAt) {
+          throw new ConvexError("Receipt files must be uploaded after the request is approved.");
         }
       }
     }

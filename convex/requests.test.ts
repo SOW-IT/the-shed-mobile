@@ -1506,6 +1506,45 @@ describe("deadlock prevention and validation fixes", () => {
     ).rejects.toThrow(/at most 50 attachments/i);
   });
 
+  test("receipt files must be uploaded after the request is approved", async () => {
+    vi.useFakeTimers({ now: new Date("2026-06-01T00:00:00Z"), toFake: ["Date"] });
+    try {
+      const t = await setup();
+      const rachel = asUser(t, RACHEL);
+      await rachel.mutation(api.requests.submit, { description: "x", amount: 100 });
+      const [request] = (await rachel.query(api.requests.myRequests, {}))!;
+      const staleFile = await storedReceipt(t);
+
+      vi.setSystemTime(new Date("2026-06-01T00:01:00Z"));
+      await asUser(t, HENRY).mutation(api.requests.approve, { requestId: request._id, step: "hod" });
+      await asUser(t, BELLA).mutation(api.requests.approve, {
+        requestId: request._id,
+        step: "budgetManager",
+      });
+      await asUser(t, FIONA).mutation(api.requests.approve, {
+        requestId: request._id,
+        step: "financeHead",
+      });
+
+      await expect(
+        rachel.mutation(api.requests.submitReceipt, {
+          requestId: request._id,
+          recipients: [
+            {
+              accountName: "R",
+              bsb: "0",
+              accountNumber: "1",
+              amount: 100,
+              attachments: [staleFile],
+            },
+          ],
+        })
+      ).rejects.toThrow(/uploaded after the request is approved/i);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("deleteDeclined removes request nudges", async () => {
     const t = await setup();
     const rachel = asUser(t, RACHEL);

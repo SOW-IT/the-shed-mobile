@@ -44,21 +44,34 @@ unread counters for high-volume request sets.
   - Strict TypeScript config.
   - Strong server-side authorization for reimbursement approval steps.
   - Clear domain documentation and defensive handling of staff-year rollover.
-- Biggest risks:
-  - Receipt bank details are exposed too broadly through request documents.
-  - Production dependency audit reports a high-severity `ws` advisory through
-    the current Convex package.
+- Biggest risks identified at audit time:
+  - Receipt bank details were exposed too broadly through request documents;
+    this PR now redacts them for callers outside the receipt visibility boundary.
+  - Production dependency audit reported a high-severity `ws` advisory through
+    the previous Convex package; this PR upgrades Convex and clears that high
+    advisory.
   - Some live Convex queries scan or collect whole tables and then filter in
-    JavaScript.
-  - A raw `tsc --noEmit` check currently fails despite lint/tests passing.
+    JavaScript; this PR fixes the riskiest silent caps/scans, with larger read
+    model refactors left in the roadmap.
+  - A raw `tsc --noEmit` check failed at audit time; this PR fixes that issue
+    and adds `npm.cmd run typecheck`.
 
-Verification performed:
+Original audit verification before remediation:
 
 - `npm.cmd run lint` passed.
 - `npm.cmd test` passed: 23 files, 490 tests.
-- `npx.cmd tsc --noEmit` failed.
+- `npx.cmd tsc --noEmit` failed because of the tab button
+  `PressableStateCallbackType` issue fixed later in this PR.
 - `npm.cmd audit --omit=dev --json` reported 2 high and 12 moderate production
   advisories.
+
+Post-remediation verification:
+
+- `npm.cmd run typecheck` passed.
+- `npm.cmd run lint` passed.
+- `npm.cmd run test:coverage` passed.
+- `npm.cmd audit --omit=dev` no longer reports the high-severity Convex `ws`
+  advisory; remaining moderate advisories are Expo transitive dependencies.
 
 ## High Priority
 
