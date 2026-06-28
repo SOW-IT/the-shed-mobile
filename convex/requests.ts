@@ -497,21 +497,20 @@ async function canViewReceiptDetails(
   if (isMemberOfDepartment(caller.profile, FINANCE)) return true;
 
   const requestYearFinance = await getApprovers(ctx, request.year, FINANCE);
-  const currentFinance =
-    request.year === caller.year
-      ? requestYearFinance
-      : await getApprovers(ctx, caller.year, FINANCE);
   const actAsRequest = await actAsEmails(ctx, request.year, caller.email);
-  const actAsCurrent =
-    request.year === caller.year
-      ? actAsRequest
-      : await actAsEmails(ctx, caller.year, caller.email);
+  if (
+    requestYearFinance.financeHeadEmail !== undefined &&
+    actAsRequest.has(requestYearFinance.financeHeadEmail)
+  ) {
+    return true;
+  }
+  if (request.year === caller.year) return false;
 
+  const currentFinance = await getApprovers(ctx, caller.year, FINANCE);
+  const actAsCurrent = await actAsEmails(ctx, caller.year, caller.email);
   return (
-    (requestYearFinance.financeHeadEmail !== undefined &&
-      actAsRequest.has(requestYearFinance.financeHeadEmail)) ||
-    (currentFinance.financeHeadEmail !== undefined &&
-      actAsCurrent.has(currentFinance.financeHeadEmail))
+    currentFinance.financeHeadEmail !== undefined &&
+    actAsCurrent.has(currentFinance.financeHeadEmail)
   );
 }
 

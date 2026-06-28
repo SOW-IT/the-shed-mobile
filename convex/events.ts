@@ -26,7 +26,6 @@ import { logAttendanceAction } from "./attendanceAudit";
 
 const EVENTS_PAGE_SIZE = 20;
 const MAX_EVENTS_PAGE_SIZE = 50;
-const EVENTS_SCAN_BATCH_SIZE = 100;
 const MAX_EVENTS_SCANNED_PER_PAGE = 1000;
 
 /** Quick attendance count for an event, without loading the rows themselves. */
@@ -138,7 +137,7 @@ export const listBySubgroup = query({
         .order("desc")
         .paginate({
           cursor: continueCursor,
-          numItems: Math.max(pageSize, EVENTS_SCAN_BATCH_SIZE),
+          numItems: pageSize,
         });
       continueCursor = batch.continueCursor;
       isDone = batch.isDone;
