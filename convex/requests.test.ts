@@ -1602,6 +1602,16 @@ describe("deadlock prevention and validation fixes", () => {
         requestId: request._id,
       })
     ).toBeNull();
+
+    const requesterView = await rachel.query(api.requests.get, {
+      requestId: request._id,
+    });
+    expect(requesterView?.receipt?.recipients).toHaveLength(2);
+    const unrelatedView = await asUser(t, HENRY).query(api.requests.get, {
+      requestId: request._id,
+    });
+    expect(unrelatedView?.receipt?.totalAmount).toBe(300);
+    expect(unrelatedView?.receipt?.recipients).toEqual([]);
   });
 
   test("requests can be submitted on behalf of another department", async () => {

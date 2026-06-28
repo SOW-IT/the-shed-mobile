@@ -441,12 +441,16 @@ export const submit = mutation({
   },
 });
 
-const yearRequests = async (ctx: QueryCtx | MutationCtx, year: number) =>
-  await ctx.db
+const yearRequests = async (ctx: QueryCtx | MutationCtx, year: number) => {
+  const rows: Doc<"requests">[] = [];
+  for await (const request of ctx.db
     .query("requests")
     .withIndex("by_year", (q) => q.eq("year", year))
-    .order("desc")
-    .take(500);
+    .order("desc")) {
+    rows.push(request);
+  }
+  return rows;
+};
 
 /**
  * The current year's requests plus the previous year's still-incomplete ones,
@@ -477,6 +481,48 @@ const makeApproverResolver = (ctx: QueryCtx) => {
     return cached;
   };
 };
+
+const receiptSummary = (request: Doc<"requests">): Doc<"requests">["receipt"] =>
+  request.receipt
+    ? { totalAmount: request.receipt.totalAmount, recipients: [] }
+    : undefined;
+
+async function canViewReceiptDetails(
+  ctx: QueryCtx,
+  caller: CallerContext,
+  request: Doc<"requests">
+): Promise<boolean> {
+  if (!request.receipt) return true;
+  if (request.requesterEmail === caller.email) return true;
+  if (isMemberOfDepartment(caller.profile, FINANCE)) return true;
+
+  const requestYearFinance = await getApprovers(ctx, request.year, FINANCE);
+  const currentFinance =
+    request.year === caller.year
+      ? requestYearFinance
+      : await getApprovers(ctx, caller.year, FINANCE);
+  const actAsRequest = await actAsEmails(ctx, request.year, caller.email);
+  const actAsCurrent =
+    request.year === caller.year
+      ? actAsRequest
+      : await actAsEmails(ctx, caller.year, caller.email);
+
+  return (
+    (requestYearFinance.financeHeadEmail !== undefined &&
+      actAsRequest.has(requestYearFinance.financeHeadEmail)) ||
+    (currentFinance.financeHeadEmail !== undefined &&
+      actAsCurrent.has(currentFinance.financeHeadEmail))
+  );
+}
+
+async function requestForCaller(
+  ctx: QueryCtx,
+  caller: CallerContext,
+  request: Doc<"requests">
+): Promise<Doc<"requests">> {
+  if (await canViewReceiptDetails(ctx, caller, request)) return request;
+  return { ...request, receipt: receiptSummary(request) };
+}
 
 /**
  * The caller's own requests: everything from the current staff year plus any
@@ -676,7 +722,11 @@ export const reviewed = query({
     const docs = await Promise.all(
       reviewedIds.map((id) => ctx.db.get("requests", id))
     );
-    return docs.filter((r): r is Doc<"requests"> => r !== null);
+    return await Promise.all(
+      docs
+        .filter((r): r is Doc<"requests"> => r !== null)
+        .map((request) => requestForCaller(ctx, caller, request))
+    );
   },
 });
 
@@ -945,12 +995,25 @@ export const cancel = mutation({
       });
     }
     // The request is gone, so its audit events go with it.
-    const events = await ctx.db
-      .query("requestEvents")
-      .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
-      .take(200);
-    for (const event of events) {
-      await ctx.db.delete("requestEvents", event._id);
+    for (;;) {
+      const events = await ctx.db
+        .query("requestEvents")
+        .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
+        .take(200);
+      if (events.length === 0) break;
+      for (const event of events) {
+        await ctx.db.delete("requestEvents", event._id);
+      }
+    }
+    for (;;) {
+      const nudges = await ctx.db
+        .query("requestNudges")
+        .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
+        .take(200);
+      if (nudges.length === 0) break;
+      for (const nudge of nudges) {
+        await ctx.db.delete("requestNudges", nudge._id);
+      }
     }
     // ...along with its comment thread, reactions and read markers. Drained in
     // batches so a request with an unusually long thread leaves no orphans.
@@ -1006,12 +1069,25 @@ export const deleteDeclined = mutation({
       throw new ConvexError("Only declined requests can be deleted this way.");
     }
     // Clean up audit events.
-    const events = await ctx.db
-      .query("requestEvents")
-      .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
-      .take(200);
-    for (const event of events) {
-      await ctx.db.delete("requestEvents", event._id);
+    for (;;) {
+      const events = await ctx.db
+        .query("requestEvents")
+        .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
+        .take(200);
+      if (events.length === 0) break;
+      for (const event of events) {
+        await ctx.db.delete("requestEvents", event._id);
+      }
+    }
+    for (;;) {
+      const nudges = await ctx.db
+        .query("requestNudges")
+        .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
+        .take(200);
+      if (nudges.length === 0) break;
+      for (const nudge of nudges) {
+        await ctx.db.delete("requestNudges", nudge._id);
+      }
     }
     // Clean up comment thread, reactions, and read markers.
     for (;;) {
@@ -1050,6 +1126,11 @@ export const deleteDeclined = mutation({
 });
 
 const NUDGE_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 1 nudge per person per request per day
+const MAX_RECEIPT_RECIPIENTS = 20;
+const MAX_ATTACHMENTS_PER_RECIPIENT = 10;
+const MAX_RECEIPT_ATTACHMENTS = 50;
+const MAX_ATTACHMENT_NAME_LENGTH = 200;
+const MAX_RECEIPT_FILE_BYTES = 2 * 1024 * 1024;
 
 /**
  * Emails allowed to nudge a request: the requester and any approver who has
@@ -1173,8 +1254,10 @@ export const nudge = mutation({
 export const get = query({
   args: { requestId: v.id("requests") },
   handler: async (ctx, args) => {
-    if (!(await optionalProfile(ctx))) return null;
-    return await ctx.db.get("requests", args.requestId);
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    const request = await ctx.db.get("requests", args.requestId);
+    return request ? await requestForCaller(ctx, caller, request) : null;
   },
 });
 
@@ -1348,6 +1431,10 @@ export const submitReceipt = mutation({
     if (args.recipients.length === 0) {
       throw new ConvexError("Add at least one recipient.");
     }
+    if (args.recipients.length > MAX_RECEIPT_RECIPIENTS) {
+      throw new ConvexError(`Receipts can have at most ${MAX_RECEIPT_RECIPIENTS} recipients.`);
+    }
+    let attachmentCount = 0;
     for (const recipient of args.recipients) {
       if (!recipient.accountName.trim()) {
         throw new ConvexError("Every recipient needs an account name.");
@@ -1355,9 +1442,33 @@ export const submitReceipt = mutation({
       if (!/^\d+$/.test(recipient.bsb) || !/^\d+$/.test(recipient.accountNumber)) {
         throw new ConvexError("BSB and account number must be digits only.");
       }
+      const attachments = recipient.attachments ?? [];
+      if (attachments.length > MAX_ATTACHMENTS_PER_RECIPIENT) {
+        throw new ConvexError(
+          `Each recipient can have at most ${MAX_ATTACHMENTS_PER_RECIPIENT} attachments.`
+        );
+      }
+      attachmentCount += attachments.length;
+      for (const attachment of attachments) {
+        const name = attachment.name.trim();
+        if (!name) throw new ConvexError("Every attachment needs a file name.");
+        if (name.length > MAX_ATTACHMENT_NAME_LENGTH) {
+          throw new ConvexError(
+            `Attachment names must be ${MAX_ATTACHMENT_NAME_LENGTH} characters or fewer.`
+          );
+        }
+        const metadata = await ctx.db.system.get("_storage", attachment.storageId);
+        if (!metadata) throw new ConvexError("One or more receipt files were not uploaded.");
+        if (metadata.size > MAX_RECEIPT_FILE_BYTES) {
+          throw new ConvexError("Receipt files must be 2MB or smaller.");
+        }
+      }
     }
     if (args.recipients.some((r) => !(r.amount > 0))) {
       throw new ConvexError("Every recipient amount must be a positive number.");
+    }
+    if (attachmentCount > MAX_RECEIPT_ATTACHMENTS) {
+      throw new ConvexError(`A receipt can have at most ${MAX_RECEIPT_ATTACHMENTS} attachments.`);
     }
     if (!args.recipients.some((r) => (r.attachments ?? []).length > 0)) {
       throw new ConvexError("Attach at least one receipt file.");
@@ -1427,19 +1538,9 @@ export const receiptAttachments = query({
     const request = await ctx.db.get("requests", args.requestId);
     if (!request) return null;
 
-    const requestYearFinance = await getApprovers(ctx, request.year, FINANCE);
-    const currentFinance =
-      request.year === caller.year
-        ? requestYearFinance
-        : await getApprovers(ctx, caller.year, FINANCE);
     // Null (not a throw): this backs an inline section on request cards,
     // and an unauthorised viewer should just not see the files.
-    const allowed =
-      request.requesterEmail === caller.email ||
-      isMemberOfDepartment(caller.profile, FINANCE) ||
-      requestYearFinance.financeHeadEmail === caller.email ||
-      currentFinance.financeHeadEmail === caller.email;
-    if (!allowed) return null;
+    if (!(await canViewReceiptDetails(ctx, caller, request))) return null;
 
     if (!request.receipt) return [];
     return await Promise.all(

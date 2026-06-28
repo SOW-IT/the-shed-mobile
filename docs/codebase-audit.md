@@ -6,6 +6,31 @@ Scope: Expo SDK 56 React Native app, Convex backend, shared domain logic,
 scripts, CI, configuration, tests, and dependency posture. This is a read-only
 engineering audit captured as a prioritized remediation report.
 
+## Remediation Update
+
+This PR now includes fixes for the highest-impact quick wins from the audit:
+
+- Receipt bank details are redacted from general request reads and remain
+  available only to the requester, Finance, Finance Head, or authorized
+  delegates.
+- Receipt submission validates recipient, attachment count, attachment name, and
+  storage file-size limits.
+- Request deletion/cancellation drains related audit events, nudges, comments,
+  reactions, and read markers in batches.
+- The high-severity Convex `ws` production advisory is resolved by upgrading
+  Convex to `^1.42.0`.
+- Unused Expo dependencies were removed, Android `RECORD_AUDIO` was removed, a
+  `typecheck` script was added, and npm Dependabot coverage was added.
+- Attendance tag/metadata writes now require an admin or campus leader instead
+  of any provisioned staff profile.
+- The riskiest silent query caps/scans were reduced: Finance year request reads
+  no longer truncate at 500, event lists paginate from the date index, and
+  roll-call roster history is bounded.
+
+Remaining recommendations in this report are mostly medium/large refactors:
+splitting large modules, deeper read-model indexing, and redesigning comment
+unread counters for high-volume request sets.
+
 ## Executive Summary
 
 - Overall code quality: 7.5/10.

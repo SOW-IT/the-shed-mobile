@@ -49,6 +49,21 @@ async function setup() {
 const window = () => ({ dateStart: Date.now(), dateEnd: Date.now() + 3600_000 });
 
 describe("attendance tags (branch coverage)", () => {
+  test("plain staff cannot manage shared attendance settings", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    await expect(
+      staff.mutation(api.attendanceTags.saveAll, {
+        year: YEAR,
+        tags: [{ name: "Retreat" }],
+        deleteIds: [],
+      })
+    ).rejects.toThrow(/admins or campus leaders/i);
+    await expect(
+      staff.mutation(api.attendanceMetadata.ensureDefaults, {})
+    ).rejects.toThrow(/admins or campus leaders/i);
+  });
+
   test("updating a tag with subgroups stores the normalised subgroup list", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);

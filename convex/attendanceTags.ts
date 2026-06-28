@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { staffYearStartMs } from "../shared/flow";
 import { normalizeSubgroups } from "../shared/rollcall";
 import { mutation, query } from "./_generated/server";
-import { optionalProfile, requireProfile } from "./model";
+import { optionalProfile, requireAttendanceManager } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
 
 export const list = query({
@@ -31,7 +31,7 @@ export const saveAll = mutation({
     deleteIds: v.array(v.id("attendanceTags")),
   },
   handler: async (ctx, { year, tags, deleteIds }) => {
-    const { email: actorEmail } = await requireProfile(ctx);
+    const { email: actorEmail } = await requireAttendanceManager(ctx);
     for (const id of deleteIds) {
       const row = await ctx.db.get(id);
       if (!row || row.year !== year) continue;

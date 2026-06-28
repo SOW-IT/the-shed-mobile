@@ -436,7 +436,7 @@ describe("audit logging across attendance mutations", () => {
 
   test("tags log create, rename, plain update and delete", async () => {
     const t = await setup();
-    const staff = asUser(t, STAFF);
+    const staff = asUser(t, ADMIN);
 
     await staff.mutation(api.attendanceTags.saveAll, {
       year: YEAR,
@@ -477,7 +477,7 @@ describe("audit logging across attendance mutations", () => {
 
   test("member fields log create, rename, unchanged-skip and delete", async () => {
     const t = await setup();
-    const staff = asUser(t, STAFF);
+    const staff = asUser(t, ADMIN);
 
     await staff.mutation(api.attendanceMetadata.saveAll, {
       fields: [{ key: "Cohort", type: "input", order: 50 }],
@@ -514,7 +514,7 @@ describe("audit logging across attendance mutations", () => {
 
   test("swapping two member fields logs a swap, not generic updates", async () => {
     const t = await setup();
-    const staff = asUser(t, STAFF);
+    const staff = asUser(t, ADMIN);
     await staff.mutation(api.attendanceMetadata.saveAll, {
       fields: [
         { key: "Alpha", type: "input", order: 0 },
@@ -547,7 +547,7 @@ describe("audit logging across attendance mutations", () => {
 
   test("reordering several member fields logs one reorder event", async () => {
     const t = await setup();
-    const staff = asUser(t, STAFF);
+    const staff = asUser(t, ADMIN);
     await staff.mutation(api.attendanceMetadata.saveAll, {
       fields: [
         { key: "One", type: "input", order: 0 },

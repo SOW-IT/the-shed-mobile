@@ -13,7 +13,11 @@ import {
 } from "../shared/attendanceMemberMeta";
 import { canonicalSubgroup, subgroupMatches } from "../shared/rollcall";
 import { internalMutation, mutation, query } from "./_generated/server";
-import { currentStaffYear, optionalProfile, requireProfile } from "./model";
+import {
+  currentStaffYear,
+  optionalProfile,
+  requireAttendanceManager,
+} from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
 
 const LOCKED_FIELD_KEYS = new Set([
@@ -127,7 +131,7 @@ export const list = query({
 export const ensureDefaults = mutation({
   args: {},
   handler: async (ctx) => {
-    await requireProfile(ctx);
+    await requireAttendanceManager(ctx);
     const existing = await ctx.db.query("attendanceMetadata").collect();
     if (existing.length > 0) return existing.length;
 
@@ -204,7 +208,7 @@ export const saveAll = mutation({
     deleteIds: v.array(v.id("attendanceMetadata")),
   },
   handler: async (ctx, { fields, deleteIds }) => {
-    const { email: actorEmail } = await requireProfile(ctx);
+    const { email: actorEmail } = await requireAttendanceManager(ctx);
     const orgYear = currentStaffYear();
     for (const id of deleteIds) {
       const row = await ctx.db.get(id);

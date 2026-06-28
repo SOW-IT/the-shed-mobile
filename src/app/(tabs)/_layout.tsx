@@ -147,7 +147,7 @@ const AnimatedTabBarButton = ({
     >
       <Animated.View style={[styles.tabButtonInner, { transform: [{ scale }] }]}>
         {typeof children === "function"
-          ? children({ pressed: false })
+          ? children({ pressed: false, hovered: false })
           : children}
       </Animated.View>
     </Pressable>
