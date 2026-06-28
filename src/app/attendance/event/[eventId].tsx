@@ -733,8 +733,9 @@ export default function EventAttendanceScreen() {
 
       {/* Search box for the suggested pool. Sticky: pins to the top while the
           roster scrolls under it. The opaque page-background wrapper masks rows
-          passing behind the rounded pill. */}
-      <View style={{ backgroundColor: t.background }}>
+          passing behind the rounded pill; paddingTop mirrors the box's bottom
+          spacing so it has some space before the top edge when pinned. */}
+      <View style={{ backgroundColor: t.background, paddingTop: spacing.sm }}>
         <View style={[styles.search, { backgroundColor: t.inputBackground }]}>
           <Ionicons name="search" size={16} color={t.faint} />
           <TextInput

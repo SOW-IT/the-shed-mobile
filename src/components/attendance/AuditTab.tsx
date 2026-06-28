@@ -156,8 +156,15 @@ export function AuditTab() {
     >
       {/* Sticky: the filter controls and search bar pin to the top while the
           activity list scrolls under them. The opaque page-background wrapper
-          masks rows passing behind the rounded controls. */}
-      <View style={{ backgroundColor: t.background, gap: spacing.md }}>
+          masks rows passing behind the rounded controls; paddingTop mirrors the
+          block's bottom spacing so the controls don't touch the top when pinned. */}
+      <View
+        style={{
+          backgroundColor: t.background,
+          gap: spacing.md,
+          paddingTop: spacing.sm,
+        }}
+      >
       <View style={styles.filterSummary}>
         <Pressable
           accessibilityRole="button"

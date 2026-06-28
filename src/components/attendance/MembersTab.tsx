@@ -109,19 +109,20 @@ export function MembersTab({
   return (
     <ScrollView
       showsVerticalScrollIndicator={false}
-      // Index 1 is the search bar (index 0 is the grouped filter block) — pin it
-      // so it stays reachable while the member list scrolls under it.
-      stickyHeaderIndices={[1]}
+      // Index 0 is the grouped filter + search block — pin it so both stay
+      // reachable while the member list scrolls under it.
+      stickyHeaderIndices={[0]}
       style={{ backgroundColor: t.background }}
       contentContainerStyle={[
         PAGER_PAGE_CONTENT,
         { paddingBottom: PAGER_PAGE_BOTTOM_INSET_WITH_FOOTER },
       ]}
     >
-      {/* Everything above the search bar is grouped into one element so the
-          search bar stays at a fixed child index (1) for the page's
-          stickyHeaderIndices, regardless of whether the filter panel is open. */}
-      <View>
+      {/* Sticky: the filter controls and search bar pin to the top while the
+          member list scrolls under them. The opaque page-background wrapper
+          masks rows passing behind the rounded controls; paddingTop mirrors the
+          block's bottom spacing so the controls don't touch the top when pinned. */}
+      <View style={[styles.stickyControls, { backgroundColor: t.background }]}>
       <View style={styles.filterSummary}>
         <Pressable
           accessibilityRole="button"
@@ -207,11 +208,7 @@ export function MembersTab({
           ))}
         </View>
       ) : null}
-      </View>
 
-      {/* Sticky: pins to the top while the list scrolls under it. The opaque
-          page-background wrapper masks rows passing behind the rounded pill. */}
-      <View style={{ backgroundColor: t.background }}>
         <View style={[styles.search, { backgroundColor: t.inputBackground }]}>
           <Ionicons name="search-outline" size={18} color={t.faint} />
           <TextInput
@@ -345,6 +342,9 @@ export function MembersTab({
 }
 
 const styles = StyleSheet.create({
+  // Holds the (sticky) filter controls + search bar. paddingTop mirrors the
+  // search bar's marginBottom so it has matching space when pinned to the top.
+  stickyControls: { gap: spacing.md, paddingTop: spacing.sm },
   filterSummary: {
     flexDirection: "row",
     alignItems: "center",
