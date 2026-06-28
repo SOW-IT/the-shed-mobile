@@ -26,7 +26,6 @@ import { logAttendanceAction } from "./attendanceAudit";
 
 const EVENTS_PAGE_SIZE = 20;
 const MAX_EVENTS_PAGE_SIZE = 50;
-const EVENTS_SCAN_BATCH_SIZE = 100;
 const MAX_EVENTS_SCANNED_PER_PAGE = 1000;
 
 type ListBySubgroupCursor = {
@@ -58,7 +57,7 @@ const decodeListBySubgroupCursor = (
       bufferedIds: Array.isArray(parsed.bufferedIds)
         ? (parsed.bufferedIds
             .filter((id) => typeof id === "string")
-            .slice(0, EVENTS_SCAN_BATCH_SIZE) as Id<"events">[])
+            .slice(0, MAX_EVENTS_SCANNED_PER_PAGE) as Id<"events">[])
         : [],
     };
   } catch {
@@ -177,28 +176,17 @@ export const listBySubgroup = query({
     }
     let continueCursor = decodedCursor.dbCursor;
     let isDone = decodedCursor.dbIsDone;
-    let scanned = 0;
-    while (
-      page.length < pageSize &&
-      remainingBufferedIds.length === 0 &&
-      !isDone &&
-      scanned < MAX_EVENTS_SCANNED_PER_PAGE
-    ) {
-      const batchSize = Math.min(
-        EVENTS_SCAN_BATCH_SIZE,
-        MAX_EVENTS_SCANNED_PER_PAGE - scanned
-      );
+    if (page.length < pageSize && remainingBufferedIds.length === 0 && !isDone) {
       const batch = await ctx.db
         .query("events")
         .withIndex("by_dateStart")
         .order("desc")
         .paginate({
           cursor: continueCursor,
-          numItems: batchSize,
+          numItems: MAX_EVENTS_SCANNED_PER_PAGE,
         });
       continueCursor = batch.continueCursor;
       isDone = batch.isDone;
-      scanned += batch.page.length;
       for (const event of batch.page) {
         if (!eventIncludesSubgroup(event.subgroups, subgroup)) continue;
         if (page.length < pageSize) {
@@ -207,7 +195,6 @@ export const listBySubgroup = query({
           remainingBufferedIds.push(event._id);
         }
       }
-      if (batch.page.length === 0) break;
     }
     const withCounts = await Promise.all(
       page.map(async (event) => ({
@@ -223,6 +210,8 @@ export const listBySubgroup = query({
         ? encodeListBySubgroupCursor({
             dbCursor: continueCursor,
             dbIsDone: isDone,
+            // Buffered IDs can reach one scanned batch, but stay bounded by the
+            // single paginate() call above so the cursor payload remains capped.
             bufferedIds: remainingBufferedIds,
           })
         : null,

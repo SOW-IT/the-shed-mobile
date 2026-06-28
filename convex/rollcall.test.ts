@@ -494,6 +494,33 @@ describe("events + roll-call", () => {
     expect(third.continueCursor).toBeNull();
   });
 
+  test("listBySubgroup reaches matches after a long non-matching prefix", async () => {
+    const leader = asUser(t, LEADER);
+    const base = Date.now();
+    for (let i = 0; i < 120; i++) {
+      await leader.mutation(api.events.create, {
+        name: `Other ${i}`,
+        dateStart: base - i,
+        dateEnd: base - i + 3600_000,
+        subgroups: [MACQ],
+      });
+    }
+    const match = await leader.mutation(api.events.create, {
+      name: "Eventually matching",
+      dateStart: base - 120_000,
+      dateEnd: base - 120_000 + 3600_000,
+      subgroups: [USYD],
+    });
+
+    const first = await leader.query(api.events.listBySubgroup, {
+      subgroup: USYD,
+      numItems: 1,
+    });
+    expect(first.events.map((e) => e._id)).toEqual([match]);
+    expect(first.isDone).toBe(true);
+    expect(first.continueCursor).toBeNull();
+  });
+
   test("listBySubgroup accepts legacy and malformed cursors", async () => {
     const leader = asUser(t, LEADER);
     const base = Date.now();
