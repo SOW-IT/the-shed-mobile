@@ -67,6 +67,13 @@ export interface AttendanceRowProps {
   /** When true, swipes and taps do not fire actions (past event, editing locked). */
   disabled?: boolean;
   /**
+   * Greys the card out (reduced opacity). Kept separate from `disabled` so a row
+   * can be made non-interactive — e.g. while its optimistic sign-in/out mutation
+   * is in flight — without dimming it. Locked rows (past-event attendees, editing
+   * disabled) pass both.
+   */
+  dimmed?: boolean;
+  /**
    * Disables only the primary (sign in/out) gesture while leaving edit usable —
    * e.g. a protected attendee on a past event who may be relabelled but not
    * signed out. The right-side swipe/tap falls through to scroll.
@@ -100,6 +107,7 @@ function AttendanceRowBase({
   university,
   mode,
   disabled = false,
+  dimmed = false,
   actionDisabled = false,
   onAction,
   onActionStart,
@@ -393,7 +401,7 @@ function AttendanceRowBase({
 
   return (
     <Animated.View
-      style={[styles.container, containerStyle, disabled && styles.disabled]}
+      style={[styles.container, containerStyle, dimmed && styles.disabled]}
     >
       {/* Edit — revealed when swiping right */}
       <Animated.View

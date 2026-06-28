@@ -137,6 +137,12 @@ export default function EventAttendanceScreen() {
   const [optimisticSignedOut, setOptimisticSignedOut] = useState<Set<string>>(
     new Set()
   );
+  // Keys signed out (reversed) this session, newest-first. Used to pin those
+  // members to the top of the not-signed-in list and keep them there after the
+  // mutation confirms — otherwise the refreshed roster would re-sort them into
+  // their frequency-ranked slot and the row would jump from the top. A key is
+  // dropped once the person is signed back in.
+  const [signedOutOrder, setSignedOutOrder] = useState<string[]>([]);
 
   // Remote animation state: rows changed by another client. We hold them in
   // their source list with exiting=true while they collapse, and in the
@@ -247,6 +253,17 @@ export default function EventAttendanceScreen() {
     const removed = [...prev].filter((k) => !next.has(k));
     if (added.length === 0 && removed.length === 0) return;
 
+    // A person who is signed in is no longer in the not-signed-in list, so drop
+    // them from the top-pin order (covers remote sign-ins and any re-sign-in).
+    if (added.length > 0) {
+      const addedSet = new Set(added);
+      setSignedOutOrder((order) =>
+        order.some((k) => addedSet.has(k))
+          ? order.filter((k) => !addedSet.has(k))
+          : order
+      );
+    }
+
     // Classify using the current snapshot of optimistic state.
     const confirmedSignedIn = added.filter((k) => optimisticSignedIn.has(k));
     const genuinelyRemoteSignedIn = added.filter((k) => !optimisticSignedIn.has(k));
@@ -339,12 +356,23 @@ export default function EventAttendanceScreen() {
       .map((key) => rosterByKey.get(key))
       .filter((m): m is NonNullable<typeof roster>[number] => m != null);
     const withExiting = exitingRows.length > 0 ? [...exitingRows, ...real] : real;
-    if (enteringKeys.size === 0) return withExiting;
     const pending = [...enteringKeys]
       .map((key) => rosterByKey.get(key))
       .filter((m): m is NonNullable<typeof roster>[number] => m != null);
-    return [...pending, ...withExiting];
-  }, [roster, signedInKeys, optimisticSignedOut, remoteSignedIn, remoteSignedOut, rosterByKey]);
+    const combined = enteringKeys.size === 0 ? withExiting : [...pending, ...withExiting];
+
+    // Pin members signed out (reversed) this session to the top, in sign-out
+    // order (newest first). This keeps a just-reversed person where they
+    // optimistically appeared even after the mutation confirms and the roster
+    // re-sorts — so the row never jumps back into its frequency-ranked slot.
+    if (signedOutOrder.length === 0) return combined;
+    const rank = new Map(signedOutOrder.map((k, i) => [k, i]));
+    const pinned: NonNullable<typeof roster> = [];
+    const rest: NonNullable<typeof roster> = [];
+    for (const m of combined) (rank.has(m.key) ? pinned : rest).push(m);
+    pinned.sort((a, b) => rank.get(a.key)! - rank.get(b.key)!);
+    return [...pinned, ...rest];
+  }, [roster, signedInKeys, optimisticSignedOut, remoteSignedIn, remoteSignedOut, rosterByKey, signedOutOrder]);
 
   // Members that newly appear in the not-signed-in list since the previous
   // commit. Their card expands its height in (0 → 72) so the list grows
@@ -370,6 +398,7 @@ export default function EventAttendanceScreen() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset per-event baseline
     setPrevUnsignedSig(null);
     setNewlyAddedUnsigned(new Set());
+    setSignedOutOrder([]);
   }, [event?._id]);
   // Wait for the roster to load before seeding the baseline: an empty
   // loading-render signature ("") would otherwise consume the null sentinel, so
@@ -447,6 +476,10 @@ export default function EventAttendanceScreen() {
 
   const onSignInStart = (m: NonNullable<typeof roster>[number]) => {
     setOptimisticSignedIn((prev) => new Map(prev).set(m.key, m));
+    // Signing back in removes the person from the not-signed-in list, so unpin.
+    setSignedOutOrder((order) =>
+      order.includes(m.key) ? order.filter((k) => k !== m.key) : order
+    );
   };
   const onSignIn = (m: NonNullable<typeof roster>[number]) => {
     if (!canEdit) return;
@@ -459,7 +492,11 @@ export default function EventAttendanceScreen() {
   };
   const onSignOutStart = (a: NonNullable<typeof attendance>[number]) => {
     const key = personKey(a);
-    if (key) setOptimisticSignedOut((prev) => new Set(prev).add(key));
+    if (!key) return;
+    setOptimisticSignedOut((prev) => new Set(prev).add(key));
+    // Pin the reversed member to the top of the not-signed-in list and keep them
+    // there after the mutation lands (newest sign-out first).
+    setSignedOutOrder((order) => [key, ...order.filter((k) => k !== key)]);
   };
   const onSignOut = (a: NonNullable<typeof attendance>[number]) => {
     if (!canEdit) return;
@@ -713,8 +750,9 @@ export default function EventAttendanceScreen() {
                     photo={m.photo ?? null}
                     university={m.university}
                     mode="suggested"
-                    // The list only renders when canEdit, so a row is locked
-                    // only while its enter/exit animation plays.
+                    // The list only renders when canEdit, so a row is blocked
+                    // only while its enter/exit animation plays — and it's held
+                    // non-interactive without greying out (dimmed stays false).
                     disabled={isAnimating}
                     entering={isEntering}
                     exiting={isExiting}
@@ -783,9 +821,13 @@ export default function EventAttendanceScreen() {
                     // Attendees signed in before/during a finished event are
                     // locked (greyed, never sign-out-able). A retroactive add is
                     // editable once editing is enabled. Both honour canEdit.
+                    // `dimmed` greys only genuinely-locked rows; an in-flight
+                    // optimistic row is held non-interactive (disabled) without
+                    // the grey.
                     disabled={
                       !canReverseSignIn(event, a.signInTime) || !canEdit || isAnimating
                     }
+                    dimmed={!canReverseSignIn(event, a.signInTime) || !canEdit}
                     entering={isEntering}
                     exiting={isExiting}
                     revealTrigger={revealTriggers.get(aKey) ?? 0}
