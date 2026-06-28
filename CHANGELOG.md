@@ -23,6 +23,10 @@ All notable changes to **The SHED** mobile app. This project follows
   tabs no longer leaves the footer button frozen mid-way and then snapping into
   place — it now slides with the page the whole way, including the release
   glide. (#143)
+- **Steadier group picker.** Selecting a group under Events no longer nudges the
+  logos — the selection ring is always reserved and just colours in. In dark
+  mode the SOW ring now shows in its cream logo colour instead of an invisible
+  black. (#146)
 - **Reversed members are immediately actionable.** After signing a roll-call
   attendee back out, their card (pinned to the top of the not-signed-in list) can
   now be acted on right away, instead of staying locked until another sign-in

@@ -8,6 +8,7 @@ import { eventStaffYear } from "../../../shared/flow";
 import {
   contrastingText,
   formatEventRange,
+  isOrgWideSubgroup,
   subgroupColour,
   subgroupLabel,
   subgroupMatches,
@@ -109,7 +110,12 @@ export function EventsTab({
           <View style={styles.campusRow}>
             {subgroups.map((sg, i) => {
               const active = sg === subgroup;
-              const colour = subgroupColour(sg);
+              // SOW's brand colour is black, which is invisible as a ring on the
+              // dark theme's dark background — use the cream logo colour (the dark
+              // theme text colour) so the selected ring matches the SOW mark.
+              // Every other group uses its brand colour.
+              const ringColour =
+                isOrgWideSubgroup(sg) && t.dark ? t.text : subgroupColour(sg);
               return (
                 <FadeInView key={sg} delay={stagger(i)}>
                   <Pressable
@@ -121,13 +127,13 @@ export function EventsTab({
                       pressed && { opacity: 0.7 },
                     ]}
                   >
+                    {/* The ring border is always present but transparent until
+                        selected, so selecting only colours it in — the logo never
+                        shifts as the 2.5px border appears/disappears. */}
                     <View
                       style={[
                         styles.campusRing,
-                        {
-                          borderColor: active ? colour : "transparent",
-                          borderWidth: active ? 2.5 : 0,
-                        },
+                        active && { borderColor: ringColour },
                       ]}
                     >
                       <CampusMark
@@ -364,10 +370,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     minWidth: 0,
   },
-  /** Selection ring hugging the circular mark — no rectangular chip padding. */
+  /** Selection ring hugging the circular mark — no rectangular chip padding.
+   *  The border is always 2.5px (transparent when unselected) so the layout
+   *  stays put; selecting only changes its colour. */
   campusRing: {
     borderRadius: 999,
     padding: 0,
+    borderWidth: 2.5,
+    borderColor: "transparent",
   },
   toolbar: {
     flexDirection: "row",
