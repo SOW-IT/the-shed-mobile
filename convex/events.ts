@@ -26,7 +26,43 @@ import { logAttendanceAction } from "./attendanceAudit";
 
 const EVENTS_PAGE_SIZE = 20;
 const MAX_EVENTS_PAGE_SIZE = 50;
+const EVENTS_SCAN_BATCH_SIZE = 100;
 const MAX_EVENTS_SCANNED_PER_PAGE = 1000;
+
+type ListBySubgroupCursor = {
+  dbCursor: string | null;
+  dbIsDone: boolean;
+  bufferedIds: Id<"events">[];
+};
+
+const encodeListBySubgroupCursor = (cursor: ListBySubgroupCursor) =>
+  `event-subgroup:${JSON.stringify(cursor)}`;
+
+const decodeListBySubgroupCursor = (
+  cursor: string | null | undefined
+): ListBySubgroupCursor => {
+  if (!cursor) return { dbCursor: null, dbIsDone: false, bufferedIds: [] };
+  const prefix = "event-subgroup:";
+  if (!cursor.startsWith(prefix)) {
+    return { dbCursor: cursor, dbIsDone: false, bufferedIds: [] };
+  }
+  try {
+    const parsed = JSON.parse(cursor.slice(prefix.length)) as {
+      dbCursor?: unknown;
+      dbIsDone?: unknown;
+      bufferedIds?: unknown;
+    };
+    return {
+      dbCursor: typeof parsed.dbCursor === "string" ? parsed.dbCursor : null,
+      dbIsDone: parsed.dbIsDone === true,
+      bufferedIds: Array.isArray(parsed.bufferedIds)
+        ? (parsed.bufferedIds.filter((id) => typeof id === "string") as Id<"events">[])
+        : [],
+    };
+  } catch {
+    return { dbCursor: null, dbIsDone: false, bufferedIds: [] };
+  }
+};
 
 /** Quick attendance count for an event, without loading the rows themselves. */
 async function attendanceCount(
@@ -122,17 +158,29 @@ export const listBySubgroup = query({
       Math.max(1, Math.floor(numItems)),
       MAX_EVENTS_PAGE_SIZE
     );
+    const decodedCursor = decodeListBySubgroupCursor(cursor);
     const page: Doc<"events">[] = [];
-    let continueCursor = cursor ?? null;
-    let isDone = false;
+    const remainingBufferedIds: Id<"events">[] = [];
+    for (const eventId of decodedCursor.bufferedIds) {
+      const event = await ctx.db.get(eventId);
+      if (!event) continue;
+      if (page.length < pageSize) {
+        page.push(event);
+      } else {
+        remainingBufferedIds.push(eventId);
+      }
+    }
+    let continueCursor = decodedCursor.dbCursor;
+    let isDone = decodedCursor.dbIsDone;
     let scanned = 0;
     while (
       page.length < pageSize &&
+      remainingBufferedIds.length === 0 &&
       !isDone &&
       scanned < MAX_EVENTS_SCANNED_PER_PAGE
     ) {
       const batchSize = Math.min(
-        pageSize - page.length,
+        EVENTS_SCAN_BATCH_SIZE,
         MAX_EVENTS_SCANNED_PER_PAGE - scanned
       );
       const batch = await ctx.db
@@ -148,8 +196,11 @@ export const listBySubgroup = query({
       scanned += batch.page.length;
       for (const event of batch.page) {
         if (!eventIncludesSubgroup(event.subgroups, subgroup)) continue;
-        page.push(event);
-        if (page.length >= pageSize) break;
+        if (page.length < pageSize) {
+          page.push(event);
+        } else {
+          remainingBufferedIds.push(event._id);
+        }
       }
       if (batch.page.length === 0) break;
     }
@@ -159,10 +210,17 @@ export const listBySubgroup = query({
         attendanceCount: await attendanceCount(ctx, event._id),
       }))
     );
+    const hasMore = remainingBufferedIds.length > 0 || !isDone;
     return {
       events: withCounts,
-      isDone,
-      continueCursor: isDone ? null : continueCursor,
+      isDone: !hasMore,
+      continueCursor: hasMore
+        ? encodeListBySubgroupCursor({
+            dbCursor: continueCursor,
+            dbIsDone: isDone,
+            bufferedIds: remainingBufferedIds,
+          })
+        : null,
     };
   },
 });

@@ -286,6 +286,7 @@ export const FooterAction = ({
   note,
   cancel,
   bottomOffset = 0,
+  avoidKeyboard = true,
 }: {
   title: string;
   onPress: () => void;
@@ -302,6 +303,8 @@ export const FooterAction = ({
    * the home indicator and sits a little higher instead of hugging the edge.
    */
   bottomOffset?: number;
+  /** Whether this footer should lift above the software keyboard when shown. */
+  avoidKeyboard?: boolean;
 }) => {
   const t = useAppTheme();
   const [scale] = useState(() => new Animated.Value(1));
@@ -312,6 +315,10 @@ export const FooterAction = ({
   // footer, and web has no software keyboard — so this is iOS-only.
   const [lift] = useState(() => new Animated.Value(0));
   useEffect(() => {
+    if (!avoidKeyboard) {
+      lift.setValue(0);
+      return;
+    }
     if (Platform.OS !== "ios") return;
     // The footer can mount while the keyboard is already open (e.g. the Create
     // action appears mid-search), and no willShow fires for it — so seed the
@@ -343,7 +350,7 @@ export const FooterAction = ({
       show.remove();
       hide.remove();
     };
-  }, [lift]);
+  }, [avoidKeyboard, lift]);
   return (
     <Animated.View
       pointerEvents="box-none"
