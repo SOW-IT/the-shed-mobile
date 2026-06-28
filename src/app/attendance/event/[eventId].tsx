@@ -534,8 +534,10 @@ export default function EventAttendanceScreen() {
       title={event.name}
       subtitle="Attendance"
       onBack={() => router.back()}
+      compactHeader
       headerRight={
-        <View style={styles.headerActions}>
+        <View style={styles.headerMeta}>
+          <View style={styles.headerActions}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Edit event"
@@ -570,6 +572,10 @@ export default function EventAttendanceScreen() {
             count={optimisticSignedInCount}
             accessibilityLabel={`${optimisticSignedInCount} signed in`}
           />
+          </View>
+          <Text style={[typography.caption, { color: t.muted }]}>
+            {formatEventDate(event.dateStart)}
+          </Text>
         </View>
       }
       footer={
@@ -597,30 +603,34 @@ export default function EventAttendanceScreen() {
         ) : undefined
       }
     >
-      <View style={styles.metaRow}>
-        <Muted>{formatEventDate(event.dateStart)}</Muted>
-      </View>
-
       <View style={styles.badgeRow}>
-        {event.subgroups.map((s) => {
-          const colour = subgroupColour(s);
-          return (
-            <View key={s} style={[styles.subgroupPill, { backgroundColor: colour }]}>
-              <Text
-                style={[
-                  typography.caption,
-                  styles.subgroupPillText,
-                  { color: contrastingText(colour) },
-                ]}
-              >
-                {subgroupLabel(s)}
-              </Text>
-            </View>
-          );
-        })}
-        {event.tags?.map((tag) => (
-          <AttendanceTagPill key={tag._id} name={tag.name} colour={tag.colour} small />
-        ))}
+        {/* Collab/owner groups on the left, event tags on the right (mirrors
+            the events list's split badge row). */}
+        <View style={styles.badgeGroup}>
+          {event.subgroups.map((s) => {
+            const colour = subgroupColour(s);
+            return (
+              <View key={s} style={[styles.subgroupPill, { backgroundColor: colour }]}>
+                <Text
+                  style={[
+                    typography.caption,
+                    styles.subgroupPillText,
+                    { color: contrastingText(colour) },
+                  ]}
+                >
+                  {subgroupLabel(s)}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+        {event.tags && event.tags.length > 0 ? (
+          <View style={[styles.badgeGroup, styles.badgeGroupRight]}>
+            {event.tags.map((tag) => (
+              <AttendanceTagPill key={tag._id} name={tag.name} colour={tag.colour} small />
+            ))}
+          </View>
+        ) : null}
       </View>
 
       {pastEvent && !editUnlocked ? (
@@ -859,11 +869,10 @@ export default function EventAttendanceScreen() {
 }
 
 const styles = StyleSheet.create({
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: spacing.sm,
+  // Header right column: actions row on top, event date right-aligned beneath.
+  headerMeta: {
+    alignItems: "flex-end",
+    gap: spacing.xs,
   },
   headerActions: {
     flexDirection: "row",
@@ -892,10 +901,20 @@ const styles = StyleSheet.create({
   },
   badgeRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    alignItems: "center",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: spacing.sm,
     marginBottom: spacing.sm,
+  },
+  badgeGroup: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+    alignItems: "center",
+    flexShrink: 1,
+  },
+  badgeGroupRight: {
+    justifyContent: "flex-end",
   },
   subgroupPill: {
     borderRadius: radius.full,
