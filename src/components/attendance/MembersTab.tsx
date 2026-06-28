@@ -104,6 +104,10 @@ export function MembersTab({
 
   return (
     <>
+      {/* Everything above the search bar is grouped into one element so the
+          search bar stays at a fixed child index (1) for the page's
+          stickyHeaderIndices, regardless of whether the filter panel is open. */}
+      <View>
       <View style={styles.filterSummary}>
         <Pressable
           accessibilityRole="button"
@@ -189,30 +193,35 @@ export function MembersTab({
           ))}
         </View>
       ) : null}
+      </View>
 
-      <View style={[styles.search, { backgroundColor: t.inputBackground }]}>
-        <Ionicons name="search-outline" size={18} color={t.faint} />
-        <TextInput
-          style={[styles.searchInput, { color: t.text }]}
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Search members…"
-          placeholderTextColor={t.faint}
-        />
-        {search ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Clear member search"
-            onPress={() => setSearch("")}
-            style={({ pressed }) => [
-              styles.searchClear,
-              { backgroundColor: t.ghost },
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Ionicons name="close" size={16} color={t.ghostText} />
-          </Pressable>
-        ) : null}
+      {/* Sticky: pins to the top while the list scrolls under it. The opaque
+          page-background wrapper masks rows passing behind the rounded pill. */}
+      <View style={{ backgroundColor: t.background }}>
+        <View style={[styles.search, { backgroundColor: t.inputBackground }]}>
+          <Ionicons name="search-outline" size={18} color={t.faint} />
+          <TextInput
+            style={[styles.searchInput, { color: t.text }]}
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search members…"
+            placeholderTextColor={t.faint}
+          />
+          {search ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Clear member search"
+              onPress={() => setSearch("")}
+              style={({ pressed }) => [
+                styles.searchClear,
+                { backgroundColor: t.ghost },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Ionicons name="close" size={16} color={t.ghostText} />
+            </Pressable>
+          ) : null}
+        </View>
       </View>
 
       <View style={[styles.sectionHeader, { borderBottomColor: t.separator }]}>

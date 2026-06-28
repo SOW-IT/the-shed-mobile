@@ -6,6 +6,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Search bars stay put while you scroll.** On the Members tab, the Audit tab,
+  and an event's attendance roster, the member/activity search bar now pins to
+  the top as the list scrolls under it, so it's always reachable. On the Audit
+  tab the filter controls pin alongside the search bar.
+- **Consistent footer height across the attendance tabs.** The Tags ("Save
+  tags") and Metadata ("Save metadata") footers now sit at the same distance
+  from the bottom as the "+ Make Request" button, matching the Events and
+  Members footers.
+
 ## [1.2.0] — 2026-06-29
 
 Attendance footer polish, plus a fix for the events list server error on

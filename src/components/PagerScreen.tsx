@@ -24,6 +24,11 @@ export type PagerTab = {
   /** White unread-message count. */
   messageBadge?: number;
   render: () => ReactNode;
+  /**
+   * Indices (into the children returned by {@link render}) that should pin to
+   * the top of the page while the rest scrolls under them — e.g. a search bar.
+   */
+  stickyHeaderIndices?: number[];
 };
 
 /** How close to the bottom (px) before onEndReached fires. */
@@ -216,6 +221,7 @@ export const PagerScreen = ({
   const renderPage = (tab: PagerTab) => (
     <ScrollView
       showsVerticalScrollIndicator={false}
+      stickyHeaderIndices={tab.stickyHeaderIndices}
       style={{ backgroundColor: t.background }}
       contentContainerStyle={[
         styles.page,

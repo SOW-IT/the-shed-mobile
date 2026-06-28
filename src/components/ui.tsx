@@ -150,6 +150,7 @@ export const Screen = ({
   headerRight,
   onBack,
   onEndReached,
+  stickyHeaderIndices,
 }: {
   children?: ReactNode;
   toast?: ToastState;
@@ -167,13 +168,24 @@ export const Screen = ({
   onBack?: () => void;
   /** Fired while the user scrolls within ~600px of the bottom (infinite load). */
   onEndReached?: () => void;
+  /**
+   * Indices (into `children`) of elements that should pin to the top while the
+   * rest scrolls under them — e.g. a search bar. The built-in header (when a
+   * title/headerRight/onBack is set) is accounted for automatically.
+   */
+  stickyHeaderIndices?: number[];
 }) => {
   const t = useAppTheme();
+  const headerShown = !!(title || headerRight || onBack);
+  const resolvedStickyIndices = stickyHeaderIndices?.map(
+    (i) => i + (headerShown ? 1 : 0)
+  );
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: t.background }]} edges={["top"]}>
       <ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
+        stickyHeaderIndices={resolvedStickyIndices}
         style={{ backgroundColor: t.background }}
         contentContainerStyle={[styles.scroll, footer != null && { paddingBottom: 96 }]}
         scrollEventThrottle={onEndReached ? 16 : undefined}

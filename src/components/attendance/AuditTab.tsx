@@ -140,6 +140,10 @@ export function AuditTab() {
 
   return (
     <>
+      {/* Sticky: the filter controls and search bar pin to the top while the
+          activity list scrolls under them. The opaque page-background wrapper
+          masks rows passing behind the rounded controls. */}
+      <View style={{ backgroundColor: t.background, gap: spacing.md }}>
       <View style={styles.filterSummary}>
         <Pressable
           accessibilityRole="button"
@@ -236,6 +240,7 @@ export function AuditTab() {
             <Ionicons name="close" size={16} color={t.ghostText} />
           </Pressable>
         ) : null}
+      </View>
       </View>
 
       <View style={[styles.sectionHeader, { borderBottomColor: t.separator }]}>
