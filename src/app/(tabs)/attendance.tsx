@@ -92,7 +92,7 @@ export default function AttendanceScreen() {
             title="+ Create event"
             onPress={() => setCreateEventOpen(true)}
             bottomOffset={FOOTER_LIFT}
-            avoidKeyboard={false}
+            avoidKeyboard={active === "events"}
           />
         ),
       });
@@ -116,7 +116,7 @@ export default function AttendanceScreen() {
           disabled={!tagsSave.dirty || tagsSave.saving}
           note={tagsSave.dirty && !tagsSave.saving ? "You have unsaved changes" : null}
           onPress={() => setConfirmSaveTags(true)}
-          avoidKeyboard={false}
+          avoidKeyboard={active === "settings"}
           cancel={{
             onPress: () => setConfirmRevertTags(true),
             disabled: !tagsSave.dirty || tagsSave.saving,
@@ -133,7 +133,7 @@ export default function AttendanceScreen() {
           disabled={!metaSave.dirty || metaSave.saving}
           note={metaSave.dirty && !metaSave.saving ? "You have unsaved changes" : null}
           onPress={() => setConfirmSaveMeta(true)}
-          avoidKeyboard={false}
+          avoidKeyboard={active === "metadata"}
           cancel={{
             onPress: () => setConfirmRevertMeta(true),
             disabled: !metaSave.dirty || metaSave.saving,

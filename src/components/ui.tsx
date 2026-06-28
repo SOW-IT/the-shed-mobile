@@ -308,13 +308,12 @@ export const FooterAction = ({
 }) => {
   const t = useAppTheme();
   const [scale] = useState(() => new Animated.Value(1));
-  // Lifts the pinned footer above the software keyboard. iOS keyboards overlay
-  // content, so we translate the bar up by the keyboard height (synced to the
-  // keyboard's own show/hide animation). Android resizes the window by default
-  // (softwareKeyboardLayoutMode "resize"), which already clears a bottom-anchored
-  // footer, and web has no software keyboard — so this is iOS-only.
+  // Lifts the pinned footer above the software keyboard. Screens may rest the
+  // footer higher than usual, but keyboard-up placement keeps the app's normal
+  // gap above the keyboard by subtracting that resting offset from the lift.
   const [lift] = useState(() => new Animated.Value(0));
   useEffect(() => {
+    const keyboardLift = (height: number) => Math.max(0, height - bottomOffset);
     if (!avoidKeyboard) {
       lift.setValue(0);
       return;
@@ -326,11 +325,11 @@ export const FooterAction = ({
     // until the next hide/show cycle.
     if (Keyboard.isVisible()) {
       const metrics = Keyboard.metrics();
-      if (metrics) lift.setValue(metrics.height);
+      if (metrics) lift.setValue(keyboardLift(metrics.height));
     }
     const show = Keyboard.addListener("keyboardWillShow", (e) => {
       Animated.timing(lift, {
-        toValue: e.endCoordinates.height,
+        toValue: keyboardLift(e.endCoordinates.height),
         // `??` not `||`: iOS may report a real duration of 0 (no animation),
         // which should stay 0, not fall back to 250ms and desync the lift.
         duration: e.duration ?? 250,
@@ -350,7 +349,7 @@ export const FooterAction = ({
       show.remove();
       hide.remove();
     };
-  }, [avoidKeyboard, lift]);
+  }, [avoidKeyboard, bottomOffset, lift]);
   return (
     <Animated.View
       pointerEvents="box-none"
