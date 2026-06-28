@@ -437,6 +437,48 @@ describe("events + roll-call", () => {
     expect(second.continueCursor).toBeNull();
   });
 
+  test("listBySubgroup buffers sparse matches across tiny pages", async () => {
+    const leader = asUser(t, LEADER);
+    const base = Date.now();
+    const older = await leader.mutation(api.events.create, {
+      name: "Older",
+      dateStart: base - 20_000,
+      dateEnd: base - 20_000 + 3600_000,
+      subgroups: [USYD],
+    });
+    for (let i = 0; i < 12; i++) {
+      await leader.mutation(api.events.create, {
+        name: `Other ${i}`,
+        dateStart: base - 19_000 + i,
+        dateEnd: base - 19_000 + i + 3600_000,
+        subgroups: [MACQ],
+      });
+    }
+    const newer = await leader.mutation(api.events.create, {
+      name: "Newer",
+      dateStart: base,
+      dateEnd: base + 3600_000,
+      subgroups: [USYD],
+    });
+
+    const first = await leader.query(api.events.listBySubgroup, {
+      subgroup: USYD,
+      numItems: 1,
+    });
+    expect(first.events.map((e) => e._id)).toEqual([newer]);
+    expect(first.isDone).toBe(false);
+    expect(first.continueCursor).toBeTruthy();
+
+    const second = await leader.query(api.events.listBySubgroup, {
+      subgroup: USYD,
+      cursor: first.continueCursor,
+      numItems: 1,
+    });
+    expect(second.events.map((e) => e._id)).toEqual([older]);
+    expect(second.isDone).toBe(true);
+    expect(second.continueCursor).toBeNull();
+  });
+
   test("sign in is idempotent; sign out removes; counts track", async () => {
     const leader = asUser(t, LEADER);
     const { dateStart, dateEnd } = window();
