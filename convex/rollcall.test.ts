@@ -503,7 +503,7 @@ describe("events + roll-call", () => {
       dateEnd: base - 20_000 + 3600_000,
       subgroups: [USYD],
     });
-    await leader.mutation(api.events.create, {
+    const other = await leader.mutation(api.events.create, {
       name: "Other",
       dateStart: base - 10_000,
       dateEnd: base - 10_000 + 3600_000,
@@ -541,7 +541,7 @@ describe("events + roll-call", () => {
       cursor: `event-subgroup:${JSON.stringify({
         dbCursor: null,
         dbIsDone: true,
-        bufferedIds: ["not-a-convex-id", older],
+        bufferedIds: ["not-a-convex-id", other, older],
       })}`,
       numItems: 1,
     });

@@ -168,6 +168,7 @@ export const listBySubgroup = query({
       if (!eventId) continue;
       const event = await ctx.db.get(eventId);
       if (!event) continue;
+      if (!eventIncludesSubgroup(event.subgroups, subgroup)) continue;
       if (page.length < pageSize) {
         page.push(event);
       } else {
