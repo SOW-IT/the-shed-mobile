@@ -675,12 +675,7 @@ export const OptionSheet = ({
   const retainedChildren = shownChildren.current;
   const retainedFooter = shownFooter.current;
   const hasFooter = retainedFooter != null;
-  const bodyStyle = [
-    contentStyle ?? styles.optionList,
-    // Default option lists get extra room above the footer; callers passing a
-    // custom contentStyle (e.g. ConfirmDialog) manage their own footer spacing.
-    hasFooter && !contentStyle && styles.sheetContentWithFooter,
-  ];
+  const bodyStyle = [contentStyle ?? styles.optionList];
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1 }}>
@@ -716,7 +711,7 @@ export const OptionSheet = ({
               {retainedChildren}
             </ScrollView>
             {hasFooter ? (
-              <View style={[styles.sheetFooter, { borderTopColor: t.separator }]}>
+              <View style={styles.sheetFooter}>
                 {retainedFooter}
               </View>
             ) : null}
@@ -1207,10 +1202,7 @@ export const Sheet = ({
       </View>
     ) : null;
 
-  const bodyStyle = [
-    contentStyle ?? styles.sheetContent,
-    hasFooter && styles.sheetContentWithFooter,
-  ];
+  const bodyStyle = [contentStyle ?? styles.sheetContent];
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -1232,7 +1224,7 @@ export const Sheet = ({
               <View style={[styles.sheetScroll, bodyStyle]}>{retainedChildren}</View>
             )}
             {hasFooter ? (
-              <View style={[styles.sheetFooter, { borderTopColor: t.separator }]}>
+              <View style={styles.sheetFooter}>
                 {retainedFooter}
               </View>
             ) : null}
@@ -1720,7 +1712,9 @@ const styles = StyleSheet.create({
   floatingYearPicker: { position: "absolute", right: spacing.lg, bottom: spacing.md },
   scroll: {
     flexGrow: 1,
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    // Tight top padding so the back/title row sits close to the top of the screen.
+    paddingTop: spacing.sm,
     paddingBottom: 48,
     gap: spacing.md,
     maxWidth: 720,
@@ -1731,7 +1725,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
-    marginTop: spacing.sm,
+    marginTop: 0,
     marginBottom: spacing.sm,
   },
   headerText: { flex: 1 },
@@ -1938,18 +1932,17 @@ const styles = StyleSheet.create({
   sheetContent: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.sm,
-    paddingBottom: spacing.xxl,
+    // Bottom padding matches the top so the body is evenly inset (was a much
+    // larger pad, plus extra when a footer existed). The footer below provides
+    // its own spacing.
+    paddingBottom: spacing.sm,
     gap: spacing.sm + 2,
-  },
-  sheetContentWithFooter: {
-    paddingBottom: spacing.xxl + spacing.lg,
   },
   sheetFooter: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
     paddingBottom: spacing.lg,
     gap: spacing.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
   },
   toast: {
     position: "absolute",

@@ -130,6 +130,14 @@ function AttendanceRowBase({
   const editSnapped = useSharedValue(false);
   const primarySnapped = useSharedValue(false);
   const [snapVisual, setSnapVisual] = useState<SnapVisual>("closed");
+  // Web only: while a horizontal swipe is actively dragging the card, flip the
+  // card's CSS touch-action from "pan-y" to "none" so the browser stops
+  // co-scrolling the list vertically for the rest of that gesture — a move can
+  // either swipe the card OR scroll the list, never both. A move that begins
+  // vertically fails the pan first (failOffsetY) and never activates it, so it
+  // still falls through to scroll. No-op on native, where an activated pan
+  // already blocks the surrounding scroll.
+  const [scrollLocked, setScrollLocked] = useState(false);
 
   /* eslint-disable react-hooks/immutability -- these are Reanimated shared
      values, mutated through their `.value` API inside effects and worklets; the
@@ -220,6 +228,15 @@ function AttendanceRowBase({
     .failOffsetY([-10, 10])
     .onBegin(() => {
       startX.value = translateX.value;
+    })
+    .onStart(() => {
+      // The pan only activates past activeOffsetX — i.e. a clearly horizontal
+      // drag — so from here this gesture owns the move. Lock out vertical scroll
+      // (web; see scrollLocked) for the remainder of the gesture.
+      runOnJS(setScrollLocked)(true);
+    })
+    .onFinalize(() => {
+      runOnJS(setScrollLocked)(false);
     })
     .onUpdate((e) => {
       const next = startX.value + e.translationX;
@@ -417,14 +434,17 @@ function AttendanceRowBase({
         />
       ) : null}
 
-      {/* touchAction="pan-y" (web only): react-native-gesture-handler's web
-          backend sets the card's CSS touch-action to "none" by default, which
-          tells the browser not to scroll when a touch starts on the card — so a
-          vertical drag begun on a card was swallowed and the list never scrolled
-          (failOffsetY can't help once the browser is told not to scroll). pan-y
+      {/* touchAction (web only): react-native-gesture-handler's web backend
+          sets the card's CSS touch-action to "none" by default, which tells the
+          browser not to scroll when a touch starts on the card — so a vertical
+          drag begun on a card was swallowed and the list never scrolled
+          (failOffsetY can't help once the browser is told not to scroll). "pan-y"
           hands vertical panning back to the browser (native list scroll) while
-          the handler still owns horizontal swipes. No-op on native. */}
-      <GestureDetector gesture={composed} touchAction="pan-y">
+          the handler still owns horizontal swipes. Once a horizontal swipe
+          activates (onStart → scrollLocked) we switch back to "none" so the
+          browser stops co-scrolling the list for the rest of that gesture — the
+          move swipes the card OR scrolls, never both. No-op on native. */}
+      <GestureDetector gesture={composed} touchAction={scrollLocked ? "none" : "pan-y"}>
         <Animated.View
           accessibilityRole="button"
           accessibilityLabel={name}
