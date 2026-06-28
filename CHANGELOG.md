@@ -8,6 +8,10 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ### Changed
 
+- **Staff show as staff in attendance chips.** Attendance group chips now label
+  people with non-campus staff-profile roles as **STAFF** instead of falling back
+  to **OTHER** when they do not have a campus, while campus leaders still show
+  their campus chip.
 - **Reversed sign-ins stay where they land.** Signing out (reversing) a roll-call
   attendee now pins them to the top of the "Not signed in" list and keeps them
   there after the change saves, instead of letting the row jump back down into

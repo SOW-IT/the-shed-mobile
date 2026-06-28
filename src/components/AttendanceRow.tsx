@@ -3,7 +3,7 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { memo, useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { universityColour } from "../../shared/flow";
+import { roleNeedsUniversity, universityColour } from "../../shared/flow";
 import { contrastingText, subgroupLabel } from "../../shared/rollcall";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -70,6 +70,7 @@ export interface AttendanceRowProps {
   subtitle?: string;
   photo?: string | null;
   university?: string;
+  roles?: string[];
   mode: AttendanceRowMode;
   /** When true, swipes and taps do not fire actions (past event, editing locked). */
   disabled?: boolean;
@@ -112,6 +113,7 @@ function AttendanceRowBase({
   subtitle,
   photo,
   university,
+  roles = [],
   mode,
   disabled = false,
   dimmed = false,
@@ -131,7 +133,9 @@ function AttendanceRowBase({
   const commitDistance = rowWidth / 2;
   const primaryColor = mode === "suggested" ? t.success : t.danger;
   const campusColour = university ? universityColour(university) : undefined;
-  const campusPillLabel = university ? subgroupLabel(university) : "OTHER";
+  const hasStaffRole = roles.some((role) => !roleNeedsUniversity(role));
+  const campusPillLabel =
+    university ? subgroupLabel(university) : hasStaffRole ? "STAFF" : "OTHER";
   const campusPillBackground = campusColour ?? t.ghost;
   const campusPillText = campusColour ? contrastingText(campusColour) : t.ghostText;
   const primaryIcon =

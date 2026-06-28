@@ -27,6 +27,7 @@ export type MemberRow = {
   name: string;
   email?: string;
   memberId?: string;
+  roles: string[];
   subtitle?: string;
   university?: string;
   metadata: Record<string, string>;
@@ -211,6 +212,7 @@ export const list = query({
         name: personDisplayName(p.name, p.email),
         email: p.email,
         memberId: shadow?._id,
+        roles,
         subtitle: subtitle || undefined,
         university,
         metadata,
@@ -226,6 +228,7 @@ export const list = query({
         name: m.name,
         email: m.email,
         memberId: m._id,
+        roles: [],
         subtitle: metadataLabel(metadataFields, m.metadata, viewingYear, ["Campus"]),
         university,
         metadata: m.metadata ?? {},
