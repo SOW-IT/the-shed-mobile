@@ -182,11 +182,15 @@ export const PagerScreen = ({
     setAllFooterPositions(activeIndex, true);
   }, [activeIndex, footerItems.length, setAllFooterPositions]);
 
-  // While the finger is down, track the pager continuously.
+  // Track the pager continuously while the finger is down AND through the
+  // release deceleration ("settling"), so the footer slides in lockstep with the
+  // page the whole way. Tracking only during "dragging" left the footer frozen
+  // at the release position on a fast swipe, then jumping to its end-state once
+  // the pager reached idle — the catch-up glitch on a quick page change.
   useEffect(() => {
     if (footerItems.length === 0 || Platform.OS === "web") return;
     const id = pagerPosition.addListener(({ value }) => {
-      if (footerScrollState.current !== "dragging") return;
+      if (footerScrollState.current === "idle") return;
       setAllFooterPositions(value, false);
     });
     return () => pagerPosition.removeListener(id);

@@ -19,6 +19,10 @@ All notable changes to **The SHED** mobile app. This project follows
   page the action button now lifts at the same speed as the keyboard instead of
   trailing behind it, and sits a little higher so it clears the bottom edge on a
   screen with no tab bar. (#142)
+- **Smoother footer on fast tab swipes.** Swiping quickly between the attendance
+  tabs no longer leaves the footer button frozen mid-way and then snapping into
+  place — it now slides with the page the whole way, including the release
+  glide. (#143)
 
 ## [1.1.1] — 2026-06-28
 
