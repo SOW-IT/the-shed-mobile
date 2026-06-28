@@ -423,6 +423,18 @@ export default function EventAttendanceScreen() {
     setNewlyAddedUnsigned(added);
   }
 
+  // The newly-added flag only drives the one-shot entrance animation (and the
+  // brief lock while it plays), so clear it once the animation is done. Without
+  // this, a row that appears and then stays put — e.g. a reversed (signed-out)
+  // member pinned to the top — keeps its `entering`/disabled state forever,
+  // because the list signature never changes again to recompute the set. It
+  // would only unlock on the next list change (such as signing someone else in).
+  useEffect(() => {
+    if (newlyAddedUnsigned.size === 0) return;
+    const timer = setTimeout(() => setNewlyAddedUnsigned(new Set()), 240);
+    return () => clearTimeout(timer);
+  }, [newlyAddedUnsigned]);
+
   // While searching, the two lists below are filtered in place by name/email —
   // there's no separate "Results" list. An empty query passes everything through.
   const filteredUnsignedList = useMemo(
