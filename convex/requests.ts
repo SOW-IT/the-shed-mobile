@@ -640,6 +640,46 @@ export const toReview = query({
   },
 });
 
+/** How many reviewed requests to return for the "Reviewed" list. */
+const REVIEWED_LIMIT = 50;
+
+/**
+ * Requests the signed-in approver has already actioned — approved or declined —
+ * newest review first. Sourced from the immutable audit trail (not the request's
+ * own approval flags) so it reflects who actually acted, covering delegates and
+ * carried-over approvals, and is deduped to one card per request.
+ */
+export const reviewed = query({
+  args: {},
+  handler: async (ctx) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    // Stream the caller's own audit events newest first (the index's implicit
+    // _creationTime tiebreaker) and collect approve/decline actions, deduped to
+    // one entry per request (an approver can act on more than one step of the
+    // same request, e.g. a Director who is also its HOD). Filtering and deduping
+    // happen DURING the scan so a fixed pre-filter limit can never drop older
+    // valid cards — we stop only once REVIEWED_LIMIT unique requests are found
+    // or the actor's events run out.
+    const seen = new Set<Id<"requests">>();
+    const reviewedIds: Id<"requests">[] = [];
+    for await (const event of ctx.db
+      .query("requestEvents")
+      .withIndex("by_actor", (q) => q.eq("actorEmail", caller.email))
+      .order("desc")) {
+      if (event.action !== "approved" && event.action !== "declined") continue;
+      if (seen.has(event.requestId)) continue;
+      seen.add(event.requestId);
+      reviewedIds.push(event.requestId);
+      if (reviewedIds.length >= REVIEWED_LIMIT) break;
+    }
+    const docs = await Promise.all(
+      reviewedIds.map((id) => ctx.db.get("requests", id))
+    );
+    return docs.filter((r): r is Doc<"requests"> => r !== null);
+  },
+});
+
 /**
  * All requests across the organisation — Finance staff only. Includes the
  * previous year's still-incomplete requests.

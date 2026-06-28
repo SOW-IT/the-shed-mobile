@@ -121,7 +121,7 @@ export default function RequestsScreen() {
       ? [
           {
             key: "review",
-            label: "To Review",
+            label: "Review",
             badge: reviewCount > 0 ? reviewCount : undefined,
             messageBadge: reviewUnreadComments > 0 ? reviewUnreadComments : undefined,
           },

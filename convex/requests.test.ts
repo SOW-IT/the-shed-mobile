@@ -1041,6 +1041,43 @@ describe("audit trail and reminders", () => {
     });
   });
 
+  test("reviewed lists what an approver actioned, newest first, deduped per request", async () => {
+    const t = await setup();
+    // Rachel (Marketing) submits two; Henry is her HOD.
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "first", amount: 100 });
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "second", amount: 250 });
+    const mine = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    const first = mine.find((r) => r.description === "first")!;
+    const second = mine.find((r) => r.description === "second")!;
+
+    // Henry approves the first, declines the second.
+    await asUser(t, HENRY).mutation(api.requests.approve, { requestId: first._id, step: "hod" });
+    await asUser(t, HENRY).mutation(api.requests.decline, {
+      requestId: second._id, step: "hod", reason: "no",
+    });
+    // Henry's own request only logs submitted/auto-approved (not reviews), so it
+    // must not appear in his Reviewed list.
+    await asUser(t, HENRY).mutation(api.requests.submit, { description: "henry-own", amount: 50 });
+    // Bella approving the first is HER review, not Henry's.
+    await asUser(t, BELLA).mutation(api.requests.approve, {
+      requestId: first._id, step: "budgetManager",
+    });
+
+    const reviewed = (await asUser(t, HENRY).query(api.requests.reviewed, {}))!;
+    // Newest review first (decline of "second" came after approve of "first"),
+    // one card per request, and Henry's own auto-approved request excluded.
+    expect(reviewed.map((r) => r.description)).toEqual(["second", "first"]);
+
+    // Bella only sees the request she actioned.
+    const bellaReviewed = (await asUser(t, BELLA).query(api.requests.reviewed, {}))!;
+    expect(bellaReviewed.map((r) => r.description)).toEqual(["first"]);
+  });
+
+  test("reviewed returns null when signed out", async () => {
+    const t = await setup();
+    expect(await t.query(api.requests.reviewed, {})).toBeNull();
+  });
+
   test("departments with open requests can't be deleted; members cascade", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);

@@ -8,6 +8,7 @@ import { RequestCard } from "@/components/RequestCard";
 import { ReceiptRecipientList } from "@/components/ReceiptRecipientList";
 import {
   Btn,
+  ConfirmDialog,
   currencyText,
   EmptyState,
   ErrorBanner,
@@ -179,6 +180,9 @@ const SECTIONS: { key: Exclude<Step, never>; title: string }[] = [
 export const ReviewList = () => {
   const t = useAppTheme();
   const data = useQuery(api.requests.toReview, {});
+  // Requests the approver has already actioned, shown in their own section
+  // beneath the pending ones.
+  const reviewed = useQuery(api.requests.reviewed, {});
   // Optimistic: clear the request from its review section immediately so the
   // approval feels instant; the next pending step/payer reconciles on response.
   const approve = useMutation(api.requests.approve).withOptimisticUpdate(
@@ -192,6 +196,12 @@ export const ReviewList = () => {
     }
   );
   const [declineTarget, setDeclineTarget] = useState<{
+    request: Doc<"requests">;
+    step: Step;
+  } | null>(null);
+  // Approving asks for confirmation first (declining already prompts for a
+  // reason in DeclineSheet).
+  const [approveTarget, setApproveTarget] = useState<{
     request: Doc<"requests">;
     step: Step;
   } | null>(null);
@@ -214,13 +224,17 @@ export const ReviewList = () => {
       data.director.length > 0 ||
       data.financeHead.length > 0 ||
       data.readyToPay.length > 0);
+  const hasReviewed = reviewed != null && reviewed.length > 0;
 
   return (
     <>
       <ErrorBanner message={error} />
-      {data == null ? (
+      {data == null || reviewed === undefined ? (
+        // Wait for BOTH the pending list and the reviewed history before
+        // deciding what to show, so "All caught up" can't flash before the
+        // Reviewed section resolves.
         <LoadingState />
-      ) : !hasAnything ? (
+      ) : !hasAnything && !hasReviewed ? (
         <EmptyState
           icon="checkmark-done-outline"
           title="All caught up"
@@ -228,58 +242,90 @@ export const ReviewList = () => {
         />
       ) : (
         <>
-          {SECTIONS.map(({ key, title }) =>
-            data[key].length === 0 ? null : (
-              <View key={key} style={{ gap: spacing.md }}>
-                <SectionTitle>
-                  {title} ({data[key].length})
-                </SectionTitle>
-                {data[key].map((request, index) => (
-                  <FadeInView key={request._id} delay={stagger(index)}>
-                    <RequestCard request={request} showRequester actionRequired>
-                      <IconButton
-                        name="checkmark"
-                        size={40}
-                        bg={t.successSoft}
-                        color={t.success}
-                        accessibilityLabel="Approve"
-                        onPress={() => void handleApprove(request, key)}
-                      />
-                      <IconButton
-                        name="close"
-                        size={40}
-                        bg={t.dangerSoft}
-                        color={t.danger}
-                        accessibilityLabel="Decline"
-                        onPress={() => setDeclineTarget({ request, step: key })}
-                      />
-                    </RequestCard>
-                  </FadeInView>
-                ))}
-              </View>
-            )
+          {!hasAnything ? (
+            <Muted>You&rsquo;re all caught up — nothing is waiting on your review.</Muted>
+          ) : (
+            <>
+              {SECTIONS.map(({ key, title }) =>
+                data[key].length === 0 ? null : (
+                  <View key={key} style={{ gap: spacing.md }}>
+                    <SectionTitle>
+                      {title} ({data[key].length})
+                    </SectionTitle>
+                    {data[key].map((request, index) => (
+                      <FadeInView key={request._id} delay={stagger(index)}>
+                        <RequestCard request={request} showRequester actionRequired>
+                          <IconButton
+                            name="checkmark"
+                            size={40}
+                            bg={t.successSoft}
+                            color={t.success}
+                            accessibilityLabel="Approve"
+                            onPress={() => setApproveTarget({ request, step: key })}
+                          />
+                          <IconButton
+                            name="close"
+                            size={40}
+                            bg={t.dangerSoft}
+                            color={t.danger}
+                            accessibilityLabel="Decline"
+                            onPress={() => setDeclineTarget({ request, step: key })}
+                          />
+                        </RequestCard>
+                      </FadeInView>
+                    ))}
+                  </View>
+                )
+              )}
+              {data.readyToPay.length > 0 && (
+                <View style={{ gap: spacing.md }}>
+                  <SectionTitle>Ready to Pay ({data.readyToPay.length})</SectionTitle>
+                  {data.readyToPay.map((request, index) => (
+                    <FadeInView key={request._id} delay={stagger(index)}>
+                      <RequestCard request={request} showRequester actionRequired>
+                        <IconButton
+                          name="cash-outline"
+                          size={40}
+                          bg={t.successSoft}
+                          color={t.success}
+                          accessibilityLabel="Mark as paid"
+                          onPress={() => setPayTarget(request)}
+                        />
+                      </RequestCard>
+                    </FadeInView>
+                  ))}
+                </View>
+              )}
+            </>
           )}
-          {data.readyToPay.length > 0 && (
+          {reviewed && reviewed.length > 0 ? (
             <View style={{ gap: spacing.md }}>
-              <SectionTitle>Ready to Pay ({data.readyToPay.length})</SectionTitle>
-              {data.readyToPay.map((request, index) => (
+              <SectionTitle>Reviewed ({reviewed.length})</SectionTitle>
+              {reviewed.map((request, index) => (
                 <FadeInView key={request._id} delay={stagger(index)}>
-                  <RequestCard request={request} showRequester actionRequired>
-                    <IconButton
-                      name="cash-outline"
-                      size={40}
-                      bg={t.successSoft}
-                      color={t.success}
-                      accessibilityLabel="Mark as paid"
-                      onPress={() => setPayTarget(request)}
-                    />
-                  </RequestCard>
+                  {/* Read-only history of what this approver has actioned. */}
+                  <RequestCard request={request} showRequester collapsible />
                 </FadeInView>
               ))}
             </View>
-          )}
+          ) : null}
         </>
       )}
+      <ConfirmDialog
+        visible={approveTarget !== null}
+        title="Approve request?"
+        message={
+          approveTarget
+            ? `Approve the $${approveTarget.request.amount} request from ${approveTarget.request.requesterEmail}? It moves to the next step.`
+            : undefined
+        }
+        confirmLabel="Approve"
+        destructive={false}
+        onConfirm={() => {
+          if (approveTarget) void handleApprove(approveTarget.request, approveTarget.step);
+        }}
+        onClose={() => setApproveTarget(null)}
+      />
       <DeclineSheet target={declineTarget} onClose={() => setDeclineTarget(null)} />
       <PaySheet request={payTarget} onClose={() => setPayTarget(null)} />
     </>
