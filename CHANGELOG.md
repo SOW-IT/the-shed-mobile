@@ -23,6 +23,11 @@ All notable changes to **The SHED** mobile app. This project follows
   tabs no longer leaves the footer button frozen mid-way and then snapping into
   place — it now slides with the page the whole way, including the release
   glide. (#143)
+- **Reversed members are immediately actionable.** After signing a roll-call
+  attendee back out, their card (pinned to the top of the not-signed-in list) can
+  now be acted on right away, instead of staying locked until another sign-in
+  refreshed the roster. The card also no longer replays a reappear animation once
+  the change finishes saving — it settles in place. (#144)
 - **Steadier attendance layout.** The not-signed-in list keeps its three-card
   height even when no one is signed in yet, the Members tab uses the same spacing
   between cards as the roll-call lists, and the footer action buttons sit a little
