@@ -308,9 +308,9 @@ export const FooterAction = ({
 }) => {
   const t = useAppTheme();
   const [scale] = useState(() => new Animated.Value(1));
-  // Lifts the pinned footer above the software keyboard. Screens may rest the
-  // footer higher than usual, but keyboard-up placement keeps the app's normal
-  // gap above the keyboard by subtracting that resting offset from the lift.
+  // On iOS, lift the pinned footer above the software keyboard. Screens may
+  // rest the footer higher than usual, but keyboard-up placement keeps the
+  // app's normal gap above the keyboard by subtracting that resting offset.
   const [lift] = useState(() => new Animated.Value(0));
   useEffect(() => {
     const keyboardLift = (height: number) => Math.max(0, height - bottomOffset);

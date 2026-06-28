@@ -497,7 +497,7 @@ describe("events + roll-call", () => {
   test("listBySubgroup reaches matches after a long non-matching prefix", async () => {
     const leader = asUser(t, LEADER);
     const base = Date.now();
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < 1_001; i++) {
       await leader.mutation(api.events.create, {
         name: `Other ${i}`,
         dateStart: base - i,
@@ -516,9 +516,18 @@ describe("events + roll-call", () => {
       subgroup: USYD,
       numItems: 1,
     });
-    expect(first.events.map((e) => e._id)).toEqual([match]);
-    expect(first.isDone).toBe(true);
-    expect(first.continueCursor).toBeNull();
+    expect(first.events).toEqual([]);
+    expect(first.isDone).toBe(false);
+    expect(first.continueCursor).toBeTruthy();
+
+    const second = await leader.query(api.events.listBySubgroup, {
+      subgroup: USYD,
+      cursor: first.continueCursor,
+      numItems: 1,
+    });
+    expect(second.events.map((e) => e._id)).toEqual([match]);
+    expect(second.isDone).toBe(true);
+    expect(second.continueCursor).toBeNull();
   });
 
   test("listBySubgroup accepts legacy and malformed cursors", async () => {
@@ -554,6 +563,7 @@ describe("events + roll-call", () => {
     const rawCursor = JSON.parse(
       malformed.continueCursor!.slice("event-subgroup:".length)
     ).dbCursor;
+    expect(typeof rawCursor).toBe("string");
     const legacy = await leader.query(api.events.listBySubgroup, {
       subgroup: USYD,
       cursor: rawCursor,
