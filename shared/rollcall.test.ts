@@ -10,6 +10,7 @@ import {
   eventHasEnded,
   eventIncludesSubgroup,
   formatEventDate,
+  formatEventRange,
   formatSignInTime,
   memberMatchesEventCampus,
   normalizeSubgroups,
@@ -330,5 +331,18 @@ describe("formatters", () => {
   test("formatSignInTime renders a clock time", () => {
     const label = formatSignInTime(new Date(2026, 5, 24, 17, 3).getTime());
     expect(label).toMatch(/\d/);
+  });
+
+  test("formatEventRange shows a dotted start date then a lowercased time span", () => {
+    const label = formatEventRange(
+      new Date(2026, 5, 24, 17, 0).getTime(),
+      new Date(2026, 5, 24, 19, 0).getTime()
+    );
+    // Date is built from local components, so it's stable across timezones:
+    // zero-padded day.month and a two-digit year.
+    expect(label).toMatch(/^24\.06\.26, /);
+    // Start and end times joined by a hyphen, and the whole label lowercased.
+    expect(label).toContain(" - ");
+    expect(label).toBe(label.toLowerCase());
   });
 });

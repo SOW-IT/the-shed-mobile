@@ -9,7 +9,7 @@ import {
   canReverseSignIn,
   contrastingText,
   eventHasEnded,
-  formatEventDate,
+  formatEventRange,
   formatSignInTime,
   SOW_SUBGROUP,
   subgroupColour,
@@ -535,7 +535,8 @@ export default function EventAttendanceScreen() {
       subtitle="Attendance"
       onBack={() => router.back()}
       headerRight={
-        <View style={styles.headerActions}>
+        <View style={styles.headerMeta}>
+          <View style={styles.headerActions}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Edit event"
@@ -570,6 +571,10 @@ export default function EventAttendanceScreen() {
             count={optimisticSignedInCount}
             accessibilityLabel={`${optimisticSignedInCount} signed in`}
           />
+          </View>
+          <Text style={[typography.caption, { color: t.muted }]}>
+            {formatEventRange(event.dateStart, event.dateEnd)}
+          </Text>
         </View>
       }
       footer={
@@ -597,30 +602,34 @@ export default function EventAttendanceScreen() {
         ) : undefined
       }
     >
-      <View style={styles.metaRow}>
-        <Muted>{formatEventDate(event.dateStart)}</Muted>
-      </View>
-
       <View style={styles.badgeRow}>
-        {event.subgroups.map((s) => {
-          const colour = subgroupColour(s);
-          return (
-            <View key={s} style={[styles.subgroupPill, { backgroundColor: colour }]}>
-              <Text
-                style={[
-                  typography.caption,
-                  styles.subgroupPillText,
-                  { color: contrastingText(colour) },
-                ]}
-              >
-                {subgroupLabel(s)}
-              </Text>
-            </View>
-          );
-        })}
-        {event.tags?.map((tag) => (
-          <AttendanceTagPill key={tag._id} name={tag.name} colour={tag.colour} small />
-        ))}
+        {/* Collab/owner groups on the left, event tags on the right (mirrors
+            the events list's split badge row). */}
+        <View style={styles.badgeGroup}>
+          {event.subgroups.map((s) => {
+            const colour = subgroupColour(s);
+            return (
+              <View key={s} style={[styles.subgroupPill, { backgroundColor: colour }]}>
+                <Text
+                  style={[
+                    typography.caption,
+                    styles.subgroupPillText,
+                    { color: contrastingText(colour) },
+                  ]}
+                >
+                  {subgroupLabel(s)}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+        {event.tags && event.tags.length > 0 ? (
+          <View style={[styles.badgeGroup, styles.badgeGroupRight]}>
+            {event.tags.map((tag) => (
+              <AttendanceTagPill key={tag._id} name={tag.name} colour={tag.colour} small />
+            ))}
+          </View>
+        ) : null}
       </View>
 
       {pastEvent && !editUnlocked ? (
@@ -736,10 +745,10 @@ export default function EventAttendanceScreen() {
         </>
       ) : null}
 
-      {/* Shown whenever there are signed-in people, and also kept visible during
-          a search even with no matches — so the "Signed in" title and its total
-          count stay put with an empty list under them rather than vanishing. */}
-      {isSearching || filteredSignedInList.length > 0 ? (
+      {/* Always shown — the "Signed in" title and total count stay put even with
+          zero signed-in members (or no search matches), with an empty list under
+          them, so the layout below "Not signed in" never shifts. */}
+      {(
         <>
           <View style={[styles.section, styles.sectionHeader]}>
             <Text style={[typography.label, { color: t.muted }]}>Signed in</Text>
@@ -803,7 +812,7 @@ export default function EventAttendanceScreen() {
               ) : null}
               </View>
             </>
-          ) : null}
+          )}
       <View style={{ height: spacing.xxl }} />
 
       {metadataFields ? (
@@ -859,11 +868,10 @@ export default function EventAttendanceScreen() {
 }
 
 const styles = StyleSheet.create({
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: spacing.sm,
+  // Header right column: actions row on top, event date right-aligned beneath.
+  headerMeta: {
+    alignItems: "flex-end",
+    gap: spacing.xs,
   },
   headerActions: {
     flexDirection: "row",
@@ -892,10 +900,23 @@ const styles = StyleSheet.create({
   },
   badgeRow: {
     flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    // Negative vertical margins trim the scroll's spacing.md gaps above and
+    // below the badge row so it sits closer to the header and the search box.
+    marginTop: -spacing.xs,
+    marginBottom: -spacing.xs,
+  },
+  badgeGroup: {
+    flexDirection: "row",
     flexWrap: "wrap",
     gap: 6,
     alignItems: "center",
-    marginBottom: spacing.sm,
+    flexShrink: 1,
+  },
+  badgeGroupRight: {
+    justifyContent: "flex-end",
   },
   subgroupPill: {
     borderRadius: radius.full,

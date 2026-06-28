@@ -7,6 +7,7 @@ import { Id } from "../../../convex/_generated/dataModel";
 import { eventStaffYear } from "../../../shared/flow";
 import {
   contrastingText,
+  formatEventRange,
   subgroupColour,
   subgroupLabel,
   subgroupMatches,
@@ -28,24 +29,6 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 const CAMPUS_MARK = 40;
 
 type EventStatus = "UPCOMING" | "LIVE" | "ENDED";
-
-const twoDigit = (value: number) => String(value).padStart(2, "0");
-
-const formatEventRange = (startMs: number, endMs: number) => {
-  const start = new Date(startMs);
-  const end = new Date(endMs);
-  const date = `${twoDigit(start.getDate())}.${twoDigit(
-    start.getMonth() + 1
-  )}.${String(start.getFullYear()).slice(-2)}`;
-  const time = (dateValue: Date) =>
-    dateValue
-      .toLocaleTimeString(undefined, {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-      .toLowerCase();
-  return `${date}, ${time(start)} - ${time(end)}`;
-};
 
 const eventStatus = (startMs: number, endMs: number, now: number): EventStatus => {
   if (now < startMs) return "UPCOMING";
