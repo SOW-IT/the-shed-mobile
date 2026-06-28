@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { universityColour } from "../../../shared/flow";
+import { roleNeedsUniversity, universityColour } from "../../../shared/flow";
 import { contrastingText, subgroupLabel } from "../../../shared/rollcall";
 import { orderedSelectOptions } from "../../../shared/attendanceMemberMeta";
 import {
@@ -44,6 +44,7 @@ export function MembersTab({
       name: string;
       email?: string;
       memberId?: string;
+      roles: string[];
       subtitle?: string;
       university?: string;
       photo?: string | null;
@@ -236,9 +237,12 @@ export function MembersTab({
             const campusColour = row.university
               ? universityColour(row.university)
               : undefined;
-            const campusPillLabel = row.university
-              ? subgroupLabel(row.university)
-              : "OTHER";
+            const campusPillLabel =
+              row.roles.some((role) => !roleNeedsUniversity(role))
+                ? "STAFF"
+                : row.university
+                  ? subgroupLabel(row.university)
+                  : "OTHER";
             const campusPillBackground = campusColour ?? t.ghost;
             const campusPillText = campusColour
               ? contrastingText(campusColour)

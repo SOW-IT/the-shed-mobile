@@ -353,6 +353,8 @@ export default function EventAttendanceScreen() {
         university: m.university,
         email: m.email ?? null,
         memberId: m.memberId ?? null,
+        roles: m.roles,
+        campuses: m.campuses,
         signInTime: now,
         notes: undefined,
         key: m.key,
@@ -795,6 +797,7 @@ export default function EventAttendanceScreen() {
                     subtitle={memberSubtitle(m)}
                     photo={m.photo ?? null}
                     university={m.university}
+                    roles={m.roles}
                     mode="suggested"
                     // The list only renders when canEdit, so a row is blocked
                     // only while its enter/exit animation plays — and it's held
@@ -863,6 +866,7 @@ export default function EventAttendanceScreen() {
                     subtitle={signedInSubtitle(a.signInTime, a.notes)}
                     photo={a.photo ?? null}
                     university={a.university}
+                    roles={a.roles}
                     mode="signedIn"
                     // Attendees signed in before/during a finished event are
                     // locked (greyed, never sign-out-able). A retroactive add is
