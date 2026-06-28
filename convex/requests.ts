@@ -661,7 +661,7 @@ export const reviewed = query({
     // happen DURING the scan so a fixed pre-filter limit can never drop older
     // valid cards — we stop only once REVIEWED_LIMIT unique requests are found
     // or the actor's events run out.
-    const seen = new Set<string>();
+    const seen = new Set<Id<"requests">>();
     const reviewedIds: Id<"requests">[] = [];
     for await (const event of ctx.db
       .query("requestEvents")
