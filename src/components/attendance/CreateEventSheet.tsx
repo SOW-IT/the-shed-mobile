@@ -516,7 +516,7 @@ export function CreateEventSheet({
         >
           <Txt style={[typography.body, { color: t.text }]}>
             This permanently deletes the event and all attendance records for it.
-            Type <Txt style={{ fontWeight: "800" }}>{eventName}</Txt> to confirm.
+            Type <Txt style={{ fontWeight: "800" }}>{eventName.trim()}</Txt> to confirm.
           </Txt>
           <Field
             label="Event name"

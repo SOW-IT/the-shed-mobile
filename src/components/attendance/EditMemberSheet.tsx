@@ -323,7 +323,7 @@ export function EditMemberSheet({
           >
             <Txt style={[typography.body, { color: t.text }]}>
               This deletes the member and removes this member from every event they are
-              signed into. Type <Txt style={{ fontWeight: "800" }}>{name}</Txt> to confirm.
+              signed into. Type <Txt style={{ fontWeight: "800" }}>{name.trim()}</Txt> to confirm.
             </Txt>
             <Field
               label="Member name"

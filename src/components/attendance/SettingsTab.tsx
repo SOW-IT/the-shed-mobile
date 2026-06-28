@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { TAG_COLOUR_NAMES, tagColourHex } from "../../../shared/attendanceTags";
@@ -265,9 +265,11 @@ export function SettingsTab({
       >
         <Muted>
           This removes the tag from all events that use it. Type{" "}
-          <Txt style={{ fontWeight: "800" }}>
-            {deleteIndex !== null ? tagDrafts[deleteIndex]?.name : ""}
-          </Txt>{" "}
+          {/* Plain nested Text so it inherits the muted caption size/colour and
+              only the weight changes. */}
+          <Text style={{ fontWeight: "800" }}>
+            {deleteIndex !== null ? tagDrafts[deleteIndex]?.name?.trim() : ""}
+          </Text>{" "}
           to confirm.
         </Muted>
         <Field

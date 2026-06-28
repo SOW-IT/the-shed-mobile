@@ -814,10 +814,10 @@ export const ConfirmDialog = ({
             confirm.
           </Txt>
           <Field
-            label="Name"
+            label="Confirm"
             value={input}
             onChangeText={setInput}
-            placeholder={requireText}
+            placeholder={normalizedRequired}
           />
         </>
       )}

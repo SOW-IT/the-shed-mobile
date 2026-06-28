@@ -510,9 +510,11 @@ export function MetadataTab({
         <Muted>
           This deletes this metadata field and removes its saved value from every member
           that has it. Type{" "}
-          <Txt style={{ fontWeight: "800" }}>
-            {deleteIndex !== null ? metaDrafts[deleteIndex]?.key : ""}
-          </Txt>{" "}
+          {/* Plain nested Text so it inherits the muted caption size/colour and
+              only the weight changes. */}
+          <Text style={{ fontWeight: "800" }}>
+            {deleteIndex !== null ? metaDrafts[deleteIndex]?.key?.trim() : ""}
+          </Text>{" "}
           to confirm.
         </Muted>
         <Field
