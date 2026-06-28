@@ -26,7 +26,8 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Reversed members are immediately actionable.** After signing a roll-call
   attendee back out, their card (pinned to the top of the not-signed-in list) can
   now be acted on right away, instead of staying locked until another sign-in
-  refreshed the roster. (#144)
+  refreshed the roster. The card also no longer replays a reappear animation once
+  the change finishes saving — it settles in place. (#144)
 
 ## [1.1.1] — 2026-06-28
 
