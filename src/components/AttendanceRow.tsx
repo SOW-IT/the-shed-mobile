@@ -232,6 +232,17 @@ function AttendanceRowBase({
     translateX.value = slideTo(0);
   };
 
+  // Commit the primary action by tapping its revealed arrow — the click/touch
+  // equivalent of swiping it off. Reuses flingPrimary so the row leaves the list
+  // with the same fling-off-and-collapse as a committed swipe. Without this,
+  // tapping the arrow had no hit target and only a swipe could sign a member
+  // in/out. flingPrimary is a worklet; calling it here runs it on the JS thread,
+  // where its `.value` writes and runOnJS callbacks all work the same.
+  const onPrimaryStripPress = () => {
+    if (actionDisabled) return;
+    flingPrimary();
+  };
+
   const pan = Gesture.Pan()
     .enabled(!disabled)
     // Declarative activation (vs. manualActivation + onTouchesDown/Move): the
@@ -451,6 +462,15 @@ function AttendanceRowBase({
           accessibilityLabel="Edit member"
           style={[styles.actionHit, styles.editHit, { width: SNAP_POSITION }]}
           onPress={onEditStripPress}
+        />
+      ) : null}
+
+      {snapVisual === "primary" && !actionDisabled ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={mode === "suggested" ? "Sign in" : "Sign out"}
+          style={[styles.actionHit, styles.primaryHit, { width: SNAP_POSITION }]}
+          onPress={onPrimaryStripPress}
         />
       ) : null}
 

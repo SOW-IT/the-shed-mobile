@@ -8,8 +8,23 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [1.2.1] — 2026-06-29
 
+### Fixed
+
+- **Tap to sign someone in or out.** On the roll-call roster, tapping a person's
+  card to reveal the sign-in/out arrow and then tapping that arrow now signs them
+  in or out — previously only a swipe committed the action and tapping the arrow
+  did nothing.
+
 ### Changed
 
+- **CSV "Year" is the year during the event.** The attendance CSV export's
+  **Year** column now shows each person's year level *at the time of the event*
+  (e.g. "3"), matching the member card and Edit Member sheet, instead of the
+  staff year they commenced. Sixth-year-and-beyond is no longer capped at "6+" —
+  it shows the actual number (6, 7, 8, …) of years since they started.
+- **Year picker goes up to 15.** The member **Year** dropdown now offers years 1
+  through 15 (was 1–5 and "6+"). Members past year 15 still display their real
+  year everywhere; they just can't be re-picked from the dropdown.
 - **Search bars stay put while you scroll.** On the Members tab, the Audit tab,
   and an event's attendance roster, the member/activity search bar now pins to
   the top as the list scrolls under it, so it's always reachable. On the Members
