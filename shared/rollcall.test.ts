@@ -15,6 +15,7 @@ import {
   memberMatchesEventCampus,
   normalizeSubgroups,
   personDisplayName,
+  personKey,
   nextDateForWeekday,
   SOW_SUBGROUP,
   subgroupColour,
@@ -34,6 +35,31 @@ describe("displayNameFromEmail", () => {
     expect(displayNameFromEmail("u12345@sow.org.au")).toBeNull();
     expect(displayNameFromEmail("admin@sow.org.au")).toBeNull();
     expect(displayNameFromEmail("")).toBeNull();
+  });
+});
+
+describe("personKey", () => {
+  test("keys staff by email, lowercased so casing can't split one person", () => {
+    expect(personKey({ email: "First.Last@SOW.org.au" })).toBe(
+      "staff:first.last@sow.org.au"
+    );
+    // A mixed-case attendance row and a lowercase profile row collapse to one key.
+    expect(personKey({ email: "First.Last@SOW.org.au" })).toBe(
+      personKey({ email: "first.last@sow.org.au" })
+    );
+  });
+
+  test("keys an attendance-only member by member id", () => {
+    expect(personKey({ memberId: "abc123" })).toBe("member:abc123");
+  });
+
+  test("prefers email over member id when both are present", () => {
+    expect(personKey({ email: "a@b.co", memberId: "abc123" })).toBe("staff:a@b.co");
+  });
+
+  test("returns an empty string when neither is set", () => {
+    expect(personKey({})).toBe("");
+    expect(personKey({ email: null, memberId: null })).toBe("");
   });
 });
 
