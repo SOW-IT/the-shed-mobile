@@ -26,6 +26,16 @@ if (!VERCEL_PROJECT_ID) {
   );
 }
 
+// The Vercel CLI reads VERCEL_TOKEN from the environment to deploy
+// non-interactively; without it the deploy step would prompt or fail with an
+// opaque auth error in CI. Fail fast with a clear message instead.
+if (!process.env.VERCEL_TOKEN) {
+  throw new Error(
+    "VERCEL_TOKEN is required — create one at https://vercel.com/account/tokens " +
+      "(the GitHub Action passes it from the VERCEL_TOKEN repo secret).",
+  );
+}
+
 const run = (command, options = {}) =>
   execSync(command, {
     stdio: "inherit",
