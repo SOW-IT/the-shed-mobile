@@ -7,7 +7,6 @@ import {
 } from "react-native";
 
 export const TOP_BAR_HEIGHT = 56;
-const SHOW_AT_TOP_OFFSET = 16;
 
 export type TopBarScrollProps = {
   onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
@@ -40,9 +39,14 @@ export const useTopBarCollapse = () => {
       }
 
       const delta = y - lastY.current;
-      if (y <= SHOW_AT_TOP_OFFSET) {
-        setCollapsedY(0);
-      } else if (delta !== 0) {
+      if (y < TOP_BAR_HEIGHT) {
+        // Within one bar-height of the top: drive collapsedY purely from scroll
+        // position, mirroring how the sticky search bar tracks the page top.
+        setCollapsedY(y);
+      } else if (delta > 0) {
+        // Only collapse on scroll-down; mid-page scroll-up does not re-expand
+        // the bar — it would slide over any sticky header already pinned below
+        // the tab bar. The bar re-appears only when the user returns to the top.
         setCollapsedY(collapsedY.current + delta);
       }
       lastY.current = y;
