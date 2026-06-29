@@ -1,10 +1,18 @@
 /**
- * Attendance member metadata helpers — Year is stored as the staff year the
- * person was in first year; the displayed level (1, 2, 3, …) is derived from
- * that commencement year and the calendar staff year being viewed. The level is
- * uncapped — a sixth-year reads "6", not "6+" — though the picker only offers up
- * to {@link YEAR_LEVEL_MAX} (older members past that still display their real
- * level, they just can't be re-selected from the dropdown).
+ * Attendance member metadata helpers — Year is stored as the **calendar year**
+ * the person was in first year (their commencement year); the displayed level
+ * (1, 2, 3, …) is derived from that and the calendar year being viewed.
+ *
+ * The Year level is anchored to the calendar year (Jan 1 rollover) and stays
+ * constant across a calendar year. This is deliberately NOT the staff year
+ * (Oct 1 rollover) — that's a separate concept that keys staff roles/profiles,
+ * which can change at the Oct boundary while a student's Year level does not.
+ * Hence the params here are `viewingYear`/`commencementYear`, and every caller
+ * passes a calendar year (`sydneyCalendarYear`).
+ *
+ * The level is uncapped — a sixth-year reads "6", not "6+" — though the picker
+ * only offers up to {@link YEAR_LEVEL_MAX} (older members past that still
+ * display their real level, they just can't be re-selected from the dropdown).
  */
 
 export const STUDENT_YEAR_FIELD_KEY = "Year";
@@ -36,8 +44,8 @@ export const STUDENT_YEAR_VALUES: Record<string, string> = Object.fromEntries(
 const COMMENCEMENT_YEAR_MIN = 2000;
 const COMMENCEMENT_YEAR_MAX = 2100;
 
-/** True when the stored Year value is a commencement staff year (not a legacy option id). */
-export const isCommencementStaffYear = (stored: string): boolean => {
+/** True when the stored Year value is a commencement (calendar) year, not a legacy option id. */
+export const isCommencementYear = (stored: string): boolean => {
   const n = parseInt(stored, 10);
   return (
     Number.isFinite(n) &&
@@ -48,61 +56,61 @@ export const isCommencementStaffYear = (stored: string): boolean => {
 };
 
 /**
- * Derive the student year label for a viewing staff year. Uncapped: a member in
- * their seventh year reads "7" (not "6+"), so the label always reflects the
+ * Derive the student year label for a viewing calendar year. Uncapped: a member
+ * in their seventh year reads "7" (not "6+"), so the label always reflects the
  * actual number of years since they commenced.
  */
 export const studentYearLevelFromCommencement = (
-  commencementStaffYear: number,
-  viewingStaffYear: number
+  commencementYear: number,
+  viewingYear: number
 ): string | null => {
-  const level = viewingStaffYear - commencementStaffYear + 1;
+  const level = viewingYear - commencementYear + 1;
   if (level < 1) return null;
   return String(level);
 };
 
 /**
- * Commencement staff year implied by picking a level in a given staff year.
- * Accepts levels 1…{@link YEAR_LEVEL_MAX}; the legacy "6+"/"Alumni" labels still
- * map to a sixth year for data imported before the cap was lifted.
+ * Commencement (calendar) year implied by picking a level in a given viewing
+ * year. Accepts levels 1…{@link YEAR_LEVEL_MAX}; the legacy "6+"/"Alumni" labels
+ * still map to a sixth year for data imported before the cap was lifted.
  */
-export const commencementStaffYearFromLevel = (
+export const commencementYearFromLevel = (
   levelLabel: string,
-  viewingStaffYear: number
+  viewingYear: number
 ): number | null => {
   if (levelLabel === "Alumni" || levelLabel === "6+") {
-    return viewingStaffYear - 5;
+    return viewingYear - 5;
   }
   const n = parseInt(levelLabel, 10);
   if (!Number.isFinite(n) || n < 1 || n > YEAR_LEVEL_MAX) return null;
-  return viewingStaffYear - (n - 1);
+  return viewingYear - (n - 1);
 };
 
 /** Normalise stored Year metadata (commencement year or legacy select id). */
-export const resolveCommencementStaffYear = (
+export const resolveCommencementYear = (
   stored: string,
-  viewingStaffYear: number,
+  viewingYear: number,
   yearFieldValues?: Record<string, string>
 ): number | null => {
   if (!stored) return null;
-  if (isCommencementStaffYear(stored)) return parseInt(stored, 10);
+  if (isCommencementYear(stored)) return parseInt(stored, 10);
   const label = yearFieldValues?.[stored] ?? stored;
-  return commencementStaffYearFromLevel(label, viewingStaffYear);
+  return commencementYearFromLevel(label, viewingYear);
 };
 
 /** Select option id for the derived year level (for filters / edit sheet). */
 export const yearOptionIdForStoredValue = (
   stored: string,
-  viewingStaffYear: number,
+  viewingYear: number,
   yearFieldValues: Record<string, string>
 ): string => {
-  const commencement = resolveCommencementStaffYear(
+  const commencement = resolveCommencementYear(
     stored,
-    viewingStaffYear,
+    viewingYear,
     yearFieldValues
   );
   if (commencement === null) return "";
-  const level = studentYearLevelFromCommencement(commencement, viewingStaffYear);
+  const level = studentYearLevelFromCommencement(commencement, viewingYear);
   if (!level) return "";
   for (const [id, label] of Object.entries(yearFieldValues)) {
     if (label === level) return id;
@@ -114,33 +122,33 @@ export const yearOptionIdForStoredValue = (
 export const formatMetadataFieldValue = (
   fieldKey: string,
   stored: string,
-  viewingStaffYear: number,
+  viewingYear: number,
   fieldValues?: Record<string, string>
 ): string | null => {
   if (!stored) return null;
   if (fieldKey === STUDENT_YEAR_FIELD_KEY) {
-    const commencement = resolveCommencementStaffYear(
+    const commencement = resolveCommencementYear(
       stored,
-      viewingStaffYear,
+      viewingYear,
       fieldValues
     );
     if (commencement === null) return null;
-    return studentYearLevelFromCommencement(commencement, viewingStaffYear);
+    return studentYearLevelFromCommencement(commencement, viewingYear);
   }
   if (fieldValues?.[stored]) return fieldValues[stored];
   return stored;
 };
 
-/** Persist commencement staff year when the user picks a year level. */
+/** Persist the commencement (calendar) year when the user picks a year level. */
 export const encodeYearMetadataValue = (
   selectedOptionId: string,
-  viewingStaffYear: number,
+  viewingYear: number,
   yearFieldValues: Record<string, string>
 ): string | null => {
   if (!selectedOptionId) return null;
   const label = yearFieldValues[selectedOptionId];
   if (!label) return null;
-  const commencement = commencementStaffYearFromLevel(label, viewingStaffYear);
+  const commencement = commencementYearFromLevel(label, viewingYear);
   return commencement !== null ? String(commencement) : null;
 };
 
@@ -151,16 +159,16 @@ export const encodeYearMetadataValue = (
  */
 export const yearMetadataSortKey = (
   stored: string,
-  viewingStaffYear: number,
+  viewingYear: number,
   yearFieldValues?: Record<string, string>
 ): string => {
-  const commencement = resolveCommencementStaffYear(
+  const commencement = resolveCommencementYear(
     stored,
-    viewingStaffYear,
+    viewingYear,
     yearFieldValues
   );
   if (commencement === null) return "";
-  const level = studentYearLevelFromCommencement(commencement, viewingStaffYear);
+  const level = studentYearLevelFromCommencement(commencement, viewingYear);
   return level ? level.padStart(2, "0") : "";
 };
 

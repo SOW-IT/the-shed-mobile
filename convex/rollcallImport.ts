@@ -15,7 +15,7 @@ import {
   ROLE_FIELD_KEY,
   STUDENT_YEAR_FIELD_KEY,
   STUDENT_YEAR_VALUES,
-  commencementStaffYearFromLevel,
+  commencementYearFromLevel,
 } from "../shared/attendanceMemberMeta";
 import { canonicalSubgroup, normalizeSubgroups, SOW_SUBGROUP } from "../shared/rollcall";
 import {
@@ -185,10 +185,17 @@ async function metadataForMember(
     if (!field || !value) continue;
     if (field.key === STUDENT_YEAR_FIELD_KEY) {
       const label = field.values?.[value] ?? value;
-      const commencement = commencementStaffYearFromLevel(label, year);
+      // NOTE: `year` here is the import's STAFF year, whereas the Year level is
+      // a CALENDAR-year concept everywhere it's displayed/edited. Staff year N is
+      // labelled by its ending calendar year, so this matches for a Jan–Sep view
+      // but can be off by one for an Oct–Dec view (staffYear = calendarYear + 1).
+      // Kept as-is intentionally (rename-only change); revisit if importing an
+      // Oct–Dec cohort ever shows the wrong starting level.
+      const commencement = commencementYearFromLevel(label, year);
       if (commencement !== null) out[field._id] = String(commencement);
       continue;
     }
+
     if (field.key === GENDER_FIELD_KEY) {
       out[field._id] = canonicalizeGenderOptionId(value, field.values);
       continue;
