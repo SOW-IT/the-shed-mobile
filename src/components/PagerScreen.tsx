@@ -15,6 +15,13 @@ import { api } from "../../convex/_generated/api";
 import { spacing, useAppTheme } from "@/theme";
 import { PagerCarousel } from "@/components/PagerCarousel";
 import { TabBar, TopBar } from "@/components/ui";
+import {
+  TOP_BAR_HEIGHT,
+  TopBarScrollProps,
+  useTopBarCollapse,
+} from "@/components/useTopBarCollapse";
+
+export type { TopBarScrollProps } from "@/components/useTopBarCollapse";
 
 export type PagerTab = {
   key: string;
@@ -23,7 +30,16 @@ export type PagerTab = {
   badge?: number;
   /** White unread-message count. */
   messageBadge?: number;
-  render: () => ReactNode;
+  render: (scrollProps?: TopBarScrollProps) => ReactNode;
+  /**
+   * Render the tab's own scroll container instead of wrapping {@link render} in
+   * the shared page ScrollView. Needed when the tab requires `stickyHeaderIndices`
+   * (sticky search bars): those indices only target a ScrollView's *direct*
+   * children, so the elements must live in a ScrollView the tab owns. Use the
+   * exported {@link PAGER_PAGE_CONTENT} style + bottom-inset constants so the
+   * page metrics match the shared container.
+   */
+  selfScrolling?: boolean;
 };
 
 /** How close to the bottom (px) before onEndReached fires. */
@@ -105,8 +121,13 @@ export const PagerScreen = ({
     0
   );
   const [pagerPosition] = useState(() => new Animated.Value(initialIndex));
+  // The tab bar is the part of the chrome that never collapses, so we reserve
+  // exactly its height in the flow (the spacer below) and float the rest of the
+  // chrome over the body. Measured so the spacer matches the real tab bar.
+  const [tabBarHeight, setTabBarHeight] = useState(48);
   const footerAnimsRef = useRef<Record<string, Animated.Value>>({});
   const footerScrollState = useRef<PagerScrollState>("idle");
+  const { topBarStyle, scrollProps, showTopBar } = useTopBarCollapse();
 
   const footerPinned = !!(footer && !footerTabKey && !(footers?.length));
 
@@ -177,10 +198,11 @@ export const PagerScreen = ({
 
   // Tab taps and web tab changes — no native pager bounce to follow.
   useEffect(() => {
+    showTopBar();
     if (footerItems.length === 0) return;
     if (footerScrollState.current === "dragging") return;
     setAllFooterPositions(activeIndex, true);
-  }, [activeIndex, footerItems.length, setAllFooterPositions]);
+  }, [activeIndex, footerItems.length, setAllFooterPositions, showTopBar]);
 
   // Track the pager continuously while the finger is down AND through the
   // release deceleration ("settling"), so the footer slides in lockstep with the
@@ -213,52 +235,66 @@ export const PagerScreen = ({
   // page has grown (i.e. more content actually loaded).
   const lastEndReachedHeight = useRef<Record<string, number>>({});
 
-  const renderPage = (tab: PagerTab) => (
-    <ScrollView
-      showsVerticalScrollIndicator={false}
-      style={{ backgroundColor: t.background }}
-      contentContainerStyle={[
-        styles.page,
-        // Only the footer's own tab needs the taller bottom inset; the others
-        // (where the footer is slid away) keep the slimmer one. A footer with no
-        // footerTabKey is pinned on every tab, so all pages get the inset.
-        {
-          paddingBottom: footerTabKeys.has(tab.key) ? 96 : 48,
-        },
-      ]}
-      scrollEventThrottle={onEndReached ? 16 : undefined}
-      onScroll={
-        onEndReached
-          ? (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-              const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-              const distanceToBottom =
-                contentSize.height - (contentOffset.y + layoutMeasurement.height);
-              const lastHeight = lastEndReachedHeight.current[tab.key] ?? -1;
-              if (distanceToBottom < NEAR_BOTTOM && contentSize.height > lastHeight) {
-                lastEndReachedHeight.current[tab.key] = contentSize.height;
-                onEndReached(tab.key);
-              }
-            }
-          : undefined
-      }
-    >
-      {tab.render()}
-    </ScrollView>
+  // Depend on the stable members, not the whole `scrollProps` object:
+  // useTopBarCollapse returns a fresh `scrollProps` literal each render, so
+  // keying on it would rebuild this (and re-render memoized tabs) every render,
+  // even though `onScroll`/`scrollEventThrottle` are stable.
+  const { onScroll: onScrollCollapse, scrollEventThrottle } = scrollProps;
+  const scrollPropsForTab = useCallback(
+    (tabKey: string): TopBarScrollProps => ({
+      scrollEventThrottle,
+      onScroll: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+        onScrollCollapse(e);
+        if (!onEndReached) return;
+        const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+        const distanceToBottom =
+          contentSize.height - (contentOffset.y + layoutMeasurement.height);
+        const lastHeight = lastEndReachedHeight.current[tabKey] ?? -1;
+        if (distanceToBottom < NEAR_BOTTOM && contentSize.height > lastHeight) {
+          lastEndReachedHeight.current[tabKey] = contentSize.height;
+          onEndReached(tabKey);
+        }
+      },
+    }),
+    [onEndReached, onScrollCollapse, scrollEventThrottle]
   );
+
+  const renderPage = (tab: PagerTab) => {
+    const tabScrollProps = scrollPropsForTab(tab.key);
+    return (
+      // A self-scrolling tab owns its ScrollView (so it can use stickyHeaderIndices
+      // on its own direct children); pass it the same scroll behavior as the
+      // shared wrapper, including topbar collapse and near-bottom pagination.
+      tab.selfScrolling ? (
+        tab.render(tabScrollProps)
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          style={{ backgroundColor: t.background }}
+          contentContainerStyle={[
+            styles.page,
+            // Only the footer's own tab needs the taller bottom inset; the others
+            // (where the footer is slid away) keep the slimmer one. A footer with no
+            // footerTabKey is pinned on every tab, so all pages get the inset.
+            {
+              paddingBottom: footerTabKeys.has(tab.key) ? 96 : 48,
+            },
+          ]}
+          {...tabScrollProps}
+        >
+          {tab.render(tabScrollProps)}
+        </ScrollView>
+      )
+    );
+  };
 
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: t.background }]} edges={["top"]}>
-      <View style={styles.chrome}>
-        <View style={styles.topBarWrap}>
-          <TopBar photo={me?.photo ?? null} name={me?.name ?? null} />
-        </View>
-        <TabBar
-          segments={tabs}
-          active={activeKey}
-          onChange={onActiveKeyChange}
-          position={pagerPosition}
-        />
-      </View>
+      {/* Reserve only the tab bar's (non-collapsing) footprint in the flow, so
+          the carousel sits below it and never moves. The full chrome — top bar +
+          tab bar — floats over the top; the top bar's slice overlaps the
+          carousel and pages clear it with PAGER_TOP_BAR_INSET. */}
+      <View style={{ height: tabBarHeight }} />
       <PagerCarousel
         tabs={tabs}
         activeKey={activeKey}
@@ -267,6 +303,21 @@ export const PagerScreen = ({
         position={pagerPosition}
         onScrollStateChange={onPagerScrollStateChange}
       />
+      <View style={[styles.chrome, { backgroundColor: t.background }]}>
+        <Animated.View style={[styles.topBarWrap, topBarStyle]}>
+          <TopBar photo={me?.photo ?? null} name={me?.name ?? null} />
+        </Animated.View>
+        <View
+          onLayout={(e) => setTabBarHeight(e.nativeEvent.layout.height)}
+        >
+          <TabBar
+            segments={tabs}
+            active={activeKey}
+            onChange={onActiveKeyChange}
+            position={pagerPosition}
+          />
+        </View>
+      </View>
       {/* eslint-disable react-hooks/refs -- lazy Animated.Value cache (BankTab pattern) */}
       {footerItems.map((item) => {
         const anim = ensureFooterAnim(item.tabKey, yForFooter(activeIndex, item.tabKey));
@@ -293,15 +344,41 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   // Full-width chrome (top bar + sub tab bar) so it spans the screen like the
   // bottom tab bar; the scrolling content below stays capped at 720 + centered.
-  chrome: { width: "100%" },
+  // Floated over the body so the body stays full-height and fixed: the body
+  // scrolls under the chrome and the collapsing top bar reveals it.
+  chrome: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    width: "100%",
+    zIndex: 10,
+  },
   topBarWrap: { paddingHorizontal: spacing.lg },
   page: {
     flexGrow: 1,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
+    // Clear the floating top bar's slice at rest; content scrolls up under it.
+    paddingTop: spacing.md + TOP_BAR_HEIGHT,
     gap: spacing.md,
     maxWidth: 720,
     width: "100%",
     alignSelf: "center",
   },
 });
+
+/**
+ * `contentContainerStyle` for a self-scrolling tab's own ScrollView, so its page
+ * metrics (padding, gap, max width, centering) match the shared container.
+ */
+export const PAGER_PAGE_CONTENT = styles.page;
+/**
+ * Top inset a self-scrolling tab must apply so its first (sticky) element rests
+ * below the floating top bar at scroll 0, then pins just under the tab bar as
+ * the bar collapses. Matches the top-bar slice that overlaps the body.
+ */
+export const PAGER_TOP_BAR_INSET = TOP_BAR_HEIGHT;
+/** Bottom inset for a self-scrolling tab without a footer pill. */
+export const PAGER_PAGE_BOTTOM_INSET = 48;
+/** Bottom inset for a self-scrolling tab that has a footer pill. */
+export const PAGER_PAGE_BOTTOM_INSET_WITH_FOOTER = 96;

@@ -150,6 +150,7 @@ export const Screen = ({
   headerRight,
   onBack,
   onEndReached,
+  stickyHeaderIndices,
 }: {
   children?: ReactNode;
   toast?: ToastState;
@@ -167,13 +168,24 @@ export const Screen = ({
   onBack?: () => void;
   /** Fired while the user scrolls within ~600px of the bottom (infinite load). */
   onEndReached?: () => void;
+  /**
+   * Indices (into `children`) of elements that should pin to the top while the
+   * rest scrolls under them — e.g. a search bar. The built-in header (when a
+   * title/headerRight/onBack is set) is accounted for automatically.
+   */
+  stickyHeaderIndices?: number[];
 }) => {
   const t = useAppTheme();
+  const headerShown = !!(title || headerRight || onBack);
+  const resolvedStickyIndices = stickyHeaderIndices?.map(
+    (i) => i + (headerShown ? 1 : 0)
+  );
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: t.background }]} edges={["top"]}>
       <ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
+        stickyHeaderIndices={resolvedStickyIndices}
         style={{ backgroundColor: t.background }}
         contentContainerStyle={[styles.scroll, footer != null && { paddingBottom: 96 }]}
         scrollEventThrottle={onEndReached ? 16 : undefined}
@@ -277,6 +289,14 @@ export const Toast = ({ toast }: { toast: ToastState }) => {
 // keyboard, so the bar rises with it at the same speed.
 const KEYBOARD_EASING = Easing.bezier(0.38, 0.7, 0.125, 1);
 
+// Run the lift quicker than the keyboard's own animation so the footer snaps
+// between its down/up positions instead of gliding the full keyboard duration.
+const KEYBOARD_LIFT_DURATION_SCALE = 0.6;
+const liftDuration = (keyboardDuration: number | undefined) =>
+  // `??` not `||`: iOS may report a real duration of 0 (no animation), which
+  // should stay 0, not fall back to 250ms.
+  Math.round((keyboardDuration ?? 250) * KEYBOARD_LIFT_DURATION_SCALE);
+
 /** Floating full-width pill action pinned above the tab bar. */
 export const FooterAction = ({
   title,
@@ -286,6 +306,7 @@ export const FooterAction = ({
   note,
   cancel,
   bottomOffset = 0,
+  avoidKeyboard = true,
 }: {
   title: string;
   onPress: () => void;
@@ -302,31 +323,34 @@ export const FooterAction = ({
    * the home indicator and sits a little higher instead of hugging the edge.
    */
   bottomOffset?: number;
+  /** Whether this footer should lift above the software keyboard when shown. */
+  avoidKeyboard?: boolean;
 }) => {
   const t = useAppTheme();
   const [scale] = useState(() => new Animated.Value(1));
-  // Lifts the pinned footer above the software keyboard. iOS keyboards overlay
-  // content, so we translate the bar up by the keyboard height (synced to the
-  // keyboard's own show/hide animation). Android resizes the window by default
-  // (softwareKeyboardLayoutMode "resize"), which already clears a bottom-anchored
-  // footer, and web has no software keyboard — so this is iOS-only.
+  // Lifts the pinned footer above the software keyboard. Screens may rest the
+  // footer higher than usual, but keyboard-up placement keeps the app's normal
+  // gap above the keyboard by subtracting that resting offset from the lift.
   const [lift] = useState(() => new Animated.Value(0));
   useEffect(() => {
+    const keyboardLift = (height: number) => Math.max(0, height - bottomOffset);
+    if (!avoidKeyboard) {
+      lift.setValue(0);
+      return;
+    }
     if (Platform.OS !== "ios") return;
-    // The footer can mount while the keyboard is already open (e.g. the Create
-    // action appears mid-search), and no willShow fires for it — so seed the
-    // lift from the live keyboard metrics, otherwise it sits under the keyboard
-    // until the next hide/show cycle.
+    // On iOS, the footer can mount while the keyboard is already open (e.g. the
+    // Create action appears mid-search), and no willShow fires for it — so seed
+    // the lift from the live keyboard metrics, otherwise it sits under the
+    // keyboard until the next hide/show cycle.
     if (Keyboard.isVisible()) {
       const metrics = Keyboard.metrics();
-      if (metrics) lift.setValue(metrics.height);
+      if (metrics) lift.setValue(keyboardLift(metrics.height));
     }
     const show = Keyboard.addListener("keyboardWillShow", (e) => {
       Animated.timing(lift, {
-        toValue: e.endCoordinates.height,
-        // `??` not `||`: iOS may report a real duration of 0 (no animation),
-        // which should stay 0, not fall back to 250ms and desync the lift.
-        duration: e.duration ?? 250,
+        toValue: keyboardLift(e.endCoordinates.height),
+        duration: liftDuration(e.duration),
         easing: KEYBOARD_EASING,
         useNativeDriver: true,
       }).start();
@@ -334,7 +358,7 @@ export const FooterAction = ({
     const hide = Keyboard.addListener("keyboardWillHide", (e) => {
       Animated.timing(lift, {
         toValue: 0,
-        duration: e?.duration ?? 250,
+        duration: liftDuration(e?.duration),
         easing: KEYBOARD_EASING,
         useNativeDriver: true,
       }).start();
@@ -343,7 +367,7 @@ export const FooterAction = ({
       show.remove();
       hide.remove();
     };
-  }, [lift]);
+  }, [avoidKeyboard, bottomOffset, lift]);
   return (
     <Animated.View
       pointerEvents="box-none"

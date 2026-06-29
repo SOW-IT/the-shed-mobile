@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { roleNeedsUniversity, universityColour } from "../../../shared/flow";
@@ -14,6 +14,12 @@ import {
   LoadingState,
   Select,
 } from "@/components/ui";
+import {
+  PAGER_PAGE_BOTTOM_INSET_WITH_FOOTER,
+  PAGER_PAGE_CONTENT,
+  PAGER_TOP_BAR_INSET,
+  TopBarScrollProps,
+} from "@/components/PagerScreen";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 const PAGE_SIZE = 30;
@@ -21,9 +27,11 @@ const PAGE_SIZE = 30;
 export function MembersTab({
   year,
   onEditMember,
+  scrollProps,
 }: {
   year: number;
   onEditMember: (memberId: Id<"attendanceMembers">) => void;
+  scrollProps?: TopBarScrollProps;
 }) {
   const t = useAppTheme();
   const ensureDefaults = useMutation(api.attendanceMetadata.ensureDefaults);
@@ -103,7 +111,23 @@ export function MembersTab({
   if (metadata === undefined) return <LoadingState />;
 
   return (
-    <>
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      // Index 0 is the grouped filter + search block — pin it so both stay
+      // reachable while the member list scrolls under it.
+      stickyHeaderIndices={[0]}
+      style={{ backgroundColor: t.background }}
+      contentContainerStyle={[
+        PAGER_PAGE_CONTENT,
+        styles.selfScrollingPage,
+        { paddingBottom: PAGER_PAGE_BOTTOM_INSET_WITH_FOOTER },
+      ]}
+      {...scrollProps}
+    >
+      {/* Sticky: the filter controls and search bar pin to the top while the
+          member list scrolls under them. The opaque page-background wrapper
+          masks rows passing behind the rounded controls. */}
+      <View style={[styles.stickyControls, { backgroundColor: t.background }]}>
       <View style={styles.filterSummary}>
         <Pressable
           accessibilityRole="button"
@@ -190,29 +214,30 @@ export function MembersTab({
         </View>
       ) : null}
 
-      <View style={[styles.search, { backgroundColor: t.inputBackground }]}>
-        <Ionicons name="search-outline" size={18} color={t.faint} />
-        <TextInput
-          style={[styles.searchInput, { color: t.text }]}
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Search members…"
-          placeholderTextColor={t.faint}
-        />
-        {search ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Clear member search"
-            onPress={() => setSearch("")}
-            style={({ pressed }) => [
-              styles.searchClear,
-              { backgroundColor: t.ghost },
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Ionicons name="close" size={16} color={t.ghostText} />
-          </Pressable>
-        ) : null}
+        <View style={[styles.search, { backgroundColor: t.inputBackground }]}>
+          <Ionicons name="search-outline" size={18} color={t.faint} />
+          <TextInput
+            style={[styles.searchInput, { color: t.text }]}
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search members…"
+            placeholderTextColor={t.faint}
+          />
+          {search ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Clear member search"
+              onPress={() => setSearch("")}
+              style={({ pressed }) => [
+                styles.searchClear,
+                { backgroundColor: t.ghost },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Ionicons name="close" size={16} color={t.ghostText} />
+            </Pressable>
+          ) : null}
+        </View>
       </View>
 
       <View style={[styles.sectionHeader, { borderBottomColor: t.separator }]}>
@@ -317,16 +342,20 @@ export function MembersTab({
           ) : null}
         </View>
       )}
-    </>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  // Rest the sticky controls below the floating top bar; they pin under the tab
+  // bar as it collapses. The list scrolls up under the bar.
+  selfScrollingPage: { paddingTop: PAGER_TOP_BAR_INSET },
+  // Holds the (sticky) filter controls + search bar with compact internal gaps.
+  stickyControls: { gap: spacing.sm, paddingTop: spacing.sm },
   filterSummary: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    marginBottom: spacing.sm,
   },
   filterButton: {
     flexDirection: "row",
