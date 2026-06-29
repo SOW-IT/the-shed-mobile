@@ -143,7 +143,7 @@ export const TopBar = ({
           accessibilityLabel="Go to Requests"
         >
           <Image
-            source={require("../../assets/images/the-shed-compact-logo.png")}
+            source={require("../../../assets/images/the-shed-compact-logo.png")}
             style={[styles.topBarLogo, { tintColor: t.text }]}
             resizeMode="contain"
           />

@@ -152,8 +152,8 @@ export const SowSpinner = ({ size = 64, onDark }: { size?: number; onDark?: bool
     <ReanimatedImage
       source={
         dark
-          ? require("../../assets/images/splash-icon-dark.png")
-          : require("../../assets/images/splash-icon.png")
+          ? require("../../../assets/images/splash-icon-dark.png")
+          : require("../../../assets/images/splash-icon.png")
       }
       style={animatedStyle}
       resizeMode="contain"
