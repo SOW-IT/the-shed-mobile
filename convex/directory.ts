@@ -139,19 +139,24 @@ export const nameForEmail = query({
   },
 });
 
-/** Every year with an org structure, plus the current and next staff years. */
+/**
+ * Every year with an org structure, plus the current year — and the next staff
+ * year only for admins (matching orgChart's gate), so the next year isn't
+ * discoverable by non-admins through this query either.
+ */
 export const availableYears = query({
   args: {},
   handler: async (ctx) => {
-    if ((await optionalEmail(ctx)) === null) return null;
+    const email = await optionalEmail(ctx);
+    if (email === null) return null;
+    const thisYear = currentStaffYear();
+    const nextYear = nextStaffYear();
+    const profile = await getProfile(ctx, email, thisYear);
+    const canSeeNextYear = profile ? await isAdminProfile(ctx, profile) : false;
     const divisions = await ctx.db.query("divisions").take(1000);
-    return [
-      ...new Set([
-        ...divisions.map((d) => d.year),
-        currentStaffYear(),
-        nextStaffYear(),
-      ]),
-    ].sort((a, b) => b - a);
+    return [...new Set([...divisions.map((d) => d.year), thisYear, nextYear])]
+      .filter((y) => y <= thisYear || (canSeeNextYear && y === nextYear))
+      .sort((a, b) => b - a);
   },
 });
 
@@ -171,18 +176,41 @@ const campusRoleRank = (roles: string[]) => {
  * Director on top, then divisions -> departments (head first) -> members.
  * Names come from the synced Google profile when the person has signed in.
  * Also returns every year that has an org structure, for the year dropdown.
+ *
+ * The pre-provisioned NEXT staff year is only offered to (and viewable by)
+ * admins — the Data and IT / Human Resources crew who configure it — so other
+ * staff don't see a half-built future chart. Everyone keeps the current and
+ * past years.
  */
 export const orgChart = query({
   args: { year: v.optional(v.number()) },
   handler: async (ctx, args) => {
-    if ((await optionalEmail(ctx)) === null) return null; // auth still attaching
-    const year = args.year ?? currentStaffYear();
+    const callerEmail = await optionalEmail(ctx);
+    if (callerEmail === null) return null; // auth still attaching
+    const thisYear = currentStaffYear();
+    const nextYear = nextStaffYear();
 
-    // Distinct years with any structure (divisions are a handful per year).
+    // Only admins (Data and IT / HR division) may see the next staff year.
+    const callerProfile = await getProfile(ctx, callerEmail, thisYear);
+    const canSeeNextYear = callerProfile
+      ? await isAdminProfile(ctx, callerProfile)
+      : false;
+
+    // Clamp a future-year request from someone who isn't allowed to see it.
+    const requestedYear = args.year ?? thisYear;
+    const year =
+      requestedYear > thisYear && !(canSeeNextYear && requestedYear === nextYear)
+        ? thisYear
+        : requestedYear;
+
+    // Distinct years with any structure (divisions are a handful per year),
+    // hiding the next staff year from non-admins.
     const allDivisions = await ctx.db.query("divisions").take(1000);
     const availableYears = [
-      ...new Set([...allDivisions.map((d) => d.year), currentStaffYear()]),
-    ].sort((a, b) => b - a);
+      ...new Set([...allDivisions.map((d) => d.year), thisYear]),
+    ]
+      .filter((y) => y <= thisYear || (canSeeNextYear && y === nextYear))
+      .sort((a, b) => b - a);
 
     const divisions = await ctx.db
       .query("divisions")
@@ -287,6 +315,8 @@ export const orgChart = query({
     return {
       year,
       availableYears,
+      // The next staff year, surfaced only to admins so the picker can label it.
+      nextYear: canSeeNextYear ? nextYear : null,
       director: directorProfile
         ? person(directorProfile.email, directorRole)
         : null,
