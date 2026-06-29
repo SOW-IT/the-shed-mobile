@@ -6,6 +6,20 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+### Added
+
+- **A "Test Environment" badge on test builds.** The staging app and dev web
+  build now show a warning-coloured "Test Environment" chip in the top bar.
+  Tapping it explains that this is the development environment — a separate test
+  database where nothing affects the live app or real staff data.
+
+### Changed
+
+- **Email links from the test environment open the test app.** "Open in THE
+  SHED" links in emails sent from the dev/staging backend now point at the dev
+  web build (the-shed-web-dev.vercel.app) instead of production, so test
+  notifications stay within the test environment.
+
 ## [1.2.2] — 2026-06-29
 
 ### Fixed

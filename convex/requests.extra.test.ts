@@ -80,6 +80,19 @@ describe("appUrl", () => {
     vi.stubEnv("APP_URL", undefined);
     expect(appUrl("/x")).toBe("https://the-shed-web.vercel.app/x");
   });
+
+  test("links from the dev Convex deployment point at the dev web build", () => {
+    vi.stubEnv("APP_URL", undefined);
+    // The dev deployment's cloud url -> dev web build.
+    vi.stubEnv("CONVEX_CLOUD_URL", "https://industrious-robin-425.convex.cloud");
+    expect(appUrl("/review")).toBe("https://the-shed-web-dev.vercel.app/review");
+    // Production (any other deployment) stays on the prod web build.
+    vi.stubEnv("CONVEX_CLOUD_URL", "https://outgoing-stoat-395.convex.cloud");
+    expect(appUrl("/review")).toBe("https://the-shed-web.vercel.app/review");
+    // An explicit APP_URL still wins regardless of deployment.
+    vi.stubEnv("APP_URL", "https://app.example.com");
+    expect(appUrl()).toBe("https://app.example.com");
+  });
 });
 
 describe("submit validation", () => {

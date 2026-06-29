@@ -84,9 +84,23 @@ const logEvent = async (
   });
 };
 
-/** The hosted app, for links in emails (universal links open the native app). */
-export const appUrl = (path?: string) =>
-  `${process.env.APP_URL ?? "https://the-shed-web.vercel.app"}${path ?? ""}`;
+/** Production and dev (staging) hosted web builds. */
+const PROD_WEB_URL = "https://the-shed-web.vercel.app";
+const DEV_WEB_URL = "https://the-shed-web-dev.vercel.app";
+/** The dev Convex deployment that the staging app and dev web point at. */
+const DEV_DEPLOYMENTS = ["industrious-robin-425"];
+
+/**
+ * The hosted app, for links in emails (universal links open the native app).
+ * `APP_URL` overrides everything; otherwise links from the dev Convex
+ * deployment go to the dev web build and everything else stays on production.
+ */
+export const appUrl = (path?: string) => {
+  const cloudUrl = process.env.CONVEX_CLOUD_URL ?? "";
+  const isDev = DEV_DEPLOYMENTS.some((name) => cloudUrl.includes(name));
+  const base = process.env.APP_URL ?? (isDev ? DEV_WEB_URL : PROD_WEB_URL);
+  return `${base}${path ?? ""}`;
+};
 
 /**
  * Notifies a person about a request update by email AND push notification.

@@ -9,11 +9,13 @@ import { ReactNode, Ref, useEffect, useState } from "react";
 import { Animated, Image, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { USE_NATIVE_DRIVER, typography, useAppTheme } from "@/theme";
+import { USE_NATIVE_DRIVER, spacing, typography, useAppTheme } from "@/theme";
+import { IS_DEV_ENVIRONMENT } from "@/env";
 import { Avatar, Toast, ToastState } from "./feedback";
 import { usePressScale } from "./format";
 import { Segment } from "./forms";
-import { FadeInView } from "./primitives";
+import { Sheet } from "./overlays";
+import { FadeInView, Txt } from "./primitives";
 import { styles } from "./styles";
 
 export const Screen = ({
@@ -131,6 +133,7 @@ export const TopBar = ({
   const bell = usePressScale();
   const profile = usePressScale();
   const unread = useQuery(api.notifications.unreadCount, {}) ?? 0;
+  const [testInfo, setTestInfo] = useState(false);
   return (
     <View style={styles.topBar}>
       <Animated.View style={{ transform: [{ scale: home.scale }] }}>
@@ -149,6 +152,26 @@ export const TopBar = ({
           />
         </Pressable>
       </Animated.View>
+      {/* On the dev / staging build, a centred warning chip makes it obvious
+          this isn't production; tapping it explains what the environment is. */}
+      <View style={styles.topBarCenter} pointerEvents="box-none">
+        {IS_DEV_ENVIRONMENT ? (
+          <Pressable
+            onPress={() => setTestInfo(true)}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel="Test environment — what is this?"
+            style={({ pressed }) => [
+              styles.testChip,
+              { backgroundColor: t.warning },
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Ionicons name="construct" size={12} color="#ffffff" />
+            <Text style={styles.testChipText}>Test Environment</Text>
+          </Pressable>
+        ) : null}
+      </View>
       <View style={styles.topBarRight}>
         <Animated.View style={{ transform: [{ scale: bell.scale }] }}>
           <Pressable
@@ -187,6 +210,28 @@ export const TopBar = ({
           </Pressable>
         </Animated.View>
       </View>
+      {IS_DEV_ENVIRONMENT ? (
+        <Sheet
+          visible={testInfo}
+          onClose={() => setTestInfo(false)}
+          title="Development Environment"
+        >
+          <View style={{ gap: spacing.sm }}>
+            <Txt>
+              You&apos;re using the development (test) version of THE SHED, kept
+              separate from the live app for trying things out.
+            </Txt>
+            <Txt style={{ color: t.muted }}>
+              It runs against its own test database, so anything you create,
+              edit, or delete here won&apos;t affect the live app or real staff
+              data.
+            </Txt>
+            <Txt style={{ color: t.muted }}>
+              The live app lives at the-shed-web.vercel.app.
+            </Txt>
+          </View>
+        </Sheet>
+      ) : null}
     </View>
   );
 };
