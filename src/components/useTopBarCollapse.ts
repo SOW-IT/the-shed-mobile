@@ -18,6 +18,7 @@ export const useTopBarCollapse = () => {
   const [progress] = useState(() => new Animated.Value(1));
   const collapsedY = useRef(0);
   const lastY = useRef(0);
+  const rebaselineOnNextScroll = useRef(false);
 
   const setCollapsedY = useCallback(
     (next: number) => {
@@ -32,6 +33,12 @@ export const useTopBarCollapse = () => {
   const onScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       const y = Math.max(0, event.nativeEvent.contentOffset.y);
+      if (rebaselineOnNextScroll.current) {
+        rebaselineOnNextScroll.current = false;
+        lastY.current = y;
+        return;
+      }
+
       const delta = y - lastY.current;
       if (y <= SHOW_AT_TOP_OFFSET) {
         setCollapsedY(0);
@@ -58,7 +65,7 @@ export const useTopBarCollapse = () => {
   };
 
   const showTopBar = useCallback(() => {
-    lastY.current = 0;
+    rebaselineOnNextScroll.current = true;
     setCollapsedY(0);
   }, [setCollapsedY]);
 
