@@ -1328,7 +1328,8 @@ export default function AdminScreen() {
               <Card>
                 <Muted>
                   Syncs all active Google Workspace users on sow.org.au into the
-                  people picker. Runs automatically every day.
+                  people picker, and caches staff profile photos for the org
+                  chart. Runs automatically once a week.
                 </Muted>
                 {syncState?.syncedAt ? (
                   <Muted>

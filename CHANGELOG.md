@@ -6,6 +6,19 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+### Added
+
+- **Staff faces show on the org chart before they sign in.** The weekly Google
+  Workspace sync now also caches each staff member's Google profile photo, so
+  the org chart and profile pages show their picture even if they've never
+  opened the app. A person's own uploaded photo still takes precedence.
+
+### Changed
+
+- **Directory sync now runs once a week instead of daily.** The automatic
+  Google Workspace sync (people picker + profile photos) moved to a weekly
+  schedule; admins can still sync on demand from the admin screen.
+
 ## [1.2.2] — 2026-06-29
 
 ### Fixed

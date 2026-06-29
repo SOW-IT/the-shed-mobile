@@ -144,10 +144,81 @@ describe("directorySync.run", () => {
     );
     expect(state?.detail).toBe("synced 2 people");
   });
+
+  test("caches a staff member's thumbnail and skips the re-fetch when unchanged", async () => {
+    const t = convexTest(schema, modules);
+    configureServiceAccount(await generatePrivateKeyPem());
+    // alice is on the org chart (has a staffProfile) so her photo is cached;
+    // bob is not, so his photo is never fetched even though he has an etag.
+    await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", { email: "alice@sow.org.au", year: YEAR })
+    );
+
+    const directoryPage = {
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          users: [
+            { primaryEmail: "alice@sow.org.au", name: { fullName: "Alice" }, thumbnailPhotoEtag: "etag1" },
+            { primaryEmail: "bob@sow.org.au", thumbnailPhotoEtag: "etagB" },
+          ],
+        }),
+    };
+
+    const firstFetch = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ access_token: "tok" }) })
+      .mockResolvedValueOnce(directoryPage)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ photoData: "aGVsbG8", mimeType: "image/png" }),
+      });
+    vi.stubGlobal("fetch", firstFetch);
+    await t.action(internal.directorySync.run, {});
+
+    // token + directory page + ONE photo fetch (alice only, not bob).
+    expect(firstFetch).toHaveBeenCalledTimes(3);
+    expect(String(firstFetch.mock.calls[2][0])).toContain(
+      "/users/alice%40sow.org.au/photos/thumbnail"
+    );
+
+    const alice = await t.run((ctx) =>
+      ctx.db
+        .query("directoryUsers")
+        .withIndex("by_email", (q) => q.eq("email", "alice@sow.org.au"))
+        .unique()
+    );
+    expect(alice?.photoId).toBeDefined();
+    expect(alice?.photoEtag).toBe("etag1");
+    const bob = await t.run((ctx) =>
+      ctx.db
+        .query("directoryUsers")
+        .withIndex("by_email", (q) => q.eq("email", "bob@sow.org.au"))
+        .unique()
+    );
+    expect(bob?.photoId).toBeUndefined();
+
+    // A second sync with the same etag reuses the cached photo: no photo fetch.
+    const secondFetch = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ access_token: "tok" }) })
+      .mockResolvedValueOnce(directoryPage);
+    vi.stubGlobal("fetch", secondFetch);
+    await t.action(internal.directorySync.run, {});
+
+    expect(secondFetch).toHaveBeenCalledTimes(2); // token + page, no thumbnail
+    const aliceAgain = await t.run((ctx) =>
+      ctx.db
+        .query("directoryUsers")
+        .withIndex("by_email", (q) => q.eq("email", "alice@sow.org.au"))
+        .unique()
+    );
+    expect(aliceAgain?.photoId).toBe(alice?.photoId); // same stored file
+  });
 });
 
 describe("directorySync.requestSync", () => {
-  test("admins can kick off a sync (schedules the daily run)", async () => {
+  test("admins can kick off a sync (schedules the weekly run)", async () => {
     const t = convexTest(schema, modules);
     await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
     // requireAdmin passes for the seeded Data and IT admin; the run action it

@@ -23,6 +23,10 @@ export const get = query({
       .withIndex("email", (q) => q.eq("email", email))
       .first();
     const avatarUrl = user?.avatarId ? await ctx.storage.getUrl(user.avatarId) : null;
+    const dirUser = await ctx.db
+      .query("directoryUsers")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .unique();
 
     // Every year's role + department, newest first. The email finds the
     // person; their bound user id and imported person id then pull in years
@@ -58,15 +62,14 @@ export const get = query({
       .sort((a, b) => b.year - a.year);
 
     const anyProfile = serviceHistory.find((h) => h.name) ?? null;
-    const dirUser = await ctx.db
-      .query("directoryUsers")
-      .withIndex("by_email", (q) => q.eq("email", email))
-      .unique();
+    const dirPhoto = dirUser?.photoId
+      ? await ctx.storage.getUrl(dirUser.photoId)
+      : null;
     return {
       email,
       isMe: email === callerEmail,
       name: user?.name ?? dirUser?.name ?? anyProfile?.name ?? null,
-      photo: avatarUrl ?? user?.image ?? null,
+      photo: avatarUrl ?? user?.image ?? dirPhoto,
       localChurch: user?.localChurch ?? null,
       serviceHistory: serviceHistory.map((h) => ({
         year: h.year,
