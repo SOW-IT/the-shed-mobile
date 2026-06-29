@@ -171,7 +171,9 @@ describe("directorySync.run", () => {
       .mockResolvedValueOnce(directoryPage)
       .mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ photoData: "aGVsbG8", mimeType: "image/png" }),
+        // "aGk*" is Google's web-safe encoding of "hi" (the `=` padding shows
+        // up as `*`); the decoder must translate it back rather than choke.
+        json: () => Promise.resolve({ photoData: "aGk*", mimeType: "image/png" }),
       });
     vi.stubGlobal("fetch", firstFetch);
     await t.action(internal.directorySync.run, {});
@@ -190,6 +192,12 @@ describe("directorySync.run", () => {
     );
     expect(alice?.photoId).toBeDefined();
     expect(alice?.photoEtag).toBe("etag1");
+    // The web-safe payload decoded correctly to the original bytes.
+    const photoText = await t.run(async (ctx) => {
+      const blob = await ctx.storage.get(alice!.photoId!);
+      return blob ? await blob.text() : null;
+    });
+    expect(photoText).toBe("hi");
     const bob = await t.run((ctx) =>
       ctx.db
         .query("directoryUsers")
@@ -214,6 +222,98 @@ describe("directorySync.run", () => {
         .unique()
     );
     expect(aliceAgain?.photoId).toBe(alice?.photoId); // same stored file
+  });
+
+  test("a 404 from the photo endpoint just means no thumbnail (sync still succeeds)", async () => {
+    const t = convexTest(schema, modules);
+    configureServiceAccount(await generatePrivateKeyPem());
+    await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", { email: "alice@sow.org.au", year: YEAR })
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ access_token: "tok" }) })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              users: [{ primaryEmail: "alice@sow.org.au", thumbnailPhotoEtag: "etag1" }],
+            }),
+        })
+        .mockResolvedValueOnce({ ok: false, status: 404, text: () => Promise.resolve("not found") })
+    );
+    await t.action(internal.directorySync.run, {});
+
+    const state = await t.run((ctx) =>
+      ctx.db.query("syncState").withIndex("by_key", (q) => q.eq("key", "directory")).unique()
+    );
+    expect(state?.detail).toBe("synced 1 people");
+    const alice = await t.run((ctx) =>
+      ctx.db
+        .query("directoryUsers")
+        .withIndex("by_email", (q) => q.eq("email", "alice@sow.org.au"))
+        .unique()
+    );
+    expect(alice?.photoId).toBeUndefined();
+  });
+
+  test("a non-404 photo error fails the sync and deletes already-uploaded thumbnails", async () => {
+    const t = convexTest(schema, modules);
+    configureServiceAccount(await generatePrivateKeyPem());
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    for (const email of ["alice@sow.org.au", "carol@sow.org.au"]) {
+      await t.run((ctx) => ctx.db.insert("staffProfiles", { email, year: YEAR }));
+    }
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ access_token: "tok" }) })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              users: [
+                { primaryEmail: "alice@sow.org.au", thumbnailPhotoEtag: "etagA" },
+                { primaryEmail: "carol@sow.org.au", thumbnailPhotoEtag: "etagC" },
+              ],
+            }),
+        })
+        // alice's photo uploads, then carol's 403 throws.
+        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ photoData: "aGk*" }) })
+        .mockResolvedValueOnce({ ok: false, status: 403, text: () => Promise.resolve("forbidden") })
+    );
+    await t.action(internal.directorySync.run, {});
+
+    const state = await t.run((ctx) =>
+      ctx.db.query("syncState").withIndex("by_key", (q) => q.eq("key", "directory")).unique()
+    );
+    expect(state?.detail).toMatch(/Directory photo API error.*403/);
+    // alice's thumbnail, uploaded before carol failed, was cleaned up — no leak.
+    const blobs = await t.run((ctx) => ctx.db.system.query("_storage").collect());
+    expect(blobs).toHaveLength(0);
+  });
+});
+
+describe("directorySync.store photo cleanup", () => {
+  test("deletes replaced and removed thumbnails from storage", async () => {
+    const t = convexTest(schema, modules);
+    const [blob1, blob2] = await t.run(async (ctx) => [
+      await ctx.storage.store(new Blob(["one"], { type: "image/png" })),
+      await ctx.storage.store(new Blob(["two"], { type: "image/png" })),
+    ]);
+    // alice has a cached thumbnail (blob1).
+    await t.mutation(internal.directorySync.store, {
+      users: [{ email: "alice@sow.org.au", photoId: blob1 }],
+    });
+    // alice drops out of the directory (her blob1 is deleted) and blob2 is
+    // passed as a replaced/stale thumbnail to clean up.
+    await t.mutation(internal.directorySync.store, { users: [], stalePhotoIds: [blob2] });
+
+    expect(await t.run((ctx) => ctx.storage.getUrl(blob1))).toBeNull();
+    expect(await t.run((ctx) => ctx.storage.getUrl(blob2))).toBeNull();
   });
 });
 

@@ -25,9 +25,16 @@ const SCOPE = "https://www.googleapis.com/auth/admin.directory.user.readonly";
 const DIRECTORY_LIMIT = 10000;
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 
-/** Decodes Google's web-safe (base64url, often unpadded) photo data to bytes. */
+/**
+ * Decodes the Directory API's web-safe photo data to bytes. Google's variant
+ * maps `+`→`-`, `/`→`_` and the `=` padding to `*` (and sometimes `.`), so we
+ * translate those back, strip the padding, then re-pad by length before atob.
+ */
 const base64urlToBytes = (data: string): Uint8Array => {
-  const normalised = data.replace(/-/g, "+").replace(/_/g, "/");
+  const normalised = data
+    .replace(/-/g, "+")
+    .replace(/_/g, "/")
+    .replace(/[*.=]/g, "");
   const padded = normalised + "=".repeat((4 - (normalised.length % 4)) % 4);
   const binary = atob(padded);
   const bytes = new Uint8Array(binary.length);
@@ -116,9 +123,15 @@ async function fetchPhoto(
     )}/photos/thumbnail`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
-  // 404 just means the person has no photo set; anything else we skip quietly
-  // so one bad photo never fails the whole sync.
-  if (!response.ok) return null;
+  // 404 just means the person has no photo set. Any other non-OK status
+  // (401/403/429/5xx) is a real failure — surface it rather than silently
+  // leaving thumbnails stale while the sync still reports success.
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new Error(
+      `Directory photo API error for ${email}: ${response.status} ${await response.text()}`
+    );
+  }
   const photo = (await response.json()) as {
     photoData?: string;
     mimeType?: string;
@@ -142,6 +155,10 @@ export const run = internalAction({
     const domain = process.env.AUTH_ALLOWED_DOMAIN ?? "sow.org.au";
     type DirUser = { email: string; name?: string; photoEtag?: string };
     let users: DirUser[] = [];
+    // Thumbnails uploaded during this run, so a later failure (before the
+    // `store` mutation commits) can delete them instead of leaking orphaned
+    // `_storage` blobs that no directoryUsers row will ever point at.
+    const uploadedThisRun: Id<"_storage">[] = [];
     try {
       const token = await getAccessToken();
       let pageToken: string | undefined;
@@ -216,6 +233,7 @@ export const run = internalAction({
         // New or changed photo: fetch it; replace the old one if we got it.
         const photoId = await fetchPhoto(ctx, token, user.email);
         if (photoId) {
+          uploadedThisRun.push(photoId);
           if (cached?.photoId) stalePhotoIds.push(cached.photoId);
           resolved.push({
             email: user.email,
@@ -239,6 +257,10 @@ export const run = internalAction({
       });
     } catch (error) {
       console.error("Directory sync failed:", error);
+      // Nothing committed the freshly uploaded thumbnails, so delete them.
+      for (const id of uploadedThisRun) {
+        await ctx.storage.delete(id);
+      }
       await ctx.runMutation(internal.directorySync.recordFailure, {
         detail: error instanceof Error ? error.message : String(error),
       });
@@ -249,9 +271,19 @@ export const run = internalAction({
 });
 
 /** Cached photo etags + the set of staff emails worth caching a photo for. */
+type PhotoSyncState = {
+  photos: {
+    email: string;
+    photoId?: Id<"_storage">;
+    photoEtag?: string;
+  }[];
+  staffEmails: string[];
+};
 export const photoSyncState = internalQuery({
   args: {},
-  handler: async (ctx) => {
+  // Explicit return type: this query is called via ctx.runQuery from the same
+  // file, so annotating it avoids a TS circular-inference issue (Convex guideline).
+  handler: async (ctx): Promise<PhotoSyncState> => {
     const existing = await ctx.db.query("directoryUsers").take(DIRECTORY_LIMIT);
     const profiles = await ctx.db.query("staffProfiles").take(DIRECTORY_LIMIT);
     return {

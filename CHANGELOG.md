@@ -6,6 +6,8 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-06-30
+
 ### Added
 
 - **Staff faces show on the org chart before they sign in.** The weekly Google
