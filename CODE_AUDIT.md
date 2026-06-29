@@ -62,9 +62,10 @@ many attendees. At minimum, add a `take()` bound so the cost can't grow unbounde
 `signIn` reads `by_event_and_email` / `by_event_and_member`, returns early if a row exists, else
 inserts. Convex has no unique constraints, so two near-simultaneous sign-ins of the same person race:
 both read "no existing row", both insert. OCC retries *usually* catch this (the read range is in the
-write set), but the existence of the de-dup merge in `listByEvent` (`convex/attendance.ts:398-413`,
-"a staff member can have both an `email` sign-in and a `memberId` sign-in") confirms duplicates do
-occur in practice.
+write set). Separately, the de-dup merge in `listByEvent` (`convex/attendance.ts:398-413`,
+"a staff member can have both an `email` sign-in and a `memberId` sign-in") handles legacy/imported
+data with dual representations — it doesn't by itself prove the concurrency race occurs in practice,
+but both paths can leave a person represented twice.
 
 **Fix:** the read-then-insert is correct for the OCC model; document that the `listByEvent` merge is
 the *intended* backstop (not legacy cruft), and add a focused test that two concurrent `signIn`s
@@ -82,7 +83,7 @@ on write in `ensureForStaff`.
 
 There is no toast here, and the caught error is discarded. If `ensureForStaff` fails (network, auth
 expiry, validation), the edit sheet silently never opens and the user gets no feedback. The comment
-actively misleads a future reader into thinking error UX exists.
+incorrectly implies to a future reader that error UX exists.
 
 **Fix:** surface the failure — call the screen's toast/`ErrorBanner` with `errorMessage(e)` (already
 exported from `ui.tsx:60`), or remove the misleading comment and let it propagate. The same silent
