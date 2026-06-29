@@ -248,23 +248,18 @@ export const PagerScreen = ({
   const scrollSideEffectsRef = useRef(
     (_tabKey: string, _e: NativeSyntheticEvent<NativeScrollEvent>) => {}
   );
-  useEffect(() => {
-    scrollSideEffectsRef.current = (tabKey, e) => {
-      lastScrollYByTab.current[tabKey] = Math.max(
-        0,
-        e.nativeEvent.contentOffset.y
-      );
-      if (!onEndReached) return;
-      const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-      const distanceToBottom =
-        contentSize.height - (contentOffset.y + layoutMeasurement.height);
-      const lastHeight = lastEndReachedHeight.current[tabKey] ?? -1;
-      if (distanceToBottom < NEAR_BOTTOM && contentSize.height > lastHeight) {
-        lastEndReachedHeight.current[tabKey] = contentSize.height;
-        onEndReached(tabKey);
-      }
-    };
-  });
+  scrollSideEffectsRef.current = (tabKey, e) => {
+    lastScrollYByTab.current[tabKey] = Math.max(0, e.nativeEvent.contentOffset.y);
+    if (!onEndReached) return;
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    const distanceToBottom =
+      contentSize.height - (contentOffset.y + layoutMeasurement.height);
+    const lastHeight = lastEndReachedHeight.current[tabKey] ?? -1;
+    if (distanceToBottom < NEAR_BOTTOM && contentSize.height > lastHeight) {
+      lastEndReachedHeight.current[tabKey] = contentSize.height;
+      onEndReached(tabKey);
+    }
+  };
 
   const scrollHandlersRef = useRef<Record<string, TopBarScrollProps>>({});
   const scrollPropsForTab = useCallback(

@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import { useCallback, useMemo, useState } from "react";
 import {
   Animated,
@@ -8,8 +9,10 @@ import {
 
 export const TOP_BAR_HEIGHT = 56;
 
+type AnimatedScrollViewProps = ComponentProps<typeof Animated.ScrollView>;
+
 export type TopBarScrollProps = {
-  onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onScroll: AnimatedScrollViewProps["onScroll"];
   scrollEventThrottle: number;
 };
 
@@ -69,7 +72,7 @@ export const useTopBarCollapse = () => {
       onScroll: Animated.event(
         [{ nativeEvent: { contentOffset: { y: scrollY } } }],
         { useNativeDriver: true, listener }
-      ) as unknown as TopBarScrollProps["onScroll"],
+      ),
     }),
     [scrollY]
   );
