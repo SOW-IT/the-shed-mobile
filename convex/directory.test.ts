@@ -202,7 +202,7 @@ describe("nameForEmail", () => {
 });
 
 describe("availableYears", () => {
-  test("includes structure years plus the current and next staff years, newest first, null when unauth", async () => {
+  test("includes structure years plus the current year, newest first, null when unauth", async () => {
     const t = await setup();
     expect(await t.query(api.directory.availableYears, {})).toBeNull();
 
@@ -210,9 +210,20 @@ describe("availableYears", () => {
     const years = (await asUser(t, RACHEL).query(api.directory.availableYears, {}))!;
     expect(years).toContain(2020);
     expect(years).toContain(YEAR);
-    expect(years).toContain(YEAR + 1);
     // Sorted descending.
     expect([...years].sort((a, b) => b - a)).toEqual(years);
+  });
+
+  test("exposes the next staff year only to admins", async () => {
+    const t = await setup();
+    // A pre-provisioned next-year structure would otherwise leak via this query.
+    await t.run((ctx) =>
+      ctx.db.insert("divisions", { year: YEAR + 1, name: "Engagement" })
+    );
+    const nonAdmin = (await asUser(t, RACHEL).query(api.directory.availableYears, {}))!;
+    expect(nonAdmin).not.toContain(YEAR + 1);
+    const admin = (await asUser(t, ADMIN).query(api.directory.availableYears, {}))!;
+    expect(admin).toContain(YEAR + 1);
   });
 });
 

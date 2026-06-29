@@ -6,6 +6,8 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-06-30
+
 ### Changed
 
 - **The next staff year is admin-only on the org chart.** The org chart's year

@@ -138,19 +138,24 @@ export const nameForEmail = query({
   },
 });
 
-/** Every year with an org structure, plus the current and next staff years. */
+/**
+ * Every year with an org structure, plus the current year — and the next staff
+ * year only for admins (matching orgChart's gate), so the next year isn't
+ * discoverable by non-admins through this query either.
+ */
 export const availableYears = query({
   args: {},
   handler: async (ctx) => {
-    if ((await optionalEmail(ctx)) === null) return null;
+    const email = await optionalEmail(ctx);
+    if (email === null) return null;
+    const thisYear = currentStaffYear();
+    const nextYear = nextStaffYear();
+    const profile = await getProfile(ctx, email, thisYear);
+    const canSeeNextYear = profile ? await isAdminProfile(ctx, profile) : false;
     const divisions = await ctx.db.query("divisions").take(1000);
-    return [
-      ...new Set([
-        ...divisions.map((d) => d.year),
-        currentStaffYear(),
-        nextStaffYear(),
-      ]),
-    ].sort((a, b) => b - a);
+    return [...new Set([...divisions.map((d) => d.year), thisYear, nextYear])]
+      .filter((y) => y <= thisYear || (canSeeNextYear && y === nextYear))
+      .sort((a, b) => b - a);
   },
 });
 
