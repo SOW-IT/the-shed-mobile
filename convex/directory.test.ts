@@ -365,4 +365,31 @@ describe("orgChart", () => {
     // …and the top-level staff group is empty for this year.
     expect(chart.staff).toHaveLength(0);
   });
+
+  test("only admins see and can view the next staff year", async () => {
+    const t = await setup();
+    // Give the next staff year a structure so it would otherwise be offered.
+    await t.run((ctx) =>
+      ctx.db.insert("divisions", { year: YEAR + 1, name: "Engagement" })
+    );
+
+    // Non-admin RACHEL: next year is hidden, unlabelled, and a direct request
+    // for it is clamped back to the current year.
+    const rachel = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
+    expect(rachel.availableYears).not.toContain(YEAR + 1);
+    expect(rachel.nextYear).toBeNull();
+    const rachelNext = (await asUser(t, RACHEL).query(api.directory.orgChart, {
+      year: YEAR + 1,
+    }))!;
+    expect(rachelNext.year).toBe(YEAR);
+
+    // Admin: the next year is offered, labelled, and viewable.
+    const admin = (await asUser(t, ADMIN).query(api.directory.orgChart, {}))!;
+    expect(admin.availableYears).toContain(YEAR + 1);
+    expect(admin.nextYear).toBe(YEAR + 1);
+    const adminNext = (await asUser(t, ADMIN).query(api.directory.orgChart, {
+      year: YEAR + 1,
+    }))!;
+    expect(adminNext.year).toBe(YEAR + 1);
+  });
 });
