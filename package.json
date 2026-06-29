@@ -3,7 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.2.0",
   "dependencies": {
-    "@auth/core": "^0.41.1",
+    "@auth/core": "^0.41.2",
     "@convex-dev/auth": "^0.0.94",
     "@expo/ui": "~56.0.18",
     "@expo/vector-icons": "^15.0.2",
