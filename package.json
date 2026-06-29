@@ -63,7 +63,8 @@
     "repair:gender-metadata": "node scripts/repair-gender-metadata.mjs",
     "rollcall-import:dry-run": "node scripts/rollcall-import-dry-run.mjs",
     "rollcall-import:apply": "node scripts/rollcall-import-apply.mjs",
-    "deploy:web": "node scripts/deploy-web.mjs"
+    "deploy:web": "node scripts/deploy-web.mjs",
+    "deploy:web:dev": "node scripts/deploy-web-dev.mjs"
   },
   "private": true
 }

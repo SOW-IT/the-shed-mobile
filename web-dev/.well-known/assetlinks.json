@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "au.org.sow.theshed.staging",
+      "sha256_cert_fingerprints": [
+        "6A:BC:70:E5:BD:A2:D5:2C:11:5F:1B:93:45:7E:89:A0:83:49:06:40:C7:84:EA:81:25:B8:81:A0:99:EC:99:94"
+      ]
+    }
+  }
+]

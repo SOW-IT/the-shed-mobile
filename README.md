@@ -201,6 +201,19 @@ routes.) When Google sign-in is configured, also set the deployment's
 npx convex env set SITE_URL https://the-shed-web.vercel.app
 ```
 
+A parallel **dev web** runs at **<https://the-shed-web-dev.vercel.app>** (a
+separate Vercel project `the-shed-web-dev`), built against the **dev** Convex
+deployment (`industrious-robin-425`). Because the Convex URL is inlined at
+build time, the dev site is its own build/project rather than a re-pointed
+domain. It auto-deploys on every merge to `main` via the
+`Deploy web (dev)` GitHub Action, which needs two repo secrets — `VERCEL_TOKEN`
+and `VERCEL_PROJECT_ID_DEV` (the `the-shed-web-dev` project id). You can also
+build/publish it on demand with:
+
+```bash
+VERCEL_PROJECT_ID_DEV=<dev-project-id> VERCEL_TOKEN=<token> npm run deploy:web:dev
+```
+
 ### Email links and universal links
 
 Every notification email ends with an "Open in THE SHED" link to the hosted

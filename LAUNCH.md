@@ -61,9 +61,11 @@ Repo → Settings → Secrets and variables → Actions:
       EAS Build workflow (iOS+Android builds on every merge).
 - [ ] `CONVEX_DEPLOY_KEY` — [Convex dashboard](https://dashboard.convex.dev/t/kimchankwon/the-shed-mobile)
       → **production** deployment → Settings → Generate deploy key → enables
-      auto-deploy of the prod backend + web site on every merge.
-- [ ] `VERCEL_TOKEN` — <https://vercel.com/account/tokens> → same workflow,
-      publishes the web build.
+      auto-deploy of the prod **backend** on every merge (`convex-deploy.yml`).
+- [ ] `VERCEL_TOKEN` + `VERCEL_PROJECT_ID_DEV` — <https://vercel.com/account/tokens>
+      → power the **dev** web auto-deploy on every merge (`deploy-web-dev.yml`,
+      publishing to `the-shed-web-dev`). The **prod** web is published by
+      Vercel's own git integration on merges to `main`, so it needs no workflow.
 
 Until set, those workflows pass with a warning and skip.
 
