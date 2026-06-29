@@ -44,14 +44,11 @@ export const ChromeScreen = ({
           clipped at the screen edge rather than bleeding into the status bar. */}
       <View style={styles.topBarClip} pointerEvents="box-none">
         <Animated.View
-          style={[
-            styles.topBarWrap,
-            { backgroundColor: t.background },
-            collapseStyle,
-            barOpacityStyle,
-          ]}
+          style={[styles.topBarWrap, { backgroundColor: t.background }, collapseStyle]}
         >
-          <TopBar photo={me?.photo ?? null} name={me?.name ?? null} />
+          <Animated.View style={barOpacityStyle}>
+            <TopBar photo={me?.photo ?? null} name={me?.name ?? null} />
+          </Animated.View>
         </Animated.View>
       </View>
       {footer}
