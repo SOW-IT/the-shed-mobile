@@ -18,10 +18,6 @@ import { displayName, getProfile, optionalProfile, requireProfile } from "./mode
 import { logAttendanceAction } from "./attendanceAudit";
 
 const ROSTER_HISTORY_EVENT_LIMIT = 60;
-// Cap how many per-event attendance reads run at once when scoring history, so
-// a busy year can't open ~60 `collect()` queries in a single Promise.all and
-// spike DB/memory load. Still far faster than awaiting each read serially.
-const ROSTER_HISTORY_READ_CONCURRENCY = 10;
 
 export type RosterEntry = {
   key: string;
@@ -215,24 +211,20 @@ export const roster = query({
       string,
       { tagMatches: number; subgroupMatches: number; total: number; latest: number }
     >();
-    // Fetch each history event's attendance concurrently rather than awaiting
-    // one at a time, but in bounded chunks (ROSTER_HISTORY_READ_CONCURRENCY) so
-    // the fan-out can't open one read per history event all at once. Scoring
-    // then runs synchronously over the resolved lists.
+    // Fetch every history event's attendance in parallel rather than awaiting
+    // each in turn — Convex pipelines the reads, so this costs one round-trip
+    // instead of N sequential ones. Total documents read (the transaction's
+    // real limit) is the same either way and is bounded by the take() above;
+    // scoring then runs synchronously over the resolved lists.
     const otherHistory = historyEvents.filter((h) => h._id !== event._id);
-    const historyAttendances: Doc<"attendance">[][] = [];
-    for (let i = 0; i < otherHistory.length; i += ROSTER_HISTORY_READ_CONCURRENCY) {
-      const chunk = otherHistory.slice(i, i + ROSTER_HISTORY_READ_CONCURRENCY);
-      const chunkResults = await Promise.all(
-        chunk.map((h) =>
-          ctx.db
-            .query("attendance")
-            .withIndex("by_event", (q) => q.eq("eventId", h._id))
-            .collect()
-        )
-      );
-      historyAttendances.push(...chunkResults);
-    }
+    const historyAttendances = await Promise.all(
+      otherHistory.map((h) =>
+        ctx.db
+          .query("attendance")
+          .withIndex("by_event", (q) => q.eq("eventId", h._id))
+          .collect()
+      )
+    );
     otherHistory.forEach((historyEvent, i) => {
       for (const row of historyAttendances[i]) {
         const key = personKey(row);
