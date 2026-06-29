@@ -127,7 +127,12 @@ export const PagerScreen = ({
   const [tabBarHeight, setTabBarHeight] = useState(48);
   const footerAnimsRef = useRef<Record<string, Animated.Value>>({});
   const footerScrollState = useRef<PagerScrollState>("idle");
-  const { topBarStyle, scrollProps, showTopBar } = useTopBarCollapse();
+  const { topBarStyle, scrollProps, syncToScrollY } = useTopBarCollapse();
+  // Each page scrolls independently, so remember every page's latest offset and
+  // re-sync the (shared) top bar to it on tab change. The bar then reflects what
+  // the new page actually shows — collapsed if it's scrolled, shown if it's at
+  // the top — instead of popping back open on every tab switch.
+  const lastScrollYByTab = useRef<Record<string, number>>({});
 
   const footerPinned = !!(footer && !footerTabKey && !(footers?.length));
 
@@ -198,11 +203,11 @@ export const PagerScreen = ({
 
   // Tab taps and web tab changes — no native pager bounce to follow.
   useEffect(() => {
-    showTopBar();
+    syncToScrollY(lastScrollYByTab.current[activeKey] ?? 0);
     if (footerItems.length === 0) return;
     if (footerScrollState.current === "dragging") return;
     setAllFooterPositions(activeIndex, true);
-  }, [activeIndex, footerItems.length, setAllFooterPositions, showTopBar]);
+  }, [activeIndex, activeKey, footerItems.length, setAllFooterPositions, syncToScrollY]);
 
   // Track the pager continuously while the finger is down AND through the
   // release deceleration ("settling"), so the footer slides in lockstep with the
@@ -244,6 +249,7 @@ export const PagerScreen = ({
     (tabKey: string): TopBarScrollProps => ({
       scrollEventThrottle,
       onScroll: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+        lastScrollYByTab.current[tabKey] = Math.max(0, e.nativeEvent.contentOffset.y);
         onScrollCollapse(e);
         if (!onEndReached) return;
         const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
