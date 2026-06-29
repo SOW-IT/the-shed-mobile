@@ -691,8 +691,10 @@ export default function EventAttendanceScreen() {
     >
       {/* Badges + the past-event notice are grouped into one element so the
           search box stays at a fixed child index (1) for the page's
-          stickyHeaderIndices, whether or not the notice is showing. */}
-      <View>
+          stickyHeaderIndices, whether or not the notice is showing.
+          collapsable={false} keeps this style-less View in the native tree on
+          Android (otherwise it'd be flattened away, shifting the sticky index). */}
+      <View collapsable={false}>
       <View style={styles.badgeRow}>
         {/* Collab/owner groups on the left, event tags on the right (mirrors
             the events list's split badge row). */}
