@@ -15,6 +15,9 @@ import { api } from "../../convex/_generated/api";
 import { spacing, useAppTheme } from "@/theme";
 import { PagerCarousel } from "@/components/PagerCarousel";
 import { TabBar, TopBar } from "@/components/ui";
+import { TopBarScrollProps, useTopBarCollapse } from "@/components/useTopBarCollapse";
+
+export type { TopBarScrollProps } from "@/components/useTopBarCollapse";
 
 export type PagerTab = {
   key: string;
@@ -23,7 +26,7 @@ export type PagerTab = {
   badge?: number;
   /** White unread-message count. */
   messageBadge?: number;
-  render: () => ReactNode;
+  render: (scrollProps?: TopBarScrollProps) => ReactNode;
   /**
    * Render the tab's own scroll container instead of wrapping {@link render} in
    * the shared page ScrollView. Needed when the tab requires `stickyHeaderIndices`
@@ -116,6 +119,7 @@ export const PagerScreen = ({
   const [pagerPosition] = useState(() => new Animated.Value(initialIndex));
   const footerAnimsRef = useRef<Record<string, Animated.Value>>({});
   const footerScrollState = useRef<PagerScrollState>("idle");
+  const { topBarStyle, scrollProps, showTopBar } = useTopBarCollapse();
 
   const footerPinned = !!(footer && !footerTabKey && !(footers?.length));
 
@@ -186,10 +190,11 @@ export const PagerScreen = ({
 
   // Tab taps and web tab changes — no native pager bounce to follow.
   useEffect(() => {
+    showTopBar();
     if (footerItems.length === 0) return;
     if (footerScrollState.current === "dragging") return;
     setAllFooterPositions(activeIndex, true);
-  }, [activeIndex, footerItems.length, setAllFooterPositions]);
+  }, [activeIndex, footerItems.length, setAllFooterPositions, showTopBar]);
 
   // Track the pager continuously while the finger is down AND through the
   // release deceleration ("settling"), so the footer slides in lockstep with the
@@ -226,7 +231,7 @@ export const PagerScreen = ({
     // A self-scrolling tab owns its ScrollView (so it can use stickyHeaderIndices
     // on its own direct children); render it as-is.
     tab.selfScrolling ? (
-      tab.render()
+      tab.render(scrollProps)
     ) : (
     <ScrollView
       showsVerticalScrollIndicator={false}
@@ -240,32 +245,30 @@ export const PagerScreen = ({
           paddingBottom: footerTabKeys.has(tab.key) ? 96 : 48,
         },
       ]}
-      scrollEventThrottle={onEndReached ? 16 : undefined}
-      onScroll={
-        onEndReached
-          ? (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-              const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-              const distanceToBottom =
-                contentSize.height - (contentOffset.y + layoutMeasurement.height);
-              const lastHeight = lastEndReachedHeight.current[tab.key] ?? -1;
-              if (distanceToBottom < NEAR_BOTTOM && contentSize.height > lastHeight) {
-                lastEndReachedHeight.current[tab.key] = contentSize.height;
-                onEndReached(tab.key);
-              }
-            }
-          : undefined
-      }
+      scrollEventThrottle={16}
+      onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
+        scrollProps.onScroll(e);
+        if (!onEndReached) return;
+        const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+        const distanceToBottom =
+          contentSize.height - (contentOffset.y + layoutMeasurement.height);
+        const lastHeight = lastEndReachedHeight.current[tab.key] ?? -1;
+        if (distanceToBottom < NEAR_BOTTOM && contentSize.height > lastHeight) {
+          lastEndReachedHeight.current[tab.key] = contentSize.height;
+          onEndReached(tab.key);
+        }
+      }}
     >
-      {tab.render()}
+      {tab.render(scrollProps)}
     </ScrollView>
     );
 
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: t.background }]} edges={["top"]}>
       <View style={styles.chrome}>
-        <View style={styles.topBarWrap}>
+        <Animated.View style={[styles.topBarWrap, topBarStyle]}>
           <TopBar photo={me?.photo ?? null} name={me?.name ?? null} />
-        </View>
+        </Animated.View>
         <TabBar
           segments={tabs}
           active={activeKey}

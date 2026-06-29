@@ -158,8 +158,12 @@ export default function AttendanceScreen() {
       label: "Members",
       // Owns its ScrollView so its search bar can be a sticky header.
       selfScrolling: true,
-      render: () => (
-        <MembersTab year={year} onEditMember={openEditMember} />
+      render: (scrollProps) => (
+        <MembersTab
+          year={year}
+          onEditMember={openEditMember}
+          scrollProps={scrollProps}
+        />
       ),
     },
     {
@@ -189,7 +193,7 @@ export default function AttendanceScreen() {
       label: "Audit",
       // Owns its ScrollView so its filter + search block can be a sticky header.
       selfScrolling: true,
-      render: () => <AuditTab />,
+      render: (scrollProps) => <AuditTab scrollProps={scrollProps} />,
     },
   ];
 

@@ -1,10 +1,11 @@
 import { useQuery } from "convex/react";
 import { ReactNode } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { Animated, ScrollView, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
 import { spacing, useAppTheme } from "@/theme";
 import { TopBar } from "@/components/ui";
+import { useTopBarCollapse } from "@/components/useTopBarCollapse";
 
 /**
  * Page shell for the main, non-tabbed screens (Org): the top chrome — the SOW
@@ -24,15 +25,17 @@ export const ChromeScreen = ({
 }) => {
   const t = useAppTheme();
   const me = useQuery(api.directory.me);
+  const { topBarStyle, scrollProps } = useTopBarCollapse();
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: t.background }]} edges={["top"]}>
-      <View style={styles.topBarWrap}>
+      <Animated.View style={[styles.topBarWrap, topBarStyle]}>
         <TopBar photo={me?.photo ?? null} name={me?.name ?? null} />
-      </View>
+      </Animated.View>
       <ScrollView
         showsVerticalScrollIndicator={false}
         style={{ backgroundColor: t.background }}
         contentContainerStyle={styles.scroll}
+        {...scrollProps}
       >
         {children}
       </ScrollView>

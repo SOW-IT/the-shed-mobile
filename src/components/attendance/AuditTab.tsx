@@ -8,6 +8,7 @@ import { Btn, EmptyState, LoadingState, Select } from "@/components/ui";
 import {
   PAGER_PAGE_BOTTOM_INSET,
   PAGER_PAGE_CONTENT,
+  TopBarScrollProps,
 } from "@/components/PagerScreen";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
@@ -63,7 +64,7 @@ type AuditRow = {
   detail: string | null;
 };
 
-export function AuditTab() {
+export function AuditTab({ scrollProps }: { scrollProps?: TopBarScrollProps }) {
   const t = useAppTheme();
 
   const [search, setSearch] = useState("");
@@ -153,16 +154,15 @@ export function AuditTab() {
         PAGER_PAGE_CONTENT,
         { paddingBottom: PAGER_PAGE_BOTTOM_INSET },
       ]}
+      {...scrollProps}
     >
       {/* Sticky: the filter controls and search bar pin to the top while the
           activity list scrolls under them. The opaque page-background wrapper
-          masks rows passing behind the rounded controls; paddingTop mirrors the
-          block's bottom spacing so the controls don't touch the top when pinned. */}
+          masks rows passing behind the rounded controls. */}
       <View
         style={{
           backgroundColor: t.background,
-          gap: spacing.md,
-          paddingTop: spacing.sm,
+          gap: spacing.sm,
         }}
       >
       <View style={styles.filterSummary}>
@@ -328,7 +328,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    marginBottom: spacing.sm,
   },
   filterButton: {
     flexDirection: "row",

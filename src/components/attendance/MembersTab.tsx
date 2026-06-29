@@ -17,6 +17,7 @@ import {
 import {
   PAGER_PAGE_BOTTOM_INSET_WITH_FOOTER,
   PAGER_PAGE_CONTENT,
+  TopBarScrollProps,
 } from "@/components/PagerScreen";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
@@ -25,9 +26,11 @@ const PAGE_SIZE = 30;
 export function MembersTab({
   year,
   onEditMember,
+  scrollProps,
 }: {
   year: number;
   onEditMember: (memberId: Id<"attendanceMembers">) => void;
+  scrollProps?: TopBarScrollProps;
 }) {
   const t = useAppTheme();
   const ensureDefaults = useMutation(api.attendanceMetadata.ensureDefaults);
@@ -117,11 +120,11 @@ export function MembersTab({
         PAGER_PAGE_CONTENT,
         { paddingBottom: PAGER_PAGE_BOTTOM_INSET_WITH_FOOTER },
       ]}
+      {...scrollProps}
     >
       {/* Sticky: the filter controls and search bar pin to the top while the
           member list scrolls under them. The opaque page-background wrapper
-          masks rows passing behind the rounded controls; paddingTop mirrors the
-          block's bottom spacing so the controls don't touch the top when pinned. */}
+          masks rows passing behind the rounded controls. */}
       <View style={[styles.stickyControls, { backgroundColor: t.background }]}>
       <View style={styles.filterSummary}>
         <Pressable
@@ -342,14 +345,12 @@ export function MembersTab({
 }
 
 const styles = StyleSheet.create({
-  // Holds the (sticky) filter controls + search bar. paddingTop mirrors the
-  // search bar's marginBottom so it has matching space when pinned to the top.
-  stickyControls: { gap: spacing.md, paddingTop: spacing.sm },
+  // Holds the (sticky) filter controls + search bar with compact internal gaps.
+  stickyControls: { gap: spacing.sm },
   filterSummary: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    marginBottom: spacing.sm,
   },
   filterButton: {
     flexDirection: "row",
