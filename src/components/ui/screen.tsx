@@ -152,7 +152,7 @@ export const TopBar = ({
       <View style={styles.topBarRight}>
         <Animated.View style={{ transform: [{ scale: bell.scale }] }}>
           <Pressable
-            onPress={() => router.push("/notifications" as never)}
+            onPress={() => router.push("/notifications")}
             onPressIn={bell.onPressIn}
             onPressOut={bell.onPressOut}
             hitSlop={8}

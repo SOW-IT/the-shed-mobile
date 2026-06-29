@@ -19,7 +19,15 @@ const ALLOWED_DEEP_LINK_PREFIXES = [
 ] as const;
 
 const isAllowedDeepLink = (url: string): boolean =>
-  ALLOWED_DEEP_LINK_PREFIXES.some((prefix) => url.startsWith(prefix));
+  ALLOWED_DEEP_LINK_PREFIXES.some((prefix) => {
+    if (!url.startsWith(prefix)) return false;
+    // A prefix that already ends in "/" enforces its own boundary. For bare
+    // prefixes like "/review", require the match to end at a real path/query
+    // boundary so a payload such as "/reviewevil" can't slip through.
+    if (prefix.endsWith("/")) return true;
+    const next = url[prefix.length];
+    return next === undefined || next === "/" || next === "?" || next === "#";
+  });
 
 // Show flow notifications even while the app is open.
 Notifications.setNotificationHandler({
