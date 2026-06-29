@@ -118,6 +118,7 @@ export function MembersTab({
       style={{ backgroundColor: t.background }}
       contentContainerStyle={[
         PAGER_PAGE_CONTENT,
+        styles.selfScrollingPage,
         { paddingBottom: PAGER_PAGE_BOTTOM_INSET_WITH_FOOTER },
       ]}
       {...scrollProps}
@@ -345,8 +346,9 @@ export function MembersTab({
 }
 
 const styles = StyleSheet.create({
+  selfScrollingPage: { paddingTop: 0 },
   // Holds the (sticky) filter controls + search bar with compact internal gaps.
-  stickyControls: { gap: spacing.sm },
+  stickyControls: { gap: spacing.sm, paddingTop: spacing.sm },
   filterSummary: {
     flexDirection: "row",
     alignItems: "center",

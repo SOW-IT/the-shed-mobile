@@ -7,10 +7,7 @@ import {
 } from "react-native";
 
 const TOP_BAR_HEIGHT = 56;
-const HIDE_DELTA = 10;
-const SHOW_DELTA = 6;
 const SHOW_AT_TOP_OFFSET = 16;
-const ANIMATION_MS = 160;
 
 export type TopBarScrollProps = {
   onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
@@ -19,18 +16,15 @@ export type TopBarScrollProps = {
 
 export const useTopBarCollapse = () => {
   const [progress] = useState(() => new Animated.Value(1));
-  const visible = useRef(true);
+  const collapsedY = useRef(0);
   const lastY = useRef(0);
 
-  const setVisible = useCallback(
-    (next: boolean) => {
-      if (visible.current === next) return;
-      visible.current = next;
-      Animated.timing(progress, {
-        toValue: next ? 1 : 0,
-        duration: ANIMATION_MS,
-        useNativeDriver: false,
-      }).start();
+  const setCollapsedY = useCallback(
+    (next: number) => {
+      const clamped = Math.max(0, Math.min(TOP_BAR_HEIGHT, next));
+      if (clamped === collapsedY.current) return;
+      collapsedY.current = clamped;
+      progress.setValue(1 - clamped / TOP_BAR_HEIGHT);
     },
     [progress]
   );
@@ -40,35 +34,33 @@ export const useTopBarCollapse = () => {
       const y = Math.max(0, event.nativeEvent.contentOffset.y);
       const delta = y - lastY.current;
       if (y <= SHOW_AT_TOP_OFFSET) {
-        setVisible(true);
-      } else if (delta > HIDE_DELTA) {
-        setVisible(false);
-      } else if (delta < -SHOW_DELTA) {
-        setVisible(true);
+        setCollapsedY(0);
+      } else if (delta !== 0) {
+        setCollapsedY(collapsedY.current + delta);
       }
       lastY.current = y;
     },
-    [setVisible]
+    [setCollapsedY]
   );
 
   const topBarStyle: Animated.WithAnimatedObject<ViewStyle> = {
-    height: progress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, TOP_BAR_HEIGHT],
-    }),
+    height: TOP_BAR_HEIGHT,
     opacity: progress,
     overflow: "hidden",
     transform: [
       {
         translateY: progress.interpolate({
           inputRange: [0, 1],
-          outputRange: [-12, 0],
+          outputRange: [-TOP_BAR_HEIGHT, 0],
         }),
       },
     ],
   };
 
-  const showTopBar = useCallback(() => setVisible(true), [setVisible]);
+  const showTopBar = useCallback(() => {
+    lastY.current = 0;
+    setCollapsedY(0);
+  }, [setCollapsedY]);
 
   return {
     topBarStyle,

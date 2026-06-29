@@ -152,6 +152,7 @@ export function AuditTab({ scrollProps }: { scrollProps?: TopBarScrollProps }) {
       style={{ backgroundColor: t.background }}
       contentContainerStyle={[
         PAGER_PAGE_CONTENT,
+        styles.selfScrollingPage,
         { paddingBottom: PAGER_PAGE_BOTTOM_INSET },
       ]}
       {...scrollProps}
@@ -160,10 +161,7 @@ export function AuditTab({ scrollProps }: { scrollProps?: TopBarScrollProps }) {
           activity list scrolls under them. The opaque page-background wrapper
           masks rows passing behind the rounded controls. */}
       <View
-        style={{
-          backgroundColor: t.background,
-          gap: spacing.sm,
-        }}
+        style={[styles.stickyControls, { backgroundColor: t.background }]}
       >
       <View style={styles.filterSummary}>
         <Pressable
@@ -324,6 +322,8 @@ export function AuditTab({ scrollProps }: { scrollProps?: TopBarScrollProps }) {
 }
 
 const styles = StyleSheet.create({
+  selfScrollingPage: { paddingTop: 0 },
+  stickyControls: { gap: spacing.sm, paddingTop: spacing.sm },
   filterSummary: {
     flexDirection: "row",
     alignItems: "center",
