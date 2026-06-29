@@ -227,41 +227,53 @@ export const PagerScreen = ({
   // page has grown (i.e. more content actually loaded).
   const lastEndReachedHeight = useRef<Record<string, number>>({});
 
-  const renderPage = (tab: PagerTab) =>
-    // A self-scrolling tab owns its ScrollView (so it can use stickyHeaderIndices
-    // on its own direct children); render it as-is.
-    tab.selfScrolling ? (
-      tab.render(scrollProps)
-    ) : (
-    <ScrollView
-      showsVerticalScrollIndicator={false}
-      style={{ backgroundColor: t.background }}
-      contentContainerStyle={[
-        styles.page,
-        // Only the footer's own tab needs the taller bottom inset; the others
-        // (where the footer is slid away) keep the slimmer one. A footer with no
-        // footerTabKey is pinned on every tab, so all pages get the inset.
-        {
-          paddingBottom: footerTabKeys.has(tab.key) ? 96 : 48,
-        },
-      ]}
-      scrollEventThrottle={16}
-      onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
+  const scrollPropsForTab = useCallback(
+    (tabKey: string): TopBarScrollProps => ({
+      scrollEventThrottle: scrollProps.scrollEventThrottle,
+      onScroll: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
         scrollProps.onScroll(e);
         if (!onEndReached) return;
         const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
         const distanceToBottom =
           contentSize.height - (contentOffset.y + layoutMeasurement.height);
-        const lastHeight = lastEndReachedHeight.current[tab.key] ?? -1;
+        const lastHeight = lastEndReachedHeight.current[tabKey] ?? -1;
         if (distanceToBottom < NEAR_BOTTOM && contentSize.height > lastHeight) {
-          lastEndReachedHeight.current[tab.key] = contentSize.height;
-          onEndReached(tab.key);
+          lastEndReachedHeight.current[tabKey] = contentSize.height;
+          onEndReached(tabKey);
         }
-      }}
-    >
-      {tab.render(scrollProps)}
-    </ScrollView>
+      },
+    }),
+    [onEndReached, scrollProps]
+  );
+
+  const renderPage = (tab: PagerTab) => {
+    const tabScrollProps = scrollPropsForTab(tab.key);
+    return (
+      // A self-scrolling tab owns its ScrollView (so it can use stickyHeaderIndices
+      // on its own direct children); pass it the same scroll behavior as the
+      // shared wrapper, including topbar collapse and near-bottom pagination.
+      tab.selfScrolling ? (
+        tab.render(tabScrollProps)
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          style={{ backgroundColor: t.background }}
+          contentContainerStyle={[
+            styles.page,
+            // Only the footer's own tab needs the taller bottom inset; the others
+            // (where the footer is slid away) keep the slimmer one. A footer with no
+            // footerTabKey is pinned on every tab, so all pages get the inset.
+            {
+              paddingBottom: footerTabKeys.has(tab.key) ? 96 : 48,
+            },
+          ]}
+          {...tabScrollProps}
+        >
+          {tab.render(tabScrollProps)}
+        </ScrollView>
+      )
     );
+  };
 
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: t.background }]} edges={["top"]}>
