@@ -4,19 +4,20 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { api } from "../../../../convex/_generated/api";
-import { Id } from "../../../../convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
+import { Id } from "@convex/_generated/dataModel";
 import {
   canReverseSignIn,
   contrastingText,
   eventHasEnded,
   formatEventRange,
   formatSignInTime,
+  personKey,
   SOW_SUBGROUP,
   subgroupColour,
   subgroupLabel,
-} from "../../../../shared/rollcall";
-import { eventStaffYear, sydneyCalendarYear } from "../../../../shared/flow";
+} from "@shared/rollcall";
+import { eventStaffYear, sydneyCalendarYear } from "@shared/flow";
 import { AttendanceRow, ATTENDANCE_ROW_ENTER_MS } from "@/components/AttendanceRow";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
@@ -26,12 +27,14 @@ import {
   Btn,
   ConfirmDialog,
   EmptyState,
+  errorMessage,
   FadeInView,
   FooterAction,
   hapticSelect,
   LoadingState,
   Muted,
   Screen,
+  type ToastState,
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
@@ -64,16 +67,6 @@ const memberSubtitle = (member: {
     return member.campuses.map(subgroupLabel).join(" · ");
   return undefined;
 };
-
-const personKey = (row: {
-  email?: string | null;
-  memberId?: string | null;
-}): string =>
-  row.email
-    ? `staff:${row.email.toLowerCase()}`
-    : row.memberId
-      ? `member:${row.memberId}`
-      : "";
 
 const signedInSubtitle = (signInTime: number, notes?: string): string => {
   const base = formatSignInTime(signInTime);
@@ -182,6 +175,7 @@ export default function EventAttendanceScreen() {
   );
 
   const [search, setSearch] = useState("");
+  const [toast, setToast] = useState<ToastState>(null);
   const [eventEditOpen, setEventEditOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -592,8 +586,11 @@ export default function EventAttendanceScreen() {
         });
       }
       if (id) openMemberEdit(id);
-    } catch {
-      // ensureForStaff surfaces Convex errors via toast elsewhere if needed
+    } catch (e) {
+      // ensureForStaff failed (network, auth expiry, validation) — the edit
+      // sheet never opens, so tell the user instead of failing silently.
+      console.error("ensureForStaff failed", e);
+      setToast({ text: errorMessage(e) });
     }
   };
 
@@ -616,6 +613,7 @@ export default function EventAttendanceScreen() {
       title={event.name}
       subtitle="Attendance"
       onBack={() => router.back()}
+      toast={toast}
       // Index 1 is the member search box (index 0 is the grouped badges/notice
       // block) — pin it so it stays reachable while the roster scrolls.
       stickyHeaderIndices={[1]}

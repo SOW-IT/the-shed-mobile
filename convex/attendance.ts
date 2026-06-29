@@ -10,7 +10,7 @@ import {
   CAMPUS_FIELD_KEY,
   formatMetadataFieldValue,
 } from "../shared/attendanceMemberMeta";
-import { canReverseSignIn, compareAttendanceFrequency, memberMatchesEventCampus, normalizeSubgroups, personDisplayName, subgroupMatches } from "../shared/rollcall";
+import { canReverseSignIn, compareAttendanceFrequency, memberMatchesEventCampus, normalizeSubgroups, personDisplayName, personKey, subgroupMatches } from "../shared/rollcall";
 import { staffEmailCandidates } from "../shared/rollcallImport";
 import { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
@@ -53,12 +53,6 @@ const resolveUniversity = (
   }
   return orgCampuses[0];
 };
-
-const personKey = (row: {
-  email?: string | null;
-  memberId?: string | null;
-}): string =>
-  row.email ? `staff:${row.email}` : row.memberId ? `member:${row.memberId}` : "";
 
 /**
  * The shared member pool for a year: every `staffProfile` plus attendance-only
@@ -165,7 +159,7 @@ export const roster = query({
       const subtitle = [orgSubtitle, metaSubtitle].filter(Boolean).join(" · ");
       const user = p.userId ? await ctx.db.get(p.userId) : null;
       return {
-        key: `staff:${p.email}`,
+        key: personKey({ email: p.email }),
         kind: "staff" as const,
         email: p.email,
         memberId: shadow?._id,
@@ -180,7 +174,7 @@ export const roster = query({
     }));
 
     const extraRows: RosterEntry[] = pureExtras.map((m) => ({
-      key: `member:${m._id}`,
+      key: personKey({ memberId: m._id }),
       kind: "member" as const,
       memberId: m._id,
       name: m.name,
@@ -217,13 +211,21 @@ export const roster = query({
       string,
       { tagMatches: number; subgroupMatches: number; total: number; latest: number }
     >();
-    for (const historyEvent of historyEvents) {
-      if (historyEvent._id === event._id) continue;
-      const historyAttendance = await ctx.db
-        .query("attendance")
-        .withIndex("by_event", (q) => q.eq("eventId", historyEvent._id))
-        .collect();
-      for (const row of historyAttendance) {
+    // Fetch every history event's attendance in parallel rather than awaiting
+    // each in turn — Convex pipelines the reads, so the bounded fan-out (≤
+    // ROSTER_HISTORY_EVENT_LIMIT) costs one round-trip instead of N sequential
+    // ones. Scoring then runs synchronously over the resolved lists.
+    const otherHistory = historyEvents.filter((h) => h._id !== event._id);
+    const historyAttendances = await Promise.all(
+      otherHistory.map((h) =>
+        ctx.db
+          .query("attendance")
+          .withIndex("by_event", (q) => q.eq("eventId", h._id))
+          .collect()
+      )
+    );
+    otherHistory.forEach((historyEvent, i) => {
+      for (const row of historyAttendances[i]) {
         const key = personKey(row);
         if (!key) continue;
         const score = scores.get(key) ?? {
@@ -246,7 +248,7 @@ export const roster = query({
         score.latest = Math.max(score.latest, historyEvent.dateStart);
         scores.set(key, score);
       }
-    }
+    });
 
     return rows.sort((a, b) =>
       compareAttendanceFrequency(

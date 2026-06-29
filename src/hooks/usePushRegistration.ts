@@ -2,10 +2,24 @@ import { useMutation } from "convex/react";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
-import { useRouter } from "expo-router";
+import { type Href, useRouter } from "expo-router";
 import { useEffect } from "react";
 import { Platform } from "react-native";
 import { api } from "../../convex/_generated/api";
+
+// Notification payloads are server-controlled, so only follow a deep link whose
+// path starts with a route family we actually send (see the `url:` fields in
+// convex/requests.ts, comments.ts, events.ts). This keeps a malformed or
+// renamed payload from being pushed blindly into the navigator.
+const ALLOWED_DEEP_LINK_PREFIXES = [
+  "/request/",
+  "/review",
+  "/notifications",
+  "/attendance/",
+] as const;
+
+const isAllowedDeepLink = (url: string): boolean =>
+  ALLOWED_DEEP_LINK_PREFIXES.some((prefix) => url.startsWith(prefix));
 
 // Show flow notifications even while the app is open.
 Notifications.setNotificationHandler({
@@ -32,8 +46,10 @@ export const usePushRegistration = () => {
     if (Platform.OS === "web") return;
     const openFrom = (response: Notifications.NotificationResponse | null) => {
       const url = response?.notification.request.content.data?.url;
-      if (typeof url === "string" && url.startsWith("/")) {
-        router.push(url as never);
+      if (typeof url === "string" && isAllowedDeepLink(url)) {
+        // The path is validated above but still a runtime string, so it can't be
+        // a statically-typed route literal — cast to Href, not never.
+        router.push(url as Href);
       }
     };
     const subscription =

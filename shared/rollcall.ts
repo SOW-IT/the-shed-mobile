@@ -181,6 +181,25 @@ export const personDisplayName = (
   return trimmed ?? "";
 };
 
+/**
+ * Stable identity key for a roster/attendance row, joining the backend roster
+ * against the signed-in set on the screen. A staff person keys on their email,
+ * an attendance-only member on their member id; empty string when neither is
+ * set. The email is lowercased defensively so a single non-canonical address
+ * anywhere in the pipeline can't split one person into two keys (a row that
+ * shows as both signed-in and not). Use this everywhere a key is built — never
+ * re-derive `staff:${email}` inline — so the join stays enforced, not assumed.
+ */
+export const personKey = (row: {
+  email?: string | null;
+  memberId?: string | null;
+}): string =>
+  row.email
+    ? `staff:${row.email.toLowerCase()}`
+    : row.memberId
+      ? `member:${row.memberId}`
+      : "";
+
 /** True once the scheduled event window has closed — roll-call edits need an explicit unlock. */
 export const eventHasEnded = (dateEnd: number, now = Date.now()): boolean => now > dateEnd;
 
