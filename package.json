@@ -3,7 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.2.0",
   "dependencies": {
-    "@auth/core": "^0.41.1",
+    "@auth/core": "^0.41.2",
     "@convex-dev/auth": "^0.0.94",
     "@expo/ui": "~56.0.18",
     "@expo/vector-icons": "^15.0.2",
@@ -34,7 +34,7 @@
     "react-native-gesture-handler": "~2.31.1",
     "react-native-pager-view": "8.0.1",
     "react-native-reanimated": "4.3.1",
-    "react-native-safe-area-context": "~5.7.0",
+    "react-native-safe-area-context": "~5.8.0",
     "react-native-screens": "4.25.2",
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.8.3"
