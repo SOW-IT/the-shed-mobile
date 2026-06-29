@@ -6,6 +6,28 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.2.2] — 2026-06-29
+
+### Fixed
+
+- **You now get told when a member's details can't be opened.** On an event's
+  roll-call, if opening someone's edit sheet failed (e.g. a dropped connection),
+  nothing happened and no message appeared. It now shows an error toast instead
+  of silently doing nothing.
+- **Notification links only go to real screens.** Tapping a push notification
+  now follows its link only when it points to a known in-app screen, ignoring
+  anything unexpected or malformed.
+
+### Changed
+
+- **Roll-call rosters open a little faster.** An event's roster now loads its
+  attendance history in parallel rather than one past event at a time, so the
+  list appears sooner on events with a long history.
+- **Internal maintainability cleanup.** Split the large shared UI component file
+  into a `components/ui/` directory, extracted admin-screen hooks, unified the
+  roll-call identity key into one shared case-insensitive helper, and added
+  `@convex`/`@shared` import aliases. No change to behaviour.
+
 ## [1.2.1] — 2026-06-29
 
 ### Fixed

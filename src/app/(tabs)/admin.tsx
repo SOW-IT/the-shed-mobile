@@ -4,10 +4,8 @@ import { useState } from "react";
 import { Text, View } from "react-native";
 import {
   type Assignment,
-  departmentsOf,
   DIRECTOR,
   DIRECTOR_APPROVAL_THRESHOLD,
-  divisionsOf,
   formatAssignment,
   HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
@@ -17,8 +15,8 @@ import {
   roleNeedsDepartment,
   roleNeedsUniversity,
   scopeKindFor,
-} from "../../../shared/flow";
-import { api } from "../../../convex/_generated/api";
+} from "@shared/flow";
+import { api } from "@convex/_generated/api";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import {
   Btn,
@@ -42,6 +40,8 @@ import {
   Txt,
 } from "@/components/ui";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
+import { useAdminMutations } from "@/hooks/useAdminMutations";
+import { useGroupedProfiles } from "@/hooks/useGroupedProfiles";
 
 /**
  * Admin console: per-year staff roles/departments (including people who
@@ -332,30 +332,38 @@ export default function AdminScreen() {
   const nameByEmail = new Map((people ?? []).map((p) => [p.email, p.name]));
   const unassignedEmails = new Set((unassigned ?? []).map((u) => u.email));
 
-  const setStaffProfile = useMutation(api.admin.setStaffProfile);
-  const removeStaffProfile = useMutation(api.admin.removeStaffProfile);
-  const markLeaving = useMutation(api.admin.markLeaving);
-  const unmarkLeaving = useMutation(api.admin.unmarkLeaving);
-  const upsertDivision = useMutation(api.admin.upsertDivision);
-  const updateDivision = useMutation(api.admin.updateDivision);
-  const removeDivision = useMutation(api.admin.removeDivision);
-  const upsertDepartment = useMutation(api.admin.upsertDepartment);
-  const updateDepartment = useMutation(api.admin.updateDepartment);
-  const removeDepartment = useMutation(api.admin.removeDepartment);
-  const upsertUniversity = useMutation(api.admin.upsertUniversity);
-  const updateUniversity = useMutation(api.admin.updateUniversity);
-  const removeUniversity = useMutation(api.admin.removeUniversity);
-  const upsertRole = useMutation(api.admin.upsertRole);
-  const updateRole = useMutation(api.admin.updateRole);
-  const removeRole = useMutation(api.admin.removeRole);
-  const setBudgetManager = useMutation(api.admin.setBudgetManager);
-  const setDirectorThreshold = useMutation(api.admin.setDirectorThreshold);
+  // Bucket the year's profiles by division → department, then campus and other
+  // (see useGroupedProfiles). Kept above the loading/access early-returns below
+  // so the hook runs on every render, per the rules of hooks.
+  const { groupedProfiles, campusByUniversity, nonCampusOtherProfiles } =
+    useGroupedProfiles(structure, profiles);
+
+  const {
+    setStaffProfile,
+    removeStaffProfile,
+    markLeaving,
+    unmarkLeaving,
+    upsertDivision,
+    updateDivision,
+    removeDivision,
+    upsertDepartment,
+    updateDepartment,
+    removeDepartment,
+    upsertUniversity,
+    updateUniversity,
+    removeUniversity,
+    upsertRole,
+    updateRole,
+    removeRole,
+    setBudgetManager,
+    setDirectorThreshold,
+    addDelegation,
+    removeDelegation,
+  } = useAdminMutations();
   const delegations = useQuery(
     api.admin.listDelegations,
     me?.isAdmin ? { year: selectedYear } : "skip"
   );
-  const addDelegation = useMutation(api.admin.addDelegation);
-  const removeDelegation = useMutation(api.admin.removeDelegation);
   const requestSync = useMutation(api.directorySync.requestSync);
   const syncState = useQuery(
     api.directorySync.list,
@@ -508,66 +516,6 @@ export default function AdminScreen() {
   const directoryOnlyUnassigned = (syncState?.users ?? []).filter(
     (u) => !u.hasProfile && !unassignedEmails.has(u.email) && !leaverEmails.has(u.email)
   );
-  const groupedProfiles = (structure?.divisions ?? []).map((div) => {
-    const seenInDepartments = new Set<string>();
-    const divDepts = (structure?.departments ?? []).filter((d) => d.division === div.name);
-    const divDeptNames = new Set(divDepts.map((d) => d.name));
-    return {
-      division: div.name,
-      departments: divDepts
-        .map((dept) => ({
-          name: dept.name,
-          profiles: (profiles ?? []).filter((p) => {
-            if (seenInDepartments.has(p.email)) return false;
-            const inDept = (p.assignments ?? []).some((a) => a.department === dept.name);
-            if (inDept) seenInDepartments.add(p.email);
-            return inDept;
-          }),
-        }))
-        .filter((d) => d.profiles.length > 0),
-      divisionOnlyProfiles: (profiles ?? []).filter((p) => {
-        if (!divisionsOf(p).includes(div.name)) return false;
-        return !departmentsOf(p).some((dept) => divDeptNames.has(dept));
-      }),
-    };
-  });
-  const groupedEmails = new Set(
-    groupedProfiles.flatMap((g) => [
-      ...g.departments.flatMap((d) => d.profiles.map((p) => p.email)),
-      ...g.divisionOnlyProfiles.map((p) => p.email),
-    ])
-  );
-  const otherProfiles = (profiles ?? []).filter((p) => !groupedEmails.has(p.email));
-
-  // Within otherProfiles, group campus roles (SL / Exec / VP / President) by university.
-  const campusProfiles = otherProfiles.filter((p) =>
-    (p.assignments ?? []).some((a) => a.university)
-  );
-  const nonCampusOtherProfiles = otherProfiles.filter((p) =>
-    !(p.assignments ?? []).some((a) => a.university)
-  );
-  // Derive university order from structure list, then append any extras found on profiles.
-  const structureUnis = structure?.universities ?? [];
-  const extraUnis = [
-    ...new Set(
-      campusProfiles.flatMap((p) =>
-        (p.assignments ?? []).flatMap((a) => (a.university ? [a.university] : []))
-      )
-    ),
-  ].filter((u) => !structureUnis.includes(u));
-  const campusUniversities = [...structureUnis, ...extraUnis];
-  const seenInCampus = new Set<string>();
-  const campusByUniversity = campusUniversities
-    .map((uni) => ({
-      university: uni,
-      profiles: campusProfiles.filter((p) => {
-        if (seenInCampus.has(p.email)) return false;
-        const match = (p.assignments ?? []).some((a) => a.university === uni);
-        if (match) seenInCampus.add(p.email);
-        return match;
-      }),
-    }))
-    .filter((g) => g.profiles.length > 0);
 
   // Shared save handler for inline-assign cards (used for both unassigned sections).
   const saveAssign = (email: string) => {

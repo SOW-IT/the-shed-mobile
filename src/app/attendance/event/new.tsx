@@ -2,8 +2,8 @@ import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { Text } from "react-native";
-import { api } from "../../../../convex/_generated/api";
-import { defaultEventWindow, subgroupLabel } from "../../../../shared/rollcall";
+import { api } from "@convex/_generated/api";
+import { defaultEventWindow, subgroupLabel } from "@shared/rollcall";
 import {
   Btn,
   Chip,
