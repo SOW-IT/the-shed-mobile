@@ -144,10 +144,181 @@ describe("directorySync.run", () => {
     );
     expect(state?.detail).toBe("synced 2 people");
   });
+
+  test("caches a staff member's thumbnail and skips the re-fetch when unchanged", async () => {
+    const t = convexTest(schema, modules);
+    configureServiceAccount(await generatePrivateKeyPem());
+    // alice is on the org chart (has a staffProfile) so her photo is cached;
+    // bob is not, so his photo is never fetched even though he has an etag.
+    await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", { email: "alice@sow.org.au", year: YEAR })
+    );
+
+    const directoryPage = {
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          users: [
+            { primaryEmail: "alice@sow.org.au", name: { fullName: "Alice" }, thumbnailPhotoEtag: "etag1" },
+            { primaryEmail: "bob@sow.org.au", thumbnailPhotoEtag: "etagB" },
+          ],
+        }),
+    };
+
+    const firstFetch = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ access_token: "tok" }) })
+      .mockResolvedValueOnce(directoryPage)
+      .mockResolvedValueOnce({
+        ok: true,
+        // "aGk*" is Google's web-safe encoding of "hi" (the `=` padding shows
+        // up as `*`); the decoder must translate it back rather than choke.
+        json: () => Promise.resolve({ photoData: "aGk*", mimeType: "image/png" }),
+      });
+    vi.stubGlobal("fetch", firstFetch);
+    await t.action(internal.directorySync.run, {});
+
+    // token + directory page + ONE photo fetch (alice only, not bob).
+    expect(firstFetch).toHaveBeenCalledTimes(3);
+    expect(String(firstFetch.mock.calls[2][0])).toContain(
+      "/users/alice%40sow.org.au/photos/thumbnail"
+    );
+
+    const alice = await t.run((ctx) =>
+      ctx.db
+        .query("directoryUsers")
+        .withIndex("by_email", (q) => q.eq("email", "alice@sow.org.au"))
+        .unique()
+    );
+    expect(alice?.photoId).toBeDefined();
+    expect(alice?.photoEtag).toBe("etag1");
+    // The web-safe payload decoded correctly to the original bytes.
+    const photoText = await t.run(async (ctx) => {
+      const blob = await ctx.storage.get(alice!.photoId!);
+      return blob ? await blob.text() : null;
+    });
+    expect(photoText).toBe("hi");
+    const bob = await t.run((ctx) =>
+      ctx.db
+        .query("directoryUsers")
+        .withIndex("by_email", (q) => q.eq("email", "bob@sow.org.au"))
+        .unique()
+    );
+    expect(bob?.photoId).toBeUndefined();
+
+    // A second sync with the same etag reuses the cached photo: no photo fetch.
+    const secondFetch = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ access_token: "tok" }) })
+      .mockResolvedValueOnce(directoryPage);
+    vi.stubGlobal("fetch", secondFetch);
+    await t.action(internal.directorySync.run, {});
+
+    expect(secondFetch).toHaveBeenCalledTimes(2); // token + page, no thumbnail
+    const aliceAgain = await t.run((ctx) =>
+      ctx.db
+        .query("directoryUsers")
+        .withIndex("by_email", (q) => q.eq("email", "alice@sow.org.au"))
+        .unique()
+    );
+    expect(aliceAgain?.photoId).toBe(alice?.photoId); // same stored file
+  });
+
+  test("a 404 from the photo endpoint just means no thumbnail (sync still succeeds)", async () => {
+    const t = convexTest(schema, modules);
+    configureServiceAccount(await generatePrivateKeyPem());
+    await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", { email: "alice@sow.org.au", year: YEAR })
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ access_token: "tok" }) })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              users: [{ primaryEmail: "alice@sow.org.au", thumbnailPhotoEtag: "etag1" }],
+            }),
+        })
+        .mockResolvedValueOnce({ ok: false, status: 404, text: () => Promise.resolve("not found") })
+    );
+    await t.action(internal.directorySync.run, {});
+
+    const state = await t.run((ctx) =>
+      ctx.db.query("syncState").withIndex("by_key", (q) => q.eq("key", "directory")).unique()
+    );
+    expect(state?.detail).toBe("synced 1 people");
+    const alice = await t.run((ctx) =>
+      ctx.db
+        .query("directoryUsers")
+        .withIndex("by_email", (q) => q.eq("email", "alice@sow.org.au"))
+        .unique()
+    );
+    expect(alice?.photoId).toBeUndefined();
+  });
+
+  test("a non-404 photo error fails the sync and deletes already-uploaded thumbnails", async () => {
+    const t = convexTest(schema, modules);
+    configureServiceAccount(await generatePrivateKeyPem());
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    for (const email of ["alice@sow.org.au", "carol@sow.org.au"]) {
+      await t.run((ctx) => ctx.db.insert("staffProfiles", { email, year: YEAR }));
+    }
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ access_token: "tok" }) })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              users: [
+                { primaryEmail: "alice@sow.org.au", thumbnailPhotoEtag: "etagA" },
+                { primaryEmail: "carol@sow.org.au", thumbnailPhotoEtag: "etagC" },
+              ],
+            }),
+        })
+        // alice's photo uploads, then carol's 403 throws.
+        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ photoData: "aGk*" }) })
+        .mockResolvedValueOnce({ ok: false, status: 403, text: () => Promise.resolve("forbidden") })
+    );
+    await t.action(internal.directorySync.run, {});
+
+    const state = await t.run((ctx) =>
+      ctx.db.query("syncState").withIndex("by_key", (q) => q.eq("key", "directory")).unique()
+    );
+    expect(state?.detail).toMatch(/Directory photo API error.*403/);
+    // alice's thumbnail, uploaded before carol failed, was cleaned up — no leak.
+    const blobs = await t.run((ctx) => ctx.db.system.query("_storage").collect());
+    expect(blobs).toHaveLength(0);
+  });
+});
+
+describe("directorySync.store photo cleanup", () => {
+  test("deletes replaced and removed thumbnails from storage", async () => {
+    const t = convexTest(schema, modules);
+    const [blob1, blob2] = await t.run(async (ctx) => [
+      await ctx.storage.store(new Blob(["one"], { type: "image/png" })),
+      await ctx.storage.store(new Blob(["two"], { type: "image/png" })),
+    ]);
+    // alice has a cached thumbnail (blob1).
+    await t.mutation(internal.directorySync.store, {
+      users: [{ email: "alice@sow.org.au", photoId: blob1 }],
+    });
+    // alice drops out of the directory (her blob1 is deleted) and blob2 is
+    // passed as a replaced/stale thumbnail to clean up.
+    await t.mutation(internal.directorySync.store, { users: [], stalePhotoIds: [blob2] });
+
+    expect(await t.run((ctx) => ctx.storage.getUrl(blob1))).toBeNull();
+    expect(await t.run((ctx) => ctx.storage.getUrl(blob2))).toBeNull();
+  });
 });
 
 describe("directorySync.requestSync", () => {
-  test("admins can kick off a sync (schedules the daily run)", async () => {
+  test("admins can kick off a sync (schedules the weekly run)", async () => {
     const t = convexTest(schema, modules);
     await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
     // requireAdmin passes for the seeded Data and IT admin; the run action it

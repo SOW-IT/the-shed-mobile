@@ -1328,7 +1328,8 @@ export default function AdminScreen() {
               <Card>
                 <Muted>
                   Syncs all active Google Workspace users on sow.org.au into the
-                  people picker. Runs automatically every day.
+                  people picker, and caches staff profile photos for the org
+                  chart. Runs automatically once a week.
                 </Muted>
                 {syncState?.syncedAt ? (
                   <Muted>
@@ -1569,7 +1570,7 @@ export default function AdminScreen() {
       <ConfirmDialog
         visible={syncConfirm}
         title="Sync directory now?"
-        message="Pulls all active Google Workspace users on sow.org.au into the people picker. This also runs automatically every day."
+        message="Pulls all active Google Workspace users on sow.org.au into the people picker, and caches staff profile photos. This also runs automatically once a week."
         destructive={false}
         confirmLabel="Sync"
         onConfirm={() => {

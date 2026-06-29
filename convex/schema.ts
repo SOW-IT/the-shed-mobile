@@ -108,10 +108,17 @@ export default defineSchema({
     .index("by_token", ["token"]),
 
   // Google Workspace directory members, replaced on each sync. Lets admins
-  // assign people from a picker instead of typing emails.
+  // assign people from a picker instead of typing emails. For staff who appear
+  // on the org chart we also cache their Google profile thumbnail so faces show
+  // up before they ever sign in (see directorySync.run).
   directoryUsers: defineTable({
     email: v.string(), // lowercase primary email
     name: v.optional(v.string()),
+    // Cached Google Workspace thumbnail, stored in Convex `_storage`. Only kept
+    // for people with a staffProfile (org chart / profile pages); `photoEtag`
+    // is Google's thumbnailPhotoEtag, used to skip re-fetching unchanged photos.
+    photoId: v.optional(v.id("_storage")),
+    photoEtag: v.optional(v.string()),
   }).index("by_email", ["email"]),
 
   // Singleton-ish sync bookkeeping (key: "directory").

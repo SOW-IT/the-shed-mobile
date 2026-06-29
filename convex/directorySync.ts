@@ -1,8 +1,10 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
+import { Id } from "./_generated/dataModel";
 import {
   internalAction,
   internalMutation,
+  internalQuery,
   mutation,
   MutationCtx,
   query,
@@ -22,6 +24,23 @@ import { getProfile, optionalEmail, requireAdmin } from "./model";
 const SCOPE = "https://www.googleapis.com/auth/admin.directory.user.readonly";
 const DIRECTORY_LIMIT = 10000;
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
+
+/**
+ * Decodes the Directory API's web-safe photo data to bytes. Google's variant
+ * maps `+`→`-`, `/`→`_` and the `=` padding to `*` (and sometimes `.`), so we
+ * translate those back, strip the padding, then re-pad by length before atob.
+ */
+const base64urlToBytes = (data: string): Uint8Array => {
+  const normalised = data
+    .replace(/-/g, "+")
+    .replace(/_/g, "/")
+    .replace(/[*.=]/g, "");
+  const padded = normalised + "=".repeat((4 - (normalised.length % 4)) % 4);
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+};
 
 const base64url = (bytes: Uint8Array): string => {
   let binary = "";
@@ -92,12 +111,54 @@ async function getAccessToken(): Promise<string> {
   return access_token;
 }
 
-/** Fetches every (non-suspended) Workspace user and stores the list. */
+/** Fetches a user's Google thumbnail and stores it, returning the storage id. */
+async function fetchPhoto(
+  ctx: { storage: { store: (blob: Blob) => Promise<Id<"_storage">> } },
+  token: string,
+  email: string
+): Promise<Id<"_storage"> | null> {
+  const response = await fetch(
+    `https://admin.googleapis.com/admin/directory/v1/users/${encodeURIComponent(
+      email
+    )}/photos/thumbnail`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  // 404 just means the person has no photo set. Any other non-OK status
+  // (401/403/429/5xx) is a real failure — surface it rather than silently
+  // leaving thumbnails stale while the sync still reports success.
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new Error(
+      `Directory photo API error for ${email}: ${response.status} ${await response.text()}`
+    );
+  }
+  const photo = (await response.json()) as {
+    photoData?: string;
+    mimeType?: string;
+  };
+  if (!photo.photoData) return null;
+  const blob = new Blob([base64urlToBytes(photo.photoData).buffer as ArrayBuffer], {
+    type: photo.mimeType ?? "image/jpeg",
+  });
+  return await ctx.storage.store(blob);
+}
+
+/**
+ * Fetches every (non-suspended) Workspace user and stores the list. For people
+ * who have a staffProfile (i.e. appear on the org chart / profile pages) we
+ * also cache their Google profile thumbnail so faces show before they sign in —
+ * skipping re-download when the Google photo etag is unchanged.
+ */
 export const run = internalAction({
   args: {},
   handler: async (ctx) => {
     const domain = process.env.AUTH_ALLOWED_DOMAIN ?? "sow.org.au";
-    let users: { email: string; name?: string }[] = [];
+    type DirUser = { email: string; name?: string; photoEtag?: string };
+    let users: DirUser[] = [];
+    // Thumbnails uploaded during this run, so a later failure (before the
+    // `store` mutation commits) can delete them instead of leaking orphaned
+    // `_storage` blobs that no directoryUsers row will ever point at.
+    const uploadedThisRun: Id<"_storage">[] = [];
     try {
       const token = await getAccessToken();
       let pageToken: string | undefined;
@@ -106,6 +167,8 @@ export const run = internalAction({
         url.searchParams.set("domain", domain);
         url.searchParams.set("maxResults", "500");
         url.searchParams.set("orderBy", "email");
+        // `full` projection is required for the thumbnail photo etag.
+        url.searchParams.set("projection", "full");
         if (pageToken) url.searchParams.set("pageToken", pageToken);
         const response = await fetch(url, {
           headers: { Authorization: `Bearer ${token}` },
@@ -118,6 +181,7 @@ export const run = internalAction({
             primaryEmail?: string;
             suspended?: boolean;
             name?: { fullName?: string };
+            thumbnailPhotoEtag?: string;
           }[];
           nextPageToken?: string;
         };
@@ -127,19 +191,109 @@ export const run = internalAction({
             .map((u) => ({
               email: u.primaryEmail!.toLowerCase(),
               name: u.name?.fullName,
+              photoEtag: u.thumbnailPhotoEtag,
             }))
         );
         pageToken = page.nextPageToken;
       } while (pageToken);
+
+      // Resolve photos. Only for staff (org chart / profiles), and only when the
+      // Google etag differs from what we already cached.
+      const cache = await ctx.runQuery(internal.directorySync.photoSyncState, {});
+      const staffEmails = new Set(cache.staffEmails);
+      const cachedByEmail = new Map(
+        cache.photos.map((p) => [p.email, p] as const)
+      );
+      const stalePhotoIds: Id<"_storage">[] = [];
+      const resolved: {
+        email: string;
+        name?: string;
+        photoId?: Id<"_storage">;
+        photoEtag?: string;
+      }[] = [];
+      for (const user of users) {
+        const cached = cachedByEmail.get(user.email);
+        const wantsPhoto = staffEmails.has(user.email) && !!user.photoEtag;
+        if (!wantsPhoto) {
+          // Non-staff (or no Google photo): keep no thumbnail, drop any stale one.
+          if (cached?.photoId) stalePhotoIds.push(cached.photoId);
+          resolved.push({ email: user.email, name: user.name });
+          continue;
+        }
+        if (cached?.photoId && cached.photoEtag === user.photoEtag) {
+          // Unchanged — reuse the cached thumbnail.
+          resolved.push({
+            email: user.email,
+            name: user.name,
+            photoId: cached.photoId,
+            photoEtag: cached.photoEtag,
+          });
+          continue;
+        }
+        // New or changed photo: fetch it; replace the old one if we got it.
+        const photoId = await fetchPhoto(ctx, token, user.email);
+        if (photoId) {
+          uploadedThisRun.push(photoId);
+          if (cached?.photoId) stalePhotoIds.push(cached.photoId);
+          resolved.push({
+            email: user.email,
+            name: user.name,
+            photoId,
+            photoEtag: user.photoEtag,
+          });
+        } else {
+          // Fetch failed — keep whatever we already had so faces don't vanish.
+          resolved.push({
+            email: user.email,
+            name: user.name,
+            photoId: cached?.photoId,
+            photoEtag: cached?.photoEtag,
+          });
+        }
+      }
+      await ctx.runMutation(internal.directorySync.store, {
+        users: resolved,
+        stalePhotoIds,
+      });
     } catch (error) {
       console.error("Directory sync failed:", error);
+      // Nothing committed the freshly uploaded thumbnails, so delete them.
+      for (const id of uploadedThisRun) {
+        await ctx.storage.delete(id);
+      }
       await ctx.runMutation(internal.directorySync.recordFailure, {
         detail: error instanceof Error ? error.message : String(error),
       });
       return null;
     }
-    await ctx.runMutation(internal.directorySync.store, { users });
     return null;
+  },
+});
+
+/** Cached photo etags + the set of staff emails worth caching a photo for. */
+type PhotoSyncState = {
+  photos: {
+    email: string;
+    photoId?: Id<"_storage">;
+    photoEtag?: string;
+  }[];
+  staffEmails: string[];
+};
+export const photoSyncState = internalQuery({
+  args: {},
+  // Explicit return type: this query is called via ctx.runQuery from the same
+  // file, so annotating it avoids a TS circular-inference issue (Convex guideline).
+  handler: async (ctx): Promise<PhotoSyncState> => {
+    const existing = await ctx.db.query("directoryUsers").take(DIRECTORY_LIMIT);
+    const profiles = await ctx.db.query("staffProfiles").take(DIRECTORY_LIMIT);
+    return {
+      photos: existing.map((u) => ({
+        email: u.email,
+        photoId: u.photoId,
+        photoEtag: u.photoEtag,
+      })),
+      staffEmails: [...new Set(profiles.map((p) => p.email))],
+    };
   },
 });
 
@@ -157,7 +311,17 @@ const upsertSyncState = async (ctx: MutationCtx, detail: string) => {
 
 export const store = internalMutation({
   args: {
-    users: v.array(v.object({ email: v.string(), name: v.optional(v.string()) })),
+    users: v.array(
+      v.object({
+        email: v.string(),
+        name: v.optional(v.string()),
+        photoId: v.optional(v.id("_storage")),
+        photoEtag: v.optional(v.string()),
+      })
+    ),
+    // Thumbnails replaced this sync (old ids), to delete once the DB points at
+    // the new ones. Removed users' thumbnails are cleaned up below.
+    stalePhotoIds: v.optional(v.array(v.id("_storage"))),
   },
   handler: async (ctx, args) => {
     // Upsert synced users and delete any that are no longer in the directory.
@@ -167,17 +331,30 @@ export const store = internalMutation({
     for (const user of args.users) {
       const current = byEmail.get(user.email);
       if (current) {
-        if (current.name !== user.name) {
-          await ctx.db.patch("directoryUsers", current._id, { name: user.name });
+        if (
+          current.name !== user.name ||
+          current.photoId !== user.photoId ||
+          current.photoEtag !== user.photoEtag
+        ) {
+          await ctx.db.patch("directoryUsers", current._id, {
+            name: user.name,
+            photoId: user.photoId,
+            photoEtag: user.photoEtag,
+          });
         }
         byEmail.delete(user.email);
       } else {
         await ctx.db.insert("directoryUsers", user);
       }
     }
-    // Remove users no longer returned by the Google sync.
+    // Remove users no longer returned by the Google sync (and their thumbnails).
     for (const [, gone] of byEmail) {
+      if (gone.photoId) await ctx.storage.delete(gone.photoId);
       await ctx.db.delete("directoryUsers", gone._id);
+    }
+    // Delete thumbnails that were replaced by a freshly fetched one.
+    for (const stale of args.stalePhotoIds ?? []) {
+      await ctx.storage.delete(stale);
     }
 
     await upsertSyncState(ctx, `synced ${args.users.length} people`);

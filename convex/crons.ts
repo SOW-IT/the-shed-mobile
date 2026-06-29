@@ -6,9 +6,12 @@ const crons = cronJobs();
 // 22:00 UTC ≈ 8am Sydney (AEST): nudge whoever stale requests are waiting on.
 crons.cron("stale request reminders", "0 22 * * *", internal.reminders.remindStale, {});
 
-// 21:00 UTC ≈ 7am Sydney: refresh the Google Workspace directory (no-ops
-// gracefully until the service-account env vars are configured).
-crons.cron("google directory sync", "0 21 * * *", internal.directorySync.run, {});
+// Weekly, Monday 21:00 UTC (≈ Tue 7am AEST / 8am AEDT Sydney): refresh the
+// Google Workspace directory and cache staff profile photos (no-ops gracefully
+// until the service-account env vars are configured). Admins can still sync on
+// demand from the admin screen. Expressed with crons.cron per the project's
+// Convex guidelines (no crons.weekly/daily helpers).
+crons.cron("google directory sync", "0 21 * * 1", internal.directorySync.run, {});
 
 // Sep 30 14:01 UTC = 00:01 Oct 1 Sydney time: the staff year rolls over at
 // Sydney midnight Oct 1 (see staffYearForDate — midnight Oct 1 is AEST, UTC+10),

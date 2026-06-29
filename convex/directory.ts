@@ -57,14 +57,15 @@ export const me = query({
       .query("users")
       .withIndex("email", (q) => q.eq("email", email))
       .first();
-    const photo = user?.avatarId
-      ? await ctx.storage.getUrl(user.avatarId)
-      : (user?.image ?? null);
     const profile = await getProfile(ctx, email, year);
     const dirUser = await ctx.db
       .query("directoryUsers")
       .withIndex("by_email", (q) => q.eq("email", email))
       .unique();
+    const photo = user?.avatarId
+      ? await ctx.storage.getUrl(user.avatarId)
+      : (user?.image ??
+        (dirUser?.photoId ? await ctx.storage.getUrl(dirUser.photoId) : null));
     const name = user?.name ?? dirUser?.name ?? profile?.name ?? null;
     if (!profile) {
       return { email, year, name, photo, profile: null };
@@ -229,8 +230,8 @@ export const orgChart = query({
       .take(1000);
 
     const directoryUsers = await ctx.db.query("directoryUsers").take(4000);
-    const directoryNameByEmail = new Map(
-      directoryUsers.map((u) => [u.email, u.name ?? null] as const)
+    const directoryByEmail = new Map(
+      directoryUsers.map((u) => [u.email, u] as const)
     );
 
     const nameByEmail: Record<string, string | null> = {};
@@ -240,12 +241,16 @@ export const orgChart = query({
         .query("users")
         .withIndex("email", (q) => q.eq("email", profile.email))
         .first();
+      const dir = directoryByEmail.get(profile.email);
       nameByEmail[profile.email] =
-        user?.name ?? directoryNameByEmail.get(profile.email) ?? profile.name ?? null;
-      // A custom uploaded photo beats the Google default.
+        user?.name ?? dir?.name ?? profile.name ?? null;
+      // Preference order: a custom uploaded photo, then the Google photo synced
+      // on sign-in, then the directory thumbnail cached for people who haven't
+      // signed in yet.
       photoByEmail[profile.email] = user?.avatarId
         ? await ctx.storage.getUrl(user.avatarId)
-        : (user?.image ?? null);
+        : (user?.image ??
+          (dir?.photoId ? await ctx.storage.getUrl(dir.photoId) : null));
     }
     const person = (email: string, role?: string) => ({
       email,
