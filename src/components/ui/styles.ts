@@ -28,6 +28,23 @@ export const styles = StyleSheet.create({
   },
   topBarBadgeText: { color: "#ffffff", fontSize: 10, fontWeight: "800" },
   topBarLogo: { width: 88, height: 30 },
+  // Centred area between the logo and the right-hand icons — holds the
+  // dev/staging "Test Environment" chip.
+  topBarCenter: { flex: 1, alignItems: "center", justifyContent: "center" },
+  testChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+  },
+  testChipText: {
+    color: "#ffffff",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
   tabBar: {
     flexDirection: "row",
     borderBottomWidth: StyleSheet.hairlineWidth,
