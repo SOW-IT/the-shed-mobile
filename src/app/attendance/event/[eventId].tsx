@@ -616,6 +616,9 @@ export default function EventAttendanceScreen() {
       title={event.name}
       subtitle="Attendance"
       onBack={() => router.back()}
+      // Index 1 is the member search box (index 0 is the grouped badges/notice
+      // block) — pin it so it stays reachable while the roster scrolls.
+      stickyHeaderIndices={[1]}
       headerRight={
         <View style={styles.headerMeta}>
           <View style={styles.headerActions}>
@@ -686,6 +689,12 @@ export default function EventAttendanceScreen() {
         ) : undefined
       }
     >
+      {/* Badges + the past-event notice are grouped into one element so the
+          search box stays at a fixed child index (1) for the page's
+          stickyHeaderIndices, whether or not the notice is showing.
+          collapsable={false} keeps this style-less View in the native tree on
+          Android (otherwise it'd be flattened away, shifting the sticky index). */}
+      <View collapsable={false}>
       <View style={styles.badgeRow}>
         {/* Collab/owner groups on the left, event tags on the right (mirrors
             the events list's split badge row). */}
@@ -722,28 +731,34 @@ export default function EventAttendanceScreen() {
           attendee or fix details. People who attended cannot be signed out.
         </Text>
       ) : null}
+      </View>
 
-      {/* Search box for the suggested pool. */}
-      <View style={[styles.search, { backgroundColor: t.inputBackground }]}>
-        <Ionicons name="search" size={16} color={t.faint} />
-        <TextInput
-          style={[styles.searchInput, { color: t.text }]}
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Search members…"
-          placeholderTextColor={t.faint}
-          autoCapitalize="none"
-        />
-        {search.length > 0 ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Clear search"
-            hitSlop={8}
-            onPress={() => setSearch("")}
-          >
-            <Ionicons name="close-circle" size={18} color={t.faint} />
-          </Pressable>
-        ) : null}
+      {/* Search box for the suggested pool. Sticky: pins to the top while the
+          roster scrolls under it. The opaque page-background wrapper masks rows
+          passing behind the rounded pill; paddingTop mirrors the box's bottom
+          spacing so it has some space before the top edge when pinned. */}
+      <View style={{ backgroundColor: t.background, paddingTop: spacing.sm }}>
+        <View style={[styles.search, { backgroundColor: t.inputBackground }]}>
+          <Ionicons name="search" size={16} color={t.faint} />
+          <TextInput
+            style={[styles.searchInput, { color: t.text }]}
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search members…"
+            placeholderTextColor={t.faint}
+            autoCapitalize="none"
+          />
+          {search.length > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+              hitSlop={8}
+              onPress={() => setSearch("")}
+            >
+              <Ionicons name="close-circle" size={18} color={t.faint} />
+            </Pressable>
+          ) : null}
+        </View>
       </View>
 
       {/* While searching, both lists below are filtered in place. The "Signed

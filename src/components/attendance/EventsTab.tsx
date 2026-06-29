@@ -62,10 +62,17 @@ export function EventsTab({
   const router = useRouter();
   const subgroup = selectedSubgroup ?? subgroups[0] ?? null;
   const [now, setNow] = useState(() => Date.now());
-  const [cursor, setCursor] = useState<string | null>(null);
+  const [pagination, setPagination] = useState<{
+    subgroup: string | null;
+    cursor: string | null;
+  }>({
+    subgroup,
+    cursor: null,
+  });
   const [accumulated, setAccumulated] = useState<
     NonNullable<ReturnType<typeof useQuery<typeof api.events.listBySubgroup>>>["events"]
   >([]);
+  const cursor = pagination.subgroup === subgroup ? pagination.cursor : null;
 
   const page = useQuery(
     api.events.listBySubgroup,
@@ -74,7 +81,7 @@ export function EventsTab({
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on subgroup change
-    setCursor(null);
+    setPagination({ subgroup, cursor: null });
     setAccumulated([]);
   }, [subgroup]);
 
@@ -330,7 +337,7 @@ export function EventsTab({
             <Btn
               title="Load more"
               variant="ghost"
-              onPress={() => setCursor(page.continueCursor)}
+              onPress={() => setPagination({ subgroup, cursor: page.continueCursor })}
             />
           ) : null}
         </>
