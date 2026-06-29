@@ -16,7 +16,7 @@ This is a genuinely well-engineered codebase. Authorization is enforced **server
 with a single, well-factored `authorizeStep` gate; there are **no `any` escapes** in `src/`, **no
 leftover `console.log` debug noise**, `strict` TypeScript is on, and the comments are unusually good
 — they explain *why* (rollover dates, domain-rename history, OCC invariants) rather than narrating
-the obvious. Test coverage in `convex/` is broad (20+ `.test.ts` files).
+the obvious. Test coverage in `convex/` is broad (15 `.test.ts` files at time of writing).
 
 What keeps it from an A is **size concentration** and **one real subscription-cost problem**:
 
