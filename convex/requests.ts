@@ -96,8 +96,11 @@ const DEV_DEPLOYMENTS = ["industrious-robin-425"];
  * deployment go to the dev web build and everything else stays on production.
  */
 export const appUrl = (path?: string) => {
-  const cloudUrl = process.env.CONVEX_CLOUD_URL ?? "";
-  const isDev = DEV_DEPLOYMENTS.some((name) => cloudUrl.includes(name));
+  // CONVEX_CLOUD_URL/CONVEX_SITE_URL both embed the deployment name; fall back
+  // to the site url since the cloud url isn't guaranteed in every runtime.
+  const deploymentUrl =
+    process.env.CONVEX_CLOUD_URL ?? process.env.CONVEX_SITE_URL ?? "";
+  const isDev = DEV_DEPLOYMENTS.some((name) => deploymentUrl.includes(name));
   const base = process.env.APP_URL ?? (isDev ? DEV_WEB_URL : PROD_WEB_URL);
   return `${base}${path ?? ""}`;
 };

@@ -89,6 +89,10 @@ describe("appUrl", () => {
     // Production (any other deployment) stays on the prod web build.
     vi.stubEnv("CONVEX_CLOUD_URL", "https://outgoing-stoat-395.convex.cloud");
     expect(appUrl("/review")).toBe("https://the-shed-web.vercel.app/review");
+    // Falls back to CONVEX_SITE_URL when the cloud url isn't set.
+    vi.stubEnv("CONVEX_CLOUD_URL", undefined);
+    vi.stubEnv("CONVEX_SITE_URL", "https://industrious-robin-425.convex.site");
+    expect(appUrl("/x")).toBe("https://the-shed-web-dev.vercel.app/x");
     // An explicit APP_URL still wins regardless of deployment.
     vi.stubEnv("APP_URL", "https://app.example.com");
     expect(appUrl()).toBe("https://app.example.com");

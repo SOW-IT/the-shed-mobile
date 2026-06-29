@@ -6,6 +6,8 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-06-30
+
 ### Added
 
 - **A "Test Environment" badge on test builds.** The staging app and dev web
