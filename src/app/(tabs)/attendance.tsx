@@ -86,7 +86,7 @@ export default function AttendanceScreen() {
           <FooterAction
             title="+ Create event"
             onPress={() => setCreateEventOpen(true)}
-            avoidKeyboard={active === "events"}
+            avoidKeyboard={false}
           />
         ),
       });
@@ -109,7 +109,7 @@ export default function AttendanceScreen() {
           disabled={!tagsSave.dirty || tagsSave.saving}
           note={tagsSave.dirty && !tagsSave.saving ? "You have unsaved changes" : null}
           onPress={() => setConfirmSaveTags(true)}
-          avoidKeyboard={active === "settings"}
+          avoidKeyboard={false}
           cancel={{
             onPress: () => setConfirmRevertTags(true),
             disabled: !tagsSave.dirty || tagsSave.saving,
@@ -125,7 +125,7 @@ export default function AttendanceScreen() {
           disabled={!metaSave.dirty || metaSave.saving}
           note={metaSave.dirty && !metaSave.saving ? "You have unsaved changes" : null}
           onPress={() => setConfirmSaveMeta(true)}
-          avoidKeyboard={active === "metadata"}
+          avoidKeyboard={false}
           cancel={{
             onPress: () => setConfirmRevertMeta(true),
             disabled: !metaSave.dirty || metaSave.saving,
