@@ -202,7 +202,7 @@ describe("nameForEmail", () => {
 });
 
 describe("availableYears", () => {
-  test("includes structure years plus the current and next staff years, newest first, null when unauth", async () => {
+  test("includes structure years plus the current year, newest first, null when unauth", async () => {
     const t = await setup();
     expect(await t.query(api.directory.availableYears, {})).toBeNull();
 
@@ -210,9 +210,20 @@ describe("availableYears", () => {
     const years = (await asUser(t, RACHEL).query(api.directory.availableYears, {}))!;
     expect(years).toContain(2020);
     expect(years).toContain(YEAR);
-    expect(years).toContain(YEAR + 1);
     // Sorted descending.
     expect([...years].sort((a, b) => b - a)).toEqual(years);
+  });
+
+  test("exposes the next staff year only to admins", async () => {
+    const t = await setup();
+    // A pre-provisioned next-year structure would otherwise leak via this query.
+    await t.run((ctx) =>
+      ctx.db.insert("divisions", { year: YEAR + 1, name: "Engagement" })
+    );
+    const nonAdmin = (await asUser(t, RACHEL).query(api.directory.availableYears, {}))!;
+    expect(nonAdmin).not.toContain(YEAR + 1);
+    const admin = (await asUser(t, ADMIN).query(api.directory.availableYears, {}))!;
+    expect(admin).toContain(YEAR + 1);
   });
 });
 
@@ -364,5 +375,32 @@ describe("orgChart", () => {
     expect(staffDept!.members.some((m) => m.email === "oldprez@sow.org.au")).toBe(false);
     // …and the top-level staff group is empty for this year.
     expect(chart.staff).toHaveLength(0);
+  });
+
+  test("only admins see and can view the next staff year", async () => {
+    const t = await setup();
+    // Give the next staff year a structure so it would otherwise be offered.
+    await t.run((ctx) =>
+      ctx.db.insert("divisions", { year: YEAR + 1, name: "Engagement" })
+    );
+
+    // Non-admin RACHEL: next year is hidden, unlabelled, and a direct request
+    // for it is clamped back to the current year.
+    const rachel = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
+    expect(rachel.availableYears).not.toContain(YEAR + 1);
+    expect(rachel.nextYear).toBeNull();
+    const rachelNext = (await asUser(t, RACHEL).query(api.directory.orgChart, {
+      year: YEAR + 1,
+    }))!;
+    expect(rachelNext.year).toBe(YEAR);
+
+    // Admin: the next year is offered, labelled, and viewable.
+    const admin = (await asUser(t, ADMIN).query(api.directory.orgChart, {}))!;
+    expect(admin.availableYears).toContain(YEAR + 1);
+    expect(admin.nextYear).toBe(YEAR + 1);
+    const adminNext = (await asUser(t, ADMIN).query(api.directory.orgChart, {
+      year: YEAR + 1,
+    }))!;
+    expect(adminNext.year).toBe(YEAR + 1);
   });
 });

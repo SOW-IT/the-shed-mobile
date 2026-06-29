@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-06-30
+
+### Changed
+
+- **The next staff year is admin-only on the org chart.** The org chart's year
+  picker now offers the pre-provisioned next staff year only to admins (Data and
+  IT / Human Resources), labelled "· Next year", so other staff don't see a
+  half-built future chart. Everyone keeps the current and past years.
+
 ## [1.2.2] — 2026-06-29
 
 ### Fixed
