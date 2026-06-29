@@ -6,7 +6,7 @@ import {
   ViewStyle,
 } from "react-native";
 
-const TOP_BAR_HEIGHT = 56;
+export const TOP_BAR_HEIGHT = 56;
 const SHOW_AT_TOP_OFFSET = 16;
 
 export type TopBarScrollProps = {
@@ -50,8 +50,16 @@ export const useTopBarCollapse = () => {
     [setCollapsedY]
   );
 
+  // The bar floats over a fixed, full-height body (see ChromeScreen/PagerScreen),
+  // so collapsing must shrink the bar's own height to 0 — that lets anything
+  // stacked below it in the chrome (the tab bar) rise into the freed space while
+  // the body underneath never moves. translateY + opacity slide and fade the bar
+  // content out as the box closes.
   const topBarStyle: Animated.WithAnimatedObject<ViewStyle> = {
-    height: TOP_BAR_HEIGHT,
+    height: progress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, TOP_BAR_HEIGHT],
+    }),
     opacity: progress,
     overflow: "hidden",
     transform: [

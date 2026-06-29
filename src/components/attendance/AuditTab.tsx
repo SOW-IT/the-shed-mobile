@@ -8,6 +8,7 @@ import { Btn, EmptyState, LoadingState, Select } from "@/components/ui";
 import {
   PAGER_PAGE_BOTTOM_INSET,
   PAGER_PAGE_CONTENT,
+  PAGER_TOP_BAR_INSET,
   TopBarScrollProps,
 } from "@/components/PagerScreen";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
@@ -322,7 +323,9 @@ export function AuditTab({ scrollProps }: { scrollProps?: TopBarScrollProps }) {
 }
 
 const styles = StyleSheet.create({
-  selfScrollingPage: { paddingTop: 0 },
+  // Rest the sticky controls below the floating top bar; they pin under the tab
+  // bar as it collapses. The list scrolls up under the bar.
+  selfScrollingPage: { paddingTop: PAGER_TOP_BAR_INSET },
   stickyControls: { gap: spacing.sm, paddingTop: spacing.sm },
   filterSummary: {
     flexDirection: "row",

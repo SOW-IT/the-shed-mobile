@@ -5,7 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
 import { spacing, useAppTheme } from "@/theme";
 import { TopBar } from "@/components/ui";
-import { useTopBarCollapse } from "@/components/useTopBarCollapse";
+import { TOP_BAR_HEIGHT, useTopBarCollapse } from "@/components/useTopBarCollapse";
 
 /**
  * Page shell for the main, non-tabbed screens (Org): the top chrome — the SOW
@@ -28,17 +28,22 @@ export const ChromeScreen = ({
   const { topBarStyle, scrollProps } = useTopBarCollapse();
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: t.background }]} edges={["top"]}>
-      <Animated.View style={[styles.topBarWrap, topBarStyle]}>
-        <TopBar photo={me?.photo ?? null} name={me?.name ?? null} />
-      </Animated.View>
+      {/* The body is full-height and fixed; its content rests below the bar (via
+          the scroll inset) and scrolls *under* the floating bar. Collapsing the
+          bar therefore reveals more content without shifting the body. */}
       <ScrollView
         showsVerticalScrollIndicator={false}
-        style={{ backgroundColor: t.background }}
+        style={[styles.body, { backgroundColor: t.background }]}
         contentContainerStyle={styles.scroll}
         {...scrollProps}
       >
         {children}
       </ScrollView>
+      <Animated.View
+        style={[styles.topBarWrap, { backgroundColor: t.background }, topBarStyle]}
+      >
+        <TopBar photo={me?.photo ?? null} name={me?.name ?? null} />
+      </Animated.View>
       {footer}
       {floating}
     </SafeAreaView>
@@ -47,16 +52,25 @@ export const ChromeScreen = ({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  // Full-height fixed body: it spans the whole screen and the bar floats over it.
+  body: { flex: 1 },
   // Full-width top bar so it spans the screen like the bottom tab bar; the
-  // scrolling content below stays capped at 720 + centered.
+  // scrolling content below stays capped at 720 + centered. Floated over the
+  // body so the body can stay full-height and fixed while the bar collapses.
   topBarWrap: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
     width: "100%",
     paddingHorizontal: spacing.lg,
+    zIndex: 10,
   },
   scroll: {
     flexGrow: 1,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xs,
+    // Clear the floating top bar at rest; content scrolls up under it.
+    paddingTop: spacing.xs + TOP_BAR_HEIGHT,
     paddingBottom: 48,
     gap: spacing.md,
     maxWidth: 720,

@@ -17,6 +17,7 @@ import {
 import {
   PAGER_PAGE_BOTTOM_INSET_WITH_FOOTER,
   PAGER_PAGE_CONTENT,
+  PAGER_TOP_BAR_INSET,
   TopBarScrollProps,
 } from "@/components/PagerScreen";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
@@ -346,7 +347,9 @@ export function MembersTab({
 }
 
 const styles = StyleSheet.create({
-  selfScrollingPage: { paddingTop: 0 },
+  // Rest the sticky controls below the floating top bar; they pin under the tab
+  // bar as it collapses. The list scrolls up under the bar.
+  selfScrollingPage: { paddingTop: PAGER_TOP_BAR_INSET },
   // Holds the (sticky) filter controls + search bar with compact internal gaps.
   stickyControls: { gap: spacing.sm, paddingTop: spacing.sm },
   filterSummary: {
