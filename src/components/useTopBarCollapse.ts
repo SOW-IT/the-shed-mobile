@@ -7,7 +7,6 @@ import {
 } from "react-native";
 
 export const TOP_BAR_HEIGHT = 56;
-const SHOW_AT_TOP_OFFSET = 16;
 
 export type TopBarScrollProps = {
   onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
@@ -17,12 +16,18 @@ export type TopBarScrollProps = {
 export const useTopBarCollapse = () => {
   const [progress] = useState(() => new Animated.Value(1));
   const collapsedY = useRef(0);
-  const lastY = useRef(0);
-  const rebaselineOnNextScroll = useRef(false);
 
-  const setCollapsedY = useCallback(
-    (next: number) => {
-      const clamped = Math.max(0, Math.min(TOP_BAR_HEIGHT, next));
+  // The bar is pinned to the top of the content: its collapse tracks the
+  // absolute scroll offset (shrinking over the first TOP_BAR_HEIGHT px and
+  // growing back as the content scrolls toward the top), rather than scroll
+  // *direction*. Tying it to the offset keeps the bar's bottom edge exactly
+  // flush with the sticky search bar pinned just below it — so a mid-list
+  // scroll-up no longer reveals the bar on top of that search bar. Callers with
+  // several independently-scrolled pages (PagerScreen) re-sync this to the
+  // active page's offset on tab change so the bar always matches what's shown.
+  const syncToScrollY = useCallback(
+    (y: number) => {
+      const clamped = Math.max(0, Math.min(TOP_BAR_HEIGHT, y));
       if (clamped === collapsedY.current) return;
       collapsedY.current = clamped;
       progress.setValue(1 - clamped / TOP_BAR_HEIGHT);
@@ -32,22 +37,9 @@ export const useTopBarCollapse = () => {
 
   const onScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const y = Math.max(0, event.nativeEvent.contentOffset.y);
-      if (rebaselineOnNextScroll.current) {
-        rebaselineOnNextScroll.current = false;
-        lastY.current = y;
-        return;
-      }
-
-      const delta = y - lastY.current;
-      if (y <= SHOW_AT_TOP_OFFSET) {
-        setCollapsedY(0);
-      } else if (delta !== 0) {
-        setCollapsedY(collapsedY.current + delta);
-      }
-      lastY.current = y;
+      syncToScrollY(Math.max(0, event.nativeEvent.contentOffset.y));
     },
-    [setCollapsedY]
+    [syncToScrollY]
   );
 
   // The bar floats over a fixed, full-height body (see ChromeScreen/PagerScreen),
@@ -72,14 +64,10 @@ export const useTopBarCollapse = () => {
     ],
   };
 
-  const showTopBar = useCallback(() => {
-    rebaselineOnNextScroll.current = true;
-    setCollapsedY(0);
-  }, [setCollapsedY]);
-
   return {
     topBarStyle,
     scrollProps: { onScroll, scrollEventThrottle: 16 },
-    showTopBar,
+    /** Snap the bar to a specific scroll offset (e.g. the active page's on tab change). */
+    syncToScrollY,
   };
 };
