@@ -6,6 +6,8 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.2.1] — 2026-06-29
+
 ### Changed
 
 - **Search bars stay put while you scroll.** On the Members tab, the Audit tab,
@@ -13,10 +15,14 @@ All notable changes to **The SHED** mobile app. This project follows
   the top as the list scrolls under it, so it's always reachable. On the Members
   and Audit tabs the filter controls pin alongside the search bar.
 - **Top chrome gets out of the way while scrolling.** The home/profile top bar
-  now floats above the page and gradually hides as you scroll down (revealing as
-  you scroll back up), so the content beneath fills the freed space instead of
-  leaving an empty strip. The page body stays fixed in place — content scrolls
-  up under the bar rather than the whole page snapping up and down.
+  (and, on the attendance tabs, the logo/profile row above the tab bar) floats
+  above the page and hides as you scroll down, reappearing as you scroll back
+  toward the top, so the content beneath fills the freed space instead of
+  leaving an empty strip. It now collapses in step with the scroll position, so
+  its edge stays flush with the pinned search bar below it rather than sliding
+  over it when you scroll back up mid-list. Switching attendance tabs keeps the
+  bar's state — it reflects the tab you land on (collapsed if that tab is
+  scrolled, shown if it's at the top) instead of popping back open every time.
 - **Consistent footer height across the attendance tabs.** The Tags ("Save
   tags") and Metadata ("Save metadata") footers now sit at the same distance
   from the bottom as the "+ Make Request" button, matching the Events and
