@@ -26,10 +26,23 @@ module.exports = ({ config }) => {
     ios: {
       ...config.ios,
       bundleIdentifier: "au.org.sow.theshed.staging",
+      // Universal Links for the dev web so the staging app intercepts https://
+      // the-shed-web-dev.vercel.app links without going through the browser.
+      associatedDomains: ["applinks:the-shed-web-dev.vercel.app"],
     },
     android: {
       ...config.android,
       package: "au.org.sow.theshed.staging",
+      // App Links for the dev web — autoVerify requires the assetlinks.json to
+      // be served at https://the-shed-web-dev.vercel.app/.well-known/assetlinks.json.
+      intentFilters: [
+        {
+          action: "VIEW",
+          autoVerify: true,
+          data: [{ scheme: "https", host: "the-shed-web-dev.vercel.app" }],
+          category: ["BROWSABLE", "DEFAULT"],
+        },
+      ],
     },
   };
 };

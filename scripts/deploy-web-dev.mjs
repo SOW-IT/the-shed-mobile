@@ -50,7 +50,12 @@ rmSync("dist", { recursive: true, force: true });
 run("npx expo export --platform web -c", {
   env: { EXPO_PUBLIC_CONVEX_URL: DEV_CONVEX_URL },
 });
+// Layer static files: shared first (web/), then dev-specific overrides
+// (web-dev/). web-dev/.well-known/ contains the staging app's assetlinks.json
+// and apple-app-site-association so Android App Links and iOS Universal Links
+// verify against the-shed-web-dev.vercel.app instead of the prod domain.
 cpSync("web", "dist", { recursive: true });
+cpSync("web-dev", "dist", { recursive: true });
 // Explicit project env vars: the CLI then needs no .vercel link files (the
 // export wipes them) and can't resolve some other project from a parent dir.
 // VERCEL_TOKEN (from the environment) authenticates the non-interactive deploy.
