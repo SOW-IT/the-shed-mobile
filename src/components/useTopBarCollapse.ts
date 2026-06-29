@@ -1,4 +1,5 @@
-import { useCallback, useRef, useState } from "react";
+import type { ComponentProps } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Animated,
   NativeScrollEvent,
@@ -8,66 +9,96 @@ import {
 
 export const TOP_BAR_HEIGHT = 56;
 
+type AnimatedScrollViewProps = ComponentProps<typeof Animated.ScrollView>;
+
 export type TopBarScrollProps = {
-  onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onScroll: AnimatedScrollViewProps["onScroll"];
   scrollEventThrottle: number;
 };
 
 export const useTopBarCollapse = () => {
-  const [progress] = useState(() => new Animated.Value(1));
-  const collapsedY = useRef(0);
+  // Absolute scroll offset of the active scroller. It is driven on the native
+  // (UI) thread via Animated.event(useNativeDriver) — see makeScrollHandler — so
+  // the collapsing chrome tracks the finger in *exact lockstep* with the
+  // OS-pinned sticky search bar just below it. Driving the collapse from JS
+  // `setValue` inside an onScroll handler (the previous approach) ran on the JS
+  // thread and lagged the native sticky bar on fast flings; same offset, same
+  // thread now, so the bar's bottom edge and the sticky bar never drift apart.
+  const [scrollY] = useState(() => new Animated.Value(0));
 
-  // The bar is pinned to the top of the content: its collapse tracks the
-  // absolute scroll offset (shrinking over the first TOP_BAR_HEIGHT px and
-  // growing back as the content scrolls toward the top), rather than scroll
-  // *direction*. Tying it to the offset keeps the bar's bottom edge exactly
-  // flush with the sticky search bar pinned just below it — so a mid-list
-  // scroll-up no longer reveals the bar on top of that search bar. Callers with
-  // several independently-scrolled pages (PagerScreen) re-sync this to the
-  // active page's offset on tab change so the bar always matches what's shown.
+  // Collapse is positional: it tracks the scroll offset over the first
+  // TOP_BAR_HEIGHT px (and grows back toward the top), not scroll *direction*.
+  // The transform slides the chrome up by exactly the offset, so its bottom edge
+  // and the sticky search bar stay flush in either direction — and because it's
+  // a transform (not an animated `height`), it is native-driver compatible.
+  const collapseStyle = useMemo<Animated.WithAnimatedObject<ViewStyle>>(
+    () => ({
+      transform: [
+        {
+          translateY: scrollY.interpolate({
+            inputRange: [0, TOP_BAR_HEIGHT],
+            outputRange: [0, -TOP_BAR_HEIGHT],
+            extrapolate: "clamp",
+          }),
+        },
+      ],
+    }),
+    [scrollY]
+  );
+
+  // Fade the top-bar content out as the chrome slides up under the clip, so it
+  // doesn't read as a hard cut at the clip edge.
+  const barOpacityStyle = useMemo<Animated.WithAnimatedObject<ViewStyle>>(
+    () => ({
+      opacity: scrollY.interpolate({
+        inputRange: [0, TOP_BAR_HEIGHT],
+        outputRange: [1, 0],
+        extrapolate: "clamp",
+      }),
+    }),
+    [scrollY]
+  );
+
+  // Build an onScroll handler that feeds `scrollY` on the native thread. The
+  // optional JS `listener` still runs (on the JS thread) for side effects that
+  // can't live natively — e.g. recording a page's offset or firing pagination.
+  // The receiving component MUST be an Animated.ScrollView for the native driver
+  // to attach.
+  const makeScrollHandler = useCallback(
+    (
+      listener?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void
+    ): TopBarScrollProps => ({
+      scrollEventThrottle: 16,
+      onScroll: Animated.event(
+        [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+        { useNativeDriver: true, listener }
+      ),
+    }),
+    [scrollY]
+  );
+
+  // Stable handler for simple single-scroller screens (ChromeScreen).
+  const scrollProps = useMemo(() => makeScrollHandler(), [makeScrollHandler]);
+
+  // Snap the collapse to a specific offset (e.g. the active page's on tab
+  // change), so the chrome reflects what the new page actually shows.
   const syncToScrollY = useCallback(
     (y: number) => {
-      const clamped = Math.max(0, Math.min(TOP_BAR_HEIGHT, y));
-      if (clamped === collapsedY.current) return;
-      collapsedY.current = clamped;
-      progress.setValue(1 - clamped / TOP_BAR_HEIGHT);
+      scrollY.setValue(Math.max(0, y));
     },
-    [progress]
+    [scrollY]
   );
-
-  const onScroll = useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      syncToScrollY(Math.max(0, event.nativeEvent.contentOffset.y));
-    },
-    [syncToScrollY]
-  );
-
-  // The bar floats over a fixed, full-height body (see ChromeScreen/PagerScreen),
-  // so collapsing must shrink the bar's own height to 0 — that lets anything
-  // stacked below it in the chrome (the tab bar) rise into the freed space while
-  // the body underneath never moves. translateY + opacity slide and fade the bar
-  // content out as the box closes.
-  const topBarStyle: Animated.WithAnimatedObject<ViewStyle> = {
-    height: progress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, TOP_BAR_HEIGHT],
-    }),
-    opacity: progress,
-    overflow: "hidden",
-    transform: [
-      {
-        translateY: progress.interpolate({
-          inputRange: [0, 1],
-          outputRange: [-TOP_BAR_HEIGHT, 0],
-        }),
-      },
-    ],
-  };
 
   return {
-    topBarStyle,
-    scrollProps: { onScroll, scrollEventThrottle: 16 },
-    /** Snap the bar to a specific scroll offset (e.g. the active page's on tab change). */
+    /** Transform that slides the collapsing chrome up by the scroll offset. */
+    collapseStyle,
+    /** Opacity that fades the top-bar content as it slides out. */
+    barOpacityStyle,
+    /** Native-driven scroll handler for a single scroller. */
+    scrollProps,
+    /** Build a native-driven scroll handler with extra JS-side side effects. */
+    makeScrollHandler,
+    /** Snap the collapse to a specific scroll offset. */
     syncToScrollY,
   };
 };
