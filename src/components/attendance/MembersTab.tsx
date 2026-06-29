@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { roleNeedsUniversity, universityColour } from "../../../shared/flow";
@@ -111,7 +111,7 @@ export function MembersTab({
   if (metadata === undefined) return <LoadingState />;
 
   return (
-    <ScrollView
+    <Animated.ScrollView
       showsVerticalScrollIndicator={false}
       // Index 0 is the grouped filter + search block — pin it so both stay
       // reachable while the member list scrolls under it.
@@ -342,7 +342,7 @@ export function MembersTab({
           ) : null}
         </View>
       )}
-    </ScrollView>
+    </Animated.ScrollView>
   );
 }
 

@@ -6,7 +6,6 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
-  ScrollView,
   StyleSheet,
   View,
 } from "react-native";
@@ -127,7 +126,8 @@ export const PagerScreen = ({
   const [tabBarHeight, setTabBarHeight] = useState(48);
   const footerAnimsRef = useRef<Record<string, Animated.Value>>({});
   const footerScrollState = useRef<PagerScrollState>("idle");
-  const { topBarStyle, scrollProps, syncToScrollY } = useTopBarCollapse();
+  const { collapseStyle, barOpacityStyle, makeScrollHandler, syncToScrollY } =
+    useTopBarCollapse();
   // Each page scrolls independently, so remember every page's latest offset and
   // re-sync the (shared) top bar to it on tab change. The bar then reflects what
   // the new page actually shows — collapsed if it's scrolled, shown if it's at
@@ -240,29 +240,43 @@ export const PagerScreen = ({
   // page has grown (i.e. more content actually loaded).
   const lastEndReachedHeight = useRef<Record<string, number>>({});
 
-  // Depend on the stable members, not the whole `scrollProps` object:
-  // useTopBarCollapse returns a fresh `scrollProps` literal each render, so
-  // keying on it would rebuild this (and re-render memoized tabs) every render,
-  // even though `onScroll`/`scrollEventThrottle` are stable.
-  const { onScroll: onScrollCollapse, scrollEventThrottle } = scrollProps;
+  // The collapse is driven on the native thread by Animated.event (inside
+  // makeScrollHandler); the JS listener only records each page's offset and fires
+  // near-bottom pagination. Side effects route through a ref so the (native)
+  // handler stays stable across renders — recreating it would detach and
+  // reattach the native scroll driver on every render.
+  const scrollSideEffectsRef = useRef(
+    (_tabKey: string, _e: NativeSyntheticEvent<NativeScrollEvent>) => {}
+  );
+  useEffect(() => {
+    scrollSideEffectsRef.current = (tabKey, e) => {
+      lastScrollYByTab.current[tabKey] = Math.max(
+        0,
+        e.nativeEvent.contentOffset.y
+      );
+      if (!onEndReached) return;
+      const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+      const distanceToBottom =
+        contentSize.height - (contentOffset.y + layoutMeasurement.height);
+      const lastHeight = lastEndReachedHeight.current[tabKey] ?? -1;
+      if (distanceToBottom < NEAR_BOTTOM && contentSize.height > lastHeight) {
+        lastEndReachedHeight.current[tabKey] = contentSize.height;
+        onEndReached(tabKey);
+      }
+    };
+  });
+
+  const scrollHandlersRef = useRef<Record<string, TopBarScrollProps>>({});
   const scrollPropsForTab = useCallback(
-    (tabKey: string): TopBarScrollProps => ({
-      scrollEventThrottle,
-      onScroll: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-        lastScrollYByTab.current[tabKey] = Math.max(0, e.nativeEvent.contentOffset.y);
-        onScrollCollapse(e);
-        if (!onEndReached) return;
-        const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-        const distanceToBottom =
-          contentSize.height - (contentOffset.y + layoutMeasurement.height);
-        const lastHeight = lastEndReachedHeight.current[tabKey] ?? -1;
-        if (distanceToBottom < NEAR_BOTTOM && contentSize.height > lastHeight) {
-          lastEndReachedHeight.current[tabKey] = contentSize.height;
-          onEndReached(tabKey);
-        }
-      },
-    }),
-    [onEndReached, onScrollCollapse, scrollEventThrottle]
+    (tabKey: string): TopBarScrollProps => {
+      if (!scrollHandlersRef.current[tabKey]) {
+        scrollHandlersRef.current[tabKey] = makeScrollHandler((e) =>
+          scrollSideEffectsRef.current(tabKey, e)
+        );
+      }
+      return scrollHandlersRef.current[tabKey];
+    },
+    [makeScrollHandler]
   );
 
   const renderPage = (tab: PagerTab) => {
@@ -274,7 +288,7 @@ export const PagerScreen = ({
       tab.selfScrolling ? (
         tab.render(tabScrollProps)
       ) : (
-        <ScrollView
+        <Animated.ScrollView
           showsVerticalScrollIndicator={false}
           style={{ backgroundColor: t.background }}
           contentContainerStyle={[
@@ -289,7 +303,7 @@ export const PagerScreen = ({
           {...tabScrollProps}
         >
           {tab.render(tabScrollProps)}
-        </ScrollView>
+        </Animated.ScrollView>
       )
     );
   };
@@ -309,20 +323,27 @@ export const PagerScreen = ({
         position={pagerPosition}
         onScrollStateChange={onPagerScrollStateChange}
       />
-      <View style={[styles.chrome, { backgroundColor: t.background }]}>
-        <Animated.View style={[styles.topBarWrap, topBarStyle]}>
-          <TopBar photo={me?.photo ?? null} name={me?.name ?? null} />
-        </Animated.View>
-        <View
-          onLayout={(e) => setTabBarHeight(e.nativeEvent.layout.height)}
+      {/* Static clip: the chrome group (top bar + tab bar) slides up within it as
+          the active page scrolls, so the top bar is masked at the screen edge
+          while the tab bar rises to the top. Transparent + overflow-hidden so the
+          space the top bar vacates reveals the body scrolling underneath. */}
+      <View style={styles.chrome} pointerEvents="box-none">
+        <Animated.View
+          style={[styles.chromeGroup, { backgroundColor: t.background }, collapseStyle]}
+          pointerEvents="box-none"
         >
-          <TabBar
-            segments={tabs}
-            active={activeKey}
-            onChange={onActiveKeyChange}
-            position={pagerPosition}
-          />
-        </View>
+          <Animated.View style={[styles.topBarWrap, barOpacityStyle]}>
+            <TopBar photo={me?.photo ?? null} name={me?.name ?? null} />
+          </Animated.View>
+          <View onLayout={(e) => setTabBarHeight(e.nativeEvent.layout.height)}>
+            <TabBar
+              segments={tabs}
+              active={activeKey}
+              onChange={onActiveKeyChange}
+              position={pagerPosition}
+            />
+          </View>
+        </Animated.View>
       </View>
       {/* eslint-disable react-hooks/refs -- lazy Animated.Value cache (BankTab pattern) */}
       {footerItems.map((item) => {
@@ -358,8 +379,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     width: "100%",
+    // Clip the top bar as it slides up; transparent so the vacated space reveals
+    // the body. The opaque background travels with the group below, not here.
+    overflow: "hidden",
     zIndex: 10,
   },
+  chromeGroup: { width: "100%" },
   topBarWrap: { paddingHorizontal: spacing.lg },
   page: {
     flexGrow: 1,
