@@ -1,19 +1,21 @@
 import { describe, expect, test } from "vitest";
 import {
-  commencementStaffYearFromLevel,
+  commencementYearFromLevel,
   encodeYearMetadataValue,
   formatMetadataFieldValue,
-  isCommencementStaffYear,
+  isCommencementYear,
   isLockedSelectOption,
   metadataFieldAllowsCustomOptions,
   orderedSelectOptions,
   partitionSelectOptions,
-  resolveCommencementStaffYear,
+  resolveCommencementYear,
   canonicalizeGenderOptionId,
   canonicalizeGenderValues,
   GENDER_VALUES,
   sanitizeGenderValues,
   studentYearLevelFromCommencement,
+  STUDENT_YEAR_LEVELS,
+  STUDENT_YEAR_VALUES,
   yearMetadataSortKey,
   yearOptionIdForStoredValue,
 } from "./attendanceMemberMeta";
@@ -28,25 +30,32 @@ const YEAR_OPTIONS: Record<string, string> = {
 };
 
 describe("student year from commencement", () => {
-  test("level increments each staff year", () => {
+  test("level increments each staff year, uncapped past the sixth", () => {
     expect(studentYearLevelFromCommencement(2024, 2024)).toBe("1");
     expect(studentYearLevelFromCommencement(2024, 2025)).toBe("2");
     expect(studentYearLevelFromCommencement(2024, 2028)).toBe("5");
-    expect(studentYearLevelFromCommencement(2024, 2029)).toBe("6+");
+    // No "6+" cap any more — show the actual number of years since commencement.
+    expect(studentYearLevelFromCommencement(2024, 2029)).toBe("6");
+    expect(studentYearLevelFromCommencement(2024, 2034)).toBe("11");
   });
 
   test("picking a level stores the implied commencement year", () => {
-    expect(commencementStaffYearFromLevel("1", 2026)).toBe(2026);
-    expect(commencementStaffYearFromLevel("3", 2026)).toBe(2024);
-    expect(commencementStaffYearFromLevel("6+", 2026)).toBe(2021);
-    expect(commencementStaffYearFromLevel("Alumni", 2026)).toBe(2021);
+    expect(commencementYearFromLevel("1", 2026)).toBe(2026);
+    expect(commencementYearFromLevel("3", 2026)).toBe(2024);
+    // Levels now go up to 15.
+    expect(commencementYearFromLevel("7", 2026)).toBe(2020);
+    expect(commencementYearFromLevel("15", 2026)).toBe(2012);
+    expect(commencementYearFromLevel("16", 2026)).toBeNull();
+    // Legacy labels still resolve to a sixth year.
+    expect(commencementYearFromLevel("6+", 2026)).toBe(2021);
+    expect(commencementYearFromLevel("Alumni", 2026)).toBe(2021);
     expect(
       encodeYearMetadataValue("3", 2026, YEAR_OPTIONS)
     ).toBe("2024");
   });
 
   test("legacy option ids migrate on read", () => {
-    expect(resolveCommencementStaffYear("3", 2026, YEAR_OPTIONS)).toBe(2024);
+    expect(resolveCommencementYear("3", 2026, YEAR_OPTIONS)).toBe(2024);
     expect(formatMetadataFieldValue("Year", "2024", 2026, YEAR_OPTIONS)).toBe(
       "3"
     );
@@ -59,6 +68,16 @@ describe("student year from commencement", () => {
     expect(
       yearOptionIdForStoredValue("2024", 2026, YEAR_OPTIONS)
     ).toBe("3");
+  });
+
+  test("dropdown offers levels 1 through 15", () => {
+    expect(STUDENT_YEAR_LEVELS).toEqual([
+      "1", "2", "3", "4", "5", "6", "7", "8",
+      "9", "10", "11", "12", "13", "14", "15",
+    ]);
+    expect(STUDENT_YEAR_VALUES["15"]).toBe("15");
+    expect(STUDENT_YEAR_VALUES["6"]).toBe("6");
+    expect(Object.keys(STUDENT_YEAR_VALUES)).toHaveLength(15);
   });
 });
 
@@ -123,13 +142,17 @@ describe("gender and field helpers", () => {
     expect(metadataFieldAllowsCustomOptions("Notes", false)).toBe(true);
   });
 
-  test("isCommencementStaffYear and yearMetadataSortKey", () => {
-    expect(isCommencementStaffYear("2024")).toBe(true);
-    expect(isCommencementStaffYear("3")).toBe(false);
-    expect(yearMetadataSortKey("2024", 2028, YEAR_OPTIONS)).toBe("5");
-    expect(yearMetadataSortKey("2021", 2028, YEAR_OPTIONS)).toBe("6");
+  test("isCommencementYear and yearMetadataSortKey", () => {
+    expect(isCommencementYear("2024")).toBe(true);
+    expect(isCommencementYear("3")).toBe(false);
+    // Zero-padded so a string compare orders levels numerically (e.g. "05" < "08").
+    expect(yearMetadataSortKey("2024", 2028, YEAR_OPTIONS)).toBe("05");
+    expect(yearMetadataSortKey("2021", 2028, YEAR_OPTIONS)).toBe("08");
+    expect(yearMetadataSortKey("2021", 2028, YEAR_OPTIONS) < yearMetadataSortKey("2014", 2028, YEAR_OPTIONS)).toBe(
+      true
+    );
     expect(
-      resolveCommencementStaffYear("not-a-year", 2026, YEAR_OPTIONS)
+      resolveCommencementYear("not-a-year", 2026, YEAR_OPTIONS)
     ).toBeNull();
     expect(formatMetadataFieldValue("Notes", "hello", 2026)).toBe("hello");
   });

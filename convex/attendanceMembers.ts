@@ -82,7 +82,7 @@ const staffLockedMetadata = (
 const metadataLabel = (
   fields: MetadataField[],
   metadata: Record<string, string> | undefined,
-  viewingStaffYear: number,
+  viewingYear: number,
   excludeKeys: string[] = []
 ): string => {
   if (!metadata) return "";
@@ -95,7 +95,7 @@ const metadataLabel = (
       return formatMetadataFieldValue(
         f.key,
         raw,
-        viewingStaffYear,
+        viewingYear,
         f.values
       );
     })
