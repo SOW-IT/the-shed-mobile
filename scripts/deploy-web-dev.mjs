@@ -10,7 +10,7 @@
 // Run in CI on every push to main (see .github/workflows/deploy-web-dev.yml),
 // or locally via `npm run deploy:web:dev`.
 import { execSync } from "node:child_process";
-import { cpSync } from "node:fs";
+import { cpSync, rmSync } from "node:fs";
 
 // Dev/staging Convex deployment — same one the EAS preview/staging profiles use.
 const DEV_CONVEX_URL = "https://industrious-robin-425.convex.cloud";
@@ -33,8 +33,10 @@ const run = (command, options = {}) =>
     env: { ...process.env, ...(options.env ?? {}) },
   });
 
-// A real environment variable outranks every .env file in Expo's loading
-// order; -c clears Metro's cache, which otherwise keeps the old inlined URL.
+// Start from a clean dist/ so a stale local build can't leak removed assets
+// into the deploy. -c clears Metro's cache; a real env var outranks .env files
+// in Expo's loading order, so the dev URL wins.
+rmSync("dist", { recursive: true, force: true });
 run("npx expo export --platform web -c", {
   env: { EXPO_PUBLIC_CONVEX_URL: DEV_CONVEX_URL },
 });
