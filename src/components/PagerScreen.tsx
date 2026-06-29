@@ -1,5 +1,12 @@
 import { useQuery } from "convex/react";
-import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Animated,
   Easing,
@@ -239,6 +246,11 @@ export const PagerScreen = ({
   // on every scroll event while the user lingers near the bottom — only once the
   // page has grown (i.e. more content actually loaded).
   const lastEndReachedHeight = useRef<Record<string, number>>({});
+  const onEndReachedRef = useRef(onEndReached);
+
+  useEffect(() => {
+    onEndReachedRef.current = onEndReached;
+  }, [onEndReached]);
 
   // The collapse is driven on the native thread by Animated.event (inside
   // makeScrollHandler); the JS listener only records each page's offset and fires
@@ -246,20 +258,20 @@ export const PagerScreen = ({
   // handler stays stable across renders — recreating it would detach and
   // reattach the native scroll driver on every render.
   const scrollSideEffectsRef = useRef(
-    (_tabKey: string, _e: NativeSyntheticEvent<NativeScrollEvent>) => {}
-  );
-  scrollSideEffectsRef.current = (tabKey, e) => {
-    lastScrollYByTab.current[tabKey] = Math.max(0, e.nativeEvent.contentOffset.y);
-    if (!onEndReached) return;
-    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-    const distanceToBottom =
-      contentSize.height - (contentOffset.y + layoutMeasurement.height);
-    const lastHeight = lastEndReachedHeight.current[tabKey] ?? -1;
-    if (distanceToBottom < NEAR_BOTTOM && contentSize.height > lastHeight) {
-      lastEndReachedHeight.current[tabKey] = contentSize.height;
-      onEndReached(tabKey);
+    (tabKey: string, e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      lastScrollYByTab.current[tabKey] = Math.max(0, e.nativeEvent.contentOffset.y);
+      const endReached = onEndReachedRef.current;
+      if (!endReached) return;
+      const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+      const distanceToBottom =
+        contentSize.height - (contentOffset.y + layoutMeasurement.height);
+      const lastHeight = lastEndReachedHeight.current[tabKey] ?? -1;
+      if (distanceToBottom < NEAR_BOTTOM && contentSize.height > lastHeight) {
+        lastEndReachedHeight.current[tabKey] = contentSize.height;
+        endReached(tabKey);
+      }
     }
-  };
+  );
 
   const scrollHandlersRef = useRef<Record<string, TopBarScrollProps>>({});
   const scrollPropsForTab = useCallback(
