@@ -1,7 +1,10 @@
 /**
  * Attendance member metadata helpers — Year is stored as the staff year the
- * person was in first year; the displayed level (1–5, 6+) is derived from
- * that commencement year and the calendar staff year being viewed.
+ * person was in first year; the displayed level (1, 2, 3, …) is derived from
+ * that commencement year and the calendar staff year being viewed. The level is
+ * uncapped — a sixth-year reads "6", not "6+" — though the picker only offers up
+ * to {@link YEAR_LEVEL_MAX} (older members past that still display their real
+ * level, they just can't be re-selected from the dropdown).
  */
 
 export const STUDENT_YEAR_FIELD_KEY = "Year";
@@ -16,16 +19,19 @@ export const GENDER_OPTION_IDS = ["1", "2"] as const;
 export const CAMPUS_FIELD_KEY = "Campus";
 export const ROLE_FIELD_KEY = "Role";
 
-export const STUDENT_YEAR_LEVELS = ["1", "2", "3", "4", "5", "6+"] as const;
+/** Highest year level offered by the Year picker. */
+export const YEAR_LEVEL_MAX = 15;
 
-export const STUDENT_YEAR_VALUES: Record<string, string> = {
-  "1": "1",
-  "2": "2",
-  "3": "3",
-  "4": "4",
-  "5": "5",
-  "6": "6+",
-};
+/** Selectable year levels: "1" … "15" (the picker's options, in order). */
+export const STUDENT_YEAR_LEVELS: readonly string[] = Array.from(
+  { length: YEAR_LEVEL_MAX },
+  (_, i) => String(i + 1)
+);
+
+/** Year select option map (id → label), id "1" → "1" … "15" → "15". */
+export const STUDENT_YEAR_VALUES: Record<string, string> = Object.fromEntries(
+  STUDENT_YEAR_LEVELS.map((level) => [level, level])
+);
 
 const COMMENCEMENT_YEAR_MIN = 2000;
 const COMMENCEMENT_YEAR_MAX = 2100;
@@ -41,27 +47,34 @@ export const isCommencementStaffYear = (stored: string): boolean => {
   );
 };
 
-/** Derive the student year label for a viewing staff year. */
+/**
+ * Derive the student year label for a viewing staff year. Uncapped: a member in
+ * their seventh year reads "7" (not "6+"), so the label always reflects the
+ * actual number of years since they commenced.
+ */
 export const studentYearLevelFromCommencement = (
   commencementStaffYear: number,
   viewingStaffYear: number
 ): string | null => {
   const level = viewingStaffYear - commencementStaffYear + 1;
   if (level < 1) return null;
-  if (level >= 6) return "6+";
   return String(level);
 };
 
-/** Commencement staff year implied by picking a level in a given staff year. */
+/**
+ * Commencement staff year implied by picking a level in a given staff year.
+ * Accepts levels 1…{@link YEAR_LEVEL_MAX}; the legacy "6+"/"Alumni" labels still
+ * map to a sixth year for data imported before the cap was lifted.
+ */
 export const commencementStaffYearFromLevel = (
   levelLabel: string,
   viewingStaffYear: number
 ): number | null => {
-  if (levelLabel === "Alumni" || levelLabel === "6+" || levelLabel === "6") {
+  if (levelLabel === "Alumni" || levelLabel === "6+") {
     return viewingStaffYear - 5;
   }
   const n = parseInt(levelLabel, 10);
-  if (!Number.isFinite(n) || n < 1 || n > 5) return null;
+  if (!Number.isFinite(n) || n < 1 || n > YEAR_LEVEL_MAX) return null;
   return viewingStaffYear - (n - 1);
 };
 
@@ -131,7 +144,11 @@ export const encodeYearMetadataValue = (
   return commencement !== null ? String(commencement) : null;
 };
 
-/** Sort key for Year metadata (numeric level, 6+ last). */
+/**
+ * Sort key for Year metadata. Zero-padded so the string compare at the call
+ * site orders levels numerically (e.g. "02" before "11"), since levels are no
+ * longer capped at a single digit.
+ */
 export const yearMetadataSortKey = (
   stored: string,
   viewingStaffYear: number,
@@ -144,8 +161,7 @@ export const yearMetadataSortKey = (
   );
   if (commencement === null) return "";
   const level = studentYearLevelFromCommencement(commencement, viewingStaffYear);
-  if (level === "6+") return "6";
-  return level ?? "";
+  return level ? level.padStart(2, "0") : "";
 };
 
 /** Remove "Other" from Gender select options (by label only — id "3" may be Female in imports). */

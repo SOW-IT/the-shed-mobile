@@ -1,13 +1,16 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, test } from "vitest";
-import { staffYearForDate } from "../shared/flow";
+import { staffYearForDate, sydneyCalendarYear } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
 const YEAR = staffYearForDate(new Date());
+// Year metadata is keyed to the calendar year (the basis the export resolves the
+// level against), so derive expected levels from this, not the staff year.
+const CAL_YEAR = sydneyCalendarYear(new Date());
 
 const ADMIN = "admin@sow.org.au";
 const LEADER = "leader@sow.org.au";
@@ -84,7 +87,8 @@ describe("attendanceExport", () => {
     const guestId = await leader.mutation(api.attendanceMembers.create, {
       name: "Guest Member",
       email: "guest@example.com",
-      metadata: { [yearField._id]: String(YEAR - 2) },
+      // Commenced two calendar years ago → third year during this event.
+      metadata: { [yearField._id]: String(CAL_YEAR - 2) },
     });
     await leader.mutation(api.attendance.signIn, {
       eventId,
@@ -118,8 +122,8 @@ describe("attendanceExport", () => {
 
     const guestRow = event.rows.find((r) => r.name === "Guest Member")!;
     expect(guestRow.email).toBe("guest@example.com");
-    // Year maps to the member's commencement (start) staff year, not a level.
-    expect(guestRow.metadata.Year).toBe(String(YEAR - 2));
+    // Year is the level during the event (third year), not the commencement year.
+    expect(guestRow.metadata.Year).toBe("3");
 
     const unknownRow = event.rows.find((r) => r.name === "Unknown Year")!;
     expect(unknownRow.metadata.Year).toBeUndefined();
