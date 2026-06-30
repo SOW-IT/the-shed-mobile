@@ -81,12 +81,21 @@ describe("appUrl", () => {
     expect(appUrl("/review")).toBe("https://the-shed-web-dev.vercel.app/review");
   });
 
-  test("falls back to APP_URL then the prod default when SITE_URL is unset", () => {
+  test("falls back to APP_URL then the prod default when SITE_URL is unset or blank", () => {
     vi.stubEnv("SITE_URL", undefined);
     vi.stubEnv("APP_URL", "https://app.example.com");
     expect(appUrl("/x")).toBe("https://app.example.com/x");
+    // A blank/whitespace SITE_URL is treated as unset (not a host-less link).
+    vi.stubEnv("SITE_URL", "   ");
+    expect(appUrl("/x")).toBe("https://app.example.com/x");
     vi.stubEnv("APP_URL", undefined);
     expect(appUrl("/y")).toBe("https://the-shed-web.vercel.app/y");
+  });
+
+  test("normalises a trailing slash so links never double up", () => {
+    vi.stubEnv("SITE_URL", "https://the-shed-web-dev.vercel.app/");
+    expect(appUrl("/review")).toBe("https://the-shed-web-dev.vercel.app/review");
+    expect(appUrl()).toBe("https://the-shed-web-dev.vercel.app");
   });
 });
 

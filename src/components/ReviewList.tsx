@@ -60,6 +60,15 @@ const DeclineSheet = ({
   const handleDecline = async () => {
     if (!target || submitting) return;
     setError(null);
+    // Validate the required reason here so we don't fire a mutation that's
+    // guaranteed to fail server-side (which would log a raw Convex error). The
+    // server still enforces this as a backstop.
+    if (reason.trim() === "") {
+      setError(
+        "Please give a reason for declining — the requester will be notified with it."
+      );
+      return;
+    }
     setSubmitting(true);
     try {
       await decline({ requestId: target.request._id, step: target.step, reason });

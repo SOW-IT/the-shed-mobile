@@ -96,10 +96,13 @@ const logEvent = async (
  * the dev deployment, which sent dev/test emails to the production app.)
  */
 export const appUrl = (path?: string) => {
-  const base =
-    process.env.SITE_URL ??
-    process.env.APP_URL ??
-    "https://the-shed-web.vercel.app";
+  // `||` (not `??`) so an empty/whitespace env var is treated as unset and falls
+  // through; strip any trailing slash so we never produce `host//path`.
+  const base = (
+    process.env.SITE_URL?.trim() ||
+    process.env.APP_URL?.trim() ||
+    "https://the-shed-web.vercel.app"
+  ).replace(/\/+$/, "");
   return `${base}${path ?? ""}`;
 };
 
