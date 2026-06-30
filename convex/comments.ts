@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import { getApprovers, getProfile, optionalProfile, requireProfile } from "./model";
-import { actionOwnerEmail, involvedApproverEmails, notify } from "./requests";
+import { actionOwnerEmail, involvedApproverEmails, notify, requestUrl } from "./requests";
 import { ALLOWED_REACTIONS, APPROVED } from "../shared/flow";
 
 /** Display name for an email: staff profile first, directory fallback, else null. */
@@ -62,7 +62,9 @@ export const add = mutation({
           subject: `New comment on the $${request.amount} ${request.department} request`,
           pushTitle: "New comment",
           body: `${authorName} commented:\n"${body}"`,
-          url: `/request/${request._id}`,
+          // Open the thread directly on the recipient's tab (Mine for the
+          // requester, Review for approvers/Finance).
+          url: requestUrl(to, request, { thread: true }),
         });
       }
     }

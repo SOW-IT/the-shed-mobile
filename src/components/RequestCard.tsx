@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
-import React, { ReactNode, useEffect, useState } from "react";
+import React, { ReactNode, useEffect, useRef, useState } from "react";
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import {
   APPROVED,
@@ -352,6 +352,8 @@ export const RequestCard = ({
   onCancel,
   actionRequired,
   collapsible = false,
+  autoExpand = false,
+  autoOpenThread = false,
   children,
 }: {
   request: Doc<"requests">;
@@ -359,6 +361,10 @@ export const RequestCard = ({
   onCancel?: () => void;
   /** When true, draws an amber border to signal the current user needs to act. */
   actionRequired?: boolean;
+  /** Deep-link focus: expand this card on mount (e.g. opened from a notification). */
+  autoExpand?: boolean;
+  /** Deep-link focus: open the comment thread on mount (a comment notification). */
+  autoOpenThread?: boolean;
   /**
    * When true the card starts collapsed to a one-line summary (amount, status,
    * department, requester, date) with a "View More" toggle. Used for completed
@@ -406,6 +412,16 @@ export const RequestCard = ({
     });
   };
   const toggleExpanded = () => (expanded ? collapse() : expand());
+  // Deep-link focus from a notification: expand the (collapsible) card and/or
+  // open its comment thread once when the flags arrive.
+  const focusedRef = useRef(false);
+  useEffect(() => {
+    if (focusedRef.current) return;
+    if (autoExpand && collapsible) expand();
+    if (autoOpenThread) setShowComments(true);
+    if (autoExpand || autoOpenThread) focusedRef.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when focus flags turn on
+  }, [autoExpand, autoOpenThread]);
   useEffect(() => {
     if (expanded && bodyHeight > 0) {
       Animated.timing(heightAnim, {

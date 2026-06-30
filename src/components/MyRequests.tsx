@@ -699,6 +699,8 @@ export const MyRequests = ({
   year,
   readOnly = false,
   directorThreshold = DIRECTOR_APPROVAL_THRESHOLD,
+  focusId,
+  focusThread = false,
 }: {
   departments: string[];
   defaultDepartment: string;
@@ -709,6 +711,9 @@ export const MyRequests = ({
   // A past staff year to browse (read-only). Omit/undefined for the live year.
   year?: number;
   readOnly?: boolean;
+  /** Notification deep-link: id of the request to focus (expand / open thread). */
+  focusId?: string;
+  focusThread?: boolean;
   /** The year's Director-approval cutoff; defaults to the standard $5,000. */
   directorThreshold?: number;
 }) => {
@@ -808,6 +813,8 @@ export const MyRequests = ({
                   request={request}
                   actionRequired={needsReceipt}
                   collapsible={requestCompleted(request)}
+                  autoExpand={request._id === focusId}
+                  autoOpenThread={request._id === focusId && focusThread}
                   onCancel={
                     readOnly
                       ? undefined

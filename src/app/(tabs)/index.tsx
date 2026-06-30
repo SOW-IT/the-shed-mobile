@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "convex/react";
 import { Redirect, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../../convex/_generated/api";
+import { Id } from "../../../convex/_generated/dataModel";
 import {
   directorThresholdOr,
   HEAD_OF_DEPARTMENT,
@@ -139,14 +140,29 @@ export default function RequestsScreen() {
     { key: "bank", label: "Bank" },
   ];
 
-  // Deep links (e.g. a push notification) choose the segment via ?tab=.
-  const { tab } = useLocalSearchParams<{ tab?: string }>();
+  // Deep links (e.g. a notification) choose the segment via ?tab= and, when
+  // they're about a specific request, focus it via ?focus=<id> (and ?thread=1
+  // to open its comment thread) so you land on the live screen where the action
+  // is taken — see requestUrl in convex/requests.ts.
+  const { tab, focus, thread } = useLocalSearchParams<{
+    tab?: string;
+    focus?: string;
+    thread?: string;
+  }>();
+  const focusThread = thread === "1";
   const [active, setActive] = useState("mine");
   useEffect(() => {
     // Sync the segment to the deep-link param when it changes.
     // eslint-disable-next-line react-hooks/set-state-in-effect -- external param sync
     if (typeof tab === "string") setActive(tab);
   }, [tab]);
+  // Landing on a focused request "sees" its notifications — clear them all.
+  const markReadForRequest = useMutation(api.notifications.markReadForRequest);
+  useEffect(() => {
+    if (typeof focus === "string" && focus) {
+      void markReadForRequest({ requestId: focus as Id<"requests"> }).catch(() => {});
+    }
+  }, [focus, markReadForRequest]);
   const activeSegment = segments.some((s) => s.key === active) ? active : "mine";
 
   // Year browsing only applies to the "All" segment. "Mine" and "To Review"
@@ -287,14 +303,19 @@ export default function RequestsScreen() {
           <SectionTitle>All Requests — {me.year}</SectionTitle>
         </>
       )}
-      <AllRequestsList year={queryYear} loadMoreRef={loadMoreRef} />
+      <AllRequestsList
+        year={queryYear}
+        loadMoreRef={loadMoreRef}
+        focusId={focus}
+        focusThread={focusThread}
+      />
     </>
   );
 
   const renderTab = (key: string) => {
     switch (key) {
       case "review":
-        return <ReviewList />;
+        return <ReviewList focusId={focus} focusThread={focusThread} />;
       case "all":
         return renderAll();
       case "bank":
@@ -309,6 +330,8 @@ export default function RequestsScreen() {
             onResubmit={(p) => { setRequestPrefill(p); setNewRequestOpen(true); }}
             onNewClose={() => setNewRequestOpen(false)}
             directorThreshold={directorThreshold}
+            focusId={focus}
+            focusThread={focusThread}
           />
         );
     }

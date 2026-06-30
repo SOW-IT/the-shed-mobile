@@ -46,8 +46,13 @@ const sortRequests = (
 export const AllRequestsList = ({
   year,
   loadMoreRef,
+  focusId,
+  focusThread = false,
 }: {
   year?: number;
+  /** Notification deep-link: id of the request to focus (expand / open thread). */
+  focusId?: string;
+  focusThread?: boolean;
   /**
    * Set by the parent screen's ScrollView so it can drive the completed-tab
    * infinite scroll. Points at this list's "reveal more" handler, or null when
@@ -140,7 +145,13 @@ export const AllRequestsList = ({
       ) : (
         shown.map((request, index) => (
           <FadeInView key={request._id} delay={stagger(index)}>
-            <RequestCard request={request} showRequester collapsible={isCompleted} />
+            <RequestCard
+              request={request}
+              showRequester
+              collapsible={isCompleted}
+              autoExpand={request._id === focusId}
+              autoOpenThread={request._id === focusId && focusThread}
+            />
           </FadeInView>
         ))
       )}

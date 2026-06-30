@@ -186,7 +186,14 @@ const SECTIONS: { key: Exclude<Step, never>; title: string }[] = [
 ];
 
 /** Requests waiting on the signed-in approver, grouped by step. */
-export const ReviewList = () => {
+export const ReviewList = ({
+  focusId,
+  focusThread = false,
+}: {
+  /** Notification deep-link: id of the request to focus (expand / open thread). */
+  focusId?: string;
+  focusThread?: boolean;
+} = {}) => {
   const t = useAppTheme();
   const data = useQuery(api.requests.toReview, {});
   // Requests the approver has already actioned, shown in their own section
@@ -273,7 +280,7 @@ export const ReviewList = () => {
                     </SectionTitle>
                     {data[key].map((request, index) => (
                       <FadeInView key={request._id} delay={stagger(index)}>
-                        <RequestCard request={request} showRequester actionRequired>
+                        <RequestCard request={request} showRequester actionRequired autoExpand={request._id === focusId} autoOpenThread={request._id === focusId && focusThread}>
                           <IconButton
                             name="checkmark"
                             size={40}
@@ -301,7 +308,7 @@ export const ReviewList = () => {
                   <SectionTitle>Ready to Pay ({data.readyToPay.length})</SectionTitle>
                   {data.readyToPay.map((request, index) => (
                     <FadeInView key={request._id} delay={stagger(index)}>
-                      <RequestCard request={request} showRequester actionRequired>
+                      <RequestCard request={request} showRequester actionRequired autoExpand={request._id === focusId} autoOpenThread={request._id === focusId && focusThread}>
                         <IconButton
                           name="cash-outline"
                           size={40}
@@ -323,7 +330,13 @@ export const ReviewList = () => {
               {reviewed.map((request, index) => (
                 <FadeInView key={request._id} delay={stagger(index)}>
                   {/* Read-only history of what this approver has actioned. */}
-                  <RequestCard request={request} showRequester collapsible />
+                  <RequestCard
+                    request={request}
+                    showRequester
+                    collapsible
+                    autoExpand={request._id === focusId}
+                    autoOpenThread={request._id === focusId && focusThread}
+                  />
                 </FadeInView>
               ))}
             </View>
