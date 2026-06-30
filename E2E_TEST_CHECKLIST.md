@@ -27,7 +27,7 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 ## 1.1 Tab visibility & structure
 - [ ] **Mine** tab visible to all users with a profile
 - [ ] **Review** tab visible only to users who are an approver
-- [ ] **All** tab visible only to Finance staff
+- [ ] **All** tab visible only to Finance **department members** — gated by `me.isFinance` (`convex/directory.ts` → `isMemberOfDepartment(profile, FINANCE)`), i.e. anyone assigned to the Finance department, **not** only the Finance Head
 - [ ] **Bank** tab visible to all users
 - [ ] Tab badges: Mine shows count needing action; Review shows total pending; message badges show unread comment counts
 
@@ -219,6 +219,7 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 
 > Tabs: **Users, Structure (Roles/Divisions/Departments/Universities), Other**.
 > Admin = Director, Head of HR division, Data & IT dept, or any dept under HR. Finance Head sees only the **Other** tab (Budget Manager + threshold).
+> Source of truth for admin eligibility: `isAdminProfile` in `convex/model.ts`, using `ADMIN_DEPARTMENTS` / `ADMIN_DIVISIONS` in `shared/flow.ts` (re-verify here if those change).
 
 ## 3.1 Access & year picker
 - [ ] Admin tab visible only to admins or the Finance Head; non-admins get "Only admins can access this screen."
