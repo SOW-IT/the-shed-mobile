@@ -66,5 +66,8 @@
     "deploy:web": "node scripts/deploy-web.mjs",
     "deploy:web:dev": "node scripts/deploy-web-dev.mjs"
   },
+  "overrides": {
+    "uuid": "^11.1.1"
+  },
   "private": true
 }
