@@ -198,8 +198,8 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 - [ ] Search (400ms debounce) filters summary/detail
 - [ ] Filters: Action type, Performed by, Event — combine with AND; "Clear All"; active count
 - [ ] "Load more" paginates (unfiltered)
-- [ ] ⚠️ **KNOWN ISSUE — regression watch:** pagination crashes when a filter/search is active and you load more pages. Verify whether still reproducible (see memory: attendance-audit-pagination-crash). Document current behavior.
-- [ ] ⚠️ Watch for audit **spam** from tag "save all" (bulk saves generating excessive audit rows)
+- [ ] ✅ **FIXED (regression watch):** pagination used to crash when a filter/search was active and you loaded more pages. Now fixed via convex-helpers' `paginator` (see CHANGELOG → Unreleased → Fixed). Confirm filtered + searched audit can load multiple pages without the "ran multiple paginated queries" crash.
+- [ ] ✅ **FIXED (regression watch):** tag "save all" audit spam — saving the Tags tab now logs only changed tags, not every tag. Confirm editing one tag writes a single audit row.
 
 ## 2.10 Export
 - [ ] Group export (no event): date-range + tag filters; metadata field checkboxes
@@ -249,7 +249,7 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 
 ## 3.4 Structure — Roles
 - [ ] List + "No roles yet." empty state; Add Role with non-empty name
-- [ ] System roles (Head of Department/Division, Director, Staff, Member) cannot be renamed/deleted
+- [ ] System roles (Head of Department/Division, Director, Staff, Member) cannot be renamed/deleted — the Roles list shows a 🔒 lock instead of edit/trash for them (source of truth: `SYSTEM_ROLES` / `isSystemRole` in `shared/flow.ts`; backend `updateRole`/`removeRole` also reject them)
 - [ ] Rename role cascades across all staff assignments for the year
 - [ ] Delete role blocked if anyone holds it: "[role] is still assigned to N person/people in YYYY…"
 - [ ] Duplicate role name rejected
@@ -265,7 +265,7 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 - [ ] **Directory Sync:** shows last sync / "Never synced."; "Sync Directory Now" → confirm → "Syncing…" → timestamp updates (admins only)
 - [ ] **Budget Manager:** select from Finance dept members → Set; non-Finance person rejected ("must be from the Finance department"); cannot unset; read-only in past years
 - [ ] **Director Threshold:** numeric input, default shown as $5,000; Set disabled if ≤0 or unchanged; non-numeric stripped; positive-amount validation
-- [ ] **Approver Delegation** (admins only): add From→To (must differ, both have profiles), idempotent; remove with confirm; "No delegations set." empty state
+- [ ] **Approver Delegation** (admins only): add From→To (must differ, both have profiles), idempotent; remove asks "Remove delegation?" confirm before deleting; "No delegations set." empty state
 - [ ] Verify a delegate can approve/decline/pay on behalf of the covered approver (cross-check in Requests)
 
 ## 3.7 Cross-cutting
@@ -285,9 +285,24 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 - [ ] Deleting a department in Admin is blocked while it has open reimbursement requests
 - [ ] Notifications (push + email + in-app bell) deep-link to the correct request/screen; "Mark all read" works
 
+## 4.1 Notifications (in-app bell)
+- [ ] Bell shows an **Unread** section and a separate **Read (history)** section; reading an item moves it from Unread → Read
+- [ ] "Mark all read" empties the Unread section
+- [ ] **Test every notification type** routes/deep-links correctly:
+  - [ ] Request **submitted** (requester confirmation) → Mine, focused
+  - [ ] **Approval needed** (next approver) → Review, focused on the request
+  - [ ] **Approved / fully approved** → requester + prior approvers, Mine/Review
+  - [ ] **Declined** (with reason) → requester + prior approvers
+  - [ ] **Cancelled** → involved approvers
+  - [ ] **Nudge** → whoever the request is waiting on
+  - [ ] **Receipt submitted** → Finance Head, Ready to Pay
+  - [ ] **Paid** → requester; **paid ≠ requested** → Budget Manager
+  - [ ] **Comment** → current action owner, opens the comment thread (`&thread=1`)
+  - [ ] **Attendance event** notifications → the event screen
+- [ ] Push notification icon/branding shows the SHED logo (see `app.json` → `notification`/`icon`)
+
 ---
 
 ## Notes / known issues to keep an eye on
-- **Attendance Audit pagination crash** when filtered/searched (multi-paginate) — pre-existing, found via E2E 2026-06-30.
-- **Tag "save all" audit spam** — bulk tag saves generate excessive audit entries.
-- These are tracked separately; flag if behavior changes.
+- ✅ **Attendance Audit pagination crash** when filtered/searched (multi-paginate) — **fixed** (CHANGELOG → Unreleased); kept here as a regression watch.
+- ✅ **Tag "save all" audit spam** — **fixed** (only changed tags are now logged); kept here as a regression watch.

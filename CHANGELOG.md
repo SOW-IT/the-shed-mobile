@@ -8,6 +8,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ### Fixed
 
+- **Admin → Roles no longer offers edit/delete on app-managed roles.** The
+  system roles (Head of Department/Division, Director, Staff, Member) showed
+  edit and trash buttons whose delete dialog claimed they could be removed; the
+  backend rejected the mutation but only after a thrown `ConvexError` surfaced a
+  dev-overlay. Those roles now show a lock icon instead of the buttons, and the
+  shared `SYSTEM_ROLES`/`isSystemRole` helper in `shared/flow.ts` is the single
+  source of truth for both the UI and the backend guards.
+- **Admin → Approver Delegation removal now asks for confirmation.** Tapping the
+  × removed a delegation immediately; it now shows a "Remove delegation?" confirm
+  first, so an approver's stand-in can't be revoked by a stray tap.
+
 - **Attendance → Audit no longer crashes when filtered or searched.** Applying
   an action-type/actor/event filter, or typing in the audit search, could crash
   the tab with a Convex "ran multiple paginated queries" error whenever the

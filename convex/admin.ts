@@ -14,6 +14,7 @@ import {
   HEAD_OF_DIVISION,
   isChaplainRole,
   isMemberOfDepartment,
+  isSystemRole,
   MEMBER,
   requestCompleted,
   ROLES,
@@ -962,10 +963,6 @@ export const removeUniversity = mutation({
     return null;
   },
 });
-
-/** Roles with hardcoded semantics elsewhere (heads, director, staff fallback, member scope) — renaming/deleting them would break invariants. */
-const RESERVED_SYSTEM_ROLES = new Set<string>([HEAD_OF_DEPARTMENT, HEAD_OF_DIVISION, DIRECTOR, STAFF_ROLE, MEMBER]);
-
 export const upsertRole = mutation({
   args: { year: v.number(), name: v.string() },
   handler: async (ctx, args) => {
@@ -990,7 +987,7 @@ export const updateRole = mutation({
     const oldName = args.oldName.trim();
     const newName = args.newName.trim();
     if (!newName) throw new ConvexError("Role name is required.");
-    if (RESERVED_SYSTEM_ROLES.has(oldName) || RESERVED_SYSTEM_ROLES.has(newName)) {
+    if (isSystemRole(oldName) || isSystemRole(newName)) {
       throw new ConvexError("This role is managed by the app and can't be renamed.");
     }
 
@@ -1038,7 +1035,7 @@ export const removeRole = mutation({
     await requireAdmin(ctx);
     assertManagedYear(args.year);
     const name = args.name.trim();
-    if (RESERVED_SYSTEM_ROLES.has(name)) {
+    if (isSystemRole(name)) {
       throw new ConvexError("This role is managed by the app and can't be deleted.");
     }
     const role = await ctx.db
