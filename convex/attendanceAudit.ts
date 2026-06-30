@@ -1,9 +1,11 @@
 import { paginationOptsValidator } from "convex/server";
+import { paginator } from "convex-helpers/server/pagination";
 import { v } from "convex/values";
 import { staffYearForDate } from "../shared/flow";
-import { Id } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx, query } from "./_generated/server";
 import { displayName, optionalProfile } from "./model";
+import schema from "./schema";
 
 /** The coarse subject kinds an audit row can describe (mirrors the schema). */
 export type AuditEntityType =
@@ -43,21 +45,30 @@ export async function logAttendanceAction(
   await ctx.db.insert("attendanceAuditLog", entry);
 }
 
+// Safety bound on how many underlying rows a single list() call will read while
+// hunting for `numItems` matches, so a sparse filter can't scan unbounded rows
+// in one call. If hit before the page fills, we return what we have with a live
+// cursor and the client resumes — completeness is preserved across calls.
+const MAX_ROWS_SCANNED_PER_CALL = 2000;
+
 /**
  * Paginated, filterable, searchable audit feed for the Attendance → Audit tab.
  * Visible to any signed-in staff member. Newest first.
  *
  * Reads the most selective index for the active filter (`by_event` when an event
  * is chosen, else `by_actor` when only an actor is, else the default order) and
- * paginates it ONCE with Convex cursor pagination, then applies every other
- * dimension — a residual `actorEmail` alongside an `eventId`, the `entityType`,
- * and free-text `search` — in TypeScript (Convex queries should not use
- * `.filter()`). Convex permits only a single `.paginate()` per query, so a
- * filtered page may return fewer than `numItems` rows (the ones that matched
- * this page); `isDone`/`continueCursor` come straight from the underlying page,
- * and the client keeps requesting pages via "Load more" until `isDone`. No
- * matching row is ever skipped — narrow filters just spread matches across more
- * pages.
+ * walks it with convex-helpers' `paginator`, applying every other dimension — a
+ * residual `actorEmail` alongside an `eventId`, the `entityType`, and free-text
+ * `search` — in TypeScript (Convex queries should not use `.filter()`). It
+ * accumulates matches page-by-page until it has `numItems` of them or the index
+ * is exhausted, so combining filters always matches the UI selection and no
+ * matching row is ever skipped.
+ *
+ * `paginator` (not the built-in `ctx.db...paginate()`) because a single Convex
+ * function may call the built-in `.paginate()` only ONCE: a sparse filter forces
+ * this accumulation loop to scan several pages, which threw "ran multiple
+ * paginated queries" and crashed the Audit tab. Same pattern as
+ * `events.listBySubgroup`.
  */
 export const list = query({
   args: {
@@ -74,10 +85,12 @@ export const list = query({
 
     const { eventId, actorEmail, entityType } = args;
     const search = args.search?.trim().toLowerCase();
+    const { numItems } = args.paginationOpts;
 
-    // The active filter's most selective index.
+    // A fresh paginator for the active filter's most selective index (query
+    // builders are single-use, so we rebuild it each pagination step).
     const indexed = () => {
-      const q = ctx.db.query("attendanceAuditLog");
+      const q = paginator(ctx.db, schema).query("attendanceAuditLog");
       if (eventId) return q.withIndex("by_event", (i) => i.eq("eventId", eventId));
       if (actorEmail)
         return q.withIndex("by_actor", (i) => i.eq("actorEmail", actorEmail));
@@ -94,16 +107,28 @@ export const list = query({
         r.summary.toLowerCase().includes(search) ||
         r.actorEmail.toLowerCase().includes(search));
 
-    // Convex allows only ONE `.paginate()` per query, so paginate a single page
-    // off the index and filter it in memory. A narrow filter may leave few (or
-    // zero) matches on a page; the client paginates with "Load more" until the
-    // index is exhausted (`isDone`), so nothing is skipped. (Previously this
-    // looped `.paginate()` to fill `numItems`, which threw "ran multiple
-    // paginated queries" the moment a filter narrowed the first page.)
-    const result = await indexed().order("desc").paginate(args.paginationOpts);
-    const rows = result.page.filter(matchesResidual);
-    const isDone = result.isDone;
-    const continueCursor = result.continueCursor;
+    const matched: Doc<"attendanceAuditLog">[] = [];
+    let cursor = args.paginationOpts.cursor;
+    let isDone = false;
+    let scanned = 0;
+    // Walk the index page-by-page until we have `numItems` matches or the index
+    // is exhausted. `paginator` (unlike the built-in `.paginate()`) may be
+    // called repeatedly in one query, so the loop is safe.
+    while (matched.length < numItems) {
+      const batch = await indexed()
+        .order("desc")
+        .paginate({ numItems: numItems - matched.length, cursor: cursor ?? null });
+      for (const r of batch.page) if (matchesResidual(r)) matched.push(r);
+      scanned += batch.page.length;
+      cursor = batch.continueCursor;
+      if (batch.isDone) {
+        isDone = true;
+        break;
+      }
+      if (scanned >= MAX_ROWS_SCANNED_PER_CALL) break;
+    }
+    const rows = matched;
+    const continueCursor = isDone ? "" : cursor;
 
     // Resolve each distinct actor's display name once (looked up against the
     // current staff year — close enough for a label), then label the rows.
