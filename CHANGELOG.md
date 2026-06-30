@@ -19,6 +19,17 @@ All notable changes to **The SHED** mobile app. This project follows
   whether it changed — so adding or editing a single tag wrote a spurious update
   row for every other tag. Tag saves now log only the tags that actually
   changed (matching how member-field saves already behave).
+- **Staff no longer show a doubled role in roll-call and roster subtitles.** The
+  subtitle for staff rows combined both the org-assignment role (e.g. "President")
+  and the synced metadata "Role" field, producing "President · President · …".
+  The metadata subtitle for staff rows now excludes the Role field, since the
+  org-assignment already provides it.
+- **Audit actor names now resolve correctly for legacy-domain emails.** The
+  display-name lookup in the Audit feed tried only the literal email; a staff
+  member who signed in with their `@sowaustralia.com` address but whose profile
+  is registered under `@sow.org.au` would appear as a raw email instead of their
+  name. The lookup now tries all known SOW domains before falling back to the
+  directory.
 
 ## [1.5.2] — 2026-06-30
 
