@@ -1,9 +1,11 @@
+import { paginator } from "convex-helpers/server/pagination";
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { staffYearForDate } from "../shared/flow";
 import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx, query } from "./_generated/server";
 import { displayName, optionalProfile } from "./model";
+import schema from "./schema";
 
 /** The coarse subject kinds an audit row can describe (mirrors the schema). */
 export type AuditEntityType =
@@ -50,6 +52,19 @@ export async function logAttendanceAction(
 // capped (no rows ever become unreachable).
 const MAX_ROWS_SCANNED_PER_CALL = 2000;
 
+// `paginator` (convex-helpers) encodes its cursor as a JSON array string. A
+// leftover cursor from the old built-in `.paginate()` deploy — or any junk —
+// would make `paginator.paginate()` throw, so drop anything that isn't a
+// paginator cursor and restart from the newest row (mirrors events.ts).
+const asPaginatorCursor = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  try {
+    return Array.isArray(JSON.parse(value)) ? value : null;
+  } catch {
+    return null;
+  }
+};
+
 /**
  * Paginated, filterable, searchable audit feed for the Attendance → Audit tab.
  * Visible to any signed-in staff member. Newest first.
@@ -83,9 +98,14 @@ export const list = query({
     const { numItems } = args.paginationOpts;
 
     // A fresh query for the active filter's most selective index (query builders
-    // are single-use, so we rebuild it each pagination step).
+    // are single-use, so we rebuild it each pagination step). Uses convex-helpers'
+    // `paginator` rather than the built-in `ctx.db...paginate()`: a single Convex
+    // function may only call the built-in `.paginate()` once, but a sparse filter
+    // forces the loop below to scan several pages, which threw "This query or
+    // mutation function ran multiple paginated queries" and crashed the Audit tab.
+    // `paginator` has no such limit.
     const indexed = () => {
-      const q = ctx.db.query("attendanceAuditLog");
+      const q = paginator(ctx.db, schema).query("attendanceAuditLog");
       if (eventId) return q.withIndex("by_event", (i) => i.eq("eventId", eventId));
       if (actorEmail)
         return q.withIndex("by_actor", (i) => i.eq("actorEmail", actorEmail));
@@ -103,7 +123,7 @@ export const list = query({
         r.actorEmail.toLowerCase().includes(search));
 
     const matched: Doc<"attendanceAuditLog">[] = [];
-    let cursor = args.paginationOpts.cursor;
+    let cursor = asPaginatorCursor(args.paginationOpts.cursor);
     let isDone = false;
     let scanned = 0;
     // Walk the index page-by-page. Each step requests only the rows still needed,

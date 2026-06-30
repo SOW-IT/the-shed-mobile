@@ -233,6 +233,39 @@ describe("attendance audit logging", () => {
     expect(second.isDone).toBe(true);
   });
 
+  test("a sparse filter scans several internal pages in one call", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const { dateStart, dateEnd } = window();
+    // One matching row (oldest), then many non-matching ones. A newest-first scan
+    // must page past all the fillers before it finds the single match, so filling
+    // `numItems` matches needs several underlying pages in ONE list() call. The
+    // old built-in `.paginate()`-in-a-loop threw "ran multiple paginated queries"
+    // and crashed the Audit tab here; `paginator` walks the pages fine.
+    await staff.mutation(api.events.create, {
+      name: "Unicorn Gala",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    for (let i = 0; i < 8; i++) {
+      await staff.mutation(api.events.create, {
+        name: `Filler ${i}`,
+        dateStart: dateStart + i + 1,
+        dateEnd,
+        subgroups: [USYD],
+      });
+    }
+
+    const res = await staff.query(api.attendanceAudit.list, {
+      search: "Unicorn",
+      paginationOpts: { numItems: 3, cursor: null },
+    });
+    expect(res.page).toHaveLength(1);
+    expect(res.page[0].summary).toContain("Unicorn");
+    expect(res.isDone).toBe(true);
+  });
+
   test("filterOptions lists distinct actors and recent events, dropping deleted ones", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
@@ -475,6 +508,33 @@ describe("audit logging across attendance mutations", () => {
     expect(renamed).toBeTruthy();
   });
 
+  test("re-saving all tags logs an update only for the one that changed", async () => {
+    const t = await setup();
+    const staff = asUser(t, ADMIN);
+    await staff.mutation(api.attendanceTags.saveAll, {
+      year: YEAR,
+      tags: [{ name: "Alpha" }, { name: "Beta" }, { name: "Gamma" }],
+      deleteIds: [],
+    });
+    const tags = await staff.query(api.attendanceTags.list, { year: YEAR });
+    const idOf = (n: string) => tags.find((x) => x.name === n)!._id;
+
+    // The client re-sends every tag on save; only Beta's colour changes here.
+    await staff.mutation(api.attendanceTags.saveAll, {
+      year: YEAR,
+      tags: [
+        { id: idOf("Alpha"), name: "Alpha" },
+        { id: idOf("Beta"), name: "Beta", colour: "#abcdef" },
+        { id: idOf("Gamma"), name: "Gamma" },
+      ],
+      deleteIds: [],
+    });
+
+    const updates = (await allLogs(t)).filter((l) => l.action === "tag.update");
+    expect(updates).toHaveLength(1);
+    expect(updates[0].summary).toContain("Beta");
+  });
+
   test("member fields log create, rename, unchanged-skip and delete", async () => {
     const t = await setup();
     const staff = asUser(t, ADMIN);
@@ -575,6 +635,27 @@ describe("audit logging across attendance mutations", () => {
     expect(reorders).toHaveLength(1);
     expect(reorders[0].summary).toContain("Reordered member fields");
     expect(reorders[0].summary).not.toContain("Swapped");
+  });
+
+  test("malformed cursor is silently dropped and query restarts from newest", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const { dateStart, dateEnd } = window();
+    const eventId = await staff.mutation(api.events.create, {
+      name: "Cursor Test Event",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    // Write a few audit rows so the query has something to return.
+    await staff.mutation(api.attendance.signIn, { eventId, email: STAFF });
+    // A syntactically invalid JSON string (not parseable by JSON.parse) must not
+    // throw — it should be treated as "no cursor" and restart from the beginning.
+    const result = await staff.query(api.attendanceAudit.list, {
+      paginationOpts: { numItems: 10, cursor: "not-json{{" },
+    });
+    expect(result.page.length).toBeGreaterThan(0);
+    expect(result.isDone).toBe(true);
   });
 
   test("roll-call by email logs sign-in, record edit and sign-out", async () => {
