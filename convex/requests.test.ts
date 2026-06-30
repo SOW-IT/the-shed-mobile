@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate } from "../shared/flow";
+import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import { involvedApproverEmails, nextApproverEmail } from "./requests";
 import schema from "./schema";
@@ -439,9 +439,9 @@ describe("approval chain order and authorization", () => {
       })
     );
     // A fully-approved carry-over from last year by Rachel, awaiting a receipt.
+    vi.setSystemTime(staffYearStartMs(YEAR - 1) + 1);
     const requestId = await t.run((ctx) =>
       ctx.db.insert("requests", {
-        year: YEAR - 1,
         requesterEmail: RACHEL,
         department: "Marketing",
         description: "carried",
@@ -451,6 +451,7 @@ describe("approval chain order and authorization", () => {
         approvedByFinanceHead: "APPROVED",
       })
     );
+    vi.useRealTimers();
     await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
       requestId,
       recipients: [
@@ -1328,6 +1329,10 @@ describe("audit trail and reminders", () => {
 });
 
 describe("deadlock prevention and validation fixes", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   test("submit is rejected while the year has no Budget Manager", async () => {
     const t = convexTest(schema, modules);
     await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
@@ -1611,8 +1616,11 @@ describe("deadlock prevention and validation fixes", () => {
   });
 
   test("in-flight previous-year requests survive the rollover end to end", async () => {
-    const t = await setup();
-    // Last year's org chart: the same people held the roles.
+    // Seed the carry-over request at YEAR-1 _creationTime BEFORE setup() so
+    // convex-test's monotonic _lastCreationTime guard doesn't clamp it to real
+    // time. Also insert last year's org chart at that same past timestamp.
+    vi.setSystemTime(staffYearStartMs(YEAR - 1) + 1);
+    const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
       await ctx.db.insert("divisions", { year: YEAR - 1, name: "Engagement" });
       await ctx.db.insert("departments", {
@@ -1622,34 +1630,59 @@ describe("deadlock prevention and validation fixes", () => {
         year: YEAR - 1, name: "Finance", division: "Governance", headEmail: FIONA,
       });
       await ctx.db.insert("yearSettings", { year: YEAR - 1, budgetManagerEmail: BELLA });
-      await ctx.db.insert("requests", {
-        year: YEAR - 1,
+    });
+    const carried = await t.run((ctx) =>
+      ctx.db.insert("requests", {
         requesterEmail: RACHEL,
         department: "Marketing",
         description: "carried over",
         amount: 300,
-        approvedByHOD: "APPROVED",
+        approvedByHOD: "PENDING",
         approvedByBudgetManager: "PENDING",
         approvedByFinanceHead: "PENDING",
-      });
+      })
+    );
+    vi.useRealTimers();
+    // Run the standard admin setup for the current year with the real clock.
+    await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Marketing", division: "Engagement", headEmail: HENRY,
+    });
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Finance", division: "Governance", headEmail: FIONA,
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      year: YEAR, email: RACHEL, roles: ["Staff"], department: "Marketing",
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      year: YEAR, email: BELLA, roles: ["Staff"], department: "Finance",
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      year: YEAR, email: DAN, roles: ["Director"],
+    });
+    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
+    // HOD approves to advance to budgetManager step.
+    await asUser(t, HENRY).mutation(api.requests.approve, {
+      requestId: carried, step: "hod",
     });
 
     // Still visible to the requester...
     const mine = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
-    expect(mine.some((r) => r.year === YEAR - 1)).toBe(true);
+    expect(mine.find((r) => r.description === "carried over")).toBeDefined();
 
     // ...and actionable by last year's approvers, all the way to payment.
     const review = (await asUser(t, BELLA).query(api.requests.toReview, {}))!;
-    const carried = review.budgetManager.find((r) => r.year === YEAR - 1);
-    expect(carried).toBeDefined();
+    const carriedDoc = review.budgetManager.find((r) => r.description === "carried over");
+    expect(carriedDoc).toBeDefined();
     await asUser(t, BELLA).mutation(api.requests.approve, {
-      requestId: carried!._id, step: "budgetManager",
+      requestId: carriedDoc!._id, step: "budgetManager",
     });
     await asUser(t, FIONA).mutation(api.requests.approve, {
-      requestId: carried!._id, step: "financeHead",
+      requestId: carriedDoc!._id, step: "financeHead",
     });
     await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
-      requestId: carried!._id,
+      requestId: carriedDoc!._id,
       recipients: [
         {
           accountName: "R",
@@ -1661,15 +1694,15 @@ describe("deadlock prevention and validation fixes", () => {
       ],
     });
     const fionaReview = (await asUser(t, FIONA).query(api.requests.toReview, {}))!;
-    expect(fionaReview.readyToPay.map((r) => r._id)).toContain(carried!._id);
+    expect(fionaReview.readyToPay.map((r) => r._id)).toContain(carriedDoc!._id);
     await asUser(t, FIONA).mutation(api.requests.pay, {
-      requestId: carried!._id, paidAmount: 300,
+      requestId: carriedDoc!._id, paidAmount: 300,
     });
-    const paidDoc = await t.run((ctx) => ctx.db.get("requests", carried!._id));
+    const paidDoc = await t.run((ctx) => ctx.db.get("requests", carriedDoc!._id));
     expect(paidDoc?.paid).toBe(true);
-    // Once completed, carry-overs drop out of the active lists (archive).
+    // Once completed, carry-overs drop out of the active lists.
     const after = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
-    expect(after.find((r) => r._id === carried!._id)).toBeUndefined();
+    expect(after.find((r) => r._id === carriedDoc!._id)).toBeUndefined();
   });
 
   test("declining requires a reason", async () => {
@@ -1717,8 +1750,10 @@ describe("deadlock prevention and validation fixes", () => {
       await ctx.db.insert("yearSettings", {
         year: YEAR - 1, budgetManagerEmail: "olga@sow.org.au",
       });
-      await ctx.db.insert("requests", {
-        year: YEAR - 1,
+    });
+    vi.setSystemTime(staffYearStartMs(YEAR - 1) + 1);
+    await t.run((ctx) =>
+      ctx.db.insert("requests", {
         requesterEmail: RACHEL,
         department: "Marketing",
         description: "stranded",
@@ -1726,8 +1761,9 @@ describe("deadlock prevention and validation fixes", () => {
         approvedByHOD: "APPROVED",
         approvedByBudgetManager: "PENDING",
         approvedByFinanceHead: "PENDING",
-      });
-    });
+      })
+    );
+    vi.useRealTimers();
     // This year's Budget Manager (bella) sees and approves it.
     const review = (await asUser(t, BELLA).query(api.requests.toReview, {}))!;
     const stranded = review.budgetManager.find((r) => r.description === "stranded");

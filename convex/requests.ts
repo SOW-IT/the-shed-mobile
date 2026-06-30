@@ -7,6 +7,7 @@ import {
   DIRECTOR,
   directorThresholdOr,
   EARLIEST_REQUEST_YEAR,
+  eventStaffYear,
   FINANCE,
   HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
@@ -15,6 +16,7 @@ import {
   requestCompleted,
   requestDeclined,
   requestFullyApproved,
+  staffYearStartMs,
   STEP_LABELS,
   type ApprovalStatus,
 } from "../shared/flow";
@@ -43,6 +45,9 @@ import {
   type Approvers,
   type CallerContext,
 } from "./model";
+
+const requestYear = (r: Pick<Doc<"requests">, "_creationTime">): number =>
+  eventStaffYear(r._creationTime);
 
 const STEP_FIELDS = {
   hod: "approvedByHOD",
@@ -238,9 +243,10 @@ export async function actionOwnerEmail(
   request: Doc<"requests">
 ): Promise<string | undefined> {
   const year = currentStaffYear();
-  const approvers = await getApprovers(ctx, request.year, request.department);
+  const reqYear = requestYear(request);
+  const approvers = await getApprovers(ctx, reqYear, request.department);
   const currentApprovers =
-    request.year === year
+    reqYear === year
       ? approvers
       : await getApprovers(ctx, year, request.department);
 
@@ -250,9 +256,9 @@ export async function actionOwnerEmail(
   if (requestDeclined(request) || !requestFullyApproved(request)) return undefined;
   if (!request.receipt) return request.requesterEmail; // awaiting receipt
   if (request.paid === false) {
-    const finance = await getApprovers(ctx, request.year, FINANCE);
+    const finance = await getApprovers(ctx, reqYear, FINANCE);
     const financeNow =
-      request.year === year ? finance : await getApprovers(ctx, year, FINANCE);
+      reqYear === year ? finance : await getApprovers(ctx, year, FINANCE);
     return finance.financeHeadEmail ?? financeNow.financeHeadEmail;
   }
   return undefined; // paid / completed
@@ -428,7 +434,6 @@ export const submit = mutation({
     }
 
     const id = await ctx.db.insert("requests", {
-      year,
       requesterEmail: email,
       department,
       description: args.description.trim(),
@@ -471,7 +476,11 @@ export const submit = mutation({
 const yearRequests = async (ctx: QueryCtx | MutationCtx, year: number) =>
   await ctx.db
     .query("requests")
-    .withIndex("by_year", (q) => q.eq("year", year))
+    .withIndex("by_creation_time", (q) =>
+      q
+        .gte("_creationTime", staffYearStartMs(year))
+        .lt("_creationTime", staffYearStartMs(year + 1))
+    )
     .order("desc")
     .take(LIVE_REQUESTS_PER_YEAR_LIMIT);
 
@@ -520,15 +529,16 @@ async function canViewReceiptDetails(
   if (request.requesterEmail === caller.email) return true;
   if (isMemberOfDepartment(caller.profile, FINANCE)) return true;
 
-  const requestYearFinance = await getApprovers(ctx, request.year, FINANCE);
-  const actAsRequest = await actAsEmails(ctx, request.year, caller.email);
+  const reqYear = requestYear(request);
+  const requestYearFinance = await getApprovers(ctx, reqYear, FINANCE);
+  const actAsRequest = await actAsEmails(ctx, reqYear, caller.email);
   if (
     requestYearFinance.financeHeadEmail !== undefined &&
     actAsRequest.has(requestYearFinance.financeHeadEmail)
   ) {
     return true;
   }
-  if (request.year === caller.year) return false;
+  if (reqYear === caller.year) return false;
 
   const currentFinance = await getApprovers(ctx, caller.year, FINANCE);
   const actAsCurrent = await actAsEmails(ctx, caller.year, caller.email);
@@ -560,8 +570,12 @@ export const myRequests = query({
     const fetch = (y: number) =>
       ctx.db
         .query("requests")
-        .withIndex("by_year_and_requester", (q) =>
-          q.eq("year", y).eq("requesterEmail", email)
+        .withIndex("by_requester", (q) => q.eq("requesterEmail", email))
+        .filter((q) =>
+          q.and(
+            q.gte(q.field("_creationTime"), staffYearStartMs(y)),
+            q.lt(q.field("_creationTime"), staffYearStartMs(y + 1))
+          )
         )
         .order("desc")
         .take(200);
@@ -598,7 +612,7 @@ export const requestYears = query({
       [...new Set([currentStaffYear(), ...years])]
         .filter((y) => y >= EARLIEST_REQUEST_YEAR)
         .sort((a, b) => b - a);
-    const mine = yearsFrom(mineRows.map((r) => r.year));
+    const mine = yearsFrom(mineRows.map((r) => requestYear(r)));
     // Discover which years have an org structure with one indexed probe per
     // candidate year. This stays bounded (a handful of years) instead of
     // collecting the whole divisions table, which grows with every year added.
@@ -656,21 +670,22 @@ export const toReview = query({
     const readyToPay: Doc<"requests">[] = [];
 
     for (const request of open) {
+      const reqYear = requestYear(request);
       // Carried-over requests can be actioned by the approvers of the
       // request's own year AND this year's officeholders, so a departed
       // approver never strands a leftover request.
-      const requestYear = await approversFor(request.year, request.department);
+      const requestYearApprovers = await approversFor(reqYear, request.department);
       const thisYear =
-        request.year === year
-          ? requestYear
+        reqYear === year
+          ? requestYearApprovers
           : await approversFor(year, request.department);
       // A match if the caller IS the approver, or a delegate of them — checked
       // against the request's own year and (for carry-overs) the current year.
-      const actAsRequestYear = await actAsIn(request.year);
+      const actAsRequestYear = await actAsIn(reqYear);
       const actAsThisYear =
-        request.year === year ? actAsRequestYear : await actAsIn(year);
+        reqYear === year ? actAsRequestYear : await actAsIn(year);
       const matches = (pick: (a: Approvers) => string | undefined) => {
-        const reqApprover = pick(requestYear);
+        const reqApprover = pick(requestYearApprovers);
         const nowApprover = pick(thisYear);
         return (
           (reqApprover !== undefined && actAsRequestYear.has(reqApprover)) ||
@@ -695,7 +710,7 @@ export const toReview = query({
         budgetManager.push(request);
       } else if (
         step === "director" &&
-        ((await callerRolesIn(request.year)).includes(DIRECTOR) ||
+        ((await callerRolesIn(reqYear)).includes(DIRECTOR) ||
           (await callerRolesIn(year)).includes(DIRECTOR) ||
           matches((a) => a.directorEmail))
       ) {
@@ -798,7 +813,11 @@ export const requestsForExport = query({
     for (const year of years) {
       const yearRows = await ctx.db
         .query("requests")
-        .withIndex("by_year", (q) => q.eq("year", year))
+        .withIndex("by_creation_time", (q) =>
+          q
+            .gte("_creationTime", staffYearStartMs(year))
+            .lt("_creationTime", staffYearStartMs(year + 1))
+        )
         .order("desc")
         .collect();
       rows.push(...yearRows);
@@ -822,10 +841,11 @@ async function authorizeStep(
   currentApprovers: Approvers;
 }> {
   const request = await ctx.db.get("requests", requestId);
+  const reqYear = request ? requestYear(request) : null;
   // Current-year requests plus incomplete carry-overs from last year.
   if (
     !request ||
-    (request.year !== caller.year && request.year !== caller.year - 1)
+    (reqYear !== caller.year && reqYear !== caller.year - 1)
   ) {
     throw new ConvexError("Request not found.");
   }
@@ -838,16 +858,16 @@ async function authorizeStep(
   // Approvers come from the REQUEST's year; for carried-over requests the
   // current year's officeholders may act too (a departed approver must never
   // strand a leftover request).
-  const approvers = await getApprovers(ctx, request.year, request.department);
+  const approvers = await getApprovers(ctx, reqYear!, request.department);
   const currentApprovers =
-    request.year === caller.year
+    reqYear === caller.year
       ? approvers
       : await getApprovers(ctx, caller.year, request.department);
   // The caller matches a step if they ARE its approver or a delegate of them,
   // checked against the request's year and (for carry-overs) the current year.
-  const actAsRequest = await actAsEmails(ctx, request.year, caller.email);
+  const actAsRequest = await actAsEmails(ctx, reqYear!, caller.email);
   const actAsCurrent =
-    request.year === caller.year
+    reqYear === caller.year
       ? actAsRequest
       : await actAsEmails(ctx, caller.year, caller.email);
   const matches = (pick: (a: Approvers) => string | undefined) => {
@@ -859,9 +879,9 @@ async function authorizeStep(
     );
   };
   const requestYearProfile =
-    request.year === caller.year
+    reqYear === caller.year
       ? caller.profile
-      : await getProfile(ctx, caller.email, request.year);
+      : await getProfile(ctx, caller.email, reqYear!);
   // The Director step is role-based; a delegate of the Director may also act.
   const isDirector =
     rolesOf(caller.profile).includes(DIRECTOR) ||
@@ -955,7 +975,7 @@ export const decline = mutation({
       declinedTime: Date.now(),
     });
     await logEvent(ctx, args.requestId, caller.email, "declined", args.step, reason);
-    const declinerName = await displayName(ctx, caller.email, request.year);
+    const declinerName = await displayName(ctx, caller.email, requestYear(request));
     await notify(ctx, {
       to: request.requesterEmail,
       actor: caller.email,
@@ -1025,7 +1045,7 @@ export const cancel = mutation({
     }
     // Per REQUESTS_FLOW.md, everyone involved hears about the cancellation:
     // approvers who already approved, plus whoever it is waiting on now.
-    const approvers = await getApprovers(ctx, request.year, request.department);
+    const approvers = await getApprovers(ctx, requestYear(request), request.department);
     const recipients = new Set(
       involvedApproverEmails(request, approvers, [APPROVED])
     );
@@ -1161,7 +1181,7 @@ async function nudgeParticipantEmails(
   ctx: QueryCtx | MutationCtx,
   request: Doc<"requests">
 ): Promise<Set<string>> {
-  const approvers = await getApprovers(ctx, request.year, request.department);
+  const approvers = await getApprovers(ctx, requestYear(request), request.department);
   return new Set([
     request.requesterEmail,
     ...involvedApproverEmails(request, approvers, [APPROVED]),
@@ -1251,7 +1271,7 @@ export const nudge = mutation({
       sentAt: Date.now(),
     });
 
-    const nudgerName = await displayName(ctx, caller.email, request.year);
+    const nudgerName = await displayName(ctx, caller.email, requestYear(request));
     await notify(ctx, {
       to,
       actor: caller.email,
@@ -1340,9 +1360,9 @@ export const stepInfo = query({
     if (!(await optionalProfile(ctx))) return null;
     const request = await ctx.db.get("requests", args.requestId);
     if (!request) return null;
-    const approvers = await getApprovers(ctx, request.year, request.department);
+    const approvers = await getApprovers(ctx, requestYear(request), request.department);
     const email = approverEmailMap(approvers)[args.step] ?? null;
-    const name = email ? await resolveApproverName(ctx, email, request.year) : null;
+    const name = email ? await resolveApproverName(ctx, email, requestYear(request)) : null;
     const allEvents = await ctx.db
       .query("requestEvents")
       .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
@@ -1365,7 +1385,8 @@ export const stepActors = query({
     if (!(await optionalProfile(ctx))) return null;
     const request = await ctx.db.get("requests", args.requestId);
     if (!request) return null;
-    const approvers = await getApprovers(ctx, request.year, request.department);
+    const reqYear = requestYear(request);
+    const approvers = await getApprovers(ctx, reqYear, request.department);
     const emailMap = approverEmailMap(approvers);
     const allEvents = await ctx.db
       .query("requestEvents")
@@ -1382,7 +1403,7 @@ export const stepActors = query({
       "financeHead",
     ] as const) {
       const email = emailMap[step] ?? null;
-      const name = email ? await resolveApproverName(ctx, email, request.year) : null;
+      const name = email ? await resolveApproverName(ctx, email, reqYear) : null;
       const stepEvent = allEvents
         .filter(
           (e) =>
@@ -1524,13 +1545,14 @@ export const submitReceipt = mutation({
     // (deduped), so a request that carried over a Finance-Head change still
     // reaches whoever can actually pay it now — mirroring notifyNextActor's
     // carry-over fallback, and toReview/pay which both accept either year's head.
-    const approvers = await getApprovers(ctx, request.year, FINANCE);
+    const reqYear = requestYear(request);
+    const approvers = await getApprovers(ctx, reqYear, FINANCE);
     const currentYear = currentStaffYear();
     const currentApprovers =
-      request.year === currentYear
+      reqYear === currentYear
         ? approvers
         : await getApprovers(ctx, currentYear, FINANCE);
-    const requesterName = await displayName(ctx, request.requesterEmail, request.year);
+    const requesterName = await displayName(ctx, request.requesterEmail, reqYear);
     const financeHeads = new Set(
       [approvers.financeHeadEmail, currentApprovers.financeHeadEmail].filter(
         (e): e is string => e !== undefined
@@ -1601,22 +1623,23 @@ export const pay = mutation({
       throw new ConvexError("The paid amount must be a positive number.");
     }
     const request = await ctx.db.get("requests", args.requestId);
+    const reqYear = request ? requestYear(request) : null;
     if (
       !request ||
-      (request.year !== caller.year && request.year !== caller.year - 1)
+      (reqYear !== caller.year && reqYear !== caller.year - 1)
     ) {
       throw new ConvexError("Request not found.");
     }
     // The Finance Head of the request's year OR the current one pays it — or a
     // delegate standing in for either.
-    const approvers = await getApprovers(ctx, request.year, FINANCE);
+    const approvers = await getApprovers(ctx, reqYear!, FINANCE);
     const currentApprovers =
-      request.year === caller.year
+      reqYear === caller.year
         ? approvers
         : await getApprovers(ctx, caller.year, FINANCE);
-    const actAsRequest = await actAsEmails(ctx, request.year, caller.email);
+    const actAsRequest = await actAsEmails(ctx, reqYear!, caller.email);
     const actAsCurrent =
-      request.year === caller.year
+      reqYear === caller.year
         ? actAsRequest
         : await actAsEmails(ctx, caller.year, caller.email);
     const canPay =
@@ -1639,7 +1662,7 @@ export const pay = mutation({
       paidTime: Date.now(),
     });
     await logEvent(ctx, args.requestId, caller.email, "paid", undefined, `$${args.paidAmount}`);
-    const payerName = await displayName(ctx, caller.email, request.year);
+    const payerName = await displayName(ctx, caller.email, reqYear!);
     await notify(ctx, {
       to: request.requesterEmail,
       actor: caller.email,
@@ -1650,7 +1673,7 @@ export const pay = mutation({
     });
     // The Budget Manager should know when the paid amount differs.
     if (args.paidAmount !== request.amount) {
-      const yearApprovers = await getApprovers(ctx, request.year, request.department);
+      const yearApprovers = await getApprovers(ctx, reqYear!, request.department);
       await notify(ctx, {
         to: yearApprovers.budgetManagerEmail,
         actor: caller.email,
