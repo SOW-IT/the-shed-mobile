@@ -155,6 +155,18 @@ const NewRequestSheet = ({
 
   const handleSubmit = async () => {
     setError(null);
+    // Validate client-side first (mirroring convex/requests.ts:submit) so an
+    // empty/zero field shows its message inline without a server round-trip —
+    // which would throw a ConvexError and surface a red dev-overlay on every
+    // invalid attempt. Same order as the server: amount, then description.
+    if (!(Number(amount) > 0)) {
+      setError("Amount must be a positive number.");
+      return;
+    }
+    if (description.trim() === "") {
+      setError("Please describe what the request is for.");
+      return;
+    }
     try {
       await submit({ description, amount: Number(amount), department });
       setDescription("");

@@ -217,6 +217,16 @@ export const ReviewList = () => {
   const [payTarget, setPayTarget] = useState<Doc<"requests"> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Resolve the requester's name for the approve-confirmation copy, scoped to
+  // the request's staff year (same lookup the card uses); fall back to the
+  // email until it loads or when the person has no profile name.
+  const approveRequesterName = useQuery(
+    api.directory.nameForEmail,
+    approveTarget
+      ? { email: approveTarget.request.requesterEmail, year: approveTarget.request.year }
+      : "skip"
+  );
+
   const handleApprove = async (request: Doc<"requests">, step: Step) => {
     setError(null);
     try {
@@ -325,7 +335,7 @@ export const ReviewList = () => {
         title="Approve request?"
         message={
           approveTarget
-            ? `Approve the $${approveTarget.request.amount} request from ${approveTarget.request.requesterEmail}? It moves to the next step.`
+            ? `Approve the $${approveTarget.request.amount} request from ${approveRequesterName ?? approveTarget.request.requesterEmail}? It moves to the next step.`
             : undefined
         }
         confirmLabel="Approve"
