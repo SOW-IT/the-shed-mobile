@@ -203,7 +203,7 @@ export const CommentsSheet = ({
             <SowSpinner size={18} />
           </View>
         ) : loaded === null || loaded.length === 0 ? (
-          <Muted>No comments yet. Start the conversation below.</Muted>
+          <Muted>No comments yet.</Muted>
         ) : (
           <View style={{ gap: spacing.md }}>
             {loaded.map((comment) => (

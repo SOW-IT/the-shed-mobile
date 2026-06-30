@@ -10,6 +10,7 @@ import {
   HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
   isChaplainRole,
+  isSystemRole,
   MEMBER,
   ROLES,
   roleNeedsDepartment,
@@ -442,6 +443,9 @@ export default function AdminScreen() {
   // Type-to-confirm dialog for removing a person's profile for the year.
   const [removeProfileTarget, setRemoveProfileTarget] = useState<
     NonNullable<typeof profiles>[number] | null
+  >(null);
+  const [removeDelegationTarget, setRemoveDelegationTarget] = useState<
+    NonNullable<typeof delegations>[number] | null
   >(null);
 
   const startEditUser = (email: string) => {
@@ -907,7 +911,15 @@ export default function AdminScreen() {
                     <View style={{ flexGrow: 1 }}>
                       <Txt style={{ fontWeight: "600" }}>{role}</Txt>
                     </View>
-                    {editable && (
+                    {editable && isSystemRole(role) && (
+                      <Ionicons
+                        name="lock-closed-outline"
+                        size={20}
+                        color={t.muted}
+                        accessibilityLabel="Managed by the app — can't be renamed or deleted"
+                      />
+                    )}
+                    {editable && !isSystemRole(role) && (
                       <>
                         <IconButton
                           name="create-outline"
@@ -1471,7 +1483,7 @@ export default function AdminScreen() {
                           size={32}
                           color={t.danger}
                           accessibilityLabel="Remove delegation"
-                          onPress={() => void run(() => removeDelegation({ id: d.id }))}
+                          onPress={() => setRemoveDelegationTarget(d)}
                         />
                       )}
                     </Row>
@@ -1564,7 +1576,7 @@ export default function AdminScreen() {
       <ConfirmDialog
         visible={removeProfileTarget !== null}
         title={`Delete "${removeProfileTarget?.name ?? removeProfileTarget?.email}"`}
-        message={`Remove ${removeProfileTarget?.email} from ${selectedYear}? Their roles and department assignments for the year will be deleted and they'll move to the "Not serving" list.`}
+        message={`Their ${selectedYear} roles and assignments will be deleted and they'll move to "Not serving".`}
         requireText={removeProfileTarget?.name ?? removeProfileTarget?.email}
         onConfirm={() => {
           if (removeProfileTarget) {
@@ -1579,9 +1591,25 @@ export default function AdminScreen() {
         onClose={() => setRemoveProfileTarget(null)}
       />
       <ConfirmDialog
+        visible={removeDelegationTarget !== null}
+        title="Remove delegation?"
+        message={
+          removeDelegationTarget
+            ? `${nameByEmail.get(removeDelegationTarget.fromEmail) ?? removeDelegationTarget.fromEmail} → ${nameByEmail.get(removeDelegationTarget.toEmail) ?? removeDelegationTarget.toEmail}: the delegate can no longer act for the approver in ${selectedYear}.`
+            : undefined
+        }
+        confirmLabel="Remove"
+        onConfirm={() => {
+          if (removeDelegationTarget) {
+            void run(() => removeDelegation({ id: removeDelegationTarget.id }));
+          }
+        }}
+        onClose={() => setRemoveDelegationTarget(null)}
+      />
+      <ConfirmDialog
         visible={syncConfirm}
         title="Sync directory now?"
-        message="Pulls all active Google Workspace users on sow.org.au into the people picker, and caches staff profile photos. This also runs automatically once a week."
+        message="Pulls active Google Workspace users into the people picker and caches profile photos. Runs automatically each week."
         destructive={false}
         confirmLabel="Sync"
         onConfirm={() => {

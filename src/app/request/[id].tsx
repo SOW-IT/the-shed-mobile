@@ -1,33 +1,25 @@
-import { useMutation, useQuery } from "convex/react";
-import { useLocalSearchParams } from "expo-router";
-import { useEffect } from "react";
+import { useQuery } from "convex/react";
+import { Redirect, useLocalSearchParams } from "expo-router";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { RequestCard } from "@/components/RequestCard";
-import {
-  EmptyState,
-  FadeInView,
-  LoadingState,
-  Muted,
-  Screen,
-} from "@/components/ui";
+import { EmptyState, LoadingState, Screen } from "@/components/ui";
 
-/** Where push notifications about a request land. */
-export default function RequestDetailScreen() {
+/**
+ * Legacy deep-link target for a single request. Notifications now link straight
+ * to the live Requests tab where the action is taken (see `requestUrl` in
+ * convex/requests.ts), so this route just forwards there — to "Mine" for the
+ * requester, "Review" for everyone else — focusing the request so it expands.
+ * Kept so older notifications/bookmarks still land somewhere useful.
+ */
+export default function RequestRedirectScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const me = useQuery(api.directory.me);
   const request = useQuery(
     api.requests.get,
     id ? { requestId: id as Id<"requests"> } : "skip"
   );
-  // Opening the request is "seeing" what its notifications were about, so clear
-  // them (e.g. landing here from a push or a tapped in-app notification).
-  const markNotificationsRead = useMutation(api.notifications.markReadForRequest);
-  const requestId = request?._id;
-  useEffect(() => {
-    if (requestId) void markNotificationsRead({ requestId });
-  }, [requestId, markNotificationsRead]);
 
-  if (request === undefined) {
+  if (request === undefined || me === undefined) {
     return (
       <Screen title="Request">
         <LoadingState />
@@ -45,14 +37,6 @@ export default function RequestDetailScreen() {
       </Screen>
     );
   }
-  return (
-    <Screen title="Request">
-      <FadeInView delay={40}>
-        <RequestCard request={request} showRequester />
-      </FadeInView>
-      <Muted>
-        If this request is waiting on you, action it from the To Review tab.
-      </Muted>
-    </Screen>
-  );
+  const tab = me?.email === request.requesterEmail ? "mine" : "review";
+  return <Redirect href={`/?tab=${tab}&focus=${request._id}`} />;
 }

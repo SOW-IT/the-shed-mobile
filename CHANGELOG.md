@@ -6,7 +6,28 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.5.3] — 2026-07-01
+
 ### Fixed
+
+- **Tapping a request push notification now opens the request.** Request
+  notifications deep-link to `/?tab=review&focus=<id>` (the live Requests
+  screen), but the push-tap handler's allow-list still only accepted the old
+  `/request/` and `/review` paths, so tapping a request push on a device routed
+  nowhere (attendance pushes were unaffected). The allow-list now accepts the
+  `/?tab=…&focus=…` home deep-link, and it lives in `shared/deepLinks.ts` with a
+  test asserting every URL the backend emits is followable, so this can't
+  silently regress again.
+- **Admin → Roles no longer offers edit/delete on app-managed roles.** The
+  system roles (Head of Department/Division, Director, Staff, Member) showed
+  edit and trash buttons whose delete dialog claimed they could be removed; the
+  backend rejected the mutation but only after a thrown `ConvexError` surfaced a
+  dev-overlay. Those roles now show a lock icon instead of the buttons, and the
+  shared `SYSTEM_ROLES`/`isSystemRole` helper in `shared/flow.ts` is the single
+  source of truth for both the UI and the backend guards.
+- **Admin → Approver Delegation removal now asks for confirmation.** Tapping the
+  × removed a delegation immediately; it now shows a "Remove delegation?" confirm
+  first, so an approver's stand-in can't be revoked by a stray tap.
 
 - **Attendance → Audit no longer crashes when filtered or searched.** Applying
   an action-type/actor/event filter, or typing in the audit search, could crash

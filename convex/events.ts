@@ -276,9 +276,14 @@ export const subgroups = query({
 });
 
 export const get = query({
-  args: { eventId: v.id("events") },
-  handler: async (ctx, { eventId }) => {
+  // Accept a raw string (not v.id) so a malformed id from a stale deep link or
+  // bookmark resolves to a graceful "not found" instead of throwing an
+  // ArgumentValidationError that trips the top-level error boundary.
+  args: { eventId: v.string() },
+  handler: async (ctx, { eventId: rawEventId }) => {
     if (!(await optionalProfile(ctx))) return null;
+    const eventId = ctx.db.normalizeId("events", rawEventId);
+    if (!eventId) return null;
     const event = await ctx.db.get(eventId);
     return event ? await annotate(ctx, event) : null;
   },

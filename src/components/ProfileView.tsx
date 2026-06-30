@@ -228,8 +228,7 @@ export const ProfileView = ({ email }: { email?: string }) => {
 
       <ConfirmDialog
         visible={confirmingSignOut}
-        title="Sign out"
-        message="Sign out of The Shed?"
+        title="Sign out of The Shed?"
         confirmLabel="Sign out"
         onConfirm={() => void signOut()}
         onClose={() => setConfirmingSignOut(false)}

@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { spacing, useAppTheme } from "@/theme";
+import { eventStaffYear } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { RequestCard } from "@/components/RequestCard";
@@ -186,7 +187,14 @@ const SECTIONS: { key: Exclude<Step, never>; title: string }[] = [
 ];
 
 /** Requests waiting on the signed-in approver, grouped by step. */
-export const ReviewList = () => {
+export const ReviewList = ({
+  focusId,
+  focusThread = false,
+}: {
+  /** Notification deep-link: id of the request to focus (expand / open thread). */
+  focusId?: string;
+  focusThread?: boolean;
+} = {}) => {
   const t = useAppTheme();
   const data = useQuery(api.requests.toReview, {});
   // Requests the approver has already actioned, shown in their own section
@@ -216,6 +224,19 @@ export const ReviewList = () => {
   } | null>(null);
   const [payTarget, setPayTarget] = useState<Doc<"requests"> | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Resolve the requester's name for the approve-confirmation copy, scoped to
+  // the request's staff year (same lookup the card uses); fall back to the
+  // email until it loads or when the person has no profile name.
+  const approveRequesterName = useQuery(
+    api.directory.nameForEmail,
+    approveTarget
+      ? {
+          email: approveTarget.request.requesterEmail,
+          year: eventStaffYear(approveTarget.request._creationTime),
+        }
+      : "skip"
+  );
 
   const handleApprove = async (request: Doc<"requests">, step: Step) => {
     setError(null);
@@ -247,12 +268,12 @@ export const ReviewList = () => {
         <EmptyState
           icon="checkmark-done-outline"
           title="All caught up"
-          message="Nothing is waiting on your review right now."
+          message="Nothing is waiting on your review."
         />
       ) : (
         <>
           {!hasAnything ? (
-            <Muted>You&rsquo;re all caught up — nothing is waiting on your review.</Muted>
+            <Muted>You&rsquo;re all caught up.</Muted>
           ) : (
             <>
               {SECTIONS.map(({ key, title }) =>
@@ -263,7 +284,7 @@ export const ReviewList = () => {
                     </SectionTitle>
                     {data[key].map((request, index) => (
                       <FadeInView key={request._id} delay={stagger(index)}>
-                        <RequestCard request={request} showRequester actionRequired>
+                        <RequestCard request={request} showRequester actionRequired autoExpand={request._id === focusId} autoOpenThread={request._id === focusId && focusThread}>
                           <IconButton
                             name="checkmark"
                             size={40}
@@ -291,7 +312,7 @@ export const ReviewList = () => {
                   <SectionTitle>Ready to Pay ({data.readyToPay.length})</SectionTitle>
                   {data.readyToPay.map((request, index) => (
                     <FadeInView key={request._id} delay={stagger(index)}>
-                      <RequestCard request={request} showRequester actionRequired>
+                      <RequestCard request={request} showRequester actionRequired autoExpand={request._id === focusId} autoOpenThread={request._id === focusId && focusThread}>
                         <IconButton
                           name="cash-outline"
                           size={40}
@@ -313,7 +334,13 @@ export const ReviewList = () => {
               {reviewed.map((request, index) => (
                 <FadeInView key={request._id} delay={stagger(index)}>
                   {/* Read-only history of what this approver has actioned. */}
-                  <RequestCard request={request} showRequester collapsible />
+                  <RequestCard
+                    request={request}
+                    showRequester
+                    collapsible
+                    autoExpand={request._id === focusId}
+                    autoOpenThread={request._id === focusId && focusThread}
+                  />
                 </FadeInView>
               ))}
             </View>
@@ -325,7 +352,7 @@ export const ReviewList = () => {
         title="Approve request?"
         message={
           approveTarget
-            ? `Approve the $${approveTarget.request.amount} request from ${approveTarget.request.requesterEmail}? It moves to the next step.`
+            ? `$${approveTarget.request.amount} from ${approveRequesterName ?? approveTarget.request.requesterEmail} — moves to the next step.`
             : undefined
         }
         confirmLabel="Approve"

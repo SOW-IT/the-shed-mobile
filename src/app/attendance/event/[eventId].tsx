@@ -961,8 +961,8 @@ export default function EventAttendanceScreen() {
       />
       <ConfirmDialog
         visible={confirmEnableEdit}
-        title="Enable editing"
-        message="This event has ended. Enable editing to change its attendance?"
+        title="Enable editing?"
+        message="This event has ended."
         confirmLabel="Enable editing"
         destructive={false}
         onConfirm={() => setEditUnlocked(true)}

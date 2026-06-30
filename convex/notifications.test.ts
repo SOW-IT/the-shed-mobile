@@ -1,7 +1,10 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { isAllowedDeepLink } from "../shared/deepLinks";
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
+import { requestUrl } from "./requests";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -190,5 +193,35 @@ describe("push.send (Expo push action)", () => {
     await t.action(internal.push.send, { to: "a@sow.org.au", title: "T", body: "B" });
     const remaining = await t.run((ctx) => ctx.db.query("pushTokens").take(10));
     expect(remaining).toHaveLength(1);
+  });
+});
+
+describe("notification deep-links are followable by the push-tap handler", () => {
+  // Regression guard: the push-tap handler (src/hooks/usePushRegistration.ts)
+  // only navigates to URLs that pass isAllowedDeepLink. Request notifications
+  // moved to the `/?tab=...&focus=...` home deep-link, so the allow-list must
+  // accept it — otherwise tapping a request push silently routes nowhere.
+  const fakeRequest = {
+    _id: "req123" as Id<"requests">,
+    requesterEmail: "requester@sow.org.au",
+  };
+
+  test("requestUrl shapes (Mine, Review, thread) are allowed", () => {
+    expect(isAllowedDeepLink(requestUrl(fakeRequest.requesterEmail, fakeRequest))).toBe(true);
+    expect(isAllowedDeepLink(requestUrl("approver@sow.org.au", fakeRequest))).toBe(true);
+    expect(
+      isAllowedDeepLink(requestUrl("approver@sow.org.au", fakeRequest, { thread: true }))
+    ).toBe(true);
+  });
+
+  test("static review and attendance-event URLs are allowed", () => {
+    expect(isAllowedDeepLink("/?tab=review")).toBe(true);
+    expect(isAllowedDeepLink("/attendance/event/evt123")).toBe(true);
+  });
+
+  test("rejects payloads outside the known route families", () => {
+    expect(isAllowedDeepLink("/reviewevil")).toBe(false);
+    expect(isAllowedDeepLink("https://evil.example.com")).toBe(false);
+    expect(isAllowedDeepLink("/admin")).toBe(false);
   });
 });

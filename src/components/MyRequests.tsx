@@ -155,6 +155,22 @@ const NewRequestSheet = ({
 
   const handleSubmit = async () => {
     setError(null);
+    // Validate client-side first (mirroring convex/requests.ts:submit) so an
+    // empty/zero field shows its message inline without a server round-trip —
+    // which would throw a ConvexError and surface a red dev-overlay on every
+    // invalid attempt. Same order as the server: amount, then description.
+    if (!(Number(amount) > 0)) {
+      setError("Amount must be a positive number.");
+      return;
+    }
+    if (description.trim() === "") {
+      setError("Please describe what the request is for.");
+      return;
+    }
+    if (department.trim() === "") {
+      setError("Pick a department for this request.");
+      return;
+    }
     try {
       await submit({ description, amount: Number(amount), department });
       setDescription("");
@@ -613,7 +629,7 @@ const ReceiptSheet = ({
         title="Receipt exceeds request"
         message={
           confirmExceeds && request
-            ? `Your receipt total of $${confirmExceeds.total} is more than the requested $${request.amount}. You may only be paid up to the requested amount. Submit anyway?`
+            ? `Your $${confirmExceeds.total} receipt exceeds the requested $${request.amount}. You'll be paid up to the requested amount.`
             : undefined
         }
         confirmLabel="Submit Anyway"
@@ -687,6 +703,8 @@ export const MyRequests = ({
   year,
   readOnly = false,
   directorThreshold = DIRECTOR_APPROVAL_THRESHOLD,
+  focusId,
+  focusThread = false,
 }: {
   departments: string[];
   defaultDepartment: string;
@@ -697,6 +715,9 @@ export const MyRequests = ({
   // A past staff year to browse (read-only). Omit/undefined for the live year.
   year?: number;
   readOnly?: boolean;
+  /** Notification deep-link: id of the request to focus (expand / open thread). */
+  focusId?: string;
+  focusThread?: boolean;
   /** The year's Director-approval cutoff; defaults to the standard $5,000. */
   directorThreshold?: number;
 }) => {
@@ -796,22 +817,24 @@ export const MyRequests = ({
                   request={request}
                   actionRequired={needsReceipt}
                   collapsible={requestCompleted(request)}
+                  autoExpand={request._id === focusId}
+                  autoOpenThread={request._id === focusId && focusThread}
                   onCancel={
                     readOnly
                       ? undefined
                       : requestDeclined(request)
                       ? () =>
                           setConfirm({
-                            title: "Delete request",
-                            message: `Delete this declined $${request.amount} request ("${request.description}")? This can't be undone.`,
+                            title: "Delete request?",
+                            message: `Your declined $${request.amount} request ("${request.description}") will be permanently deleted.`,
                             confirmLabel: "Delete",
                             onConfirm: () => void handleDeleteDeclined(request._id),
                           })
                       : !requestCompleted(request)
                       ? () =>
                           setConfirm({
-                            title: "Cancel request",
-                            message: `Cancel your $${request.amount} request ("${request.description}")? It will be deleted along with its approvals — this can't be undone.`,
+                            title: "Cancel request?",
+                            message: `Your $${request.amount} request ("${request.description}") and its approvals will be permanently deleted.`,
                             confirmLabel: "Cancel Request",
                             onConfirm: () => void handleCancel(request._id),
                           })
@@ -844,8 +867,8 @@ export const MyRequests = ({
                         setConfirm({
                           title: "Send a nudge?",
                           message: onCooldown
-                            ? `You can only nudge once per day. You can nudge again in ${formatCooldown(status?.remainingMs ?? 0)}.`
-                            : `This will send a reminder to whoever needs to action your $${r.amount} request ("${r.description}"). You can only nudge once per day.`,
+                            ? `You can nudge again in ${formatCooldown(status?.remainingMs ?? 0)}.`
+                            : `Reminds whoever needs to action your $${r.amount} request ("${r.description}"). Once per day.`,
                           confirmLabel: "Send Nudge",
                           destructive: false,
                           confirmDisabled: onCooldown,

@@ -353,6 +353,8 @@ export const RequestCard = ({
   onCancel,
   actionRequired,
   collapsible = false,
+  autoExpand = false,
+  autoOpenThread = false,
   children,
 }: {
   request: Doc<"requests">;
@@ -360,6 +362,10 @@ export const RequestCard = ({
   onCancel?: () => void;
   /** When true, draws an amber border to signal the current user needs to act. */
   actionRequired?: boolean;
+  /** Deep-link focus: expand this card on mount (e.g. opened from a notification). */
+  autoExpand?: boolean;
+  /** Deep-link focus: open the comment thread on mount (a comment notification). */
+  autoOpenThread?: boolean;
   /**
    * When true the card starts collapsed to a one-line summary (amount, status,
    * department, requester, date) with a "View More" toggle. Used for completed
@@ -371,8 +377,11 @@ export const RequestCard = ({
   const t = useAppTheme();
   useMinuteTick();
   const [showHistory, setShowHistory] = useState(false);
-  const [showComments, setShowComments] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  // Deep-link focus from a notification: start with the comment thread open
+  // and/or the (collapsible) card expanded, derived from the focus props at
+  // mount — no setState-in-effect, so the card opens straight to the action.
+  const [showComments, setShowComments] = useState(autoOpenThread);
+  const [expanded, setExpanded] = useState(autoExpand && collapsible);
   const requesterName = useQuery(
     api.directory.nameForEmail,
     showRequester
@@ -388,7 +397,7 @@ export const RequestCard = ({
   // Smooth expand/collapse for collapsible cards: the body is mounted only
   // while open (or closing), and its height animates between 0 and the measured
   // content height — which also animates the growth as names/files stream in.
-  const [bodyMounted, setBodyMounted] = useState(false);
+  const [bodyMounted, setBodyMounted] = useState(autoExpand && collapsible);
   const [bodyHeight, setBodyHeight] = useState(0);
   const [heightAnim] = useState(() => new Animated.Value(0));
   const expand = () => {

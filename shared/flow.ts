@@ -69,6 +69,22 @@ export const rolesNeedUniversity = (roles: readonly string[]): boolean =>
   roles.some(roleNeedsUniversity) &&
   !roles.some((role) => STAFF_SIDE_ROLES.includes(role as Role));
 
+/**
+ * Roles with hardcoded semantics elsewhere (heads, director, staff fallback,
+ * member scope). They are created/maintained by the app, so renaming or
+ * deleting them would break invariants — the admin Roles UI hides their
+ * edit/delete controls and the backend rejects the mutations outright.
+ */
+export const SYSTEM_ROLES: readonly Role[] = [
+  HEAD_OF_DEPARTMENT,
+  HEAD_OF_DIVISION,
+  DIRECTOR,
+  STAFF_ROLE,
+  MEMBER,
+];
+export const isSystemRole = (role: string): boolean =>
+  SYSTEM_ROLES.includes(role as Role);
+
 /** Short display forms for cards; anything not listed shows in full. */
 export const DISPLAY_ACRONYMS: Record<string, string> = {
   "Head of Department": "HOD",

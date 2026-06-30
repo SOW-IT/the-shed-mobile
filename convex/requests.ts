@@ -162,12 +162,14 @@ export const notify = async (
   // Lead line only; the email carries the full details. Shared by the push and
   // the in-app notification feed.
   const lead = body.split("\n")[0];
-  // Link to the request — explicit id, else parsed from a /request/<id> url —
-  // so opening that request later marks this notification read.
-  const urlMatch = url?.match(/^\/request\/(.+)$/);
+  // Link to the request — explicit id, else parsed from the url: a legacy
+  // `/request/<id>` path or the `focus=<id>` query the tab deep-links carry —
+  // so opening/focusing that request later marks this notification read.
+  const idInUrl =
+    url?.match(/^\/request\/([^/?#]+)/)?.[1] ?? url?.match(/[?&]focus=([^&]+)/)?.[1];
   const linkedRequestId =
     requestId ??
-    (urlMatch ? (ctx.db.normalizeId("requests", urlMatch[1]) ?? undefined) : undefined);
+    (idInUrl ? (ctx.db.normalizeId("requests", idInUrl) ?? undefined) : undefined);
   // In-app notification history (mirrors the push), with an unread badge.
   await ctx.db.insert("notifications", {
     userEmail: to,
@@ -183,6 +185,23 @@ export const notify = async (
     body: lead,
     url,
   });
+};
+
+/**
+ * Where a notification about `request` should deep-link for recipient `to`: the
+ * Requests-tab segment they'll actually action it from — their own request
+ * lives under "Mine", anything else (they are an approver / Finance) under
+ * "Review" — with the request focused, and its comment thread opened when
+ * `thread` is set. Lands the recipient on the live screen where the action is
+ * taken, not a read-only detail page.
+ */
+export const requestUrl = (
+  to: string,
+  request: Pick<Doc<"requests">, "_id" | "requesterEmail">,
+  opts?: { thread?: boolean }
+): string => {
+  const tab = to === request.requesterEmail ? "mine" : "review";
+  return `/?tab=${tab}&focus=${request._id}${opts?.thread ? "&thread=1" : ""}`;
 };
 
 /**
@@ -284,8 +303,7 @@ const notifyNextActor = async (
       subject: `A reimbursement request of $${request.amount} needs your ${STEP_LABELS[step]} approval`,
       pushTitle: "Approval needed",
       body: `The request below is waiting on your approval in THE SHED.\n\n${requestSummary(request)}`,
-      url: "/review",
-      requestId: request._id, // url is /review, so link the request explicitly
+      url: approverEmail ? requestUrl(approverEmail, request) : undefined,
     });
   } else if (requestFullyApproved(request)) {
     await notify(ctx, {
@@ -294,7 +312,7 @@ const notifyNextActor = async (
       subject: `Your reimbursement request of $${request.amount} has been approved`,
       pushTitle: "Request approved",
       body: `Your request has been fully approved. Please open THE SHED and submit your receipt/invoice details.\n\n${requestSummary(request)}`,
-      url: `/request/${request._id}`,
+      url: requestUrl(request.requesterEmail, request),
     });
     // The whole approver chain hears that the request cleared.
     for (const email of involvedApproverEmails(request, approvers, [APPROVED])) {
@@ -304,7 +322,7 @@ const notifyNextActor = async (
         subject: `The $${request.amount} request by ${request.requesterEmail} is fully approved`,
         pushTitle: "Request approved",
         body: `Every step has approved this request; the requester has been asked for their receipt.\n\n${requestSummary(request)}`,
-        url: `/request/${request._id}`,
+        url: requestUrl(email, request),
       });
     }
   }
@@ -465,7 +483,7 @@ export const submit = mutation({
         subject: `Your reimbursement request of $${request.amount} has been submitted`,
         pushTitle: "Request submitted",
         body: `Your request has been submitted and sent for approval. You'll be emailed once it's fully approved.\n\n${requestSummary(request)}`,
-        url: `/request/${id}`,
+        url: requestUrl(request.requesterEmail, request),
       });
       await notifyNextActor(ctx, request, approvers, undefined, email);
     }
@@ -982,7 +1000,7 @@ export const decline = mutation({
       subject: `Your reimbursement request of $${request.amount} has been declined`,
       pushTitle: "Request declined",
       body: `Your request was declined at the ${STEP_LABELS[args.step]} step by ${declinerName}.\nReason: ${reason}\n\n${requestSummary(request)}`,
-      url: `/request/${request._id}`,
+      url: requestUrl(request.requesterEmail, request),
     });
     // Approvers who had already approved hear that it was declined downstream.
     for (const email of involvedApproverEmails(request, approvers, [APPROVED])) {
@@ -993,7 +1011,7 @@ export const decline = mutation({
         subject: `The $${request.amount} request by ${request.requesterEmail} was declined`,
         pushTitle: "Request declined",
         body: `Declined at the ${STEP_LABELS[args.step]} step by ${declinerName}.\nReason: ${reason}\n\n${requestSummary(request)}`,
-        url: `/request/${request._id}`,
+        url: requestUrl(email, request),
       });
     }
     return null;
@@ -1068,6 +1086,9 @@ export const cancel = mutation({
         subject: `The $${request.amount} request by ${request.requesterEmail} has been cancelled`,
         pushTitle: "Request cancelled",
         body: `The requester cancelled this request; no further action is needed.\n\n${requestSummary(request)}`,
+        // The request is being deleted, so there's nothing to focus — just land
+        // approvers on their review queue.
+        url: "/?tab=review",
       });
     }
     await ctx.scheduler.runAfter(0, internal.requests.cleanupRequestAuditAndNudges, {
@@ -1278,13 +1299,10 @@ export const nudge = mutation({
       subject: `Nudge: a $${request.amount} request is waiting on you`,
       pushTitle: "You've been nudged",
       body: `${nudgerName} is waiting on your action for a $${request.amount} request.\n\n${requestSummary(request)}`,
-      // Approval- and payment-awaiting nudges land on the review queue (finance
-      // acts there); a receipt-awaiting nudge goes to the requester's detail view.
-      url:
-        currentStep(request) !== null || (request.receipt && request.paid === false)
-          ? "/review"
-          : `/request/${request._id}`,
-      requestId: args.requestId,
+      // Land the nudged person where they act: the action owner is either an
+      // approver/Finance (→ Review) or the requester awaiting their receipt
+      // (→ Mine); requestUrl picks the right segment from `to`.
+      url: requestUrl(to, request),
     });
     return null;
   },
@@ -1292,11 +1310,16 @@ export const nudge = mutation({
 
 /** A single request, for the detail screen push notifications land on. */
 export const get = query({
-  args: { requestId: v.id("requests") },
+  // Accept a raw string (not v.id) so a malformed id from a stale deep link or
+  // bookmark resolves to a graceful "not found" instead of throwing an
+  // ArgumentValidationError that trips the top-level error boundary.
+  args: { requestId: v.string() },
   handler: async (ctx, args) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
-    const request = await ctx.db.get("requests", args.requestId);
+    const requestId = ctx.db.normalizeId("requests", args.requestId);
+    if (!requestId) return null;
+    const request = await ctx.db.get("requests", requestId);
     return request ? await requestForCaller(ctx, caller, request) : null;
   },
 });
@@ -1565,8 +1588,7 @@ export const submitReceipt = mutation({
         subject: `A receipt for $${totalAmount} is ready to pay`,
         pushTitle: "Receipt ready to pay",
         body: `${requesterName} submitted their receipt (total $${totalAmount}). Please pay the reimbursement in THE SHED.\n\n${requestSummary(request)}`,
-        url: "/review",
-        requestId: request._id, // url is /review, so link the request explicitly
+        url: requestUrl(financeHead, request),
       });
     }
     return null;
@@ -1669,7 +1691,7 @@ export const pay = mutation({
       subject: `Your reimbursement of $${args.paidAmount} has been paid`,
       pushTitle: "Reimbursement paid",
       body: `The Finance Head (${payerName}) has paid your reimbursement.\nPaid: $${args.paidAmount}${args.comment ? `\nComment: ${args.comment}` : ""}\n\n${requestSummary(request)}`,
-      url: `/request/${request._id}`,
+      url: requestUrl(request.requesterEmail, request),
     });
     // The Budget Manager should know when the paid amount differs.
     if (args.paidAmount !== request.amount) {
@@ -1680,7 +1702,9 @@ export const pay = mutation({
         subject: `Paid amount differs from requested amount ($${args.paidAmount} vs $${request.amount})`,
         pushTitle: "Paid amount changed",
         body: `Please update the budget accordingly.\n\n${requestSummary(request)}`,
-        url: `/request/${request._id}`,
+        url: yearApprovers.budgetManagerEmail
+          ? requestUrl(yearApprovers.budgetManagerEmail, request)
+          : undefined,
       });
     }
     return null;

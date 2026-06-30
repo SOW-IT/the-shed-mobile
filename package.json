@@ -1,7 +1,7 @@
 {
   "name": "theshed",
   "main": "expo-router/entry",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "dependencies": {
     "@auth/core": "^0.41.2",
     "@convex-dev/auth": "^0.0.94",
@@ -65,6 +65,9 @@
     "rollcall-import:apply": "node scripts/rollcall-import-apply.mjs",
     "deploy:web": "node scripts/deploy-web.mjs",
     "deploy:web:dev": "node scripts/deploy-web-dev.mjs"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
   },
   "private": true
 }

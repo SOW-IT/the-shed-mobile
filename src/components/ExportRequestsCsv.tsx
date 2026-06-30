@@ -84,9 +84,9 @@ export const ExportRequestsCard = ({ currentYear }: { currentYear: number }) => 
       <ConfirmDialog
         visible={confirmOpen}
         title="Export requests?"
-        message={`This downloads every request for staff ${
+        message={`Every request for staff ${
           selected.length === 1 ? "year" : "years"
-        } ${chosenLabel} as a CSV.`}
+        } ${chosenLabel}, as a CSV.`}
         confirmLabel="Download"
         destructive={false}
         onConfirm={() => void download()}

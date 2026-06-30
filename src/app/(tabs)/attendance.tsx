@@ -225,7 +225,7 @@ export default function AttendanceScreen() {
       <ConfirmDialog
         visible={confirmSaveTags}
         title="Save tags"
-        message="Apply these tag changes? They take effect across all events that use them."
+        message="Changes apply across all events that use them."
         confirmLabel="Save tags"
         destructive={false}
         onConfirm={tagsSave.save}
@@ -234,7 +234,7 @@ export default function AttendanceScreen() {
       <ConfirmDialog
         visible={confirmSaveMeta}
         title="Save metadata"
-        message="Apply these metadata changes? They update the fields shown for every member."
+        message="Updates the fields shown for every member."
         confirmLabel="Save metadata"
         destructive={false}
         onConfirm={metaSave.save}
@@ -243,7 +243,7 @@ export default function AttendanceScreen() {
       <ConfirmDialog
         visible={confirmRevertTags}
         title="Discard changes"
-        message="Discard your unsaved tag changes? This can't be undone."
+        message="Your unsaved tag changes will be lost."
         confirmLabel="Discard changes"
         onConfirm={tagsSave.revert}
         onClose={() => setConfirmRevertTags(false)}
@@ -251,7 +251,7 @@ export default function AttendanceScreen() {
       <ConfirmDialog
         visible={confirmRevertMeta}
         title="Discard changes"
-        message="Discard your unsaved metadata changes? This can't be undone."
+        message="Your unsaved metadata changes will be lost."
         confirmLabel="Discard changes"
         onConfirm={metaSave.revert}
         onClose={() => setConfirmRevertMeta(false)}

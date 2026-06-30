@@ -272,9 +272,14 @@ export const roster = query({
  * the person's display name for that year (falls back to the email).
  */
 export const listByEvent = query({
-  args: { eventId: v.id("events") },
-  handler: async (ctx, { eventId }) => {
+  // Raw string (not v.id): a malformed id from a stale deep link resolves to an
+  // empty list rather than throwing an ArgumentValidationError. The event-screen
+  // route then renders its "Event not found" state from events:get returning null.
+  args: { eventId: v.string() },
+  handler: async (ctx, { eventId: rawEventId }) => {
     if (!(await optionalProfile(ctx))) return [];
+    const eventId = ctx.db.normalizeId("events", rawEventId);
+    if (!eventId) return [];
     const event = await ctx.db.get(eventId);
     if (!event) return [];
     // Staff roles/campus come from the profile of the event date's *staff* year
