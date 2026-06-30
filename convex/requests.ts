@@ -84,24 +84,22 @@ const logEvent = async (
   });
 };
 
-/** Production and dev (staging) hosted web builds. */
-const PROD_WEB_URL = "https://the-shed-web.vercel.app";
-const DEV_WEB_URL = "https://the-shed-web-dev.vercel.app";
-/** The dev Convex deployment that the staging app and dev web point at. */
-const DEV_DEPLOYMENTS = ["industrious-robin-425"];
-
 /**
- * The hosted app, for links in emails (universal links open the native app).
- * `APP_URL` overrides everything; otherwise links from the dev Convex
- * deployment go to the dev web build and everything else stays on production.
+ * The hosted web app, for links in emails (universal links open the native
+ * app). Uses the deployment's own `SITE_URL` — the same per-deployment web URL
+ * Convex Auth redirects to — so links always match the environment: the dev
+ * deployment's SITE_URL is the dev web build, prod's is production. Falls back
+ * to `APP_URL`, then the production URL, if SITE_URL is ever unset.
+ *
+ * (SITE_URL is preferred over APP_URL because APP_URL is a separate, manually
+ * maintained override that has drifted before — e.g. left pointing at prod on
+ * the dev deployment, which sent dev/test emails to the production app.)
  */
 export const appUrl = (path?: string) => {
-  // CONVEX_CLOUD_URL/CONVEX_SITE_URL both embed the deployment name; fall back
-  // to the site url since the cloud url isn't guaranteed in every runtime.
-  const deploymentUrl =
-    process.env.CONVEX_CLOUD_URL ?? process.env.CONVEX_SITE_URL ?? "";
-  const isDev = DEV_DEPLOYMENTS.some((name) => deploymentUrl.includes(name));
-  const base = process.env.APP_URL ?? (isDev ? DEV_WEB_URL : PROD_WEB_URL);
+  const base =
+    process.env.SITE_URL ??
+    process.env.APP_URL ??
+    "https://the-shed-web.vercel.app";
   return `${base}${path ?? ""}`;
 };
 

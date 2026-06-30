@@ -6,6 +6,16 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.5.1] — 2026-06-30
+
+### Fixed
+
+- **Test-environment emails now link to the test app, not production.** "Open in
+  THE SHED" links in emails are now derived from each deployment's own
+  `SITE_URL` (the same per-deployment web URL sign-in already uses), so emails
+  from the dev/staging backend link to the dev web build instead of production.
+  Previously a stale `APP_URL` override could send test emails to the live app.
+
 ## [1.5.0] — 2026-06-30
 
 ### Added

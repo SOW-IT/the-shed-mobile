@@ -72,30 +72,21 @@ async function approvedRequest(t: TestConvex<typeof schema>, amount = 100) {
 describe("appUrl", () => {
   afterEach(() => vi.unstubAllEnvs());
 
-  test("uses APP_URL when set, otherwise the hosted default, and appends paths", () => {
-    vi.stubEnv("APP_URL", "https://app.example.com");
-    expect(appUrl()).toBe("https://app.example.com");
-    expect(appUrl("/review")).toBe("https://app.example.com/review");
-    // Unset (not empty) -> the `??` default applies.
-    vi.stubEnv("APP_URL", undefined);
-    expect(appUrl("/x")).toBe("https://the-shed-web.vercel.app/x");
+  test("prefers the deployment's SITE_URL so links match the environment", () => {
+    // The dev deployment's SITE_URL is the dev web build...
+    vi.stubEnv("SITE_URL", "https://the-shed-web-dev.vercel.app");
+    // ...and a stale APP_URL pointing at prod must NOT override it (the bug).
+    vi.stubEnv("APP_URL", "https://the-shed-web.vercel.app");
+    expect(appUrl()).toBe("https://the-shed-web-dev.vercel.app");
+    expect(appUrl("/review")).toBe("https://the-shed-web-dev.vercel.app/review");
   });
 
-  test("links from the dev Convex deployment point at the dev web build", () => {
-    vi.stubEnv("APP_URL", undefined);
-    // The dev deployment's cloud url -> dev web build.
-    vi.stubEnv("CONVEX_CLOUD_URL", "https://industrious-robin-425.convex.cloud");
-    expect(appUrl("/review")).toBe("https://the-shed-web-dev.vercel.app/review");
-    // Production (any other deployment) stays on the prod web build.
-    vi.stubEnv("CONVEX_CLOUD_URL", "https://outgoing-stoat-395.convex.cloud");
-    expect(appUrl("/review")).toBe("https://the-shed-web.vercel.app/review");
-    // Falls back to CONVEX_SITE_URL when the cloud url isn't set.
-    vi.stubEnv("CONVEX_CLOUD_URL", undefined);
-    vi.stubEnv("CONVEX_SITE_URL", "https://industrious-robin-425.convex.site");
-    expect(appUrl("/x")).toBe("https://the-shed-web-dev.vercel.app/x");
-    // An explicit APP_URL still wins regardless of deployment.
+  test("falls back to APP_URL then the prod default when SITE_URL is unset", () => {
+    vi.stubEnv("SITE_URL", undefined);
     vi.stubEnv("APP_URL", "https://app.example.com");
-    expect(appUrl()).toBe("https://app.example.com");
+    expect(appUrl("/x")).toBe("https://app.example.com/x");
+    vi.stubEnv("APP_URL", undefined);
+    expect(appUrl("/y")).toBe("https://the-shed-web.vercel.app/y");
   });
 });
 
