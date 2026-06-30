@@ -3,7 +3,8 @@ import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
-import { appUrl } from "./requests";
+import { Id } from "./_generated/dataModel";
+import { appUrl, requestUrl } from "./requests";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -96,6 +97,48 @@ describe("appUrl", () => {
     vi.stubEnv("SITE_URL", "https://the-shed-web-dev.vercel.app/");
     expect(appUrl("/review")).toBe("https://the-shed-web-dev.vercel.app/review");
     expect(appUrl()).toBe("https://the-shed-web-dev.vercel.app");
+  });
+});
+
+describe("notification deep-links", () => {
+  const fakeRequest = {
+    _id: "k57fakerequestid000000000000" as Id<"requests">,
+    requesterEmail: RACHEL,
+  };
+
+  test("requestUrl routes the requester to Mine and everyone else to Review, focused", () => {
+    expect(requestUrl(RACHEL, fakeRequest)).toBe(`/?tab=mine&focus=${fakeRequest._id}`);
+    expect(requestUrl(HENRY, fakeRequest)).toBe(`/?tab=review&focus=${fakeRequest._id}`);
+    expect(requestUrl(HENRY, fakeRequest, { thread: true })).toBe(
+      `/?tab=review&focus=${fakeRequest._id}&thread=1`
+    );
+  });
+
+  test("submit deep-links the approver to Review and links the request via focus=", async () => {
+    const t = await setup();
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+
+    const henryNotifs = await t.run((ctx) =>
+      ctx.db
+        .query("notifications")
+        .withIndex("by_user", (q) => q.eq("userEmail", HENRY))
+        .collect()
+    );
+    expect(henryNotifs).toHaveLength(1);
+    expect(henryNotifs[0].url).toBe(`/?tab=review&focus=${request._id}`);
+    // notify() parses focus=<id> from the url to attach requestId, so opening
+    // the focused request later marks this notification read.
+    expect(henryNotifs[0].requestId).toBe(request._id);
+
+    // The submitter is the actor → email-only acknowledgement, no in-app row.
+    const rachelNotifs = await t.run((ctx) =>
+      ctx.db
+        .query("notifications")
+        .withIndex("by_user", (q) => q.eq("userEmail", RACHEL))
+        .collect()
+    );
+    expect(rachelNotifs).toHaveLength(0);
   });
 });
 

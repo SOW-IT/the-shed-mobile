@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
-import React, { ReactNode, useEffect, useRef, useState } from "react";
+import React, { ReactNode, useEffect, useState } from "react";
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import {
   APPROVED,
@@ -377,8 +377,11 @@ export const RequestCard = ({
   const t = useAppTheme();
   useMinuteTick();
   const [showHistory, setShowHistory] = useState(false);
-  const [showComments, setShowComments] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  // Deep-link focus from a notification: start with the comment thread open
+  // and/or the (collapsible) card expanded, derived from the focus props at
+  // mount — no setState-in-effect, so the card opens straight to the action.
+  const [showComments, setShowComments] = useState(autoOpenThread);
+  const [expanded, setExpanded] = useState(autoExpand && collapsible);
   const requesterName = useQuery(
     api.directory.nameForEmail,
     showRequester
@@ -394,7 +397,7 @@ export const RequestCard = ({
   // Smooth expand/collapse for collapsible cards: the body is mounted only
   // while open (or closing), and its height animates between 0 and the measured
   // content height — which also animates the growth as names/files stream in.
-  const [bodyMounted, setBodyMounted] = useState(false);
+  const [bodyMounted, setBodyMounted] = useState(autoExpand && collapsible);
   const [bodyHeight, setBodyHeight] = useState(0);
   const [heightAnim] = useState(() => new Animated.Value(0));
   const expand = () => {
@@ -413,16 +416,6 @@ export const RequestCard = ({
     });
   };
   const toggleExpanded = () => (expanded ? collapse() : expand());
-  // Deep-link focus from a notification: expand the (collapsible) card and/or
-  // open its comment thread once when the flags arrive.
-  const focusedRef = useRef(false);
-  useEffect(() => {
-    if (focusedRef.current) return;
-    if (autoExpand && collapsible) expand();
-    if (autoOpenThread) setShowComments(true);
-    if (autoExpand || autoOpenThread) focusedRef.current = true;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when focus flags turn on
-  }, [autoExpand, autoOpenThread]);
   useEffect(() => {
     if (expanded && bodyHeight > 0) {
       Animated.timing(heightAnim, {

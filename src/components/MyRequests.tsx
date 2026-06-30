@@ -167,6 +167,10 @@ const NewRequestSheet = ({
       setError("Please describe what the request is for.");
       return;
     }
+    if (department.trim() === "") {
+      setError("Pick a department for this request.");
+      return;
+    }
     try {
       await submit({ description, amount: Number(amount), department });
       setDescription("");
