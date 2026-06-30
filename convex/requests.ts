@@ -1310,11 +1310,16 @@ export const nudge = mutation({
 
 /** A single request, for the detail screen push notifications land on. */
 export const get = query({
-  args: { requestId: v.id("requests") },
+  // Accept a raw string (not v.id) so a malformed id from a stale deep link or
+  // bookmark resolves to a graceful "not found" instead of throwing an
+  // ArgumentValidationError that trips the top-level error boundary.
+  args: { requestId: v.string() },
   handler: async (ctx, args) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
-    const request = await ctx.db.get("requests", args.requestId);
+    const requestId = ctx.db.normalizeId("requests", args.requestId);
+    if (!requestId) return null;
+    const request = await ctx.db.get("requests", requestId);
     return request ? await requestForCaller(ctx, caller, request) : null;
   },
 });
