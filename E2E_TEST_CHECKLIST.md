@@ -303,15 +303,100 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 
 ---
 
-## Reviewer note: additional coverage still needed
+## 4.2 Org Chart tab
+- [ ] Org Chart tab is visible to signed-in users who should see it in the bottom tab bar
+- [ ] Campus-leader users land on Attendance first but can still navigate to Org Chart
+- [ ] Year picker appears when multiple years are available
+- [ ] Switching years reloads the chart and keeps the selected year label accurate
+- [ ] Current year and next-year labels are clear in the picker
+- [ ] Director card renders the assigned Director with name, photo/avatar, and role tag
+- [ ] Empty Director state shows "No Director assigned for {year} yet."
+- [ ] Staff section renders people who hold non-campus roles but are not in a division, department, or campus
+- [ ] Division sections render with their division labels
+- [ ] Head of Division rows render separately from department members
+- [ ] Department cards render department name, Head of Dept, members, and department colour
+- [ ] Empty department cards show "No members yet" when no head or members exist
+- [ ] Campus section renders universities with members and university colours
+- [ ] Universities with no members are hidden from the Campus section
+- [ ] Tapping any person row opens `/person/[email]` for that person
+- [ ] Long names, emails, and role tags truncate cleanly without overlapping
+- [ ] Chart updates after Admin changes assignments, heads, divisions, departments, or universities
 
-The checklist covers the main Requests, Attendance, and Admin workflows well, but it should still add explicit E2E scenarios for these app surfaces before we call coverage complete:
+## 4.3 Profile screen
+- [ ] Opening own profile shows name, email, avatar, current assignment, and current staff year
+- [ ] Profile photo fallback initials render when no photo exists
+- [ ] Camera action opens image picker for the signed-in user's own profile
+- [ ] Avatar upload succeeds and immediately updates the profile photo
+- [ ] Avatar upload rejects an image larger than the configured upload limit with a clear error
+- [ ] Canceling image picker leaves the existing avatar unchanged
+- [ ] Local church field is editable on own profile
+- [ ] Save Church is disabled until the local church draft changes
+- [ ] Saving Local church persists and clears the dirty state
+- [ ] Failed Local church save shows an error banner and preserves the typed value
+- [ ] Service History renders all years in descending/expected order with assignment chips
+- [ ] Current service-history year is marked "current"
+- [ ] Profile with no assignment for the current year shows the no-assignment copy
+- [ ] Viewing another person's profile through `/person/[email]` is read-only
+- [ ] Other-person profile hides own-profile-only controls such as avatar upload, Local church edit, and Sign out
+- [ ] Sign out opens confirmation before ending the session
+- [ ] Canceling sign out keeps the user signed in
+- [ ] Confirming sign out returns the user to the sign-in screen
 
-- [ ] **Org Chart tab:** verify the tab is visible to the expected roles, renders Director / Staff / Divisions / Departments / Campus sections correctly, handles empty Director / empty department states, supports the year picker, and opens the correct person profile when a row is tapped.
-- [ ] **Profile screen:** verify own-profile display, avatar upload success and oversize-image rejection, Local church edit/save behavior, service history rendering across years, read-only behavior when viewing another person, and sign-out confirmation.
-- [ ] **Deep links and routed detail screens:** verify direct navigation to `/request/[id]`, `/person/[email]`, `/profile`, `/notifications`, `/attendance/event/[eventId]`, and notification comment-thread links, including missing/invalid ids and permission-denied cases.
-- [ ] **Loading and error states:** verify initial loading spinners, empty states, mutation button loading labels, top-level error banners, retry/recovery after failed Convex mutations, and optimistic UI rollback where applicable.
-- [ ] **Bank tab:** verify add/edit/delete account flows, preferred-account selection, delete confirmation for the preferred account, validation for account name / BSB / account number, and that preferred account details auto-fill receipt recipients after returning to Requests.
+## 4.4 Deep links and routed detail screens
+- [ ] Direct link to `/request/[id]` opens the correct request detail card
+- [ ] Invalid or missing request id shows a safe empty/error state rather than crashing
+- [ ] User without access to a request cannot view protected request details
+- [ ] Direct link to `/person/[email]` opens that person's profile
+- [ ] Invalid or unknown person email shows a safe empty/error state rather than crashing
+- [ ] Direct link to `/profile` opens the signed-in user's profile
+- [ ] Direct link to `/notifications` opens the notifications screen
+- [ ] Direct link to `/attendance/event/[eventId]` opens the event sign-in screen
+- [ ] Invalid or missing event id shows a safe empty/error state rather than crashing
+- [ ] Notification deep link for a request focuses or reveals the correct request
+- [ ] Notification deep link with `thread=1` opens the request's comment thread
+- [ ] Attendance event notification deep link opens the correct event screen
+- [ ] Legacy `/review` redirect lands on Requests with the Review segment selected
+- [ ] Legacy `/all` redirect lands on Requests with the All segment selected
+- [ ] Back navigation from each deep-linked detail screen returns to a sensible app screen
+- [ ] Deep links preserve auth requirements: signed-out users authenticate first, then land on the intended screen
+
+## 4.5 Loading, empty, and error states
+- [ ] Initial app load shows a loading state until auth/profile data resolves
+- [ ] Requests, Attendance, Admin, Org Chart, Profile, and Notifications screens show loading states while their primary queries resolve
+- [ ] Empty Mine, Review, All, Attendance Events, Members, Audit, Admin lists, Org Chart sections, Bank accounts, and Notifications states show the expected copy
+- [ ] Mutation buttons show saving/uploading/syncing labels while the operation is in flight
+- [ ] Mutation buttons are disabled while submitting to prevent duplicate actions
+- [ ] Top-level error banners appear when mutations fail
+- [ ] Error banners clear after a successful retry or when the user changes context where implemented
+- [ ] Optimistic request approval/decline/comment reactions roll back or recover cleanly if the server rejects the mutation
+- [ ] Optimistic bank account delete/preferred-account updates roll back or show a recoverable error if the server rejects the mutation
+- [ ] Failed receipt/avatar file upload surfaces an actionable error and leaves the form usable
+- [ ] Failed directory sync shows an error and allows retry
+- [ ] Failed attendance sign-in/sign-out leaves the attendee in a consistent list state
+- [ ] Pagination "Load more" controls show progress and recover after a failed load
+- [ ] Screens with no profile or insufficient role show the correct access/empty state instead of a blank screen
+
+## 4.6 Bank tab
+- [ ] Bank tab is visible to all signed-in users with a profile
+- [ ] Empty state prompts the user to add bank details
+- [ ] Add Bank Details opens the bank-account form
+- [ ] Account Name is required
+- [ ] BSB accepts digits only and rejects non-digit characters
+- [ ] Account Number accepts digits only and rejects non-digit characters
+- [ ] Adding the first account marks it as preferred
+- [ ] Adding another account keeps the existing preferred account unless "make preferred" is selected
+- [ ] Preferred account is visually marked with the star indicator
+- [ ] Selecting the star on a non-preferred account makes it preferred
+- [ ] Editing an account pre-fills the form with existing values
+- [ ] Saving edits updates the account without creating a duplicate
+- [ ] Canceling add/edit leaves the account list unchanged
+- [ ] Deleting a non-preferred account asks for confirmation and removes it
+- [ ] Deleting the preferred account shows copy explaining it is the auto-filled account
+- [ ] Deleting the preferred account removes the auto-fill source and keeps remaining accounts usable
+- [ ] Add Another Account button appears once at least one account exists
+- [ ] Bank account validation errors remain visible until corrected
+- [ ] Preferred account auto-fills receipt recipient fields in Submit Receipt
+- [ ] Removing/forgetting a saved account from the receipt flow updates the Bank tab list on return
 
 ---
 
