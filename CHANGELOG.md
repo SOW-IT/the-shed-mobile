@@ -6,6 +6,20 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **Attendance → Audit no longer crashes when filtered or searched.** Applying
+  an action-type/actor/event filter, or typing in the audit search, could crash
+  the tab with a Convex "ran multiple paginated queries" error whenever the
+  first page of rows didn't already contain enough matches. The feed now walks
+  the log with convex-helpers' `paginator` (which allows the multi-page scan a
+  sparse filter needs), the same approach the events list already uses.
+- **Editing event tags no longer floods the audit trail.** Saving the Tags tab
+  re-sends every tag, and each one was logged as an "Updated tag" regardless of
+  whether it changed — so adding or editing a single tag wrote a spurious update
+  row for every other tag. Tag saves now log only the tags that actually
+  changed (matching how member-field saves already behave).
+
 ## [1.5.2] — 2026-06-30
 
 ### Fixed

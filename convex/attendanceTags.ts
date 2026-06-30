@@ -69,22 +69,33 @@ export const saveAll = mutation({
       if (tag.id) {
         const existing = await ctx.db.get(tag.id);
         if (!existing || existing.year !== year) continue;
+        const nextSubgroups = tag.subgroups?.length
+          ? normalizeSubgroups(tag.subgroups)
+          : undefined;
+        // The client sends every tag on each save, so classify what actually
+        // changed and only log a real edit — otherwise adding/editing one tag
+        // floods the audit trail with a "tag.update" for every untouched tag.
+        const changed =
+          existing.name !== name ||
+          (existing.colour ?? undefined) !== (tag.colour ?? undefined) ||
+          JSON.stringify([...(existing.subgroups ?? [])].sort()) !==
+            JSON.stringify([...(nextSubgroups ?? [])].sort());
         await ctx.db.patch(tag.id, {
           name,
           colour: tag.colour,
-          subgroups: tag.subgroups?.length
-            ? normalizeSubgroups(tag.subgroups)
-            : undefined,
+          subgroups: nextSubgroups,
         });
-        await logAttendanceAction(ctx, {
-          actorEmail,
-          entityType: "tag",
-          action: "tag.update",
-          summary:
-            existing.name !== name
-              ? `Renamed tag "${existing.name}" → "${name}"`
-              : `Updated tag "${name}"`,
-        });
+        if (changed) {
+          await logAttendanceAction(ctx, {
+            actorEmail,
+            entityType: "tag",
+            action: "tag.update",
+            summary:
+              existing.name !== name
+                ? `Renamed tag "${existing.name}" → "${name}"`
+                : `Updated tag "${name}"`,
+          });
+        }
       } else {
         await ctx.db.insert("attendanceTags", {
           year,
