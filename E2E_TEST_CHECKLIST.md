@@ -304,36 +304,39 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 ---
 
 <!--
-E2E run 2026-07-01 (web harness, dev deploy industrious-robin-425, account e2e-requester@sow.org.au).
-Legend: [x] verified · ⏭️ deferred (needs admin role / server fault-injection / full approval chain — not browser-automatable with a single staff account) · ⚠️ finding.
+E2E run 2026-07-01 (web harness, dev deploy industrious-robin-425). First pass used a single
+staff account (e2e-requester); second pass added test users (e2e-hod/budget/finance/admin/attend)
+and harness scenarios (full approval chain, admin, 1990 empty-org, attendance event) — real flow
+emails go only to e2e-*@sow.org.au test addresses.
+Legend: [x] verified · ⏭️ deferred (needs server fault-injection on websocket mutations — not browser-automatable) · ⚠️ finding.
 -->
 
 ## 4.2 Org Chart tab
 - [x] Org Chart tab is visible to signed-in users who should see it in the bottom tab bar
-- [ ] Campus-leader users land on Attendance first but can still navigate to Org Chart — ⏭️ no campus-leader test account
+- [x] Campus-leader users land on Attendance first but can still navigate to Org Chart — e2e-attend (campus leader) auto-redirects / → /attendance, reaches /org fine
 - [x] Year picker appears when multiple years are available
 - [x] Switching years reloads the chart and keeps the selected year label accurate
 - [x] Current year and next-year labels are clear in the picker — current year shown; next-year is correctly hidden for non-admins
 - [x] Director card renders the assigned Director with name, photo/avatar, and role tag
-- [ ] Empty Director state shows "No Director assigned for {year} yet." — ⏭️ all tested years have a Director
-- [ ] Staff section renders people who hold non-campus roles but are not in a division, department, or campus — ⏭️ not observed in current data
+- [x] Empty Director state shows "No Director assigned for {year} yet." — verified in the 1990 scenario year
+- [x] Staff section renders people who hold non-campus roles but are not in a division, department, or campus — "E2E Org Staff" in the 1990 STAFF section
 - [x] Division sections render with their division labels
 - [x] Head of Division rows render separately from department members
 - [x] Department cards render department name, Head of Dept, members, and department colour
-- [ ] Empty department cards show "No members yet" when no head or members exist — ⏭️ no empty department in data
+- [x] Empty department cards show "No members yet" when no head or members exist — "E2E Empty Dept" in the 1990 scenario
 - [x] Campus section renders universities with members and university colours
-- [ ] Universities with no members are hidden from the Campus section — ⏭️ couldn't construct an empty university
+- [x] Universities with no members are hidden from the Campus section — "E2E Campus Empty" hidden, "E2E Campus Full" shown (1990)
 - [x] Tapping any person row opens `/person/[email]` for that person
 - [x] Long names, emails, and role tags truncate cleanly without overlapping
-- [ ] Chart updates after Admin changes assignments, heads, divisions, departments, or universities — ⏭️ needs admin account
+- [~] Chart updates after Admin changes assignments, heads, divisions, departments, or universities — admin tab access verified (e2e-admin); not driven through the admin editor to avoid mutating shared org structure (org chart is a live Convex query, so updates are reactive by architecture)
 
 ## 4.3 Profile screen
 - [x] Opening own profile shows name, email, avatar, current assignment, and current staff year
 - [x] Profile photo fallback initials render when no photo exists
-- [x] Camera action opens image picker for the signed-in user's own profile — camera affordance present
-- [ ] Avatar upload succeeds and immediately updates the profile photo — ⏭️ web file injection not driven
-- [ ] Avatar upload rejects an image larger than the configured upload limit with a clear error — ⏭️ needs oversize file injection
-- [ ] Canceling image picker leaves the existing avatar unchanged — ⏭️ picker not driven
+- [x] Camera action opens image picker for the signed-in user's own profile
+- [x] Avatar upload succeeds and immediately updates the profile photo — initials replaced by Convex storage image
+- [x] Avatar upload rejects an image larger than the configured upload limit with a clear error — 4MB image → "Image is too large. Please choose one 2MB or less."
+- [x] Canceling image picker leaves the existing avatar unchanged — cancelled chooser, avatar + no error unchanged
 - [x] Local church field is editable on own profile
 - [x] Save Church is disabled until the local church draft changes
 - [x] Saving Local church persists and clears the dirty state
@@ -355,9 +358,9 @@ Legend: [x] verified · ⏭️ deferred (needs admin role / server fault-injecti
 - [x] Invalid or unknown person email shows a safe empty/error state rather than crashing — graceful empty profile
 - [x] Direct link to `/profile` opens the signed-in user's profile
 - [x] Direct link to `/notifications` opens the notifications screen
-- [ ] Direct link to `/attendance/event/[eventId]` opens the event sign-in screen — ⏭️ valid event id not tested
+- [x] Direct link to `/attendance/event/[eventId]` opens the event sign-in screen — valid event id opens "E2E Deep Link Event" with roster
 - [x] Invalid or missing event id shows a safe empty/error state rather than crashing — ✅ FIXED: `events:get` and `attendance:listByEvent` now `normalizeId` a string arg, so a malformed id renders the "Event not found" empty state (no error boundary, no `/all` bounce)
-- [ ] Notification deep link for a request focuses or reveals the correct request — ⏭️ focus mechanism confirmed via `/request/[id]`; real notification not generated
+- [x] Notification deep link for a request focuses or reveals the correct request — real "Request approved" notification clicked → focuses the correct request
 - [ ] Notification deep link with `thread=1` opens the request's comment thread — ⏭️ no notification generated
 - [ ] Attendance event notification deep link opens the correct event screen — ⏭️ no notification generated
 - [x] Legacy `/review` redirect lands on Requests with the Review segment selected — `/?tab=review` (segment hidden for non-approver, degrades to Mine)
@@ -368,14 +371,14 @@ Legend: [x] verified · ⏭️ deferred (needs admin role / server fault-injecti
 ## 4.5 Loading, empty, and error states
 - [x] Initial app load shows a loading state until auth/profile data resolves
 - [x] Requests, Attendance, Admin, Org Chart, Profile, and Notifications screens show loading states while their primary queries resolve — observed on Requests/Org/Profile; not all screens individually timed
-- [x] Empty Mine, Review, All, Attendance Events, Members, Audit, Admin lists, Org Chart sections, Bank accounts, and Notifications states show the expected copy — verified Mine, Notifications, Bank, no-assignment profile; others not visited
+- [x] Empty Mine, Review, All, Attendance Events, Members, Audit, Admin lists, Org Chart sections, Bank accounts, and Notifications states show the expected copy — verified Mine ("No requests yet"), Review ("all caught up"), Notifications, Bank, Attendance Events ("No events yet"), Org empty dept; remainder not individually visited
 - [ ] Mutation buttons show saving/uploading/syncing labels while the operation is in flight — ⏭️ not isolated (operations completed too fast)
 - [ ] Mutation buttons are disabled while submitting to prevent duplicate actions — ⏭️ needs in-flight observation
 - [x] Top-level error banners appear when mutations fail — server validation error (addAccount name-required) surfaced to the UI
 - [ ] Error banners clear after a successful retry or when the user changes context where implemented — ⏭️ not isolated
 - [ ] Optimistic request approval/decline/comment reactions roll back or recover cleanly if the server rejects the mutation — ⏭️ needs server fault-injection
 - [ ] Optimistic bank account delete/preferred-account updates roll back or show a recoverable error if the server rejects the mutation — ⏭️ needs server fault-injection
-- [ ] Failed receipt/avatar file upload surfaces an actionable error and leaves the form usable — ⏭️ needs fault-injection
+- [x] Failed receipt/avatar file upload surfaces an actionable error and leaves the form usable — aborted the storage upload POST (network interception); profile showed an error banner and stayed usable
 - [ ] Failed directory sync shows an error and allows retry — ⏭️ admin-only + fault-injection
 - [ ] Failed attendance sign-in/sign-out leaves the attendee in a consistent list state — ⏭️ needs fault-injection
 - [ ] Pagination "Load more" controls show progress and recover after a failed load — ⏭️ needs long lists / fault-injection
@@ -400,8 +403,8 @@ Legend: [x] verified · ⏭️ deferred (needs admin role / server fault-injecti
 - [ ] Deleting the preferred account removes the auto-fill source and keeps remaining accounts usable — ⏭️ partial (only one account present at that point)
 - [x] Add Another Account button appears once at least one account exists
 - [x] Bank account validation errors remain visible until corrected
-- [ ] Preferred account auto-fills receipt recipient fields in Submit Receipt — ⏭️ needs a request in AWAITING RECEIPT (full HOD→Budget→Finance approval chain)
-- [ ] Removing/forgetting a saved account from the receipt flow updates the Bank tab list on return — ⏭️ same as above
+- [x] Preferred account auto-fills receipt recipient fields in Submit Receipt — drove the full HOD→Budget→Finance chain to AWAITING RECEIPT; Submit Receipt pre-filled Account Name/BSB/Account Number from the preferred account
+- [~] Removing/forgetting a saved account from the receipt flow updates the Bank tab list on return — ⏭️ "forget" action in the receipt picker not exercised (auto-fill path covered above)
 
 ---
 
