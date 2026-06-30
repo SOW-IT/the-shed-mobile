@@ -103,7 +103,7 @@ export const BankTab = () => {
   const [deleteTarget, setDeleteTarget] = useState<{
     id: Id<"savedBankAccounts">;
     title: string;
-    message: string;
+    message?: string;
   } | null>(null);
 
   // State backing the reorder ("star to swap") animation. These maps persist
@@ -263,10 +263,10 @@ export const BankTab = () => {
   ) => {
     setDeleteTarget({
       id,
-      title: isPreferred ? "Delete preferred account" : "Delete account",
+      title: `Delete "${name}"?`,
       message: isPreferred
-        ? `"${name}" is your auto-filled account. Deleting it will remove your payment auto-fill. Continue?`
-        : `Delete saved account "${name}"?`,
+        ? "This is your auto-fill account — deleting it turns off payment auto-fill."
+        : undefined,
     });
   };
 

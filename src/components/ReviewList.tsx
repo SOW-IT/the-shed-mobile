@@ -352,7 +352,7 @@ export const ReviewList = ({
         title="Approve request?"
         message={
           approveTarget
-            ? `Approve the $${approveTarget.request.amount} request from ${approveRequesterName ?? approveTarget.request.requesterEmail}? It moves to the next step.`
+            ? `$${approveTarget.request.amount} from ${approveRequesterName ?? approveTarget.request.requesterEmail} — moves to the next step.`
             : undefined
         }
         confirmLabel="Approve"

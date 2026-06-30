@@ -1576,7 +1576,7 @@ export default function AdminScreen() {
       <ConfirmDialog
         visible={removeProfileTarget !== null}
         title={`Delete "${removeProfileTarget?.name ?? removeProfileTarget?.email}"`}
-        message={`Remove ${removeProfileTarget?.email} from ${selectedYear}? Their roles and department assignments for the year will be deleted and they'll move to the "Not serving" list.`}
+        message={`Their ${selectedYear} roles and assignments will be deleted and they'll move to "Not serving".`}
         requireText={removeProfileTarget?.name ?? removeProfileTarget?.email}
         onConfirm={() => {
           if (removeProfileTarget) {
@@ -1595,7 +1595,7 @@ export default function AdminScreen() {
         title="Remove delegation?"
         message={
           removeDelegationTarget
-            ? `${nameByEmail.get(removeDelegationTarget.fromEmail) ?? removeDelegationTarget.fromEmail} → ${nameByEmail.get(removeDelegationTarget.toEmail) ?? removeDelegationTarget.toEmail} will be removed. The delegate will no longer be able to act on the approver's behalf for ${selectedYear}.`
+            ? `${nameByEmail.get(removeDelegationTarget.fromEmail) ?? removeDelegationTarget.fromEmail} → ${nameByEmail.get(removeDelegationTarget.toEmail) ?? removeDelegationTarget.toEmail}: the delegate can no longer act for the approver in ${selectedYear}.`
             : undefined
         }
         confirmLabel="Remove"
@@ -1609,7 +1609,7 @@ export default function AdminScreen() {
       <ConfirmDialog
         visible={syncConfirm}
         title="Sync directory now?"
-        message="Pulls all active Google Workspace users on sow.org.au into the people picker, and caches staff profile photos. This also runs automatically once a week."
+        message="Pulls active Google Workspace users into the people picker and caches profile photos. Runs automatically each week."
         destructive={false}
         confirmLabel="Sync"
         onConfirm={() => {

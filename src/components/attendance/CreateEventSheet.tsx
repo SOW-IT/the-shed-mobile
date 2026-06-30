@@ -567,11 +567,11 @@ export function CreateEventSheet({
 
       <ConfirmDialog
         visible={confirmCancel}
-        title="Discard changes"
+        title="Discard changes?"
         message={
           isEditing
-            ? "Discard your unsaved changes to this event?"
-            : "Discard this new event? Anything you've entered will be lost."
+            ? "Your unsaved changes will be lost."
+            : "Your new event won't be saved."
         }
         confirmLabel="Discard"
         onConfirm={onClose}

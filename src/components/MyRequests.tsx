@@ -629,7 +629,7 @@ const ReceiptSheet = ({
         title="Receipt exceeds request"
         message={
           confirmExceeds && request
-            ? `Your receipt total of $${confirmExceeds.total} is more than the requested $${request.amount}. You may only be paid up to the requested amount. Submit anyway?`
+            ? `Your $${confirmExceeds.total} receipt exceeds the requested $${request.amount}. You'll be paid up to the requested amount.`
             : undefined
         }
         confirmLabel="Submit Anyway"
@@ -825,16 +825,16 @@ export const MyRequests = ({
                       : requestDeclined(request)
                       ? () =>
                           setConfirm({
-                            title: "Delete request",
-                            message: `Delete this declined $${request.amount} request ("${request.description}")? This can't be undone.`,
+                            title: "Delete request?",
+                            message: `Your declined $${request.amount} request ("${request.description}") will be permanently deleted.`,
                             confirmLabel: "Delete",
                             onConfirm: () => void handleDeleteDeclined(request._id),
                           })
                       : !requestCompleted(request)
                       ? () =>
                           setConfirm({
-                            title: "Cancel request",
-                            message: `Cancel your $${request.amount} request ("${request.description}")? It will be deleted along with its approvals — this can't be undone.`,
+                            title: "Cancel request?",
+                            message: `Your $${request.amount} request ("${request.description}") and its approvals will be permanently deleted.`,
                             confirmLabel: "Cancel Request",
                             onConfirm: () => void handleCancel(request._id),
                           })
@@ -867,8 +867,8 @@ export const MyRequests = ({
                         setConfirm({
                           title: "Send a nudge?",
                           message: onCooldown
-                            ? `You can only nudge once per day. You can nudge again in ${formatCooldown(status?.remainingMs ?? 0)}.`
-                            : `This will send a reminder to whoever needs to action your $${r.amount} request ("${r.description}"). You can only nudge once per day.`,
+                            ? `You can nudge again in ${formatCooldown(status?.remainingMs ?? 0)}.`
+                            : `Reminds whoever needs to action your $${r.amount} request ("${r.description}"). Once per day.`,
                           confirmLabel: "Send Nudge",
                           destructive: false,
                           confirmDisabled: onCooldown,
