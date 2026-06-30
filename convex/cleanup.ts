@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { EARLIEST_REQUEST_YEAR } from "../shared/flow";
+import { EARLIEST_REQUEST_YEAR, staffYearStartMs } from "../shared/flow";
 import { internalMutation } from "./_generated/server";
 import { currentStaffYear } from "./model";
 
@@ -32,7 +32,11 @@ export const purgeOldReceiptFiles = internalMutation({
     for (let year = EARLIEST_REQUEST_YEAR; year <= currentStaffYear(); year++) {
       for await (const request of ctx.db
         .query("requests")
-        .withIndex("by_year", (q) => q.eq("year", year))) {
+        .withIndex("by_creation_time", (q) =>
+          q
+            .gte("_creationTime", staffYearStartMs(year))
+            .lt("_creationTime", staffYearStartMs(year + 1))
+        )) {
         if (
           request.paid !== true ||
           request.paidTime === undefined ||

@@ -3,7 +3,7 @@ import { Doc, Id } from "./_generated/dataModel";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import { getApprovers, getProfile, optionalProfile, requireProfile } from "./model";
 import { actionOwnerEmail, involvedApproverEmails, notify } from "./requests";
-import { ALLOWED_REACTIONS, APPROVED } from "../shared/flow";
+import { ALLOWED_REACTIONS, APPROVED, eventStaffYear, staffYearStartMs } from "../shared/flow";
 
 /** Display name for an email: staff profile first, directory fallback, else null. */
 async function resolveName(
@@ -49,12 +49,13 @@ export const add = mutation({
     const owner = await actionOwnerEmail(ctx, request);
     if (owner && owner !== email) recipients.add(owner);
     else if (request.requesterEmail !== email) recipients.add(request.requesterEmail);
-    const approvers = await getApprovers(ctx, request.year, request.department);
+    const reqYear = request.year ?? eventStaffYear(request._creationTime);
+    const approvers = await getApprovers(ctx, reqYear, request.department);
     for (const approver of involvedApproverEmails(request, approvers, [APPROVED])) {
       if (approver !== email) recipients.add(approver);
     }
     if (recipients.size > 0) {
-      const authorName = (await resolveName(ctx, email, request.year)) ?? email;
+      const authorName = (await resolveName(ctx, email, reqYear)) ?? email;
       for (const to of recipients) {
         await notify(ctx, {
           to,
@@ -112,7 +113,7 @@ export const list = query({
       result.push({
         id: comment._id,
         authorEmail: comment.authorEmail,
-        authorName: await resolveName(ctx, comment.authorEmail, request.year),
+        authorName: await resolveName(ctx, comment.authorEmail, request.year ?? eventStaffYear(request._creationTime)),
         body: comment.body,
         at: comment._creationTime,
         isMine: comment.authorEmail === caller.email,
@@ -207,8 +208,12 @@ export const myUnreadTotal = query({
     const fetch = (y: number) =>
       ctx.db
         .query("requests")
-        .withIndex("by_year_and_requester", (q) =>
-          q.eq("year", y).eq("requesterEmail", email)
+        .withIndex("by_requester", (q) => q.eq("requesterEmail", email))
+        .filter((q) =>
+          q.and(
+            q.gte(q.field("_creationTime"), staffYearStartMs(y)),
+            q.lt(q.field("_creationTime"), staffYearStartMs(y + 1))
+          )
         )
         .collect();
     const current = await fetch(year);

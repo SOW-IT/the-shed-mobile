@@ -20,6 +20,7 @@ import {
   roleNeedsDepartment,
   roleNeedsUniversity,
   rolesNeedUniversity,
+  staffYearStartMs,
   STAFF_ROLE,
   STAFF_SIDE_ROLES,
 } from "../shared/flow";
@@ -830,9 +831,11 @@ export const removeDivision = mutation({
     for (const dept of divDepts) {
       const requests = await ctx.db
         .query("requests")
-        .withIndex("by_year_and_department", (q) =>
-          q.eq("year", args.year).eq("department", dept.name)
+        .withIndex("by_creation_time", (q) =>
+          q.gte("_creationTime", staffYearStartMs(args.year))
+           .lt("_creationTime", staffYearStartMs(args.year + 1))
         )
+        .filter((q) => q.eq(q.field("department"), dept.name))
         .take(200);
       if (requests.some((r) => !requestCompleted(r))) {
         throw new ConvexError(
@@ -1251,9 +1254,11 @@ export const updateDepartment = mutation({
       }
       const requests = await ctx.db
         .query("requests")
-        .withIndex("by_year_and_department", (q) =>
-          q.eq("year", args.year).eq("department", oldName)
+        .withIndex("by_creation_time", (q) =>
+          q.gte("_creationTime", staffYearStartMs(args.year))
+           .lt("_creationTime", staffYearStartMs(args.year + 1))
         )
+        .filter((q) => q.eq(q.field("department"), oldName))
         .take(1000);
       for (const request of requests) {
         await ctx.db.patch("requests", request._id, { department: newName });
@@ -1289,9 +1294,11 @@ export const removeDepartment = mutation({
     // Open requests would become orphaned — refuse rather than silently corrupt.
     const requests = await ctx.db
       .query("requests")
-      .withIndex("by_year_and_department", (q) =>
-        q.eq("year", args.year).eq("department", args.name)
+      .withIndex("by_creation_time", (q) =>
+        q.gte("_creationTime", staffYearStartMs(args.year))
+         .lt("_creationTime", staffYearStartMs(args.year + 1))
       )
+      .filter((q) => q.eq(q.field("department"), args.name))
       .take(200);
     if (requests.some((request) => !requestCompleted(request))) {
       throw new ConvexError(
