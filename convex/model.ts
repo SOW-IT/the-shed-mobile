@@ -10,6 +10,7 @@ import {
   rolesOfLike,
   staffYearForDate,
 } from "../shared/flow";
+import { staffEmailCandidates } from "../shared/rollcallImport";
 import { Doc } from "./_generated/dataModel";
 import { MutationCtx, QueryCtx } from "./_generated/server";
 
@@ -85,8 +86,10 @@ export async function displayName(
   email: string,
   year: number
 ): Promise<string> {
-  const profile = await getProfile(ctx, email, year);
-  if (profile?.name) return profile.name;
+  for (const candidate of staffEmailCandidates(email)) {
+    const profile = await getProfile(ctx, candidate, year);
+    if (profile?.name) return profile.name;
+  }
   const dirUser = await ctx.db
     .query("directoryUsers")
     .withIndex("by_email", (q) => q.eq("email", email))

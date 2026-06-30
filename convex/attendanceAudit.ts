@@ -1,5 +1,5 @@
-import { paginationOptsValidator } from "convex/server";
 import { paginator } from "convex-helpers/server/pagination";
+import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { staffYearForDate } from "../shared/flow";
 import { Doc, Id } from "./_generated/dataModel";
@@ -46,10 +46,24 @@ export async function logAttendanceAction(
 }
 
 // Safety bound on how many underlying rows a single list() call will read while
-// hunting for `numItems` matches, so a sparse filter can't scan unbounded rows
-// in one call. If hit before the page fills, we return what we have with a live
-// cursor and the client resumes — completeness is preserved across calls.
+// hunting for `numItems` matches. If a sparse filter exhausts this budget before
+// filling a page, we return what we have with a live cursor so the client can
+// resume — completeness is preserved across calls, only the per-call work is
+// capped (no rows ever become unreachable).
 const MAX_ROWS_SCANNED_PER_CALL = 2000;
+
+// `paginator` (convex-helpers) encodes its cursor as a JSON array string. A
+// leftover cursor from the old built-in `.paginate()` deploy — or any junk —
+// would make `paginator.paginate()` throw, so drop anything that isn't a
+// paginator cursor and restart from the newest row (mirrors events.ts).
+const asPaginatorCursor = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  try {
+    return Array.isArray(JSON.parse(value)) ? value : null;
+  } catch {
+    return null;
+  }
+};
 
 /**
  * Paginated, filterable, searchable audit feed for the Attendance → Audit tab.
@@ -57,18 +71,14 @@ const MAX_ROWS_SCANNED_PER_CALL = 2000;
  *
  * Reads the most selective index for the active filter (`by_event` when an event
  * is chosen, else `by_actor` when only an actor is, else the default order) and
- * walks it with convex-helpers' `paginator`, applying every other dimension — a
+ * walks it with Convex cursor pagination, applying every other dimension — a
  * residual `actorEmail` alongside an `eventId`, the `entityType`, and free-text
  * `search` — in TypeScript (Convex queries should not use `.filter()`). It
  * accumulates matches page-by-page until it has `numItems` of them or the index
  * is exhausted, so combining filters always matches the UI selection and no
- * matching row is ever skipped.
- *
- * `paginator` (not the built-in `ctx.db...paginate()`) because a single Convex
- * function may call the built-in `.paginate()` only ONCE: a sparse filter forces
- * this accumulation loop to scan several pages, which threw "ran multiple
- * paginated queries" and crashed the Audit tab. Same pattern as
- * `events.listBySubgroup`.
+ * matching row is ever skipped. The returned `continueCursor` is the underlying
+ * index cursor (page-aligned), and `isDone` reflects true index exhaustion —
+ * never a truncated in-memory window.
  */
 export const list = query({
   args: {
@@ -87,8 +97,13 @@ export const list = query({
     const search = args.search?.trim().toLowerCase();
     const { numItems } = args.paginationOpts;
 
-    // A fresh paginator for the active filter's most selective index (query
-    // builders are single-use, so we rebuild it each pagination step).
+    // A fresh query for the active filter's most selective index (query builders
+    // are single-use, so we rebuild it each pagination step). Uses convex-helpers'
+    // `paginator` rather than the built-in `ctx.db...paginate()`: a single Convex
+    // function may only call the built-in `.paginate()` once, but a sparse filter
+    // forces the loop below to scan several pages, which threw "This query or
+    // mutation function ran multiple paginated queries" and crashed the Audit tab.
+    // `paginator` has no such limit.
     const indexed = () => {
       const q = paginator(ctx.db, schema).query("attendanceAuditLog");
       if (eventId) return q.withIndex("by_event", (i) => i.eq("eventId", eventId));
@@ -108,12 +123,12 @@ export const list = query({
         r.actorEmail.toLowerCase().includes(search));
 
     const matched: Doc<"attendanceAuditLog">[] = [];
-    let cursor = args.paginationOpts.cursor;
+    let cursor = asPaginatorCursor(args.paginationOpts.cursor);
     let isDone = false;
     let scanned = 0;
-    // Walk the index page-by-page until we have `numItems` matches or the index
-    // is exhausted. `paginator` (unlike the built-in `.paginate()`) may be
-    // called repeatedly in one query, so the loop is safe.
+    // Walk the index page-by-page. Each step requests only the rows still needed,
+    // so a step never yields more matches than `numItems` (no overshoot) and its
+    // cursor stays page-aligned for the next call.
     while (matched.length < numItems) {
       const batch = await indexed()
         .order("desc")

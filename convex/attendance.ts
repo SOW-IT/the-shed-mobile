@@ -9,6 +9,7 @@ import {
 import {
   CAMPUS_FIELD_KEY,
   formatMetadataFieldValue,
+  ROLE_FIELD_KEY,
 } from "../shared/attendanceMemberMeta";
 import { canReverseSignIn, compareAttendanceFrequency, memberMatchesEventCampus, normalizeSubgroups, personDisplayName, personKey, subgroupMatches } from "../shared/rollcall";
 import { staffEmailCandidates } from "../shared/rollcallImport";
@@ -127,9 +128,11 @@ export const roster = query({
     }
 
     const metadataSubtitle = (
-      metadata: Record<string, string> | undefined
+      metadata: Record<string, string> | undefined,
+      excludeKeys: Set<string> = new Set()
     ): string =>
       metadataFields
+        .filter((f) => !excludeKeys.has(f.key))
         .map((f) => {
           const raw = metadata?.[f._id];
           if (!raw) return null;
@@ -155,7 +158,7 @@ export const roster = query({
           : campuses.length > 0
             ? campuses.join(" · ")
             : "";
-      const metaSubtitle = metadataSubtitle(shadow?.metadata);
+      const metaSubtitle = metadataSubtitle(shadow?.metadata, new Set([ROLE_FIELD_KEY]));
       const subtitle = [orgSubtitle, metaSubtitle].filter(Boolean).join(" · ");
       const user = p.userId ? await ctx.db.get(p.userId) : null;
       return {
@@ -294,9 +297,11 @@ export const listByEvent = query({
       )
       .sort((a, b) => a.order - b.order);
     const metadataSubtitle = (
-      metadata: Record<string, string> | undefined
+      metadata: Record<string, string> | undefined,
+      excludeKeys: Set<string> = new Set()
     ): string =>
       metadataFields
+        .filter((field) => !excludeKeys.has(field.key))
         .map((field) => {
           const raw = metadata?.[field._id];
           if (!raw) return null;
@@ -360,7 +365,10 @@ export const listByEvent = query({
           campuses,
           // The staff-year profile's campus wins over a (possibly stale) overlay.
           university: campuses[0] ?? resolveUniversity(metadataFields, shadow?.metadata, campuses),
-          subtitle: metadataSubtitle(shadow?.metadata) || undefined,
+          subtitle: metadataSubtitle(
+            shadow?.metadata,
+            profile ? new Set([ROLE_FIELD_KEY]) : new Set()
+          ) || undefined,
           photo: user?.image ?? null,
         },
       };
