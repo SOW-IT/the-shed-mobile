@@ -511,6 +511,16 @@ export default function AdminScreen() {
     ? assignableRoles.filter((r) => r !== DIRECTOR)
     : assignableRoles;
 
+  // The year's division names, for the department pickers. The add-department
+  // form keeps its selected division across adds (handy for adding several to
+  // one division), so reconcile it against the live list: if that division is
+  // later deleted, the held value is treated as unselected rather than lingering
+  // as a now-invalid selection that would be rejected on submit.
+  const divisionNames = (structure?.divisions ?? []).map((d) => d.name);
+  const selectedDepartmentDivision = divisionNames.includes(departmentDivision)
+    ? departmentDivision
+    : "";
+
   // Profiles grouped by division > department for the org-chart-style list.
   const leaverEmails = new Set((leavers ?? []).map((u) => u.email));
   const directoryOnlyUnassigned = (syncState?.users ?? []).filter(
@@ -1188,7 +1198,7 @@ export default function AdminScreen() {
                     <Select
                       label="Division"
                       value={editingDepartmentFormDivision}
-                      options={(structure?.divisions ?? []).map((d) => d.name)}
+                      options={divisionNames}
                       onSelect={setEditingDepartmentFormDivision}
                       placeholder="Choose a division…"
                     />
@@ -1288,8 +1298,8 @@ export default function AdminScreen() {
               />
               <Select
                 label="Division"
-                value={departmentDivision}
-                options={(structure?.divisions ?? []).map((d) => d.name)}
+                value={selectedDepartmentDivision}
+                options={divisionNames}
                 onSelect={setDepartmentDivision}
                 placeholder="Choose a division…"
               />
@@ -1302,12 +1312,13 @@ export default function AdminScreen() {
               />
               <Btn
                 title="Add Department"
+                disabled={!departmentName.trim() || !selectedDepartmentDivision}
                 onPress={() =>
                   void run(() =>
                     upsertDepartment({
                       year: selectedYear,
                       name: departmentName,
-                      division: departmentDivision,
+                      division: selectedDepartmentDivision,
                       headEmail: departmentHead || undefined,
                     })
                   ).then((ok) => ok && setDepartmentName(""))

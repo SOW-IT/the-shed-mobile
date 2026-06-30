@@ -6,6 +6,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.5.2] — 2026-06-30
+
+### Fixed
+
+- **Admin → Departments no longer keeps a deleted division selected.** The
+  "New department" form holds onto its chosen division across adds; if that
+  division was later deleted it lingered as an invalid selection that the
+  server would reject on submit. The picker now reconciles against the live
+  division list (falling back to the placeholder), and "Add Department" is
+  disabled until a name and a valid division are set.
+
 ## [1.5.1] — 2026-06-30
 
 ### Fixed
