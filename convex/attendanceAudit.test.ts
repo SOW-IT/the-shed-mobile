@@ -637,6 +637,27 @@ describe("audit logging across attendance mutations", () => {
     expect(reorders[0].summary).not.toContain("Swapped");
   });
 
+  test("malformed cursor is silently dropped and query restarts from newest", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const { dateStart, dateEnd } = window();
+    const eventId = await staff.mutation(api.events.create, {
+      name: "Cursor Test Event",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    // Write a few audit rows so the query has something to return.
+    await staff.mutation(api.attendance.signIn, { eventId, email: STAFF });
+    // A syntactically invalid JSON string (not parseable by JSON.parse) must not
+    // throw — it should be treated as "no cursor" and restart from the beginning.
+    const result = await staff.query(api.attendanceAudit.list, {
+      paginationOpts: { numItems: 10, cursor: "not-json{{" },
+    });
+    expect(result.page.length).toBeGreaterThan(0);
+    expect(result.isDone).toBe(true);
+  });
+
   test("roll-call by email logs sign-in, record edit and sign-out", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
