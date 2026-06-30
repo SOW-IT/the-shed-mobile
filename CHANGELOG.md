@@ -8,6 +8,14 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ### Fixed
 
+- **Tapping a request push notification now opens the request.** Request
+  notifications deep-link to `/?tab=review&focus=<id>` (the live Requests
+  screen), but the push-tap handler's allow-list still only accepted the old
+  `/request/` and `/review` paths, so tapping a request push on a device routed
+  nowhere (attendance pushes were unaffected). The allow-list now accepts the
+  `/?tab=…&focus=…` home deep-link, and it lives in `shared/deepLinks.ts` with a
+  test asserting every URL the backend emits is followable, so this can't
+  silently regress again.
 - **Admin → Roles no longer offers edit/delete on app-managed roles.** The
   system roles (Head of Department/Division, Director, Staff, Member) showed
   edit and trash buttons whose delete dialog claimed they could be removed; the

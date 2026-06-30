@@ -5,29 +5,8 @@ import * as Notifications from "expo-notifications";
 import { type Href, useRouter } from "expo-router";
 import { useEffect } from "react";
 import { Platform } from "react-native";
+import { isAllowedDeepLink } from "../../shared/deepLinks";
 import { api } from "../../convex/_generated/api";
-
-// Notification payloads are server-controlled, so only follow a deep link whose
-// path starts with a route family we actually send (see the `url:` fields in
-// convex/requests.ts, comments.ts, events.ts). This keeps a malformed or
-// renamed payload from being pushed blindly into the navigator.
-const ALLOWED_DEEP_LINK_PREFIXES = [
-  "/request/",
-  "/review",
-  "/notifications",
-  "/attendance/",
-] as const;
-
-const isAllowedDeepLink = (url: string): boolean =>
-  ALLOWED_DEEP_LINK_PREFIXES.some((prefix) => {
-    if (!url.startsWith(prefix)) return false;
-    // A prefix that already ends in "/" enforces its own boundary. For bare
-    // prefixes like "/review", require the match to end at a real path/query
-    // boundary so a payload such as "/reviewevil" can't slip through.
-    if (prefix.endsWith("/")) return true;
-    const next = url[prefix.length];
-    return next === undefined || next === "/" || next === "?" || next === "#";
-  });
 
 // Show flow notifications even while the app is open.
 Notifications.setNotificationHandler({
