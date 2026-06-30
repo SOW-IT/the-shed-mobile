@@ -6,6 +6,8 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.5.3] — 2026-07-01
+
 ### Fixed
 
 - **Tapping a request push notification now opens the request.** Request

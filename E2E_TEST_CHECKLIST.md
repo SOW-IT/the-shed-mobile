@@ -303,6 +303,18 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 
 ---
 
+## Reviewer note: additional coverage still needed
+
+The checklist covers the main Requests, Attendance, and Admin workflows well, but it should still add explicit E2E scenarios for these app surfaces before we call coverage complete:
+
+- [ ] **Org Chart tab:** verify the tab is visible to the expected roles, renders Director / Staff / Divisions / Departments / Campus sections correctly, handles empty Director / empty department states, supports the year picker, and opens the correct person profile when a row is tapped.
+- [ ] **Profile screen:** verify own-profile display, avatar upload success and oversize-image rejection, Local church edit/save behavior, service history rendering across years, read-only behavior when viewing another person, and sign-out confirmation.
+- [ ] **Deep links and routed detail screens:** verify direct navigation to `/request/[id]`, `/person/[email]`, `/profile`, `/notifications`, `/attendance/event/[eventId]`, and notification comment-thread links, including missing/invalid ids and permission-denied cases.
+- [ ] **Loading and error states:** verify initial loading spinners, empty states, mutation button loading labels, top-level error banners, retry/recovery after failed Convex mutations, and optimistic UI rollback where applicable.
+- [ ] **Bank tab:** verify add/edit/delete account flows, preferred-account selection, delete confirmation for the preferred account, validation for account name / BSB / account number, and that preferred account details auto-fill receipt recipients after returning to Requests.
+
+---
+
 ## Notes / known issues to keep an eye on
 - ✅ **Attendance Audit pagination crash** when filtered/searched (multi-paginate) — **fixed** (CHANGELOG → Unreleased); kept here as a regression watch.
 - ✅ **Tag "save all" audit spam** — **fixed** (only changed tags are now logged); kept here as a regression watch.
