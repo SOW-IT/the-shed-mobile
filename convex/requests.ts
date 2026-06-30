@@ -46,9 +46,8 @@ import {
   type CallerContext,
 } from "./model";
 
-/** Derives the staff year for a request, using stored year for legacy rows. */
-const requestYear = (r: Pick<Doc<"requests">, "year" | "_creationTime">): number =>
-  r.year ?? eventStaffYear(r._creationTime);
+const requestYear = (r: Pick<Doc<"requests">, "_creationTime">): number =>
+  eventStaffYear(r._creationTime);
 
 const STEP_FIELDS = {
   hod: "approvedByHOD",

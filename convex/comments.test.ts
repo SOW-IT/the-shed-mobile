@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, test, vi } from "vitest";
-import { staffYearForDate } from "../shared/flow";
+import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import { actionOwnerEmail } from "./requests";
 import schema from "./schema";
@@ -101,9 +101,9 @@ describe("actionOwnerEmail routing", () => {
     // A prior-year request, fully approved with a receipt, still unpaid. No
     // YEAR-1 Finance department exists, so the request-year Finance Head is
     // absent and routing falls back to the current year's officeholder (Fiona).
+    vi.setSystemTime(staffYearStartMs(YEAR - 1) + 1);
     const id = await t.run((ctx) =>
       ctx.db.insert("requests", {
-        year: YEAR - 1,
         requesterEmail: RACHEL,
         department: "Marketing",
         description: "carried",
@@ -118,6 +118,7 @@ describe("actionOwnerEmail routing", () => {
         paid: false,
       })
     );
+    vi.useRealTimers();
     expect(await owner(t, id)).toBe(FIONA);
   });
 

@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate } from "../shared/flow";
+import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import { appUrl } from "./requests";
 import schema from "./schema";
@@ -140,14 +140,14 @@ describe("allRequests authorization", () => {
 
 describe("requestsForExport", () => {
   /** Inserts a paid request for `email` in `year`. */
-  const seed = (
+  const seed = async (
     t: TestConvex<typeof schema>,
     year: number,
     description: string
-  ) =>
-    t.run((ctx) =>
+  ) => {
+    vi.setSystemTime(staffYearStartMs(year) + 1);
+    const id = await t.run((ctx) =>
       ctx.db.insert("requests", {
-        year,
         requesterEmail: RACHEL,
         department: "Marketing",
         description,
@@ -158,15 +158,36 @@ describe("requestsForExport", () => {
         paid: true,
       })
     );
+    vi.useRealTimers();
+    return id;
+  };
 
   test("Finance gets the selected years, with out-of-range years filtered", async () => {
-    const t = await setup();
-    await seed(t, YEAR, "this year");
+    // Seed before setup() so convex-test's monotonic _lastCreationTime guard
+    // doesn't clamp past-year rows to the current real-time range.
+    // Use a fresh convexTest instance seeded chronologically, then run setup.
+    const t = convexTest(schema, modules);
     await seed(t, YEAR - 1, "last year");
-    await seed(t, 2020, "too old"); // below EARLIEST_REQUEST_YEAR
-    await seed(t, YEAR + 1, "future year"); // above the caller's staff year
+    await seed(t, YEAR, "this year");
+    await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Marketing", division: "Engagement", headEmail: HENRY,
+    });
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Finance", division: "Governance", headEmail: FIONA,
+    });
+    for (const a of [
+      { email: RACHEL, roles: ["Staff"], department: "Marketing" },
+      { email: BELLA, roles: ["Staff"], department: "Finance" },
+      { email: DAN, roles: ["Director"], department: "Marketing" },
+    ]) {
+      await admin.mutation(api.admin.setStaffProfile, { year: YEAR, ...a });
+    }
+    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
 
     const bella = asUser(t, BELLA);
+    // Years outside [EARLIEST_REQUEST_YEAR, caller.year] are silently dropped.
     const rows = (await bella.query(api.requests.requestsForExport, {
       years: [YEAR + 1, YEAR, YEAR - 1, 2020],
     }))!;
@@ -261,14 +282,43 @@ describe("cancel validation", () => {
 });
 
 describe("authorizeStep guards", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   test("a missing/foreign-year request reports not found", async () => {
-    const t = await setup();
-    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
-    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
-    // Move it two years back so it falls outside the caller's window.
-    await t.run((ctx) => ctx.db.patch("requests", request._id, { year: YEAR - 2 }));
+    // Seed the request at YEAR-2 _creationTime BEFORE setup() so convex-test's
+    // monotonic guard doesn't clamp it to the current real-time range.
+    vi.setSystemTime(staffYearStartMs(YEAR - 2) + 1);
+    const t = convexTest(schema, modules);
+    const requestId = await t.run((ctx) =>
+      ctx.db.insert("requests", {
+        requesterEmail: RACHEL,
+        department: "Marketing",
+        description: "x",
+        amount: 100,
+        approvedByHOD: "PENDING",
+        approvedByBudgetManager: "PENDING",
+        approvedByFinanceHead: "PENDING",
+      })
+    );
+    vi.useRealTimers();
+    // Now run admin setup so HENRY has a profile to look up.
+    await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Marketing", division: "Engagement", headEmail: HENRY,
+    });
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Finance", division: "Governance", headEmail: FIONA,
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      year: YEAR, email: RACHEL, roles: ["Staff"], department: "Marketing",
+    });
+    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: FIONA });
+
     await expect(
-      asUser(t, HENRY).mutation(api.requests.approve, { requestId: request._id, step: "hod" })
+      asUser(t, HENRY).mutation(api.requests.approve, { requestId, step: "hod" })
     ).rejects.toThrow(/Request not found/);
   });
 });
@@ -451,7 +501,42 @@ describe("receiptAttachments", () => {
 
 describe("pay validation", () => {
   test("guards amount, not-found, payer identity and lifecycle state", async () => {
-    const t = await setup();
+    // Seed the foreign-year request BEFORE setup() so convex-test's monotonic
+    // _lastCreationTime guard doesn't clamp it to the current real-time range.
+    vi.setSystemTime(staffYearStartMs(YEAR - 2) + 1);
+    const t = convexTest(schema, modules);
+    const foreignId = await t.run((ctx) =>
+      ctx.db.insert("requests", {
+        requesterEmail: RACHEL,
+        department: "Marketing",
+        description: "ancient",
+        amount: 90,
+        approvedByHOD: "APPROVED",
+        approvedByBudgetManager: "APPROVED",
+        approvedByFinanceHead: "APPROVED",
+        receipt: { totalAmount: 90, recipients: [{ accountName: "R", bsb: "0", accountNumber: "1", amount: 90, attachments: [] }] },
+        paid: false,
+      })
+    );
+    vi.useRealTimers();
+    // Run admin setup with the real clock on the same instance.
+    await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Marketing", division: "Engagement", headEmail: HENRY,
+    });
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Finance", division: "Governance", headEmail: FIONA,
+    });
+    for (const a of [
+      { email: RACHEL, roles: ["Staff"], department: "Marketing" },
+      { email: BELLA, roles: ["Staff"], department: "Finance" },
+      { email: DAN, roles: ["Director"], department: "Marketing" },
+    ]) {
+      await admin.mutation(api.admin.setStaffProfile, { year: YEAR, ...a });
+    }
+    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
+
     const id = await approvedRequest(t);
 
     // Non-positive amount.
@@ -481,10 +566,9 @@ describe("pay validation", () => {
       asUser(t, BELLA).mutation(api.requests.pay, { requestId: id, paidAmount: 90 })
     ).rejects.toThrow(/Only the Finance Head/);
 
-    // A foreign-year request reports not found.
-    await t.run((ctx) => ctx.db.patch("requests", id, { year: YEAR - 2 }));
+    // A foreign-year request (YEAR-2) reports not found.
     await expect(
-      asUser(t, FIONA).mutation(api.requests.pay, { requestId: id, paidAmount: 90 })
+      asUser(t, FIONA).mutation(api.requests.pay, { requestId: foreignId, paidAmount: 90 })
     ).rejects.toThrow(/Request not found/);
   });
 
@@ -697,16 +781,21 @@ describe("importHistory.personHistory", () => {
 });
 
 describe("browsing past years", () => {
-  /** Inserts a fully-paid historical request for `email` in `year`. */
-  const seedPastRequest = (
+  /**
+   * Inserts a fully-paid historical request at the given year's _creationTime.
+   * Must be called before setup() on a fresh convexTest instance (or
+   * chronologically after any prior inserts) so convex-test's monotonically
+   * increasing _lastCreationTime guard doesn't clamp to the wrong year.
+   */
+  const seedPastRequest = async (
     t: TestConvex<typeof schema>,
     email: string,
     year: number,
     description: string
-  ) =>
-    t.run((ctx) =>
+  ) => {
+    vi.setSystemTime(staffYearStartMs(year) + 1);
+    const id = await t.run((ctx) =>
       ctx.db.insert("requests", {
-        year,
         requesterEmail: email,
         department: "Marketing",
         description,
@@ -717,13 +806,52 @@ describe("browsing past years", () => {
         paid: true,
       })
     );
+    vi.useRealTimers();
+    return id;
+  };
+
+  /**
+   * Creates a convexTest instance, seeds historical requests at the given years
+   * (chronologically), then runs the standard admin setup.
+   * The historical seeds must happen before setup() so convex-test's monotonic
+   * _lastCreationTime doesn't clamp them to the current real time.
+   */
+  async function setupWithHistory(
+    seeds: { email: string; year: number; description: string }[]
+  ) {
+    const t = convexTest(schema, modules);
+    // Seed historical rows in chronological order (oldest first).
+    const sorted = [...seeds].sort((a, b) => a.year - b.year);
+    for (const s of sorted) {
+      await seedPastRequest(t, s.email, s.year, s.description);
+    }
+    // Now run the standard admin setup with the real clock.
+    await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Marketing", division: "Engagement", headEmail: HENRY,
+    });
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR, name: "Finance", division: "Governance", headEmail: FIONA,
+    });
+    for (const a of [
+      { email: RACHEL, roles: ["Staff"], department: "Marketing" },
+      { email: BELLA, roles: ["Staff"], department: "Finance" },
+      { email: DAN, roles: ["Director"], department: "Marketing" },
+    ]) {
+      await admin.mutation(api.admin.setStaffProfile, { year: YEAR, ...a });
+    }
+    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
+    return t;
+  }
 
   test("myRequests({year}) returns only that year, newest-first, no carry-over", async () => {
-    const t = await setup();
+    const t = await setupWithHistory([
+      { email: RACHEL, year: YEAR - 2, description: "old one" },
+      { email: RACHEL, year: YEAR - 2, description: "old two" },
+    ]);
     const rachel = asUser(t, RACHEL);
     await rachel.mutation(api.requests.submit, { description: "this year", amount: 50 });
-    await seedPastRequest(t, RACHEL, YEAR - 2, "old one");
-    await seedPastRequest(t, RACHEL, YEAR - 2, "old two");
 
     const live = (await rachel.query(api.requests.myRequests, {}))!;
     expect(live.map((r) => r.description)).toEqual(["this year"]);
@@ -734,10 +862,11 @@ describe("browsing past years", () => {
   });
 
   test("requestYears lists the caller's request years plus the current one", async () => {
-    const t = await setup();
+    const t = await setupWithHistory([
+      { email: RACHEL, year: YEAR - 2, description: "old one" },
+    ]);
     const rachel = asUser(t, RACHEL);
     await rachel.mutation(api.requests.submit, { description: "this year", amount: 50 });
-    await seedPastRequest(t, RACHEL, YEAR - 2, "old one");
 
     const years = (await rachel.query(api.requests.requestYears, {}))!;
     expect(years.mine).toEqual([YEAR, YEAR - 2]); // newest-first, deduped
@@ -755,8 +884,9 @@ describe("browsing past years", () => {
   });
 
   test("allRequests({year}) shows a past year to Finance only", async () => {
-    const t = await setup();
-    await seedPastRequest(t, RACHEL, YEAR - 1, "last year");
+    const t = await setupWithHistory([
+      { email: RACHEL, year: YEAR - 1, description: "last year" },
+    ]);
 
     const past = (await asUser(t, BELLA).query(api.requests.allRequests, {
       year: YEAR - 1,

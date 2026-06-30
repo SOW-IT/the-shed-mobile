@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate } from "../shared/flow";
+import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
 
@@ -164,9 +164,9 @@ describe("receiptAttachments: current-year Finance Head on a carried-over reques
     const t = await setup();
     // A fully-approved carry-over from last year, with a receipt, by Rachel.
     const storage = await storedReceipt(t);
+    vi.setSystemTime(staffYearStartMs(YEAR - 1) + 1);
     const requestId = await t.run((ctx) =>
       ctx.db.insert("requests", {
-        year: YEAR - 1,
         requesterEmail: RACHEL,
         department: "Marketing",
         description: "carried",
@@ -183,6 +183,7 @@ describe("receiptAttachments: current-year Finance Head on a carried-over reques
         paid: false,
       })
     );
+    vi.useRealTimers();
     // Fiona is THIS year's Finance Head, not last year's — the currentFinance
     // branch authorises her.
     const files = await asUser(t, FIONA).query(api.requests.receiptAttachments, {
@@ -256,9 +257,17 @@ describe("reminders: receipt and payment stages", () => {
   test("a carried-over request reminds the current year's officeholder", async () => {
     const t = await setup();
     // Last year's request waiting on the budget manager; last year's BM is gone.
+    await t.run((ctx) =>
+      ctx.db.insert("departments", {
+        year: YEAR - 1,
+        name: "Marketing",
+        division: "Engagement",
+        headEmail: HENRY,
+      })
+    );
+    vi.setSystemTime(staffYearStartMs(YEAR - 1) + 1);
     const requestId = await t.run((ctx) =>
       ctx.db.insert("requests", {
-        year: YEAR - 1,
         requesterEmail: RACHEL,
         department: "Marketing",
         description: "carried",
@@ -268,14 +277,7 @@ describe("reminders: receipt and payment stages", () => {
         approvedByFinanceHead: "PENDING",
       })
     );
-    await t.run((ctx) =>
-      ctx.db.insert("departments", {
-        year: YEAR - 1,
-        name: "Marketing",
-        division: "Engagement",
-        headEmail: HENRY,
-      })
-    );
+    vi.useRealTimers();
 
     stale();
     await t.mutation(internal.reminders.remindStale, {});
@@ -478,15 +480,17 @@ describe("reminders: director and finance-head stages", () => {
   test("a carried-over unpaid receipt reminds this year's Finance Head when last year's is gone", async () => {
     const t = await setup();
     // Last year had a different Finance Head who no longer holds the role.
-    const requestId = await t.run(async (ctx) => {
-      await ctx.db.insert("departments", {
+    await t.run((ctx) =>
+      ctx.db.insert("departments", {
         year: YEAR - 1,
         name: "Finance",
         division: "Governance",
         // No headEmail -> last year's finance head is gone.
-      });
-      return ctx.db.insert("requests", {
-        year: YEAR - 1,
+      })
+    );
+    vi.setSystemTime(staffYearStartMs(YEAR - 1) + 1);
+    const requestId = await t.run((ctx) =>
+      ctx.db.insert("requests", {
         requesterEmail: RACHEL,
         department: "Marketing",
         description: "carried unpaid",
@@ -501,8 +505,9 @@ describe("reminders: director and finance-head stages", () => {
           ],
         },
         paid: false,
-      });
-    });
+      })
+    );
+    vi.useRealTimers();
     stale();
     await t.mutation(internal.reminders.remindStale, {});
     const updated = await t.run((ctx) => ctx.db.get("requests", requestId));

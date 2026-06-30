@@ -220,10 +220,6 @@ export default defineSchema({
     .index("by_actor", ["actorEmail"]),
 
   requests: defineTable({
-    // Deprecated: staff year was stored explicitly on creation. Now derived from
-    // _creationTime via eventStaffYear() — do not write on new records. Kept
-    // optional so existing rows remain readable during the transition.
-    year: v.optional(v.number()),
     requesterEmail: v.string(),
     department: v.string(),
     description: v.string(),

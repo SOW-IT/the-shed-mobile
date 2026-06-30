@@ -49,7 +49,7 @@ export const add = mutation({
     const owner = await actionOwnerEmail(ctx, request);
     if (owner && owner !== email) recipients.add(owner);
     else if (request.requesterEmail !== email) recipients.add(request.requesterEmail);
-    const reqYear = request.year ?? eventStaffYear(request._creationTime);
+    const reqYear = eventStaffYear(request._creationTime);
     const approvers = await getApprovers(ctx, reqYear, request.department);
     for (const approver of involvedApproverEmails(request, approvers, [APPROVED])) {
       if (approver !== email) recipients.add(approver);
@@ -113,7 +113,7 @@ export const list = query({
       result.push({
         id: comment._id,
         authorEmail: comment.authorEmail,
-        authorName: await resolveName(ctx, comment.authorEmail, request.year ?? eventStaffYear(request._creationTime)),
+        authorName: await resolveName(ctx, comment.authorEmail, eventStaffYear(request._creationTime)),
         body: comment.body,
         at: comment._creationTime,
         isMine: comment.authorEmail === caller.email,

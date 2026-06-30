@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
-import { describe, expect, test } from "vitest";
-import { staffYearForDate } from "../shared/flow";
+import { describe, expect, test, vi } from "vitest";
+import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
 
@@ -348,7 +348,6 @@ describe("removeDivision", () => {
     // Insert an open request directly into Finance (a Governance child dept).
     await t.run((ctx) =>
       ctx.db.insert("requests", {
-        year: YEAR,
         requesterEmail: BELLA,
         department: "Finance",
         description: "open",
