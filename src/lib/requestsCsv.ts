@@ -1,4 +1,4 @@
-import { requestDisplayStatus } from "../../shared/flow";
+import { eventStaffYear, requestDisplayStatus } from "../../shared/flow";
 import { Doc } from "../../convex/_generated/dataModel";
 import { buildCsv } from "./csv";
 import { downloadCsv } from "./csvDownload";
@@ -7,7 +7,7 @@ export { downloadCsv };
 
 /** CSV columns, in order, with how to derive each cell from a request. */
 const COLUMNS: { header: string; value: (r: Doc<"requests">) => string }[] = [
-  { header: "Staff Year", value: (r) => String(r.year) },
+  { header: "Staff Year", value: (r) => String(eventStaffYear(r._creationTime)) },
   { header: "Created", value: (r) => isoDate(r._creationTime) },
   { header: "Requester Email", value: (r) => r.requesterEmail },
   { header: "Department", value: (r) => r.department },

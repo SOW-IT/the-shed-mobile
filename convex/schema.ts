@@ -220,7 +220,6 @@ export default defineSchema({
     .index("by_actor", ["actorEmail"]),
 
   requests: defineTable({
-    year: v.number(),
     requesterEmail: v.string(),
     department: v.string(),
     description: v.string(),
@@ -271,10 +270,7 @@ export default defineSchema({
     payComment: v.optional(v.string()),
     paidTime: v.optional(v.number()),
   })
-    .index("by_year", ["year"])
-    .index("by_year_and_requester", ["year", "requesterEmail"])
-    .index("by_requester", ["requesterEmail"])
-    .index("by_year_and_department", ["year", "department"]),
+    .index("by_requester", ["requesterEmail"]),
 
   // In-app notification feed: a row per recipient per flow event, mirroring the
   // push/email a person gets so they have an in-app history with an unread

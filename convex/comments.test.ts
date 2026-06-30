@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, test, vi } from "vitest";
-import { staffYearForDate } from "../shared/flow";
+import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import { actionOwnerEmail } from "./requests";
 import schema from "./schema";
@@ -25,8 +25,7 @@ const file = async (t: TestConvex<typeof schema>) => ({
   name: "r.pdf",
 });
 
-async function setup() {
-  const t = convexTest(schema, modules);
+async function runSetup(t: TestConvex<typeof schema>) {
   await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
   const admin = asUser(t, ADMIN);
   await admin.mutation(api.admin.upsertDepartment, {
@@ -48,6 +47,11 @@ async function setup() {
     await admin.mutation(api.admin.setStaffProfile, { year: YEAR, ...a });
   }
   await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
+}
+
+async function setup() {
+  const t = convexTest(schema, modules);
+  await runSetup(t);
   return t;
 }
 
@@ -97,13 +101,12 @@ describe("actionOwnerEmail routing", () => {
   });
 
   test("carried-over unpaid receipt → this year's Finance Head when last year's is gone", async () => {
-    const t = await setup();
-    // A prior-year request, fully approved with a receipt, still unpaid. No
-    // YEAR-1 Finance department exists, so the request-year Finance Head is
-    // absent and routing falls back to the current year's officeholder (Fiona).
+    // Seed at YEAR-1 time on a fresh instance so _creationTime lands in YEAR-1.
+    // No YEAR-1 Finance department exists, so routing falls back to Fiona.
+    vi.setSystemTime(staffYearStartMs(YEAR - 1) + 1);
+    const t = convexTest(schema, modules);
     const id = await t.run((ctx) =>
       ctx.db.insert("requests", {
-        year: YEAR - 1,
         requesterEmail: RACHEL,
         department: "Marketing",
         description: "carried",
@@ -118,6 +121,8 @@ describe("actionOwnerEmail routing", () => {
         paid: false,
       })
     );
+    vi.useRealTimers();
+    await runSetup(t);
     expect(await owner(t, id)).toBe(FIONA);
   });
 

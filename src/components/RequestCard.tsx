@@ -6,6 +6,7 @@ import {
   APPROVED,
   currentStep,
   DECLINED,
+  eventStaffYear,
   requestDisplayStatus,
   STEP_LABELS,
   stepsForRequest,
@@ -381,7 +382,7 @@ export const RequestCard = ({
   const requesterName = useQuery(
     api.directory.nameForEmail,
     showRequester
-      ? { email: request.requesterEmail, year: request.year }
+      ? { email: request.requesterEmail, year: eventStaffYear(request._creationTime) }
       : "skip"
   );
   const unreadComments = useQuery(api.comments.unreadCount, {

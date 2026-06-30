@@ -1,5 +1,6 @@
 import {
   currentStep,
+  eventStaffYear,
   FINANCE,
   requestCompleted,
   STEP_LABELS,
@@ -93,9 +94,10 @@ export const remindStale = internalMutation({
 
       // Approvers of the request's own year, falling back to this year's
       // officeholders (carry-overs may outlive a departed approver).
-      const requestYear = await getApprovers(ctx, request.year, request.department);
+      const reqYear = eventStaffYear(request._creationTime);
+      const requestYear = await getApprovers(ctx, reqYear, request.department);
       const thisYear =
-        request.year === year
+        reqYear === year
           ? requestYear
           : await getApprovers(ctx, year, request.department);
       const pick = (selector: (a: Approvers) => string | undefined) =>
@@ -119,9 +121,9 @@ export const remindStale = internalMutation({
         waitingOn = "your receipt";
         url = `/request/${request._id}`;
       } else if (request.paid === false) {
-        const finance = await getApprovers(ctx, request.year, FINANCE);
+        const finance = await getApprovers(ctx, reqYear, FINANCE);
         const financeNow =
-          request.year === year ? finance : await getApprovers(ctx, year, FINANCE);
+          reqYear === year ? finance : await getApprovers(ctx, year, FINANCE);
         to = finance.financeHeadEmail ?? financeNow.financeHeadEmail;
         waitingOn = "payment";
       }

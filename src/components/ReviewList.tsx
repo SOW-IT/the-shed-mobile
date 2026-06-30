@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { spacing, useAppTheme } from "@/theme";
+import { eventStaffYear } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { RequestCard } from "@/components/RequestCard";
@@ -230,7 +231,10 @@ export const ReviewList = ({
   const approveRequesterName = useQuery(
     api.directory.nameForEmail,
     approveTarget
-      ? { email: approveTarget.request.requesterEmail, year: approveTarget.request.year }
+      ? {
+          email: approveTarget.request.requesterEmail,
+          year: eventStaffYear(approveTarget.request._creationTime),
+        }
       : "skip"
   );
 
