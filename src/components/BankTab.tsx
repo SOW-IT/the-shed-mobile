@@ -336,7 +336,7 @@ export const BankTab = () => {
       <FadeInView delay={stagger(1)}>
         <SectionTitle>Preferred Account</SectionTitle>
         <View style={{ marginBottom: spacing.sm }}>
-          <Muted>This account is auto-filled when you submit a receipt.</Muted>
+          <Muted>Auto-filled when you submit a receipt.</Muted>
         </View>
         {/* Form-level errors render inside the form; this banner is for
             list actions (set preferred / delete) while no form is open. */}
@@ -376,7 +376,7 @@ export const BankTab = () => {
           )
         ) : (
           <Card style={styles.bankCard}>
-            <Muted>No preferred bank account yet. Add one below.</Muted>
+            <Muted>No preferred account yet.</Muted>
           </Card>
         )}
       </FadeInView>

@@ -268,12 +268,12 @@ export const ReviewList = ({
         <EmptyState
           icon="checkmark-done-outline"
           title="All caught up"
-          message="Nothing is waiting on your review right now."
+          message="Nothing is waiting on your review."
         />
       ) : (
         <>
           {!hasAnything ? (
-            <Muted>You&rsquo;re all caught up — nothing is waiting on your review.</Muted>
+            <Muted>You&rsquo;re all caught up.</Muted>
           ) : (
             <>
               {SECTIONS.map(({ key, title }) =>
