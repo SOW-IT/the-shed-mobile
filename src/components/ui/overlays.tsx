@@ -5,7 +5,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
-import { typography, useAppTheme } from "@/theme";
+import { spacing, typography, useAppTheme } from "@/theme";
 import { Btn } from "./buttons";
 import { Field, OptionSheet } from "./forms";
 import { Muted, Row, Txt } from "./primitives";
@@ -168,7 +168,7 @@ export const Sheet = ({
       </View>
     ) : null;
 
-  const bodyStyle = [contentStyle ?? styles.sheetContent];
+  const bodyStyle = [contentStyle ?? styles.sheetContent, !hasFooter && { paddingBottom: spacing.lg }];
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
