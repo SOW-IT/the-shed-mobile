@@ -121,6 +121,10 @@ describe("partitionSelectOptions", () => {
     expect(roleFilterMatches("Student Leader", ["Staff"], null)).toBe(false);
     expect(roleFilterMatches("Staff", ["Head of Department"], null)).toBe(true);
     expect(roleFilterMatches("Staff", ["President"], null)).toBe(false);
+    expect(roleFilterMatches("Head of Department", [], "Head of Department")).toBe(
+      true
+    );
+    expect(roleFilterMatches("Head of Department", [], "Staff")).toBe(false);
   });
 });
 

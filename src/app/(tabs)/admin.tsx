@@ -637,6 +637,13 @@ export default function AdminScreen() {
     </Card>
   );
 
+  const accentContainerStyle = (accentColour: string) => ({
+    gap: spacing.md,
+    borderLeftWidth: 4,
+    borderLeftColor: accentColour,
+    paddingLeft: spacing.md,
+  });
+
   // Renders the collapsed or expanded card for an assigned profile.
   const renderProfileCard = (
     profile: NonNullable<typeof profiles>[number],
@@ -835,32 +842,28 @@ export default function AdminScreen() {
               <View key={group.division} style={{ gap: spacing.md }}>
                 <SectionTitle>{group.division} — {selectedYear}</SectionTitle>
                 {group.head ? renderProfileCard(group.head, t.primary) : null}
-                {group.departments.map((dept) => (
-                  <View
-                    key={dept.name}
-                    style={{
-                      gap: spacing.md,
-                      borderLeftWidth: 4,
-                      borderLeftColor: dept.colour ?? t.primary,
-                      paddingLeft: spacing.md,
-                    }}
-                  >
-                    <Text
-                      style={[
-                        typography.label,
-                        { color: t.muted, paddingTop: 4 },
-                      ]}
+                {group.departments.map((dept) => {
+                  const deptAccent = dept.colour ?? t.primary;
+                  return (
+                    <View
+                      key={dept.name}
+                      style={accentContainerStyle(deptAccent)}
                     >
-                      {dept.name}
-                    </Text>
-                    {dept.head
-                      ? renderProfileCard(dept.head, dept.colour ?? t.primary)
-                      : null}
-                    {dept.profiles.map((profile) =>
-                      renderProfileCard(profile, dept.colour ?? t.primary)
-                    )}
-                  </View>
-                ))}
+                      <Text
+                        style={[
+                          typography.label,
+                          { color: t.muted, paddingTop: 4 },
+                        ]}
+                      >
+                        {dept.name}
+                      </Text>
+                      {dept.head ? renderProfileCard(dept.head, deptAccent) : null}
+                      {dept.profiles.map((profile) =>
+                        renderProfileCard(profile, deptAccent)
+                      )}
+                    </View>
+                  );
+                })}
                 {group.divisionOnlyProfiles.map((profile) =>
                   renderProfileCard(profile, t.primary)
                 )}
@@ -869,25 +872,20 @@ export default function AdminScreen() {
           })}
 
           {/* Campus roles grouped by university */}
-          {campusByUniversity.map((group) => (
-            <View
-              key={group.university}
-              style={{
-                gap: spacing.md,
-                borderLeftWidth: 4,
-                borderLeftColor: universityColour(group.university) ?? t.primary,
-                paddingLeft: spacing.md,
-              }}
-            >
-              <SectionTitle>{group.university} — {selectedYear}</SectionTitle>
-              {group.profiles.map((profile) =>
-                renderProfileCard(
-                  profile,
-                  universityColour(group.university) ?? t.primary
-                )
-              )}
-            </View>
-          ))}
+          {campusByUniversity.map((group) => {
+            const campusAccent = universityColour(group.university) ?? t.primary;
+            return (
+              <View
+                key={group.university}
+                style={accentContainerStyle(campusAccent)}
+              >
+                <SectionTitle>{group.university} — {selectedYear}</SectionTitle>
+                {group.profiles.map((profile) =>
+                  renderProfileCard(profile, campusAccent)
+                )}
+              </View>
+            );
+          })}
 
           {/* Profiles not in any division, department, or campus */}
           {nonCampusOtherProfiles.length > 0 && (
