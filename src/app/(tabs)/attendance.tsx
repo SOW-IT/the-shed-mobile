@@ -9,6 +9,7 @@ import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
 import { AuditTab } from "@/components/attendance/AuditTab";
 import { EventsTab } from "@/components/attendance/EventsTab";
+import { MetricsTab } from "@/components/attendance/MetricsTab";
 import { MembersTab } from "@/components/attendance/MembersTab";
 import { MetadataTab, type SaveControls } from "@/components/attendance/MetadataTab";
 import { SettingsTab } from "@/components/attendance/SettingsTab";
@@ -60,6 +61,7 @@ export default function AttendanceScreen() {
       tab === "settings" ||
       tab === "metadata" ||
       tab === "audit" ||
+      tab === "insights" ||
       tab === "events"
     ) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- deep-link tab param
@@ -150,6 +152,19 @@ export default function AttendanceScreen() {
           subgroups={subgroups}
           selectedSubgroup={subgroup}
           onSelectedSubgroupChange={setSelectedSubgroup}
+        />
+      ),
+    },
+    {
+      key: "insights",
+      label: "Insights",
+      render: () => (
+        <MetricsTab
+          year={year}
+          subgroups={subgroups}
+          selectedSubgroup={subgroup}
+          onSelectedSubgroupChange={setSelectedSubgroup}
+          onOpenMember={openEditMember}
         />
       ),
     },

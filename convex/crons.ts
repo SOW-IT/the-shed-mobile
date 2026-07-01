@@ -28,4 +28,17 @@ crons.cron("staff year rollover", "1 14 30 9 *", internal.admin.rollOverStaffYea
 // there — only the download link dies.
 crons.cron("purge old receipt files", "0 14 30 9 *", internal.cleanup.purgeOldReceiptFiles, {});
 
+// Weekly, Thursday 03:00 UTC (≈ Thu 1–2pm Sydney): refresh the Attendance →
+// Insights dashboard snapshots for every sub-group so leaders open a ready,
+// pre-aggregated view instead of scanning attendance history on the client.
+// recomputeAll fans out one bounded recompute per sub-group (see
+// convex/attendanceMetrics.ts). Expressed with crons.cron per the project's
+// Convex guidelines (no crons.weekly helper).
+crons.cron(
+  "attendance metrics recompute",
+  "0 3 * * 4",
+  internal.attendanceMetrics.recomputeAll,
+  {}
+);
+
 export default crons;

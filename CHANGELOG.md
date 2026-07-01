@@ -6,6 +6,32 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-07-01
+
+### Added
+
+- **Attendance → Insights: an attendance metrics dashboard for leaders.** A new
+  tab (after Events) surfaces trends for the selected sub-group and time range so
+  leaders can see how their events are tracking and who might need a caring
+  check-in. It shows summary cards (average attendance and change vs the previous
+  comparable period, events held, unique attendees, newcomers, follow-up count,
+  and a weekly-meeting consistency score), lightweight native trend charts
+  (attendance over time, rolling average, weekly-meeting trend, unique attendees
+  by month, new vs returning, plus Campus/Role breakdowns), and a gentle "Needs
+  follow-up" list with explainable, non-judgemental reasons ("Missed the last 3
+  weekly meetings", "Newcomer: first attended 2 weeks ago, hasn't returned",
+  "Returned after 8 weeks away"). Filters cover sub-group, time range
+  (4/8/12 weeks or the whole staff year), and include/exclude collaborative
+  events. The layout is responsive — a multi-column grid on a big screen, a
+  comfortable single/two-column stack on mobile.
+- **Weekly pre-computed insights (Thursdays).** A `attendance metrics recompute`
+  cron builds bounded, dashboard-ready snapshots per sub-group each week, so the
+  dashboard reads one small document instead of scanning attendance history on
+  the device. Campus leaders and admins can rebuild on demand with the tab's
+  Refresh action. The classification thresholds (regular / at-risk / lapsed /
+  newcomer / re-engaged / declining) live in `shared/attendanceMetrics.ts` and
+  are documented in `docs/attendance-metrics.md`.
+
 ## [1.5.3] — 2026-07-01
 
 ### Fixed
