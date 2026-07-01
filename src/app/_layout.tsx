@@ -3,7 +3,7 @@ import { Authenticated, AuthLoading, ConvexReactClient, Unauthenticated } from "
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
-import { Platform, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SignInScreen } from "@/components/SignInScreen";
@@ -37,6 +37,34 @@ const secureStorage = {
  * request) an interactive swipe-back gesture that reveals the previous screen
  * underneath as you drag.
  */
+/**
+ * Shown when `EXPO_PUBLIC_CONVEX_URL` is missing so the app can't build a Convex
+ * client. Without this the render fell through to `null` — a blank screen that's
+ * indistinguishable from the silent startup crash this release is fixing. Fixed
+ * brand colours so it renders correctly even if a provider above it is broken.
+ */
+const ConfigurationErrorScreen = () => (
+  <View style={configErrorStyles.container}>
+    <Text style={configErrorStyles.title}>Configuration error</Text>
+    <Text style={configErrorStyles.message}>
+      Missing Convex configuration. Set EXPO_PUBLIC_CONVEX_URL and rebuild.
+    </Text>
+  </View>
+);
+
+const configErrorStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+    gap: 12,
+    backgroundColor: "#F5F3E3", // brand cream
+  },
+  title: { fontSize: 20, fontWeight: "800", color: "#0F2523" },
+  message: { color: "#5C6B62", textAlign: "center" },
+});
+
 const RootStack = () => (
   <Stack
     screenOptions={{
@@ -67,40 +95,41 @@ export default function RootLayout() {
     ...baseTheme,
     colors: { ...baseTheme.colors, background: t.background },
   };
-  if (!convex) {
-    return (
-      <ThemeProvider value={navTheme}>
-        <StatusBar style="auto" />
-        <View style={{ flex: 1, backgroundColor: Platform.OS === "web" ? "transparent" : t.background }} />
-      </ThemeProvider>
-    );
-  }
+  const background = Platform.OS === "web" ? "transparent" : t.background;
+  // ErrorBoundary is the OUTERMOST wrapper so a render error anywhere below —
+  // including in the gesture-handler / theme / auth providers, not just the
+  // screens — shows the fallback instead of a blank screen or a hard crash. Its
+  // fallback uses fixed brand colours, so it renders fine without ThemeProvider.
   return (
-    // Root host for react-native-gesture-handler so the roll-call swipe rows
-    // receive touches (required on native; harmless on web).
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider value={navTheme}>
-        <StatusBar style="auto" />
-        <View style={{ flex: 1, backgroundColor: Platform.OS === "web" ? "transparent" : t.background }}>
-          <ErrorBoundary>
-            <ConvexAuthProvider
-              client={convex}
-              storage={Platform.OS === "web" ? undefined : secureStorage}
-              shouldHandleCode={Platform.OS !== "web"}
-            >
-              <AuthLoading>
-                <LoadingState />
-              </AuthLoading>
-              <Unauthenticated>
-                <SignInScreen />
-              </Unauthenticated>
-              <Authenticated>
-                <RootStack />
-              </Authenticated>
-            </ConvexAuthProvider>
-          </ErrorBoundary>
-        </View>
-      </ThemeProvider>
-    </GestureHandlerRootView>
+    <ErrorBoundary>
+      {/* Root host for react-native-gesture-handler so the roll-call swipe rows
+          receive touches (required on native; harmless on web). */}
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <ThemeProvider value={navTheme}>
+          <StatusBar style="auto" />
+          <View style={{ flex: 1, backgroundColor: background }}>
+            {convex ? (
+              <ConvexAuthProvider
+                client={convex}
+                storage={Platform.OS === "web" ? undefined : secureStorage}
+                shouldHandleCode={Platform.OS !== "web"}
+              >
+                <AuthLoading>
+                  <LoadingState />
+                </AuthLoading>
+                <Unauthenticated>
+                  <SignInScreen />
+                </Unauthenticated>
+                <Authenticated>
+                  <RootStack />
+                </Authenticated>
+              </ConvexAuthProvider>
+            ) : (
+              <ConfigurationErrorScreen />
+            )}
+          </View>
+        </ThemeProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }
