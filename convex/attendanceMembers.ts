@@ -11,6 +11,7 @@ import {
   CAMPUS_FIELD_KEY,
   formatMetadataFieldValue,
   ROLE_FIELD_KEY,
+  roleFilterMatches,
   STUDENT_YEAR_FIELD_KEY,
   yearMetadataSortKey,
   yearOptionIdForStoredValue,
@@ -141,6 +142,7 @@ export const list = query({
     const viewingYear = sydneyCalendarYear(new Date());
     const metadataFields = await allMetadataFields(ctx);
     const yearField = metadataFields.find((f) => f.key === STUDENT_YEAR_FIELD_KEY);
+    const roleField = metadataFields.find((f) => f.key === ROLE_FIELD_KEY);
 
     const profiles = await ctx.db
       .query("staffProfiles")
@@ -266,6 +268,20 @@ export const list = query({
                 yearField.values!
               ) === value
             );
+          });
+        } else if (roleField && fieldId === roleField._id) {
+          const filterLabel = roleField.values?.[value] ?? value;
+          filtered = filtered.filter((r) => {
+            const stored = r.metadata[fieldId];
+            const metadataRoleLabel = stored
+              ? formatMetadataFieldValue(
+                  roleField.key,
+                  stored,
+                  viewingYear,
+                  roleField.values
+                )
+              : null;
+            return roleFilterMatches(filterLabel, r.roles, metadataRoleLabel);
           });
         } else {
           filtered = filtered.filter((r) => r.metadata[fieldId] === value);

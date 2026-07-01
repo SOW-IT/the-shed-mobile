@@ -607,7 +607,20 @@ describe("attendance members", () => {
 
   test("search, filter, sort, and paginate", async () => {
     const t = await setup();
+    const admin = asUser(t, ADMIN);
     const leader = asUser(t, LEADER);
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "president@sow.org.au",
+      year: YEAR,
+      roles: ["President"],
+      university: USYD,
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "outsource@sow.org.au",
+      year: YEAR,
+      roles: ["Outsource"],
+      department: "Missions",
+    });
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const fields = await leader.query(api.attendanceMetadata.list, { });
     const yearField = fields.find((f) => f.key === "Year")!;
@@ -711,6 +724,37 @@ describe("attendance members", () => {
     expect(staffRow?.university).toBe(USYD);
     expect(staffRow?.metadata[refreshedCampus._id]).toBe(usydId);
     expect(staffRow?.metadata[refreshedRole._id]).toBe(leaderRoleId);
+
+    const staffRoleId = Object.entries(refreshedRole.values ?? {}).find(
+      ([, label]) => label === "Staff"
+    )?.[0]!;
+    const studentLeaderRoleId = Object.entries(refreshedRole.values ?? {}).find(
+      ([, label]) => label === "Student Leader"
+    )?.[0]!;
+    const byStaffRole = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      filters: { [refreshedRole._id]: staffRoleId },
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(byStaffRole.page.some((r) => r.email === STAFF)).toBe(true);
+    expect(byStaffRole.page.some((r) => r.email === "outsource@sow.org.au")).toBe(
+      true
+    );
+    expect(byStaffRole.page.some((r) => r.email === LEADER)).toBe(false);
+    expect(byStaffRole.page.some((r) => r.email === "president@sow.org.au")).toBe(
+      false
+    );
+
+    const byStudentLeaderRole = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      filters: { [refreshedRole._id]: studentLeaderRoleId },
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(byStudentLeaderRole.page.some((r) => r.email === LEADER)).toBe(true);
+    expect(
+      byStudentLeaderRole.page.some((r) => r.email === "president@sow.org.au")
+    ).toBe(true);
+    expect(byStudentLeaderRole.page.some((r) => r.email === STAFF)).toBe(false);
 
     const unset = await leader.query(api.attendanceMembers.list, {
       year: YEAR,

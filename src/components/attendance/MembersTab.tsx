@@ -6,7 +6,11 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { roleNeedsUniversity, universityColour } from "../../../shared/flow";
 import { contrastingText, subgroupLabel } from "../../../shared/rollcall";
-import { orderedSelectOptions } from "../../../shared/attendanceMemberMeta";
+import {
+  ROLE_FIELD_KEY,
+  orderedRoleFilterOptions,
+  orderedSelectOptions,
+} from "../../../shared/attendanceMemberMeta";
 import {
   Avatar,
   Btn,
@@ -197,9 +201,10 @@ export function MembersTab({
               options={[
                 { label: "All", value: "all" },
                 { label: "Unselected", value: "unset" },
-                ...orderedSelectOptions(field.values, field.lockedValues).map(
-                  ({ id, label }) => ({ label, value: id })
-                ),
+                ...(field.key === ROLE_FIELD_KEY
+                  ? orderedRoleFilterOptions(field.values, field.lockedValues)
+                  : orderedSelectOptions(field.values, field.lockedValues)
+                ).map(({ id, label }) => ({ label, value: id })),
               ]}
               onSelect={(v) =>
                 setFilters((prev) => {

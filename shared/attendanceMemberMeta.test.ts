@@ -6,9 +6,11 @@ import {
   isCommencementYear,
   isLockedSelectOption,
   metadataFieldAllowsCustomOptions,
+  orderedRoleFilterOptions,
   orderedSelectOptions,
   partitionSelectOptions,
   resolveCommencementYear,
+  roleFilterMatches,
   canonicalizeGenderOptionId,
   canonicalizeGenderValues,
   GENDER_VALUES,
@@ -100,6 +102,25 @@ describe("partitionSelectOptions", () => {
       "UNSW",
       "Online",
     ]);
+  });
+
+  test("role filters are consolidated into Staff and Student Leader buckets", () => {
+    const values = {
+      "1": "Staff",
+      "2": "Student Leader",
+      "3": "President",
+      "4": "Vice President",
+      "5": "Executive",
+      "6": "Head of Department",
+    };
+    expect(
+      orderedRoleFilterOptions(values, Object.values(values)).map((o) => o.label)
+    ).toEqual(["Staff", "Student Leader"]);
+    expect(roleFilterMatches("Student Leader", ["President"], null)).toBe(true);
+    expect(roleFilterMatches("Student Leader", ["Executive"], null)).toBe(true);
+    expect(roleFilterMatches("Student Leader", ["Staff"], null)).toBe(false);
+    expect(roleFilterMatches("Staff", ["Head of Department"], null)).toBe(true);
+    expect(roleFilterMatches("Staff", ["President"], null)).toBe(false);
   });
 });
 
