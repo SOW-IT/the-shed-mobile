@@ -41,4 +41,15 @@ crons.cron(
   {}
 );
 
+// Every 15 minutes: recompute only the sub-groups flagged dirty by a roll-call
+// or event change since the last run (see markSubgroupsDirty), so insights track
+// attendance within minutes instead of waiting for the weekly cron above. A
+// no-op when nothing has changed.
+crons.cron(
+  "attendance metrics dirty recompute",
+  "*/15 * * * *",
+  internal.attendanceMetrics.recomputeDirty,
+  {}
+);
+
 export default crons;

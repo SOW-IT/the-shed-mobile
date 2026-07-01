@@ -2,7 +2,7 @@
 import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, test } from "vitest";
 import { staffYearForDate } from "../shared/flow";
-import { STAFF_YEAR_RANGE } from "../shared/attendanceMetrics";
+import { SOW_SUBGROUP } from "../shared/rollcall";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
 
@@ -107,7 +107,7 @@ describe("attendanceMetrics", () => {
       subgroup: USYD,
     });
 
-    for (const rangeWeeks of [4, 8, 12, 24, STAFF_YEAR_RANGE]) {
+    for (const rangeWeeks of [1, 2, 4, 8, 12]) {
       for (const includeCollaborative of [true, false]) {
         const snap = await leader.query(api.attendanceMetrics.snapshot, {
           subgroup: USYD,
@@ -144,6 +144,44 @@ describe("attendanceMetrics", () => {
     await expect(
       t.mutation(internal.attendanceMetrics.recomputeAll, {})
     ).resolves.toBeNull();
+  });
+
+  test("flags sub-groups dirty on attendance/event changes; recomputeDirty drains", async () => {
+    const { t, leader } = await setup();
+    const e = await leader.mutation(api.events.create, {
+      name: "Meet",
+      ...window(2),
+      subgroups: [USYD],
+    });
+    await leader.mutation(api.attendance.signIn, { eventId: e, email: LEADER });
+    // A second change to the same sub-groups is de-duped (no extra rows).
+    await leader.mutation(api.attendance.signIn, { eventId: e, email: STAFF });
+    await leader.mutation(api.events.update, {
+      eventId: e,
+      name: "Meet+",
+      ...window(2),
+      subgroups: [USYD],
+    });
+    const dirty = await t.run((ctx) =>
+      ctx.db.query("attendanceMetricsDirty").collect()
+    );
+    // The event's sub-group plus the org-wide SOW aggregate, de-duped.
+    expect(new Set(dirty.map((r) => r.subgroup))).toEqual(
+      new Set([SOW_SUBGROUP, USYD])
+    );
+
+    // Draining clears the flags (and schedules a recompute per dirty sub-group).
+    await t.mutation(internal.attendanceMetrics.recomputeDirty, {});
+    expect(
+      await t.run((ctx) => ctx.db.query("attendanceMetricsDirty").collect())
+    ).toHaveLength(0);
+
+    // A later change re-flags them.
+    await leader.mutation(api.events.remove, { eventId: e });
+    expect(
+      (await t.run((ctx) => ctx.db.query("attendanceMetricsDirty").collect()))
+        .length
+    ).toBeGreaterThan(0);
   });
 
   test("resolves attendance-only members and their Role breakdown", async () => {

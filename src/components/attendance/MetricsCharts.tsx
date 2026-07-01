@@ -19,32 +19,58 @@ import { radius, spacing, typography, useAppTheme, type AppTheme } from "@/theme
 const BAR_MIN = 3; // minimum visible bar height
 const CHART_HEIGHT = 120;
 const BAR_MAX_W = 40; // widest a single bar gets (a few points)
-const BAR_MIN_W = 4; // thinnest bar (a whole staff year of points)
+const BAR_MIN_W = 5; // thinnest bar (many points in a range)
+const BAR_MIN_GAP = 6; // minimum space between bars
+const BAR_LABEL_H = 15; // fixed x-axis label row height, so all bars share a baseline
 
 /**
- * Size `count` bars to fit a measured width instead of scrolling. The charts sit
- * inside a horizontal tab pager (which would swallow a horizontal-scroll
- * gesture), so a long range — e.g. a staff year of weekly meetings — must fit
- * the card, not overflow it. Bars and gaps shrink as points grow, per-bar value
- * labels drop out once bars are narrow, and x-axis labels thin to avoid collision.
+ * Size `count` bars to fit a measured width instead of scrolling — the charts
+ * sit inside a horizontal tab pager that would swallow a horizontal-scroll
+ * gesture, so every range must fit the card. Bars shrink as points grow (value
+ * labels drop out and x-axis labels thin once bars are narrow); when there are
+ * only a few, the leftover width is distributed *between* them (`spread`) so
+ * they fill the card evenly instead of clumping at the left.
  */
 function useBarFit(count: number) {
   const [w, setW] = useState(0);
   const onLayout = (e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width);
-  const gap = count > 14 ? 3 : 6;
+  // Reserve at least BAR_MIN_GAP between bars, so distributing the slack with
+  // space-between never packs them tighter than that.
   const raw =
-    w > 0 ? (w - gap * Math.max(0, count - 1)) / Math.max(1, count) : BAR_MAX_W;
+    w > 0
+      ? (w - BAR_MIN_GAP * Math.max(0, count - 1)) / Math.max(1, count)
+      : BAR_MAX_W;
   const barWidth = Math.max(BAR_MIN_W, Math.min(BAR_MAX_W, Math.floor(raw)));
   const showValues = barWidth >= 18;
   // At most ~one label per 44px so they never overlap.
   const maxLabels = Math.max(1, Math.floor(w / 44));
   const labelStep = Math.max(1, Math.ceil(count / maxLabels));
-  return { w, onLayout, gap, barWidth, showValues, labelStep };
+  // Bars capped at BAR_MAX_W leave slack; spread it evenly across the row.
+  const spread = w > 0 && count * barWidth < w;
+  const justify: "center" | "space-between" | "flex-start" =
+    count <= 1 ? "center" : spread ? "space-between" : "flex-start";
+  return { w, onLayout, barWidth, showValues, labelStep, justify };
 }
 
 /** Inner bar width — a small inset when the bar is wide, flush when it's thin. */
 const barInner = (barWidth: number): number =>
   Math.max(3, barWidth - (barWidth > 16 ? 10 : 1));
+
+/**
+ * Fixed-height x-axis label under a bar. The height is reserved even when the
+ * label is blank (thinned out), so every bar shares the same baseline and the
+ * bars don't end up at different heights.
+ */
+function BarLabel({ text }: { text: string }) {
+  const t = useAppTheme();
+  return (
+    <View style={styles.barLabelBox}>
+      <Text style={[styles.barLabel, { color: t.faint }]} numberOfLines={1}>
+        {text}
+      </Text>
+    </View>
+  );
+}
 
 /** One headline number with an optional delta and hint. */
 export function MetricCard({
@@ -175,7 +201,7 @@ export function BarChart({
   if (points.length === 0) return <EmptyChart />;
   const max = Math.max(1, ...points.map((p) => p.value));
   return (
-    <View onLayout={fit.onLayout} style={[styles.barRow, { gap: fit.gap }]}>
+    <View onLayout={fit.onLayout} style={[styles.barRow, { justifyContent: fit.justify }]}>
       {fit.w === 0
         ? null
         : points.map((p, i) => (
@@ -191,9 +217,7 @@ export function BarChart({
                   borderRadius: radius.sm,
                 }}
               />
-              <Text style={[styles.barLabel, { color: t.faint }]} numberOfLines={1}>
-                {i % fit.labelStep === 0 ? p.label : " "}
-              </Text>
+              <BarLabel text={i % fit.labelStep === 0 ? p.label : ""} />
             </View>
           ))}
     </View>
@@ -208,7 +232,7 @@ export function StackedBarChart({ points }: { points: SplitPoint[] }) {
   const max = Math.max(1, ...points.map((p) => p.fresh + p.returning));
   const scale = (n: number) => (n / max) * CHART_HEIGHT;
   return (
-    <View onLayout={fit.onLayout} style={[styles.barRow, { gap: fit.gap }]}>
+    <View onLayout={fit.onLayout} style={[styles.barRow, { justifyContent: fit.justify }]}>
       {fit.w === 0
         ? null
         : points.map((p, i) => (
@@ -240,9 +264,7 @@ export function StackedBarChart({ points }: { points: SplitPoint[] }) {
                   />
                 ) : null}
               </View>
-              <Text style={[styles.barLabel, { color: t.faint }]} numberOfLines={1}>
-                {i % fit.labelStep === 0 ? p.label : " "}
-              </Text>
+              <BarLabel text={i % fit.labelStep === 0 ? p.label : ""} />
             </View>
           ))}
     </View>
@@ -409,7 +431,6 @@ const styles = StyleSheet.create({
   barRow: {
     flexDirection: "row",
     alignItems: "flex-end",
-    gap: 6,
     paddingTop: spacing.sm,
     minHeight: CHART_HEIGHT + 40,
     overflow: "hidden",
@@ -418,6 +439,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "flex-end",
     gap: 4,
+  },
+  barLabelBox: {
+    height: BAR_LABEL_H,
+    justifyContent: "center",
+    maxWidth: "100%",
   },
   barValue: { fontSize: 11, fontWeight: "700" },
   barLabel: { fontSize: 10, letterSpacing: -0.2, maxWidth: 44 },

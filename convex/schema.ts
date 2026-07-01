@@ -436,4 +436,12 @@ export default defineSchema({
     "rangeWeeks",
     "includeCollaborative",
   ]),
+
+  // Sub-groups whose metrics snapshot is stale after a roll-call / event change,
+  // drained by the short-interval `recomputeDirty` cron (see attendanceMetrics.ts).
+  // One row per dirty sub-group; writing it is cheap and de-duped.
+  attendanceMetricsDirty: defineTable({
+    subgroup: v.string(), // canonical
+    since: v.number(), // first-dirtied wall-clock time
+  }).index("by_subgroup", ["subgroup"]),
 });

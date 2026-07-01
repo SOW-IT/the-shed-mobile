@@ -63,11 +63,16 @@ export const METRICS_THRESHOLDS = {
   minEventsForInsights: 3,
 } as const;
 
-/** The preset trailing-week ranges offered in the UI (plus "staff year"). */
-export const RANGE_WEEKS = [4, 8, 12, 24] as const;
+/** The preset trailing-week ranges offered in the UI. */
+export const RANGE_WEEKS = [1, 2, 4, 8, 12] as const;
 export type RangeWeeks = (typeof RANGE_WEEKS)[number];
 
-/** Sentinel `rangeWeeks` value meaning "the whole current staff year". */
+/**
+ * Sentinel `rangeWeeks` value meaning "the whole current staff year". Retained
+ * for {@link rangeStartFor}, but not currently offered in the UI or precomputed
+ * (see ALL_RANGES in convex/attendanceMetrics.ts) — the presets are all short
+ * trailing windows for now.
+ */
 export const STAFF_YEAR_RANGE = 0;
 
 // ───────────────────────────── Input types ────────────────────────────────

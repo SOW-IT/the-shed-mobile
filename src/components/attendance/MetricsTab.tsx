@@ -1,17 +1,16 @@
 /**
  * Attendance → Insights. A leader-facing dashboard of pre-computed attendance
  * metrics for the selected sub-group and time range: summary cards, lightweight
- * native trend charts, and a gentle "Needs follow-up" list. Reads a weekly
- * snapshot (convex/attendanceMetrics.ts) so it never scans history on-device;
- * a Refresh affordance lets campus leaders rebuild it on demand.
+ * native trend charts, and a gentle "Needs follow-up" list. Reads a snapshot
+ * (convex/attendanceMetrics.ts) so it never scans history on-device; snapshots
+ * are kept fresh server-side (weekly cron + dirty-recompute on roll-call).
  *
  * Definitions/thresholds live in shared/attendanceMetrics.ts; see
  * docs/attendance-metrics.md.
  */
-import { useMutation, useQuery } from "convex/react";
-import { ConvexError } from "convex/values";
+import { useQuery } from "convex/react";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   LayoutChangeEvent,
   Pressable,
@@ -24,10 +23,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import {
-  DAY_MS,
-  MANUAL_REFRESH_COOLDOWN_MS,
   RANGE_WEEKS,
-  STAFF_YEAR_RANGE,
   type FollowUpPerson,
 } from "../../../shared/attendanceMetrics";
 import { isOrgWideSubgroup, subgroupColour } from "../../../shared/rollcall";
@@ -46,8 +42,6 @@ import {
   FadeInView,
   LoadingState,
   Sheet,
-  Toast,
-  type ToastState,
   stagger,
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
@@ -56,10 +50,10 @@ const CAMPUS_MARK = 40;
 const FOLLOW_UP_SHOWN = 25;
 
 type RangeOption = { label: string; weeks: number };
-const RANGE_OPTIONS: RangeOption[] = [
-  ...RANGE_WEEKS.map((w) => ({ label: `${w} wks`, weeks: w })),
-  { label: "Staff year", weeks: STAFF_YEAR_RANGE },
-];
+const RANGE_OPTIONS: RangeOption[] = RANGE_WEEKS.map((w) => ({
+  label: w === 1 ? "1 wk" : `${w} wks`,
+  weeks: w,
+}));
 
 const timeAgo = (ms: number): string => {
   const diff = Date.now() - ms;
@@ -69,27 +63,6 @@ const timeAgo = (ms: number): string => {
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}h ago`;
   return `${Math.floor(hours / 24)}d ago`;
-};
-
-/** "3 days" / "1 day" — the wait shown while the weekly refresh is on cooldown. */
-const cooldownDays = (ms: number): string => {
-  const days = Math.ceil(ms / DAY_MS);
-  return `${days} day${days === 1 ? "" : "s"}`;
-};
-
-/**
- * Refresh state lifted to the screen so it can render the pinned full-width
- * footer (same affordance as "Make Request"). `disabled` covers both an
- * in-flight refresh and the once-per-week cooldown; `note` explains the wait.
- */
-export type RefreshControls = {
-  /** Whether a sub-group is selected — i.e. whether to show the footer at all. */
-  available: boolean;
-  /** "Build insights" (nothing yet) vs "Refresh insights" (has a snapshot). */
-  label: string;
-  onRefresh: () => void;
-  disabled: boolean;
-  note: string | null;
 };
 
 /** Plain-language explanation shown when a summary tile is tapped. */
@@ -109,14 +82,12 @@ export function MetricsTab({
   selectedSubgroup,
   onSelectedSubgroupChange,
   onOpenMember,
-  onRefreshStateChange,
 }: {
   year: number;
   subgroups: string[];
   selectedSubgroup: string | null;
   onSelectedSubgroupChange: (subgroup: string) => void;
   onOpenMember: (memberId: Id<"attendanceMembers">) => void;
-  onRefreshStateChange?: (controls: RefreshControls) => void;
 }) {
   const t = useAppTheme();
   const router = useRouter();
@@ -126,11 +97,8 @@ export function MetricsTab({
   const [rangeWeeks, setRangeWeeks] = useState<number>(8);
   const [includeCollaborative, setIncludeCollaborative] = useState(true);
   const [containerWidth, setContainerWidth] = useState(windowWidth);
-  const [toast, setToast] = useState<ToastState>(null);
-  const [refreshing, setRefreshing] = useState(false);
   const [detail, setDetail] = useState<TileDetail | null>(null);
 
-  const recompute = useMutation(api.attendanceMetrics.recomputeNow);
   const snapshot = useQuery(
     api.attendanceMetrics.snapshot,
     subgroup ? { subgroup, rangeWeeks, includeCollaborative } : "skip"
@@ -147,48 +115,6 @@ export function MetricsTab({
   const chartCols = wide ? 2 : 1;
   const chartWidth =
     (containerWidth - spacing.sm * (chartCols - 1)) / chartCols;
-
-  const onRefresh = useCallback(async () => {
-    if (!subgroup) return;
-    setRefreshing(true);
-    try {
-      await recompute({ subgroup });
-      setToast({ text: "Refreshing insights — check back shortly" });
-    } catch (err) {
-      // Surface the backend's own message (e.g. the attendance-manager gate,
-      // which allows admins OR campus leaders) rather than a hard-coded — and
-      // possibly wrong — line; fall back to a generic notice for other failures.
-      const message =
-        err instanceof ConvexError && typeof err.data === "string"
-          ? err.data
-          : "Couldn't refresh insights — please try again.";
-      setToast({ text: message });
-    } finally {
-      setRefreshing(false);
-    }
-  }, [subgroup, recompute]);
-
-  // Report the refresh state up so the screen can render the pinned footer.
-  // The weekly cooldown is mirrored from the server (recomputeNow): a current
-  // snapshot computed less than a week ago blocks a manual refresh, while no
-  // snapshot (or a stale prior-year one, which reads as null here) can always be
-  // built. `Date.now()` lives in the effect, not render, to stay pure.
-  const computedAt = snapshot?.computedAt ?? null;
-  useEffect(() => {
-    const remainingMs =
-      computedAt !== null ? MANUAL_REFRESH_COOLDOWN_MS - (Date.now() - computedAt) : 0;
-    const inCooldown = remainingMs > 0;
-    onRefreshStateChange?.({
-      available: !!subgroup && snapshot !== undefined,
-      label: snapshot ? "Refresh insights" : "Build insights",
-      onRefresh: () => void onRefresh(),
-      disabled: refreshing || inCooldown,
-      note: inCooldown
-        ? `Insights refresh automatically each week. You can refresh again in ${cooldownDays(remainingMs)}.`
-        : null,
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subgroup, snapshot, computedAt, refreshing, onRefresh]);
 
   const openPerson = (person: FollowUpPerson) => {
     if (person.key.startsWith("member:")) {
@@ -371,7 +297,7 @@ export function MetricsTab({
             <View style={styles.refresh}>
               <Ionicons name="time-outline" size={14} color={t.faint} />
               <Text style={[typography.caption, { color: t.faint }]}>
-                {refreshing ? "Refreshing…" : `Updated ${timeAgo(snapshot.computedAt)}`}
+                {`Updated ${timeAgo(snapshot.computedAt)}`}
               </Text>
             </View>
           ) : null}
@@ -385,7 +311,7 @@ export function MetricsTab({
         <EmptyState
           icon="sparkles-outline"
           title="Insights aren't ready yet"
-          message="Attendance insights are prepared automatically each week. Tap “Build insights” below to build them now."
+          message="Attendance insights are prepared automatically and refresh within minutes of roll-call changes. Check back shortly."
         />
       ) : data && !data.hasEnoughHistory ? (
         <EmptyState
@@ -544,8 +470,6 @@ export function MetricsTab({
       <Sheet visible={detail !== null} onClose={() => setDetail(null)} title={detail?.title}>
         <Text style={[typography.body, { color: t.text }]}>{detail?.body}</Text>
       </Sheet>
-
-      <Toast toast={toast} />
     </View>
   );
 }

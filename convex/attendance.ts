@@ -17,6 +17,7 @@ import { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { displayName, getProfile, optionalProfile, requireProfile } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
+import { markSubgroupsDirty } from "./attendanceMetrics";
 
 const ROSTER_HISTORY_EVENT_LIMIT = 60;
 
@@ -449,6 +450,10 @@ export const signIn = mutation({
     if (!!email === !!memberId) {
       throw new ConvexError("Provide either email or memberId.");
     }
+    // A roll-call change makes this event's sub-groups' insights stale; flag them
+    // so the short-interval cron refreshes within minutes (see markSubgroupsDirty).
+    // Cheap + de-duped, so a busy roll-call doesn't pile up work.
+    await markSubgroupsDirty(ctx, event.subgroups);
 
     if (email) {
       const lower = email.trim().toLowerCase();

@@ -22,7 +22,6 @@ import {
   METRICS_THRESHOLDS,
   RANGE_WEEKS,
   rangeStartFor,
-  STAFF_YEAR_RANGE,
   WEEK_MS,
   type MetricsAttendance,
   type MetricsEvent,
@@ -54,8 +53,12 @@ const MAX_EVENT_SCAN = 4000;
 /** Hard cap on distinct people resolved (names/photos) per recompute. */
 const MAX_PERSONS = 1200;
 
-/** Every range we precompute: the UI presets plus the whole staff year. */
-const ALL_RANGES = [...RANGE_WEEKS, STAFF_YEAR_RANGE] as const;
+/**
+ * Every range we precompute — the UI presets. The whole-staff-year range is
+ * excluded for now (short trailing windows only); re-add STAFF_YEAR_RANGE here
+ * and in the UI options to bring it back.
+ */
+const ALL_RANGES = [...RANGE_WEEKS] as const;
 /** Collaborative-event variants precomputed so the UI toggle reads a snapshot. */
 const COLLAB_VARIANTS = [true, false] as const;
 
@@ -65,6 +68,33 @@ const MEMBER_PREFIX = "member:";
 /** Drop `undefined` fields so the object is a valid Convex value to store. */
 const sanitize = (data: SubgroupMetricsData): SubgroupMetricsData =>
   JSON.parse(JSON.stringify(data));
+
+/**
+ * Flag sub-groups as needing a recompute after a roll-call / event change.
+ * Cheap: one small, de-duped upsert per sub-group and NO recompute here — the
+ * short-interval {@link recomputeDirty} cron drains these, so the dashboard
+ * tracks attendance within minutes instead of waiting for the weekly cron. SOW
+ * is always included, since its org-wide aggregate reflects every event.
+ */
+export async function markSubgroupsDirty(
+  ctx: MutationCtx,
+  subgroups: string[]
+): Promise<void> {
+  const now = Date.now();
+  const seen = new Set<string>();
+  for (const raw of [...subgroups, SOW_SUBGROUP]) {
+    const subgroup = canonicalSubgroup(raw);
+    if (seen.has(subgroup)) continue;
+    seen.add(subgroup);
+    const existing = await ctx.db
+      .query("attendanceMetricsDirty")
+      .withIndex("by_subgroup", (q) => q.eq("subgroup", subgroup))
+      .unique();
+    if (!existing) {
+      await ctx.db.insert("attendanceMetricsDirty", { subgroup, since: now });
+    }
+  }
+}
 
 /**
  * Gather the bounded event/attendance/person inputs for one sub-group and
@@ -295,6 +325,27 @@ export const recomputeAll = internalMutation({
       await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeSubgroup, {
         subgroup,
       });
+    }
+    return null;
+  },
+});
+
+/**
+ * Cron entry (short interval): recompute every sub-group flagged dirty by a
+ * roll-call / event change since the last run, then clear the flags. Fans out
+ * one bounded recompute per sub-group (like {@link recomputeAll}); the dirty set
+ * is small (at most one row per sub-group), so this stays cheap between runs.
+ */
+export const recomputeDirty = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const dirty = await ctx.db.query("attendanceMetricsDirty").collect();
+    for (const row of dirty) {
+      await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeSubgroup, {
+        subgroup: row.subgroup,
+      });
+      await ctx.db.delete(row._id);
     }
     return null;
   },

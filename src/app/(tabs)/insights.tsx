@@ -6,11 +6,8 @@ import { defaultAttendanceSubgroup } from "../../../shared/rollcall";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
-import {
-  MetricsTab,
-  type RefreshControls,
-} from "@/components/attendance/MetricsTab";
-import { EmptyState, FooterAction, LoadingState } from "@/components/ui";
+import { MetricsTab } from "@/components/attendance/MetricsTab";
+import { EmptyState, LoadingState } from "@/components/ui";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 
 /**
@@ -19,9 +16,8 @@ import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
  *  - "Attendance": the leader-facing metrics dashboard ({@link MetricsTab}).
  *  - "General": a scaffold for future cross-cutting insights (empty for now).
  *
- * The Attendance segment carries a pinned full-width "Build / Refresh insights"
- * footer (same affordance as "Make Request"), thrown up by {@link MetricsTab}
- * via `onRefreshStateChange` and gated by the once-per-week server cooldown.
+ * Snapshots are kept fresh server-side (weekly cron + dirty-recompute on
+ * roll-call changes), so there's no manual refresh affordance here for now.
  */
 export default function InsightsScreen() {
   const { tab } = useLocalSearchParams<{ tab?: string }>();
@@ -39,7 +35,6 @@ export default function InsightsScreen() {
   const [memberSheetId, setMemberSheetId] = useState<Id<"attendanceMembers"> | null>(
     null
   );
-  const [refresh, setRefresh] = useState<RefreshControls | null>(null);
 
   useEffect(() => {
     if (tab === "attendance" || tab === "general") {
@@ -78,7 +73,6 @@ export default function InsightsScreen() {
           selectedSubgroup={subgroup}
           onSelectedSubgroupChange={setSelectedSubgroup}
           onOpenMember={openEditMember}
-          onRefreshStateChange={setRefresh}
         />
       ),
     },
@@ -97,23 +91,7 @@ export default function InsightsScreen() {
 
   return (
     <>
-      <PagerScreen
-        tabs={tabs}
-        activeKey={active}
-        onActiveKeyChange={setActive}
-        footer={
-          refresh?.available ? (
-            <FooterAction
-              title={refresh.label}
-              disabled={refresh.disabled}
-              note={refresh.note}
-              onPress={refresh.onRefresh}
-              avoidKeyboard={false}
-            />
-          ) : null
-        }
-        footerTabKey="attendance"
-      />
+      <PagerScreen tabs={tabs} activeKey={active} onActiveKeyChange={setActive} />
       <EditMemberSheet
         visible={memberSheetOpen}
         onClose={() => setMemberSheetOpen(false)}
