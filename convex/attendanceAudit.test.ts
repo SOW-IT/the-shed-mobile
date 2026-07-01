@@ -152,6 +152,16 @@ describe("attendance audit logging", () => {
     expect(byActor.page[0].actorEmail).toBe(OTHER);
     expect(byActor.page[0].eventId).toBe(eventB);
 
+    const byMultipleEventsAndActors = await viewer.query(api.attendanceAudit.list, {
+      eventIds: [eventA, eventB],
+      actorEmails: [STAFF, OTHER],
+      paginationOpts: opts,
+    });
+    expect(byMultipleEventsAndActors.page.map((r) => r.eventId)).toEqual(
+      expect.arrayContaining([eventA, eventB])
+    );
+    expect(byMultipleEventsAndActors.page).toHaveLength(2);
+
     const bySearch = await viewer.query(api.attendanceAudit.list, {
       search: "Beta",
       paginationOpts: opts,
@@ -202,6 +212,15 @@ describe("attendance audit logging", () => {
     });
     expect(events.page).toHaveLength(1);
     expect(events.page[0].entityType).toBe("event");
+
+    const multipleTypes = await staff.query(api.attendanceAudit.list, {
+      entityTypes: ["event", "member"],
+      paginationOpts: opts,
+    });
+    expect(multipleTypes.page.map((r) => r.entityType)).toEqual(
+      expect.arrayContaining(["event", "member"])
+    );
+    expect(multipleTypes.page).toHaveLength(2);
   });
 
   test("search paginates across pages", async () => {

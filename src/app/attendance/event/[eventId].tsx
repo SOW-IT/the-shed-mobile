@@ -677,6 +677,11 @@ export default function EventAttendanceScreen() {
         ) : pastEvent ? (
           <FooterAction
             title={editUnlocked ? "Disable editing" : "Enable editing"}
+            note={
+              editUnlocked
+                ? null
+                : "This event has ended. Tap Enable editing below to sign in a missed attendee or fix details. People who attended cannot be signed out."
+            }
             onPress={() => {
               hapticSelect();
               if (editUnlocked) setEditUnlocked(false);
@@ -723,12 +728,6 @@ export default function EventAttendanceScreen() {
         ) : null}
       </View>
 
-      {pastEvent && !editUnlocked ? (
-        <Text style={[typography.caption, { color: t.muted, marginBottom: spacing.sm }]}>
-          This event has ended. Tap Enable editing below to sign in a missed
-          attendee or fix details. People who attended cannot be signed out.
-        </Text>
-      ) : null}
       </View>
 
       {/* Search box for the suggested pool. Sticky: pins to the top while the

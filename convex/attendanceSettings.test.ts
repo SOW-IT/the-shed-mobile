@@ -674,10 +674,17 @@ describe("attendance members", () => {
     const genderMaleId = Object.entries(genderField.values ?? {}).find(
       ([, label]) => label === "Male"
     )?.[0]!;
+    const genderFemaleId = Object.entries(genderField.values ?? {}).find(
+      ([, label]) => label === "Female"
+    )?.[0]!;
 
     await leader.mutation(api.attendanceMembers.create, {
       name: "Meta Guest",
       metadata: { [genderField._id]: genderMaleId },
+    });
+    await leader.mutation(api.attendanceMembers.create, {
+      name: "Multi Filter Guest",
+      metadata: { [genderField._id]: genderFemaleId },
     });
     const roster = await leader.query(api.attendance.roster, { year: YEAR });
     expect(roster.some((r) => r.name === "Meta Guest" && r.subtitle?.includes("Male"))).toBe(
@@ -698,6 +705,15 @@ describe("attendance members", () => {
       paginationOpts: { numItems: 50, cursor: null },
     });
     expect(byGender.page.some((r) => r.name === "Meta Guest")).toBe(true);
+
+    const byMultipleGenders = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      filters: { [genderField._id]: [genderMaleId, genderFemaleId] },
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(byMultipleGenders.page.map((r) => r.name)).toEqual(
+      expect.arrayContaining(["Meta Guest", "Multi Filter Guest"])
+    );
 
     const byMetaSort = await leader.query(api.attendanceMembers.list, {
       year: YEAR,
