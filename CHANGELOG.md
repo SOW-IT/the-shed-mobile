@@ -6,6 +6,22 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.6.1] — 2026-07-02
+
+### Fixed
+
+- **Startup crash on iOS release builds.** 1.6.0 could abort on launch
+  (`SIGABRT` via `RCTFatal`) on TestFlight/App Store builds — an unhandled
+  JavaScript error during startup, which Hermes turns into a hard crash in a
+  release build (no red box, unlike dev). The Reanimated 4 worklets init path
+  was compiling worklet source at runtime under Hermes. This adds an explicit
+  `babel.config.js` (`babel-preset-expo`) so the `react-native-worklets` Babel
+  plugin always runs and worklets are precompiled rather than evaluated at
+  runtime — build 1.6.1 with a clean cache (`eas build --clear-cache`) so the
+  transform is regenerated. The root `ErrorBoundary` is also hoisted to the
+  outermost position so a render error in the gesture-handler/theme/auth
+  providers shows the fallback screen instead of a blank screen or crash.
+
 ## [1.6.0] — 2026-07-01
 
 ### Added

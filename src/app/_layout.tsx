@@ -67,40 +67,39 @@ export default function RootLayout() {
     ...baseTheme,
     colors: { ...baseTheme.colors, background: t.background },
   };
-  if (!convex) {
-    return (
-      <ThemeProvider value={navTheme}>
-        <StatusBar style="auto" />
-        <View style={{ flex: 1, backgroundColor: Platform.OS === "web" ? "transparent" : t.background }} />
-      </ThemeProvider>
-    );
-  }
+  const background = Platform.OS === "web" ? "transparent" : t.background;
+  // ErrorBoundary is the OUTERMOST wrapper so a render error anywhere below —
+  // including in the gesture-handler / theme / auth providers, not just the
+  // screens — shows the fallback instead of a blank screen or a hard crash. Its
+  // fallback uses fixed brand colours, so it renders fine without ThemeProvider.
   return (
-    // Root host for react-native-gesture-handler so the roll-call swipe rows
-    // receive touches (required on native; harmless on web).
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider value={navTheme}>
-        <StatusBar style="auto" />
-        <View style={{ flex: 1, backgroundColor: Platform.OS === "web" ? "transparent" : t.background }}>
-          <ErrorBoundary>
-            <ConvexAuthProvider
-              client={convex}
-              storage={Platform.OS === "web" ? undefined : secureStorage}
-              shouldHandleCode={Platform.OS !== "web"}
-            >
-              <AuthLoading>
-                <LoadingState />
-              </AuthLoading>
-              <Unauthenticated>
-                <SignInScreen />
-              </Unauthenticated>
-              <Authenticated>
-                <RootStack />
-              </Authenticated>
-            </ConvexAuthProvider>
-          </ErrorBoundary>
-        </View>
-      </ThemeProvider>
-    </GestureHandlerRootView>
+    <ErrorBoundary>
+      {/* Root host for react-native-gesture-handler so the roll-call swipe rows
+          receive touches (required on native; harmless on web). */}
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <ThemeProvider value={navTheme}>
+          <StatusBar style="auto" />
+          <View style={{ flex: 1, backgroundColor: background }}>
+            {convex ? (
+              <ConvexAuthProvider
+                client={convex}
+                storage={Platform.OS === "web" ? undefined : secureStorage}
+                shouldHandleCode={Platform.OS !== "web"}
+              >
+                <AuthLoading>
+                  <LoadingState />
+                </AuthLoading>
+                <Unauthenticated>
+                  <SignInScreen />
+                </Unauthenticated>
+                <Authenticated>
+                  <RootStack />
+                </Authenticated>
+              </ConvexAuthProvider>
+            ) : null}
+          </View>
+        </ThemeProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }
