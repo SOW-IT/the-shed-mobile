@@ -340,6 +340,11 @@ export const snapshot = query({
  * Force a refresh now (campus leaders + admins). Schedules the same bounded
  * per-sub-group recompute the weekly cron uses, so the dashboard can be brought
  * up to date on demand without waiting for Thursday.
+ *
+ * Throttled to once per week per sub-group ({@link MANUAL_REFRESH_COOLDOWN_MS}):
+ * the cron already keeps snapshots current, so this is a recovery path, not a
+ * button to hammer. A group with no snapshot yet (or only a stale prior-year
+ * one) can always be built.
  */
 export const recomputeNow = mutation({
   args: { subgroup: v.optional(v.string()) },
@@ -347,8 +352,24 @@ export const recomputeNow = mutation({
   handler: async (ctx, { subgroup }) => {
     await requireAttendanceManager(ctx);
     if (subgroup) {
+      const canonical = canonicalSubgroup(subgroup);
+      // Any row for the group carries the group's last compute time (all rows
+      // are written together), so one lookup gives the cooldown anchor.
+      const latest = await ctx.db
+        .query("attendanceMetricsSnapshots")
+        .withIndex("by_subgroup_and_range", (q) => q.eq("subgroup", canonical))
+        .first();
+      if (latest) {
+        const elapsed = Date.now() - latest.computedAt;
+        if (elapsed < MANUAL_REFRESH_COOLDOWN_MS) {
+          const days = Math.ceil((MANUAL_REFRESH_COOLDOWN_MS - elapsed) / DAY_MS);
+          throw new ConvexError(
+            `Insights for this group were refreshed recently. You can refresh again in ${days} day${days === 1 ? "" : "s"}.`
+          );
+        }
+      }
       await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeSubgroup, {
-        subgroup: canonicalSubgroup(subgroup),
+        subgroup: canonical,
       });
     } else {
       await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeAll, {});

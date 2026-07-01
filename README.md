@@ -104,8 +104,9 @@ explicit admin action.
 
 ## CI/CD
 
-- **CI** (`.github/workflows/ci.yml`): every PR and push to `main` runs the
-  typecheck and backend tests.
+- **Lint, Typecheck & Test** (`.github/workflows/ci.yml`): every PR and push to
+  `main` runs lint, the typecheck, and the backend tests (with coverage
+  thresholds).
 - **EAS Build** (`.github/workflows/eas-build.yml`): **manual only** — never
   runs on PRs or merges. Build and store submissions are triggered by hand from
   *Actions → EAS Build → Run workflow* (from `main`). See

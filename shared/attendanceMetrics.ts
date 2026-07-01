@@ -24,6 +24,14 @@ export const DAY_MS = 24 * 60 * 60 * 1000;
 export const WEEK_MS = 7 * DAY_MS;
 
 /**
+ * Minimum gap between manual dashboard refreshes for one sub-group. The weekly
+ * cron already keeps snapshots current; the manual "Refresh" is a recovery path,
+ * so it's throttled to once per week per group (enforced server-side in
+ * `recomputeNow`, mirrored in the UI to disable the button).
+ */
+export const MANUAL_REFRESH_COOLDOWN_MS = WEEK_MS;
+
+/**
  * Tunable thresholds for every classification. Adjust here; the logic and the
  * explainable labels both read from this object so they never drift.
  */
@@ -388,10 +396,12 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
   // last N" and the recent-rate checks.
   const weeklyEventsAsc = events.filter((e) => e.isWeeklyMeeting);
   const lastNWeeklies = weeklyEventsAsc.slice(-T.atRiskMissedWeeklies);
-  const recentWeeklyCutoff = now - T.regularWindowWeeks * WEEK_MS;
-  const recentWeeklies = weeklyEventsAsc.filter(
-    (e) => e.dateStart >= recentWeeklyCutoff
-  );
+  // Event-count look-back for "recent" activity (regularMinEvents, declining).
+  const regularWindowCutoff = now - T.regularWindowWeeks * WEEK_MS;
+  // The weekly-attendance rate is measured over the most recent weekly meetings
+  // (recentWeeklyWindow), not a fixed week span, so a run of make-up meetings
+  // can't dilute it.
+  const recentWeeklies = weeklyEventsAsc.slice(-T.recentWeeklyWindow);
 
   const followUps: FollowUpPerson[] = [];
   for (const [key, attended] of timeline) {
@@ -400,7 +410,7 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
     const first = attended[0];
     const last = attended[attended.length - 1];
     const total = attended.length;
-    const recentCount = attended.filter((t) => t >= recentWeeklyCutoff).length;
+    const recentCount = attended.filter((t) => t >= regularWindowCutoff).length;
     const weekliesAttended = new Set(weeklyTimeline.get(key) ?? []);
 
     // Regular?
@@ -461,7 +471,7 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
       const midMs = now - half * WEEK_MS;
       const recentHalf = attended.filter((t) => t >= midMs).length;
       const priorHalf = attended.filter(
-        (t) => t >= recentWeeklyCutoff && t < midMs
+        (t) => t >= regularWindowCutoff && t < midMs
       ).length;
       if (priorHalf >= 2 && recentHalf < priorHalf) {
         return {
@@ -531,7 +541,8 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
       eventsHeld: periodEvents.length,
       uniqueAttendees: periodAttendees.size,
       newcomers,
-      followUpCount: cappedFollowUps.length,
+      // The full qualifying population — the cap only bounds the rendered list.
+      followUpCount: followUps.length,
       weeklyConsistency,
     },
     attendanceByEvent,
