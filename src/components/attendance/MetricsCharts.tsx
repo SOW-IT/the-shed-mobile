@@ -5,8 +5,8 @@
  * (MetricsTab) decides column counts from the window width.
  */
 import { Ionicons } from "@expo/vector-icons";
-import { ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ReactNode, useState } from "react";
+import { LayoutChangeEvent, Pressable, StyleSheet, Text, View } from "react-native";
 import type {
   FollowUpPerson,
   FollowUpReasonCode,
@@ -16,8 +16,35 @@ import type {
 import { Avatar, Card } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme, type AppTheme } from "@/theme";
 
-const BAR_MIN = 3;
+const BAR_MIN = 3; // minimum visible bar height
 const CHART_HEIGHT = 120;
+const BAR_MAX_W = 40; // widest a single bar gets (a few points)
+const BAR_MIN_W = 4; // thinnest bar (a whole staff year of points)
+
+/**
+ * Size `count` bars to fit a measured width instead of scrolling. The charts sit
+ * inside a horizontal tab pager (which would swallow a horizontal-scroll
+ * gesture), so a long range — e.g. a staff year of weekly meetings — must fit
+ * the card, not overflow it. Bars and gaps shrink as points grow, per-bar value
+ * labels drop out once bars are narrow, and x-axis labels thin to avoid collision.
+ */
+function useBarFit(count: number) {
+  const [w, setW] = useState(0);
+  const onLayout = (e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width);
+  const gap = count > 14 ? 3 : 6;
+  const raw =
+    w > 0 ? (w - gap * Math.max(0, count - 1)) / Math.max(1, count) : BAR_MAX_W;
+  const barWidth = Math.max(BAR_MIN_W, Math.min(BAR_MAX_W, Math.floor(raw)));
+  const showValues = barWidth >= 18;
+  // At most ~one label per 44px so they never overlap.
+  const maxLabels = Math.max(1, Math.floor(w / 44));
+  const labelStep = Math.max(1, Math.ceil(count / maxLabels));
+  return { w, onLayout, gap, barWidth, showValues, labelStep };
+}
+
+/** Inner bar width — a small inset when the bar is wide, flush when it's thin. */
+const barInner = (barWidth: number): number =>
+  Math.max(3, barWidth - (barWidth > 16 ? 10 : 1));
 
 /** One headline number with an optional delta and hint. */
 export function MetricCard({
@@ -134,9 +161,7 @@ export function ChartCard({
   );
 }
 
-const barWidthFor = (count: number): number => (count > 12 ? 22 : count > 8 ? 30 : 40);
-
-/** Vertical bars, horizontally scrollable when they overflow. */
+/** Vertical bars sized to fit the card (no horizontal scroll — see useBarFit). */
 export function BarChart({
   points,
   colour,
@@ -146,81 +171,81 @@ export function BarChart({
 }) {
   const t = useAppTheme();
   const bar = colour ?? t.primary;
+  const fit = useBarFit(points.length);
   if (points.length === 0) return <EmptyChart />;
   const max = Math.max(1, ...points.map((p) => p.value));
-  const barWidth = barWidthFor(points.length);
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.barRow}
-    >
-      {points.map((p, i) => (
-        <View key={`${p.at}-${i}`} style={[styles.barSlot, { width: barWidth }]}>
-          <Text style={[styles.barValue, { color: t.muted }]}>{p.value}</Text>
-          <View
-            style={{
-              width: barWidth - 12,
-              height: Math.max(BAR_MIN, (p.value / max) * CHART_HEIGHT),
-              backgroundColor: bar,
-              borderRadius: radius.sm,
-            }}
-          />
-          <Text style={[styles.barLabel, { color: t.faint }]} numberOfLines={1}>
-            {p.label}
-          </Text>
-        </View>
-      ))}
-    </ScrollView>
+    <View onLayout={fit.onLayout} style={[styles.barRow, { gap: fit.gap }]}>
+      {fit.w === 0
+        ? null
+        : points.map((p, i) => (
+            <View key={`${p.at}-${i}`} style={[styles.barSlot, { width: fit.barWidth }]}>
+              {fit.showValues ? (
+                <Text style={[styles.barValue, { color: t.muted }]}>{p.value}</Text>
+              ) : null}
+              <View
+                style={{
+                  width: barInner(fit.barWidth),
+                  height: Math.max(BAR_MIN, (p.value / max) * CHART_HEIGHT),
+                  backgroundColor: bar,
+                  borderRadius: radius.sm,
+                }}
+              />
+              <Text style={[styles.barLabel, { color: t.faint }]} numberOfLines={1}>
+                {i % fit.labelStep === 0 ? p.label : " "}
+              </Text>
+            </View>
+          ))}
+    </View>
   );
 }
 
-/** Stacked returning (bottom) + new (top) attendees per point. */
+/** Stacked returning (bottom) + new (top) attendees per point; fits the card. */
 export function StackedBarChart({ points }: { points: SplitPoint[] }) {
   const t = useAppTheme();
+  const fit = useBarFit(points.length);
   if (points.length === 0) return <EmptyChart />;
   const max = Math.max(1, ...points.map((p) => p.fresh + p.returning));
-  const barWidth = barWidthFor(points.length);
   const scale = (n: number) => (n / max) * CHART_HEIGHT;
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.barRow}
-    >
-      {points.map((p, i) => (
-        <View key={`${p.at}-${i}`} style={[styles.barSlot, { width: barWidth }]}>
-          <Text style={[styles.barValue, { color: t.muted }]}>
-            {p.fresh + p.returning}
-          </Text>
-          <View style={{ width: barWidth - 12 }}>
-            {p.fresh > 0 ? (
-              <View
-                style={{
-                  height: Math.max(BAR_MIN, scale(p.fresh)),
-                  backgroundColor: t.accent,
-                  borderTopLeftRadius: radius.sm,
-                  borderTopRightRadius: radius.sm,
-                }}
-              />
-            ) : null}
-            {p.returning > 0 ? (
-              <View
-                style={{
-                  height: Math.max(BAR_MIN, scale(p.returning)),
-                  backgroundColor: t.primary,
-                  borderBottomLeftRadius: radius.sm,
-                  borderBottomRightRadius: radius.sm,
-                }}
-              />
-            ) : null}
-          </View>
-          <Text style={[styles.barLabel, { color: t.faint }]} numberOfLines={1}>
-            {p.label}
-          </Text>
-        </View>
-      ))}
-    </ScrollView>
+    <View onLayout={fit.onLayout} style={[styles.barRow, { gap: fit.gap }]}>
+      {fit.w === 0
+        ? null
+        : points.map((p, i) => (
+            <View key={`${p.at}-${i}`} style={[styles.barSlot, { width: fit.barWidth }]}>
+              {fit.showValues ? (
+                <Text style={[styles.barValue, { color: t.muted }]}>
+                  {p.fresh + p.returning}
+                </Text>
+              ) : null}
+              <View style={{ width: barInner(fit.barWidth) }}>
+                {p.fresh > 0 ? (
+                  <View
+                    style={{
+                      height: Math.max(BAR_MIN, scale(p.fresh)),
+                      backgroundColor: t.accent,
+                      borderTopLeftRadius: radius.sm,
+                      borderTopRightRadius: radius.sm,
+                    }}
+                  />
+                ) : null}
+                {p.returning > 0 ? (
+                  <View
+                    style={{
+                      height: Math.max(BAR_MIN, scale(p.returning)),
+                      backgroundColor: t.primary,
+                      borderBottomLeftRadius: radius.sm,
+                      borderBottomRightRadius: radius.sm,
+                    }}
+                  />
+                ) : null}
+              </View>
+              <Text style={[styles.barLabel, { color: t.faint }]} numberOfLines={1}>
+                {i % fit.labelStep === 0 ? p.label : " "}
+              </Text>
+            </View>
+          ))}
+    </View>
   );
 }
 
@@ -382,10 +407,12 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   barRow: {
+    flexDirection: "row",
     alignItems: "flex-end",
     gap: 6,
     paddingTop: spacing.sm,
     minHeight: CHART_HEIGHT + 40,
+    overflow: "hidden",
   },
   barSlot: {
     alignItems: "center",

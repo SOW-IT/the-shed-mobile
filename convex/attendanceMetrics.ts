@@ -42,8 +42,15 @@ import { metricsDataValidator } from "./metricsData";
 
 /** How far back to load events for classification look-back (regulars, gaps). */
 const HISTORY_WEEKS = 26;
-/** Hard cap on events scanned per sub-group so a recompute stays bounded. */
+/** Newest events *for the sub-group* kept per recompute (bounds the window). */
 const MAX_EVENTS = 800;
+/**
+ * Raw events scanned (newest-first, all sub-groups) before filtering to one.
+ * Sized well above a busy org's event count so a sparse sub-group's older
+ * events aren't dropped just because other sub-groups filled the newest slots —
+ * still bounded (event docs are small) so the transaction stays safe.
+ */
+const MAX_EVENT_SCAN = 4000;
 /** Hard cap on distinct people resolved (names/photos) per recompute. */
 const MAX_PERSONS = 1200;
 
@@ -82,18 +89,19 @@ export const recomputeSubgroup = internalMutation({
       now - HISTORY_WEEKS * WEEK_MS
     );
 
-    // Bounded scan: only events since loadStart, newest first, capped at
-    // MAX_EVENTS. That cap is sized comfortably above a whole staff year of
-    // events across every sub-group for this org, so filtering to one sub-group
-    // afterwards never silently drops older events for it in practice.
+    // Scan the newest MAX_EVENT_SCAN events since loadStart, THEN filter to this
+    // sub-group and keep its newest MAX_EVENTS — so a sub-group that meets
+    // rarely among many busier ones still gets its own older events, rather than
+    // being crowded out of a small newest-N raw window. Both caps stay well above
+    // this org's volume, keeping the transaction bounded.
     const scanned = await ctx.db
       .query("events")
       .withIndex("by_dateStart", (q) => q.gte("dateStart", loadStart))
       .order("desc")
-      .take(MAX_EVENTS);
-    const events = scanned.filter((e) =>
-      eventIncludesSubgroup(e.subgroups, canonical)
-    );
+      .take(MAX_EVENT_SCAN);
+    const events = scanned
+      .filter((e) => eventIncludesSubgroup(e.subgroups, canonical))
+      .slice(0, MAX_EVENTS);
 
     // Resolve which events are Weekly Meetings — any tag named "Weekly Meeting"
     // (year-scoped in the catalogue, but the name is what marks the pattern).

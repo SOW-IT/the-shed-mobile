@@ -64,7 +64,7 @@ export const METRICS_THRESHOLDS = {
 } as const;
 
 /** The preset trailing-week ranges offered in the UI (plus "staff year"). */
-export const RANGE_WEEKS = [4, 8, 12] as const;
+export const RANGE_WEEKS = [4, 8, 12, 24] as const;
 export type RangeWeeks = (typeof RANGE_WEEKS)[number];
 
 /** Sentinel `rangeWeeks` value meaning "the whole current staff year". */

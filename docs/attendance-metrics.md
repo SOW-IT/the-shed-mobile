@@ -49,13 +49,13 @@ they can be tuned in one place. Current values:
 
 | Concept | Rule | Constant |
 | --- | --- | --- |
-| **Regular** | Attended ≥ 3 relevant events in the last 8 weeks, **or** ≥ 50% of recent weekly meetings | `regularMinEvents`, `regularWindowWeeks`, `regularWeeklyRate` |
+| **Regular** | Attended ≥ 3 relevant events in the **selected range**, **or** ≥ 50% of the recent weekly meetings | `regularMinEvents`, `regularWeeklyRate`, `recentWeeklyWindow` |
 | **At risk** | A regular who attended **0** of the last 3 weekly meetings held → *"Missed the last 3 weekly meetings"* | `atRiskMissedWeeklies` |
 | **Lapsed** | Attended enough historically to be a regular, but nothing in the last 30 days → *"Used to attend regularly, absent for N"* | `lapsedDays` |
 | **Newcomer** | First-ever attendance within the **more recent** of the period start and the last 30 days — so a short range uses the period, and a long range (e.g. staff year) still only counts people new in the last 30 days (counted in the summary) | `newcomerDays` |
 | **Newcomer needs follow-up** | First attended once, a relevant weekly meeting has since occurred, and they haven't returned → *"Newcomer: first attended N ago, hasn't returned"* | `newcomerDays` |
 | **Re-engaged** | Attended within the last 30 days after a prior gap of ≥ 30 days → *"Returned after N away"* | `reengagedGapDays` |
-| **Declining** | Fewer attendances in the recent half of the window than the half before it → *"Attending less than before"* | `regularWindowWeeks` |
+| **Declining** | Fewer attendances in the recent half of the **selected range** than in the half before it → *"Attending less than before"* | — (splits the range in half) |
 
 A person appears in **Needs follow-up** at most once, using the most pressing
 reason (at risk → lapsed → declining → newcomer-no-return → re-engaged).

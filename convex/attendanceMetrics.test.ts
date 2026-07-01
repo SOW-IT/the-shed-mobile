@@ -107,7 +107,7 @@ describe("attendanceMetrics", () => {
       subgroup: USYD,
     });
 
-    for (const rangeWeeks of [4, 8, 12, STAFF_YEAR_RANGE]) {
+    for (const rangeWeeks of [4, 8, 12, 24, STAFF_YEAR_RANGE]) {
       for (const includeCollaborative of [true, false]) {
         const snap = await leader.query(api.attendanceMetrics.snapshot, {
           subgroup: USYD,
