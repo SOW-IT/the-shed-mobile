@@ -637,11 +637,18 @@ export default function AdminScreen() {
     </Card>
   );
 
+  const accentBorderWidth = 4;
+  const cardHorizontalPadding = spacing.lg + 2;
   const accentContainerStyle = (accentColour: string) => ({
     gap: spacing.md,
-    borderLeftWidth: 4,
+    borderLeftWidth: accentBorderWidth,
     borderLeftColor: accentColour,
     paddingLeft: spacing.md,
+  });
+  const accentCardStyle = (accentColour: string) => ({
+    borderLeftWidth: accentBorderWidth,
+    borderLeftColor: accentColour,
+    paddingLeft: cardHorizontalPadding - accentBorderWidth,
   });
 
   // Renders the collapsed or expanded card for an assigned profile.
@@ -666,15 +673,7 @@ export default function AdminScreen() {
     return (
       <Card
         key={profile._id}
-        style={
-          accentColour
-            ? {
-                borderLeftWidth: 4,
-                borderLeftColor: accentColour,
-                paddingLeft: spacing.lg - 2,
-              }
-            : undefined
-        }
+        style={accentColour ? accentCardStyle(accentColour) : undefined}
       >
         {isEditingThis ? (
           <>

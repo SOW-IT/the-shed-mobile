@@ -15,8 +15,9 @@ type StaffProfiles = FunctionReturnType<typeof api.admin.listStaffProfiles>;
  * Buckets the year's staff profiles for the Users tab using the same hierarchy
  * as the Org Chart: division head, then departments with their department heads
  * first, then department members. Profiles may appear in multiple org-chart
- * placements when they hold multiple scoped roles; only the campus/other
- * fallback sections are deduped.
+ * placements when they hold multiple scoped roles. Campus groups intentionally
+ * include every campus assignment; only the "Other" fallback is deduped from
+ * the hierarchy above.
  */
 export const useGroupedProfiles = (
   structure: YearStructure | undefined,
