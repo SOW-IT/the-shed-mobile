@@ -6,6 +6,38 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-07-01
+
+### Added
+
+- **Attendance → Insights: an attendance metrics dashboard for leaders.** A new
+  tab (after Events) surfaces trends for the selected sub-group and time range so
+  leaders can see how their events are tracking and who might need a caring
+  check-in. It shows summary cards (average attendance and change vs the previous
+  comparable period, events held, unique attendees, newcomers, follow-up count,
+  and a weekly-meeting consistency score), lightweight native trend charts
+  (attendance over time, rolling average, weekly-meeting trend, unique attendees
+  by month, new vs returning, plus Campus/Role breakdowns), and a gentle "Needs
+  follow-up" list with explainable, non-judgemental reasons ("Missed the last 3
+  weekly meetings", "Newcomer: first attended 2 weeks ago, hasn't returned",
+  "Returned after 8 weeks away"). Filters cover sub-group, trailing time range
+  (1 / 2 / 4 / 8 / 12 weeks), and include/exclude collaborative events. The
+  layout is responsive — a multi-column grid on a big screen, a comfortable
+  single/two-column stack on mobile.
+- **Auto-refreshed pre-computed insights.** Dashboard-ready snapshots are built
+  per sub-group by two crons — a weekly full refresh (`attendance metrics
+  recompute`, Thursdays) and a 15-minute dirty recompute (`attendance metrics
+  dirty recompute`) that rebuilds only the sub-groups changed by a roll-call or
+  event edit — so Insights reflects new attendance within minutes and the tab
+  reads one small document instead of scanning history on the device. Each
+  recompute runs as an action that pages its attendance reads in bounded chunks,
+  keeping every transaction within Convex's limits even for the org-wide view.
+  Snapshots refresh automatically, so the tab has no manual refresh control (a
+  throttled `recomputeNow` recovery path exists server-side but isn't surfaced).
+  The classification thresholds (regular / at-risk / lapsed / newcomer /
+  re-engaged / declining) live in `shared/attendanceMetrics.ts` and are
+  documented in `docs/attendance-metrics.md`.
+
 ## [1.5.3] — 2026-07-01
 
 ### Fixed

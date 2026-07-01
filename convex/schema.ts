@@ -1,6 +1,7 @@
 import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { metricsDataValidator } from "./metricsData";
 
 export const approvalStatus = v.union(
   v.literal("PENDING"),
@@ -412,4 +413,38 @@ export default defineSchema({
     .index("by_event_and_member", ["eventId", "memberId"])
     .index("by_email", ["email"])
     .index("by_member", ["memberId"]),
+
+  // Pre-computed Attendance → Insights dashboard aggregates, refreshed weekly by
+  // the `attendance metrics recompute` cron (Thursdays). One row per
+  // (sub-group, time range) so the dashboard reads a single bounded document
+  // instead of scanning attendance history on the client. `subgroup` is stored
+  // canonicalised (legacy "ALL" folded to "SOW"); `rangeWeeks` is one of the
+  // precomputed presets `RANGE_WEEKS` (1/2/4/8/12) — the whole-staff-year range
+  // (0, STAFF_YEAR_RANGE) is supported by the logic but not currently
+  // precomputed. The `data` shape mirrors shared/attendanceMetrics.ts
+  // `SubgroupMetricsData` (see convex/metricsData.ts). Also refreshed within
+  // minutes of roll-call changes by the `attendance metrics dirty recompute` cron.
+  attendanceMetricsSnapshots: defineTable({
+    subgroup: v.string(),
+    rangeWeeks: v.number(),
+    // Whether multi-sub-group (collaborative) events are included — both
+    // variants are precomputed so the dashboard's include/exclude toggle reads
+    // a snapshot rather than recomputing on the client.
+    includeCollaborative: v.boolean(),
+    staffYear: v.number(),
+    computedAt: v.number(),
+    data: metricsDataValidator,
+  }).index("by_subgroup_and_range", [
+    "subgroup",
+    "rangeWeeks",
+    "includeCollaborative",
+  ]),
+
+  // Sub-groups whose metrics snapshot is stale after a roll-call / event change,
+  // drained by the short-interval `recomputeDirty` cron (see attendanceMetrics.ts).
+  // One row per dirty sub-group; writing it is cheap and de-duped.
+  attendanceMetricsDirty: defineTable({
+    subgroup: v.string(), // canonical
+    since: v.number(), // first-dirtied wall-clock time
+  }).index("by_subgroup", ["subgroup"]),
 });

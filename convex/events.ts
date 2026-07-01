@@ -12,6 +12,7 @@ import {
   subgroupLabel,
 } from "../shared/rollcall";
 import { internal } from "./_generated/api";
+import { markSubgroupsDirty } from "./attendanceMetrics";
 import { Doc, Id } from "./_generated/dataModel";
 import {
   MutationCtx,
@@ -373,6 +374,7 @@ export const create = mutation({
       tagIds,
     });
     const eventId = await ctx.db.insert("events", eventFields);
+    await markSubgroupsDirty(ctx, eventFields.subgroups);
     await logAttendanceAction(ctx, {
       actorEmail: email,
       entityType: "event",
@@ -422,9 +424,14 @@ export const update = mutation({
       changes.push("sub-groups");
     if ((existing.tagIds ?? []).join() !== (eventFields.tagIds ?? []).join())
       changes.push("tags");
-    // Only log a genuine change, matching the tag/metadata saveAll paths — a
-    // no-op save shouldn't flood the trail with misleading "Updated" rows.
+    // Only act on a genuine change, matching the tag/metadata saveAll paths — a
+    // no-op save shouldn't flood the audit trail or schedule useless recomputes.
     if (changes.length) {
+      // Mark both the old and new sub-groups so a re-scoped event refreshes both.
+      await markSubgroupsDirty(ctx, [
+        ...existing.subgroups,
+        ...eventFields.subgroups,
+      ]);
       await logAttendanceAction(ctx, {
         actorEmail: email,
         entityType: "event",
@@ -451,6 +458,7 @@ export const remove = mutation({
       .collect();
     for (const row of rows) await ctx.db.delete(row._id);
     await ctx.db.delete(eventId);
+    await markSubgroupsDirty(ctx, event.subgroups);
     await logAttendanceAction(ctx, {
       actorEmail: email,
       entityType: "event",

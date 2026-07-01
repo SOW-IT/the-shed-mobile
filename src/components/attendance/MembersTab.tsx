@@ -296,7 +296,10 @@ export function MembersTab({
                 onPress={() => {
                   if (row.memberId) {
                     onEditMember(row.memberId as Id<"attendanceMembers">);
-                  } else if (row.kind === "staff" && row.email) {
+                  } else if (row.email) {
+                    // A staff-profile row with no attendance shadow yet — this
+                    // covers both active staff and former staff now shown as a
+                    // Member (role-less this year): both edit via their email.
                     void ensureForStaff({ staffEmail: row.email, staffYear: year })
                       .then(onEditMember)
                       .catch((e) => console.error("ensureForStaff failed", e));

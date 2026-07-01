@@ -72,6 +72,41 @@ const RequestsTabIcon = ({
   );
 };
 
+/** Insights tab icon with a small "BETA" flag while the dashboard is in beta. */
+const InsightsTabIcon = ({
+  color,
+  focused,
+}: {
+  color: ColorValue;
+  focused: boolean;
+}) => {
+  const t = useAppTheme();
+  return (
+    <View style={{ position: "relative" }}>
+      <Ionicons
+        name={focused ? "stats-chart" : "stats-chart-outline"}
+        size={23}
+        color={color}
+      />
+      <View
+        style={{
+          position: "absolute",
+          top: -7,
+          right: -19,
+          backgroundColor: t.accent,
+          borderRadius: 5,
+          paddingHorizontal: 4,
+          paddingVertical: 1,
+        }}
+      >
+        <Text style={{ color: "#ffffff", fontSize: 8, fontWeight: "800", letterSpacing: 0.4 }}>
+          BETA
+        </Text>
+      </View>
+    </View>
+  );
+};
+
 /** Props the tab navigator hands to a custom `tabBarButton`. */
 type TabBarButtonProps = {
   children?:
@@ -251,6 +286,15 @@ export default function TabsLayout() {
         options={{
           title: "Attendance",
           tabBarIcon: tabIcon("checkbox-outline", "checkbox"),
+        }}
+      />
+      <Tabs.Screen
+        name="insights"
+        options={{
+          title: "Insights",
+          tabBarIcon: ({ color, focused }) => (
+            <InsightsTabIcon color={color} focused={focused} />
+          ),
         }}
       />
       <Tabs.Screen

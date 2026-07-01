@@ -17,6 +17,9 @@ export default defineConfig({
         "convex/importData.ts",
         // One-shot admin migration tool (scripts/rollcall-import-apply.mjs).
         "convex/rollcallImport.ts",
+        // Dev-only E2E harness (gitignored; absent in CI, so excluded here too
+        // to keep local `test:coverage` matching the CI run).
+        "convex/devE2E.ts",
         // Framework registration with no testable branches: provider/route/
         // cron wiring that would only exercise convexAuth/httpRouter/cronJobs.
         "convex/auth.ts",
