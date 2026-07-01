@@ -587,17 +587,22 @@ export const recomputeNow = mutation({
     await requireAttendanceManager(ctx);
     if (subgroup) {
       const canonical = canonicalSubgroup(subgroup);
-      // Any row for the group carries the group's last compute time (all rows
-      // are written together), so one lookup gives the cooldown anchor.
-      const latest = await ctx.db
+      // The cooldown anchor is the NEWEST current-year snapshot for the group.
+      // The rows are few (one per range × collaborative variant), so collect and
+      // take the max `computedAt` rather than `.first()` — a stray/duplicate row
+      // or a prior-year one then can't under-enforce the throttle. Only a
+      // current-year snapshot gates it; a group with none, or only a stale
+      // prior-year one, can always be (re)built (matching the UI's "not ready").
+      const rows = await ctx.db
         .query("attendanceMetricsSnapshots")
         .withIndex("by_subgroup_and_range", (q) => q.eq("subgroup", canonical))
-        .first();
-      // Only a *current-year* snapshot gates the cooldown; a group with none, or
-      // only a stale prior-year one, can always be (re)built — matching what the
-      // UI shows as "not ready".
-      if (latest && latest.staffYear === currentStaffYear()) {
-        const elapsed = Date.now() - latest.computedAt;
+        .collect();
+      const year = currentStaffYear();
+      const latestComputedAt = rows
+        .filter((r) => r.staffYear === year)
+        .reduce((max, r) => (r.computedAt > max ? r.computedAt : max), 0);
+      if (latestComputedAt > 0) {
+        const elapsed = Date.now() - latestComputedAt;
         if (elapsed < MANUAL_REFRESH_COOLDOWN_MS) {
           const days = Math.ceil((MANUAL_REFRESH_COOLDOWN_MS - elapsed) / DAY_MS);
           throw new ConvexError(

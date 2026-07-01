@@ -68,7 +68,6 @@ export default function InsightsScreen() {
       label: "Attendance",
       render: () => (
         <MetricsTab
-          year={year}
           subgroups={subgroups}
           selectedSubgroup={subgroup}
           onSelectedSubgroupChange={setSelectedSubgroup}

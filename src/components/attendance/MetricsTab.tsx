@@ -83,7 +83,6 @@ export function MetricsTab({
   onSelectedSubgroupChange,
   onOpenMember,
 }: {
-  year: number;
   subgroups: string[];
   selectedSubgroup: string | null;
   onSelectedSubgroupChange: (subgroup: string) => void;
