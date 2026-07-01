@@ -16,7 +16,7 @@ import {
   StyleSheet,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
 import { spacing, useAppTheme } from "@/theme";
 import { PagerCarousel } from "@/components/PagerCarousel";
@@ -119,6 +119,7 @@ export const PagerScreen = ({
 }) => {
   const t = useAppTheme();
   const me = useQuery(api.directory.me);
+  const insets = useSafeAreaInsets();
   // Fractional page position shared with the tab bar so its underline tracks
   // the pager: driven continuously by swipes on native, animated on tab change
   // on web. See PagerCarousel.
@@ -316,12 +317,16 @@ export const PagerScreen = ({
   };
 
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: t.background }]} edges={["top"]}>
+    // A plain View, not SafeAreaView: SafeAreaView applies its inset natively,
+    // outside Yoga's layout tree, so the absolutely-positioned chrome below
+    // never sees it and renders under the status bar. The inset is applied by
+    // hand instead — both to this spacer and to the chrome's offset below.
+    <View style={[styles.screen, { backgroundColor: t.background }]}>
       {/* Reserve only the tab bar's (non-collapsing) footprint in the flow, so
           the carousel sits below it and never moves. The full chrome — top bar +
           tab bar — floats over the top; the top bar's slice overlaps the
           carousel and pages clear it with PAGER_TOP_BAR_INSET. */}
-      <View style={{ height: tabBarHeight }} />
+      <View style={{ height: insets.top + tabBarHeight }} />
       <PagerCarousel
         tabs={tabs}
         activeKey={activeKey}
@@ -334,7 +339,7 @@ export const PagerScreen = ({
           the active page scrolls, so the top bar is masked at the screen edge
           while the tab bar rises to the top. Transparent + overflow-hidden so the
           space the top bar vacates reveals the body scrolling underneath. */}
-      <View style={styles.chrome} pointerEvents="box-none">
+      <View style={[styles.chrome, { top: insets.top }]} pointerEvents="box-none">
         <Animated.View
           style={[styles.chromeGroup, { backgroundColor: t.background }, collapseStyle]}
           pointerEvents="box-none"
@@ -370,7 +375,7 @@ export const PagerScreen = ({
       })}
       {/* eslint-enable react-hooks/refs */}
       {floating}
-    </SafeAreaView>
+    </View>
   );
 };
 

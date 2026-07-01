@@ -91,15 +91,15 @@ const InsightsTabIcon = ({
       <View
         style={{
           position: "absolute",
-          top: -7,
-          right: -19,
+          top: -6,
+          right: -15,
           backgroundColor: t.accent,
-          borderRadius: 5,
-          paddingHorizontal: 4,
-          paddingVertical: 1,
+          borderRadius: 4,
+          paddingHorizontal: 3,
+          paddingVertical: 0,
         }}
       >
-        <Text style={{ color: "#ffffff", fontSize: 8, fontWeight: "800", letterSpacing: 0.4 }}>
+        <Text style={{ color: "#ffffff", fontSize: 6, fontWeight: "800", letterSpacing: 0.2 }}>
           BETA
         </Text>
       </View>
