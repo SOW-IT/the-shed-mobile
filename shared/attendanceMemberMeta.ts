@@ -42,6 +42,7 @@ export const ROLE_FILTER_LABELS = [
   STAFF_ROLE_FILTER_LABEL,
   STUDENT_LEADER_ROLE_FILTER_LABEL,
 ] as const;
+const ROLE_FILTER_LABEL_SET = new Set<string>(ROLE_FILTER_LABELS);
 const STAFF_PROFILE_ROLE_FILTER_LABELS = new Set<string>(
   ROLES.filter((role) => role !== MEMBER)
 );
@@ -292,7 +293,7 @@ export const orderedRoleFilterOptions = (
     return existing ?? { id: label, label };
   });
   const extraAttendanceRoles = options.filter((option) => {
-    if (ROLE_FILTER_LABELS.includes(option.label as never)) return false;
+    if (ROLE_FILTER_LABEL_SET.has(option.label)) return false;
     if (option.label === MEMBER) return true;
     if (STAFF_PROFILE_ROLE_FILTER_LABELS.has(option.label)) return false;
     return !isLockedSelectOption(option.id, option.label, lockedValues);
