@@ -162,11 +162,11 @@ export const notify = async (
   // Lead line only; the email carries the full details. Shared by the push and
   // the in-app notification feed.
   const lead = body.split("\n")[0];
-  // Link to the request — explicit id, else parsed from the url: a legacy
-  // `/request/<id>` path or the `focus=<id>` query the tab deep-links carry —
-  // so opening/focusing that request later marks this notification read.
-  const idInUrl =
-    url?.match(/^\/request\/([^/?#]+)/)?.[1] ?? url?.match(/[?&]focus=([^&]+)/)?.[1];
+  // Link to the request so opening it later marks this notification read.
+  // Callers pass `requestId` explicitly; the legacy `/request/<id>` url parse is
+  // a fallback for older call sites / notifications that predate the explicit
+  // arg. (Current tab deep-links — `/?tab=...` — carry no id, hence the arg.)
+  const idInUrl = url?.match(/^\/request\/([^/?#]+)/)?.[1];
   const linkedRequestId =
     requestId ??
     (idInUrl ? (ctx.db.normalizeId("requests", idInUrl) ?? undefined) : undefined);
