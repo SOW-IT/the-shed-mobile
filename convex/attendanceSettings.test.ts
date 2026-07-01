@@ -719,6 +719,18 @@ describe("attendance members", () => {
           values: { ...campusField.values, "99": "Other" },
           lockedValues: campusField.lockedValues,
         },
+        {
+          id: roleField._id,
+          key: "Role",
+          type: "select",
+          order: roleField.order,
+          values: {
+            ...roleField.values,
+            "97": "Alumni",
+            "98": "Newcomer",
+          },
+          lockedValues: roleField.lockedValues,
+        },
       ],
       deleteIds: [],
     });
@@ -755,6 +767,27 @@ describe("attendance members", () => {
     const studentLeaderRoleId = Object.entries(refreshedRole.values ?? {}).find(
       ([, label]) => label === "Student Leader"
     )?.[0]!;
+    const memberRoleId = Object.entries(refreshedRole.values ?? {}).find(
+      ([, label]) => label === "Member"
+    )?.[0]!;
+    const newcomerRoleId = Object.entries(refreshedRole.values ?? {}).find(
+      ([, label]) => label === "Newcomer"
+    )?.[0]!;
+    const alumniRoleId = Object.entries(refreshedRole.values ?? {}).find(
+      ([, label]) => label === "Alumni"
+    )?.[0]!;
+    await leader.mutation(api.attendanceMembers.create, {
+      name: "Member Role Guest",
+      metadata: { [refreshedRole._id]: memberRoleId },
+    });
+    await leader.mutation(api.attendanceMembers.create, {
+      name: "Newcomer Role Guest",
+      metadata: { [refreshedRole._id]: newcomerRoleId },
+    });
+    await leader.mutation(api.attendanceMembers.create, {
+      name: "Alumni Role Guest",
+      metadata: { [refreshedRole._id]: alumniRoleId },
+    });
     const byStaffRole = await leader.query(api.attendanceMembers.list, {
       year: YEAR,
       filters: { [refreshedRole._id]: staffRoleId },
@@ -768,6 +801,11 @@ describe("attendance members", () => {
     expect(byStaffRole.page.some((r) => r.email === "president@sow.org.au")).toBe(
       false
     );
+    expect(byStaffRole.page.some((r) => r.name === "Member Role Guest")).toBe(false);
+    expect(byStaffRole.page.some((r) => r.name === "Newcomer Role Guest")).toBe(
+      false
+    );
+    expect(byStaffRole.page.some((r) => r.name === "Alumni Role Guest")).toBe(false);
 
     const byStudentLeaderRole = await leader.query(api.attendanceMembers.list, {
       year: YEAR,
@@ -779,6 +817,16 @@ describe("attendance members", () => {
       byStudentLeaderRole.page.some((r) => r.email === "president@sow.org.au")
     ).toBe(true);
     expect(byStudentLeaderRole.page.some((r) => r.email === STAFF)).toBe(false);
+
+    const byNewcomerRole = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      filters: { [refreshedRole._id]: newcomerRoleId },
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(byNewcomerRole.page.map((r) => r.name)).toContain(
+      "Newcomer Role Guest"
+    );
+    expect(byNewcomerRole.page.some((r) => r.email === STAFF)).toBe(false);
 
     const unset = await leader.query(api.attendanceMembers.list, {
       year: YEAR,
