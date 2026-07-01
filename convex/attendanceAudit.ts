@@ -128,7 +128,7 @@ export const list = query({
       const q = paginator(ctx.db, schema).query("attendanceAuditLog");
       if (eventIds.length === 1)
         return q.withIndex("by_event", (i) => i.eq("eventId", eventIds[0]));
-      if (eventIds.length === 0 && actorEmails.length === 1)
+      if (actorEmails.length === 1)
         return q.withIndex("by_actor", (i) => i.eq("actorEmail", actorEmails[0]));
       return q;
     };
