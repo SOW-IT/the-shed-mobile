@@ -15,6 +15,14 @@
  * display their real level, they just can't be re-selected from the dropdown).
  */
 
+import {
+  MEMBER,
+  ROLES,
+  STAFF_ROLE,
+  STUDENT_LEADER,
+  UNIVERSITY_ROLES,
+} from "./flow";
+
 export const STUDENT_YEAR_FIELD_KEY = "Year";
 export const GENDER_FIELD_KEY = "Gender";
 
@@ -26,6 +34,18 @@ export const GENDER_VALUES: Record<string, string> = {
 export const GENDER_OPTION_IDS = ["1", "2"] as const;
 export const CAMPUS_FIELD_KEY = "Campus";
 export const ROLE_FIELD_KEY = "Role";
+
+export const STAFF_ROLE_FILTER_LABEL = STAFF_ROLE;
+export const STUDENT_LEADER_ROLE_FILTER_LABEL = STUDENT_LEADER;
+export const STUDENT_LEADER_ROLE_FILTER_ROLES = UNIVERSITY_ROLES;
+export const ROLE_FILTER_LABELS = [
+  STAFF_ROLE_FILTER_LABEL,
+  STUDENT_LEADER_ROLE_FILTER_LABEL,
+] as const;
+const ROLE_FILTER_LABEL_SET = new Set<string>(ROLE_FILTER_LABELS);
+const STAFF_PROFILE_ROLE_FILTER_LABELS = new Set<string>(
+  ROLES.filter((role) => role !== MEMBER)
+);
 
 /** Highest year level offered by the Year picker. */
 export const YEAR_LEVEL_MAX = 15;
@@ -260,6 +280,54 @@ export const orderedSelectOptions = (
 ): MetadataSelectOption[] => {
   const { locked, custom } = partitionSelectOptions(values, lockedValues);
   return [...locked, ...custom];
+};
+
+/** Members tab Role filters are broad buckets, not every org role. */
+export const orderedRoleFilterOptions = (
+  values: Record<string, string> | undefined,
+  lockedValues: string[] | undefined
+): MetadataSelectOption[] => {
+  const options = orderedSelectOptions(values, lockedValues);
+  const grouped = ROLE_FILTER_LABELS.map((label) => {
+    const existing = options.find((option) => option.label === label);
+    return existing ?? { id: label, label };
+  });
+  const extraAttendanceRoles = options.filter((option) => {
+    if (ROLE_FILTER_LABEL_SET.has(option.label)) return false;
+    if (option.label === MEMBER) return true;
+    if (STAFF_PROFILE_ROLE_FILTER_LABELS.has(option.label)) return false;
+    return !isLockedSelectOption(option.id, option.label, lockedValues);
+  });
+  return [...grouped, ...extraAttendanceRoles];
+};
+
+/** Whether a row with staff-profile roles should match a grouped Role filter. */
+export const roleFilterMatches = (
+  filterLabel: string,
+  profileRoles: readonly string[],
+  metadataRoleLabel?: string | null
+): boolean => {
+  if (filterLabel === STUDENT_LEADER_ROLE_FILTER_LABEL) {
+    const roles = profileRoles.length
+      ? profileRoles
+      : metadataRoleLabel
+        ? [metadataRoleLabel]
+        : [];
+    return roles.some((role) =>
+      STUDENT_LEADER_ROLE_FILTER_ROLES.includes(
+        role as (typeof STUDENT_LEADER_ROLE_FILTER_ROLES)[number]
+      )
+    );
+  }
+  if (filterLabel === STAFF_ROLE_FILTER_LABEL) {
+    return profileRoles.some(
+      (role) =>
+        !STUDENT_LEADER_ROLE_FILTER_ROLES.includes(
+          role as (typeof STUDENT_LEADER_ROLE_FILTER_ROLES)[number]
+        ) && STAFF_PROFILE_ROLE_FILTER_LABELS.has(role)
+    );
+  }
+  return metadataRoleLabel === filterLabel;
 };
 
 /** Campus and Role allow extra options below the org-derived locked set. */

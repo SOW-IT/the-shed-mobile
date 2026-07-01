@@ -6,12 +6,17 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { roleNeedsUniversity, universityColour } from "../../../shared/flow";
 import { contrastingText, subgroupLabel } from "../../../shared/rollcall";
-import { orderedSelectOptions } from "../../../shared/attendanceMemberMeta";
+import {
+  ROLE_FIELD_KEY,
+  orderedRoleFilterOptions,
+  orderedSelectOptions,
+} from "../../../shared/attendanceMemberMeta";
 import {
   Avatar,
   Btn,
   EmptyState,
   LoadingState,
+  MultiSelect,
   Select,
 } from "@/components/ui";
 import {
@@ -42,7 +47,7 @@ export function MembersTab({
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [sortKey, setSortKey] = useState("name");
   const [sortAsc, setSortAsc] = useState(true);
-  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [filters, setFilters] = useState<Record<string, string[]>>({});
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [cursor, setCursor] = useState<string | null>(null);
   const [accumulated, setAccumulated] = useState<
@@ -105,7 +110,10 @@ export function MembersTab({
     () => (metadata ?? []).filter((f) => f.type === "select"),
     [metadata]
   );
-  const activeFilterCount = Object.keys(filters).length;
+  const activeFilterCount = Object.values(filters).reduce(
+    (count, values) => count + values.length,
+    0
+  );
   const total = page?.total ?? accumulated.length;
 
   if (metadata === undefined) return <LoadingState />;
@@ -190,22 +198,23 @@ export function MembersTab({
           </View>
 
           {selectFilters.map((field) => (
-            <Select
+            <MultiSelect
               key={field._id}
               label={`Filter: ${field.key}`}
-              value={filters[field._id] ?? "all"}
+              values={filters[field._id] ?? []}
               options={[
-                { label: "All", value: "all" },
                 { label: "Unselected", value: "unset" },
-                ...orderedSelectOptions(field.values, field.lockedValues).map(
-                  ({ id, label }) => ({ label, value: id })
-                ),
+                ...(field.key === ROLE_FIELD_KEY
+                  ? orderedRoleFilterOptions(field.values, field.lockedValues)
+                  : orderedSelectOptions(field.values, field.lockedValues)
+                ).map(({ id, label }) => ({ label, value: id })),
               ]}
-              onSelect={(v) =>
+              placeholder="All"
+              onSelect={(values) =>
                 setFilters((prev) => {
                   const next = { ...prev };
-                  if (v === "all") delete next[field._id];
-                  else next[field._id] = v;
+                  if (values.length === 0) delete next[field._id];
+                  else next[field._id] = values;
                   return next;
                 })
               }

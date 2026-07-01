@@ -11,6 +11,7 @@ import {
   CAMPUS_FIELD_KEY,
   formatMetadataFieldValue,
   ROLE_FIELD_KEY,
+  roleFilterMatches,
   STUDENT_YEAR_FIELD_KEY,
   yearMetadataSortKey,
   yearOptionIdForStoredValue,
@@ -20,6 +21,7 @@ import { staffEmailCandidates } from "../shared/rollcallImport";
 import { mutation, query } from "./_generated/server";
 import { getProfile, optionalProfile, requireProfile } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
+import { Doc } from "./_generated/dataModel";
 
 export type MemberRow = {
   key: string;
@@ -122,6 +124,27 @@ const resolveUniversity = (
 const staffSubtitle = (roles: string[]): string | undefined =>
   roles.length > 0 ? roles.join(" · ") : undefined;
 
+const staffOverlayProfile = async (
+  ctx: Parameters<typeof getProfile>[0],
+  row: Doc<"attendanceMembers">,
+  profileYear: number,
+  emailOverride?: string
+): Promise<Doc<"staffProfiles"> | null> => {
+  const emails = [row.staffEmail, row.email, emailOverride].filter(
+    (value): value is string => Boolean(value)
+  );
+  const seen = new Set<string>();
+  for (const email of emails) {
+    for (const candidate of staffEmailCandidates(email)) {
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      const profile = await getProfile(ctx, candidate, profileYear);
+      if (profile) return profile;
+    }
+  }
+  return null;
+};
+
 /** Combined staff profiles + attendance-only members, with search/filter/sort. */
 export const list = query({
   args: {
@@ -129,7 +152,9 @@ export const list = query({
     search: v.optional(v.string()),
     sortKey: v.optional(v.string()),
     sortAsc: v.optional(v.boolean()),
-    filters: v.optional(v.record(v.string(), v.string())),
+    filters: v.optional(
+      v.record(v.string(), v.union(v.string(), v.array(v.string())))
+    ),
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
@@ -141,6 +166,7 @@ export const list = query({
     const viewingYear = sydneyCalendarYear(new Date());
     const metadataFields = await allMetadataFields(ctx);
     const yearField = metadataFields.find((f) => f.key === STUDENT_YEAR_FIELD_KEY);
+    const roleField = metadataFields.find((f) => f.key === ROLE_FIELD_KEY);
 
     const profiles = await ctx.db
       .query("staffProfiles")
@@ -250,30 +276,45 @@ export const list = query({
       );
     }
 
+    const matchesFieldFilter = (
+      row: MemberRow,
+      fieldId: string,
+      value: string
+    ): boolean => {
+      if (value === "unset") return !row.metadata[fieldId];
+      if (yearField && fieldId === yearField._id && yearField.values) {
+        const stored = row.metadata[fieldId];
+        if (!stored) return false;
+        return (
+          yearOptionIdForStoredValue(stored, viewingYear, yearField.values) ===
+          value
+        );
+      }
+      if (roleField && fieldId === roleField._id) {
+        const filterLabel = roleField.values?.[value] ?? value;
+        const stored = row.metadata[fieldId];
+        const metadataRoleLabel = stored
+          ? formatMetadataFieldValue(
+              roleField.key,
+              stored,
+              viewingYear,
+              roleField.values
+            )
+          : null;
+        return roleFilterMatches(filterLabel, row.roles, metadataRoleLabel);
+      }
+      return row.metadata[fieldId] === value;
+    };
+
     if (args.filters) {
-      for (const [fieldId, value] of Object.entries(args.filters)) {
-        if (!value || value === "all") continue;
-        if (value === "unset") {
-          filtered = filtered.filter((r) => !r.metadata[fieldId]);
-        } else if (
-          yearField &&
-          fieldId === yearField._id &&
-          yearField.values
-        ) {
-          filtered = filtered.filter((r) => {
-            const stored = r.metadata[fieldId];
-            if (!stored) return false;
-            return (
-              yearOptionIdForStoredValue(
-                stored,
-                viewingYear,
-                yearField.values!
-              ) === value
-            );
-          });
-        } else {
-          filtered = filtered.filter((r) => r.metadata[fieldId] === value);
-        }
+      for (const [fieldId, rawValue] of Object.entries(args.filters)) {
+        const values = (Array.isArray(rawValue) ? rawValue : [rawValue]).filter(
+          (value) => value && value !== "all"
+        );
+        if (values.length === 0) continue;
+        filtered = filtered.filter((row) =>
+          values.some((value) => matchesFieldFilter(row, fieldId, value))
+        );
       }
     }
 
@@ -331,13 +372,14 @@ export const get = query({
   handler: async (ctx, { memberId, staffYear }) => {
     if (!(await optionalProfile(ctx))) return null;
     const row = await ctx.db.get(memberId);
-    if (!row?.staffEmail) return row;
+    if (!row) return null;
     const profileYear = staffYear ?? staffYearForDate(new Date());
-    const profile = await getProfile(ctx, row.staffEmail, profileYear);
+    const profile = await staffOverlayProfile(ctx, row, profileYear);
     if (!profile) return row;
     const fields = await allMetadataFields(ctx);
     return {
       ...row,
+      staffEmail: profile.email,
       name: profile.name ?? row.name,
       email: profile.email,
       metadata: staffLockedMetadata(fields, profile, row.metadata),
@@ -465,26 +507,33 @@ export const update = mutation({
     const { email: actorEmail } = await requireProfile(ctx);
     const row = await ctx.db.get(memberId);
     if (!row) throw new ConvexError("Member not found.");
-    if (row.staffEmail) {
-      const profileYear = staffYear ?? staffYearForDate(new Date());
-      const profile = await getProfile(ctx, row.staffEmail, profileYear);
-      if (!profile) throw new ConvexError("Staff profile not found.");
+    const profileYear = staffYear ?? staffYearForDate(new Date());
+    const profile = await staffOverlayProfile(ctx, row, profileYear, email);
+    if (profile) {
       const fields = await allMetadataFields(ctx);
-      await ctx.db.patch(memberId, {
+      const patch: {
+        name: string;
+        email: string;
+        staffEmail?: string;
+        metadata: Record<string, string>;
+      } = {
         name: profile.name ?? row.name,
         email: profile.email,
         metadata: staffLockedMetadata(fields, profile, metadata),
-      });
+      };
+      if (row.staffEmail) patch.staffEmail = profile.email;
+      await ctx.db.patch(memberId, patch);
       await logAttendanceAction(ctx, {
         actorEmail,
         entityType: "member",
         action: "member.update",
         summary: `Updated member "${profile.name ?? row.name}"`,
         memberId,
-        subjectEmail: row.staffEmail,
+        subjectEmail: profile.email,
       });
       return;
     }
+    if (row.staffEmail) throw new ConvexError("Staff profile not found.");
     const trimmed = name.trim();
     if (!trimmed) throw new ConvexError("Name is required.");
     await ctx.db.patch(memberId, {

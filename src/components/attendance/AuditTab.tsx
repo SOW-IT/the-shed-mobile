@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Animated, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { Btn, EmptyState, LoadingState, Select } from "@/components/ui";
+import { Btn, EmptyState, LoadingState, MultiSelect } from "@/components/ui";
 import {
   PAGER_PAGE_BOTTOM_INSET,
   PAGER_PAGE_CONTENT,
@@ -70,9 +70,9 @@ export function AuditTab({ scrollProps }: { scrollProps?: TopBarScrollProps }) {
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [entityType, setEntityType] = useState<string>("all");
-  const [actorEmail, setActorEmail] = useState<string>("all");
-  const [eventId, setEventId] = useState<string>("all");
+  const [entityTypes, setEntityTypes] = useState<AuditEntityType[]>([]);
+  const [actorEmails, setActorEmails] = useState<string[]>([]);
+  const [eventIds, setEventIds] = useState<Id<"events">[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [cursor, setCursor] = useState<string | null>(null);
   const [accumulated, setAccumulated] = useState<AuditRow[]>([]);
@@ -88,14 +88,13 @@ export function AuditTab({ scrollProps }: { scrollProps?: TopBarScrollProps }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset paging on filter change
     setCursor(null);
     setAccumulated([]);
-  }, [debouncedSearch, entityType, actorEmail, eventId]);
+  }, [debouncedSearch, entityTypes, actorEmails, eventIds]);
 
   const page = useQuery(api.attendanceAudit.list, {
     search: debouncedSearch || undefined,
-    entityType:
-      entityType === "all" ? undefined : (entityType as AuditEntityType),
-    actorEmail: actorEmail === "all" ? undefined : actorEmail,
-    eventId: eventId === "all" ? undefined : (eventId as Id<"events">),
+    entityTypes: entityTypes.length ? entityTypes : undefined,
+    actorEmails: actorEmails.length ? actorEmails : undefined,
+    eventIds: eventIds.length ? eventIds : undefined,
     paginationOpts: { numItems: PAGE_SIZE, cursor: cursor ?? null },
   });
 
@@ -110,13 +109,10 @@ export function AuditTab({ scrollProps }: { scrollProps?: TopBarScrollProps }) {
   }, [page, cursor]);
 
   const activeFilterCount =
-    (entityType !== "all" ? 1 : 0) +
-    (actorEmail !== "all" ? 1 : 0) +
-    (eventId !== "all" ? 1 : 0);
+    entityTypes.length + actorEmails.length + eventIds.length;
 
   const entityOptions = useMemo(
     () => [
-      { label: "All actions", value: "all" },
       ...(Object.keys(ENTITY_LABEL) as AuditEntityType[]).map((k) => ({
         label: ENTITY_LABEL[k],
         value: k,
@@ -127,7 +123,6 @@ export function AuditTab({ scrollProps }: { scrollProps?: TopBarScrollProps }) {
 
   const actorOptions = useMemo(
     () => [
-      { label: "Anyone", value: "all" },
       ...(options?.actors ?? []).map((a) => ({
         label: a.name,
         value: a.email,
@@ -138,7 +133,6 @@ export function AuditTab({ scrollProps }: { scrollProps?: TopBarScrollProps }) {
 
   const eventOptions = useMemo(
     () => [
-      { label: "All events", value: "all" },
       ...(options?.events ?? []).map((e) => ({ label: e.name, value: e.id })),
     ],
     [options]
@@ -187,9 +181,9 @@ export function AuditTab({ scrollProps }: { scrollProps?: TopBarScrollProps }) {
           accessibilityRole="button"
           disabled={activeFilterCount === 0}
           onPress={() => {
-            setEntityType("all");
-            setActorEmail("all");
-            setEventId("all");
+            setEntityTypes([]);
+            setActorEmails([]);
+            setEventIds([]);
           }}
           style={({ pressed }) => [
             styles.clearFilters,
@@ -216,23 +210,26 @@ export function AuditTab({ scrollProps }: { scrollProps?: TopBarScrollProps }) {
             { backgroundColor: t.card, borderColor: t.separator },
           ]}
         >
-          <Select
+          <MultiSelect
             label="Action type"
-            value={entityType}
+            values={entityTypes}
             options={entityOptions}
-            onSelect={setEntityType}
+            placeholder="All actions"
+            onSelect={(values) => setEntityTypes(values as AuditEntityType[])}
           />
-          <Select
+          <MultiSelect
             label="Performed by"
-            value={actorEmail}
+            values={actorEmails}
             options={actorOptions}
-            onSelect={setActorEmail}
+            placeholder="Anyone"
+            onSelect={setActorEmails}
           />
-          <Select
+          <MultiSelect
             label="Event"
-            value={eventId}
+            values={eventIds}
             options={eventOptions}
-            onSelect={setEventId}
+            placeholder="All events"
+            onSelect={(values) => setEventIds(values as Id<"events">[])}
           />
         </View>
       ) : null}
