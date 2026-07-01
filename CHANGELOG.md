@@ -21,6 +21,10 @@ All notable changes to **The SHED** mobile app. This project follows
   transform is regenerated. The root `ErrorBoundary` is also hoisted to the
   outermost position so a render error in the gesture-handler/theme/auth
   providers shows the fallback screen instead of a blank screen or crash.
+- **Blank screen when Convex config is missing.** If `EXPO_PUBLIC_CONVEX_URL`
+  was unset in a build, the root layout rendered nothing — a blank screen
+  indistinguishable from the startup crash above. It now shows a
+  `Configuration error` diagnostic screen so a misconfigured build is obvious.
 
 ## [1.6.0] — 2026-07-01
 
