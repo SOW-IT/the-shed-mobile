@@ -287,11 +287,15 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
     for (const key of attendeesByEvent.get(e.id) ?? []) periodAttendees.add(key);
   }
 
-  // Newcomers: first-ever attendance (over loaded history) landed in the period.
+  // Newcomers: someone whose first-ever attendance (over loaded history) is
+  // recent. "Recent" is the MORE recent of the period start and the newcomer
+  // window, so a long range (e.g. the staff year) still only counts people new
+  // within the last `newcomerDays`, not everyone who joined months ago.
+  const newcomerCutoff = Math.max(rangeStartMs, now - T.newcomerDays * DAY_MS);
   let newcomers = 0;
   for (const key of periodAttendees) {
     const first = timeline.get(key)?.[0];
-    if (first !== undefined && first >= rangeStartMs) newcomers += 1;
+    if (first !== undefined && first >= newcomerCutoff) newcomers += 1;
   }
 
   // Weekly-meeting consistency: steadiness of turnout across the period's
@@ -428,9 +432,9 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
           reason: `Used to attend regularly, absent for ${humanGap(last, now)}`,
         };
       }
-      // Newcomer who hasn't returned: first attended within the newcomer window,
-      // came once, and a relevant weekly meeting has since given them a chance.
-      const newcomerCutoff = Math.min(rangeStartMs, now - T.newcomerDays * DAY_MS);
+      // Newcomer who hasn't returned: first attended within the newcomer window
+      // (same MORE-recent-bound cutoff as the summary count), came once, and a
+      // relevant weekly meeting has since given them a chance to return.
       if (
         total === 1 &&
         first >= newcomerCutoff &&

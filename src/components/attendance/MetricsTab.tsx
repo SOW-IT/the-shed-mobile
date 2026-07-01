@@ -9,6 +9,7 @@
  * docs/attendance-metrics.md.
  */
 import { useMutation, useQuery } from "convex/react";
+import { ConvexError } from "convex/values";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import {
@@ -114,8 +115,15 @@ export function MetricsTab({
     try {
       await recompute({ subgroup });
       setToast({ text: "Refreshing insights — check back shortly" });
-    } catch {
-      setToast({ text: "Only campus leaders can refresh insights" });
+    } catch (err) {
+      // Surface the backend's own message (e.g. the attendance-manager gate,
+      // which allows admins OR campus leaders) rather than a hard-coded — and
+      // possibly wrong — line; fall back to a generic notice for other failures.
+      const message =
+        err instanceof ConvexError && typeof err.data === "string"
+          ? err.data
+          : "Couldn't refresh insights — please try again.";
+      setToast({ text: message });
     } finally {
       setRefreshing(false);
     }

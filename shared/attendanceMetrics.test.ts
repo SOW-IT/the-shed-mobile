@@ -135,6 +135,23 @@ describe("computeSubgroupMetrics — classification", () => {
     expect(data.summary.newcomers).toBe(1);
   });
 
+  it("does not count months-old joiners as newcomers over a long range", () => {
+    // Staff-year range: someone whose first attendance was ~60 days ago is not
+    // a newcomer (outside the 30-day window), but a 10-day-ago joiner is.
+    const oldStart = oneOff(daysAgo(60));
+    const oldRecent = oneOff(daysAgo(5));
+    const fresh = oneOff(daysAgo(10));
+    const data = computeSubgroupMetrics(
+      build(
+        [oldStart, oldRecent, fresh],
+        [attend(oldStart, "old"), attend(oldRecent, "old"), attend(fresh, "new")],
+        [person("old"), person("new")],
+        { rangeStartMs: daysAgo(300), historyStartMs: daysAgo(320) }
+      )
+    );
+    expect(data.summary.newcomers).toBe(1);
+  });
+
   it("flags someone who returned after a long gap as reengaged", () => {
     const old = oneOff(daysAgo(90));
     const recent = oneOff(daysAgo(3));

@@ -70,13 +70,20 @@ export const recomputeSubgroup = internalMutation({
     const canonical = canonicalSubgroup(subgroup);
     const year = currentStaffYear();
     const now = Date.now();
-    // Look back far enough to classify regulars/lapsed/re-engaged, but never
-    // before the current staff year's start (also covers the staff-year range).
+    // Load from the EARLIER of the staff-year start and a rolling ~26-week
+    // window (hence Math.min), so a single fetch serves every range we compute:
+    // the staff-year range needs events back to the year's start, while the
+    // weekly ranges want a classification look-back (regulars/lapsed/re-engaged)
+    // that can reach into the previous staff year early in a new one.
     const loadStart = Math.min(
       staffYearStartMs(year),
       now - HISTORY_WEEKS * WEEK_MS
     );
 
+    // Bounded scan: only events since loadStart, newest first, capped at
+    // MAX_EVENTS. That cap is sized comfortably above a whole staff year of
+    // events across every sub-group for this org, so filtering to one sub-group
+    // afterwards never silently drops older events for it in practice.
     const scanned = await ctx.db
       .query("events")
       .withIndex("by_dateStart", (q) => q.gte("dateStart", loadStart))
@@ -312,6 +319,12 @@ export const snapshot = query({
       )
       .unique();
     if (!row) return null;
+    // Snapshots are keyed by (subgroup, range, collaborative) but not by staff
+    // year, so a row computed before the Oct 1 rollover would otherwise linger
+    // and show last year's aggregates until the next recompute. Treat a
+    // stale-year snapshot as "not ready" (null) so the UI prompts a refresh
+    // rather than presenting outdated numbers.
+    if (row.staffYear !== currentStaffYear()) return null;
     return {
       subgroup: row.subgroup,
       rangeWeeks: row.rangeWeeks,

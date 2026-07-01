@@ -17,8 +17,10 @@ The dashboard never scans attendance history on the device. A weekly cron
 (`attendance metrics recompute`, **Thursdays 03:00 UTC ≈ Thu ~1pm Sydney**) fans
 out one bounded recompute per sub-group. Each recompute:
 
-1. Loads that sub-group's events since the later of the staff-year start or
-   ~26 weeks ago (capped at `MAX_EVENTS`), plus their attendance.
+1. Loads that sub-group's events since the **earlier** of the staff-year start
+   or ~26 weeks ago (one bounded fetch that serves every range: the staff-year
+   range needs the whole year, the weekly ranges want a classification
+   look-back), capped at `MAX_EVENTS`, plus their attendance.
 2. Marks events tagged **"Weekly Meeting"** as weekly meetings.
 3. Resolves each attendee's display name / subtitle / photo and cheap breakdown
    fields (Campus, Role).
@@ -45,7 +47,7 @@ they can be tuned in one place. Current values:
 | **Regular** | Attended ≥ 3 relevant events in the last 8 weeks, **or** ≥ 50% of recent weekly meetings | `regularMinEvents`, `regularWindowWeeks`, `regularWeeklyRate` |
 | **At risk** | A regular who attended **0** of the last 3 weekly meetings held → *"Missed the last 3 weekly meetings"* | `atRiskMissedWeeklies` |
 | **Lapsed** | Attended enough historically to be a regular, but nothing in the last 30 days → *"Used to attend regularly, absent for N"* | `lapsedDays` |
-| **Newcomer** | First-ever attendance within the period / last 30 days (counted in the summary) | `newcomerDays` |
+| **Newcomer** | First-ever attendance within the **more recent** of the period start and the last 30 days — so a short range uses the period, and a long range (e.g. staff year) still only counts people new in the last 30 days (counted in the summary) | `newcomerDays` |
 | **Newcomer needs follow-up** | First attended once, a relevant weekly meeting has since occurred, and they haven't returned → *"Newcomer: first attended N ago, hasn't returned"* | `newcomerDays` |
 | **Re-engaged** | Attended within the last 30 days after a prior gap of ≥ 30 days → *"Returned after N away"* | `reengagedGapDays` |
 | **Declining** | Fewer attendances in the recent half of the window than the half before it → *"Attending less than before"* | `regularWindowWeeks` |
