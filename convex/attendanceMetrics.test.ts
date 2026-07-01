@@ -126,4 +126,161 @@ describe("attendanceMetrics", () => {
       outsider.mutation(api.attendanceMetrics.recomputeNow, { subgroup: USYD })
     ).rejects.toThrow();
   });
+
+  test("recomputeNow (manager) schedules a refresh per-subgroup and for all", async () => {
+    const { leader } = await setup();
+    // With a sub-group: schedules that sub-group's recompute.
+    await expect(
+      leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: USYD })
+    ).resolves.toBeNull();
+    // Without a sub-group: fans out to every sub-group via recomputeAll.
+    await expect(
+      leader.mutation(api.attendanceMetrics.recomputeNow, {})
+    ).resolves.toBeNull();
+  });
+
+  test("recomputeAll (cron entry) fans out without error", async () => {
+    const { t } = await setup();
+    await expect(
+      t.mutation(internal.attendanceMetrics.recomputeAll, {})
+    ).resolves.toBeNull();
+  });
+
+  test("resolves attendance-only members and their Role breakdown", async () => {
+    const { t, leader } = await setup();
+    const memberId = await t.run((ctx) =>
+      ctx.db.insert("attendanceMembers", { name: "Pat Member" })
+    );
+    const e = await leader.mutation(api.events.create, {
+      name: "Members welcome",
+      ...window(2),
+      subgroups: [USYD],
+    });
+    await leader.mutation(api.attendance.signIn, { eventId: e, memberId });
+    await leader.mutation(internal.attendanceMetrics.recomputeSubgroup, {
+      subgroup: USYD,
+    });
+    const snap = await leader.query(api.attendanceMetrics.snapshot, {
+      subgroup: USYD,
+      rangeWeeks: 4,
+    });
+    expect(snap!.data.summary.uniqueAttendees).toBe(1);
+    const role = snap!.data.breakdowns.find((b) => b.field === "Role");
+    expect(role?.rows.some((r) => r.label === "Member")).toBe(true);
+  });
+
+  test("resolves a staff sign-in that has no profile for the year", async () => {
+    const { leader } = await setup();
+    const e = await leader.mutation(api.events.create, {
+      name: "Guest visit",
+      ...window(2),
+      subgroups: [USYD],
+    });
+    // An email with no staffProfile this year — matchProfile finds nothing and
+    // the person is resolved from their email alone.
+    await leader.mutation(api.attendance.signIn, {
+      eventId: e,
+      email: "ghost@sow.org.au",
+    });
+    await leader.mutation(internal.attendanceMetrics.recomputeSubgroup, {
+      subgroup: USYD,
+    });
+    const snap = await leader.query(api.attendanceMetrics.snapshot, {
+      subgroup: USYD,
+      rangeWeeks: 4,
+    });
+    expect(snap!.data.summary.uniqueAttendees).toBe(1);
+  });
+
+  test("detects Weekly Meeting tagged events", async () => {
+    const { t, leader } = await setup();
+    const tagId = await t.run((ctx) =>
+      ctx.db.insert("attendanceTags", { year: YEAR, name: "Weekly Meeting" })
+    );
+    const e = await leader.mutation(api.events.create, {
+      name: "Weekly Meeting",
+      ...window(2),
+      subgroups: [USYD],
+      tagIds: [tagId],
+    });
+    await leader.mutation(api.attendance.signIn, { eventId: e, email: LEADER });
+    await leader.mutation(internal.attendanceMetrics.recomputeSubgroup, {
+      subgroup: USYD,
+    });
+    const snap = await leader.query(api.attendanceMetrics.snapshot, {
+      subgroup: USYD,
+      rangeWeeks: 4,
+    });
+    expect(snap!.data.weeklyTrend).toHaveLength(1);
+    expect(snap!.data.summary.weeklyConsistency).not.toBeNull();
+  });
+
+  test("re-running recompute patches the existing snapshot in place", async () => {
+    const { t, leader } = await setup();
+    const e = await leader.mutation(api.events.create, {
+      name: "Once",
+      ...window(2),
+      subgroups: [USYD],
+    });
+    await leader.mutation(api.attendance.signIn, { eventId: e, email: LEADER });
+    await leader.mutation(internal.attendanceMetrics.recomputeSubgroup, {
+      subgroup: USYD,
+    });
+    await leader.mutation(internal.attendanceMetrics.recomputeSubgroup, {
+      subgroup: USYD,
+    });
+    const rows = await t.run((ctx) =>
+      ctx.db
+        .query("attendanceMetricsSnapshots")
+        .withIndex("by_subgroup_and_range", (q) =>
+          q
+            .eq("subgroup", USYD)
+            .eq("rangeWeeks", 4)
+            .eq("includeCollaborative", true)
+        )
+        .collect()
+    );
+    expect(rows).toHaveLength(1); // patched, never duplicated
+  });
+
+  test("snapshot ignores a stale previous-staff-year row", async () => {
+    const { t, leader } = await setup();
+    await t.run((ctx) =>
+      ctx.db.insert("attendanceMetricsSnapshots", {
+        subgroup: USYD,
+        rangeWeeks: 4,
+        includeCollaborative: true,
+        staffYear: YEAR - 1,
+        computedAt: Date.now(),
+        data: EMPTY_DATA,
+      })
+    );
+    const snap = await leader.query(api.attendanceMetrics.snapshot, {
+      subgroup: USYD,
+      rangeWeeks: 4,
+    });
+    expect(snap).toBeNull();
+  });
 });
+
+/** A minimal, validator-shaped snapshot payload for the stale-year test. */
+const EMPTY_DATA = {
+  summary: {
+    avgAttendance: 0,
+    avgAttendancePrev: null,
+    changePct: null,
+    eventsHeld: 0,
+    uniqueAttendees: 0,
+    newcomers: 0,
+    followUpCount: 0,
+    weeklyConsistency: null,
+  },
+  attendanceByEvent: [],
+  rollingAverage: [],
+  weeklyTrend: [],
+  uniqueByMonth: [],
+  newVsReturning: [],
+  followUps: [],
+  breakdowns: [],
+  hasEnoughHistory: false,
+};

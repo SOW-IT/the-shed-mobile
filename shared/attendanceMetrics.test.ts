@@ -289,6 +289,58 @@ describe("computeSubgroupMetrics — filters & scoping", () => {
     const campus = data.breakdowns.find((b) => b.field === "Campus");
     expect(campus?.rows[0]).toEqual({ label: "USYD", value: 2 });
   });
+
+  it("ranks breakdown values by count, most first", () => {
+    const e = weekly(weeksAgo(2));
+    const data = computeSubgroupMetrics(
+      build(
+        [e],
+        [attend(e, "a"), attend(e, "b"), attend(e, "c")],
+        [
+          person("a", { breakdown: { Campus: "USYD" } }),
+          person("b", { breakdown: { Campus: "USYD" } }),
+          person("c", { breakdown: { Campus: "UNSW" } }),
+        ]
+      )
+    );
+    const campus = data.breakdowns.find((b) => b.field === "Campus");
+    expect(campus?.rows).toEqual([
+      { label: "USYD", value: 2 },
+      { label: "UNSW", value: 1 },
+    ]);
+  });
+});
+
+describe("computeSubgroupMetrics — follow-up ordering", () => {
+  it("orders follow-ups by urgency, then longest-absent within a reason", () => {
+    const meetings = weeklySeries(10);
+    const attendance = [
+      // At risk: a regular (first 7 weekly meetings) who missed the last 3.
+      ...meetings.slice(0, 7).map((m) => attend(m, "risk")),
+      // Two lapsed regulars with different last-seen dates (tiebreak).
+      attend(meetings[0], "lapEarly"),
+      attend(meetings[1], "lapEarly"),
+      attend(meetings[2], "lapEarly"), // last seen ~7 weeks ago
+      attend(meetings[0], "lapLater"),
+      attend(meetings[1], "lapLater"),
+      attend(meetings[3], "lapLater"), // last seen ~6 weeks ago
+    ];
+    const data = computeSubgroupMetrics(
+      build(meetings, attendance, [
+        person("risk"),
+        person("lapEarly"),
+        person("lapLater"),
+      ])
+    );
+    expect(data.followUps.map((f) => f.reasonCode)).toEqual([
+      "at_risk",
+      "lapsed",
+      "lapsed",
+    ]);
+    // Within the lapsed pair, the one absent longer (lapEarly) comes first.
+    const lapsed = data.followUps.filter((f) => f.reasonCode === "lapsed");
+    expect(lapsed.map((f) => f.key)).toEqual(["lapEarly", "lapLater"]);
+  });
 });
 
 describe("rangeStartFor", () => {
