@@ -59,8 +59,13 @@ export const METRICS_THRESHOLDS = {
   followUpLimit: 60,
   /** Cap on per-event trend points kept in a snapshot. */
   trendPointLimit: 40,
-  /** Minimum sub-group events before insights are meaningful. */
-  minEventsForInsights: 3,
+  /**
+   * Minimum events *in the selected range* before insights render. Kept low (1)
+   * so short ranges (1–2 weeks) still show something as soon as there's an
+   * event, rather than sitting on "not enough history"; below this, the range is
+   * simply empty ("No events in this range").
+   */
+  minEventsForInsights: 1,
 } as const;
 
 /** The preset trailing-week ranges offered in the UI. */

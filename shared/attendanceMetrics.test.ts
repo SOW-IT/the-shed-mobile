@@ -242,10 +242,20 @@ describe("computeSubgroupMetrics — summary & trends", () => {
     expect(data.summary.weeklyConsistency).toBeLessThanOrEqual(1);
   });
 
-  it("says there isn't enough history when events are sparse", () => {
+  it("has no insights when the selected range holds no events", () => {
+    // The event sits in loaded history but before the display range starts, so
+    // there are zero events *in the range*.
+    const old = oneOff(weeksAgo(15));
+    const data = computeSubgroupMetrics(build([old], [attend(old, "a")], [person("a")]));
+    expect(data.summary.eventsHeld).toBe(0);
+    expect(data.hasEnoughHistory).toBe(false);
+  });
+
+  it("shows insights as soon as the range has a single event", () => {
     const e = oneOff(weeksAgo(1));
     const data = computeSubgroupMetrics(build([e], [attend(e, "a")], [person("a")]));
-    expect(data.hasEnoughHistory).toBe(false);
+    expect(data.summary.eventsHeld).toBe(1);
+    expect(data.hasEnoughHistory).toBe(true);
   });
 });
 

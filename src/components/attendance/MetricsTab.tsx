@@ -315,15 +315,9 @@ export function MetricsTab({
         />
       ) : data && !data.hasEnoughHistory ? (
         <EmptyState
-          icon="hourglass-outline"
-          title="Not enough history yet"
-          message="Run a few more events for this group and insights will appear here — trends need a handful of events to be meaningful."
-        />
-      ) : data && data.summary.eventsHeld === 0 ? (
-        <EmptyState
           icon="calendar-outline"
           title="No events in this range"
-          message="Try a longer time range, or include collaborative events to widen the view."
+          message="Nothing recorded for this group in this range yet — try a longer range, or include collaborative events to widen the view."
         />
       ) : data ? (
         <>
