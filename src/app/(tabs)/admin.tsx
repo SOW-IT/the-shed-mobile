@@ -16,6 +16,7 @@ import {
   roleNeedsDepartment,
   roleNeedsUniversity,
   scopeKindFor,
+  universityColour,
 } from "@shared/flow";
 import { api } from "@convex/_generated/api";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
@@ -637,7 +638,10 @@ export default function AdminScreen() {
   );
 
   // Renders the collapsed or expanded card for an assigned profile.
-  const renderProfileCard = (profile: NonNullable<typeof profiles>[number]) => {
+  const renderProfileCard = (
+    profile: NonNullable<typeof profiles>[number],
+    accentColour?: string | null
+  ) => {
     const isEditingThis = editingUserEmail === profile.email;
     const lockedHeadAssignments = (profile.assignments ?? []).filter(
       (a) => a.role === HEAD_OF_DEPARTMENT || a.role === HEAD_OF_DIVISION
@@ -653,7 +657,18 @@ export default function AdminScreen() {
       }));
     const assignmentsChanged = !sameAssignments(editingAssignments, savedAssignments);
     return (
-      <Card key={profile._id}>
+      <Card
+        key={profile._id}
+        style={
+          accentColour
+            ? {
+                borderLeftWidth: 4,
+                borderLeftColor: accentColour,
+                paddingLeft: spacing.lg - 2,
+              }
+            : undefined
+        }
+      >
         {isEditingThis ? (
           <>
             <Txt style={{ fontWeight: "600" }}>{profile.name ?? profile.email}</Txt>
@@ -811,34 +826,66 @@ export default function AdminScreen() {
 
           {/* Profiles grouped by division > department */}
           {groupedProfiles.map((group) => {
-            const hasAny = group.departments.length > 0 || group.divisionOnlyProfiles.length > 0;
+            const hasAny =
+              group.head ||
+              group.departments.length > 0 ||
+              group.divisionOnlyProfiles.length > 0;
             if (!hasAny) return null;
             return (
               <View key={group.division} style={{ gap: spacing.md }}>
                 <SectionTitle>{group.division} — {selectedYear}</SectionTitle>
+                {group.head ? renderProfileCard(group.head, t.primary) : null}
                 {group.departments.map((dept) => (
-                  <View key={dept.name} style={{ gap: spacing.md }}>
+                  <View
+                    key={dept.name}
+                    style={{
+                      gap: spacing.md,
+                      borderLeftWidth: 4,
+                      borderLeftColor: dept.colour ?? t.primary,
+                      paddingLeft: spacing.md,
+                    }}
+                  >
                     <Text
                       style={[
                         typography.label,
-                        { color: t.muted, paddingHorizontal: 4, paddingTop: 4 },
+                        { color: t.muted, paddingTop: 4 },
                       ]}
                     >
                       {dept.name}
                     </Text>
-                    {dept.profiles.map((profile) => renderProfileCard(profile))}
+                    {dept.head
+                      ? renderProfileCard(dept.head, dept.colour ?? t.primary)
+                      : null}
+                    {dept.profiles.map((profile) =>
+                      renderProfileCard(profile, dept.colour ?? t.primary)
+                    )}
                   </View>
                 ))}
-                {group.divisionOnlyProfiles.map((profile) => renderProfileCard(profile))}
+                {group.divisionOnlyProfiles.map((profile) =>
+                  renderProfileCard(profile, t.primary)
+                )}
               </View>
             );
           })}
 
           {/* Campus roles grouped by university */}
           {campusByUniversity.map((group) => (
-            <View key={group.university} style={{ gap: spacing.md }}>
+            <View
+              key={group.university}
+              style={{
+                gap: spacing.md,
+                borderLeftWidth: 4,
+                borderLeftColor: universityColour(group.university) ?? t.primary,
+                paddingLeft: spacing.md,
+              }}
+            >
               <SectionTitle>{group.university} — {selectedYear}</SectionTitle>
-              {group.profiles.map((profile) => renderProfileCard(profile))}
+              {group.profiles.map((profile) =>
+                renderProfileCard(
+                  profile,
+                  universityColour(group.university) ?? t.primary
+                )
+              )}
             </View>
           ))}
 
