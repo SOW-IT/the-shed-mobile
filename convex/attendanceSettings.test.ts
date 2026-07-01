@@ -522,6 +522,8 @@ describe("attendance members", () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
+    const fields = await leader.query(api.attendanceMetadata.list, { });
+    const yearField = fields.find((f) => f.key === "Year")!;
     // Added as an attendance-only member (no staffEmail) under the email that
     // is a staff profile this year — the rollover-duplicate scenario.
     const memberId = await leader.mutation(api.attendanceMembers.create, {
@@ -537,6 +539,28 @@ describe("attendance members", () => {
     const staffRow = thisYear.page.find((r) => r.key === `staff:${LEADER}`);
     expect(staffRow?.memberId).toBe(memberId);
     expect(thisYear.page.some((r) => r.key === `member:${memberId}`)).toBe(false);
+
+    const merged = await leader.query(api.attendanceMembers.get, {
+      memberId,
+      staffYear: YEAR,
+    });
+    expect(merged?.staffEmail).toBe(LEADER);
+    expect(merged?.email).toBe(LEADER);
+    await leader.mutation(api.attendanceMembers.update, {
+      memberId,
+      name: "Edited Name",
+      email: "edited@example.com",
+      metadata: { [yearField._id]: String(YEAR - 2) },
+      staffYear: YEAR,
+    });
+    const updated = await leader.query(api.attendanceMembers.get, {
+      memberId,
+      staffYear: YEAR,
+    });
+    if (!updated) throw new Error("Expected merged attendance member");
+    expect(updated?.staffEmail).toBe(LEADER);
+    expect(updated?.email).toBe(LEADER);
+    expect(updated.metadata?.[yearField._id]).toBe(String(YEAR - 2));
 
     // A year in which LEADER held no profile: shown as the plain member they
     // were then, not retroactively promoted to staff.

@@ -21,6 +21,7 @@ import { staffEmailCandidates } from "../shared/rollcallImport";
 import { mutation, query } from "./_generated/server";
 import { getProfile, optionalProfile, requireProfile } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
+import { Doc } from "./_generated/dataModel";
 
 export type MemberRow = {
   key: string;
@@ -122,6 +123,27 @@ const resolveUniversity = (
 
 const staffSubtitle = (roles: string[]): string | undefined =>
   roles.length > 0 ? roles.join(" · ") : undefined;
+
+const staffOverlayProfile = async (
+  ctx: Parameters<typeof getProfile>[0],
+  row: Doc<"attendanceMembers">,
+  profileYear: number,
+  emailOverride?: string
+): Promise<Doc<"staffProfiles"> | null> => {
+  const emails = [row.staffEmail, row.email, emailOverride].filter(
+    (value): value is string => Boolean(value)
+  );
+  const seen = new Set<string>();
+  for (const email of emails) {
+    for (const candidate of staffEmailCandidates(email)) {
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      const profile = await getProfile(ctx, candidate, profileYear);
+      if (profile) return profile;
+    }
+  }
+  return null;
+};
 
 /** Combined staff profiles + attendance-only members, with search/filter/sort. */
 export const list = query({
@@ -343,13 +365,14 @@ export const get = query({
   handler: async (ctx, { memberId, staffYear }) => {
     if (!(await optionalProfile(ctx))) return null;
     const row = await ctx.db.get(memberId);
-    if (!row?.staffEmail) return row;
+    if (!row) return null;
     const profileYear = staffYear ?? staffYearForDate(new Date());
-    const profile = await getProfile(ctx, row.staffEmail, profileYear);
+    const profile = await staffOverlayProfile(ctx, row, profileYear);
     if (!profile) return row;
     const fields = await allMetadataFields(ctx);
     return {
       ...row,
+      staffEmail: profile.email,
       name: profile.name ?? row.name,
       email: profile.email,
       metadata: staffLockedMetadata(fields, profile, row.metadata),
@@ -477,26 +500,33 @@ export const update = mutation({
     const { email: actorEmail } = await requireProfile(ctx);
     const row = await ctx.db.get(memberId);
     if (!row) throw new ConvexError("Member not found.");
-    if (row.staffEmail) {
-      const profileYear = staffYear ?? staffYearForDate(new Date());
-      const profile = await getProfile(ctx, row.staffEmail, profileYear);
-      if (!profile) throw new ConvexError("Staff profile not found.");
+    const profileYear = staffYear ?? staffYearForDate(new Date());
+    const profile = await staffOverlayProfile(ctx, row, profileYear, email);
+    if (profile) {
       const fields = await allMetadataFields(ctx);
-      await ctx.db.patch(memberId, {
+      const patch: {
+        name: string;
+        email: string;
+        staffEmail?: string;
+        metadata: Record<string, string>;
+      } = {
         name: profile.name ?? row.name,
         email: profile.email,
         metadata: staffLockedMetadata(fields, profile, metadata),
-      });
+      };
+      if (row.staffEmail) patch.staffEmail = profile.email;
+      await ctx.db.patch(memberId, patch);
       await logAttendanceAction(ctx, {
         actorEmail,
         entityType: "member",
         action: "member.update",
         summary: `Updated member "${profile.name ?? row.name}"`,
         memberId,
-        subjectEmail: row.staffEmail,
+        subjectEmail: profile.email,
       });
       return;
     }
+    if (row.staffEmail) throw new ConvexError("Staff profile not found.");
     const trimmed = name.trim();
     if (!trimmed) throw new ConvexError("Name is required.");
     await ctx.db.patch(memberId, {
