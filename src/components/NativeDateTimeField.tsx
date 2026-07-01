@@ -1,7 +1,7 @@
 import { DateTimePicker } from "@expo/ui/community/datetime-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
-import { Platform, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { Btn, Sheet, Txt } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
 
@@ -11,11 +11,13 @@ import { spacing, typography, useAppTheme } from "@/theme";
  * pair by `Platform.OS` without any value-shape changes.
  *
  * Unlike rendering `DateTimePicker` straight into a form, the picker here opens
- * in its OWN modal `Sheet` (a "Done" footer dismisses it), so on iOS the inline
- * calendar no longer lands in the middle of the surrounding sheet, and on
- * Android the spinner sits in a tidy dedicated surface. Callers gate these
- * behind `Platform.OS !== "web"`; on web the components are imported but never
- * rendered.
+ * in its OWN modal `Sheet` (a "Done" footer dismisses it). Both the date and
+ * time pickers use the `spinner` (wheel) display on every native platform: the
+ * iOS `inline` calendar's month/year expander is a native overlay that spilled
+ * out of the sheet and overlapped the surrounding fields, so the spinner — which
+ * has no such overlay — sits tidily in its dedicated surface instead. Callers
+ * gate these behind `Platform.OS !== "web"`; on web the components are imported
+ * but never rendered.
  */
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -166,7 +168,9 @@ export const NativeDateInput = ({
         <View style={{ alignItems: "center", paddingVertical: spacing.sm }}>
           <DateTimePicker
             mode="date"
-            display={Platform.OS === "ios" ? "inline" : "spinner"}
+            // Spinner (not the iOS `inline` calendar) so the month/year expander
+            // overlay can't spill out of the sheet over the other fields.
+            display="spinner"
             value={initial}
             minimumDate={minDate}
             maximumDate={maxDate}

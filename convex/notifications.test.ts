@@ -199,19 +199,16 @@ describe("push.send (Expo push action)", () => {
 describe("notification deep-links are followable by the push-tap handler", () => {
   // Regression guard: the push-tap handler (src/hooks/usePushRegistration.ts)
   // only navigates to URLs that pass isAllowedDeepLink. Request notifications
-  // moved to the `/?tab=...&focus=...` home deep-link, so the allow-list must
-  // accept it — otherwise tapping a request push silently routes nowhere.
+  // land on the `/?tab=...` home deep-link, so the allow-list must accept it —
+  // otherwise tapping a request push silently routes nowhere.
   const fakeRequest = {
     _id: "req123" as Id<"requests">,
     requesterEmail: "requester@sow.org.au",
   };
 
-  test("requestUrl shapes (Mine, Review, thread) are allowed", () => {
+  test("requestUrl shapes (Mine, Review) are allowed", () => {
     expect(isAllowedDeepLink(requestUrl(fakeRequest.requesterEmail, fakeRequest))).toBe(true);
     expect(isAllowedDeepLink(requestUrl("approver@sow.org.au", fakeRequest))).toBe(true);
-    expect(
-      isAllowedDeepLink(requestUrl("approver@sow.org.au", fakeRequest, { thread: true }))
-    ).toBe(true);
   });
 
   test("static review and attendance-event URLs are allowed", () => {

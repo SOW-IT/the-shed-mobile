@@ -6,7 +6,8 @@
 // against the URLs the backend emits (see convex/notifications.test.ts).
 export const ALLOWED_DEEP_LINK_PREFIXES = [
   // Request notifications land on the Requests tabs home and select a segment
-  // via `?tab=`, focusing a request with `?focus=<id>` (+ `?thread=1`).
+  // via `?tab=`. `/request/` and `/review` remain for older notifications that
+  // still carry those legacy redirect URLs.
   "/?",
   "/request/",
   "/review",
