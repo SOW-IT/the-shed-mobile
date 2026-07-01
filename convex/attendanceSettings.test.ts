@@ -522,6 +522,8 @@ describe("attendance members", () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
+    const fields = await leader.query(api.attendanceMetadata.list, { });
+    const yearField = fields.find((f) => f.key === "Year")!;
     // Added as an attendance-only member (no staffEmail) under the email that
     // is a staff profile this year — the rollover-duplicate scenario.
     const memberId = await leader.mutation(api.attendanceMembers.create, {
@@ -537,6 +539,28 @@ describe("attendance members", () => {
     const staffRow = thisYear.page.find((r) => r.key === `staff:${LEADER}`);
     expect(staffRow?.memberId).toBe(memberId);
     expect(thisYear.page.some((r) => r.key === `member:${memberId}`)).toBe(false);
+
+    const merged = await leader.query(api.attendanceMembers.get, {
+      memberId,
+      staffYear: YEAR,
+    });
+    expect(merged?.staffEmail).toBe(LEADER);
+    expect(merged?.email).toBe(LEADER);
+    await leader.mutation(api.attendanceMembers.update, {
+      memberId,
+      name: "Edited Name",
+      email: "edited@example.com",
+      metadata: { [yearField._id]: String(YEAR - 2) },
+      staffYear: YEAR,
+    });
+    const updated = await leader.query(api.attendanceMembers.get, {
+      memberId,
+      staffYear: YEAR,
+    });
+    if (!updated) throw new Error("Expected merged attendance member");
+    expect(updated?.staffEmail).toBe(LEADER);
+    expect(updated?.email).toBe(LEADER);
+    expect(updated.metadata?.[yearField._id]).toBe(String(YEAR - 2));
 
     // A year in which LEADER held no profile: shown as the plain member they
     // were then, not retroactively promoted to staff.
@@ -607,7 +631,20 @@ describe("attendance members", () => {
 
   test("search, filter, sort, and paginate", async () => {
     const t = await setup();
+    const admin = asUser(t, ADMIN);
     const leader = asUser(t, LEADER);
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "president@sow.org.au",
+      year: YEAR,
+      roles: ["President"],
+      university: USYD,
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "outsource@sow.org.au",
+      year: YEAR,
+      roles: ["Outsource"],
+      department: "Missions",
+    });
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const fields = await leader.query(api.attendanceMetadata.list, { });
     const yearField = fields.find((f) => f.key === "Year")!;
@@ -711,6 +748,37 @@ describe("attendance members", () => {
     expect(staffRow?.university).toBe(USYD);
     expect(staffRow?.metadata[refreshedCampus._id]).toBe(usydId);
     expect(staffRow?.metadata[refreshedRole._id]).toBe(leaderRoleId);
+
+    const staffRoleId = Object.entries(refreshedRole.values ?? {}).find(
+      ([, label]) => label === "Staff"
+    )?.[0]!;
+    const studentLeaderRoleId = Object.entries(refreshedRole.values ?? {}).find(
+      ([, label]) => label === "Student Leader"
+    )?.[0]!;
+    const byStaffRole = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      filters: { [refreshedRole._id]: staffRoleId },
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(byStaffRole.page.some((r) => r.email === STAFF)).toBe(true);
+    expect(byStaffRole.page.some((r) => r.email === "outsource@sow.org.au")).toBe(
+      true
+    );
+    expect(byStaffRole.page.some((r) => r.email === LEADER)).toBe(false);
+    expect(byStaffRole.page.some((r) => r.email === "president@sow.org.au")).toBe(
+      false
+    );
+
+    const byStudentLeaderRole = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      filters: { [refreshedRole._id]: studentLeaderRoleId },
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(byStudentLeaderRole.page.some((r) => r.email === LEADER)).toBe(true);
+    expect(
+      byStudentLeaderRole.page.some((r) => r.email === "president@sow.org.au")
+    ).toBe(true);
+    expect(byStudentLeaderRole.page.some((r) => r.email === STAFF)).toBe(false);
 
     const unset = await leader.query(api.attendanceMembers.list, {
       year: YEAR,

@@ -16,6 +16,7 @@ import {
   roleNeedsDepartment,
   roleNeedsUniversity,
   scopeKindFor,
+  universityColour,
 } from "@shared/flow";
 import { api } from "@convex/_generated/api";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
@@ -636,8 +637,25 @@ export default function AdminScreen() {
     </Card>
   );
 
+  const accentBorderWidth = 4;
+  const cardHorizontalPadding = spacing.lg + 2;
+  const accentContainerStyle = (accentColour: string) => ({
+    gap: spacing.md,
+    borderLeftWidth: accentBorderWidth,
+    borderLeftColor: accentColour,
+    paddingLeft: spacing.md,
+  });
+  const accentCardStyle = (accentColour: string) => ({
+    borderLeftWidth: accentBorderWidth,
+    borderLeftColor: accentColour,
+    paddingLeft: cardHorizontalPadding - accentBorderWidth,
+  });
+
   // Renders the collapsed or expanded card for an assigned profile.
-  const renderProfileCard = (profile: NonNullable<typeof profiles>[number]) => {
+  const renderProfileCard = (
+    profile: NonNullable<typeof profiles>[number],
+    accentColour?: string | null
+  ) => {
     const isEditingThis = editingUserEmail === profile.email;
     const lockedHeadAssignments = (profile.assignments ?? []).filter(
       (a) => a.role === HEAD_OF_DEPARTMENT || a.role === HEAD_OF_DIVISION
@@ -653,7 +671,10 @@ export default function AdminScreen() {
       }));
     const assignmentsChanged = !sameAssignments(editingAssignments, savedAssignments);
     return (
-      <Card key={profile._id}>
+      <Card
+        key={profile._id}
+        style={accentColour ? accentCardStyle(accentColour) : undefined}
+      >
         {isEditingThis ? (
           <>
             <Txt style={{ fontWeight: "600" }}>{profile.name ?? profile.email}</Txt>
@@ -811,36 +832,59 @@ export default function AdminScreen() {
 
           {/* Profiles grouped by division > department */}
           {groupedProfiles.map((group) => {
-            const hasAny = group.departments.length > 0 || group.divisionOnlyProfiles.length > 0;
+            const hasAny =
+              group.head ||
+              group.departments.length > 0 ||
+              group.divisionOnlyProfiles.length > 0;
             if (!hasAny) return null;
             return (
               <View key={group.division} style={{ gap: spacing.md }}>
                 <SectionTitle>{group.division} — {selectedYear}</SectionTitle>
-                {group.departments.map((dept) => (
-                  <View key={dept.name} style={{ gap: spacing.md }}>
-                    <Text
-                      style={[
-                        typography.label,
-                        { color: t.muted, paddingHorizontal: 4, paddingTop: 4 },
-                      ]}
+                {group.head ? renderProfileCard(group.head, t.primary) : null}
+                {group.departments.map((dept) => {
+                  const deptAccent = dept.colour ?? t.primary;
+                  return (
+                    <View
+                      key={dept.name}
+                      style={accentContainerStyle(deptAccent)}
                     >
-                      {dept.name}
-                    </Text>
-                    {dept.profiles.map((profile) => renderProfileCard(profile))}
-                  </View>
-                ))}
-                {group.divisionOnlyProfiles.map((profile) => renderProfileCard(profile))}
+                      <Text
+                        style={[
+                          typography.label,
+                          { color: t.muted, paddingTop: 4 },
+                        ]}
+                      >
+                        {dept.name}
+                      </Text>
+                      {dept.head ? renderProfileCard(dept.head, deptAccent) : null}
+                      {dept.profiles.map((profile) =>
+                        renderProfileCard(profile, deptAccent)
+                      )}
+                    </View>
+                  );
+                })}
+                {group.divisionOnlyProfiles.map((profile) =>
+                  renderProfileCard(profile, t.primary)
+                )}
               </View>
             );
           })}
 
           {/* Campus roles grouped by university */}
-          {campusByUniversity.map((group) => (
-            <View key={group.university} style={{ gap: spacing.md }}>
-              <SectionTitle>{group.university} — {selectedYear}</SectionTitle>
-              {group.profiles.map((profile) => renderProfileCard(profile))}
-            </View>
-          ))}
+          {campusByUniversity.map((group) => {
+            const campusAccent = universityColour(group.university) ?? t.primary;
+            return (
+              <View
+                key={group.university}
+                style={accentContainerStyle(campusAccent)}
+              >
+                <SectionTitle>{group.university} — {selectedYear}</SectionTitle>
+                {group.profiles.map((profile) =>
+                  renderProfileCard(profile, campusAccent)
+                )}
+              </View>
+            );
+          })}
 
           {/* Profiles not in any division, department, or campus */}
           {nonCampusOtherProfiles.length > 0 && (
