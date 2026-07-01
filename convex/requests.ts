@@ -162,11 +162,11 @@ export const notify = async (
   // Lead line only; the email carries the full details. Shared by the push and
   // the in-app notification feed.
   const lead = body.split("\n")[0];
-  // Link to the request — explicit id, else parsed from the url: a legacy
-  // `/request/<id>` path or the `focus=<id>` query the tab deep-links carry —
-  // so opening/focusing that request later marks this notification read.
-  const idInUrl =
-    url?.match(/^\/request\/([^/?#]+)/)?.[1] ?? url?.match(/[?&]focus=([^&]+)/)?.[1];
+  // Link to the request so opening it later marks this notification read.
+  // Callers pass `requestId` explicitly; the legacy `/request/<id>` url parse is
+  // a fallback for older call sites / notifications that predate the explicit
+  // arg. (Current tab deep-links — `/?tab=...` — carry no id, hence the arg.)
+  const idInUrl = url?.match(/^\/request\/([^/?#]+)/)?.[1];
   const linkedRequestId =
     requestId ??
     (idInUrl ? (ctx.db.normalizeId("requests", idInUrl) ?? undefined) : undefined);
@@ -191,17 +191,17 @@ export const notify = async (
  * Where a notification about `request` should deep-link for recipient `to`: the
  * Requests-tab segment they'll actually action it from — their own request
  * lives under "Mine", anything else (they are an approver / Finance) under
- * "Review" — with the request focused, and its comment thread opened when
- * `thread` is set. Lands the recipient on the live screen where the action is
- * taken, not a read-only detail page.
+ * "Review". Lands the recipient straight on the live tab where the action is
+ * taken; it no longer focuses a specific request (callers pass `requestId` to
+ * `notify` so the in-app notification is still auto-read when that request is
+ * opened).
  */
 export const requestUrl = (
   to: string,
-  request: Pick<Doc<"requests">, "_id" | "requesterEmail">,
-  opts?: { thread?: boolean }
+  request: Pick<Doc<"requests">, "_id" | "requesterEmail">
 ): string => {
   const tab = to === request.requesterEmail ? "mine" : "review";
-  return `/?tab=${tab}&focus=${request._id}${opts?.thread ? "&thread=1" : ""}`;
+  return `/?tab=${tab}`;
 };
 
 /**
@@ -304,6 +304,7 @@ const notifyNextActor = async (
       pushTitle: "Approval needed",
       body: `The request below is waiting on your approval in THE SHED.\n\n${requestSummary(request)}`,
       url: approverEmail ? requestUrl(approverEmail, request) : undefined,
+      requestId: request._id,
     });
   } else if (requestFullyApproved(request)) {
     await notify(ctx, {
@@ -313,6 +314,7 @@ const notifyNextActor = async (
       pushTitle: "Request approved",
       body: `Your request has been fully approved. Please open THE SHED and submit your receipt/invoice details.\n\n${requestSummary(request)}`,
       url: requestUrl(request.requesterEmail, request),
+      requestId: request._id,
     });
     // The whole approver chain hears that the request cleared.
     for (const email of involvedApproverEmails(request, approvers, [APPROVED])) {
@@ -323,6 +325,7 @@ const notifyNextActor = async (
         pushTitle: "Request approved",
         body: `Every step has approved this request; the requester has been asked for their receipt.\n\n${requestSummary(request)}`,
         url: requestUrl(email, request),
+        requestId: request._id,
       });
     }
   }
@@ -484,6 +487,7 @@ export const submit = mutation({
         pushTitle: "Request submitted",
         body: `Your request has been submitted and sent for approval. You'll be emailed once it's fully approved.\n\n${requestSummary(request)}`,
         url: requestUrl(request.requesterEmail, request),
+        requestId: request._id,
       });
       await notifyNextActor(ctx, request, approvers, undefined, email);
     }
@@ -1001,6 +1005,7 @@ export const decline = mutation({
       pushTitle: "Request declined",
       body: `Your request was declined at the ${STEP_LABELS[args.step]} step by ${declinerName}.\nReason: ${reason}\n\n${requestSummary(request)}`,
       url: requestUrl(request.requesterEmail, request),
+      requestId: request._id,
     });
     // Approvers who had already approved hear that it was declined downstream.
     for (const email of involvedApproverEmails(request, approvers, [APPROVED])) {
@@ -1012,6 +1017,7 @@ export const decline = mutation({
         pushTitle: "Request declined",
         body: `Declined at the ${STEP_LABELS[args.step]} step by ${declinerName}.\nReason: ${reason}\n\n${requestSummary(request)}`,
         url: requestUrl(email, request),
+        requestId: request._id,
       });
     }
     return null;
@@ -1303,6 +1309,7 @@ export const nudge = mutation({
       // approver/Finance (→ Review) or the requester awaiting their receipt
       // (→ Mine); requestUrl picks the right segment from `to`.
       url: requestUrl(to, request),
+      requestId: request._id,
     });
     return null;
   },
@@ -1589,6 +1596,7 @@ export const submitReceipt = mutation({
         pushTitle: "Receipt ready to pay",
         body: `${requesterName} submitted their receipt (total $${totalAmount}). Please pay the reimbursement in THE SHED.\n\n${requestSummary(request)}`,
         url: requestUrl(financeHead, request),
+        requestId: request._id,
       });
     }
     return null;
@@ -1692,6 +1700,7 @@ export const pay = mutation({
       pushTitle: "Reimbursement paid",
       body: `The Finance Head (${payerName}) has paid your reimbursement.\nPaid: $${args.paidAmount}${args.comment ? `\nComment: ${args.comment}` : ""}\n\n${requestSummary(request)}`,
       url: requestUrl(request.requesterEmail, request),
+      requestId: request._id,
     });
     // The Budget Manager should know when the paid amount differs.
     if (args.paidAmount !== request.amount) {
@@ -1705,6 +1714,7 @@ export const pay = mutation({
         url: yearApprovers.budgetManagerEmail
           ? requestUrl(yearApprovers.budgetManagerEmail, request)
           : undefined,
+        requestId: request._id,
       });
     }
     return null;

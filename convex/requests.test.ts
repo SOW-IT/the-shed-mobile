@@ -366,12 +366,12 @@ describe("in-app notifications", () => {
   test("a request's notifications clear once that request is opened", async () => {
     const t = await setup();
     // Rachel submits → Henry (HOD) gets an approval-needed notification, linked
-    // to the request explicitly (its url is /review).
+    // to the request via the requestId passed to notify() (its url is /?tab=review).
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
     const [req] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
     expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(1);
     // Henry comments → Rachel (the requester) gets a comment notification, linked
-    // to the request via its /request/<id> url.
+    // to the request via its requestId (its url is /?tab=mine).
     await asUser(t, HENRY).mutation(api.comments.add, { requestId: req._id, body: "why?" });
     expect(await asUser(t, RACHEL).query(api.notifications.unreadCount, {})).toBe(1);
 

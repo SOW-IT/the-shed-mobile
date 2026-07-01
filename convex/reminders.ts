@@ -6,11 +6,10 @@ import {
   STEP_LABELS,
   type ApprovalStep,
 } from "../shared/flow";
-import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
 import { internalMutation, MutationCtx } from "./_generated/server";
 import { currentStaffYear, getApprovers, type Approvers } from "./model";
-import { appUrl, openRequestsAcrossYears } from "./requests";
+import { notify, openRequestsAcrossYears } from "./requests";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -35,13 +34,19 @@ const remind = async (
   url: string
 ) => {
   const subject = `Reminder: a $${request.amount} request has been waiting ${days} days`;
-  const body = `The request below has been waiting on ${waitingOn} for ${days} days. Please action it in THE SHED.\n\nRequester: ${request.requesterEmail}\nDepartment: ${request.department}\nAmount: $${request.amount}\nDescription: ${request.description}\n\nOpen in THE SHED: ${appUrl(url)}`;
-  await ctx.scheduler.runAfter(0, internal.emails.send, { to, subject, body });
-  await ctx.scheduler.runAfter(0, internal.push.send, {
+  // Route through the shared notify helper so a reminder produces the same trio
+  // as every other flow update — email + in-app feed entry (with an unread
+  // badge) + push — rather than the email-and-push-only path it used before.
+  // notify appends the "Open in THE SHED" link to the email and derives the push
+  // / in-app lead from the first body line. `requestId` keeps the in-app
+  // notification auto-read once the recipient opens the request.
+  await notify(ctx, {
     to,
-    title: subject,
-    body: `Waiting on ${waitingOn}.`,
+    subject,
+    pushTitle: "Request reminder",
+    body: `The request below has been waiting on ${waitingOn} for ${days} days. Please action it in THE SHED.\n\nRequester: ${request.requesterEmail}\nDepartment: ${request.department}\nAmount: $${request.amount}\nDescription: ${request.description}`,
     url,
+    requestId: request._id,
   });
 };
 
@@ -106,7 +111,7 @@ export const remindStale = internalMutation({
       const step = currentStep(request);
       let to: string | undefined;
       let waitingOn = "";
-      let url = "/review";
+      let url = "/?tab=review";
       if (step !== null) {
         const selectors: Record<ApprovalStep, (a: Approvers) => string | undefined> = {
           hod: (a) => a.hodEmail,
@@ -119,7 +124,7 @@ export const remindStale = internalMutation({
       } else if (!request.receipt) {
         to = request.requesterEmail;
         waitingOn = "your receipt";
-        url = `/request/${request._id}`;
+        url = "/?tab=mine";
       } else if (request.paid === false) {
         const finance = await getApprovers(ctx, reqYear, FINANCE);
         const financeNow =

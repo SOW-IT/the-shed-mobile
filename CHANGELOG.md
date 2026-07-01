@@ -6,6 +6,32 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.6.2] — 2026-07-02
+
+### Fixed
+
+- **Export date picker overlapped other fields on native.** The iOS date picker
+  used the inline calendar, whose month/year expander is a native overlay that
+  spilled out of the picker sheet and over the surrounding fields. Both the date
+  and time pickers now use the `spinner` (wheel) display on iOS and Android,
+  which has no such overlay.
+
+### Changed
+
+- **Request notifications open the relevant top-bar tab directly.** Tapping a
+  request notification (or its push/email link) now lands on the relevant
+  Requests segment — "Mine" for the requester, "Review" for approvers/Finance —
+  in general, instead of routing through a per-request focus or the legacy
+  `/request/<id>` lookup screen. Opening the request still clears its
+  notification (the link is now carried by `requestId` rather than the URL).
+
+### Added
+
+- **Stale-request reminders now appear in the in-app feed.** The daily reminder
+  cron already emailed and pushed whoever a request was waiting on; those
+  reminders now also create an in-app notification (with an unread bell badge),
+  so they show up in the notifications feed like every other update.
+
 ## [1.6.1] — 2026-07-02
 
 ### Fixed

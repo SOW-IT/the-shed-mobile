@@ -106,15 +106,12 @@ describe("notification deep-links", () => {
     requesterEmail: RACHEL,
   };
 
-  test("requestUrl routes the requester to Mine and everyone else to Review, focused", () => {
-    expect(requestUrl(RACHEL, fakeRequest)).toBe(`/?tab=mine&focus=${fakeRequest._id}`);
-    expect(requestUrl(HENRY, fakeRequest)).toBe(`/?tab=review&focus=${fakeRequest._id}`);
-    expect(requestUrl(HENRY, fakeRequest, { thread: true })).toBe(
-      `/?tab=review&focus=${fakeRequest._id}&thread=1`
-    );
+  test("requestUrl routes the requester to Mine and everyone else to Review", () => {
+    expect(requestUrl(RACHEL, fakeRequest)).toBe("/?tab=mine");
+    expect(requestUrl(HENRY, fakeRequest)).toBe("/?tab=review");
   });
 
-  test("submit deep-links the approver to Review and links the request via focus=", async () => {
+  test("submit deep-links the approver to Review and links the request via requestId", async () => {
     const t = await setup();
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
     const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
@@ -126,9 +123,10 @@ describe("notification deep-links", () => {
         .collect()
     );
     expect(henryNotifs).toHaveLength(1);
-    expect(henryNotifs[0].url).toBe(`/?tab=review&focus=${request._id}`);
-    // notify() parses focus=<id> from the url to attach requestId, so opening
-    // the focused request later marks this notification read.
+    // The URL lands on the Review tab in general (no per-request focus); the
+    // requestId is passed to notify() explicitly so opening the request later
+    // still marks this notification read.
+    expect(henryNotifs[0].url).toBe("/?tab=review");
     expect(henryNotifs[0].requestId).toBe(request._id);
 
     // The submitter is the actor → email-only acknowledgement, no in-app row.

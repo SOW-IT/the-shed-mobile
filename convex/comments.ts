@@ -63,9 +63,11 @@ export const add = mutation({
           subject: `New comment on the $${request.amount} ${request.department} request`,
           pushTitle: "New comment",
           body: `${authorName} commented:\n"${body}"`,
-          // Open the thread directly on the recipient's tab (Mine for the
-          // requester, Review for approvers/Finance).
-          url: requestUrl(to, request, { thread: true }),
+          // Land on the recipient's request tab (Mine for the requester, Review
+          // for approvers/Finance); requestId keeps the notification auto-read
+          // once they open the request/its thread.
+          url: requestUrl(to, request),
+          requestId: request._id,
         });
       }
     }
