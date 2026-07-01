@@ -47,6 +47,32 @@ from [REQUESTS_FLOW.md](https://github.com/SOW-IT/theshed/blob/main/REQUESTS_FLO
 - **Tabs**: My Requests (submit / cancel / receipt), To Review (approve /
   decline / pay, shown to approvers), All Requests (Finance staff), Admin.
 
+### Attendance
+
+A second feature area (ported from *time-to-rollcall*) for running roll-call at
+SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
+`universities`) plus org-wide "SOW", all sharing one member pool.
+
+- **Events & roll-call**: create events tagged with one or more sub-groups
+  (multi-sub-group = a *collaborative* event that appears under each), then sign
+  people in/out. Attendees are staff (by email) or attendance-only **members**.
+  Post-event sign-ins can be reversed; sign-ins made during an event can't.
+- **Tags & metadata**: per-year event tags (including the **"Weekly Meeting"**
+  tag that drives the weekly-meeting analytics) and configurable member metadata
+  fields (Year, Gender, Campus, Role, …).
+- **Audit log**: an immutable trail of every attendance-area action (event /
+  member / tag / metadata edits and each sign-in/edit/sign-out), read by the
+  Attendance → Audit tab.
+- **CSV import/export**: bulk-import historical roll-call data and export
+  attendance.
+- **Insights** (a dedicated bottom tab): a leader-facing metrics dashboard —
+  summary cards, native trend charts, and a gentle, explainable "Needs
+  follow-up" list for the selected sub-group and trailing range (1/2/4/8/12
+  weeks). Aggregates are pre-computed server-side (a weekly cron plus a
+  15-minute *dirty* recompute that rebuilds only sub-groups changed by a
+  roll-call/event edit), so the tab reads one small snapshot and stays fresh
+  within minutes. See [docs/attendance-metrics.md](docs/attendance-metrics.md).
+
 ## Getting started
 
 ```bash
@@ -242,11 +268,16 @@ anyway.
 npm test
 ```
 
-13 `convex-test` tests cover the auto-approval matrix, approval ordering and
+The `convex-test` + shared-logic suite (run in CI with coverage thresholds)
+covers the reimbursement flow — the auto-approval matrix, approval ordering and
 authorization, decline behaviour, admin permissions, the Budget
-Manager-must-be-Finance rule, and the October 1 rollover.
+Manager-must-be-Finance rule, and the October 1 rollover — as well as the
+Attendance area: roll-call, events, members, tags, metadata, audit, import, and
+the Insights metrics precompute.
 
 ## Not yet implemented
 
-- Past-year request archives and a Google Workspace directory sync (profiles
-  sync from Google on sign-in; org-wide user import would use the Admin SDK).
+- Past-year request archives.
+- The whole-**staff-year** Insights range: supported by the shared logic
+  (`STAFF_YEAR_RANGE`) but not currently precomputed or offered in the UI (the
+  presets are the trailing 1/2/4/8/12-week windows).

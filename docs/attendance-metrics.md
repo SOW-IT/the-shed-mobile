@@ -15,32 +15,53 @@ follow-up prompts for a sub-group and time range.
 
 ## How the data flows
 
-The dashboard never scans attendance history on the device. A weekly cron
-(`attendance metrics recompute`, **Thursdays 03:00 UTC ≈ Thu ~1pm Sydney**) fans
-out one bounded recompute per sub-group. Each recompute:
+The dashboard never scans attendance history on the device. Snapshots are kept
+fresh by two crons, both fanning out one bounded recompute per sub-group:
+
+- **Weekly full refresh** (`attendance metrics recompute`, **Thursdays 03:00 UTC
+  ≈ Thu ~1pm Sydney**) — recomputes every sub-group as a baseline.
+- **Dirty recompute** (`attendance metrics dirty recompute`, **every 15
+  minutes**) — recomputes only the sub-groups flagged stale since the last run,
+  so a roll-call or event change shows up in Insights within minutes rather than
+  waiting for Thursday. Roll-call sign-in / sign-out / sign-in-time edits and
+  genuine event changes call `markSubgroupsDirty`; the recompute worker clears a
+  sub-group's flag only **after** it succeeds, so a failed recompute keeps its
+  retry signal (see `recomputeDirty` / `clearDirty`).
+
+Each recompute runs as an **action** (`recomputeSubgroup`) so it can page the
+large attendance read across several bounded query transactions instead of
+reading every event's attendance in one mutation. It:
 
 1. Loads that sub-group's events since the **earlier** of the staff-year start
-   or ~26 weeks ago (one bounded fetch that serves every range: the staff-year
-   range needs the whole year, the weekly ranges want a classification
-   look-back), capped at `MAX_EVENTS`, plus their attendance.
+   or ~26 weeks ago (one bounded gather that serves every range: the look-back
+   feeds the absolute-time reasons — lapsed / re-engaged), scanning at most
+   `MAX_EVENT_SCAN` and keeping the sub-group's newest `MAX_EVENTS`
+   (`gatherEvents`).
 2. Marks events tagged **"Weekly Meeting"** as weekly meetings.
-3. Resolves each attendee's display name / subtitle / photo and cheap breakdown
-   fields (Campus, Role).
-4. Runs `computeSubgroupMetrics` for every range (**4 / 8 / 12 weeks** and the
-   whole **staff year**) × collaborative-included/excluded, and upserts one
-   `attendanceMetricsSnapshots` row per combination.
+3. Reads attendance in chunks of `ATTENDANCE_CHUNK` events per transaction
+   (`gatherAttendanceChunk`), keyed by the shared `personKey`.
+4. Resolves each attendee's display name / subtitle / photo and cheap breakdown
+   fields (Campus, Role) (`gatherPersons`).
+5. Runs `computeSubgroupMetrics` for every preset range (**1 / 2 / 4 / 8 / 12
+   weeks** — `RANGE_WEEKS`) × collaborative-included/excluded, and upserts one
+   `attendanceMetricsSnapshots` row per combination (`writeSnapshots`, resilient
+   to duplicate rows so racing recomputes can't wedge later reads). The
+   whole-**staff-year** range is supported by the pure logic
+   (`STAFF_YEAR_RANGE`) but is **not** currently precomputed or offered in the UI
+   (`ALL_RANGES = [...RANGE_WEEKS]`); re-add it in both places to bring it back.
 
-The tab reads a snapshot via `api.attendanceMetrics.snapshot`. Campus leaders and
-admins can rebuild on demand (`api.attendanceMetrics.recomputeNow`, gated by
-`requireAttendanceManager`) using the pinned **Build / Refresh insights** footer
-— handy for the first run before any Thursday has passed. That manual refresh is
-throttled to **once per week per sub-group** (`MANUAL_REFRESH_COOLDOWN_MS`),
-enforced server-side and mirrored in the UI (the footer disables and shows when
-it's next available); a group with no current-year snapshot can always build.
+The tab reads a snapshot via `api.attendanceMetrics.snapshot`, which tolerates a
+stale prior-staff-year row (treated as "not ready") and a rare duplicate row
+(takes the newest). Because the dirty-recompute cron keeps snapshots current
+automatically, **there is no manual refresh control in the UI**. A server-side
+recovery path still exists — `api.attendanceMetrics.recomputeNow` (gated by
+`requireAttendanceManager`, throttled to once per week per sub-group via
+`MANUAL_REFRESH_COOLDOWN_MS`, a group with no current-year snapshot always
+buildable) — but it is not wired to a button today.
 
 Authorization is server-side and identical to the rest of Attendance: any
 provisioned staff member of the current staff year can read; only campus leaders
-/ admins can trigger a refresh.
+/ admins can trigger `recomputeNow`.
 
 ## Definitions & thresholds
 

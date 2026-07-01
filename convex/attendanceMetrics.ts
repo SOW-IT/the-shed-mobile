@@ -31,10 +31,13 @@ import {
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import {
+  internalAction,
   internalMutation,
+  internalQuery,
   mutation,
   query,
   type MutationCtx,
+  type QueryCtx,
 } from "./_generated/server";
 import { currentStaffYear, optionalProfile, requireAttendanceManager } from "./model";
 import { metricsDataValidator } from "./metricsData";
@@ -52,6 +55,34 @@ const MAX_EVENTS = 800;
 const MAX_EVENT_SCAN = 4000;
 /** Hard cap on distinct people resolved (names/photos) per recompute. */
 const MAX_PERSONS = 1200;
+/**
+ * Events whose attendance is read per gather transaction. The recompute action
+ * pages through events in chunks of this size so no single Convex read
+ * transaction loads more than ~this many events' worth of attendance rows,
+ * keeping each transaction well under the read/document limits even for a
+ * busy org-wide (SOW) recompute.
+ */
+const ATTENDANCE_CHUNK = 100;
+
+/** Convex validator mirroring shared `MetricsEvent`. */
+const metricsEventValidator = v.object({
+  id: v.string(),
+  name: v.string(),
+  dateStart: v.number(),
+  subgroups: v.array(v.string()),
+  collaborative: v.boolean(),
+  isWeeklyMeeting: v.boolean(),
+});
+
+/** Convex validator mirroring shared `MetricsPerson`. */
+const metricsPersonValidator = v.object({
+  key: v.string(),
+  name: v.string(),
+  kind: v.union(v.literal("staff"), v.literal("member")),
+  subtitle: v.optional(v.string()),
+  photo: v.optional(v.union(v.string(), v.null())),
+  breakdown: v.optional(v.record(v.string(), v.string())),
+});
 
 /**
  * Every range we precompute — the UI presets. The whole-staff-year range is
@@ -86,44 +117,41 @@ export async function markSubgroupsDirty(
     const subgroup = canonicalSubgroup(raw);
     if (seen.has(subgroup)) continue;
     seen.add(subgroup);
+    // `.first()`, never `.unique()`: the by_subgroup index isn't a uniqueness
+    // constraint and this runs inside roll-call writes, so a rare duplicate row
+    // must not throw and break a sign-in. Bump `since` to now on an existing row
+    // so a change landing mid-recompute isn't cleared by the worker's ack — the
+    // ack only deletes flags dirtied at/before its start (see clearDirty).
     const existing = await ctx.db
       .query("attendanceMetricsDirty")
       .withIndex("by_subgroup", (q) => q.eq("subgroup", subgroup))
-      .unique();
-    if (!existing) {
+      .first();
+    if (existing) {
+      await ctx.db.patch(existing._id, { since: now });
+    } else {
       await ctx.db.insert("attendanceMetricsDirty", { subgroup, since: now });
     }
   }
 }
 
 /**
- * Gather the bounded event/attendance/person inputs for one sub-group and
- * compute + upsert every range × collaborative-filter snapshot. Runs as its own
- * scheduled mutation (one per sub-group) so each stays within a transaction's
- * limits even for the org-wide SOW group.
+ * Bounded event gather for one sub-group: scan the newest events since
+ * `loadStart`, filter to the sub-group, resolve which are Weekly Meetings, and
+ * return the (bounded) `MetricsEvent[]` plus their ids. One transaction — reads
+ * at most MAX_EVENT_SCAN event docs, well under Convex's limits.
  */
-export const recomputeSubgroup = internalMutation({
-  args: { subgroup: v.string() },
-  returns: v.null(),
-  handler: async (ctx, { subgroup }) => {
+export const gatherEvents = internalQuery({
+  args: { subgroup: v.string(), loadStart: v.number() },
+  returns: v.object({
+    eventIds: v.array(v.id("events")),
+    metricsEvents: v.array(metricsEventValidator),
+  }),
+  handler: async (ctx, { subgroup, loadStart }) => {
     const canonical = canonicalSubgroup(subgroup);
-    const year = currentStaffYear();
-    const now = Date.now();
-    // Load from the EARLIER of the staff-year start and a rolling ~26-week
-    // window (hence Math.min), so a single fetch serves every range we compute:
-    // the staff-year range needs events back to the year's start, while the
-    // weekly ranges want a classification look-back (regulars/lapsed/re-engaged)
-    // that can reach into the previous staff year early in a new one.
-    const loadStart = Math.min(
-      staffYearStartMs(year),
-      now - HISTORY_WEEKS * WEEK_MS
-    );
-
     // Scan the newest MAX_EVENT_SCAN events since loadStart, THEN filter to this
     // sub-group and keep its newest MAX_EVENTS — so a sub-group that meets
     // rarely among many busier ones still gets its own older events, rather than
-    // being crowded out of a small newest-N raw window. Both caps stay well above
-    // this org's volume, keeping the transaction bounded.
+    // being crowded out of a small newest-N raw window.
     const scanned = await ctx.db
       .query("events")
       .withIndex("by_dateStart", (q) => q.gte("dateStart", loadStart))
@@ -152,59 +180,147 @@ export const recomputeSubgroup = internalMutation({
       collaborative: normalizeSubgroups(e.subgroups).length > 1,
       isWeeklyMeeting: (e.tagIds ?? []).some((id) => weeklyTagIds.has(id)),
     }));
+    return { eventIds: events.map((e) => e._id), metricsEvents };
+  },
+});
 
-    // Attendance for those events, keyed by the shared identity key.
-    const attendanceRows = await Promise.all(
-      events.map((e) =>
+/**
+ * Attendance for a bounded chunk of events, keyed by the shared identity key.
+ * The recompute action calls this once per {@link ATTENDANCE_CHUNK}-sized page
+ * so each transaction reads only that chunk's attendance rows — the fix for
+ * loading every event's attendance in one mutation.
+ */
+export const gatherAttendanceChunk = internalQuery({
+  args: { eventIds: v.array(v.id("events")) },
+  returns: v.array(
+    v.object({
+      eventId: v.string(),
+      personKey: v.string(),
+      signInTime: v.number(),
+    })
+  ),
+  handler: async (ctx, { eventIds }) => {
+    const perEvent = await Promise.all(
+      eventIds.map((id) =>
         ctx.db
           .query("attendance")
-          .withIndex("by_event", (q) => q.eq("eventId", e._id))
+          .withIndex("by_event", (q) => q.eq("eventId", id))
           .collect()
       )
     );
-    const attendance: MetricsAttendance[] = [];
-    const uniqueKeys = new Set<string>();
-    events.forEach((e, i) => {
-      for (const row of attendanceRows[i]) {
+    const out: MetricsAttendance[] = [];
+    eventIds.forEach((id, i) => {
+      for (const row of perEvent[i]) {
         const key = personKey(row);
         if (!key) continue;
-        attendance.push({ eventId: e._id, personKey: key, signInTime: row.signInTime });
-        uniqueKeys.add(key);
+        out.push({ eventId: id, personKey: key, signInTime: row.signInTime });
       }
     });
+    return out;
+  },
+});
 
-    const persons = await resolvePersons(ctx, [...uniqueKeys].slice(0, MAX_PERSONS), year);
+/** Resolve display info for the (bounded) set of people who attended. */
+export const gatherPersons = internalQuery({
+  args: { keys: v.array(v.string()), year: v.number() },
+  returns: v.array(metricsPersonValidator),
+  handler: (ctx, { keys, year }) => resolvePersons(ctx, keys, year),
+});
 
-    for (const rangeWeeks of ALL_RANGES) {
-      const rangeStartMs = rangeStartFor(now, rangeWeeks, staffYearStartMs(year));
-      for (const includeCollaborative of COLLAB_VARIANTS) {
-        const data = computeSubgroupMetrics({
-          now,
-          subgroup: canonical,
-          rangeStartMs,
-          historyStartMs: loadStart,
-          events: metricsEvents,
-          attendance,
-          persons,
-          includeCollaborative,
-        });
-        await upsertSnapshot(ctx, {
-          subgroup: canonical,
-          rangeWeeks,
-          includeCollaborative,
-          staffYear: year,
-          computedAt: now,
-          data: sanitize(data),
-        });
+/**
+ * Recompute + persist every range × collaborative-filter snapshot for one
+ * sub-group. Runs as an ACTION (scheduled one per sub-group) so it can page the
+ * potentially large attendance read across several bounded query transactions
+ * instead of reading every event's attendance in a single mutation — which,
+ * for the org-wide SOW group over a staff year, could exceed Convex's per-
+ * transaction read limits and leave snapshots missing or stale.
+ */
+export const recomputeSubgroup = internalAction({
+  args: { subgroup: v.string() },
+  returns: v.null(),
+  handler: async (ctx, { subgroup }) => {
+    // Ack anchor: dirty flags dirtied at/before `startedAt` are cleared once
+    // this succeeds; a change landing mid-recompute bumps `since` past it and is
+    // reprocessed next cron (see clearDirty / markSubgroupsDirty).
+    const startedAt = Date.now();
+    const canonical = canonicalSubgroup(subgroup);
+    const year = currentStaffYear();
+    const now = startedAt;
+    // Load from the EARLIER of the staff-year start and a rolling ~26-week
+    // window (hence Math.min), so a single gather serves every range we compute:
+    // the staff-year range needs events back to the year's start, while the
+    // weekly ranges want a classification look-back (regulars/lapsed/re-engaged)
+    // that can reach into the previous staff year early in a new one.
+    const loadStart = Math.min(
+      staffYearStartMs(year),
+      now - HISTORY_WEEKS * WEEK_MS
+    );
+
+    const { eventIds, metricsEvents } = await ctx.runQuery(
+      internal.attendanceMetrics.gatherEvents,
+      { subgroup: canonical, loadStart }
+    );
+
+    // Page attendance in bounded chunks so no single read transaction loads more
+    // than ATTENDANCE_CHUNK events' worth of rows.
+    const attendance: MetricsAttendance[] = [];
+    const uniqueKeys = new Set<string>();
+    for (let i = 0; i < eventIds.length; i += ATTENDANCE_CHUNK) {
+      const rows = await ctx.runQuery(
+        internal.attendanceMetrics.gatherAttendanceChunk,
+        { eventIds: eventIds.slice(i, i + ATTENDANCE_CHUNK) }
+      );
+      for (const row of rows) {
+        attendance.push(row);
+        uniqueKeys.add(row.personKey);
       }
     }
+
+    const persons = await ctx.runQuery(internal.attendanceMetrics.gatherPersons, {
+      keys: [...uniqueKeys].slice(0, MAX_PERSONS),
+      year,
+    });
+
+    // Compute every range × collaborative-filter snapshot (pure, in-memory).
+    const snapshots = ALL_RANGES.flatMap((rangeWeeks) => {
+      const rangeStartMs = rangeStartFor(now, rangeWeeks, staffYearStartMs(year));
+      return COLLAB_VARIANTS.map((includeCollaborative) => ({
+        rangeWeeks,
+        includeCollaborative,
+        data: sanitize(
+          computeSubgroupMetrics({
+            now,
+            subgroup: canonical,
+            rangeStartMs,
+            historyStartMs: loadStart,
+            events: metricsEvents,
+            attendance,
+            persons,
+            includeCollaborative,
+          })
+        ),
+      }));
+    });
+
+    // Persist, THEN ack the dirty flag — only now that the recompute succeeded,
+    // so a failure keeps the retry signal for the next cron.
+    await ctx.runMutation(internal.attendanceMetrics.writeSnapshots, {
+      subgroup: canonical,
+      staffYear: year,
+      computedAt: now,
+      snapshots,
+    });
+    await ctx.runMutation(internal.attendanceMetrics.clearDirty, {
+      subgroup: canonical,
+      upTo: startedAt,
+    });
     return null;
   },
 });
 
 /** Resolve display info (name, subtitle, photo, breakdown fields) per person. */
 async function resolvePersons(
-  ctx: MutationCtx,
+  ctx: QueryCtx,
   keys: string[],
   year: number
 ): Promise<MetricsPerson[]> {
@@ -280,32 +396,76 @@ function buildBreakdown(
   return breakdown;
 }
 
-async function upsertSnapshot(
-  ctx: MutationCtx,
-  doc: {
-    subgroup: string;
-    rangeWeeks: number;
-    includeCollaborative: boolean;
-    staffYear: number;
-    computedAt: number;
-    data: SubgroupMetricsData;
-  }
-): Promise<void> {
-  const existing = await ctx.db
-    .query("attendanceMetricsSnapshots")
-    .withIndex("by_subgroup_and_range", (q) =>
-      q
-        .eq("subgroup", doc.subgroup)
-        .eq("rangeWeeks", doc.rangeWeeks)
-        .eq("includeCollaborative", doc.includeCollaborative)
-    )
-    .unique();
-  if (existing) {
-    await ctx.db.patch(existing._id, doc);
-  } else {
-    await ctx.db.insert("attendanceMetricsSnapshots", doc);
-  }
-}
+/**
+ * Persist a batch of computed snapshots for one sub-group (from the recompute
+ * action). Resilient upsert per (range, collaborative): the
+ * `by_subgroup_and_range` index isn't a uniqueness constraint, so racing
+ * recomputes (weekly cron + dirty cron + manual refresh) could leave duplicate
+ * rows. Collect all matches, patch the first, delete any extras — never
+ * `.unique()`, which would throw and break both recompute and later reads.
+ */
+export const writeSnapshots = internalMutation({
+  args: {
+    subgroup: v.string(),
+    staffYear: v.number(),
+    computedAt: v.number(),
+    snapshots: v.array(
+      v.object({
+        rangeWeeks: v.number(),
+        includeCollaborative: v.boolean(),
+        data: metricsDataValidator,
+      })
+    ),
+  },
+  returns: v.null(),
+  handler: async (ctx, { subgroup, staffYear, computedAt, snapshots }) => {
+    for (const snap of snapshots) {
+      const matches = await ctx.db
+        .query("attendanceMetricsSnapshots")
+        .withIndex("by_subgroup_and_range", (q) =>
+          q
+            .eq("subgroup", subgroup)
+            .eq("rangeWeeks", snap.rangeWeeks)
+            .eq("includeCollaborative", snap.includeCollaborative)
+        )
+        .collect();
+      const doc = {
+        subgroup,
+        rangeWeeks: snap.rangeWeeks,
+        includeCollaborative: snap.includeCollaborative,
+        staffYear,
+        computedAt,
+        data: snap.data,
+      };
+      if (matches.length === 0) {
+        await ctx.db.insert("attendanceMetricsSnapshots", doc);
+      } else {
+        await ctx.db.patch(matches[0]._id, doc);
+        for (const extra of matches.slice(1)) await ctx.db.delete(extra._id);
+      }
+    }
+    return null;
+  },
+});
+
+/**
+ * Clear a sub-group's dirty flags once its recompute has succeeded — but only
+ * those dirtied at/before `upTo` (the recompute's start). A change that landed
+ * mid-recompute bumped `since` past `upTo` (see markSubgroupsDirty) and is left
+ * in place so the next cron reprocesses it.
+ */
+export const clearDirty = internalMutation({
+  args: { subgroup: v.string(), upTo: v.number() },
+  returns: v.null(),
+  handler: async (ctx, { subgroup, upTo }) => {
+    const rows = await ctx.db
+      .query("attendanceMetricsDirty")
+      .withIndex("by_subgroup", (q) => q.eq("subgroup", subgroup))
+      .collect();
+    for (const row of rows) if (row.since <= upTo) await ctx.db.delete(row._id);
+    return null;
+  },
+});
 
 /**
  * Cron entry (weekly, Thursdays): fan out a recompute per sub-group so each
@@ -341,11 +501,14 @@ export const recomputeDirty = internalMutation({
   returns: v.null(),
   handler: async (ctx) => {
     const dirty = await ctx.db.query("attendanceMetricsDirty").collect();
-    for (const row of dirty) {
+    // Dedupe by sub-group (a rare duplicate row must not fan out twice) and
+    // leave the flags in place: each recompute clears its own once it succeeds
+    // (see clearDirty), so a recompute that throws keeps its retry signal for
+    // the next run instead of being silently dropped here.
+    for (const subgroup of new Set(dirty.map((r) => r.subgroup))) {
       await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeSubgroup, {
-        subgroup: row.subgroup,
+        subgroup,
       });
-      await ctx.db.delete(row._id);
     }
     return null;
   },
@@ -376,7 +539,7 @@ export const snapshot = query({
   ),
   handler: async (ctx, { subgroup, rangeWeeks, includeCollaborative = true }) => {
     if (!(await optionalProfile(ctx))) return null;
-    const row = await ctx.db
+    const rows = await ctx.db
       .query("attendanceMetricsSnapshots")
       .withIndex("by_subgroup_and_range", (q) =>
         q
@@ -384,8 +547,12 @@ export const snapshot = query({
           .eq("rangeWeeks", rangeWeeks)
           .eq("includeCollaborative", includeCollaborative)
       )
-      .unique();
-    if (!row) return null;
+      .collect();
+    if (rows.length === 0) return null;
+    // Resilient to a rare duplicate row (the index isn't a uniqueness
+    // constraint; see writeSnapshots): take the newest rather than `.unique()`,
+    // which would throw and take down the Insights tab.
+    const row = rows.reduce((a, b) => (b.computedAt > a.computedAt ? b : a));
     // Snapshots are keyed by (subgroup, range, collaborative) but not by staff
     // year, so a row computed before the Oct 1 rollover would otherwise linger
     // and show last year's aggregates until the next recompute. Treat a

@@ -79,7 +79,7 @@ describe("attendanceMetrics", () => {
 
     // Run the same bounded recompute the cron fans out (call directly rather
     // than via the scheduler so it completes within the test).
-    await leader.mutation(internal.attendanceMetrics.recomputeSubgroup, {
+    await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
     });
 
@@ -103,7 +103,7 @@ describe("attendanceMetrics", () => {
       subgroups: [USYD],
     });
     await leader.mutation(api.attendance.signIn, { eventId: e, email: LEADER });
-    await leader.mutation(internal.attendanceMetrics.recomputeSubgroup, {
+    await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
     });
 
@@ -170,8 +170,17 @@ describe("attendanceMetrics", () => {
       new Set([SOW_SUBGROUP, USYD])
     );
 
-    // Draining clears the flags (and schedules a recompute per dirty sub-group).
+    // Draining schedules a recompute per dirty sub-group but LEAVES the flags in
+    // place — each recompute clears its own only after it succeeds (see
+    // clearDirty), so a failed recompute keeps its retry signal.
     await t.mutation(internal.attendanceMetrics.recomputeDirty, {});
+    expect(
+      await t.run((ctx) => ctx.db.query("attendanceMetricsDirty").collect())
+    ).toHaveLength(2);
+    // Running the scheduled recomputes acks (clears) their flags.
+    for (const subgroup of [SOW_SUBGROUP, USYD]) {
+      await t.action(internal.attendanceMetrics.recomputeSubgroup, { subgroup });
+    }
     expect(
       await t.run((ctx) => ctx.db.query("attendanceMetricsDirty").collect())
     ).toHaveLength(0);
@@ -195,7 +204,7 @@ describe("attendanceMetrics", () => {
       subgroups: [USYD],
     });
     await leader.mutation(api.attendance.signIn, { eventId: e, memberId });
-    await leader.mutation(internal.attendanceMetrics.recomputeSubgroup, {
+    await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
     });
     const snap = await leader.query(api.attendanceMetrics.snapshot, {
@@ -221,7 +230,7 @@ describe("attendanceMetrics", () => {
       eventId: e,
       email: "ghost@sow.org.au",
     });
-    await leader.mutation(internal.attendanceMetrics.recomputeSubgroup, {
+    await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
     });
     const snap = await leader.query(api.attendanceMetrics.snapshot, {
@@ -255,7 +264,7 @@ describe("attendanceMetrics", () => {
       eventId: e,
       email: "former@sow.org.au",
     });
-    await leader.mutation(internal.attendanceMetrics.recomputeSubgroup, {
+    await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
     });
     const snap = await leader.query(api.attendanceMetrics.snapshot, {
@@ -297,7 +306,7 @@ describe("attendanceMetrics", () => {
       tagIds: [tagId],
     });
     await leader.mutation(api.attendance.signIn, { eventId: e, email: LEADER });
-    await leader.mutation(internal.attendanceMetrics.recomputeSubgroup, {
+    await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
     });
     const snap = await leader.query(api.attendanceMetrics.snapshot, {
@@ -316,10 +325,10 @@ describe("attendanceMetrics", () => {
       subgroups: [USYD],
     });
     await leader.mutation(api.attendance.signIn, { eventId: e, email: LEADER });
-    await leader.mutation(internal.attendanceMetrics.recomputeSubgroup, {
+    await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
     });
-    await leader.mutation(internal.attendanceMetrics.recomputeSubgroup, {
+    await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
     });
     const rows = await t.run((ctx) =>
@@ -353,6 +362,47 @@ describe("attendanceMetrics", () => {
       rangeWeeks: 4,
     });
     expect(snap).toBeNull();
+  });
+
+  test("recompute heals duplicate snapshot rows and reads the newest", async () => {
+    const { t, leader } = await setup();
+    // Two rows for the same (subgroup, range, collaborative) — the state a race
+    // between the weekly cron, the dirty cron and a manual refresh could leave.
+    for (const computedAt of [Date.now() - 1000, Date.now()]) {
+      await t.run((ctx) =>
+        ctx.db.insert("attendanceMetricsSnapshots", {
+          subgroup: USYD,
+          rangeWeeks: 4,
+          includeCollaborative: true,
+          staffYear: YEAR,
+          computedAt,
+          data: EMPTY_DATA,
+        })
+      );
+    }
+    // The query tolerates the duplicate (never `.unique()`), returning one row.
+    expect(
+      await leader.query(api.attendanceMetrics.snapshot, {
+        subgroup: USYD,
+        rangeWeeks: 4,
+      })
+    ).not.toBeNull();
+    // A recompute patches one and deletes the extra, leaving a single row.
+    await t.action(internal.attendanceMetrics.recomputeSubgroup, {
+      subgroup: USYD,
+    });
+    const rows = await t.run((ctx) =>
+      ctx.db
+        .query("attendanceMetricsSnapshots")
+        .withIndex("by_subgroup_and_range", (q) =>
+          q
+            .eq("subgroup", USYD)
+            .eq("rangeWeeks", 4)
+            .eq("includeCollaborative", true)
+        )
+        .collect()
+    );
+    expect(rows).toHaveLength(1);
   });
 });
 

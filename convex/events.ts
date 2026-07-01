@@ -416,8 +416,6 @@ export const update = mutation({
       tagIds,
     });
     await ctx.db.patch(eventId, eventFields);
-    // Mark both the old and new sub-groups so a re-scoped event refreshes both.
-    await markSubgroupsDirty(ctx, [...existing.subgroups, ...eventFields.subgroups]);
     const changes: string[] = [];
     if (existing.name !== eventFields.name) changes.push("name");
     if (existing.dateStart !== eventFields.dateStart) changes.push("start date");
@@ -426,9 +424,14 @@ export const update = mutation({
       changes.push("sub-groups");
     if ((existing.tagIds ?? []).join() !== (eventFields.tagIds ?? []).join())
       changes.push("tags");
-    // Only log a genuine change, matching the tag/metadata saveAll paths — a
-    // no-op save shouldn't flood the trail with misleading "Updated" rows.
+    // Only act on a genuine change, matching the tag/metadata saveAll paths — a
+    // no-op save shouldn't flood the audit trail or schedule useless recomputes.
     if (changes.length) {
+      // Mark both the old and new sub-groups so a re-scoped event refreshes both.
+      await markSubgroupsDirty(ctx, [
+        ...existing.subgroups,
+        ...eventFields.subgroups,
+      ]);
       await logAttendanceAction(ctx, {
         actorEmail: email,
         entityType: "event",

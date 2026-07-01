@@ -20,17 +20,23 @@ All notable changes to **The SHED** mobile app. This project follows
   by month, new vs returning, plus Campus/Role breakdowns), and a gentle "Needs
   follow-up" list with explainable, non-judgemental reasons ("Missed the last 3
   weekly meetings", "Newcomer: first attended 2 weeks ago, hasn't returned",
-  "Returned after 8 weeks away"). Filters cover sub-group, time range
-  (4/8/12 weeks or the whole staff year), and include/exclude collaborative
-  events. The layout is responsive — a multi-column grid on a big screen, a
-  comfortable single/two-column stack on mobile.
-- **Weekly pre-computed insights (Thursdays).** A `attendance metrics recompute`
-  cron builds bounded, dashboard-ready snapshots per sub-group each week, so the
-  dashboard reads one small document instead of scanning attendance history on
-  the device. Campus leaders and admins can rebuild on demand with the tab's
-  Refresh action. The classification thresholds (regular / at-risk / lapsed /
-  newcomer / re-engaged / declining) live in `shared/attendanceMetrics.ts` and
-  are documented in `docs/attendance-metrics.md`.
+  "Returned after 8 weeks away"). Filters cover sub-group, trailing time range
+  (1 / 2 / 4 / 8 / 12 weeks), and include/exclude collaborative events. The
+  layout is responsive — a multi-column grid on a big screen, a comfortable
+  single/two-column stack on mobile.
+- **Auto-refreshed pre-computed insights.** Dashboard-ready snapshots are built
+  per sub-group by two crons — a weekly full refresh (`attendance metrics
+  recompute`, Thursdays) and a 15-minute dirty recompute (`attendance metrics
+  dirty recompute`) that rebuilds only the sub-groups changed by a roll-call or
+  event edit — so Insights reflects new attendance within minutes and the tab
+  reads one small document instead of scanning history on the device. Each
+  recompute runs as an action that pages its attendance reads in bounded chunks,
+  keeping every transaction within Convex's limits even for the org-wide view.
+  Snapshots refresh automatically, so the tab has no manual refresh control (a
+  throttled `recomputeNow` recovery path exists server-side but isn't surfaced).
+  The classification thresholds (regular / at-risk / lapsed / newcomer /
+  re-engaged / declining) live in `shared/attendanceMetrics.ts` and are
+  documented in `docs/attendance-metrics.md`.
 
 ## [1.5.3] — 2026-07-01
 

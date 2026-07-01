@@ -450,10 +450,6 @@ export const signIn = mutation({
     if (!!email === !!memberId) {
       throw new ConvexError("Provide either email or memberId.");
     }
-    // A roll-call change makes this event's sub-groups' insights stale; flag them
-    // so the short-interval cron refreshes within minutes (see markSubgroupsDirty).
-    // Cheap + de-duped, so a busy roll-call doesn't pile up work.
-    await markSubgroupsDirty(ctx, event.subgroups);
 
     if (email) {
       const lower = email.trim().toLowerCase();
@@ -470,6 +466,11 @@ export const signIn = mutation({
         email: lower,
         signInTime: Date.now(),
       });
+      // A new sign-in makes this event's sub-groups' insights stale; flag them so
+      // the short-interval cron refreshes within minutes (see markSubgroupsDirty).
+      // Flagged only after a real insert — an idempotent re-sign-in returns above
+      // without dirtying, so a busy roll-call doesn't pile up no-op recomputes.
+      await markSubgroupsDirty(ctx, event.subgroups);
       const who = await displayName(ctx, lower, eventStaffYear(event.dateStart));
       await logAttendanceAction(ctx, {
         actorEmail,
@@ -498,6 +499,7 @@ export const signIn = mutation({
       memberId,
       signInTime: Date.now(),
     });
+    await markSubgroupsDirty(ctx, event.subgroups);
     await logAttendanceAction(ctx, {
       actorEmail,
       entityType: "attendance",
@@ -530,6 +532,11 @@ export const updateRecord = mutation({
     if (Object.keys(patch).length === 0) return;
     await ctx.db.patch(attendanceId, patch);
     const event = await ctx.db.get(row.eventId);
+    // A changed sign-in time shifts which range/period an attendance falls in, so
+    // the metrics snapshot is stale (a notes-only edit isn't — skip it).
+    if (patch.signInTime !== undefined && event) {
+      await markSubgroupsDirty(ctx, event.subgroups);
+    }
     const who = row.memberId
       ? (await ctx.db.get(row.memberId))?.name ?? "A member"
       : row.email
@@ -586,6 +593,8 @@ export const signOut = mutation({
           );
         }
         await ctx.db.delete(existing._id);
+        // A removed sign-in changes counts/trends, so flag the insights stale.
+        if (event) await markSubgroupsDirty(ctx, event.subgroups);
         const who = await displayName(
           ctx,
           lower,
@@ -616,6 +625,7 @@ export const signOut = mutation({
           );
         }
         await ctx.db.delete(existing._id);
+        if (event) await markSubgroupsDirty(ctx, event.subgroups);
         const member = await ctx.db.get(memberId);
         await logAttendanceAction(ctx, {
           actorEmail,
