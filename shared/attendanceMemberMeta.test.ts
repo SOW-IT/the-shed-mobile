@@ -112,15 +112,29 @@ describe("partitionSelectOptions", () => {
       "4": "Vice President",
       "5": "Executive",
       "6": "Head of Department",
+      "7": "Member",
+      "8": "Newcomer",
+      "9": "Alumni",
+      "10": "Volunteer",
     };
     expect(
-      orderedRoleFilterOptions(values, Object.values(values)).map((o) => o.label)
-    ).toEqual(["Staff", "Student Leader"]);
+      orderedRoleFilterOptions(values, [
+        "Staff",
+        "Student Leader",
+        "President",
+        "Vice President",
+        "Executive",
+        "Head of Department",
+        "Volunteer",
+      ]).map((o) => o.label)
+    ).toEqual(["Staff", "Student Leader", "Member", "Newcomer", "Alumni"]);
     expect(roleFilterMatches("Student Leader", ["President"], null)).toBe(true);
     expect(roleFilterMatches("Student Leader", ["Executive"], null)).toBe(true);
     expect(roleFilterMatches("Student Leader", ["Staff"], null)).toBe(false);
     expect(roleFilterMatches("Staff", ["Head of Department"], null)).toBe(true);
     expect(roleFilterMatches("Staff", ["President"], null)).toBe(false);
+    expect(roleFilterMatches("Staff", [], "Staff")).toBe(false);
+    expect(roleFilterMatches("Staff", [], "Member")).toBe(false);
     expect(roleFilterMatches("Head of Department", [], "Head of Department")).toBe(
       true
     );
