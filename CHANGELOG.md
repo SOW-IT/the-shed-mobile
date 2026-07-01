@@ -6,6 +6,19 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.6.3] — 2026-07-02
+
+### Fixed
+
+- **Spinner date/time picker couldn't be tapped or dragged.** After 1.6.2
+  switched to the `spinner` (wheel) display, the picker rendered inside its
+  sheet but ignored all touches. The SwiftUI host that backs the wheel only
+  sizes itself to its content vertically, so in the horizontally-centered
+  container it collapsed to a 0-width frame — the wheel still *drew* (SwiftUI
+  overflows its bounds) but every tap and drag landed outside the hittable
+  frame. The picker now stretches to fill the sheet width, restoring
+  interaction.
+
 ## [1.6.2] — 2026-07-02
 
 ### Fixed
