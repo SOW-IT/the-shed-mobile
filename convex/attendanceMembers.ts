@@ -152,7 +152,9 @@ export const list = query({
     search: v.optional(v.string()),
     sortKey: v.optional(v.string()),
     sortAsc: v.optional(v.boolean()),
-    filters: v.optional(v.record(v.string(), v.string())),
+    filters: v.optional(
+      v.record(v.string(), v.union(v.string(), v.array(v.string())))
+    ),
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
@@ -270,44 +272,45 @@ export const list = query({
       );
     }
 
+    const matchesFieldFilter = (
+      row: MemberRow,
+      fieldId: string,
+      value: string
+    ): boolean => {
+      if (value === "unset") return !row.metadata[fieldId];
+      if (yearField && fieldId === yearField._id && yearField.values) {
+        const stored = row.metadata[fieldId];
+        if (!stored) return false;
+        return (
+          yearOptionIdForStoredValue(stored, viewingYear, yearField.values) ===
+          value
+        );
+      }
+      if (roleField && fieldId === roleField._id) {
+        const filterLabel = roleField.values?.[value] ?? value;
+        const stored = row.metadata[fieldId];
+        const metadataRoleLabel = stored
+          ? formatMetadataFieldValue(
+              roleField.key,
+              stored,
+              viewingYear,
+              roleField.values
+            )
+          : null;
+        return roleFilterMatches(filterLabel, row.roles, metadataRoleLabel);
+      }
+      return row.metadata[fieldId] === value;
+    };
+
     if (args.filters) {
-      for (const [fieldId, value] of Object.entries(args.filters)) {
-        if (!value || value === "all") continue;
-        if (value === "unset") {
-          filtered = filtered.filter((r) => !r.metadata[fieldId]);
-        } else if (
-          yearField &&
-          fieldId === yearField._id &&
-          yearField.values
-        ) {
-          filtered = filtered.filter((r) => {
-            const stored = r.metadata[fieldId];
-            if (!stored) return false;
-            return (
-              yearOptionIdForStoredValue(
-                stored,
-                viewingYear,
-                yearField.values!
-              ) === value
-            );
-          });
-        } else if (roleField && fieldId === roleField._id) {
-          const filterLabel = roleField.values?.[value] ?? value;
-          filtered = filtered.filter((r) => {
-            const stored = r.metadata[fieldId];
-            const metadataRoleLabel = stored
-              ? formatMetadataFieldValue(
-                  roleField.key,
-                  stored,
-                  viewingYear,
-                  roleField.values
-                )
-              : null;
-            return roleFilterMatches(filterLabel, r.roles, metadataRoleLabel);
-          });
-        } else {
-          filtered = filtered.filter((r) => r.metadata[fieldId] === value);
-        }
+      for (const [fieldId, rawValue] of Object.entries(args.filters)) {
+        const values = (Array.isArray(rawValue) ? rawValue : [rawValue]).filter(
+          (value) => value && value !== "all"
+        );
+        if (values.length === 0) continue;
+        filtered = filtered.filter((row) =>
+          values.some((value) => matchesFieldFilter(row, fieldId, value))
+        );
       }
     }
 

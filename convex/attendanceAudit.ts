@@ -84,8 +84,11 @@ export const list = query({
   args: {
     search: v.optional(v.string()),
     actorEmail: v.optional(v.string()),
+    actorEmails: v.optional(v.array(v.string())),
     eventId: v.optional(v.id("events")),
+    eventIds: v.optional(v.array(v.id("events"))),
     entityType: v.optional(entityTypeValidator),
+    entityTypes: v.optional(v.array(entityTypeValidator)),
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
@@ -93,9 +96,26 @@ export const list = query({
       return { page: [], isDone: true, continueCursor: "" };
     }
 
-    const { eventId, actorEmail, entityType } = args;
+    const eventIds = args.eventIds?.length
+      ? args.eventIds
+      : args.eventId
+        ? [args.eventId]
+        : [];
+    const actorEmails = args.actorEmails?.length
+      ? args.actorEmails
+      : args.actorEmail
+        ? [args.actorEmail]
+        : [];
+    const entityTypes = args.entityTypes?.length
+      ? args.entityTypes
+      : args.entityType
+        ? [args.entityType]
+        : [];
     const search = args.search?.trim().toLowerCase();
     const { numItems } = args.paginationOpts;
+    const eventIdSet = new Set(eventIds);
+    const actorEmailSet = new Set(actorEmails);
+    const entityTypeSet = new Set(entityTypes);
 
     // A fresh query for the active filter's most selective index (query builders
     // are single-use, so we rebuild it each pagination step). Uses convex-helpers'
@@ -106,18 +126,21 @@ export const list = query({
     // `paginator` has no such limit.
     const indexed = () => {
       const q = paginator(ctx.db, schema).query("attendanceAuditLog");
-      if (eventId) return q.withIndex("by_event", (i) => i.eq("eventId", eventId));
-      if (actorEmail)
-        return q.withIndex("by_actor", (i) => i.eq("actorEmail", actorEmail));
+      if (eventIds.length === 1)
+        return q.withIndex("by_event", (i) => i.eq("eventId", eventIds[0]));
+      if (eventIds.length === 0 && actorEmails.length === 1)
+        return q.withIndex("by_actor", (i) => i.eq("actorEmail", actorEmails[0]));
       return q;
     };
     const matchesResidual = (r: {
       actorEmail: string;
       entityType: string;
+      eventId?: Id<"events">;
       summary: string;
     }) =>
-      (!actorEmail || r.actorEmail === actorEmail) &&
-      (!entityType || r.entityType === entityType) &&
+      (actorEmailSet.size === 0 || actorEmailSet.has(r.actorEmail)) &&
+      (entityTypeSet.size === 0 || entityTypeSet.has(r.entityType as AuditEntityType)) &&
+      (eventIdSet.size === 0 || (r.eventId != null && eventIdSet.has(r.eventId))) &&
       (!search ||
         r.summary.toLowerCase().includes(search) ||
         r.actorEmail.toLowerCase().includes(search));
