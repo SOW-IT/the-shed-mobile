@@ -208,7 +208,11 @@ export const list = query({
       );
       rows.push({
         key: `staff:${p.email}`,
-        kind: "staff",
+        // Staff-ness follows the CURRENT staff year: a profile that carries no
+        // assignment (no role this year) is listed as a Member from this year
+        // on, even if they held a role in a previous year. Still editable via
+        // their email (the row keeps it) so their member metadata stays reachable.
+        kind: assignments.length > 0 ? "staff" : "member",
         name: personDisplayName(p.name, p.email),
         email: p.email,
         memberId: shadow?._id,

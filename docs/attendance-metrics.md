@@ -1,10 +1,12 @@
-# Attendance → Insights (metrics dashboard)
+# Insights → Attendance (metrics dashboard)
 
-A leader-facing dashboard inside the Attendance area that turns raw sign-in data
-into trends and gentle follow-up prompts for a sub-group and time range.
+A leader-facing dashboard that turns raw sign-in data into trends and gentle
+follow-up prompts for a sub-group and time range.
 
 - **UI:** `src/components/attendance/MetricsTab.tsx` (+ `MetricsCharts.tsx`),
-  wired in as the **Insights** tab after Events in `src/app/(tabs)/attendance.tsx`.
+  hosted in its own **Insights** bottom tab (`src/app/(tabs)/insights.tsx`) under
+  the **Attendance** top-bar segment. A second **General** segment is scaffolded
+  for future cross-cutting insights.
 - **Logic (pure, shared, tested):** `shared/attendanceMetrics.ts`
   (`shared/attendanceMetrics.test.ts`).
 - **Backend precompute + read API:** `convex/attendanceMetrics.ts`
@@ -30,8 +32,11 @@ out one bounded recompute per sub-group. Each recompute:
 
 The tab reads a snapshot via `api.attendanceMetrics.snapshot`. Campus leaders and
 admins can rebuild on demand (`api.attendanceMetrics.recomputeNow`, gated by
-`requireAttendanceManager`) using the tab's **Refresh** action — handy for the
-first run before any Thursday has passed.
+`requireAttendanceManager`) using the pinned **Build / Refresh insights** footer
+— handy for the first run before any Thursday has passed. That manual refresh is
+throttled to **once per week per sub-group** (`MANUAL_REFRESH_COOLDOWN_MS`),
+enforced server-side and mirrored in the UI (the footer disables and shows when
+it's next available); a group with no current-year snapshot can always build.
 
 Authorization is server-side and identical to the rest of Attendance: any
 provisioned staff member of the current staff year can read; only campus leaders

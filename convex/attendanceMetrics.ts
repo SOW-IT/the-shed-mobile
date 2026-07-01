@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import {
   assignmentsOf,
   roleNeedsUniversity,
@@ -17,6 +17,8 @@ import {
 import { staffEmailCandidates } from "../shared/rollcallImport";
 import {
   computeSubgroupMetrics,
+  DAY_MS,
+  MANUAL_REFRESH_COOLDOWN_MS,
   METRICS_THRESHOLDS,
   RANGE_WEEKS,
   rangeStartFor,
@@ -190,6 +192,10 @@ async function resolvePersons(
       const roles = profile
         ? [...new Set(assignmentsOf(profile).map((a) => a.role))]
         : [];
+      // Staff-ness follows the CURRENT staff year: someone with no profile this
+      // year, or a profile that carries no assignment (no role), is treated as a
+      // Member from this year on — even if they were staff previously.
+      const isStaff = !!profile && assignmentsOf(profile).length > 0;
       const campuses = profile
         ? [
             ...new Set(
@@ -202,11 +208,13 @@ async function resolvePersons(
       const user = profile?.userId ? await ctx.db.get(profile.userId) : null;
       persons.push({
         key,
-        kind: "staff",
+        kind: isStaff ? "staff" : "member",
         name: personDisplayName(profile?.name, email),
-        subtitle: roles.join(" · ") || undefined,
+        subtitle: isStaff ? roles.join(" · ") || undefined : undefined,
         photo: user?.image ?? null,
-        breakdown: buildBreakdown(roles[0], campuses[0]),
+        breakdown: isStaff
+          ? buildBreakdown(roles[0], campuses[0])
+          : buildBreakdown("Member", undefined),
       });
     } else if (key.startsWith(MEMBER_PREFIX)) {
       const id = ctx.db.normalizeId("attendanceMembers", key.slice(MEMBER_PREFIX.length));
@@ -359,7 +367,10 @@ export const recomputeNow = mutation({
         .query("attendanceMetricsSnapshots")
         .withIndex("by_subgroup_and_range", (q) => q.eq("subgroup", canonical))
         .first();
-      if (latest) {
+      // Only a *current-year* snapshot gates the cooldown; a group with none, or
+      // only a stale prior-year one, can always be (re)built — matching what the
+      // UI shows as "not ready".
+      if (latest && latest.staffYear === currentStaffYear()) {
         const elapsed = Date.now() - latest.computedAt;
         if (elapsed < MANUAL_REFRESH_COOLDOWN_MS) {
           const days = Math.ceil((MANUAL_REFRESH_COOLDOWN_MS - elapsed) / DAY_MS);

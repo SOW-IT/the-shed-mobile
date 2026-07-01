@@ -21,6 +21,7 @@ import type * as bankAccounts from "../bankAccounts.js";
 import type * as cleanup from "../cleanup.js";
 import type * as comments from "../comments.js";
 import type * as crons from "../crons.js";
+import type * as devE2E from "../devE2E.js";
 import type * as directory from "../directory.js";
 import type * as directorySync from "../directorySync.js";
 import type * as emails from "../emails.js";
@@ -58,6 +59,7 @@ declare const fullApi: ApiFromModules<{
   cleanup: typeof cleanup;
   comments: typeof comments;
   crons: typeof crons;
+  devE2E: typeof devE2E;
   directory: typeof directory;
   directorySync: typeof directorySync;
   emails: typeof emails;

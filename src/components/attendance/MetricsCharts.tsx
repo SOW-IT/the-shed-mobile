@@ -27,6 +27,7 @@ export function MetricCard({
   hint,
   tone = "default",
   width,
+  onPress,
 }: {
   label: string;
   value: string;
@@ -34,6 +35,8 @@ export function MetricCard({
   hint?: string;
   tone?: "default" | "positive" | "attention";
   width: number;
+  /** When set, the card is tappable and shows an info glyph (opens a detail). */
+  onPress?: () => void;
 }) {
   const t = useAppTheme();
   const accent =
@@ -45,11 +48,16 @@ export function MetricCard({
       : delta.direction === "down"
         ? t.danger
         : t.muted;
-  return (
-    <Card style={[styles.metricCard, { width }]}>
-      <Text style={[typography.label, { color: t.muted }]} numberOfLines={1}>
-        {label}
-      </Text>
+  const body = (
+    <>
+      <View style={styles.metricLabelRow}>
+        <Text style={[typography.label, { color: t.muted, flex: 1 }]} numberOfLines={1}>
+          {label}
+        </Text>
+        {onPress ? (
+          <Ionicons name="information-circle-outline" size={15} color={t.faint} />
+        ) : null}
+      </View>
       <Text style={[typography.amount, { color: accent }]} numberOfLines={1}>
         {value}
       </Text>
@@ -78,8 +86,21 @@ export function MetricCard({
           </Text>
         ) : null}
       </View>
-    </Card>
+    </>
   );
+  if (onPress) {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${label}: ${value}. Tap for details`}
+        onPress={onPress}
+        style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+      >
+        <Card style={[styles.metricCard, { width }]}>{body}</Card>
+      </Pressable>
+    );
+  }
+  return <Card style={[styles.metricCard, { width }]}>{body}</Card>;
 }
 
 /** Titled container for a chart, with an optional legend row. */
@@ -336,6 +357,11 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: 4,
     justifyContent: "space-between",
+  },
+  metricLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   metricFooter: {
     gap: 2,

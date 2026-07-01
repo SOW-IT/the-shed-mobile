@@ -343,6 +343,82 @@ describe("computeSubgroupMetrics — follow-up ordering", () => {
   });
 });
 
+describe("computeSubgroupMetrics — weekly-meeting lens", () => {
+  it("averages weekly-meeting turnout separately from all-event turnout", () => {
+    // Two weekly meetings (turnout 2 each) plus one big one-off (turnout 4).
+    const w1 = weekly(weeksAgo(3));
+    const w2 = weekly(weeksAgo(2));
+    const big = oneOff(weeksAgo(1));
+    const attendance = [
+      attend(w1, "a"),
+      attend(w1, "b"),
+      attend(w2, "a"),
+      attend(w2, "b"),
+      attend(big, "a"),
+      attend(big, "b"),
+      attend(big, "c"),
+      attend(big, "d"),
+    ];
+    const data = computeSubgroupMetrics(
+      build([w1, w2, big], attendance, ["a", "b", "c", "d"].map((k) => person(k)))
+    );
+    expect(data.hasWeeklyMeetings).toBe(true);
+    // Weekly average is 2 (the one-off's 4 doesn't inflate it); all-event avg is higher.
+    expect(data.summary.avgWeeklyAttendance).toBe(2);
+    expect(data.summary.avgAttendance).toBeGreaterThan(2);
+  });
+
+  it("reports no weekly average for a group that runs no weekly meetings", () => {
+    const e1 = oneOff(weeksAgo(2));
+    const e2 = oneOff(weeksAgo(1));
+    const data = computeSubgroupMetrics(
+      build([e1, e2], [attend(e1, "a"), attend(e2, "a")], [person("a")])
+    );
+    expect(data.hasWeeklyMeetings).toBe(false);
+    expect(data.summary.avgWeeklyAttendance).toBeNull();
+  });
+
+  it("measures new-vs-returning at weekly meetings when the group runs them", () => {
+    // X first appears at a one-off, THEN at the weekly meetings. Because this
+    // group runs weekly meetings, the split is over weekly meetings only, so X
+    // is "fresh" at their first weekly meeting despite the earlier one-off.
+    const pre = oneOff(weeksAgo(4));
+    const w1 = weekly(weeksAgo(3));
+    const w2 = weekly(weeksAgo(2));
+    const data = computeSubgroupMetrics(
+      build(
+        [pre, w1, w2],
+        [attend(pre, "x"), attend(w1, "x"), attend(w2, "x")],
+        [person("x")]
+      )
+    );
+    // Only the two weekly meetings appear in the split, not the one-off.
+    expect(data.newVsReturning).toHaveLength(2);
+    expect(data.newVsReturning[0]).toMatchObject({ fresh: 1, returning: 0 }); // first weekly
+    expect(data.newVsReturning[1]).toMatchObject({ fresh: 0, returning: 1 }); // returning
+  });
+});
+
+describe("computeSubgroupMetrics — follow-up follows the range", () => {
+  it("scopes recent-activity counts to the selected range", () => {
+    // 12 weekly meetings ending now; Ed attended only three of them, 5–7 weeks
+    // ago (so outside a 4-week window, inside an 8-week one), and none since.
+    const meetings = weeklySeries(12); // index i → weeksAgo(11 - i)
+    const attendance = [5, 6, 7].map((w) =>
+      attend(meetings[11 - w], "ed")
+    );
+    const eightWeek = computeSubgroupMetrics(
+      build(meetings, attendance, [person("ed")]) // default range = 8 weeks
+    );
+    const fourWeek = computeSubgroupMetrics(
+      build(meetings, attendance, [person("ed")], { rangeStartMs: weeksAgo(4) })
+    );
+    // Same data, different window: 3 recent attendances at 8 weeks, 0 at 4 weeks.
+    expect(findReason(eightWeek, "ed")?.recentCount).toBe(3);
+    expect(findReason(fourWeek, "ed")?.recentCount).toBe(0);
+  });
+});
+
 describe("rangeStartFor", () => {
   it("returns a trailing window for a week count", () => {
     expect(rangeStartFor(NOW, 4, 0)).toBe(NOW - 4 * WEEK_MS);

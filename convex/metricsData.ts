@@ -47,6 +47,9 @@ const summary = v.object({
   avgAttendance: v.number(),
   avgAttendancePrev: v.union(v.number(), v.null()),
   changePct: v.union(v.number(), v.null()),
+  avgWeeklyAttendance: v.union(v.number(), v.null()),
+  avgWeeklyAttendancePrev: v.union(v.number(), v.null()),
+  weeklyChangePct: v.union(v.number(), v.null()),
   eventsHeld: v.number(),
   uniqueAttendees: v.number(),
   newcomers: v.number(),
@@ -64,4 +67,5 @@ export const metricsDataValidator = v.object({
   followUps: v.array(followUp),
   breakdowns: v.array(breakdown),
   hasEnoughHistory: v.boolean(),
+  hasWeeklyMeetings: v.boolean(),
 });

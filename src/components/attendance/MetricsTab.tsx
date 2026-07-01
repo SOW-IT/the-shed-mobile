@@ -11,7 +11,7 @@
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   LayoutChangeEvent,
   Pressable,
@@ -24,6 +24,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import {
+  DAY_MS,
+  MANUAL_REFRESH_COOLDOWN_MS,
   RANGE_WEEKS,
   STAFF_YEAR_RANGE,
   type FollowUpPerson,
@@ -43,6 +45,7 @@ import {
   EmptyState,
   FadeInView,
   LoadingState,
+  Sheet,
   Toast,
   type ToastState,
   stagger,
@@ -60,12 +63,45 @@ const RANGE_OPTIONS: RangeOption[] = [
 
 const timeAgo = (ms: number): string => {
   const diff = Date.now() - ms;
-  const mins = Math.round(diff / 60000);
+  const mins = Math.floor(diff / 60000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins}m ago`;
-  const hours = Math.round(mins / 60);
+  const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+};
+
+/** "3 days" / "1 day" — the wait shown while the weekly refresh is on cooldown. */
+const cooldownDays = (ms: number): string => {
+  const days = Math.ceil(ms / DAY_MS);
+  return `${days} day${days === 1 ? "" : "s"}`;
+};
+
+/**
+ * Refresh state lifted to the screen so it can render the pinned full-width
+ * footer (same affordance as "Make Request"). `disabled` covers both an
+ * in-flight refresh and the once-per-week cooldown; `note` explains the wait.
+ */
+export type RefreshControls = {
+  /** Whether a sub-group is selected — i.e. whether to show the footer at all. */
+  available: boolean;
+  /** "Build insights" (nothing yet) vs "Refresh insights" (has a snapshot). */
+  label: string;
+  onRefresh: () => void;
+  disabled: boolean;
+  note: string | null;
+};
+
+/** Plain-language explanation shown when a summary tile is tapped. */
+type TileDetail = { title: string; body: string };
+
+type SummaryCard = {
+  label: string;
+  value: string;
+  delta?: { text: string; direction: "up" | "down" | "flat" } | null;
+  hint?: string;
+  tone?: "default" | "positive" | "attention";
+  detail: TileDetail;
 };
 
 export function MetricsTab({
@@ -73,12 +109,14 @@ export function MetricsTab({
   selectedSubgroup,
   onSelectedSubgroupChange,
   onOpenMember,
+  onRefreshStateChange,
 }: {
   year: number;
   subgroups: string[];
   selectedSubgroup: string | null;
   onSelectedSubgroupChange: (subgroup: string) => void;
   onOpenMember: (memberId: Id<"attendanceMembers">) => void;
+  onRefreshStateChange?: (controls: RefreshControls) => void;
 }) {
   const t = useAppTheme();
   const router = useRouter();
@@ -90,6 +128,7 @@ export function MetricsTab({
   const [containerWidth, setContainerWidth] = useState(windowWidth);
   const [toast, setToast] = useState<ToastState>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [detail, setDetail] = useState<TileDetail | null>(null);
 
   const recompute = useMutation(api.attendanceMetrics.recomputeNow);
   const snapshot = useQuery(
@@ -109,7 +148,7 @@ export function MetricsTab({
   const chartWidth =
     (containerWidth - spacing.sm * (chartCols - 1)) / chartCols;
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     if (!subgroup) return;
     setRefreshing(true);
     try {
@@ -127,7 +166,29 @@ export function MetricsTab({
     } finally {
       setRefreshing(false);
     }
-  };
+  }, [subgroup, recompute]);
+
+  // Report the refresh state up so the screen can render the pinned footer.
+  // The weekly cooldown is mirrored from the server (recomputeNow): a current
+  // snapshot computed less than a week ago blocks a manual refresh, while no
+  // snapshot (or a stale prior-year one, which reads as null here) can always be
+  // built. `Date.now()` lives in the effect, not render, to stay pure.
+  const computedAt = snapshot?.computedAt ?? null;
+  useEffect(() => {
+    const remainingMs =
+      computedAt !== null ? MANUAL_REFRESH_COOLDOWN_MS - (Date.now() - computedAt) : 0;
+    const inCooldown = remainingMs > 0;
+    onRefreshStateChange?.({
+      available: !!subgroup && snapshot !== undefined,
+      label: snapshot ? "Refresh insights" : "Build insights",
+      onRefresh: () => void onRefresh(),
+      disabled: refreshing || inCooldown,
+      note: inCooldown
+        ? `Insights refresh automatically each week. You can refresh again in ${cooldownDays(remainingMs)}.`
+        : null,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subgroup, snapshot, computedAt, refreshing, onRefresh]);
 
   const openPerson = (person: FollowUpPerson) => {
     if (person.key.startsWith("member:")) {
@@ -142,32 +203,79 @@ export function MetricsTab({
   };
 
   const data = snapshot?.data;
-  const summaryCards = useMemo(() => {
+  const summaryCards = useMemo<SummaryCard[]>(() => {
     if (!data) return [];
     const s = data.summary;
-    const changeDelta =
-      s.changePct === null
+    const deltaFor = (pct: number | null) =>
+      pct === null
         ? null
         : {
-            text: `${s.changePct > 0 ? "+" : ""}${s.changePct}%`,
+            text: `${pct > 0 ? "+" : ""}${pct}%`,
             direction:
-              s.changePct > 0 ? ("up" as const) : s.changePct < 0 ? ("down" as const) : ("flat" as const),
+              pct > 0 ? ("up" as const) : pct < 0 ? ("down" as const) : ("flat" as const),
           };
-    return [
-      {
-        label: "Avg / event",
-        value: `${s.avgAttendance}`,
-        delta: changeDelta,
-        hint:
-          s.avgAttendancePrev !== null ? `vs ${s.avgAttendancePrev} prev` : "no baseline yet",
+
+    const weeklyCard: SummaryCard = {
+      label: "Avg / weekly mtg",
+      value: s.avgWeeklyAttendance === null ? "—" : `${s.avgWeeklyAttendance}`,
+      delta: deltaFor(s.weeklyChangePct),
+      hint:
+        s.avgWeeklyAttendancePrev !== null
+          ? `vs ${s.avgWeeklyAttendancePrev} prev`
+          : "no baseline yet",
+      detail: {
+        title: "Average weekly meeting attendance",
+        body: "The average number of people at each weekly meeting in the selected range — counting only events tagged “Weekly Meeting”, so make-up or one-off events don't dilute it. The arrow compares this to the previous period of the same length. This is the headline for groups that gather weekly; “—” means no weekly meetings fell in the range.",
       },
-      { label: "Events held", value: `${s.eventsHeld}` },
-      { label: "Unique attendees", value: `${s.uniqueAttendees}` },
-      { label: "Newcomers", value: `${s.newcomers}`, tone: "positive" as const },
+    };
+    const eventCard: SummaryCard = {
+      label: "Avg / event",
+      value: `${s.avgAttendance}`,
+      delta: deltaFor(s.changePct),
+      hint:
+        s.avgAttendancePrev !== null ? `vs ${s.avgAttendancePrev} prev` : "no baseline yet",
+      detail: {
+        title: "Average attendance per event",
+        body: "The average turnout across every event in the range (weekly meetings plus any other gatherings), compared to the previous period of the same length. Include or exclude multi-campus (collaborative) events with the toggle above.",
+      },
+    };
+
+    return [
+      ...(data.hasWeeklyMeetings ? [weeklyCard] : []),
+      eventCard,
+      {
+        label: "Events held",
+        value: `${s.eventsHeld}`,
+        detail: {
+          title: "Events held",
+          body: "How many events this sub-group held within the selected range. Collaborative (multi-campus) events are included only when the toggle above is on.",
+        },
+      },
+      {
+        label: "Unique attendees",
+        value: `${s.uniqueAttendees}`,
+        detail: {
+          title: "Unique attendees",
+          body: "The number of distinct people who attended at least one event in the range. Someone who came to five events counts once.",
+        },
+      },
+      {
+        label: "Newcomers",
+        value: `${s.newcomers}`,
+        tone: "positive" as const,
+        detail: {
+          title: "Newcomers",
+          body: "People attending for the first time ever — their first recorded attendance (across all loaded history) falls within roughly the last 30 days, or the selected range if it is shorter. Deliberately anchored to “recently new” rather than the whole range, so a long range doesn't count everyone who joined months ago.",
+        },
+      },
       {
         label: "Follow-up suggested",
         value: `${s.followUpCount}`,
         tone: "attention" as const,
+        detail: {
+          title: "Follow-up suggested",
+          body: "People whose recent attendance suggests a gentle check-in: at-risk regulars, those who've lapsed, people attending less than before, newcomers who haven't returned, and the recently re-engaged. “Recent” follows the range you pick, so this number moves with the 4/8/12-week and staff-year selector. The full breakdown is in the “Needs follow-up” list below.",
+        },
       },
       {
         label: "Weekly consistency",
@@ -175,6 +283,10 @@ export function MetricsTab({
           s.weeklyConsistency === null
             ? "—"
             : `${Math.round(s.weeklyConsistency * 100)}%`,
+        detail: {
+          title: "Weekly consistency",
+          body: "How steady weekly-meeting turnout is over the range — average weekly attendance divided by the best week. 100% means every week matched the peak; a lower figure means turnout swings more. “—” when there were no weekly meetings in the range.",
+        },
       },
     ];
   }, [data]);
@@ -256,18 +368,12 @@ export function MetricsTab({
             </Text>
           </Pressable>
           {snapshot ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Refresh insights"
-              onPress={onRefresh}
-              disabled={refreshing}
-              style={({ pressed }) => [styles.refresh, pressed && { opacity: 0.6 }]}
-            >
-              <Ionicons name="refresh" size={15} color={t.primary} />
-              <Text style={[typography.caption, { color: t.primary, fontWeight: "700" }]}>
-                {refreshing ? "…" : `Updated ${timeAgo(snapshot.computedAt)}`}
+            <View style={styles.refresh}>
+              <Ionicons name="time-outline" size={14} color={t.faint} />
+              <Text style={[typography.caption, { color: t.faint }]}>
+                {refreshing ? "Refreshing…" : `Updated ${timeAgo(snapshot.computedAt)}`}
               </Text>
-            </Pressable>
+            </View>
           ) : null}
         </View>
       </View>
@@ -279,7 +385,7 @@ export function MetricsTab({
         <EmptyState
           icon="sparkles-outline"
           title="Insights aren't ready yet"
-          message="Attendance insights are prepared automatically each week. Tap “Refresh” below to build them now."
+          message="Attendance insights are prepared automatically each week. Tap “Build insights” below to build them now."
         />
       ) : data && !data.hasEnoughHistory ? (
         <EmptyState
@@ -295,66 +401,105 @@ export function MetricsTab({
         />
       ) : data ? (
         <>
-          {/* Summary cards. */}
+          {/* Summary cards — tap any tile for a plain-language explanation. */}
           <View style={styles.cardGrid}>
             {summaryCards.map((card, i) => (
               <FadeInView key={card.label} delay={stagger(i)}>
                 <MetricCard
                   label={card.label}
                   value={card.value}
-                  delta={"delta" in card ? card.delta : undefined}
-                  hint={"hint" in card ? card.hint : undefined}
-                  tone={"tone" in card ? card.tone : "default"}
+                  delta={card.delta}
+                  hint={card.hint}
+                  tone={card.tone ?? "default"}
                   width={cardWidth}
+                  onPress={() => setDetail(card.detail)}
                 />
               </FadeInView>
             ))}
           </View>
 
-          {/* Trend charts. */}
+          {/* Trend charts. For weekly-meeting groups the weekly lens leads:
+              weekly trend, then new-vs-returning (measured at weekly meetings),
+              then the all-event charts. Other groups keep the per-event order. */}
           <View style={styles.chartGrid}>
-            <ChartCard title="Attendance over time" subtitle="Per event" width={chartWidth}>
-              <BarChart points={data.attendanceByEvent} colour={t.primary} />
-            </ChartCard>
-            <ChartCard
-              title="Rolling average"
-              subtitle="Smoothed across recent events"
-              width={chartWidth}
-            >
-              <BarChart points={data.rollingAverage} colour={t.accent} />
-            </ChartCard>
-            {data.weeklyTrend.length > 0 ? (
-              <ChartCard
-                title="Weekly meeting trend"
-                subtitle="Turnout at weekly meetings"
-                width={chartWidth}
-              >
-                <BarChart points={data.weeklyTrend} colour={t.success} />
-              </ChartCard>
-            ) : null}
-            <ChartCard
-              title="Unique attendees by month"
-              width={chartWidth}
-            >
-              <BarChart points={data.uniqueByMonth} colour={t.primary} />
-            </ChartCard>
-            <ChartCard
-              title="New vs returning"
-              width={chartWidth}
-              legend={
-                <View style={{ gap: 4 }}>
-                  <LegendDot colour={t.accent} label="New" />
-                  <LegendDot colour={t.primary} label="Returning" />
-                </View>
-              }
-            >
-              <StackedBarChart points={data.newVsReturning} />
-            </ChartCard>
-            {data.breakdowns.map((b) => (
-              <ChartCard key={b.field} title={`By ${b.field}`} width={chartWidth}>
-                <BreakdownBars rows={b.rows} />
-              </ChartCard>
-            ))}
+            {(() => {
+              const weekly = data.hasWeeklyMeetings;
+              const weeklyTrendChart =
+                data.weeklyTrend.length > 0 ? (
+                  <ChartCard
+                    key="weeklyTrend"
+                    title="Weekly meeting trend"
+                    subtitle="Turnout at weekly meetings"
+                    width={chartWidth}
+                  >
+                    <BarChart points={data.weeklyTrend} colour={t.success} />
+                  </ChartCard>
+                ) : null;
+              const newVsReturningChart = (
+                <ChartCard
+                  key="newVsReturning"
+                  title="New vs returning"
+                  subtitle={weekly ? "At weekly meetings" : undefined}
+                  width={chartWidth}
+                  legend={
+                    <View style={{ gap: 4 }}>
+                      <LegendDot colour={t.accent} label="New" />
+                      <LegendDot colour={t.primary} label="Returning" />
+                    </View>
+                  }
+                >
+                  <StackedBarChart points={data.newVsReturning} />
+                </ChartCard>
+              );
+              const attendanceChart = (
+                <ChartCard
+                  key="attendance"
+                  title="Attendance over time"
+                  subtitle="Per event"
+                  width={chartWidth}
+                >
+                  <BarChart points={data.attendanceByEvent} colour={t.primary} />
+                </ChartCard>
+              );
+              const rollingChart = (
+                <ChartCard
+                  key="rolling"
+                  title="Rolling average"
+                  subtitle="Smoothed across recent events"
+                  width={chartWidth}
+                >
+                  <BarChart points={data.rollingAverage} colour={t.accent} />
+                </ChartCard>
+              );
+              const monthChart = (
+                <ChartCard key="month" title="Unique attendees by month" width={chartWidth}>
+                  <BarChart points={data.uniqueByMonth} colour={t.primary} />
+                </ChartCard>
+              );
+              const breakdownCharts = data.breakdowns.map((b) => (
+                <ChartCard key={`bd-${b.field}`} title={`By ${b.field}`} width={chartWidth}>
+                  <BreakdownBars rows={b.rows} />
+                </ChartCard>
+              ));
+              const ordered = weekly
+                ? [
+                    weeklyTrendChart,
+                    newVsReturningChart,
+                    attendanceChart,
+                    rollingChart,
+                    monthChart,
+                    ...breakdownCharts,
+                  ]
+                : [
+                    attendanceChart,
+                    rollingChart,
+                    weeklyTrendChart,
+                    monthChart,
+                    newVsReturningChart,
+                    ...breakdownCharts,
+                  ];
+              return ordered.filter(Boolean);
+            })()}
           </View>
 
           {/* Needs follow-up. */}
@@ -394,6 +539,11 @@ export function MetricsTab({
           <View style={{ height: spacing.xxl }} />
         </>
       ) : null}
+
+      {/* Tap-a-tile detail: what the metric means and how it's worked out. */}
+      <Sheet visible={detail !== null} onClose={() => setDetail(null)} title={detail?.title}>
+        <Text style={[typography.body, { color: t.text }]}>{detail?.body}</Text>
+      </Sheet>
 
       <Toast toast={toast} />
     </View>

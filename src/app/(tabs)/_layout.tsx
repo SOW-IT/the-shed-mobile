@@ -254,6 +254,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="insights"
+        options={{
+          title: "Insights",
+          tabBarIcon: tabIcon("stats-chart-outline", "stats-chart"),
+        }}
+      />
+      <Tabs.Screen
         name="org"
         options={{
           title: "Org Chart",
