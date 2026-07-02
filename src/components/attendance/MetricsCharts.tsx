@@ -315,10 +315,13 @@ type TooltipRow = { label: string; value: number; colour?: string };
  */
 function BarTooltip({ year, rows }: { year: string; rows: TooltipRow[] }) {
   const t = useAppTheme();
+  if (!rows || rows.length === 0) return null;
   const single = rows.length === 1;
   return (
+    // position:absolute so the tooltip floats above the bar without being
+    // constrained to the (potentially narrow) barSlot width
     <View style={[styles.tooltip, { backgroundColor: t.text }]}>
-      <Text style={[styles.tooltipLabel, { color: t.background, opacity: 0.6 }]}>{year}</Text>
+      <Text style={[styles.tooltipYear, { color: t.background }]}>{year}</Text>
       {single ? (
         <Text style={[styles.tooltipValue, { color: t.background }]}>{rows[0].value}</Text>
       ) : (
@@ -327,9 +330,7 @@ function BarTooltip({ year, rows }: { year: string; rows: TooltipRow[] }) {
             {r.colour ? (
               <View style={[styles.tooltipDot, { backgroundColor: r.colour }]} />
             ) : null}
-            <Text style={[styles.tooltipSegLabel, { color: t.background, opacity: 0.75 }]}>
-              {r.label}
-            </Text>
+            <Text style={[styles.tooltipSegLabel, { color: t.background }]}>{r.label}</Text>
             <Text style={[styles.tooltipSegValue, { color: t.background }]}>{r.value}</Text>
           </View>
         ))
@@ -761,6 +762,8 @@ const styles = StyleSheet.create({
     gap: 4,
     // Reserve space for value label even when hidden, so bars stay at a fixed baseline
     paddingTop: BAR_VALUE_H,
+    overflow: "visible",
+    position: "relative",
   },
   barLabelBox: {
     height: BAR_LABEL_H,
@@ -814,8 +817,8 @@ const styles = StyleSheet.create({
   fullscreenHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
     paddingBottom: spacing.sm,
     gap: spacing.sm,
   },
@@ -828,35 +831,48 @@ const styles = StyleSheet.create({
   },
   fullscreenBody: {
     flex: 1,
-    padding: spacing.lg,
+    padding: spacing.xl,
     justifyContent: "center",
+    overflow: "visible",
   },
   closeBtn: {
     padding: 6,
     marginTop: -4,
   },
-  // Bar tooltip
+  // Bar tooltip — absolutely positioned so it escapes the narrow barSlot
   tooltip: {
-    borderRadius: radius.sm,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    alignItems: "center",
-    minWidth: 52,
-    marginBottom: 2,
-    gap: 2,
+    position: "absolute",
+    bottom: "100%",
+    left: "50%",
+    transform: [{ translateX: -60 }], // half of minWidth to centre it
+    borderRadius: radius.md,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    alignItems: "flex-start",
+    minWidth: 120,
+    marginBottom: 6,
+    gap: 3,
+    // Elevate above sibling bars
+    zIndex: 100,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 6,
   },
-  tooltipValue: { fontSize: 14, fontWeight: "800" },
-  tooltipLabel: { fontSize: 9, letterSpacing: 0.2 },
+  tooltipValue: { fontSize: 18, fontWeight: "800", alignSelf: "center" },
+  tooltipYear: { fontSize: 10, letterSpacing: 0.3, opacity: 0.6, alignSelf: "center" },
   tooltipRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 6,
+    width: "100%",
   },
   tooltipDot: {
-    width: 7,
-    height: 7,
+    width: 8,
+    height: 8,
     borderRadius: 4,
   },
-  tooltipSegLabel: { fontSize: 9, flex: 1 },
-  tooltipSegValue: { fontSize: 10, fontWeight: "700" },
+  tooltipSegLabel: { fontSize: 10, flex: 1 },
+  tooltipSegValue: { fontSize: 11, fontWeight: "700" },
 });

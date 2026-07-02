@@ -77,7 +77,7 @@ export function GeneralMetricsTab({ year }: { year: number | null }) {
       at: y,
       label: yearLabel(y),
       segments: trends.studentLeadersByCampus.map((c) => ({
-        key: c.campus,
+        key: campusAcronym(c.campus),
         value: c.counts[i],
         colour: subgroupColour(c.campus),
       })),
