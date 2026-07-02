@@ -7,6 +7,10 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
 import { GeneralMetricsTab } from "@/components/attendance/GeneralMetricsTab";
+import {
+  AttendanceRangeFab,
+  GeneralScopeFab,
+} from "@/components/attendance/InsightsSelectors";
 import { MetricsTab } from "@/components/attendance/MetricsTab";
 import { LoadingState } from "@/components/ui";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
@@ -37,6 +41,14 @@ export default function InsightsScreen() {
   const [memberSheetId, setMemberSheetId] = useState<Id<"attendanceMembers"> | null>(
     null
   );
+  // Owned here so the bottom-right selectors (rendered in PagerScreen's floating
+  // slot) can drive them from outside the tab bodies.
+  const [rangeWeeks, setRangeWeeks] = useState(8);
+  const [includeCollaborative, setIncludeCollaborative] = useState(true);
+  const [generalYear, setGeneralYear] = useState<number | null>(null); // null = All years
+  // Just the year list for the General selector; the tab runs its own query too
+  // (Convex dedupes the identical call).
+  const staffTrends = useQuery(api.generalMetrics.staffTrends, {});
 
   useEffect(() => {
     if (tab === "attendance" || tab === "general") {
@@ -68,7 +80,7 @@ export default function InsightsScreen() {
     {
       key: "general",
       label: "General",
-      render: () => <GeneralMetricsTab />,
+      render: () => <GeneralMetricsTab year={generalYear} />,
     },
     {
       key: "attendance",
@@ -79,14 +91,39 @@ export default function InsightsScreen() {
           selectedSubgroup={subgroup}
           onSelectedSubgroupChange={setSelectedSubgroup}
           onOpenMember={openEditMember}
+          rangeWeeks={rangeWeeks}
+          includeCollaborative={includeCollaborative}
         />
       ),
     },
   ];
 
+  // The bottom-right selector is per-tab: range/collaborative on Attendance,
+  // All-vs-year scope on General.
+  const floating =
+    active === "attendance" ? (
+      <AttendanceRangeFab
+        rangeWeeks={rangeWeeks}
+        onRangeChange={setRangeWeeks}
+        includeCollaborative={includeCollaborative}
+        onCollaborativeChange={setIncludeCollaborative}
+      />
+    ) : (
+      <GeneralScopeFab
+        years={staffTrends?.years ?? []}
+        value={generalYear}
+        onChange={setGeneralYear}
+      />
+    );
+
   return (
     <>
-      <PagerScreen tabs={tabs} activeKey={active} onActiveKeyChange={setActive} />
+      <PagerScreen
+        tabs={tabs}
+        activeKey={active}
+        onActiveKeyChange={setActive}
+        floating={floating}
+      />
       <EditMemberSheet
         visible={memberSheetOpen}
         onClose={() => setMemberSheetOpen(false)}
