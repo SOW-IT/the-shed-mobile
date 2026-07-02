@@ -705,6 +705,7 @@ export const MyRequests = ({
   directorThreshold = DIRECTOR_APPROVAL_THRESHOLD,
   focusId,
   focusThread = false,
+  focusReopenKey,
 }: {
   departments: string[];
   defaultDepartment: string;
@@ -718,6 +719,7 @@ export const MyRequests = ({
   /** Notification deep-link: id of the request to focus (expand / open thread). */
   focusId?: string;
   focusThread?: boolean;
+  focusReopenKey?: string;
   /** The year's Director-approval cutoff; defaults to the standard $5,000. */
   directorThreshold?: number;
 }) => {
@@ -819,6 +821,7 @@ export const MyRequests = ({
                   collapsible={requestCompleted(request)}
                   autoExpand={request._id === focusId}
                   autoOpenThread={request._id === focusId && focusThread}
+                  deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}
                   onCancel={
                     readOnly
                       ? undefined

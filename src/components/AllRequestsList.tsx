@@ -48,11 +48,13 @@ export const AllRequestsList = ({
   loadMoreRef,
   focusId,
   focusThread = false,
+  focusReopenKey,
 }: {
   year?: number;
   /** Notification deep-link: id of the request to focus (expand / open thread). */
   focusId?: string;
   focusThread?: boolean;
+  focusReopenKey?: string;
   /**
    * Set by the parent screen's ScrollView so it can drive the completed-tab
    * infinite scroll. Points at this list's "reveal more" handler, or null when
@@ -151,6 +153,7 @@ export const AllRequestsList = ({
               collapsible={isCompleted}
               autoExpand={request._id === focusId}
               autoOpenThread={request._id === focusId && focusThread}
+              deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}
             />
           </FadeInView>
         ))

@@ -188,7 +188,8 @@ export const Sheet = ({
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={spacing.md}
-          style={[styles.dialogOuter, { pointerEvents: "box-none" }]}
+          pointerEvents="box-none"
+          style={styles.dialogOuter}
         >
           <View style={[styles.dialog, { backgroundColor: t.card }]}>
             {header}

@@ -355,6 +355,7 @@ export const RequestCard = ({
   collapsible = false,
   autoExpand = false,
   autoOpenThread = false,
+  deepLinkOpenKey,
   children,
 }: {
   request: Doc<"requests">;
@@ -366,6 +367,8 @@ export const RequestCard = ({
   autoExpand?: boolean;
   /** Deep-link focus: open the comment thread on mount (a comment notification). */
   autoOpenThread?: boolean;
+  /** Changes on each notification tap so a mounted card can reopen the thread. */
+  deepLinkOpenKey?: string;
   /**
    * When true the card starts collapsed to a one-line summary (amount, status,
    * department, requester, date) with a "View More" toggle. Used for completed
@@ -409,6 +412,8 @@ export const RequestCard = ({
   // the user taps a comment notification while the Requests tab is alive). Keep
   // the local open/expanded state in sync with those focus props so the thread
   // opens immediately instead of waiting for a remount/navigation refresh.
+  // `deepLinkOpenKey` changes on repeated taps of the same notification, so a
+  // dismissed comment sheet can be reopened even when the boolean props stay true.
   useEffect(() => {
     if (autoExpand && collapsible) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- external deep-link focus sync
@@ -416,7 +421,7 @@ export const RequestCard = ({
       setExpanded(true);
     }
     if (autoOpenThread) setShowComments(true);
-  }, [autoExpand, autoOpenThread, collapsible]);
+  }, [autoExpand, autoOpenThread, collapsible, deepLinkOpenKey]);
 
   const collapse = () => {
     setExpanded(false);
