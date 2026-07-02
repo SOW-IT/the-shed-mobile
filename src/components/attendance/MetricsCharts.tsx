@@ -271,6 +271,55 @@ export function StackedBarChart({ points }: { points: SplitPoint[] }) {
   );
 }
 
+/** One bar's stacked segments (e.g. student leaders split by campus). */
+export type MultiStackPoint = {
+  at: number;
+  label: string;
+  segments: { key: string; value: number; colour: string }[];
+};
+
+/** N coloured segments stacked per point; totals scale the bars. Fits the card. */
+export function MultiStackedBarChart({ points }: { points: MultiStackPoint[] }) {
+  const t = useAppTheme();
+  const fit = useBarFit(points.length);
+  if (points.length === 0) return <EmptyChart />;
+  const totals = points.map((p) => p.segments.reduce((s, seg) => s + seg.value, 0));
+  const max = Math.max(1, ...totals);
+  const scale = (n: number) => (n / max) * CHART_HEIGHT;
+  return (
+    <View onLayout={fit.onLayout} style={[styles.barRow, { justifyContent: fit.justify }]}>
+      {fit.w === 0
+        ? null
+        : points.map((p, i) => {
+            const visible = p.segments.filter((seg) => seg.value > 0);
+            return (
+              <View key={`${p.at}-${i}`} style={[styles.barSlot, { width: fit.barWidth }]}>
+                {fit.showValues ? (
+                  <Text style={[styles.barValue, { color: t.muted }]}>{totals[i]}</Text>
+                ) : null}
+                <View style={{ width: barInner(fit.barWidth) }}>
+                  {visible.map((seg, si) => (
+                    <View
+                      key={seg.key}
+                      style={{
+                        height: Math.max(BAR_MIN, scale(seg.value)),
+                        backgroundColor: seg.colour,
+                        borderTopLeftRadius: si === 0 ? radius.sm : 0,
+                        borderTopRightRadius: si === 0 ? radius.sm : 0,
+                        borderBottomLeftRadius: si === visible.length - 1 ? radius.sm : 0,
+                        borderBottomRightRadius: si === visible.length - 1 ? radius.sm : 0,
+                      }}
+                    />
+                  ))}
+                </View>
+                <BarLabel text={i % fit.labelStep === 0 ? p.label : ""} />
+              </View>
+            );
+          })}
+    </View>
+  );
+}
+
 /** Small coloured dot + label, for chart legends. */
 export function LegendDot({ colour, label }: { colour: string; label: string }) {
   const t = useAppTheme();

@@ -6,6 +6,23 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.6.4] — 2026-07-02
+
+### Added
+
+- **Insights → General: org-wide staff trends.** A new "General" segment (to the
+  left of "Attendance") charts cross-cutting numbers, one point per staff year:
+  total staff head-count, staff vs student leaders (the same split as the
+  attendance member filter), and student leaders by campus.
+- **SOW: average weekly attendance by campus.** When the org-wide (SOW) group is
+  selected in the Attendance dashboard, a new chart shows each campus's average
+  weekly-meeting turnout, drawn from each campus's own snapshot.
+
+### Changed
+
+- **No follow-up list on the org-wide (SOW) view.** The "Needs follow-up" list is
+  a per-campus pastoral tool, so it's now hidden when SOW is selected.
+
 ## [1.6.2] — 2026-07-02
 
 ### Fixed

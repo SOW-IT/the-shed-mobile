@@ -571,6 +571,53 @@ export const snapshot = query({
 });
 
 /**
+ * Average weekly-meeting attendance for every campus, for the org-wide (SOW)
+ * view. Rather than re-deriving per-campus turnout from the org-wide snapshot's
+ * events (which are only the SOW-tagged gatherings), this reads each campus's
+ * OWN already-computed snapshot and pulls its `avgWeeklyAttendance` — so it's a
+ * cheap fan-out over precomputed rows with no extra recompute. Campuses with no
+ * snapshot, a stale prior-year one, or no weekly meetings in range are omitted.
+ */
+export const campusWeeklyAverages = query({
+  args: {
+    rangeWeeks: v.number(),
+    includeCollaborative: v.optional(v.boolean()),
+  },
+  returns: v.union(
+    v.null(),
+    v.array(v.object({ campus: v.string(), avgWeekly: v.number() }))
+  ),
+  handler: async (ctx, { rangeWeeks, includeCollaborative = true }) => {
+    if (!(await optionalProfile(ctx))) return null;
+    const year = currentStaffYear();
+    const universities = await ctx.db
+      .query("universities")
+      .withIndex("by_year_and_name", (q) => q.eq("year", year))
+      .collect();
+
+    const out: { campus: string; avgWeekly: number }[] = [];
+    for (const uni of universities) {
+      const rows = await ctx.db
+        .query("attendanceMetricsSnapshots")
+        .withIndex("by_subgroup_and_range", (q) =>
+          q
+            .eq("subgroup", canonicalSubgroup(uni.name))
+            .eq("rangeWeeks", rangeWeeks)
+            .eq("includeCollaborative", includeCollaborative)
+        )
+        .collect();
+      if (rows.length === 0) continue;
+      const row = rows.reduce((a, b) => (b.computedAt > a.computedAt ? b : a));
+      if (row.staffYear !== year) continue;
+      const avg = row.data.summary.avgWeeklyAttendance;
+      if (avg !== null) out.push({ campus: uni.name, avgWeekly: avg });
+    }
+    out.sort((a, b) => b.avgWeekly - a.avgWeekly);
+    return out;
+  },
+});
+
+/**
  * Force a refresh now (campus leaders + admins). Schedules the same bounded
  * per-sub-group recompute the weekly cron uses, so the dashboard can be brought
  * up to date on demand without waiting for Thursday.

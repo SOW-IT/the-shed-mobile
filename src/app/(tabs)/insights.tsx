@@ -6,15 +6,17 @@ import { defaultAttendanceSubgroup } from "../../../shared/rollcall";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
+import { GeneralMetricsTab } from "@/components/attendance/GeneralMetricsTab";
 import { MetricsTab } from "@/components/attendance/MetricsTab";
-import { EmptyState, LoadingState } from "@/components/ui";
+import { LoadingState } from "@/components/ui";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 
 /**
  * Insights — its own bottom-tab home for the attendance metrics dashboard,
  * lifted out of the Attendance screen's tab strip. Two top-bar segments:
- *  - "Attendance": the leader-facing metrics dashboard ({@link MetricsTab}).
- *  - "General": a scaffold for future cross-cutting insights (empty for now).
+ *  - "General": org-wide staff trends ({@link GeneralMetricsTab}), on the left.
+ *  - "Attendance": the leader-facing per-campus metrics dashboard
+ *    ({@link MetricsTab}).
  *
  * Snapshots are kept fresh server-side (weekly cron + dirty-recompute on
  * roll-call changes), so there's no manual refresh affordance here for now.
@@ -64,6 +66,11 @@ export default function InsightsScreen() {
 
   const tabs: PagerTab[] = [
     {
+      key: "general",
+      label: "General",
+      render: () => <GeneralMetricsTab />,
+    },
+    {
       key: "attendance",
       label: "Attendance",
       render: () => (
@@ -72,17 +79,6 @@ export default function InsightsScreen() {
           selectedSubgroup={subgroup}
           onSelectedSubgroupChange={setSelectedSubgroup}
           onOpenMember={openEditMember}
-        />
-      ),
-    },
-    {
-      key: "general",
-      label: "General",
-      render: () => (
-        <EmptyState
-          icon="sparkles-outline"
-          title="General insights coming soon"
-          message="Cross-cutting insights that aren't tied to a single campus will live here."
         />
       ),
     },
