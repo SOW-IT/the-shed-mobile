@@ -800,7 +800,9 @@ export const reviewed = query({
       }
       return cached;
     };
+    const receiptWaitingIds: Id<"requests">[] = [];
     for (const request of await openRequestsAcrossYears(ctx, caller.year)) {
+      if (receiptWaitingIds.length >= REVIEWED_LIMIT) break;
       if (seen.has(request._id)) continue;
       if (request.requesterEmail === caller.email) continue;
       if (!requestFullyApproved(request) || request.receipt) continue;
@@ -810,11 +812,15 @@ export const reviewed = query({
       const approvedApprovers = involvedApproverEmails(request, approvers, [APPROVED]);
       if (!approvedApprovers.some((email) => actAs.has(email))) continue;
       seen.add(request._id);
-      reviewedIds.push(request._id);
+      receiptWaitingIds.push(request._id);
     }
+    const reviewedAndReceiptWaitingIds = [
+      ...reviewedIds.slice(0, Math.max(0, REVIEWED_LIMIT - receiptWaitingIds.length)),
+      ...receiptWaitingIds,
+    ];
 
     const docs = await Promise.all(
-      reviewedIds.map((id) => ctx.db.get("requests", id))
+      reviewedAndReceiptWaitingIds.map((id) => ctx.db.get("requests", id))
     );
     return await Promise.all(
       docs
