@@ -17,6 +17,7 @@ import { ReactNode, useState } from "react";
 import {
   LayoutChangeEvent,
   Modal,
+  Platform,
   Pressable,
   StatusBar,
   StyleSheet,
@@ -213,9 +214,11 @@ export function MetricCard({
 }
 
 /**
- * Fullscreen landscape modal. Since app.json locks orientation to portrait,
- * we render a portrait-sized modal and rotate its content 90° so it reads as
- * landscape — no native orientation API needed.
+ * Fullscreen chart modal. On a portrait phone, app.json locks orientation to
+ * portrait, so we render a portrait-sized modal and rotate its content 90° to
+ * read as landscape — no native orientation API needed. When the device is
+ * already landscape (width > height), or on web, there's nothing to gain from
+ * rotating, so we fill the screen in its natural orientation.
  */
 function FullscreenChartModal({
   visible,
@@ -234,9 +237,12 @@ function FullscreenChartModal({
 }) {
   const t = useAppTheme();
   const { width: sw, height: sh } = useWindowDimensions();
-  // After rotation: the rotated container is sh wide and sw tall (screen dims swap).
-  const lw = sh; // landscape width  = screen height
-  const lh = sw; // landscape height = screen width
+  // Only rotate on a native portrait device. If the screen is already landscape
+  // (width > height) or we're on web, show fullscreen in the natural orientation.
+  const rotate = Platform.OS !== "web" && sh > sw;
+  // After rotation the container's dims swap: it's sh wide and sw tall.
+  const panelW = rotate ? sh : sw;
+  const panelH = rotate ? sw : sh;
   return (
     <Modal
       visible={visible}
@@ -259,9 +265,9 @@ function FullscreenChartModal({
       >
         <View
           style={{
-            width: lw,
-            height: lh,
-            transform: [{ rotate: "90deg" }],
+            width: panelW,
+            height: panelH,
+            transform: rotate ? [{ rotate: "90deg" }] : undefined,
             backgroundColor: t.background,
             // Uniform outer margin on all 4 sides around the entire panel
             paddingHorizontal: spacing.xxxl,
