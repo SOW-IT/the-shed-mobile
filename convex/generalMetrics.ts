@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
-import { optionalProfile } from "./model";
+import { currentStaffYear, optionalProfile } from "./model";
 import {
   roleFilterMatches,
   STAFF_ROLE_FILTER_LABEL,
@@ -45,7 +45,14 @@ export const staffTrends = query({
   handler: async (ctx) => {
     if (!(await optionalProfile(ctx))) return null;
 
-    const profiles = await ctx.db.query("staffProfiles").collect();
+    // Exclude the upcoming staff year: staff for next year are only partially
+    // pre-assigned, so its counts are incomplete and would read as a misleading
+    // dip on the trend. (The org chart surfaces next year explicitly; the trend
+    // deliberately stops at the current year.)
+    const currentYear = currentStaffYear();
+    const profiles = (await ctx.db.query("staffProfiles").collect()).filter(
+      (p) => p.year <= currentYear
+    );
 
     // year -> tallies. campusByYear tracks distinct student-leader emails per
     // campus so a leader with two campus roles isn't double-counted.

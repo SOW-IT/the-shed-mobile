@@ -8,6 +8,7 @@ import schema from "./schema";
 const modules = import.meta.glob("./**/*.ts");
 const YEAR = staffYearForDate(new Date());
 const PREV = YEAR - 1;
+const NEXT = YEAR + 1;
 
 const CALLER = "caller@sow.org.au";
 
@@ -33,6 +34,8 @@ async function seed(t: TestConvex<typeof schema>) {
       // Previous year: 1 staff + 1 student leader (USYD).
       profile(CALLER, PREV, [{ role: "Staff", department: "Marketing" }]),
       profile("bob@sow.org.au", PREV, [{ role: "Student Leader", university: "USYD" }]),
+      // Next staff year (partially pre-assigned) — must be excluded from trends.
+      profile("eve@sow.org.au", NEXT, [{ role: "Student Leader", university: "UNSW" }]),
     ];
     for (const row of rows) await ctx.db.insert("staffProfiles", row);
   });
@@ -54,7 +57,9 @@ describe("staffTrends", () => {
     await seed(t);
     const trends = (await asUser(t, CALLER).query(api.generalMetrics.staffTrends, {}))!;
 
+    // The next-year profile is excluded — the trend stops at the current year.
     expect(trends.years).toEqual([PREV, YEAR]);
+    expect(trends.years).not.toContain(NEXT);
     expect(trends.allStaff).toEqual([2, 4]);
     expect(trends.staff).toEqual([1, 1]);
     expect(trends.studentLeaders).toEqual([1, 3]);

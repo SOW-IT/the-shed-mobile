@@ -9,10 +9,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { ReactNode, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RANGE_WEEKS } from "../../../shared/attendanceMetrics";
 import { Btn, Sheet } from "@/components/ui";
-import { BOTTOM_TAB_HEIGHT, radius, spacing, typography, useAppTheme } from "@/theme";
+import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 const rangeLabel = (weeks: number) => (weeks === 1 ? "1 wk" : `${weeks} wks`);
 
@@ -29,7 +28,6 @@ function SelectorFab({
   children: (close: () => void) => ReactNode;
 }) {
   const t = useAppTheme();
-  const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -40,11 +38,7 @@ function SelectorFab({
         style={({ pressed }) => [
           styles.fab,
           t.shadowCard,
-          {
-            backgroundColor: t.primary,
-            bottom: insets.bottom + BOTTOM_TAB_HEIGHT + spacing.md,
-            opacity: pressed ? 0.85 : 1,
-          },
+          { backgroundColor: t.primary, opacity: pressed ? 0.85 : 1 },
         ]}
       >
         <Ionicons name={icon} size={16} color={t.onPrimary} />
@@ -181,8 +175,11 @@ export function GeneralScopeFab({
 
 const styles = StyleSheet.create({
   fab: {
+    // Matches the org chart's FloatingYearPicker so the two screens' selectors
+    // sit in the same spot (styles.floatingYearPicker: right lg, bottom md).
     position: "absolute",
     right: spacing.lg,
+    bottom: spacing.md,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
