@@ -28,6 +28,15 @@ All notable changes to **The SHED** mobile app. This project follows
   when duplicates weren't collapsed. Members now link to staff profiles by a
   single canonical email (both SOW-domain spellings, case- and
   whitespace-insensitive), so a profile + member pair always counts as one.
+- **First Google sign-in bounced back to the login screen.** On a cold iOS
+  `ASWebAuthenticationSession` the session can resolve as `dismiss`/`cancel`
+  even though the OAuth redirect fired, with the OS delivering the
+  `theshedmobile://…?code=` deep link a beat later. The recovery `Linking`
+  listener existed but lost the race: the session's `dismiss` settled the
+  redirect promise with `null` first, removing the listener before the deep
+  link arrived, so the first attempt dropped the code and the user had to tap
+  Sign in twice. The non-`code` session outcome now waits a short grace window
+  for the deep link before giving up.
 
 ### Changed
 

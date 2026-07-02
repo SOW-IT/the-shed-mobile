@@ -23,6 +23,11 @@ import { ErrorBanner, errorMessage, FadeInView, SowSpinner } from "./ui";
 // import time, relevant for the web popup flow).
 maybeCompleteAuthSession();
 
+// How long to wait for the OAuth `code` to arrive as a deep link after the auth
+// session ends without one. Covers the cold-iOS-session case where the session
+// reports dismiss/cancel a moment before the OS delivers the redirect deep link.
+const REDIRECT_GRACE_MS = 2500;
+
 /** Pull the OAuth `code` from a redirect URL. `Linking.parse` understands the
  *  app's custom scheme (theshedmobile://…) more reliably than the URL polyfill,
  *  with `new URL` as a fallback for https redirects. */
@@ -104,9 +109,11 @@ export const SignInScreen = () => {
       // deep link, so this Linking listener recovers it on that first try.
       const redirectUrl = await new Promise<string | null>((resolve) => {
         let settled = false;
+        let graceTimer: ReturnType<typeof setTimeout> | null = null;
         const finish = (url: string | null) => {
           if (settled) return;
           settled = true;
+          if (graceTimer) clearTimeout(graceTimer);
           sub.remove();
           resolve(url);
         };
@@ -116,9 +123,27 @@ export const SignInScreen = () => {
         const sub = Linking.addEventListener("url", (e) => {
           if (codeFromUrl(e.url)) finish(e.url);
         });
+        // When the session hands back a URL with the code, use it immediately.
+        // Otherwise DON'T settle null right away: on a cold iOS session the
+        // ASWebAuthenticationSession frequently resolves as "dismiss"/"cancel"
+        // even though the redirect fired, and the OS then delivers
+        // theshedmobile://…?code= to the Linking listener a beat later. Settling
+        // null here (the old behaviour) removed the listener and dropped that
+        // first-try code — the bug where the user had to tap Sign in twice. Give
+        // the listener a short grace window to recover it before giving up.
+        const settleWithoutCode = () => {
+          if (settled || graceTimer) return;
+          graceTimer = setTimeout(() => finish(null), REDIRECT_GRACE_MS);
+        };
         void openAuthSessionAsync(redirect.toString(), redirectTo).then(
-          (result) => finish(result.type === "success" ? result.url : null),
-          () => finish(null)
+          (result) => {
+            if (result.type === "success" && codeFromUrl(result.url)) {
+              finish(result.url);
+            } else {
+              settleWithoutCode();
+            }
+          },
+          () => settleWithoutCode()
         );
       });
       const code = redirectUrl ? codeFromUrl(redirectUrl) : null;
