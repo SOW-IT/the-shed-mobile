@@ -36,7 +36,9 @@ export function GeneralMetricsTab() {
 
   const charts = useMemo(() => {
     if (!trends) return null;
-    const yearLabel = (y: number) => `'${String(y).slice(-2)}`;
+    // Full staff year under each bar (few years, so they fit) rather than a "'25"
+    // abbreviation — these are annual points, not dense dates.
+    const yearLabel = (y: number) => String(y);
 
     const allStaff: TrendPoint[] = trends.years.map((year, i) => ({
       at: year,

@@ -278,7 +278,15 @@ export type MultiStackPoint = {
   segments: { key: string; value: number; colour: string }[];
 };
 
-/** N coloured segments stacked per point; totals scale the bars. Fits the card. */
+/** Hairline gap between stacked segments so adjacent campus colours read apart. */
+const SEG_GAP = 1.5;
+
+/**
+ * N coloured segments stacked per point; the bar's height scales to its total and
+ * the segments split THAT height proportionally — so the stack always sums to the
+ * scaled total (no per-segment minimum inflating it past the chart, which would
+ * overflow and clip the year labels beneath). A hairline gap separates segments.
+ */
 export function MultiStackedBarChart({ points }: { points: MultiStackPoint[] }) {
   const t = useAppTheme();
   const fit = useBarFit(points.length);
@@ -291,19 +299,26 @@ export function MultiStackedBarChart({ points }: { points: MultiStackPoint[] }) 
       {fit.w === 0
         ? null
         : points.map((p, i) => {
+            const total = totals[i];
             const visible = p.segments.filter((seg) => seg.value > 0);
+            const barHeight = Math.max(BAR_MIN, scale(total));
+            // Reserve the inter-segment gaps out of the bar height so the whole
+            // column (segments + gaps) still equals `barHeight`.
+            const gaps = Math.max(0, visible.length - 1) * SEG_GAP;
+            const fill = Math.max(BAR_MIN, barHeight - gaps);
             return (
               <View key={`${p.at}-${i}`} style={[styles.barSlot, { width: fit.barWidth }]}>
                 {fit.showValues ? (
-                  <Text style={[styles.barValue, { color: t.muted }]}>{totals[i]}</Text>
+                  <Text style={[styles.barValue, { color: t.muted }]}>{total}</Text>
                 ) : null}
-                <View style={{ width: barInner(fit.barWidth) }}>
+                <View style={{ width: barInner(fit.barWidth), height: barHeight, justifyContent: "flex-end" }}>
                   {visible.map((seg, si) => (
                     <View
                       key={seg.key}
                       style={{
-                        height: Math.max(BAR_MIN, scale(seg.value)),
+                        height: total > 0 ? (seg.value / total) * fill : 0,
                         backgroundColor: seg.colour,
+                        marginTop: si === 0 ? 0 : SEG_GAP,
                         borderTopLeftRadius: si === 0 ? radius.sm : 0,
                         borderTopRightRadius: si === 0 ? radius.sm : 0,
                         borderBottomLeftRadius: si === visible.length - 1 ? radius.sm : 0,
