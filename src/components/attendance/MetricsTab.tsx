@@ -323,6 +323,7 @@ export function MetricsTab({
                     title="Weekly meeting trend"
                     subtitle="Turnout at weekly meetings"
                     width={chartWidth}
+                    fullscreenContent={<BarChart points={data.weeklyTrend} colour={t.success} fullscreen />}
                   >
                     <BarChart points={data.weeklyTrend} colour={t.success} />
                   </ChartCard>
@@ -339,6 +340,7 @@ export function MetricsTab({
                       <LegendDot colour={t.primary} label="Returning" />
                     </View>
                   }
+                  fullscreenContent={<StackedBarChart points={data.newVsReturning} fullscreen />}
                 >
                   <StackedBarChart points={data.newVsReturning} />
                 </ChartCard>
@@ -349,6 +351,7 @@ export function MetricsTab({
                   title="Attendance over time"
                   subtitle="Per event"
                   width={chartWidth}
+                  fullscreenContent={<BarChart points={data.attendanceByEvent} colour={t.primary} fullscreen />}
                 >
                   <BarChart points={data.attendanceByEvent} colour={t.primary} />
                 </ChartCard>
@@ -359,12 +362,18 @@ export function MetricsTab({
                   title="Rolling average"
                   subtitle="Smoothed across recent events"
                   width={chartWidth}
+                  fullscreenContent={<BarChart points={data.rollingAverage} colour={t.accent} fullscreen />}
                 >
                   <BarChart points={data.rollingAverage} colour={t.accent} />
                 </ChartCard>
               );
               const monthChart = (
-                <ChartCard key="month" title="Unique attendees by month" width={chartWidth}>
+                <ChartCard
+                  key="month"
+                  title="Unique attendees by month"
+                  width={chartWidth}
+                  fullscreenContent={<BarChart points={data.uniqueByMonth} colour={t.primary} fullscreen />}
+                >
                   <BarChart points={data.uniqueByMonth} colour={t.primary} />
                 </ChartCard>
               );
