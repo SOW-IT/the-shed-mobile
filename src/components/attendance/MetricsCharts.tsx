@@ -261,7 +261,8 @@ function FullscreenChartModal({
             transform: [{ rotate: "90deg" }],
             backgroundColor: t.background,
             // Uniform outer margin on all 4 sides around the entire panel
-            padding: spacing.xl,
+            paddingHorizontal: spacing.xxxl,
+            paddingVertical: spacing.sm,
           }}
         >
           {/* Header */}
@@ -990,7 +991,7 @@ const styles = StyleSheet.create({
   fullscreenHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
-    padding: spacing.lg,
+    padding: spacing.sm,
     gap: spacing.sm,
   },
   fullscreenLegend: {
