@@ -203,6 +203,8 @@ describe("mergeLegacyStaffMembers (staff-year-aware relink)", () => {
       const b = await ctx.db.insert("attendanceMembers", {
         name: "Jane Doe",
         email: "jane.doe@sowaustralia.com",
+        // Metadata must survive the merge onto the canonical row, not be dropped.
+        metadata: { keep: "value" },
       });
       await ctx.db.insert("attendance", { eventId: eId, memberId: a, signInTime: dateStart });
       await ctx.db.insert("attendance", { eventId: eId, memberId: b, signInTime: dateStart });
@@ -237,6 +239,17 @@ describe("mergeLegacyStaffMembers (staff-year-aware relink)", () => {
       { email: undefined, memberId: m1 },
       { email: "jane.doe@sow.org.au", memberId: undefined },
     ]);
+
+    // The legacy row's overlay is preserved as a fresh canonical row (matched by
+    // the legacy domain, it must NOT be patched-then-deleted into oblivion).
+    const canonical = await t.run((ctx) =>
+      ctx.db
+        .query("attendanceMembers")
+        .withIndex("by_email", (q) => q.eq("email", "jane.doe@sow.org.au"))
+        .unique()
+    );
+    expect(canonical?.name).toBe("Jane Doe");
+    expect(canonical?.metadata?.keep).toBe("value");
   });
 });
 

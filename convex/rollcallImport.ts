@@ -750,7 +750,13 @@ export const mergeLegacyStaffMembers = mutation({
       // email) — nothing to merge, and merging a row into itself would delete it.
       if ((member.email ?? "").toLowerCase() === targetEmail) continue;
 
-      const existingOverlay = await findMemberByEmail(ctx, targetEmail);
+      // findMemberByEmail tries both SOW domains, so for a legacy row like
+      // jane.doe@sowaustralia.com it can match `member` itself via the legacy
+      // candidate. Treat that as "no existing overlay" — otherwise we'd patch the
+      // row and then delete it below, losing its metadata instead of preserving
+      // it in a fresh canonical row.
+      const found = await findMemberByEmail(ctx, targetEmail);
+      const existingOverlay = found && found._id !== member._id ? found : null;
       const mergedMetadata = staffLockedMetadata(fields, profile, {
         ...(member.metadata ?? {}),
         ...(existingOverlay?.metadata ?? {}),
