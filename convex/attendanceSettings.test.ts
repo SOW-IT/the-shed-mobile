@@ -613,6 +613,24 @@ describe("attendance members", () => {
     expect(rows[0].staffEmail).toBeUndefined();
   });
 
+  test("update refuses a staff overlay when no profile exists for the requested year", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
+    const memberId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
+      staffEmail: LEADER,
+    });
+    // LEADER holds a profile in the current staff year but not YEAR - 5, so the
+    // overlay must not be silently edited as a plain member for that year.
+    await expect(
+      leader.mutation(api.attendanceMembers.update, {
+        memberId,
+        name: "New Name",
+        staffYear: YEAR - 5,
+      })
+    ).rejects.toThrow(/not found/i);
+  });
+
   test("ensureForStaff won't adopt an unlinked member without a staff profile", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
