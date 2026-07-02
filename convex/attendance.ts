@@ -109,26 +109,19 @@ export const roster = query({
       .query("attendanceMembers")
       .collect();
 
-    // Overlay rows link to a staff profile by matching either their explicit
-    // staffEmail or their stored address against the year's profile emails,
-    // trying both SOW domains (older staff years use @sowaustralia.com, newer
-    // @sow.org.au). The matched key is always the profile's actual email.
+    // Overlay rows link to a staff profile by matching their `email` against the
+    // year's profile emails, trying both SOW domains (older staff years use
+    // @sowaustralia.com, newer @sow.org.au). The matched key is always the
+    // profile's actual email.
     const profileEmails = new Set(profiles.map((p) => p.email.toLowerCase()));
     const matchProfileEmail = (email: string | undefined): string | undefined =>
       staffEmailCandidates(email).find((c) => profileEmails.has(c));
     const shadowByEmail = new Map<string, (typeof extras)[number]>();
     const pureExtras: typeof extras = [];
     for (const m of extras) {
-      const matched = matchProfileEmail(m.staffEmail) ?? matchProfileEmail(m.email);
+      const matched = matchProfileEmail(m.email);
       if (matched) {
         if (!shadowByEmail.has(matched)) shadowByEmail.set(matched, m);
-        continue;
-      }
-      // A staffEmail that matches no profile this year stays hidden (not a pure
-      // extra), preserving prior behaviour for stale overlays.
-      if (m.staffEmail) {
-        const key = m.staffEmail.toLowerCase();
-        if (!shadowByEmail.has(key)) shadowByEmail.set(key, m);
         continue;
       }
       pureExtras.push(m);

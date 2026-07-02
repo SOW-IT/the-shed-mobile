@@ -572,23 +572,26 @@ describe("attendance members", () => {
     expect(pastYear.page.some((r) => r.key === `staff:${LEADER}`)).toBe(false);
   });
 
-  test("list hides a stale staff overlay whose email has no profile this year", async () => {
+  test("list shows a member whose email has no profile this year as a plain member", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
+    // A pool member whose email is a SOW address with no staff profile this
+    // year. Linking is by email alone, so with no matching profile it's just a
+    // plain member (there's no longer a staffEmail flag to hide it behind).
     const ghostId = await t.run(async (ctx) =>
       ctx.db.insert("attendanceMembers", {
         name: "Ghost",
         email: "ghost@sow.org.au",
-        staffEmail: "ghost@sow.org.au",
       })
     );
     const page = await leader.query(api.attendanceMembers.list, {
       year: YEAR,
       paginationOpts: { numItems: 50, cursor: null },
     });
-    expect(page.page.some((r) => r.memberId === ghostId)).toBe(false);
-    expect(page.page.some((r) => r.name === "Ghost")).toBe(false);
+    const row = page.page.find((r) => r.memberId === ghostId);
+    expect(row?.kind).toBe("member");
+    expect(row?.name).toBe("Ghost");
   });
 
   test("ensureForStaff reuses an existing member with the staff email instead of duplicating", async () => {
@@ -605,12 +608,11 @@ describe("attendance members", () => {
       staffEmail: STAFF,
     });
     expect(ensured).toBe(memberId);
-    // Linked purely by email — one row, no separate staffEmail column.
+    // Linked purely by email — one row.
     const rows = (
       await t.run(async (ctx) => ctx.db.query("attendanceMembers").collect())
     ).filter((m) => m.email === STAFF);
     expect(rows).toHaveLength(1);
-    expect(rows[0].staffEmail).toBeUndefined();
   });
 
   test("ensureForStaff reuses a member stored under a differently-cased/spaced email", async () => {
@@ -667,7 +669,7 @@ describe("attendance members", () => {
     ).rejects.toThrow(/not found/i);
     // The plain member is left untouched — not converted to a staff overlay.
     const row = await t.run((ctx) => ctx.db.get(memberId));
-    expect(row?.staffEmail).toBeUndefined();
+    expect(row?.email).toBe(OUTSIDER);
   });
 
   test("search, filter, sort, and paginate", async () => {

@@ -63,15 +63,8 @@ async function resolveExportEvents(
   );
   const memberByEmail = new Map<string, MemberDoc>();
   for (const m of members) {
-    // Index by `email` (the link going forward) AND the legacy `staffEmail` for
-    // the migration window — mirroring model.findMemberByEmail, which matches on
-    // either — so exports don't drop overlay metadata for rows not yet
-    // backfilled (including adopted rows with a personal email + staffEmail link).
-    // Drop the staffEmail candidates in the narrow follow-up once the column is gone.
-    for (const candidate of [
-      ...staffEmailCandidates(m.email),
-      ...staffEmailCandidates(m.staffEmail),
-    ]) {
+    // Members link to a staff profile by `email` (both SOW-domain spellings).
+    for (const candidate of staffEmailCandidates(m.email)) {
       if (!memberByEmail.has(candidate)) memberByEmail.set(candidate, m);
     }
   }

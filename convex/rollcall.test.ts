@@ -153,20 +153,21 @@ describe("legacy import matching", () => {
     ).rejects.toThrow("Member not found");
   });
 
-  test("a stale staff overlay with no matching profile is hidden", async () => {
+  test("a member whose email has no matching profile shows as a plain member", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
-    // An overlay flagged as staff whose email matches no profile this year is
-    // neither a staff row nor a plain member — it stays hidden.
+    // A pool member whose SOW-address email matches no profile this year links
+    // to nothing, so it's a plain member in the roster (there's no staffEmail
+    // flag to distinguish — and hide — a "stale overlay" any more).
     await t.run(async (ctx) => {
       await ctx.db.insert("attendanceMembers", {
         name: "Ghost Staff",
         email: "ghost@sow.org.au",
-        staffEmail: "ghost@sow.org.au",
       });
     });
     const roster = await leader.query(api.attendance.roster, { year: YEAR });
-    expect(roster.some((m) => m.name === "Ghost Staff")).toBe(false);
+    const row = roster.find((m) => m.name === "Ghost Staff");
+    expect(row?.kind).toBe("member");
   });
 });
 
@@ -264,7 +265,6 @@ describe("staff year derivation for events", () => {
       await ctx.db.insert("attendanceMembers", {
         name: "Jane Doe",
         email: "jane.doe@sowaustralia.com",
-        staffEmail: "jane.doe@sowaustralia.com",
       });
       const e = await ctx.db.insert("events", {
         name: "Nov",

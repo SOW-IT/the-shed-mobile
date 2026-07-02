@@ -29,7 +29,6 @@ import type * as http from "../http.js";
 import type * as importData from "../importData.js";
 import type * as importHistory from "../importHistory.js";
 import type * as metricsData from "../metricsData.js";
-import type * as migrations from "../migrations.js";
 import type * as model from "../model.js";
 import type * as notifications from "../notifications.js";
 import type * as profile from "../profile.js";
@@ -67,7 +66,6 @@ declare const fullApi: ApiFromModules<{
   importData: typeof importData;
   importHistory: typeof importHistory;
   metricsData: typeof metricsData;
-  migrations: typeof migrations;
   model: typeof model;
   notifications: typeof notifications;
   profile: typeof profile;

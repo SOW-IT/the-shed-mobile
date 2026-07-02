@@ -63,16 +63,12 @@ describe("attendanceMembers.list — staff profile ↔ member linking", () => {
   // ONE combined row (the profile, carrying the member's metadata as `memberId`)
   // — never two rows. The link is by canonical email, robust to the SOW domain
   // spellings, case, and stray whitespace.
-  const expectSingleLinkedRow = async (
-    memberEmail: string,
-    { staffEmail }: { staffEmail?: string } = {}
-  ) => {
+  const expectSingleLinkedRow = async (memberEmail: string) => {
     const { t, leader } = await setup();
     const memberId = await t.run((ctx) =>
       ctx.db.insert("attendanceMembers", {
         name: "Leader Alias",
         email: memberEmail,
-        ...(staffEmail ? { staffEmail } : {}),
         metadata: {},
       })
     );
@@ -104,9 +100,5 @@ describe("attendanceMembers.list — staff profile ↔ member linking", () => {
 
   test("links despite case and surrounding whitespace", async () => {
     await expectSingleLinkedRow("  Leader@SOW.ORG.AU  ");
-  });
-
-  test("links via staffEmail when the plain email differs", async () => {
-    await expectSingleLinkedRow("personal@example.com", { staffEmail: LEADER });
   });
 });

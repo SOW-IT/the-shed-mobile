@@ -135,7 +135,7 @@ const staffOverlayProfile = async (
   profileYear: number,
   emailOverride?: string
 ): Promise<Doc<"staffProfiles"> | null> => {
-  const emails = [row.staffEmail, row.email, emailOverride].filter(
+  const emails = [row.email, emailOverride].filter(
     (value): value is string => Boolean(value)
   );
   const seen = new Set<string>();
@@ -154,8 +154,7 @@ const staffOverlayProfile = async (
  * Whether a member row represents a staff person at all — i.e. its email maps to
  * a staff profile in the event's staff year OR the current/next one (tolerating
  * the Oct rollover). Used to protect a staff overlay from being edited as a plain
- * member when no profile is found for the exact requested year. This is the
- * derived replacement for the old stored `staffEmail` flag.
+ * member when no profile is found for the exact requested year.
  */
 const isStaffOverlayRow = async (
   ctx: Parameters<typeof getProfile>[0],
@@ -202,14 +201,13 @@ export const list = query({
       .collect();
 
     // Link attendance-member rows to this year's staff profiles so a person is
-    // shown ONCE. An overlay matches a profile either by its explicit
-    // `staffEmail` or by its plain `email` (e.g. someone added as an
-    // attendance-only member *before* being provisioned as staff, who has no
-    // `staffEmail` link). Matching against THIS year's profiles means a year in
+    // shown ONCE. An overlay matches a profile by its `email` (e.g. someone
+    // added as an attendance-only member before being provisioned as staff, then
+    // linked by email). Matching against THIS year's profiles means a year in
     // which the person wasn't yet staff still lists them as a plain member —
     // they appear as whatever they were that year, not retroactively as staff.
     //
-    // BOTH sides are reduced to one canonical key (shared `canonicalEmailKey`)
+    // Both sides are reduced to one canonical key (shared `canonicalEmailKey`)
     // so the link can't slip on a formatting difference: it trims, lowercases,
     // and collapses the two SOW staff-domain spellings (…@sow.org.au /
     // …@sowaustralia.com) to a single value. A profile and member that differ
@@ -222,11 +220,8 @@ export const list = query({
       })
     );
     const memberProfileKey = (m: (typeof extra)[number]): string | undefined => {
-      for (const email of [m.staffEmail, m.email]) {
-        const key = canonicalEmailKey(email);
-        if (key && profileKeys.has(key)) return key;
-      }
-      return undefined;
+      const key = canonicalEmailKey(m.email);
+      return key && profileKeys.has(key) ? key : undefined;
     };
     const shadowByKey = new Map<string, (typeof extra)[number]>();
     const pureExtras: typeof extra = [];
@@ -238,10 +233,6 @@ export const list = query({
         if (!shadowByKey.has(key)) shadowByKey.set(key, m);
         continue;
       }
-      // A staffEmail that matches no profile this year stays hidden (not a pure
-      // extra), preserving prior behaviour for stale overlays. It has no profile
-      // row to attach to, so it simply isn't listed.
-      if (m.staffEmail) continue;
       pureExtras.push(m);
     }
 
@@ -599,7 +590,7 @@ export const remove = mutation({
       entityType: "member",
       action: "member.delete",
       summary: `Deleted member "${row.name}"`,
-      subjectEmail: row.email ?? row.staffEmail,
+      subjectEmail: row.email,
       detail:
         signed.length > 0 ? `Removed ${signed.length} attendance record(s)` : undefined,
     });

@@ -392,15 +392,10 @@ export default defineSchema({
   attendanceMembers: defineTable({
     name: v.string(),
     email: v.optional(v.string()),
-    // DEPRECATED: superseded by `email` as the sole staff-profile link. Kept
-    // optional only so the dropStaffEmail backfill can read/clear it; removed
-    // (with the by_staff_email index) once that migration has run everywhere.
-    staffEmail: v.optional(v.string()),
     sourceImportId: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.string())),
   })
     .index("by_email", ["email"])
-    .index("by_staff_email", ["staffEmail"])
     .index("by_source_import_id", ["sourceImportId"])
     .index("by_name", ["name"]),
 
