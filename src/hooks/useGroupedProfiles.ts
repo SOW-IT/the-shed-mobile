@@ -96,8 +96,13 @@ export const useGroupedProfiles = (
         (p.assignments ?? []).some((a) => a.role === DIRECTOR)
       ) ?? null;
 
-    const campusProfiles = (profiles ?? []).filter((p) =>
-      (p.assignments ?? []).some((a) => a.university)
+    // Exclude the Director from campus groups too — it's hoisted to its own top
+    // slot, so a Director that also carries a campus assignment would otherwise
+    // render twice (mirrors the nonCampusOtherProfiles exclusion below).
+    const campusProfiles = (profiles ?? []).filter(
+      (p) =>
+        p.email !== director?.email &&
+        (p.assignments ?? []).some((a) => a.university)
     );
     const nonCampusOtherProfiles = otherProfiles.filter(
       (p) =>

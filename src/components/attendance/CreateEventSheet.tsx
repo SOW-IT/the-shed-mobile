@@ -601,11 +601,14 @@ export function CreateEventSheet({
         title="Discard changes?"
         message="Your unsaved changes will be lost."
         confirmLabel="Discard"
-        // Dismiss this dialog first, THEN close the sheet — closing the parent
-        // modal while this one is still presented locks up the UI on iOS.
+        // Dismiss this dialog first, THEN close the sheet on the next tick.
+        // ConfirmDialog runs onConfirm() *then* its own close() in the same
+        // press handler, so the dialog's dismissal (onClose → confirmCancel
+        // false) commits this frame; deferring the parent close to the next
+        // tick keeps the two modals from tearing down in one frame, which is
+        // what locks up the UI on iOS.
         onConfirm={() => {
-          setConfirmCancel(false);
-          onClose();
+          setTimeout(onClose, 0);
         }}
         onClose={() => setConfirmCancel(false)}
       />
