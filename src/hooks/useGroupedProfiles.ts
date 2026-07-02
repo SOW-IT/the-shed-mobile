@@ -96,6 +96,28 @@ export const useGroupedProfiles = (
         (p.assignments ?? []).some((a) => a.role === DIRECTOR)
       ) ?? null;
 
+    // The Director renders in its own hoisted top slot, so strip it from every
+    // other bucket to match the Org Chart (which never repeats the director). A
+    // Director that also carries division/department assignments would otherwise
+    // resurface as a division/department head or member. Departments left empty
+    // once the director is removed are dropped.
+    const groupedProfilesWithoutDirector = director
+      ? groupedProfiles.map((g) => ({
+          ...g,
+          head: g.head?.email === director.email ? null : g.head,
+          departments: g.departments
+            .map((d) => ({
+              ...d,
+              head: d.head?.email === director.email ? null : d.head,
+              profiles: d.profiles.filter((p) => p.email !== director.email),
+            }))
+            .filter((d) => d.head || d.profiles.length > 0),
+          divisionOnlyProfiles: g.divisionOnlyProfiles.filter(
+            (p) => p.email !== director.email
+          ),
+        }))
+      : groupedProfiles;
+
     // Exclude the Director from campus groups too — it's hoisted to its own top
     // slot, so a Director that also carries a campus assignment would otherwise
     // render twice (mirrors the nonCampusOtherProfiles exclusion below).
@@ -152,5 +174,10 @@ export const useGroupedProfiles = (
       }))
       .filter((g) => g.profiles.length > 0);
 
-    return { director, groupedProfiles, campusByUniversity, nonCampusOtherProfiles };
+    return {
+      director,
+      groupedProfiles: groupedProfilesWithoutDirector,
+      campusByUniversity,
+      nonCampusOtherProfiles,
+    };
   }, [structure, profiles]);
