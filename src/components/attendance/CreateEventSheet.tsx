@@ -22,11 +22,8 @@ import { Platform, Pressable, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Doc, Id } from "../../../convex/_generated/dataModel";
 import {
-  nextDateForWeekday,
   subgroupLabel,
   subgroupMatches,
-  WEEKLY_MEETING_TAG_NAME,
-  weeklyMeetingSlot,
 } from "../../../shared/rollcall";
 
 const parseDateTime = (dateStr: string, timeStr: string): number | null => {
@@ -125,28 +122,7 @@ export function CreateEventSheet({
     endTime: defaultTime(19),
   });
   const openedRef = useRef(false);
-  // Apply the weekly-meeting schedule pre-fill once per opening.
-  const weeklyAppliedRef = useRef(false);
   const eventName = event?.name ?? "";
-
-  // A "Weekly Meeting"-tagged event for a campus with a known slot gets its
-  // date/time pre-filled from that slot on the Schedule step.
-  const weeklyMeetingTagIds = new Set(
-    (tags ?? [])
-      .filter((tag) => {
-        return (
-          tag.name.trim().toLowerCase() ===
-          WEEKLY_MEETING_TAG_NAME.toLowerCase()
-        );
-      })
-      .map((tag) => tag._id),
-  );
-  const slot = selectedTags.some((id) => weeklyMeetingTagIds.has(id))
-    ? weeklyMeetingSlot(ownerGroup)
-    : null;
-  const slotWeekday = slot?.weekday ?? null;
-  const slotStart = slot?.startHour ?? null;
-  const slotEnd = slot?.endHour ?? null;
 
   useEffect(() => {
     if (visible) void ensureMetadata({});
@@ -188,7 +164,6 @@ export function CreateEventSheet({
     setDeleteText("");
     setConfirmCancel(false);
     setInitial(snapshot);
-    weeklyAppliedRef.current = false;
   }, [visible, ownerGroup, event, isEditing]);
 
   // Clear a new-event draft back to defaults — run after a successful create so
@@ -211,22 +186,11 @@ export function CreateEventSheet({
       startTime: defaultTime(17),
       endTime: defaultTime(19),
     });
-    weeklyAppliedRef.current = false;
   };
 
   const steps = ["Name", "Tags", "Collaboration", "Schedule"];
   const maxStep = steps.length - 1;
 
-  // When a new Weekly Meeting event reaches the Schedule step, pre-fill the next
-  // matching weekday and the campus's slot times (once; the user can still edit).
-  useEffect(() => {
-    if (isEditing || step !== maxStep || slotWeekday === null) return;
-    if (weeklyAppliedRef.current) return;
-    weeklyAppliedRef.current = true;
-    setDateStr(dateInputFromMs(nextDateForWeekday(slotWeekday).getTime()));
-    setStartTime(defaultTime(slotStart!));
-    setEndTime(defaultTime(slotEnd!));
-  }, [isEditing, step, maxStep, slotWeekday, slotStart, slotEnd]);
   const visibleTags = (tags ?? []).filter(
     (tag) => {
       return (
