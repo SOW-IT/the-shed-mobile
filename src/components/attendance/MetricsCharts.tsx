@@ -307,16 +307,33 @@ export function ChartCard({
   );
 }
 
+type TooltipRow = { label: string; value: number; colour?: string };
+
 /**
- * Tooltip shown above a tapped bar in fullscreen mode. Absolutely positioned
- * so it floats in the reserved BAR_VALUE_H space without inflating the slot.
+ * Tooltip shown above a tapped bar in fullscreen mode. Supports a single
+ * total value or a breakdown list (one row per segment/stack).
  */
-function BarTooltip({ value, label }: { value: string; label: string }) {
+function BarTooltip({ year, rows }: { year: string; rows: TooltipRow[] }) {
   const t = useAppTheme();
+  const single = rows.length === 1;
   return (
     <View style={[styles.tooltip, { backgroundColor: t.text }]}>
-      <Text style={[styles.tooltipValue, { color: t.background }]}>{value}</Text>
-      <Text style={[styles.tooltipLabel, { color: t.background, opacity: 0.7 }]}>{label}</Text>
+      <Text style={[styles.tooltipLabel, { color: t.background, opacity: 0.6 }]}>{year}</Text>
+      {single ? (
+        <Text style={[styles.tooltipValue, { color: t.background }]}>{rows[0].value}</Text>
+      ) : (
+        rows.map((r) => (
+          <View key={r.label} style={styles.tooltipRow}>
+            {r.colour ? (
+              <View style={[styles.tooltipDot, { backgroundColor: r.colour }]} />
+            ) : null}
+            <Text style={[styles.tooltipSegLabel, { color: t.background, opacity: 0.75 }]}>
+              {r.label}
+            </Text>
+            <Text style={[styles.tooltipSegValue, { color: t.background }]}>{r.value}</Text>
+          </View>
+        ))
+      )}
     </View>
   );
 }
@@ -357,7 +374,7 @@ export function BarChart({
                     style={[styles.barSlot, { width: fit.barWidth }]}
                   >
                     {selected ? (
-                      <BarTooltip value={String(p.value)} label={p.label} />
+                      <BarTooltip year={p.label} rows={[{ label: "", value: p.value }]} />
                     ) : fit.showValues ? (
                       <Text style={[styles.barValue, { color: t.muted }]}>{p.value}</Text>
                     ) : null}
@@ -414,7 +431,13 @@ export function StackedBarChart({
                     style={[styles.barSlot, { width: fit.barWidth }]}
                   >
                     {selected ? (
-                      <BarTooltip value={String(total)} label={p.label} />
+                      <BarTooltip
+                        year={p.label}
+                        rows={[
+                          { label: "Leaders", value: p.fresh, colour: t.accent },
+                          { label: "Staff", value: p.returning, colour: t.primary },
+                        ]}
+                      />
                     ) : fit.showValues ? (
                       <Text style={[styles.barValue, { color: t.muted }]}>{total}</Text>
                     ) : null}
@@ -504,7 +527,14 @@ export function MultiStackedBarChart({
                     style={[styles.barSlot, { width: fit.barWidth }]}
                   >
                     {selected ? (
-                      <BarTooltip value={String(total)} label={p.label} />
+                      <BarTooltip
+                        year={p.label}
+                        rows={visible.map((seg) => ({
+                          label: seg.key,
+                          value: seg.value,
+                          colour: seg.colour,
+                        }))}
+                      />
                     ) : fit.showValues ? (
                       <Text style={[styles.barValue, { color: t.muted }]}>{total}</Text>
                     ) : null}
@@ -809,11 +839,24 @@ const styles = StyleSheet.create({
   tooltip: {
     borderRadius: radius.sm,
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 5,
     alignItems: "center",
-    minWidth: 36,
+    minWidth: 52,
     marginBottom: 2,
+    gap: 2,
   },
-  tooltipValue: { fontSize: 13, fontWeight: "800" },
-  tooltipLabel: { fontSize: 10 },
+  tooltipValue: { fontSize: 14, fontWeight: "800" },
+  tooltipLabel: { fontSize: 9, letterSpacing: 0.2 },
+  tooltipRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  tooltipDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  tooltipSegLabel: { fontSize: 9, flex: 1 },
+  tooltipSegValue: { fontSize: 10, fontWeight: "700" },
 });
