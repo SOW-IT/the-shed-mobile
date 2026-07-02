@@ -28,6 +28,12 @@ All notable changes to **The SHED** mobile app. This project follows
   when duplicates weren't collapsed. Members now link to staff profiles by a
   single canonical email (both SOW-domain spellings, case- and
   whitespace-insensitive), so a profile + member pair always counts as one.
+- **Attendance export had two "Notes" columns.** The export always appends a
+  reserved trailing "Notes" column for the per-sign-in note; a metadata field
+  also named "Notes" produced a second, identically-named column. The builder
+  now drops any metadata field whose name collides with the reserved "Notes"
+  column (and the export picker no longer offers it), so the sign-in note is the
+  single "Notes" column.
 - **First Google sign-in bounced back to the login screen.** On a cold iOS
   `ASWebAuthenticationSession` the session can resolve as `dismiss`/`cancel`
   even though the OAuth redirect fired, with the OS delivering the

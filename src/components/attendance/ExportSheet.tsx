@@ -14,6 +14,7 @@ import { subgroupLabel } from "../../../shared/rollcall";
 import {
   buildAttendanceCsv,
   exportSlug,
+  isReservedExportFieldKey,
   type ExportEventForCsv,
 } from "@/lib/attendanceCsv";
 import { downloadCsv } from "@/lib/csvDownload";
@@ -139,6 +140,13 @@ export function ExportSheet({
   // Only the metadata fields this sub-group can see (req: group-scoped list).
   // Metadata fields are global; tags are still per staff year.
   const fields = useQuery(api.attendanceMetadata.list, { subgroup });
+  // A metadata field named "Notes" collides with the export's reserved sign-in
+  // Notes column, so it's never offered as a column here (the builder drops it
+  // too). Everything downstream picks from this filtered list.
+  const exportableFields = useMemo(
+    () => (fields ?? []).filter((f) => !isReservedExportFieldKey(f.key)),
+    [fields]
+  );
   const tags = useQuery(api.attendanceTags.list, isEvent ? "skip" : { year });
 
   const [fromMs, setFromMs] = useState<number | undefined>(undefined);
@@ -168,12 +176,12 @@ export function ExportSheet({
   useEffect(() => {
     if (!fields || selectedKeys !== null) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- seed once fields load
-    setSelectedKeys(fields.map((f) => f.key));
-  }, [fields, selectedKeys]);
+    setSelectedKeys(exportableFields.map((f) => f.key));
+  }, [fields, exportableFields, selectedKeys]);
 
   const orderedFieldKeys = useMemo(
-    () => (fields ?? []).map((f) => f.key),
-    [fields]
+    () => exportableFields.map((f) => f.key),
+    [exportableFields]
   );
 
   const toggleKey = (key: string) => {
@@ -345,7 +353,7 @@ export function ExportSheet({
         {ALWAYS_COLUMNS.map((label) => (
           <ToggleRow key={label} label={label} checked locked />
         ))}
-        {(fields ?? []).map((field) => {
+        {exportableFields.map((field) => {
           const locked = LOCKED_FIELD_KEYS.has(field.key);
           return (
             <ToggleRow

@@ -8,6 +8,16 @@ export type ExportEventForCsv = ExportEvent;
 /** Per-attendee table columns, before the chosen metadata fields and Notes. */
 const ATTENDEE_HEADERS = ["Sign In", "Name", "Email"] as const;
 
+/**
+ * Trailing column header, reserved for the per-sign-in note. A metadata field
+ * named "Notes" would otherwise emit a second, identically-named column, so any
+ * such field is dropped here — the sign-in note is the canonical "Notes".
+ */
+export const NOTES_HEADER = "Notes";
+/** A metadata field whose name collides with a reserved export column. */
+export const isReservedExportFieldKey = (key: string): boolean =>
+  key.trim().toLowerCase() === NOTES_HEADER.toLowerCase();
+
 const pad = (n: number) => String(n).padStart(2, "0");
 
 /** dd.mm.yyyy for a date. */
@@ -34,7 +44,10 @@ export const buildAttendanceCsv = (
   events: ExportEvent[],
   fieldKeys: string[]
 ): string => {
-  const tableHeader = csvLine([...ATTENDEE_HEADERS, ...fieldKeys, "Notes"]);
+  // Never let a metadata field named "Notes" duplicate the reserved sign-in
+  // note column.
+  const metadataKeys = fieldKeys.filter((key) => !isReservedExportFieldKey(key));
+  const tableHeader = csvLine([...ATTENDEE_HEADERS, ...metadataKeys, NOTES_HEADER]);
   const sections = events.map((event) => {
     const collaboration = event.collaborators.map(subgroupLabel).join(", ");
     // Event-level info: one label/value row each, specific to the event.
@@ -50,7 +63,7 @@ export const buildAttendanceCsv = (
         formatDateTime(row.signInTime),
         row.name,
         row.email,
-        ...fieldKeys.map((key) => row.metadata[key] ?? ""),
+        ...metadataKeys.map((key) => row.metadata[key] ?? ""),
         row.notes ?? "",
       ])
     );
