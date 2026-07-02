@@ -37,6 +37,11 @@ describe("formatAssignment", () => {
         university: "University of Sydney",
       })
     ).toBe("Senior Chaplain → USYD");
+    // A non-chaplain role scoped to Chaplaincy keeps its department, so the
+    // scope isn't dropped down to a bare role label.
+    expect(
+      formatAssignment({ role: "Head of Department", department: "Chaplaincy" })
+    ).toBe("HOD → Chaplaincy");
     expect(formatAssignment({ role: "Member" })).toBe("Member");
   });
 });
