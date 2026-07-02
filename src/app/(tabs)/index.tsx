@@ -62,19 +62,24 @@ export default function RequestsScreen() {
   // Unread comment counts for segment message badges.
   const myUnreadComments =
     useQuery(api.comments.myUnreadTotal, me?.profile ? {} : "skip") ?? 0;
-  const reviewRequestIds = review
-    ? [
-        ...review.hod.map((r) => r._id),
-        ...review.budgetManager.map((r) => r._id),
-        ...review.director.map((r) => r._id),
-        ...review.financeHead.map((r) => r._id),
-        ...review.readyToPay.map((r) => r._id),
-      ]
-    : [];
+  const reviewedForBadge = useQuery(
+    api.requests.reviewed,
+    me?.profile && me.isApprover ? {} : "skip"
+  );
+  const reviewRequestIds = [
+    ...(review?.hod.map((r) => r._id) ?? []),
+    ...(review?.budgetManager.map((r) => r._id) ?? []),
+    ...(review?.director.map((r) => r._id) ?? []),
+    ...(review?.financeHead.map((r) => r._id) ?? []),
+    ...(review?.readyToPay.map((r) => r._id) ?? []),
+    ...(reviewedForBadge?.map((r) => r._id) ?? []),
+  ];
   const reviewUnreadComments =
     useQuery(
       api.comments.unreadTotalForRequests,
-      me?.profile && me.isApprover && review ? { requestIds: reviewRequestIds } : "skip"
+      me?.profile && me.isApprover && review && reviewedForBadge
+        ? { requestIds: reviewRequestIds }
+        : "skip"
     ) ?? 0;
   // Unread comments across every request this year, for the "All" segment badge
   // (Finance only). Reuses the same query the All list subscribes to, so Convex

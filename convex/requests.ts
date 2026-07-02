@@ -785,6 +785,45 @@ export const reviewed = query({
       reviewedIds.push(event.requestId);
       if (reviewedIds.length >= REVIEWED_LIMIT) break;
     }
+
+    // A HOD still owns the context for department requests they've cleared while
+    // those requests wait on staff receipts. Keep those visible in Reviewed even
+    // when a busy approval history pushes the original HOD approval event past
+    // REVIEWED_LIMIT; comment notifications deep-link to this section.
+    const approversFor = makeApproverResolver(ctx);
+    const actAsByYear = new Map<number, Promise<Set<string>>>();
+    const actAsIn = (year: number) => {
+      let cached = actAsByYear.get(year);
+      if (!cached) {
+        cached = actAsEmails(ctx, year, caller.email);
+        actAsByYear.set(year, cached);
+      }
+      return cached;
+    };
+    for (const request of await openRequestsAcrossYears(ctx, caller.year)) {
+      if (seen.has(request._id)) continue;
+      if (request.requesterEmail === caller.email) continue;
+      if (!requestFullyApproved(request) || request.receipt) continue;
+      if (request.department === FINANCE) continue;
+      const reqYear = requestYear(request);
+      const requestYearApprovers = await approversFor(reqYear, request.department);
+      const thisYearApprovers =
+        reqYear === caller.year
+          ? requestYearApprovers
+          : await approversFor(caller.year, request.department);
+      const actAsRequestYear = await actAsIn(reqYear);
+      const actAsThisYear =
+        reqYear === caller.year ? actAsRequestYear : await actAsIn(caller.year);
+      const hodEmail = requestYearApprovers.hodEmail;
+      const currentHodEmail = thisYearApprovers.hodEmail;
+      const isDepartmentHod =
+        (hodEmail !== undefined && actAsRequestYear.has(hodEmail)) ||
+        (currentHodEmail !== undefined && actAsThisYear.has(currentHodEmail));
+      if (!isDepartmentHod) continue;
+      seen.add(request._id);
+      reviewedIds.push(request._id);
+    }
+
     const docs = await Promise.all(
       reviewedIds.map((id) => ctx.db.get("requests", id))
     );

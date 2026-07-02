@@ -1074,6 +1074,53 @@ describe("audit trail and reminders", () => {
     expect(bellaReviewed.map((r) => r.description)).toEqual(["first"]);
   });
 
+  test("reviewed keeps an older HOD-approved department request awaiting receipt", async () => {
+    const t = await setup();
+    await asUser(t, RACHEL).mutation(api.requests.submit, {
+      description: "waiting receipt",
+      amount: 100,
+    });
+    let mine = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    const waitingReceipt = mine.find((r) => r.description === "waiting receipt")!;
+    await asUser(t, HENRY).mutation(api.requests.approve, {
+      requestId: waitingReceipt._id,
+      step: "hod",
+    });
+    await asUser(t, BELLA).mutation(api.requests.approve, {
+      requestId: waitingReceipt._id,
+      step: "budgetManager",
+    });
+    await asUser(t, FIONA).mutation(api.requests.approve, {
+      requestId: waitingReceipt._id,
+      step: "financeHead",
+    });
+
+    // Push the HOD approval event outside the normal 50-card audit history.
+    for (let i = 0; i < 51; i++) {
+      await asUser(t, RACHEL).mutation(api.requests.submit, {
+        description: `later ${i}`,
+        amount: 100,
+      });
+      mine = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+      const later = mine.find((r) => r.description === `later ${i}`)!;
+      await asUser(t, HENRY).mutation(api.requests.approve, {
+        requestId: later._id,
+        step: "hod",
+      });
+    }
+
+    await asUser(t, RACHEL).mutation(api.comments.add, {
+      requestId: waitingReceipt._id,
+      body: "receipt coming",
+    });
+
+    const reviewed = (await asUser(t, HENRY).query(api.requests.reviewed, {}))!;
+    expect(reviewed.map((r) => r._id)).toContain(waitingReceipt._id);
+    expect(await asUser(t, HENRY).query(api.comments.unreadCount, {
+      requestId: waitingReceipt._id,
+    })).toBe(1);
+  });
+
   test("reviewed returns null when signed out", async () => {
     const t = await setup();
     expect(await t.query(api.requests.reviewed, {})).toBeNull();
