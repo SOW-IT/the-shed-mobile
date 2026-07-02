@@ -4,6 +4,14 @@
  * and follow-up person rows. All theme-aware and responsive; the parent
  * (MetricsTab) decides column counts from the window width.
  */
+import { Avatar, Card } from "@/components/ui";
+import {
+  radius,
+  spacing,
+  typography,
+  useAppTheme,
+  type AppTheme,
+} from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { ReactNode, useState } from "react";
 import {
@@ -22,8 +30,6 @@ import type {
   SplitPoint,
   TrendPoint,
 } from "../../../shared/attendanceMetrics";
-import { Avatar, Card } from "@/components/ui";
-import { radius, spacing, typography, useAppTheme, type AppTheme } from "@/theme";
 
 const BAR_MIN = 3; // minimum visible bar height
 const CHART_HEIGHT = 120;
@@ -51,7 +57,9 @@ function useBarFit(count: number, chartHeight = CHART_HEIGHT) {
   const showValues = barWidth >= 18;
   const LABEL_MIN_PX = 22;
   const labelStep =
-    barWidth >= LABEL_MIN_PX ? 1 : Math.ceil(LABEL_MIN_PX / Math.max(1, barWidth));
+    barWidth >= LABEL_MIN_PX
+      ? 1
+      : Math.ceil(LABEL_MIN_PX / Math.max(1, barWidth));
   const spread = w > 0 && count * barWidth < w;
   const justify: "center" | "space-between" | "flex-start" =
     count <= 1 ? "center" : spread ? "space-between" : "flex-start";
@@ -82,11 +90,20 @@ function BarLabel({ text }: { text: string }) {
  */
 function YAxis({ max, chartHeight }: { max: number; chartHeight: number }) {
   const t = useAppTheme();
-  const ticks = [max, Math.round(max * 0.75), Math.round(max * 0.5), Math.round(max * 0.25)];
+  const ticks = [
+    max,
+    Math.round(max * 0.75),
+    Math.round(max * 0.5),
+    Math.round(max * 0.25),
+  ];
   return (
     <View style={[styles.yAxis, { height: chartHeight }]}>
       {ticks.map((v, i) => (
-        <Text key={i} style={[styles.yTick, { color: t.faint }]} numberOfLines={1}>
+        <Text
+          key={i}
+          style={[styles.yTick, { color: t.faint }]}
+          numberOfLines={1}
+        >
           {v}
         </Text>
       ))}
@@ -125,11 +142,18 @@ export function MetricCard({
   const body = (
     <>
       <View style={styles.metricLabelRow}>
-        <Text style={[typography.label, { color: t.muted, flex: 1 }]} numberOfLines={1}>
+        <Text
+          style={[typography.label, { color: t.muted, flex: 1 }]}
+          numberOfLines={1}
+        >
           {label}
         </Text>
         {onPress ? (
-          <Ionicons name="information-circle-outline" size={15} color={t.faint} />
+          <Ionicons
+            name="information-circle-outline"
+            size={15}
+            color={t.faint}
+          />
         ) : null}
       </View>
       <Text style={[typography.amount, { color: accent }]} numberOfLines={1}>
@@ -149,13 +173,21 @@ export function MetricCard({
               size={13}
               color={deltaColour}
             />
-            <Text style={[typography.caption, { color: deltaColour, fontWeight: "700" }]}>
+            <Text
+              style={[
+                typography.caption,
+                { color: deltaColour, fontWeight: "700" },
+              ]}
+            >
               {delta.text}
             </Text>
           </View>
         ) : null}
         {hint ? (
-          <Text style={[typography.caption, { color: t.faint }]} numberOfLines={1}>
+          <Text
+            style={[typography.caption, { color: t.faint }]}
+            numberOfLines={1}
+          >
             {hint}
           </Text>
         ) : null}
@@ -212,23 +244,36 @@ function FullscreenChartModal({
     >
       <StatusBar hidden />
       {/* Full-screen backdrop */}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: t.background }]} />
+      <View
+        style={[StyleSheet.absoluteFill, { backgroundColor: t.background }]}
+      />
       {/* Rotated landscape container, centred on screen */}
-      <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}>
+      <View
+        style={[
+          StyleSheet.absoluteFill,
+          { alignItems: "center", justifyContent: "center" },
+        ]}
+      >
         <View
           style={{
             width: lw,
             height: lh,
             transform: [{ rotate: "90deg" }],
             backgroundColor: t.background,
+            // Uniform outer margin on all 4 sides around the entire panel
+            padding: spacing.xl,
           }}
         >
           {/* Header */}
-          <View style={[styles.fullscreenHeader, { paddingTop: spacing.md }]}>
+          <View style={styles.fullscreenHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={[typography.headline, { color: t.text }]}>{title}</Text>
+              <Text style={[typography.headline, { color: t.text }]}>
+                {title}
+              </Text>
               {subtitle ? (
-                <Text style={[typography.caption, { color: t.muted }]}>{subtitle}</Text>
+                <Text style={[typography.caption, { color: t.muted }]}>
+                  {subtitle}
+                </Text>
               ) : null}
             </View>
             {legend ? (
@@ -238,7 +283,10 @@ function FullscreenChartModal({
               onPress={onClose}
               accessibilityRole="button"
               accessibilityLabel="Close fullscreen"
-              style={({ pressed }) => [styles.closeBtn, pressed && { opacity: 0.6 }]}
+              style={({ pressed }) => [
+                styles.closeBtn,
+                pressed && { opacity: 0.6 },
+              ]}
             >
               <Ionicons name="close" size={22} color={t.text} />
             </Pressable>
@@ -281,9 +329,13 @@ export function ChartCard({
         <Card style={[styles.chartCard, { width }]}>
           <View style={styles.chartHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={[typography.headline, { color: t.text }]}>{title}</Text>
+              <Text style={[typography.headline, { color: t.text }]}>
+                {title}
+              </Text>
               {subtitle ? (
-                <Text style={[typography.caption, { color: t.muted }]}>{subtitle}</Text>
+                <Text style={[typography.caption, { color: t.muted }]}>
+                  {subtitle}
+                </Text>
               ) : null}
             </View>
             <View style={styles.chartHeaderRight}>
@@ -323,15 +375,23 @@ function BarTooltip({ year, rows }: { year: string; rows: TooltipRow[] }) {
     <View style={[styles.tooltip, { backgroundColor: t.text }]}>
       <Text style={[styles.tooltipYear, { color: t.background }]}>{year}</Text>
       {single ? (
-        <Text style={[styles.tooltipValue, { color: t.background }]}>{rows[0].value}</Text>
+        <Text style={[styles.tooltipValue, { color: t.background }]}>
+          {rows[0].value}
+        </Text>
       ) : (
         rows.map((r) => (
           <View key={r.label} style={styles.tooltipRow}>
             {r.colour ? (
-              <View style={[styles.tooltipDot, { backgroundColor: r.colour }]} />
+              <View
+                style={[styles.tooltipDot, { backgroundColor: r.colour }]}
+              />
             ) : null}
-            <Text style={[styles.tooltipSegLabel, { color: t.background }]}>{r.label}</Text>
-            <Text style={[styles.tooltipSegValue, { color: t.background }]}>{r.value}</Text>
+            <Text style={[styles.tooltipSegLabel, { color: t.background }]}>
+              {r.label}
+            </Text>
+            <Text style={[styles.tooltipSegValue, { color: t.background }]}>
+              {r.value}
+            </Text>
           </View>
         ))
       )}
@@ -357,12 +417,20 @@ export function BarChart({
   if (points.length === 0) return <EmptyChart />;
   const max = Math.max(1, ...points.map((p) => p.value));
   return (
-    <View style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}>
+    <View
+      style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}
+    >
       <YAxis max={max} chartHeight={chartHeight} />
       <View style={{ flex: 1, height: chartContainerH(chartHeight) }}>
         <View
           onLayout={fit.onLayout}
-          style={[styles.barRow, { justifyContent: fit.justify, height: chartContainerH(chartHeight) }]}
+          style={[
+            styles.barRow,
+            {
+              justifyContent: fit.justify,
+              height: chartContainerH(chartHeight),
+            },
+          ]}
         >
           {fit.w === 0
             ? null
@@ -371,18 +439,33 @@ export function BarChart({
                 return (
                   <Pressable
                     key={`${p.at}-${i}`}
-                    onPress={fullscreen ? () => setSelectedIdx(selected ? null : i) : undefined}
-                    style={[styles.barSlot, { width: fit.barWidth }]}
+                    onPress={
+                      fullscreen
+                        ? () => setSelectedIdx(selected ? null : i)
+                        : undefined
+                    }
+                    style={[
+                      styles.barSlot,
+                      { width: fit.barWidth, zIndex: selected ? 10 : 0 },
+                    ]}
                   >
                     {selected ? (
-                      <BarTooltip year={p.label} rows={[{ label: "", value: p.value }]} />
+                      <BarTooltip
+                        year={p.label}
+                        rows={[{ label: "", value: p.value }]}
+                      />
                     ) : fit.showValues ? (
-                      <Text style={[styles.barValue, { color: t.muted }]}>{p.value}</Text>
+                      <Text style={[styles.barValue, { color: t.muted }]}>
+                        {p.value}
+                      </Text>
                     ) : null}
                     <View
                       style={{
                         width: barInner(fit.barWidth),
-                        height: Math.max(BAR_MIN, (p.value / max) * chartHeight),
+                        height: Math.max(
+                          BAR_MIN,
+                          (p.value / max) * chartHeight,
+                        ),
                         backgroundColor: selected ? t.accent : bar,
                         borderRadius: radius.sm,
                       }}
@@ -413,12 +496,20 @@ export function StackedBarChart({
   const max = Math.max(1, ...points.map((p) => p.fresh + p.returning));
   const scale = (n: number) => (n / max) * chartHeight;
   return (
-    <View style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}>
+    <View
+      style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}
+    >
       <YAxis max={max} chartHeight={chartHeight} />
       <View style={{ flex: 1, height: chartContainerH(chartHeight) }}>
         <View
           onLayout={fit.onLayout}
-          style={[styles.barRow, { justifyContent: fit.justify, height: chartContainerH(chartHeight) }]}
+          style={[
+            styles.barRow,
+            {
+              justifyContent: fit.justify,
+              height: chartContainerH(chartHeight),
+            },
+          ]}
         >
           {fit.w === 0
             ? null
@@ -428,21 +519,43 @@ export function StackedBarChart({
                 return (
                   <Pressable
                     key={`${p.at}-${i}`}
-                    onPress={fullscreen ? () => setSelectedIdx(selected ? null : i) : undefined}
-                    style={[styles.barSlot, { width: fit.barWidth }]}
+                    onPress={
+                      fullscreen
+                        ? () => setSelectedIdx(selected ? null : i)
+                        : undefined
+                    }
+                    style={[
+                      styles.barSlot,
+                      { width: fit.barWidth, zIndex: selected ? 10 : 0 },
+                    ]}
                   >
                     {selected ? (
                       <BarTooltip
                         year={p.label}
                         rows={[
-                          { label: "Leaders", value: p.fresh, colour: t.accent },
-                          { label: "Staff", value: p.returning, colour: t.primary },
+                          {
+                            label: "Leaders",
+                            value: p.fresh,
+                            colour: t.accent,
+                          },
+                          {
+                            label: "Staff",
+                            value: p.returning,
+                            colour: t.primary,
+                          },
                         ]}
                       />
                     ) : fit.showValues ? (
-                      <Text style={[styles.barValue, { color: t.muted }]}>{total}</Text>
+                      <Text style={[styles.barValue, { color: t.muted }]}>
+                        {total}
+                      </Text>
                     ) : null}
-                    <View style={{ width: barInner(fit.barWidth), opacity: selected ? 0.7 : 1 }}>
+                    <View
+                      style={{
+                        width: barInner(fit.barWidth),
+                        opacity: selected ? 0.7 : 1,
+                      }}
+                    >
                       {p.fresh > 0 ? (
                         <View
                           style={{
@@ -499,16 +612,26 @@ export function MultiStackedBarChart({
   const fit = useBarFit(points.length, chartHeight);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   if (points.length === 0) return <EmptyChart />;
-  const totals = points.map((p) => p.segments.reduce((s, seg) => s + seg.value, 0));
+  const totals = points.map((p) =>
+    p.segments.reduce((s, seg) => s + seg.value, 0),
+  );
   const max = Math.max(1, ...totals);
   const scale = (n: number) => (n / max) * chartHeight;
   return (
-    <View style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}>
+    <View
+      style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}
+    >
       <YAxis max={max} chartHeight={chartHeight} />
       <View style={{ flex: 1, height: chartContainerH(chartHeight) }}>
         <View
           onLayout={fit.onLayout}
-          style={[styles.barRow, { justifyContent: fit.justify, height: chartContainerH(chartHeight) }]}
+          style={[
+            styles.barRow,
+            {
+              justifyContent: fit.justify,
+              height: chartContainerH(chartHeight),
+            },
+          ]}
         >
           {fit.w === 0
             ? null
@@ -517,15 +640,25 @@ export function MultiStackedBarChart({
                 const visible = p.segments.filter((seg) => seg.value > 0);
                 const barHeight = Math.max(BAR_MIN, scale(total));
                 const gapCount = Math.max(0, visible.length - 1);
-                const gaps = Math.min(gapCount * SEG_GAP, Math.max(0, barHeight - BAR_MIN));
+                const gaps = Math.min(
+                  gapCount * SEG_GAP,
+                  Math.max(0, barHeight - BAR_MIN),
+                );
                 const perGap = gapCount > 0 ? gaps / gapCount : 0;
                 const fill = barHeight - gaps;
                 const selected = fullscreen && selectedIdx === i;
                 return (
                   <Pressable
                     key={`${p.at}-${i}`}
-                    onPress={fullscreen ? () => setSelectedIdx(selected ? null : i) : undefined}
-                    style={[styles.barSlot, { width: fit.barWidth }]}
+                    onPress={
+                      fullscreen
+                        ? () => setSelectedIdx(selected ? null : i)
+                        : undefined
+                    }
+                    style={[
+                      styles.barSlot,
+                      { width: fit.barWidth, zIndex: selected ? 10 : 0 },
+                    ]}
                   >
                     {selected ? (
                       <BarTooltip
@@ -537,7 +670,9 @@ export function MultiStackedBarChart({
                         }))}
                       />
                     ) : fit.showValues ? (
-                      <Text style={[styles.barValue, { color: t.muted }]}>{total}</Text>
+                      <Text style={[styles.barValue, { color: t.muted }]}>
+                        {total}
+                      </Text>
                     ) : null}
                     <View
                       style={{
@@ -556,8 +691,10 @@ export function MultiStackedBarChart({
                             marginTop: si === 0 ? 0 : perGap,
                             borderTopLeftRadius: si === 0 ? radius.sm : 0,
                             borderTopRightRadius: si === 0 ? radius.sm : 0,
-                            borderBottomLeftRadius: si === visible.length - 1 ? radius.sm : 0,
-                            borderBottomRightRadius: si === visible.length - 1 ? radius.sm : 0,
+                            borderBottomLeftRadius:
+                              si === visible.length - 1 ? radius.sm : 0,
+                            borderBottomRightRadius:
+                              si === visible.length - 1 ? radius.sm : 0,
                           }}
                         />
                       ))}
@@ -573,7 +710,13 @@ export function MultiStackedBarChart({
 }
 
 /** Small coloured dot + label, for chart legends. */
-export function LegendDot({ colour, label }: { colour: string; label: string }) {
+export function LegendDot({
+  colour,
+  label,
+}: {
+  colour: string;
+  label: string;
+}) {
   const t = useAppTheme();
   return (
     <View style={styles.legendItem}>
@@ -597,12 +740,18 @@ export function BreakdownBars({
       {rows.slice(0, 8).map((r) => (
         <View key={r.label} style={styles.breakdownRow}>
           <Text
-            style={[typography.caption, styles.breakdownLabel, { color: t.text }]}
+            style={[
+              typography.caption,
+              styles.breakdownLabel,
+              { color: t.text },
+            ]}
             numberOfLines={1}
           >
             {r.label}
           </Text>
-          <View style={[styles.breakdownTrack, { backgroundColor: t.separator }]}>
+          <View
+            style={[styles.breakdownTrack, { backgroundColor: t.separator }]}
+          >
             <View
               style={{
                 width: `${(r.value / max) * 100}%`,
@@ -612,7 +761,12 @@ export function BreakdownBars({
               }}
             />
           </View>
-          <Text style={[typography.caption, { color: t.muted, width: 28, textAlign: "right" }]}>
+          <Text
+            style={[
+              typography.caption,
+              { color: t.muted, width: 28, textAlign: "right" },
+            ]}
+          >
             {r.value}
           </Text>
         </View>
@@ -658,20 +812,34 @@ export function FollowUpRow({
     >
       <Avatar photo={person.photo ?? null} name={person.name} size={40} />
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={[typography.headline, { color: t.text }]} numberOfLines={1}>
+        <Text
+          style={[typography.headline, { color: t.text }]}
+          numberOfLines={1}
+        >
           {person.name}
         </Text>
         {person.subtitle ? (
-          <Text style={[typography.caption, { color: t.muted }]} numberOfLines={1}>
+          <Text
+            style={[typography.caption, { color: t.muted }]}
+            numberOfLines={1}
+          >
             {person.kind === "staff" ? person.subtitle : "Member"}
             {" · "}Last seen {last}
           </Text>
         ) : (
-          <Text style={[typography.caption, { color: t.muted }]} numberOfLines={1}>
+          <Text
+            style={[typography.caption, { color: t.muted }]}
+            numberOfLines={1}
+          >
             {person.kind === "staff" ? "Staff" : "Member"} · Last seen {last}
           </Text>
         )}
-        <View style={[styles.reasonPill, { backgroundColor: withAlpha(tone, 0.14) }]}>
+        <View
+          style={[
+            styles.reasonPill,
+            { backgroundColor: withAlpha(tone, 0.14) },
+          ]}
+        >
           <Text style={[styles.reasonText, { color: tone }]} numberOfLines={2}>
             {person.reason}
           </Text>
@@ -686,7 +854,9 @@ function EmptyChart() {
   const t = useAppTheme();
   return (
     <View style={[styles.emptyChart, { height: CHART_HEIGHT }]}>
-      <Text style={[typography.caption, { color: t.faint }]}>No data in this range</Text>
+      <Text style={[typography.caption, { color: t.faint }]}>
+        No data in this range
+      </Text>
     </View>
   );
 }
@@ -737,6 +907,8 @@ const styles = StyleSheet.create({
   chartWithYAxis: {
     flexDirection: "row",
     gap: 4,
+    overflow: "visible",
+    zIndex: 0,
   },
   yAxis: {
     width: Y_AXIS_W,
@@ -755,6 +927,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     overflow: "visible",
+    zIndex: 0,
   },
   barSlot: {
     alignItems: "center",
@@ -817,9 +990,7 @@ const styles = StyleSheet.create({
   fullscreenHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.sm,
+    padding: spacing.lg,
     gap: spacing.sm,
   },
   fullscreenLegend: {
@@ -831,7 +1002,6 @@ const styles = StyleSheet.create({
   },
   fullscreenBody: {
     flex: 1,
-    padding: spacing.xl,
     justifyContent: "center",
     overflow: "visible",
   },
@@ -861,7 +1031,12 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   tooltipValue: { fontSize: 18, fontWeight: "800", alignSelf: "center" },
-  tooltipYear: { fontSize: 10, letterSpacing: 0.3, opacity: 0.6, alignSelf: "center" },
+  tooltipYear: {
+    fontSize: 10,
+    letterSpacing: 0.3,
+    opacity: 0.6,
+    alignSelf: "center",
+  },
   tooltipRow: {
     flexDirection: "row",
     alignItems: "center",
