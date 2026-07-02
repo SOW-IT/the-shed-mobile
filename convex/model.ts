@@ -77,6 +77,41 @@ export async function getProfile(
 }
 
 /**
+ * The single attendance-member row for an email, if any. An attendance member
+ * links to a staff profile purely by its `email` column now (both SOW-domain
+ * spellings, case- and whitespace-insensitive, via staffEmailCandidates).
+ *
+ * During the `staffEmail` → `email` migration window this also falls back to the
+ * legacy `by_staff_email` index so a row that hasn't been backfilled yet is
+ * still found; that fallback is removed once `dropStaffEmail` has run
+ * everywhere. Uses `.first()` (not `.unique()`) so a stray duplicate email can
+ * never throw inside a read.
+ */
+export async function findMemberByEmail(
+  ctx: Ctx,
+  email: string | undefined
+): Promise<Doc<"attendanceMembers"> | null> {
+  const candidates = staffEmailCandidates(email);
+  for (const candidate of candidates) {
+    const byEmail = await ctx.db
+      .query("attendanceMembers")
+      .withIndex("by_email", (q) => q.eq("email", candidate))
+      .first();
+    if (byEmail) return byEmail;
+  }
+  // DEPRECATED widen-window fallback — drop with the by_staff_email index once
+  // the dropStaffEmail backfill has completed on every deployment.
+  for (const candidate of candidates) {
+    const byStaff = await ctx.db
+      .query("attendanceMembers")
+      .withIndex("by_staff_email", (q) => q.eq("staffEmail", candidate))
+      .first();
+    if (byStaff) return byStaff;
+  }
+  return null;
+}
+
+/**
  * A person's display name for notifications: their staff profile name, the
  * directory name as a fallback, else the raw email when we know nothing else.
  * Used so emails never leak into notification titles/bodies.

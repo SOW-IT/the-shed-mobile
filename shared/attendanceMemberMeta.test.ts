@@ -135,6 +135,16 @@ describe("partitionSelectOptions", () => {
     expect(roleFilterMatches("Staff", ["President"], null)).toBe(false);
     expect(roleFilterMatches("Staff", [], "Staff")).toBe(false);
     expect(roleFilterMatches("Staff", [], "Member")).toBe(false);
+    // A student leader may be an attendance-only member (no profile role) tagged
+    // with a campus role in metadata — the Student Leader bucket matches those
+    // via the metadata fallback. (Staff, above, does not: paid staff always have
+    // a profile.) A person who is both a profile and a member is collapsed to one
+    // row in attendanceMembers.list, so this counts leaders, not duplicates.
+    expect(roleFilterMatches("Student Leader", [], "Student Leader")).toBe(true);
+    expect(roleFilterMatches("Student Leader", [], "President")).toBe(true);
+    expect(roleFilterMatches("Student Leader", [], "Executive")).toBe(true);
+    expect(roleFilterMatches("Student Leader", [], "Staff")).toBe(false);
+    expect(roleFilterMatches("Student Leader", [], "Member")).toBe(false);
     expect(roleFilterMatches("Head of Department", [], "Head of Department")).toBe(
       true
     );

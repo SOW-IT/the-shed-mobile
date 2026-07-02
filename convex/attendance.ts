@@ -15,7 +15,13 @@ import { canReverseSignIn, compareAttendanceFrequency, memberMatchesEventCampus,
 import { staffEmailCandidates } from "../shared/rollcallImport";
 import { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
-import { displayName, getProfile, optionalProfile, requireProfile } from "./model";
+import {
+  displayName,
+  findMemberByEmail,
+  getProfile,
+  optionalProfile,
+  requireProfile,
+} from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
 import { markSubgroupsDirty } from "./attendanceMetrics";
 
@@ -331,18 +337,11 @@ export const listByEvent = query({
         if (profile) break;
       }
       const resolvedEmail = profile?.email.toLowerCase() ?? email.toLowerCase();
-      // The attendance member overlay for the event's calendar year (either SOW
-      // domain), used as the fallback identity when no staff profile applies for
-      // the event-date staff year (e.g. an Oct–Dec event by someone who was staff
-      // last staff year but isn't this one).
-      let shadow: Doc<"attendanceMembers"> | null = null;
-      for (const candidate of staffEmailCandidates(resolvedEmail)) {
-        shadow = await ctx.db
-          .query("attendanceMembers")
-          .withIndex("by_staff_email", (q) => q.eq("staffEmail", candidate))
-          .unique();
-        if (shadow) break;
-      }
+      // The attendance member overlay for the event's calendar year (matched by
+      // email, either SOW domain), used as the fallback identity when no staff
+      // profile applies for the event-date staff year (e.g. an Oct–Dec event by
+      // someone who was staff last staff year but isn't this one).
+      const shadow = await findMemberByEmail(ctx, resolvedEmail);
       const assignments = profile ? assignmentsOf(profile) : [];
       const roles = [...new Set(assignments.map((assignment) => assignment.role))];
       const campuses = [

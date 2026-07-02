@@ -61,10 +61,10 @@ async function resolveExportEvents(
   const memberById = new Map<string, MemberDoc>(
     members.map((m) => [String(m._id), m])
   );
-  const memberByStaffEmail = new Map<string, MemberDoc>();
+  const memberByEmail = new Map<string, MemberDoc>();
   for (const m of members) {
-    for (const candidate of staffEmailCandidates(m.staffEmail ?? m.email)) {
-      if (!memberByStaffEmail.has(candidate)) memberByStaffEmail.set(candidate, m);
+    for (const candidate of staffEmailCandidates(m.email)) {
+      if (!memberByEmail.has(candidate)) memberByEmail.set(candidate, m);
     }
   }
 
@@ -122,7 +122,7 @@ async function resolveExportEvents(
     const profileFor = (email: string) =>
       first(staffEmailCandidates(email).map((c) => profiles.get(c)));
     const shadowFor = (email: string) =>
-      first(staffEmailCandidates(email).map((c) => memberByStaffEmail.get(c)));
+      first(staffEmailCandidates(email).map((c) => memberByEmail.get(c)));
 
     const resolvedRows: ExportRow[] = attendanceRows
       .map((row): ExportRow => {

@@ -544,7 +544,7 @@ describe("attendance members", () => {
       memberId,
       staffYear: YEAR,
     });
-    expect(merged?.staffEmail).toBe(LEADER);
+    expect(merged?.isStaffOverlay).toBe(true);
     expect(merged?.email).toBe(LEADER);
     await leader.mutation(api.attendanceMembers.update, {
       memberId,
@@ -558,7 +558,7 @@ describe("attendance members", () => {
       staffYear: YEAR,
     });
     if (!updated) throw new Error("Expected merged attendance member");
-    expect(updated?.staffEmail).toBe(LEADER);
+    expect(updated?.isStaffOverlay).toBe(true);
     expect(updated?.email).toBe(LEADER);
     expect(updated.metadata?.[yearField._id]).toBe(String(YEAR - 2));
 
@@ -591,11 +591,12 @@ describe("attendance members", () => {
     expect(page.page.some((r) => r.name === "Ghost")).toBe(false);
   });
 
-  test("ensureForStaff adopts an existing unlinked member instead of duplicating", async () => {
+  test("ensureForStaff reuses an existing member with the staff email instead of duplicating", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
-    // STAFF was added as an attendance-only member before being linked.
+    // STAFF was added as an attendance-only member under the staff email, before
+    // being asked for as a staff overlay.
     const memberId = await leader.mutation(api.attendanceMembers.create, {
       name: "Staff Person",
       email: STAFF,
@@ -604,11 +605,12 @@ describe("attendance members", () => {
       staffEmail: STAFF,
     });
     expect(ensured).toBe(memberId);
+    // Linked purely by email — one row, no separate staffEmail column.
     const rows = (
       await t.run(async (ctx) => ctx.db.query("attendanceMembers").collect())
     ).filter((m) => m.email === STAFF);
     expect(rows).toHaveLength(1);
-    expect(rows[0].staffEmail).toBe(STAFF);
+    expect(rows[0].staffEmail).toBeUndefined();
   });
 
   test("ensureForStaff won't adopt an unlinked member without a staff profile", async () => {

@@ -171,7 +171,7 @@ describe("legacy import matching", () => {
 });
 
 describe("mergeLegacyStaffMembers (staff-year-aware relink)", () => {
-  test("links @sow.org.au and @sowaustralia.com members to the next staff year's profile", async () => {
+  test("normalises a legacy @sowaustralia.com member to the profile email, leaving an already-canonical row", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     // Calendar import year 2025; the staff profiles live in staff year 2026
@@ -184,8 +184,10 @@ describe("mergeLegacyStaffMembers (staff-year-aware relink)", () => {
       university: USYD,
     });
 
-    // Two legacy members under calendar year 2025 with NO staffEmail: one
-    // already stored as @sow.org.au, one still @sowaustralia.com (vice versa).
+    // Two legacy members under calendar year 2025: m1 is already stored under
+    // the canonical @sow.org.au profile email (so it's already linked and must
+    // be left alone), m2 is still @sowaustralia.com and needs normalising to the
+    // profile's @sow.org.au email.
     const { m1, m2, eventId } = await t.run(async (ctx) => {
       const dateStart = Date.UTC(2025, 10, 1, 9, 0, 0); // Nov 2025 → staff year 2026
       const eId = await ctx.db.insert("events", {
@@ -196,7 +198,7 @@ describe("mergeLegacyStaffMembers (staff-year-aware relink)", () => {
       });
       const a = await ctx.db.insert("attendanceMembers", {
         name: "Leader Legacy",
-        email: LEADER, // leader@sow.org.au
+        email: LEADER, // leader@sow.org.au — already the profile email
       });
       const b = await ctx.db.insert("attendanceMembers", {
         name: "Jane Doe",
@@ -210,8 +212,9 @@ describe("mergeLegacyStaffMembers (staff-year-aware relink)", () => {
     const res = await admin.mutation(api.rollcallImport.mergeLegacyStaffMembers, {
       year: 2025,
     });
-    expect(res.mergedMembers).toBe(2);
-    expect(res.attendanceMoved).toBe(2);
+    // Only the legacy-domain row is merged; m1 is already linked by email.
+    expect(res.mergedMembers).toBe(1);
+    expect(res.attendanceMoved).toBe(1);
 
     const after = await t.run(async (ctx) => {
       const att = await ctx.db
@@ -226,12 +229,13 @@ describe("mergeLegacyStaffMembers (staff-year-aware relink)", () => {
         oldM2: await ctx.db.get(m2),
       };
     });
-    // Legacy member rows removed, attendance now keyed by the staff email.
-    expect(after.oldM1).toBeNull();
+    // m1 kept (already linked, still memberId-keyed); m2 merged away and its
+    // attendance re-keyed to the profile's @sow.org.au email.
+    expect(after.oldM1).not.toBeNull();
     expect(after.oldM2).toBeNull();
     expect(after.att).toEqual([
+      { email: undefined, memberId: m1 },
       { email: "jane.doe@sow.org.au", memberId: undefined },
-      { email: LEADER, memberId: undefined },
     ]);
   });
 });

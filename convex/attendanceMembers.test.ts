@@ -57,3 +57,56 @@ describe("attendanceMembers.list — staff vs member classification", () => {
     expect(former?.roles).toEqual([]);
   });
 });
+
+describe("attendanceMembers.list — staff profile ↔ member linking", () => {
+  // A person who is both a staff profile and an attendanceMember must appear as
+  // ONE combined row (the profile, carrying the member's metadata as `memberId`)
+  // — never two rows. The link is by canonical email, robust to the SOW domain
+  // spellings, case, and stray whitespace.
+  const expectSingleLinkedRow = async (
+    memberEmail: string,
+    { staffEmail }: { staffEmail?: string } = {}
+  ) => {
+    const { t, leader } = await setup();
+    const memberId = await t.run((ctx) =>
+      ctx.db.insert("attendanceMembers", {
+        name: "Leader Alias",
+        email: memberEmail,
+        ...(staffEmail ? { staffEmail } : {}),
+        metadata: {},
+      })
+    );
+
+    const { page } = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      paginationOpts: { numItems: 100, cursor: null },
+    });
+
+    const leaderRows = page.filter((r) => r.email === LEADER);
+    // Exactly one row for the leader — the staff profile, linked to the member.
+    expect(leaderRows).toHaveLength(1);
+    expect(leaderRows[0].kind).toBe("staff");
+    expect(leaderRows[0].memberId).toBe(memberId);
+    // The alias member is not surfaced as its own separate row.
+    expect(page.some((r) => r.memberId === memberId && r.email !== LEADER)).toBe(
+      false
+    );
+  };
+
+  test("links by plain email (exact match)", async () => {
+    await expectSingleLinkedRow(LEADER);
+  });
+
+  test("links across the two SOW staff domains", async () => {
+    // Profile is leader@sow.org.au; the member row uses the legacy domain.
+    await expectSingleLinkedRow("leader@sowaustralia.com");
+  });
+
+  test("links despite case and surrounding whitespace", async () => {
+    await expectSingleLinkedRow("  Leader@SOW.ORG.AU  ");
+  });
+
+  test("links via staffEmail when the plain email differs", async () => {
+    await expectSingleLinkedRow("personal@example.com", { staffEmail: LEADER });
+  });
+});
