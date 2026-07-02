@@ -4,52 +4,66 @@
  * and follow-up person rows. All theme-aware and responsive; the parent
  * (MetricsTab) decides column counts from the window width.
  */
+import { Avatar, Card } from "@/components/ui";
+import {
+  radius,
+  spacing,
+  typography,
+  useAppTheme,
+  type AppTheme,
+} from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { ReactNode, useState } from "react";
-import { LayoutChangeEvent, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  LayoutChangeEvent,
+  Modal,
+  Pressable,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import type {
   FollowUpPerson,
   FollowUpReasonCode,
   SplitPoint,
   TrendPoint,
 } from "../../../shared/attendanceMetrics";
-import { Avatar, Card } from "@/components/ui";
-import { radius, spacing, typography, useAppTheme, type AppTheme } from "@/theme";
 
 const BAR_MIN = 3; // minimum visible bar height
 const CHART_HEIGHT = 120;
+const CHART_HEIGHT_FULL = 220; // taller in fullscreen (fits rotated landscape on typical phones)
 const BAR_MAX_W = 40; // widest a single bar gets (a few points)
 const BAR_MIN_W = 5; // thinnest bar (many points in a range)
 const BAR_MIN_GAP = 6; // minimum space between bars
-const BAR_LABEL_H = 15; // fixed x-axis label row height, so all bars share a baseline
+const BAR_LABEL_H = 15; // fixed x-axis label row height
+const BAR_VALUE_H = 18; // fixed space reserved above bars for the value label
+const Y_AXIS_W = 32; // width reserved for y-axis labels
+// Total fixed container height = chart bars + x-label row + value label row
+const chartContainerH = (ch: number) => ch + BAR_LABEL_H + BAR_VALUE_H;
 
 /**
- * Size `count` bars to fit a measured width instead of scrolling — the charts
- * sit inside a horizontal tab pager that would swallow a horizontal-scroll
- * gesture, so every range must fit the card. Bars shrink as points grow (value
- * labels drop out and x-axis labels thin once bars are narrow); when there are
- * only a few, the leftover width is distributed *between* them (`spread`) so
- * they fill the card evenly instead of clumping at the left.
+ * Size `count` bars to fit a measured width instead of scrolling.
  */
-function useBarFit(count: number) {
+function useBarFit(count: number, chartHeight = CHART_HEIGHT) {
   const [w, setW] = useState(0);
   const onLayout = (e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width);
-  // Reserve at least BAR_MIN_GAP between bars, so distributing the slack with
-  // space-between never packs them tighter than that.
   const raw =
     w > 0
       ? (w - BAR_MIN_GAP * Math.max(0, count - 1)) / Math.max(1, count)
       : BAR_MAX_W;
   const barWidth = Math.max(BAR_MIN_W, Math.min(BAR_MAX_W, Math.floor(raw)));
   const showValues = barWidth >= 18;
-  // At most ~one label per 44px so they never overlap.
-  const maxLabels = Math.max(1, Math.floor(w / 44));
-  const labelStep = Math.max(1, Math.ceil(count / maxLabels));
-  // Bars capped at BAR_MAX_W leave slack; spread it evenly across the row.
+  const LABEL_MIN_PX = 22;
+  const labelStep =
+    barWidth >= LABEL_MIN_PX
+      ? 1
+      : Math.ceil(LABEL_MIN_PX / Math.max(1, barWidth));
   const spread = w > 0 && count * barWidth < w;
   const justify: "center" | "space-between" | "flex-start" =
     count <= 1 ? "center" : spread ? "space-between" : "flex-start";
-  return { w, onLayout, barWidth, showValues, labelStep, justify };
+  return { w, onLayout, barWidth, showValues, labelStep, justify, chartHeight };
 }
 
 /** Inner bar width — a small inset when the bar is wide, flush when it's thin. */
@@ -57,9 +71,7 @@ const barInner = (barWidth: number): number =>
   Math.max(3, barWidth - (barWidth > 16 ? 10 : 1));
 
 /**
- * Fixed-height x-axis label under a bar. The height is reserved even when the
- * label is blank (thinned out), so every bar shares the same baseline and the
- * bars don't end up at different heights.
+ * Fixed-height x-axis label under a bar.
  */
 function BarLabel({ text }: { text: string }) {
   const t = useAppTheme();
@@ -68,6 +80,36 @@ function BarLabel({ text }: { text: string }) {
       <Text style={[styles.barLabel, { color: t.faint }]} numberOfLines={1}>
         {text}
       </Text>
+    </View>
+  );
+}
+
+/**
+ * Y-axis column with evenly spaced tick labels derived from the data max.
+ * Renders 5 ticks: max, 75%, 50%, 25%, 0 (top → bottom). The trailing 0 is the
+ * baseline — without it `space-between` drops the 25% label onto the baseline,
+ * making the scale read 100/67/33/0 instead of 100/75/50/25/0.
+ */
+function YAxis({ max, chartHeight }: { max: number; chartHeight: number }) {
+  const t = useAppTheme();
+  const ticks = [
+    max,
+    Math.round(max * 0.75),
+    Math.round(max * 0.5),
+    Math.round(max * 0.25),
+    0,
+  ];
+  return (
+    <View style={[styles.yAxis, { height: chartHeight }]}>
+      {ticks.map((v, i) => (
+        <Text
+          key={i}
+          style={[styles.yTick, { color: t.faint }]}
+          numberOfLines={1}
+        >
+          {v}
+        </Text>
+      ))}
     </View>
   );
 }
@@ -88,7 +130,6 @@ export function MetricCard({
   hint?: string;
   tone?: "default" | "positive" | "attention";
   width: number;
-  /** When set, the card is tappable and shows an info glyph (opens a detail). */
   onPress?: () => void;
 }) {
   const t = useAppTheme();
@@ -104,11 +145,18 @@ export function MetricCard({
   const body = (
     <>
       <View style={styles.metricLabelRow}>
-        <Text style={[typography.label, { color: t.muted, flex: 1 }]} numberOfLines={1}>
+        <Text
+          style={[typography.label, { color: t.muted, flex: 1 }]}
+          numberOfLines={1}
+        >
           {label}
         </Text>
         {onPress ? (
-          <Ionicons name="information-circle-outline" size={15} color={t.faint} />
+          <Ionicons
+            name="information-circle-outline"
+            size={15}
+            color={t.faint}
+          />
         ) : null}
       </View>
       <Text style={[typography.amount, { color: accent }]} numberOfLines={1}>
@@ -128,13 +176,21 @@ export function MetricCard({
               size={13}
               color={deltaColour}
             />
-            <Text style={[typography.caption, { color: deltaColour, fontWeight: "700" }]}>
+            <Text
+              style={[
+                typography.caption,
+                { color: deltaColour, fontWeight: "700" },
+              ]}
+            >
               {delta.text}
             </Text>
           </View>
         ) : null}
         {hint ? (
-          <Text style={[typography.caption, { color: t.faint }]} numberOfLines={1}>
+          <Text
+            style={[typography.caption, { color: t.faint }]}
+            numberOfLines={1}
+          >
             {hint}
           </Text>
         ) : null}
@@ -156,34 +212,194 @@ export function MetricCard({
   return <Card style={[styles.metricCard, { width }]}>{body}</Card>;
 }
 
-/** Titled container for a chart, with an optional legend row. */
+/**
+ * Fullscreen landscape modal. Since app.json locks orientation to portrait,
+ * we render a portrait-sized modal and rotate its content 90° so it reads as
+ * landscape — no native orientation API needed.
+ */
+function FullscreenChartModal({
+  visible,
+  onClose,
+  title,
+  subtitle,
+  legend,
+  children,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  title: string;
+  subtitle?: string;
+  legend?: ReactNode;
+  children: ReactNode;
+}) {
+  const t = useAppTheme();
+  const { width: sw, height: sh } = useWindowDimensions();
+  // After rotation: the rotated container is sh wide and sw tall (screen dims swap).
+  const lw = sh; // landscape width  = screen height
+  const lh = sw; // landscape height = screen width
+  return (
+    <Modal
+      visible={visible}
+      animationType="fade"
+      transparent
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <StatusBar hidden />
+      {/* Full-screen backdrop */}
+      <View
+        style={[StyleSheet.absoluteFill, { backgroundColor: t.background }]}
+      />
+      {/* Rotated landscape container, centred on screen */}
+      <View
+        style={[
+          StyleSheet.absoluteFill,
+          { alignItems: "center", justifyContent: "center" },
+        ]}
+      >
+        <View
+          style={{
+            width: lw,
+            height: lh,
+            transform: [{ rotate: "90deg" }],
+            backgroundColor: t.background,
+            // Uniform outer margin on all 4 sides around the entire panel
+            paddingHorizontal: spacing.xxxl,
+            paddingVertical: spacing.sm,
+          }}
+        >
+          {/* Header */}
+          <View style={styles.fullscreenHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={[typography.headline, { color: t.text }]}>
+                {title}
+              </Text>
+              {subtitle ? (
+                <Text style={[typography.caption, { color: t.muted }]}>
+                  {subtitle}
+                </Text>
+              ) : null}
+            </View>
+            {legend ? (
+              <View style={styles.fullscreenLegend}>{legend}</View>
+            ) : null}
+            <Pressable
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Close fullscreen"
+              style={({ pressed }) => [
+                styles.closeBtn,
+                pressed && { opacity: 0.6 },
+              ]}
+            >
+              <Ionicons name="close" size={22} color={t.text} />
+            </Pressable>
+          </View>
+          {/* Chart body */}
+          <View style={styles.fullscreenBody}>{children}</View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+/** Titled container for a chart; tap anywhere to open fullscreen. */
 export function ChartCard({
   title,
   subtitle,
   legend,
   children,
   width,
+  fullscreenContent,
 }: {
   title: string;
   subtitle?: string;
   legend?: ReactNode;
   children: ReactNode;
   width: number;
+  /** Chart rendered inside the fullscreen modal (usually a taller variant). */
+  fullscreenContent?: ReactNode;
 }) {
   const t = useAppTheme();
+  const [full, setFull] = useState(false);
   return (
-    <Card style={[styles.chartCard, { width }]}>
-      <View style={styles.chartHeader}>
-        <View style={{ flex: 1 }}>
-          <Text style={[typography.headline, { color: t.text }]}>{title}</Text>
-          {subtitle ? (
-            <Text style={[typography.caption, { color: t.muted }]}>{subtitle}</Text>
-          ) : null}
-        </View>
-        {legend}
-      </View>
-      {children}
-    </Card>
+    <>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${title} — tap to expand`}
+        onPress={() => setFull(true)}
+        style={({ pressed }) => [pressed && { opacity: 0.85 }]}
+      >
+        <Card style={[styles.chartCard, { width }]}>
+          <View style={styles.chartHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={[typography.headline, { color: t.text }]}>
+                {title}
+              </Text>
+              {subtitle ? (
+                <Text style={[typography.caption, { color: t.muted }]}>
+                  {subtitle}
+                </Text>
+              ) : null}
+            </View>
+            <View style={styles.chartHeaderRight}>
+              {legend}
+              <Ionicons name="expand-outline" size={16} color={t.faint} />
+            </View>
+          </View>
+          {children}
+        </Card>
+      </Pressable>
+      <FullscreenChartModal
+        visible={full}
+        onClose={() => setFull(false)}
+        title={title}
+        subtitle={subtitle}
+        legend={legend}
+      >
+        {fullscreenContent ?? children}
+      </FullscreenChartModal>
+    </>
+  );
+}
+
+type TooltipRow = { label: string; value: number; colour?: string };
+
+/**
+ * Tooltip shown above a tapped bar in fullscreen mode. Supports a single
+ * total value or a breakdown list (one row per segment/stack).
+ */
+function BarTooltip({ year, rows }: { year: string; rows: TooltipRow[] }) {
+  const t = useAppTheme();
+  if (!rows || rows.length === 0) return null;
+  const single = rows.length === 1;
+  return (
+    // position:absolute so the tooltip floats above the bar without being
+    // constrained to the (potentially narrow) barSlot width
+    <View style={[styles.tooltip, { backgroundColor: t.text }]}>
+      <Text style={[styles.tooltipYear, { color: t.background }]}>{year}</Text>
+      {single ? (
+        <Text style={[styles.tooltipValue, { color: t.background }]}>
+          {rows[0].value}
+        </Text>
+      ) : (
+        rows.map((r) => (
+          <View key={r.label} style={styles.tooltipRow}>
+            {r.colour ? (
+              <View
+                style={[styles.tooltipDot, { backgroundColor: r.colour }]}
+              />
+            ) : null}
+            <Text style={[styles.tooltipSegLabel, { color: t.background }]}>
+              {r.label}
+            </Text>
+            <Text style={[styles.tooltipSegValue, { color: t.background }]}>
+              {r.value}
+            </Text>
+          </View>
+        ))
+      )}
+    </View>
   );
 }
 
@@ -191,82 +407,186 @@ export function ChartCard({
 export function BarChart({
   points,
   colour,
+  fullscreen = false,
 }: {
   points: TrendPoint[];
   colour?: string;
+  fullscreen?: boolean;
 }) {
   const t = useAppTheme();
   const bar = colour ?? t.primary;
-  const fit = useBarFit(points.length);
+  const chartHeight = fullscreen ? CHART_HEIGHT_FULL : CHART_HEIGHT;
+  const fit = useBarFit(points.length, chartHeight);
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   if (points.length === 0) return <EmptyChart />;
   const max = Math.max(1, ...points.map((p) => p.value));
   return (
-    <View onLayout={fit.onLayout} style={[styles.barRow, { justifyContent: fit.justify }]}>
-      {fit.w === 0
-        ? null
-        : points.map((p, i) => (
-            <View key={`${p.at}-${i}`} style={[styles.barSlot, { width: fit.barWidth }]}>
-              {fit.showValues ? (
-                <Text style={[styles.barValue, { color: t.muted }]}>{p.value}</Text>
-              ) : null}
-              <View
-                style={{
-                  width: barInner(fit.barWidth),
-                  height: Math.max(BAR_MIN, (p.value / max) * CHART_HEIGHT),
-                  backgroundColor: bar,
-                  borderRadius: radius.sm,
-                }}
-              />
-              <BarLabel text={i % fit.labelStep === 0 ? p.label : ""} />
-            </View>
-          ))}
+    <View
+      style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}
+    >
+      <YAxis max={max} chartHeight={chartHeight} />
+      <View style={{ flex: 1, height: chartContainerH(chartHeight) }}>
+        <View
+          onLayout={fit.onLayout}
+          style={[
+            styles.barRow,
+            {
+              justifyContent: fit.justify,
+              height: chartContainerH(chartHeight),
+            },
+          ]}
+        >
+          {fit.w === 0
+            ? null
+            : points.map((p, i) => {
+                const selected = fullscreen && selectedIdx === i;
+                return (
+                  <Pressable
+                    key={`${p.at}-${i}`}
+                    onPress={
+                      fullscreen
+                        ? () => setSelectedIdx(selected ? null : i)
+                        : undefined
+                    }
+                    style={[
+                      styles.barSlot,
+                      { width: fit.barWidth, zIndex: selected ? 10 : 0 },
+                    ]}
+                  >
+                    {selected ? (
+                      <BarTooltip
+                        year={p.label}
+                        rows={[{ label: "", value: p.value }]}
+                      />
+                    ) : fit.showValues ? (
+                      <Text style={[styles.barValue, { color: t.muted }]}>
+                        {p.value}
+                      </Text>
+                    ) : null}
+                    <View
+                      style={{
+                        width: barInner(fit.barWidth),
+                        height: Math.max(
+                          BAR_MIN,
+                          (p.value / max) * chartHeight,
+                        ),
+                        backgroundColor: selected ? t.accent : bar,
+                        borderRadius: radius.sm,
+                      }}
+                    />
+                    <BarLabel text={i % fit.labelStep === 0 ? p.label : ""} />
+                  </Pressable>
+                );
+              })}
+        </View>
+      </View>
     </View>
   );
 }
 
 /** Stacked returning (bottom) + new (top) attendees per point; fits the card. */
-export function StackedBarChart({ points }: { points: SplitPoint[] }) {
+export function StackedBarChart({
+  points,
+  fullscreen = false,
+}: {
+  points: SplitPoint[];
+  fullscreen?: boolean;
+}) {
   const t = useAppTheme();
-  const fit = useBarFit(points.length);
+  const chartHeight = fullscreen ? CHART_HEIGHT_FULL : CHART_HEIGHT;
+  const fit = useBarFit(points.length, chartHeight);
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   if (points.length === 0) return <EmptyChart />;
   const max = Math.max(1, ...points.map((p) => p.fresh + p.returning));
-  const scale = (n: number) => (n / max) * CHART_HEIGHT;
+  const scale = (n: number) => (n / max) * chartHeight;
   return (
-    <View onLayout={fit.onLayout} style={[styles.barRow, { justifyContent: fit.justify }]}>
-      {fit.w === 0
-        ? null
-        : points.map((p, i) => (
-            <View key={`${p.at}-${i}`} style={[styles.barSlot, { width: fit.barWidth }]}>
-              {fit.showValues ? (
-                <Text style={[styles.barValue, { color: t.muted }]}>
-                  {p.fresh + p.returning}
-                </Text>
-              ) : null}
-              <View style={{ width: barInner(fit.barWidth) }}>
-                {p.fresh > 0 ? (
-                  <View
-                    style={{
-                      height: Math.max(BAR_MIN, scale(p.fresh)),
-                      backgroundColor: t.accent,
-                      borderTopLeftRadius: radius.sm,
-                      borderTopRightRadius: radius.sm,
-                    }}
-                  />
-                ) : null}
-                {p.returning > 0 ? (
-                  <View
-                    style={{
-                      height: Math.max(BAR_MIN, scale(p.returning)),
-                      backgroundColor: t.primary,
-                      borderBottomLeftRadius: radius.sm,
-                      borderBottomRightRadius: radius.sm,
-                    }}
-                  />
-                ) : null}
-              </View>
-              <BarLabel text={i % fit.labelStep === 0 ? p.label : ""} />
-            </View>
-          ))}
+    <View
+      style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}
+    >
+      <YAxis max={max} chartHeight={chartHeight} />
+      <View style={{ flex: 1, height: chartContainerH(chartHeight) }}>
+        <View
+          onLayout={fit.onLayout}
+          style={[
+            styles.barRow,
+            {
+              justifyContent: fit.justify,
+              height: chartContainerH(chartHeight),
+            },
+          ]}
+        >
+          {fit.w === 0
+            ? null
+            : points.map((p, i) => {
+                const total = p.fresh + p.returning;
+                const selected = fullscreen && selectedIdx === i;
+                return (
+                  <Pressable
+                    key={`${p.at}-${i}`}
+                    onPress={
+                      fullscreen
+                        ? () => setSelectedIdx(selected ? null : i)
+                        : undefined
+                    }
+                    style={[
+                      styles.barSlot,
+                      { width: fit.barWidth, zIndex: selected ? 10 : 0 },
+                    ]}
+                  >
+                    {selected ? (
+                      <BarTooltip
+                        year={p.label}
+                        rows={[
+                          {
+                            label: "Leaders",
+                            value: p.fresh,
+                            colour: t.accent,
+                          },
+                          {
+                            label: "Staff",
+                            value: p.returning,
+                            colour: t.primary,
+                          },
+                        ]}
+                      />
+                    ) : fit.showValues ? (
+                      <Text style={[styles.barValue, { color: t.muted }]}>
+                        {total}
+                      </Text>
+                    ) : null}
+                    <View
+                      style={{
+                        width: barInner(fit.barWidth),
+                        opacity: selected ? 0.7 : 1,
+                      }}
+                    >
+                      {p.fresh > 0 ? (
+                        <View
+                          style={{
+                            height: Math.max(BAR_MIN, scale(p.fresh)),
+                            backgroundColor: t.accent,
+                            borderTopLeftRadius: radius.sm,
+                            borderTopRightRadius: radius.sm,
+                          }}
+                        />
+                      ) : null}
+                      {p.returning > 0 ? (
+                        <View
+                          style={{
+                            height: Math.max(BAR_MIN, scale(p.returning)),
+                            backgroundColor: t.primary,
+                            borderBottomLeftRadius: radius.sm,
+                            borderBottomRightRadius: radius.sm,
+                          }}
+                        />
+                      ) : null}
+                    </View>
+                    <BarLabel text={i % fit.labelStep === 0 ? p.label : ""} />
+                  </Pressable>
+                );
+              })}
+        </View>
+      </View>
     </View>
   );
 }
@@ -282,65 +602,125 @@ export type MultiStackPoint = {
 const SEG_GAP = 1.5;
 
 /**
- * N coloured segments stacked per point; the bar's height scales to its total and
- * the segments split THAT height proportionally — so the stack always sums to the
- * scaled total (no per-segment minimum inflating it past the chart, which would
- * overflow and clip the year labels beneath). A hairline gap separates segments.
+ * N coloured segments stacked per point.
  */
-export function MultiStackedBarChart({ points }: { points: MultiStackPoint[] }) {
+export function MultiStackedBarChart({
+  points,
+  fullscreen = false,
+}: {
+  points: MultiStackPoint[];
+  fullscreen?: boolean;
+}) {
   const t = useAppTheme();
-  const fit = useBarFit(points.length);
+  const chartHeight = fullscreen ? CHART_HEIGHT_FULL : CHART_HEIGHT;
+  const fit = useBarFit(points.length, chartHeight);
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   if (points.length === 0) return <EmptyChart />;
-  const totals = points.map((p) => p.segments.reduce((s, seg) => s + seg.value, 0));
+  const totals = points.map((p) =>
+    p.segments.reduce((s, seg) => s + seg.value, 0),
+  );
   const max = Math.max(1, ...totals);
-  const scale = (n: number) => (n / max) * CHART_HEIGHT;
+  const scale = (n: number) => (n / max) * chartHeight;
   return (
-    <View onLayout={fit.onLayout} style={[styles.barRow, { justifyContent: fit.justify }]}>
-      {fit.w === 0
-        ? null
-        : points.map((p, i) => {
-            const total = totals[i];
-            const visible = p.segments.filter((seg) => seg.value > 0);
-            const barHeight = Math.max(BAR_MIN, scale(total));
-            // Reserve the inter-segment gaps out of the bar height so the column
-            // (segment fills + gaps) always equals `barHeight` exactly — capping
-            // the gap total so it can't eat into the bar or push the stack over
-            // (which would overflow and clip again). Short bars just lose the gaps.
-            const gapCount = Math.max(0, visible.length - 1);
-            const gaps = Math.min(gapCount * SEG_GAP, Math.max(0, barHeight - BAR_MIN));
-            const perGap = gapCount > 0 ? gaps / gapCount : 0;
-            const fill = barHeight - gaps;
-            return (
-              <View key={`${p.at}-${i}`} style={[styles.barSlot, { width: fit.barWidth }]}>
-                {fit.showValues ? (
-                  <Text style={[styles.barValue, { color: t.muted }]}>{total}</Text>
-                ) : null}
-                <View style={{ width: barInner(fit.barWidth), height: barHeight, justifyContent: "flex-end" }}>
-                  {visible.map((seg, si) => (
+    <View
+      style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}
+    >
+      <YAxis max={max} chartHeight={chartHeight} />
+      <View style={{ flex: 1, height: chartContainerH(chartHeight) }}>
+        <View
+          onLayout={fit.onLayout}
+          style={[
+            styles.barRow,
+            {
+              justifyContent: fit.justify,
+              height: chartContainerH(chartHeight),
+            },
+          ]}
+        >
+          {fit.w === 0
+            ? null
+            : points.map((p, i) => {
+                const total = totals[i];
+                const visible = p.segments.filter((seg) => seg.value > 0);
+                const barHeight = Math.max(BAR_MIN, scale(total));
+                const gapCount = Math.max(0, visible.length - 1);
+                const gaps = Math.min(
+                  gapCount * SEG_GAP,
+                  Math.max(0, barHeight - BAR_MIN),
+                );
+                const perGap = gapCount > 0 ? gaps / gapCount : 0;
+                const fill = barHeight - gaps;
+                const selected = fullscreen && selectedIdx === i;
+                return (
+                  <Pressable
+                    key={`${p.at}-${i}`}
+                    onPress={
+                      fullscreen
+                        ? () => setSelectedIdx(selected ? null : i)
+                        : undefined
+                    }
+                    style={[
+                      styles.barSlot,
+                      { width: fit.barWidth, zIndex: selected ? 10 : 0 },
+                    ]}
+                  >
+                    {selected ? (
+                      <BarTooltip
+                        year={p.label}
+                        rows={visible.map((seg) => ({
+                          label: seg.key,
+                          value: seg.value,
+                          colour: seg.colour,
+                        }))}
+                      />
+                    ) : fit.showValues ? (
+                      <Text style={[styles.barValue, { color: t.muted }]}>
+                        {total}
+                      </Text>
+                    ) : null}
                     <View
-                      key={seg.key}
                       style={{
-                        height: total > 0 ? (seg.value / total) * fill : 0,
-                        backgroundColor: seg.colour,
-                        marginTop: si === 0 ? 0 : perGap,
-                        borderTopLeftRadius: si === 0 ? radius.sm : 0,
-                        borderTopRightRadius: si === 0 ? radius.sm : 0,
-                        borderBottomLeftRadius: si === visible.length - 1 ? radius.sm : 0,
-                        borderBottomRightRadius: si === visible.length - 1 ? radius.sm : 0,
+                        width: barInner(fit.barWidth),
+                        height: barHeight,
+                        justifyContent: "flex-end",
+                        opacity: selected ? 0.7 : 1,
                       }}
-                    />
-                  ))}
-                </View>
-                <BarLabel text={i % fit.labelStep === 0 ? p.label : ""} />
-              </View>
-            );
-          })}
+                    >
+                      {visible.map((seg, si) => (
+                        <View
+                          key={seg.key}
+                          style={{
+                            height: total > 0 ? (seg.value / total) * fill : 0,
+                            backgroundColor: seg.colour,
+                            marginTop: si === 0 ? 0 : perGap,
+                            borderTopLeftRadius: si === 0 ? radius.sm : 0,
+                            borderTopRightRadius: si === 0 ? radius.sm : 0,
+                            borderBottomLeftRadius:
+                              si === visible.length - 1 ? radius.sm : 0,
+                            borderBottomRightRadius:
+                              si === visible.length - 1 ? radius.sm : 0,
+                          }}
+                        />
+                      ))}
+                    </View>
+                    <BarLabel text={i % fit.labelStep === 0 ? p.label : ""} />
+                  </Pressable>
+                );
+              })}
+        </View>
+      </View>
     </View>
   );
 }
 
 /** Small coloured dot + label, for chart legends. */
-export function LegendDot({ colour, label }: { colour: string; label: string }) {
+export function LegendDot({
+  colour,
+  label,
+}: {
+  colour: string;
+  label: string;
+}) {
   const t = useAppTheme();
   return (
     <View style={styles.legendItem}>
@@ -364,12 +744,18 @@ export function BreakdownBars({
       {rows.slice(0, 8).map((r) => (
         <View key={r.label} style={styles.breakdownRow}>
           <Text
-            style={[typography.caption, styles.breakdownLabel, { color: t.text }]}
+            style={[
+              typography.caption,
+              styles.breakdownLabel,
+              { color: t.text },
+            ]}
             numberOfLines={1}
           >
             {r.label}
           </Text>
-          <View style={[styles.breakdownTrack, { backgroundColor: t.separator }]}>
+          <View
+            style={[styles.breakdownTrack, { backgroundColor: t.separator }]}
+          >
             <View
               style={{
                 width: `${(r.value / max) * 100}%`,
@@ -379,7 +765,12 @@ export function BreakdownBars({
               }}
             />
           </View>
-          <Text style={[typography.caption, { color: t.muted, width: 28, textAlign: "right" }]}>
+          <Text
+            style={[
+              typography.caption,
+              { color: t.muted, width: 28, textAlign: "right" },
+            ]}
+          >
             {r.value}
           </Text>
         </View>
@@ -425,20 +816,34 @@ export function FollowUpRow({
     >
       <Avatar photo={person.photo ?? null} name={person.name} size={40} />
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={[typography.headline, { color: t.text }]} numberOfLines={1}>
+        <Text
+          style={[typography.headline, { color: t.text }]}
+          numberOfLines={1}
+        >
           {person.name}
         </Text>
         {person.subtitle ? (
-          <Text style={[typography.caption, { color: t.muted }]} numberOfLines={1}>
+          <Text
+            style={[typography.caption, { color: t.muted }]}
+            numberOfLines={1}
+          >
             {person.kind === "staff" ? person.subtitle : "Member"}
             {" · "}Last seen {last}
           </Text>
         ) : (
-          <Text style={[typography.caption, { color: t.muted }]} numberOfLines={1}>
+          <Text
+            style={[typography.caption, { color: t.muted }]}
+            numberOfLines={1}
+          >
             {person.kind === "staff" ? "Staff" : "Member"} · Last seen {last}
           </Text>
         )}
-        <View style={[styles.reasonPill, { backgroundColor: withAlpha(tone, 0.14) }]}>
+        <View
+          style={[
+            styles.reasonPill,
+            { backgroundColor: withAlpha(tone, 0.14) },
+          ]}
+        >
           <Text style={[styles.reasonText, { color: tone }]} numberOfLines={2}>
             {person.reason}
           </Text>
@@ -453,7 +858,9 @@ function EmptyChart() {
   const t = useAppTheme();
   return (
     <View style={[styles.emptyChart, { height: CHART_HEIGHT }]}>
-      <Text style={[typography.caption, { color: t.faint }]}>No data in this range</Text>
+      <Text style={[typography.caption, { color: t.faint }]}>
+        No data in this range
+      </Text>
     </View>
   );
 }
@@ -496,25 +903,53 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: spacing.sm,
   },
+  chartHeaderRight: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+  },
+  chartWithYAxis: {
+    flexDirection: "row",
+    gap: 4,
+    overflow: "visible",
+    zIndex: 0,
+  },
+  yAxis: {
+    width: Y_AXIS_W,
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    // Align ticks to the bar area only: skip value-label space at top and x-label at bottom
+    paddingTop: BAR_VALUE_H,
+    paddingBottom: BAR_LABEL_H + 4,
+  },
+  yTick: {
+    fontSize: 9,
+    letterSpacing: -0.3,
+    textAlign: "right",
+  },
   barRow: {
     flexDirection: "row",
     alignItems: "flex-end",
-    paddingTop: spacing.sm,
-    minHeight: CHART_HEIGHT + 40,
-    overflow: "hidden",
+    overflow: "visible",
+    zIndex: 0,
   },
   barSlot: {
     alignItems: "center",
     justifyContent: "flex-end",
     gap: 4,
+    // Reserve space for value label even when hidden, so bars stay at a fixed baseline
+    paddingTop: BAR_VALUE_H,
+    overflow: "visible",
+    position: "relative",
   },
   barLabelBox: {
     height: BAR_LABEL_H,
     justifyContent: "center",
-    maxWidth: "100%",
+    alignSelf: "center",
+    minWidth: 24,
   },
   barValue: { fontSize: 11, fontWeight: "700" },
-  barLabel: { fontSize: 10, letterSpacing: -0.2, maxWidth: 44 },
+  barLabel: { fontSize: 10, letterSpacing: -0.2 },
   legendItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -552,4 +987,71 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  // Fullscreen modal
+  fullscreenSafe: {
+    flex: 1,
+  },
+  fullscreenHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: spacing.sm,
+    gap: spacing.sm,
+  },
+  fullscreenLegend: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  fullscreenBody: {
+    flex: 1,
+    justifyContent: "center",
+    overflow: "visible",
+  },
+  closeBtn: {
+    padding: 6,
+    marginTop: -4,
+  },
+  // Bar tooltip — absolutely positioned so it escapes the narrow barSlot
+  tooltip: {
+    position: "absolute",
+    bottom: "100%",
+    left: "50%",
+    transform: [{ translateX: -60 }], // half of minWidth to centre it
+    borderRadius: radius.md,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    alignItems: "flex-start",
+    minWidth: 120,
+    marginBottom: 6,
+    gap: 3,
+    // Elevate above sibling bars
+    zIndex: 100,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 6,
+  },
+  tooltipValue: { fontSize: 18, fontWeight: "800", alignSelf: "center" },
+  tooltipYear: {
+    fontSize: 10,
+    letterSpacing: 0.3,
+    opacity: 0.6,
+    alignSelf: "center",
+  },
+  tooltipRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    width: "100%",
+  },
+  tooltipDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  tooltipSegLabel: { fontSize: 10, flex: 1 },
+  tooltipSegValue: { fontSize: 11, fontWeight: "700" },
 });

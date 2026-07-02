@@ -28,6 +28,16 @@ import { spacing, typography, useAppTheme } from "@/theme";
 
 type Delta = { text: string; direction: "up" | "down" | "flat" } | null;
 
+const CAMPUS_ACRONYM: Record<string, string> = {
+  "Australian Catholic University": "ACU",
+  "E2E Test Campus": "E2E",
+  "Macquarie University": "MACQ",
+  "University of New South Wales": "UNSW",
+  "University of Sydney": "USYD",
+  "University of Technology, Sydney": "UTS",
+};
+const campusAcronym = (name: string) => CAMPUS_ACRONYM[name] ?? name;
+
 /** Year-over-year change of `cur` vs `prev` for a metric card, or null. */
 const yoyDelta = (cur: number, prev: number | undefined): Delta => {
   if (prev === undefined) return null; // no prior year on record
@@ -50,7 +60,7 @@ export function GeneralMetricsTab({ year }: { year: number | null }) {
 
   const charts = useMemo(() => {
     if (!trends) return null;
-    const yearLabel = (y: number) => String(y);
+    const yearLabel = (y: number) => `'${String(y).slice(-2)}`;
     const allStaff: TrendPoint[] = trends.years.map((y, i) => ({
       at: y,
       label: yearLabel(y),
@@ -67,7 +77,7 @@ export function GeneralMetricsTab({ year }: { year: number | null }) {
       at: y,
       label: yearLabel(y),
       segments: trends.studentLeadersByCampus.map((c) => ({
-        key: c.campus,
+        key: campusAcronym(c.campus),
         value: c.counts[i],
         colour: subgroupColour(c.campus),
       })),
@@ -114,7 +124,7 @@ export function GeneralMetricsTab({ year }: { year: number | null }) {
       { label: "Staff", value: trends.staff[i], delta: yoyDelta(trends.staff[i], at(trends.staff)) },
       { label: "Student leaders", value: trends.studentLeaders[i], delta: yoyDelta(trends.studentLeaders[i], at(trends.studentLeaders)), tone: "positive" },
       ...trends.studentLeadersByCampus.map((c) => ({
-        label: c.campus,
+        label: campusAcronym(c.campus),
         value: c.counts[i],
         delta: yoyDelta(c.counts[i], at(c.counts)),
       })),
@@ -150,7 +160,12 @@ export function GeneralMetricsTab({ year }: { year: number | null }) {
   return (
     <View onLayout={onLayout} style={styles.grid}>
       <FadeInView delay={stagger(0)}>
-        <ChartCard title="All staff" subtitle="Head-count per staff year" width={width}>
+        <ChartCard
+          title="All staff"
+          subtitle="Head-count per staff year"
+          width={width}
+          fullscreenContent={<BarChart points={charts.allStaff} colour={t.primary} fullscreen />}
+        >
           <BarChart points={charts.allStaff} colour={t.primary} />
         </ChartCard>
       </FadeInView>
@@ -166,6 +181,7 @@ export function GeneralMetricsTab({ year }: { year: number | null }) {
               <LegendDot colour={t.accent} label="Student leaders" />
             </View>
           }
+          fullscreenContent={<StackedBarChart points={charts.staffVsLeaders} fullscreen />}
         >
           <StackedBarChart points={charts.staffVsLeaders} />
         </ChartCard>
@@ -179,10 +195,11 @@ export function GeneralMetricsTab({ year }: { year: number | null }) {
           legend={
             <View style={styles.campusLegend}>
               {trends.campuses.map((campus) => (
-                <LegendDot key={campus} colour={subgroupColour(campus)} label={campus} />
+                <LegendDot key={campus} colour={subgroupColour(campus)} label={campusAcronym(campus)} />
               ))}
             </View>
           }
+          fullscreenContent={<MultiStackedBarChart points={charts.leadersByCampus} fullscreen />}
         >
           <MultiStackedBarChart points={charts.leadersByCampus} />
         </ChartCard>
