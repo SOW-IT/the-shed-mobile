@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { Id } from "./_generated/dataModel";
 import { internalMutation } from "./_generated/server";
 
 /**
@@ -31,6 +32,10 @@ export const dropStaffEmail = internalMutation({
     // staffEmail present but not an email (no "@") — left UNTOUCHED for manual
     // review, never silently discarded.
     invalid: v.number(),
+    // Rewriting `email` would collide with another row's existing email (two
+    // docs sharing one canonical address) — left UNTOUCHED for manual merge
+    // rather than silently creating the duplicate this migration exists to fix.
+    collisions: v.number(),
     // dryRun only: rows that would change (migrated + normalized).
     remaining: v.number(),
   }),
@@ -39,8 +44,20 @@ export const dropStaffEmail = internalMutation({
     let migrated = 0;
     let normalized = 0;
     let invalid = 0;
+    let collisions = 0;
     let remaining = 0;
     const norm = (e: string) => e.trim().toLowerCase();
+    // Would writing `email = target` on `selfId` produce two rows with the same
+    // canonical email? The by_email lookup is exact, so a collision would leave
+    // findMemberByEmail picking one non-deterministically — refuse and report.
+    const wouldCollide = async (target: string, selfId: Id<"attendanceMembers">) => {
+      const other = await ctx.db
+        .query("attendanceMembers")
+        .withIndex("by_email", (q) => q.eq("email", target))
+        .filter((q) => q.neq(q.field("_id"), selfId))
+        .first();
+      return other !== null;
+    };
     for (const m of members) {
       if (m.staffEmail) {
         const linkEmail = norm(m.staffEmail);
@@ -48,6 +65,10 @@ export const dropStaffEmail = internalMutation({
           // Malformed staff link — moving it would lose the value silently, so
           // leave the row as-is and report it for an operator to fix by hand.
           invalid++;
+          continue;
+        }
+        if (m.email !== linkEmail && (await wouldCollide(linkEmail, m._id))) {
+          collisions++;
           continue;
         }
         if (dryRun) {
@@ -63,6 +84,10 @@ export const dropStaffEmail = internalMutation({
       if (!m.email) continue;
       const lower = norm(m.email);
       if (lower === m.email) continue;
+      if (await wouldCollide(lower, m._id)) {
+        collisions++;
+        continue;
+      }
       if (dryRun) {
         remaining++;
         continue;
@@ -70,6 +95,6 @@ export const dropStaffEmail = internalMutation({
       await ctx.db.patch(m._id, { email: lower });
       normalized++;
     }
-    return { scanned: members.length, migrated, normalized, invalid, remaining };
+    return { scanned: members.length, migrated, normalized, invalid, collisions, remaining };
   },
 });

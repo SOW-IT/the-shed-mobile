@@ -107,52 +107,73 @@ export const SignInScreen = () => {
       // second attempt warmed the session. When the session fails to swallow the
       // redirect, the OS hands theshedmobile://…?code= to the app as a normal
       // deep link, so this Linking listener recovers it on that first try.
-      const redirectUrl = await new Promise<string | null>((resolve) => {
-        let settled = false;
-        let graceTimer: ReturnType<typeof setTimeout> | null = null;
-        const finish = (url: string | null) => {
-          if (settled) return;
-          settled = true;
-          if (graceTimer) clearTimeout(graceTimer);
-          sub.remove();
-          resolve(url);
-        };
-        // Only settle on a deep link that actually carries the OAuth `code` —
-        // an unrelated universal/notification link arriving mid-session must not
-        // consume the promise and drop the real redirect.
-        const sub = Linking.addEventListener("url", (e) => {
-          if (codeFromUrl(e.url)) finish(e.url);
-        });
-        // When the session hands back a URL with the code, use it immediately.
-        // Otherwise DON'T settle null right away: on a cold iOS session the
-        // ASWebAuthenticationSession frequently resolves as "dismiss"/"cancel"
-        // even though the redirect fired, and the OS then delivers
-        // theshedmobile://…?code= to the Linking listener a beat later. Settling
-        // null here (the old behaviour) removed the listener and dropped that
-        // first-try code — the bug where the user had to tap Sign in twice. Give
-        // the listener a short grace window to recover it before giving up.
-        const settleWithoutCode = () => {
-          if (settled || graceTimer) return;
-          graceTimer = setTimeout(() => finish(null), REDIRECT_GRACE_MS);
-        };
-        void openAuthSessionAsync(redirect.toString(), redirectTo).then(
-          (result) => {
-            if (result.type === "success" && codeFromUrl(result.url)) {
-              finish(result.url);
-            } else {
-              settleWithoutCode();
+      const outcome = await new Promise<{ url: string | null; error?: unknown }>(
+        (resolve) => {
+          let settled = false;
+          let graceTimer: ReturnType<typeof setTimeout> | null = null;
+          // Captured if the auth session *rejects* (an unexpected runtime/env
+          // error, NOT a user cancel/dismiss — those resolve). Surfaced only if
+          // the grace window also yields no code.
+          let sessionError: unknown = null;
+          const finishUrl = (url: string) => {
+            if (settled) return;
+            settled = true;
+            if (graceTimer) clearTimeout(graceTimer);
+            sub.remove();
+            resolve({ url });
+          };
+          const finishWithoutCode = () => {
+            if (settled) return;
+            settled = true;
+            sub.remove();
+            resolve({ url: null, error: sessionError });
+          };
+          // Only settle on a deep link that actually carries the OAuth `code` —
+          // an unrelated universal/notification link arriving mid-session must
+          // not consume the promise and drop the real redirect.
+          const sub = Linking.addEventListener("url", (e) => {
+            if (codeFromUrl(e.url)) finishUrl(e.url);
+          });
+          // When the session hands back a URL with the code, use it immediately.
+          // Otherwise DON'T settle right away: on a cold iOS session the
+          // ASWebAuthenticationSession frequently resolves as "dismiss"/"cancel"
+          // even though the redirect fired, and the OS then delivers
+          // theshedmobile://…?code= to the Linking listener a beat later.
+          // Settling immediately (the old behaviour) removed the listener and
+          // dropped that first-try code — the bug where the user had to tap Sign
+          // in twice. Give the listener a short grace window before giving up.
+          const startGrace = () => {
+            if (settled || graceTimer) return;
+            graceTimer = setTimeout(finishWithoutCode, REDIRECT_GRACE_MS);
+          };
+          void openAuthSessionAsync(redirect.toString(), redirectTo).then(
+            (result) => {
+              if (result.type === "success" && codeFromUrl(result.url)) {
+                finishUrl(result.url);
+              } else {
+                // cancel / dismiss / success-without-code: user-driven, no error.
+                startGrace();
+              }
+            },
+            (e) => {
+              // The session itself failed — hold the code error in case the grace
+              // window recovers a deep-link code anyway; otherwise surface it.
+              sessionError = e;
+              startGrace();
             }
-          },
-          () => settleWithoutCode()
-        );
-      });
-      const code = redirectUrl ? codeFromUrl(redirectUrl) : null;
+          );
+        }
+      );
+      const code = outcome.url ? codeFromUrl(outcome.url) : null;
       if (code) {
         // On success the app flips to Authenticated and this screen unmounts, so
         // stay busy rather than flicker back to clickable.
         await signIn("google", { code });
         return;
       }
+      // A real session failure with no recovered code — surface it rather than
+      // silently re-enabling as if the user had just cancelled.
+      if (outcome.error) throw outcome.error;
       // No redirect captured, or the user dismissed the browser — re-enable.
       setBusy(false);
     } catch (e) {

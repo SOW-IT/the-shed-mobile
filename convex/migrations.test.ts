@@ -51,6 +51,7 @@ describe("migrations.dropStaffEmail", () => {
       migrated: 0,
       normalized: 0,
       invalid: 1,
+      collisions: 0,
       remaining: 3,
     });
 
@@ -60,6 +61,7 @@ describe("migrations.dropStaffEmail", () => {
       migrated: 2,
       normalized: 1,
       invalid: 1,
+      collisions: 0,
       remaining: 0,
     });
 
@@ -91,7 +93,59 @@ describe("migrations.dropStaffEmail", () => {
       migrated: 0,
       normalized: 0,
       invalid: 1,
+      collisions: 0,
       remaining: 0,
     });
+  });
+
+  test("leaves a row untouched when a rewrite would collide with an existing email", async () => {
+    const t = convexTest(schema, modules);
+    const { canonical, linked, lower, upper } = await t.run(async (ctx) => ({
+      // A plain member already sitting on the canonical staff email.
+      canonical: await ctx.db.insert("attendanceMembers", {
+        name: "Canonical",
+        email: "dup@sow.org.au",
+      }),
+      // staffEmail path: normalises to dup@sow.org.au — moving it would create a
+      // second row sharing that address.
+      linked: await ctx.db.insert("attendanceMembers", {
+        name: "Legacy",
+        email: "personal@gmail.com",
+        staffEmail: "dup@sow.org.au",
+      }),
+      // normalise path: an already-normalised row, plus one whose only diff is
+      // case — lowercasing the latter would collide with the former.
+      lower: await ctx.db.insert("attendanceMembers", {
+        name: "Lower",
+        email: "case@example.com",
+      }),
+      upper: await ctx.db.insert("attendanceMembers", {
+        name: "Upper",
+        email: "CASE@example.com",
+      }),
+    }));
+
+    const res = await t.mutation(internal.migrations.dropStaffEmail, {});
+    expect(res).toEqual({
+      scanned: 4,
+      migrated: 0,
+      normalized: 0,
+      invalid: 0,
+      collisions: 2,
+      remaining: 0,
+    });
+
+    const rows = await t.run(async (ctx) => ({
+      canonical: await ctx.db.get(canonical),
+      linked: await ctx.db.get(linked),
+      lower: await ctx.db.get(lower),
+      upper: await ctx.db.get(upper),
+    }));
+    // Both collisions left for manual merge — no silent duplicates.
+    expect(rows.canonical?.email).toBe("dup@sow.org.au");
+    expect(rows.linked?.email).toBe("personal@gmail.com");
+    expect(rows.linked?.staffEmail).toBe("dup@sow.org.au");
+    expect(rows.lower?.email).toBe("case@example.com");
+    expect(rows.upper?.email).toBe("CASE@example.com");
   });
 });
