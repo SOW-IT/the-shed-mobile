@@ -18,6 +18,25 @@ All notable changes to **The SHED** mobile app. This project follows
   overflows its bounds) but every tap and drag landed outside the hittable
   frame. The picker now stretches to fill the sheet width, restoring
   interaction.
+- **Attendance → Members over-counted and could show a person twice.** The
+  Staff + Student Leader filters could total more than the staff-profile count.
+  Two causes: a staff profile and its attendance-member row weren't always
+  linked (the member side was normalised but the profile side wasn't), so the
+  same person could appear as two rows; and the Student Leader bucket is
+  deliberately dual-representable (a leader can be a staff profile OR an
+  attendance-only member tagged with a campus role), which inflated the count
+  when duplicates weren't collapsed. Members now link to staff profiles by a
+  single canonical email (both SOW-domain spellings, case- and
+  whitespace-insensitive), so a profile + member pair always counts as one.
+
+### Changed
+
+- **Attendance members link to staff profiles by `email` only.** Groundwork for
+  removing the redundant `staffEmail` column: a member is a staff overlay when
+  its `email` matches a `staffProfiles.email`. New writes no longer set
+  `staffEmail`, and a `migrations.dropStaffEmail` backfill moves any existing
+  `staffEmail` into `email`. The column itself is retained (deprecated) this
+  release and removed in a follow-up once the backfill has run.
 
 ## [1.6.2] — 2026-07-02
 
