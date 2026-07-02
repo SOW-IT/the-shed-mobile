@@ -34,6 +34,13 @@ All notable changes to **The SHED** mobile app. This project follows
   now drops any metadata field whose name collides with the reserved "Notes"
   column (and the export picker no longer offers it), so the sign-in note is the
   single "Notes" column.
+- **Tapping a "new comment" notification now opens the conversation.** Since
+  1.6.2, comment notifications deep-linked only to the recipient's Requests tab
+  (not the specific request or its thread), so following one left you hunting
+  for the comment — and the focus-driven mark-read cleared the unread badge that
+  would have pointed to it. Comment notifications again focus the request and
+  open its comment thread (`&focus=…&thread=1`); approval/state notifications
+  keep landing on the tab.
 - **First Google sign-in bounced back to the login screen.** On a cold iOS
   `ASWebAuthenticationSession` the session can resolve as `dismiss`/`cancel`
   even though the OAuth redirect fired, with the OS delivering the
