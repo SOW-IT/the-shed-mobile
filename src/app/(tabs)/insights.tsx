@@ -6,15 +6,21 @@ import { defaultAttendanceSubgroup } from "../../../shared/rollcall";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
+import { GeneralMetricsTab } from "@/components/attendance/GeneralMetricsTab";
+import {
+  AttendanceRangeFab,
+  GeneralScopeFab,
+} from "@/components/attendance/InsightsSelectors";
 import { MetricsTab } from "@/components/attendance/MetricsTab";
-import { EmptyState, LoadingState } from "@/components/ui";
+import { LoadingState } from "@/components/ui";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 
 /**
  * Insights — its own bottom-tab home for the attendance metrics dashboard,
  * lifted out of the Attendance screen's tab strip. Two top-bar segments:
- *  - "Attendance": the leader-facing metrics dashboard ({@link MetricsTab}).
- *  - "General": a scaffold for future cross-cutting insights (empty for now).
+ *  - "General": org-wide staff trends ({@link GeneralMetricsTab}), on the left.
+ *  - "Attendance": the leader-facing per-campus metrics dashboard
+ *    ({@link MetricsTab}).
  *
  * Snapshots are kept fresh server-side (weekly cron + dirty-recompute on
  * roll-call changes), so there's no manual refresh affordance here for now.
@@ -35,6 +41,14 @@ export default function InsightsScreen() {
   const [memberSheetId, setMemberSheetId] = useState<Id<"attendanceMembers"> | null>(
     null
   );
+  // Owned here so the bottom-right selectors (rendered in PagerScreen's floating
+  // slot) can drive them from outside the tab bodies.
+  const [rangeWeeks, setRangeWeeks] = useState(8);
+  const [includeCollaborative, setIncludeCollaborative] = useState(true);
+  const [generalYear, setGeneralYear] = useState<number | null>(null); // null = All years
+  // Just the year list for the General selector; the tab runs its own query too
+  // (Convex dedupes the identical call).
+  const staffTrends = useQuery(api.generalMetrics.staffTrends, {});
 
   useEffect(() => {
     if (tab === "attendance" || tab === "general") {
@@ -64,6 +78,11 @@ export default function InsightsScreen() {
 
   const tabs: PagerTab[] = [
     {
+      key: "general",
+      label: "General",
+      render: () => <GeneralMetricsTab year={generalYear} />,
+    },
+    {
       key: "attendance",
       label: "Attendance",
       render: () => (
@@ -72,25 +91,39 @@ export default function InsightsScreen() {
           selectedSubgroup={subgroup}
           onSelectedSubgroupChange={setSelectedSubgroup}
           onOpenMember={openEditMember}
-        />
-      ),
-    },
-    {
-      key: "general",
-      label: "General",
-      render: () => (
-        <EmptyState
-          icon="sparkles-outline"
-          title="General insights coming soon"
-          message="Cross-cutting insights that aren't tied to a single campus will live here."
+          rangeWeeks={rangeWeeks}
+          includeCollaborative={includeCollaborative}
         />
       ),
     },
   ];
 
+  // The bottom-right selector is per-tab: range/collaborative on Attendance,
+  // All-vs-year scope on General.
+  const floating =
+    active === "attendance" ? (
+      <AttendanceRangeFab
+        rangeWeeks={rangeWeeks}
+        onRangeChange={setRangeWeeks}
+        includeCollaborative={includeCollaborative}
+        onCollaborativeChange={setIncludeCollaborative}
+      />
+    ) : (
+      <GeneralScopeFab
+        years={staffTrends?.years ?? []}
+        value={generalYear}
+        onChange={setGeneralYear}
+      />
+    );
+
   return (
     <>
-      <PagerScreen tabs={tabs} activeKey={active} onActiveKeyChange={setActive} />
+      <PagerScreen
+        tabs={tabs}
+        activeKey={active}
+        onActiveKeyChange={setActive}
+        floating={floating}
+      />
       <EditMemberSheet
         visible={memberSheetOpen}
         onClose={() => setMemberSheetOpen(false)}
