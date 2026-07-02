@@ -302,10 +302,14 @@ export function MultiStackedBarChart({ points }: { points: MultiStackPoint[] }) 
             const total = totals[i];
             const visible = p.segments.filter((seg) => seg.value > 0);
             const barHeight = Math.max(BAR_MIN, scale(total));
-            // Reserve the inter-segment gaps out of the bar height so the whole
-            // column (segments + gaps) still equals `barHeight`.
-            const gaps = Math.max(0, visible.length - 1) * SEG_GAP;
-            const fill = Math.max(BAR_MIN, barHeight - gaps);
+            // Reserve the inter-segment gaps out of the bar height so the column
+            // (segment fills + gaps) always equals `barHeight` exactly — capping
+            // the gap total so it can't eat into the bar or push the stack over
+            // (which would overflow and clip again). Short bars just lose the gaps.
+            const gapCount = Math.max(0, visible.length - 1);
+            const gaps = Math.min(gapCount * SEG_GAP, Math.max(0, barHeight - BAR_MIN));
+            const perGap = gapCount > 0 ? gaps / gapCount : 0;
+            const fill = barHeight - gaps;
             return (
               <View key={`${p.at}-${i}`} style={[styles.barSlot, { width: fit.barWidth }]}>
                 {fit.showValues ? (
@@ -318,7 +322,7 @@ export function MultiStackedBarChart({ points }: { points: MultiStackPoint[] }) 
                       style={{
                         height: total > 0 ? (seg.value / total) * fill : 0,
                         backgroundColor: seg.colour,
-                        marginTop: si === 0 ? 0 : SEG_GAP,
+                        marginTop: si === 0 ? 0 : perGap,
                         borderTopLeftRadius: si === 0 ? radius.sm : 0,
                         borderTopRightRadius: si === 0 ? radius.sm : 0,
                         borderBottomLeftRadius: si === visible.length - 1 ? radius.sm : 0,
