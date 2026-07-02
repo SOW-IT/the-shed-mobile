@@ -156,17 +156,23 @@ export function GeneralScopeFab({
               close();
             }}
           />
-          {[...years].reverse().map((year) => (
-            <OptionRow
-              key={year}
-              label={`${year} vs ${year - 1}`}
-              selected={value === year}
-              onPress={() => {
-                onChange(year);
-                close();
-              }}
-            />
-          ))}
+          {[...years].reverse().map((year) => {
+            // Compare against the previous year *on record*, which may not be
+            // year − 1 if a staff year is missing.
+            const idx = years.indexOf(year);
+            const prev = idx > 0 ? years[idx - 1] : null;
+            return (
+              <OptionRow
+                key={year}
+                label={prev !== null ? `${year} vs ${prev}` : String(year)}
+                selected={value === year}
+                onPress={() => {
+                  onChange(year);
+                  close();
+                }}
+              />
+            );
+          })}
         </View>
       )}
     </SelectorFab>
