@@ -31,8 +31,11 @@ const CHART_HEIGHT_FULL = 220; // taller in fullscreen (fits rotated landscape o
 const BAR_MAX_W = 40; // widest a single bar gets (a few points)
 const BAR_MIN_W = 5; // thinnest bar (many points in a range)
 const BAR_MIN_GAP = 6; // minimum space between bars
-const BAR_LABEL_H = 15; // fixed x-axis label row height, so all bars share a baseline
+const BAR_LABEL_H = 15; // fixed x-axis label row height
+const BAR_VALUE_H = 18; // fixed space reserved above bars for the value label
 const Y_AXIS_W = 32; // width reserved for y-axis labels
+// Total fixed container height = chart bars + x-label row + value label row
+const chartContainerH = (ch: number) => ch + BAR_LABEL_H + BAR_VALUE_H;
 
 /**
  * Size `count` bars to fit a measured width instead of scrolling.
@@ -304,7 +307,10 @@ export function ChartCard({
   );
 }
 
-/** Tooltip shown above a tapped bar in fullscreen mode. */
+/**
+ * Tooltip shown above a tapped bar in fullscreen mode. Absolutely positioned
+ * so it floats in the reserved BAR_VALUE_H space without inflating the slot.
+ */
 function BarTooltip({ value, label }: { value: string; label: string }) {
   const t = useAppTheme();
   return (
@@ -333,12 +339,12 @@ export function BarChart({
   if (points.length === 0) return <EmptyChart />;
   const max = Math.max(1, ...points.map((p) => p.value));
   return (
-    <View style={styles.chartWithYAxis}>
+    <View style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}>
       <YAxis max={max} chartHeight={chartHeight} />
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, height: chartContainerH(chartHeight) }}>
         <View
           onLayout={fit.onLayout}
-          style={[styles.barRow, { justifyContent: fit.justify, minHeight: chartHeight + 40 }]}
+          style={[styles.barRow, { justifyContent: fit.justify, height: chartContainerH(chartHeight) }]}
         >
           {fit.w === 0
             ? null
@@ -389,12 +395,12 @@ export function StackedBarChart({
   const max = Math.max(1, ...points.map((p) => p.fresh + p.returning));
   const scale = (n: number) => (n / max) * chartHeight;
   return (
-    <View style={styles.chartWithYAxis}>
+    <View style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}>
       <YAxis max={max} chartHeight={chartHeight} />
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, height: chartContainerH(chartHeight) }}>
         <View
           onLayout={fit.onLayout}
-          style={[styles.barRow, { justifyContent: fit.justify, minHeight: chartHeight + 40 }]}
+          style={[styles.barRow, { justifyContent: fit.justify, height: chartContainerH(chartHeight) }]}
         >
           {fit.w === 0
             ? null
@@ -473,12 +479,12 @@ export function MultiStackedBarChart({
   const max = Math.max(1, ...totals);
   const scale = (n: number) => (n / max) * chartHeight;
   return (
-    <View style={styles.chartWithYAxis}>
+    <View style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}>
       <YAxis max={max} chartHeight={chartHeight} />
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, height: chartContainerH(chartHeight) }}>
         <View
           onLayout={fit.onLayout}
-          style={[styles.barRow, { justifyContent: fit.justify, minHeight: chartHeight + 40 }]}
+          style={[styles.barRow, { justifyContent: fit.justify, height: chartContainerH(chartHeight) }]}
         >
           {fit.w === 0
             ? null
@@ -699,15 +705,15 @@ const styles = StyleSheet.create({
   },
   chartWithYAxis: {
     flexDirection: "row",
-    alignItems: "flex-end",
     gap: 4,
   },
   yAxis: {
     width: Y_AXIS_W,
     justifyContent: "space-between",
     alignItems: "flex-end",
+    // Align ticks to the bar area only: skip value-label space at top and x-label at bottom
+    paddingTop: BAR_VALUE_H,
     paddingBottom: BAR_LABEL_H + 4,
-    paddingTop: spacing.sm,
   },
   yTick: {
     fontSize: 9,
@@ -717,13 +723,14 @@ const styles = StyleSheet.create({
   barRow: {
     flexDirection: "row",
     alignItems: "flex-end",
-    paddingTop: spacing.sm,
     overflow: "visible",
   },
   barSlot: {
     alignItems: "center",
     justifyContent: "flex-end",
     gap: 4,
+    // Reserve space for value label even when hidden, so bars stay at a fixed baseline
+    paddingTop: BAR_VALUE_H,
   },
   barLabelBox: {
     height: BAR_LABEL_H,
@@ -791,8 +798,7 @@ const styles = StyleSheet.create({
   },
   fullscreenBody: {
     flex: 1,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.lg,
+    padding: spacing.lg,
     justifyContent: "center",
   },
   closeBtn: {

@@ -35,7 +35,7 @@ export default function InsightsScreen() {
   const subgroups = useQuery(api.events.subgroups);
   const metadata = useQuery(api.attendanceMetadata.list, {});
 
-  const [active, setActive] = useState("attendance");
+  const [active, setActive] = useState("general");
   const [selectedSubgroup, setSelectedSubgroup] = useState<string | null>(null);
   const [memberSheetOpen, setMemberSheetOpen] = useState(false);
   const [memberSheetId, setMemberSheetId] = useState<Id<"attendanceMembers"> | null>(
