@@ -10,7 +10,6 @@ import {
   LayoutChangeEvent,
   Modal,
   Pressable,
-  SafeAreaView,
   StatusBar,
   StyleSheet,
   Text,
@@ -28,7 +27,7 @@ import { radius, spacing, typography, useAppTheme, type AppTheme } from "@/theme
 
 const BAR_MIN = 3; // minimum visible bar height
 const CHART_HEIGHT = 120;
-const CHART_HEIGHT_FULL = 260; // taller in fullscreen
+const CHART_HEIGHT_FULL = 220; // taller in fullscreen (fits rotated landscape on typical phones)
 const BAR_MAX_W = 40; // widest a single bar gets (a few points)
 const BAR_MIN_W = 5; // thinnest bar (many points in a range)
 const BAR_MIN_GAP = 6; // minimum space between bars
@@ -176,8 +175,9 @@ export function MetricCard({
 }
 
 /**
- * Fullscreen landscape modal wrapping a chart. Tapping outside or the × button
- * closes it.
+ * Fullscreen landscape modal. Since app.json locks orientation to portrait,
+ * we render a portrait-sized modal and rotate its content 90° so it reads as
+ * landscape — no native orientation API needed.
  */
 function FullscreenChartModal({
   visible,
@@ -195,35 +195,55 @@ function FullscreenChartModal({
   children: ReactNode;
 }) {
   const t = useAppTheme();
+  const { width: sw, height: sh } = useWindowDimensions();
+  // After rotation: the rotated container is sh wide and sw tall (screen dims swap).
+  const lw = sh; // landscape width  = screen height
+  const lh = sw; // landscape height = screen width
   return (
     <Modal
       visible={visible}
-      animationType="slide"
-      supportedOrientations={["portrait", "landscape", "landscape-left", "landscape-right"]}
+      animationType="fade"
+      transparent
       onRequestClose={onClose}
       statusBarTranslucent
     >
       <StatusBar hidden />
-      <SafeAreaView style={[styles.fullscreenSafe, { backgroundColor: t.background }]}>
-        <View style={styles.fullscreenHeader}>
-          <View style={{ flex: 1 }}>
-            <Text style={[typography.headline, { color: t.text }]}>{title}</Text>
-            {subtitle ? (
-              <Text style={[typography.caption, { color: t.muted }]}>{subtitle}</Text>
+      {/* Full-screen backdrop */}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: t.background }]} />
+      {/* Rotated landscape container, centred on screen */}
+      <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}>
+        <View
+          style={{
+            width: lw,
+            height: lh,
+            transform: [{ rotate: "90deg" }],
+            backgroundColor: t.background,
+          }}
+        >
+          {/* Header */}
+          <View style={[styles.fullscreenHeader, { paddingTop: spacing.md }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[typography.headline, { color: t.text }]}>{title}</Text>
+              {subtitle ? (
+                <Text style={[typography.caption, { color: t.muted }]}>{subtitle}</Text>
+              ) : null}
+            </View>
+            {legend ? (
+              <View style={styles.fullscreenLegend}>{legend}</View>
             ) : null}
+            <Pressable
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Close fullscreen"
+              style={({ pressed }) => [styles.closeBtn, pressed && { opacity: 0.6 }]}
+            >
+              <Ionicons name="close" size={22} color={t.text} />
+            </Pressable>
           </View>
-          {legend ? <View style={styles.fullscreenLegend}>{legend}</View> : null}
-          <Pressable
-            onPress={onClose}
-            accessibilityRole="button"
-            accessibilityLabel="Close fullscreen"
-            style={({ pressed }) => [styles.closeBtn, pressed && { opacity: 0.6 }]}
-          >
-            <Ionicons name="close" size={22} color={t.text} />
-          </Pressable>
+          {/* Chart body */}
+          <View style={styles.fullscreenBody}>{children}</View>
         </View>
-        <View style={styles.fullscreenBody}>{children}</View>
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
