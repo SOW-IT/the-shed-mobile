@@ -209,6 +209,10 @@ describe("notification deep-links are followable by the push-tap handler", () =>
   test("requestUrl shapes (Mine, Review) are allowed", () => {
     expect(isAllowedDeepLink(requestUrl(fakeRequest.requesterEmail, fakeRequest))).toBe(true);
     expect(isAllowedDeepLink(requestUrl("approver@sow.org.au", fakeRequest))).toBe(true);
+    // Comment notifications' focus+thread deep link must also be followable.
+    expect(
+      isAllowedDeepLink(requestUrl("approver@sow.org.au", fakeRequest, { thread: true }))
+    ).toBe(true);
   });
 
   test("static review and attendance-event URLs are allowed", () => {

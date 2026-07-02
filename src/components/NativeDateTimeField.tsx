@@ -165,12 +165,18 @@ export const NativeDateInput = ({
         title={label}
         footer={<Btn title="Done" onPress={() => setOpen(false)} />}
       >
-        <View style={{ alignItems: "center", paddingVertical: spacing.sm }}>
+        <View style={{ alignSelf: "stretch", paddingVertical: spacing.sm }}>
           <DateTimePicker
             mode="date"
             // Spinner (not the iOS `inline` calendar) so the month/year expander
             // overlay can't spill out of the sheet over the other fields.
             display="spinner"
+            // The SwiftUI `Host` only matches its content's height (`matchContents`
+            // is vertical-only), so the wheel needs an explicit width from RN.
+            // Without it the picker collapses to a 0-width frame: the wheel still
+            // *draws* (SwiftUI overflows its bounds) but no touch lands inside it,
+            // so it can't be tapped or dragged. Stretch it to fill the sheet.
+            style={{ width: "100%" }}
             value={initial}
             minimumDate={minDate}
             maximumDate={maxDate}
@@ -213,10 +219,13 @@ export const NativeTimeInput = ({
         title={label}
         footer={<Btn title="Done" onPress={() => setOpen(false)} />}
       >
-        <View style={{ alignItems: "center", paddingVertical: spacing.sm }}>
+        <View style={{ alignSelf: "stretch", paddingVertical: spacing.sm }}>
           <DateTimePicker
             mode="time"
             display="spinner"
+            // See NativeDateInput: the wheel needs an explicit width or its
+            // 0-width native frame swallows all touches even though it draws.
+            style={{ width: "100%" }}
             value={initial}
             accentColor={t.primary}
             onValueChange={(_event, date) => onChange(timeToInput(date))}

@@ -63,10 +63,12 @@ export const add = mutation({
           subject: `New comment on the $${request.amount} ${request.department} request`,
           pushTitle: "New comment",
           body: `${authorName} commented:\n"${body}"`,
-          // Land on the recipient's request tab (Mine for the requester, Review
-          // for approvers/Finance); requestId keeps the notification auto-read
-          // once they open the request/its thread.
-          url: requestUrl(to, request),
+          // Open the conversation directly: land on the recipient's request tab
+          // (Mine for the requester, Review for approvers/Finance), focus this
+          // request, and open its comment thread — so tapping a "new comment"
+          // notification takes you to the comment instead of just the tab.
+          // requestId still keeps the notification auto-read once opened.
+          url: requestUrl(to, request, { thread: true }),
           requestId: request._id,
         });
       }
