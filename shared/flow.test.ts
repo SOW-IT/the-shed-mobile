@@ -28,13 +28,20 @@ describe("formatAssignment", () => {
     expect(formatAssignment({ role: "Head of Department", department: "Finance" })).toBe(
       "HOD → Finance"
     );
+    // Chaplaincy roles are scoped to a campus; the "Chaplaincy" department is
+    // dropped from the label so it reads as just the campus.
     expect(
       formatAssignment({
         role: "Senior Chaplain",
         department: "Chaplaincy",
         university: "University of Sydney",
       })
-    ).toBe("Senior Chaplain → Chaplaincy · USYD");
+    ).toBe("Senior Chaplain → USYD");
+    // A non-chaplain role scoped to Chaplaincy keeps its department, so the
+    // scope isn't dropped down to a bare role label.
+    expect(
+      formatAssignment({ role: "Head of Department", department: "Chaplaincy" })
+    ).toBe("HOD → Chaplaincy");
     expect(formatAssignment({ role: "Member" })).toBe("Member");
   });
 });

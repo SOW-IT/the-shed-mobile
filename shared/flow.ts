@@ -243,10 +243,19 @@ export const dedupeAssignments = (assignments: Assignment[]): Assignment[] => {
 
 /**
  * Display label for one role-scope link, e.g. "HOD → Finance" or
- * "Senior Chaplain → Chaplaincy · USYD"; just the role when it has no scope.
+ * "Senior Chaplain → USYD"; just the role when it has no scope. Chaplaincy roles
+ * are scoped to a campus, so the "Chaplaincy" department is dropped from the
+ * label (e.g. "Intern Chaplain → USYD", not "Intern Chaplain → Chaplaincy · USYD").
  */
 export const formatAssignment = (a: Assignment): string => {
-  const scope = [a.department, a.division, a.university]
+  // Only drop the "Chaplaincy" department for actual chaplain roles — a
+  // non-chaplain role scoped to Chaplaincy (e.g. a Head of Department) still
+  // needs its department shown so it doesn't collapse to a bare role label.
+  const department =
+    isChaplainRole(a.role) && a.department === CHAPLAINCY_DEPARTMENT
+      ? undefined
+      : a.department;
+  const scope = [department, a.division, a.university]
     .filter((s): s is string => !!s)
     .map(acronym)
     .join(" · ");

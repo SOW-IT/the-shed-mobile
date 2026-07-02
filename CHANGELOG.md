@@ -6,6 +6,50 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.6.7] — 2026-07-02
+
+### Fixed
+
+- **Creating an event then cancelling froze the app.** Cancelling a part-filled
+  new event popped a "Discard changes?" confirmation *inside* the create sheet —
+  two stacked modals, which locks up the UI on iOS. New events no longer confirm
+  on cancel: like the Make Request sheet, cancelling just closes and keeps the
+  draft, so reopening resumes where you left off (the draft clears once the event
+  is created). Editing an existing event still confirms before dropping unsaved
+  changes, but now dismisses that dialog before the sheet so it can't lock up.
+
+### Changed
+
+- **Chaplaincy role labels drop the redundant department.** A chaplaincy role is
+  scoped to a campus, so it now reads e.g. "Intern Chaplain → USYD" instead of
+  "Intern Chaplain → Chaplaincy · USYD".
+- **Admin → Users: Director at the top, no double stripe.** The Director now sits
+  at the top of the list (like the Org Chart), and the redundant coloured bar
+  around each group is removed — the cards inside already carry the group's
+  accent stripe.
+
+## [1.6.6] — 2026-07-02
+
+### Added
+
+- **Insights charts: y-axis labels, fullscreen expand, and bar tooltips.** All
+  bar charts gained a left y-axis with five tick labels (max/75%/50%/25%/0), and
+  x-axis year labels are shortened (e.g. `'24`) with smart label-skipping so they
+  never overlap. Tap any chart card to open it fullscreen — on a portrait phone
+  it rotates to landscape with taller bars; when the device is already landscape,
+  or on web, it fills the screen in its natural orientation. In fullscreen, tap a
+  bar for a tooltip pill showing its value(s) and year — single-value for trend
+  charts, multi-value (with colour dots) for stacked leader/staff and per-campus
+  charts.
+
+### Changed
+
+- **Campus legend labels use acronyms** (ACU, MACQ, UNSW, USYD, UTS, E2E) so they
+  fit without truncation, in both the legend and the fullscreen tooltip.
+- **Bar chart container height is now fixed** whether or not value labels are
+  showing, so charts no longer jump as selection changes.
+- **Insights defaults to the General tab** on first load.
+
 ## [1.6.5] — 2026-07-02
 
 ### Changed

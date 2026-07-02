@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
 import {
+  DIRECTOR,
   HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
   departmentsOf,
@@ -87,11 +88,48 @@ export const useGroupedProfiles = (
       (p) => !groupedEmails.has(p.email)
     );
 
-    const campusProfiles = (profiles ?? []).filter((p) =>
-      (p.assignments ?? []).some((a) => a.university)
+    // The Director is org-wide (no division/department/campus scope), so it
+    // otherwise falls into "Other". Hoist it out to render at the very top, like
+    // the Org Chart.
+    const director =
+      (profiles ?? []).find((p) =>
+        (p.assignments ?? []).some((a) => a.role === DIRECTOR)
+      ) ?? null;
+
+    // The Director renders in its own hoisted top slot, so strip it from every
+    // other bucket to match the Org Chart (which never repeats the director). A
+    // Director that also carries division/department assignments would otherwise
+    // resurface as a division/department head or member. Departments left empty
+    // once the director is removed are dropped.
+    const groupedProfilesWithoutDirector = director
+      ? groupedProfiles.map((g) => ({
+          ...g,
+          head: g.head?.email === director.email ? null : g.head,
+          departments: g.departments
+            .map((d) => ({
+              ...d,
+              head: d.head?.email === director.email ? null : d.head,
+              profiles: d.profiles.filter((p) => p.email !== director.email),
+            }))
+            .filter((d) => d.head || d.profiles.length > 0),
+          divisionOnlyProfiles: g.divisionOnlyProfiles.filter(
+            (p) => p.email !== director.email
+          ),
+        }))
+      : groupedProfiles;
+
+    // Exclude the Director from campus groups too — it's hoisted to its own top
+    // slot, so a Director that also carries a campus assignment would otherwise
+    // render twice (mirrors the nonCampusOtherProfiles exclusion below).
+    const campusProfiles = (profiles ?? []).filter(
+      (p) =>
+        p.email !== director?.email &&
+        (p.assignments ?? []).some((a) => a.university)
     );
     const nonCampusOtherProfiles = otherProfiles.filter(
-      (p) => !(p.assignments ?? []).some((a) => a.university)
+      (p) =>
+        p.email !== director?.email &&
+        !(p.assignments ?? []).some((a) => a.university)
     );
     const structureUnis = structure?.universities ?? [];
     const extraUnis = [
@@ -136,5 +174,10 @@ export const useGroupedProfiles = (
       }))
       .filter((g) => g.profiles.length > 0);
 
-    return { groupedProfiles, campusByUniversity, nonCampusOtherProfiles };
+    return {
+      director,
+      groupedProfiles: groupedProfilesWithoutDirector,
+      campusByUniversity,
+      nonCampusOtherProfiles,
+    };
   }, [structure, profiles]);

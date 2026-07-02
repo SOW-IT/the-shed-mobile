@@ -154,7 +154,10 @@ export function CreateEventSheet({
 
   // Initialise the wizard once per opening. Gating on the open transition keeps
   // a background `event` refresh from clobbering in-progress edits or moving the
-  // dirty baseline.
+  // dirty baseline. Editing reloads the event's saved values each open; a NEW
+  // event deliberately keeps its in-progress draft across opens (like the Make
+  // Request sheet), so cancelling and reopening resumes where you left off — the
+  // draft is only cleared after a successful create (see `resetForm`).
   useEffect(() => {
     if (!visible) {
       openedRef.current = false;
@@ -162,6 +165,7 @@ export function CreateEventSheet({
     }
     if (openedRef.current) return;
     openedRef.current = true;
+    if (!isEditing) return;
     const snapshot = {
       name: event?.name ?? "",
       tags: event?.tagIds ?? [],
@@ -170,6 +174,7 @@ export function CreateEventSheet({
       startTime: event ? timeInputFromMs(event.dateStart) : defaultTime(17),
       endTime: event ? timeInputFromMs(event.dateEnd) : defaultTime(19),
     };
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- load the event's saved fields on the open transition (edit mode)
     setStep(0);
     setName(snapshot.name);
     setSelectedTags(snapshot.tags);
@@ -184,7 +189,30 @@ export function CreateEventSheet({
     setConfirmCancel(false);
     setInitial(snapshot);
     weeklyAppliedRef.current = false;
-  }, [visible, ownerGroup, event]);
+  }, [visible, ownerGroup, event, isEditing]);
+
+  // Clear a new-event draft back to defaults — run after a successful create so
+  // the next "New event" starts fresh rather than resuming the just-saved one.
+  const resetForm = () => {
+    setStep(0);
+    setName("");
+    setSelectedTags([]);
+    setCollaborators([subgroup]);
+    setDateStr(defaultDate());
+    setStartTime(defaultTime(17));
+    setEndTime(defaultTime(19));
+    setError(null);
+    setSubmitting(false);
+    setInitial({
+      name: "",
+      tags: [],
+      collaborators: [subgroup],
+      dateStr: defaultDate(),
+      startTime: defaultTime(17),
+      endTime: defaultTime(19),
+    });
+    weeklyAppliedRef.current = false;
+  };
 
   const steps = ["Name", "Tags", "Collaboration", "Schedule"];
   const maxStep = steps.length - 1;
@@ -255,6 +283,7 @@ export function CreateEventSheet({
         return;
       }
       const eventId = await createEvent(payload);
+      resetForm(); // draft saved into a real event now — start fresh next time
       onClose();
       router.push({
         pathname: "/attendance/event/[eventId]",
@@ -294,10 +323,12 @@ export function CreateEventSheet({
     startTime !== initial.startTime ||
     endTime !== initial.endTime;
 
-  // Cancelling or any backdrop/X dismissal confirms first when there are unsaved
-  // edits, so in-progress work isn't dropped silently.
+  // New event: cancelling just closes and keeps the draft (nothing is lost, and
+  // no second modal — which previously froze the app on iOS). Editing a real
+  // event still confirms before dropping unsaved changes, since those can't be
+  // resumed the way a draft can.
   const requestClose = () => {
-    if (dirty) {
+    if (isEditing && dirty) {
       setConfirmCancel(true);
       return;
     }
@@ -568,13 +599,17 @@ export function CreateEventSheet({
       <ConfirmDialog
         visible={confirmCancel}
         title="Discard changes?"
-        message={
-          isEditing
-            ? "Your unsaved changes will be lost."
-            : "Your new event won't be saved."
-        }
+        message="Your unsaved changes will be lost."
         confirmLabel="Discard"
-        onConfirm={onClose}
+        // Dismiss this dialog first, THEN close the sheet on the next tick.
+        // ConfirmDialog runs onConfirm() *then* its own close() in the same
+        // press handler, so the dialog's dismissal (onClose → confirmCancel
+        // false) commits this frame; deferring the parent close to the next
+        // tick keeps the two modals from tearing down in one frame, which is
+        // what locks up the UI on iOS.
+        onConfirm={() => {
+          setTimeout(onClose, 0);
+        }}
         onClose={() => setConfirmCancel(false)}
       />
     </Sheet>
