@@ -82,19 +82,22 @@ export function MetricsTab({
   selectedSubgroup,
   onSelectedSubgroupChange,
   onOpenMember,
+  rangeWeeks,
+  includeCollaborative,
 }: {
   subgroups: string[];
   selectedSubgroup: string | null;
   onSelectedSubgroupChange: (subgroup: string) => void;
   onOpenMember: (memberId: Id<"attendanceMembers">) => void;
+  // Owned by the Insights screen and driven by the bottom-right range selector.
+  rangeWeeks: number;
+  includeCollaborative: boolean;
 }) {
   const t = useAppTheme();
   const router = useRouter();
   const { width: windowWidth } = useWindowDimensions();
   const subgroup = selectedSubgroup ?? subgroups[0] ?? null;
 
-  const [rangeWeeks, setRangeWeeks] = useState<number>(8);
-  const [includeCollaborative, setIncludeCollaborative] = useState(true);
   const [containerWidth, setContainerWidth] = useState(windowWidth);
   const [detail, setDetail] = useState<TileDetail | null>(null);
 
@@ -103,9 +106,20 @@ export function MetricsTab({
     subgroup ? { subgroup, rangeWeeks, includeCollaborative } : "skip"
   );
 
+  // Org-wide (SOW) view: show average weekly attendance per campus (drawn from
+  // each campus's own snapshot) and drop the follow-up list, which is a
+  // per-campus pastoral tool rather than an org-wide one.
+  const orgWide = subgroup ? isOrgWideSubgroup(subgroup) : false;
+  const campusWeekly = useQuery(
+    api.attendanceMetrics.campusWeeklyAverages,
+    orgWide ? { rangeWeeks, includeCollaborative } : "skip"
+  );
+
   const wide = containerWidth >= 640;
   const onLayout = (e: LayoutChangeEvent) =>
     setContainerWidth(e.nativeEvent.layout.width);
+  const rangeText =
+    RANGE_OPTIONS.find((o) => o.weeks === rangeWeeks)?.label ?? `${rangeWeeks} wks`;
 
   // Responsive grids: more columns on a big screen, comfortable on mobile.
   const cardCols = wide ? 3 : 2;
@@ -245,62 +259,21 @@ export function MetricsTab({
         </View>
       ) : null}
 
-      {/* Filters: time range + collaborative toggle + refresh. */}
-      <View style={styles.filterBar}>
-        <View style={styles.rangeRow}>
-          {RANGE_OPTIONS.map((opt) => {
-            const active = opt.weeks === rangeWeeks;
-            return (
-              <Pressable
-                key={opt.weeks}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                onPress={() => setRangeWeeks(opt.weeks)}
-                style={[
-                  styles.rangePill,
-                  {
-                    backgroundColor: active ? t.primary : t.ghost,
-                    borderColor: active ? t.primary : t.border,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.rangePillText,
-                    { color: active ? t.onPrimary : t.ghostText },
-                  ]}
-                >
-                  {opt.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        <View style={styles.filterRow}>
-          <Pressable
-            accessibilityRole="switch"
-            accessibilityState={{ checked: includeCollaborative }}
-            onPress={() => setIncludeCollaborative((v) => !v)}
-            style={styles.toggle}
-          >
-            <Ionicons
-              name={includeCollaborative ? "checkbox" : "square-outline"}
-              size={18}
-              color={includeCollaborative ? t.primary : t.muted}
-            />
-            <Text style={[typography.caption, { color: t.muted }]}>
-              Collaborative events
+      {/* The time range + collaborative toggle now live in the bottom-right
+          selector (AttendanceRangeFab); this line just reflects the current
+          selection and when the snapshot was last refreshed. */}
+      <View style={styles.metaRow}>
+        <Text style={[typography.caption, { color: t.muted }]}>
+          {`Last ${rangeText}${includeCollaborative ? " · incl. collaborative" : ""}`}
+        </Text>
+        {snapshot ? (
+          <View style={styles.refresh}>
+            <Ionicons name="time-outline" size={14} color={t.faint} />
+            <Text style={[typography.caption, { color: t.faint }]}>
+              {`Updated ${timeAgo(snapshot.computedAt)}`}
             </Text>
-          </Pressable>
-          {snapshot ? (
-            <View style={styles.refresh}>
-              <Ionicons name="time-outline" size={14} color={t.faint} />
-              <Text style={[typography.caption, { color: t.faint }]}>
-                {`Updated ${timeAgo(snapshot.computedAt)}`}
-              </Text>
-            </View>
-          ) : null}
-        </View>
+          </View>
+        ) : null}
       </View>
 
       {/* States. */}
@@ -400,8 +373,27 @@ export function MetricsTab({
                   <BreakdownBars rows={b.rows} />
                 </ChartCard>
               ));
+              // Org-wide only: average weekly-meeting turnout for each campus,
+              // leading the chart list so it's the first thing SOW leaders see.
+              const campusWeeklyChart =
+                orgWide && campusWeekly && campusWeekly.length > 0 ? (
+                  <ChartCard
+                    key="campusWeekly"
+                    title="Avg weekly attendance by campus"
+                    subtitle="Each campus's weekly meetings"
+                    width={chartWidth}
+                  >
+                    <BreakdownBars
+                      rows={campusWeekly.map((c) => ({
+                        label: c.campus,
+                        value: c.avgWeekly,
+                      }))}
+                    />
+                  </ChartCard>
+                ) : null;
               const ordered = weekly
                 ? [
+                    campusWeeklyChart,
                     weeklyTrendChart,
                     newVsReturningChart,
                     attendanceChart,
@@ -410,6 +402,7 @@ export function MetricsTab({
                     ...breakdownCharts,
                   ]
                 : [
+                    campusWeeklyChart,
                     attendanceChart,
                     rollingChart,
                     weeklyTrendChart,
@@ -421,7 +414,8 @@ export function MetricsTab({
             })()}
           </View>
 
-          {/* Needs follow-up. */}
+          {/* Needs follow-up — a per-campus pastoral tool, hidden org-wide. */}
+          {orgWide ? null : (
           <View style={[styles.followCard, { backgroundColor: t.card }, t.shadowCard]}>
             <View style={styles.followHeader}>
               <Ionicons name="heart-outline" size={18} color={t.primary} />
@@ -454,6 +448,7 @@ export function MetricsTab({
               </Text>
             ) : null}
           </View>
+          )}
 
           <View style={{ height: spacing.xxl }} />
         </>
@@ -481,22 +476,12 @@ const styles = StyleSheet.create({
     borderWidth: 2.5,
     borderColor: "transparent",
   },
-  filterBar: { gap: spacing.sm },
-  rangeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  rangePill: {
-    borderWidth: 1,
-    borderRadius: radius.full,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-  },
-  rangePillText: { fontSize: 12.5, fontWeight: "700" },
-  filterRow: {
+  metaRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: spacing.sm,
   },
-  toggle: { flexDirection: "row", alignItems: "center", gap: 6 },
   refresh: { flexDirection: "row", alignItems: "center", gap: 5 },
   cardGrid: {
     flexDirection: "row",

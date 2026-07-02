@@ -571,6 +571,57 @@ export const snapshot = query({
 });
 
 /**
+ * Average weekly-meeting attendance for every campus, for the org-wide (SOW)
+ * view. Rather than re-deriving per-campus turnout from the org-wide snapshot's
+ * events (which are only the SOW-tagged gatherings), this reads each campus's
+ * OWN already-computed snapshot and pulls its `avgWeeklyAttendance` — so it's a
+ * cheap fan-out over precomputed rows with no extra recompute. Campuses with no
+ * snapshot, a stale prior-year one, or no weekly meetings in range are omitted.
+ */
+export const campusWeeklyAverages = query({
+  args: {
+    rangeWeeks: v.number(),
+    includeCollaborative: v.optional(v.boolean()),
+  },
+  returns: v.union(
+    v.null(),
+    v.array(v.object({ campus: v.string(), avgWeekly: v.number() }))
+  ),
+  handler: async (ctx, { rangeWeeks, includeCollaborative = true }) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    const { year } = caller;
+    const universities = await ctx.db
+      .query("universities")
+      .withIndex("by_year_and_name", (q) => q.eq("year", year))
+      .collect();
+
+    // The per-campus snapshot reads are independent, so fan them out in parallel.
+    const perCampus = await Promise.all(
+      universities.map(async (uni) => {
+        const rows = await ctx.db
+          .query("attendanceMetricsSnapshots")
+          .withIndex("by_subgroup_and_range", (q) =>
+            q
+              .eq("subgroup", canonicalSubgroup(uni.name))
+              .eq("rangeWeeks", rangeWeeks)
+              .eq("includeCollaborative", includeCollaborative)
+          )
+          .collect();
+        if (rows.length === 0) return null;
+        const row = rows.reduce((a, b) => (b.computedAt > a.computedAt ? b : a));
+        if (row.staffYear !== year) return null;
+        const avg = row.data.summary.avgWeeklyAttendance;
+        return avg === null ? null : { campus: uni.name, avgWeekly: avg };
+      })
+    );
+    return perCampus
+      .filter((c): c is { campus: string; avgWeekly: number } => c !== null)
+      .sort((a, b) => b.avgWeekly - a.avgWeekly);
+  },
+});
+
+/**
  * Force a refresh now (campus leaders + admins). Schedules the same bounded
  * per-sub-group recompute the weekly cron uses, so the dashboard can be brought
  * up to date on demand without waiting for Thursday.

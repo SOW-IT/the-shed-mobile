@@ -271,6 +271,74 @@ export function StackedBarChart({ points }: { points: SplitPoint[] }) {
   );
 }
 
+/** One bar's stacked segments (e.g. student leaders split by campus). */
+export type MultiStackPoint = {
+  at: number;
+  label: string;
+  segments: { key: string; value: number; colour: string }[];
+};
+
+/** Hairline gap between stacked segments so adjacent campus colours read apart. */
+const SEG_GAP = 1.5;
+
+/**
+ * N coloured segments stacked per point; the bar's height scales to its total and
+ * the segments split THAT height proportionally — so the stack always sums to the
+ * scaled total (no per-segment minimum inflating it past the chart, which would
+ * overflow and clip the year labels beneath). A hairline gap separates segments.
+ */
+export function MultiStackedBarChart({ points }: { points: MultiStackPoint[] }) {
+  const t = useAppTheme();
+  const fit = useBarFit(points.length);
+  if (points.length === 0) return <EmptyChart />;
+  const totals = points.map((p) => p.segments.reduce((s, seg) => s + seg.value, 0));
+  const max = Math.max(1, ...totals);
+  const scale = (n: number) => (n / max) * CHART_HEIGHT;
+  return (
+    <View onLayout={fit.onLayout} style={[styles.barRow, { justifyContent: fit.justify }]}>
+      {fit.w === 0
+        ? null
+        : points.map((p, i) => {
+            const total = totals[i];
+            const visible = p.segments.filter((seg) => seg.value > 0);
+            const barHeight = Math.max(BAR_MIN, scale(total));
+            // Reserve the inter-segment gaps out of the bar height so the column
+            // (segment fills + gaps) always equals `barHeight` exactly — capping
+            // the gap total so it can't eat into the bar or push the stack over
+            // (which would overflow and clip again). Short bars just lose the gaps.
+            const gapCount = Math.max(0, visible.length - 1);
+            const gaps = Math.min(gapCount * SEG_GAP, Math.max(0, barHeight - BAR_MIN));
+            const perGap = gapCount > 0 ? gaps / gapCount : 0;
+            const fill = barHeight - gaps;
+            return (
+              <View key={`${p.at}-${i}`} style={[styles.barSlot, { width: fit.barWidth }]}>
+                {fit.showValues ? (
+                  <Text style={[styles.barValue, { color: t.muted }]}>{total}</Text>
+                ) : null}
+                <View style={{ width: barInner(fit.barWidth), height: barHeight, justifyContent: "flex-end" }}>
+                  {visible.map((seg, si) => (
+                    <View
+                      key={seg.key}
+                      style={{
+                        height: total > 0 ? (seg.value / total) * fill : 0,
+                        backgroundColor: seg.colour,
+                        marginTop: si === 0 ? 0 : perGap,
+                        borderTopLeftRadius: si === 0 ? radius.sm : 0,
+                        borderTopRightRadius: si === 0 ? radius.sm : 0,
+                        borderBottomLeftRadius: si === visible.length - 1 ? radius.sm : 0,
+                        borderBottomRightRadius: si === visible.length - 1 ? radius.sm : 0,
+                      }}
+                    />
+                  ))}
+                </View>
+                <BarLabel text={i % fit.labelStep === 0 ? p.label : ""} />
+              </View>
+            );
+          })}
+    </View>
+  );
+}
+
 /** Small coloured dot + label, for chart legends. */
 export function LegendDot({ colour, label }: { colour: string; label: string }) {
   const t = useAppTheme();
