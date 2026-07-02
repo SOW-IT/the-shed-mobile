@@ -46,8 +46,13 @@ export const buildAttendanceCsv = (
 ): string => {
   // Never let a metadata field named "Notes" duplicate the reserved sign-in
   // note column.
+  const includeNotes = fieldKeys.some(isReservedExportFieldKey);
   const metadataKeys = fieldKeys.filter((key) => !isReservedExportFieldKey(key));
-  const tableHeader = csvLine([...ATTENDEE_HEADERS, ...metadataKeys, NOTES_HEADER]);
+  const tableHeader = csvLine([
+    ...ATTENDEE_HEADERS,
+    ...metadataKeys,
+    ...(includeNotes ? [NOTES_HEADER] : []),
+  ]);
   const sections = events.map((event) => {
     const collaboration = event.collaborators.map(subgroupLabel).join(", ");
     // Event-level info: one label/value row each, specific to the event.
@@ -64,7 +69,7 @@ export const buildAttendanceCsv = (
         row.name,
         row.email,
         ...metadataKeys.map((key) => row.metadata[key] ?? ""),
-        row.notes ?? "",
+        ...(includeNotes ? [row.notes ?? ""] : []),
       ])
     );
     return [...info, "", tableHeader, ...rows].join("\r\n");

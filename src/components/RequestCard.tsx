@@ -404,6 +404,20 @@ export const RequestCard = ({
     setBodyMounted(true);
     setExpanded(true);
   };
+
+  // A notification can target a card that's already mounted (for example when
+  // the user taps a comment notification while the Requests tab is alive). Keep
+  // the local open/expanded state in sync with those focus props so the thread
+  // opens immediately instead of waiting for a remount/navigation refresh.
+  useEffect(() => {
+    if (autoExpand && collapsible) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- external deep-link focus sync
+      setBodyMounted(true);
+      setExpanded(true);
+    }
+    if (autoOpenThread) setShowComments(true);
+  }, [autoExpand, autoOpenThread, collapsible]);
+
   const collapse = () => {
     setExpanded(false);
     Animated.timing(heightAnim, {

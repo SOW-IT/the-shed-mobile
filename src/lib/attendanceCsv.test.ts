@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   buildAttendanceCsv,
   exportSlug,
+  NOTES_HEADER,
   type ExportEventForCsv,
 } from "./attendanceCsv";
 
@@ -33,7 +34,7 @@ const baseEvent = (
 
 describe("buildAttendanceCsv", () => {
   test("writes an event-level info block, then a per-attendee table", () => {
-    const csv = buildAttendanceCsv([baseEvent()], ["Gender", "Campus"]);
+    const csv = buildAttendanceCsv([baseEvent()], ["Gender", "Campus", NOTES_HEADER]);
     const lines = csv.split("\r\n");
     // Event info is written once for the event, not repeated per person.
     expect(lines.slice(0, 5)).toEqual([
@@ -85,7 +86,7 @@ describe("buildAttendanceCsv", () => {
   });
 
   test("only includes the metadata columns that were chosen", () => {
-    const csv = buildAttendanceCsv([baseEvent()], ["Gender"]);
+    const csv = buildAttendanceCsv([baseEvent()], ["Gender", NOTES_HEADER]);
     const lines = csv.split("\r\n");
     const header = lines.find((l) => l.startsWith("Sign In,"))!;
     const row = lines[lines.length - 1];
@@ -106,7 +107,7 @@ describe("buildAttendanceCsv", () => {
         },
       ],
     });
-    const lines = buildAttendanceCsv([event], ["Gender"]).split("\r\n");
+    const lines = buildAttendanceCsv([event], ["Gender", NOTES_HEADER]).split("\r\n");
     const row = lines[lines.length - 1];
     expect(row.endsWith(",,")).toBe(true); // empty Gender + empty Notes
   });
@@ -120,9 +121,17 @@ describe("buildAttendanceCsv", () => {
     expect(sections[1].startsWith("Event,Event B\r\n")).toBe(true);
   });
 
+  test("notes can be unselected", () => {
+    const lines = buildAttendanceCsv([baseEvent()], ["Gender"]).split("\r\n");
+    const header = lines.find((l) => l.startsWith("Sign In,"))!;
+    const row = lines[lines.length - 1];
+    expect(header).toBe("Sign In,Name,Email,Gender");
+    expect(row).toBe("04.03.2026 17:05,Ada Lovelace,ada@sow.org.au,Female");
+  });
+
   test("an event with no attendance still appears as an info block + header", () => {
     const event = baseEvent({ rows: [], attendanceCount: 0 });
-    const lines = buildAttendanceCsv([event], ["Gender"]).split("\r\n");
+    const lines = buildAttendanceCsv([event], ["Gender", NOTES_HEADER]).split("\r\n");
     // 5 info rows + blank + table header, no data rows.
     expect(lines).toHaveLength(7);
     expect(lines[0]).toBe("Event,Weekly Meeting");
