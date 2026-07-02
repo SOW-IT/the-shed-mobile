@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
 import {
+  DIRECTOR,
   HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
   departmentsOf,
@@ -87,11 +88,21 @@ export const useGroupedProfiles = (
       (p) => !groupedEmails.has(p.email)
     );
 
+    // The Director is org-wide (no division/department/campus scope), so it
+    // otherwise falls into "Other". Hoist it out to render at the very top, like
+    // the Org Chart.
+    const director =
+      (profiles ?? []).find((p) =>
+        (p.assignments ?? []).some((a) => a.role === DIRECTOR)
+      ) ?? null;
+
     const campusProfiles = (profiles ?? []).filter((p) =>
       (p.assignments ?? []).some((a) => a.university)
     );
     const nonCampusOtherProfiles = otherProfiles.filter(
-      (p) => !(p.assignments ?? []).some((a) => a.university)
+      (p) =>
+        p.email !== director?.email &&
+        !(p.assignments ?? []).some((a) => a.university)
     );
     const structureUnis = structure?.universities ?? [];
     const extraUnis = [
@@ -136,5 +147,5 @@ export const useGroupedProfiles = (
       }))
       .filter((g) => g.profiles.length > 0);
 
-    return { groupedProfiles, campusByUniversity, nonCampusOtherProfiles };
+    return { director, groupedProfiles, campusByUniversity, nonCampusOtherProfiles };
   }, [structure, profiles]);

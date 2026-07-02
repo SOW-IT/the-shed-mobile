@@ -6,6 +6,28 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.6.7] — 2026-07-02
+
+### Fixed
+
+- **Creating an event then cancelling froze the app.** Cancelling a part-filled
+  new event popped a "Discard changes?" confirmation *inside* the create sheet —
+  two stacked modals, which locks up the UI on iOS. New events no longer confirm
+  on cancel: like the Make Request sheet, cancelling just closes and keeps the
+  draft, so reopening resumes where you left off (the draft clears once the event
+  is created). Editing an existing event still confirms before dropping unsaved
+  changes, but now dismisses that dialog before the sheet so it can't lock up.
+
+### Changed
+
+- **Chaplaincy role labels drop the redundant department.** A chaplaincy role is
+  scoped to a campus, so it now reads e.g. "Intern Chaplain → USYD" instead of
+  "Intern Chaplain → Chaplaincy · USYD".
+- **Admin → Users: Director at the top, no double stripe.** The Director now sits
+  at the top of the list (like the Org Chart), and the redundant coloured bar
+  around each group is removed — the cards inside already carry the group's
+  accent stripe.
+
 ## [1.6.5] — 2026-07-02
 
 ### Changed

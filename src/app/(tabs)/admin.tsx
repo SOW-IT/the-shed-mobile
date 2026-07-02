@@ -337,7 +337,7 @@ export default function AdminScreen() {
   // Bucket the year's profiles by division → department, then campus and other
   // (see useGroupedProfiles). Kept above the loading/access early-returns below
   // so the hook runs on every render, per the rules of hooks.
-  const { groupedProfiles, campusByUniversity, nonCampusOtherProfiles } =
+  const { director, groupedProfiles, campusByUniversity, nonCampusOtherProfiles } =
     useGroupedProfiles(structure, profiles);
 
   const {
@@ -639,11 +639,11 @@ export default function AdminScreen() {
 
   const accentBorderWidth = 4;
   const cardHorizontalPadding = spacing.lg + 2;
-  const accentContainerStyle = (accentColour: string) => ({
+  // No coloured left-bar around the group itself — the cards inside already carry
+  // the group's accent (like the Org Chart's department cards), so an outer bar
+  // was a redundant second stripe. Just a plain vertical stack.
+  const accentContainerStyle = (_accentColour: string) => ({
     gap: spacing.md,
-    borderLeftWidth: accentBorderWidth,
-    borderLeftColor: accentColour,
-    paddingLeft: spacing.md,
   });
   const accentCardStyle = (accentColour: string) => ({
     borderLeftWidth: accentBorderWidth,
@@ -829,6 +829,14 @@ export default function AdminScreen() {
               {(leavers ?? []).map((user) => renderLeaverCard(user))}
             </>
           )}
+
+          {/* Director sits at the top, like the Org Chart. */}
+          {director ? (
+            <>
+              <SectionTitle>Director — {selectedYear}</SectionTitle>
+              {renderProfileCard(director, t.primary)}
+            </>
+          ) : null}
 
           {/* Profiles grouped by division > department */}
           {groupedProfiles.map((group) => {
