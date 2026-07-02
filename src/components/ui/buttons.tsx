@@ -135,7 +135,6 @@ export const FooterAction = ({
               style={({ pressed }) => [
                 styles.footerAction,
                 { backgroundColor: t.card, borderWidth: 1.5, borderColor: t.border },
-                cancel.disabled && { opacity: 0.5 },
                 pressed && !cancel.disabled && { opacity: 0.7 },
               ]}
             >
@@ -165,7 +164,6 @@ export const FooterAction = ({
             style={[
               styles.footerAction,
               { backgroundColor: t.primary },
-              disabled && { opacity: 0.6 },
             ]}
           >
             <Text style={[styles.footerActionText, { color: t.onPrimary }]}>{title}</Text>

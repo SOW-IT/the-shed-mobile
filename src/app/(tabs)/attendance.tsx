@@ -207,6 +207,7 @@ export default function AttendanceScreen() {
       />
       {subgroup && subgroups ? (
         <CreateEventSheet
+          key={subgroup}
           visible={createEventOpen}
           onClose={() => setCreateEventOpen(false)}
           year={year}

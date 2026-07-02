@@ -59,6 +59,7 @@ export function SettingsTab({
   const [saving, setSaving] = useState(false);
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
   const [deleteText, setDeleteText] = useState("");
+  const [colourIndex, setColourIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (tags) {
@@ -171,37 +172,29 @@ export function SettingsTab({
 
           <View style={{ gap: spacing.xs }}>
             <Muted>Colour</Muted>
-            <View style={styles.swatchRow}>
-              {TAG_COLOUR_NAMES.map((colour) => {
-                const hex = tagColourHex(colour);
-                const selected = tag.colour === colour;
-                return (
-                  <Pressable
-                    key={colour}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Colour ${colour}`}
-                    accessibilityState={{ selected }}
-                    onPress={() =>
-                      setTagDrafts((prev) =>
-                        prev.map((x, j) => (j === i ? { ...x, colour } : x))
-                      )
-                    }
-                    style={({ pressed }) => [
-                      styles.swatch,
-                      {
-                        backgroundColor: hex,
-                        borderColor: selected ? t.text : "transparent",
-                      },
-                      pressed && { opacity: 0.7 },
-                    ]}
-                  >
-                    {selected ? (
-                      <Ionicons name="checkmark" size={16} color="#fff" />
-                    ) : null}
-                  </Pressable>
-                );
-              })}
-            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Choose colour, currently ${tag.colour ?? "blue"}`}
+              onPress={() => setColourIndex(i)}
+              style={({ pressed }) => [
+                styles.colourPickerButton,
+                { borderColor: t.border, backgroundColor: t.card },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <View style={styles.colourPickerValue}>
+                <View
+                  style={[
+                    styles.colourDot,
+                    { backgroundColor: tagColourHex(tag.colour ?? "blue") },
+                  ]}
+                />
+                <Text style={[typography.body, { color: t.text, fontWeight: "700" }]}>
+                  {tag.colour ?? "blue"}
+                </Text>
+              </View>
+              <Ionicons name="chevron-down" size={18} color={t.ghostText} />
+            </Pressable>
           </View>
 
           <View style={{ gap: spacing.xs }}>
@@ -279,6 +272,50 @@ export function SettingsTab({
           placeholder={deleteIndex !== null ? tagDrafts[deleteIndex]?.name : ""}
         />
       </Sheet>
+      <Sheet
+        visible={colourIndex !== null}
+        onClose={() => setColourIndex(null)}
+        title="Choose tag colour"
+      >
+        <View style={{ gap: spacing.sm }}>
+          {TAG_COLOUR_NAMES.map((colour) => {
+            const selected =
+              colourIndex !== null && tagDrafts[colourIndex]?.colour === colour;
+            return (
+              <Pressable
+                key={colour}
+                accessibilityRole="button"
+                accessibilityLabel={`Colour ${colour}`}
+                accessibilityState={{ selected }}
+                onPress={() => {
+                  setTagDrafts((prev) =>
+                    prev.map((x, j) => (j === colourIndex ? { ...x, colour } : x))
+                  );
+                  setColourIndex(null);
+                }}
+                style={({ pressed }) => [
+                  styles.colourOption,
+                  { borderColor: selected ? t.primary : t.border, backgroundColor: t.card },
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <View style={styles.colourPickerValue}>
+                  <View
+                    style={[
+                      styles.colourDot,
+                      { backgroundColor: tagColourHex(colour) },
+                    ]}
+                  />
+                  <Text style={[typography.body, { color: t.text, fontWeight: "700" }]}>
+                    {colour}
+                  </Text>
+                </View>
+                {selected ? <Ionicons name="checkmark" size={20} color={t.primary} /> : null}
+              </Pressable>
+            );
+          })}
+        </View>
+      </Sheet>
     </>
   );
 }
@@ -295,17 +332,33 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: spacing.sm,
   },
-  swatchRow: {
+  colourPickerButton: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    borderWidth: 1.5,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  colourPickerValue: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
   },
-  swatch: {
-    width: 32,
-    height: 32,
+  colourDot: {
+    width: 22,
+    height: 22,
     borderRadius: radius.full,
-    borderWidth: 2,
+  },
+  colourOption: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    borderWidth: 2,
+    borderRadius: radius.md,
+    padding: spacing.md,
   },
 });
