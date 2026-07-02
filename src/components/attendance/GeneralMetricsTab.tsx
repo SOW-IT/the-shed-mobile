@@ -75,7 +75,7 @@ export function GeneralMetricsTab() {
       />
     );
   }
-  if (trends.years.length === 0) {
+  if (trends.years.length === 0 || !charts) {
     return (
       <EmptyState
         icon="sparkles-outline"
@@ -91,7 +91,7 @@ export function GeneralMetricsTab() {
     <View onLayout={onLayout} style={styles.grid}>
       <FadeInView delay={stagger(0)}>
         <ChartCard title="All staff" subtitle="Head-count per staff year" width={width}>
-          <BarChart points={charts!.allStaff} colour={t.primary} />
+          <BarChart points={charts.allStaff} colour={t.primary} />
         </ChartCard>
       </FadeInView>
 
@@ -107,7 +107,7 @@ export function GeneralMetricsTab() {
             </View>
           }
         >
-          <StackedBarChart points={charts!.staffVsLeaders} />
+          <StackedBarChart points={charts.staffVsLeaders} />
         </ChartCard>
       </FadeInView>
 
@@ -124,7 +124,7 @@ export function GeneralMetricsTab() {
             </View>
           }
         >
-          <MultiStackedBarChart points={charts!.leadersByCampus} />
+          <MultiStackedBarChart points={charts.leadersByCampus} />
         </ChartCard>
       </FadeInView>
 

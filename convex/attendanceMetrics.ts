@@ -588,32 +588,36 @@ export const campusWeeklyAverages = query({
     v.array(v.object({ campus: v.string(), avgWeekly: v.number() }))
   ),
   handler: async (ctx, { rangeWeeks, includeCollaborative = true }) => {
-    if (!(await optionalProfile(ctx))) return null;
-    const year = currentStaffYear();
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    const { year } = caller;
     const universities = await ctx.db
       .query("universities")
       .withIndex("by_year_and_name", (q) => q.eq("year", year))
       .collect();
 
-    const out: { campus: string; avgWeekly: number }[] = [];
-    for (const uni of universities) {
-      const rows = await ctx.db
-        .query("attendanceMetricsSnapshots")
-        .withIndex("by_subgroup_and_range", (q) =>
-          q
-            .eq("subgroup", canonicalSubgroup(uni.name))
-            .eq("rangeWeeks", rangeWeeks)
-            .eq("includeCollaborative", includeCollaborative)
-        )
-        .collect();
-      if (rows.length === 0) continue;
-      const row = rows.reduce((a, b) => (b.computedAt > a.computedAt ? b : a));
-      if (row.staffYear !== year) continue;
-      const avg = row.data.summary.avgWeeklyAttendance;
-      if (avg !== null) out.push({ campus: uni.name, avgWeekly: avg });
-    }
-    out.sort((a, b) => b.avgWeekly - a.avgWeekly);
-    return out;
+    // The per-campus snapshot reads are independent, so fan them out in parallel.
+    const perCampus = await Promise.all(
+      universities.map(async (uni) => {
+        const rows = await ctx.db
+          .query("attendanceMetricsSnapshots")
+          .withIndex("by_subgroup_and_range", (q) =>
+            q
+              .eq("subgroup", canonicalSubgroup(uni.name))
+              .eq("rangeWeeks", rangeWeeks)
+              .eq("includeCollaborative", includeCollaborative)
+          )
+          .collect();
+        if (rows.length === 0) return null;
+        const row = rows.reduce((a, b) => (b.computedAt > a.computedAt ? b : a));
+        if (row.staffYear !== year) return null;
+        const avg = row.data.summary.avgWeeklyAttendance;
+        return avg === null ? null : { campus: uni.name, avgWeekly: avg };
+      })
+    );
+    return perCampus
+      .filter((c): c is { campus: string; avgWeekly: number } => c !== null)
+      .sort((a, b) => b.avgWeekly - a.avgWeekly);
   },
 });
 
