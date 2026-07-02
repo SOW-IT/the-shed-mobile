@@ -431,3 +431,55 @@ const EMPTY_DATA = {
   hasEnoughHistory: false,
   hasWeeklyMeetings: false,
 };
+
+describe("campusWeeklyAverages", () => {
+  const snap = (avgWeekly: number | null) => ({
+    ...EMPTY_DATA,
+    summary: { ...EMPTY_DATA.summary, avgWeeklyAttendance: avgWeekly },
+  });
+
+  test("returns null when not signed in", async () => {
+    const { t } = await setup();
+    expect(
+      await t.query(api.attendanceMetrics.campusWeeklyAverages, { rangeWeeks: 8 })
+    ).toBeNull();
+  });
+
+  test("returns each campus's newest current-year weekly avg, sorted desc; omits missing/stale/null", async () => {
+    const { t, leader } = await setup(); // setup() already creates the USYD campus
+    const admin = asUser(t, ADMIN);
+    const UNSW = "UNSW";
+    for (const name of [UNSW, "Macquarie", "NoSnap Uni", "Stale Uni"]) {
+      await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name });
+    }
+    await t.run(async (ctx) => {
+      const mk = (
+        subgroup: string,
+        avgWeekly: number | null,
+        opts?: { staffYear?: number; computedAt?: number }
+      ) =>
+        ctx.db.insert("attendanceMetricsSnapshots", {
+          subgroup,
+          rangeWeeks: 8,
+          includeCollaborative: true,
+          staffYear: opts?.staffYear ?? YEAR,
+          computedAt: opts?.computedAt ?? Date.now(),
+          data: snap(avgWeekly),
+        });
+      // USYD keeps an older and a newer row — the newest (12) should win.
+      await mk(USYD, 5, { computedAt: 1000 });
+      await mk(USYD, 12, { computedAt: 2000 });
+      await mk(UNSW, 20);
+      await mk("Macquarie", null); // no weekly meetings in range → omitted
+      await mk("Stale Uni", 99, { staffYear: YEAR - 1 }); // prior year → omitted
+      // "NoSnap Uni" has no snapshot at all → omitted
+    });
+
+    expect(
+      await leader.query(api.attendanceMetrics.campusWeeklyAverages, { rangeWeeks: 8 })
+    ).toEqual([
+      { campus: UNSW, avgWeekly: 20 },
+      { campus: USYD, avgWeekly: 12 },
+    ]);
+  });
+});

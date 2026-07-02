@@ -92,19 +92,9 @@ export const staffTrends = query({
       }
     }
 
+    // `optionalProfile` already guaranteed the caller has a profile this year, so
+    // `profiles` (which includes that row) is non-empty and `years` has ≥1 entry.
     const years = [...totals.keys()].sort((a, b) => a - b);
-    if (years.length === 0) {
-      return {
-        computedAt: Date.now(),
-        years: [],
-        allStaff: [],
-        staff: [],
-        studentLeaders: [],
-        campuses: [],
-        studentLeadersByCampus: [],
-      };
-    }
-
     const campuses = [...campusSet].sort((a, b) => a.localeCompare(b));
     const studentLeadersByCampus = campuses.map((campus) => ({
       campus,

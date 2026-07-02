@@ -63,7 +63,19 @@ export function GeneralMetricsTab() {
   }, [trends]);
 
   if (trends === undefined) return <LoadingState />;
-  if (trends === null || trends.years.length === 0) {
+  // `null` means the query couldn't resolve a staff profile for the caller (not
+  // signed in, or not provisioned) — distinct from a provisioned account that
+  // simply has no staff years on record yet.
+  if (trends === null) {
+    return (
+      <EmptyState
+        icon="lock-closed-outline"
+        title="Staff insights unavailable"
+        message="Sign in with a provisioned staff account to see org-wide staff trends."
+      />
+    );
+  }
+  if (trends.years.length === 0) {
     return (
       <EmptyState
         icon="sparkles-outline"
