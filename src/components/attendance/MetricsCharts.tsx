@@ -86,7 +86,9 @@ function BarLabel({ text }: { text: string }) {
 
 /**
  * Y-axis column with evenly spaced tick labels derived from the data max.
- * Renders 4 ticks: max, 75%, 50%, 25% (top → bottom).
+ * Renders 5 ticks: max, 75%, 50%, 25%, 0 (top → bottom). The trailing 0 is the
+ * baseline — without it `space-between` drops the 25% label onto the baseline,
+ * making the scale read 100/67/33/0 instead of 100/75/50/25/0.
  */
 function YAxis({ max, chartHeight }: { max: number; chartHeight: number }) {
   const t = useAppTheme();
@@ -95,6 +97,7 @@ function YAxis({ max, chartHeight }: { max: number; chartHeight: number }) {
     Math.round(max * 0.75),
     Math.round(max * 0.5),
     Math.round(max * 0.25),
+    0,
   ];
   return (
     <View style={[styles.yAxis, { height: chartHeight }]}>
