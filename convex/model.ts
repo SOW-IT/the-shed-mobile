@@ -78,8 +78,14 @@ export async function getProfile(
 
 /**
  * The single attendance-member row for an email, if any. An attendance member
- * links to a staff profile purely by its `email` column now (both SOW-domain
- * spellings, case- and whitespace-insensitive, via staffEmailCandidates).
+ * links to a staff profile purely by its `email` column now; both SOW-domain
+ * spellings are tried (staffEmailCandidates).
+ *
+ * The `by_email`/`by_staff_email` lookups are EXACT, so this is only case- and
+ * whitespace-insensitive because stored emails are normalised (trim +
+ * lowercase): every write path lowercases (create/update/ensureForStaff/import)
+ * and `migrations.dropStaffEmail` lowercases existing rows. A looked-up
+ * candidate is likewise lowercased by staffEmailCandidates, so both sides match.
  *
  * During the `staffEmail` → `email` migration window this also falls back to the
  * legacy `by_staff_email` index so a row that hasn't been backfilled yet is

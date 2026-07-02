@@ -613,6 +613,27 @@ describe("attendance members", () => {
     expect(rows[0].staffEmail).toBeUndefined();
   });
 
+  test("ensureForStaff reuses a member stored under a differently-cased/spaced email", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
+    // Created through the app with messy casing/whitespace — writes normalise it,
+    // so the exact-match by_email link still finds it (no duplicate overlay).
+    const memberId = await leader.mutation(api.attendanceMembers.create, {
+      name: "Cased Staff",
+      email: "  STAFF@SOW.ORG.AU  ",
+    });
+    const ensured = await leader.mutation(api.attendanceMembers.ensureForStaff, {
+      staffEmail: STAFF,
+    });
+    expect(ensured).toBe(memberId);
+    const rows = (
+      await t.run(async (ctx) => ctx.db.query("attendanceMembers").collect())
+    ).filter((m) => m.name === "Cased Staff" || m.email === STAFF);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].email).toBe(STAFF);
+  });
+
   test("update refuses a staff overlay when no profile exists for the requested year", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);

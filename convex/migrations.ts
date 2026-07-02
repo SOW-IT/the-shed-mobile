@@ -24,29 +24,52 @@ export const dropStaffEmail = internalMutation({
   args: { dryRun: v.optional(v.boolean()) },
   returns: v.object({
     scanned: v.number(),
+    // staffEmail moved into email (row cleared).
     migrated: v.number(),
+    // email lowercased/trimmed in place (no staffEmail to move).
+    normalized: v.number(),
+    // staffEmail present but not an email (no "@") — left UNTOUCHED for manual
+    // review, never silently discarded.
+    invalid: v.number(),
+    // dryRun only: rows that would change (migrated + normalized).
     remaining: v.number(),
   }),
   handler: async (ctx, { dryRun }) => {
     const members = await ctx.db.query("attendanceMembers").collect();
     let migrated = 0;
+    let normalized = 0;
+    let invalid = 0;
     let remaining = 0;
+    const norm = (e: string) => e.trim().toLowerCase();
     for (const m of members) {
-      if (!m.staffEmail) continue;
-      const linkEmail = m.staffEmail.trim().toLowerCase();
+      if (m.staffEmail) {
+        const linkEmail = norm(m.staffEmail);
+        if (!linkEmail.includes("@")) {
+          // Malformed staff link — moving it would lose the value silently, so
+          // leave the row as-is and report it for an operator to fix by hand.
+          invalid++;
+          continue;
+        }
+        if (dryRun) {
+          remaining++;
+          continue;
+        }
+        await ctx.db.patch(m._id, { email: linkEmail, staffEmail: undefined });
+        migrated++;
+        continue;
+      }
+      // No staffEmail: just ensure any existing email is normalised so the
+      // exact-match by_email lookup in findMemberByEmail can't miss it.
+      if (!m.email) continue;
+      const lower = norm(m.email);
+      if (lower === m.email) continue;
       if (dryRun) {
         remaining++;
         continue;
       }
-      await ctx.db.patch(m._id, {
-        // Overwrite `email` with the staff link (skip if the staffEmail is blank
-        // — keep whatever email the row already had); clearing a field is done by
-        // patching it to `undefined`.
-        ...(linkEmail.includes("@") ? { email: linkEmail } : {}),
-        staffEmail: undefined,
-      });
-      migrated++;
+      await ctx.db.patch(m._id, { email: lower });
+      normalized++;
     }
-    return { scanned: members.length, migrated, remaining };
+    return { scanned: members.length, migrated, normalized, invalid, remaining };
   },
 });

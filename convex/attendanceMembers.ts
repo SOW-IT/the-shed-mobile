@@ -209,14 +209,12 @@ export const list = query({
     // which the person wasn't yet staff still lists them as a plain member —
     // they appear as whatever they were that year, not retroactively as staff.
     //
-    // BOTH sides are reduced to one canonical key so the link can't slip on a
-    // formatting difference: `staffEmailCandidates(e)[0]` trims, lowercases, and
-    // collapses the two SOW staff-domain spellings (…@sow.org.au /
+    // BOTH sides are reduced to one canonical key (shared `canonicalEmailKey`)
+    // so the link can't slip on a formatting difference: it trims, lowercases,
+    // and collapses the two SOW staff-domain spellings (…@sow.org.au /
     // …@sowaustralia.com) to a single value. A profile and member that differ
     // only by domain, case, or stray whitespace therefore resolve to the same
     // person instead of appearing as a duplicate (a staff row + a pure extra).
-    const canonicalEmailKey = (email: string | undefined): string | undefined =>
-      staffEmailCandidates(email)[0];
     const profileKeys = new Set(
       profiles.flatMap((p) => {
         const key = canonicalEmailKey(p.email);
@@ -513,7 +511,10 @@ export const create = mutation({
     if (!trimmed) throw new ConvexError("Name is required.");
     const memberId = await ctx.db.insert("attendanceMembers", {
       name: trimmed,
-      email: email?.trim() || undefined,
+      // Normalise (trim + lowercase) so the by_email link is stable — the
+      // indexed lookup in findMemberByEmail is exact, so a stored "A@X" must not
+      // differ from a looked-up "a@x".
+      email: email?.trim().toLowerCase() || undefined,
       metadata,
     });
     await logAttendanceAction(ctx, {
@@ -567,7 +568,8 @@ export const update = mutation({
     if (!trimmed) throw new ConvexError("Name is required.");
     await ctx.db.patch(memberId, {
       name: trimmed,
-      email: email?.trim() || undefined,
+      // Normalised so the by_email link stays exact-match — see create().
+      email: email?.trim().toLowerCase() || undefined,
       metadata,
     });
     await logAttendanceAction(ctx, {
