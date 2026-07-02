@@ -1074,6 +1074,48 @@ describe("audit trail and reminders", () => {
     expect(bellaReviewed.map((r) => r.description)).toEqual(["first"]);
   });
 
+  test("reviewed keeps a HOD department request awaiting receipt with unread comments", async () => {
+    const t = await setup();
+    await asUser(t, RACHEL).mutation(api.requests.submit, {
+      description: "waiting receipt",
+      amount: 100,
+    });
+    const mine = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    const waitingReceipt = mine.find((r) => r.description === "waiting receipt")!;
+    await asUser(t, HENRY).mutation(api.requests.approve, {
+      requestId: waitingReceipt._id,
+      step: "hod",
+    });
+    await asUser(t, BELLA).mutation(api.requests.approve, {
+      requestId: waitingReceipt._id,
+      step: "budgetManager",
+    });
+    await asUser(t, FIONA).mutation(api.requests.approve, {
+      requestId: waitingReceipt._id,
+      step: "financeHead",
+    });
+
+    // Prove this does not depend on the normal actor audit history path.
+    await t.run(async (ctx) => {
+      for await (const event of ctx.db
+        .query("requestEvents")
+        .withIndex("by_request", (q) => q.eq("requestId", waitingReceipt._id))) {
+        await ctx.db.delete(event._id);
+      }
+    });
+
+    await asUser(t, RACHEL).mutation(api.comments.add, {
+      requestId: waitingReceipt._id,
+      body: "receipt coming",
+    });
+
+    const reviewed = (await asUser(t, HENRY).query(api.requests.reviewed, {}))!;
+    expect(reviewed.map((r) => r._id)).toContain(waitingReceipt._id);
+    expect(await asUser(t, HENRY).query(api.comments.unreadCount, {
+      requestId: waitingReceipt._id,
+    })).toBe(1);
+  });
+
   test("reviewed returns null when signed out", async () => {
     const t = await setup();
     expect(await t.query(api.requests.reviewed, {})).toBeNull();

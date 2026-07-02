@@ -785,8 +785,42 @@ export const reviewed = query({
       reviewedIds.push(event.requestId);
       if (reviewedIds.length >= REVIEWED_LIMIT) break;
     }
+
+    // Approvers still own the context for requests they've cleared while those
+    // requests wait on staff receipts. Keep those visible in Reviewed even when
+    // a busy approval history pushes the original approval event past
+    // REVIEWED_LIMIT; comment notifications deep-link to this section.
+    const approversFor = makeApproverResolver(ctx);
+    const actAsByYear = new Map<number, Promise<Set<string>>>();
+    const actAsIn = (year: number) => {
+      let cached = actAsByYear.get(year);
+      if (!cached) {
+        cached = actAsEmails(ctx, year, caller.email);
+        actAsByYear.set(year, cached);
+      }
+      return cached;
+    };
+    const receiptWaitingIds: Id<"requests">[] = [];
+    for (const request of await openRequestsAcrossYears(ctx, caller.year)) {
+      if (receiptWaitingIds.length >= REVIEWED_LIMIT) break;
+      if (seen.has(request._id)) continue;
+      if (request.requesterEmail === caller.email) continue;
+      if (!requestFullyApproved(request) || request.receipt) continue;
+      const reqYear = requestYear(request);
+      const approvers = await approversFor(reqYear, request.department);
+      const actAs = await actAsIn(reqYear);
+      const approvedApprovers = involvedApproverEmails(request, approvers, [APPROVED]);
+      if (!approvedApprovers.some((email) => actAs.has(email))) continue;
+      seen.add(request._id);
+      receiptWaitingIds.push(request._id);
+    }
+    const reviewedAndReceiptWaitingIds = [
+      ...reviewedIds.slice(0, Math.max(0, REVIEWED_LIMIT - receiptWaitingIds.length)),
+      ...receiptWaitingIds,
+    ];
+
     const docs = await Promise.all(
-      reviewedIds.map((id) => ctx.db.get("requests", id))
+      reviewedAndReceiptWaitingIds.map((id) => ctx.db.get("requests", id))
     );
     return await Promise.all(
       docs
