@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useRouter } from "expo-router";
+import { useRef } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
@@ -36,13 +37,19 @@ export default function NotificationsScreen() {
   const notifications = useQuery(api.notifications.list, {});
   const markRead = useMutation(api.notifications.markRead);
   const markAllRead = useMutation(api.notifications.markAllRead);
+  const reopenCounter = useRef(0);
   const goBack = router.canGoBack() ? () => router.back() : undefined;
 
   const hasUnread = (notifications ?? []).some((n) => !n.read);
 
   const open = (id: Id<"notifications">, url: string | null) => {
     void markRead({ id });
-    if (url) router.push(url as never);
+    if (url) {
+      const separator = url.includes("?") ? "&" : "?";
+      reopenCounter.current += 1;
+      const reopen = encodeURIComponent(`${id}:${reopenCounter.current}`);
+      router.push(`${url}${separator}reopen=${reopen}` as never);
+    }
   };
 
   const headerRight = hasUnread ? (

@@ -4,7 +4,18 @@
 
 import { Ionicons } from "@expo/vector-icons";
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleProp,
+  StyleSheet,
+  Text,
+  View,
+  ViewStyle,
+} from "react-native";
 import { spacing, typography, useAppTheme } from "@/theme";
 import { Btn } from "./buttons";
 import { Field, OptionSheet } from "./forms";
@@ -174,7 +185,12 @@ export const Sheet = ({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1 }}>
         <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: t.overlay }]} onPress={onClose} />
-        <View style={[styles.dialogOuter, { pointerEvents: "box-none" }]}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={spacing.md}
+          pointerEvents="box-none"
+          style={styles.dialogOuter}
+        >
           <View style={[styles.dialog, { backgroundColor: t.card }]}>
             {header}
             {scrollable ? (
@@ -195,7 +211,7 @@ export const Sheet = ({
               </View>
             ) : null}
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );

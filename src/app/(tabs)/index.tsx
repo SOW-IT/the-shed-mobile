@@ -142,14 +142,16 @@ export default function RequestsScreen() {
 
   // Deep links (e.g. a notification) choose the segment via ?tab= and, when
   // they're about a specific request, focus it via ?focus=<id> (and ?thread=1
-  // to open its comment thread) so you land on the live screen where the action
-  // is taken — see requestUrl in convex/requests.ts.
-  const { tab, focus, thread } = useLocalSearchParams<{
+  // to open its comment thread). Notification taps also append ?reopen=<token>
+  // so a mounted card can reopen the same dismissed thread on repeated taps.
+  const { tab, focus, thread, reopen } = useLocalSearchParams<{
     tab?: string;
     focus?: string;
     thread?: string;
+    reopen?: string;
   }>();
   const focusThread = thread === "1";
+  const focusReopenKey = typeof reopen === "string" ? reopen : undefined;
   const [active, setActive] = useState("mine");
   useEffect(() => {
     // Sync the segment to the deep-link param when it changes.
@@ -308,6 +310,7 @@ export default function RequestsScreen() {
         loadMoreRef={loadMoreRef}
         focusId={focus}
         focusThread={focusThread}
+        focusReopenKey={focusReopenKey}
       />
     </>
   );
@@ -315,7 +318,7 @@ export default function RequestsScreen() {
   const renderTab = (key: string) => {
     switch (key) {
       case "review":
-        return <ReviewList focusId={focus} focusThread={focusThread} />;
+        return <ReviewList focusId={focus} focusThread={focusThread} focusReopenKey={focusReopenKey} />;
       case "all":
         return renderAll();
       case "bank":
@@ -332,6 +335,7 @@ export default function RequestsScreen() {
             directorThreshold={directorThreshold}
             focusId={focus}
             focusThread={focusThread}
+            focusReopenKey={focusReopenKey}
           />
         );
     }

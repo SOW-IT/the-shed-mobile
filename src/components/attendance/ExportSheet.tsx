@@ -15,6 +15,7 @@ import {
   buildAttendanceCsv,
   exportSlug,
   isReservedExportFieldKey,
+  NOTES_HEADER,
   type ExportEventForCsv,
 } from "@/lib/attendanceCsv";
 import { downloadCsv } from "@/lib/csvDownload";
@@ -41,6 +42,8 @@ const LOCKED_FIELD_KEYS = new Set<string>([
 
 /** Base columns that are always exported and can't be turned off. */
 const ALWAYS_COLUMNS = ["Sign In", "Name", "Email"];
+/** Event-specific attendance note column; selectable even though it isn't metadata. */
+const NOTES_FIELD_KEY = NOTES_HEADER;
 
 /** Earliest selectable export date. */
 const MIN_DATE = new Date(2024, 0, 1);
@@ -176,11 +179,11 @@ export function ExportSheet({
   useEffect(() => {
     if (!fields || selectedKeys !== null) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- seed once fields load
-    setSelectedKeys(exportableFields.map((f) => f.key));
+    setSelectedKeys([...exportableFields.map((f) => f.key), NOTES_FIELD_KEY]);
   }, [fields, exportableFields, selectedKeys]);
 
   const orderedFieldKeys = useMemo(
-    () => exportableFields.map((f) => f.key),
+    () => [...exportableFields.map((f) => f.key), NOTES_FIELD_KEY],
     [exportableFields]
   );
 
@@ -365,6 +368,12 @@ export function ExportSheet({
             />
           );
         })}
+        <ToggleRow
+          key={NOTES_FIELD_KEY}
+          label={NOTES_FIELD_KEY}
+          checked={isSelected(NOTES_FIELD_KEY)}
+          onPress={() => toggleKey(NOTES_FIELD_KEY)}
+        />
       </View>
 
       <ErrorBanner message={error} />
