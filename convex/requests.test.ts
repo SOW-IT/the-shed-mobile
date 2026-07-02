@@ -1074,13 +1074,13 @@ describe("audit trail and reminders", () => {
     expect(bellaReviewed.map((r) => r.description)).toEqual(["first"]);
   });
 
-  test("reviewed keeps an older HOD-approved department request awaiting receipt", async () => {
+  test("reviewed keeps a HOD department request awaiting receipt with unread comments", async () => {
     const t = await setup();
     await asUser(t, RACHEL).mutation(api.requests.submit, {
       description: "waiting receipt",
       amount: 100,
     });
-    let mine = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    const mine = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
     const waitingReceipt = mine.find((r) => r.description === "waiting receipt")!;
     await asUser(t, HENRY).mutation(api.requests.approve, {
       requestId: waitingReceipt._id,
@@ -1095,19 +1095,14 @@ describe("audit trail and reminders", () => {
       step: "financeHead",
     });
 
-    // Push the HOD approval event outside the normal 50-card audit history.
-    for (let i = 0; i < 51; i++) {
-      await asUser(t, RACHEL).mutation(api.requests.submit, {
-        description: `later ${i}`,
-        amount: 100,
-      });
-      mine = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
-      const later = mine.find((r) => r.description === `later ${i}`)!;
-      await asUser(t, HENRY).mutation(api.requests.approve, {
-        requestId: later._id,
-        step: "hod",
-      });
-    }
+    // Prove this does not depend on the normal actor audit history path.
+    await t.run(async (ctx) => {
+      for await (const event of ctx.db
+        .query("requestEvents")
+        .withIndex("by_request", (q) => q.eq("requestId", waitingReceipt._id))) {
+        await ctx.db.delete(event._id);
+      }
+    });
 
     await asUser(t, RACHEL).mutation(api.comments.add, {
       requestId: waitingReceipt._id,
