@@ -198,10 +198,16 @@ export const notify = async (
  */
 export const requestUrl = (
   to: string,
-  request: Pick<Doc<"requests">, "_id" | "requesterEmail">
+  request: Pick<Doc<"requests">, "_id" | "requesterEmail">,
+  // State/approval notifications land on the recipient's Requests tab (default).
+  // A comment notification is about a specific conversation, so it can focus the
+  // request and open its thread — `thread` implies `focus`.
+  opts?: { thread?: boolean }
 ): string => {
   const tab = to === request.requesterEmail ? "mine" : "review";
-  return `/?tab=${tab}`;
+  let url = `/?tab=${tab}`;
+  if (opts?.thread) url += `&focus=${request._id}&thread=1`;
+  return url;
 };
 
 /**

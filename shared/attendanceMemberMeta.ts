@@ -308,6 +308,13 @@ export const roleFilterMatches = (
   metadataRoleLabel?: string | null
 ): boolean => {
   if (filterLabel === STUDENT_LEADER_ROLE_FILTER_LABEL) {
+    // A student leader may be represented EITHER as a staff profile carrying a
+    // campus role (President / Vice President / Executive / Student Leader) OR as
+    // an attendance-only member tagged with one of those roles in metadata — so
+    // match on the profile's assignment roles when present, else fall back to the
+    // metadata "Role" label. (The same person appearing as both a profile and a
+    // member is collapsed to one row upstream in `attendanceMembers.list`, so
+    // this fallback counts genuine attendance-only leaders, not duplicates.)
     const roles = profileRoles.length
       ? profileRoles
       : metadataRoleLabel

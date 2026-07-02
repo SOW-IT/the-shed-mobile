@@ -28,6 +28,59 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Insights filters moved to a bottom-right selector.** The Attendance
   dashboard's time range and "Collaborative events" toggle now live in a
   bottom-right button that opens a selector sheet, rather than a top filter bar.
+## [1.6.3] — 2026-07-02
+
+### Fixed
+
+- **Spinner date/time picker couldn't be tapped or dragged.** After 1.6.2
+  switched to the `spinner` (wheel) display, the picker rendered inside its
+  sheet but ignored all touches. The SwiftUI host that backs the wheel only
+  sizes itself to its content vertically, so in the horizontally-centered
+  container it collapsed to a 0-width frame — the wheel still *drew* (SwiftUI
+  overflows its bounds) but every tap and drag landed outside the hittable
+  frame. The picker now stretches to fill the sheet width, restoring
+  interaction.
+- **Attendance → Members over-counted and could show a person twice.** The
+  Staff + Student Leader filters could total more than the staff-profile count.
+  Two causes: a staff profile and its attendance-member row weren't always
+  linked (the member side was normalised but the profile side wasn't), so the
+  same person could appear as two rows; and the Student Leader bucket is
+  deliberately dual-representable (a leader can be a staff profile OR an
+  attendance-only member tagged with a campus role), which inflated the count
+  when duplicates weren't collapsed. Members now link to staff profiles by a
+  single canonical email (both SOW-domain spellings, case- and
+  whitespace-insensitive), so a profile + member pair always counts as one.
+- **Attendance export had two "Notes" columns.** The export always appends a
+  reserved trailing "Notes" column for the per-sign-in note; a metadata field
+  also named "Notes" produced a second, identically-named column. The builder
+  now drops any metadata field whose name collides with the reserved "Notes"
+  column (and the export picker no longer offers it), so the sign-in note is the
+  single "Notes" column.
+- **Tapping a "new comment" notification now opens the conversation.** Since
+  1.6.2, comment notifications deep-linked only to the recipient's Requests tab
+  (not the specific request or its thread), so following one left you hunting
+  for the comment — and the focus-driven mark-read cleared the unread badge that
+  would have pointed to it. Comment notifications again focus the request and
+  open its comment thread (`&focus=…&thread=1`); approval/state notifications
+  keep landing on the tab.
+- **First Google sign-in bounced back to the login screen.** On a cold iOS
+  `ASWebAuthenticationSession` the session can resolve as `dismiss`/`cancel`
+  even though the OAuth redirect fired, with the OS delivering the
+  `theshedmobile://…?code=` deep link a beat later. The recovery `Linking`
+  listener existed but lost the race: the session's `dismiss` settled the
+  redirect promise with `null` first, removing the listener before the deep
+  link arrived, so the first attempt dropped the code and the user had to tap
+  Sign in twice. The non-`code` session outcome now waits a short grace window
+  for the deep link before giving up.
+
+### Changed
+
+- **Attendance members link to staff profiles by `email` only.** Groundwork for
+  removing the redundant `staffEmail` column: a member is a staff overlay when
+  its `email` matches a `staffProfiles.email`. New writes no longer set
+  `staffEmail`, and a `migrations.dropStaffEmail` backfill moves any existing
+  `staffEmail` into `email`. The column itself is retained (deprecated) this
+  release and removed in a follow-up once the backfill has run.
 
 ## [1.6.2] — 2026-07-02
 

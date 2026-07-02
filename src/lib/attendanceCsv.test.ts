@@ -50,6 +50,31 @@ describe("buildAttendanceCsv", () => {
     );
   });
 
+  test("a metadata field named 'Notes' doesn't duplicate the sign-in Notes column", () => {
+    // The reserved trailing "Notes" column holds the sign-in note; a same-named
+    // metadata field must be dropped so the export has exactly one "Notes".
+    const event = baseEvent({
+      rows: [
+        {
+          name: "Ada Lovelace",
+          email: "ada@sow.org.au",
+          signInTime: at("2026-03-04T17:05:00"),
+          notes: "sign-in note",
+          metadata: { Gender: "Female", Notes: "metadata note" },
+        },
+      ],
+    });
+    const lines = buildAttendanceCsv([event], ["Gender", "Notes"]).split("\r\n");
+    const header = lines[6];
+    // Exactly one "Notes" column, and it's the trailing reserved one.
+    expect(header).toBe("Sign In,Name,Email,Gender,Notes");
+    expect(header.split(",").filter((c) => c === "Notes")).toHaveLength(1);
+    // The row carries the sign-in note there, not the metadata note.
+    expect(lines[7]).toBe(
+      "04.03.2026 17:05,Ada Lovelace,ada@sow.org.au,Female,sign-in note"
+    );
+  });
+
   test("collaboration is listed once in the info block", () => {
     const event = baseEvent({
       collaborative: true,

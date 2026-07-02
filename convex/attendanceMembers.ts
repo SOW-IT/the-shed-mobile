@@ -17,9 +17,14 @@ import {
   yearOptionIdForStoredValue,
 } from "../shared/attendanceMemberMeta";
 import { personDisplayName } from "../shared/rollcall";
-import { staffEmailCandidates } from "../shared/rollcallImport";
+import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
 import { mutation, query } from "./_generated/server";
-import { getProfile, optionalProfile, requireProfile } from "./model";
+import {
+  findMemberByEmail,
+  getProfile,
+  optionalProfile,
+  requireProfile,
+} from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
 import { Doc } from "./_generated/dataModel";
 
@@ -145,6 +150,26 @@ const staffOverlayProfile = async (
   return null;
 };
 
+/**
+ * Whether a member row represents a staff person at all — i.e. its email maps to
+ * a staff profile in the event's staff year OR the current/next one (tolerating
+ * the Oct rollover). Used to protect a staff overlay from being edited as a plain
+ * member when no profile is found for the exact requested year. This is the
+ * derived replacement for the old stored `staffEmail` flag.
+ */
+const isStaffOverlayRow = async (
+  ctx: Parameters<typeof getProfile>[0],
+  row: Doc<"attendanceMembers">,
+  profileYear: number,
+  emailOverride?: string
+): Promise<boolean> => {
+  const now = staffYearForDate(new Date());
+  for (const year of new Set([profileYear, now, now + 1])) {
+    if (await staffOverlayProfile(ctx, row, year, emailOverride)) return true;
+  }
+  return false;
+};
+
 /** Combined staff profiles + attendance-only members, with search/filter/sort. */
 export const list = query({
   args: {
@@ -177,37 +202,54 @@ export const list = query({
       .collect();
 
     // Link attendance-member rows to this year's staff profiles so a person is
-    // shown once. An overlay matches a profile either by its explicit
+    // shown ONCE. An overlay matches a profile either by its explicit
     // `staffEmail` or by its plain `email` (e.g. someone added as an
     // attendance-only member *before* being provisioned as staff, who has no
     // `staffEmail` link). Matching against THIS year's profiles means a year in
     // which the person wasn't yet staff still lists them as a plain member —
     // they appear as whatever they were that year, not retroactively as staff.
-    const profileEmails = new Set(profiles.map((p) => p.email.toLowerCase()));
-    const matchProfileEmail = (email: string | undefined): string | undefined =>
-      staffEmailCandidates(email).find((c) => profileEmails.has(c));
-    const shadowByEmail = new Map<string, (typeof extra)[number]>();
+    //
+    // BOTH sides are reduced to one canonical key (shared `canonicalEmailKey`)
+    // so the link can't slip on a formatting difference: it trims, lowercases,
+    // and collapses the two SOW staff-domain spellings (…@sow.org.au /
+    // …@sowaustralia.com) to a single value. A profile and member that differ
+    // only by domain, case, or stray whitespace therefore resolve to the same
+    // person instead of appearing as a duplicate (a staff row + a pure extra).
+    const profileKeys = new Set(
+      profiles.flatMap((p) => {
+        const key = canonicalEmailKey(p.email);
+        return key ? [key] : [];
+      })
+    );
+    const memberProfileKey = (m: (typeof extra)[number]): string | undefined => {
+      for (const email of [m.staffEmail, m.email]) {
+        const key = canonicalEmailKey(email);
+        if (key && profileKeys.has(key)) return key;
+      }
+      return undefined;
+    };
+    const shadowByKey = new Map<string, (typeof extra)[number]>();
     const pureExtras: typeof extra = [];
     for (const m of extra) {
-      const matched = matchProfileEmail(m.staffEmail) ?? matchProfileEmail(m.email);
-      if (matched) {
-        if (!shadowByEmail.has(matched)) shadowByEmail.set(matched, m);
+      const key = memberProfileKey(m);
+      if (key) {
+        // First overlay wins; any further attendance rows that resolve to the
+        // same profile fold into that one member (never a second row).
+        if (!shadowByKey.has(key)) shadowByKey.set(key, m);
         continue;
       }
       // A staffEmail that matches no profile this year stays hidden (not a pure
-      // extra), preserving prior behaviour for stale overlays.
-      if (m.staffEmail) {
-        const key = m.staffEmail.toLowerCase();
-        if (!shadowByEmail.has(key)) shadowByEmail.set(key, m);
-        continue;
-      }
+      // extra), preserving prior behaviour for stale overlays. It has no profile
+      // row to attach to, so it simply isn't listed.
+      if (m.staffEmail) continue;
       pureExtras.push(m);
     }
 
     const rows: MemberRow[] = [];
 
     for (const p of profiles) {
-      const shadow = shadowByEmail.get(p.email.toLowerCase());
+      const profileKey = canonicalEmailKey(p.email);
+      const shadow = profileKey ? shadowByKey.get(profileKey) : undefined;
       const metadata = staffLockedMetadata(metadataFields, p, shadow?.metadata);
       const assignments = assignmentsOf(p);
       const roles = rolesOfLike(p);
@@ -375,11 +417,14 @@ export const get = query({
     if (!row) return null;
     const profileYear = staffYear ?? staffYearForDate(new Date());
     const profile = await staffOverlayProfile(ctx, row, profileYear);
-    if (!profile) return row;
+    // `isStaffOverlay` tells the edit sheet to keep profile-locked fields
+    // (name / Campus / Role) read-only. It's derived from whether the row's
+    // email resolves to a staff profile this year — no stored flag.
+    if (!profile) return { ...row, isStaffOverlay: false };
     const fields = await allMetadataFields(ctx);
     return {
       ...row,
-      staffEmail: profile.email,
+      isStaffOverlay: true,
       name: profile.name ?? row.name,
       email: profile.email,
       metadata: staffLockedMetadata(fields, profile, row.metadata),
@@ -406,7 +451,6 @@ export const byName = query({
         _id: m._id,
         name: m.name,
         email: m.email,
-        staffEmail: m.staffEmail,
         metadata: m.metadata ?? {},
       }));
   },
@@ -417,53 +461,39 @@ export const ensureForStaff = mutation({
   args: { staffEmail: v.string(), staffYear: v.optional(v.number()) },
   handler: async (ctx, { staffEmail, staffYear }) => {
     const { email: actorEmail } = await requireProfile(ctx);
-    const email = staffEmail.trim().toLowerCase();
-    if (!email) throw new ConvexError("Staff email is required.");
-    const existing = await ctx.db
-      .query("attendanceMembers")
-      .withIndex("by_staff_email", (q) => q.eq("staffEmail", email))
-      .unique();
-    if (existing) return existing._id;
+    if (!canonicalEmailKey(staffEmail)) {
+      throw new ConvexError("Staff email is required.");
+    }
     // Verify this email really is a staff profile for `staffYear` (the event's
     // staff year when editing from a roll-call; defaults to the current one)
-    // BEFORE adopting/creating an overlay — a mistyped or stale email must not
-    // convert a plain member into a staff overlay (hiding it from `list`).
+    // BEFORE vouching for an overlay — a mistyped/stale email, or a plain member
+    // with no staff profile, must not be treated as staff.
     const profileYear = staffYear ?? staffYearForDate(new Date());
-    const profile = await getProfile(ctx, email, profileYear);
-    if (!profile) throw new ConvexError("Staff profile not found.");
-    // Adopt an unlinked attendance-only row whose plain email matches this
-    // staff member (e.g. they were added as a member before being provisioned
-    // as staff) — link it instead of inserting a duplicate.
-    const candidates = staffEmailCandidates(email);
-    const unlinked = (await ctx.db.query("attendanceMembers").collect()).find(
-      (m) => !m.staffEmail && m.email && candidates.includes(m.email.toLowerCase())
-    );
-    if (unlinked) {
-      await ctx.db.patch(unlinked._id, { staffEmail: email });
-      await logAttendanceAction(ctx, {
-        actorEmail,
-        entityType: "member",
-        action: "member.update",
-        summary: `Linked staff member "${profile.name ?? email}" to the attendance pool`,
-        memberId: unlinked._id,
-        subjectEmail: email,
-      });
-      return unlinked._id;
+    let profile: Awaited<ReturnType<typeof getProfile>> = null;
+    for (const candidate of staffEmailCandidates(staffEmail)) {
+      profile = await getProfile(ctx, candidate, profileYear);
+      if (profile) break;
     }
+    if (!profile) throw new ConvexError("Staff profile not found.");
+    const linkEmail = profile.email.toLowerCase();
+    // A member links to its staff profile by `email` alone, so any existing row
+    // for the profile's address (either SOW-domain spelling; a plain member
+    // added before provisioning included) is already the overlay — reuse it.
+    const existing = await findMemberByEmail(ctx, linkEmail);
+    if (existing) return existing._id;
     const fields = await allMetadataFields(ctx);
     const memberId = await ctx.db.insert("attendanceMembers", {
-      name: profile.name ?? email,
-      email,
-      staffEmail: email,
+      name: profile.name ?? linkEmail,
+      email: linkEmail,
       metadata: staffLockedMetadata(fields, profile, {}),
     });
     await logAttendanceAction(ctx, {
       actorEmail,
       entityType: "member",
       action: "member.create",
-      summary: `Added staff member "${profile.name ?? email}" to the attendance pool`,
+      summary: `Added staff member "${profile.name ?? linkEmail}" to the attendance pool`,
       memberId,
-      subjectEmail: email,
+      subjectEmail: linkEmail,
     });
     return memberId;
   },
@@ -481,7 +511,10 @@ export const create = mutation({
     if (!trimmed) throw new ConvexError("Name is required.");
     const memberId = await ctx.db.insert("attendanceMembers", {
       name: trimmed,
-      email: email?.trim() || undefined,
+      // Normalise (trim + lowercase) so the by_email link is stable — the
+      // indexed lookup in findMemberByEmail is exact, so a stored "A@X" must not
+      // differ from a looked-up "a@x".
+      email: email?.trim().toLowerCase() || undefined,
       metadata,
     });
     await logAttendanceAction(ctx, {
@@ -511,18 +544,11 @@ export const update = mutation({
     const profile = await staffOverlayProfile(ctx, row, profileYear, email);
     if (profile) {
       const fields = await allMetadataFields(ctx);
-      const patch: {
-        name: string;
-        email: string;
-        staffEmail?: string;
-        metadata: Record<string, string>;
-      } = {
+      await ctx.db.patch(memberId, {
         name: profile.name ?? row.name,
-        email: profile.email,
+        email: profile.email.toLowerCase(),
         metadata: staffLockedMetadata(fields, profile, metadata),
-      };
-      if (row.staffEmail) patch.staffEmail = profile.email;
-      await ctx.db.patch(memberId, patch);
+      });
       await logAttendanceAction(ctx, {
         actorEmail,
         entityType: "member",
@@ -533,12 +559,17 @@ export const update = mutation({
       });
       return;
     }
-    if (row.staffEmail) throw new ConvexError("Staff profile not found.");
+    // A staff overlay with no profile for the requested year must not be edited
+    // as a plain member (which would wipe its locked fields) — refuse instead.
+    if (await isStaffOverlayRow(ctx, row, profileYear, email)) {
+      throw new ConvexError("Staff profile not found.");
+    }
     const trimmed = name.trim();
     if (!trimmed) throw new ConvexError("Name is required.");
     await ctx.db.patch(memberId, {
       name: trimmed,
-      email: email?.trim() || undefined,
+      // Normalised so the by_email link stays exact-match — see create().
+      email: email?.trim().toLowerCase() || undefined,
       metadata,
     });
     await logAttendanceAction(ctx, {
@@ -568,7 +599,7 @@ export const remove = mutation({
       entityType: "member",
       action: "member.delete",
       summary: `Deleted member "${row.name}"`,
-      subjectEmail: row.staffEmail ?? row.email,
+      subjectEmail: row.email ?? row.staffEmail,
       detail:
         signed.length > 0 ? `Removed ${signed.length} attendance record(s)` : undefined,
     });

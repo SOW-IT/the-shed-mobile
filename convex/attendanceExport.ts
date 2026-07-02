@@ -61,10 +61,18 @@ async function resolveExportEvents(
   const memberById = new Map<string, MemberDoc>(
     members.map((m) => [String(m._id), m])
   );
-  const memberByStaffEmail = new Map<string, MemberDoc>();
+  const memberByEmail = new Map<string, MemberDoc>();
   for (const m of members) {
-    for (const candidate of staffEmailCandidates(m.staffEmail ?? m.email)) {
-      if (!memberByStaffEmail.has(candidate)) memberByStaffEmail.set(candidate, m);
+    // Index by `email` (the link going forward) AND the legacy `staffEmail` for
+    // the migration window — mirroring model.findMemberByEmail, which matches on
+    // either — so exports don't drop overlay metadata for rows not yet
+    // backfilled (including adopted rows with a personal email + staffEmail link).
+    // Drop the staffEmail candidates in the narrow follow-up once the column is gone.
+    for (const candidate of [
+      ...staffEmailCandidates(m.email),
+      ...staffEmailCandidates(m.staffEmail),
+    ]) {
+      if (!memberByEmail.has(candidate)) memberByEmail.set(candidate, m);
     }
   }
 
@@ -122,7 +130,7 @@ async function resolveExportEvents(
     const profileFor = (email: string) =>
       first(staffEmailCandidates(email).map((c) => profiles.get(c)));
     const shadowFor = (email: string) =>
-      first(staffEmailCandidates(email).map((c) => memberByStaffEmail.get(c)));
+      first(staffEmailCandidates(email).map((c) => memberByEmail.get(c)));
 
     const resolvedRows: ExportRow[] = attendanceRows
       .map((row): ExportRow => {

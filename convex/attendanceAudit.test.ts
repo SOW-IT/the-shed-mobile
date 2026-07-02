@@ -464,26 +464,27 @@ describe("audit logging across attendance mutations", () => {
     expect(del?.detail).toContain("attendance record");
   });
 
-  test("ensureForStaff logs an update when it adopts an unlinked member", async () => {
+  test("ensureForStaff reuses an existing member row without a duplicate log", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    // An attendance-only row whose plain email matches a staff member, with no
-    // staffEmail link yet — ensureForStaff should adopt (link) it, not insert.
+    // A row already exists under the staff email — since members link by email,
+    // ensureForStaff should reuse it (no insert, no spurious link log).
     const preexisting = await staff.mutation(api.attendanceMembers.create, {
       name: "Pre Existing",
       email: STAFF,
     });
-    const adopted = await staff.mutation(api.attendanceMembers.ensureForStaff, {
+    const reused = await staff.mutation(api.attendanceMembers.ensureForStaff, {
       staffEmail: STAFF,
       staffYear: YEAR,
     });
-    expect(adopted).toBe(preexisting); // linked the same row, no duplicate
+    expect(reused).toBe(preexisting); // same row, no duplicate
 
-    const linkLog = (await allLogs(t)).find(
-      (l) => l.action === "member.update" && l.summary.includes("Linked")
-    );
-    expect(linkLog?.memberId).toBe(preexisting);
-    expect(linkLog?.subjectEmail).toBe(STAFF);
+    const logs = await allLogs(t);
+    // Only the original create for this row — ensureForStaff added nothing.
+    expect(
+      logs.filter((l) => l.action === "member.create" && l.memberId === preexisting)
+    ).toHaveLength(1);
+    expect(logs.some((l) => l.summary.includes("Linked"))).toBe(false);
   });
 
   test("tags log create, rename, plain update and delete", async () => {

@@ -76,3 +76,14 @@ export function staffEmailCandidates(email: string | undefined): string[] {
   }
   return [lower];
 }
+
+/**
+ * A single canonical key for an email, used to link an attendance member to a
+ * staff profile by their `email` alone. Trims, lowercases, and collapses the two
+ * SOW staff-domain spellings (…@sow.org.au / …@sowaustralia.com) to one value,
+ * so a member and profile that differ only by domain, case, or stray whitespace
+ * resolve to the same person. Returns `undefined` for a blank/invalid email.
+ */
+export function canonicalEmailKey(email: string | undefined): string | undefined {
+  return staffEmailCandidates(email)[0];
+}

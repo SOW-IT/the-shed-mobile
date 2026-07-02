@@ -111,6 +111,16 @@ describe("notification deep-links", () => {
     expect(requestUrl(HENRY, fakeRequest)).toBe("/?tab=review");
   });
 
+  test("requestUrl with { thread } focuses the request and opens its thread", () => {
+    // Comment notifications open the conversation directly (focus + thread).
+    expect(requestUrl(RACHEL, fakeRequest, { thread: true })).toBe(
+      `/?tab=mine&focus=${fakeRequest._id}&thread=1`
+    );
+    expect(requestUrl(HENRY, fakeRequest, { thread: true })).toBe(
+      `/?tab=review&focus=${fakeRequest._id}&thread=1`
+    );
+  });
+
   test("submit deep-links the approver to Review and links the request via requestId", async () => {
     const t = await setup();
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });

@@ -65,7 +65,7 @@ export function EditMemberSheet({
   const remove = useMutation(api.attendanceMembers.remove);
   const updateAttendance = useMutation(api.attendance.updateRecord);
 
-  const isStaffOverlay = Boolean(row?.staffEmail);
+  const isStaffOverlay = Boolean(row?.isStaffOverlay);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");

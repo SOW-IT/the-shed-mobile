@@ -25,7 +25,7 @@ import {
 } from "../shared/rollcallImport";
 import { Id } from "./_generated/dataModel";
 import { MutationCtx, mutation } from "./_generated/server";
-import { getProfile, requireAdmin } from "./model";
+import { findMemberByEmail, getProfile, requireAdmin } from "./model";
 
 /**
  * Events whose start date falls in staff year `year`. Events store no `year`
@@ -365,14 +365,10 @@ export const importMembers = mutation({
       );
       if (profile) {
         staffOverlays++;
-        const existing = await ctx.db
-          .query("attendanceMembers")
-          .withIndex("by_staff_email", (q) => q.eq("staffEmail", profile.email))
-          .unique();
+        const existing = await findMemberByEmail(ctx, profile.email);
         const patch = {
           name: profile.name ?? displayName,
           email: profile.email,
-          staffEmail: profile.email,
           sourceImportId: member.sourceImportId,
           metadata,
         };
@@ -511,14 +507,10 @@ export const importEvents = mutation({
         let memberId: Id<"attendanceMembers">;
         if (profile) {
           const staffEmail = profile.email.toLowerCase();
-          const overlay = await ctx.db
-            .query("attendanceMembers")
-            .withIndex("by_staff_email", (q) => q.eq("staffEmail", staffEmail))
-            .unique();
+          const overlay = await findMemberByEmail(ctx, staffEmail);
           const memberPatch = {
             name: profile.name ?? displayName,
             email: staffEmail,
-            staffEmail,
             sourceImportId: row.source,
             metadata,
           };
@@ -724,7 +716,6 @@ export const mergeLegacyStaffMembers = mutation({
     }> = [];
 
     for (const member of members) {
-      if (member.staffEmail) continue;
       // Candidate staff emails for this member, treating @sowaustralia.com and
       // @sow.org.au as the same person (profiles changed domain between staff
       // years), plus the Daniel Kim Snr name case. Personal/campus emails
@@ -755,11 +746,17 @@ export const mergeLegacyStaffMembers = mutation({
         continue;
       }
       const targetEmail = profile.email.toLowerCase();
+      // Already the canonical overlay for this profile (its email is the profile
+      // email) — nothing to merge, and merging a row into itself would delete it.
+      if ((member.email ?? "").toLowerCase() === targetEmail) continue;
 
-      const existingOverlay = await ctx.db
-        .query("attendanceMembers")
-        .withIndex("by_staff_email", (q) => q.eq("staffEmail", targetEmail))
-        .unique();
+      // findMemberByEmail tries both SOW domains, so for a legacy row like
+      // jane.doe@sowaustralia.com it can match `member` itself via the legacy
+      // candidate. Treat that as "no existing overlay" — otherwise we'd patch the
+      // row and then delete it below, losing its metadata instead of preserving
+      // it in a fresh canonical row.
+      const found = await findMemberByEmail(ctx, targetEmail);
+      const existingOverlay = found && found._id !== member._id ? found : null;
       const mergedMetadata = staffLockedMetadata(fields, profile, {
         ...(member.metadata ?? {}),
         ...(existingOverlay?.metadata ?? {}),
@@ -768,14 +765,12 @@ export const mergeLegacyStaffMembers = mutation({
         await ctx.db.patch(existingOverlay._id, {
           name: profile.name ?? member.name,
           email: targetEmail,
-          staffEmail: targetEmail,
           metadata: mergedMetadata,
         });
       } else {
         await ctx.db.insert("attendanceMembers", {
           name: profile.name ?? member.name,
           email: targetEmail,
-          staffEmail: targetEmail,
           metadata: mergedMetadata,
         });
       }
