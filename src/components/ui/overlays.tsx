@@ -265,7 +265,17 @@ export const Sheet = ({
               <View style={[styles.sheetScroll, bodyStyle]}>{retainedChildren}</View>
             )}
             {hasFooter ? (
-              <View style={styles.sheetFooter}>
+              <View
+                style={styles.sheetFooter}
+                // The footer sits outside the scroll, so its own growth (e.g. a
+                // multiline composer expanding) shrinks the thread without an
+                // onContentSizeChange — re-pin to the bottom when it resizes.
+                onLayout={
+                  stickToBottom
+                    ? () => scrollRef.current?.scrollToEnd({ animated: true })
+                    : undefined
+                }
+              >
                 {retainedFooter}
               </View>
             ) : null}
