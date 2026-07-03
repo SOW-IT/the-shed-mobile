@@ -37,7 +37,7 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 - [x] Submit with valid Description + positive Amount + Department → status `AWAITING APPROVAL`, appears in Mine — ✅ baguette 3 Jul
 - [x] Validation — empty description blocked: "Please describe what the request is for." — ✅ baguette 3 Jul (⚠️ only surfaces once amount is valid — see Notes)
 - [x] Validation — amount ≤ 0 blocked: "Amount must be a positive number." — ✅ baguette 3 Jul (fires first because amount defaults to 0.00)
-- [~] Validation — no department: "Pick a department for this request." — ⏭️ baguette 3 Jul: dept dropdown has no empty option, error not reachable via UI
+- [ ] Validation — no department: "Pick a department for this request." — ⏭️ baguette 3 Jul: dept dropdown has no empty option, error not reachable via UI
 - [ ] Validation — submitting into a role that doesn't exist for the year is blocked with the "[year] has no [role]" message
 - [ ] Requester gets a "Request submitted" email (no push for own action)
 
@@ -96,7 +96,7 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 ## 1.9 Comments
 - [x] Comment thread opens from the chat-bubble icon on any request — ✅ baguette 3 Jul ("No comments yet" → posted "UAT comment" as You/now)
 - [ ] Adding a comment notifies the current action owner — ⏭️ single-account (no 2nd account to observe notification)
-- [~] Unread badge on chat icon + tab message badge increments correctly, clears when read — ~ baguette 3 Jul: own comment created no unread badge (bottom-nav badge unchanged); cross-user increment ⏭️
+- [ ] Unread badge on chat icon + tab message badge increments correctly, clears when read — ~ baguette 3 Jul: own comment created no unread badge (bottom-nav badge unchanged); cross-user increment ⏭️
 - [x] Emoji reactions work — ✅ baguette 3 Jul (❤️ picker → "❤️ 1" pill sticks)
 
 ## 1.10 All tab (Finance) & sorting
@@ -147,7 +147,7 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 - [ ] **Swipe left** on a signed-in row → signs out (moves back)
 - [ ] **Swipe right** on any row → opens Edit Member sheet
 - [ ] Not-signed-in list ordered by attendance frequency; "Everyone in the pool is signed in 🎉" when empty
-- [~] Signing in the same person twice is a no-op (idempotent) — ⏭️ baguette 2 Jul: no duplicate sign-ins seen across rapid swipes, but a same-row double-swipe couldn't be isolated
+- [ ] Signing in the same person twice is a no-op (idempotent) — ⏭️ baguette 2 Jul: no duplicate sign-ins seen across rapid swipes, but a same-row double-swipe couldn't be isolated
 - [ ] Notes field appears in edit sheet only for signed-in attendance
 - [ ] "Create [search text]" footer button creates a member and signs them in
 - [x] "Load more" works on the not-signed-in list — ✅ baguette 2 Jul
@@ -187,11 +187,11 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 ## 2.8 Metadata tab
 - [x] Locked fields (Year, Gender, Campus, Role) read-only, cannot be deleted, options locked — ✅ baguette 3 Jul (system fields show no trash)
 - [x] Select-type field: add/remove custom options; input-type has no option editor — ✅ baguette 3 Jul (Alpha/Beta options via Add option)
-- [~] Drag to reorder fields — ⏭️ baguette 3 Jul: not driven (flaky via HID); note the app records a "Reordered member fields" audit row automatically on save (see Notes)
+- [ ] Drag to reorder fields — ⏭️ baguette 3 Jul: not driven (flaky via HID); note the app records a "Reordered member fields" audit row automatically on save (see Notes)
 - [x] Add field → choose select/input — ✅ baguette 3 Jul (Select type + options)
 - [x] Delete field → type-name-to-confirm — ✅ baguette 3 Jul (gated on exact name)
 - [x] Subgroup scope: global or specific subgroups — ✅ baguette 3 Jul ("Group: SOW")
-- [~] Saved field appears in member edit sheet; metadata is shared across all staff years — ⏭️ baguette 3 Jul: create confirmed via Audit + list; member-sheet appearance not re-opened this run
+- [ ] Saved field appears in member edit sheet; metadata is shared across all staff years — ⏭️ baguette 3 Jul: create confirmed via Audit + list; member-sheet appearance not re-opened this run
 
 ## 2.9 Audit tab
 - [ ] Immutable list with entity icons (Events/Members/Tags/Fields/Roll-call), actor, time-ago
@@ -289,7 +289,7 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 - [ ] Notifications (push + email + in-app bell) deep-link to the correct request/screen; "Mark all read" works
 
 ## 4.1 Notifications (in-app bell)
-- [~] Bell shows an **Unread** section and a separate **Read (history)** section; reading an item moves it from Unread → Read — ⚠️ baguette 3 Jul: renders as ONE time-ordered list with unread items highlighted (dark bell + dot) inline, NOT separate "Unread"/"Read" section headers. Reading behaviour works; section split does not match checklist wording.
+- [ ] Bell shows an **Unread** section and a separate **Read (history)** section; reading an item moves it from Unread → Read — ⚠️ baguette 3 Jul: renders as ONE time-ordered list with unread items highlighted (dark bell + dot) inline, NOT separate "Unread"/"Read" section headers. Reading behaviour works; section split does not match checklist wording.
 - [x] "Mark all read" empties the Unread section — ✅ baguette 3 Jul (all bells → grey read state; "Mark all read" button disappears)
 - [ ] **Test every notification type** routes/deep-links correctly:
   - [ ] Request **submitted** (requester confirmation) → Mine, focused
@@ -331,7 +331,7 @@ Legend: [x] verified · ⏭️ deferred (needs server fault-injection on websock
 - [x] Universities with no members are hidden from the Campus section — "E2E Campus Empty" hidden, "E2E Campus Full" shown (1990)
 - [x] Tapping any person row opens `/person/[email]` for that person
 - [x] Long names, emails, and role tags truncate cleanly without overlapping
-- [~] Chart updates after Admin changes assignments, heads, divisions, departments, or universities — admin tab access verified (e2e-admin); not driven through the admin editor to avoid mutating shared org structure (org chart is a live Convex query, so updates are reactive by architecture)
+- [ ] Chart updates after Admin changes assignments, heads, divisions, departments, or universities — admin tab access verified (e2e-admin); not driven through the admin editor to avoid mutating shared org structure (org chart is a live Convex query, so updates are reactive by architecture)
 
 ## 4.3 Profile screen
 - [x] Opening own profile shows name, email, avatar, current assignment, and current staff year
@@ -407,7 +407,7 @@ Legend: [x] verified · ⏭️ deferred (needs server fault-injection on websock
 - [x] Add Another Account button appears once at least one account exists
 - [x] Bank account validation errors remain visible until corrected
 - [x] Preferred account auto-fills receipt recipient fields in Submit Receipt — drove the full HOD→Budget→Finance chain to AWAITING RECEIPT; Submit Receipt pre-filled Account Name/BSB/Account Number from the preferred account
-- [~] Removing/forgetting a saved account from the receipt flow updates the Bank tab list on return — ⏭️ "forget" action in the receipt picker not exercised (auto-fill path covered above)
+- [ ] Removing/forgetting a saved account from the receipt flow updates the Bank tab list on return — ⏭️ "forget" action in the receipt picker not exercised (auto-fill path covered above)
 
 ---
 
