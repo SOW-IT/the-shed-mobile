@@ -2,7 +2,7 @@
   "expo": {
     "name": "The SHED",
     "slug": "the-shed-mobile",
-    "version": "1.6.14",
+    "version": "1.6.15",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "theshedmobile",
@@ -65,6 +65,15 @@
       "expo-web-browser",
       "expo-sharing",
       "expo-status-bar",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#0F2523",
+          "sounds": [],
+          "mode": "production"
+        }
+      ],
       [
         "expo-image-picker",
         {
