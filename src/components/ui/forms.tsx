@@ -4,8 +4,9 @@
 
 import { Ionicons } from "@expo/vector-icons";
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Animated, Easing, Modal, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from "react-native";
+import { Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from "react-native";
 import { USE_NATIVE_DRIVER, spacing, typography, useAppTheme } from "@/theme";
+import { useRegisterModal } from "./modalPresence";
 import { Txt } from "./primitives";
 import { styles } from "./styles";
 
@@ -93,6 +94,9 @@ export const OptionSheet = ({
   footer?: ReactNode;
 }) => {
   const t = useAppTheme();
+  // Keep an occluded FooterAction from riding up when this sheet's own field
+  // opens the keyboard (see modalPresence).
+  useRegisterModal(visible);
   /* eslint-disable react-hooks/refs -- intentional retain-through-fade pattern */
   const shownTitle = useRef(title);
   const shownChildren = useRef(children);
@@ -111,7 +115,12 @@ export const OptionSheet = ({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1 }}>
         <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: t.overlay }]} onPress={onClose} />
-        <View style={[styles.dialogOuter, { pointerEvents: "box-none" }]}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={spacing.md}
+          pointerEvents="box-none"
+          style={styles.dialogOuter}
+        >
           <View style={[styles.dialog, { backgroundColor: t.card }]}>
             <View style={styles.optionSheetHeader}>
               <Text
@@ -147,7 +156,7 @@ export const OptionSheet = ({
               </View>
             ) : null}
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );

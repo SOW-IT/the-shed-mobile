@@ -5,6 +5,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -19,6 +20,7 @@ import {
 import { spacing, typography, useAppTheme } from "@/theme";
 import { Btn } from "./buttons";
 import { Field, OptionSheet } from "./forms";
+import { useRegisterModal } from "./modalPresence";
 import { Muted, Row, Txt } from "./primitives";
 import { styles } from "./styles";
 
@@ -124,6 +126,8 @@ export const Sheet = ({
   headerRight,
   contentStyle,
   footer,
+  stickToBottom = false,
+  keyboardAnchor = "center",
 }: {
   visible: boolean;
   onClose: () => void;
@@ -137,20 +141,69 @@ export const Sheet = ({
   contentStyle?: StyleProp<ViewStyle>;
   /** Pinned action row below scrolling content (e.g. Save). */
   footer?: ReactNode;
+  /**
+   * Keep the scroll pinned to the bottom — for chat-style content (e.g. the
+   * comments thread) where the newest item and the composer below it should
+   * stay in view. New content and the keyboard opening both scroll to the end.
+   */
+  stickToBottom?: boolean;
+  /**
+   * Where the dialog sits once the keyboard is open. "center" (default) keeps it
+   * vertically centred in the space above the keyboard — fine for tall, mostly-
+   * full sheets. "bottom" drops it to hug the keyboard, so a short sheet (e.g. the
+   * comments composer) rises just enough to clear the keyboard instead of floating
+   * high up the screen. Resting (no keyboard) placement is centred either way.
+   */
+  keyboardAnchor?: "center" | "bottom";
 }) => {
   const t = useAppTheme();
+  // Let a FooterAction on the screen behind us opt out of following the keyboard
+  // while we're open — we do our own keyboard avoidance below.
+  useRegisterModal(visible);
+  // Track the keyboard so a bottom-anchored sheet can hug it (see keyboardAnchor).
+  // Only listen while actually visible — callers may keep the sheet mounted
+  // (visible=false) per list row, and idle listeners would pile up otherwise.
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  useEffect(() => {
+    if (keyboardAnchor !== "bottom" || Platform.OS !== "ios" || !visible) return;
+    // Seed from the live keyboard: the sheet may open while the keyboard is
+    // already up (e.g. reopening a thread before the last one's keyboard fully
+    // collapses), when no willShow fires — and this also clears any stale-open
+    // state left from the previous time this sheet was shown.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- seed from live keyboard on open
+    setKeyboardOpen(Keyboard.isVisible());
+    const show = Keyboard.addListener("keyboardWillShow", () => setKeyboardOpen(true));
+    const hide = Keyboard.addListener("keyboardWillHide", () => setKeyboardOpen(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [keyboardAnchor, visible]);
+  // Chat-style sheets keep the scroll pinned to the bottom (see stickToBottom).
+  const scrollRef = useRef<ScrollView>(null);
+  useEffect(() => {
+    // Re-pin to the bottom when the keyboard opens: the scroll area shrinks, so
+    // the composer + latest comment would otherwise slide out of view.
+    if (stickToBottom && keyboardOpen) scrollRef.current?.scrollToEnd({ animated: true });
+  }, [stickToBottom, keyboardOpen]);
+  const anchorBottomLive = keyboardAnchor === "bottom" && keyboardOpen;
   /* eslint-disable react-hooks/refs -- retain-through-fade (see OptionSheet) */
   const shownTitle = useRef(title);
   const shownChildren = useRef(children);
   const shownFooter = useRef(footer);
+  // Freeze the anchor while visible too, so a sheet dismissed with the keyboard
+  // still up doesn't snap from bottom-anchored to centred mid fade-out.
+  const shownAnchorBottom = useRef(anchorBottomLive);
   if (visible) {
     shownTitle.current = title;
     shownChildren.current = children;
     shownFooter.current = footer;
+    shownAnchorBottom.current = anchorBottomLive;
   }
   const retainedTitle = shownTitle.current;
   const retainedChildren = shownChildren.current;
   const retainedFooter = shownFooter.current;
+  const anchorBottom = shownAnchorBottom.current;
   const hasFooter = retainedFooter != null;
 
   const header =
@@ -189,16 +242,22 @@ export const Sheet = ({
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={spacing.md}
           pointerEvents="box-none"
-          style={styles.dialogOuter}
+          style={[styles.dialogOuter, anchorBottom && { justifyContent: "flex-end" }]}
         >
           <View style={[styles.dialog, { backgroundColor: t.card }]}>
             {header}
             {scrollable ? (
               <ScrollView
+                ref={scrollRef}
                 style={styles.sheetScroll}
                 contentContainerStyle={bodyStyle}
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator
+                onContentSizeChange={
+                  stickToBottom
+                    ? () => scrollRef.current?.scrollToEnd({ animated: true })
+                    : undefined
+                }
               >
                 {retainedChildren}
               </ScrollView>
@@ -206,7 +265,17 @@ export const Sheet = ({
               <View style={[styles.sheetScroll, bodyStyle]}>{retainedChildren}</View>
             )}
             {hasFooter ? (
-              <View style={styles.sheetFooter}>
+              <View
+                style={styles.sheetFooter}
+                // The footer sits outside the scroll, so its own growth (e.g. a
+                // multiline composer expanding) shrinks the thread without an
+                // onContentSizeChange — re-pin to the bottom when it resizes.
+                onLayout={
+                  stickToBottom
+                    ? () => scrollRef.current?.scrollToEnd({ animated: true })
+                    : undefined
+                }
+              >
                 {retainedFooter}
               </View>
             ) : null}

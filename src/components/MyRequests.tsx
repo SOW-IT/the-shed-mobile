@@ -158,13 +158,15 @@ const NewRequestSheet = ({
     // Validate client-side first (mirroring convex/requests.ts:submit) so an
     // empty/zero field shows its message inline without a server round-trip —
     // which would throw a ConvexError and surface a red dev-overlay on every
-    // invalid attempt. Same order as the server: amount, then description.
-    if (!(Number(amount) > 0)) {
-      setError("Amount must be a positive number.");
-      return;
-    }
+    // invalid attempt. Report in on-screen field order (Description, Amount,
+    // Department) so a blank form flags the first field the user sees rather
+    // than masking the description error behind the default-zero amount error.
     if (description.trim() === "") {
       setError("Please describe what the request is for.");
+      return;
+    }
+    if (!(Number(amount) > 0)) {
+      setError("Amount must be a positive number.");
       return;
     }
     if (department.trim() === "") {
@@ -682,13 +684,15 @@ const NudgeButton = ({
   );
 };
 
-/** "5h 23m" / "12m" / "under a minute" for a remaining cooldown in ms. */
+/** "5h 23m" / "24h 0m" / "12m" / "under a minute" for a remaining cooldown in ms.
+ *  Hours always carry a minutes part ("Xh Ym") so the format stays consistent
+ *  even right after a nudge, when exactly 24h remain. */
 const formatCooldown = (ms: number): string => {
   const mins = Math.ceil(ms / 60000);
   if (mins < 1) return "under a minute";
   const h = Math.floor(mins / 60);
   const m = mins % 60;
-  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
 };
 

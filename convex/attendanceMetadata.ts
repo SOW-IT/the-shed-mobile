@@ -244,9 +244,32 @@ export const saveAll = mutation({
       .collect();
     const orgRoles = [...new Set([...ROLES, ...roleRows.map((r) => r.name)])];
 
+    // The canonical select-values for a field, applying the same syncing the
+    // `list` query does on read (Campus/Role fold in the live universities/roles).
+    // Used both when writing and when diffing, so a re-save of an unchanged
+    // Campus/Role field isn't mistaken for an edit just because the stored row
+    // predates a university/role that `list` now merges in.
+    const normalizeSelectValues = (
+      fieldKey: string,
+      raw: Record<string, string>
+    ): Record<string, string> =>
+      fieldKey === GENDER_FIELD_KEY
+        ? canonicalizeGenderValues(raw)
+        : fieldKey === STUDENT_YEAR_FIELD_KEY
+          ? STUDENT_YEAR_VALUES
+          : fieldKey === "Campus"
+            ? mergeSelectValues(raw, universityNames)
+            : fieldKey === "Role"
+              ? mergeSelectValues(raw, orgRoles)
+              : raw;
+
     // Fields whose ONLY change this save is their position. Collected here and
     // reported as a single reorder event, rather than vague per-field "updates".
     const reorders: { key: string; from: number; to: number }[] = [];
+    // Prior→new order of every field that already existed, to tell a genuine
+    // reorder (the relative sequence changed) from a mere renumber (adding a
+    // field or closing a delete gap shifts absolute orders but not the sequence).
+    const persistedOrder: { id: string; from: number; to: number }[] = [];
     const keys = new Set<string>();
     for (const field of fields) {
       const rawKey = field.key.trim();
@@ -264,21 +287,15 @@ export const saveAll = mutation({
       }
       keys.add(lk);
 
-      let values = field.type === "select" ? { ...(field.values ?? {}) } : undefined;
+      const values =
+        field.type === "select"
+          ? normalizeSelectValues(key, { ...(field.values ?? {}) })
+          : undefined;
       const subgroup = LOCKED_FIELD_KEYS.has(key)
         ? undefined
         : field.subgroup?.trim()
           ? canonicalSubgroup(field.subgroup.trim())
           : undefined;
-      if (key === GENDER_FIELD_KEY && values) {
-        values = canonicalizeGenderValues(values);
-      } else if (key === STUDENT_YEAR_FIELD_KEY) {
-        values = STUDENT_YEAR_VALUES;
-      } else if (key === "Campus" && values) {
-        values = mergeSelectValues(values, universityNames);
-      } else if (key === "Role" && values) {
-        values = mergeSelectValues(values, orgRoles);
-      }
 
       const lockedValues =
         key === GENDER_FIELD_KEY
@@ -305,7 +322,15 @@ export const saveAll = mutation({
       if (field.id) {
         const existing = await ctx.db.get(field.id);
         if (!existing) continue;
+        persistedOrder.push({ id: field.id, from: existing.order, to: field.order });
         const nextValues = field.type === "select" ? values : undefined;
+        // Diff against the existing values run through the SAME normalisation as
+        // the write, so a synced Campus/Role field re-saved unchanged doesn't
+        // look edited just because its stored snapshot predates a merged label.
+        const existingValues =
+          existing.type === "select"
+            ? normalizeSelectValues(key, { ...(existing.values ?? {}) })
+            : undefined;
         // saveAll rewrites every field on each save; classify what actually
         // changed so the trail isn't flooded with no-op "updates" and so a pure
         // reorder reads as a reorder rather than a generic field update.
@@ -314,7 +339,7 @@ export const saveAll = mutation({
           existing.key !== key ||
           existing.type !== field.type ||
           (existing.subgroup ?? undefined) !== (subgroup ?? undefined) ||
-          JSON.stringify(existing.values ?? null) !==
+          JSON.stringify(existingValues ?? null) !==
             JSON.stringify(nextValues ?? null);
         await ctx.db.patch(field.id, {
           key,
@@ -356,7 +381,18 @@ export const saveAll = mutation({
       }
     }
 
-    if (reorders.length) {
+    // Only a genuine reorder — the relative sequence of the surviving fields
+    // changed — is logged. Adding a field or deleting one renumbers absolute
+    // orders (the client reindexes to 0..N) without moving anything relative to
+    // the others, and must not spam a "Reordered…" entry.
+    const sequenceKey = (by: "from" | "to") =>
+      persistedOrder
+        .slice()
+        .sort((a, b) => a[by] - b[by])
+        .map((p) => p.id)
+        .join(",");
+    const relativeOrderChanged = sequenceKey("from") !== sequenceKey("to");
+    if (reorders.length && relativeOrderChanged) {
       // A clean two-field exchange (e.g. moving a field up/down one slot) reads
       // as a swap; anything larger is a general reorder.
       const isSwap =

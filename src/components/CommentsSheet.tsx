@@ -197,7 +197,46 @@ export const CommentsSheet = ({
 
   return (
     <>
-      <Sheet visible={visible} onClose={onClose} title="Comments">
+      <Sheet
+        visible={visible}
+        onClose={onClose}
+        title="Comments"
+        keyboardAnchor="bottom"
+        stickToBottom
+        footer={
+          <>
+            <ErrorBanner message={error} />
+            <View style={styles.composer}>
+              <TextInput
+                value={draft}
+                onChangeText={setDraft}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                placeholder="Write a comment…"
+                placeholderTextColor={t.faint}
+                multiline
+                style={[
+                  styles.composerInput,
+                  {
+                    backgroundColor: t.inputBackground,
+                    color: t.text,
+                    borderColor: focused ? t.primary : t.border,
+                  },
+                ]}
+              />
+              <IconButton
+                name="arrow-up"
+                bg={canSend ? t.primary : t.ghost}
+                color={canSend ? t.onPrimary : t.faint}
+                size={40}
+                accessibilityLabel="Send comment"
+                disabled={!canSend}
+                onPress={() => void send()}
+              />
+            </View>
+          </>
+        }
+      >
         {loaded === undefined ? (
           <View style={styles.loading}>
             <SowSpinner size={18} />
@@ -289,36 +328,6 @@ export const CommentsSheet = ({
             ))}
           </View>
         )}
-
-        <ErrorBanner message={error} />
-        <View style={styles.composer}>
-          <TextInput
-            value={draft}
-            onChangeText={setDraft}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            placeholder="Write a comment…"
-            placeholderTextColor={t.faint}
-            multiline
-            style={[
-              styles.composerInput,
-              {
-                backgroundColor: t.inputBackground,
-                color: t.text,
-                borderColor: focused ? t.primary : t.border,
-              },
-            ]}
-          />
-          <IconButton
-            name="arrow-up"
-            bg={canSend ? t.primary : t.ghost}
-            color={canSend ? t.onPrimary : t.faint}
-            size={40}
-            accessibilityLabel="Send comment"
-            disabled={!canSend}
-            onPress={() => void send()}
-          />
-        </View>
       </Sheet>
 
       <Sheet
@@ -381,7 +390,7 @@ const styles = StyleSheet.create({
   },
   quickEmoji: { paddingHorizontal: 2 },
   quickMore: { paddingHorizontal: 4, paddingVertical: 2 },
-  composer: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm, marginTop: spacing.md },
+  composer: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm },
   composerInput: {
     flex: 1,
     minHeight: 40,

@@ -6,6 +6,73 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.6.11] — 2026-07-03
+
+### Fixed
+
+- **The footer button no longer shoots up when a modal's keyboard opens.** A
+  pinned footer (e.g. "+ Make Request") sits on the screen *behind* a modal like
+  the comments sheet. Keyboard events are app-wide, so when the modal's own text
+  field opened the keyboard the occluded footer rode up with it — appearing to
+  "shoot up" into view behind the dimmed backdrop. Footers now stay put whenever
+  a modal is open and let the modal handle its own keyboard avoidance; they still
+  follow the keyboard normally on their own screens (e.g. the event member
+  search).
+- **The comments sheet now hugs the keyboard instead of floating too high.** The
+  sheet stays centred at rest, but once the keyboard opens it drops to sit just
+  above it — a short thread no longer floats halfway up the screen with a large
+  empty gap below it. This is handled independently of the footer button.
+- **The comments thread stays pinned to the bottom.** The composer is now pinned
+  below the scrolling thread (rather than scrolling away with it), so the text
+  box stays in view no matter how long the conversation gets — even with the
+  sheet at its maximum height and the keyboard up. Opening the thread, posting a
+  comment, and the keyboard opening all keep the newest comment and the composer
+  in view.
+- **Adding an attendance member field no longer spams the audit trail.** Adding
+  or deleting a field re-numbers every field's position, and the Campus/Role
+  fields fold in the live universities/roles when read — both made an untouched
+  field look edited or reordered, logging bogus "Updated Campus", "Updated Role"
+  and "Reordered…" entries. The save now diffs against the same normalised values
+  it writes and only logs a reorder when the fields' relative order actually
+  changed, matching the Tags save path. (UAT report #1)
+- **New Request surfaces the description error first.** With the amount left at
+  its default, submitting a blank form flagged the amount error before the empty
+  description — even though Description is the first field on screen. Validation
+  now reports in on-screen order (Description → Amount → Department). (UAT report #2)
+- **Notifications are grouped into Unread and Read sections.** The feed now shows
+  "Unread" and "Read" section headers instead of one flat, inline-highlighted
+  list, so what still needs attention is clear at a glance. (UAT report #3)
+- **Nudge cooldown copy always shows minutes.** "You can nudge again in …" now
+  reads consistently as `Xh Ym` (e.g. "24h 0m", "5h 23m") instead of dropping the
+  minutes on a whole-hour boundary. (UAT report #4)
+
+## [1.6.10] — 2026-07-03
+
+### Changed
+
+- **Create-event drafts reset when you switch attendance groups**, so a part-
+  filled new event doesn't carry over to a different group.
+- **New events default to today, 5–7pm.**
+- **Tag colour selection moved into a sheet-style modal/dropdown.**
+- **Disabled footer action buttons stay solid** instead of turning translucent.
+
+## [1.6.9] — 2026-07-03
+
+### Fixed
+
+- **Receipt-waiting reviewed requests stay visible to the approver who cleared
+  them**, instead of dropping out of the Review tab.
+- **The Review tab's unread-comment badge now counts reviewed requests too.**
+
+## [1.6.8] — 2026-07-03
+
+### Changed
+
+- **Improved reimbursement comment/thread deep-link reopen behaviour** and the
+  sheet's keyboard/backdrop handling.
+- **Attendance CSV export gained a selectable Notes column.**
+- Aligned dependencies for Expo SDK 56 compatibility.
+
 ## [1.6.7] — 2026-07-02
 
 ### Fixed

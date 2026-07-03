@@ -78,59 +78,77 @@ export default function NotificationsScreen() {
     );
   }
 
+  const list = notifications ?? [];
+  const unread = list.filter((n) => !n.read);
+  const read = list.filter((n) => n.read);
+
+  const renderRow = (n: (typeof list)[number], index: number) => (
+    <FadeInView key={n.id} delay={stagger(index)}>
+      <Pressable
+        onPress={() => open(n.id, n.url)}
+        accessibilityRole="button"
+        style={({ pressed }) => [
+          styles.row,
+          t.shadowCard,
+          { backgroundColor: n.read ? t.card : t.primarySoft },
+          pressed && { opacity: 0.7 },
+        ]}
+      >
+        <View style={[styles.iconWrap, { backgroundColor: n.read ? t.ghost : t.card }]}>
+          <Ionicons name="notifications" size={18} color={n.read ? t.faint : t.primary} />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Txt style={{ fontWeight: n.read ? "600" : "800" }}>{n.title}</Txt>
+          {n.body ? (
+            <Text numberOfLines={2} style={[typography.caption, { color: t.muted }]}>
+              {n.body}
+            </Text>
+          ) : null}
+          <Text style={[typography.caption, { color: t.faint }]}>{ago(n.at)}</Text>
+        </View>
+        {!n.read ? (
+          <View style={[styles.unreadDot, { backgroundColor: t.primary }]} />
+        ) : null}
+      </Pressable>
+    </FadeInView>
+  );
+
   return (
     <Screen title="Notifications" onBack={goBack} headerRight={headerRight}>
-      {notifications === null || notifications.length === 0 ? (
+      {list.length === 0 ? (
         <EmptyState
           icon="notifications-outline"
           title="No notifications"
           message="Updates about your requests and approvals will show up here."
         />
       ) : (
-        notifications.map((n, index) => (
-          <FadeInView key={n.id} delay={stagger(index)}>
-            <Pressable
-              onPress={() => open(n.id, n.url)}
-              accessibilityRole="button"
-              style={({ pressed }) => [
-                styles.row,
-                t.shadowCard,
-                {
-                  backgroundColor: n.read ? t.card : t.primarySoft,
-                },
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <View
+        // Split into Unread / Read sections (both already newest-first) so it's
+        // clear at a glance what still needs attention.
+        <>
+          {unread.length > 0 ? (
+            <>
+              <Text style={[typography.label, styles.sectionLabel, { color: t.muted }]}>
+                Unread
+              </Text>
+              {unread.map((n, i) => renderRow(n, i))}
+            </>
+          ) : null}
+          {read.length > 0 ? (
+            <>
+              <Text
                 style={[
-                  styles.iconWrap,
-                  { backgroundColor: n.read ? t.ghost : t.card },
+                  typography.label,
+                  styles.sectionLabel,
+                  unread.length > 0 && styles.sectionLabelSpaced,
+                  { color: t.muted },
                 ]}
               >
-                <Ionicons
-                  name="notifications"
-                  size={18}
-                  color={n.read ? t.faint : t.primary}
-                />
-              </View>
-              <View style={{ flex: 1, gap: 2 }}>
-                <Txt style={{ fontWeight: n.read ? "600" : "800" }}>{n.title}</Txt>
-                {n.body ? (
-                  <Text
-                    numberOfLines={2}
-                    style={[typography.caption, { color: t.muted }]}
-                  >
-                    {n.body}
-                  </Text>
-                ) : null}
-                <Text style={[typography.caption, { color: t.faint }]}>{ago(n.at)}</Text>
-              </View>
-              {!n.read ? (
-                <View style={[styles.unreadDot, { backgroundColor: t.primary }]} />
-              ) : null}
-            </Pressable>
-          </FadeInView>
-        ))
+                Read
+              </Text>
+              {read.map((n, i) => renderRow(n, unread.length + i))}
+            </>
+          ) : null}
+        </>
       )}
     </Screen>
   );
@@ -142,6 +160,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
   },
+  sectionLabel: { marginBottom: spacing.xs, marginLeft: 2 },
+  sectionLabelSpaced: { marginTop: spacing.lg },
   row: {
     flexDirection: "row",
     alignItems: "center",
