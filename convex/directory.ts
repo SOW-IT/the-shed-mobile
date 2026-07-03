@@ -177,21 +177,23 @@ const campusRoleRank = (roles: string[]) => {
  * Names come from the synced Google profile when the person has signed in.
  * Also returns every year that has an org structure, for the year dropdown.
  *
- * The pre-provisioned NEXT staff year is only offered to (and viewable by)
- * admins — the Data and IT / Human Resources crew who configure it — so other
- * staff don't see a half-built future chart. Everyone keeps the current and
- * past years.
+ * PUBLIC: readable without signing in — the Org tab is the app's public
+ * landing surface (1.7.0), so anyone can browse who serves where, matching
+ * the ministry's public-facing directory. The pre-provisioned NEXT staff
+ * year stays admin-only — the Data and IT / Human Resources crew who
+ * configure it — so nobody else sees a half-built future chart.
  */
 export const orgChart = query({
   args: { year: v.optional(v.number()) },
   handler: async (ctx, args) => {
     const callerEmail = await optionalEmail(ctx);
-    if (callerEmail === null) return null; // auth still attaching
     const thisYear = currentStaffYear();
     const nextYear = nextStaffYear();
 
     // Only admins (Data and IT / HR division) may see the next staff year.
-    const callerProfile = await getProfile(ctx, callerEmail, thisYear);
+    const callerProfile = callerEmail
+      ? await getProfile(ctx, callerEmail, thisYear)
+      : null;
     const canSeeNextYear = callerProfile
       ? await isAdminProfile(ctx, callerProfile)
       : false;

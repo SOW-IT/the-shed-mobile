@@ -1312,7 +1312,8 @@ describe("audit trail and reminders", () => {
     const t = await setup();
     // Unauthenticated query calls — the client briefly does this on every
     // page load / token refresh; throwing here blank-screens the app.
-    expect((await t.query(api.directory.orgChart, {}))!).toBeNull();
+    // (orgChart is deliberately absent: it's PUBLIC as of 1.7.0 and returns
+    // real data without a caller — covered in directory.test.ts.)
     expect((await t.query(api.directory.availableYears, {}))!).toBeNull();
     expect((await t.query(api.directory.yearStructure, { year: YEAR }))!).toBeNull();
     expect((await t.query(api.requests.myRequests, {}))!).toBeNull();

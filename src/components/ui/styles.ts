@@ -45,6 +45,28 @@ export const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 0.3,
   },
+  // Signed-out avatar dropdown: full-screen dismiss backdrop with the menu
+  // anchored under the top bar's right edge.
+  dropdownBackdrop: { flex: 1 },
+  dropdownMenu: {
+    position: "absolute",
+    right: spacing.lg,
+    borderRadius: radius.md,
+    paddingVertical: spacing.xs,
+    minWidth: 220,
+    maxWidth: 300,
+  },
+  dropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm + 2,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  dropdownError: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.sm,
+  },
   tabBar: {
     flexDirection: "row",
     borderBottomWidth: StyleSheet.hairlineWidth,

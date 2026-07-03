@@ -234,7 +234,11 @@ export default function RequestsScreen() {
 
   if (me?.isCampusLeader) return <Redirect href="/attendance" />;
 
-  if (me === null || me.profile === null) {
+  // Visitors (signed out) land on the public Org chart — "/" is still the
+  // web entry point even though the Requests tab is hidden for them.
+  if (me === null) return <Redirect href="/org" />;
+
+  if (me.profile === null) {
     return (
       <ChromeScreen>
         <FadeInView>

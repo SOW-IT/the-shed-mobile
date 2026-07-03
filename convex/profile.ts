@@ -8,15 +8,18 @@ import { currentStaffYear, optionalEmail, rolesOf } from "./model";
 /**
  * A person's profile: Google-synced identity, self-editable extras (church,
  * photo) and their service history — the role/department they held each year.
- * Any signed-in user can view anyone's profile (e.g. from the org chart);
- * name, email, role and department are never editable here.
+ * PUBLIC when a specific `email` is asked for (1.7.0): the org chart is the
+ * app's public landing surface, so anyone can open a person from it. The
+ * self-profile form (no `email`) still requires a signed-in caller, and the
+ * personal `localChurch` field is only shown to signed-in viewers. Name,
+ * email, role and department are never editable here.
  */
 export const get = query({
   args: { email: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const callerEmail = await optionalEmail(ctx);
-    if (!callerEmail) return null; // auth still attaching
-    const email = (args.email ?? callerEmail).trim().toLowerCase();
+    if (!callerEmail && !args.email) return null; // own profile needs auth
+    const email = (args.email ?? callerEmail ?? "").trim().toLowerCase();
 
     const user = await ctx.db
       .query("users")
@@ -70,7 +73,8 @@ export const get = query({
       isMe: email === callerEmail,
       name: user?.name ?? dirUser?.name ?? anyProfile?.name ?? null,
       photo: avatarUrl ?? user?.image ?? dirPhoto,
-      localChurch: user?.localChurch ?? null,
+      // Personal detail — kept off the public (signed-out) person view.
+      localChurch: callerEmail ? (user?.localChurch ?? null) : null,
       serviceHistory: serviceHistory.map((h) => ({
         year: h.year,
         roles: rolesOf(h),

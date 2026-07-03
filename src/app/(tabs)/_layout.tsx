@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery } from "convex/react";
+import { useConvexAuth, useQuery } from "convex/react";
 import { Tabs } from "expo-router";
 import {
   AccessibilityState,
@@ -192,17 +192,26 @@ const AnimatedTabBarButton = ({
 };
 
 /**
- * The bottom tab navigator. Tab order and the launch tab depend on role:
- * campus leaders (President / VP / Executive / Student Leader) get Attendance
- * first and no Requests tab; everyone else gets Requests → Attendance → Org → Admin.
+ * The bottom tab navigator. The app is public (1.7.0): Home and the Org chart
+ * are visible to everyone, while the staff tools — Requests, Attendance,
+ * Insights — appear only for signed-in users with a staff profile, and Admin
+ * only for admins / the Finance head. Tab order and the launch tab depend on
+ * role: visitors land on the Org chart; campus leaders (President / VP /
+ * Executive / Student Leader) get Attendance first and no Requests tab;
+ * everyone else launches on Requests.
  */
 export default function TabsLayout() {
+  const { isAuthenticated } = useConvexAuth();
   const me = useQuery(api.directory.me);
   const t = useAppTheme();
   const insets = useSafeAreaInsets();
   usePushRegistration();
 
   const isCampusLeader = me?.isCampusLeader ?? false;
+  // The staff tools need a provisioned staff profile, not just a Google
+  // account — a visitor who signs in with a personal account sees the same
+  // public tabs until an admin provisions them.
+  const isStaff = !!me?.profile;
   const showAdminTab = me?.isAdmin || me?.isFinanceHead;
 
   // Mine: action count (requests fully approved but awaiting receipt submission).
@@ -243,7 +252,9 @@ export default function TabsLayout() {
 
   return (
     <Tabs
-      initialRouteName={isCampusLeader ? "attendance" : "index"}
+      initialRouteName={
+        !isAuthenticated ? "org" : isCampusLeader ? "attendance" : "index"
+      }
       backBehavior="history"
       screenListeners={{ tabPress: () => hapticSelect() }}
       screenOptions={{
@@ -272,10 +283,17 @@ export default function TabsLayout() {
           bar slots correctly. Hidden tabs use href: null (they don't appear in
           the bar but still occupy their slot in the route list). */}
       <Tabs.Screen
+        name="home"
+        options={{
+          title: "Home",
+          tabBarIcon: tabIcon("home-outline", "home"),
+        }}
+      />
+      <Tabs.Screen
         name="index"
         options={{
           title: "Requests",
-          ...(isCampusLeader ? { href: null } : {}),
+          ...(!isStaff || isCampusLeader ? { href: null } : {}),
           tabBarIcon: ({ color, focused }) => (
             <RequestsTabIcon color={color} focused={focused} total={tabTotal} />
           ),
@@ -285,6 +303,7 @@ export default function TabsLayout() {
         name="attendance"
         options={{
           title: "Attendance",
+          ...(isStaff ? {} : { href: null }),
           tabBarIcon: tabIcon("checkbox-outline", "checkbox"),
         }}
       />
@@ -292,6 +311,7 @@ export default function TabsLayout() {
         name="insights"
         options={{
           title: "Insights",
+          ...(isStaff ? {} : { href: null }),
           tabBarIcon: ({ color, focused }) => (
             <InsightsTabIcon color={color} focused={focused} />
           ),

@@ -1,22 +1,10 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useAuthActions } from "@convex-dev/auth/react";
 import Constants from "expo-constants";
 import { makeRedirectUri } from "expo-auth-session";
 import * as Linking from "expo-linking";
 import { maybeCompleteAuthSession, openAuthSessionAsync } from "expo-web-browser";
 import { useEffect, useState } from "react";
-import {
-  Animated,
-  Image,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { radius, spacing, USE_NATIVE_DRIVER, useAppTheme } from "../theme";
-import { ErrorBanner, errorMessage, FadeInView, SowSpinner } from "./ui";
+import { Platform } from "react-native";
 
 // Dismiss any auth session left dangling by a previous redirect so the next one
 // resolves cleanly (recommended for redirect-based auth; no-op on native at
@@ -41,26 +29,26 @@ const codeFromUrl = (url: string): string | null => {
   }
 };
 
-export const SignInScreen = () => {
+/**
+ * Web only: complete a Google sign-in that returned to the app as a full-page
+ * redirect with `?code=XXX`. ConvexAuthProvider doesn't auto-exchange the code
+ * in Expo's web context, so this does. Mounted ONCE at the root (not in the
+ * sign-in button) so the exchange runs no matter which screen the redirect
+ * lands on — the app is public now, so that can be any tab.
+ */
+export const useWebAuthCodeExchange = () => {
   const { signIn } = useAuthActions();
   const [error, setError] = useState<string | null>(null);
-  // On web, signing in is a full-page redirect to Google, so coming back
-  // re-mounts this screen with ?code=XXX in the URL. Start in the busy state
-  // when that param is present so the button is disabled/loading from the very
-  // first render through the code exchange below — the user can't re-tap it
-  // while we're actually signing them in.
   const [busy, setBusy] = useState(
     () =>
       Platform.OS === "web" &&
       typeof window !== "undefined" &&
       // Truthy check (not just .has) to match the effect below — an empty
       // ?code= would otherwise start busy but be skipped by the effect,
-      // leaving the button stuck disabled.
+      // leaving the state stuck busy.
       !!new URLSearchParams(window.location.search).get("code")
   );
 
-  // On web, Google redirects back to the app with ?code=XXX. ConvexAuthProvider
-  // doesn't auto-exchange the code in Expo's web context, so we do it here.
   useEffect(() => {
     if (Platform.OS !== "web") return;
     const params = new URLSearchParams(window.location.search);
@@ -70,15 +58,29 @@ export const SignInScreen = () => {
     window.history.replaceState({}, "", window.location.pathname);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- OAuth code exchange on load
     setBusy(true);
-    // Stay busy through the exchange: on success the app flips to Authenticated
-    // and this screen unmounts, so only re-enable the button if it fails.
-    void signIn("google", { code }).catch((e: unknown) => {
-      setError(errorMessage(e));
-      setBusy(false);
-    });
+    void signIn("google", { code })
+      .catch((e: unknown) => setError(errorText(e)))
+      .finally(() => setBusy(false));
   }, [signIn]);
 
-  const handleSignIn = async () => {
+  return { busy, error };
+};
+
+const errorText = (e: unknown): string =>
+  e instanceof Error ? e.message : String(e);
+
+/**
+ * The interactive "Sign in with Google" flow, shared by every sign-in button
+ * (the signed-out avatar dropdown). On web it's a full-page redirect to Google
+ * (the code exchange on return is {@link useWebAuthCodeExchange}); on native
+ * it drives the auth session + deep-link dance below.
+ */
+export const useGoogleSignIn = () => {
+  const { signIn } = useAuthActions();
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const signInWithGoogle = async () => {
     setError(null);
     setBusy(true);
     try {
@@ -93,7 +95,9 @@ export const SignInScreen = () => {
       // theshedmobilestaging:// rather than exp://localhost when run via
       // Expo Go or a dev client against the staging Convex deployment.
       const scheme = Constants.expoConfig?.scheme ?? "theshedmobile";
-      const redirectTo = makeRedirectUri({ scheme: Array.isArray(scheme) ? scheme[0] : scheme });
+      const redirectTo = makeRedirectUri({
+        scheme: Array.isArray(scheme) ? scheme[0] : scheme,
+      });
       const { redirect } = await signIn("google", { redirectTo });
       if (!redirect) {
         setBusy(false);
@@ -166,9 +170,10 @@ export const SignInScreen = () => {
       );
       const code = outcome.url ? codeFromUrl(outcome.url) : null;
       if (code) {
-        // On success the app flips to Authenticated and this screen unmounts, so
-        // stay busy rather than flicker back to clickable.
+        // On success the app flips to Authenticated in place, so stay busy
+        // rather than flicker back to clickable while the flip lands.
         await signIn("google", { code });
+        setBusy(false);
         return;
       }
       // A real session failure with no recovered code — surface it rather than
@@ -177,97 +182,10 @@ export const SignInScreen = () => {
       // No redirect captured, or the user dismissed the browser — re-enable.
       setBusy(false);
     } catch (e) {
-      setError(errorMessage(e));
+      setError(errorText(e));
       setBusy(false);
     }
   };
 
-  const t = useAppTheme();
-  const [scale] = useState(() => new Animated.Value(1));
-
-  return (
-    <View style={[styles.fullScreen, { backgroundColor: t.background }]}>
-      <SafeAreaView style={styles.screen}>
-        <View style={styles.hero}>
-          <FadeInView style={styles.heroInner}>
-            <Image
-              source={
-                t.dark
-                  ? require("../../assets/images/mark-cream.png")
-                  : require("../../assets/images/mark-dark.png")
-              }
-              style={styles.mark}
-              resizeMode="contain"
-            />
-            <Image
-              source={require("../../assets/images/the-shed-watermark.png")}
-              style={[styles.watermark, { tintColor: t.text }]}
-              resizeMode="contain"
-            />
-          </FadeInView>
-        </View>
-        <FadeInView delay={120}>
-          <Animated.View style={[{ transform: [{ scale }] }, styles.buttonWrap]}>
-            <Pressable
-              onPress={() => void handleSignIn()}
-              onPressIn={() =>
-                Animated.spring(scale, { toValue: 0.97, useNativeDriver: USE_NATIVE_DRIVER, speed: 50, bounciness: 0 }).start()
-              }
-              onPressOut={() =>
-                Animated.spring(scale, { toValue: 1, useNativeDriver: USE_NATIVE_DRIVER, speed: 20, bounciness: 6 }).start()
-              }
-              disabled={busy}
-              style={[
-                styles.googleButton,
-                { backgroundColor: t.primary },
-                busy && { opacity: 0.6 },
-              ]}
-            >
-              {busy ? (
-                <SowSpinner size={20} onDark={!t.dark} />
-              ) : (
-                <>
-                  <Ionicons name="logo-google" size={18} color={t.onPrimary} />
-                  <Text style={[styles.googleButtonText, { color: t.onPrimary }]}>
-                    Sign in with Google
-                  </Text>
-                </>
-              )}
-            </Pressable>
-          </Animated.View>
-          <ErrorBanner message={error} />
-        </FadeInView>
-      </SafeAreaView>
-    </View>
-  );
+  return { signInWithGoogle, busy, error, clearError: () => setError(null) };
 };
-
-const styles = StyleSheet.create({
-  fullScreen: {
-    flex: 1,
-  },
-  screen: {
-    flex: 1,
-    padding: spacing.lg,
-    maxWidth: 720,
-    width: "100%",
-    alignSelf: "center",
-    justifyContent: "center",
-    gap: spacing.xl,
-  },
-  hero: { alignItems: "center" },
-  heroInner: { alignItems: "center", gap: spacing.sm },
-  mark: { width: 90, height: 90 },
-  watermark: { width: 300, height: 205 },
-  tagline: { textAlign: "center", maxWidth: 280, lineHeight: 19 },
-  buttonWrap: { maxWidth: 420, width: "100%", alignSelf: "center" },
-  googleButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-    height: 54,
-    borderRadius: radius.lg - 2,
-  },
-  googleButtonText: { fontSize: 16, fontWeight: "700", letterSpacing: -0.2 },
-});

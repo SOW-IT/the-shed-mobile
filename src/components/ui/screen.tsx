@@ -4,18 +4,28 @@
 
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@convex/_generated/api";
-import { useQuery } from "convex/react";
+import { useConvexAuth, useQuery } from "convex/react";
 import { ReactNode, Ref, useEffect, useState } from "react";
-import { Animated, Image, Pressable, ScrollView, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  Animated,
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { USE_NATIVE_DRIVER, spacing, typography, useAppTheme } from "@/theme";
 import { IS_DEV_ENVIRONMENT } from "@/env";
+import { useGoogleSignIn } from "@/hooks/useGoogleSignIn";
+import { TOP_BAR_HEIGHT } from "@/components/useTopBarCollapse";
 import { Avatar, Toast, ToastState } from "./feedback";
 import { usePressScale } from "./format";
 import { Segment } from "./forms";
 import { Sheet } from "./overlays";
-import { FadeInView, Txt } from "./primitives";
+import { FadeInView, SowSpinner, Txt } from "./primitives";
 import { styles } from "./styles";
 
 export const Screen = ({
@@ -129,11 +139,19 @@ export const TopBar = ({
 }) => {
   const t = useAppTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const home = usePressScale();
   const bell = usePressScale();
   const profile = usePressScale();
-  const unread = useQuery(api.notifications.unreadCount, {}) ?? 0;
+  const { isAuthenticated } = useConvexAuth();
+  const unread =
+    useQuery(api.notifications.unreadCount, isAuthenticated ? {} : "skip") ?? 0;
   const [testInfo, setTestInfo] = useState(false);
+  // Signed-out avatar dropdown (Sign in with Google). Rendered as a Modal —
+  // the top bar lives inside an overflow-hidden collapsing clip, so anything
+  // anchored inside it would be cut off at the bar's edge.
+  const [signInMenu, setSignInMenu] = useState(false);
+  const { signInWithGoogle, busy, error, clearError } = useGoogleSignIn();
   return (
     <View style={styles.topBar}>
       <Animated.View style={{ transform: [{ scale: home.scale }] }}>
@@ -173,43 +191,110 @@ export const TopBar = ({
         ) : null}
       </View>
       <View style={styles.topBarRight}>
-        <Animated.View style={{ transform: [{ scale: bell.scale }] }}>
-          <Pressable
-            onPress={() => router.push("/notifications")}
-            onPressIn={bell.onPressIn}
-            onPressOut={bell.onPressOut}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={
-              unread > 0 ? `Notifications, ${unread} unread` : "Notifications"
-            }
-          >
-            <Ionicons
-              name={unread > 0 ? "notifications" : "notifications-outline"}
-              size={24}
-              color={t.text}
-            />
-            {unread > 0 ? (
-              <View style={[styles.topBarBadge, { backgroundColor: t.accent }]}>
-                <Text style={styles.topBarBadgeText}>
-                  {unread > 99 ? "99+" : unread}
-                </Text>
-              </View>
-            ) : null}
-          </Pressable>
-        </Animated.View>
+        {/* Notifications are a signed-in concern — hidden for visitors. */}
+        {isAuthenticated ? (
+          <Animated.View style={{ transform: [{ scale: bell.scale }] }}>
+            <Pressable
+              onPress={() => router.push("/notifications")}
+              onPressIn={bell.onPressIn}
+              onPressOut={bell.onPressOut}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={
+                unread > 0 ? `Notifications, ${unread} unread` : "Notifications"
+              }
+            >
+              <Ionicons
+                name={unread > 0 ? "notifications" : "notifications-outline"}
+                size={24}
+                color={t.text}
+              />
+              {unread > 0 ? (
+                <View style={[styles.topBarBadge, { backgroundColor: t.accent }]}>
+                  <Text style={styles.topBarBadgeText}>
+                    {unread > 99 ? "99+" : unread}
+                  </Text>
+                </View>
+              ) : null}
+            </Pressable>
+          </Animated.View>
+        ) : null}
         <Animated.View style={{ transform: [{ scale: profile.scale }] }}>
           <Pressable
-            onPress={() => router.push("/profile")}
+            onPress={() =>
+              isAuthenticated ? router.push("/profile") : setSignInMenu(true)
+            }
             onPressIn={profile.onPressIn}
             onPressOut={profile.onPressOut}
             accessibilityRole="button"
-            accessibilityLabel="Open your profile"
+            accessibilityLabel={
+              isAuthenticated ? "Open your profile" : "Sign in"
+            }
           >
             <Avatar photo={photo} name={name} size={40} />
           </Pressable>
         </Animated.View>
       </View>
+      {/* Signed-out avatar dropdown: a small menu anchored under the avatar. */}
+      <Modal
+        visible={signInMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSignInMenu(false)}
+      >
+        <Pressable
+          style={styles.dropdownBackdrop}
+          accessibilityLabel="Close menu"
+          onPress={() => {
+            if (!busy) {
+              setSignInMenu(false);
+              clearError();
+            }
+          }}
+        >
+          <View
+            style={[
+              styles.dropdownMenu,
+              t.shadowFloat,
+              {
+                backgroundColor: t.card,
+                top: insets.top + TOP_BAR_HEIGHT,
+              },
+            ]}
+          >
+            <Pressable
+              disabled={busy}
+              onPress={() => void signInWithGoogle()}
+              accessibilityRole="button"
+              accessibilityLabel="Sign in with Google"
+              style={({ pressed }) => [
+                styles.dropdownItem,
+                pressed && { opacity: 0.6 },
+              ]}
+            >
+              {busy ? (
+                <SowSpinner size={18} onDark={t.dark} />
+              ) : (
+                <Ionicons name="logo-google" size={18} color={t.text} />
+              )}
+              <Text style={[typography.headline, { color: t.text }]}>
+                Sign in with Google
+              </Text>
+            </Pressable>
+            {error ? (
+              <Text
+                style={[
+                  typography.caption,
+                  styles.dropdownError,
+                  { color: t.errorText },
+                ]}
+              >
+                {error}
+              </Text>
+            ) : null}
+          </View>
+        </Pressable>
+      </Modal>
       {IS_DEV_ENVIRONMENT ? (
         <Sheet
           visible={testInfo}

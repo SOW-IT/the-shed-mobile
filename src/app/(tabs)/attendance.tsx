@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from "expo-router";
+import { Redirect, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "convex/react";
 import { staffYearForDate, sydneyCalendarYear } from "../../../shared/flow";
@@ -135,6 +135,10 @@ export default function AttendanceScreen() {
     });
     return items;
   }, [active, subgroup, subgroups, tagsSave, metaSave]);
+
+  // The staff tools are signed-in only; a visitor deep-linking here (the tab
+  // itself is hidden) is sent to the public Org chart instead.
+  if (me === null) return <Redirect href="/org" />;
 
   if (me === undefined || subgroups === undefined || metadata === undefined) {
     return <LoadingState />;

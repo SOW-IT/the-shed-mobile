@@ -46,6 +46,34 @@ describe("profile.get", () => {
     expect(profile.isMe).toBe(true);
   });
 
+  test("public person view (1.7.0): readable signed out with an email, church hidden", async () => {
+    const t = await setup();
+    const email = "pat@sow.org.au";
+    await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email,
+        year: YEAR,
+        name: "Pat Staff",
+        assignments: [{ role: "Staff", department: "Data and IT" }],
+      });
+      await ctx.db.insert("users", { email, localChurch: "Grace Church" });
+    });
+
+    // Signed out, asking for a specific person: public.
+    const anon = (await t.query(api.profile.get, { email }))!;
+    expect(anon.name).toBe("Pat Staff");
+    expect(anon.isMe).toBe(false);
+    expect(anon.serviceHistory.map((h) => h.year)).toEqual([YEAR]);
+    // The personal church field stays off the public view…
+    expect(anon.localChurch).toBeNull();
+    // …but signed-in viewers still see it.
+    const viewer = (await asUser(t, ADMIN).query(api.profile.get, { email }))!;
+    expect(viewer.localChurch).toBe("Grace Church");
+
+    // The self-profile form (no email) still requires a signed-in caller.
+    expect(await t.query(api.profile.get, {})).toBeNull();
+  });
+
   test("falls back to the directory name when no user row or profile name exists", async () => {
     const t = await setup();
     const email = "nav@sow.org.au";
