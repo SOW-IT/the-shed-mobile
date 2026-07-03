@@ -347,7 +347,9 @@ export function MetricsTab({
               );
               // Composition charts share the new-vs-returning event basis
               // (weekly meetings when the group runs them). The subtitle
-              // carries the period-wide share and its ≈1:n ratio.
+              // carries the period-wide share and its ratio, oriented so the
+              // larger side reads first (≈2:1 for a 67% majority, ≈1:2 for a
+              // 33% minority) — never "≈1:0.5" or a rounded-to-zero side.
               const basis = weekly ? "At weekly meetings" : undefined;
               const shareSubtitle = (
                 share: number | null | undefined,
@@ -355,9 +357,12 @@ export function MetricsTab({
               ): string | undefined => {
                 if (share === null || share === undefined) return basis;
                 const pct = `${Math.round(share * 100)}% ${noun}`;
+                const round1 = (n: number) => Math.round(n * 10) / 10;
                 const ratio =
                   share > 0 && share < 1
-                    ? ` (≈1:${Math.round(((1 - share) / share) * 10) / 10})`
+                    ? share >= 0.5
+                      ? ` (≈${round1(share / (1 - share))}:1)`
+                      : ` (≈1:${round1((1 - share) / share)})`
                     : "";
                 return [basis, `${pct}${ratio}`].filter(Boolean).join(" · ");
               };

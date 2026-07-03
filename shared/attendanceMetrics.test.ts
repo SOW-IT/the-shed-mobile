@@ -466,22 +466,26 @@ describe("computeSubgroupMetrics — composition charts", () => {
   it("splits this campus vs other campuses, excluding people with no known campus", () => {
     const m = weekly(weeksAgo(1), ["USYD"]);
     const persons = [
-      person("home", { campus: "USYD" }),
-      person("visitor", { campus: "UNSW" }),
+      person("home", { campuses: ["USYD"] }),
+      person("visitor", { campuses: ["UNSW"] }),
+      // Multi-campus staff count as home when ANY campus matches.
+      person("both", { campuses: ["UNSW", "USYD"] }),
       person("nowhere"), // org-side staff / member without Campus metadata
     ];
-    const attendance = ["home", "visitor", "nowhere"].map((k) => attend(m, k));
+    const attendance = ["home", "visitor", "both", "nowhere"].map((k) =>
+      attend(m, k)
+    );
     const data = computeSubgroupMetrics(
       build([m], attendance, persons, { subgroup: "USYD" })
     );
-    expect(data.campusMix).toEqual([expect.objectContaining({ primary: 1, rest: 1 })]);
-    expect(data.summary.homeCampusShare).toBe(0.5);
+    expect(data.campusMix).toEqual([expect.objectContaining({ primary: 2, rest: 1 })]);
+    expect(data.summary.homeCampusShare).toBe(0.667);
   });
 
   it("omits the campus mix for the org-wide view", () => {
     const m = weekly(weeksAgo(1));
     const data = computeSubgroupMetrics(
-      build([m], [attend(m, "home")], [person("home", { campus: "USYD" })])
+      build([m], [attend(m, "home")], [person("home", { campuses: ["USYD"] })])
     );
     expect(data.campusMix).toBeUndefined();
     expect(data.summary.homeCampusShare).toBeUndefined();

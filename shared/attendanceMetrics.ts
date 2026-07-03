@@ -108,12 +108,13 @@ export type MetricsPerson = {
    */
   isStudentLeader?: boolean;
   /**
-   * The person's home campus (raw university name): a staff profile's campus
-   * assignment, or a member's Campus metadata. Undefined when unknown (e.g.
-   * org-side staff with no campus role) — such people are left out of the
-   * this-campus-vs-others chart rather than guessed either way.
+   * The person's home campuses (raw university names): every campus the staff
+   * profile holds a campus role at (usually one, but a person can hold roles
+   * at several universities), or a member's Campus metadata. Empty/undefined
+   * when unknown (e.g. org-side staff with no campus role) — such people are
+   * left out of the this-campus-vs-others chart rather than guessed either way.
    */
-  campus?: string;
+  campuses?: string[];
 };
 
 export type MetricsEvent = {
@@ -517,9 +518,11 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
       let primary = 0;
       let rest = 0;
       for (const key of attendeesByEvent.get(e.id) ?? []) {
-        const campus = personByKey.get(key)?.campus;
-        if (!campus) continue;
-        if (subgroupMatches(campus, subgroup)) primary += 1;
+        const campuses = personByKey.get(key)?.campuses;
+        if (!campuses || campuses.length === 0) continue;
+        // A person holding a campus role HERE is from this campus, even if
+        // they also hold one elsewhere (multi-campus staff count as home).
+        if (campuses.some((c) => subgroupMatches(c, subgroup))) primary += 1;
         else rest += 1;
       }
       return { at: e.dateStart, label: shortDate(e.dateStart), primary, rest };

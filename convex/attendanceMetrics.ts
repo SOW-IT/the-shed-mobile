@@ -89,7 +89,7 @@ const metricsPersonValidator = v.object({
   photo: v.optional(v.union(v.string(), v.null())),
   breakdown: v.optional(v.record(v.string(), v.string())),
   isStudentLeader: v.optional(v.boolean()),
-  campus: v.optional(v.string()),
+  campuses: v.optional(v.array(v.string())),
 });
 
 /**
@@ -348,7 +348,7 @@ async function resolvePersons(
 
   // The Campus/Role metadata fields, so an attendance-only member's home
   // campus and student-leader tag resolve from their metadata (staff get both
-  // from their profile). Metadata stores option IDS; map them to labels.
+  // from their profile). Metadata stores option IDs; map them to labels.
   const metadataFields = await ctx.db.query("attendanceMetadata").collect();
   const campusField = metadataFields.find((f) => f.key === CAMPUS_FIELD_KEY);
   const roleField = metadataFields.find((f) => f.key === ROLE_FIELD_KEY);
@@ -401,13 +401,14 @@ async function resolvePersons(
           ? buildBreakdown(roles[0], campuses[0])
           : buildBreakdown("Member", undefined),
         isStudentLeader: roles.some(roleNeedsUniversity),
-        // A campus role's university is the home campus; org-side staff have
-        // none and stay out of the this-campus-vs-others chart.
-        campus: campuses[0],
+        // Every campus the profile holds a campus role at is a home campus;
+        // org-side staff have none and stay out of the campus-mix chart.
+        campuses,
       });
     } else if (key.startsWith(MEMBER_PREFIX)) {
       const id = ctx.db.normalizeId("attendanceMembers", key.slice(MEMBER_PREFIX.length));
       const member = id ? await ctx.db.get(id) : null;
+      const campus = memberCampus(member?.metadata);
       persons.push({
         key,
         kind: "member",
@@ -419,7 +420,7 @@ async function resolvePersons(
           [],
           memberRoleLabel(member?.metadata) ?? null
         ),
-        campus: memberCampus(member?.metadata),
+        campuses: campus ? [campus] : undefined,
       });
     }
   }
