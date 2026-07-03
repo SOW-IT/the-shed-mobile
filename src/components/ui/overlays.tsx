@@ -166,15 +166,19 @@ export const Sheet = ({
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   useEffect(() => {
     if (keyboardAnchor !== "bottom" || Platform.OS !== "ios" || !visible) return;
+    // Seed from the live keyboard: the sheet may open while the keyboard is
+    // already up (e.g. reopening a thread before the last one's keyboard fully
+    // collapses), when no willShow fires — and this also clears any stale-open
+    // state left from the previous time this sheet was shown.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- seed from live keyboard on open
+    setKeyboardOpen(Keyboard.isVisible());
     const show = Keyboard.addListener("keyboardWillShow", () => setKeyboardOpen(true));
     const hide = Keyboard.addListener("keyboardWillHide", () => setKeyboardOpen(false));
     return () => {
       show.remove();
       hide.remove();
-      setKeyboardOpen(false);
     };
   }, [keyboardAnchor, visible]);
-  const anchorBottom = keyboardAnchor === "bottom" && keyboardOpen;
   // Chat-style sheets keep the scroll pinned to the bottom (see stickToBottom).
   const scrollRef = useRef<ScrollView>(null);
   useEffect(() => {
@@ -182,18 +186,24 @@ export const Sheet = ({
     // the composer + latest comment would otherwise slide out of view.
     if (stickToBottom && keyboardOpen) scrollRef.current?.scrollToEnd({ animated: true });
   }, [stickToBottom, keyboardOpen]);
+  const anchorBottomLive = keyboardAnchor === "bottom" && keyboardOpen;
   /* eslint-disable react-hooks/refs -- retain-through-fade (see OptionSheet) */
   const shownTitle = useRef(title);
   const shownChildren = useRef(children);
   const shownFooter = useRef(footer);
+  // Freeze the anchor while visible too, so a sheet dismissed with the keyboard
+  // still up doesn't snap from bottom-anchored to centred mid fade-out.
+  const shownAnchorBottom = useRef(anchorBottomLive);
   if (visible) {
     shownTitle.current = title;
     shownChildren.current = children;
     shownFooter.current = footer;
+    shownAnchorBottom.current = anchorBottomLive;
   }
   const retainedTitle = shownTitle.current;
   const retainedChildren = shownChildren.current;
   const retainedFooter = shownFooter.current;
+  const anchorBottom = shownAnchorBottom.current;
   const hasFooter = retainedFooter != null;
 
   const header =

@@ -9,13 +9,20 @@
 // belongs to the modal; the modal handles its own avoidance (KeyboardAvoidingView)
 // and the footer should simply stay put.
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
 let openCount = 0;
 const listeners = new Set<() => void>();
 
 const emit = () => {
   for (const listener of listeners) listener();
+};
+
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 };
 
 /**
@@ -35,16 +42,5 @@ export const useRegisterModal = (visible: boolean) => {
 };
 
 /** Reactively read whether any modal is currently open. */
-export const useAnyModalOpen = (): boolean => {
-  const [open, setOpen] = useState(() => openCount > 0);
-  useEffect(() => {
-    const update = () => setOpen(openCount > 0);
-    listeners.add(update);
-    // Sync in case the count changed between render and subscribe.
-    update();
-    return () => {
-      listeners.delete(update);
-    };
-  }, []);
-  return open;
-};
+export const useAnyModalOpen = (): boolean =>
+  useSyncExternalStore(subscribe, () => openCount > 0);
