@@ -137,13 +137,15 @@ export const list = query({
       entityType: string;
       eventId?: Id<"events">;
       summary: string;
+      subjectEmail?: string;
     }) =>
       (actorEmailSet.size === 0 || actorEmailSet.has(r.actorEmail)) &&
       (entityTypeSet.size === 0 || entityTypeSet.has(r.entityType as AuditEntityType)) &&
       (eventIdSet.size === 0 || (r.eventId != null && eventIdSet.has(r.eventId))) &&
       (!search ||
         r.summary.toLowerCase().includes(search) ||
-        r.actorEmail.toLowerCase().includes(search));
+        r.actorEmail.toLowerCase().includes(search) ||
+        (r.subjectEmail?.toLowerCase().includes(search) ?? false));
 
     const matched: Doc<"attendanceAuditLog">[] = [];
     let cursor = asPaginatorCursor(args.paginationOpts.cursor);

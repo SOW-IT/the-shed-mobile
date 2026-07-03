@@ -6,6 +6,32 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.6.13] — 2026-07-03
+
+### Fixed
+
+- **Staff with a custom role now match the "Staff" filter.** The Members-tab
+  Role filter's Staff bucket only recognised the built-in role names, but the
+  role catalog is data-driven — a person whose only role this year was a
+  custom one (added via Admin → Roles) matched no filter option at all and
+  silently disappeared from every Role-filtered view. The Staff bucket now
+  counts any non-campus role other than Member, which also corrects the
+  General insights "Staff" trend that undercounted the same people.
+- **A Year value that can't be resolved now counts as "Unselected".** A legacy
+  or out-of-range stored Year (which already displays as blank) matched no
+  Year filter option — not even "Unselected" — so those members vanished from
+  every Year-filtered view.
+- **Roll-call search now also matches roles and member details.** The event
+  sign-in screen's search only looked at name and email, while the Members tab
+  also searched the subtitle (roles, year, gender, …) — the two now match the
+  same fields.
+- **Audit search now matches the person acted on.** Searching the Attendance →
+  Audit tab by email only matched the actor, not the subject of the action
+  (e.g. who was signed in).
+- **Sorting members by a select field now orders by its labels.** Sorting the
+  Members tab by a select-type field (Campus, Role, custom fields) compared
+  internal option ids, so the order looked arbitrary.
+
 ## [1.6.12] — 2026-07-03
 
 ### Fixed
