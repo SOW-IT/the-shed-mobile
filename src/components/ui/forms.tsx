@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { Animated, Easing, Modal, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from "react-native";
 import { USE_NATIVE_DRIVER, spacing, typography, useAppTheme } from "@/theme";
+import { useRegisterModal } from "./modalPresence";
 import { Txt } from "./primitives";
 import { styles } from "./styles";
 
@@ -93,6 +94,9 @@ export const OptionSheet = ({
   footer?: ReactNode;
 }) => {
   const t = useAppTheme();
+  // Keep an occluded FooterAction from riding up when this sheet's own field
+  // opens the keyboard (see modalPresence).
+  useRegisterModal(visible);
   /* eslint-disable react-hooks/refs -- intentional retain-through-fade pattern */
   const shownTitle = useRef(title);
   const shownChildren = useRef(children);

@@ -5,6 +5,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -19,6 +20,7 @@ import {
 import { spacing, typography, useAppTheme } from "@/theme";
 import { Btn } from "./buttons";
 import { Field, OptionSheet } from "./forms";
+import { useRegisterModal } from "./modalPresence";
 import { Muted, Row, Txt } from "./primitives";
 import { styles } from "./styles";
 
@@ -124,6 +126,7 @@ export const Sheet = ({
   headerRight,
   contentStyle,
   footer,
+  keyboardAnchor = "center",
 }: {
   visible: boolean;
   onClose: () => void;
@@ -137,8 +140,34 @@ export const Sheet = ({
   contentStyle?: StyleProp<ViewStyle>;
   /** Pinned action row below scrolling content (e.g. Save). */
   footer?: ReactNode;
+  /**
+   * Where the dialog sits once the keyboard is open. "center" (default) keeps it
+   * vertically centred in the space above the keyboard — fine for tall, mostly-
+   * full sheets. "bottom" drops it to hug the keyboard, so a short sheet (e.g. the
+   * comments composer) rises just enough to clear the keyboard instead of floating
+   * high up the screen. Resting (no keyboard) placement is centred either way.
+   */
+  keyboardAnchor?: "center" | "bottom";
 }) => {
   const t = useAppTheme();
+  // Let a FooterAction on the screen behind us opt out of following the keyboard
+  // while we're open — we do our own keyboard avoidance below.
+  useRegisterModal(visible);
+  // Track the keyboard so a bottom-anchored sheet can hug it (see keyboardAnchor).
+  // Only listen while actually visible — callers may keep the sheet mounted
+  // (visible=false) per list row, and idle listeners would pile up otherwise.
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  useEffect(() => {
+    if (keyboardAnchor !== "bottom" || Platform.OS !== "ios" || !visible) return;
+    const show = Keyboard.addListener("keyboardWillShow", () => setKeyboardOpen(true));
+    const hide = Keyboard.addListener("keyboardWillHide", () => setKeyboardOpen(false));
+    return () => {
+      show.remove();
+      hide.remove();
+      setKeyboardOpen(false);
+    };
+  }, [keyboardAnchor, visible]);
+  const anchorBottom = keyboardAnchor === "bottom" && keyboardOpen;
   /* eslint-disable react-hooks/refs -- retain-through-fade (see OptionSheet) */
   const shownTitle = useRef(title);
   const shownChildren = useRef(children);
@@ -189,7 +218,7 @@ export const Sheet = ({
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={spacing.md}
           pointerEvents="box-none"
-          style={styles.dialogOuter}
+          style={[styles.dialogOuter, anchorBottom && { justifyContent: "flex-end" }]}
         >
           <View style={[styles.dialog, { backgroundColor: t.card }]}>
             {header}

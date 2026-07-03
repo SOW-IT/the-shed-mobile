@@ -6,6 +6,23 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.6.11] — 2026-07-03
+
+### Fixed
+
+- **The footer button no longer shoots up when a modal's keyboard opens.** A
+  pinned footer (e.g. "+ Make Request") sits on the screen *behind* a modal like
+  the comments sheet. Keyboard events are app-wide, so when the modal's own text
+  field opened the keyboard the occluded footer rode up with it — appearing to
+  "shoot up" into view behind the dimmed backdrop. Footers now stay put whenever
+  a modal is open and let the modal handle its own keyboard avoidance; they still
+  follow the keyboard normally on their own screens (e.g. the event member
+  search).
+- **The comments sheet now hugs the keyboard instead of floating too high.** The
+  sheet stays centred at rest, but once the keyboard opens it drops to sit just
+  above it — a short thread no longer floats halfway up the screen with a large
+  empty gap below it. This is handled independently of the footer button.
+
 ## [1.6.7] — 2026-07-02
 
 ### Fixed

@@ -197,7 +197,7 @@ export const CommentsSheet = ({
 
   return (
     <>
-      <Sheet visible={visible} onClose={onClose} title="Comments">
+      <Sheet visible={visible} onClose={onClose} title="Comments" keyboardAnchor="bottom">
         {loaded === undefined ? (
           <View style={styles.loading}>
             <SowSpinner size={18} />

@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { Animated, Easing, Keyboard, Platform, Pressable, Text, View } from "react-native";
 import { USE_NATIVE_DRIVER, radius, spacing, typography, useAppTheme } from "@/theme";
 import { usePressScale } from "./format";
+import { useAnyModalOpen } from "./modalPresence";
 import { SowSpinner } from "./primitives";
 import { styles } from "./styles";
 
@@ -60,9 +61,15 @@ export const FooterAction = ({
   // footer higher than usual, but keyboard-up placement keeps the app's normal
   // gap above the keyboard by subtracting that resting offset from the lift.
   const [lift] = useState(() => new Animated.Value(0));
+  // A modal (comments sheet, option picker, …) presents over this screen with
+  // its own text field and keyboard avoidance. The footer is occluded behind
+  // its backdrop, so it must not follow that keyboard — otherwise it shoots up
+  // into view behind the modal. Stay put and let the modal handle avoidance.
+  const modalOpen = useAnyModalOpen();
+  const shouldAvoid = avoidKeyboard && !modalOpen;
   useEffect(() => {
     const keyboardLift = (height: number) => Math.max(0, height - bottomOffset);
-    if (!avoidKeyboard) {
+    if (!shouldAvoid) {
       lift.setValue(0);
       return;
     }
@@ -95,7 +102,7 @@ export const FooterAction = ({
       show.remove();
       hide.remove();
     };
-  }, [avoidKeyboard, bottomOffset, lift]);
+  }, [shouldAvoid, bottomOffset, lift]);
   return (
     <Animated.View
       pointerEvents="box-none"
