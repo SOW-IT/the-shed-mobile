@@ -1056,8 +1056,8 @@ describe("audit trail and reminders", () => {
     await asUser(t, HENRY).mutation(api.requests.decline, {
       requestId: second._id, step: "hod", reason: "no",
     });
-    // Henry's own request only logs submitted/auto-approved (not reviews), so it
-    // must not appear in his Reviewed list.
+    // Henry's own request auto-approves his HOD step (he IS the HOD) — that
+    // counts as him having actioned it, so it belongs in his Reviewed list too.
     await asUser(t, HENRY).mutation(api.requests.submit, { description: "henry-own", amount: 50 });
     // Bella approving the first is HER review, not Henry's.
     await asUser(t, BELLA).mutation(api.requests.approve, {
@@ -1065,9 +1065,9 @@ describe("audit trail and reminders", () => {
     });
 
     const reviewed = (await asUser(t, HENRY).query(api.requests.reviewed, {}))!;
-    // Newest review first (decline of "second" came after approve of "first"),
-    // one card per request, and Henry's own auto-approved request excluded.
-    expect(reviewed.map((r) => r.description)).toEqual(["second", "first"]);
+    // Newest review first (henry-own's auto-approval came after the decline of
+    // "second", which came after the approve of "first"), one card per request.
+    expect(reviewed.map((r) => r.description)).toEqual(["henry-own", "second", "first"]);
 
     // Bella only sees the request she actioned.
     const bellaReviewed = (await asUser(t, BELLA).query(api.requests.reviewed, {}))!;
