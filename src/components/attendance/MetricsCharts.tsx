@@ -494,9 +494,12 @@ export function BarChart({
 export function StackedBarChart({
   points,
   fullscreen = false,
+  // Tooltip names for the two segments (top = `fresh`, bottom = `returning`).
+  labels = { fresh: "New", returning: "Returning" },
 }: {
   points: SplitPoint[];
   fullscreen?: boolean;
+  labels?: { fresh: string; returning: string };
 }) {
   const t = useAppTheme();
   const chartHeight = fullscreen ? CHART_HEIGHT_FULL : CHART_HEIGHT;
@@ -544,12 +547,12 @@ export function StackedBarChart({
                         year={p.label}
                         rows={[
                           {
-                            label: "Leaders",
+                            label: labels.fresh,
                             value: p.fresh,
                             colour: t.accent,
                           },
                           {
-                            label: "Staff",
+                            label: labels.returning,
                             value: p.returning,
                             colour: t.primary,
                           },

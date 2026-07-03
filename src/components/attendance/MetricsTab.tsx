@@ -345,6 +345,89 @@ export function MetricsTab({
                   <StackedBarChart points={data.newVsReturning} />
                 </ChartCard>
               );
+              // Composition charts share the new-vs-returning event basis
+              // (weekly meetings when the group runs them). The subtitle
+              // carries the period-wide share and its ≈1:n ratio.
+              const basis = weekly ? "At weekly meetings" : undefined;
+              const shareSubtitle = (
+                share: number | null | undefined,
+                noun: string
+              ): string | undefined => {
+                if (share === null || share === undefined) return basis;
+                const pct = `${Math.round(share * 100)}% ${noun}`;
+                const ratio =
+                  share > 0 && share < 1
+                    ? ` (≈1:${Math.round(((1 - share) / share) * 10) / 10})`
+                    : "";
+                return [basis, `${pct}${ratio}`].filter(Boolean).join(" · ");
+              };
+              const asSplit = (points: { at: number; label: string; primary: number; rest: number }[]) =>
+                points.map((p) => ({
+                  at: p.at,
+                  label: p.label,
+                  fresh: p.primary,
+                  returning: p.rest,
+                }));
+              const leadersVsOthersChart =
+                data.leadersVsOthers && data.leadersVsOthers.length > 0 ? (
+                  <ChartCard
+                    key="leadersVsOthers"
+                    title="Student leaders vs everyone else"
+                    subtitle={shareSubtitle(data.summary.leaderShare, "student leaders")}
+                    width={chartWidth}
+                    legend={
+                      <View style={{ gap: 4 }}>
+                        <LegendDot colour={t.accent} label="Student leaders" />
+                        <LegendDot colour={t.primary} label="Everyone else" />
+                      </View>
+                    }
+                    fullscreenContent={
+                      <StackedBarChart
+                        points={asSplit(data.leadersVsOthers)}
+                        labels={{ fresh: "Student leaders", returning: "Everyone else" }}
+                        fullscreen
+                      />
+                    }
+                  >
+                    <StackedBarChart
+                      points={asSplit(data.leadersVsOthers)}
+                      labels={{ fresh: "Student leaders", returning: "Everyone else" }}
+                    />
+                  </ChartCard>
+                ) : null;
+              // Hidden org-wide (campusMix is not computed there) and when
+              // nobody's home campus is known.
+              const campusMixChart =
+                data.campusMix &&
+                data.campusMix.some((p) => p.primary + p.rest > 0) ? (
+                  <ChartCard
+                    key="campusMix"
+                    title="This campus vs visitors"
+                    subtitle={shareSubtitle(data.summary.homeCampusShare, "from this campus")}
+                    width={chartWidth}
+                    legend={
+                      <View style={{ gap: 4 }}>
+                        <LegendDot colour={t.accent} label="This campus" />
+                        <LegendDot colour={t.primary} label="Other campuses" />
+                        <Text style={[typography.caption, { color: t.faint }]}>
+                          Only people with a known campus
+                        </Text>
+                      </View>
+                    }
+                    fullscreenContent={
+                      <StackedBarChart
+                        points={asSplit(data.campusMix)}
+                        labels={{ fresh: "This campus", returning: "Other campuses" }}
+                        fullscreen
+                      />
+                    }
+                  >
+                    <StackedBarChart
+                      points={asSplit(data.campusMix)}
+                      labels={{ fresh: "This campus", returning: "Other campuses" }}
+                    />
+                  </ChartCard>
+                ) : null;
               const attendanceChart = (
                 <ChartCard
                   key="attendance"
@@ -405,6 +488,8 @@ export function MetricsTab({
                     campusWeeklyChart,
                     weeklyTrendChart,
                     newVsReturningChart,
+                    leadersVsOthersChart,
+                    campusMixChart,
                     attendanceChart,
                     rollingChart,
                     monthChart,
@@ -417,6 +502,8 @@ export function MetricsTab({
                     weeklyTrendChart,
                     monthChart,
                     newVsReturningChart,
+                    leadersVsOthersChart,
+                    campusMixChart,
                     ...breakdownCharts,
                   ];
               return ordered.filter(Boolean);
