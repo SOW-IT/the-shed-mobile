@@ -22,6 +22,12 @@ All notable changes to **The SHED** mobile app. This project follows
   sheet stays centred at rest, but once the keyboard opens it drops to sit just
   above it — a short thread no longer floats halfway up the screen with a large
   empty gap below it. This is handled independently of the footer button.
+- **The comments thread stays pinned to the bottom.** The composer is now pinned
+  below the scrolling thread (rather than scrolling away with it), so the text
+  box stays in view no matter how long the conversation gets — even with the
+  sheet at its maximum height and the keyboard up. Opening the thread, posting a
+  comment, and the keyboard opening all keep the newest comment and the composer
+  in view.
 
 ## [1.6.7] — 2026-07-02
 

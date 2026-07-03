@@ -126,6 +126,7 @@ export const Sheet = ({
   headerRight,
   contentStyle,
   footer,
+  stickToBottom = false,
   keyboardAnchor = "center",
 }: {
   visible: boolean;
@@ -140,6 +141,12 @@ export const Sheet = ({
   contentStyle?: StyleProp<ViewStyle>;
   /** Pinned action row below scrolling content (e.g. Save). */
   footer?: ReactNode;
+  /**
+   * Keep the scroll pinned to the bottom — for chat-style content (e.g. the
+   * comments thread) where the newest item and the composer below it should
+   * stay in view. New content and the keyboard opening both scroll to the end.
+   */
+  stickToBottom?: boolean;
   /**
    * Where the dialog sits once the keyboard is open. "center" (default) keeps it
    * vertically centred in the space above the keyboard — fine for tall, mostly-
@@ -168,6 +175,13 @@ export const Sheet = ({
     };
   }, [keyboardAnchor, visible]);
   const anchorBottom = keyboardAnchor === "bottom" && keyboardOpen;
+  // Chat-style sheets keep the scroll pinned to the bottom (see stickToBottom).
+  const scrollRef = useRef<ScrollView>(null);
+  useEffect(() => {
+    // Re-pin to the bottom when the keyboard opens: the scroll area shrinks, so
+    // the composer + latest comment would otherwise slide out of view.
+    if (stickToBottom && keyboardOpen) scrollRef.current?.scrollToEnd({ animated: true });
+  }, [stickToBottom, keyboardOpen]);
   /* eslint-disable react-hooks/refs -- retain-through-fade (see OptionSheet) */
   const shownTitle = useRef(title);
   const shownChildren = useRef(children);
@@ -224,10 +238,16 @@ export const Sheet = ({
             {header}
             {scrollable ? (
               <ScrollView
+                ref={scrollRef}
                 style={styles.sheetScroll}
                 contentContainerStyle={bodyStyle}
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator
+                onContentSizeChange={
+                  stickToBottom
+                    ? () => scrollRef.current?.scrollToEnd({ animated: true })
+                    : undefined
+                }
               >
                 {retainedChildren}
               </ScrollView>
