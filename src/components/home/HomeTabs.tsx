@@ -1,21 +1,27 @@
+import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, Image } from "react-native";
+import { useRouter } from "expo-router";
 import { universityColour } from "../../../shared/flow";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { CampusMark } from "@/components/CampusMark";
+import { CampusLogo } from "./CampusLogo";
 import { Btn, Card, FadeInView, Muted, SectionTitle, stagger, Txt } from "@/components/ui";
+import { Sheet } from "@/components/ui/overlays";
 import {
   CAMPUS_MEETING_NOTE,
   CAMPUSES,
+  type Campus,
   CHRISTIAN_PSYCHOLOGISTS,
   CONTACT_EMAIL,
   HELPLINES,
   LINKS,
   MISSION_STATEMENT,
+  OUR_STORY,
   RESOURCE_WEBSITES,
   SOCIALS,
   VALUES,
+  CAMPUS_PROGRAMS,
 } from "./content";
 
 const open = (url: string) => void Linking.openURL(url);
@@ -53,84 +59,102 @@ export const HomeMissionTab = () => {
     <View style={styles.page}>
       <FadeInView delay={40}>
         <View style={styles.hero}>
-          <Image
-            source={
-              t.dark
-                ? require("../../../assets/images/mark-cream.png")
-                : require("../../../assets/images/mark-dark.png")
-            }
-            style={styles.heroMark}
-            resizeMode="contain"
-          />
-          <Text style={[typography.label, { color: t.muted }]}>
-            Student Outreach to the World
-          </Text>
-          <Text style={[styles.mission, { color: t.text }]}>{MISSION_STATEMENT}</Text>
-        </View>
-      </FadeInView>
-
-      <FadeInView delay={stagger(1)}>
-        <SectionTitle>Our values</SectionTitle>
-      </FadeInView>
-      {VALUES.map((value, i) => (
-        <FadeInView key={value.name} delay={stagger(i + 2)}>
-          <Card>
-            <View style={styles.valueRow}>
-              <View style={[styles.valueDot, { backgroundColor: t.accent }]} />
-              <Txt style={styles.valueName}>{value.name}</Txt>
+          <FadeInView delay={40}>
+            <View style={styles.hero}>
+              <Image
+                source={
+                  t.dark
+                    ? require("../../../assets/images/mark-cream.png")
+                    : require("../../../assets/images/mark-dark.png")
+                }
+                style={styles.heroMark}
+                resizeMode="contain"
+              />
+              <Text style={[typography.label, { color: t.muted }]}>
+                Student Outreach to the World
+              </Text>
+              <Text style={[styles.mission, { color: t.text }]}>{MISSION_STATEMENT}</Text>
             </View>
-            <Muted>{value.line}</Muted>
-          </Card>
-        </FadeInView>
-      ))}
+          </FadeInView>
 
-      <FadeInView delay={stagger(6)}>
-        <SectionTitle>Get involved</SectionTitle>
-      </FadeInView>
-      <FadeInView delay={stagger(7)}>
-        <Card>
-          <Txt style={styles.cardTitle}>Volunteer with SOW</Txt>
-          <Muted>
-            From organising events to design and media, there are plenty of ways
-            to serve. Express your interest and we&apos;ll find the right fit.
-          </Muted>
-          <View style={styles.buttonRow}>
-            <Btn title="Learn more" variant="tonal" onPress={() => open(LINKS.volunteer)} />
-            <Btn
-              title="Email us"
-              variant="ghost"
-              onPress={() => open(`mailto:${CONTACT_EMAIL}`)}
-            />
-          </View>
-        </Card>
-      </FadeInView>
+          <FadeInView delay={stagger(1)}>
+            <SectionTitle>Our values</SectionTitle>
+          </FadeInView>
+          {VALUES.map((value, i) => (
+            <FadeInView key={value.name} delay={stagger(i + 2)}>
+              <Card>
+                <View style={styles.valueRow}>
+                  <View style={[styles.valueDot, { backgroundColor: t.accent }]} />
+                  <Txt style={styles.valueName}>{value.name}</Txt>
+                </View>
+                <Muted>{value.line}</Muted>
+              </Card>
+            </FadeInView>
+          ))}
 
-      <FadeInView delay={stagger(8)}>
-        <SectionTitle>Follow along</SectionTitle>
-      </FadeInView>
-      <FadeInView delay={stagger(9)}>
-        <Card>
-          <View style={styles.socialRow}>
-            {SOCIALS.map((social) => (
-              <Pressable
-                key={social.key}
-                accessibilityRole="link"
-                accessibilityLabel={`Open ${social.label}`}
-                onPress={() => open(social.url)}
-                style={({ pressed }) => [
-                  styles.socialButton,
-                  { backgroundColor: t.ghost },
-                  pressed && { opacity: 0.6 },
-                ]}
-              >
-                <Ionicons name={social.icon} size={22} color={t.ghostText} />
-              </Pressable>
-            ))}
-          </View>
-          <Text style={[typography.caption, styles.socialCaption, { color: t.muted }]}>
-            @studentoutreachtotheworld · {CONTACT_EMAIL}
-          </Text>
-        </Card>
+          <FadeInView delay={stagger(6)}>
+            <SectionTitle>Our story</SectionTitle>
+          </FadeInView>
+          <FadeInView delay={stagger(7)}>
+            <Card>
+              {OUR_STORY.map((para, i) => (
+                <Muted key={i}>{para}</Muted>
+              ))}
+              <View style={styles.buttonRow}>
+                <Btn title="Read our story" variant="ghost" onPress={() => open(LINKS.story)} />
+              </View>
+            </Card>
+          </FadeInView>
+
+          <FadeInView delay={stagger(8)}>
+            <SectionTitle>Get involved</SectionTitle>
+          </FadeInView>
+          <FadeInView delay={stagger(9)}>
+            <Card>
+              <Txt style={styles.cardTitle}>Volunteer with SOW</Txt>
+              <Muted>
+                From organising events to design and media, there are plenty of ways
+                to serve. Express your interest and we&apos;ll find the right fit.
+              </Muted>
+              <View style={styles.buttonRow}>
+                <Btn title="Learn more" variant="tonal" onPress={() => open(LINKS.volunteer)} />
+                <Btn
+                  title="Email us"
+                  variant="ghost"
+                  onPress={() => open(`mailto:${CONTACT_EMAIL}`)}
+                />
+              </View>
+            </Card>
+          </FadeInView>
+
+          <FadeInView delay={stagger(10)}>
+            <SectionTitle>Follow along</SectionTitle>
+          </FadeInView>
+          <FadeInView delay={stagger(11)}>
+            <Card>
+              <View style={styles.socialRow}>
+                {SOCIALS.map((social) => (
+                  <Pressable
+                    key={social.key}
+                    accessibilityRole="link"
+                    accessibilityLabel={`Open ${social.label}`}
+                    onPress={() => open(social.url)}
+                    style={({ pressed }) => [
+                      styles.socialButton,
+                      { backgroundColor: t.ghost },
+                      pressed && { opacity: 0.6 },
+                    ]}
+                  >
+                    <Ionicons name={social.icon} size={22} color={t.ghostText} />
+                  </Pressable>
+                ))}
+              </View>
+              <Text style={[typography.caption, styles.socialCaption, { color: t.muted }]}>
+                @studentoutreachtotheworld · {CONTACT_EMAIL}
+              </Text>
+            </Card>
+          </FadeInView>
+        </View>
       </FadeInView>
     </View>
   );
@@ -196,35 +220,43 @@ export const ResourcesTab = () => {
   );
 };
 
-/* ───────────────────────────── Campuses ───────────────────────────── */
+/* ───────────────────────────── Connect ───────────────────────────── */
 
 export const CampusesTab = () => {
+  const router = useRouter();
   const t = useAppTheme();
+  const [selected, setSelected] = useState<Campus | null>(null);
   return (
     <View style={styles.page}>
       <FadeInView delay={40}>
         <Muted>{CAMPUS_MEETING_NOTE}</Muted>
       </FadeInView>
       {CAMPUSES.map((campus, i) => (
-        <FadeInView key={campus.name} delay={stagger(i + 1)}>
-          <View
-            style={[
-              styles.campusCard,
+        <FadeInView key={campus.slug} delay={stagger(i + 1)}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${campus.name} — open details`}
+            onPress={() => setSelected(campus)}
+            style={({ pressed }) => [
+              styles.connectCard,
               t.shadowCard,
-              {
-                backgroundColor: t.card,
-                borderLeftColor: universityColour(campus.name) ?? t.primary,
-              },
+              { backgroundColor: t.card, borderLeftColor: universityColour(campus.name) ?? t.primary },
+              pressed && { opacity: 0.6 },
             ]}
           >
-            <View style={styles.campusHeader}>
-              <CampusMark campus={campus.name} size="sm" logoSource="university" />
-              <Txt style={styles.campusName} numberOfLines={2}>
-                {campus.name}
-              </Txt>
+            <View style={styles.connectHeader}>
+              <CampusLogo name={campus.name} size={32} />
+              <View style={styles.connectHeaderText}>
+                <Txt style={styles.connectName} numberOfLines={1}>
+                  {campus.name}
+                </Txt>
+                <Text style={[typography.caption, { color: t.muted }]} numberOfLines={1}>
+                  {campus.short}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={t.faint} />
             </View>
-            <Muted>{campus.blurb}</Muted>
-          </View>
+          </Pressable>
         </FadeInView>
       ))}
       <FadeInView delay={stagger(CAMPUSES.length + 1)}>
@@ -245,7 +277,47 @@ export const CampusesTab = () => {
           </View>
         </Card>
       </FadeInView>
+
+      <CampusDetailModal campus={selected} onClose={() => setSelected(null)} />
     </View>
+  );
+};
+
+const CampusDetailModal = ({
+  campus,
+  onClose,
+}: {
+  campus: Campus | null;
+  onClose: () => void;
+}) => {
+  const t = useAppTheme();
+  return (
+    <Sheet visible={!!campus} onClose={onClose} title={campus ? campus.name : ""}>
+      {campus ? (
+        <View style={{ gap: spacing.md }}>
+          <View style={{ gap: spacing.xs }}>
+            <Text style={[typography.label, { color: t.muted }]}>Weekly Meeting</Text>
+            <Text style={[typography.body, { color: t.text }]}>
+              {campus.meeting
+                ? `${campus.meeting.day} · ${campus.meeting.time}\n${campus.meeting.location}`
+                : "Meetups move around the semester. Contact us and we’ll point you to this term’s Weekly Meeting."}
+            </Text>
+          </View>
+          <View style={{ gap: spacing.xs }}>
+            <Text style={[typography.label, { color: t.muted }]}>Programs</Text>
+            <View style={{ gap: 4 }}>
+              <Text style={[typography.body, { color: t.text }]}>• Weekly Meetings</Text>
+              <Text style={[typography.body, { color: t.text }]}>
+                • REAP — Reading, Encouragement, Accountability and Prayer
+              </Text>
+              <Text style={[typography.body, { color: t.text }]}>• Seasons</Text>
+              <Text style={[typography.body, { color: t.text }]}>• Road Trips</Text>
+              <Text style={[typography.body, { color: t.text }]}>• Key Events — SOW Camp</Text>
+            </View>
+          </View>
+        </View>
+      ) : null}
+    </Sheet>
   );
 };
 
@@ -375,15 +447,16 @@ const styles = StyleSheet.create({
   },
   linkRowText: { flex: 1, gap: 1 },
   linkRowName: { fontSize: 15 },
-  campusCard: {
+  connectCard: {
     borderRadius: radius.lg,
     borderLeftWidth: 4,
     paddingHorizontal: spacing.lg - 2,
     paddingVertical: spacing.lg - 2,
     gap: spacing.sm,
   },
-  campusHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  campusName: { fontSize: 16, fontWeight: "700", flex: 1 },
+  connectHeader: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  connectHeaderText: { flex: 1, gap: 1 },
+  connectName: { fontSize: 16, fontWeight: "700" },
   newsletterCard: {
     borderRadius: radius.lg,
     padding: spacing.lg + 2,
