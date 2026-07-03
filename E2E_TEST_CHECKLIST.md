@@ -96,7 +96,7 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 ## 1.9 Comments
 - [x] Comment thread opens from the chat-bubble icon on any request — ✅ baguette 3 Jul ("No comments yet" → posted "UAT comment" as You/now)
 - [ ] Adding a comment notifies the current action owner — ⏭️ single-account (no 2nd account to observe notification)
-- [x] Unread badge on chat icon + tab message badge increments correctly, clears when read — ~ baguette 3 Jul: own comment created no unread badge (bottom-nav badge unchanged); cross-user increment ⏭️
+- [~] Unread badge on chat icon + tab message badge increments correctly, clears when read — ~ baguette 3 Jul: own comment created no unread badge (bottom-nav badge unchanged); cross-user increment ⏭️
 - [x] Emoji reactions work — ✅ baguette 3 Jul (❤️ picker → "❤️ 1" pill sticks)
 
 ## 1.10 All tab (Finance) & sorting
@@ -180,7 +180,7 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 - [x] "Applies to" subgroup scope — must apply to ≥1 subgroup (can't deselect all) — ✅ baguette 3 Jul (last selected ring refuses to deselect)
 - [x] Delete existing tag → type-name-to-confirm; unsaved new tag shows close icon to discard — ✅ baguette 3 Jul (Delete gated on exact name match)
 - [x] **Save tags** disabled when no changes; shows "Saving…"; "unsaved changes" note appears — ✅ baguette 3 Jul (confirm "Changes apply across all events that use them.")
-- [ ] Discard changes → confirmation — ✅ baguette 2 Jul (see 2 Jul run)
+- [x] Discard changes → confirmation — ✅ baguette 2 Jul (see 2 Jul run)
 - [ ] Tag order preserved across reload
 
 ## 2.8 Metadata tab
@@ -200,7 +200,7 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 - [x] "Load more" paginates (unfiltered) — ✅ baguette 2 Jul
 - [ ] ✅ **FIXED (regression watch):** pagination used to crash when a filter/search was active and you loaded more pages. Now fixed via convex-helpers' `paginator` (see CHANGELOG → Unreleased → Fixed). Confirm filtered + searched audit can load multiple pages without the "ran multiple paginated queries" crash.
 - [x] ✅ **FIXED (regression watch) — CONFIRMED:** tag "save all" audit spam — saving the Tags tab logs only changed tags. baguette 3 Jul: creating one new tag wrote exactly one "Created tag" audit row, no rows for untouched tags.
-- [ ] ⚠️ **NEW (metadata analog, NOT guarded):** the **Metadata** save path does NOT have the same selective-diff logging. baguette 3 Jul: adding ONE new field ("UAT Temp Field") also wrote "Reordered member fields: Year, Instagram, Dietary Requirements, Notes", "Updated member field Campus", and "Updated member field Role" — none of which were changed. See Notes / finding #7.
+- [ ] ⚠️ **NEW (metadata analog, NOT guarded):** the **Metadata** save path does NOT have the same selective-diff logging. baguette 3 Jul: adding ONE new field ("UAT Temp Field") also wrote "Reordered member fields: Year, Instagram, Dietary Requirements, Notes", "Updated member field Campus", and "Updated member field Role" — none of which were changed. See Notes / finding #1.
 
 ## 2.10 Export
 - [ ] Group export (no event): date-range + tag filters; metadata field checkboxes
