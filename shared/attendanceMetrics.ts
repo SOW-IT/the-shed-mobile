@@ -16,7 +16,11 @@
  * reasons say "Follow-up suggested", never imply judgement.
  */
 
-import { eventIncludesSubgroup } from "./rollcall";
+import {
+  eventIncludesSubgroup,
+  isOrgWideSubgroup,
+  subgroupMatches,
+} from "./rollcall";
 
 // ───────────────────────────── Constants ──────────────────────────────────
 
@@ -97,6 +101,20 @@ export type MetricsPerson = {
    * by the backend so this module stays free of metadata-id plumbing.
    */
   breakdown?: Record<string, string>;
+  /**
+   * Holds a campus (university-scoped) role this staff year, or — for an
+   * attendance-only member — is tagged one in their Role metadata. Resolved by
+   * the backend; drives the leaders-vs-others composition chart.
+   */
+  isStudentLeader?: boolean;
+  /**
+   * The person's home campuses (raw university names): every campus the staff
+   * profile holds a campus role at (usually one, but a person can hold roles
+   * at several universities), or a member's Campus metadata. Empty/undefined
+   * when unknown (e.g. org-side staff with no campus role) — such people are
+   * left out of the this-campus-vs-others chart rather than guessed either way.
+   */
+  campuses?: string[];
 };
 
 export type MetricsEvent = {
@@ -133,6 +151,13 @@ export type ComputeInput = {
 export type TrendPoint = { at: number; label: string; value: number };
 /** New (`fresh`) vs returning attendees for one point in time. */
 export type SplitPoint = { at: number; label: string; fresh: number; returning: number };
+/** Two-part composition of one event's turnout (e.g. leaders vs everyone else). */
+export type CompositionPoint = {
+  at: number;
+  label: string;
+  primary: number;
+  rest: number;
+};
 
 export type MetricsSummary = {
   avgAttendance: number;
@@ -154,6 +179,18 @@ export type MetricsSummary = {
   followUpCount: number;
   /** 0..1 steadiness of weekly-meeting turnout; null when no weekly meetings. */
   weeklyConsistency: number | null;
+  /**
+   * 0..1 share of attendances by student leaders at the composition events
+   * (weekly meetings when the group runs them, else all period events); null
+   * with no attendances. Optional: snapshots computed before 1.6.14 lack it.
+   */
+  leaderShare?: number | null;
+  /**
+   * 0..1 share of known-campus attendances from THIS campus at the composition
+   * events; null with no known-campus attendances, undefined org-wide and on
+   * pre-1.6.14 snapshots.
+   */
+  homeCampusShare?: number | null;
 };
 
 export type FollowUpReasonCode =
@@ -188,6 +225,19 @@ export type SubgroupMetricsData = {
   weeklyTrend: TrendPoint[];
   uniqueByMonth: TrendPoint[];
   newVsReturning: SplitPoint[];
+  /**
+   * Per composition event (weekly meetings when the group runs them): student
+   * leaders (`primary`) vs everyone else (`rest`). Optional: undefined on
+   * snapshots computed before 1.6.14.
+   */
+  leadersVsOthers?: CompositionPoint[];
+  /**
+   * Per composition event: attendees whose home campus is THIS sub-group
+   * (`primary`) vs those from another campus (`rest`); people with no known
+   * campus are excluded. Undefined for the org-wide view and on pre-1.6.14
+   * snapshots.
+   */
+  campusMix?: CompositionPoint[];
   followUps: FollowUpPerson[];
   breakdowns: MetricsBreakdown[];
   /** False when there aren't enough events yet to say anything useful. */
@@ -436,6 +486,54 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
     })
   );
 
+  // ── Composition at the core gathering (same event basis as new-vs-returning:
+  // weekly meetings when the group runs them, else all period events). ──
+
+  // Student leaders vs everyone else, per event, with the period-wide share of
+  // attendances by leaders (summed BEFORE the trend is trimmed for display).
+  const leaderPoints: CompositionPoint[] = splitEvents.map((e) => {
+    let primary = 0;
+    let rest = 0;
+    for (const key of attendeesByEvent.get(e.id) ?? []) {
+      if (personByKey.get(key)?.isStudentLeader) primary += 1;
+      else rest += 1;
+    }
+    return { at: e.dateStart, label: shortDate(e.dateStart), primary, rest };
+  });
+  const leaderSum = leaderPoints.reduce((s, p) => s + p.primary, 0);
+  const leaderTotal = leaderPoints.reduce((s, p) => s + p.primary + p.rest, 0);
+  const leaderShare =
+    leaderTotal > 0 ? Math.round((leaderSum / leaderTotal) * 1000) / 1000 : null;
+  const leadersVsOthers = trimTrend(leaderPoints);
+
+  // This campus vs other campuses — meaningless org-wide, so omitted there.
+  // Only people with a KNOWN home campus are counted: org-side staff (no
+  // campus role) and members without Campus metadata are excluded rather than
+  // guessed onto either side, so the two segments may sum to less than the
+  // event's turnout.
+  let campusMix: CompositionPoint[] | undefined;
+  let homeCampusShare: number | null | undefined;
+  if (!isOrgWideSubgroup(subgroup)) {
+    const campusPoints: CompositionPoint[] = splitEvents.map((e) => {
+      let primary = 0;
+      let rest = 0;
+      for (const key of attendeesByEvent.get(e.id) ?? []) {
+        const campuses = personByKey.get(key)?.campuses;
+        if (!campuses || campuses.length === 0) continue;
+        // A person holding a campus role HERE is from this campus, even if
+        // they also hold one elsewhere (multi-campus staff count as home).
+        if (campuses.some((c) => subgroupMatches(c, subgroup))) primary += 1;
+        else rest += 1;
+      }
+      return { at: e.dateStart, label: shortDate(e.dateStart), primary, rest };
+    });
+    const homeSum = campusPoints.reduce((s, p) => s + p.primary, 0);
+    const knownTotal = campusPoints.reduce((s, p) => s + p.primary + p.rest, 0);
+    homeCampusShare =
+      knownTotal > 0 ? Math.round((homeSum / knownTotal) * 1000) / 1000 : null;
+    campusMix = trimTrend(campusPoints);
+  }
+
   // ── Follow-up classification ──
   // The chronological list of weekly meetings held (subgroup), for "missed the
   // last N" and the recent-rate checks.
@@ -597,12 +695,16 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
       // The full qualifying population — the cap only bounds the rendered list.
       followUpCount: followUps.length,
       weeklyConsistency,
+      leaderShare,
+      homeCampusShare,
     },
     attendanceByEvent,
     rollingAverage,
     weeklyTrend,
     uniqueByMonth,
     newVsReturning,
+    leadersVsOthers,
+    campusMix,
     followUps: cappedFollowUps,
     breakdowns,
     hasWeeklyMeetings,

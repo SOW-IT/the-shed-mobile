@@ -20,6 +20,13 @@ const splitPoint = v.object({
   returning: v.number(),
 });
 
+const compositionPoint = v.object({
+  at: v.number(),
+  label: v.string(),
+  primary: v.number(),
+  rest: v.number(),
+});
+
 const followUp = v.object({
   key: v.string(),
   name: v.string(),
@@ -55,6 +62,9 @@ const summary = v.object({
   newcomers: v.number(),
   followUpCount: v.number(),
   weeklyConsistency: v.union(v.number(), v.null()),
+  // Optional: snapshots computed before 1.6.14 lack the composition fields.
+  leaderShare: v.optional(v.union(v.number(), v.null())),
+  homeCampusShare: v.optional(v.union(v.number(), v.null())),
 });
 
 export const metricsDataValidator = v.object({
@@ -64,6 +74,10 @@ export const metricsDataValidator = v.object({
   weeklyTrend: v.array(trendPoint),
   uniqueByMonth: v.array(trendPoint),
   newVsReturning: v.array(splitPoint),
+  // Optional: snapshots computed before 1.6.14 lack the composition charts;
+  // campusMix is also always absent for the org-wide (SOW) view.
+  leadersVsOthers: v.optional(v.array(compositionPoint)),
+  campusMix: v.optional(v.array(compositionPoint)),
   followUps: v.array(followUp),
   breakdowns: v.array(breakdown),
   hasEnoughHistory: v.boolean(),

@@ -438,3 +438,75 @@ describe("rangeStartFor", () => {
     expect(rangeStartFor(NOW, STAFF_YEAR_RANGE, start)).toBe(start);
   });
 });
+
+describe("computeSubgroupMetrics — composition charts", () => {
+  it("splits student leaders vs everyone else per weekly meeting, with the period share", () => {
+    const [m1, m2] = weeklySeries(2);
+    const persons = [
+      person("lead", { isStudentLeader: true }),
+      person("ann"),
+      person("bob", { isStudentLeader: false }),
+    ];
+    const attendance = [
+      attend(m1, "lead"),
+      attend(m1, "ann"),
+      attend(m2, "lead"),
+      attend(m2, "ann"),
+      attend(m2, "bob"),
+    ];
+    const data = computeSubgroupMetrics(build([m1, m2], attendance, persons));
+    expect(data.leadersVsOthers).toEqual([
+      expect.objectContaining({ primary: 1, rest: 1 }),
+      expect.objectContaining({ primary: 1, rest: 2 }),
+    ]);
+    // 2 leader attendances of 5 total across the period.
+    expect(data.summary.leaderShare).toBe(0.4);
+  });
+
+  it("splits this campus vs other campuses, excluding people with no known campus", () => {
+    const m = weekly(weeksAgo(1), ["USYD"]);
+    const persons = [
+      person("home", { campuses: ["USYD"] }),
+      person("visitor", { campuses: ["UNSW"] }),
+      // Multi-campus staff count as home when ANY campus matches.
+      person("both", { campuses: ["UNSW", "USYD"] }),
+      person("nowhere"), // org-side staff / member without Campus metadata
+    ];
+    const attendance = ["home", "visitor", "both", "nowhere"].map((k) =>
+      attend(m, k)
+    );
+    const data = computeSubgroupMetrics(
+      build([m], attendance, persons, { subgroup: "USYD" })
+    );
+    expect(data.campusMix).toEqual([expect.objectContaining({ primary: 2, rest: 1 })]);
+    expect(data.summary.homeCampusShare).toBe(0.667);
+  });
+
+  it("omits the campus mix for the org-wide view", () => {
+    const m = weekly(weeksAgo(1));
+    const data = computeSubgroupMetrics(
+      build([m], [attend(m, "home")], [person("home", { campuses: ["USYD"] })])
+    );
+    expect(data.campusMix).toBeUndefined();
+    expect(data.summary.homeCampusShare).toBeUndefined();
+    // The leaders split still computes org-wide.
+    expect(data.leadersVsOthers).toHaveLength(1);
+  });
+
+  it("falls back to all period events for groups with no weekly meetings", () => {
+    const e = oneOff(weeksAgo(1));
+    const data = computeSubgroupMetrics(
+      build([e], [attend(e, "lead")], [person("lead", { isStudentLeader: true })])
+    );
+    expect(data.leadersVsOthers).toEqual([
+      expect.objectContaining({ primary: 1, rest: 0 }),
+    ]);
+    expect(data.summary.leaderShare).toBe(1);
+  });
+
+  it("share is null when no one attended the composition events", () => {
+    const data = computeSubgroupMetrics(build([weekly(weeksAgo(1))], [], []));
+    expect(data.summary.leaderShare).toBeNull();
+    expect(data.summary.homeCampusShare).toBeUndefined(); // org-wide default
+  });
+});

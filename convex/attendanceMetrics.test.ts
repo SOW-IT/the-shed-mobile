@@ -216,6 +216,88 @@ describe("attendanceMetrics", () => {
     expect(role?.rows.some((r) => r.label === "Member")).toBe(true);
   });
 
+  test("composition charts: leaders vs others and this campus vs visitors", async () => {
+    const { t, leader } = await setup();
+    const admin = asUser(t, ADMIN);
+    // A visiting student leader from another campus, and an org-side Director
+    // with no home campus at all.
+    await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: "UNSW" });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "visitor@sow.org.au",
+      year: YEAR,
+      roles: ["Student Leader"],
+      university: "UNSW",
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "director@sow.org.au",
+      year: YEAR,
+      roles: ["Director"],
+    });
+    // An attendance-only member whose home campus comes from Campus metadata.
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, {});
+    const fields = await leader.query(api.attendanceMetadata.list, {});
+    const campusField = fields.find((f) => f.key === "Campus")!;
+    const usydOptionId = Object.entries(campusField.values ?? {}).find(
+      ([, label]) => label === USYD
+    )![0];
+    const memberId = await leader.mutation(api.attendanceMembers.create, {
+      name: "Local Member",
+      metadata: { [campusField._id]: usydOptionId },
+    });
+    // And one counted as a leader purely via Role metadata (no profile, no
+    // campus) — the members-side Student-Leader fallback.
+    const roleField = fields.find((f) => f.key === "Role")!;
+    const slOptionId = Object.entries(roleField.values ?? {}).find(
+      ([, label]) => label === "Student Leader"
+    )![0];
+    const taggedLeaderId = await leader.mutation(api.attendanceMembers.create, {
+      name: "Tagged Leader",
+      metadata: { [roleField._id]: slOptionId },
+    });
+
+    const e = await leader.mutation(api.events.create, {
+      name: "Campus night",
+      ...window(2),
+      subgroups: [USYD],
+    });
+    for (const email of [LEADER, "visitor@sow.org.au", "director@sow.org.au"]) {
+      await leader.mutation(api.attendance.signIn, { eventId: e, email });
+    }
+    await leader.mutation(api.attendance.signIn, { eventId: e, memberId });
+    await leader.mutation(api.attendance.signIn, { eventId: e, memberId: taggedLeaderId });
+    await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
+      subgroup: USYD,
+    });
+
+    const snap = await leader.query(api.attendanceMetrics.snapshot, {
+      subgroup: USYD,
+      rangeWeeks: 4,
+    });
+    // Leaders: LEADER, the visiting UNSW leader, and the Role-tagged member;
+    // others: director + local member.
+    expect(snap!.data.leadersVsOthers).toEqual([
+      expect.objectContaining({ primary: 3, rest: 2 }),
+    ]);
+    expect(snap!.data.summary.leaderShare).toBe(0.6);
+    // Campus: LEADER + member are USYD, visitor is UNSW; the campus-less
+    // director is excluded rather than guessed onto either side.
+    expect(snap!.data.campusMix).toEqual([
+      expect.objectContaining({ primary: 2, rest: 1 }),
+    ]);
+    expect(snap!.data.summary.homeCampusShare).toBe(0.667);
+
+    // The org-wide view never gets a campus mix.
+    await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
+      subgroup: SOW_SUBGROUP,
+    });
+    const orgSnap = await leader.query(api.attendanceMetrics.snapshot, {
+      subgroup: SOW_SUBGROUP,
+      rangeWeeks: 4,
+    });
+    expect(orgSnap!.data.campusMix).toBeUndefined();
+    expect(orgSnap!.data.leadersVsOthers).toBeDefined();
+  });
+
   test("resolves a staff sign-in that has no profile for the year", async () => {
     const { leader } = await setup();
     const e = await leader.mutation(api.events.create, {

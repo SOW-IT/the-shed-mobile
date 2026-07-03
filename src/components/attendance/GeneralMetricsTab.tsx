@@ -181,9 +181,18 @@ export function GeneralMetricsTab({ year }: { year: number | null }) {
               <LegendDot colour={t.accent} label="Student leaders" />
             </View>
           }
-          fullscreenContent={<StackedBarChart points={charts.staffVsLeaders} fullscreen />}
+          fullscreenContent={
+            <StackedBarChart
+              points={charts.staffVsLeaders}
+              labels={{ fresh: "Leaders", returning: "Staff" }}
+              fullscreen
+            />
+          }
         >
-          <StackedBarChart points={charts.staffVsLeaders} />
+          <StackedBarChart
+            points={charts.staffVsLeaders}
+            labels={{ fresh: "Leaders", returning: "Staff" }}
+          />
         </ChartCard>
       </FadeInView>
 

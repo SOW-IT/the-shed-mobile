@@ -16,6 +16,12 @@ import {
 } from "../shared/rollcall";
 import { staffEmailCandidates } from "../shared/rollcallImport";
 import {
+  CAMPUS_FIELD_KEY,
+  ROLE_FIELD_KEY,
+  roleFilterMatches,
+  STUDENT_LEADER_ROLE_FILTER_LABEL,
+} from "../shared/attendanceMemberMeta";
+import {
   computeSubgroupMetrics,
   DAY_MS,
   MANUAL_REFRESH_COOLDOWN_MS,
@@ -82,6 +88,8 @@ const metricsPersonValidator = v.object({
   subtitle: v.optional(v.string()),
   photo: v.optional(v.union(v.string(), v.null())),
   breakdown: v.optional(v.record(v.string(), v.string())),
+  isStudentLeader: v.optional(v.boolean()),
+  campuses: v.optional(v.array(v.string())),
 });
 
 /**
@@ -338,6 +346,29 @@ async function resolvePersons(
     return undefined;
   };
 
+  // The Campus/Role metadata fields, so an attendance-only member's home
+  // campus and student-leader tag resolve from their metadata (staff get both
+  // from their profile). Metadata stores option IDs; map them to labels.
+  const metadataFields = await ctx.db.query("attendanceMetadata").collect();
+  const campusField = metadataFields.find((f) => f.key === CAMPUS_FIELD_KEY);
+  const roleField = metadataFields.find((f) => f.key === ROLE_FIELD_KEY);
+  const memberCampus = (
+    metadata: Record<string, string> | undefined
+  ): string | undefined => {
+    const raw = campusField ? metadata?.[campusField._id] : undefined;
+    if (!raw) return undefined;
+    const label = campusField?.values?.[raw] ?? raw;
+    // "Other" is a real option but not a campus — no home campus to compare.
+    return label && label !== "Other" ? label : undefined;
+  };
+  const memberRoleLabel = (
+    metadata: Record<string, string> | undefined
+  ): string | undefined => {
+    const raw = roleField ? metadata?.[roleField._id] : undefined;
+    if (!raw) return undefined;
+    return roleField?.values?.[raw] ?? raw;
+  };
+
   const persons: MetricsPerson[] = [];
   for (const key of keys) {
     if (key.startsWith(STAFF_PREFIX)) {
@@ -369,16 +400,27 @@ async function resolvePersons(
         breakdown: isStaff
           ? buildBreakdown(roles[0], campuses[0])
           : buildBreakdown("Member", undefined),
+        isStudentLeader: roles.some(roleNeedsUniversity),
+        // Every campus the profile holds a campus role at is a home campus;
+        // org-side staff have none and stay out of the campus-mix chart.
+        campuses,
       });
     } else if (key.startsWith(MEMBER_PREFIX)) {
       const id = ctx.db.normalizeId("attendanceMembers", key.slice(MEMBER_PREFIX.length));
       const member = id ? await ctx.db.get(id) : null;
+      const campus = memberCampus(member?.metadata);
       persons.push({
         key,
         kind: "member",
         name: member?.name ?? "Unknown",
         photo: null,
         breakdown: buildBreakdown("Member", undefined),
+        isStudentLeader: roleFilterMatches(
+          STUDENT_LEADER_ROLE_FILTER_LABEL,
+          [],
+          memberRoleLabel(member?.metadata) ?? null
+        ),
+        campuses: campus ? [campus] : undefined,
       });
     }
   }

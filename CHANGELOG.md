@@ -6,6 +6,26 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.6.14] — 2026-07-03
+
+### Added
+
+- **Who makes up the room: two new Insights charts.** Attendance → Insights
+  now shows, for each weekly meeting (or each event, for groups without a
+  weekly rhythm):
+  - **Student leaders vs everyone else** — stacked per meeting, with the
+    period-wide share and ratio (e.g. "40% student leaders (≈1:1.5)") in the
+    card's subtitle.
+  - **This campus vs visitors** — attendees whose home campus is the selected
+    group vs those visiting from another campus, with the same share/ratio
+    line. Only people with a known home campus are counted (org-side staff
+    with no campus role are left out rather than guessed), and the chart is
+    hidden on the org-wide (SOW) view where "this campus" has no meaning.
+  A member's home campus and student-leader tag come from their profile when
+  they're staff, or from their Campus/Role metadata otherwise. Charts appear
+  after the next snapshot refresh (automatic within minutes of a roll-call
+  change).
+
 ## [1.6.13] — 2026-07-03
 
 ### Fixed
