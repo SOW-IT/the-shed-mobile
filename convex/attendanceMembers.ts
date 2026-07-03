@@ -357,7 +357,7 @@ export const list = query({
     const asc = args.sortAsc ?? true;
     const sortKey = args.sortKey ?? "name";
     const sortField = metadataFields.find((f) => f._id === sortKey);
-    // Select fields store option IDS; sort by the displayed label, not the id
+    // Select fields store option IDs; sort by the displayed label, not the id
     // (id order is insertion order and reads as arbitrary in the list).
     const metadataSortValue = (row: MemberRow): string => {
       const raw = row.metadata[sortKey] ?? "";
