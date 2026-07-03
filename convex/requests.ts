@@ -756,9 +756,10 @@ export const toReview = query({
 const REVIEWED_LIMIT = 50;
 
 /**
- * Requests the signed-in approver has already actioned — approved or declined —
- * newest review first. Sourced from the immutable audit trail (not the request's
- * own approval flags) so it reflects who actually acted, covering delegates and
+ * Requests the signed-in approver has already actioned — approved, declined,
+ * or auto-approved (the requester was also that step's approver) — newest
+ * review first. Sourced from the immutable audit trail (not the request's own
+ * approval flags) so it reflects who actually acted, covering delegates and
  * carried-over approvals, and is deduped to one card per request.
  */
 export const reviewed = query({
@@ -767,19 +768,24 @@ export const reviewed = query({
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
     // Stream the caller's own audit events newest first (the index's implicit
-    // _creationTime tiebreaker) and collect approve/decline actions, deduped to
-    // one entry per request (an approver can act on more than one step of the
-    // same request, e.g. a Director who is also its HOD). Filtering and deduping
-    // happen DURING the scan so a fixed pre-filter limit can never drop older
-    // valid cards — we stop only once REVIEWED_LIMIT unique requests are found
-    // or the actor's events run out.
+    // _creationTime tiebreaker) and collect approve/decline/auto-approve
+    // actions, deduped to one entry per request (an approver can act on more
+    // than one step of the same request, e.g. a Director who is also its
+    // HOD). Filtering and deduping happen DURING the scan so a fixed
+    // pre-filter limit can never drop older valid cards — we stop only once
+    // REVIEWED_LIMIT unique requests are found or the actor's events run out.
     const seen = new Set<Id<"requests">>();
     const reviewedIds: Id<"requests">[] = [];
     for await (const event of ctx.db
       .query("requestEvents")
       .withIndex("by_actor", (q) => q.eq("actorEmail", caller.email))
       .order("desc")) {
-      if (event.action !== "approved" && event.action !== "declined") continue;
+      if (
+        event.action !== "approved" &&
+        event.action !== "declined" &&
+        event.action !== "auto-approved"
+      )
+        continue;
       if (seen.has(event.requestId)) continue;
       seen.add(event.requestId);
       reviewedIds.push(event.requestId);

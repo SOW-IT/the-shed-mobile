@@ -6,6 +6,19 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.6.12] — 2026-07-03
+
+### Fixed
+
+- **Auto-approved requests now show up in your Reviewed history.** When you're
+  both the requester and the approver for a step (e.g. an HOD submitting a
+  request for their own department), that step auto-approves on submission.
+  That auto-approval was logged under a separate audit action from a manual
+  approve/decline, so the Requests → Review → Reviewed section silently
+  skipped those requests even though the card correctly showed you as having
+  cleared that step — they only ever appeared in the Finance-wide "All" list.
+  Reviewed now includes auto-approved steps too.
+
 ## [1.6.11] — 2026-07-03
 
 ### Fixed
