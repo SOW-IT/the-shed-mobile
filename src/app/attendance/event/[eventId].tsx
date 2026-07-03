@@ -457,14 +457,23 @@ export default function EventAttendanceScreen() {
   }, [newlyAddedUnsigned]);
 
   // While searching, the two lists below are filtered in place by
-  // name/email/subtitle (roles + metadata, matching the Members tab's search
-  // fields) — there's no separate "Results" list. An empty query passes
-  // everything through.
+  // name/email/subtitle/roles (matching the Members tab's search surface) —
+  // there's no separate "Results" list. An empty query passes everything
+  // through. Roles are matched explicitly because a signed-in row's subtitle
+  // (from listByEvent) is metadata-only and doesn't carry the person's org
+  // roles, unlike the unsigned roster rows.
   const matchesSearch = useCallback(
-    (p: { name: string; email?: string | null; subtitle?: string }) =>
+    (p: {
+      name: string;
+      email?: string | null;
+      subtitle?: string;
+      roles?: string[];
+    }) =>
       p.name.toLowerCase().includes(searchQuery) ||
       (p.email?.toLowerCase().includes(searchQuery) ?? false) ||
-      (p.subtitle?.toLowerCase().includes(searchQuery) ?? false),
+      (p.subtitle?.toLowerCase().includes(searchQuery) ?? false) ||
+      (p.roles?.some((role) => role.toLowerCase().includes(searchQuery)) ??
+        false),
     [searchQuery]
   );
   const filteredUnsignedList = useMemo(
