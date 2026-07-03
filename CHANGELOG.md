@@ -39,6 +39,12 @@ All notable changes to **The SHED** mobile app. This project follows
   its default, submitting a blank form flagged the amount error before the empty
   description — even though Description is the first field on screen. Validation
   now reports in on-screen order (Description → Amount → Department). (UAT report #2)
+- **Notifications are grouped into Unread and Read sections.** The feed now shows
+  "Unread" and "Read" section headers instead of one flat, inline-highlighted
+  list, so what still needs attention is clear at a glance. (UAT report #3)
+- **Nudge cooldown copy always shows minutes.** "You can nudge again in …" now
+  reads consistently as `Xh Ym` (e.g. "24h 0m", "5h 23m") instead of dropping the
+  minutes on a whole-hour boundary. (UAT report #4)
 
 ## [1.6.10] — 2026-07-03
 

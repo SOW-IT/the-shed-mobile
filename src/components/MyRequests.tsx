@@ -684,13 +684,15 @@ const NudgeButton = ({
   );
 };
 
-/** "5h 23m" / "12m" / "under a minute" for a remaining cooldown in ms. */
+/** "5h 23m" / "24h 0m" / "12m" / "under a minute" for a remaining cooldown in ms.
+ *  Hours always carry a minutes part ("Xh Ym") so the format stays consistent
+ *  even right after a nudge, when exactly 24h remain. */
 const formatCooldown = (ms: number): string => {
   const mins = Math.ceil(ms / 60000);
   if (mins < 1) return "under a minute";
   const h = Math.floor(mins / 60);
   const m = mins % 60;
-  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
 };
 
