@@ -244,6 +244,16 @@ describe("attendanceMetrics", () => {
       name: "Local Member",
       metadata: { [campusField._id]: usydOptionId },
     });
+    // And one counted as a leader purely via Role metadata (no profile, no
+    // campus) — the members-side Student-Leader fallback.
+    const roleField = fields.find((f) => f.key === "Role")!;
+    const slOptionId = Object.entries(roleField.values ?? {}).find(
+      ([, label]) => label === "Student Leader"
+    )![0];
+    const taggedLeaderId = await leader.mutation(api.attendanceMembers.create, {
+      name: "Tagged Leader",
+      metadata: { [roleField._id]: slOptionId },
+    });
 
     const e = await leader.mutation(api.events.create, {
       name: "Campus night",
@@ -254,6 +264,7 @@ describe("attendanceMetrics", () => {
       await leader.mutation(api.attendance.signIn, { eventId: e, email });
     }
     await leader.mutation(api.attendance.signIn, { eventId: e, memberId });
+    await leader.mutation(api.attendance.signIn, { eventId: e, memberId: taggedLeaderId });
     await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
     });
@@ -262,11 +273,12 @@ describe("attendanceMetrics", () => {
       subgroup: USYD,
       rangeWeeks: 4,
     });
-    // Leaders: LEADER + the visiting UNSW leader; others: director + member.
+    // Leaders: LEADER, the visiting UNSW leader, and the Role-tagged member;
+    // others: director + local member.
     expect(snap!.data.leadersVsOthers).toEqual([
-      expect.objectContaining({ primary: 2, rest: 2 }),
+      expect.objectContaining({ primary: 3, rest: 2 }),
     ]);
-    expect(snap!.data.summary.leaderShare).toBe(0.5);
+    expect(snap!.data.summary.leaderShare).toBe(0.6);
     // Campus: LEADER + member are USYD, visitor is UNSW; the campus-less
     // director is excluded rather than guessed onto either side.
     expect(snap!.data.campusMix).toEqual([
