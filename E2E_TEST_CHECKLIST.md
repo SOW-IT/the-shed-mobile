@@ -150,7 +150,8 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 - [~] Signing in the same person twice is a no-op (idempotent) — ⏭️ baguette 2 Jul: no duplicate sign-ins seen across rapid swipes, but a same-row double-swipe couldn't be isolated
 - [ ] Notes field appears in edit sheet only for signed-in attendance
 - [ ] "Create [search text]" footer button creates a member and signs them in
-- [x] "Load more" works on both lists — ✅ baguette 2 Jul (not-signed-in list)
+- [x] "Load more" works on the not-signed-in list — ✅ baguette 2 Jul
+- [ ] "Load more" works on the signed-in list — not verified (signed-in list never exceeded one page in either session)
 - [ ] **Multi-user sync:** sign-in/out on device A animates in/out on device B
 
 ## 2.4 Past / ended event editing
