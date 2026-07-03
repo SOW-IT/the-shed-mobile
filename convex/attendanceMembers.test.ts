@@ -102,3 +102,125 @@ describe("attendanceMembers.list — staff profile ↔ member linking", () => {
     await expectSingleLinkedRow("  Leader@SOW.ORG.AU  ");
   });
 });
+
+describe("attendanceMembers.list — filters and sort", () => {
+  const metadataField = async (
+    admin: ReturnType<typeof asUser>,
+    key: string
+  ) => {
+    await admin.mutation(api.attendanceMetadata.ensureDefaults, {});
+    const fields = await admin.query(api.attendanceMetadata.list, {});
+    const field = fields.find((f) => f.key === key);
+    if (!field) throw new Error(`metadata field ${key} not seeded`);
+    return field;
+  };
+
+  test("Staff role filter includes staff whose only role is a custom one", async () => {
+    const { t, admin, leader } = await setup();
+    // The role catalog is data-driven — an admin-added role is staff-side too.
+    await admin.mutation(api.admin.upsertRole, {
+      year: YEAR,
+      name: "Media Coordinator",
+    });
+    // Custom roles are department-scoped by default, so give it a home.
+    await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "Ministry" });
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: YEAR,
+      name: "Media",
+      division: "Ministry",
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "media@sow.org.au",
+      year: YEAR,
+      roles: ["Media Coordinator"],
+      department: "Media",
+    });
+
+    const roleField = await metadataField(admin, "Role");
+    const staffOptionId = Object.entries(roleField.values ?? {}).find(
+      ([, label]) => label === "Staff"
+    )![0];
+
+    const { page } = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      filters: { [roleField._id]: [staffOptionId] },
+      paginationOpts: { numItems: 100, cursor: null },
+    });
+    const emails = page.map((r) => r.email);
+    // Custom-role staff match the Staff bucket…
+    expect(emails).toContain("media@sow.org.au");
+    // …while a campus-role holder still doesn't.
+    expect(emails).not.toContain(LEADER);
+    void t;
+  });
+
+  test("Year filter puts unresolvable stored values under Unselected", async () => {
+    const { t, admin, leader } = await setup();
+    const yearField = await metadataField(admin, "Year");
+    await t.run(async (ctx) => {
+      // "999" is neither a commencement year (2000–2100) nor a level (1–15),
+      // so it displays as blank — it must land under "Unselected", not vanish
+      // from every Year option.
+      await ctx.db.insert("attendanceMembers", {
+        name: "Legacy Year",
+        metadata: { [yearField._id]: "999" },
+      });
+      await ctx.db.insert("attendanceMembers", {
+        name: "No Year",
+        metadata: {},
+      });
+    });
+
+    const unset = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      filters: { [yearField._id]: ["unset"] },
+      paginationOpts: { numItems: 100, cursor: null },
+    });
+    const names = unset.page.map((r) => r.name);
+    expect(names).toContain("Legacy Year");
+    expect(names).toContain("No Year");
+
+    // And it doesn't leak into a real level's filter.
+    const firstYears = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      filters: { [yearField._id]: ["1"] },
+      paginationOpts: { numItems: 100, cursor: null },
+    });
+    expect(firstYears.page.map((r) => r.name)).not.toContain("Legacy Year");
+  });
+
+  test("sorting by a select field orders by label, not option id", async () => {
+    const { t, leader } = await setup();
+    const fieldId = await t.run(async (ctx) => {
+      const id = await ctx.db.insert("attendanceMetadata", {
+        key: "Team",
+        type: "select",
+        order: 10,
+        // Ids deliberately ordered opposite to their labels.
+        values: { "1": "Zebra", "2": "Apple" },
+      });
+      await ctx.db.insert("attendanceMembers", {
+        name: "On Zebra",
+        metadata: { [id]: "1" },
+      });
+      await ctx.db.insert("attendanceMembers", {
+        name: "On Apple",
+        metadata: { [id]: "2" },
+      });
+      return id;
+    });
+
+    const { page } = await leader.query(api.attendanceMembers.list, {
+      year: YEAR,
+      sortKey: fieldId,
+      sortAsc: true,
+      paginationOpts: { numItems: 100, cursor: null },
+    });
+    const apple = page.findIndex((r) => r.name === "On Apple");
+    const zebra = page.findIndex((r) => r.name === "On Zebra");
+    expect(apple).toBeGreaterThanOrEqual(0);
+    expect(zebra).toBeGreaterThanOrEqual(0);
+    // "Apple" sorts before "Zebra" even though its option id ("2") is larger.
+    expect(apple).toBeLessThan(zebra);
+  });
+});

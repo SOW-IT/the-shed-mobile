@@ -314,15 +314,18 @@ export const list = query({
       fieldId: string,
       value: string
     ): boolean => {
-      if (value === "unset") return !row.metadata[fieldId];
       if (yearField && fieldId === yearField._id && yearField.values) {
         const stored = row.metadata[fieldId];
-        if (!stored) return false;
-        return (
-          yearOptionIdForStoredValue(stored, viewingYear, yearField.values) ===
-          value
-        );
+        const optionId = stored
+          ? yearOptionIdForStoredValue(stored, viewingYear, yearField.values)
+          : "";
+        // A stored Year that can't resolve to a level (legacy id, out-of-range
+        // commencement year) displays as blank, so it belongs under
+        // "Unselected" rather than matching no option at all.
+        if (value === "unset") return optionId === "";
+        return optionId === value;
       }
+      if (value === "unset") return !row.metadata[fieldId];
       if (roleField && fieldId === roleField._id) {
         const filterLabel = roleField.values?.[value] ?? value;
         const stored = row.metadata[fieldId];
@@ -353,6 +356,21 @@ export const list = query({
 
     const asc = args.sortAsc ?? true;
     const sortKey = args.sortKey ?? "name";
+    const sortField = metadataFields.find((f) => f._id === sortKey);
+    // Select fields store option IDS; sort by the displayed label, not the id
+    // (id order is insertion order and reads as arbitrary in the list).
+    const metadataSortValue = (row: MemberRow): string => {
+      const raw = row.metadata[sortKey] ?? "";
+      if (!raw || !sortField) return raw;
+      return (
+        formatMetadataFieldValue(
+          sortField.key,
+          raw,
+          viewingYear,
+          sortField.values
+        ) ?? ""
+      );
+    };
     filtered.sort((a, b) => {
       let av: string;
       let bv: string;
@@ -371,8 +389,8 @@ export const list = query({
           yearField.values
         );
       } else {
-        av = a.metadata[sortKey] ?? "";
-        bv = b.metadata[sortKey] ?? "";
+        av = metadataSortValue(a);
+        bv = metadataSortValue(b);
       }
       const cmp = av.localeCompare(bv, undefined, { sensitivity: "base" });
       return asc ? cmp : -cmp;

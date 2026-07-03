@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "@convex/_generated/api";
@@ -456,29 +456,24 @@ export default function EventAttendanceScreen() {
     return () => clearTimeout(timer);
   }, [newlyAddedUnsigned]);
 
-  // While searching, the two lists below are filtered in place by name/email —
-  // there's no separate "Results" list. An empty query passes everything through.
+  // While searching, the two lists below are filtered in place by
+  // name/email/subtitle (roles + metadata, matching the Members tab's search
+  // fields) — there's no separate "Results" list. An empty query passes
+  // everything through.
+  const matchesSearch = useCallback(
+    (p: { name: string; email?: string | null; subtitle?: string }) =>
+      p.name.toLowerCase().includes(searchQuery) ||
+      (p.email?.toLowerCase().includes(searchQuery) ?? false) ||
+      (p.subtitle?.toLowerCase().includes(searchQuery) ?? false),
+    [searchQuery]
+  );
   const filteredUnsignedList = useMemo(
-    () =>
-      isSearching
-        ? unsignedList.filter(
-            (m) =>
-              m.name.toLowerCase().includes(searchQuery) ||
-              (m.email?.toLowerCase().includes(searchQuery) ?? false)
-          )
-        : unsignedList,
-    [unsignedList, isSearching, searchQuery]
+    () => (isSearching ? unsignedList.filter(matchesSearch) : unsignedList),
+    [unsignedList, isSearching, matchesSearch]
   );
   const filteredSignedInList = useMemo(
-    () =>
-      isSearching
-        ? signedInList.filter(
-            (a) =>
-              a.name.toLowerCase().includes(searchQuery) ||
-              (a.email?.toLowerCase().includes(searchQuery) ?? false)
-          )
-        : signedInList,
-    [signedInList, isSearching, searchQuery]
+    () => (isSearching ? signedInList.filter(matchesSearch) : signedInList),
+    [signedInList, isSearching, matchesSearch]
   );
 
   // Optimistic counts: base server count ± pending swipes, so the pill and

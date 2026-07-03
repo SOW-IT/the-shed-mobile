@@ -223,6 +223,32 @@ describe("attendance audit logging", () => {
     expect(multipleTypes.page).toHaveLength(2);
   });
 
+  test("search matches the subject's email, not just summary and actor", async () => {
+    const t = await setup();
+    const { dateStart, dateEnd } = window();
+    const eventId = await asUser(t, STAFF).mutation(api.events.create, {
+      name: "Alpha Camp",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    // STAFF (the actor) signs OTHER in — OTHER appears only as subjectEmail.
+    await asUser(t, STAFF).mutation(api.attendance.signIn, {
+      eventId,
+      email: OTHER,
+    });
+
+    const res = await asUser(t, ADMIN).query(api.attendanceAudit.list, {
+      // The full address: the summary carries a display name derived from the
+      // email's local part, so only the subjectEmail field can match this.
+      search: OTHER,
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    expect(res.page).toHaveLength(1);
+    expect(res.page[0].action).toBe("attendance.signIn");
+    expect(res.page[0].actorEmail).toBe(STAFF);
+  });
+
   test("search paginates across pages", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);

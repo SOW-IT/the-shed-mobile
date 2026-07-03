@@ -327,11 +327,17 @@ export const roleFilterMatches = (
     );
   }
   if (filterLabel === STAFF_ROLE_FILTER_LABEL) {
+    // Org assignments are authoritative: any non-campus role other than Member
+    // counts as staff. The role catalog is data-driven (admins add roles per
+    // year), so this must NOT be an allowlist of the built-in ROLES — a person
+    // whose only role is a custom one would otherwise match no filter at all.
+    // (No metadata fallback here, unlike Student Leader: paid staff always
+    // have a profile.)
     return profileRoles.some(
       (role) =>
         !STUDENT_LEADER_ROLE_FILTER_ROLES.includes(
           role as (typeof STUDENT_LEADER_ROLE_FILTER_ROLES)[number]
-        ) && STAFF_PROFILE_ROLE_FILTER_LABELS.has(role)
+        ) && role !== MEMBER
     );
   }
   return metadataRoleLabel === filterLabel;

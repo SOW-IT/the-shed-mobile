@@ -133,6 +133,14 @@ describe("partitionSelectOptions", () => {
     expect(roleFilterMatches("Student Leader", ["Staff"], null)).toBe(false);
     expect(roleFilterMatches("Staff", ["Head of Department"], null)).toBe(true);
     expect(roleFilterMatches("Staff", ["President"], null)).toBe(false);
+    // The role catalog is data-driven: a custom role added in the admin Roles
+    // UI is a staff-side role too, so the Staff bucket must not be limited to
+    // the built-in ROLES list — that would leave a person whose only role is a
+    // custom one matching no filter option at all.
+    expect(roleFilterMatches("Staff", ["Media Coordinator"], null)).toBe(true);
+    expect(roleFilterMatches("Student Leader", ["Media Coordinator"], null)).toBe(false);
+    // A profile whose only assignment is member-scoped is not staff.
+    expect(roleFilterMatches("Staff", ["Member"], null)).toBe(false);
     expect(roleFilterMatches("Staff", [], "Staff")).toBe(false);
     expect(roleFilterMatches("Staff", [], "Member")).toBe(false);
     // A student leader may be an attendance-only member (no profile role) tagged
