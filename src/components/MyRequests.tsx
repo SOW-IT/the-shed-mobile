@@ -158,13 +158,15 @@ const NewRequestSheet = ({
     // Validate client-side first (mirroring convex/requests.ts:submit) so an
     // empty/zero field shows its message inline without a server round-trip —
     // which would throw a ConvexError and surface a red dev-overlay on every
-    // invalid attempt. Same order as the server: amount, then description.
-    if (!(Number(amount) > 0)) {
-      setError("Amount must be a positive number.");
-      return;
-    }
+    // invalid attempt. Report in on-screen field order (Description, Amount,
+    // Department) so a blank form flags the first field the user sees rather
+    // than masking the description error behind the default-zero amount error.
     if (description.trim() === "") {
       setError("Please describe what the request is for.");
+      return;
+    }
+    if (!(Number(amount) > 0)) {
+      setError("Amount must be a positive number.");
       return;
     }
     if (department.trim() === "") {

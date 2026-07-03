@@ -657,6 +657,75 @@ describe("audit logging across attendance mutations", () => {
     expect(reorders[0].summary).not.toContain("Swapped");
   });
 
+  // UAT #1: adding a field re-indexes every field's order (client sends 0..N),
+  // which shifted absolute orders and spammed a "Reordered…" entry for untouched
+  // fields whose relative position never changed.
+  test("adding a field over non-contiguous orders logs no spurious reorder", async () => {
+    const t = await setup();
+    const staff = asUser(t, ADMIN);
+    // Simulate accumulated non-contiguous orders (e.g. left by earlier deletes).
+    await staff.mutation(api.attendanceMetadata.saveAll, {
+      fields: [
+        { key: "Alpha", type: "input", order: 0 },
+        { key: "Beta", type: "input", order: 5 },
+        { key: "Gamma", type: "input", order: 10 },
+      ],
+      deleteIds: [],
+    });
+    const fields = await staff.query(api.attendanceMetadata.list, {});
+    const id = (k: string) => fields.find((f) => f.key === k)!._id;
+    // Client adds "Delta" and reindexes everyone to a contiguous 0..3 — same
+    // relative order, so nothing was actually reordered.
+    await staff.mutation(api.attendanceMetadata.saveAll, {
+      fields: [
+        { id: id("Alpha"), key: "Alpha", type: "input", order: 0 },
+        { id: id("Beta"), key: "Beta", type: "input", order: 1 },
+        { id: id("Gamma"), key: "Gamma", type: "input", order: 2 },
+        { key: "Delta", type: "input", order: 3 },
+      ],
+      deleteIds: [],
+    });
+
+    const meta = (await allLogs(t)).filter((l) => l.entityType === "metadata");
+    expect(meta.filter((l) => l.action === "metadata.reorder")).toHaveLength(0);
+    expect(meta.filter((l) => l.action === "metadata.update")).toHaveLength(0);
+    expect(
+      meta.filter((l) => l.action === "metadata.create" && l.summary.includes("Delta"))
+    ).toHaveLength(1);
+  });
+
+  // UAT #1: Campus/Role fold in the live universities/roles on read, so re-saving
+  // them unchanged (with a university added since the row was seeded) diffed as an
+  // edit and spammed "Updated member field Campus".
+  test("re-saving a synced Campus field after a new university logs no update", async () => {
+    const t = await setup();
+    const staff = asUser(t, ADMIN);
+    await staff.mutation(api.attendanceMetadata.ensureDefaults, {});
+    // Added after the Campus row was seeded — list() merges it in on read.
+    await staff.mutation(api.admin.upsertUniversity, { year: YEAR, name: "UNSW" });
+    const fields = await staff.query(api.attendanceMetadata.list, {});
+    // Client saves every field back (values as read) while adding one new field.
+    await staff.mutation(api.attendanceMetadata.saveAll, {
+      fields: [
+        ...fields.map((f, i) => ({
+          id: f._id,
+          key: f.key,
+          type: f.type,
+          order: i,
+          values: f.values,
+          subgroup: f.subgroup,
+          lockedValues: f.lockedValues,
+        })),
+        { key: "zID", type: "input" as const, order: fields.length },
+      ],
+      deleteIds: [],
+    });
+
+    const meta = (await allLogs(t)).filter((l) => l.entityType === "metadata");
+    expect(meta.filter((l) => l.action === "metadata.update")).toHaveLength(0);
+    expect(meta.filter((l) => l.action === "metadata.reorder")).toHaveLength(0);
+  });
+
   test("malformed cursor is silently dropped and query restarts from newest", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
