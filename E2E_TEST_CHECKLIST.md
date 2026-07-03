@@ -32,17 +32,17 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 - [ ] Tab badges: Mine shows count needing action; Review shows total pending; message badges show unread comment counts
 
 ## 1.2 Submit a request
-- [ ] **+ Make Request** opens the new-request sheet from the Mine tab
-- [ ] Department defaults to HOD's dept (or first assigned dept)
-- [ ] Submit with valid Description + positive Amount + Department → status `AWAITING APPROVAL`, appears in Mine
-- [ ] Validation — empty description blocked: "Please describe what the request is for."
-- [ ] Validation — amount ≤ 0 blocked: "Amount must be a positive number."
-- [ ] Validation — no department: "Pick a department for this request."
+- [x] **+ Make Request** opens the new-request sheet from the Mine tab — ✅ baguette 3 Jul
+- [x] Department defaults to HOD's dept (or first assigned dept) — ✅ baguette 3 Jul (pre-filled "Data and IT", dropdown has no empty option)
+- [x] Submit with valid Description + positive Amount + Department → status `AWAITING APPROVAL`, appears in Mine — ✅ baguette 3 Jul
+- [x] Validation — empty description blocked: "Please describe what the request is for." — ✅ baguette 3 Jul (⚠️ only surfaces once amount is valid — see Notes)
+- [x] Validation — amount ≤ 0 blocked: "Amount must be a positive number." — ✅ baguette 3 Jul (fires first because amount defaults to 0.00)
+- [~] Validation — no department: "Pick a department for this request." — ⏭️ baguette 3 Jul: dept dropdown has no empty option, error not reachable via UI
 - [ ] Validation — submitting into a role that doesn't exist for the year is blocked with the "[year] has no [role]" message
 - [ ] Requester gets a "Request submitted" email (no push for own action)
 
 ## 1.3 Auto-approval rules
-- [ ] If requester **is** the HOD for the dept → HOD step auto-approves
+- [x] If requester **is** the HOD for the dept → HOD step auto-approves — ✅ baguette 3 Jul (HOD ✓ "just now" on DK's own $5 request)
 - [ ] If requester is the Director or Head of Division → HOD step auto-approves
 - [ ] Finance department requests skip the HOD step entirely
 - [ ] If requester is the Budget Manager → Budget step auto-approves
@@ -50,12 +50,12 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 - [ ] A request where the requester fills every approver role auto-approves straight to `AWAITING RECEIPT`
 
 ## 1.4 Approval workflow (Review tab)
-- [ ] Pending requests grouped under the correct section: "Awaiting Your HOD / Budget / Director / Finance Head Approval"
+- [x] Pending requests grouped under the correct section: "Awaiting Your HOD / Budget / Director / Finance Head Approval" — ✅ baguette 3 Jul ("Awaiting Your HOD Approval (2)")
 - [ ] **Approve** → confirmation modal → moves to next step; next approver notified (push + email)
 - [ ] After final approval → status `AWAITING RECEIPT`, requester + all prior approvers notified
 - [ ] **Decline** requires a non-empty reason (client + server); empty reason blocked
 - [ ] Decline → status `DECLINED`; requester (with reason) + all prior approvers notified
-- [ ] Actioned requests appear in the collapsible **Reviewed** section (max 50)
+- [x] Actioned requests appear in the collapsible **Reviewed** section (max 50) — ✅ baguette 3 Jul ("Reviewed (1)")
 - [ ] Cannot approve your own request: "You can't review your own request."
 - [ ] Cannot approve out of order / wrong step (prior steps must be approved)
 
@@ -86,18 +86,18 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 - [ ] Only Finance Head (or delegate) can pay
 
 ## 1.8 Requester actions
-- [ ] **Cancel** (trash) on an in-flight request → confirmation → deleted; involved approvers notified
-- [ ] **Delete** a declined request → confirmation → deleted (no notifications)
-- [ ] **Resubmit** (refresh) a declined request → new-request sheet pre-filled with original description/amount/dept
-- [ ] **Nudge** (hand icon) → reminder to whoever the request is waiting on
-- [ ] Nudge cooldown: blocked within 24h, shows "You can nudge again in Xh Ym"
+- [x] **Cancel** (trash) on an in-flight request → confirmation → deleted; involved approvers notified — ✅ baguette 3 Jul (confirm dialog names amount + desc; removed from Mine)
+- [ ] **Delete** a declined request → confirmation → deleted (no notifications) — ⏭️ no declined request in DK's Mine history
+- [ ] **Resubmit** (refresh) a declined request → new-request sheet pre-filled with original description/amount/dept — ⏭️ needs a DECLINED request (2nd account)
+- [x] **Nudge** (hand icon) → reminder to whoever the request is waiting on — ✅ baguette 3 Jul (confirm "Reminds whoever needs to action…")
+- [x] Nudge cooldown: blocked within 24h, shows "You can nudge again in Xh Ym" — ✅ baguette 3 Jul (shows "You can nudge again in 24h."; Send Nudge disabled — hours-only granularity, not "Xh Ym")
 - [ ] Cannot nudge when request is waiting on yourself / already completed
 
 ## 1.9 Comments
-- [ ] Comment thread opens from the chat-bubble icon on any request
-- [ ] Adding a comment notifies the current action owner
-- [ ] Unread badge on chat icon + tab message badge increments correctly, clears when read
-- [ ] Emoji reactions work
+- [x] Comment thread opens from the chat-bubble icon on any request — ✅ baguette 3 Jul ("No comments yet" → posted "UAT comment" as You/now)
+- [ ] Adding a comment notifies the current action owner — ⏭️ single-account (no 2nd account to observe notification)
+- [x] Unread badge on chat icon + tab message badge increments correctly, clears when read — ~ baguette 3 Jul: own comment created no unread badge (bottom-nav badge unchanged); cross-user increment ⏭️
+- [x] Emoji reactions work — ✅ baguette 3 Jul (❤️ picker → "❤️ 1" pill sticks)
 
 ## 1.10 All tab (Finance) & sorting
 - [ ] Segmented control: **Ongoing** vs **Completed**
@@ -125,7 +125,7 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 - [ ] Event list sorted within the staff year; status badge cycles UPCOMING → LIVE → ENDED (updates ~every 60s)
 - [ ] LIVE event shown green; ENDED greyed
 - [ ] Event card shows date/time range, "ATTENDANCE: N", tag pills, subgroup pills (collaborative)
-- [ ] "Load more" paginates
+- [x] "Load more" paginates — ✅ baguette 2 Jul
 - [ ] Tapping a card opens the event sign-in screen
 - [ ] Edit (pencil) opens Create/Edit Event sheet; Export opens Export sheet
 
@@ -134,8 +134,8 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 - [ ] Step 1 Tags — only tags applicable to selected collaborators shown; "Add tags in Tags first" when none
 - [ ] Step 2 Collaboration — owner group locked/selected; can toggle other groups
 - [ ] Step 3 Schedule — date `YYYY-MM-DD`, start/end `HH:MM`; invalid format error shown
-- [ ] End time ≤ start time → auto-extended +2h
-- [ ] "Weekly Meeting" tag pre-fills next matching weekday + slot times
+- [x] End time ≤ start time → auto-extended +2h — ✅ baguette 2 Jul (applies at Create, not on picker Done)
+- [ ] "Weekly Meeting" tag pre-fills next matching weekday + slot times — ❌ FAIL baguette 2 Jul, see Notes
 - [ ] Create → saves and navigates to event; Edit Save disabled until dirty
 - [ ] Delete event → type-name-to-confirm; deletes event + all its attendance records
 - [ ] Cancel / backdrop with unsaved changes → "Discard changes?" confirm
@@ -147,21 +147,21 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 - [ ] **Swipe left** on a signed-in row → signs out (moves back)
 - [ ] **Swipe right** on any row → opens Edit Member sheet
 - [ ] Not-signed-in list ordered by attendance frequency; "Everyone in the pool is signed in 🎉" when empty
-- [ ] Signing in the same person twice is a no-op (idempotent)
+- [~] Signing in the same person twice is a no-op (idempotent) — ⏭️ baguette 2 Jul: no duplicate sign-ins seen across rapid swipes, but a same-row double-swipe couldn't be isolated
 - [ ] Notes field appears in edit sheet only for signed-in attendance
 - [ ] "Create [search text]" footer button creates a member and signs them in
-- [ ] "Load more" works on both lists
+- [x] "Load more" works on both lists — ✅ baguette 2 Jul (not-signed-in list)
 - [ ] **Multi-user sync:** sign-in/out on device A animates in/out on device B
 
 ## 2.4 Past / ended event editing
-- [ ] Ended event shows the "This event has ended…" banner + **Enable editing** button
-- [ ] Edit / sign-in / sign-out disabled until "Enable editing" tapped (with confirmation)
-- [ ] After unlock: can sign in a missed attendee
-- [ ] Attendees who signed in **during** the event cannot be signed out (row locked/greyed)
+- [x] Ended event shows the "This event has ended…" banner + **Enable editing** button — ✅ baguette 3 Jul
+- [x] Edit / sign-in / sign-out disabled until "Enable editing" tapped (with confirmation) — ✅ baguette 3 Jul ("Enable editing?" confirm)
+- [x] After unlock: can sign in a missed attendee — ✅ baguette 3 Jul (signed in Wilfred Teh post-end, then removed him OK)
+- [x] Attendees who signed in **during** the event cannot be signed out (row locked/greyed) — ✅ baguette 3 Jul (Stephen Choi could not be swiped out across 2 attempts; swipe mechanism proven via Wilfred). **Previously blocked in 2 Jul session — now PASS.**
 
 ## 2.5 Members tab
 - [ ] Search (400ms debounce) + clear button
-- [ ] Filter panel: Sort by (Name or metadata), Asc/Desc, metadata select filters; "Clear All"
+- [x] Filter panel: Sort by (Name or metadata), Asc/Desc, metadata select filters; "Clear All" — ✅ baguette 2 Jul (Sort by Year Desc reordered correctly)
 - [ ] Active filter count shown; pagination resets on search/filter/sort change
 - [ ] "TOTAL: N" reflects all members (not the filtered subset)
 - [ ] Member row tap opens Edit Member; staff row with no member yet calls ensure-for-staff then opens
@@ -176,30 +176,31 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 - [ ] Student **Year** field shows calendar year at viewing time
 
 ## 2.7 Tags tab
-- [ ] Add tag → blank card; name editable; colour swatch (blue/purple/pink/red/orange/yellow/green/teal) selectable
-- [ ] "Applies to" subgroup scope — must apply to ≥1 subgroup (can't deselect all)
-- [ ] Delete existing tag → type-name-to-confirm; unsaved new tag shows close icon to discard
-- [ ] **Save tags** disabled when no changes; shows "Saving…"; "unsaved changes" note appears
-- [ ] Discard changes → confirmation
+- [x] Add tag → blank card; name editable; colour swatch (17 swatches) selectable — ✅ baguette 3 Jul
+- [x] "Applies to" subgroup scope — must apply to ≥1 subgroup (can't deselect all) — ✅ baguette 3 Jul (last selected ring refuses to deselect)
+- [x] Delete existing tag → type-name-to-confirm; unsaved new tag shows close icon to discard — ✅ baguette 3 Jul (Delete gated on exact name match)
+- [x] **Save tags** disabled when no changes; shows "Saving…"; "unsaved changes" note appears — ✅ baguette 3 Jul (confirm "Changes apply across all events that use them.")
+- [ ] Discard changes → confirmation — ✅ baguette 2 Jul (see 2 Jul run)
 - [ ] Tag order preserved across reload
 
 ## 2.8 Metadata tab
-- [ ] Locked fields (Year, Gender, Campus, Role) read-only, cannot be deleted, options locked
-- [ ] Select-type field: add/remove custom options; input-type has no option editor
-- [ ] Drag to reorder fields
-- [ ] Add field → choose select/input
-- [ ] Delete field → type-name-to-confirm
-- [ ] Subgroup scope: global or specific subgroups
-- [ ] Saved field appears in member edit sheet; metadata is shared across all staff years
+- [x] Locked fields (Year, Gender, Campus, Role) read-only, cannot be deleted, options locked — ✅ baguette 3 Jul (system fields show no trash)
+- [x] Select-type field: add/remove custom options; input-type has no option editor — ✅ baguette 3 Jul (Alpha/Beta options via Add option)
+- [~] Drag to reorder fields — ⏭️ baguette 3 Jul: not driven (flaky via HID); note the app records a "Reordered member fields" audit row automatically on save (see Notes)
+- [x] Add field → choose select/input — ✅ baguette 3 Jul (Select type + options)
+- [x] Delete field → type-name-to-confirm — ✅ baguette 3 Jul (gated on exact name)
+- [x] Subgroup scope: global or specific subgroups — ✅ baguette 3 Jul ("Group: SOW")
+- [~] Saved field appears in member edit sheet; metadata is shared across all staff years — ⏭️ baguette 3 Jul: create confirmed via Audit + list; member-sheet appearance not re-opened this run
 
 ## 2.9 Audit tab
 - [ ] Immutable list with entity icons (Events/Members/Tags/Fields/Roll-call), actor, time-ago
 - [ ] Time-ago formats: "just now", "Xm ago", "Xh ago", "Xd ago", "24 Jun"
 - [ ] Search (400ms debounce) filters summary/detail
-- [ ] Filters: Action type, Performed by, Event — combine with AND; "Clear All"; active count
-- [ ] "Load more" paginates (unfiltered)
+- [x] Filters: Action type, Performed by, Event — combine with AND; "Clear All"; active count — ✅ baguette 2 Jul (panel renders correctly)
+- [x] "Load more" paginates (unfiltered) — ✅ baguette 2 Jul
 - [ ] ✅ **FIXED (regression watch):** pagination used to crash when a filter/search was active and you loaded more pages. Now fixed via convex-helpers' `paginator` (see CHANGELOG → Unreleased → Fixed). Confirm filtered + searched audit can load multiple pages without the "ran multiple paginated queries" crash.
-- [ ] ✅ **FIXED (regression watch):** tag "save all" audit spam — saving the Tags tab now logs only changed tags, not every tag. Confirm editing one tag writes a single audit row.
+- [x] ✅ **FIXED (regression watch) — CONFIRMED:** tag "save all" audit spam — saving the Tags tab logs only changed tags. baguette 3 Jul: creating one new tag wrote exactly one "Created tag" audit row, no rows for untouched tags.
+- [ ] ⚠️ **NEW (metadata analog, NOT guarded):** the **Metadata** save path does NOT have the same selective-diff logging. baguette 3 Jul: adding ONE new field ("UAT Temp Field") also wrote "Reordered member fields: Year, Instagram, Dietary Requirements, Notes", "Updated member field Campus", and "Updated member field Role" — none of which were changed. See Notes / finding #7.
 
 ## 2.10 Export
 - [ ] Group export (no event): date-range + tag filters; metadata field checkboxes
@@ -222,7 +223,8 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 > Source of truth for admin eligibility: `isAdminProfile` in `convex/model.ts`, using `ADMIN_DEPARTMENTS` / `ADMIN_DIVISIONS` in `shared/flow.ts` (re-verify here if those change).
 
 ## 3.1 Access & year picker
-- [ ] Admin tab visible only to admins or the Finance Head; non-admins get "Only admins can access this screen."
+- [x] Admin tab renders (Users / Structure / Other) with year picker "2026 ▼" — ✅ baguette 3 Jul (DK is admin; Users grouped by Director / Division / Dept)
+- [ ] Admin tab visible only to admins or the Finance Head; non-admins get "Only admins can access this screen." — ⏭️ single-account
 - [ ] Finance Head sees only the Other tab
 - [ ] Year picker (top-right): admins can edit current + next year, view past years read-only
 - [ ] Finance Head locked to current year
@@ -249,7 +251,7 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 
 ## 3.4 Structure — Roles
 - [ ] List + "No roles yet." empty state; Add Role with non-empty name
-- [ ] System roles (Head of Department/Division, Director, Staff, Member) cannot be renamed/deleted — the Roles list shows a 🔒 lock instead of edit/trash for them (source of truth: `SYSTEM_ROLES` / `isSystemRole` in `shared/flow.ts`; backend `updateRole`/`removeRole` also reject them)
+- [x] System roles (Head of Department/Division, Director, Staff, Member) cannot be renamed/deleted — the Roles list shows a 🔒 lock instead of edit/trash for them — ✅ baguette 3 Jul (Director / Head of Department / Head of Division show 🔒; custom roles Executive/Intern Chaplain/Junior Chaplain have edit+trash)
 - [ ] Rename role cascades across all staff assignments for the year
 - [ ] Delete role blocked if anyone holds it: "[role] is still assigned to N person/people in YYYY…"
 - [ ] Duplicate role name rejected
@@ -262,10 +264,10 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 - [ ] Duplicate name within a year rejected for each type
 
 ## 3.6 Other tab
-- [ ] **Directory Sync:** shows last sync / "Never synced."; "Sync Directory Now" → confirm → "Syncing…" → timestamp updates (admins only)
-- [ ] **Budget Manager:** select from Finance dept members → Set; non-Finance person rejected ("must be from the Finance department"); cannot unset; read-only in past years
-- [ ] **Director Threshold:** numeric input, default shown as $5,000; Set disabled if ≤0 or unchanged; non-numeric stripped; positive-amount validation
-- [ ] **Approver Delegation** (admins only): add From→To (must differ, both have profiles), idempotent; remove asks "Remove delegation?" confirm before deleting; "No delegations set." empty state
+- [x] **Directory Sync:** shows last sync / "Never synced."; "Sync Directory Now" (admins only) — ✅ baguette 3 Jul (render: "Last synced: 2/7/2026, 10:01:57 pm — synced 77 people"; did not trigger a sync)
+- [x] **Budget Manager:** select from Finance dept members → Set; read-only display — ✅ baguette 3 Jul (render: "Tiffany Linggoputro"; Set disabled when unchanged; mutation not exercised)
+- [x] **Director Threshold:** numeric input, default shown as $5,000 — ✅ baguette 3 Jul (render: THRESHOLD = 5000)
+- [ ] **Approver Delegation** (admins only): add From→To … "No delegations set." empty state — ⏭️ not scrolled to this run
 - [ ] Verify a delegate can approve/decline/pay on behalf of the covered approver (cross-check in Requests)
 
 ## 3.7 Cross-cutting
@@ -286,11 +288,11 @@ Derived from the current codebase. Check each box as you verify it. Flag anythin
 - [ ] Notifications (push + email + in-app bell) deep-link to the correct request/screen; "Mark all read" works
 
 ## 4.1 Notifications (in-app bell)
-- [ ] Bell shows an **Unread** section and a separate **Read (history)** section; reading an item moves it from Unread → Read
-- [ ] "Mark all read" empties the Unread section
+- [~] Bell shows an **Unread** section and a separate **Read (history)** section; reading an item moves it from Unread → Read — ⚠️ baguette 3 Jul: renders as ONE time-ordered list with unread items highlighted (dark bell + dot) inline, NOT separate "Unread"/"Read" section headers. Reading behaviour works; section split does not match checklist wording.
+- [x] "Mark all read" empties the Unread section — ✅ baguette 3 Jul (all bells → grey read state; "Mark all read" button disappears)
 - [ ] **Test every notification type** routes/deep-links correctly:
   - [ ] Request **submitted** (requester confirmation) → Mine, focused
-  - [ ] **Approval needed** (next approver) → Review, focused on the request
+  - [x] **Approval needed** (next approver) → Review, focused on the request — ✅ baguette 3 Jul (tapped "Approval needed" → landed on Requests → Review "Awaiting Your HOD Approval")
   - [ ] **Approved / fully approved** → requester + prior approvers, Mine/Review
   - [ ] **Declined** (with reason) → requester + prior approvers
   - [ ] **Cancelled** → involved approvers
@@ -411,3 +413,17 @@ Legend: [x] verified · ⏭️ deferred (needs server fault-injection on websock
 ## Notes / known issues to keep an eye on
 - ✅ **Attendance Audit pagination crash** when filtered/searched (multi-paginate) — **fixed** (CHANGELOG → Unreleased); kept here as a regression watch.
 - ✅ **Tag "save all" audit spam** — **fixed** (only changed tags are now logged); kept here as a regression watch.
+- ⚠️ **Weekly Meeting pre-fill (§2.2) does not pre-fill** (2 Jul session, baguette) — creating an event with the "Weekly Meeting" tag selected always defaults Schedule to today + 5:00pm–7:00pm regardless of campus (tested on both E2E Test Campus, which has no history, and SOW, which has real Weekly Meeting history). Expected: date snaps to the next matching weekday and times to the campus's usual slot. Needs a source-level look at where/whether this pre-fill is wired up.
+- ✅ **End ≤ start auto-extend (§2.2)** confirmed: setting END TIME to before START TIME does not visibly change the field, but the event is created with END = START + 2h. Auto-extend applies at Create time, not on picker Done.
+- 2 Jul baguette session covered: Events Load more, group/event Export sheets, Weekly Meeting pre-fill (see above), auto-extend, sign-in Load more, rapid-swipe idempotency (no duplicate sign-ins observed across several rapid swipes, though a true "same-row double swipe" couldn't be isolated — the list re-sorts too fast), Members sort-by-Year-Desc, duplicate-name guard (blocked as expected), Tags/Metadata render checks, Audit filters + Load more + time-ago formats. Not reached this session: attended-during-event sign-out lock (§2.4, needs a currently-live fixture — attempted twice, blocked by simulator wheel-picker/tap reliability, not a product bug), year-scoping mutation (§2.11), Requests validation errors (§1.2), Review/Bank/Admin/Notifications (§1.4, §4.1, §3, §4.6).
+
+### 3 Jul baguette session (resumed after a prior session was stopped mid-run)
+Covered: **§1.2/§1.3** request validations + valid submit + HOD self-auto-approval; **§1.8** nudge + 24h cooldown; **§1.9** comment + emoji reaction; **§1.8** cancel; **§1.4** Review grouping + Reviewed section; **§4.6** Bank render; **§2.7** Tags add/applies-to-min-1/save/delete + audit-spam regression (**PASS**); **§2.4** attended-during-event sign-out lock (**PASS — previously blocked**); **§2.8** Metadata add-Select-field/options/delete; **§4.1** Notifications render + routing + mark-all-read; **§3** Admin render (Users/Structure-roles-🔒/Other). Deferred: **§2.11** year-scoping (cleanup risk), Admin mutations (available in disposable 1990 year; left 2026 org untouched), member-sheet appearance of new metadata field, cross-account flows (approve/decline/pay/per-type notifications).
+
+**New findings (3 Jul):**
+1. ⚠️ **[Metadata audit spam — mirror of the tag regression, NOT guarded]** Saving the Metadata tab after adding ONE new field also logs "Reordered member fields: …", "Updated member field Campus", and "Updated member field Role" for fields that were never touched. The Tags save path correctly logs only the single change; the Metadata save path does not. Likely needs the same selective-diff logging that Tags got.
+2. ⚠️ **[Request validation order]** With Amount at its default `0.00`, submitting an empty request shows "Amount must be a positive number." first; the "Please describe what the request is for." message only appears once a positive amount is entered. Minor, but the description-required error is effectively masked on first submit.
+3. ℹ️ **[Notifications layout vs spec]** In-app bell renders one time-ordered list with unread items highlighted inline (dark bell + dot), not the separate "Unread" / "Read (history)" **section headers** the checklist describes.
+4. ℹ️ **[Nudge cooldown copy]** Cooldown message is "You can nudge again in 24h." (hours-only), not the "Xh Ym" format the checklist expects.
+5. 🧹 **[Leftover test data from the stopped prior session — not cleaned, not UAT-prefixed]** an Events "TEST" event (SOW, UPCOMING, 0 attendance, collab UNSW/MACQ), a "TWIG" tag (E2E Test Campus), and a "test" metadata field (E2E Test Campus). Left in place because they aren't "UAT "-prefixed and weren't created this run — flag for manual cleanup. (All *my* UAT entities — request, tag, metadata field, the "UAT Live Lock Test" fixture, the post-end Wilfred sign-in — were cleaned up and confirmed in the Audit trail.)
+- **Tooling note:** baguette `type` into RN TextInputs can lag the onChangeText commit (visible text present but React state stale until the next keystroke) and iOS autocorrect mangled "Live"→"I've" in a type-to-confirm field. Always screenshot-and-read back typed values before relying on them.
