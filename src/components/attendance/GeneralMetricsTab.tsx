@@ -17,7 +17,6 @@ import type { SplitPoint, TrendPoint } from "../../../shared/attendanceMetrics";
 import {
   BarChart,
   ChartCard,
-  ChartModeProvider,
   LegendDot,
   MetricCard,
   type MultiStackPoint,
@@ -306,7 +305,7 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
       {campusWeekly ? (
         <FadeInView delay={stagger(3)}>
           <ChartCard
-            title="Weekly meeting attendance by campus"
+            title="Weekly meeting attendance"
             subtitle="Average per staff year (from 2025)"
             width={width}
             legend={
@@ -321,25 +320,22 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
               </View>
             }
             fullscreenContent={
-              // Averages are compared, not summed, so this chart is always drawn
-              // as one line per campus (a stacked bar would total the campus
-              // averages into a meaningless sum) — regardless of the global
-              // bars/lines toggle the other trend charts follow.
-              <ChartModeProvider value="line">
-                <MultiStackedBarChart
-                  points={campusWeekly}
-                  tooltipLabel={(p) => String(p.at)}
-                  fullscreen
-                />
-              </ChartModeProvider>
-            }
-          >
-            <ChartModeProvider value="line">
+              // Averages are compared, not summed, so bar mode draws one bar
+              // per campus side by side instead of stacking them into a
+              // meaningless total.
               <MultiStackedBarChart
                 points={campusWeekly}
                 tooltipLabel={(p) => String(p.at)}
+                stacked={false}
+                fullscreen
               />
-            </ChartModeProvider>
+            }
+          >
+            <MultiStackedBarChart
+              points={campusWeekly}
+              tooltipLabel={(p) => String(p.at)}
+              stacked={false}
+            />
           </ChartCard>
         </FadeInView>
       ) : null}

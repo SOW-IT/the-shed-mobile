@@ -6,6 +6,21 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.7.1] — 2026-07-04
+
+### Fixed
+
+- Insights → General → **Weekly meeting attendance**: dropped "by campus"
+  from the title, and it now follows the bars/lines toggle like the other
+  trend charts (bar mode draws one bar per campus side by side, since the
+  values are averages rather than a stack-able total).
+- Insights → Attendance now defaults to a **2-week** range instead of 8.
+- **New vs returning** and **Student leaders vs everyone else** are now
+  shown only for individual campuses, not for the org-wide SOW view.
+- Admin → Other: moved **Sync Directory Now** to the bottom of the section.
+- Tapping the top-left "THE SHED" logo now goes to the **Home** tab (it was
+  incorrectly routing to Requests).
+
 ## [1.7.0] — 2026-07-04
 
 ### Added

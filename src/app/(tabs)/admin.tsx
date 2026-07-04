@@ -1409,33 +1409,6 @@ export default function AdminScreen() {
 
       {key === "other" && (
         <>
-          {isAdmin && (
-            <>
-              <SectionTitle>Directory Sync</SectionTitle>
-              <Card>
-                <Muted>
-                  Syncs all active Google Workspace users on sow.org.au into the
-                  people picker, and caches staff profile photos for the org
-                  chart. Runs automatically once a week.
-                </Muted>
-                {syncState?.syncedAt ? (
-                  <Muted>
-                    Last synced:{" "}
-                    {new Date(syncState.syncedAt).toLocaleString()} —{" "}
-                    {syncState.status}
-                  </Muted>
-                ) : (
-                  <Muted>Never synced.</Muted>
-                )}
-                <Btn
-                  title={syncing ? "Syncing…" : "Sync Directory Now"}
-                  loading={syncing}
-                  onPress={() => setSyncConfirm(true)}
-                />
-              </Card>
-            </>
-          )}
-
           <SectionTitle>Budget Manager — {selectedYear}</SectionTitle>
           <Card>
             {editable ? (
@@ -1593,6 +1566,33 @@ export default function AdminScreen() {
                     />
                   </>
                 )}
+              </Card>
+            </>
+          )}
+
+          {isAdmin && (
+            <>
+              <SectionTitle>Directory Sync</SectionTitle>
+              <Card>
+                <Muted>
+                  Syncs all active Google Workspace users on sow.org.au into the
+                  people picker, and caches staff profile photos for the org
+                  chart. Runs automatically once a week.
+                </Muted>
+                {syncState?.syncedAt ? (
+                  <Muted>
+                    Last synced:{" "}
+                    {new Date(syncState.syncedAt).toLocaleString()} —{" "}
+                    {syncState.status}
+                  </Muted>
+                ) : (
+                  <Muted>Never synced.</Muted>
+                )}
+                <Btn
+                  title={syncing ? "Syncing…" : "Sync Directory Now"}
+                  loading={syncing}
+                  onPress={() => setSyncConfirm(true)}
+                />
               </Card>
             </>
           )}

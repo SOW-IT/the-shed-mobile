@@ -941,11 +941,19 @@ export function MultiStackedBarChart({
   points,
   fullscreen = false,
   tooltipLabel,
+  stacked = true,
 }: {
   points: MultiStackPoint[];
   fullscreen?: boolean;
   /** Top label for a point's tooltip (defaults to the x-axis label). */
   tooltipLabel?: (p: MultiStackPoint) => string;
+  /**
+   * Set false for values that are compared rather than summed (e.g. per-campus
+   * averages) — bar mode then draws one bar per segment side by side, scaled
+   * to the tallest single segment, instead of stacking them into a total that
+   * wouldn't mean anything.
+   */
+  stacked?: boolean;
 }) {
   const t = useAppTheme();
   const mode = useChartMode();
@@ -960,6 +968,13 @@ export function MultiStackedBarChart({
   // Bars are stacked, so they scale to the per-point total.
   const stackedMax = Math.max(1, ...totals);
   const scale = (n: number) => (n / stackedMax) * chartHeight;
+  // Grouped (unstacked) bars scale to the tallest single segment value —
+  // scaling to the stacked total would squash every bar against the floor.
+  const groupedMax = Math.max(
+    1,
+    ...points.flatMap((p) => p.segments.map((seg) => seg.value)),
+  );
+  const groupedScale = (n: number) => (n / groupedMax) * chartHeight;
   const labelFor = (i: number) =>
     tooltipLabel ? tooltipLabel(points[i]) : points[i].label;
   if (mode === "line") {
@@ -990,7 +1005,7 @@ export function MultiStackedBarChart({
     <View
       style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}
     >
-      <YAxis max={stackedMax} chartHeight={chartHeight} />
+      <YAxis max={stacked ? stackedMax : groupedMax} chartHeight={chartHeight} />
       <View style={{ flex: 1, height: chartContainerH(chartHeight) }}>
         <View
           onLayout={fit.onLayout}
@@ -1017,6 +1032,13 @@ export function MultiStackedBarChart({
                 const fill = barHeight - gaps;
                 const selected =
                   fullscreen && (selectedIdx === i || hoveredIdx === i);
+                const innerWidth = barInner(fit.barWidth);
+                const groupGapCount = Math.max(0, visible.length - 1);
+                const groupGaps = groupGapCount * SEG_GAP;
+                const groupSegWidth =
+                  visible.length > 0
+                    ? Math.max(1, (innerWidth - groupGaps) / visible.length)
+                    : innerWidth;
                 return (
                   <Pressable
                     key={`${p.at}-${i}`}
@@ -1043,36 +1065,62 @@ export function MultiStackedBarChart({
                           colour: seg.colour,
                         }))}
                       />
-                    ) : fit.showValues ? (
+                    ) : fit.showValues && stacked ? (
                       <Text style={[styles.barValue, { color: t.muted }]}>
                         {total}
                       </Text>
                     ) : null}
-                    <View
-                      style={{
-                        width: barInner(fit.barWidth),
-                        height: barHeight,
-                        justifyContent: "flex-end",
-                        opacity: selected ? 0.7 : 1,
-                      }}
-                    >
-                      {visible.map((seg, si) => (
-                        <View
-                          key={seg.key}
-                          style={{
-                            height: total > 0 ? (seg.value / total) * fill : 0,
-                            backgroundColor: seg.colour,
-                            marginTop: si === 0 ? 0 : perGap,
-                            borderTopLeftRadius: si === 0 ? radius.sm : 0,
-                            borderTopRightRadius: si === 0 ? radius.sm : 0,
-                            borderBottomLeftRadius:
-                              si === visible.length - 1 ? radius.sm : 0,
-                            borderBottomRightRadius:
-                              si === visible.length - 1 ? radius.sm : 0,
-                          }}
-                        />
-                      ))}
-                    </View>
+                    {stacked ? (
+                      <View
+                        style={{
+                          width: innerWidth,
+                          height: barHeight,
+                          justifyContent: "flex-end",
+                          opacity: selected ? 0.7 : 1,
+                        }}
+                      >
+                        {visible.map((seg, si) => (
+                          <View
+                            key={seg.key}
+                            style={{
+                              height: total > 0 ? (seg.value / total) * fill : 0,
+                              backgroundColor: seg.colour,
+                              marginTop: si === 0 ? 0 : perGap,
+                              borderTopLeftRadius: si === 0 ? radius.sm : 0,
+                              borderTopRightRadius: si === 0 ? radius.sm : 0,
+                              borderBottomLeftRadius:
+                                si === visible.length - 1 ? radius.sm : 0,
+                              borderBottomRightRadius:
+                                si === visible.length - 1 ? radius.sm : 0,
+                            }}
+                          />
+                        ))}
+                      </View>
+                    ) : (
+                      <View
+                        style={{
+                          width: innerWidth,
+                          height: chartHeight,
+                          flexDirection: "row",
+                          alignItems: "flex-end",
+                          opacity: selected ? 0.7 : 1,
+                        }}
+                      >
+                        {visible.map((seg, si) => (
+                          <View
+                            key={seg.key}
+                            style={{
+                              width: groupSegWidth,
+                              height: Math.max(BAR_MIN, groupedScale(seg.value)),
+                              backgroundColor: seg.colour,
+                              marginLeft: si === 0 ? 0 : SEG_GAP,
+                              borderTopLeftRadius: radius.sm,
+                              borderTopRightRadius: radius.sm,
+                            }}
+                          />
+                        ))}
+                      </View>
+                    )}
                     <BarLabel text={i % fit.labelStep === 0 ? p.label : ""} />
                   </Pressable>
                 );

@@ -125,7 +125,7 @@ export const Screen = ({
 };
 
 /**
- * Top chrome for the main screens: the SOW logo (taps → Requests) on the left
+ * Top chrome for the main screens: the SOW logo (taps → Home) on the left
  * and the profile avatar (taps → Profile) on the right. Replaces the per-screen
  * page titles. The logo art is a black wordmark, tinted to the theme text colour
  * so it reads on both the cream and deep-green backgrounds.
@@ -165,12 +165,12 @@ export const TopBar = ({
     <View style={styles.topBar}>
       <Animated.View style={{ transform: [{ scale: home.scale }] }}>
         <Pressable
-          onPress={() => router.push("/")}
+          onPress={() => router.push("/home")}
           onPressIn={home.onPressIn}
           onPressOut={home.onPressOut}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel="Go to Requests"
+          accessibilityLabel="Go to Home"
         >
           <Image
             source={require("../../../assets/images/the-shed-compact-logo.png")}

@@ -48,7 +48,7 @@ export default function InsightsScreen() {
   );
   // Owned here so the bottom-right selectors (rendered in PagerScreen's floating
   // slot) can drive them from outside the tab bodies.
-  const [rangeWeeks, setRangeWeeks] = useState(8);
+  const [rangeWeeks, setRangeWeeks] = useState(2);
   const [includeCollaborative, setIncludeCollaborative] = useState(true);
   const [generalYear, setGeneralYear] = useState<number | null>(null); // null = All years
   const [chartMode, setChartMode] = useState<ChartMode>("bar");

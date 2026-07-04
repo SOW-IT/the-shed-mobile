@@ -328,7 +328,10 @@ export function MetricsTab({
                     <BarChart points={data.weeklyTrend} colour={t.success} />
                   </ChartCard>
                 ) : null;
-              const newVsReturningChart = (
+              // Per-campus only — SOW is an org-wide rollup, not a campus, so
+              // it's excluded from this breakdown (see campusWeeklyChart for
+              // the org-wide equivalent).
+              const newVsReturningChart = !orgWide ? (
                 <ChartCard
                   key="newVsReturning"
                   title="New vs returning"
@@ -344,7 +347,7 @@ export function MetricsTab({
                 >
                   <StackedBarChart points={data.newVsReturning} />
                 </ChartCard>
-              );
+              ) : null;
               // Composition charts share the new-vs-returning event basis
               // (weekly meetings when the group runs them). The subtitle
               // carries the period-wide share and its ratio, oriented so the
@@ -373,8 +376,9 @@ export function MetricsTab({
                   fresh: p.primary,
                   returning: p.rest,
                 }));
+              // Per-campus only — see newVsReturningChart above.
               const leadersVsOthersChart =
-                data.leadersVsOthers && data.leadersVsOthers.length > 0 ? (
+                !orgWide && data.leadersVsOthers && data.leadersVsOthers.length > 0 ? (
                   <ChartCard
                     key="leadersVsOthers"
                     title="Student leaders vs everyone else"
