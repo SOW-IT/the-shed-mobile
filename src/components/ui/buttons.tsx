@@ -187,6 +187,7 @@ export const Btn = ({
   variant = "primary",
   disabled,
   loading,
+  icon,
 }: {
   title: string;
   onPress: () => void;
@@ -194,6 +195,8 @@ export const Btn = ({
   disabled?: boolean;
   /** Shows a spinner in place of the label and disables the button. */
   loading?: boolean;
+  /** Optional glyph shown to the left of the label. */
+  icon?: keyof typeof Ionicons.glyphMap;
 }) => {
   const t = useAppTheme();
   const [scale] = useState(() => new Animated.Value(1));
@@ -240,6 +243,11 @@ export const Btn = ({
       >
         {loading ? (
           <SowSpinner size={20} onDark={variant === "primary" ? !t.dark : t.dark} />
+        ) : icon ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+            <Ionicons name={icon} size={17} color={textColor} />
+            <Text style={[styles.btnText, { color: textColor }]}>{title}</Text>
+          </View>
         ) : (
           <Text style={[styles.btnText, { color: textColor }]}>{title}</Text>
         )}

@@ -144,8 +144,12 @@ export const TopBar = ({
   const bell = usePressScale();
   const profile = usePressScale();
   const { isAuthenticated } = useConvexAuth();
+  // Notifications are a staff surface — gated on a provisioned staff profile,
+  // the same check the tabs use, not merely being signed in.
+  const me = useQuery(api.directory.me);
+  const isStaff = !!me?.profile;
   const unread =
-    useQuery(api.notifications.unreadCount, isAuthenticated ? {} : "skip") ?? 0;
+    useQuery(api.notifications.unreadCount, isStaff ? {} : "skip") ?? 0;
   const [testInfo, setTestInfo] = useState(false);
   // Signed-out avatar dropdown (Sign in with Google). Rendered as a Modal —
   // the top bar lives inside an overflow-hidden collapsing clip, so anything
@@ -191,8 +195,9 @@ export const TopBar = ({
         ) : null}
       </View>
       <View style={styles.topBarRight}>
-        {/* Notifications are a signed-in concern — hidden for visitors. */}
-        {isAuthenticated ? (
+        {/* Notifications are a staff concern — hidden for visitors and
+            signed-in non-staff accounts. */}
+        {isStaff ? (
           <Animated.View style={{ transform: [{ scale: bell.scale }] }}>
             <Pressable
               onPress={() => router.push("/notifications")}
@@ -219,21 +224,38 @@ export const TopBar = ({
             </Pressable>
           </Animated.View>
         ) : null}
-        <Animated.View style={{ transform: [{ scale: profile.scale }] }}>
+        {isAuthenticated ? (
+          <Animated.View style={{ transform: [{ scale: profile.scale }] }}>
+            <Pressable
+              onPress={() => router.push("/profile")}
+              onPressIn={profile.onPressIn}
+              onPressOut={profile.onPressOut}
+              accessibilityRole="button"
+              accessibilityLabel="Open your profile"
+            >
+              <Avatar photo={photo} name={name} size={40} />
+            </Pressable>
+          </Animated.View>
+        ) : (
+          // Visitors get a clear, wider call-to-action instead of an empty avatar.
           <Pressable
-            onPress={() =>
-              isAuthenticated ? router.push("/profile") : setSignInMenu(true)
-            }
-            onPressIn={profile.onPressIn}
-            onPressOut={profile.onPressOut}
+            onPress={() => setSignInMenu(true)}
             accessibilityRole="button"
-            accessibilityLabel={
-              isAuthenticated ? "Open your profile" : "Sign in"
-            }
+            accessibilityLabel="Sign in"
+            style={({ pressed }) => [
+              styles.signInButton,
+              { backgroundColor: t.primary },
+              pressed && { opacity: 0.85 },
+            ]}
           >
-            <Avatar photo={photo} name={name} size={40} />
+            <Ionicons name="log-in-outline" size={16} color={t.onPrimary} />
+            <Text
+              style={[typography.caption, { color: t.onPrimary, fontWeight: "800" }]}
+            >
+              Sign in
+            </Text>
           </Pressable>
-        </Animated.View>
+        )}
       </View>
       {/* Signed-out avatar dropdown: a small menu anchored under the avatar. */}
       <Modal
@@ -266,7 +288,7 @@ export const TopBar = ({
               disabled={busy}
               onPress={() => void signInWithGoogle()}
               accessibilityRole="button"
-              accessibilityLabel="Sign in with Google"
+              accessibilityLabel="Sign in with your SOW account"
               style={({ pressed }) => [
                 styles.dropdownItem,
                 pressed && { opacity: 0.6 },
@@ -278,7 +300,7 @@ export const TopBar = ({
                 <Ionicons name="logo-google" size={18} color={t.text} />
               )}
               <Text style={[typography.headline, { color: t.text }]}>
-                Sign in with Google
+                Sign in with your SOW account
               </Text>
             </Pressable>
             {error ? (

@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
-import { hapticSelect, usePressScale } from "@/components/ui";
+import { hapticSelect, LoadingState, usePressScale } from "@/components/ui";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { BOTTOM_TAB_HEIGHT, shadowStyle, useAppTheme } from "@/theme";
 import { requestFullyApproved } from "../../../shared/flow";
@@ -192,13 +192,14 @@ const AnimatedTabBarButton = ({
 };
 
 /**
- * The bottom tab navigator. The app is public (1.7.0): Home and the Org chart
- * are visible to everyone, while the staff tools — Requests, Attendance,
- * Insights — appear only for signed-in users with a staff profile, and Admin
- * only for admins / the Finance head. Tab order and the launch tab depend on
- * role: visitors land on the Org chart; campus leaders (President / VP /
- * Executive / Student Leader) get Attendance first and no Requests tab;
- * everyone else launches on Requests.
+ * The bottom tab navigator. The app is public (1.7.0): Home, the Org chart and
+ * Insights are visible to everyone (Insights shows org-wide trends publicly and
+ * gates its per-campus view internally), while Requests and Attendance appear
+ * only for signed-in users with a staff profile, and Admin is reached from the
+ * Org list (admins / the Finance head). Tab order and the launch tab depend on
+ * role: visitors and signed-in non-staff land on Home; campus leaders
+ * (President / VP / Executive / Student Leader) get Attendance first and no
+ * Requests tab; everyone else (staff) launches on Requests.
  */
 export default function TabsLayout() {
   const { isAuthenticated } = useConvexAuth();
@@ -212,7 +213,6 @@ export default function TabsLayout() {
   // account — a visitor who signs in with a personal account sees the same
   // public tabs until an admin provisions them.
   const isStaff = !!me?.profile;
-  const showAdminTab = me?.isAdmin || me?.isFinanceHead;
 
   // Mine: action count (requests fully approved but awaiting receipt submission).
   const myRequests = useQuery(api.requests.myRequests, me?.profile ? {} : "skip");
@@ -250,10 +250,21 @@ export default function TabsLayout() {
 
   const tabTotal = mineActionCount + mineUnread + reviewActionCount + reviewUnread;
 
+  // `initialRouteName` is read once when Tabs mounts, so wait for `me` to
+  // resolve before mounting — otherwise a signed-in campus leader can briefly
+  // land on Requests (or a hidden tab) before their role loads.
+  if (isAuthenticated && me === undefined) {
+    return <LoadingState />;
+  }
+
   return (
     <Tabs
       initialRouteName={
-        !isAuthenticated ? "org" : isCampusLeader ? "attendance" : "index"
+        !isAuthenticated || !isStaff
+          ? "home"
+          : isCampusLeader
+            ? "attendance"
+            : "index"
       }
       backBehavior="history"
       screenListeners={{ tabPress: () => hapticSelect() }}
@@ -307,11 +318,12 @@ export default function TabsLayout() {
           tabBarIcon: tabIcon("checkbox-outline", "checkbox"),
         }}
       />
+      {/* Insights is public: the org-wide General trends are open to everyone,
+          while the per-campus Attendance view inside stays staff-only. */}
       <Tabs.Screen
         name="insights"
         options={{
           title: "Insights",
-          ...(isStaff ? {} : { href: null }),
           tabBarIcon: ({ color, focused }) => (
             <InsightsTabIcon color={color} focused={focused} />
           ),
@@ -324,11 +336,14 @@ export default function TabsLayout() {
           tabBarIcon: tabIcon("people-outline", "people"),
         }}
       />
+      {/* Admin is reachable from a button at the top of the Org list (shown
+          only to admins / the Finance head), not from the tab bar — href:null
+          keeps the route navigable without a bottom-bar slot. */}
       <Tabs.Screen
         name="admin"
         options={{
           title: "Admin",
-          ...(showAdminTab ? {} : { href: null }),
+          href: null,
           tabBarIcon: tabIcon("settings-outline", "settings"),
         }}
       />

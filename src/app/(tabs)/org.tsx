@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { useState } from "react";
@@ -49,11 +50,16 @@ const Person = ({
 
 export default function OrgChartScreen() {
   const t = useAppTheme();
+  const router = useRouter();
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const chart = useQuery(
     api.directory.orgChart,
     selectedYear === null ? {} : { year: selectedYear }
   );
+  // Admin tools moved off the tab bar: signed-in admins / the Finance head
+  // reach them from a button at the top of this list.
+  const me = useQuery(api.directory.me);
+  const showAdmin = !!(me?.isAdmin || me?.isFinanceHead);
 
   if (!chart) {
     return (
@@ -78,6 +84,27 @@ export default function OrgChartScreen() {
         ) : undefined
       }
     >
+      {/* Admin tools — only for admins / the Finance head, above the Director. */}
+      {showAdmin ? (
+        <FadeInView delay={20}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open admin tools"
+            onPress={() => router.push("/admin")}
+            style={({ pressed }) => [
+              styles.adminButton,
+              t.shadowCard,
+              { backgroundColor: t.card },
+              pressed && { opacity: 0.6 },
+            ]}
+          >
+            <Ionicons name="settings-outline" size={20} color={t.primary} />
+            <Txt style={styles.adminLabel}>Admin</Txt>
+            <Ionicons name="chevron-forward" size={18} color={t.faint} />
+          </Pressable>
+        </FadeInView>
+      ) : null}
+
       {/* Director */}
       {chart.director ? (
         <FadeInView delay={40}>
@@ -189,6 +216,20 @@ export default function OrgChartScreen() {
 }
 
 const styles = StyleSheet.create({
+  adminButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md - 2,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.md,
+  },
+  adminLabel: {
+    flexGrow: 1,
+    fontSize: 15,
+    fontWeight: "700",
+  },
   directorCard: {
     borderRadius: radius.lg,
     paddingHorizontal: spacing.lg,

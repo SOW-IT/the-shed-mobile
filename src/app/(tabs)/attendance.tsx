@@ -136,13 +136,14 @@ export default function AttendanceScreen() {
     return items;
   }, [active, subgroup, subgroups, tagsSave, metaSave]);
 
-  // The staff tools are signed-in only; a visitor deep-linking here (the tab
-  // itself is hidden) is sent to the public Org chart instead.
-  if (me === null) return <Redirect href="/org" />;
-
   if (me === undefined || subgroups === undefined || metadata === undefined) {
     return <LoadingState />;
   }
+
+  // The staff tools need a provisioned staff profile (the tab itself is hidden
+  // for everyone else). Signed-out visitors and signed-in non-staff accounts
+  // deep-linking here are sent to the public Org chart instead.
+  if (!me?.profile) return <Redirect href="/org" />;
 
   const tabs: PagerTab[] = [
     {

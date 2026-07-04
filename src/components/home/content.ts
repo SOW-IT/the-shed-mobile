@@ -23,7 +23,7 @@ export const OUR_STORY: string[] = [
   "SOW began in 2007 with a vision rally in Sydney’s inner-west, followed by " +
     "a prayer meeting on the lawns of the University of Sydney. From there it " +
     "grew into a university ministry reaching students across Sydney’s campuses.",
-  "Each year, students and staff from across the campuses gather for SOW Camp — " +
+  "Each year, students and staff from across the campuses gather for SOW Camp, " +
     "our annual training and discipleship conference (Imago Dei).",
 ];
 
@@ -78,7 +78,7 @@ export const SOCIALS: {
   { key: "email", label: "Email", icon: "mail-outline", url: `mailto:${CONTACT_EMAIL}` },
 ];
 
-/** Helpful websites — mirrors THE SHED web app footer. */
+/** Helpful websites, mirroring THE SHED web app footer. */
 export const RESOURCE_WEBSITES: { name: string; link: string }[] = [
   { name: "Ligonier", link: "https://www.ligonier.org/" },
   { name: "Christ College", link: "https://christcollege.edu.au/" },
@@ -103,16 +103,16 @@ export const HELPLINES: { name: string; phoneNumber: string }[] = [
   { name: "Mental Health Helpline", phoneNumber: "1800 011 511" },
   { name: "Lifeline", phoneNumber: "13 11 14" },
   { name: "Kids Helpline", phoneNumber: "1800 55 1800" },
-  { name: "Drug and Alcohol Support", phoneNumber: "9977 0711" },
+  { name: "Drug and Alcohol Support", phoneNumber: "02 9977 0711" },
   { name: "Domestic Violence Support", phoneNumber: "1800 65 64 63" },
   { name: "Child Protection Helpline", phoneNumber: "13 21 11" },
 ];
 
 /**
- * Placeholder types/content for the Connect section. Final meeting locations/times
- * are not published centrally; if no campus confirms a slot for the semester,
- * detail UIs should ask the user to message us instead. Update campus leader
- * meeting times here when confirmed each semester.
+ * Types/content for the Connect section. Weekly meeting day and time are stable
+ * per campus (from each campus page on sow.org.au); the exact room can move
+ * during the semester, so the location notes when it's announced each term.
+ * Update these here whenever a campus changes its slot.
  */
 export type WeeklyMeeting = { day: string; time: string; location: string };
 
@@ -130,6 +130,8 @@ export type Campus = {
   /** The weekly meeting's day / time / place. Left null until each campus
       confirms its time for the semester. */
   meeting: WeeklyMeeting | null;
+  /** The campus's own Instagram handle (without the leading @). */
+  instagram: string;
   /** Campus photos for the detail screen gallery. */
   photos: string[];
 };
@@ -139,48 +141,68 @@ export const CAMPUSES: Campus[] = [
     slug: "usyd",
     name: "University of Sydney",
     area: "Camperdown",
-    short: "Weekly meeting and small groups on the Camperdown campus.",
+    short: "Tuesdays 5-7pm, Camperdown campus.",
     about: [
       "SOW at the University of Sydney gathers students from across the Camperdown campus to grow together as disciples of Jesus.",
-      "Each week we meet to open God’s word together, and throughout the week we run small groups and share life as a community.",
+      "Each week we meet to open God’s word together, with optional dinner afterwards, and throughout the week we run small groups and share life as a community.",
     ],
-    meeting: null,
+    meeting: {
+      day: "Tuesdays",
+      time: "5-7pm",
+      location: "Camperdown campus (room announced each term)",
+    },
+    instagram: "sowusyd",
     photos: [],
   },
   {
     slug: "unsw",
     name: "University of New South Wales",
     area: "Kensington",
-    short: "Weekly meeting and small groups on the Kensington campus.",
+    short: "Wednesdays 5-7pm, Kensington campus.",
     about: [
-      "SOW at UNSW brings together students on the Kensington campus around the gospel — learning from God’s word and encouraging one another.",
-      "Our weekly meeting is the heart of the community, with small groups running through the week.",
+      "SOW at UNSW brings together students on the Kensington campus around the gospel, learning from God’s word and encouraging one another.",
+      "Our weekly meeting is the heart of the community, with optional dinner afterwards and small groups running through the week.",
     ],
-    meeting: null,
+    meeting: {
+      day: "Wednesdays",
+      time: "5-7pm",
+      location: "Kensington campus (room announced each term)",
+    },
+    instagram: "sowunsw",
     photos: [],
   },
   {
     slug: "uts",
     name: "University of Technology, Sydney",
     area: "Broadway",
-    short: "Weekly meeting and small groups around the Broadway campus.",
+    short: "Tuesdays 5-7pm, Broadway campus.",
     about: [
       "SOW at UTS meets around the Broadway campus in the heart of the city, welcoming students to explore and follow Jesus together.",
-      "We gather each week and run small groups through the week to grow in faith and friendship.",
+      "We gather each week, with optional dinner afterwards, and run small groups through the week to grow in faith and friendship.",
     ],
-    meeting: null,
+    meeting: {
+      day: "Tuesdays",
+      time: "5-7pm",
+      location: "Broadway campus (room announced each term)",
+    },
+    instagram: "sowuts",
     photos: [],
   },
   {
     slug: "macq",
     name: "Macquarie University",
-    area: "Wallumattagal",
-    short: "Weekly meeting and small groups on the Wallumattagal campus.",
+    area: "Macquarie Park",
+    short: "Wednesdays 5-7pm, Trinity Chapel.",
     about: [
-      "SOW at Macquarie University gathers students on the Wallumattagal campus to love Jesus and reach fellow students with the gospel.",
+      "SOW at Macquarie University gathers students on the Macquarie Park campus to love Jesus and reach fellow students with the gospel.",
       "Come along to our weekly meeting, and join a small group to go deeper through the week.",
     ],
-    meeting: null,
+    meeting: {
+      day: "Wednesdays",
+      time: "5-7pm",
+      location: "Trinity Chapel, Macquarie Park",
+    },
+    instagram: "sowmq",
     photos: [],
   },
 ];
@@ -199,8 +221,11 @@ export const CAMPUS_INTRO =
   "activities throughout the semester, with exact times set by campus leaders:";
 
 /**
- * Connect / on-campus programs — sourced from sow.org.au/campus-ministry,
- * with Key Events / SOW Camp noted separately under Connect.
+ * On-campus programs each campus runs through the semester, sourced from
+ * sow.org.au/campus-ministry. REAP, Seasons and key events aren't tied to a
+ * single campus (REAP runs everywhere but each campus works through its own
+ * material), so they live in their own entries ({@link REAP}, {@link KEY_EVENTS})
+ * rather than here.
  */
 export const CAMPUS_PROGRAMS: { name: string; line: string }[] = [
   {
@@ -208,20 +233,28 @@ export const CAMPUS_PROGRAMS: { name: string; line: string }[] = [
     line: "Hear God’s word taught on campus, then discuss in small groups.",
   },
   {
-    name: "REAP",
-    line:
-      "Reading, Encouragement, Accountability and Prayer — Bible study and accountability with campus leaders.",
-  },
-  {
-    name: "Seasons",
-    line: "Modules and courses to grow through the semester.",
-  },
-  {
     name: "Road Trips",
     line: "Annual campus road trips and social events for fellowship.",
   },
+];
+
+/**
+ * REAP runs at every campus, but each works through its own material, so it's
+ * its own thing rather than a per-campus program.
+ */
+export const REAP = {
+  name: "REAP",
+  line:
+    "Reading, Encouragement, Accountability and Prayer. Bible study and accountability in small groups, with each campus working through its own material.",
+};
+
+/**
+ * Key events for the whole ministry, across every campus. Just SOW Camp for
+ * now; add the rest as they're confirmed each year.
+ */
+export const KEY_EVENTS: { name: string; line: string }[] = [
   {
-    name: "Key Events — SOW Camp",
+    name: "SOW Camp",
     line:
       "Our annual training and discipleship conference, Imago Dei, at Kiah Ridge Christian Conference Centre.",
   },

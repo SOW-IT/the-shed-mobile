@@ -10,6 +10,8 @@ export const send = internalAction({
     to: v.string(),
     subject: v.string(),
     body: v.string(),
+    /** Optional Reply-To so a recipient can reply straight to the sender. */
+    replyTo: v.optional(v.string()),
   },
   handler: async (_ctx, args) => {
     const apiKey = process.env.RESEND_API_KEY;
@@ -29,6 +31,7 @@ export const send = internalAction({
         to: [args.to],
         subject: args.subject,
         text: args.body,
+        ...(args.replyTo ? { reply_to: args.replyTo } : {}),
       }),
     });
     if (!response.ok) {

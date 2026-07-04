@@ -127,6 +127,44 @@ export function AttendanceRangeFab({
   );
 }
 
+/**
+ * Bottom-left toggle flipping every chart on the screen between bars and lines
+ * (see ChartModeProvider). Sits opposite the scope/range selector so the two
+ * don't overlap.
+ */
+export function ChartModeFab({
+  mode,
+  onChange,
+}: {
+  mode: "bar" | "line";
+  onChange: (mode: "bar" | "line") => void;
+}) {
+  const t = useAppTheme();
+  const isLine = mode === "line";
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Chart style: ${isLine ? "lines" : "bars"}. Switch to ${isLine ? "bars" : "lines"}`}
+      onPress={() => onChange(isLine ? "bar" : "line")}
+      style={({ pressed }) => [
+        styles.fab,
+        styles.fabLeft,
+        t.shadowCard,
+        { backgroundColor: t.card, opacity: pressed ? 0.85 : 1 },
+      ]}
+    >
+      <Ionicons
+        name={isLine ? "analytics-outline" : "bar-chart-outline"}
+        size={16}
+        color={t.text}
+      />
+      <Text style={[typography.caption, { color: t.text, fontWeight: "800" }]}>
+        {isLine ? "Lines" : "Bars"}
+      </Text>
+    </Pressable>
+  );
+}
+
 export function GeneralScopeFab({
   years,
   value,
@@ -187,6 +225,11 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     borderRadius: radius.full,
     zIndex: 20,
+  },
+  // Opposite corner from the scope/range selector.
+  fabLeft: {
+    right: undefined,
+    left: spacing.lg,
   },
   optionRow: {
     flexDirection: "row",

@@ -230,7 +230,9 @@ export const ProfileView = ({ email }: { email?: string }) => {
         visible={confirmingSignOut}
         title="Sign out of The Shed?"
         confirmLabel="Sign out"
-        onConfirm={() => void signOut()}
+        // After signing out, land on the public Home page rather than staying on
+        // the (now signed-out) profile screen.
+        onConfirm={() => void signOut().then(() => router.replace("/home"))}
         onClose={() => setConfirmingSignOut(false)}
       />
     </Screen>

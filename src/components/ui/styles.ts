@@ -15,6 +15,14 @@ export const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   topBarRight: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  signInButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: radius.full,
+  },
   topBarBadge: {
     position: "absolute",
     top: -5,

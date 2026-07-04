@@ -123,11 +123,14 @@ export function GeneralMetricsTab({ year }: { year: number | null }) {
       { label: "All staff", value: trends.allStaff[i], delta: yoyDelta(trends.allStaff[i], at(trends.allStaff)) },
       { label: "Staff", value: trends.staff[i], delta: yoyDelta(trends.staff[i], at(trends.staff)) },
       { label: "Student leaders", value: trends.studentLeaders[i], delta: yoyDelta(trends.studentLeaders[i], at(trends.studentLeaders)), tone: "positive" },
-      ...trends.studentLeadersByCampus.map((c) => ({
-        label: campusAcronym(c.campus),
-        value: c.counts[i],
-        delta: yoyDelta(c.counts[i], at(c.counts)),
-      })),
+      // Skip campuses with nobody this year — an empty card reads as a gap.
+      ...trends.studentLeadersByCampus
+        .filter((c) => c.counts[i] > 0)
+        .map((c) => ({
+          label: campusAcronym(c.campus),
+          value: c.counts[i],
+          delta: yoyDelta(c.counts[i], at(c.counts)),
+        })),
     ];
 
     return (
@@ -164,9 +167,20 @@ export function GeneralMetricsTab({ year }: { year: number | null }) {
           title="All staff"
           subtitle="Head-count per staff year"
           width={width}
-          fullscreenContent={<BarChart points={charts.allStaff} colour={t.primary} fullscreen />}
+          fullscreenContent={
+            <BarChart
+              points={charts.allStaff}
+              colour={t.primary}
+              tooltipLabel={(p) => String(p.at)}
+              fullscreen
+            />
+          }
         >
-          <BarChart points={charts.allStaff} colour={t.primary} />
+          <BarChart
+            points={charts.allStaff}
+            colour={t.primary}
+            tooltipLabel={(p) => String(p.at)}
+          />
         </ChartCard>
       </FadeInView>
 
@@ -185,6 +199,7 @@ export function GeneralMetricsTab({ year }: { year: number | null }) {
             <StackedBarChart
               points={charts.staffVsLeaders}
               labels={{ fresh: "Leaders", returning: "Staff" }}
+              tooltipLabel={(p) => String(p.at)}
               fullscreen
             />
           }
@@ -192,6 +207,7 @@ export function GeneralMetricsTab({ year }: { year: number | null }) {
           <StackedBarChart
             points={charts.staffVsLeaders}
             labels={{ fresh: "Leaders", returning: "Staff" }}
+            tooltipLabel={(p) => String(p.at)}
           />
         </ChartCard>
       </FadeInView>
@@ -208,9 +224,18 @@ export function GeneralMetricsTab({ year }: { year: number | null }) {
               ))}
             </View>
           }
-          fullscreenContent={<MultiStackedBarChart points={charts.leadersByCampus} fullscreen />}
+          fullscreenContent={
+            <MultiStackedBarChart
+              points={charts.leadersByCampus}
+              tooltipLabel={(p) => String(p.at)}
+              fullscreen
+            />
+          }
         >
-          <MultiStackedBarChart points={charts.leadersByCampus} />
+          <MultiStackedBarChart
+            points={charts.leadersByCampus}
+            tooltipLabel={(p) => String(p.at)}
+          />
         </ChartCard>
       </FadeInView>
 

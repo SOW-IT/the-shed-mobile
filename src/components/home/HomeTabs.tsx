@@ -1,30 +1,50 @@
 import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
+import { useMutation, useQuery } from "convex/react";
 import * as Linking from "expo-linking";
-import { Pressable, StyleSheet, Text, View, Image } from "react-native";
-import { useRouter } from "expo-router";
+import { Alert, Pressable, StyleSheet, Text, View, Image } from "react-native";
+import { api } from "../../../convex/_generated/api";
 import { universityColour } from "../../../shared/flow";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { CampusLogo } from "./CampusLogo";
-import { Btn, Card, FadeInView, Muted, SectionTitle, stagger, Txt } from "@/components/ui";
+import { CampusMark } from "@/components/CampusMark";
+import {
+  Btn,
+  Card,
+  ErrorBanner,
+  errorMessage,
+  FadeInView,
+  Field,
+  Muted,
+  SectionTitle,
+  stagger,
+  Txt,
+} from "@/components/ui";
 import { Sheet } from "@/components/ui/overlays";
 import {
   CAMPUS_MEETING_NOTE,
+  CAMPUS_PROGRAMS,
   CAMPUSES,
   type Campus,
   CHRISTIAN_PSYCHOLOGISTS,
   CONTACT_EMAIL,
   HELPLINES,
+  KEY_EVENTS,
   LINKS,
   MISSION_STATEMENT,
   OUR_STORY,
+  REAP,
   RESOURCE_WEBSITES,
   SOCIALS,
   VALUES,
-  CAMPUS_PROGRAMS,
 } from "./content";
 
-const open = (url: string) => void Linking.openURL(url);
+// External links / tel: / mailto: can reject when no handler exists (or the
+// scheme is blocked). Catch it so it doesn't become an unhandled rejection and
+// give the user a hint instead of silently doing nothing.
+const open = (url: string) =>
+  void Linking.openURL(url).catch(() =>
+    Alert.alert("Couldn't open this", "Please try again or use a different device.")
+  );
 
 /** A tappable external-link row: name on the left, open-out glyph on the right. */
 const LinkRow = ({ name, url, sub }: { name: string; url: string; sub?: string }) => {
@@ -59,102 +79,98 @@ export const HomeMissionTab = () => {
     <View style={styles.page}>
       <FadeInView delay={40}>
         <View style={styles.hero}>
-          <FadeInView delay={40}>
-            <View style={styles.hero}>
-              <Image
-                source={
-                  t.dark
-                    ? require("../../../assets/images/mark-cream.png")
-                    : require("../../../assets/images/mark-dark.png")
-                }
-                style={styles.heroMark}
-                resizeMode="contain"
-              />
-              <Text style={[typography.label, { color: t.muted }]}>
-                Student Outreach to the World
-              </Text>
-              <Text style={[styles.mission, { color: t.text }]}>{MISSION_STATEMENT}</Text>
-            </View>
-          </FadeInView>
-
-          <FadeInView delay={stagger(1)}>
-            <SectionTitle>Our values</SectionTitle>
-          </FadeInView>
-          {VALUES.map((value, i) => (
-            <FadeInView key={value.name} delay={stagger(i + 2)}>
-              <Card>
-                <View style={styles.valueRow}>
-                  <View style={[styles.valueDot, { backgroundColor: t.accent }]} />
-                  <Txt style={styles.valueName}>{value.name}</Txt>
-                </View>
-                <Muted>{value.line}</Muted>
-              </Card>
-            </FadeInView>
-          ))}
-
-          <FadeInView delay={stagger(6)}>
-            <SectionTitle>Our story</SectionTitle>
-          </FadeInView>
-          <FadeInView delay={stagger(7)}>
-            <Card>
-              {OUR_STORY.map((para, i) => (
-                <Muted key={i}>{para}</Muted>
-              ))}
-              <View style={styles.buttonRow}>
-                <Btn title="Read our story" variant="ghost" onPress={() => open(LINKS.story)} />
-              </View>
-            </Card>
-          </FadeInView>
-
-          <FadeInView delay={stagger(8)}>
-            <SectionTitle>Get involved</SectionTitle>
-          </FadeInView>
-          <FadeInView delay={stagger(9)}>
-            <Card>
-              <Txt style={styles.cardTitle}>Volunteer with SOW</Txt>
-              <Muted>
-                From organising events to design and media, there are plenty of ways
-                to serve. Express your interest and we&apos;ll find the right fit.
-              </Muted>
-              <View style={styles.buttonRow}>
-                <Btn title="Learn more" variant="tonal" onPress={() => open(LINKS.volunteer)} />
-                <Btn
-                  title="Email us"
-                  variant="ghost"
-                  onPress={() => open(`mailto:${CONTACT_EMAIL}`)}
-                />
-              </View>
-            </Card>
-          </FadeInView>
-
-          <FadeInView delay={stagger(10)}>
-            <SectionTitle>Follow along</SectionTitle>
-          </FadeInView>
-          <FadeInView delay={stagger(11)}>
-            <Card>
-              <View style={styles.socialRow}>
-                {SOCIALS.map((social) => (
-                  <Pressable
-                    key={social.key}
-                    accessibilityRole="link"
-                    accessibilityLabel={`Open ${social.label}`}
-                    onPress={() => open(social.url)}
-                    style={({ pressed }) => [
-                      styles.socialButton,
-                      { backgroundColor: t.ghost },
-                      pressed && { opacity: 0.6 },
-                    ]}
-                  >
-                    <Ionicons name={social.icon} size={22} color={t.ghostText} />
-                  </Pressable>
-                ))}
-              </View>
-              <Text style={[typography.caption, styles.socialCaption, { color: t.muted }]}>
-                @studentoutreachtotheworld · {CONTACT_EMAIL}
-              </Text>
-            </Card>
-          </FadeInView>
+          <Image
+            source={
+              t.dark
+                ? require("../../../assets/images/mark-cream.png")
+                : require("../../../assets/images/mark-dark.png")
+            }
+            style={styles.heroMark}
+            resizeMode="contain"
+          />
+          <Text style={[typography.label, { color: t.muted }]}>
+            Student Outreach to the World
+          </Text>
+          <Text style={[styles.mission, { color: t.text }]}>{MISSION_STATEMENT}</Text>
         </View>
+      </FadeInView>
+
+      <FadeInView delay={stagger(1)}>
+        <SectionTitle>Our values</SectionTitle>
+      </FadeInView>
+      {VALUES.map((value, i) => (
+        <FadeInView key={value.name} delay={stagger(i + 2)}>
+          <Card>
+            <View style={styles.valueRow}>
+              <View style={[styles.valueDot, { backgroundColor: t.accent }]} />
+              <Txt style={styles.valueName}>{value.name}</Txt>
+            </View>
+            <Muted>{value.line}</Muted>
+          </Card>
+        </FadeInView>
+      ))}
+
+      <FadeInView delay={stagger(6)}>
+        <SectionTitle>Our story</SectionTitle>
+      </FadeInView>
+      <FadeInView delay={stagger(7)}>
+        <Card>
+          {OUR_STORY.map((para, i) => (
+            <Muted key={i}>{para}</Muted>
+          ))}
+          <View style={styles.buttonRow}>
+            <Btn title="Read our story" variant="ghost" onPress={() => open(LINKS.story)} />
+          </View>
+        </Card>
+      </FadeInView>
+
+      <FadeInView delay={stagger(8)}>
+        <SectionTitle>Get involved</SectionTitle>
+      </FadeInView>
+      <FadeInView delay={stagger(9)}>
+        <Card>
+          <Txt style={styles.cardTitle}>Volunteer with SOW</Txt>
+          <Muted>
+            From organising events to design and media, there are plenty of ways
+            to serve. Express your interest and we&apos;ll find the right fit.
+          </Muted>
+          <View style={styles.buttonRow}>
+            <Btn title="Learn more" variant="tonal" onPress={() => open(LINKS.volunteer)} />
+            <Btn
+              title="Email us"
+              variant="ghost"
+              onPress={() => open(`mailto:${CONTACT_EMAIL}`)}
+            />
+          </View>
+        </Card>
+      </FadeInView>
+
+      <FadeInView delay={stagger(10)}>
+        <SectionTitle>Follow along</SectionTitle>
+      </FadeInView>
+      <FadeInView delay={stagger(11)}>
+        <Card>
+          <View style={styles.socialRow}>
+            {SOCIALS.map((social) => (
+              <Pressable
+                key={social.key}
+                accessibilityRole="link"
+                accessibilityLabel={`Open ${social.label}`}
+                onPress={() => open(social.url)}
+                style={({ pressed }) => [
+                  styles.socialButton,
+                  { backgroundColor: t.ghost },
+                  pressed && { opacity: 0.6 },
+                ]}
+              >
+                <Ionicons name={social.icon} size={22} color={t.ghostText} />
+              </Pressable>
+            ))}
+          </View>
+          <Text style={[typography.caption, styles.socialCaption, { color: t.muted }]}>
+            @studentoutreachtotheworld · {CONTACT_EMAIL}
+          </Text>
+        </Card>
       </FadeInView>
     </View>
   );
@@ -168,8 +184,8 @@ export const ResourcesTab = () => {
     <View style={styles.page}>
       <FadeInView delay={40}>
         <Muted>
-          Websites, counsellors and helplines we often point people to — the
-          same list as THE SHED on the web.
+          Websites, counsellors and helplines we often point people to, the
+          same list THE SHED uses on the web.
         </Muted>
       </FadeInView>
       <FadeInView delay={stagger(1)}>
@@ -223,19 +239,21 @@ export const ResourcesTab = () => {
 /* ───────────────────────────── Connect ───────────────────────────── */
 
 export const CampusesTab = () => {
-  const router = useRouter();
   const t = useAppTheme();
   const [selected, setSelected] = useState<Campus | null>(null);
+  const base = CAMPUSES.length;
   return (
     <View style={styles.page}>
       <FadeInView delay={40}>
-        <Muted>{CAMPUS_MEETING_NOTE}</Muted>
+        <Muted>
+          Find your campus below to see where and when SOW gathers each week.
+        </Muted>
       </FadeInView>
       {CAMPUSES.map((campus, i) => (
         <FadeInView key={campus.slug} delay={stagger(i + 1)}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${campus.name} — open details`}
+            accessibilityLabel={`${campus.name}, open details`}
             onPress={() => setSelected(campus)}
             style={({ pressed }) => [
               styles.connectCard,
@@ -245,7 +263,12 @@ export const CampusesTab = () => {
             ]}
           >
             <View style={styles.connectHeader}>
-              <CampusLogo name={campus.name} size={32} />
+              <CampusMark
+                campus={campus.name}
+                logoSource="university"
+                variant="circle"
+                circleDiameter={40}
+              />
               <View style={styles.connectHeaderText}>
                 <Txt style={styles.connectName} numberOfLines={1}>
                   {campus.name}
@@ -259,19 +282,60 @@ export const CampusesTab = () => {
           </Pressable>
         </FadeInView>
       ))}
-      <FadeInView delay={stagger(CAMPUSES.length + 1)}>
+
+      {/* What a Weekly Meeting actually is — sits between the campuses and the
+          other programs since every campus runs one. */}
+      <FadeInView delay={stagger(base + 1)}>
+        <SectionTitle>Weekly Meeting</SectionTitle>
+      </FadeInView>
+      <FadeInView delay={stagger(base + 2)}>
         <Card>
-          <Txt style={styles.cardTitle}>Find your campus meetup</Txt>
+          <Muted>{CAMPUS_MEETING_NOTE}</Muted>
+        </Card>
+      </FadeInView>
+
+      {/* REAP runs at every campus, but each works through its own material, so
+          it sits on its own rather than under a single campus card. */}
+      <FadeInView delay={stagger(base + 3)}>
+        <SectionTitle>{REAP.name}</SectionTitle>
+      </FadeInView>
+      <FadeInView delay={stagger(base + 4)}>
+        <Card>
+          <Muted>{REAP.line}</Muted>
+        </Card>
+      </FadeInView>
+
+      {/* Key events are run for the whole ministry, not per campus. */}
+      <FadeInView delay={stagger(base + 5)}>
+        <SectionTitle>Key events</SectionTitle>
+      </FadeInView>
+      <FadeInView delay={stagger(base + 6)}>
+        <Card>
+          <View style={{ gap: spacing.sm }}>
+            {KEY_EVENTS.map((event) => (
+              <View key={event.name} style={{ gap: 2 }}>
+                <Txt style={styles.cardTitle}>{event.name}</Txt>
+                <Muted>{event.line}</Muted>
+              </View>
+            ))}
+          </View>
+        </Card>
+      </FadeInView>
+
+      <FadeInView delay={stagger(base + 7)}>
+        <Card>
+          <Txt style={styles.cardTitle}>New to a campus?</Txt>
           <Muted>
-            Meeting spots and times move around the semester, so message us on
-            Instagram or email {CONTACT_EMAIL} and we&apos;ll point you to your
-            campus&apos;s next Weekly Meeting.
+            Message your campus on Instagram from its card above, or email{" "}
+            {CONTACT_EMAIL} and we&apos;ll help you find your first Weekly
+            Meeting.
           </Muted>
           <View style={styles.buttonRow}>
             <Btn
-              title="Message on Instagram"
+              title="Email us"
               variant="tonal"
-              onPress={() => open(SOCIALS[0].url)}
+              icon="mail-outline"
+              onPress={() => open(`mailto:${CONTACT_EMAIL}`)}
             />
             <Btn title="sow.org.au/students" variant="ghost" onPress={() => open(LINKS.students)} />
           </View>
@@ -306,15 +370,19 @@ const CampusDetailModal = ({
           <View style={{ gap: spacing.xs }}>
             <Text style={[typography.label, { color: t.muted }]}>Programs</Text>
             <View style={{ gap: 4 }}>
-              <Text style={[typography.body, { color: t.text }]}>• Weekly Meetings</Text>
-              <Text style={[typography.body, { color: t.text }]}>
-                • REAP — Reading, Encouragement, Accountability and Prayer
-              </Text>
-              <Text style={[typography.body, { color: t.text }]}>• Seasons</Text>
-              <Text style={[typography.body, { color: t.text }]}>• Road Trips</Text>
-              <Text style={[typography.body, { color: t.text }]}>• Key Events — SOW Camp</Text>
+              {CAMPUS_PROGRAMS.map((program) => (
+                <Text key={program.name} style={[typography.body, { color: t.text }]}>
+                  • {program.name}
+                </Text>
+              ))}
             </View>
           </View>
+          <Btn
+            title={`Follow @${campus.instagram}`}
+            variant="tonal"
+            icon="logo-instagram"
+            onPress={() => open(`https://www.instagram.com/${campus.instagram}/`)}
+          />
         </View>
       ) : null}
     </Sheet>
@@ -337,7 +405,7 @@ export const PartnerTab = () => {
       icon: "heart-outline",
       title: "Pray",
       blurb:
-        "Partner with us in prayer — our monthly newsletters share what's " +
+        "Partner with us in prayer. Our monthly newsletters share what's " +
         "happening across our campuses and how to pray for it.",
       action: { title: "Prayer updates", url: LINKS.pray },
     },
@@ -355,7 +423,7 @@ export const PartnerTab = () => {
       icon: "hand-left-outline",
       title: "Volunteer",
       blurb:
-        "Lend your time and skills — from events to design and media. Tell us " +
+        "Lend your time and skills, from events to design and media. Tell us " +
         "how you'd love to serve.",
       action: { title: "Volunteer", url: LINKS.volunteer },
     },
@@ -364,7 +432,7 @@ export const PartnerTab = () => {
     <View style={styles.page}>
       <FadeInView delay={40}>
         <Muted>
-          SOW is a ministry carried by its partners — here are the ways you can
+          SOW is a ministry carried by its partners. Here are the ways you can
           stand with us.
         </Muted>
       </FadeInView>
@@ -402,7 +470,97 @@ export const PartnerTab = () => {
           </View>
         </View>
       </FadeInView>
+
+      <ContactCard />
     </View>
+  );
+};
+
+/**
+ * "Contact us" form: emails {@link CONTACT_EMAIL} and sends the sender a
+ * confirmation (see convex/contact.ts). Signed-in users send from their locked
+ * account email; visitors type one in. On success we clear the message (and the
+ * email, unless it's a signed-in account) and show a confirmation sheet.
+ */
+const ContactCard = () => {
+  const me = useQuery(api.directory.me);
+  const submit = useMutation(api.contact.submit);
+  const signedInEmail = me?.email ?? null;
+
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
+
+  const effectiveEmail = signedInEmail ?? email;
+  const canSend =
+    effectiveEmail.trim().length > 0 && message.trim().length > 0 && !sending;
+
+  const onSend = async () => {
+    setError(null);
+    setSending(true);
+    try {
+      await submit({ email: effectiveEmail.trim(), message: message.trim() });
+      setMessage("");
+      if (!signedInEmail) setEmail("");
+      setSent(true);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <>
+      <FadeInView delay={stagger(5)}>
+        <Card>
+          <Txt style={styles.cardTitle}>Contact us</Txt>
+          <Muted>
+            Questions, prayer requests, or just want to say hi? Send us a message
+            and we&apos;ll get back to you.
+          </Muted>
+          <Field
+            label="Your email"
+            value={effectiveEmail}
+            onChangeText={setEmail}
+            placeholder="you@example.com"
+            keyboardType="email-address"
+            disabled={!!signedInEmail}
+          />
+          <Field
+            label="Message"
+            value={message}
+            onChangeText={setMessage}
+            placeholder="How can we help?"
+            multiline
+          />
+          {error ? <ErrorBanner message={error} /> : null}
+          <View style={styles.buttonRow}>
+            <Btn
+              title="Send message"
+              onPress={() => void onSend()}
+              loading={sending}
+              disabled={!canSend}
+            />
+          </View>
+        </Card>
+      </FadeInView>
+
+      <Sheet visible={sent} onClose={() => setSent(false)} title="Message sent">
+        <View style={{ gap: spacing.sm }}>
+          <Txt>Thanks for reaching out — we&apos;ve received your message.</Txt>
+          <Muted>
+            You&apos;ll receive a reply within 2-3 business days. A confirmation
+            has been sent to your email too.
+          </Muted>
+          <View style={styles.buttonRow}>
+            <Btn title="Done" onPress={() => setSent(false)} />
+          </View>
+        </View>
+      </Sheet>
+    </>
   );
 };
 

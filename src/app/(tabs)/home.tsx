@@ -9,9 +9,10 @@ import {
 
 /**
  * The public Home tab (1.7.0): who SOW is and how to get involved, open to
- * everyone before signing in. Four swipeable pages — the mission and socials,
- * helpful resources (mirroring THE SHED web footer), the campuses and their
- * weekly meetings, and ways to partner (pray / give / volunteer + newsletter).
+ * everyone before signing in. Four swipeable pages: the mission and socials,
+ * helpful resources (mirroring THE SHED web footer), Connect (the campuses and
+ * their weekly meetings), and ways to partner (pray / give / volunteer +
+ * newsletter).
  */
 export default function HomeScreen() {
   const [active, setActive] = useState("home");
@@ -19,7 +20,7 @@ export default function HomeScreen() {
   const tabs: PagerTab[] = [
     { key: "home", label: "Home", render: () => <HomeMissionTab /> },
     { key: "resources", label: "Resources", render: () => <ResourcesTab /> },
-    { key: "campuses", label: "Campuses", render: () => <CampusesTab /> },
+    { key: "campuses", label: "Connect", render: () => <CampusesTab /> },
     { key: "partner", label: "Partner", render: () => <PartnerTab /> },
   ];
 

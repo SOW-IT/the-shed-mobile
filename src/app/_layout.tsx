@@ -3,7 +3,8 @@ import { ConvexReactClient, useConvexAuth } from "convex/react";
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { useEffect } from "react";
+import { Alert, Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useWebAuthCodeExchange } from "@/hooks/useGoogleSignIn";
@@ -74,8 +75,15 @@ const configErrorStyles = StyleSheet.create({
  */
 const AuthGate = () => {
   const { isLoading } = useConvexAuth();
-  useWebAuthCodeExchange();
-  return isLoading ? <LoadingState /> : <RootStack />;
+  // On web this hook is what drives the `?code=` exchange after the Google
+  // redirect lands. Hold the loading state while it runs so we don't flash the
+  // signed-out shell before auth resolves, and surface a failed exchange
+  // (expired / re-used code) instead of silently dropping the visitor.
+  const { busy, error } = useWebAuthCodeExchange();
+  useEffect(() => {
+    if (error) Alert.alert("Sign-in didn't finish", error);
+  }, [error]);
+  return isLoading || busy ? <LoadingState /> : <RootStack />;
 };
 
 const RootStack = () => (
