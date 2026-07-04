@@ -1537,6 +1537,13 @@ const styles = StyleSheet.create({
   },
   barValue: { fontSize: 11, fontWeight: "700" },
   barLabel: { fontSize: 10, letterSpacing: -0.2 },
+  legendBlock: { gap: 6 },
+  legendRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 12,
+  },
   legendItem: {
     flexDirection: "row",
     alignItems: "center",
