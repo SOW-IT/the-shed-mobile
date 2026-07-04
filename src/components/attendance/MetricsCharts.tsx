@@ -784,12 +784,19 @@ export function StackedBarChart({
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   if (points.length === 0) return <EmptyChart />;
-  const max = Math.max(1, ...points.map((p) => p.fresh + p.returning));
-  const scale = (n: number) => (n / max) * chartHeight;
+  // Bars are stacked, so they scale to the per-point total.
+  const stackedMax = Math.max(1, ...points.map((p) => p.fresh + p.returning));
+  const scale = (n: number) => (n / stackedMax) * chartHeight;
   const labelFor = (i: number) =>
     tooltipLabel ? tooltipLabel(points[i]) : points[i].label;
   if (mode === "line") {
     // Top segment (fresh) and bottom segment (returning) as two separate lines.
+    // Lines aren't stacked, so scale to the tallest single value — using the
+    // stacked total would squash both lines against the floor.
+    const lineMax = Math.max(
+      1,
+      ...points.map((p) => Math.max(p.fresh, p.returning))
+    );
     return (
       <LineSeriesChart
         labels={points.map((p) => p.label)}
@@ -801,7 +808,7 @@ export function StackedBarChart({
             values: points.map((p) => p.returning),
           },
         ]}
-        max={max}
+        max={lineMax}
         fullscreen={fullscreen}
         tooltipLabelFor={labelFor}
       />
@@ -811,7 +818,7 @@ export function StackedBarChart({
     <View
       style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}
     >
-      <YAxis max={max} chartHeight={chartHeight} />
+      <YAxis max={stackedMax} chartHeight={chartHeight} />
       <View style={{ flex: 1, height: chartContainerH(chartHeight) }}>
         <View
           onLayout={fit.onLayout}
@@ -937,14 +944,21 @@ export function MultiStackedBarChart({
   const totals = points.map((p) =>
     p.segments.reduce((s, seg) => s + seg.value, 0),
   );
-  const max = Math.max(1, ...totals);
-  const scale = (n: number) => (n / max) * chartHeight;
+  // Bars are stacked, so they scale to the per-point total.
+  const stackedMax = Math.max(1, ...totals);
+  const scale = (n: number) => (n / stackedMax) * chartHeight;
   const labelFor = (i: number) =>
     tooltipLabel ? tooltipLabel(points[i]) : points[i].label;
   if (mode === "line") {
     // One line per segment (e.g. per campus), keyed off the first point's
     // segment order so colours and keys stay stable across points.
     const keys = points[0].segments;
+    // Lines aren't stacked, so scale to the tallest single segment value —
+    // scaling to the stacked total would squash every line against the floor.
+    const lineMax = Math.max(
+      1,
+      ...points.flatMap((p) => p.segments.map((seg) => seg.value))
+    );
     return (
       <LineSeriesChart
         labels={points.map((p) => p.label)}
@@ -953,7 +967,7 @@ export function MultiStackedBarChart({
           colour: seg.colour,
           values: points.map((p) => p.segments[si]?.value ?? 0),
         }))}
-        max={max}
+        max={lineMax}
         fullscreen={fullscreen}
         tooltipLabelFor={labelFor}
       />
@@ -963,7 +977,7 @@ export function MultiStackedBarChart({
     <View
       style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}
     >
-      <YAxis max={max} chartHeight={chartHeight} />
+      <YAxis max={stackedMax} chartHeight={chartHeight} />
       <View style={{ flex: 1, height: chartContainerH(chartHeight) }}>
         <View
           onLayout={fit.onLayout}

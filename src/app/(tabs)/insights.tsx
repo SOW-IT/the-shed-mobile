@@ -82,25 +82,18 @@ export default function InsightsScreen() {
     return <LoadingState />;
   }
 
-  // Insights is public (1.7.0) with a limited preview for non-staff:
-  // - General: org-wide trend charts are open to everyone (aggregate head-counts).
-  //   Non-staff see a sign-in prompt and the All-years charts only — the per-year
-  //   card breakdown stays staff-only (gated in GeneralMetricsTab).
-  // - Attendance: a campus-only preview for non-staff — the sub-group picker is
-  //   hidden, the range is fixed to 2 weeks, and the org-wide SOW view and the
-  //   follow-up list (which names people) are excluded server-side.
+  // Insights (1.7.0):
+  // - General: org-wide trend charts (aggregate head-counts) are open to
+  //   everyone. Visitors get the charts plus a "sign in to view more" prompt at
+  //   the bottom, and no year picker; the per-year card breakdown is staff-only.
+  // - Attendance: staff-only. Visitors don't see the tab at all, so the top-bar
+  //   segments collapse to just General for them.
   const isStaff = !!me?.profile;
-  // Latest year on record; the public General view is scoped to it (charts only).
-  // Derived from the data so it stays correct as staff years roll over.
-  const latestYear = staffTrends?.years?.length
-    ? Math.max(...staffTrends.years)
-    : null;
-  const publicYear = !isStaff ? latestYear : null;
   const signInPrompt = !isStaff ? (
     <EmptyState
       icon="log-in-outline"
       title="Sign in to view more"
-      message="The public view shows limited insights. Sign in with your SOW account to see the full dashboard."
+      message="You're seeing the public view. Sign in with your SOW account to see the full dashboard."
     />
   ) : null;
 
@@ -109,8 +102,11 @@ export default function InsightsScreen() {
     label: "General",
     render: () => (
       <>
+        {/* Visitors have no year picker, so `generalYear` stays null (All years);
+            publicPreview keeps the per-year cards staff-only. */}
+        <GeneralMetricsTab year={generalYear} publicPreview={!isStaff} />
+        {/* Sign-in prompt sits below the graphs for visitors. */}
         {signInPrompt}
-        <GeneralMetricsTab year={generalYear ?? publicYear} publicPreview={!isStaff} />
       </>
     ),
   };
@@ -118,47 +114,42 @@ export default function InsightsScreen() {
     key: "attendance",
     label: "Attendance",
     render: () => (
-      <>
-        {signInPrompt}
-        <MetricsTab
-          subgroups={subgroups}
-          selectedSubgroup={subgroup}
-          onSelectedSubgroupChange={setSelectedSubgroup}
-          onOpenMember={openEditMember}
-          rangeWeeks={!isStaff ? 2 : rangeWeeks}
-          includeCollaborative={includeCollaborative}
-          publicPreview={!isStaff}
-        />
-      </>
+      <MetricsTab
+        subgroups={subgroups}
+        selectedSubgroup={subgroup}
+        onSelectedSubgroupChange={setSelectedSubgroup}
+        onOpenMember={openEditMember}
+        rangeWeeks={rangeWeeks}
+        includeCollaborative={includeCollaborative}
+      />
     ),
   };
-  // Both tabs show for everyone now; non-staff get the limited previews above.
-  const tabs: PagerTab[] = [generalTab, attendanceTab];
+  // Attendance is staff-only, so visitors get just General (a single segment,
+  // which collapses the top bar).
+  const tabs: PagerTab[] = isStaff ? [generalTab, attendanceTab] : [generalTab];
   const activeKey = tabs.some((t) => t.key === active) ? active : "general";
 
   // The bottom-right selector is per-tab: range/collaborative on Attendance,
-  // All-vs-year scope on General. The bottom-left toggle (bars/lines) is shared.
-  // Non-staff get no Attendance range selector — their preview is fixed to the
-  // 2-week campus view.
+  // All-vs-year scope on General. Visitors get neither (no picker), only the
+  // bottom-left bars/lines toggle.
   const floating = (
     <>
-      {activeKey === "attendance" ? (
-        isStaff ? (
+      {isStaff ? (
+        activeKey === "attendance" ? (
           <AttendanceRangeFab
             rangeWeeks={rangeWeeks}
             onRangeChange={setRangeWeeks}
             includeCollaborative={includeCollaborative}
             onCollaborativeChange={setIncludeCollaborative}
           />
-        ) : null
-      ) : (
-        <GeneralScopeFab
-          years={staffTrends?.years ?? []}
-          value={generalYear}
-          onChange={setGeneralYear}
-          publicPreview={!isStaff}
-        />
-      )}
+        ) : (
+          <GeneralScopeFab
+            years={staffTrends?.years ?? []}
+            value={generalYear}
+            onChange={setGeneralYear}
+          />
+        )
+      ) : null}
       <ChartModeFab mode={chartMode} onChange={setChartMode} />
     </>
   );

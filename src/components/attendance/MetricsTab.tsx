@@ -84,7 +84,6 @@ export function MetricsTab({
   onOpenMember,
   rangeWeeks,
   includeCollaborative,
-  publicPreview,
 }: {
   subgroups: string[];
   selectedSubgroup: string | null;
@@ -93,7 +92,6 @@ export function MetricsTab({
   // Owned by the Insights screen and driven by the bottom-right range selector.
   rangeWeeks: number;
   includeCollaborative: boolean;
-  publicPreview?: boolean;
 }) {
   const t = useAppTheme();
   const router = useRouter();
@@ -181,7 +179,7 @@ export function MetricsTab({
       },
     };
 
-    const all: SummaryCard[] = [
+    return [
       ...(data.hasWeeklyMeetings ? [weeklyCard] : []),
       eventCard,
       {
@@ -230,17 +228,12 @@ export function MetricsTab({
         },
       },
     ];
-    // Public preview: just the headline weekly-meeting average — the fuller card
-    // set (including the follow-up count) is staff-only.
-    return publicPreview
-      ? all.filter((c) => c.label === "Avg / weekly mtg")
-      : all;
-  }, [data, publicPreview]);
+  }, [data]);
 
   return (
     <View onLayout={onLayout} style={{ gap: spacing.md }}>
       {/* Sub-group picker — mirrors the Events tab's campus row. */}
-      {subgroups.length > 0 && !publicPreview ? (
+      {subgroups.length > 0 ? (
         <View style={styles.campusRow}>
           {subgroups.map((sg, i) => {
             const active = sg === subgroup;
@@ -518,18 +511,12 @@ export function MetricsTab({
                     campusMixChart,
                     ...breakdownCharts,
                   ];
-              // Public preview: the weekly-meeting trend + attendance over time
-              // only — the composition/breakdown charts stay staff-only.
-              if (publicPreview) {
-                return [weeklyTrendChart, attendanceChart].filter(Boolean);
-              }
               return ordered.filter(Boolean);
             })()}
           </View>
 
-          {/* Needs follow-up — a per-campus pastoral tool, hidden org-wide and
-              never shown in the public preview (it names individuals). */}
-          {orgWide || publicPreview ? null : (
+          {/* Needs follow-up — a per-campus pastoral tool, hidden org-wide. */}
+          {orgWide ? null : (
           <View style={[styles.followCard, { backgroundColor: t.card }, t.shadowCard]}>
             <View style={styles.followHeader}>
               <Ionicons name="heart-outline" size={18} color={t.primary} />
