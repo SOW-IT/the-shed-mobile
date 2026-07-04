@@ -84,6 +84,7 @@ export function MetricsTab({
   onOpenMember,
   rangeWeeks,
   includeCollaborative,
+  publicPreview,
 }: {
   subgroups: string[];
   selectedSubgroup: string | null;
@@ -92,6 +93,7 @@ export function MetricsTab({
   // Owned by the Insights screen and driven by the bottom-right range selector.
   rangeWeeks: number;
   includeCollaborative: boolean;
+  publicPreview?: boolean;
 }) {
   const t = useAppTheme();
   const router = useRouter();
@@ -233,7 +235,7 @@ export function MetricsTab({
   return (
     <View onLayout={onLayout} style={{ gap: spacing.md }}>
       {/* Sub-group picker — mirrors the Events tab's campus row. */}
-      {subgroups.length > 0 ? (
+      {subgroups.length > 0 && !publicPreview ? (
         <View style={styles.campusRow}>
           {subgroups.map((sg, i) => {
             const active = sg === subgroup;

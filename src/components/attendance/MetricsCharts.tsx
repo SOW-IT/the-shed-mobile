@@ -44,6 +44,40 @@ const Y_AXIS_W = 32; // width reserved for y-axis labels
 // Total fixed container height = chart bars + x-label row + value label row
 const chartContainerH = (ch: number) => ch + BAR_LABEL_H + BAR_VALUE_H;
 
+/** Drop duplicates while preserving order. */
+function uniq<T>(arr: readonly T[]): T[] {
+  const seen = new Set<T>();
+  const out: T[] = [];
+  for (const item of arr) {
+    if (!seen.has(item)) {
+      seen.add(item);
+      out.push(item);
+    }
+  }
+  return out;
+}
+
+/**
+ * Derive y-axis tick values from actual chart data so labels line up with
+ * visible points. Returns up to `count` ticks: max, zero, and the most
+ * distinct values found in the data, sorted descending.
+ */
+function deriveYTicks(values: number[], max: number, count = 5): number[] {
+  if (count <= 0) return [max];
+  if (!Number.isFinite(max) || max < 0) max = 0;
+  const candidates = uniq([...values, max, 0]).sort((a, b) => b - a);
+  if (candidates.length <= count) return candidates;
+  const step = Math.max(1, Math.floor((candidates.length - 1) / (count - 1)));
+  const picked = [candidates[0]];
+  for (let i = step; i < candidates.length - 1; i += step) picked.push(candidates[i]);
+  picked.push(0);
+  return picked;
+}
+
+/** Map a data value to a y position in pixels within the chart drawing area. */
+const yAt = (v: number, max: number, chartHeight: number) =>
+  max > 0 ? chartHeight - (v / max) * chartHeight : chartHeight;
+
 /**
  * Bar vs line rendering, shared across every chart on the Insights screen via
  * context so a single toggle (see ChartModeFab) flips them all at once. Charts
@@ -133,7 +167,7 @@ function LineSeriesChart({
   const count = labels.length;
   const colW = w > 0 ? w / count : 0;
   const xAt = (i: number) => colW * (i + 0.5);
-  const yAt = (v: number) => chartHeight - (v / max) * chartHeight;
+  const ticks = deriveYTicks(series.flatMap((s) => s.values), max);
   const LABEL_MIN_PX = 22;
   const labelStep =
     colW >= LABEL_MIN_PX ? 1 : Math.ceil(LABEL_MIN_PX / Math.max(1, colW || 1));
@@ -142,7 +176,7 @@ function LineSeriesChart({
     <View
       style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}
     >
-      <YAxis max={max} chartHeight={chartHeight} />
+      <YAxis max={max} chartHeight={chartHeight} ticks={ticks} />
       <View
         style={{ flex: 1, height: chartContainerH(chartHeight) }}
         onLayout={(e) => setW(e.nativeEvent.layout.width)}
@@ -284,9 +318,9 @@ function BarLabel({ text }: { text: string }) {
  * baseline — without it `space-between` drops the 25% label onto the baseline,
  * making the scale read 100/67/33/0 instead of 100/75/50/25/0.
  */
-function YAxis({ max, chartHeight }: { max: number; chartHeight: number }) {
+function YAxis({ max, chartHeight, ticks }: { max: number; chartHeight: number; ticks?: number[] }) {
   const t = useAppTheme();
-  const ticks = [
+  const values = ticks ?? [
     max,
     Math.round(max * 0.75),
     Math.round(max * 0.5),
@@ -295,7 +329,7 @@ function YAxis({ max, chartHeight }: { max: number; chartHeight: number }) {
   ];
   return (
     <View style={[styles.yAxis, { height: chartHeight }]}>
-      {ticks.map((v, i) => (
+      {values.map((v, i) => (
         <Text
           key={i}
           style={[styles.yTick, { color: t.faint }]}

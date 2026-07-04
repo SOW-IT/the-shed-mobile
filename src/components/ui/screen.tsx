@@ -156,6 +156,11 @@ export const TopBar = ({
   // anchored inside it would be cut off at the bar's edge.
   const [signInMenu, setSignInMenu] = useState(false);
   const { signInWithGoogle, busy, error, clearError } = useGoogleSignIn();
+  const signInAndClose = async () => {
+    setSignInMenu(false);
+    clearError();
+    await signInWithGoogle();
+  };
   return (
     <View style={styles.topBar}>
       <Animated.View style={{ transform: [{ scale: home.scale }] }}>
@@ -286,7 +291,7 @@ export const TopBar = ({
           >
             <Pressable
               disabled={busy}
-              onPress={() => void signInWithGoogle()}
+              onPress={signInAndClose}
               accessibilityRole="button"
               accessibilityLabel="Sign in with your SOW account"
               style={({ pressed }) => [

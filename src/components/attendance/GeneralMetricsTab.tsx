@@ -1,12 +1,12 @@
 /**
- * Insights → General. Org-wide staff trends from convex/generalMetrics.ts:
+ * Insights → General. Org-wide trends from convex/generalMetrics.ts:
  *  - all staff head-count over time,
  *  - staff vs student leaders (the attendance member-filter split),
  *  - student leaders by campus.
  *
- * The bottom-right selector (GeneralScopeFab, owned by the Insights screen) picks
- * the scope: "All years" shows the multi-year trend charts; a specific staff year
- * switches to summary cards for that year, each compared to the previous year.
+ * For everyone this tab is visible, but non-staff users get a sign-in prompt and
+ * a limited public scope: only "All years" and 2026 are selectable. The detailed
+ * per-year cards stay staff-only.
  */
 import { useQuery } from "convex/react";
 import { useMemo, useState } from "react";
@@ -49,7 +49,7 @@ const yoyDelta = (cur: number, prev: number | undefined): Delta => {
   };
 };
 
-export function GeneralMetricsTab({ year }: { year: number | null }) {
+export function GeneralMetricsTab({ year, publicPreview }: { year: number | null; publicPreview?: boolean }) {
   const t = useAppTheme();
   const { width: windowWidth } = useWindowDimensions();
   const [containerWidth, setContainerWidth] = useState(windowWidth);

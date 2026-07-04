@@ -17,15 +17,15 @@ import {
   ChartModeProvider,
 } from "@/components/attendance/MetricsCharts";
 import { MetricsTab } from "@/components/attendance/MetricsTab";
-import { LoadingState } from "@/components/ui";
+import { EmptyState, LoadingState } from "@/components/ui";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 
 /**
  * Insights — its own bottom-tab home for the attendance metrics dashboard,
  * lifted out of the Attendance screen's tab strip. Two top-bar segments:
- *  - "General": org-wide staff trends ({@link GeneralMetricsTab}), on the left.
- *  - "Attendance": the leader-facing per-campus metrics dashboard
- *    ({@link MetricsTab}).
+ *  - "General": public org-wide trends ({@link GeneralMetricsTab}), on the left.
+ *  - "Attendance": private per-campus metrics dashboard
+ *    ({@link MetricsTab}), hidden for visitors and staff-only sign-ins.
  *
  * Snapshots are kept fresh server-side (weekly cron + dirty-recompute on
  * roll-call changes), so there's no manual refresh affordance here for now.
@@ -82,28 +82,49 @@ export default function InsightsScreen() {
     return <LoadingState />;
   }
 
-  // Insights is a public tab. The org-wide General trends are shown to everyone
-  // (the queries return a sign-in prompt state to non-staff); the per-campus
-  // Attendance dashboard — which lists people by name — stays staff-only.
+  // Insights is a public tab with limited public access:
+  // - General: visible to everyone, but shows sign-in prompt when not staff and
+  //   limits the year scope to All Years / 2026 only.
+  // - Attendance: visible to everyone, but hides the picker, limits sub-groups
+  //   to campus groups (excluding SOW), limits the time range to 1wk/2wk,
+  //   reduces cards to Avg / weekly meeting + Attendance over time,
+  //   and omits the Needs follow-up list.
   const isStaff = !!me?.profile;
+  const publicYear = !isStaff ? 2026 : null; /* public-only fallback year; All Years also visible */
+  const signInPrompt = !isStaff ? (
+    <EmptyState
+      icon="log-in-outline"
+      title="Sign in to view more"
+      message="The public view shows limited insights. Sign in with your SOW account to see the full dashboard."
+    />
+  ) : null;
 
   const generalTab: PagerTab = {
     key: "general",
     label: "General",
-    render: () => <GeneralMetricsTab year={generalYear} />,
+    render: () => (
+      <>
+        {signInPrompt}
+        <GeneralMetricsTab year={generalYear ?? publicYear} publicPreview={!isStaff} />
+      </>
+    ),
   };
   const attendanceTab: PagerTab = {
     key: "attendance",
     label: "Attendance",
     render: () => (
-      <MetricsTab
-        subgroups={subgroups}
-        selectedSubgroup={subgroup}
-        onSelectedSubgroupChange={setSelectedSubgroup}
-        onOpenMember={openEditMember}
-        rangeWeeks={rangeWeeks}
-        includeCollaborative={includeCollaborative}
-      />
+      <>
+        {signInPrompt}
+        <MetricsTab
+          subgroups={subgroups}
+          selectedSubgroup={subgroup}
+          onSelectedSubgroupChange={setSelectedSubgroup}
+          onOpenMember={openEditMember}
+          rangeWeeks={!isStaff ? 2 : rangeWeeks}
+          includeCollaborative={includeCollaborative}
+          publicPreview={!isStaff}
+        />
+      </>
     ),
   };
   const tabs: PagerTab[] = isStaff ? [generalTab, attendanceTab] : [generalTab];

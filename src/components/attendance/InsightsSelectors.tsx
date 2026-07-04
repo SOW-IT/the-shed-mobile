@@ -169,11 +169,13 @@ export function GeneralScopeFab({
   years,
   value,
   onChange,
+  publicPreview,
 }: {
   years: number[];
   /** null = All years (trend view); a year = that year vs the previous one. */
   value: number | null;
   onChange: (value: number | null) => void;
+  publicPreview?: boolean;
 }) {
   const label = value === null ? "All years" : String(value);
   return (
@@ -189,6 +191,8 @@ export function GeneralScopeFab({
             }}
           />
           {[...years].reverse().map((year) => {
+            // Public preview: only allow 2026.
+            if (publicPreview && year !== 2026) return null;
             // Compare against the previous year *on record*, which may not be
             // year − 1 if a staff year is missing.
             const idx = years.indexOf(year);
