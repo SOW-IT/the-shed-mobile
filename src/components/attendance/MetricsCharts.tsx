@@ -94,6 +94,27 @@ const ChartModeContext = createContext<ChartMode>("bar");
 export const ChartModeProvider = ChartModeContext.Provider;
 export const useChartMode = (): ChartMode => useContext(ChartModeContext);
 
+/**
+ * One legend item a bar/line chart can be tapped-highlighted by. `key` is the
+ * stable id a chart's segments/series match against (not necessarily the same
+ * as the display `label`).
+ */
+export type LegendItem = { key: string; colour: string; label: string };
+
+/**
+ * Legend-driven highlighting, scoped to a single ChartCard's fullscreen modal
+ * (provided by ChartCard, consumed by whichever bar/line chart it renders).
+ * Selecting a legend item — fullscreen only, see ChartCard — either moves that
+ * segment to the bottom of a stacked bar (bar mode) or dims every other line
+ * and legend entry (line mode).
+ */
+type ChartSelection = { selectedKey: string | null; toggle: (key: string) => void };
+const ChartSelectionContext = createContext<ChartSelection>({
+  selectedKey: null,
+  toggle: () => {},
+});
+const useChartSelection = (): ChartSelection => useContext(ChartSelectionContext);
+
 const LINE_STROKE = 2.5;
 const LINE_DOT = 6;
 
@@ -101,9 +122,12 @@ const LINE_DOT = 6;
 function LinePath({
   points,
   colour,
+  opacity = 1,
 }: {
   points: { x: number; y: number }[];
   colour: string;
+  /** Dimmed when another series is highlighted (fullscreen legend tap). */
+  opacity?: number;
 }) {
   return (
     <>
@@ -124,6 +148,7 @@ function LinePath({
               height: LINE_STROKE,
               borderRadius: LINE_STROKE / 2,
               backgroundColor: colour,
+              opacity,
               transform: [{ rotateZ: `${angle}rad` }],
             }}
           />
@@ -140,6 +165,7 @@ function LinePath({
             height: LINE_DOT,
             borderRadius: LINE_DOT / 2,
             backgroundColor: colour,
+            opacity,
           }}
         />
       ))}
@@ -158,12 +184,16 @@ function LineSeriesChart({
   max,
   fullscreen,
   tooltipLabelFor,
+  selectedKey,
 }: {
   labels: string[];
-  series: { key: string; colour: string; values: number[] }[];
+  /** `id` is the legend-selection id; defaults to `key` (the display/tooltip label) when omitted. */
+  series: { key: string; id?: string; colour: string; values: number[] }[];
   max: number;
   fullscreen: boolean;
   tooltipLabelFor: (i: number) => string;
+  /** Fullscreen legend tap target — every other series dims. */
+  selectedKey?: string | null;
 }) {
   const chartHeight = fullscreen ? CHART_HEIGHT_FULL : CHART_HEIGHT;
   const [w, setW] = useState(0);
@@ -206,6 +236,11 @@ function LineSeriesChart({
                 <LinePath
                   key={s.key}
                   colour={s.colour}
+                  opacity={
+                    selectedKey != null && (s.id ?? s.key) !== selectedKey
+                      ? 0.2
+                      : 1
+                  }
                   points={s.values.map((v, i) => ({
                     x: xAt(i),
                     y: yAt(v, axisMax, chartHeight),
@@ -479,6 +514,72 @@ export function MetricCard({
  * already landscape (width > height), or on web, there's nothing to gain from
  * rotating, so we fill the screen in its natural orientation.
  */
+/**
+ * A chart's legend dots. Wraps onto its own line under the title once it no
+ * longer fits beside it (see the `chartHeader`/`fullscreenHeader` flex-wrap).
+ * In fullscreen, tapping an item highlights it — see ChartSelectionContext.
+ */
+function Legend({
+  items,
+  note,
+  interactive = false,
+  selectedKey,
+  onToggle,
+}: {
+  items: LegendItem[];
+  /** Small trailing caption, e.g. a data-scope caveat. */
+  note?: string;
+  interactive?: boolean;
+  selectedKey?: string | null;
+  onToggle?: (key: string) => void;
+}) {
+  const t = useAppTheme();
+  const mode = useChartMode();
+  // Dimming other entries only reads sensibly in line mode — in bar mode the
+  // selected segment moves to the bottom of the stack instead.
+  const dimOthers = interactive && mode === "line" && selectedKey != null;
+  return (
+    <View style={styles.legendBlock}>
+      <View style={styles.legendRow}>
+        {items.map((item) => {
+          const isSelected = interactive && selectedKey === item.key;
+          const dimmed = dimOthers && !isSelected;
+          const dot = (
+            <View style={[styles.legendItem, dimmed && { opacity: 0.35 }]}>
+              <View style={[styles.legendDot, { backgroundColor: item.colour }]} />
+              <Text
+                style={[
+                  typography.caption,
+                  { color: isSelected ? t.text : t.muted },
+                  isSelected && { fontWeight: "600" },
+                ]}
+              >
+                {item.label}
+              </Text>
+            </View>
+          );
+          return interactive ? (
+            <Pressable
+              key={item.key}
+              onPress={() => onToggle?.(item.key)}
+              hitSlop={4}
+              accessibilityRole="button"
+              accessibilityLabel={`Highlight ${item.label}`}
+            >
+              {dot}
+            </Pressable>
+          ) : (
+            <View key={item.key}>{dot}</View>
+          );
+        })}
+      </View>
+      {note ? (
+        <Text style={[typography.caption, { color: t.faint }]}>{note}</Text>
+      ) : null}
+    </View>
+  );
+}
+
 function FullscreenChartModal({
   visible,
   onClose,
@@ -535,7 +636,7 @@ function FullscreenChartModal({
         >
           {/* Header */}
           <View style={styles.fullscreenHeader}>
-            <View style={{ flex: 1 }}>
+            <View style={styles.chartTitleBlock}>
               <Text style={[typography.headline, { color: t.text }]}>
                 {title}
               </Text>
@@ -572,14 +673,18 @@ function FullscreenChartModal({
 export function ChartCard({
   title,
   subtitle,
-  legend,
+  legendItems,
+  legendNote,
   children,
   width,
   fullscreenContent,
 }: {
   title: string;
   subtitle?: string;
-  legend?: ReactNode;
+  /** Legend dots; tappable in fullscreen (see ChartSelectionContext). */
+  legendItems?: LegendItem[];
+  /** Small trailing caption under the legend, e.g. a data-scope caveat. */
+  legendNote?: string;
   children: ReactNode;
   width: number;
   /** Chart rendered inside the fullscreen modal (usually a taller variant). */
@@ -587,17 +692,23 @@ export function ChartCard({
 }) {
   const t = useAppTheme();
   const [full, setFull] = useState(false);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const toggle = (key: string) =>
+    setSelectedKey((k) => (k === key ? null : key));
   return (
     <>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${title} — tap to expand`}
-        onPress={() => setFull(true)}
+        onPress={() => {
+          setSelectedKey(null);
+          setFull(true);
+        }}
         style={({ pressed }) => [pressed && { opacity: 0.85 }]}
       >
         <Card style={[styles.chartCard, { width }]}>
           <View style={styles.chartHeader}>
-            <View style={{ flex: 1 }}>
+            <View style={styles.chartTitleBlock}>
               <Text style={[typography.headline, { color: t.text }]}>
                 {title}
               </Text>
@@ -608,7 +719,7 @@ export function ChartCard({
               ) : null}
             </View>
             <View style={styles.chartHeaderRight}>
-              {legend}
+              {legendItems ? <Legend items={legendItems} note={legendNote} /> : null}
               <Ionicons name="expand-outline" size={16} color={t.faint} />
             </View>
           </View>
@@ -620,9 +731,21 @@ export function ChartCard({
         onClose={() => setFull(false)}
         title={title}
         subtitle={subtitle}
-        legend={legend}
+        legend={
+          legendItems ? (
+            <Legend
+              items={legendItems}
+              note={legendNote}
+              interactive
+              selectedKey={selectedKey}
+              onToggle={toggle}
+            />
+          ) : undefined
+        }
       >
-        {fullscreenContent ?? children}
+        <ChartSelectionContext.Provider value={{ selectedKey, toggle }}>
+          {fullscreenContent ?? children}
+        </ChartSelectionContext.Provider>
       </FullscreenChartModal>
     </>
   );
@@ -788,6 +911,7 @@ export function StackedBarChart({
 }) {
   const t = useAppTheme();
   const mode = useChartMode();
+  const { selectedKey } = useChartSelection();
   const chartHeight = fullscreen ? CHART_HEIGHT_FULL : CHART_HEIGHT;
   const fit = useBarFit(points.length, chartHeight);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
@@ -814,9 +938,15 @@ export function StackedBarChart({
       <LineSeriesChart
         labels={points.map((p) => p.label)}
         series={[
-          { key: labels.fresh, colour: t.accent, values: points.map((p) => p.fresh) },
+          {
+            key: labels.fresh,
+            id: "fresh",
+            colour: t.accent,
+            values: points.map((p) => p.fresh),
+          },
           {
             key: labels.returning,
+            id: "returning",
             colour: t.primary,
             values: points.map((p) => p.returning),
           },
@@ -824,9 +954,23 @@ export function StackedBarChart({
         max={lineMax}
         fullscreen={fullscreen}
         tooltipLabelFor={labelFor}
+        selectedKey={selectedKey}
       />
     );
   }
+  // Fullscreen legend tap moves that segment to the bottom of the stack —
+  // everything else stacks on top of it, in their remaining relative order.
+  const baseSegments = [
+    { id: "fresh" as const, colour: t.accent },
+    { id: "returning" as const, colour: t.primary },
+  ];
+  const segmentOrder =
+    selectedKey && baseSegments.some((s) => s.id === selectedKey)
+      ? [
+          ...baseSegments.filter((s) => s.id !== selectedKey),
+          ...baseSegments.filter((s) => s.id === selectedKey),
+        ]
+      : baseSegments;
   return (
     <View
       style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}
@@ -849,6 +993,13 @@ export function StackedBarChart({
                 const total = p.fresh + p.returning;
                 const selected =
                   fullscreen && (selectedIdx === i || hoveredIdx === i);
+                const values: Record<"fresh" | "returning", number> = {
+                  fresh: p.fresh,
+                  returning: p.returning,
+                };
+                const visible = segmentOrder
+                  .map((s) => ({ ...s, value: values[s.id] }))
+                  .filter((s) => s.value > 0);
                 return (
                   <Pressable
                     key={`${p.at}-${i}`}
@@ -893,26 +1044,21 @@ export function StackedBarChart({
                         opacity: selected ? 0.7 : 1,
                       }}
                     >
-                      {p.fresh > 0 ? (
+                      {visible.map((seg, si) => (
                         <View
+                          key={seg.id}
                           style={{
-                            height: Math.max(BAR_MIN, scale(p.fresh)),
-                            backgroundColor: t.accent,
-                            borderTopLeftRadius: radius.sm,
-                            borderTopRightRadius: radius.sm,
+                            height: Math.max(BAR_MIN, scale(seg.value)),
+                            backgroundColor: seg.colour,
+                            borderTopLeftRadius: si === 0 ? radius.sm : 0,
+                            borderTopRightRadius: si === 0 ? radius.sm : 0,
+                            borderBottomLeftRadius:
+                              si === visible.length - 1 ? radius.sm : 0,
+                            borderBottomRightRadius:
+                              si === visible.length - 1 ? radius.sm : 0,
                           }}
                         />
-                      ) : null}
-                      {p.returning > 0 ? (
-                        <View
-                          style={{
-                            height: Math.max(BAR_MIN, scale(p.returning)),
-                            backgroundColor: t.primary,
-                            borderBottomLeftRadius: radius.sm,
-                            borderBottomRightRadius: radius.sm,
-                          }}
-                        />
-                      ) : null}
+                      ))}
                     </View>
                     <BarLabel text={i % labelStep === 0 ? p.label : ""} />
                   </Pressable>
@@ -957,6 +1103,7 @@ export function MultiStackedBarChart({
 }) {
   const t = useAppTheme();
   const mode = useChartMode();
+  const { selectedKey } = useChartSelection();
   const chartHeight = fullscreen ? CHART_HEIGHT_FULL : CHART_HEIGHT;
   const fit = useBarFit(points.length, chartHeight);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
@@ -998,6 +1145,7 @@ export function MultiStackedBarChart({
         max={lineMax}
         fullscreen={fullscreen}
         tooltipLabelFor={labelFor}
+        selectedKey={selectedKey}
       />
     );
   }
@@ -1021,7 +1169,17 @@ export function MultiStackedBarChart({
             ? null
             : points.map((p, i) => {
                 const total = totals[i];
-                const visible = p.segments.filter((seg) => seg.value > 0);
+                const filtered = p.segments.filter((seg) => seg.value > 0);
+                // Fullscreen legend tap moves that segment to the bottom of
+                // the stack — only meaningful when segments are actually
+                // stacked (grouped bars have no "bottom" to move to).
+                const visible =
+                  stacked && selectedKey && filtered.some((s) => s.key === selectedKey)
+                    ? [
+                        ...filtered.filter((s) => s.key !== selectedKey),
+                        ...filtered.filter((s) => s.key === selectedKey),
+                      ]
+                    : filtered;
                 const barHeight = Math.max(BAR_MIN, scale(total));
                 const gapCount = Math.max(0, visible.length - 1);
                 const gaps = Math.min(
@@ -1321,8 +1479,17 @@ const styles = StyleSheet.create({
   },
   chartHeader: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "flex-start",
     gap: spacing.sm,
+  },
+  // Grows/shrinks with the row but keeps a floor width, so the legend (fixed
+  // width) is what wraps onto its own line once the row runs out of room —
+  // not the title getting squeezed to nothing.
+  chartTitleBlock: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 120,
   },
   chartHeaderRight: {
     flexDirection: "row",

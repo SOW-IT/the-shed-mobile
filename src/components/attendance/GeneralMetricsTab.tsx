@@ -17,7 +17,7 @@ import type { SplitPoint, TrendPoint } from "../../../shared/attendanceMetrics";
 import {
   BarChart,
   ChartCard,
-  LegendDot,
+  type LegendItem,
   MetricCard,
   type MultiStackPoint,
   MultiStackedBarChart,
@@ -252,12 +252,10 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
           title="Staff vs student leaders"
           subtitle="Per staff year"
           width={width}
-          legend={
-            <View style={{ gap: 4 }}>
-              <LegendDot colour={t.primary} label="Staff" />
-              <LegendDot colour={t.accent} label="Student leaders" />
-            </View>
-          }
+          legendItems={[
+            { key: "returning", colour: t.primary, label: "Staff" },
+            { key: "fresh", colour: t.accent, label: "Student leaders" },
+          ]}
           fullscreenContent={
             <StackedBarChart
               points={charts.staffVsLeaders}
@@ -280,13 +278,13 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
           title="Student leaders by campus"
           subtitle="Per staff year"
           width={width}
-          legend={
-            <View style={styles.campusLegend}>
-              {trends.campuses.map((campus) => (
-                <LegendDot key={campus} colour={subgroupColour(campus)} label={campusAcronym(campus)} />
-              ))}
-            </View>
-          }
+          legendItems={trends.campuses.map(
+            (campus): LegendItem => ({
+              key: campusAcronym(campus),
+              colour: subgroupColour(campus),
+              label: campusAcronym(campus),
+            }),
+          )}
           fullscreenContent={
             <MultiStackedBarChart
               points={charts.leadersByCampus}
@@ -308,17 +306,13 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
             title="Weekly meeting attendance"
             subtitle="Average per staff year (from 2025)"
             width={width}
-            legend={
-              <View style={styles.campusLegend}>
-                {campusAttendance!.campuses.map((c) => (
-                  <LegendDot
-                    key={c.campus}
-                    colour={subgroupColour(c.campus)}
-                    label={campusAcronym(c.campus)}
-                  />
-                ))}
-              </View>
-            }
+            legendItems={campusAttendance!.campuses.map(
+              (c): LegendItem => ({
+                key: campusAcronym(c.campus),
+                colour: subgroupColour(c.campus),
+                label: campusAcronym(c.campus),
+              }),
+            )}
             fullscreenContent={
               // Averages are compared, not summed, so bar mode draws one bar
               // per campus side by side instead of stacking them into a
@@ -348,9 +342,4 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
 const styles = StyleSheet.create({
   grid: { gap: spacing.md },
   cardGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  campusLegend: {
-    alignItems: "flex-end",
-    gap: 4,
-    maxWidth: 160,
-  },
 });
