@@ -20,6 +20,7 @@ import type * as auth from "../auth.js";
 import type * as bankAccounts from "../bankAccounts.js";
 import type * as cleanup from "../cleanup.js";
 import type * as comments from "../comments.js";
+import type * as contact from "../contact.js";
 import type * as crons from "../crons.js";
 import type * as directory from "../directory.js";
 import type * as directorySync from "../directorySync.js";
@@ -58,6 +59,7 @@ declare const fullApi: ApiFromModules<{
   bankAccounts: typeof bankAccounts;
   cleanup: typeof cleanup;
   comments: typeof comments;
+  contact: typeof contact;
   crons: typeof crons;
   directory: typeof directory;
   directorySync: typeof directorySync;
