@@ -53,7 +53,6 @@ export const submit = mutation({
       to: CONTACT_INBOX,
       subject: `New contact message from ${fromEmail}`,
       body: `From: ${fromEmail}\n\n${body}`,
-      replyTo: fromEmail,
     });
 
     await ctx.scheduler.runAfter(0, internal.emails.send, {
