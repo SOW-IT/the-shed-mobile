@@ -1,7 +1,10 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
+    // Exclude nested git worktrees (e.g. .claude/worktrees/<branch>) — they're
+    // separate checkouts on other branches, not part of this tree's suite.
+    exclude: [...configDefaults.exclude, "**/.claude/worktrees/**"],
     environment: "edge-runtime",
     server: { deps: { inline: ["convex-test"] } },
     coverage: {

@@ -33,7 +33,6 @@ import {
   BreakdownBars,
   ChartCard,
   FollowUpRow,
-  LegendDot,
   MetricCard,
   StackedBarChart,
 } from "@/components/attendance/MetricsCharts";
@@ -328,23 +327,24 @@ export function MetricsTab({
                     <BarChart points={data.weeklyTrend} colour={t.success} />
                   </ChartCard>
                 ) : null;
-              const newVsReturningChart = (
+              // Per-campus only — SOW is an org-wide rollup, not a campus, so
+              // it's excluded from this breakdown (see campusWeeklyChart for
+              // the org-wide equivalent).
+              const newVsReturningChart = !orgWide ? (
                 <ChartCard
                   key="newVsReturning"
                   title="New vs returning"
                   subtitle={weekly ? "At weekly meetings" : undefined}
                   width={chartWidth}
-                  legend={
-                    <View style={{ gap: 4 }}>
-                      <LegendDot colour={t.accent} label="New" />
-                      <LegendDot colour={t.primary} label="Returning" />
-                    </View>
-                  }
+                  legendItems={[
+                    { key: "fresh", colour: t.accent, label: "New" },
+                    { key: "returning", colour: t.primary, label: "Returning" },
+                  ]}
                   fullscreenContent={<StackedBarChart points={data.newVsReturning} fullscreen />}
                 >
                   <StackedBarChart points={data.newVsReturning} />
                 </ChartCard>
-              );
+              ) : null;
               // Composition charts share the new-vs-returning event basis
               // (weekly meetings when the group runs them). The subtitle
               // carries the period-wide share and its ratio, oriented so the
@@ -373,19 +373,18 @@ export function MetricsTab({
                   fresh: p.primary,
                   returning: p.rest,
                 }));
+              // Per-campus only — see newVsReturningChart above.
               const leadersVsOthersChart =
-                data.leadersVsOthers && data.leadersVsOthers.length > 0 ? (
+                !orgWide && data.leadersVsOthers && data.leadersVsOthers.length > 0 ? (
                   <ChartCard
                     key="leadersVsOthers"
                     title="Student leaders vs everyone else"
                     subtitle={shareSubtitle(data.summary.leaderShare, "student leaders")}
                     width={chartWidth}
-                    legend={
-                      <View style={{ gap: 4 }}>
-                        <LegendDot colour={t.accent} label="Student leaders" />
-                        <LegendDot colour={t.primary} label="Everyone else" />
-                      </View>
-                    }
+                    legendItems={[
+                      { key: "fresh", colour: t.accent, label: "Student leaders" },
+                      { key: "returning", colour: t.primary, label: "Everyone else" },
+                    ]}
                     fullscreenContent={
                       <StackedBarChart
                         points={asSplit(data.leadersVsOthers)}
@@ -410,15 +409,11 @@ export function MetricsTab({
                     title="This campus vs visitors"
                     subtitle={shareSubtitle(data.summary.homeCampusShare, "from this campus")}
                     width={chartWidth}
-                    legend={
-                      <View style={{ gap: 4 }}>
-                        <LegendDot colour={t.accent} label="This campus" />
-                        <LegendDot colour={t.primary} label="Other campuses" />
-                        <Text style={[typography.caption, { color: t.faint }]}>
-                          Only people with a known campus
-                        </Text>
-                      </View>
-                    }
+                    legendItems={[
+                      { key: "fresh", colour: t.accent, label: "This campus" },
+                      { key: "returning", colour: t.primary, label: "Other campuses" },
+                    ]}
+                    legendNote="Only people with a known campus"
                     fullscreenContent={
                       <StackedBarChart
                         points={asSplit(data.campusMix)}
