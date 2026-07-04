@@ -1,12 +1,13 @@
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
-import { Authenticated, AuthLoading, ConvexReactClient, Unauthenticated } from "convex/react";
+import { ConvexReactClient, useConvexAuth } from "convex/react";
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { useEffect } from "react";
+import { Alert, Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { SignInScreen } from "@/components/SignInScreen";
+import { useWebAuthCodeExchange } from "@/hooks/useGoogleSignIn";
 import { LoadingState } from "@/components/ui";
 import { useAppTheme } from "@/theme";
 
@@ -65,6 +66,26 @@ const configErrorStyles = StyleSheet.create({
   message: { color: "#5C6B62", textAlign: "center" },
 });
 
+/**
+ * The app shell rendered for BOTH signed-in and signed-out users (1.7.0): the
+ * public surfaces (Home, Org chart, person profiles) work without an account,
+ * and signing in via the top-bar avatar reveals the staff tabs in place — one
+ * navigator across the auth flip, so the user stays where they are. Only the
+ * initial auth handshake shows a loading state.
+ */
+const AuthGate = () => {
+  const { isLoading } = useConvexAuth();
+  // On web this hook is what drives the `?code=` exchange after the Google
+  // redirect lands. Hold the loading state while it runs so we don't flash the
+  // signed-out shell before auth resolves, and surface a failed exchange
+  // (expired / re-used code) instead of silently dropping the visitor.
+  const { busy, error } = useWebAuthCodeExchange();
+  useEffect(() => {
+    if (error) Alert.alert("Sign-in didn't finish", error);
+  }, [error]);
+  return isLoading || busy ? <LoadingState /> : <RootStack />;
+};
+
 const RootStack = () => (
   <Stack
     screenOptions={{
@@ -114,15 +135,7 @@ export default function RootLayout() {
                 storage={Platform.OS === "web" ? undefined : secureStorage}
                 shouldHandleCode={Platform.OS !== "web"}
               >
-                <AuthLoading>
-                  <LoadingState />
-                </AuthLoading>
-                <Unauthenticated>
-                  <SignInScreen />
-                </Unauthenticated>
-                <Authenticated>
-                  <RootStack />
-                </Authenticated>
+                <AuthGate />
               </ConvexAuthProvider>
             ) : (
               <ConfigurationErrorScreen />

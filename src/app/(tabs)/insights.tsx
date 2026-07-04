@@ -9,18 +9,23 @@ import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
 import { GeneralMetricsTab } from "@/components/attendance/GeneralMetricsTab";
 import {
   AttendanceRangeFab,
+  ChartModeFab,
   GeneralScopeFab,
 } from "@/components/attendance/InsightsSelectors";
+import {
+  type ChartMode,
+  ChartModeProvider,
+} from "@/components/attendance/MetricsCharts";
 import { MetricsTab } from "@/components/attendance/MetricsTab";
-import { LoadingState } from "@/components/ui";
+import { EmptyState, LoadingState } from "@/components/ui";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 
 /**
  * Insights — its own bottom-tab home for the attendance metrics dashboard,
  * lifted out of the Attendance screen's tab strip. Two top-bar segments:
- *  - "General": org-wide staff trends ({@link GeneralMetricsTab}), on the left.
- *  - "Attendance": the leader-facing per-campus metrics dashboard
- *    ({@link MetricsTab}).
+ *  - "General": public org-wide trends ({@link GeneralMetricsTab}), on the left.
+ *  - "Attendance": private per-campus metrics dashboard
+ *    ({@link MetricsTab}), hidden for visitors and staff-only sign-ins.
  *
  * Snapshots are kept fresh server-side (weekly cron + dirty-recompute on
  * roll-call changes), so there's no manual refresh affordance here for now.
@@ -46,6 +51,7 @@ export default function InsightsScreen() {
   const [rangeWeeks, setRangeWeeks] = useState(8);
   const [includeCollaborative, setIncludeCollaborative] = useState(true);
   const [generalYear, setGeneralYear] = useState<number | null>(null); // null = All years
+  const [chartMode, setChartMode] = useState<ChartMode>("bar");
   // Just the year list for the General selector; the tab runs its own query too
   // (Convex dedupes the identical call).
   const staffTrends = useQuery(api.generalMetrics.staffTrends, {});
@@ -76,51 +82,83 @@ export default function InsightsScreen() {
     return <LoadingState />;
   }
 
-  const tabs: PagerTab[] = [
-    {
-      key: "general",
-      label: "General",
-      render: () => <GeneralMetricsTab year={generalYear} />,
-    },
-    {
-      key: "attendance",
-      label: "Attendance",
-      render: () => (
-        <MetricsTab
-          subgroups={subgroups}
-          selectedSubgroup={subgroup}
-          onSelectedSubgroupChange={setSelectedSubgroup}
-          onOpenMember={openEditMember}
-          rangeWeeks={rangeWeeks}
-          includeCollaborative={includeCollaborative}
-        />
-      ),
-    },
-  ];
+  // Insights (1.7.0):
+  // - General: org-wide trend charts (aggregate head-counts) are open to
+  //   everyone. Visitors get the charts plus a "sign in to view more" prompt at
+  //   the bottom, and no year picker; the per-year card breakdown is staff-only.
+  // - Attendance: staff-only. Visitors don't see the tab at all, so the top-bar
+  //   segments collapse to just General for them.
+  const isStaff = !!me?.profile;
+  const signInPrompt = !isStaff ? (
+    <EmptyState
+      icon="log-in-outline"
+      title="Sign in to view more"
+      message="You're seeing the public view. Sign in with your SOW account to see the full dashboard."
+    />
+  ) : null;
+
+  const generalTab: PagerTab = {
+    key: "general",
+    label: "General",
+    render: () => (
+      <>
+        {/* Visitors have no year picker, so `generalYear` stays null (All years);
+            publicPreview keeps the per-year cards staff-only. */}
+        <GeneralMetricsTab year={generalYear} publicPreview={!isStaff} />
+        {/* Sign-in prompt sits below the graphs for visitors. */}
+        {signInPrompt}
+      </>
+    ),
+  };
+  const attendanceTab: PagerTab = {
+    key: "attendance",
+    label: "Attendance",
+    render: () => (
+      <MetricsTab
+        subgroups={subgroups}
+        selectedSubgroup={subgroup}
+        onSelectedSubgroupChange={setSelectedSubgroup}
+        onOpenMember={openEditMember}
+        rangeWeeks={rangeWeeks}
+        includeCollaborative={includeCollaborative}
+      />
+    ),
+  };
+  // Attendance is staff-only, so visitors get just General (a single segment,
+  // which collapses the top bar).
+  const tabs: PagerTab[] = isStaff ? [generalTab, attendanceTab] : [generalTab];
+  const activeKey = tabs.some((t) => t.key === active) ? active : "general";
 
   // The bottom-right selector is per-tab: range/collaborative on Attendance,
-  // All-vs-year scope on General.
-  const floating =
-    active === "attendance" ? (
-      <AttendanceRangeFab
-        rangeWeeks={rangeWeeks}
-        onRangeChange={setRangeWeeks}
-        includeCollaborative={includeCollaborative}
-        onCollaborativeChange={setIncludeCollaborative}
-      />
-    ) : (
-      <GeneralScopeFab
-        years={staffTrends?.years ?? []}
-        value={generalYear}
-        onChange={setGeneralYear}
-      />
-    );
+  // All-vs-year scope on General. Visitors get neither (no picker), only the
+  // bottom-left bars/lines toggle.
+  const floating = (
+    <>
+      {isStaff ? (
+        activeKey === "attendance" ? (
+          <AttendanceRangeFab
+            rangeWeeks={rangeWeeks}
+            onRangeChange={setRangeWeeks}
+            includeCollaborative={includeCollaborative}
+            onCollaborativeChange={setIncludeCollaborative}
+          />
+        ) : (
+          <GeneralScopeFab
+            years={staffTrends?.years ?? []}
+            value={generalYear}
+            onChange={setGeneralYear}
+          />
+        )
+      ) : null}
+      <ChartModeFab mode={chartMode} onChange={setChartMode} />
+    </>
+  );
 
   return (
-    <>
+    <ChartModeProvider value={chartMode}>
       <PagerScreen
         tabs={tabs}
-        activeKey={active}
+        activeKey={activeKey}
         onActiveKeyChange={setActive}
         floating={floating}
       />
@@ -132,6 +170,6 @@ export default function InsightsScreen() {
         memberId={memberSheetId}
         metadataFields={metadata}
       />
-    </>
+    </ChartModeProvider>
   );
 }

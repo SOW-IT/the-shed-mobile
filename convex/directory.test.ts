@@ -228,6 +228,19 @@ describe("availableYears", () => {
 });
 
 describe("orgChart", () => {
+  test("public (1.7.0): readable signed out, next staff year stays hidden", async () => {
+    const t = await setup();
+    // No identity at all — the Org tab is the app's public landing surface.
+    const chart = (await t.query(api.directory.orgChart, {}))!;
+    expect(chart.year).toBe(YEAR);
+    expect(chart.director?.email).toBe(DAN);
+    expect(chart.nextYear).toBeNull();
+    expect(chart.availableYears.every((y) => y <= YEAR)).toBe(true);
+    // Asking for the pre-provisioned next year clamps back to the current one.
+    const clamped = (await t.query(api.directory.orgChart, { year: YEAR + 1 }))!;
+    expect(clamped.year).toBe(YEAR);
+  });
+
   test("uses directory name as fallback when profile and user have no name", async () => {
     const t = await setup();
     // HENRY has a staff profile (head of Marketing) but no name anywhere.

@@ -6,6 +6,44 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.7.0] — 2026-07-04
+
+### Added
+
+- **The app is now open to everyone.** You no longer need to sign in to use
+  THE SHED — the app launches straight into the public Org chart, where
+  anyone can browse who serves across SOW and open a person's profile and
+  service history. Signing in (top-right avatar → "Sign in with Google")
+  reveals the staff tools in place.
+- **A new Home tab**, styled to the SOW brand guidelines, with four pages:
+  - **Home** — SOW's mission and values (sow.org.au/our-mission), how to
+    volunteer, and links to Instagram, Facebook, LinkedIn, Spotify and email.
+  - **Resources** — the helpful websites, Christian psychologists and
+    helplines from THE SHED web footer, with tap-to-call helpline numbers.
+  - **Connect** — the four university societies in their campus colours,
+    what happens at a Weekly Meeting, and how to find your campus meetup
+    (sow.org.au/students).
+  - **Partner** — ways to partner with SOW: Pray, Give and Volunteer, plus
+    newsletter sign-up (sow.org.au/subscriptions) and a Donate link.
+- **Weekly meeting attendance by campus** in Insights → General: average
+  weekly-meeting turnout per campus (USYD, UNSW, MACQ, UTS) per staff year
+  from 2025 (when attendance recording began), the current year showing its
+  year-to-date average. Picking a specific staff year adds per-campus cards
+  comparing that year's average against the previous staff year.
+
+### Changed
+
+- **Chart polish in Insights:** line graphs now use a uniform y-axis (0 to a
+  rounded "nice" maximum with evenly spaced steps) instead of only labelling
+  the values the lines happen to hit, and the stacked bar charts thin their
+  x-axis labels to keep a run of years readable.
+- **Staff tools are gated to signed-in staff.** Requests, Attendance and
+  Insights tabs appear only for signed-in users with a staff profile (Admin
+  remains admins/Finance-head only); visitors deep-linking into them are sent
+  to the Org chart. The notifications bell is hidden for visitors.
+- The signed-out person view keeps the personal "local church" field private;
+  the pre-provisioned next staff year remains admin-only in the public chart.
+
 ## [1.6.14] — 2026-07-03
 
 ### Added

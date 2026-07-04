@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from "expo-router";
+import { Redirect, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "convex/react";
 import { staffYearForDate, sydneyCalendarYear } from "../../../shared/flow";
@@ -139,6 +139,11 @@ export default function AttendanceScreen() {
   if (me === undefined || subgroups === undefined || metadata === undefined) {
     return <LoadingState />;
   }
+
+  // The staff tools need a provisioned staff profile (the tab itself is hidden
+  // for everyone else). Signed-out visitors and signed-in non-staff accounts
+  // deep-linking here are sent to the public Org chart instead.
+  if (!me?.profile) return <Redirect href="/org" />;
 
   const tabs: PagerTab[] = [
     {

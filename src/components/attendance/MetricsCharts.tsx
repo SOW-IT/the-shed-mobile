@@ -13,7 +13,7 @@ import {
   type AppTheme,
 } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
-import { ReactNode, useState } from "react";
+import { createContext, ReactNode, useContext, useState } from "react";
 import {
   LayoutChangeEvent,
   Modal,
@@ -43,6 +43,247 @@ const BAR_VALUE_H = 18; // fixed space reserved above bars for the value label
 const Y_AXIS_W = 32; // width reserved for y-axis labels
 // Total fixed container height = chart bars + x-label row + value label row
 const chartContainerH = (ch: number) => ch + BAR_LABEL_H + BAR_VALUE_H;
+
+/**
+ * Round a raw step up to a "nice" number (1, 2, 5 × a power of ten) so the axis
+ * lands on human-friendly increments. Steps stay ≥ 1 since every chart here plots
+ * integer head-counts — fractional gridlines (2.5, 7.5) would read oddly.
+ */
+function niceStep(raw: number): number {
+  if (!Number.isFinite(raw) || raw <= 1) return 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / mag;
+  const step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+  return Math.max(1, step * mag);
+}
+
+/**
+ * A uniform, evenly-stepped y-axis: 0 at the bottom, a rounded-up "nice" max at
+ * the top, and consistent gridlines in between. Rather than only labelling the
+ * values the data actually hits, this gives a stable scale that reads
+ * pleasantly regardless of the exact data. Tick count scales with the
+ * chart's height so short cards aren't crowded and tall fullscreen charts get
+ * more detail. Returns the axis `max` (which the series must scale against) and
+ * the descending tick list.
+ */
+function niceAxis(
+  dataMax: number,
+  chartHeight: number
+): { max: number; ticks: number[] } {
+  // ~1 tick per 48px of height, clamped so we never show 1 line or a wall of them.
+  const targetTicks = Math.max(2, Math.min(6, Math.round(chartHeight / 48)));
+  const safeMax = Number.isFinite(dataMax) && dataMax > 0 ? dataMax : 1;
+  const step = niceStep(safeMax / targetTicks);
+  const max = Math.ceil(safeMax / step) * step;
+  const ticks: number[] = [];
+  for (let v = max; v >= 0; v -= step) ticks.push(v);
+  return { max, ticks };
+}
+
+/** Map a data value to a y position in pixels within the chart drawing area. */
+const yAt = (v: number, max: number, chartHeight: number) =>
+  max > 0 ? chartHeight - (v / max) * chartHeight : chartHeight;
+
+/**
+ * Bar vs line rendering, shared across every chart on the Insights screen via
+ * context so a single toggle (see ChartModeFab) flips them all at once. Charts
+ * default to bars when no provider is present.
+ */
+export type ChartMode = "bar" | "line";
+const ChartModeContext = createContext<ChartMode>("bar");
+export const ChartModeProvider = ChartModeContext.Provider;
+export const useChartMode = (): ChartMode => useContext(ChartModeContext);
+
+const LINE_STROKE = 2.5;
+const LINE_DOT = 6;
+
+/** One series drawn as connected segments (rotated Views) plus a dot per point. */
+function LinePath({
+  points,
+  colour,
+}: {
+  points: { x: number; y: number }[];
+  colour: string;
+}) {
+  return (
+    <>
+      {points.slice(1).map((b, idx) => {
+        const a = points[idx];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const len = Math.hypot(dx, dy);
+        const angle = Math.atan2(dy, dx);
+        return (
+          <View
+            key={`seg-${idx}`}
+            style={{
+              position: "absolute",
+              left: (a.x + b.x) / 2 - len / 2,
+              top: (a.y + b.y) / 2 - LINE_STROKE / 2,
+              width: len,
+              height: LINE_STROKE,
+              borderRadius: LINE_STROKE / 2,
+              backgroundColor: colour,
+              transform: [{ rotateZ: `${angle}rad` }],
+            }}
+          />
+        );
+      })}
+      {points.map((p, i) => (
+        <View
+          key={`dot-${i}`}
+          style={{
+            position: "absolute",
+            left: p.x - LINE_DOT / 2,
+            top: p.y - LINE_DOT / 2,
+            width: LINE_DOT,
+            height: LINE_DOT,
+            borderRadius: LINE_DOT / 2,
+            backgroundColor: colour,
+          }}
+        />
+      ))}
+    </>
+  );
+}
+
+/**
+ * Line view of any chart: one or more series drawn as separate lines on a shared
+ * scale. Tooltips (tap on touch, hover on web) work in fullscreen, mirroring the
+ * bar charts. Points are evenly spaced across the measured width.
+ */
+function LineSeriesChart({
+  labels,
+  series,
+  max,
+  fullscreen,
+  tooltipLabelFor,
+}: {
+  labels: string[];
+  series: { key: string; colour: string; values: number[] }[];
+  max: number;
+  fullscreen: boolean;
+  tooltipLabelFor: (i: number) => string;
+}) {
+  const chartHeight = fullscreen ? CHART_HEIGHT_FULL : CHART_HEIGHT;
+  const [w, setW] = useState(0);
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  if (labels.length === 0) return <EmptyChart />;
+  const count = labels.length;
+  const colW = w > 0 ? w / count : 0;
+  const xAt = (i: number) => colW * (i + 0.5);
+  // Uniform 0-based axis with evenly-spaced "nice" gridlines. The series scale
+  // against `axisMax` (the rounded-up top) so points sit on the same gridlines
+  // the labels mark — not just the exact values the lines happen to hit.
+  const { max: axisMax, ticks } = niceAxis(max, chartHeight);
+  const LABEL_MIN_PX = 22;
+  const labelStep =
+    colW >= LABEL_MIN_PX ? 1 : Math.ceil(LABEL_MIN_PX / Math.max(1, colW || 1));
+  const multi = series.length > 1;
+  return (
+    <View
+      style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}
+    >
+      <YAxis max={axisMax} chartHeight={chartHeight} ticks={ticks} />
+      <View
+        style={{ flex: 1, height: chartContainerH(chartHeight) }}
+        onLayout={(e) => setW(e.nativeEvent.layout.width)}
+      >
+        {/* Line overlay, aligned to the same drawing region the bars use. */}
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: BAR_VALUE_H,
+            height: chartHeight,
+          }}
+        >
+          {w > 0
+            ? series.map((s) => (
+                <LinePath
+                  key={s.key}
+                  colour={s.colour}
+                  points={s.values.map((v, i) => ({
+                    x: xAt(i),
+                    y: yAt(v, axisMax, chartHeight),
+                  }))}
+                />
+              ))
+            : null}
+        </View>
+        {/* Transparent hit columns carry hover/press + the x-axis labels. */}
+        <View
+          style={[
+            styles.barRow,
+            {
+              height: chartContainerH(chartHeight),
+              justifyContent: "flex-start",
+            },
+          ]}
+        >
+          {w === 0
+            ? null
+            : labels.map((label, i) => {
+                const active =
+                  fullscreen && (selectedIdx === i || hoveredIdx === i);
+                // Anchor the tooltip above the highest (smallest y) point.
+                const anchorY = Math.min(
+                  ...series.map((s) => yAt(s.values[i], axisMax, chartHeight))
+                );
+                return (
+                  <Pressable
+                    key={`${label}-${i}`}
+                    // On the small card, let taps fall through to the card so it
+                    // opens fullscreen; only the fullscreen view is interactive.
+                    pointerEvents={fullscreen ? "auto" : "none"}
+                    onPress={
+                      fullscreen
+                        ? () => setSelectedIdx(selectedIdx === i ? null : i)
+                        : undefined
+                    }
+                    onHoverIn={fullscreen ? () => setHoveredIdx(i) : undefined}
+                    onHoverOut={fullscreen ? () => setHoveredIdx(null) : undefined}
+                    style={{
+                      width: colW,
+                      height: chartContainerH(chartHeight),
+                      paddingTop: BAR_VALUE_H,
+                      alignItems: "center",
+                      justifyContent: "flex-end",
+                      zIndex: active ? 10 : 0,
+                    }}
+                  >
+                    {active ? (
+                      <View
+                        style={{
+                          position: "absolute",
+                          top: BAR_VALUE_H + anchorY,
+                          left: 0,
+                          width: colW,
+                          height: 0,
+                        }}
+                      >
+                        <BarTooltip
+                          year={tooltipLabelFor(i)}
+                          rows={series.map((s) => ({
+                            label: s.key,
+                            value: s.values[i],
+                            colour: multi ? s.colour : undefined,
+                          }))}
+                        />
+                      </View>
+                    ) : null}
+                    <BarLabel text={i % labelStep === 0 ? label : ""} />
+                  </Pressable>
+                );
+              })}
+        </View>
+      </View>
+    </View>
+  );
+}
 
 /**
  * Size `count` bars to fit a measured width instead of scrolling.
@@ -85,15 +326,23 @@ function BarLabel({ text }: { text: string }) {
   );
 }
 
+// Approx line-box height of the 9px tick text, used to centre each label on its
+// value's gridline.
+const Y_TICK_LINE_H = 11;
+
 /**
- * Y-axis column with evenly spaced tick labels derived from the data max.
- * Renders 5 ticks: max, 75%, 50%, 25%, 0 (top → bottom). The trailing 0 is the
- * baseline — without it `space-between` drops the 25% label onto the baseline,
- * making the scale read 100/67/33/0 instead of 100/75/50/25/0.
+ * Y-axis column. Each tick is positioned with the SAME scale math the bars and
+ * lines use (`yAt` within the drawing area that starts `BAR_VALUE_H` below the
+ * top and spans `chartHeight`), so the labels line up exactly with the bar tops
+ * / line points instead of being spread evenly by `space-between` — which
+ * previously drifted from the real baseline by the padding difference.
+ *
+ * When `ticks` is omitted it falls back to even quarters (max, 75%, 50%, 25%, 0);
+ * callers that pass data-derived ticks get labels that sit on their real points.
  */
-function YAxis({ max, chartHeight }: { max: number; chartHeight: number }) {
+function YAxis({ max, chartHeight, ticks }: { max: number; chartHeight: number; ticks?: number[] }) {
   const t = useAppTheme();
-  const ticks = [
+  const values = ticks ?? [
     max,
     Math.round(max * 0.75),
     Math.round(max * 0.5),
@@ -101,11 +350,14 @@ function YAxis({ max, chartHeight }: { max: number; chartHeight: number }) {
     0,
   ];
   return (
-    <View style={[styles.yAxis, { height: chartHeight }]}>
-      {ticks.map((v, i) => (
+    <View style={[styles.yAxis, { height: chartContainerH(chartHeight) }]}>
+      {values.map((v, i) => (
         <Text
           key={i}
-          style={[styles.yTick, { color: t.faint }]}
+          style={[
+            styles.yTick,
+            { color: t.faint, top: BAR_VALUE_H + yAt(v, max, chartHeight) - Y_TICK_LINE_H / 2 },
+          ]}
           numberOfLines={1}
         >
           {v}
@@ -163,38 +415,45 @@ export function MetricCard({
       <Text style={[typography.amount, { color: accent }]} numberOfLines={1}>
         {value}
       </Text>
+      {/* Delta + hint sit in fixed-height slots (rendered even when empty) so
+          every card in a grid keeps the same height — the tallest it could be —
+          regardless of which cards carry a change or a baseline hint. */}
       <View style={styles.metricFooter}>
-        {delta ? (
-          <View style={styles.deltaRow}>
-            <Ionicons
-              name={
-                delta.direction === "up"
-                  ? "arrow-up"
-                  : delta.direction === "down"
-                    ? "arrow-down"
-                    : "remove"
-              }
-              size={13}
-              color={deltaColour}
-            />
+        <View style={styles.deltaSlot}>
+          {delta ? (
+            <View style={styles.deltaRow}>
+              <Ionicons
+                name={
+                  delta.direction === "up"
+                    ? "arrow-up"
+                    : delta.direction === "down"
+                      ? "arrow-down"
+                      : "remove"
+                }
+                size={13}
+                color={deltaColour}
+              />
+              <Text
+                style={[
+                  typography.caption,
+                  { color: deltaColour, fontWeight: "700" },
+                ]}
+              >
+                {delta.text}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+        <View style={styles.hintSlot}>
+          {hint ? (
             <Text
-              style={[
-                typography.caption,
-                { color: deltaColour, fontWeight: "700" },
-              ]}
+              style={[typography.caption, { color: t.faint }]}
+              numberOfLines={1}
             >
-              {delta.text}
+              {hint}
             </Text>
-          </View>
-        ) : null}
-        {hint ? (
-          <Text
-            style={[typography.caption, { color: t.faint }]}
-            numberOfLines={1}
-          >
-            {hint}
-          </Text>
-        ) : null}
+          ) : null}
+        </View>
       </View>
     </>
   );
@@ -414,18 +673,36 @@ export function BarChart({
   points,
   colour,
   fullscreen = false,
+  tooltipLabel,
 }: {
   points: TrendPoint[];
   colour?: string;
   fullscreen?: boolean;
+  /** Top label for a point's tooltip (defaults to the x-axis label). */
+  tooltipLabel?: (p: TrendPoint) => string;
 }) {
   const t = useAppTheme();
   const bar = colour ?? t.primary;
+  const mode = useChartMode();
   const chartHeight = fullscreen ? CHART_HEIGHT_FULL : CHART_HEIGHT;
   const fit = useBarFit(points.length, chartHeight);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   if (points.length === 0) return <EmptyChart />;
   const max = Math.max(1, ...points.map((p) => p.value));
+  const labelFor = (i: number) =>
+    tooltipLabel ? tooltipLabel(points[i]) : points[i].label;
+  if (mode === "line") {
+    return (
+      <LineSeriesChart
+        labels={points.map((p) => p.label)}
+        series={[{ key: "", colour: bar, values: points.map((p) => p.value) }]}
+        max={max}
+        fullscreen={fullscreen}
+        tooltipLabelFor={labelFor}
+      />
+    );
+  }
   return (
     <View
       style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}
@@ -445,14 +722,19 @@ export function BarChart({
           {fit.w === 0
             ? null
             : points.map((p, i) => {
-                const selected = fullscreen && selectedIdx === i;
+                const selected =
+                  fullscreen && (selectedIdx === i || hoveredIdx === i);
                 return (
                   <Pressable
                     key={`${p.at}-${i}`}
                     onPress={
                       fullscreen
-                        ? () => setSelectedIdx(selected ? null : i)
+                        ? () => setSelectedIdx(selectedIdx === i ? null : i)
                         : undefined
+                    }
+                    onHoverIn={fullscreen ? () => setHoveredIdx(i) : undefined}
+                    onHoverOut={
+                      fullscreen ? () => setHoveredIdx(null) : undefined
                     }
                     style={[
                       styles.barSlot,
@@ -461,7 +743,7 @@ export function BarChart({
                   >
                     {selected ? (
                       <BarTooltip
-                        year={p.label}
+                        year={labelFor(i)}
                         rows={[{ label: "", value: p.value }]}
                       />
                     ) : fit.showValues ? (
@@ -496,23 +778,60 @@ export function StackedBarChart({
   fullscreen = false,
   // Tooltip names for the two segments (top = `fresh`, bottom = `returning`).
   labels = { fresh: "New", returning: "Returning" },
+  tooltipLabel,
 }: {
   points: SplitPoint[];
   fullscreen?: boolean;
   labels?: { fresh: string; returning: string };
+  /** Top label for a point's tooltip (defaults to the x-axis label). */
+  tooltipLabel?: (p: SplitPoint) => string;
 }) {
   const t = useAppTheme();
+  const mode = useChartMode();
   const chartHeight = fullscreen ? CHART_HEIGHT_FULL : CHART_HEIGHT;
   const fit = useBarFit(points.length, chartHeight);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   if (points.length === 0) return <EmptyChart />;
-  const max = Math.max(1, ...points.map((p) => p.fresh + p.returning));
-  const scale = (n: number) => (n / max) * chartHeight;
+  // Bars are stacked, so they scale to the per-point total.
+  const stackedMax = Math.max(1, ...points.map((p) => p.fresh + p.returning));
+  const scale = (n: number) => (n / stackedMax) * chartHeight;
+  // Label every 2nd bar (like the line chart), so a run of year labels reads
+  // cleanly instead of crowding — while still honouring the width-based skip
+  // when bars get thin.
+  const labelStep = Math.max(2, fit.labelStep);
+  const labelFor = (i: number) =>
+    tooltipLabel ? tooltipLabel(points[i]) : points[i].label;
+  if (mode === "line") {
+    // Top segment (fresh) and bottom segment (returning) as two separate lines.
+    // Lines aren't stacked, so scale to the tallest single value — using the
+    // stacked total would squash both lines against the floor.
+    const lineMax = Math.max(
+      1,
+      ...points.map((p) => Math.max(p.fresh, p.returning))
+    );
+    return (
+      <LineSeriesChart
+        labels={points.map((p) => p.label)}
+        series={[
+          { key: labels.fresh, colour: t.accent, values: points.map((p) => p.fresh) },
+          {
+            key: labels.returning,
+            colour: t.primary,
+            values: points.map((p) => p.returning),
+          },
+        ]}
+        max={lineMax}
+        fullscreen={fullscreen}
+        tooltipLabelFor={labelFor}
+      />
+    );
+  }
   return (
     <View
       style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}
     >
-      <YAxis max={max} chartHeight={chartHeight} />
+      <YAxis max={stackedMax} chartHeight={chartHeight} />
       <View style={{ flex: 1, height: chartContainerH(chartHeight) }}>
         <View
           onLayout={fit.onLayout}
@@ -528,14 +847,19 @@ export function StackedBarChart({
             ? null
             : points.map((p, i) => {
                 const total = p.fresh + p.returning;
-                const selected = fullscreen && selectedIdx === i;
+                const selected =
+                  fullscreen && (selectedIdx === i || hoveredIdx === i);
                 return (
                   <Pressable
                     key={`${p.at}-${i}`}
                     onPress={
                       fullscreen
-                        ? () => setSelectedIdx(selected ? null : i)
+                        ? () => setSelectedIdx(selectedIdx === i ? null : i)
                         : undefined
+                    }
+                    onHoverIn={fullscreen ? () => setHoveredIdx(i) : undefined}
+                    onHoverOut={
+                      fullscreen ? () => setHoveredIdx(null) : undefined
                     }
                     style={[
                       styles.barSlot,
@@ -544,7 +868,7 @@ export function StackedBarChart({
                   >
                     {selected ? (
                       <BarTooltip
-                        year={p.label}
+                        year={labelFor(i)}
                         rows={[
                           {
                             label: labels.fresh,
@@ -590,7 +914,7 @@ export function StackedBarChart({
                         />
                       ) : null}
                     </View>
-                    <BarLabel text={i % fit.labelStep === 0 ? p.label : ""} />
+                    <BarLabel text={i % labelStep === 0 ? p.label : ""} />
                   </Pressable>
                 );
               })}
@@ -616,25 +940,57 @@ const SEG_GAP = 1.5;
 export function MultiStackedBarChart({
   points,
   fullscreen = false,
+  tooltipLabel,
 }: {
   points: MultiStackPoint[];
   fullscreen?: boolean;
+  /** Top label for a point's tooltip (defaults to the x-axis label). */
+  tooltipLabel?: (p: MultiStackPoint) => string;
 }) {
   const t = useAppTheme();
+  const mode = useChartMode();
   const chartHeight = fullscreen ? CHART_HEIGHT_FULL : CHART_HEIGHT;
   const fit = useBarFit(points.length, chartHeight);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   if (points.length === 0) return <EmptyChart />;
   const totals = points.map((p) =>
     p.segments.reduce((s, seg) => s + seg.value, 0),
   );
-  const max = Math.max(1, ...totals);
-  const scale = (n: number) => (n / max) * chartHeight;
+  // Bars are stacked, so they scale to the per-point total.
+  const stackedMax = Math.max(1, ...totals);
+  const scale = (n: number) => (n / stackedMax) * chartHeight;
+  const labelFor = (i: number) =>
+    tooltipLabel ? tooltipLabel(points[i]) : points[i].label;
+  if (mode === "line") {
+    // One line per segment (e.g. per campus), keyed off the first point's
+    // segment order so colours and keys stay stable across points.
+    const keys = points[0].segments;
+    // Lines aren't stacked, so scale to the tallest single segment value —
+    // scaling to the stacked total would squash every line against the floor.
+    const lineMax = Math.max(
+      1,
+      ...points.flatMap((p) => p.segments.map((seg) => seg.value))
+    );
+    return (
+      <LineSeriesChart
+        labels={points.map((p) => p.label)}
+        series={keys.map((seg, si) => ({
+          key: seg.key,
+          colour: seg.colour,
+          values: points.map((p) => p.segments[si]?.value ?? 0),
+        }))}
+        max={lineMax}
+        fullscreen={fullscreen}
+        tooltipLabelFor={labelFor}
+      />
+    );
+  }
   return (
     <View
       style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}
     >
-      <YAxis max={max} chartHeight={chartHeight} />
+      <YAxis max={stackedMax} chartHeight={chartHeight} />
       <View style={{ flex: 1, height: chartContainerH(chartHeight) }}>
         <View
           onLayout={fit.onLayout}
@@ -659,14 +1015,19 @@ export function MultiStackedBarChart({
                 );
                 const perGap = gapCount > 0 ? gaps / gapCount : 0;
                 const fill = barHeight - gaps;
-                const selected = fullscreen && selectedIdx === i;
+                const selected =
+                  fullscreen && (selectedIdx === i || hoveredIdx === i);
                 return (
                   <Pressable
                     key={`${p.at}-${i}`}
                     onPress={
                       fullscreen
-                        ? () => setSelectedIdx(selected ? null : i)
+                        ? () => setSelectedIdx(selectedIdx === i ? null : i)
                         : undefined
+                    }
+                    onHoverIn={fullscreen ? () => setHoveredIdx(i) : undefined}
+                    onHoverOut={
+                      fullscreen ? () => setHoveredIdx(null) : undefined
                     }
                     style={[
                       styles.barSlot,
@@ -675,7 +1036,7 @@ export function MultiStackedBarChart({
                   >
                     {selected ? (
                       <BarTooltip
-                        year={p.label}
+                        year={labelFor(i)}
                         rows={visible.map((seg) => ({
                           label: seg.key,
                           value: seg.value,
@@ -898,6 +1259,9 @@ const styles = StyleSheet.create({
     gap: 2,
     marginTop: 2,
   },
+  // Fixed-height slots keep cards uniform whether or not a delta/hint is present.
+  deltaSlot: { height: 17, justifyContent: "center" },
+  hintSlot: { height: 15, justifyContent: "center" },
   deltaRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -925,13 +1289,12 @@ const styles = StyleSheet.create({
   },
   yAxis: {
     width: Y_AXIS_W,
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    // Align ticks to the bar area only: skip value-label space at top and x-label at bottom
-    paddingTop: BAR_VALUE_H,
-    paddingBottom: BAR_LABEL_H + 4,
+    // Ticks are absolutely positioned on their value's gridline (see YAxis).
+    position: "relative",
   },
   yTick: {
+    position: "absolute",
+    right: 0,
     fontSize: 9,
     letterSpacing: -0.3,
     textAlign: "right",
@@ -1027,12 +1390,12 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: "100%",
     left: "50%",
-    transform: [{ translateX: -60 }], // half of minWidth to centre it
+    transform: [{ translateX: -43 }], // half of minWidth to centre it
     borderRadius: radius.md,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
     alignItems: "flex-start",
-    minWidth: 120,
+    minWidth: 86,
     marginBottom: 6,
     gap: 3,
     // Elevate above sibling bars

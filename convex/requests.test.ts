@@ -260,14 +260,21 @@ describe("approver delegation (out-of-office cover)", () => {
     ).rejects.toThrow();
   });
 
-  test("only admins manage delegations; self-delegation and unknown people are rejected", async () => {
+  test("admins and the Finance Head manage delegations; others, self-delegation and unknown people are rejected", async () => {
     const t = await setup();
     await expect(
       asUser(t, RACHEL).mutation(api.admin.addDelegation, { year: YEAR, fromEmail: FIONA, toEmail: HENRY })
-    ).rejects.toThrow(); // not an admin
+    ).rejects.toThrow(); // ordinary staff — not an admin or the Finance Head
+    // The Finance Head manages delegations alongside admins (same access as the
+    // other finance settings). This one succeeds.
+    await asUser(t, FIONA).mutation(api.admin.addDelegation, {
+      year: YEAR,
+      fromEmail: HENRY,
+      toEmail: RACHEL,
+    });
     await expect(
-      asUser(t, FIONA).mutation(api.admin.addDelegation, { year: YEAR, fromEmail: FIONA, toEmail: HENRY })
-    ).rejects.toThrow(); // Finance Head is not an admin
+      asUser(t, ADMIN).mutation(api.admin.addDelegation, { year: YEAR, fromEmail: FIONA, toEmail: FIONA })
+    ).rejects.toThrow(); // self-delegation
     await expect(
       asUser(t, ADMIN).mutation(api.admin.addDelegation, { year: YEAR, fromEmail: FIONA, toEmail: FIONA })
     ).rejects.toThrow(); // self-delegation
@@ -1312,7 +1319,8 @@ describe("audit trail and reminders", () => {
     const t = await setup();
     // Unauthenticated query calls — the client briefly does this on every
     // page load / token refresh; throwing here blank-screens the app.
-    expect((await t.query(api.directory.orgChart, {}))!).toBeNull();
+    // (orgChart is deliberately absent: it's PUBLIC as of 1.7.0 and returns
+    // real data without a caller — covered in directory.test.ts.)
     expect((await t.query(api.directory.availableYears, {}))!).toBeNull();
     expect((await t.query(api.directory.yearStructure, { year: YEAR }))!).toBeNull();
     expect((await t.query(api.requests.myRequests, {}))!).toBeNull();

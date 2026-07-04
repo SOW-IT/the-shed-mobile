@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery } from "convex/react";
+import { useConvexAuth, useQuery } from "convex/react";
 import { Tabs } from "expo-router";
 import {
   AccessibilityState,
@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
-import { hapticSelect, usePressScale } from "@/components/ui";
+import { hapticSelect, LoadingState, usePressScale } from "@/components/ui";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { BOTTOM_TAB_HEIGHT, shadowStyle, useAppTheme } from "@/theme";
 import { requestFullyApproved } from "../../../shared/flow";
@@ -192,18 +192,30 @@ const AnimatedTabBarButton = ({
 };
 
 /**
- * The bottom tab navigator. Tab order and the launch tab depend on role:
- * campus leaders (President / VP / Executive / Student Leader) get Attendance
- * first and no Requests tab; everyone else gets Requests → Attendance → Org → Admin.
+ * The bottom tab navigator. The app is public (1.7.0): Home is the visitor
+ * landing surface and is shown ONLY while signed out — once signed in (staff or
+ * not) it drops off the bar. The Org chart and Insights are visible to everyone
+ * (Insights shows org-wide trends publicly and gates its per-campus view
+ * internally), while Requests and Attendance appear only for signed-in users
+ * with a staff profile, and Admin is reached from the Org list (admins / the
+ * Finance head). Tab order and the launch tab depend on role: visitors land on
+ * Home; signed-in non-staff land on the Org chart (their only content tabs are
+ * Insights + Org); campus leaders (President / VP / Executive / Student Leader)
+ * get Attendance first and no Requests tab; everyone else (staff) launches on
+ * Requests.
  */
 export default function TabsLayout() {
+  const { isAuthenticated } = useConvexAuth();
   const me = useQuery(api.directory.me);
   const t = useAppTheme();
   const insets = useSafeAreaInsets();
   usePushRegistration();
 
   const isCampusLeader = me?.isCampusLeader ?? false;
-  const showAdminTab = me?.isAdmin || me?.isFinanceHead;
+  // The staff tools need a provisioned staff profile, not just a Google
+  // account — a visitor who signs in with a personal account sees the same
+  // public tabs until an admin provisions them.
+  const isStaff = !!me?.profile;
 
   // Mine: action count (requests fully approved but awaiting receipt submission).
   const myRequests = useQuery(api.requests.myRequests, me?.profile ? {} : "skip");
@@ -241,9 +253,24 @@ export default function TabsLayout() {
 
   const tabTotal = mineActionCount + mineUnread + reviewActionCount + reviewUnread;
 
+  // `initialRouteName` is read once when Tabs mounts, so wait for `me` to
+  // resolve before mounting — otherwise a signed-in campus leader can briefly
+  // land on Requests (or a hidden tab) before their role loads.
+  if (isAuthenticated && me === undefined) {
+    return <LoadingState />;
+  }
+
   return (
     <Tabs
-      initialRouteName={isCampusLeader ? "attendance" : "index"}
+      initialRouteName={
+        !isAuthenticated
+          ? "home"
+          : !isStaff
+            ? "org"
+            : isCampusLeader
+              ? "attendance"
+              : "index"
+      }
       backBehavior="history"
       screenListeners={{ tabPress: () => hapticSelect() }}
       screenOptions={{
@@ -271,11 +298,20 @@ export default function TabsLayout() {
       {/* Keep screens in a fixed declaration order so Expo Router registers tab
           bar slots correctly. Hidden tabs use href: null (they don't appear in
           the bar but still occupy their slot in the route list). */}
+      {/* Home is the visitor landing surface only — hidden once signed in. */}
+      <Tabs.Screen
+        name="home"
+        options={{
+          title: "Home",
+          ...(isAuthenticated ? { href: null } : {}),
+          tabBarIcon: tabIcon("home-outline", "home"),
+        }}
+      />
       <Tabs.Screen
         name="index"
         options={{
           title: "Requests",
-          ...(isCampusLeader ? { href: null } : {}),
+          ...(!isStaff || isCampusLeader ? { href: null } : {}),
           tabBarIcon: ({ color, focused }) => (
             <RequestsTabIcon color={color} focused={focused} total={tabTotal} />
           ),
@@ -285,9 +321,12 @@ export default function TabsLayout() {
         name="attendance"
         options={{
           title: "Attendance",
+          ...(isStaff ? {} : { href: null }),
           tabBarIcon: tabIcon("checkbox-outline", "checkbox"),
         }}
       />
+      {/* Insights is public: the org-wide General trends are open to everyone,
+          while the per-campus Attendance view inside stays staff-only. */}
       <Tabs.Screen
         name="insights"
         options={{
@@ -304,11 +343,14 @@ export default function TabsLayout() {
           tabBarIcon: tabIcon("people-outline", "people"),
         }}
       />
+      {/* Admin is reachable from a button at the top of the Org list (shown
+          only to admins / the Finance head), not from the tab bar — href:null
+          keeps the route navigable without a bottom-bar slot. */}
       <Tabs.Screen
         name="admin"
         options={{
           title: "Admin",
-          ...(showAdminTab ? {} : { href: null }),
+          href: null,
           tabBarIcon: tabIcon("settings-outline", "settings"),
         }}
       />

@@ -414,6 +414,16 @@ export default defineSchema({
     .index("by_email", ["email"])
     .index("by_member", ["memberId"]),
 
+  // Public contact-form rate limiting. Append-only: one row per submission so
+  // the window check can count a sender's recent submissions accurately.
+  contactRateLimit: defineTable({
+    fromEmail: v.string(),
+    submittedAt: v.number(),
+  })
+    // Compound index so the window check reads only a sender's recent rows
+    // (bounded), rather than collecting their whole history.
+    .index("by_email_and_time", ["fromEmail", "submittedAt"]),
+
   // Pre-computed Attendance → Insights dashboard aggregates, refreshed weekly by
   // the `attendance metrics recompute` cron (Thursdays). One row per
   // (sub-group, time range) so the dashboard reads a single bounded document

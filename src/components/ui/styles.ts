@@ -15,6 +15,14 @@ export const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   topBarRight: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  signInButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: radius.full,
+  },
   topBarBadge: {
     position: "absolute",
     top: -5,
@@ -44,6 +52,28 @@ export const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 0.3,
+  },
+  // Signed-out avatar dropdown: full-screen dismiss backdrop with the menu
+  // anchored under the top bar's right edge.
+  dropdownBackdrop: { flex: 1 },
+  dropdownMenu: {
+    position: "absolute",
+    right: spacing.lg,
+    borderRadius: radius.md,
+    paddingVertical: spacing.xs,
+    minWidth: 220,
+    maxWidth: 300,
+  },
+  dropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm + 2,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  dropdownError: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.sm,
   },
   tabBar: {
     flexDirection: "row",

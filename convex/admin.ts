@@ -1135,7 +1135,10 @@ export const people = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
     if ((await optionalEmail(ctx)) === null) return null; // auth attaching
-    await requireAdmin(ctx);
+    // Admins and the Finance Head: the Finance Head needs this list for the
+    // Approver Delegation picker. It's the year's people directory — no more
+    // than the now-public org chart already exposes.
+    await requireFinanceSettingsAccess(ctx, args.year, "view people");
     const byEmail = new Map<
       string,
       {
@@ -1336,7 +1339,9 @@ export const removeDepartment = mutation({
  * otherwise; returns the caller's email. `action` completes the error sentence.
  */
 const requireFinanceSettingsAccess = async (
-  ctx: MutationCtx,
+  // Read-only, so it accepts a query ctx too (mutations satisfy QueryCtx) —
+  // lets the finance-gated queries (people, listDelegations) reuse it.
+  ctx: QueryCtx,
   year: number,
   action: string
 ): Promise<string> => {
@@ -1540,7 +1545,7 @@ export const listDelegations = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
     if ((await optionalEmail(ctx)) === null) return null; // auth attaching
-    await requireAdmin(ctx);
+    await requireFinanceSettingsAccess(ctx, args.year, "view delegations");
     const rows = await ctx.db
       .query("approverDelegations")
       .withIndex("by_year", (q) => q.eq("year", args.year))
@@ -1560,7 +1565,7 @@ export const listDelegations = query({
 export const addDelegation = mutation({
   args: { year: v.number(), fromEmail: v.string(), toEmail: v.string() },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    await requireFinanceSettingsAccess(ctx, args.year, "set delegations");
     assertManagedYear(args.year);
     const fromEmail = args.fromEmail.trim().toLowerCase();
     const toEmail = args.toEmail.trim().toLowerCase();
@@ -1591,12 +1596,18 @@ export const addDelegation = mutation({
   },
 });
 
-/** Remove a delegation by id (admins only). Any year, for cleanup. */
+/** Remove a delegation by id (admins or the Finance Head). Any year, for cleanup. */
 export const removeDelegation = mutation({
   args: { id: v.id("approverDelegations") },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
     const row = await ctx.db.get("approverDelegations", args.id);
+    // Authorise against the delegation's own year; fall back to the live staff
+    // year when the row is already gone so a stale id can't skip the check.
+    await requireFinanceSettingsAccess(
+      ctx,
+      row?.year ?? currentStaffYear(),
+      "remove delegations"
+    );
     if (row) await ctx.db.delete("approverDelegations", args.id);
     return null;
   },
