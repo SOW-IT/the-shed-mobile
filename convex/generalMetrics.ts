@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
-import { currentStaffYear, optionalProfile } from "./model";
+import { currentStaffYear } from "./model";
 import {
   roleFilterMatches,
   STAFF_ROLE_FILTER_LABEL,
@@ -43,7 +43,10 @@ export const staffTrends = query({
     })
   ),
   handler: async (ctx) => {
-    if (!(await optionalProfile(ctx))) return null;
+    // Public (1.7.0): org-wide head-count trends are open to everyone — these are
+    // aggregate counts per staff year, no individuals. The Insights General tab
+    // shows a sign-in prompt for the fuller per-year breakdown, but the trend
+    // charts themselves need no account.
 
     // Exclude the upcoming staff year: staff for next year are only partially
     // pre-assigned, so its counts are incomplete and would read as a misleading
@@ -99,8 +102,8 @@ export const staffTrends = query({
       }
     }
 
-    // `optionalProfile` already guaranteed the caller has a profile this year, so
-    // `profiles` (which includes that row) is non-empty and `years` has ≥1 entry.
+    // `years` is empty only when there are no staff profiles on record at all;
+    // the caller (GeneralMetricsTab) renders a "no history yet" empty state then.
     const years = [...totals.keys()].sort((a, b) => a - b);
     const campuses = [...campusSet].sort((a, b) => a.localeCompare(b));
     const studentLeadersByCampus = campuses.map((campus) => ({

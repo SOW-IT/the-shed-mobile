@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
-import { useState } from "react";
+import { useLocalSearchParams } from "expo-router";
+import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import {
   type Assignment,
@@ -298,6 +299,15 @@ export default function AdminScreen() {
   const selectedYear = budgetManagerOnly ? currentYear : year ?? currentYear;
   const editable = selectedYear === currentYear || selectedYear === currentYear + 1;
   const [tab, setTab] = useState<AdminTab>("users");
+  // Deep link (e.g. the Admin bar on the Org chart / Requests "All" tab) can
+  // request a specific top-bar segment via ?tab=.
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  useEffect(() => {
+    if (tabParam === "users" || tabParam === "structure" || tabParam === "other") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- deep-link tab param
+      setTab(tabParam);
+    }
+  }, [tabParam]);
   const activeTab: AdminTab = budgetManagerOnly ? "other" : tab;
   const [structureSubTab, setStructureSubTab] = useState<StructureSubTab>("roles");
 
@@ -323,9 +333,11 @@ export default function AdminScreen() {
     api.admin.listLeavers,
     me?.isAdmin && editable ? { year: selectedYear } : "skip"
   );
+  // People picker for the Approver Delegation selects — needed by the Finance
+  // Head too now that they manage delegations, not just admins.
   const people = useQuery(
     api.admin.people,
-    me?.isAdmin ? { year: selectedYear } : "skip"
+    hasAccess ? { year: selectedYear } : "skip"
   );
   const personOptions = (people ?? []).map((person) => ({
     label: person.name ?? person.email,
@@ -364,7 +376,7 @@ export default function AdminScreen() {
   } = useAdminMutations();
   const delegations = useQuery(
     api.admin.listDelegations,
-    me?.isAdmin ? { year: selectedYear } : "skip"
+    hasAccess ? { year: selectedYear } : "skip"
   );
   const requestSync = useMutation(api.directorySync.requestSync);
   const syncState = useQuery(
@@ -1510,7 +1522,7 @@ export default function AdminScreen() {
             )}
           </Card>
 
-          {isAdmin && (
+          {hasAccess && (
             <>
               <SectionTitle>Approver Delegation — {selectedYear}</SectionTitle>
               <Card>

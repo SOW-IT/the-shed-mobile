@@ -191,8 +191,8 @@ export function GeneralScopeFab({
             }}
           />
           {[...years].reverse().map((year) => {
-            // Public preview: only allow 2026.
-            if (publicPreview && year !== 2026) return null;
+            // Public preview: All-years charts only — no per-year comparison.
+            if (publicPreview) return null;
             // Compare against the previous year *on record*, which may not be
             // year − 1 if a staff year is missing.
             const idx = years.indexOf(year);

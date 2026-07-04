@@ -42,14 +42,29 @@ async function seed(t: TestConvex<typeof schema>) {
 }
 
 describe("staffTrends", () => {
-  test("returns null for callers without a profile", async () => {
+  test("is public — anonymous and profile-less callers see the org-wide trends", async () => {
     const t = convexTest(schema, modules);
     await seed(t);
-    // A signed-in stranger with no profile this year, and an anonymous caller.
-    expect(
-      await asUser(t, "stranger@sow.org.au").query(api.generalMetrics.staffTrends, {})
-    ).toBeNull();
-    expect(await t.query(api.generalMetrics.staffTrends, {})).toBeNull();
+    // Org-wide trends are aggregate head-counts (no individuals), so they're
+    // open to everyone (1.7.0). A profile-less stranger and an anonymous caller
+    // get the same data a staff member does.
+    const staff = (await asUser(t, CALLER).query(api.generalMetrics.staffTrends, {}))!;
+    const stranger = await asUser(t, "stranger@sow.org.au").query(
+      api.generalMetrics.staffTrends,
+      {}
+    );
+    const anon = await t.query(api.generalMetrics.staffTrends, {});
+    expect(stranger).not.toBeNull();
+    expect(anon).not.toBeNull();
+    // Same aggregates a staff member sees (`computedAt` is stamped per call).
+    for (const r of [stranger!, anon!]) {
+      expect(r.years).toEqual(staff.years);
+      expect(r.allStaff).toEqual(staff.allStaff);
+      expect(r.staff).toEqual(staff.staff);
+      expect(r.studentLeaders).toEqual(staff.studentLeaders);
+      expect(r.campuses).toEqual(staff.campuses);
+      expect(r.studentLeadersByCampus).toEqual(staff.studentLeadersByCampus);
+    }
   });
 
   test("aggregates head-count, staff vs student leaders, and by campus per year", async () => {

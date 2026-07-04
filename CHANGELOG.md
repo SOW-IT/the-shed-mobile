@@ -20,7 +20,7 @@ All notable changes to **The SHED** mobile app. This project follows
     volunteer, and links to Instagram, Facebook, LinkedIn, Spotify and email.
   - **Resources** — the helpful websites, Christian psychologists and
     helplines from THE SHED web footer, with tap-to-call helpline numbers.
-  - **Campuses** — the five university societies in their campus colours,
+  - **Connect** — the four university societies in their campus colours,
     what happens at a Weekly Meeting, and how to find your campus meetup
     (sow.org.au/students).
   - **Partner** — ways to partner with SOW: Pray, Give and Volunteer, plus

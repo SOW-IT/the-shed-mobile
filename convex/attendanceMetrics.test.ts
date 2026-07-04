@@ -45,12 +45,35 @@ const window = (offsetDays = 0) => {
 };
 
 describe("attendanceMetrics", () => {
-  test("snapshot returns null when not signed in", async () => {
-    const { t } = await setup();
+  test("public snapshot: campus + short range only, follow-ups stripped", async () => {
+    const { t, leader } = await setup();
+    const e1 = await leader.mutation(api.events.create, {
+      name: "Meeting 1",
+      ...window(3),
+      subgroups: [USYD],
+    });
+    await leader.mutation(api.attendance.signIn, { eventId: e1, email: LEADER });
+    await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
+      subgroup: USYD,
+    });
+
+    // Anonymous caller: a campus group at a short (≤2wk) range is allowed…
+    const publicSnap = await t.query(api.attendanceMetrics.snapshot, {
+      subgroup: USYD,
+      rangeWeeks: 2,
+    });
+    expect(publicSnap).not.toBeNull();
+    // …but the follow-up list (which names individuals) never leaves the server.
+    expect(publicSnap!.data.followUps).toEqual([]);
+
+    // Longer ranges and the org-wide SOW view stay staff-only for the public.
+    expect(
+      await t.query(api.attendanceMetrics.snapshot, { subgroup: USYD, rangeWeeks: 4 })
+    ).toBeNull();
     expect(
       await t.query(api.attendanceMetrics.snapshot, {
-        subgroup: USYD,
-        rangeWeeks: 4,
+        subgroup: SOW_SUBGROUP,
+        rangeWeeks: 2,
       })
     ).toBeNull();
   });

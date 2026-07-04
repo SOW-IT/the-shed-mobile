@@ -119,7 +119,7 @@ export type WeeklyMeeting = { day: string; time: string; location: string };
 export type Campus = {
   /** URL-safe id used by the `/campus/[slug]` detail route. */
   slug: string;
-  /** Publically listed name / university. */
+  /** Publicly listed name / university. */
   name: string;
   /** Suburb / campus the society meets on. */
   area: string;

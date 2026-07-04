@@ -82,15 +82,20 @@ export default function InsightsScreen() {
     return <LoadingState />;
   }
 
-  // Insights is a public tab with limited public access:
-  // - General: visible to everyone, but shows sign-in prompt when not staff and
-  //   limits the year scope to All Years / 2026 only.
-  // - Attendance: visible to everyone, but hides the picker, limits sub-groups
-  //   to campus groups (excluding SOW), limits the time range to 1wk/2wk,
-  //   reduces cards to Avg / weekly meeting + Attendance over time,
-  //   and omits the Needs follow-up list.
+  // Insights is public (1.7.0) with a limited preview for non-staff:
+  // - General: org-wide trend charts are open to everyone (aggregate head-counts).
+  //   Non-staff see a sign-in prompt and the All-years charts only — the per-year
+  //   card breakdown stays staff-only (gated in GeneralMetricsTab).
+  // - Attendance: a campus-only preview for non-staff — the sub-group picker is
+  //   hidden, the range is fixed to 2 weeks, and the org-wide SOW view and the
+  //   follow-up list (which names people) are excluded server-side.
   const isStaff = !!me?.profile;
-  const publicYear = !isStaff ? 2026 : null; /* public-only fallback year; All Years also visible */
+  // Latest year on record; the public General view is scoped to it (charts only).
+  // Derived from the data so it stays correct as staff years roll over.
+  const latestYear = staffTrends?.years?.length
+    ? Math.max(...staffTrends.years)
+    : null;
+  const publicYear = !isStaff ? latestYear : null;
   const signInPrompt = !isStaff ? (
     <EmptyState
       icon="log-in-outline"
@@ -127,25 +132,31 @@ export default function InsightsScreen() {
       </>
     ),
   };
-  const tabs: PagerTab[] = isStaff ? [generalTab, attendanceTab] : [generalTab];
+  // Both tabs show for everyone now; non-staff get the limited previews above.
+  const tabs: PagerTab[] = [generalTab, attendanceTab];
   const activeKey = tabs.some((t) => t.key === active) ? active : "general";
 
   // The bottom-right selector is per-tab: range/collaborative on Attendance,
   // All-vs-year scope on General. The bottom-left toggle (bars/lines) is shared.
+  // Non-staff get no Attendance range selector — their preview is fixed to the
+  // 2-week campus view.
   const floating = (
     <>
       {activeKey === "attendance" ? (
-        <AttendanceRangeFab
-          rangeWeeks={rangeWeeks}
-          onRangeChange={setRangeWeeks}
-          includeCollaborative={includeCollaborative}
-          onCollaborativeChange={setIncludeCollaborative}
-        />
+        isStaff ? (
+          <AttendanceRangeFab
+            rangeWeeks={rangeWeeks}
+            onRangeChange={setRangeWeeks}
+            includeCollaborative={includeCollaborative}
+            onCollaborativeChange={setIncludeCollaborative}
+          />
+        ) : null
       ) : (
         <GeneralScopeFab
           years={staffTrends?.years ?? []}
           value={generalYear}
           onChange={setGeneralYear}
+          publicPreview={!isStaff}
         />
       )}
       <ChartModeFab mode={chartMode} onChange={setChartMode} />

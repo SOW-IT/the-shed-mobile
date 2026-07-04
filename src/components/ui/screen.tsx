@@ -244,7 +244,12 @@ export const TopBar = ({
         ) : (
           // Visitors get a clear, wider call-to-action instead of an empty avatar.
           <Pressable
-            onPress={() => setSignInMenu(true)}
+            onPress={() => {
+              // Clear any error left over from a previous failed attempt so a
+              // stale message doesn't reappear when the menu reopens.
+              clearError();
+              setSignInMenu(true);
+            }}
             accessibilityRole="button"
             accessibilityLabel="Sign in"
             style={({ pressed }) => [

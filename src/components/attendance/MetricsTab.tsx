@@ -181,7 +181,7 @@ export function MetricsTab({
       },
     };
 
-    return [
+    const all: SummaryCard[] = [
       ...(data.hasWeeklyMeetings ? [weeklyCard] : []),
       eventCard,
       {
@@ -230,7 +230,12 @@ export function MetricsTab({
         },
       },
     ];
-  }, [data]);
+    // Public preview: just the headline weekly-meeting average — the fuller card
+    // set (including the follow-up count) is staff-only.
+    return publicPreview
+      ? all.filter((c) => c.label === "Avg / weekly mtg")
+      : all;
+  }, [data, publicPreview]);
 
   return (
     <View onLayout={onLayout} style={{ gap: spacing.md }}>
@@ -513,12 +518,18 @@ export function MetricsTab({
                     campusMixChart,
                     ...breakdownCharts,
                   ];
+              // Public preview: the weekly-meeting trend + attendance over time
+              // only — the composition/breakdown charts stay staff-only.
+              if (publicPreview) {
+                return [weeklyTrendChart, attendanceChart].filter(Boolean);
+              }
               return ordered.filter(Boolean);
             })()}
           </View>
 
-          {/* Needs follow-up — a per-campus pastoral tool, hidden org-wide. */}
-          {orgWide ? null : (
+          {/* Needs follow-up — a per-campus pastoral tool, hidden org-wide and
+              never shown in the public preview (it names individuals). */}
+          {orgWide || publicPreview ? null : (
           <View style={[styles.followCard, { backgroundColor: t.card }, t.shadowCard]}>
             <View style={styles.followHeader}>
               <Ionicons name="heart-outline" size={18} color={t.primary} />

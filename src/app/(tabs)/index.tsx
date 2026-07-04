@@ -9,6 +9,7 @@ import {
   HEAD_OF_DEPARTMENT,
   requestFullyApproved,
 } from "../../../shared/flow";
+import { AdminBar } from "@/components/AdminBar";
 import { AllRequestsList } from "@/components/AllRequestsList";
 import { BankTab } from "@/components/BankTab";
 import { ChromeScreen } from "@/components/ChromeScreen";
@@ -20,8 +21,6 @@ import { ReviewList } from "@/components/ReviewList";
 import {
   Btn,
   Card,
-  ErrorBanner,
-  errorMessage,
   FadeInView,
   FloatingYearPicker,
   FooterAction,
@@ -29,8 +28,6 @@ import {
   Muted,
   Row,
   Screen,
-  SectionTitle,
-  Select,
   Txt,
   WarningBanner,
 } from "@/components/ui";
@@ -95,15 +92,6 @@ export default function RequestsScreen() {
         ? { requestIds: allRequestsForBadge.map((r) => r._id) }
         : "skip"
     ) ?? 0;
-  const financeMembers = useQuery(
-    api.admin.financeMembers,
-    me?.isFinanceHead ? { year: me.year } : "skip"
-  );
-  const setBudgetManager = useMutation(api.admin.setBudgetManager);
-  const [newBudgetManagerEmail, setNewBudgetManagerEmail] = useState<string | null>(null);
-  const [savingBudgetManager, setSavingBudgetManager] = useState(false);
-  const [budgetManagerError, setBudgetManagerError] = useState<string | null>(null);
-  const budgetManagerValue = newBudgetManagerEmail ?? structure?.budgetManagerEmail ?? "";
   const reviewCount = review
     ? review.hod.length +
       review.budgetManager.length +
@@ -259,10 +247,12 @@ export default function RequestsScreen() {
     );
   }
 
-  // The "All" page (Finance): year-purge warnings, the Finance-Head Budget
-  // Manager control, then every request for the viewed year.
+  // The "All" page (Finance): an Admin bar into the finance settings (Budget
+  // Manager, Director threshold, delegation — for admins / the Finance Head),
+  // year-purge warnings, then every request for the viewed year.
   const renderAll = () => (
     <>
+      {(me.isAdmin || me.isFinanceHead) && <AdminBar tab="other" />}
       {isPreviousYear && (
         <FadeInView delay={40}>
           <WarningBanner
@@ -278,42 +268,6 @@ export default function RequestsScreen() {
         </FadeInView>
       )}
       <ExportRequestsCard currentYear={me.year} />
-      {me.isFinanceHead && (
-        <>
-          <SectionTitle>Budget Manager — {me.year}</SectionTitle>
-          <Card>
-            <Muted>Current: {structure?.budgetManagerEmail ?? "not set"}</Muted>
-            <Select
-              label="Budget Manager"
-              value={budgetManagerValue}
-              options={(financeMembers ?? []).map((p) => ({
-                label: p.name ?? p.email,
-                value: p.email,
-              }))}
-              onSelect={setNewBudgetManagerEmail}
-              placeholder="Choose a Finance member…"
-            />
-            <ErrorBanner message={budgetManagerError} />
-            <Btn
-              title="Set Budget Manager"
-              loading={savingBudgetManager}
-              disabled={
-                !budgetManagerValue ||
-                budgetManagerValue === (structure?.budgetManagerEmail ?? "")
-              }
-              onPress={() => {
-                setSavingBudgetManager(true);
-                setBudgetManagerError(null);
-                void setBudgetManager({ year: me.year, email: budgetManagerValue })
-                  .then(() => setNewBudgetManagerEmail(null))
-                  .catch((e) => setBudgetManagerError(errorMessage(e)))
-                  .finally(() => setSavingBudgetManager(false));
-              }}
-            />
-          </Card>
-          <SectionTitle>All Requests — {me.year}</SectionTitle>
-        </>
-      )}
       <AllRequestsList
         year={queryYear}
         loadMoreRef={loadMoreRef}

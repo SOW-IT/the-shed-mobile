@@ -111,8 +111,10 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
   const width = containerWidth;
 
   // ── Year-by-year: summary cards for the selected year, vs the prior year. ──
+  // The detailed per-year cards stay staff-only; the public preview only ever
+  // shows the All-years trend charts below.
   const yearIndex = year === null ? -1 : trends.years.indexOf(year);
-  if (year !== null && yearIndex >= 0) {
+  if (!publicPreview && year !== null && yearIndex >= 0) {
     const i = yearIndex;
     const prevYear = i > 0 ? trends.years[i - 1] : undefined;
     const at = <T,>(arr: T[]): T | undefined => (i > 0 ? arr[i - 1] : undefined);
@@ -198,7 +200,7 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
           fullscreenContent={
             <StackedBarChart
               points={charts.staffVsLeaders}
-              labels={{ fresh: "Leaders", returning: "Staff" }}
+              labels={{ fresh: "SLs", returning: "Staff" }}
               tooltipLabel={(p) => String(p.at)}
               fullscreen
             />

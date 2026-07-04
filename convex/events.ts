@@ -263,16 +263,18 @@ export const listBySubgroup = query({
 export const subgroups = query({
   args: {},
   handler: async (ctx) => {
-    if (!(await optionalProfile(ctx))) return [];
+    const isStaff = !!(await optionalProfile(ctx));
     const year = staffYearForDate(new Date());
     const universities = await ctx.db
       .query("universities")
       .withIndex("by_year_and_name", (q) => q.eq("year", year))
       .collect();
-    return [
-      SOW_SUBGROUP,
-      ...universities.map((u) => u.name).sort((a, b) => a.localeCompare(b)),
-    ];
+    const campuses = universities
+      .map((u) => u.name)
+      .sort((a, b) => a.localeCompare(b));
+    // Public (signed-out / non-staff) preview: campus groups only — never the
+    // org-wide SOW view.
+    return isStaff ? [SOW_SUBGROUP, ...campuses] : campuses;
   },
 });
 

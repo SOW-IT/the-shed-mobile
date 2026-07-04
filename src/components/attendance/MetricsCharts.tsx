@@ -197,7 +197,10 @@ function LineSeriesChart({
                 <LinePath
                   key={s.key}
                   colour={s.colour}
-                  points={s.values.map((v, i) => ({ x: xAt(i), y: yAt(v) }))}
+                  points={s.values.map((v, i) => ({
+                    x: xAt(i),
+                    y: yAt(v, max, chartHeight),
+                  }))}
                 />
               ))
             : null}
@@ -218,7 +221,9 @@ function LineSeriesChart({
                 const active =
                   fullscreen && (selectedIdx === i || hoveredIdx === i);
                 // Anchor the tooltip above the highest (smallest y) point.
-                const anchorY = Math.min(...series.map((s) => yAt(s.values[i])));
+                const anchorY = Math.min(
+                  ...series.map((s) => yAt(s.values[i], max, chartHeight))
+                );
                 return (
                   <Pressable
                     key={`${label}-${i}`}
@@ -312,11 +317,19 @@ function BarLabel({ text }: { text: string }) {
   );
 }
 
+// Approx line-box height of the 9px tick text, used to centre each label on its
+// value's gridline.
+const Y_TICK_LINE_H = 11;
+
 /**
- * Y-axis column with evenly spaced tick labels derived from the data max.
- * Renders 5 ticks: max, 75%, 50%, 25%, 0 (top → bottom). The trailing 0 is the
- * baseline — without it `space-between` drops the 25% label onto the baseline,
- * making the scale read 100/67/33/0 instead of 100/75/50/25/0.
+ * Y-axis column. Each tick is positioned with the SAME scale math the bars and
+ * lines use (`yAt` within the drawing area that starts `BAR_VALUE_H` below the
+ * top and spans `chartHeight`), so the labels line up exactly with the bar tops
+ * / line points instead of being spread evenly by `space-between` — which
+ * previously drifted from the real baseline by the padding difference.
+ *
+ * When `ticks` is omitted it falls back to even quarters (max, 75%, 50%, 25%, 0);
+ * callers that pass data-derived ticks get labels that sit on their real points.
  */
 function YAxis({ max, chartHeight, ticks }: { max: number; chartHeight: number; ticks?: number[] }) {
   const t = useAppTheme();
@@ -328,11 +341,14 @@ function YAxis({ max, chartHeight, ticks }: { max: number; chartHeight: number; 
     0,
   ];
   return (
-    <View style={[styles.yAxis, { height: chartHeight }]}>
+    <View style={[styles.yAxis, { height: chartContainerH(chartHeight) }]}>
       {values.map((v, i) => (
         <Text
           key={i}
-          style={[styles.yTick, { color: t.faint }]}
+          style={[
+            styles.yTick,
+            { color: t.faint, top: BAR_VALUE_H + yAt(v, max, chartHeight) - Y_TICK_LINE_H / 2 },
+          ]}
           numberOfLines={1}
         >
           {v}
@@ -1246,13 +1262,12 @@ const styles = StyleSheet.create({
   },
   yAxis: {
     width: Y_AXIS_W,
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    // Align ticks to the bar area only: skip value-label space at top and x-label at bottom
-    paddingTop: BAR_VALUE_H,
-    paddingBottom: BAR_LABEL_H + 4,
+    // Ticks are absolutely positioned on their value's gridline (see YAxis).
+    position: "relative",
   },
   yTick: {
+    position: "absolute",
+    right: 0,
     fontSize: 9,
     letterSpacing: -0.3,
     textAlign: "right",

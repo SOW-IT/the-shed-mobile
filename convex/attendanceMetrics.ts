@@ -7,6 +7,7 @@ import {
 import {
   canonicalSubgroup,
   eventIncludesSubgroup,
+  isOrgWideSubgroup,
   normalizeSubgroups,
   personDisplayName,
   personKey,
@@ -580,7 +581,11 @@ export const snapshot = query({
     })
   ),
   handler: async (ctx, { subgroup, rangeWeeks, includeCollaborative = true }) => {
-    if (!(await optionalProfile(ctx))) return null;
+    // Public (1.7.0): signed-out / non-staff callers get a limited campus preview
+    // only — never the org-wide SOW view, and only the short 1–2 week ranges.
+    // (The follow-up list, which names individuals, is stripped below.)
+    const isPublic = !(await optionalProfile(ctx));
+    if (isPublic && (isOrgWideSubgroup(subgroup) || rangeWeeks > 2)) return null;
     const rows = await ctx.db
       .query("attendanceMetricsSnapshots")
       .withIndex("by_subgroup_and_range", (q) =>
@@ -601,13 +606,16 @@ export const snapshot = query({
     // stale-year snapshot as "not ready" (null) so the UI prompts a refresh
     // rather than presenting outdated numbers.
     if (row.staffYear !== currentStaffYear()) return null;
+    // The follow-up list names individuals (a per-campus pastoral tool), so it
+    // never leaves the server for a public caller — the preview UI hides it too.
+    const data = isPublic ? { ...row.data, followUps: [] } : row.data;
     return {
       subgroup: row.subgroup,
       rangeWeeks: row.rangeWeeks,
       includeCollaborative: row.includeCollaborative,
       staffYear: row.staffYear,
       computedAt: row.computedAt,
-      data: row.data,
+      data,
     };
   },
 });

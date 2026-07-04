@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { useState } from "react";
@@ -6,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { universityColour } from "../../../shared/flow";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { AdminBar } from "@/components/AdminBar";
 import { ChromeScreen } from "@/components/ChromeScreen";
 import {
   Avatar,
@@ -50,7 +50,6 @@ const Person = ({
 
 export default function OrgChartScreen() {
   const t = useAppTheme();
-  const router = useRouter();
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const chart = useQuery(
     api.directory.orgChart,
@@ -85,25 +84,7 @@ export default function OrgChartScreen() {
       }
     >
       {/* Admin tools — only for admins / the Finance head, above the Director. */}
-      {showAdmin ? (
-        <FadeInView delay={20}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Open admin tools"
-            onPress={() => router.push("/admin")}
-            style={({ pressed }) => [
-              styles.adminButton,
-              t.shadowCard,
-              { backgroundColor: t.card },
-              pressed && { opacity: 0.6 },
-            ]}
-          >
-            <Ionicons name="settings-outline" size={20} color={t.primary} />
-            <Txt style={styles.adminLabel}>Admin</Txt>
-            <Ionicons name="chevron-forward" size={18} color={t.faint} />
-          </Pressable>
-        </FadeInView>
-      ) : null}
+      {showAdmin ? <AdminBar /> : null}
 
       {/* Director */}
       {chart.director ? (
@@ -216,20 +197,6 @@ export default function OrgChartScreen() {
 }
 
 const styles = StyleSheet.create({
-  adminButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md - 2,
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    marginBottom: spacing.md,
-  },
-  adminLabel: {
-    flexGrow: 1,
-    fontSize: 15,
-    fontWeight: "700",
-  },
   directorCard: {
     borderRadius: radius.lg,
     paddingHorizontal: spacing.lg,

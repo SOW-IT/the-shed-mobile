@@ -192,14 +192,17 @@ const AnimatedTabBarButton = ({
 };
 
 /**
- * The bottom tab navigator. The app is public (1.7.0): Home, the Org chart and
- * Insights are visible to everyone (Insights shows org-wide trends publicly and
- * gates its per-campus view internally), while Requests and Attendance appear
- * only for signed-in users with a staff profile, and Admin is reached from the
- * Org list (admins / the Finance head). Tab order and the launch tab depend on
- * role: visitors and signed-in non-staff land on Home; campus leaders
- * (President / VP / Executive / Student Leader) get Attendance first and no
- * Requests tab; everyone else (staff) launches on Requests.
+ * The bottom tab navigator. The app is public (1.7.0): Home is the visitor
+ * landing surface and is shown ONLY while signed out — once signed in (staff or
+ * not) it drops off the bar. The Org chart and Insights are visible to everyone
+ * (Insights shows org-wide trends publicly and gates its per-campus view
+ * internally), while Requests and Attendance appear only for signed-in users
+ * with a staff profile, and Admin is reached from the Org list (admins / the
+ * Finance head). Tab order and the launch tab depend on role: visitors land on
+ * Home; signed-in non-staff land on the Org chart (their only content tabs are
+ * Insights + Org); campus leaders (President / VP / Executive / Student Leader)
+ * get Attendance first and no Requests tab; everyone else (staff) launches on
+ * Requests.
  */
 export default function TabsLayout() {
   const { isAuthenticated } = useConvexAuth();
@@ -260,11 +263,13 @@ export default function TabsLayout() {
   return (
     <Tabs
       initialRouteName={
-        !isAuthenticated || !isStaff
+        !isAuthenticated
           ? "home"
-          : isCampusLeader
-            ? "attendance"
-            : "index"
+          : !isStaff
+            ? "org"
+            : isCampusLeader
+              ? "attendance"
+              : "index"
       }
       backBehavior="history"
       screenListeners={{ tabPress: () => hapticSelect() }}
@@ -293,10 +298,12 @@ export default function TabsLayout() {
       {/* Keep screens in a fixed declaration order so Expo Router registers tab
           bar slots correctly. Hidden tabs use href: null (they don't appear in
           the bar but still occupy their slot in the route list). */}
+      {/* Home is the visitor landing surface only — hidden once signed in. */}
       <Tabs.Screen
         name="home"
         options={{
           title: "Home",
+          ...(isAuthenticated ? { href: null } : {}),
           tabBarIcon: tabIcon("home-outline", "home"),
         }}
       />

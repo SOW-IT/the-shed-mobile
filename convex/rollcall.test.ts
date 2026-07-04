@@ -62,9 +62,14 @@ describe("subgroups", () => {
     expect(campuses).toEqual([...campuses].sort((a, b) => a.localeCompare(b)));
   });
 
-  test("returns [] for an unauthenticated caller", async () => {
+  test("returns campuses only (no org-wide SOW) for an unauthenticated caller", async () => {
     const t = await setup();
-    expect(await t.query(api.events.subgroups, {})).toEqual([]);
+    // Public preview (1.7.0): campus groups are listed, but never the org-wide
+    // SOW view.
+    const subgroups = await t.query(api.events.subgroups, {});
+    expect(subgroups).not.toContain(SOW_SUBGROUP);
+    expect(subgroups).toContain(USYD);
+    expect(subgroups).toContain(MACQ);
   });
 });
 
@@ -982,7 +987,9 @@ describe("validation + permissions", () => {
       dateEnd,
       subgroups: [USYD],
     });
-    expect(await outsider.query(api.events.subgroups, {})).toEqual([]);
+    // The campus list itself is public metadata (never the org-wide SOW view),
+    // but the actual roll-call data below stays gated.
+    expect(await outsider.query(api.events.subgroups, {})).not.toContain(SOW_SUBGROUP);
     expect(
       (await outsider.query(api.events.listBySubgroup, { subgroup: USYD })).events
     ).toEqual([]);
@@ -1071,8 +1078,9 @@ describe("guards + edge cases", () => {
       dateEnd,
       subgroups: [USYD],
     });
-    // No identity → every read degrades gracefully rather than leaking data.
-    expect(await t.query(api.events.subgroups, {})).toEqual([]);
+    // No identity → roll-call data reads degrade gracefully rather than leaking.
+    // (The campus list is public metadata; it excludes the org-wide SOW view.)
+    expect(await t.query(api.events.subgroups, {})).not.toContain(SOW_SUBGROUP);
     expect(await t.query(api.attendance.roster, { year: YEAR })).toEqual([]);
     expect(
       (await t.query(api.events.listBySubgroup, { subgroup: USYD })).events

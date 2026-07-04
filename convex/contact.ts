@@ -16,7 +16,11 @@ export const submit = mutation({
     message: v.string(),
   },
   handler: async (ctx, { email, message }) => {
-    const fromEmail = email.trim().toLowerCase();
+    // A signed-in caller always sends from their locked account email; the
+    // client-supplied address is only trusted for anonymous visitors. This
+    // stops a staff member from spoofing another person as the sender.
+    const authedEmail = await optionalEmail(ctx);
+    const fromEmail = (authedEmail ?? email).trim().toLowerCase();
     const body = message.trim();
 
     if (!EMAIL_RE.test(fromEmail)) {
@@ -31,13 +35,17 @@ export const submit = mutation({
       );
     }
 
+    // Rate limit with a bounded read: the compound index lets us fetch only
+    // this sender's rows inside the window, capped at MAX_SUBMISSIONS, so a
+    // public endpoint can never be pushed into scanning an unbounded history
+    // (which would also blow past Convex's transaction read limits).
     const now = Date.now();
-    const recent = await ctx.db
+    const recentInWindow = await ctx.db
       .query("contactRateLimit")
-      .withIndex("by_email", (q) => q.eq("fromEmail", fromEmail))
-      .collect();
-
-    const recentInWindow = recent.filter((row) => row.submittedAt > now - WINDOW_MS);
+      .withIndex("by_email_and_time", (q) =>
+        q.eq("fromEmail", fromEmail).gt("submittedAt", now - WINDOW_MS)
+      )
+      .take(MAX_SUBMISSIONS);
     if (recentInWindow.length >= MAX_SUBMISSIONS) {
       throw new ConvexError(
         "You've submitted a few messages recently. Please wait an hour before sending another."
@@ -53,8 +61,16 @@ export const submit = mutation({
       to: CONTACT_INBOX,
       subject: `New contact message from ${fromEmail}`,
       body: `From: ${fromEmail}\n\n${body}`,
+      // So the team can reply straight to the sender instead of copying the
+      // address out of the body.
+      replyTo: fromEmail,
     });
 
+    // Acknowledge to the sender. The submitted message is deliberately NOT
+    // echoed back here: for anonymous visitors the recipient address is
+    // caller-controlled, so echoing their text would let the form be used to
+    // relay arbitrary content to arbitrary addresses. A fixed template keeps
+    // the confirmation without that abuse vector.
     await ctx.scheduler.runAfter(0, internal.emails.send, {
       to: fromEmail,
       subject: "We've received your message — Student Outreach to the World",
@@ -63,8 +79,6 @@ export const submit = mutation({
         "Thanks for reaching out to Student Outreach to the World. We've received " +
         "your message and will reply as soon as we can, usually within 2-3 " +
         "business days.\n\n" +
-        "For your reference, here's what you sent:\n\n" +
-        `${body}\n\n` +
         "Blessings,\n" +
         "The SOW team",
     });
