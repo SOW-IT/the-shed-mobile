@@ -171,15 +171,13 @@ export const campusWeeklyAttendance = query({
     ),
   }),
   handler: async (ctx) => {
+    // Before 2025 this yields no years (and an empty result), which is correct —
+    // there's no attendance history to average then.
     const currentYear = currentStaffYear();
-    if (currentYear < CAMPUS_ATTENDANCE_START_YEAR) {
-      return { years: [], campuses: [] };
-    }
     const years: number[] = [];
     for (let y = CAMPUS_ATTENDANCE_START_YEAR; y <= currentYear; y++) {
       years.push(y);
     }
-    const yearIndex = new Map(years.map((y, i) => [y, i]));
 
     // Weekly meetings live from the 2025 staff-year start onward; a by_dateStart
     // range read stands in for the dropped by_year index (see staffYearStartMs).
@@ -209,33 +207,48 @@ export const campusWeeklyAttendance = query({
         eventStaffYear(e.dateStart) <= currentYear
     );
 
+    // Resolve each meeting's campuses (org-wide SOW dropped) and staff year up
+    // front, keeping only meetings that belong to a campus. `year` is bounded to
+    // [2025, currentYear] by the date-range read + the year filter above.
+    const meetings = weeklyMeetings
+      .map((e) => ({
+        id: e._id,
+        year: eventStaffYear(e.dateStart),
+        campuses: normalizeSubgroups(e.subgroups).filter(
+          (s) => !isOrgWideSubgroup(s)
+        ),
+      }))
+      .filter((m) => m.campuses.length > 0);
+
+    // Turnout per meeting, read in parallel (one bounded by_event index read
+    // each) rather than sequentially. The number of Weekly-Meeting events is
+    // inherently small — at most ~one per campus per week — so this stays well
+    // within a query's read budget without a denormalised per-event counter.
+    const turnouts = await Promise.all(
+      meetings.map((m) =>
+        ctx.db
+          .query("attendance")
+          .withIndex("by_event", (q) => q.eq("eventId", m.id))
+          .collect()
+          .then((rows) => rows.length)
+      )
+    );
+
     // (year, campus) -> running total attendance + meeting count, for the mean.
     type Bucket = { total: number; meetings: number };
     const buckets = new Map<string, Bucket>();
     const campusSet = new Set<string>();
-    const key = (campus: string, year: number) => `${campus} ${year}`;
+    const key = (campus: string, year: number) => `${campus}|${year}`;
 
-    for (const e of weeklyMeetings) {
-      const year = eventStaffYear(e.dateStart);
-      if (!yearIndex.has(year)) continue;
-      const campuses = normalizeSubgroups(e.subgroups).filter(
-        (s) => !isOrgWideSubgroup(s)
-      );
-      if (campuses.length === 0) continue;
-      const attendeeCount = (
-        await ctx.db
-          .query("attendance")
-          .withIndex("by_event", (q) => q.eq("eventId", e._id))
-          .collect()
-      ).length;
-      for (const campus of campuses) {
+    meetings.forEach((m, i) => {
+      for (const campus of m.campuses) {
         campusSet.add(campus);
-        const b = buckets.get(key(campus, year)) ?? { total: 0, meetings: 0 };
-        b.total += attendeeCount;
+        const b = buckets.get(key(campus, m.year)) ?? { total: 0, meetings: 0 };
+        b.total += turnouts[i];
         b.meetings += 1;
-        buckets.set(key(campus, year), b);
+        buckets.set(key(campus, m.year), b);
       }
-    }
+    });
 
     const campuses = [...campusSet]
       .sort((a, b) => a.localeCompare(b))

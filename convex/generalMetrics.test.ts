@@ -184,4 +184,14 @@ describe("campusWeeklyAttendance", () => {
     const res = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
     expect(res.campuses).toEqual([{ campus: "USYD", averages: [12, 0] }]);
   });
+
+  test("skips org-wide (SOW) weekly meetings — they belong to no campus", async () => {
+    const t = convexTest(schema, modules);
+    await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2025, count: 9 });
+    // A Weekly-Meeting-tagged SOW event has no campus sub-group, so it must not
+    // create a campus bucket of its own.
+    await weeklyMeeting(t, { campus: "SOW", dateStart: IN_2025, count: 40 });
+    const res = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
+    expect(res.campuses).toEqual([{ campus: "USYD", averages: [9, 0] }]);
+  });
 });
