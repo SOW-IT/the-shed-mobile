@@ -25,9 +25,18 @@ All notable changes to **The SHED** mobile app. This project follows
     (sow.org.au/students).
   - **Partner** — ways to partner with SOW: Pray, Give and Volunteer, plus
     newsletter sign-up (sow.org.au/subscriptions) and a Donate link.
+- **Weekly meeting attendance by campus** in Insights → General: average
+  weekly-meeting turnout per campus (USYD, UNSW, MACQ, UTS) per staff year
+  from 2025 (when attendance recording began), the current year showing its
+  year-to-date average. Picking a specific staff year adds per-campus cards
+  comparing that year's average against the previous staff year.
 
 ### Changed
 
+- **Chart polish in Insights:** line graphs now use a uniform y-axis (0 to a
+  rounded "nice" maximum with evenly spaced steps) instead of only labelling
+  the values the lines happen to hit, and the stacked bar charts thin their
+  x-axis labels to keep a run of years readable.
 - **Staff tools are gated to signed-in staff.** Requests, Attendance and
   Insights tabs appear only for signed-in users with a staff profile (Admin
   remains admins/Finance-head only); visitors deep-linking into them are sent

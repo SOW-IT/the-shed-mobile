@@ -112,3 +112,76 @@ describe("staffTrends", () => {
     ]);
   });
 });
+
+describe("campusWeeklyAttendance", () => {
+  // A weekly meeting: an event tagged "Weekly Meeting" for one campus sub-group,
+  // with `count` sign-in rows. Returns the event id.
+  async function weeklyMeeting(
+    t: TestConvex<typeof schema>,
+    opts: { campus: string; dateStart: number; count: number }
+  ) {
+    return t.run(async (ctx) => {
+      const tagId = await ctx.db.insert("attendanceTags", {
+        year: staffYearForDate(new Date(opts.dateStart)),
+        name: "Weekly Meeting",
+      });
+      const eventId = await ctx.db.insert("events", {
+        name: "Weekly Meeting",
+        dateStart: opts.dateStart,
+        dateEnd: opts.dateStart + 2 * 60 * 60 * 1000,
+        subgroups: [opts.campus],
+        tagIds: [tagId],
+      });
+      for (let i = 0; i < opts.count; i++) {
+        await ctx.db.insert("attendance", {
+          eventId,
+          email: `p${i}@sow.org.au`,
+          signInTime: opts.dateStart,
+        });
+      }
+      return eventId;
+    });
+  }
+
+  // Dates that land in the 2025 and 2026 staff years (staff year rolls at Oct 1).
+  const IN_2025 = Date.UTC(2025, 2, 4); // Mar 2025 → staff year 2025
+  const IN_2026 = Date.UTC(2026, 2, 4); // Mar 2026 → staff year 2026
+
+  test("averages attendance per campus per staff year, from 2025", async () => {
+    const t = convexTest(schema, modules);
+    // USYD: two 2025 meetings (10, 20 → avg 15) and one 2026 meeting (30).
+    await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2025, count: 10 });
+    await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2025, count: 20 });
+    await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2026, count: 30 });
+    // UNSW: one 2026 meeting only.
+    await weeklyMeeting(t, { campus: "UNSW", dateStart: IN_2026, count: 8 });
+
+    const res = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
+    expect(res.years).toEqual([2025, 2026]);
+    expect(res.campuses).toEqual([
+      { campus: "UNSW", averages: [0, 8] },
+      { campus: "USYD", averages: [15, 30] },
+    ]);
+  });
+
+  test("ignores events without the Weekly Meeting tag", async () => {
+    const t = convexTest(schema, modules);
+    await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2025, count: 12 });
+    // An untagged event with attendance must not affect the averages.
+    await t.run(async (ctx) => {
+      const eventId = await ctx.db.insert("events", {
+        name: "Social night",
+        dateStart: IN_2025,
+        dateEnd: IN_2025 + 60 * 60 * 1000,
+        subgroups: ["USYD"],
+      });
+      await ctx.db.insert("attendance", {
+        eventId,
+        email: "x@sow.org.au",
+        signInTime: IN_2025,
+      });
+    });
+    const res = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
+    expect(res.campuses).toEqual([{ campus: "USYD", averages: [12, 0] }]);
+  });
+});

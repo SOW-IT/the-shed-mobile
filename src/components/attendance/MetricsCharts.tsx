@@ -44,34 +44,40 @@ const Y_AXIS_W = 32; // width reserved for y-axis labels
 // Total fixed container height = chart bars + x-label row + value label row
 const chartContainerH = (ch: number) => ch + BAR_LABEL_H + BAR_VALUE_H;
 
-/** Drop duplicates while preserving order. */
-function uniq<T>(arr: readonly T[]): T[] {
-  const seen = new Set<T>();
-  const out: T[] = [];
-  for (const item of arr) {
-    if (!seen.has(item)) {
-      seen.add(item);
-      out.push(item);
-    }
-  }
-  return out;
+/**
+ * Round a raw step up to a "nice" number (1, 2, 5 × a power of ten) so the axis
+ * lands on human-friendly increments. Steps stay ≥ 1 since every chart here plots
+ * integer head-counts — fractional gridlines (2.5, 7.5) would read oddly.
+ */
+function niceStep(raw: number): number {
+  if (!Number.isFinite(raw) || raw <= 1) return 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / mag;
+  const step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+  return Math.max(1, step * mag);
 }
 
 /**
- * Derive y-axis tick values from actual chart data so labels line up with
- * visible points. Returns up to `count` ticks: max, zero, and the most
- * distinct values found in the data, sorted descending.
+ * A uniform, evenly-stepped y-axis: 0 at the bottom, a rounded-up "nice" max at
+ * the top, and consistent gridlines in between. Rather than only labelling the
+ * values the data actually hits, this gives a stable scale that reads
+ * pleasantly regardless of the exact data. Tick count scales with the
+ * chart's height so short cards aren't crowded and tall fullscreen charts get
+ * more detail. Returns the axis `max` (which the series must scale against) and
+ * the descending tick list.
  */
-function deriveYTicks(values: number[], max: number, count = 5): number[] {
-  if (count <= 0) return [max];
-  if (!Number.isFinite(max) || max < 0) max = 0;
-  const candidates = uniq([...values, max, 0]).sort((a, b) => b - a);
-  if (candidates.length <= count) return candidates;
-  const step = Math.max(1, Math.floor((candidates.length - 1) / (count - 1)));
-  const picked = [candidates[0]];
-  for (let i = step; i < candidates.length - 1; i += step) picked.push(candidates[i]);
-  picked.push(0);
-  return picked;
+function niceAxis(
+  dataMax: number,
+  chartHeight: number
+): { max: number; ticks: number[] } {
+  // ~1 tick per 48px of height, clamped so we never show 1 line or a wall of them.
+  const targetTicks = Math.max(2, Math.min(6, Math.round(chartHeight / 48)));
+  const safeMax = Number.isFinite(dataMax) && dataMax > 0 ? dataMax : 1;
+  const step = niceStep(safeMax / targetTicks);
+  const max = Math.ceil(safeMax / step) * step;
+  const ticks: number[] = [];
+  for (let v = max; v >= 0; v -= step) ticks.push(v);
+  return { max, ticks };
 }
 
 /** Map a data value to a y position in pixels within the chart drawing area. */
@@ -167,7 +173,10 @@ function LineSeriesChart({
   const count = labels.length;
   const colW = w > 0 ? w / count : 0;
   const xAt = (i: number) => colW * (i + 0.5);
-  const ticks = deriveYTicks(series.flatMap((s) => s.values), max);
+  // Uniform 0-based axis with evenly-spaced "nice" gridlines. The series scale
+  // against `axisMax` (the rounded-up top) so points sit on the same gridlines
+  // the labels mark — not just the exact values the lines happen to hit.
+  const { max: axisMax, ticks } = niceAxis(max, chartHeight);
   const LABEL_MIN_PX = 22;
   const labelStep =
     colW >= LABEL_MIN_PX ? 1 : Math.ceil(LABEL_MIN_PX / Math.max(1, colW || 1));
@@ -176,7 +185,7 @@ function LineSeriesChart({
     <View
       style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}
     >
-      <YAxis max={max} chartHeight={chartHeight} ticks={ticks} />
+      <YAxis max={axisMax} chartHeight={chartHeight} ticks={ticks} />
       <View
         style={{ flex: 1, height: chartContainerH(chartHeight) }}
         onLayout={(e) => setW(e.nativeEvent.layout.width)}
@@ -199,7 +208,7 @@ function LineSeriesChart({
                   colour={s.colour}
                   points={s.values.map((v, i) => ({
                     x: xAt(i),
-                    y: yAt(v, max, chartHeight),
+                    y: yAt(v, axisMax, chartHeight),
                   }))}
                 />
               ))
@@ -222,7 +231,7 @@ function LineSeriesChart({
                   fullscreen && (selectedIdx === i || hoveredIdx === i);
                 // Anchor the tooltip above the highest (smallest y) point.
                 const anchorY = Math.min(
-                  ...series.map((s) => yAt(s.values[i], max, chartHeight))
+                  ...series.map((s) => yAt(s.values[i], axisMax, chartHeight))
                 );
                 return (
                   <Pressable
@@ -787,6 +796,10 @@ export function StackedBarChart({
   // Bars are stacked, so they scale to the per-point total.
   const stackedMax = Math.max(1, ...points.map((p) => p.fresh + p.returning));
   const scale = (n: number) => (n / stackedMax) * chartHeight;
+  // Label every 2nd bar (like the line chart), so a run of year labels reads
+  // cleanly instead of crowding — while still honouring the width-based skip
+  // when bars get thin.
+  const labelStep = Math.max(2, fit.labelStep);
   const labelFor = (i: number) =>
     tooltipLabel ? tooltipLabel(points[i]) : points[i].label;
   if (mode === "line") {
@@ -901,7 +914,7 @@ export function StackedBarChart({
                         />
                       ) : null}
                     </View>
-                    <BarLabel text={i % fit.labelStep === 0 ? p.label : ""} />
+                    <BarLabel text={i % labelStep === 0 ? p.label : ""} />
                   </Pressable>
                 );
               })}

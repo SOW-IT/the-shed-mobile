@@ -17,6 +17,7 @@ import type { SplitPoint, TrendPoint } from "../../../shared/attendanceMetrics";
 import {
   BarChart,
   ChartCard,
+  ChartModeProvider,
   LegendDot,
   MetricCard,
   type MultiStackPoint,
@@ -38,6 +39,9 @@ const CAMPUS_ACRONYM: Record<string, string> = {
 };
 const campusAcronym = (name: string) => CAMPUS_ACRONYM[name] ?? name;
 
+/** Averages carry one decimal; drop a trailing ".0" so whole numbers read clean. */
+const fmtAvg = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+
 /** Year-over-year change of `cur` vs `prev` for a metric card, or null. */
 const yoyDelta = (cur: number, prev: number | undefined): Delta => {
   if (prev === undefined) return null; // no prior year on record
@@ -57,6 +61,7 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
     setContainerWidth(e.nativeEvent.layout.width);
 
   const trends = useQuery(api.generalMetrics.staffTrends, {});
+  const campusAttendance = useQuery(api.generalMetrics.campusWeeklyAttendance, {});
 
   const charts = useMemo(() => {
     if (!trends) return null;
@@ -84,6 +89,24 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
     }));
     return { allStaff, staffVsLeaders, leadersByCampus };
   }, [trends]);
+
+  // Average weekly-meeting attendance per campus, one point per staff year from
+  // 2025 (when attendance recording began). The current year's point is a YTD
+  // average — only meetings held so far are counted.
+  const campusWeekly = useMemo<MultiStackPoint[] | null>(() => {
+    if (!campusAttendance || campusAttendance.years.length === 0) return null;
+    if (campusAttendance.campuses.length === 0) return null;
+    const yearLabel = (y: number) => `'${String(y).slice(-2)}`;
+    return campusAttendance.years.map((y, i) => ({
+      at: y,
+      label: yearLabel(y),
+      segments: campusAttendance.campuses.map((c) => ({
+        key: campusAcronym(c.campus),
+        value: c.averages[i],
+        colour: subgroupColour(c.campus),
+      })),
+    }));
+  }, [campusAttendance]);
 
   if (trends === undefined) return <LoadingState />;
   // `null` means the query couldn't resolve a staff profile for the caller (not
@@ -135,6 +158,23 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
         })),
     ];
 
+    // Average weekly-meeting attendance per campus this staff year, vs last —
+    // only from 2025 (attendance start) and only campuses that met this year.
+    const caIndex = campusAttendance ? campusAttendance.years.indexOf(year) : -1;
+    const attendanceCards =
+      campusAttendance && caIndex >= 0
+        ? campusAttendance.campuses
+            .filter((c) => c.averages[caIndex] > 0)
+            .map((c) => ({
+              label: campusAcronym(c.campus),
+              value: c.averages[caIndex],
+              delta: yoyDelta(
+                c.averages[caIndex],
+                caIndex > 0 ? c.averages[caIndex - 1] : undefined
+              ),
+            }))
+        : [];
+
     return (
       <View onLayout={onLayout} style={styles.grid}>
         <Text style={[typography.caption, { color: t.muted }]}>
@@ -156,6 +196,28 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
             </FadeInView>
           ))}
         </View>
+
+        {attendanceCards.length > 0 ? (
+          <>
+            <Text style={[typography.headline, { color: t.text }]}>
+              Avg weekly meeting attendance
+            </Text>
+            <View style={styles.cardGrid}>
+              {attendanceCards.map((card, idx) => (
+                <FadeInView key={card.label} delay={stagger(idx)}>
+                  <MetricCard
+                    label={card.label}
+                    value={fmtAvg(card.value)}
+                    delta={card.delta}
+                    hint={prevYear !== undefined ? `vs ${prevYear}` : "no baseline"}
+                    width={cardWidth}
+                  />
+                </FadeInView>
+              ))}
+            </View>
+          </>
+        ) : null}
+
         <View style={{ height: spacing.xxl }} />
       </View>
     );
@@ -240,6 +302,47 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
           />
         </ChartCard>
       </FadeInView>
+
+      {campusWeekly ? (
+        <FadeInView delay={stagger(3)}>
+          <ChartCard
+            title="Weekly meeting attendance by campus"
+            subtitle="Average per staff year (from 2025)"
+            width={width}
+            legend={
+              <View style={styles.campusLegend}>
+                {campusAttendance!.campuses.map((c) => (
+                  <LegendDot
+                    key={c.campus}
+                    colour={subgroupColour(c.campus)}
+                    label={campusAcronym(c.campus)}
+                  />
+                ))}
+              </View>
+            }
+            fullscreenContent={
+              // Averages are compared, not summed, so this chart is always drawn
+              // as one line per campus (a stacked bar would total the campus
+              // averages into a meaningless sum) — regardless of the global
+              // bars/lines toggle the other trend charts follow.
+              <ChartModeProvider value="line">
+                <MultiStackedBarChart
+                  points={campusWeekly}
+                  tooltipLabel={(p) => String(p.at)}
+                  fullscreen
+                />
+              </ChartModeProvider>
+            }
+          >
+            <ChartModeProvider value="line">
+              <MultiStackedBarChart
+                points={campusWeekly}
+                tooltipLabel={(p) => String(p.at)}
+              />
+            </ChartModeProvider>
+          </ChartCard>
+        </FadeInView>
+      ) : null}
 
       <View style={{ height: spacing.xxl }} />
     </View>
