@@ -170,7 +170,7 @@ export const gatherEvents = internalQuery({
       .slice(0, MAX_EVENTS);
 
     // Resolve which events are Weekly Meetings — any tag named "Weekly Meeting"
-    // (year-scoped in the catalogue, but the name is what marks the pattern).
+    // (tags are global; the name is what marks the pattern).
     const tagIds = new Set<Id<"attendanceTags">>();
     for (const e of events) for (const id of e.tagIds ?? []) tagIds.add(id);
     const tagDocs = await Promise.all([...tagIds].map((id) => ctx.db.get(id)));

@@ -354,16 +354,20 @@ export default defineSchema({
     .index("by_event", ["eventId"])
     .index("by_actor", ["actorEmail"]),
 
-  // Event category tags (e.g. "Weekly Meeting"), per staff year.
+  // Event category tags (e.g. "Weekly Meeting"). Global, NOT per staff year:
+  // one shared catalogue applies to every year, and an event references tags by
+  // id (`events.tagIds`), so the same tag rides across the Oct 1 rollover.
+  // `year` is a deprecated column kept optional only until
+  // `attendanceTags:consolidateAttendanceTags` has merged the old per-year rows
+  // (union of their sub-group scopes) and cleared `year` in every environment;
+  // the narrow follow-up drops the column.
   attendanceTags: defineTable({
-    year: v.number(),
+    year: v.optional(v.number()),
     name: v.string(),
     colour: v.optional(v.string()),
     // Undefined/empty means global. Otherwise this tag only applies to these sub-groups.
     subgroups: v.optional(v.array(v.string())),
-  })
-    .index("by_year", ["year"])
-    .index("by_year_and_name", ["year", "name"]),
+  }),
 
   // Dynamic member fields (Year, Gender, Campus, Role, …). Global, NOT per year:
   // one row per (key, subgroup), shared across all years, since member metadata

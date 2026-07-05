@@ -237,7 +237,9 @@ export const prepare = mutation({
     fieldMap: v.record(v.string(), v.id("attendanceMetadata")),
     tagMap: v.record(v.string(), v.id("attendanceTags")),
   }),
-  handler: async (ctx, { year, metadata, tags }) => {
+  // `year` is accepted for import-client compatibility but no longer used:
+  // metadata and tags are both global (not year-scoped).
+  handler: async (ctx, { metadata, tags }) => {
     await requireAdmin(ctx);
     const existingFields = await allMetadataFields(ctx);
     const fieldMap: Record<string, Id<"attendanceMetadata">> = {};
@@ -292,33 +294,35 @@ export const prepare = mutation({
       for (const sourceId of field.sourceIds ?? []) fieldMap[sourceId] = row._id;
     }
 
+    // Tags are global (not year-scoped): resolve against the one shared
+    // catalogue, keyed by lower-cased name, regardless of which year is loaded.
+    const existingTags = await ctx.db.query("attendanceTags").collect();
+    const tagByName = new Map(
+      existingTags.map((row) => [row.name.trim().toLowerCase(), row])
+    );
     const tagMap: Record<string, Id<"attendanceTags">> = {};
     for (const tag of tags) {
       const name = tag.name.trim();
       if (!name) continue;
-      const existing = await ctx.db
-        .query("attendanceTags")
-        .withIndex("by_year_and_name", (q) => q.eq("year", year).eq("name", name))
-        .unique();
+      const lower = name.toLowerCase();
+      const subgroups = tag.subgroups?.length
+        ? normalizeSubgroups(tag.subgroups)
+        : undefined;
+      const existing = tagByName.get(lower);
+      if (existing) {
+        await ctx.db.patch(existing._id, { colour: tag.colour, subgroups });
+      }
+      // Reuse a row already resolved earlier in this batch (duplicate name) so
+      // the same tag isn't inserted twice.
       const id =
+        tagMap[lower] ??
         existing?._id ??
         (await ctx.db.insert("attendanceTags", {
-          year,
           name,
           colour: tag.colour,
-          subgroups: tag.subgroups?.length
-            ? normalizeSubgroups(tag.subgroups)
-            : undefined,
+          subgroups,
         }));
-      if (existing) {
-        await ctx.db.patch(existing._id, {
-          colour: tag.colour,
-          subgroups: tag.subgroups?.length
-            ? normalizeSubgroups(tag.subgroups)
-            : undefined,
-        });
-      }
-      tagMap[name.toLowerCase()] = id;
+      tagMap[lower] = id;
       for (const sourceId of tag.sourceIds ?? []) tagMap[sourceId] = id;
     }
 
@@ -579,14 +583,10 @@ export const summary = mutation({
   handler: async (ctx, { year }) => {
     await requireAdmin(ctx);
     return {
-      // Metadata is global (not year-scoped), so this is the whole shared set.
+      // Metadata and tags are both global (not year-scoped) — the whole shared
+      // set, not a per-year slice.
       metadata: (await ctx.db.query("attendanceMetadata").take(1000)).length,
-      tags: (
-        await ctx.db
-          .query("attendanceTags")
-          .withIndex("by_year", (q) => q.eq("year", year))
-          .take(1000)
-      ).length,
+      tags: (await ctx.db.query("attendanceTags").take(1000)).length,
       members: (
         await ctx.db
           .query("attendanceMembers")
@@ -651,30 +651,14 @@ export const resetYears = mutation({
         if (!progressed) break;
       }
 
-      // Tags are year-scoped; metadata is global and shared across years, so a
-      // per-year reset leaves it alone.
-      while (deleted < limit) {
-        const docs = await ctx.db
-          .query("attendanceTags")
-          .withIndex("by_year", (q) => q.eq("year", year))
-          .take(200);
-        if (docs.length === 0) break;
-        for (const doc of docs) {
-          await ctx.db.delete(doc._id);
-          deleted++;
-          if (deleted >= limit) break;
-        }
-      }
+      // Tags and metadata are both global (shared across years), so a per-year
+      // reset only removes this year's events + attendance and leaves them be.
     }
 
-    // `done` once nothing for any year remains (a handful of cheap probes).
+    // `done` once no events remain for any year (a handful of cheap probes).
     let done = true;
     for (const year of years) {
-      const [ev, tag] = await Promise.all([
-        eventsInStaffYear(ctx, year).first(),
-        ctx.db.query("attendanceTags").withIndex("by_year", (q) => q.eq("year", year)).first(),
-      ]);
-      if (ev || tag) {
+      if (await eventsInStaffYear(ctx, year).first()) {
         done = false;
         break;
       }
@@ -840,10 +824,8 @@ export const migrateOrgWideSubgroupToSow = mutation({
       }
     }
 
-    for (const tag of await ctx.db
-      .query("attendanceTags")
-      .withIndex("by_year", (q) => q.eq("year", year))
-      .collect()) {
+    // Tags are global (not year-scoped) — canonicalise the whole shared set.
+    for (const tag of await ctx.db.query("attendanceTags").collect()) {
       if (!tag.subgroups?.length) continue;
       const normalized = normalizeSubgroups(tag.subgroups);
       const changed =

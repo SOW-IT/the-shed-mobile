@@ -99,16 +99,17 @@ async function attendanceCount(
   return rows.length;
 }
 
-async function resolveTags(ctx: QueryCtx, year: number, tagIds?: Id<"attendanceTags">[]) {
+async function resolveTags(ctx: QueryCtx, tagIds?: Id<"attendanceTags">[]) {
   if (!tagIds?.length) return [];
+  // Tags are global (not year-scoped) — resolve each surviving row by id.
   const tags = await Promise.all(tagIds.map((id) => ctx.db.get(id)));
-  return tags.filter((t): t is NonNullable<typeof t> => !!t && t.year === year);
+  return tags.filter((t): t is NonNullable<typeof t> => !!t);
 }
 
 const annotate = async (ctx: QueryCtx, event: Doc<"events">) => ({
   ...event,
   collaborative: event.subgroups.length > 1,
-  tags: await resolveTags(ctx, eventStaffYear(event.dateStart), event.tagIds),
+  tags: await resolveTags(ctx, event.tagIds),
 });
 
 async function validateEventFields(
@@ -147,10 +148,12 @@ async function validateEventFields(
   // pills and duplicate React keys in the events list).
   const uniqueTagIds = args.tagIds?.length ? [...new Set(args.tagIds)] : undefined;
   if (uniqueTagIds) {
+    // Tags are global — an event can carry any tag from the shared catalogue,
+    // so just confirm each id still resolves to a real tag.
     for (const tagId of uniqueTagIds) {
       const tag = await ctx.db.get(tagId);
-      if (!tag || tag.year !== year) {
-        throw new ConvexError("One or more tags are invalid for this year.");
+      if (!tag) {
+        throw new ConvexError("One or more selected tags no longer exist.");
       }
     }
   }

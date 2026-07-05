@@ -978,7 +978,6 @@ export default function EventAttendanceScreen() {
         visible={eventEditOpen}
         onClose={() => setEventEditOpen(false)}
         onDeleted={() => router.back()}
-        year={eventStaffYear(event.dateStart)}
         subgroup={event.subgroups[0] ?? SOW_SUBGROUP}
         subgroups={subgroups}
         event={event}
@@ -986,7 +985,6 @@ export default function EventAttendanceScreen() {
       <ExportSheet
         visible={exportOpen}
         onClose={() => setExportOpen(false)}
-        year={eventStaffYear(event.dateStart)}
         subgroup={event.subgroups[0] ?? SOW_SUBGROUP}
         eventId={evId}
       />

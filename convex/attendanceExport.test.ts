@@ -154,11 +154,10 @@ describe("attendanceExport", () => {
     const { leader } = await setup();
     // Tag setup.
     await leader.mutation(api.attendanceTags.saveAll, {
-      year: YEAR,
       tags: [{ name: "Weekly" }, { name: "Camp" }],
       deleteIds: [],
     });
-    const tags = await leader.query(api.attendanceTags.list, { year: YEAR });
+    const tags = await leader.query(api.attendanceTags.list, {});
     const weekly = tags.find((t) => t.name === "Weekly")!._id;
 
     const recent = await leader.mutation(api.events.create, {

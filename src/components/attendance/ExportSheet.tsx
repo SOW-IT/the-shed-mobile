@@ -125,13 +125,11 @@ const ToggleRow = ({
 export function ExportSheet({
   visible,
   onClose,
-  year,
   subgroup,
   eventId,
 }: {
   visible: boolean;
   onClose: () => void;
-  year: number;
   subgroup: string;
   /** When set, exports just this event instead of the whole sub-group. */
   eventId?: Id<"events">;
@@ -141,7 +139,7 @@ export function ExportSheet({
   const isEvent = eventId !== undefined;
 
   // Only the metadata fields this sub-group can see (req: group-scoped list).
-  // Metadata fields are global; tags are still per staff year.
+  // Metadata fields and tags are both global (not year-scoped).
   const fields = useQuery(api.attendanceMetadata.list, { subgroup });
   // A metadata field named "Notes" collides with the export's reserved sign-in
   // Notes column, so it's never offered as a column here (the builder drops it
@@ -150,7 +148,7 @@ export function ExportSheet({
     () => (fields ?? []).filter((f) => !isReservedExportFieldKey(f.key)),
     [fields]
   );
-  const tags = useQuery(api.attendanceTags.list, isEvent ? "skip" : { year });
+  const tags = useQuery(api.attendanceTags.list, isEvent ? "skip" : {});
 
   const [fromMs, setFromMs] = useState<number | undefined>(undefined);
   const [toMs, setToMs] = useState<number | undefined>(undefined);

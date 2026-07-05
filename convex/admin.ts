@@ -1460,17 +1460,20 @@ export const fillTagScopesWithAllGroups = internalMutation({
     let filled = 0;
     for (const tag of tags) {
       if (tag.subgroups?.length) continue;
-      let all = subgroupsByYear.get(tag.year);
+      // Tags are global now; the `year` column is deprecated and may be cleared,
+      // so scope an unscoped tag against the current staff year's groups.
+      const scopeYear = tag.year ?? currentStaffYear();
+      let all = subgroupsByYear.get(scopeYear);
       if (!all) {
         const universities = await ctx.db
           .query("universities")
-          .withIndex("by_year_and_name", (q) => q.eq("year", tag.year))
+          .withIndex("by_year_and_name", (q) => q.eq("year", scopeYear))
           .collect();
         all = normalizeSubgroups([
           SOW_SUBGROUP,
           ...universities.map((u) => u.name),
         ]);
-        subgroupsByYear.set(tag.year, all);
+        subgroupsByYear.set(scopeYear, all);
       }
       if (all.length === 0) continue;
       await ctx.db.patch(tag._id, { subgroups: all });

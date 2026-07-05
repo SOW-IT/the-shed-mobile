@@ -39,18 +39,16 @@ const normalizeTag = (tag: TagDraft) => ({
 const tagsEqual = (a: TagDraft[], b: TagDraft[]) =>
   JSON.stringify(a.map(normalizeTag)) === JSON.stringify(b.map(normalizeTag));
 
-/** Event tag colours and names for the current staff year. */
+/** Event tag colours and names. Tags are global — one shared set for all years. */
 export function SettingsTab({
-  year,
   subgroups,
   onSaveStateChange,
 }: {
-  year: number;
   subgroups: string[];
   onSaveStateChange?: (controls: SaveControls) => void;
 }) {
   const t = useAppTheme();
-  const tags = useQuery(api.attendanceTags.list, { year });
+  const tags = useQuery(api.attendanceTags.list, {});
   const saveTags = useMutation(api.attendanceTags.saveAll);
 
   const [tagDrafts, setTagDrafts] = useState<TagDraft[]>([]);
@@ -89,7 +87,7 @@ export function SettingsTab({
     setSaving(true);
     setError(null);
     try {
-      await saveTags({ year, tags: tagDrafts, deleteIds: tagDeletes });
+      await saveTags({ tags: tagDrafts, deleteIds: tagDeletes });
     } catch (e) {
       setError(errorMessage(e));
     } finally {

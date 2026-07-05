@@ -176,7 +176,6 @@ export default function AttendanceScreen() {
       label: "Tags",
       render: () => (
         <SettingsTab
-          year={year}
           subgroups={subgroups}
           onSaveStateChange={setTagsSave}
         />
@@ -215,7 +214,6 @@ export default function AttendanceScreen() {
           key={subgroup}
           visible={createEventOpen}
           onClose={() => setCreateEventOpen(false)}
-          year={year}
           subgroup={subgroup}
           subgroups={subgroups}
         />

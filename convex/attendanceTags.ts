@@ -1,25 +1,22 @@
 import { ConvexError, v } from "convex/values";
-import { staffYearStartMs } from "../shared/flow";
 import { normalizeSubgroups } from "../shared/rollcall";
-import { mutation, query } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { optionalProfile, requireAttendanceManager } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
 
 export const list = query({
-  args: { year: v.number() },
-  handler: async (ctx, { year }) => {
+  args: {},
+  handler: async (ctx) => {
     if (!(await optionalProfile(ctx))) return [];
-    const rows = await ctx.db
-      .query("attendanceTags")
-      .withIndex("by_year", (q) => q.eq("year", year))
-      .collect();
+    // Tags are global (not year-scoped) — one shared catalogue for every year.
+    const rows = await ctx.db.query("attendanceTags").collect();
     return rows.sort((a, b) => a.name.localeCompare(b.name));
   },
 });
 
 export const saveAll = mutation({
   args: {
-    year: v.number(),
     tags: v.array(
       v.object({
         id: v.optional(v.id("attendanceTags")),
@@ -30,20 +27,14 @@ export const saveAll = mutation({
     ),
     deleteIds: v.array(v.id("attendanceTags")),
   },
-  handler: async (ctx, { year, tags, deleteIds }) => {
+  handler: async (ctx, { tags, deleteIds }) => {
     const { email: actorEmail } = await requireAttendanceManager(ctx);
     for (const id of deleteIds) {
       const row = await ctx.db.get(id);
-      if (!row || row.year !== year) continue;
-      // Events of this staff year, by start-date range (events store no year).
-      const events = await ctx.db
-        .query("events")
-        .withIndex("by_dateStart", (q) =>
-          q
-            .gte("dateStart", staffYearStartMs(year))
-            .lt("dateStart", staffYearStartMs(year + 1))
-        )
-        .collect();
+      if (!row) continue;
+      // Tags are global, so a deleted tag can be referenced by an event in any
+      // year — scrub it from every event that carries it, not just one year's.
+      const events = await ctx.db.query("events").collect();
       for (const event of events) {
         if (!event.tagIds?.includes(id)) continue;
         const tagIds = event.tagIds.filter((tagId) => tagId !== id);
@@ -68,7 +59,7 @@ export const saveAll = mutation({
       names.add(lower);
       if (tag.id) {
         const existing = await ctx.db.get(tag.id);
-        if (!existing || existing.year !== year) continue;
+        if (!existing) continue;
         const nextSubgroups = tag.subgroups?.length
           ? normalizeSubgroups(tag.subgroups)
           : undefined;
@@ -98,7 +89,6 @@ export const saveAll = mutation({
         }
       } else {
         await ctx.db.insert("attendanceTags", {
-          year,
           name,
           colour: tag.colour,
           subgroups: tag.subgroups?.length
@@ -113,5 +103,101 @@ export const saveAll = mutation({
         });
       }
     }
+  },
+});
+
+/**
+ * Consolidate the per-year tag catalogue into one global set. Tags used to be
+ * scoped per staff year, so the same logical tag (e.g. "Weekly Meeting") had a
+ * separate row — and a separate id — every year; events reference tags by id,
+ * so the "same" tag differed across the Oct 1 rollover. Merge every row sharing
+ * a (case-insensitive) name into a single survivor: take the UNION of their
+ * sub-group scopes (an unscoped/global member wins → the merged tag is global),
+ * remap event `tagIds` from the losers to the survivor (de-duplicated), delete
+ * the losers, and clear the now-deprecated `year` column on the survivors.
+ *
+ * Idempotent: re-run `npx convex run
+ * attendanceTags:consolidateAttendanceTags` (and --prod) until it reports
+ * `merged: 0` (a second run with no duplicates and no `year` values is a no-op).
+ * Run this BEFORE the narrow follow-up that drops the `year` column.
+ */
+export const consolidateAttendanceTags = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("attendanceTags").collect();
+    const groups = new Map<string, typeof rows>();
+    for (const row of rows) {
+      const key = row.name.trim().toLowerCase();
+      const g = groups.get(key) ?? [];
+      g.push(row);
+      groups.set(key, g);
+    }
+
+    // loser tag id -> survivor tag id, applied to events in a single pass below.
+    const remap = new Map<Id<"attendanceTags">, Id<"attendanceTags">>();
+    let merged = 0;
+    let cleared = 0;
+
+    for (const group of groups.values()) {
+      // Deterministic survivor: earliest created (year-independent, stable).
+      const sorted = [...group].sort(
+        (a, b) => a._creationTime - b._creationTime
+      );
+      const survivor = sorted[0];
+
+      // Union the sub-group scopes; a global (unscoped) member makes the whole
+      // merged tag global, since "all groups" already covers any narrower set.
+      let global = false;
+      const scopes = new Set<string>();
+      for (const tag of sorted) {
+        if (!tag.subgroups?.length) global = true;
+        else for (const s of tag.subgroups) scopes.add(s);
+      }
+      const mergedSubgroups = global
+        ? undefined
+        : normalizeSubgroups([...scopes]);
+      // Keep the survivor's colour, else the earliest-created one that has any.
+      const colour = sorted.find((tag) => tag.colour)?.colour;
+
+      for (const loser of sorted.slice(1)) {
+        remap.set(loser._id, survivor._id);
+        await ctx.db.delete(loser._id);
+        merged++;
+      }
+
+      const subgroupsChanged =
+        JSON.stringify([...(survivor.subgroups ?? [])].sort()) !==
+        JSON.stringify([...(mergedSubgroups ?? [])].sort());
+      const colourChanged =
+        (survivor.colour ?? undefined) !== (colour ?? undefined);
+      if (subgroupsChanged || colourChanged || survivor.year !== undefined) {
+        await ctx.db.patch(survivor._id, {
+          subgroups: mergedSubgroups,
+          colour,
+          year: undefined,
+        });
+        if (survivor.year !== undefined) cleared++;
+      }
+    }
+
+    // One pass over events, remapping any loser tag id to its survivor.
+    let eventsRemapped = 0;
+    if (remap.size > 0) {
+      for (const event of await ctx.db.query("events").collect()) {
+        if (!event.tagIds?.length) continue;
+        const next = [
+          ...new Set(event.tagIds.map((id) => remap.get(id) ?? id)),
+        ];
+        const changed =
+          next.length !== event.tagIds.length ||
+          next.some((id, i) => id !== event.tagIds![i]);
+        if (changed) {
+          await ctx.db.patch(event._id, { tagIds: next });
+          eventsRemapped++;
+        }
+      }
+    }
+
+    return { groups: groups.size, merged, cleared, eventsRemapped };
   },
 });
