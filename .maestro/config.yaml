@@ -1,0 +1,35 @@
+# Maestro suite configuration for The Shed Mobile.
+# Docs: https://maestro.mobile.dev/reference/configuration
+#
+# Run the whole suite (against the STAGING / test build — see README):
+#   maestro test --env-file .maestro/.env .maestro
+#
+# Run one tag group:
+#   maestro test --include-tags public --env-file .maestro/.env .maestro
+#
+# The suite is authored so that everything tagged `public` runs with no sign-in
+# and no fixtures. Everything else needs a signed-in build and, for most flows,
+# seeded data — see .maestro/README.md.
+
+flows:
+  - "*/*.yaml"
+
+# Execution order: gating + public smoke first, then feature areas.
+# (Maestro runs remaining flows in filename order within each folder.)
+executionOrder:
+  continueOnFailure: true
+
+# Tags let you slice the suite by role / automatability.
+# Common tags used across flows:
+#   public          – no auth required, fully automatable on a fresh install
+#   auth            – exercises the Google OAuth sign-in path
+#   staff           – needs a signed-in plain-staff profile
+#   approver        – needs HOD / Budget / Director / Finance roles
+#   admin           – needs an admin profile
+#   finance         – needs a Finance-department / Finance-Head profile
+#   smoke           – fast, high-value happy paths (good for CI gating)
+#   manual          – documented but NOT automatable here (fault injection,
+#                     multi-device, scheduled crons, release-build checks)
+includeTags: []
+excludeTags:
+  - manual

@@ -1,0 +1,40 @@
+# §3.0 Segment navigation — swipeable carousel Mine · Review · All · Bank in
+# sync with the segment strip; the "+ Make Request" footer slides away off Mine.
+# Needs all four segments, so a plain staff account (Mine/Bank only) can't
+# exercise this — signs in as Finance (Mine/Review/All/Bank).
+appId: ${APP_ID}
+tags:
+  - finance
+---
+- runFlow:
+    file: ../common/sign-in-staff-to-requests.yaml
+    env:
+      EMAIL: ${FINANCE_EMAIL}
+      PASSWORD: ${FINANCE_PASSWORD}
+
+# Footer visible on Mine.
+- assertVisible: "+ Make Request"
+
+# Swipe the carousel; strip + footer follow. Segments carry unread/action
+# badges (e.g. "Review, 8, 15"); match by prefix.
+- swipe:
+    direction: LEFT
+- assertVisible: "Review.*"
+# Footer slides off Mine via a translateY transform (PagerScreen.tsx), not a
+# conditional unmount — it stays in the view tree at its original bounds, so
+# Maestro's hierarchy-based visibility check can't reliably observe the
+# animation. Best-effort only; a real regression here would need a visual
+# diff, not this assertion.
+- assertNotVisible:
+    text: "+ Make Request"
+    optional: true
+
+# Back to Mine restores the footer.
+- swipe:
+    direction: RIGHT
+- assertVisible: "Mine.*"
+- assertVisible: "+ Make Request"
+
+# Tapping the strip navigates too.
+- tapOn: "Bank"
+- assertVisible: "Bank"

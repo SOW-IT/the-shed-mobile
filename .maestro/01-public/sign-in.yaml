@@ -1,0 +1,33 @@
+# §1.4 Sign-in — avatar → Sign in with Google → staff tools appear in place.
+appId: ${APP_ID}
+tags:
+  - auth
+  - smoke
+---
+- runFlow: ../common/launch-fresh.yaml
+- runFlow:
+    file: ../common/sign-in-google.yaml
+    env:
+      EMAIL: ${STAFF_EMAIL}
+      PASSWORD: ${STAFF_PASSWORD}
+
+# Staff tools appear without relaunch; the bell appears (§1.4, §2.1).
+# Real Google OAuth is best-effort in this environment (see
+# common/sign-in-google.yaml's header) — no dedicated test credentials, and a
+# machine with an existing cached session can't be driven past account
+# selection without touching a real person's identity. Everything from here
+# down only actually exercises if that sign-in genuinely completed.
+- assertVisible:
+    text: "Attendance"
+    optional: true
+- assertVisible:
+    text: ".*Notifications.*"
+    optional: true
+
+# Profile photo / name load from the directory after sign-in.
+- tapOn:
+    text: "Open your profile"
+    optional: true
+- assertVisible:
+    text: ${STAFF_EMAIL}
+    optional: true

@@ -1,0 +1,43 @@
+# Device-verified smoke (ran green against the dev-client build on iPhone 17e,
+# iOS 26.5, Convex dev backend, signed in as an approver profile).
+#
+# Demonstrates the selector conventions that the real iOS accessibility tree
+# requires (see README "Device-verified selector notes"):
+#   • bottom tabs expose "<Name>, tab, N of 6"  → match with a regex
+#   • the test-env chip exposes its a11y label "Test environment — what is this?"
+#   • the Review segment carries its badge: "Review, 2"
+#   • the bell is "Notifications, N unread"
+#
+# Assumes the app is already signed in on a dev client. Run with:
+#   maestro test --env CLEAR_STATE=false --env DEV_CLIENT=true \
+#     --env APP_ID=au.org.sow.theshed .maestro/00-launch-and-gating/live-smoke.yaml
+appId: ${APP_ID}
+tags:
+  - staff
+  - smoke
+---
+- runFlow: ../common/launch-fresh.yaml
+
+# Requests surface (signed-in landing for a staff/approver profile).
+- assertVisible: "Mine"
+- assertVisible:
+    text: ".*Review.*"
+- assertVisible: "All"
+- assertVisible: "Bank"
+- assertVisible: "+ Make Request"
+
+# Top chrome a11y labels.
+- assertVisible:
+    text: ".*Notifications.*unread.*"
+- assertVisible: "Open your profile"
+
+# Bottom-tab navigation by regex (labels are "<Name>, tab, N of 6").
+- tapOn:
+    text: ".*Attendance, tab.*"
+- assertVisible: "Events"
+- assertVisible: "Members"
+- tapOn:
+    text: ".*Org Chart, tab.*"
+- tapOn:
+    text: ".*Requests, tab.*"
+- assertVisible: "+ Make Request"

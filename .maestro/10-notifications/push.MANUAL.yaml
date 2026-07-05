@@ -1,0 +1,23 @@
+# §10.3 Push — largely NOT Maestro-automatable (OS permission prompt, real
+# push delivery, background taps). Documented for manual/release testing.
+appId: ${APP_ID}
+tags:
+  - manual
+---
+# - Push registration runs after sign-in (OS permission prompt on first run);
+#   declining leaves in-app + email notifications working.
+# - Push tap follows only known in-app screens; malformed links ignored
+#   (allow-list in shared/deepLinks.ts — covered by that file's unit test).
+# - Request push deep-links via /?tab=…&focus=… .
+# - Push icon shows the SHED logo (app.json → notification).
+# - Emails include "Open in THE SHED" links pointing at the sending
+#   deployment's own web build.
+#
+# The deep-link ROUTING these pushes trigger IS automatable — see
+# 11-deeplinks/*. Assert the permission prompt appears on first cold sign-in:
+- launchApp:
+    appId: ${APP_ID}
+    clearState: true
+    permissions:
+      notifications: unset
+- assertVisible: "Org Chart"

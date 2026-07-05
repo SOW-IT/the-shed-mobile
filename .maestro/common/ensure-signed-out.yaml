@@ -1,0 +1,17 @@
+# Entry point for PUBLIC (signed-out) flows: guarantees a visitor state.
+#   • Seeded E2E build (E2E_SECRET set): a prior flow may have signed in, so use
+#     the bypass to sign out (sign-out-e2e relaunches into the visitor app).
+#   • Otherwise (clean install / standalone with CLEAR_STATE): just launch — a
+#     fresh app is already signed out.
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      true: ${typeof E2E_SECRET !== 'undefined' && E2E_SECRET !== ''}
+    commands:
+      - runFlow: ./sign-out-e2e.yaml
+- runFlow:
+    when:
+      true: ${typeof E2E_SECRET === 'undefined' || E2E_SECRET === ''}
+    commands:
+      - runFlow: ./launch-fresh.yaml

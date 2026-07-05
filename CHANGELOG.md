@@ -6,6 +6,19 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.7.2] — 2026-07-05
+
+### Fixed
+
+- **Attendance roll-call sign-in/out no longer gets stuck showing the wrong
+  state on failure.** If a sign-in or sign-out couldn't be saved (e.g. a
+  connection hiccup), the row used to keep showing the optimistic result
+  forever with no explanation; it now reverts and shows what went wrong.
+- The **"Sign in with your SOW account"** menu (visitor avatar → Sign in) is
+  now reachable by VoiceOver and other assistive tech — its button previously
+  sat behind the menu's "tap outside to close" region, which made it
+  invisible to screen readers even though it displayed normally.
+
 ## [1.7.1] — 2026-07-04
 
 ### Fixed

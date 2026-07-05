@@ -1,0 +1,48 @@
+# Returns the app to a signed-out (visitor) state via the dev/test-only bypass
+# route (theshedmobile://e2e-auth?signout=1). Used by public flows so they start
+# clean even if a previous flow left a session. Needs the E2E build (SCHEME from
+# env). No-op-safe if already signed out.
+appId: ${APP_ID}
+---
+- openLink: "${SCHEME}://e2e-auth?signout=1"
+# e2e-auth awaits signOut() before it redirects to "/" — stopping the app
+# right after opening the link races that redirect. If the process dies
+# before the sign-out call has actually persisted, the relaunched client can
+# still carry the old auth token into its first request; the Contact form hit
+# this concretely (a visitor submission failed server-side with "Please enter
+# a valid email address" — the server had resolved a stale authed identity
+# instead of the typed one). Wait for the redirect's on-screen evidence first.
+- extendedWaitUntil:
+    visible:
+      text: ".*Org Chart.*"
+    timeout: 15000
+# The route clears the session and persists it; relaunch so the client adopts
+# the signed-out state (the running client doesn't hot-swap).
+- runFlow:
+    when:
+      true: ${typeof DEV_CLIENT !== 'undefined' && DEV_CLIENT === 'true'}
+    commands:
+      - stopApp
+- launchApp:
+    appId: ${APP_ID}
+# Dismiss the Expo dev-menu overlay if it appears (dev client).
+- runFlow:
+    when:
+      true: ${typeof DEV_CLIENT !== 'undefined' && DEV_CLIENT === 'true'}
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- runFlow:
+    when:
+      true: ${typeof DEV_CLIENT !== 'undefined' && DEV_CLIENT === 'true'}
+      visible: "Go home"
+    commands:
+      - tapOn:
+          point: "90%,47%"
+# Signed-out landing: the public Org Chart, no notifications bell.
+- extendedWaitUntil:
+    visible:
+      text: ".*Org Chart.*"
+    timeout: 30000
+- assertNotVisible:
+    text: ".*Notifications.*"

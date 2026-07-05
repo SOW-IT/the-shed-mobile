@@ -1,5 +1,6 @@
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient, useConvexAuth } from "convex/react";
+import { requireOptionalNativeModule } from "expo";
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
@@ -10,6 +11,11 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useWebAuthCodeExchange } from "@/hooks/useGoogleSignIn";
 import { LoadingState } from "@/components/ui";
 import { useAppTheme } from "@/theme";
+
+// The dev-client's floating menu bubble overlaps real UI (it's blocked E2E taps
+// on the avatar/bell and the Review tab's Approve button in different spots) —
+// undefined outside the dev client, so this is a no-op in production/standalone.
+const DevMenuPreferences = requireOptionalNativeModule("DevMenuPreferences");
 
 const convex = process.env.EXPO_PUBLIC_CONVEX_URL
   ? new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL, {
@@ -106,10 +112,15 @@ const RootStack = () => (
     {/* Folded into the Requests tab; routes survive for old deep links. */}
     <Stack.Screen name="review" />
     <Stack.Screen name="all" />
+    {/* Dev/test-only auth bypass (inert in production — see e2e-auth.tsx). */}
+    <Stack.Screen name="e2e-auth" />
   </Stack>
 );
 
 export default function RootLayout() {
+  useEffect(() => {
+    void DevMenuPreferences?.setPreferencesAsync({ showFloatingActionButton: false });
+  }, []);
   const t = useAppTheme();
   const baseTheme = t.dark ? DarkTheme : DefaultTheme;
   const navTheme = {

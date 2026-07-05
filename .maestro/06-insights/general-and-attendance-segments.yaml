@@ -1,0 +1,53 @@
+# §6 Insights (BETA) — General + Attendance segments, scope/range FAB, chart
+# fullscreen interaction.
+appId: ${APP_ID}
+tags:
+  - staff
+---
+- runFlow: ../common/launch-fresh.yaml
+- runFlow:
+    file: ../common/sign-in.yaml
+    env:
+      EMAIL: ${STAFF_EMAIL}
+      PASSWORD: ${STAFF_PASSWORD}
+- tapOn:
+    text: ".*Insights, tab.*"
+
+# §6.1 General — defaults here on first load; trend charts present.
+- assertVisible: "General"
+- assertVisible: "Attendance"     # staff see both segments
+
+# Scope FAB switches All years ↔ specific staff year. Its accessibilityLabel
+# is "<sheet title>: <current value>" (e.g. "Compare: All years"), not
+# "Select year" — that text doesn't exist anywhere in the component.
+- tapOn:
+    text: ".*Compare:.*"
+    optional: true
+- tapOn:
+    text: "Close"
+    optional: true
+
+# §6.2 Attendance segment (staff only).
+- tapOn: "Attendance"
+# Range FAB defaults to 2 wks + collaborative toggle. Its accessibilityLabel
+# is "Time range: <n> wks" — "Select range" doesn't exist either.
+- tapOn:
+    text: ".*Time range:.*"
+    optional: true
+- assertVisible:
+    text: ".*(wks|wk|Collaborative).*"
+    optional: true
+- tapOn:
+    text: "Close"
+    optional: true
+
+# §6.3 Chart fullscreen — tap a chart card → fullscreen; close. Each card's
+# wrapping Pressable carries an explicit "<title> — tap to expand"
+# accessibilityLabel (masking its child Text on iOS), so target that instead
+# of an ambiguous "first text on screen" tap.
+- tapOn:
+    text: ".*tap to expand.*"
+    optional: true
+- tapOn:
+    text: "Close fullscreen"
+    optional: true

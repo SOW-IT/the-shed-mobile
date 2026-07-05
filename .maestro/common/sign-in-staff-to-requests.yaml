@@ -1,0 +1,14 @@
+# Signs in as plain staff and lands on the Requests tab, Mine segment.
+# Param: EMAIL, PASSWORD (default to STAFF_* if you pass them).
+appId: ${APP_ID}
+---
+- runFlow: ./launch-fresh.yaml
+- runFlow:
+    file: ./sign-in.yaml
+    env:
+      EMAIL: ${EMAIL}
+      PASSWORD: ${PASSWORD}
+- tapOn:
+    text: ".*Requests, tab.*"
+# Segment carries unread/action-count badges (e.g. "Mine, 1, 1"); match by prefix.
+- assertVisible: "Mine.*"

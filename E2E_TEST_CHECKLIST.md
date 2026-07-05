@@ -1,413 +1,530 @@
 # The Shed Mobile — End-to-End Test Checklist
 
-Manual QA checklist covering the three core areas: **Requests**, **Attendance**, and **Admin**.
-Derived from the current codebase. Check each box as you verify it. Flag anything that fails with a note + screenshot.
+Covers every user-facing action in the app as of **v1.7.1**. Written to be translated
+directly into [Maestro](https://maestro.mobile.dev) flows — each checkbox is one
+assertable step or scenario. Replace/regenerate this file when the app's surface changes.
 
 **Conventions used throughout:**
 - "Staff year" = Oct 1 → Sep 30 rollover (e.g. an event on 15 Jan 2026 belongs to staff year 2025).
 - "Calendar year" = Jan–Dec (used only for the student **Year** metadata field).
-- Test with multiple accounts/roles where noted (requester, HOD, Budget Manager, Director, Finance Head, admin, plain staff).
+- "Visitor" = not signed in. "Staff" = signed in with a staff profile. "Campus leader" = signed in whose only roles are campus roles.
+- Test with multiple accounts/roles where noted (visitor, plain staff, campus leader, HOD, Budget Manager, Director, Finance Head, admin).
+
+**Maestro notes:**
+- The app has almost **no `testID`s**; target elements by visible text or the ~85 `accessibilityLabel`s (e.g. "Open admin tools"). Add testIDs where flows get flaky.
+- Deep-link scheme: `theshedmobile://` (plus https universal links). Use `openLink` for the deep-link section.
+- Multi-account flows need scripted sign-in with Google OAuth (`ASWebAuthenticationSession`) — consider a dev-only auth bypass or pre-authenticated test builds; first cold sign-in has a known grace-window retry path (see 2.2).
+- Backend is Convex (live queries) — UI updates arrive reactively; prefer `assertVisible` with timeouts over fixed sleeps.
+- Test builds show a "Test Environment" chip (see 12.5); emails from the dev backend link to the dev web build.
 
 ---
 
-## 0. Pre-flight / Setup
+# 0. App launch & tab gating
 
-- [ ] Sign in succeeds with a sow.org.au Google account
-- [ ] Tab bar shows the correct tabs for the signed-in user's roles (Requests, Attendance, Admin visibility all role-gated)
-- [ ] Profile photo / name load from directory
-- [ ] Have test accounts ready: a plain staff member, an HOD, the Budget Manager, the Director, the Finance Head, and an admin
+The bottom tab bar is role-gated. Admin is **never** a bottom tab — it opens via the
+"Open admin tools" Admin bar (Org Chart tab, and Requests → All page).
+
+| Tab | Visitor | Campus leader | Plain staff | Admin / Finance Head |
+|---|---|---|---|---|
+| Home | ✅ | hidden (logo → Home) | hidden (logo → Home) | hidden (logo → Home) |
+| Requests | hidden | hidden | ✅ | ✅ |
+| Attendance | hidden | ✅ | ✅ | ✅ |
+| Insights (BETA badge) | ✅ (General only) | ✅ | ✅ | ✅ |
+| Org Chart | ✅ | ✅ | ✅ | ✅ |
+
+- [ ] Cold launch as a **visitor** lands on the public **Org Chart**
+- [ ] Visitor tab bar shows exactly: Home, Insights, Org Chart (no Requests/Attendance; no notifications bell)
+- [ ] Signed-in **campus leader** launch redirects `/` → Attendance; no Requests tab
+- [ ] Signed-in **plain staff** sees Requests, Attendance, Insights, Org Chart (no Home tab)
+- [ ] Insights tab icon shows the small **BETA** flag
+- [ ] Requests tab icon badge = action-required count + unread-message count across Mine + Review; caps at "99+"
+- [ ] Tapping the top-left "THE SHED" logo goes to the **Home** tab (not Requests) — from any tab, signed in or out
+- [ ] Admin bar ("Open admin tools") visible on Org Chart only for admins / the Finance Head
+- [ ] Visitor deep-linking into a staff-only tab is sent to the Org Chart
 
 ---
 
-# 1. REQUESTS (Reimbursement)
+# 1. Public experience (signed out)
 
-> Only **reimbursement** requests exist. Lifecycle: `AWAITING APPROVAL → AWAITING RECEIPT → AWAITING PAYMENT → PAID` (or `DECLINED` at any approval step).
+## 1.1 Home tab (4 swipeable pages)
+- [ ] **Home** page: SOW mission & values content; volunteer info; links to Instagram, Facebook, LinkedIn, Spotify, sow.org.au, and Email (each opens externally / mail client)
+- [ ] **Resources** page: helpful websites, Christian psychologists, helplines; helpline numbers are **tap-to-call**
+- [ ] **Connect** page: four university societies in campus colours; Weekly Meeting explainer; campus meetup link (sow.org.au/students)
+- [ ] **Partner** page: Pray / Give / Volunteer sections; newsletter sign-up link (sow.org.au/subscriptions); Donate link
+- [ ] **Contact us form** (Partner): valid email + message ≥ 2 chars submits successfully
+- [ ] Contact validation — invalid email: "Please enter a valid email address."
+- [ ] Contact validation — empty message: "Please enter a message."; > 5000 chars: "…a little too long…"
+- [ ] Contact rate limit — 4th submission within an hour blocked: "…wait an hour before sending another."
+- [ ] Signed-in submitter's email is locked to their account address (cannot spoof sender)
+
+## 1.2 Public Org Chart & profiles
+- [ ] Visitor can browse the full org chart and open any person's profile / service history
+- [ ] Signed-out person view **hides the Local church field** (private)
+- [ ] Pre-provisioned next staff year is **not** offered to visitors in the year picker (admin-only)
+
+## 1.3 Public Insights
+- [ ] Visitor's Insights shows only the **General** segment (single segment, no Attendance)
+- [ ] Visitor gets **no** bottom-right selector FAB (General shows All-years view only)
+
+## 1.4 Sign-in
+- [ ] Top-right avatar → "Sign in with Google" starts OAuth; sow.org.au account succeeds
+- [ ] After sign-in, staff tools appear **in place** (no relaunch needed); bell appears
+- [ ] Profile photo / name load from directory after sign-in
+
+---
+
+# 2. Auth edge cases
+
+- [ ] First cold Google sign-in completes even when the auth session dismisses before the `theshedmobile://…?code=` deep link arrives (grace-window recovery — should NOT need a second tap)
+- [ ] Sign out (Profile → Sign out) asks for confirmation; cancel keeps session; confirm returns to public app
+- [ ] Deep link while signed out → authenticate first, then land on the intended screen
+- [ ] Missing `EXPO_PUBLIC_CONVEX_URL` build shows the "Configuration error" screen (not a blank screen) — build-config test, not a Maestro flow
+
+---
+
+# 3. REQUESTS (Reimbursement)
+
+> Lifecycle: `AWAITING APPROVAL → AWAITING RECEIPT → AWAITING PAYMENT → PAID` (or `DECLINED` at any approval step).
 > Approval chain: **HOD → Budget Manager → Director (only if amount ≥ threshold, default $5,000) → Finance Head**.
+> Top segments: **Mine · Review · All · Bank**.
 
-## 1.1 Tab visibility & structure
-- [ ] **Mine** tab visible to all users with a profile
-- [ ] **Review** tab visible only to users who are an approver
-- [ ] **All** tab visible only to Finance **department members** — gated by `me.isFinance` (`convex/directory.ts` → `isMemberOfDepartment(profile, FINANCE)`), i.e. anyone assigned to the Finance department, **not** only the Finance Head
-- [ ] **Bank** tab visible to all users
-- [ ] Tab badges: Mine shows count needing action; Review shows total pending; message badges show unread comment counts
+## 3.0 Segment navigation & no-profile state
+- [ ] Segments are a **swipeable carousel** — swiping left/right moves between Mine / Review / All / Bank, in sync with the segment strip
+- [ ] The "+ Make Request" footer slides down out of view when swiping away from Mine and back up on return
+- [ ] Scrolling to the end of the All segment triggers its load-more
+- [ ] ⓘ info button on the "+ Make Request" footer opens the **"How it works" guide sheet** — 7 steps (Submit → HOD → Budget Manager → Director → Finance Head → Receipt → Payment) with the **live Director threshold** in the Director step
+- [ ] Signed-in user **without a profile** sees the welcome card: "No role or department is assigned to {email} for {year} yet. Ask an admin (Data and IT or Human Resources)…" + a Sign out button (no blank screen)
 
-## 1.2 Submit a request
-- [ ] **+ Make Request** opens the new-request sheet from the Mine tab
+## 3.1 Segment visibility & badges
+- [ ] **Mine** visible to all staff with a profile
+- [ ] **Review** visible only to approvers
+- [ ] **All** visible only to Finance **department members** (`me.isFinance` — anyone in the Finance department, not just the Finance Head)
+- [ ] **Bank** visible to all staff
+- [ ] Mine badge = count needing my action; Review badge = pending + **unread comments on reviewed requests**; All badge = unread comments across the year (Finance)
+
+## 3.2 Submit a request
+- [ ] **+ Make Request** opens the new-request sheet from Mine
 - [ ] Department defaults to HOD's dept (or first assigned dept)
-- [ ] Submit with valid Description + positive Amount + Department → status `AWAITING APPROVAL`, appears in Mine
-- [ ] Validation — empty description blocked: "Please describe what the request is for."
-- [ ] Validation — amount ≤ 0 blocked: "Amount must be a positive number."
-- [ ] Validation — no department: "Pick a department for this request."
-- [ ] Validation — submitting into a role that doesn't exist for the year is blocked with the "[year] has no [role]" message
+- [ ] Valid Description + positive Amount + Department → `AWAITING APPROVAL`, appears in Mine
+- [ ] Validation fires in **on-screen order**: empty Description first ("Please describe what the request is for."), then Amount ("Amount must be a positive number."), then Department ("Pick a department for this request.")
+- [ ] Submitting into a role that doesn't exist for the year blocked with "[year] has no [role]"
 - [ ] Requester gets a "Request submitted" email (no push for own action)
+- [ ] Cancelling the sheet keeps the draft; reopening resumes it (draft clears on submit)
 
-## 1.3 Auto-approval rules
-- [ ] If requester **is** the HOD for the dept → HOD step auto-approves
-- [ ] If requester is the Director or Head of Division → HOD step auto-approves
+## 3.3 Auto-approval rules
+- [ ] Requester **is** the dept HOD → HOD step auto-approves
+- [ ] Requester is Director or Head of Division → HOD step auto-approves
 - [ ] Finance department requests skip the HOD step entirely
-- [ ] If requester is the Budget Manager → Budget step auto-approves
-- [ ] If requester is the Director → Director step auto-approves
-- [ ] A request where the requester fills every approver role auto-approves straight to `AWAITING RECEIPT`
+- [ ] Requester is Budget Manager → Budget step auto-approves; is Director → Director step auto-approves
+- [ ] Requester filling every approver role → straight to `AWAITING RECEIPT`
+- [ ] **Auto-approved steps appear in the approver's Reviewed history** (1.6.12 regression watch)
 
-## 1.4 Approval workflow (Review tab)
-- [ ] Pending requests grouped under the correct section: "Awaiting Your HOD / Budget / Director / Finance Head Approval"
+## 3.4 Approval workflow (Review)
+- [ ] Pending requests grouped under "Awaiting Your HOD / Budget / Director / Finance Head Approval"
 - [ ] **Approve** → confirmation modal → moves to next step; next approver notified (push + email)
-- [ ] After final approval → status `AWAITING RECEIPT`, requester + all prior approvers notified
-- [ ] **Decline** requires a non-empty reason (client + server); empty reason blocked
-- [ ] Decline → status `DECLINED`; requester (with reason) + all prior approvers notified
+- [ ] Final approval → `AWAITING RECEIPT`; requester + all prior approvers notified
+- [ ] **Decline** requires a non-empty reason — inline "Please give a reason…" prompt (no raw server error)
+- [ ] Decline → `DECLINED`; requester (with reason) + prior approvers notified
 - [ ] Actioned requests appear in the collapsible **Reviewed** section (max 50)
-- [ ] Cannot approve your own request: "You can't review your own request."
-- [ ] Cannot approve out of order / wrong step (prior steps must be approved)
+- [ ] **Receipt-waiting requests stay visible** to the approver who cleared them (1.6.9 regression watch)
+- [ ] Cannot approve own request: "You can't review your own request."
+- [ ] Cannot approve out of order (prior steps must be approved)
 
-## 1.5 Director threshold
-- [ ] Request with amount **below** threshold skips the Director step
-- [ ] Request with amount **≥** threshold requires the Director step
-- [ ] Changing threshold in Admin (see 3.6) affects new requests accordingly
+## 3.5 Director threshold
+- [ ] Amount **below** threshold skips the Director step; **≥** threshold requires it
+- [ ] Changing the threshold in Admin affects new requests accordingly
 
-## 1.6 Receipt submission (requester, after full approval)
-- [ ] Cloud-upload icon opens the **Submit Receipt** sheet
-- [ ] Add recipient with Account Name, BSB (digits only), Account Number (digits only), positive amount, ≥1 file
-- [ ] Saved bank account chips auto-fill recipient fields; **×** forgets the account
-- [ ] "Save Account for Future Use" toggle behaves (hidden/disabled when already saved)
-- [ ] Validation — no account name: "Every recipient needs an account name."
-- [ ] Validation — non-digit BSB/account: "BSB and account number must be digits only."
-- [ ] Validation — no file attached: "Attach at least one receipt file."
-- [ ] Validation — file > 2MB rejected; file name > 200 chars rejected
-- [ ] Validation — >10 files per recipient / >50 total / >20 recipients rejected
-- [ ] Receipt total > requested amount → confirmation modal ("Submit anyway?"), not a hard error
-- [ ] On submit → status `AWAITING PAYMENT`; Finance Head notified
+## 3.6 Receipt submission (requester, after full approval)
+- [ ] Cloud-upload icon opens **Submit Receipt**
+- [ ] Add recipient: Account Name, BSB (digits only), Account Number (digits only), positive amount, ≥1 file
+- [ ] **Preferred bank account auto-fills** recipient fields; saved-account chips fill on tap; **×** forgets the account (Bank tab updates on return)
+- [ ] "Save Account for Future Use" toggle hidden/disabled when already saved
+- [ ] Validation: no account name / non-digit BSB-account / no file — each blocked with its message
+- [ ] File > 2MB rejected; filename > 200 chars rejected; >10 files per recipient / >50 total / >20 recipients rejected
+- [ ] Receipt total > requested amount → "Submit anyway?" confirmation (not a hard error)
+- [ ] Submit → `AWAITING PAYMENT`; Finance Head notified
 
-## 1.7 Payment (Finance Head)
-- [ ] Receipt-submitted requests appear in the **Ready to Pay** section
-- [ ] **Mark as paid** opens Pay Reimbursement sheet with read-only receipt details
-- [ ] Enter positive paid amount (+ optional comment) → status `PAID`; requester notified
-- [ ] Paid amount ≠ requested amount → Budget Manager notified of the difference
-- [ ] Paid amount ≤ 0 blocked: "The paid amount must be a positive number."
+## 3.6a Viewing a submitted receipt
+- [ ] Expanded request card shows each recipient's bank details and receipt files as **tappable links** (signed URLs — open/download)
+- [ ] Receipt files visible to the requester, approvers and Finance on the same card
+- [ ] Files purged by the Oct 1 retention cron show their name marked as deleted (link disabled, no crash)
+
+## 3.7 Payment (Finance Head)
+- [ ] Receipt-submitted requests appear under **Ready to Pay**
+- [ ] **Mark as paid** opens Pay Reimbursement with read-only receipt details
+- [ ] Positive paid amount (+ optional comment) → `PAID`; requester notified
+- [ ] Paid ≠ requested → Budget Manager notified of the difference
+- [ ] Paid ≤ 0 blocked: "The paid amount must be a positive number."
 - [ ] Only Finance Head (or delegate) can pay
 
-## 1.8 Requester actions
-- [ ] **Cancel** (trash) on an in-flight request → confirmation → deleted; involved approvers notified
-- [ ] **Delete** a declined request → confirmation → deleted (no notifications)
-- [ ] **Resubmit** (refresh) a declined request → new-request sheet pre-filled with original description/amount/dept
-- [ ] **Nudge** (hand icon) → reminder to whoever the request is waiting on
-- [ ] Nudge cooldown: blocked within 24h, shows "You can nudge again in Xh Ym"
-- [ ] Cannot nudge when request is waiting on yourself / already completed
+## 3.8 Requester actions
+- [ ] **Cancel** (trash) an in-flight request → confirm → deleted; involved approvers notified
+- [ ] **Delete** a declined request → confirm → deleted (no notifications)
+- [ ] **Resubmit** (refresh) a declined request → sheet pre-filled with original description/amount/dept
+- [ ] **Nudge** (hand icon) → reminder to whoever it's waiting on
+- [ ] Nudge cooldown blocked within 24h; copy always `Xh Ym` (e.g. "24h 0m", "5h 23m")
+- [ ] Cannot nudge when waiting on yourself / already completed
 
-## 1.9 Comments
-- [ ] Comment thread opens from the chat-bubble icon on any request
+## 3.9 Comments
+- [ ] Chat-bubble icon opens the thread on any request
 - [ ] Adding a comment notifies the current action owner
-- [ ] Unread badge on chat icon + tab message badge increments correctly, clears when read
+- [ ] Unread badges (chat icon + segment + tab) increment and clear on read
 - [ ] Emoji reactions work
+- [ ] Composer stays pinned above the keyboard; thread stays scrolled to the newest comment (open, post, keyboard-open all keep composer visible)
+- [ ] The "+ Make Request" footer behind the sheet does **not** ride up when the sheet's keyboard opens
 
-## 1.10 All tab (Finance) & sorting
+## 3.10 All segment (Finance) & sorting
 - [ ] Segmented control: **Ongoing** vs **Completed**
 - [ ] Ongoing sorts by unread comments → status priority → date
-- [ ] Completed is paginated (20 at a time, infinite scroll)
-- [ ] Year picker (top-right) lets Finance browse prior years (back to 2021), read-only
-- [ ] Prior-year warning copy shows re: receipt file deletion on Oct 1
-- [ ] Carry-over: an incomplete prior-year request still appears in Mine/All; both the original-year approvers and current officeholders can action it
+- [ ] Completed paginated (20 at a time, infinite scroll)
+- [ ] Floating year picker (All segment only) lets Finance browse prior years (back to 2021), read-only, with prior-year receipt-deletion warning copy; prior-year Mine view shows "No requests in {year}" when empty
+- [ ] Carry-over: incomplete prior-year request still appears in Mine/All; original-year approvers **and** current officeholders can action it
+- [ ] Admin bar ("Open admin tools") on the All page opens Admin **with the Other tab preselected** (Budget Manager + threshold)
+- [ ] **Export requests CSV** card on the All page: multi-select Years → "Export requests?" confirm → Download CSV with the selected years' requests
 
-## 1.11 Empty states
-- [ ] Mine (none): "No requests yet" + make-request hint
-- [ ] Review (none): "All caught up"
-- [ ] All Ongoing/Completed (none): correct empty copy
+## 3.11 Empty states
+- [ ] Mine: "No requests yet" + make-request hint · Review: "All caught up" · All Ongoing/Completed: correct copy
 
 ---
 
-# 2. ATTENDANCE
+# 4. Bank tab
 
-> Route: 5 tabs — **Events, Members, Tags, Metadata, Audit** — plus the per-event sign-in screen.
+- [ ] Empty state prompts to add bank details; Add Bank Details opens the form
+- [ ] Account Name required (server-enforced, surfaced as "Account name is required.")
+- [ ] BSB / Account Number digits-only, non-digits rejected; errors stay visible until corrected
+- [ ] First account auto-marked preferred (star); adding another keeps existing preferred unless "make preferred" selected
+- [ ] Tapping the star on a non-preferred account makes it preferred
+- [ ] Edit pre-fills; save updates without duplicating; cancel leaves list unchanged
+- [ ] Delete non-preferred → confirm → removed; deleting preferred shows auto-fill explanation copy and leaves remaining accounts usable
+- [ ] "Add Another Account" appears once ≥1 account exists
+- [ ] Preferred account auto-fills Submit Receipt recipient fields (cross-check 3.6)
+
+---
+
+# 5. ATTENDANCE
+
+> Sub-tabs: **Events · Members · Tags · Metadata · Audit** (Insights moved to its own bottom tab).
 > Members & metadata are year-less; events/tags are keyed by staff year.
 
-## 2.1 Events tab
-- [ ] Campus/subgroup ring selector shows all groups, highlights selection
-- [ ] "No groups yet" empty state when no campuses exist in Admin
-- [ ] Event list sorted within the staff year; status badge cycles UPCOMING → LIVE → ENDED (updates ~every 60s)
-- [ ] LIVE event shown green; ENDED greyed
-- [ ] Event card shows date/time range, "ATTENDANCE: N", tag pills, subgroup pills (collaborative)
-- [ ] "Load more" paginates
-- [ ] Tapping a card opens the event sign-in screen
-- [ ] Edit (pencil) opens Create/Edit Event sheet; Export opens Export sheet
+## 5.1 Events tab
+- [ ] Campus/subgroup ring selector shows all groups, highlights selection; "No groups yet" when no campuses exist
+- [ ] Event list sorted within the staff year; badge cycles UPCOMING → LIVE → ENDED (~every 60s); LIVE green, ENDED greyed
+- [ ] Card shows date/time range, "ATTENDANCE: N", tag pills, subgroup pills (collaborative)
+- [ ] "Load more" paginates; tapping a card opens the sign-in screen
+- [ ] Edit (pencil) opens the event form; Export opens the Export sheet
+- [ ] Group chips label non-campus staff roles as **STAFF**
 
-## 2.2 Create / edit event (4-step wizard)
-- [ ] Step 0 Name — Next disabled until name entered
-- [ ] Step 1 Tags — only tags applicable to selected collaborators shown; "Add tags in Tags first" when none
-- [ ] Step 2 Collaboration — owner group locked/selected; can toggle other groups
-- [ ] Step 3 Schedule — date `YYYY-MM-DD`, start/end `HH:MM`; invalid format error shown
-- [ ] End time ≤ start time → auto-extended +2h
+## 5.1a Subgroup events screen (`/attendance/[subgroup]`)
+- [ ] Standalone screen listing one sub-group's events newest-first (route-only — reachable by deep link)
+- [ ] "Create an event to take attendance." empty state
+- [ ] Footer action opens the **full-screen create-event route** (`/attendance/event/new`) with the sub-group preselected
+- [ ] Pagination and event-card taps behave the same as the Events tab
+
+## 5.2 Create / edit event (4-step wizard)
+- [ ] Step 0 Name — Next disabled until entered
+- [ ] Step 1 Tags — only tags applicable to selected collaborators; "Add tags in Tags first" when none
+- [ ] Step 2 Collaboration — owner group locked; other groups toggleable
+- [ ] Step 3 Schedule — **defaults to today, 5–7pm**; date `YYYY-MM-DD`, times `HH:MM`, invalid format errors
+- [ ] End ≤ start → auto-extended +2h
 - [ ] "Weekly Meeting" tag pre-fills next matching weekday + slot times
-- [ ] Create → saves and navigates to event; Edit Save disabled until dirty
-- [ ] Delete event → type-name-to-confirm; deletes event + all its attendance records
-- [ ] Cancel / backdrop with unsaved changes → "Discard changes?" confirm
+- [ ] Cancelling a **new** event closes without confirm and keeps the draft; reopening resumes it (no stacked-modal freeze — 1.6.7 regression watch)
+- [ ] Switching attendance groups **resets** the new-event draft
+- [ ] Editing an existing event: Save disabled until dirty; cancel with unsaved changes → "Discard changes?" (dialog dismisses before the sheet)
+- [ ] Delete event → type-name-to-confirm; deletes event + all attendance records
+- [ ] Date/time spinner (wheel) pickers respond to taps and drags (1.6.3 regression watch)
 
-## 2.3 Event sign-in screen
-- [ ] Header shows count chip ("N signed in"); updates optimistically
-- [ ] Search filters both Signed-in and Not-signed-in lists by name/email
-- [ ] **Swipe left** on a not-signed-in row → signs in (appears instantly in Signed In)
-- [ ] **Swipe left** on a signed-in row → signs out (moves back)
-- [ ] **Swipe right** on any row → opens Edit Member sheet
+## 5.3 Event sign-in screen (roll-call)
+- [ ] Header count chip ("N signed in") updates optimistically
+- [ ] Event can be **edited from within the sign-in screen** (opens the same edit sheet as the Events tab pencil)
+- [ ] Search filters both lists by **name, email, roles and member details** (same fields as Members tab)
+- [ ] **Swipe left** not-signed-in row → signs in; swipe left signed-in row → signs out
+- [ ] **Tap** a row to reveal the arrow, then tap the arrow → also signs in/out
+- [ ] **Swipe right** any row → Edit Member sheet; failure to open shows an error toast
 - [ ] Not-signed-in list ordered by attendance frequency; "Everyone in the pool is signed in 🎉" when empty
-- [ ] Signing in the same person twice is a no-op (idempotent)
-- [ ] Notes field appears in edit sheet only for signed-in attendance
-- [ ] "Create [search text]" footer button creates a member and signs them in
+- [ ] Signing in the same person twice is idempotent
+- [ ] Notes field in edit sheet only for signed-in attendance
+- [ ] "Create [search text]" footer creates a member and signs them in
 - [ ] "Load more" works on both lists
-- [ ] **Multi-user sync:** sign-in/out on device A animates in/out on device B
+- [ ] Staff subtitles don't double the role ("President · President" bug — regression watch)
+- [ ] **Multi-user sync:** sign-in/out on device A animates on device B
 
-## 2.4 Past / ended event editing
-- [ ] Ended event shows the "This event has ended…" banner + **Enable editing** button
-- [ ] Edit / sign-in / sign-out disabled until "Enable editing" tapped (with confirmation)
-- [ ] After unlock: can sign in a missed attendee
+## 5.4 Past / ended event editing
+- [ ] Ended event shows "This event has ended…" banner + **Enable editing** (with confirmation)
+- [ ] Edit / sign-in / sign-out disabled until unlocked; after unlock can sign in a missed attendee
 - [ ] Attendees who signed in **during** the event cannot be signed out (row locked/greyed)
 
-## 2.5 Members tab
-- [ ] Search (400ms debounce) + clear button
-- [ ] Filter panel: Sort by (Name or metadata), Asc/Desc, metadata select filters; "Clear All"
-- [ ] Active filter count shown; pagination resets on search/filter/sort change
+## 5.5 Members tab
+- [ ] Search (400ms debounce) + clear; search bar and filters pin to the top while scrolling
+- [ ] Filter panel: Sort by (Name or metadata), Asc/Desc, metadata select filters, "Clear All", active count; pagination resets on change
+- [ ] **Staff filter bucket matches custom roles** (any non-campus role other than Member — 1.6.13 regression watch)
+- [ ] Unresolvable stored Year values match **"Unselected"** (don't vanish — 1.6.13 regression watch)
+- [ ] Staff + Student Leader filters don't double-count a person who is both a profile and a member row
+- [ ] Sorting by a select field orders by **labels**, not option ids
 - [ ] "TOTAL: N" reflects all members (not the filtered subset)
-- [ ] Member row tap opens Edit Member; staff row with no member yet calls ensure-for-staff then opens
+- [ ] Row tap opens Edit Member; staff row with no member row yet ensures-for-staff then opens
 - [ ] Campus pill shows university colour / "STAFF" / "OTHER"; avatar from profile or placeholder
 - [ ] "No members match" empty state
 
-## 2.6 Edit member sheet
-- [ ] Create mode: name required, email optional, metadata fields shown
+## 5.6 Edit member sheet
+- [ ] Create: name required, email optional, metadata fields shown
 - [ ] Duplicate name on create → "A member with this name already exists. Add anyway?"
-- [ ] Edit mode: fields pre-filled; save updates record
-- [ ] Delete member → type-name-to-confirm; removed from pool
-- [ ] Student **Year** field shows calendar year at viewing time
+- [ ] Edit: pre-filled; save updates
+- [ ] Delete → type-name-to-confirm; removed from pool
+- [ ] Student **Year** shows calendar year at viewing time; dropdown offers 1–15
+- [ ] **Staff-overlay member** (email matches a staff profile): name, email and the locked Campus/Role fields are **disabled** (sourced from the staff profile); other metadata still editable and saveable
 
-## 2.7 Tags tab
-- [ ] Add tag → blank card; name editable; colour swatch (blue/purple/pink/red/orange/yellow/green/teal) selectable
-- [ ] "Applies to" subgroup scope — must apply to ≥1 subgroup (can't deselect all)
-- [ ] Delete existing tag → type-name-to-confirm; unsaved new tag shows close icon to discard
-- [ ] **Save tags** disabled when no changes; shows "Saving…"; "unsaved changes" note appears
-- [ ] Discard changes → confirmation
+## 5.7 Tags tab
+- [ ] Add tag → blank card; name editable; colour picked from the **sheet-style colour selector** (blue/purple/pink/red/orange/yellow/green/teal)
+- [ ] "Applies to" scope — must keep ≥1 subgroup
+- [ ] Delete existing tag → type-name-to-confirm; unsaved new tag discards via close icon
+- [ ] **Save tags** disabled when clean; "Saving…" while in flight; "unsaved changes" note; discard confirms
 - [ ] Tag order preserved across reload
+- [ ] Saving logs **only changed tags** to Audit (regression watch)
 
-## 2.8 Metadata tab
-- [ ] Locked fields (Year, Gender, Campus, Role) read-only, cannot be deleted, options locked
-- [ ] Select-type field: add/remove custom options; input-type has no option editor
-- [ ] Drag to reorder fields
-- [ ] Add field → choose select/input
-- [ ] Delete field → type-name-to-confirm
+## 5.8 Metadata tab
+- [ ] Locked fields (Year, Gender, Campus, Role) read-only, undeletable, options locked
+- [ ] Select fields: add/remove options; input fields have no option editor
+- [ ] Drag to reorder; add field (select/input); delete field → type-name-to-confirm
 - [ ] Subgroup scope: global or specific subgroups
-- [ ] Saved field appears in member edit sheet; metadata is shared across all staff years
+- [ ] Saved field appears in the member edit sheet; metadata shared across staff years
+- [ ] Adding/deleting a field logs only real changes — no "Updated Campus/Role" or bogus "Reordered" audit spam (1.6.11 regression watch)
 
-## 2.9 Audit tab
-- [ ] Immutable list with entity icons (Events/Members/Tags/Fields/Roll-call), actor, time-ago
-- [ ] Time-ago formats: "just now", "Xm ago", "Xh ago", "Xd ago", "24 Jun"
-- [ ] Search (400ms debounce) filters summary/detail
-- [ ] Filters: Action type, Performed by, Event — combine with AND; "Clear All"; active count
-- [ ] "Load more" paginates (unfiltered)
-- [ ] ✅ **FIXED (regression watch):** pagination used to crash when a filter/search was active and you loaded more pages. Now fixed via convex-helpers' `paginator` (see CHANGELOG → Unreleased → Fixed). Confirm filtered + searched audit can load multiple pages without the "ran multiple paginated queries" crash.
-- [ ] ✅ **FIXED (regression watch):** tag "save all" audit spam — saving the Tags tab now logs only changed tags, not every tag. Confirm editing one tag writes a single audit row.
+## 5.9 Audit tab
+- [ ] Immutable list with entity icons, actor, time-ago ("just now", "Xm ago", "Xh ago", "Xd ago", "24 Jun")
+- [ ] Actor names resolve for legacy-domain emails (@sowaustralia.com ↔ @sow.org.au)
+- [ ] Search (400ms debounce) matches summary/detail **and the person acted on** (e.g. who was signed in)
+- [ ] Filters: Action type / Performed by / Event, AND-combined; "Clear All"; active count
+- [ ] "Load more" paginates — **including while filtered/searched** (multi-page paginator crash — regression watch)
 
-## 2.10 Export
-- [ ] Group export (no event): date-range + tag filters; metadata field checkboxes
-- [ ] Event export: single event, metadata field checkboxes
-- [ ] CSV always includes Sign In, Name, Email + locked fields (Student Year, Gender, Campus, Role) + selected custom fields
-- [ ] Downloaded filename slug correct; special characters in names/emails escaped
-- [ ] Empty result set handled gracefully
+## 5.10 Export
+- [ ] Group export: date-range (spinner pickers, no overlay spill) + tag filters + metadata checkboxes
+- [ ] Event export: single event + metadata checkboxes
+- [ ] CSV always includes Sign In, Name, Email + locked fields; **Notes** (per-sign-in note) is selectable and appears exactly once — a metadata field named "Notes" is excluded
+- [ ] CSV Year column = year level **at the time of the event**, uncapped (6, 7, 8…)
+- [ ] Filename slug correct; special characters escaped; empty result handled gracefully
 
-## 2.11 Year scoping (spot-check)
-- [ ] Event dated Oct 1 2025 / Dec 25 2025 / Jan 15 2026 / Sep 30 2026 all map to staff year 2025
-- [ ] Event dated Oct 1 2026 maps to staff year 2026
+## 5.11 Year scoping (spot-check)
+- [ ] Events dated Oct 1 2025 / Dec 25 2025 / Jan 15 2026 / Sep 30 2026 → staff year 2025; Oct 1 2026 → 2026
 - [ ] Members/metadata identical across staff years
 
 ---
 
-# 3. ADMIN
+# 6. INSIGHTS (bottom tab, BETA)
 
+> Two top segments: **General** (public org-wide trends) · **Attendance** (staff-only per-campus dashboard).
+> Bottom-right selector FAB is per-segment: year scope on General; range + collaborative toggle on Attendance.
+> Snapshots auto-refresh (weekly full + 15-min dirty recompute) — no manual refresh control.
+
+## 6.1 General segment
+- [ ] Defaults to General on first load
+- [ ] Trend charts (All years): total staff head-count, staff vs student leaders, student leaders by campus
+- [ ] **Weekly meeting attendance** chart: per-campus averages from 2025; current year = year-to-date; follows the bars/lines toggle (bar mode = side-by-side per campus)
+- [ ] Scope FAB switches All years ↔ specific staff year; specific year shows summary cards with change vs previous year + per-campus weekly-average comparison cards
+- [ ] Staff trend counts custom-role holders as staff (1.6.13 regression watch)
+
+## 6.2 Attendance segment (staff only)
+- [ ] Sub-group selector defaults from the user's assignments
+- [ ] Summary cards: average attendance (+change vs previous period), events held, unique attendees, newcomers, follow-up count, weekly-meeting consistency score
+- [ ] Trend charts: attendance over time, rolling average, weekly-meeting trend, unique attendees by month, Campus/Role breakdowns
+- [ ] **New vs returning** and **Student leaders vs everyone else** shown only for individual campuses (hidden on SOW view)
+- [ ] **This campus vs visitors** chart per campus (hidden on SOW); share/ratio line in subtitle; only people with a known home campus counted
+- [ ] SOW view: average weekly attendance by campus chart; **no** "Needs follow-up" list
+- [ ] "Needs follow-up" list (per campus) shows explainable reasons ("Missed the last 3 weekly meetings", "Newcomer: …", "Returned after…")
+- [ ] Range FAB: 1 / 2 / 4 / 8 / 12 weeks (**default 2**) + "Collaborative events" toggle
+- [ ] New roll-call data reflected within minutes (dirty recompute)
+
+## 6.3 Chart interactions (both segments)
+- [ ] Bar charts have a left y-axis (max/75%/50%/25%/0); line charts use a uniform "nice" y-axis
+- [ ] X-axis year labels shortened ('24) with skip-logic — no overlap on long runs
+- [ ] Campus legend uses acronyms (ACU, MACQ, UNSW, USYD, UTS)
+- [ ] Tap a chart card → fullscreen (portrait phone rotates to landscape; web/landscape fills naturally)
+- [ ] In fullscreen, tap a bar → tooltip pill with value(s) + year (multi-value with colour dots for stacked charts)
+- [ ] Chart container height stable as selection changes (no jumping)
+
+---
+
+# 7. ORG CHART
+
+- [ ] Tab visible to everyone (public); campus leaders can reach it after their Attendance redirect
+- [ ] Year picker when multiple years exist; switching reloads the chart with the correct label
+- [ ] Next staff year offered **only to admins**, labelled "· Next year"
+- [ ] Director card at top with name, photo/avatar, role tag; "No Director assigned for {year} yet." when empty
+- [ ] Staff section = people with non-campus roles outside any division/department/campus
+- [ ] Division sections with labels; Head of Division rows separate from department members
+- [ ] Department cards: name, Head of Dept, members, colour; "No members yet" when empty
+- [ ] Campus section: universities with members in university colours; member-less universities hidden
+- [ ] Staff photos from the weekly Google sync show before first sign-in; own upload takes precedence
+- [ ] Tapping a person opens `/person/[email]`
+- [ ] Long names/emails/role tags truncate cleanly
+- [ ] Chart updates reactively after Admin changes assignments/heads/structure
+
+---
+
+# 8. PROFILE & PERSON
+
+- [ ] Own profile: name, email, avatar, current assignment, current staff year
+- [ ] Fallback initials when no photo
+- [ ] Camera action opens the picker; upload updates the photo immediately; >2MB → "Image is too large. Please choose one 2MB or less."; cancel leaves avatar unchanged
+- [ ] Local church editable; Save disabled until dirty; save persists and clears dirty state
+- [ ] Service History: all years descending with assignment chips; current year marked "current"
+- [ ] No assignment for current year → "No assignment for {year}"
+- [ ] Other person via `/person/[email]` is read-only — no avatar upload, Local church edit, or Sign out
+- [ ] Chaplaincy roles read "Intern Chaplain → USYD" (no redundant "Chaplaincy ·" department)
+- [ ] Sign out confirmation flow (see 2)
+
+---
+
+# 9. ADMIN
+
+> Reached via the **Admin bar** on Org Chart (and finance settings from Requests → All) — not a bottom tab.
 > Tabs: **Users, Structure (Roles/Divisions/Departments/Universities), Other**.
-> Admin = Director, Head of HR division, Data & IT dept, or any dept under HR. Finance Head sees only the **Other** tab (Budget Manager + threshold).
-> Source of truth for admin eligibility: `isAdminProfile` in `convex/model.ts`, using `ADMIN_DEPARTMENTS` / `ADMIN_DIVISIONS` in `shared/flow.ts` (re-verify here if those change).
+> Admin = Director, Head of HR division, Data & IT dept, or any dept under HR. Finance Head sees only **Other**.
+> Source of truth: `isAdminProfile` in `convex/model.ts` + `ADMIN_DEPARTMENTS`/`ADMIN_DIVISIONS` in `shared/flow.ts`.
 
-## 3.1 Access & year picker
-- [ ] Admin tab visible only to admins or the Finance Head; non-admins get "Only admins can access this screen."
-- [ ] Finance Head sees only the Other tab
-- [ ] Year picker (top-right): admins can edit current + next year, view past years read-only
-- [ ] Finance Head locked to current year
+## 9.1 Access & year picker
+- [ ] Non-admins get "Only admins can access this screen."; Finance Head sees only Other
+- [ ] Year picker: admins edit current + next year, past years read-only; Finance Head locked to current
 - [ ] Changing year clears unsaved edits
-- [ ] Year labels: "{year} (current)", "{year} (from Oct 1)", past = "{year}"
+- [ ] Labels: "{year} (current)", "{year} (from Oct 1)", past = "{year}"
 
-## 3.2 Users tab — assigning staff
-- [ ] Sections render: Signed-in no-assignment, In-directory no-assignment (count shown), Leaving, Profiles by Division > Department, Campus roles by University, Other
-- [ ] Unassigned card: **Leaving** (trash) marks not-serving; **Assign** (person+) expands editor
-- [ ] Assign a role + department → Save → user moves to correct section; toast "Saved {email}"
+## 9.2 Users tab — assigning staff
+- [ ] Sections render: Signed-in no-assignment, In-directory no-assignment (count), Leaving, Profiles by Division > Department, Campus roles by University, Other — **Director at the top**, no doubled accent stripe
+- [ ] Unassigned card: **Leaving** (trash) marks not-serving; **Assign** (person+) expands the editor
+- [ ] Assign role + department → Save → user moves to the correct section; toast "Saved {email}"
 - [ ] Save disabled until assignments change
-- [ ] "+ Add Assignment" adds rows; trash removes (min 1 unless head role exists)
-- [ ] Head of Department/Division rows are locked (managed in Structure) with lock icon
-- [ ] Edit existing profile; Delete profile → type-name-to-confirm → moves to "Leaving"
-- [ ] Leaving section: "Move to unassigned" returns user to pool
+- [ ] "+ Add Assignment" adds rows; trash removes (min 1 unless a head role exists)
+- [ ] Head of Department/Division rows locked (managed in Structure) with lock icon
+- [ ] Edit existing profile; Delete → type-name-to-confirm → moves to "Leaving"; Leaving → "Move to unassigned" returns to pool
 - [ ] Unassigned sections hidden in past (read-only) years
 
-## 3.3 Assignment validation
-- [ ] Only one Director per year — second attempt: "A Director is already assigned for this year."
-- [ ] Campus roles (Student Leader/President/VP/Executive) require a university that exists for the year
-- [ ] Chaplain roles auto-use Chaplaincy department (must exist)
+## 9.3 Assignment validation
+- [ ] Second Director: "A Director is already assigned for this year."
+- [ ] Campus roles require a university existing for the year; Chaplain roles auto-use Chaplaincy dept (must exist)
 - [ ] Cannot strip all non-head roles unless a head role is held
-- [ ] Duplicate assignments deduped; promoting to Head removes same-scope staff assignment
+- [ ] Duplicates deduped; promoting to Head removes same-scope staff assignment
 
-## 3.4 Structure — Roles
-- [ ] List + "No roles yet." empty state; Add Role with non-empty name
-- [ ] System roles (Head of Department/Division, Director, Staff, Member) cannot be renamed/deleted — the Roles list shows a 🔒 lock instead of edit/trash for them (source of truth: `SYSTEM_ROLES` / `isSystemRole` in `shared/flow.ts`; backend `updateRole`/`removeRole` also reject them)
-- [ ] Rename role cascades across all staff assignments for the year
-- [ ] Delete role blocked if anyone holds it: "[role] is still assigned to N person/people in YYYY…"
-- [ ] Duplicate role name rejected
+## 9.4 Structure — Roles
+- [ ] List + "No roles yet."; Add Role with non-empty name; duplicate name rejected
+- [ ] System roles (Head of Department/Division, Director, Staff, Member) show a 🔒 lock — no edit/trash (UI + backend both guard; `SYSTEM_ROLES` in `shared/flow.ts`)
+- [ ] Rename cascades to all staff assignments for the year
+- [ ] Delete blocked while held: "[role] is still assigned to N person/people in YYYY…"
 
-## 3.5 Structure — Divisions / Departments / Universities
-- [ ] **Division:** add (optional head), rename cascades to child departments + staff; delete → type-to-confirm, cascades to departments + assignments, blocked if any child dept has open requests
-- [ ] **Department:** add requires name + division; Add disabled until both filled; rename cascades to staff + open requests; delete blocked if open requests ("…still has open requests in YYYY…")
-- [ ] **University:** add/rename/delete; rename cascades to campus assignments; "No universities yet." empty state
-- [ ] Head change grants/revokes the Head role and preserves other assignments
-- [ ] Duplicate name within a year rejected for each type
+## 9.5 Structure — Divisions / Departments / Universities
+- [ ] **Division:** add (optional head); rename cascades to child departments + staff; delete → type-to-confirm, cascades, blocked if a child dept has open requests
+- [ ] **Department:** Add disabled until name **and a valid division** set (deleted division can't linger selected); rename cascades to staff + open requests; delete blocked with open requests
+- [ ] **University:** add/rename/delete; rename cascades to campus assignments; "No universities yet."
+- [ ] Head change grants/revokes the Head role, preserving other assignments
+- [ ] Duplicate names within a year rejected per type
 
-## 3.6 Other tab
-- [ ] **Directory Sync:** shows last sync / "Never synced."; "Sync Directory Now" → confirm → "Syncing…" → timestamp updates (admins only)
-- [ ] **Budget Manager:** select from Finance dept members → Set; non-Finance person rejected ("must be from the Finance department"); cannot unset; read-only in past years
-- [ ] **Director Threshold:** numeric input, default shown as $5,000; Set disabled if ≤0 or unchanged; non-numeric stripped; positive-amount validation
-- [ ] **Approver Delegation** (admins only): add From→To (must differ, both have profiles), idempotent; remove asks "Remove delegation?" confirm before deleting; "No delegations set." empty state
-- [ ] Verify a delegate can approve/decline/pay on behalf of the covered approver (cross-check in Requests)
+## 9.6 Other tab
+- [ ] **Budget Manager:** select from Finance members → Set; non-Finance rejected; cannot unset; read-only in past years
+- [ ] **Director Threshold:** default $5,000 shown; Set disabled if ≤0 or unchanged; non-numerics stripped
+- [ ] **Approver Delegation** (admins only): add From→To (must differ, both profiled), idempotent; remove asks "Remove delegation?"; "No delegations set." empty state
+- [ ] Delegate can approve/decline/pay on behalf of the covered approver (cross-check in Requests)
+- [ ] **Directory Sync** sits at the **bottom** of the section: last-sync / "Never synced."; "Sync Directory Now" → confirm → "Syncing…" → timestamp updates (admins only)
 
-## 3.7 Cross-cutting
-- [ ] Year isolation: structure created in one year not visible in another
-- [ ] Loading spinners on Save buttons; error banner at top; clears on year change
-- [ ] Email inputs require valid "@", stored lowercased/trimmed
-- [ ] Type-to-confirm dialogs disable confirm until the name matches exactly
-
----
-
-# 4. Cross-feature integration checks
-
-- [ ] Admin creates a department → it becomes selectable when submitting a Request
-- [ ] Admin sets the Budget Manager → that person sees Budget approvals in the Requests Review tab
-- [ ] Admin raises the Director threshold → a borderline new request skips/includes the Director step accordingly
-- [ ] Admin adds a campus → it appears as a subgroup in Attendance Events
-- [ ] Deleting a department in Admin is blocked while it has open reimbursement requests
-- [ ] Notifications (push + email + in-app bell) deep-link to the correct request/screen; "Mark all read" works
-
-## 4.1 Notifications (in-app bell)
-- [ ] Bell shows an **Unread** section and a separate **Read (history)** section; reading an item moves it from Unread → Read
-- [ ] "Mark all read" empties the Unread section
-- [ ] **Test every notification type** routes/deep-links correctly:
-  - [ ] Request **submitted** (requester confirmation) → Mine, focused
-  - [ ] **Approval needed** (next approver) → Review, focused on the request
-  - [ ] **Approved / fully approved** → requester + prior approvers, Mine/Review
-  - [ ] **Declined** (with reason) → requester + prior approvers
-  - [ ] **Cancelled** → involved approvers
-  - [ ] **Nudge** → whoever the request is waiting on
-  - [ ] **Receipt submitted** → Finance Head, Ready to Pay
-  - [ ] **Paid** → requester; **paid ≠ requested** → Budget Manager
-  - [ ] **Comment** → current action owner, opens the comment thread (`&thread=1`)
-  - [ ] **Attendance event** notifications → the event screen
-- [ ] Push notification icon/branding shows the SHED logo (see `app.json` → `notification`/`icon`)
+## 9.7 Cross-cutting
+- [ ] Year isolation: structure created in one year invisible in another
+- [ ] Save spinners; top error banner; clears on year change
+- [ ] Emails require "@", stored lowercased/trimmed
+- [ ] Type-to-confirm dialogs disable confirm until exact match
 
 ---
 
-<!--
-E2E run 2026-07-01 (web harness, dev deploy industrious-robin-425). First pass used a single
-staff account (e2e-requester); second pass added test users (e2e-hod/budget/finance/admin/attend)
-and harness scenarios (full approval chain, admin, 1990 empty-org, attendance event) — real flow
-emails go only to e2e-*@sow.org.au test addresses.
-Legend: [x] verified · ⏭️ deferred (needs server fault-injection on websocket mutations — not browser-automatable) · ⚠️ finding.
--->
+# 10. NOTIFICATIONS
 
-## 4.2 Org Chart tab
-- [x] Org Chart tab is visible to signed-in users who should see it in the bottom tab bar
-- [x] Campus-leader users land on Attendance first but can still navigate to Org Chart — e2e-attend (campus leader) auto-redirects / → /attendance, reaches /org fine
-- [x] Year picker appears when multiple years are available
-- [x] Switching years reloads the chart and keeps the selected year label accurate
-- [x] Current year and next-year labels are clear in the picker — current year shown; next-year is correctly hidden for non-admins
-- [x] Director card renders the assigned Director with name, photo/avatar, and role tag
-- [x] Empty Director state shows "No Director assigned for {year} yet." — verified in the 1990 scenario year
-- [x] Staff section renders people who hold non-campus roles but are not in a division, department, or campus — "E2E Org Staff" in the 1990 STAFF section
-- [x] Division sections render with their division labels
-- [x] Head of Division rows render separately from department members
-- [x] Department cards render department name, Head of Dept, members, and department colour
-- [x] Empty department cards show "No members yet" when no head or members exist — "E2E Empty Dept" in the 1990 scenario
-- [x] Campus section renders universities with members and university colours
-- [x] Universities with no members are hidden from the Campus section — "E2E Campus Empty" hidden, "E2E Campus Full" shown (1990)
-- [x] Tapping any person row opens `/person/[email]` for that person
-- [x] Long names, emails, and role tags truncate cleanly without overlapping
-- [~] Chart updates after Admin changes assignments, heads, divisions, departments, or universities — admin tab access verified (e2e-admin); not driven through the admin editor to avoid mutating shared org structure (org chart is a live Convex query, so updates are reactive by architecture)
+## 10.1 In-app bell
+- [ ] Bell hidden for visitors; badge counts unread
+- [ ] Feed grouped into **Unread** and **Read** section headers; reading moves items Unread → Read
+- [ ] "Mark all read" empties Unread
+- [ ] **Stale-request reminders** (daily cron) appear in the feed with unread badge
 
-## 4.3 Profile screen
-- [x] Opening own profile shows name, email, avatar, current assignment, and current staff year
-- [x] Profile photo fallback initials render when no photo exists
-- [x] Camera action opens image picker for the signed-in user's own profile
-- [x] Avatar upload succeeds and immediately updates the profile photo — initials replaced by Convex storage image
-- [x] Avatar upload rejects an image larger than the configured upload limit with a clear error — 4MB image → "Image is too large. Please choose one 2MB or less."
-- [x] Canceling image picker leaves the existing avatar unchanged — cancelled chooser, avatar + no error unchanged
-- [x] Local church field is editable on own profile
-- [x] Save Church is disabled until the local church draft changes
-- [x] Saving Local church persists and clears the dirty state
-- [ ] Failed Local church save shows an error banner and preserves the typed value — ⏭️ needs server fault-injection
-- [x] Service History renders all years in descending/expected order with assignment chips
-- [x] Current service-history year is marked "current"
-- [x] Profile with no assignment for the current year shows the no-assignment copy ("No assignment for {year}")
-- [x] Viewing another person's profile through `/person/[email]` is read-only
-- [x] Other-person profile hides own-profile-only controls such as avatar upload, Local church edit, and Sign out
-- [x] Sign out opens confirmation before ending the session
-- [x] Canceling sign out keeps the user signed in
-- [x] Confirming sign out returns the user to the sign-in screen
+## 10.2 Routing per type
+- [ ] Request **submitted** → Mine · **Approval needed** → Review · **Approved / fully approved** → requester + prior approvers · **Declined** (with reason) · **Cancelled** → involved approvers · **Nudge** → current owner
+- [ ] Request notifications land on the relevant **segment** (Mine for requester, Review for approvers/Finance)
+- [ ] **Comment** → focuses the request AND opens its thread (`&focus=…&thread=1`) (1.6.3 regression watch)
+- [ ] **Receipt submitted** → Finance Head, Ready to Pay · **Paid** → requester · paid ≠ requested → Budget Manager
+- [ ] **Attendance event** notifications → the event screen
+- [ ] Opening the request clears its notification (link carried by `requestId`)
 
-## 4.4 Deep links and routed detail screens
-- [x] Direct link to `/request/[id]` opens the correct request detail card — redirects to `/?tab=mine&focus=<id>` and focuses it
-- [x] Invalid or missing request id shows a safe empty/error state rather than crashing — ✅ FIXED: `requests:get` now accepts a string and `normalizeId`s it, so a malformed id renders the "Request not found" empty state (no error boundary, no `/all` bounce)
-- [ ] User without access to a request cannot view protected request details — ⏭️ needs a request owned by another user
-- [x] Direct link to `/person/[email]` opens that person's profile
-- [x] Invalid or unknown person email shows a safe empty/error state rather than crashing — graceful empty profile
-- [x] Direct link to `/profile` opens the signed-in user's profile
-- [x] Direct link to `/notifications` opens the notifications screen
-- [x] Direct link to `/attendance/event/[eventId]` opens the event sign-in screen — valid event id opens "E2E Deep Link Event" with roster
-- [x] Invalid or missing event id shows a safe empty/error state rather than crashing — ✅ FIXED: `events:get` and `attendance:listByEvent` now `normalizeId` a string arg, so a malformed id renders the "Event not found" empty state (no error boundary, no `/all` bounce)
-- [x] Notification deep link for a request focuses or reveals the correct request — real "Request approved" notification clicked → focuses the correct request
-- [ ] Notification deep link with `thread=1` opens the request's comment thread — ⏭️ no notification generated
-- [ ] Attendance event notification deep link opens the correct event screen — ⏭️ no notification generated
-- [x] Legacy `/review` redirect lands on Requests with the Review segment selected — `/?tab=review` (segment hidden for non-approver, degrades to Mine)
-- [x] Legacy `/all` redirect lands on Requests with the All segment selected — `/?tab=all` (segment hidden for non-Finance, degrades to Mine)
-- [x] Back navigation from each deep-linked detail screen returns to a sensible app screen
-- [x] Deep links preserve auth requirements: signed-out users authenticate first, then land on the intended screen — auth gate confirmed (OAuth completion not driven)
-
-## 4.5 Loading, empty, and error states
-- [x] Initial app load shows a loading state until auth/profile data resolves
-- [x] Requests, Attendance, Admin, Org Chart, Profile, and Notifications screens show loading states while their primary queries resolve — observed on Requests/Org/Profile; not all screens individually timed
-- [x] Empty Mine, Review, All, Attendance Events, Members, Audit, Admin lists, Org Chart sections, Bank accounts, and Notifications states show the expected copy — verified Mine ("No requests yet"), Review ("all caught up"), Notifications, Bank, Attendance Events ("No events yet"), Org empty dept; remainder not individually visited
-- [ ] Mutation buttons show saving/uploading/syncing labels while the operation is in flight — ⏭️ not isolated (operations completed too fast)
-- [ ] Mutation buttons are disabled while submitting to prevent duplicate actions — ⏭️ needs in-flight observation
-- [x] Top-level error banners appear when mutations fail — server validation error (addAccount name-required) surfaced to the UI
-- [ ] Error banners clear after a successful retry or when the user changes context where implemented — ⏭️ not isolated
-- [ ] Optimistic request approval/decline/comment reactions roll back or recover cleanly if the server rejects the mutation — ⏭️ needs server fault-injection
-- [ ] Optimistic bank account delete/preferred-account updates roll back or show a recoverable error if the server rejects the mutation — ⏭️ needs server fault-injection
-- [x] Failed receipt/avatar file upload surfaces an actionable error and leaves the form usable — aborted the storage upload POST (network interception); profile showed an error banner and stayed usable
-- [ ] Failed directory sync shows an error and allows retry — ⏭️ admin-only + fault-injection
-- [ ] Failed attendance sign-in/sign-out leaves the attendee in a consistent list state — ⏭️ needs fault-injection
-- [ ] Pagination "Load more" controls show progress and recover after a failed load — ⏭️ needs long lists / fault-injection
-- [x] Screens with no profile or insufficient role show the correct access/empty state instead of a blank screen — non-Finance/non-approver gating degrades gracefully
-
-## 4.6 Bank tab
-- [x] Bank tab is visible to all signed-in users with a profile
-- [x] Empty state prompts the user to add bank details
-- [x] Add Bank Details opens the bank-account form
-- [x] Account Name is required — server-enforced (Convex throws, UI surfaces "Account name is required.")
-- [x] BSB accepts digits only and rejects non-digit characters
-- [x] Account Number accepts digits only and rejects non-digit characters
-- [x] Adding the first account marks it as preferred
-- [x] Adding another account keeps the existing preferred account unless "make preferred" is selected
-- [x] Preferred account is visually marked with the star indicator
-- [x] Selecting the star on a non-preferred account makes it preferred
-- [x] Editing an account pre-fills the form with existing values
-- [x] Saving edits updates the account without creating a duplicate
-- [x] Canceling add/edit leaves the account list unchanged
-- [x] Deleting a non-preferred account asks for confirmation and removes it
-- [x] Deleting the preferred account shows copy explaining it is the auto-filled account
-- [ ] Deleting the preferred account removes the auto-fill source and keeps remaining accounts usable — ⏭️ partial (only one account present at that point)
-- [x] Add Another Account button appears once at least one account exists
-- [x] Bank account validation errors remain visible until corrected
-- [x] Preferred account auto-fills receipt recipient fields in Submit Receipt — drove the full HOD→Budget→Finance chain to AWAITING RECEIPT; Submit Receipt pre-filled Account Name/BSB/Account Number from the preferred account
-- [~] Removing/forgetting a saved account from the receipt flow updates the Bank tab list on return — ⏭️ "forget" action in the receipt picker not exercised (auto-fill path covered above)
+## 10.3 Push
+- [ ] Push registration runs after sign-in (OS permission prompt on first run); declining leaves in-app + email notifications working
+- [ ] Push tap follows only known in-app screens; malformed/unexpected links ignored
+- [ ] Request push deep-links via `/?tab=…&focus=…` (allow-list in `shared/deepLinks.ts` — regression watch)
+- [ ] Push icon/branding shows the SHED logo (`app.json` → `notification`)
+- [ ] Emails include "Open in THE SHED" links pointing at the sending deployment's own web build
 
 ---
 
-## Notes / known issues to keep an eye on
-- ✅ **Attendance Audit pagination crash** when filtered/searched (multi-paginate) — **fixed** (CHANGELOG → Unreleased); kept here as a regression watch.
-- ✅ **Tag "save all" audit spam** — **fixed** (only changed tags are now logged); kept here as a regression watch.
+# 11. DEEP LINKS & ROUTED SCREENS
+
+- [ ] `/request/[id]` → redirects to `/?tab=mine&focus=<id>` and focuses the request
+- [ ] Malformed/unknown request id → "Request not found" empty state (no crash, no `/all` bounce)
+- [ ] User without access to a request cannot view its details
+- [ ] `/person/[email]` opens that profile; unknown email → graceful empty profile
+- [ ] `/profile` and `/notifications` open directly
+- [ ] `/attendance/event/[eventId]` opens the sign-in screen; malformed id → "Event not found" empty state
+- [ ] `/attendance/[subgroup]` opens that sub-group's events list; unknown subgroup handled gracefully
+- [ ] `/attendance/event/new` opens the full-screen create-event flow
+- [ ] Legacy `/review` → Requests Review segment; `/all` → All segment; both degrade to Mine when the segment is hidden for that role
+- [ ] Visitors deep-linking to staff tabs → Org Chart
+- [ ] Back navigation from every deep-linked screen returns to a sensible app screen
+
+---
+
+# 12. CROSS-CUTTING
+
+## 12.1 Cross-feature integration
+- [ ] Admin creates a department → selectable when submitting a Request
+- [ ] Admin sets Budget Manager → they see Budget approvals in Review
+- [ ] Admin raises threshold → borderline new request skips/includes Director accordingly
+- [ ] Admin adds a campus → appears as an Attendance subgroup and in Insights
+- [ ] Deleting a department blocked while it has open requests
+- [ ] Roll-call change → Insights snapshot refreshes within minutes
+
+## 12.2 Loading / empty / error states
+- [ ] Initial load shows a loading state until auth/profile resolves
+- [ ] Every main screen shows a loading state while its primary query resolves
+- [ ] Every list's empty copy renders (Mine, Review, All, Events, Members, Audit, Admin lists, Org sections, Bank, Notifications, Insights no-data)
+- [ ] Mutation buttons show saving/uploading/syncing labels and are disabled in flight (no double-submits); **disabled footer buttons stay solid**, not translucent
+- [ ] Top-level error banners on failed mutations; clear on retry/context change
+- [ ] Optimistic actions (approve/decline/comment/reactions, bank edits, sign-in/out) roll back or surface a recoverable error on server rejection *(needs fault injection — not Maestro-automatable)*
+- [ ] Failed file upload (receipt/avatar) surfaces an actionable error and leaves the form usable
+- [ ] "Load more" shows progress and recovers after a failed page
+- [ ] No-profile / insufficient-role screens show access copy, never a blank screen
+- [ ] A render error shows the root ErrorBoundary fallback, not a blank screen/crash
+
+## 12.3 Keyboard & chrome
+- [ ] Pinned footers stay put while a modal's keyboard is open; follow the keyboard on their own screens (e.g. event member search)
+- [ ] Option sheets keyboard-avoid (KeyboardAvoidingView)
+- [ ] Top chrome (logo/avatar row) collapses on scroll down, reappears scrolling up, stays flush with pinned search bars; tab switches keep per-tab collapse state
+- [ ] Tags/Metadata footers align with the "+ Make Request" footer height
+
+## 12.4 Multi-user real-time sync
+- [ ] Roll-call sign-in/out syncs between two devices live
+- [ ] Request approval on device A updates the requester's Mine list on device B
+- [ ] Admin structure change updates the Org Chart on another device
+
+## 12.5 Scheduled jobs (user-visible effects — verify around the dates or via manual trigger)
+- [ ] **Staff year rollover** (Sep 30): the new staff year becomes current automatically; year labels shift ("(current)" / "(from Oct 1)"); the pre-provisioned next year appears for admins
+- [ ] **Receipt file purge** (Sep 30/Oct 1): prior-year receipt files removed; receipt cards show the deleted-file state (see 3.6a); the All-tab prior-year warning copy matches
+- [ ] **Weekly directory sync** (Mondays): new directory staff + Google profile photos appear without a manual sync
+- [ ] **Stale request reminders** (daily): email + push + in-app feed entry to whoever a request waits on
+
+## 12.6 Environment
+- [ ] Test builds show the warning-coloured **"Test Environment"** chip; tapping explains the test database
+- [ ] iOS release build launches without crashing (worklets/Hermes — 1.6.1 regression watch; needs a release/TestFlight build)
+
+---
+
+## Regression watch (previously fixed — re-verify each release)
+- Audit pagination crash when filtered/searched (convex-helpers `paginator`)
+- Tag "save all" + metadata-field save audit spam (only changed rows logged)
+- Auto-approved steps missing from Reviewed (1.6.12)
+- Comment notifications not opening the thread (1.6.3)
+- First Google sign-in bouncing back to login (1.6.3)
+- Spinner picker ignoring touches (1.6.3)
+- Create-event cancel freeze from stacked modals (1.6.7)
+- Members-tab custom-role / unresolvable-Year filter vanishing (1.6.13)
+- iOS release startup crash (1.6.1)
+- Request push deep-link allow-list drift (`shared/deepLinks.ts` test covers it)

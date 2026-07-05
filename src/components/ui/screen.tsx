@@ -277,6 +277,15 @@ export const TopBar = ({
         <Pressable
           style={styles.dropdownBackdrop}
           accessibilityLabel="Close menu"
+          // Without this, the backdrop's own accessibilityLabel makes it a
+          // single opaque accessibility element that swallows everything
+          // nested inside — including the actual "Sign in with your SOW
+          // account" button, which sits inside this same Pressable as its
+          // child. That made the sign-in action unreachable to VoiceOver
+          // (and to any accessibility-tree-based automation), not just
+          // visually tappable. Letting children report individually is the
+          // fix; the backdrop's own tap-to-dismiss still works for touch.
+          accessible={false}
           onPress={() => {
             if (!busy) {
               setSignInMenu(false);

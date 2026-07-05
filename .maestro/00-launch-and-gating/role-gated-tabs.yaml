@@ -1,0 +1,48 @@
+# §0 Role-gated tab bar for signed-in roles. Needs seeded accounts.
+#   - campus leader: redirect / → Attendance; no Requests tab
+#   - plain staff:   Requests, Attendance, Insights, Org Chart (no Home)
+#   - admin/Finance Head: "Open admin tools" bar visible on Org Chart
+# Insights icon shows the BETA flag for everyone.
+appId: ${APP_ID}
+tags:
+  - staff
+  - admin
+---
+# ── Campus leader ────────────────────────────────────────────────────────────
+- runFlow: ../common/launch-fresh.yaml
+- runFlow:
+    file: ../common/sign-in.yaml
+    env:
+      EMAIL: ${CAMPUS_LEADER_EMAIL}
+      PASSWORD: ${CAMPUS_LEADER_PASSWORD}
+- assertVisible: "Attendance"      # redirected here
+- assertNotVisible: "Requests"     # no Requests tab for campus-only roles
+- assertVisible: "Org Chart"
+- assertVisible: "Insights"
+- runFlow: ../common/sign-out.yaml
+
+# ── Plain staff ──────────────────────────────────────────────────────────────
+- runFlow: ../common/launch-fresh.yaml
+- runFlow:
+    file: ../common/sign-in.yaml
+    env:
+      EMAIL: ${STAFF_EMAIL}
+      PASSWORD: ${STAFF_PASSWORD}
+- assertVisible: "Requests"
+- assertVisible: "Attendance"
+- assertVisible: "Insights"
+- assertVisible: "Org Chart"
+- assertNotVisible: "Home"         # Home drops off the bar once signed in
+- runFlow: ../common/sign-out.yaml
+
+# ── Admin: admin bar on Org Chart ────────────────────────────────────────────
+- runFlow: ../common/launch-fresh.yaml
+- runFlow:
+    file: ../common/sign-in.yaml
+    env:
+      EMAIL: ${ADMIN_EMAIL}
+      PASSWORD: ${ADMIN_PASSWORD}
+- tapOn:
+    text: ".*Org Chart, tab.*"
+- assertVisible:
+    text: "Open admin tools"

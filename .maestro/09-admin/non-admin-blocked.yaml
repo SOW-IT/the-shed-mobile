@@ -1,0 +1,18 @@
+# §9.1 Non-admins get "Only admins can access this screen." Reach the admin
+# route by deep link as plain staff.
+appId: ${APP_ID}
+tags:
+  - staff
+---
+- runFlow: ../common/launch-fresh.yaml
+- runFlow:
+    file: ../common/sign-in.yaml
+    env:
+      EMAIL: ${STAFF_EMAIL}
+      PASSWORD: ${STAFF_PASSWORD}
+
+# Plain staff have no Admin bar on Org Chart.
+- tapOn:
+    text: ".*Org Chart, tab.*"
+- assertNotVisible:
+    text: "Open admin tools"

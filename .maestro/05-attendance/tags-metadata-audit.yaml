@@ -1,0 +1,76 @@
+# §5.7 Tags · §5.8 Metadata · §5.9 Audit — structural smoke of each sub-tab.
+appId: ${APP_ID}
+tags:
+  - staff
+---
+- runFlow:
+    file: ../common/sign-in-staff-to-attendance.yaml
+    env:
+      EMAIL: ${STAFF_EMAIL}
+      PASSWORD: ${STAFF_PASSWORD}
+
+# ── Tags ─────────────────────────────────────────────────────────────────────
+- tapOn: "Tags"
+# Add tag → blank card; Save disabled when clean. The real org has many tags
+# (each rendered fully expanded, not collapsed), so "+ Add tag" is often WAY
+# below the fold — the default scroll budget isn't enough, so use a longer
+# timeout/faster speed, matching the long-list scroll in
+# 03-requests/payment-finance-head.yaml.
+- scrollUntilVisible:
+    element:
+      text: ".*Add tag.*"
+    direction: DOWN
+    speed: 60
+    timeout: 60000
+    optional: true
+- tapOn:
+    text: ".*Add tag.*"
+    optional: true
+# The new card renders right where "+ Add tag" was — near the bottom of a
+# long list, i.e. right under the fixed Cancel/Save tags footer pill. Tapping
+# "Discard tag" there hits the footer instead (opens the Save-tags confirm
+# modal and leaves the draft dirty — same class of bug as a keyboard covering
+# a submit button). Scroll past the footer's overlap zone first, targeting
+# the new draft's default colour ("blue") so we anchor on ITS card specifically.
+- scrollUntilVisible:
+    element:
+      text: ".*currently blue.*"
+    direction: DOWN
+    optional: true
+- assertVisible:
+    text: ".*(Applies to|colour|color).*"
+    optional: true
+# Discard the unsaved new tag. Its icon button's accessibilityLabel is
+# "Discard tag" for an unsaved (id-less) draft — "Remove tag" once persisted;
+# there's no generic "Close" here (that's the Sheet-modal convention, not this
+# inline card's).
+- tapOn:
+    text: "Discard tag"
+    optional: true
+- assertNotVisible:
+    text: ".*unsaved changes.*"
+    optional: true
+
+# ── Metadata ─────────────────────────────────────────────────────────────────
+- tapOn: "Metadata"
+# Locked fields read-only (Year, Gender, Campus, Role). Each row's Pressable
+# carries an explicit accessibilityLabel ("<key>, <type>") that masks its
+# child Text on iOS — plain "Year" doesn't match "Year, Select".
+- assertVisible:
+    text: ".*Year.*"
+# The locked-field explanation copy this line used to check for doesn't exist
+# on this screen (it's the Field component's own generic locked/disabled
+# styling, no text) — the row is collapsed by default anyway.
+
+# ── Audit ────────────────────────────────────────────────────────────────────
+- tapOn: "Audit"
+# Search + "Load more" pagination must work even while filtered (regression:
+# multi-page paginator crash).
+- tapOn:
+    text: ".*Search.*"
+    optional: true
+- inputText: "e2e"
+- tapOn:
+    text: "Clear audit search"
+    optional: true
+- assertVisible: "Audit"

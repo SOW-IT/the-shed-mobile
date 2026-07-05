@@ -1,0 +1,26 @@
+# Auth dispatcher used by all signed-in flows. Chooses the sign-in method from
+# the run env so the same suite works locally, in CI, and against a dev client:
+#   • if E2E_SECRET is set → the dev-only auth bypass (fast, scriptable)
+#   • otherwise            → the Google OAuth path (best-effort; see notes)
+#
+# Params: EMAIL (required); PASSWORD (Google path only). E2E_SECRET + SCHEME
+# come from the run env.
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      true: ${typeof E2E_SECRET !== 'undefined' && E2E_SECRET !== ''}
+    commands:
+      - runFlow:
+          file: ./sign-in-e2e.yaml
+          env:
+            EMAIL: ${EMAIL}
+- runFlow:
+    when:
+      true: ${typeof E2E_SECRET === 'undefined' || E2E_SECRET === ''}
+    commands:
+      - runFlow:
+          file: ./sign-in-google.yaml
+          env:
+            EMAIL: ${EMAIL}
+            PASSWORD: ${PASSWORD}

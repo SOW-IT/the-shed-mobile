@@ -1,0 +1,37 @@
+# §9.1 Admin access & tabs — reached via the Admin bar on Org Chart.
+appId: ${APP_ID}
+tags:
+  - admin
+  - smoke
+---
+# ADMIN_EMAIL is seeded as HOD of "E2E Test Dept" (not an admin
+# division/department per convex/model.ts's isAdminProfile), so it never
+# actually gets admin access despite .env.example's comment — use
+# DIRECTOR_EMAIL, which is seeded with the DIRECTOR role and really is admin.
+- runFlow: ../common/launch-fresh.yaml
+- runFlow:
+    file: ../common/sign-in.yaml
+    env:
+      EMAIL: ${DIRECTOR_EMAIL}
+      PASSWORD: ${DIRECTOR_PASSWORD}
+- tapOn:
+    text: ".*Org Chart, tab.*"
+- tapOn:
+    text: "Open admin tools"
+
+# Admin tabs render.
+- assertVisible: "Users"
+- assertVisible: "Structure"
+- assertVisible: "Other"
+
+# Year picker labels. The pill has no accessibilityLabel — the tappable text
+# is just the bare year number (e.g. "2026"), not "Select year".
+- tapOn:
+    text: "[0-9]{4}"
+    optional: true
+- assertVisible:
+    text: ".*current.*"
+    optional: true
+- tapOn:
+    text: "Close"
+    optional: true

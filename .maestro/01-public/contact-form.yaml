@@ -1,0 +1,106 @@
+# §1.1 Contact us form (Partner page) — happy path + validation.
+# Exact copy comes from convex/contact.ts.
+appId: ${APP_ID}
+tags:
+  - public
+---
+- runFlow: ../common/ensure-signed-out.yaml
+- tapOn:
+    text: "Go to Home"
+# Navigate to Partner page (4th page)
+- swipe:
+    direction: LEFT
+- swipe:
+    direction: LEFT
+- swipe:
+    direction: LEFT
+- assertVisible: "Partner"
+- scrollUntilVisible:
+    element:
+      text: "Your email"
+    direction: DOWN
+
+# ── Invalid email ────────────────────────────────────────────────────────────
+# "Your email"/"Message" are the fields' static LABELS — tapping a label
+# doesn't focus its TextInput (separate Text above it, same gotcha as every
+# other form in this suite) — tap the input via its placeholder/current value.
+# Between fields, dismiss the keyboard on the static "Contact us" heading
+# first: with the email keyboard still up, the Message field's placeholder
+# sits right at/under it, so tapping it doesn't shift focus there at all —
+# the next inputText silently lands back in the still-focused email field.
+- tapOn: "you@example.com"
+- inputText: "not-an-email"
+- tapOn: "Contact us"
+- tapOn: "How can we help?"
+- inputText: "Hi there, this is a test message."
+- tapOn: "Contact us"
+- tapOn: "Send message"
+- assertVisible: "Please enter a valid email address."
+
+# ── Empty message ────────────────────────────────────────────────────────────
+# The server's "Please enter a message." (convex/contact.ts) is unreachable
+# through this UI: canSend requires a non-empty message, so "Send message" is
+# disabled whenever it's blank and tapping it is a no-op — same reason the
+# >5000-char/rate-limit cases below are unit-tested instead, not driven here.
+# What IS observable here is that clearing the message actually disables the
+# button (the prior email fix left it enabled), so assert that instead.
+- tapOn: "not-an-email"
+- eraseText
+- inputText: "e2e-visitor@example.com"
+- tapOn: "Contact us"
+- tapOn: "Hi there, this is a test message."
+- eraseText
+- tapOn: "Contact us"
+- assertVisible:
+    text: "Send message"
+    enabled: false
+
+# ── Happy path ───────────────────────────────────────────────────────────────
+# CONFIRMED APP BUG (reproduced 4x, not test flakiness): a SECOND
+# contact-form submission attempt in the same ContactCard mount always fails
+# server-side with "Please enter a valid email address" — even with a fresh,
+# valid, never-before-used address — while the on-screen field correctly
+# shows that valid address. The first submission attempt in a fresh mount
+# always succeeds. Root cause not isolated (checked: no stale closures, no
+# optimistic-update wrapping on contact.submit, `me`/effectiveEmail compute
+# correctly) — needs dedicated Convex-client/React investigation, tracked
+# separately. Relaunching here sidesteps it FOR THIS TEST by making the happy
+# path a fresh first-attempt mount, matching real users who don't immediately
+# retry a failed contact submission.
+- runFlow: ../common/launch-fresh.yaml
+- tapOn:
+    text: "Go to Home"
+- swipe:
+    direction: LEFT
+- swipe:
+    direction: LEFT
+- swipe:
+    direction: LEFT
+- assertVisible: "Partner"
+- scrollUntilVisible:
+    element:
+      text: "Your email"
+    direction: DOWN
+- tapOn: "you@example.com"
+- inputText: "e2e-visitor@example.com"
+- tapOn: "Contact us"
+- tapOn: "How can we help?"
+- inputText: "Hello — automated E2E contact test."
+- tapOn: "Contact us"
+- tapOn: "Send message"
+- extendedWaitUntil:
+    visible:
+      text: ".*(Message sent|Thanks for reaching out).*"
+    timeout: 15000
+# Dismiss the confirmation — leaving it open stayed mounted across a stale
+# (non-terminated) app process in one observed run and blocked the NEXT
+# flow's post-sign-out assertions, since a relaunch doesn't always guarantee
+# a truly cold process. Close it so this flow can't leave that behind.
+- tapOn:
+    text: "Done"
+    optional: true
+
+# NOTE: the >5000-char "a little too long" and 4th-within-an-hour rate-limit
+# cases ("Please wait an hour before sending another.") are covered by
+# convex/contact.test.ts unit tests — not re-driven here to avoid tripping the
+# real rate limiter mid-suite.

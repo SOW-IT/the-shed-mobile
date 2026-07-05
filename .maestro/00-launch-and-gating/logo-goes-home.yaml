@@ -1,0 +1,17 @@
+# §0 Tapping the top-left "THE SHED" logo goes to the Home tab (not Requests),
+# from any tab. As a visitor, verify from Insights and Org Chart.
+appId: ${APP_ID}
+tags:
+  - public
+---
+- runFlow: ../common/ensure-signed-out.yaml
+
+- tapOn:
+    text: ".*Insights, tab.*"
+- assertVisible: "Insights"
+
+# Logo → Home
+- tapOn:
+    text: "Go to Home"
+- assertVisible:
+    text: "Student Outreach to the World" # Home mission hero (§1.1)

@@ -1,0 +1,25 @@
+# §3.0 The ⓘ info button on the "+ Make Request" footer opens the "How it works"
+# guide sheet — 7 steps with the live Director threshold.
+appId: ${APP_ID}
+tags:
+  - staff
+---
+- runFlow:
+    file: ../common/sign-in-staff-to-requests.yaml
+    env:
+      EMAIL: ${STAFF_EMAIL}
+      PASSWORD: ${STAFF_PASSWORD}
+
+- tapOn:
+    text: "How it works"
+# Sheet title is "How to submit a request"; step titles carry suffixes (e.g.
+# "HOD approval", "Director approval (≥ $5,000)") — match by substring/prefix.
+- assertVisible:
+    text: ".*How to submit a request.*"
+- assertVisible: ".*HOD.*"
+- assertVisible: ".*Budget Manager.*"
+- assertVisible: ".*Director.*"
+- assertVisible: ".*Finance Head.*"
+- assertVisible: ".*receipt.*"
+- tapOn:
+    text: "Close"

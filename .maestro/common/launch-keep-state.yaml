@@ -1,0 +1,8 @@
+# Launches WITHOUT clearing state — use inside a flow that already signed in and
+# wants a fresh process (e.g. to prove "staff tools appear without relaunch"
+# negatively, or to resume a persisted session).
+appId: ${APP_ID}
+---
+- launchApp:
+    appId: ${APP_ID}
+    clearState: false

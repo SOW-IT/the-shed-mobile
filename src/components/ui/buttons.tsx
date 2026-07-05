@@ -124,6 +124,8 @@ export const FooterAction = ({
         {onInfo && (
           <Pressable
             onPress={onInfo}
+            accessibilityRole="button"
+            accessibilityLabel="How it works"
             style={[styles.footerInfoBtn, { backgroundColor: t.card }, t.shadowFloat]}
           >
             <Ionicons name="information-circle-outline" size={22} color={t.primary} />

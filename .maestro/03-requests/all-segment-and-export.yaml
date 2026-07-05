@@ -1,0 +1,59 @@
+# §3.10 All segment (Finance) — Ongoing/Completed control, year picker, admin
+# bar preselects Other tab, Export requests CSV.
+appId: ${APP_ID}
+tags:
+  - finance
+---
+- runFlow: ../common/launch-fresh.yaml
+- runFlow:
+    file: ../common/sign-in.yaml
+    env:
+      EMAIL: ${FINANCE_EMAIL}
+      PASSWORD: ${FINANCE_PASSWORD}
+- tapOn:
+    text: ".*Requests, tab.*"
+# Wait for the segment strip to finish loading before tapping (segments carry
+# badges, e.g. "All, 19", so match by prefix).
+- extendedWaitUntil:
+    visible:
+      text: "Mine.*"
+    timeout: 20000
+- tapOn:
+    text: "All.*"
+
+# Ongoing vs Completed segmented control.
+- extendedWaitUntil:
+    visible: "Ongoing"
+    timeout: 15000
+- assertVisible: "Completed"
+- tapOn: "Completed"
+- tapOn: "Ongoing"
+
+# Floating year picker (All segment only).
+- assertVisible:
+    text: "Select year"
+    optional: true
+
+# Export requests CSV card (title "Export", button "Download CSV"; the
+# "Export requests?" text only appears in the confirm dialog).
+- scrollUntilVisible:
+    element:
+      text: "Download CSV"
+    direction: DOWN
+- tapOn:
+    text: "Download CSV"
+- assertVisible:
+    text: ".*Export requests\\?.*"
+- tapOn:
+    text: "Cancel"
+
+# Admin bar on the All page opens Admin with the Other tab preselected. The
+# Finance Head is budget-manager-only (see admin.tsx), so the Users/Structure/
+# Other tab strip itself is elided — assert its content (Budget Manager
+# section) instead of a tab label that never renders for this role.
+- tapOn:
+    text: "Open admin tools"
+    optional: true
+- assertVisible:
+    text: ".*Budget Manager.*"
+    optional: true

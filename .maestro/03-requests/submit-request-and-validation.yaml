@@ -1,0 +1,48 @@
+# §3.2 Submit a request + on-screen validation order.
+# Validation fires in order: Description → Amount → Department.
+appId: ${APP_ID}
+tags:
+  - staff
+  - smoke
+---
+- runFlow:
+    file: ../common/sign-in-staff-to-requests.yaml
+    env:
+      EMAIL: ${STAFF_EMAIL}
+      PASSWORD: ${STAFF_PASSWORD}
+
+- tapOn: "+ Make Request"
+
+# ── Validation: empty everything → Description error first ────────────────────
+- tapOn:
+    text: "Submit Request"
+- assertVisible: "Please describe what the request is for."
+
+# Fill description → next error is Amount. Tapping the "Description" LABEL
+# doesn't focus the field (it's a separate Text above the TextInput) — tap
+# the input itself via its placeholder. Dismiss the keyboard before tapping
+# Submit — mid-animation it can sit over the footer button and swallow the
+# tap, leaving the stale error banner on screen.
+- tapOn: "What is this for?"
+- inputText: "E2E test reimbursement"
+- tapOn: "New Request"   # sheet title — static, non-interactive; dismisses the keyboard
+- tapOn:
+    text: "Submit Request"
+- assertVisible: "Amount must be a positive number."
+
+# Fill amount. Department is pre-filled from the staff's own assignment
+# (index.tsx defaultDepartment — E2E_DEPT for the seeded staff account), so
+# there's no "Pick a department" error to reach and nothing to pick here —
+# submitting now goes straight to the happy path.
+- tapOn: "0.00"
+- inputText: "42.50"
+- tapOn: "New Request"   # sheet title — static, non-interactive; dismisses the keyboard
+- tapOn:
+    text: "Submit Request"
+
+# Appears in Mine as AWAITING APPROVAL.
+- extendedWaitUntil:
+    visible: "E2E test reimbursement"
+    timeout: 15000
+- assertVisible:
+    text: ".*(AWAITING APPROVAL|Awaiting Approval).*"

@@ -1,0 +1,52 @@
+# §5.1 Events tab — sub-tabs render, group ring selector, event cards, open a
+# card → sign-in screen.
+appId: ${APP_ID}
+tags:
+  - staff
+  - smoke
+---
+- runFlow:
+    file: ../common/sign-in-staff-to-attendance.yaml
+    env:
+      EMAIL: ${STAFF_EMAIL}
+      PASSWORD: ${STAFF_PASSWORD}
+
+# All five sub-tabs present.
+- assertVisible: "Events"
+- assertVisible: "Members"
+- assertVisible: "Tags"
+- assertVisible: "Metadata"
+- assertVisible: "Audit"
+
+# Group ring selector. There's no unified "All" ring — each ring is one
+# specific subgroup (org-wide "SOW" plus one per campus), and the org-wide
+# ring renders an actual logo image (no accessible text), so there's nothing
+# reliable to assertVisible here beyond the rings existing at all.
+
+# The seeded fixture event is scoped to the "E2E Test Campus" ring, not the
+# default org-wide "SOW" one — select it before looking for the event.
+- tapOn:
+    text: "E2E Test Campus"
+    optional: true
+
+# Event card shows an ATTENDANCE count, but its wrapping Pressable carries an
+# explicit accessibilityLabel ("Open <name>") that masks the child Text on iOS
+# (see README's "container label masks child Text" note) — ".*ATTENDANCE:.*"
+# never actually matches anything visible. Target the seeded fixture event's
+# "Open ..." label instead (brackets in "[E2E]" would need escaping as regex,
+# so match on the unbracketed "Weekly Meeting" part of its name).
+- scrollUntilVisible:
+    element:
+      text: ".*Open.*Weekly Meeting.*"
+    direction: DOWN
+    optional: true
+- runFlow:
+    when:
+      visible:
+        text: ".*Open.*Weekly Meeting.*"
+    commands:
+      - tapOn:
+          text: ".*Open.*Weekly Meeting.*"
+      - assertVisible:
+          text: ".*signed in.*"    # header count chip on the sign-in screen
+      - back

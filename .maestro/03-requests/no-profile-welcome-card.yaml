@@ -1,0 +1,18 @@
+# §3.0 Signed-in user WITHOUT a profile sees the welcome card (not a blank
+# screen) + a Sign out button.
+appId: ${APP_ID}
+tags:
+  - staff
+---
+- runFlow: ../common/launch-fresh.yaml
+- runFlow:
+    file: ../common/sign-in.yaml
+    env:
+      EMAIL: ${NOPROFILE_EMAIL}
+      PASSWORD: ${NOPROFILE_PASSWORD}
+
+- assertVisible:
+    text: ".*No role or department is assigned to.*"
+- assertVisible:
+    text: ".*(Data and IT|Human Resources).*"
+- assertVisible: "Sign out"

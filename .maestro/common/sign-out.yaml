@@ -1,0 +1,12 @@
+# Signs out via Profile → Sign out, confirming the dialog (checklist §2, §8).
+appId: ${APP_ID}
+---
+- tapOn:
+    text: "Open your profile"
+- tapOn: "Sign out"
+- assertVisible:
+    text: ".*(Sign out|Are you sure).*" # confirmation dialog
+- tapOn:
+    text: "Sign out"
+    index: 1 # the confirm button inside the dialog
+- assertVisible: "Org Chart"
