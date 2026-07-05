@@ -230,6 +230,61 @@ describe("consolidateAttendanceTags migration", () => {
     );
     expect(again.merged).toBe(0);
   });
+
+  test("takes a loser's colour when the survivor has none, and leaves unrelated/tag-less events alone", async () => {
+    const t = await setup();
+    const { survivorId, soloEventId, taglessId } = await t.run(async (ctx) => {
+      // Survivor has neither colour nor year; the later duplicate carries one.
+      const survivor = await ctx.db.insert("attendanceTags", {
+        name: "Camp",
+        subgroups: [USYD],
+      });
+      await ctx.db.insert("attendanceTags", {
+        name: "camp",
+        colour: "red",
+        subgroups: [USYD],
+      });
+      // A tag with no duplicate and no year — nothing to change or clear.
+      const solo = await ctx.db.insert("attendanceTags", { name: "Solo" });
+      // Event referencing only the untouched solo tag → left byte-for-byte.
+      const soloEventId = await ctx.db.insert("events", {
+        name: "Solo event",
+        dateStart: Date.now(),
+        dateEnd: Date.now() + 3600_000,
+        subgroups: [USYD],
+        tagIds: [solo],
+      });
+      // Event with no tags at all → skipped by the remap pass.
+      const taglessId = await ctx.db.insert("events", {
+        name: "No tags",
+        dateStart: Date.now(),
+        dateEnd: Date.now() + 3600_000,
+        subgroups: [USYD],
+      });
+      return { survivorId: survivor, soloEventId, taglessId };
+    });
+
+    const res = await t.mutation(
+      internal.attendanceTags.consolidateAttendanceTags,
+      {}
+    );
+    // Only the "Camp" duplicate merges; no survivor had a `year` to clear.
+    expect(res.merged).toBe(1);
+    expect(res.cleared).toBe(0);
+    // The merge remapped nothing (no event referenced the loser).
+    expect(res.eventsRemapped).toBe(0);
+
+    const survivor = await t.run(async (ctx) => ctx.db.get(survivorId));
+    // Survivor inherited the loser's colour and kept its (unchanged) scope.
+    expect(survivor?.colour).toBe("red");
+    expect(survivor?.subgroups).toEqual([USYD]);
+
+    // Neither event was rewritten.
+    const soloEvent = await t.run(async (ctx) => ctx.db.get(soloEventId));
+    expect(soloEvent?.tagIds).toHaveLength(1);
+    const tagless = await t.run(async (ctx) => ctx.db.get(taglessId));
+    expect(tagless?.tagIds).toBeUndefined();
+  });
 });
 
 describe("attendance metadata", () => {
