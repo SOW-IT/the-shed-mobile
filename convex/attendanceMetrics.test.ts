@@ -379,7 +379,7 @@ describe("attendanceMetrics", () => {
   test("detects Weekly Meeting tagged events", async () => {
     const { t, leader } = await setup();
     const tagId = await t.run((ctx) =>
-      ctx.db.insert("attendanceTags", { year: YEAR, name: "Weekly Meeting" })
+      ctx.db.insert("attendanceTags", { name: "Weekly Meeting" })
     );
     const e = await leader.mutation(api.events.create, {
       name: "Weekly Meeting",

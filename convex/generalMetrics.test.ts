@@ -122,7 +122,6 @@ describe("campusWeeklyAttendance", () => {
   ) {
     return t.run(async (ctx) => {
       const tagId = await ctx.db.insert("attendanceTags", {
-        year: staffYearForDate(new Date(opts.dateStart)),
         name: "Weekly Meeting",
       });
       const eventId = await ctx.db.insert("events", {

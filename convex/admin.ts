@@ -1456,28 +1456,23 @@ export const fillTagScopesWithAllGroups = internalMutation({
   args: {},
   handler: async (ctx) => {
     const tags = await ctx.db.query("attendanceTags").collect();
-    const subgroupsByYear = new Map<number, string[]>();
+    // Tags are global (year-less), so an unscoped tag is filled with the
+    // current staff year's groups (SOW + that year's universities).
+    const universities = await ctx.db
+      .query("universities")
+      .withIndex("by_year_and_name", (q) => q.eq("year", currentStaffYear()))
+      .collect();
+    const allGroups = normalizeSubgroups([
+      SOW_SUBGROUP,
+      ...universities.map((u) => u.name),
+    ]);
     let filled = 0;
-    for (const tag of tags) {
-      if (tag.subgroups?.length) continue;
-      // Tags are global now; the `year` column is deprecated and may be cleared,
-      // so scope an unscoped tag against the current staff year's groups.
-      const scopeYear = tag.year ?? currentStaffYear();
-      let all = subgroupsByYear.get(scopeYear);
-      if (!all) {
-        const universities = await ctx.db
-          .query("universities")
-          .withIndex("by_year_and_name", (q) => q.eq("year", scopeYear))
-          .collect();
-        all = normalizeSubgroups([
-          SOW_SUBGROUP,
-          ...universities.map((u) => u.name),
-        ]);
-        subgroupsByYear.set(scopeYear, all);
+    if (allGroups.length > 0) {
+      for (const tag of tags) {
+        if (tag.subgroups?.length) continue;
+        await ctx.db.patch(tag._id, { subgroups: allGroups });
+        filled++;
       }
-      if (all.length === 0) continue;
-      await ctx.db.patch(tag._id, { subgroups: all });
-      filled++;
     }
     return { filled, total: tags.length };
   },

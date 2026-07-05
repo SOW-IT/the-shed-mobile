@@ -1569,14 +1569,12 @@ describe("fillTagScopesWithAllGroups", () => {
     await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: "UTS" });
 
     const { unscopedId, emptyId, scopedId } = await t.run(async (ctx) => ({
-      unscopedId: await ctx.db.insert("attendanceTags", { year: YEAR, name: "Meeting" }),
+      unscopedId: await ctx.db.insert("attendanceTags", { name: "Meeting" }),
       emptyId: await ctx.db.insert("attendanceTags", {
-        year: YEAR,
         name: "Social",
         subgroups: [],
       }),
       scopedId: await ctx.db.insert("attendanceTags", {
-        year: YEAR,
         name: "Campus only",
         subgroups: ["UTS"],
       }),
