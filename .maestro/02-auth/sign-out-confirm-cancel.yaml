@@ -1,0 +1,33 @@
+# §2 Sign out asks for confirmation; cancel keeps the session, confirm returns
+# to the public app.
+appId: ${APP_ID}
+tags:
+  - auth
+---
+- runFlow: ../common/launch-fresh.yaml
+- runFlow:
+    file: ../common/sign-in.yaml
+    env:
+      EMAIL: ${STAFF_EMAIL}
+      PASSWORD: ${STAFF_PASSWORD}
+
+# Open the confirmation, then CANCEL — session should persist.
+- tapOn:
+    text: "Open your profile"
+- tapOn: "Sign out"
+- assertVisible:
+    text: ".*(Are you sure|Sign out).*"
+- tapOn: "Cancel"
+- assertVisible: ${STAFF_EMAIL}      # still signed in
+
+# Now CONFIRM — back to the public app. The page's own footer "Sign out"
+# button sits behind the confirm dialog and isn't accessibility-reachable
+# while it's open, so a single "Sign out" tap uniquely hits the dialog's
+# confirm button (no index needed).
+- tapOn: "Sign out"
+- tapOn: "Sign out"
+# Bottom tabs carry a "<Name>, tab, N of N" accessibilityLabel that masks the
+# bare "Org Chart" text (README's bottom-tab convention).
+- assertVisible:
+    text: ".*Org Chart.*"
+- assertNotVisible: "Requests"

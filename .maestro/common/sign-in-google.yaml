@@ -1,0 +1,88 @@
+# Signs in via the top-right avatar → "Sign in with Google" (checklist §1.4, §2).
+#
+# Params:
+#   EMAIL, PASSWORD – the Google/sow.org.au account to use.
+#
+# ⚠️ Google OAuth runs inside ASWebAuthenticationSession (a system web sheet).
+# Maestro can drive the Google web form, but Google frequently blocks automated
+# sign-in ("this browser may not be secure") and adds 2FA/consent steps that are
+# not stable to script. STRONGLY prefer one of:
+#   1. A dev-only auth bypass in the test build that reads a token from an env
+#      var / launch argument (see README "Auth strategy"), OR
+#   2. A pre-authenticated test build whose session is already persisted.
+#
+# When a bypass exists, replace the block below with a single deep link or
+# launch argument. The web-form steps are kept as a documented fallback and are
+# tagged optional so a missing element degrades instead of hard-failing.
+appId: ${APP_ID}
+---
+# The visitor (signed-out) top-right control is "Sign in" — a wide
+# call-to-action button, not the avatar — which opens the sign-in menu
+# directly. "Open your profile" is the signed-IN avatar's label and only
+# exists after auth (src/components/ui/screen.tsx), so it never applies here.
+- tapOn:
+    text: "Sign in"
+# The dropdown is an animated Modal (screen.tsx) — wait for it to settle
+# rather than tapping blind immediately after it starts opening.
+- extendedWaitUntil:
+    visible:
+      text: ".*Sign in with.*"
+    timeout: 8000
+- tapOn:
+    text: ".*Sign in with.*"
+# iOS shows its own native ASWebAuthenticationSession permission dialog
+# ("<App> Wants to Use "<domain>" to Sign In") BEFORE the actual Google web
+# form loads — this is a system alert, not part of the app's own UI, and
+# must be confirmed first or the web form never appears.
+- runFlow:
+    when:
+      visible: ".*Wants to Use.*"
+    commands:
+      - tapOn: "Continue"
+# ── System web-auth sheet (Google). Optional/best-effort. ────────────────────
+- runFlow:
+    when:
+      visible: "Email or phone"
+    commands:
+      - tapOn: "Email or phone"
+      - inputText: ${EMAIL}
+      - tapOn: "Next"
+      - extendedWaitUntil:
+          visible: "Enter your password"
+          timeout: 15000
+          optional: true
+      - tapOn:
+          text: ".*(Enter your password|Password).*"
+          optional: true
+      - inputText: ${PASSWORD}
+      - tapOn: "Next"
+      - tapOn:
+          text: "Continue"
+          optional: true
+# A machine with an EXISTING cached Google session for the @allowedDomain
+# workspace skips the email/password form entirely and jumps straight to
+# "Choose an account" with whatever real account is already signed in on
+# that simulator/device. We deliberately do NOT select an account here — it
+# would be a real person's identity, not a disposable test fixture, and this
+# flow has no way to know in advance whose session that is. Close the sheet
+# instead and let the run degrade to the best-effort checks below.
+- runFlow:
+    when:
+      visible: ".*Choose an account.*"
+    commands:
+      - tapOn:
+          text: "Cancel"
+          optional: true
+# ── Back in the app: staff chrome must appear in place (§1.4). Real Google
+# OAuth can't be reliably completed here without either dedicated test
+# credentials or a pre-authenticated build (see the file header) — these are
+# best-effort so an incomplete sign-in degrades instead of hard-failing.
+- extendedWaitUntil:
+    visible:
+      text: "Open admin tools"
+    timeout: 30000
+    optional: true
+- extendedWaitUntil:
+    visible: "Attendance"
+    timeout: 30000
+    optional: true

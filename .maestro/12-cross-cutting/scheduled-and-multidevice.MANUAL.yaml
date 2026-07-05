@@ -1,0 +1,30 @@
+# §12.1/§12.4/§12.5/§12.2 — items that need multiple devices, fault injection,
+# or waiting on scheduled crons. Documented here so release testing covers them.
+appId: ${APP_ID}
+tags:
+  - manual
+---
+# §12.4 Multi-user real-time sync (needs two devices):
+#   - Roll-call sign-in/out syncs between two devices live
+#   - Request approval on device A updates requester's Mine on device B
+#   - Admin structure change updates the Org Chart on another device
+#   → Run the relevant single-device flow on device A while asserting on B, or
+#     use two `maestro` processes against two simulators.
+#
+# §12.5 Scheduled jobs (verify around the dates or via manual cron trigger):
+#   - Staff year rollover (Sep 30): new year becomes current; labels shift
+#   - Receipt file purge (Sep 30/Oct 1): prior-year files removed; deleted state
+#   - Weekly directory sync (Mondays): new staff + Google photos appear
+#   - Stale request reminders (daily): email + push + in-app feed entry
+#   → Trigger the Convex cron manually in the test backend, then assert the
+#     user-visible effect with a normal signed-in flow.
+#
+# §12.2 Fault-injection-only:
+#   - Optimistic actions roll back / surface recoverable error on server reject
+#   - Failed file upload surfaces an actionable error, form stays usable
+#   - Root ErrorBoundary fallback on a render error
+#   → Needs a build with injectable failures; not automatable from the UI alone.
+- launchApp:
+    appId: ${APP_ID}
+- assertVisible:
+    text: ".*"

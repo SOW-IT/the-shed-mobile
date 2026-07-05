@@ -1,0 +1,81 @@
+# §11 Deep links & routed screens (signed in as staff).
+appId: ${APP_ID}
+tags:
+  - staff
+---
+- runFlow: ../common/launch-fresh.yaml
+- runFlow:
+    file: ../common/sign-in.yaml
+    env:
+      EMAIL: ${STAFF_EMAIL}
+      PASSWORD: ${STAFF_PASSWORD}
+
+# /request/[id] → redirects to /?tab=mine&focus=<id> and focuses the request.
+# FOCUS_REQUEST_ID isn't seeded in .env/.env.example — without it this opens
+# an empty id, which (correctly) resolves as "not found" rather than landing
+# on Mine, so this step is best-effort until a real fixture id is provisioned.
+- runFlow:
+    file: ../common/open-deeplink.yaml
+    env:
+      PATH: "request/${FOCUS_REQUEST_ID}"
+- assertVisible:
+    text: ".*(Mine|Request not found).*"
+
+# Malformed/unknown request id → "Request not found" (no crash, no /all bounce).
+- runFlow:
+    file: ../common/open-deeplink.yaml
+    env:
+      PATH: "request/does-not-exist"
+- assertVisible:
+    text: ".*Request not found.*"
+
+# /person/[email] opens that profile.
+- runFlow:
+    file: ../common/open-deeplink.yaml
+    env:
+      PATH: "person/${KNOWN_PERSON_EMAIL}"
+- assertVisible: ${KNOWN_PERSON_EMAIL}
+
+# /profile and /notifications open directly.
+- runFlow:
+    file: ../common/open-deeplink.yaml
+    env:
+      PATH: "profile"
+- assertVisible: ${STAFF_EMAIL}
+- runFlow:
+    file: ../common/open-deeplink.yaml
+    env:
+      PATH: "notifications"
+- assertVisible:
+    text: ".*(Unread|Read|No notifications).*"
+
+# /attendance/event/[eventId] → sign-in screen; malformed → "Event not found".
+- runFlow:
+    file: ../common/open-deeplink.yaml
+    env:
+      PATH: "attendance/event/does-not-exist"
+- assertVisible:
+    text: ".*Event not found.*"
+
+# /attendance/event/new opens the full-screen create-event ROUTE (§5.1a) — a
+# distinct single-page "New event" form (Name/Sub-groups/Create event button),
+# not the 4-step modal wizard opened from the Events tab footer (that one has
+# "Next"; this route doesn't).
+- runFlow:
+    file: ../common/open-deeplink.yaml
+    env:
+      PATH: "attendance/event/new"
+- assertVisible: "New event"
+- assertVisible:
+    text: ".*Create event.*"
+- back
+
+# Legacy /review → Review segment; /all → All (degrade to Mine when hidden).
+- runFlow:
+    file: ../common/open-deeplink.yaml
+    env:
+      PATH: "review"
+- assertVisible:
+    text: ".*(Review|Mine).*"
+
+# FOCUS_REQUEST_ID and KNOWN_PERSON_EMAIL come from .env.

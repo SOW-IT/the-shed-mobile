@@ -1,0 +1,67 @@
+# §3.8 Requester actions (cancel / delete / resubmit / nudge) + §3.11 empty
+# states. Cancel/delete are destructive — this flow opens the confirmations and
+# backs out to avoid mutating fixtures; flip the `optional` taps to commit.
+appId: ${APP_ID}
+tags:
+  - staff
+---
+- runFlow:
+    file: ../common/sign-in-staff-to-requests.yaml
+    env:
+      EMAIL: ${STAFF_EMAIL}
+      PASSWORD: ${STAFF_PASSWORD}
+
+# Nudge (hand icon) only renders on an in-flight request that isn't declined
+# and isn't already waiting on a receipt (MyRequests.tsx canNudgeRequest) —
+# the declined/awaiting-receipt fixtures sort to the top, so scroll to find
+# one (e.g. the still-pending "Awaiting HOD approval" fixture).
+- scrollUntilVisible:
+    element:
+      text: "Nudge approver"
+    direction: DOWN
+    speed: 35
+    optional: true
+- tapOn:
+    text: "Nudge approver"
+    optional: true
+# "Send Nudge" / "Cancel" — dismiss via the unambiguous "Cancel" button rather
+# than a broad OR-regex (which could otherwise land on the non-interactive
+# "Send a nudge?" title and leave the modal open, blocking every step after).
+- tapOn:
+    text: "Cancel"
+    optional: true
+
+# The nudge scroll above moved past the declined fixture (it sorts near the
+# top); switch tabs and back to reset scroll position to the top before
+# looking for it. Declined/completed cards are collapsed by default
+# (RequestCard.tsx `collapsible`) — expand it to reveal its actions.
+- tapOn:
+    text: "Bank"
+    optional: true
+- tapOn:
+    text: "Mine.*"
+    optional: true
+- tapOn:
+    text: "View more details"
+    optional: true
+
+# Cancel (trash) → confirmation modal.
+- tapOn:
+    text: "Delete or cancel request"
+    optional: true
+- assertVisible:
+    text: ".*(Are you sure|Cancel request|Delete).*"
+    optional: true
+- tapOn:
+    text: "Cancel"
+    optional: true
+
+# Resubmit a declined request pre-fills the sheet.
+- tapOn:
+    text: "Resubmit request"
+    optional: true
+
+# Empty states (§3.11): plain staff has no Review/All tab (approver-only), so
+# the reachable empty state here is Bank with no saved account — not this
+# fixture set (it has one). Review/All empty-state coverage needs a signed-in
+# approver with no pending items, which is a different flow/role.

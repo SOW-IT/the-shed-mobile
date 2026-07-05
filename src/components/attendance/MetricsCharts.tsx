@@ -707,6 +707,12 @@ export function ChartCard({
         style={({ pressed }) => [pressed && { opacity: 0.85 }]}
       >
         <Card style={[styles.chartCard, { width }]}>
+          <Ionicons
+            name="expand-outline"
+            size={16}
+            color={t.faint}
+            style={styles.expandIcon}
+          />
           <View style={styles.chartHeader}>
             <View style={styles.chartTitleBlock}>
               <Text style={[typography.headline, { color: t.text }]}>
@@ -718,10 +724,11 @@ export function ChartCard({
                 </Text>
               ) : null}
             </View>
-            <View style={styles.chartHeaderRight}>
-              {legendItems ? <Legend items={legendItems} note={legendNote} /> : null}
-              <Ionicons name="expand-outline" size={16} color={t.faint} />
-            </View>
+            {legendItems ? (
+              <View style={styles.chartHeaderRight}>
+                <Legend items={legendItems} note={legendNote} />
+              </View>
+            ) : null}
           </View>
           {children}
         </Card>
@@ -1476,12 +1483,24 @@ const styles = StyleSheet.create({
   chartCard: {
     padding: spacing.md,
     gap: spacing.md,
+    position: "relative",
+  },
+  // Pinned to the card's padding edge so it always reads as "top right of
+  // the card", independent of how the title/legend above it wrap or how
+  // many legend items there are.
+  expandIcon: {
+    position: "absolute",
+    top: spacing.md,
+    right: spacing.md,
   },
   chartHeader: {
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "flex-start",
     gap: spacing.sm,
+    // Reserve room for the absolutely-positioned expand icon so title text
+    // never wraps underneath it.
+    paddingRight: spacing.xl,
   },
   // Grows/shrinks with the row but keeps a floor width, so the legend (fixed
   // width) is what wraps onto its own line once the row runs out of room —

@@ -1,0 +1,12 @@
+# Signs in and opens the Attendance tab. Param: EMAIL, PASSWORD.
+appId: ${APP_ID}
+---
+- runFlow: ./launch-fresh.yaml
+- runFlow:
+    file: ./sign-in.yaml
+    env:
+      EMAIL: ${EMAIL}
+      PASSWORD: ${PASSWORD}
+- tapOn:
+    text: ".*Attendance, tab.*"
+- assertVisible: "Events"

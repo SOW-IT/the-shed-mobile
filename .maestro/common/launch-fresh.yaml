@@ -1,0 +1,49 @@
+# Launches the app. Behaviour is controlled by two env vars so the same suite
+# runs against a standalone build (CI) and a local Expo dev client.
+#
+#   CLEAR_STATE – set to "true" to wipe app state for test isolation (CI /
+#     standalone builds). DEFAULTS TO NON-DESTRUCTIVE: if unset or anything
+#     other than "true", state is kept. On an Expo DEV CLIENT clearing state
+#     also logs you out and drops to the launcher, so leave it unset locally.
+#   DEV_CLIENT  – set to "true" on a dev client to dismiss the Expo
+#     developer-menu overlay if it appears after launch.
+#
+# NOTE: env defaults are intentionally NOT declared here. A subflow's own env
+# block overrides the value inherited from the CLI (`--env …`), which would make
+# the toggle impossible to control from the command line. The `typeof` guards
+# below keep the conditions safe when the vars are unset.
+#
+# CI / standalone:   maestro test --env CLEAR_STATE=true .maestro
+# Local dev client:  maestro test --env DEV_CLIENT=true .maestro   (state kept)
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      true: ${typeof CLEAR_STATE !== 'undefined' && CLEAR_STATE === 'true'}
+    commands:
+      - launchApp:
+          appId: ${APP_ID}
+          clearState: true
+          permissions:
+            notifications: unset # let §10.3 exercise the OS prompt explicitly
+- runFlow:
+    when:
+      true: ${typeof CLEAR_STATE === 'undefined' || CLEAR_STATE !== 'true'}
+    commands:
+      - launchApp:
+          appId: ${APP_ID}
+# Dismiss the Expo dev-menu overlay if it surfaced (dev client only). Guarded so
+# nothing is tapped unless the overlay is actually on screen.
+- runFlow:
+    when:
+      true: ${typeof DEV_CLIENT !== 'undefined' && DEV_CLIENT === 'true'}
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- runFlow:
+    when:
+      true: ${typeof DEV_CLIENT !== 'undefined' && DEV_CLIENT === 'true'}
+      visible: "Go home" # the dev-tools sheet is open
+    commands:
+      - tapOn:
+          point: "90%,47%" # the sheet's close (X)

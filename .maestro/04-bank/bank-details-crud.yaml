@@ -1,0 +1,150 @@
+# §4 Bank tab — add / validate / preferred / switch / edit / delete bank
+# accounts. Ends back at the empty state so repeat runs start clean.
+appId: ${APP_ID}
+tags:
+  - staff
+---
+- runFlow:
+    file: ../common/sign-in-staff-to-requests.yaml
+    env:
+      EMAIL: ${STAFF_EMAIL}
+      PASSWORD: ${STAFF_PASSWORD}
+- tapOn: "Bank"
+
+# Empty state → Add Bank Details opens the form (skip if an account exists).
+- runFlow:
+    when:
+      visible:
+        text: ".*Add Bank Details.*"
+    commands:
+      - tapOn:
+          text: ".*Add Bank Details.*"
+
+- runFlow:
+    when:
+      visible:
+        text: ".*Add Another Account.*"
+    commands:
+      - tapOn:
+          text: ".*Add Another Account.*"
+
+# ── Validation: account name required ────────────────────────────────────────
+# Tapping a field's LABEL doesn't focus its TextInput (separate Text sitting
+# above it) — tap the input itself via its placeholder/current value, as in
+# 03-requests/submit-request-and-validation.yaml. Tap the static section title
+# afterwards to dismiss the keyboard before hitting the footer button.
+- tapOn: "000-000"
+- inputText: "062000"
+- tapOn: "00000000"
+- inputText: "12345678"
+- tapOn: "Preferred Account"
+- tapOn:
+    text: "Add Account"
+- assertVisible: "Account name is required."
+
+# ── Validation: BSB digits only (non-digits are stripped as typed, so a
+# letters-only entry surfaces as the "required" error, not a format error —
+# either way non-digit input is rejected) ──────────────────────────────────
+- tapOn: "e.g. John Smith"
+- inputText: "E2E Test Account"
+- tapOn: "062000"
+- eraseText
+- inputText: "abc"
+- tapOn: "Preferred Account"
+- tapOn:
+    text: "Add Account"
+- assertVisible:
+    text: ".*(digit|BSB).*"
+
+# ── Validation: account number digits only (same strip-as-you-type rule).
+# The BSB test above stripped "abc" down to "", so BSB is showing its
+# placeholder again here — restore a valid BSB, then hit the Account Number
+# field (still holding "12345678" from the very first step) with letters.
+- tapOn: "000-000"
+- inputText: "062000"
+- tapOn: "12345678"
+- eraseText
+- inputText: "xyz"
+- tapOn: "Preferred Account"
+- tapOn:
+    text: "Add Account"
+- assertVisible:
+    text: ".*(digit|[Aa]ccount number).*"
+
+# ── Happy path save: account A ───────────────────────────────────────────────
+- tapOn: "00000000"
+- eraseText
+- inputText: "12345678"
+- tapOn: "Preferred Account"
+- tapOn:
+    text: "Add Account"
+- extendedWaitUntil:
+    visible: "E2E Test Account"
+    timeout: 15000
+
+# First account auto-marked preferred (star). "Set as preferred" is the
+# promote-button label shown only on non-preferred entries under "Other Saved
+# Accounts" — with a single account there are none, so the real signal that
+# it landed in the preferred slot is the empty-state message being gone.
+- assertNotVisible: "No preferred account yet."
+
+# ── Add a second account WITHOUT "make preferred" — existing stays preferred ─
+- tapOn:
+    text: ".*Add Another Account.*"
+- tapOn: "e.g. John Smith"
+- inputText: "E2E Second Account"
+- tapOn: "000-000"
+- inputText: "062000"
+- tapOn: "00000000"
+- inputText: "87654321"
+- tapOn: "Preferred Account"
+- tapOn:
+    text: "Add Account"
+- extendedWaitUntil:
+    visible: "E2E Second Account"
+    timeout: 15000
+# Account A is still preferred → its edit button keeps the generic label;
+# account B is the one non-preferred entry, so it's the one offering "Set as
+# preferred".
+- assertVisible: "Edit preferred bank details"
+- assertVisible: "Set as preferred"
+
+# ── Tapping the star on the non-preferred account (B) makes it preferred ────
+- tapOn: "Set as preferred"
+- extendedWaitUntil:
+    visible: "Edit E2E Test Account"
+    timeout: 8000
+
+# ── Edit the now non-preferred account A, save, confirm no duplicate row ────
+- tapOn: "Edit E2E Test Account"
+- tapOn: "E2E Test Account"
+- eraseText
+- inputText: "E2E Test Account Edited"
+- tapOn: "Preferred Account"
+- tapOn:
+    text: "Save"
+- extendedWaitUntil:
+    visible: "E2E Test Account Edited"
+    timeout: 8000
+- assertNotVisible: "E2E Test Account"
+
+# ── Delete the preferred account (B) → confirm shows the auto-fill warning,
+# and deletion promotes the sole remaining account (A) to preferred ─────────
+- tapOn: "Delete E2E Second Account"
+- assertVisible:
+    text: ".*auto-fill account.*turns off payment auto-fill.*"
+- tapOn: "Delete"
+- assertNotVisible: "E2E Second Account"
+- extendedWaitUntil:
+    visible: "Edit preferred bank details"
+    timeout: 8000
+- assertNotVisible: "No preferred account yet."
+
+# ── Delete the last remaining account → back to the empty state. The
+# preferred card's delete button stays account-specific even though its edit
+# button uses the generic "Edit preferred bank details" label. ─────────────
+- tapOn: "Delete E2E Test Account Edited"
+- tapOn: "Delete"
+- extendedWaitUntil:
+    visible: ".*Add Bank Details.*"
+    timeout: 8000

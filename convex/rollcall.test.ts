@@ -1018,11 +1018,10 @@ describe("validation + permissions", () => {
     const leader = asUser(t, LEADER);
     const { dateStart, dateEnd } = window();
     await leader.mutation(api.attendanceTags.saveAll, {
-      year: YEAR,
       tags: [{ name: "Social", colour: "blue" }],
       deleteIds: [],
     });
-    const [tag] = await leader.query(api.attendanceTags.list, { year: YEAR });
+    const [tag] = await leader.query(api.attendanceTags.list, {});
     const eventId = await leader.mutation(api.events.create, {
       name: "Tagged",
       dateStart,
@@ -1041,23 +1040,28 @@ describe("validation + permissions", () => {
         tagIds: [tag._id, tag._id],
       })
     ).resolves.toBeTruthy();
+    // Tags are global, so any catalogue tag is valid on any event — but a tag id
+    // that no longer exists (deleted) is rejected rather than silently stored.
     await leader.mutation(api.attendanceTags.saveAll, {
-      year: YEAR + 1,
-      tags: [{ name: "Other year", colour: "red" }],
+      tags: [{ name: "Temp", colour: "red" }],
       deleteIds: [],
     });
-    const [otherYearTag] = await leader.query(api.attendanceTags.list, {
-      year: YEAR + 1,
+    const temp = (await leader.query(api.attendanceTags.list, {})).find(
+      (x) => x.name === "Temp"
+    )!;
+    await leader.mutation(api.attendanceTags.saveAll, {
+      tags: [],
+      deleteIds: [temp._id],
     });
     await expect(
       leader.mutation(api.events.create, {
-        name: "Wrong year tag",
+        name: "Deleted tag",
         dateStart,
         dateEnd,
         subgroups: [USYD],
-        tagIds: [otherYearTag._id],
+        tagIds: [temp._id],
       })
-    ).rejects.toThrow(/invalid for this year/i);
+    ).rejects.toThrow(/no longer exist/i);
   });
 });
 
@@ -1184,11 +1188,10 @@ describe("guards + edge cases", () => {
     const leader = asUser(t, LEADER);
     const { dateStart, dateEnd } = window();
     await leader.mutation(api.attendanceTags.saveAll, {
-      year: YEAR,
       tags: [{ name: "Social", colour: "blue" }],
       deleteIds: [],
     });
-    const [tag] = await leader.query(api.attendanceTags.list, { year: YEAR });
+    const [tag] = await leader.query(api.attendanceTags.list, {});
     const eventId = await leader.mutation(api.events.create, {
       name: "Original",
       dateStart,
@@ -1231,11 +1234,10 @@ describe("guards + edge cases", () => {
     const leader = asUser(t, LEADER);
     const { dateStart, dateEnd } = window();
     await leader.mutation(api.attendanceTags.saveAll, {
-      year: YEAR,
       tags: [{ name: "Outreach", colour: "red" }],
       deleteIds: [],
     });
-    const [tag] = await leader.query(api.attendanceTags.list, { year: YEAR });
+    const [tag] = await leader.query(api.attendanceTags.list, {});
     const eventId = await leader.mutation(api.events.create, {
       name: "Tagged Event",
       dateStart,
@@ -1245,7 +1247,6 @@ describe("guards + edge cases", () => {
     });
     expect((await leader.query(api.events.get, { eventId }))?.tags?.[0]?.name).toBe("Outreach");
     await leader.mutation(api.attendanceTags.saveAll, {
-      year: YEAR,
       tags: [],
       deleteIds: [tag._id],
     });
@@ -1259,11 +1260,10 @@ describe("guards + edge cases", () => {
     const { dateStart, dateEnd } = window();
 
     await leader.mutation(api.attendanceTags.saveAll, {
-      year: YEAR,
       tags: [{ name: "Outreach", colour: "orange" }],
       deleteIds: [],
     });
-    const [tag] = await leader.query(api.attendanceTags.list, { year: YEAR });
+    const [tag] = await leader.query(api.attendanceTags.list, {});
 
     const pastId = await leader.mutation(api.events.create, {
       name: "Past",

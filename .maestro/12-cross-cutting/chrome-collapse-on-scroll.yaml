@@ -1,0 +1,30 @@
+# §12.3 Top chrome (logo/avatar row) collapses on scroll down, reappears on
+# scroll up. Exercised on a long list (Members).
+appId: ${APP_ID}
+tags:
+  - staff
+---
+- runFlow:
+    file: ../common/sign-in-staff-to-attendance.yaml
+    env:
+      EMAIL: ${STAFF_EMAIL}
+      PASSWORD: ${STAFF_PASSWORD}
+- tapOn: "Members"
+
+# Chrome visible initially.
+- assertVisible:
+    text: "Open your profile"
+
+# Scroll down → chrome collapses.
+- scroll
+- scroll
+- assertNotVisible:
+    text: "Open your profile"
+
+# Scroll back up → chrome returns.
+- swipe:
+    direction: DOWN
+- swipe:
+    direction: DOWN
+- assertVisible:
+    text: "Open your profile"

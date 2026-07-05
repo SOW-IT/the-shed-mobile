@@ -71,7 +71,6 @@ export function CreateEventSheet({
   visible,
   onClose,
   onDeleted,
-  year,
   subgroup,
   subgroups,
   event,
@@ -80,19 +79,16 @@ export function CreateEventSheet({
   onClose: () => void;
   /** Called after a successful delete (e.g. navigate away from the event screen). */
   onDeleted?: () => void;
-  year: number;
   subgroup: string;
   subgroups: string[];
   event?: EditableEvent;
 }) {
   const t = useAppTheme();
   const router = useRouter();
-  // The event's staff year is derived by callers from its start date and passed
-  // in as `year` (events no longer store a year column).
-  const formYear = year;
   const isEditing = event !== undefined;
   const ownerGroup = event?.subgroups[0] ?? subgroup;
-  const tags = useQuery(api.attendanceTags.list, { year: formYear });
+  // Tags are global (not year-scoped) — one shared catalogue for every event.
+  const tags = useQuery(api.attendanceTags.list, {});
   const ensureMetadata = useMutation(api.attendanceMetadata.ensureDefaults);
   const createEvent = useMutation(api.events.create);
   const updateEvent = useMutation(api.events.update);

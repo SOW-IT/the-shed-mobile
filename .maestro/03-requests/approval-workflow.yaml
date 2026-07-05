@@ -1,0 +1,62 @@
+# §3.4 Approval workflow (Review) — approve / decline, own-request guard.
+# Needs an approver account (HOD/Budget/etc.) with a pending request to action.
+appId: ${APP_ID}
+tags:
+  - approver
+---
+- runFlow: ../common/launch-fresh.yaml
+- runFlow:
+    file: ../common/sign-in.yaml
+    env:
+      EMAIL: ${APPROVER_EMAIL}
+      PASSWORD: ${APPROVER_PASSWORD}
+- tapOn:
+    text: ".*Requests, tab.*"
+# Segment carries an unread-count badge (e.g. "Review, 1"); match by prefix.
+- tapOn:
+    text: "Review.*"
+
+# Pending requests grouped under "Awaiting Your … Approval".
+- assertVisible:
+    text: ".*Awaiting Your.*Approval.*"
+
+# ── Decline requires a non-empty reason ──────────────────────────────────────
+- tapOn:
+    text: "Decline"
+- tapOn:
+    text: ".*(Decline|Confirm).*"
+    index: 1
+- assertVisible:
+    text: ".*Please give a reason.*"   # inline, not a raw server error
+- tapOn:
+    text: ".*reason.*"
+    optional: true
+- inputText: "E2E decline reason"
+# (Leave the actual decline uncommitted here to preserve fixtures; close it.)
+- tapOn:
+    text: "Close"
+    optional: true
+
+# ── Approve moves it to the next step ────────────────────────────────────────
+- tapOn:
+    text: "Approve"
+- assertVisible:
+    text: ".*(Approve|Confirm).*"     # confirmation modal
+# The underlying card's checkmark (also labelled "Approve") is obscured by the
+# modal overlay once it's open, so only the dialog's title + confirm button
+# match here — same OR-regex shape as the Decline block above, button is index 1.
+- tapOn:
+    text: ".*(Approve|Confirm).*"
+    index: 1
+
+# Actioned request drops into the collapsible Reviewed section (count suffix,
+# e.g. "Reviewed (2)" — match by prefix).
+- extendedWaitUntil:
+    visible: "Reviewed.*"
+    timeout: 15000
+
+# NOTE — additional §3.4 checks best asserted with dedicated fixtures:
+#   • "You can't review your own request." (own-request guard)
+#   • Cannot approve out of order
+#   • Receipt-waiting requests stay visible to the approver who cleared them
+#   • Auto-approved steps appear in Reviewed history (regression 1.6.12)

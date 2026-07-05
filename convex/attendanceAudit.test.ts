@@ -518,28 +518,24 @@ describe("audit logging across attendance mutations", () => {
     const staff = asUser(t, ADMIN);
 
     await staff.mutation(api.attendanceTags.saveAll, {
-      year: YEAR,
       tags: [{ name: "Weekly" }],
       deleteIds: [],
     });
-    let tags = await staff.query(api.attendanceTags.list, { year: YEAR });
+    let tags = await staff.query(api.attendanceTags.list, {});
     const tagId = tags[0]._id;
 
     // Rename.
     await staff.mutation(api.attendanceTags.saveAll, {
-      year: YEAR,
       tags: [{ id: tagId, name: "Weekly Meeting" }],
       deleteIds: [],
     });
     // Plain update (same name, different colour).
     await staff.mutation(api.attendanceTags.saveAll, {
-      year: YEAR,
       tags: [{ id: tagId, name: "Weekly Meeting", colour: "#abcdef" }],
       deleteIds: [],
     });
     // Delete.
     await staff.mutation(api.attendanceTags.saveAll, {
-      year: YEAR,
       tags: [],
       deleteIds: [tagId],
     });
@@ -558,16 +554,14 @@ describe("audit logging across attendance mutations", () => {
     const t = await setup();
     const staff = asUser(t, ADMIN);
     await staff.mutation(api.attendanceTags.saveAll, {
-      year: YEAR,
       tags: [{ name: "Alpha" }, { name: "Beta" }, { name: "Gamma" }],
       deleteIds: [],
     });
-    const tags = await staff.query(api.attendanceTags.list, { year: YEAR });
+    const tags = await staff.query(api.attendanceTags.list, {});
     const idOf = (n: string) => tags.find((x) => x.name === n)!._id;
 
     // The client re-sends every tag on save; only Beta's colour changes here.
     await staff.mutation(api.attendanceTags.saveAll, {
-      year: YEAR,
       tags: [
         { id: idOf("Alpha"), name: "Alpha" },
         { id: idOf("Beta"), name: "Beta", colour: "#abcdef" },

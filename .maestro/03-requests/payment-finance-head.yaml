@@ -1,0 +1,64 @@
+# §3.7 Payment (Finance Head) — Ready to Pay → Mark as paid → PAID.
+# Needs the Finance-Head account and a request in AWAITING PAYMENT.
+appId: ${APP_ID}
+tags:
+  - finance
+---
+- runFlow: ../common/launch-fresh.yaml
+- runFlow:
+    file: ../common/sign-in.yaml
+    env:
+      EMAIL: ${FINANCE_EMAIL}
+      PASSWORD: ${FINANCE_PASSWORD}
+- tapOn:
+    text: ".*Requests, tab.*"
+# "Ready to Pay" is part of the Review tab (the approver's queue), not All.
+# Segment carries an unread-count badge (e.g. "Review, 8, 15"); match by prefix.
+- tapOn:
+    text: "Review.*"
+
+# "Ready to Pay" lives under Review (the finance approver's queue), below ALL
+# four pending-approval sections (hod/budgetManager/director/financeHead).
+# This deployment's Review tab mixes real, live dev data with the E2E
+# fixtures, and how much of it sits ahead of our fixture varies run to run (it
+# is NOT a fixed, isolated list) — timeout has to cover the slow case, not the
+# lucky one. 90s was empirically the value that held up across repeated runs;
+# smaller values (25s, 45s) intermittently failed on a slower/busier pass.
+- scrollUntilVisible:
+    element:
+      text: ".*Ready to Pay.*"
+    direction: DOWN
+    speed: 35
+    timeout: 90000
+    visibilityPercentage: 50
+    waitToSettleTimeoutMs: 1000
+- scroll
+- scroll
+# The card's icon trigger is labelled "Mark as paid" (lowercase p); the
+# PaySheet's confirm button is a distinct "Mark as Paid" (capital P) — no
+# index needed, the two never collide.
+- tapOn:
+    text: "Mark as paid"
+- assertVisible:
+    text: ".*Pay Reimbursement.*"
+
+# Paid ≤ 0 blocked.
+- tapOn:
+    text: ".*amount.*"
+    optional: true
+- inputText: "0"
+- tapOn:
+    text: "Mark as Paid"
+- assertVisible: "The paid amount must be a positive number."
+
+# Positive amount → PAID.
+- tapOn:
+    text: ".*amount.*"
+- eraseText
+- inputText: "42.50"
+- tapOn:
+    text: "Mark as Paid"
+- extendedWaitUntil:
+    visible:
+      text: ".*(PAID|Paid).*"
+    timeout: 15000

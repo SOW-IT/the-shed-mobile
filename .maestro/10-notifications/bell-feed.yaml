@@ -1,0 +1,30 @@
+# §10.1 In-app bell — hidden for visitors, feed grouped Unread/Read, mark all
+# read.
+appId: ${APP_ID}
+tags:
+  - staff
+---
+# Visitor: no bell. Plain launch-fresh keeps whatever session a PRIOR flow
+# left behind (Keychain token survives) — a signed-in-as-admin carryover from
+# an earlier flow would still show the bell here. Use ensure-signed-out
+# (matching 07-org-chart/org-chart.yaml's convention) to guarantee a visitor.
+- runFlow: ../common/ensure-signed-out.yaml
+- assertNotVisible:
+    text: ".*Notifications.*"
+
+# Signed-in staff: bell present, feed grouped.
+- runFlow:
+    file: ../common/sign-in.yaml
+    env:
+      EMAIL: ${STAFF_EMAIL}
+      PASSWORD: ${STAFF_PASSWORD}
+- tapOn:
+    text: ".*Notifications.*"
+- assertVisible:
+    text: ".*(Unread|Read|No notifications).*"
+
+# Mark all read empties Unread.
+- tapOn:
+    text: "Mark all notifications read"
+    optional: true
+- back

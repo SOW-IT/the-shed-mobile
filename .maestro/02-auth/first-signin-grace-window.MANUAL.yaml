@@ -1,0 +1,19 @@
+# §2 Auth edge cases that are NOT reliably Maestro-automatable — documented so
+# they are not forgotten during release testing.
+appId: ${APP_ID}
+tags:
+  - manual
+---
+# 1) First cold Google sign-in completes even when the auth session dismisses
+#    before the theshedmobile://…?code= deep link arrives (grace-window
+#    recovery — must NOT need a second tap). Regression watch 1.6.3.
+#    → Manual: verify on a real first-install cold sign-in; timing-dependent.
+#
+# 2) Missing EXPO_PUBLIC_CONVEX_URL build shows the "Configuration error"
+#    screen (not a blank screen).
+#    → Build-config test, not a runtime flow: build with the env var unset and
+#      confirm the Configuration error screen renders.
+- launchApp:
+    appId: ${APP_ID}
+- assertVisible:
+    text: ".*"

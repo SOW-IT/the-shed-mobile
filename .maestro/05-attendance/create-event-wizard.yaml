@@ -1,0 +1,58 @@
+# §5.2 Create event (4-step wizard): Name → Tags → Collaboration → Schedule.
+appId: ${APP_ID}
+tags:
+  - staff
+---
+- runFlow:
+    file: ../common/sign-in-staff-to-attendance.yaml
+    env:
+      EMAIL: ${STAFF_EMAIL}
+      PASSWORD: ${STAFF_PASSWORD}
+
+# Open create-event (footer action on the Events tab). Exact text — a loose
+# ".*Create event.*"/".*Create an event.*" regex also matches the empty-state
+# copy ("Create an event to take attendance.") when the list has no events.
+- tapOn: "+ Create event"
+
+# Step 0 — Name; Next disabled until entered. Tapping the "Event name" LABEL
+# doesn't focus the TextInput (separate Text above it) — tap the placeholder.
+- assertVisible:
+    text: "Next"
+- tapOn: "e.g. Weekly Meeting"
+- inputText: "E2E Wizard Event"
+- tapOn: "Next"
+
+# Step 1 — Tags (only applicable tags; "Add tags in Tags first" when none).
+- tapOn: "Next"
+
+# Step 2 — Collaboration (owner group locked).
+- tapOn: "Next"
+
+# Step 3 — Schedule defaults to today, 5–7pm. Spinner pickers respond
+# (regression 1.6.3). Just assert the schedule step, then cancel to keep drafts.
+- assertVisible:
+    text: ".*(Schedule|Start|End).*"
+
+# Cancelling a NEW event closes without confirm and keeps the draft (1.6.7).
+# The sheet's "X" (accessibilityLabel "Close") — Maestro's `back` command
+# doesn't dismiss this iOS modal.
+- tapOn: "Close"
+- runFlow:
+    when:
+      visible:
+        text: ".*Discard.*"
+    commands:
+      - tapOn:
+          text: ".*Discard.*"
+          optional: true
+
+# Reopen resumes the draft at the same step (no stacked-modal freeze) — step
+# back to Name to confirm the typed value survived too.
+- tapOn: "+ Create event"
+- assertVisible:
+    text: ".*(Schedule|Start|End).*"
+- tapOn: "Back"
+- tapOn: "Back"
+- tapOn: "Back"
+- assertVisible: "E2E Wizard Event"
+- tapOn: "Close"

@@ -1,0 +1,42 @@
+# Signs in via the dev/test-only auth bypass — no Google OAuth (see
+# convex/auth.ts "e2e" provider + src/app/e2e-auth.tsx).
+#
+# Requires the app to be built against an E2E-enabled deployment
+# (E2E_AUTH_ENABLED=true and E2E_AUTH_SECRET=<secret> set on that deployment —
+# NEVER production). Pass the matching secret and the account to sign in as:
+#
+#   maestro test --env E2E_SECRET=<secret> --env SCHEME=theshedmobile \
+#     --env EMAIL=someone@sow.org.au …
+#
+# Params: EMAIL (the account); E2E_SECRET + SCHEME come from the run env.
+appId: ${APP_ID}
+---
+- openLink: "${SCHEME}://e2e-auth?email=${EMAIL}&secret=${E2E_SECRET}"
+# The bypass signs out any current session and signs in the requested account,
+# persisting the token to secure storage. The running client doesn't hot-swap
+# the session, so relaunch to adopt it (the fresh process reads the new token).
+- runFlow:
+    when:
+      true: ${typeof DEV_CLIENT !== 'undefined' && DEV_CLIENT === 'true'}
+    commands:
+      - stopApp
+- launchApp:
+    appId: ${APP_ID}
+# Dismiss the Expo dev-menu overlay if it appears (dev client).
+- runFlow:
+    when:
+      true: ${typeof DEV_CLIENT !== 'undefined' && DEV_CLIENT === 'true'}
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- runFlow:
+    when:
+      true: ${typeof DEV_CLIENT !== 'undefined' && DEV_CLIENT === 'true'}
+      visible: "Go home"
+    commands:
+      - tapOn:
+          point: "90%,47%"
+# Signed-in chrome should now be present.
+- extendedWaitUntil:
+    visible: "Open your profile"
+    timeout: 30000

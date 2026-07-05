@@ -527,10 +527,23 @@ export default function EventAttendanceScreen() {
   const onSignIn = (m: NonNullable<typeof roster>[number]) => {
     if (!canEdit) return;
     hapticSelect();
+    // The optimistic entry only ever clears once the live query confirms it
+    // (see the effect above) — on a rejected mutation nothing else removes
+    // it, so a failure must revert it here or the row shows signed-in forever.
+    const onFailure = (e: unknown) => {
+      setOptimisticSignedIn((prev) => {
+        const next = new Map(prev);
+        next.delete(m.key);
+        return next;
+      });
+      setToast({ text: errorMessage(e) });
+    };
     if (m.kind === "staff" && m.email) {
-      void signIn({ eventId: evId, email: m.email });
+      void signIn({ eventId: evId, email: m.email }).catch(onFailure);
     } else if (m.memberId) {
-      void signIn({ eventId: evId, memberId: m.memberId as Id<"attendanceMembers"> });
+      void signIn({ eventId: evId, memberId: m.memberId as Id<"attendanceMembers"> }).catch(
+        onFailure
+      );
     }
   };
   const onSignOutStart = (a: NonNullable<typeof attendance>[number]) => {
@@ -544,8 +557,21 @@ export default function EventAttendanceScreen() {
   const onSignOut = (a: NonNullable<typeof attendance>[number]) => {
     if (!canEdit) return;
     hapticSelect();
-    if (a.email) void signOut({ eventId: evId, email: a.email });
-    else if (a.memberId) void signOut({ eventId: evId, memberId: a.memberId });
+    const key = personKey(a);
+    // Same revert-on-failure rationale as onSignIn — the optimistic set only
+    // clears once the live query confirms the sign-out.
+    const onFailure = (e: unknown) => {
+      if (key) {
+        setOptimisticSignedOut((prev) => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+      }
+      setToast({ text: errorMessage(e) });
+    };
+    if (a.email) void signOut({ eventId: evId, email: a.email }).catch(onFailure);
+    else if (a.memberId) void signOut({ eventId: evId, memberId: a.memberId }).catch(onFailure);
   };
 
   const openMemberEdit = (memberId: Id<"attendanceMembers">) => {
@@ -565,7 +591,9 @@ export default function EventAttendanceScreen() {
   const onMemberCreated = (memberId: Id<"attendanceMembers">) => {
     if (!canEdit) return;
     hapticSelect();
-    void signIn({ eventId: evId, memberId });
+    void signIn({ eventId: evId, memberId }).catch((e) =>
+      setToast({ text: errorMessage(e) })
+    );
     // Clear the search so the freshly signed-in member is visible at the top of
     // the signed-in list rather than hidden behind the search results.
     setSearch("");
@@ -950,7 +978,6 @@ export default function EventAttendanceScreen() {
         visible={eventEditOpen}
         onClose={() => setEventEditOpen(false)}
         onDeleted={() => router.back()}
-        year={eventStaffYear(event.dateStart)}
         subgroup={event.subgroups[0] ?? SOW_SUBGROUP}
         subgroups={subgroups}
         event={event}
@@ -958,7 +985,6 @@ export default function EventAttendanceScreen() {
       <ExportSheet
         visible={exportOpen}
         onClose={() => setExportOpen(false)}
-        year={eventStaffYear(event.dateStart)}
         subgroup={event.subgroups[0] ?? SOW_SUBGROUP}
         eventId={evId}
       />

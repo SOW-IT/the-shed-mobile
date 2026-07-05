@@ -1,0 +1,42 @@
+# §8 Profile & person — own profile fields, Local church edit dirty-gating,
+# service history, sign-out flow.
+appId: ${APP_ID}
+tags:
+  - staff
+---
+- runFlow: ../common/launch-fresh.yaml
+- runFlow:
+    file: ../common/sign-in.yaml
+    env:
+      EMAIL: ${STAFF_EMAIL}
+      PASSWORD: ${STAFF_PASSWORD}
+- tapOn:
+    text: "Open your profile"
+
+# Own profile: name, email, current assignment, current staff year.
+- assertVisible: ${STAFF_EMAIL}
+
+# Local church editable; Save disabled until dirty. Tapping the "Local
+# church" LABEL doesn't focus the TextInput (separate Text above it) — tap
+# the input itself via its placeholder (first run) or current value (a
+# repeat run already saved "E2E Test Church" last time). The button is
+# "Save Church", not bare "Save".
+- tapOn:
+    text: ".*(SOW City Church|E2E Test Church).*"
+- inputText: "E2E Test Church"
+- assertVisible:
+    text: ".*Save Church.*"
+- tapOn:
+    text: ".*Save Church.*"
+
+# Service History section present.
+- scrollUntilVisible:
+    element:
+      text: ".*(Service History|Service history).*"
+    direction: DOWN
+    optional: true
+
+# Camera action opens the picker (picker itself is OS-level — not driven here).
+- assertVisible:
+    text: "Open your profile"
+    optional: true

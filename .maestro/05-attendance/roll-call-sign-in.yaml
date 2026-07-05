@@ -1,0 +1,70 @@
+# §5.3 Event sign-in screen (roll-call) — swipe / tap to sign in-out, search,
+# swipe-right to edit member, "Create [search]" footer.
+# Needs an event to open; opens the first event card on the Events tab.
+appId: ${APP_ID}
+tags:
+  - staff
+---
+- runFlow:
+    file: ../common/sign-in-staff-to-attendance.yaml
+    env:
+      EMAIL: ${STAFF_EMAIL}
+      PASSWORD: ${STAFF_PASSWORD}
+
+# The Events tab defaults to the org-wide "SOW" ring (subgroups[0]), which
+# doesn't include the seeded fixture event — it's scoped to the "E2E Test
+# Campus" ring. Select it first (there's no unified "All" — each ring is one
+# specific subgroup, org-wide SOW included).
+- tapOn: "E2E Test Campus"
+
+# The event card's ATTENDANCE Text is masked by its wrapping Pressable's
+# explicit "Open <name>" accessibilityLabel on iOS — target that instead
+# (see README's "container label masks child Text" note). Brackets in the
+# fixture's "[E2E]" prefix are regex-special, so match the unbracketed
+# "Weekly Meeting" part of its name. It's usually below the fold (other
+# manually-created events sort above it), so scroll it into view first.
+- scrollUntilVisible:
+    element:
+      text: ".*Open.*Weekly Meeting.*"
+    direction: DOWN
+- tapOn:
+    text: ".*Open.*Weekly Meeting.*"
+- assertVisible:
+    text: ".*signed in.*"    # header count chip
+
+# Search filters both lists.
+- tapOn:
+    text: ".*Search.*"
+    optional: true
+- inputText: "e2e"
+
+# The gestures below need a matching member row in the fixture; guarded so a
+# missing row degrades instead of failing.
+- runFlow:
+    when:
+      visible:
+        text: ".*E2E.*"
+    commands:
+      # Swipe left a not-signed-in row → signs in (count updates optimistically).
+      - swipe:
+          direction: LEFT
+          from:
+            text: ".*E2E.*"
+      # Tap a row to reveal the arrow → also signs in/out.
+      - tapOn:
+          text: ".*E2E.*"
+      # Swipe right → Edit Member sheet.
+      - swipe:
+          direction: RIGHT
+          from:
+            text: ".*E2E.*"
+      - tapOn:
+          text: "Close"
+          optional: true
+
+# "Create [search text]" footer creates a member and signs them in.
+- assertVisible:
+    text: ".*Create.*e2e.*"
+    optional: true
+
+- back

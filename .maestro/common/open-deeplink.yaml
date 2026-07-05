@@ -1,0 +1,5 @@
+# Opens a deep link into the app (checklist §11).
+# Param: PATH — path portion, e.g. "request/abc123" or "attendance/event/xyz".
+appId: ${APP_ID}
+---
+- openLink: "${SCHEME}://${PATH}"

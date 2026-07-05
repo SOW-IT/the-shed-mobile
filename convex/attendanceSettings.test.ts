@@ -54,7 +54,6 @@ describe("attendance tags (branch coverage)", () => {
     const staff = asUser(t, STAFF);
     await expect(
       staff.mutation(api.attendanceTags.saveAll, {
-        year: YEAR,
         tags: [{ name: "Retreat" }],
         deleteIds: [],
       })
@@ -71,17 +70,15 @@ describe("attendance tags (branch coverage)", () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceTags.saveAll, {
-      year: YEAR,
       tags: [{ name: "Retreat", colour: "purple" }],
       deleteIds: [],
     });
-    const [tag] = await leader.query(api.attendanceTags.list, { year: YEAR });
+    const [tag] = await leader.query(api.attendanceTags.list, {});
     await leader.mutation(api.attendanceTags.saveAll, {
-      year: YEAR,
       tags: [{ id: tag._id, name: "Retreat", colour: "purple", subgroups: [USYD, "ALL"] }],
       deleteIds: [],
     });
-    const [updated] = await leader.query(api.attendanceTags.list, { year: YEAR });
+    const [updated] = await leader.query(api.attendanceTags.list, {});
     expect(updated.subgroups).toContain(USYD);
   });
 
@@ -89,20 +86,17 @@ describe("attendance tags (branch coverage)", () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceTags.saveAll, {
-      year: YEAR,
       tags: [{ name: "Keep", colour: "blue" }],
       deleteIds: [],
     });
-    const [tag] = await leader.query(api.attendanceTags.list, { year: YEAR });
+    const [tag] = await leader.query(api.attendanceTags.list, {});
     await leader.mutation(api.attendanceTags.saveAll, {
-      year: YEAR,
       tags: [],
       deleteIds: [tag._id],
     });
     // Tag is gone; deleting the same stale id again is silently ignored.
     await expect(
       leader.mutation(api.attendanceTags.saveAll, {
-        year: YEAR,
         tags: [],
         deleteIds: [tag._id],
       })
@@ -115,12 +109,11 @@ describe("attendance tags", () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceTags.saveAll, {
-      year: YEAR,
       tags: [{ name: "Zeta", colour: "blue" }, { name: "Alpha", colour: "red" }],
       deleteIds: [],
     });
-    expect(await t.query(api.attendanceTags.list, { year: YEAR })).toEqual([]);
-    const tags = await leader.query(api.attendanceTags.list, { year: YEAR });
+    expect(await t.query(api.attendanceTags.list, {})).toEqual([]);
+    const tags = await leader.query(api.attendanceTags.list, {});
     expect(tags.map((tag) => tag.name)).toEqual(["Alpha", "Zeta"]);
   });
 
@@ -128,56 +121,169 @@ describe("attendance tags", () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceTags.saveAll, {
-      year: YEAR,
       tags: [{ name: "Social", colour: "green" }],
       deleteIds: [],
     });
-    const [tag] = await leader.query(api.attendanceTags.list, { year: YEAR });
+    const [tag] = await leader.query(api.attendanceTags.list, {});
     await leader.mutation(api.attendanceTags.saveAll, {
-      year: YEAR,
       tags: [{ id: tag._id, name: "Social Night", colour: "teal" }],
       deleteIds: [],
     });
     expect(
-      (await leader.query(api.attendanceTags.list, { year: YEAR }))[0].name
+      (await leader.query(api.attendanceTags.list, {}))[0].name
     ).toBe("Social Night");
     await leader.mutation(api.attendanceTags.saveAll, {
-      year: YEAR,
       tags: [],
       deleteIds: [tag._id],
     });
-    expect(await leader.query(api.attendanceTags.list, { year: YEAR })).toEqual(
-      []
-    );
+    expect(await leader.query(api.attendanceTags.list, {})).toEqual([]);
     await expect(
       leader.mutation(api.attendanceTags.saveAll, {
-        year: YEAR,
         tags: [{ name: "   " }],
         deleteIds: [],
       })
     ).rejects.toThrow(/needs a name/i);
     await expect(
       leader.mutation(api.attendanceTags.saveAll, {
-        year: YEAR,
         tags: [{ name: "Dup" }, { name: "dup" }],
         deleteIds: [],
       })
     ).rejects.toThrow(/Duplicate tag/i);
+  });
+});
 
-    await leader.mutation(api.attendanceTags.saveAll, {
-      year: YEAR,
-      tags: [{ name: "Persist", colour: "blue" }],
-      deleteIds: [],
+describe("consolidateAttendanceTags migration", () => {
+  test("merges same-named tags into one global row, unions scopes, remaps events, clears year", async () => {
+    const t = await setup();
+    // Two legacy per-year "Weekly Meeting" rows with different sub-group scopes,
+    // plus a duplicate global row, seeded directly with the deprecated `year`.
+    const { a2025, a2026, dup, keep, evId } = await t.run(async (ctx) => {
+      const a2025 = await ctx.db.insert("attendanceTags", {
+        year: YEAR,
+        name: "Weekly Meeting",
+        colour: "blue",
+        subgroups: [USYD],
+      });
+      const a2026 = await ctx.db.insert("attendanceTags", {
+        year: YEAR + 1,
+        name: "weekly meeting",
+        colour: "teal",
+        subgroups: ["UNSW"],
+      });
+      // A third same-named row whose scope overlaps a2025 — the union must
+      // de-duplicate USYD rather than list it twice.
+      const dup = await ctx.db.insert("attendanceTags", {
+        name: "Weekly Meeting",
+        subgroups: [USYD],
+      });
+      const keep = await ctx.db.insert("attendanceTags", {
+        year: YEAR,
+        name: "Retreat",
+        colour: "purple",
+        subgroups: [USYD],
+      });
+      const evId = await ctx.db.insert("events", {
+        name: "Meeting",
+        dateStart: Date.now(),
+        dateEnd: Date.now() + 3600_000,
+        subgroups: [USYD],
+        tagIds: [a2026, keep],
+      });
+      return { a2025, a2026, dup, keep, evId };
     });
-    const [persist] = await leader.query(api.attendanceTags.list, { year: YEAR });
-    await leader.mutation(api.attendanceTags.saveAll, {
-      year: YEAR + 1,
-      tags: [{ id: persist._id, name: "Wrong year" }],
-      deleteIds: [],
+
+    const res = await t.mutation(
+      internal.attendanceTags.consolidateAttendanceTags,
+      {}
+    );
+    // Two "Weekly Meeting" variants collapse into the earliest survivor.
+    expect(res.merged).toBe(2);
+
+    const rows = await t.run(async (ctx) =>
+      ctx.db.query("attendanceTags").collect()
+    );
+    const weekly = rows.filter(
+      (r) => r.name.trim().toLowerCase() === "weekly meeting"
+    );
+    expect(weekly).toHaveLength(1);
+    const survivor = weekly[0];
+    // Survivor is the earliest-created row (a2025) and its `year` is cleared.
+    expect(survivor._id).toBe(a2025);
+    expect(survivor.year).toBeUndefined();
+    // Scopes are unioned across the merged rows (USYD de-duplicated).
+    expect(new Set(survivor.subgroups)).toEqual(new Set([USYD, "UNSW"]));
+
+    // The event's tag id that pointed at a loser (a2026) now points at the
+    // survivor, de-duplicated, with the untouched tag preserved.
+    const event = await t.run(async (ctx) => ctx.db.get(evId));
+    expect(new Set(event!.tagIds)).toEqual(new Set([survivor._id, keep]));
+
+    // The non-duplicate tag survives and also has its year cleared.
+    const retreat = rows.find((r) => r._id === keep);
+    expect(retreat?.year).toBeUndefined();
+    expect(rows.some((r) => r._id === dup)).toBe(false);
+
+    // Idempotent: a second run merges nothing.
+    const again = await t.mutation(
+      internal.attendanceTags.consolidateAttendanceTags,
+      {}
+    );
+    expect(again.merged).toBe(0);
+  });
+
+  test("takes a loser's colour when the survivor has none, and leaves unrelated/tag-less events alone", async () => {
+    const t = await setup();
+    const { survivorId, soloEventId, taglessId } = await t.run(async (ctx) => {
+      // Survivor has neither colour nor year; the later duplicate carries one.
+      const survivor = await ctx.db.insert("attendanceTags", {
+        name: "Camp",
+        subgroups: [USYD],
+      });
+      await ctx.db.insert("attendanceTags", {
+        name: "camp",
+        colour: "red",
+        subgroups: [USYD],
+      });
+      // A tag with no duplicate and no year — nothing to change or clear.
+      const solo = await ctx.db.insert("attendanceTags", { name: "Solo" });
+      // Event referencing only the untouched solo tag → left byte-for-byte.
+      const soloEventId = await ctx.db.insert("events", {
+        name: "Solo event",
+        dateStart: Date.now(),
+        dateEnd: Date.now() + 3600_000,
+        subgroups: [USYD],
+        tagIds: [solo],
+      });
+      // Event with no tags at all → skipped by the remap pass.
+      const taglessId = await ctx.db.insert("events", {
+        name: "No tags",
+        dateStart: Date.now(),
+        dateEnd: Date.now() + 3600_000,
+        subgroups: [USYD],
+      });
+      return { survivorId: survivor, soloEventId, taglessId };
     });
-    expect(
-      (await leader.query(api.attendanceTags.list, { year: YEAR }))[0].name
-    ).toBe("Persist");
+
+    const res = await t.mutation(
+      internal.attendanceTags.consolidateAttendanceTags,
+      {}
+    );
+    // Only the "Camp" duplicate merges; no survivor had a `year` to clear.
+    expect(res.merged).toBe(1);
+    expect(res.cleared).toBe(0);
+    // The merge remapped nothing (no event referenced the loser).
+    expect(res.eventsRemapped).toBe(0);
+
+    const survivor = await t.run(async (ctx) => ctx.db.get(survivorId));
+    // Survivor inherited the loser's colour and kept its (unchanged) scope.
+    expect(survivor?.colour).toBe("red");
+    expect(survivor?.subgroups).toEqual([USYD]);
+
+    // Neither event was rewritten.
+    const soloEvent = await t.run(async (ctx) => ctx.db.get(soloEventId));
+    expect(soloEvent?.tagIds).toHaveLength(1);
+    const tagless = await t.run(async (ctx) => ctx.db.get(taglessId));
+    expect(tagless?.tagIds).toBeUndefined();
   });
 });
 

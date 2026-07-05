@@ -1,0 +1,50 @@
+# §3.6 Receipt submission (requester, after full approval).
+# Needs a request in AWAITING RECEIPT owned by the signed-in account.
+appId: ${APP_ID}
+tags:
+  - staff
+---
+- runFlow:
+    file: ../common/sign-in-staff-to-requests.yaml
+    env:
+      EMAIL: ${STAFF_EMAIL}
+      PASSWORD: ${STAFF_PASSWORD}
+
+# Find an AWAITING RECEIPT card and open Submit Receipt (cloud-upload icon).
+- assertVisible:
+    text: ".*(AWAITING RECEIPT|Awaiting Receipt).*"
+- tapOn:
+    text: "Submit receipt"
+- assertVisible:
+    text: ".*Submit Receipt.*"
+
+# Preferred bank account auto-fills the name/BSB/account number fields (not
+# the amount) (cross-check §4/§3.6).
+- assertVisible:
+    text: ".*BSB.*"
+
+# ── Validation: required fields → blocked ────────────────────────────────────
+# "Submit Receipt" is both the sheet title and the footer button — button is
+# the second match. The amount field is left blank (not auto-filled), so this
+# hits the "fill in every field" check; the error banner sits below the fold,
+# under the pinned footer, so scroll to it rather than assume it's on-screen.
+- tapOn:
+    text: ".*Submit Receipt.*"
+    index: 1
+- scrollUntilVisible:
+    element:
+      text: ".*Fill in every field.*"
+    direction: DOWN
+
+# Attaching a real file requires the OS file picker (not scriptable in Maestro).
+# Provide files via a seeded draft or a dev build with a stubbed picker, then:
+#   - tapOn: "Add file"        # → picker (manual / stubbed)
+#   - tapOn: "Submit"
+#   - assertVisible: ".*(AWAITING PAYMENT|Awaiting Payment).*"
+#
+# File-size / count limits (>2MB, >200-char name, >10 files, >50 total,
+# >20 recipients) and the "Submit anyway?" over-amount confirm are validated in
+# unit tests / need the picker — see checklist §3.6.
+- tapOn:
+    text: "Close"
+    optional: true

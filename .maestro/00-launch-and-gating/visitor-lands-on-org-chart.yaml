@@ -1,0 +1,30 @@
+# §0 App launch & tab gating — visitor
+# - Cold launch as a visitor lands on the public Org Chart
+# - Visitor tab bar shows exactly Home, Insights, Org Chart (no Requests/Attendance)
+# - No notifications bell for visitors
+appId: ${APP_ID}
+tags:
+  - public
+  - smoke
+---
+- runFlow: ../common/ensure-signed-out.yaml
+
+# Lands on Org Chart (bottom-tab labels are exposed as "<Name>, tab, N of N").
+- assertVisible:
+    text: ".*Org Chart, tab.*"
+
+# Visitor tabs present
+- assertVisible:
+    text: ".*Home, tab.*"
+- assertVisible:
+    text: ".*Insights, tab.*"
+
+# Staff-only tabs absent
+- assertNotVisible:
+    text: ".*Requests, tab.*"
+- assertNotVisible:
+    text: ".*Attendance, tab.*"
+
+# No bell for visitors (§10.1)
+- assertNotVisible:
+    text: ".*Notifications.*"

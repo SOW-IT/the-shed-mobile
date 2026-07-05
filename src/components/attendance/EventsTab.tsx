@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { eventStaffYear } from "../../../shared/flow";
 import {
   contrastingText,
   formatEventRange,
@@ -346,7 +345,6 @@ export function EventsTab({
         <CreateEventSheet
           visible={editingEvent !== undefined}
           onClose={() => setEditingEventId(null)}
-          year={eventStaffYear(editingEvent.dateStart)}
           subgroup={editingEvent.subgroups[0] ?? subgroup}
           subgroups={subgroups}
           event={editingEvent}
@@ -356,7 +354,6 @@ export function EventsTab({
         <ExportSheet
           visible={exportOpen}
           onClose={() => setExportOpen(false)}
-          year={year}
           subgroup={subgroup}
         />
       ) : null}
