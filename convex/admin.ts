@@ -1448,36 +1448,31 @@ export const backfillDirectorThresholds = internalMutation({
 /**
  * An empty/undefined tag `subgroups` scope has always meant "applies to all
  * groups" implicitly. The Tags picker no longer offers an explicit "All"
- * option, so make that scope explicit: fill every such tag with all of its
- * year's groups (SOW + that year's universities). Idempotent — tags that
- * already have a scope are left untouched.
+ * option, so make that scope explicit. Tags are global (year-less), so fill
+ * every such tag with the current staff year's groups (SOW + that year's
+ * universities). Idempotent — tags that already have a scope are left untouched.
  */
 export const fillTagScopesWithAllGroups = internalMutation({
   args: {},
   handler: async (ctx) => {
     const tags = await ctx.db.query("attendanceTags").collect();
-    const subgroupsByYear = new Map<number, string[]>();
+    // A single staff year has a handful of universities; bound the read per the
+    // repo's Convex guidelines rather than collecting unboundedly.
+    const universities = await ctx.db
+      .query("universities")
+      .withIndex("by_year_and_name", (q) => q.eq("year", currentStaffYear()))
+      .take(1000);
+    const allGroups = normalizeSubgroups([
+      SOW_SUBGROUP,
+      ...universities.map((u) => u.name),
+    ]);
     let filled = 0;
-    for (const tag of tags) {
-      if (tag.subgroups?.length) continue;
-      // Tags are global now; the `year` column is deprecated and may be cleared,
-      // so scope an unscoped tag against the current staff year's groups.
-      const scopeYear = tag.year ?? currentStaffYear();
-      let all = subgroupsByYear.get(scopeYear);
-      if (!all) {
-        const universities = await ctx.db
-          .query("universities")
-          .withIndex("by_year_and_name", (q) => q.eq("year", scopeYear))
-          .collect();
-        all = normalizeSubgroups([
-          SOW_SUBGROUP,
-          ...universities.map((u) => u.name),
-        ]);
-        subgroupsByYear.set(scopeYear, all);
+    if (allGroups.length > 0) {
+      for (const tag of tags) {
+        if (tag.subgroups?.length) continue;
+        await ctx.db.patch(tag._id, { subgroups: allGroups });
+        filled++;
       }
-      if (all.length === 0) continue;
-      await ctx.db.patch(tag._id, { subgroups: all });
-      filled++;
     }
     return { filled, total: tags.length };
   },

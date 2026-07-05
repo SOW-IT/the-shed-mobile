@@ -107,19 +107,15 @@ export const saveAll = mutation({
 });
 
 /**
- * Consolidate the per-year tag catalogue into one global set. Tags used to be
- * scoped per staff year, so the same logical tag (e.g. "Weekly Meeting") had a
- * separate row — and a separate id — every year; events reference tags by id,
- * so the "same" tag differed across the Oct 1 rollover. Merge every row sharing
- * a (case-insensitive) name into a single survivor: take the UNION of their
- * sub-group scopes (an unscoped/global member wins → the merged tag is global),
- * remap event `tagIds` from the losers to the survivor (de-duplicated), delete
- * the losers, and clear the now-deprecated `year` column on the survivors.
+ * Consolidate the tag catalogue: merge every row sharing a (case-insensitive)
+ * name into a single survivor — take the UNION of their sub-group scopes (an
+ * unscoped/global member wins → the merged tag is global), remap event `tagIds`
+ * from the losers to the survivor (de-duplicated), and delete the losers.
  *
+ * Originally the per-year → global consolidation (it also cleared the
+ * now-removed `year` column); kept as an idempotent dedupe of same-named rows.
  * Idempotent: re-run `npx convex run
- * attendanceTags:consolidateAttendanceTags` (and --prod) until it reports
- * `merged: 0` (a second run with no duplicates and no `year` values is a no-op).
- * Run this BEFORE the narrow follow-up that drops the `year` column.
+ * attendanceTags:consolidateAttendanceTags` (and --prod) until `merged: 0`.
  */
 export const consolidateAttendanceTags = internalMutation({
   args: {},
@@ -136,7 +132,6 @@ export const consolidateAttendanceTags = internalMutation({
     // loser tag id -> survivor tag id, applied to events in a single pass below.
     const remap = new Map<Id<"attendanceTags">, Id<"attendanceTags">>();
     let merged = 0;
-    let cleared = 0;
 
     for (const group of groups.values()) {
       // Deterministic survivor: earliest created (year-independent, stable).
@@ -170,13 +165,11 @@ export const consolidateAttendanceTags = internalMutation({
         JSON.stringify([...(mergedSubgroups ?? [])].sort());
       const colourChanged =
         (survivor.colour ?? undefined) !== (colour ?? undefined);
-      if (subgroupsChanged || colourChanged || survivor.year !== undefined) {
+      if (subgroupsChanged || colourChanged) {
         await ctx.db.patch(survivor._id, {
           subgroups: mergedSubgroups,
           colour,
-          year: undefined,
         });
-        if (survivor.year !== undefined) cleared++;
       }
     }
 
@@ -198,6 +191,6 @@ export const consolidateAttendanceTags = internalMutation({
       }
     }
 
-    return { groups: groups.size, merged, cleared, eventsRemapped };
+    return { groups: groups.size, merged, eventsRemapped };
   },
 });

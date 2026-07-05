@@ -153,19 +153,17 @@ describe("attendance tags", () => {
 });
 
 describe("consolidateAttendanceTags migration", () => {
-  test("merges same-named tags into one global row, unions scopes, remaps events, clears year", async () => {
+  test("merges same-named tags into one global row, unions scopes, remaps events", async () => {
     const t = await setup();
-    // Two legacy per-year "Weekly Meeting" rows with different sub-group scopes,
-    // plus a duplicate global row, seeded directly with the deprecated `year`.
+    // Two legacy "Weekly Meeting" rows with different sub-group scopes, plus a
+    // duplicate row whose scope overlaps the first.
     const { a2025, a2026, dup, keep, evId } = await t.run(async (ctx) => {
       const a2025 = await ctx.db.insert("attendanceTags", {
-        year: YEAR,
         name: "Weekly Meeting",
         colour: "blue",
         subgroups: [USYD],
       });
       const a2026 = await ctx.db.insert("attendanceTags", {
-        year: YEAR + 1,
         name: "weekly meeting",
         colour: "teal",
         subgroups: ["UNSW"],
@@ -177,7 +175,6 @@ describe("consolidateAttendanceTags migration", () => {
         subgroups: [USYD],
       });
       const keep = await ctx.db.insert("attendanceTags", {
-        year: YEAR,
         name: "Retreat",
         colour: "purple",
         subgroups: [USYD],
@@ -207,9 +204,8 @@ describe("consolidateAttendanceTags migration", () => {
     );
     expect(weekly).toHaveLength(1);
     const survivor = weekly[0];
-    // Survivor is the earliest-created row (a2025) and its `year` is cleared.
+    // Survivor is the earliest-created row (a2025).
     expect(survivor._id).toBe(a2025);
-    expect(survivor.year).toBeUndefined();
     // Scopes are unioned across the merged rows (USYD de-duplicated).
     expect(new Set(survivor.subgroups)).toEqual(new Set([USYD, "UNSW"]));
 
@@ -218,9 +214,8 @@ describe("consolidateAttendanceTags migration", () => {
     const event = await t.run(async (ctx) => ctx.db.get(evId));
     expect(new Set(event!.tagIds)).toEqual(new Set([survivor._id, keep]));
 
-    // The non-duplicate tag survives and also has its year cleared.
-    const retreat = rows.find((r) => r._id === keep);
-    expect(retreat?.year).toBeUndefined();
+    // The non-duplicate tag survives; the duplicate is gone.
+    expect(rows.some((r) => r._id === keep)).toBe(true);
     expect(rows.some((r) => r._id === dup)).toBe(false);
 
     // Idempotent: a second run merges nothing.
@@ -268,9 +263,8 @@ describe("consolidateAttendanceTags migration", () => {
       internal.attendanceTags.consolidateAttendanceTags,
       {}
     );
-    // Only the "Camp" duplicate merges; no survivor had a `year` to clear.
+    // Only the "Camp" duplicate merges.
     expect(res.merged).toBe(1);
-    expect(res.cleared).toBe(0);
     // The merge remapped nothing (no event referenced the loser).
     expect(res.eventsRemapped).toBe(0);
 
