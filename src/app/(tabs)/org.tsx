@@ -32,6 +32,9 @@ const Person = ({
   const router = useRouter();
   return (
     <Pressable
+      // Stable hook for the org-chart E2E smoke flow to tap a real person card
+      // (avatar + name + role) rather than guessing at broad text/id selectors.
+      testID="org-person"
       style={({ pressed }) => [styles.personRow, pressed && { opacity: 0.5 }]}
       onPress={() =>
         router.push({ pathname: "/person/[email]", params: { email: person.email } })

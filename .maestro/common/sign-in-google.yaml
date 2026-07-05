@@ -50,6 +50,7 @@ appId: ${APP_ID}
       - extendedWaitUntil:
           visible: "Enter your password"
           timeout: 15000
+          optional: true
       - tapOn:
           text: ".*(Enter your password|Password).*"
           optional: true

@@ -294,6 +294,19 @@ export const TopBar = ({
           }}
         >
           <View
+            // The backdrop is `accessible={false}` (so the sign-in button is
+            // reachable), which drops its "Close menu" action from the a11y
+            // tree. Scope VoiceOver focus to the menu and expose a discoverable
+            // dismiss via the native escape gesture (two-finger scrub) so
+            // closing stays reachable without a visible close button.
+            accessibilityViewIsModal
+            accessibilityActions={[{ name: "escape", label: "Close menu" }]}
+            onAccessibilityAction={(e) => {
+              if (e.nativeEvent.actionName === "escape" && !busy) {
+                setSignInMenu(false);
+                clearError();
+              }
+            }}
             style={[
               styles.dropdownMenu,
               t.shadowFloat,

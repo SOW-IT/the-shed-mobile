@@ -75,6 +75,11 @@ maestro test --env-file .maestro/.env .maestro/01-public/home-four-pages.yaml
 
 Pass `--env APP_ID=au.org.sow.theshed` (etc.) to override any `.env` value ad hoc.
 
+> `--env-file` needs a Maestro build recent enough to support it. On older
+> builds use `scripts/e2e-local.sh` (or `npm run e2e:local`), which reads
+> `.maestro/.env` and forwards each line as an individual `--env` flag, so it
+> works regardless of the installed Maestro version.
+
 ### Running against an Expo dev client (local)
 
 If the simulator runs a **development build** (Expo dev client) rather than a

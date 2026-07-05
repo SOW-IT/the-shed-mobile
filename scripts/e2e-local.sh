@@ -40,8 +40,10 @@ fi
 : "${SCHEME:=theshedmobile}"             # its deep-link scheme
 : "${TARGET:=.maestro}"                  # default: the whole suite
 
-# This Maestro build only supports `--env KEY=VALUE` (no `--env-file`), so read
-# .maestro/.env and forward each non-comment line as its own --env flag.
+# Forward each non-comment line of .maestro/.env as its own `--env KEY=VALUE`
+# flag. This works on every Maestro build — including older ones that predate
+# `--env-file` (which the README's raw invocations use) — so this script is the
+# compatibility-safe local runner regardless of the installed Maestro version.
 ENV_ARGS=()
 if [ -f .maestro/.env ]; then
   while IFS= read -r line || [ -n "$line" ]; do

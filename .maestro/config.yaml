@@ -11,8 +11,11 @@
 # and no fixtures. Everything else needs a signed-in build and, for most flows,
 # seeded data — see .maestro/README.md.
 
+# Only the numbered suite folders are standalone flows. `common/*.yaml` are
+# reusable `runFlow` helpers (they declare their own appId), so the glob is
+# anchored to a leading digit to keep them out of suite discovery.
 flows:
-  - "*/*.yaml"
+  - "[0-9]*/*.yaml"
 
 # Execution order: gating + public smoke first, then feature areas.
 # (Maestro runs remaining flows in filename order within each folder.)
