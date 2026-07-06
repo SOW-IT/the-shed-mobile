@@ -1025,6 +1025,20 @@ describe("listUnassignedUsers directory name fallback", () => {
   });
 });
 
+describe("people org-only filtering", () => {
+  test("excludes non-org (personal) accounts from the people picker", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", { email: "staffer@sow.org.au", name: "Staffer" });
+      await ctx.db.insert("users", { email: "someone@gmail.com", name: "Someone" });
+    });
+    const people = (await asUser(t, ADMIN).query(api.admin.people, { year: YEAR }))!;
+    const emails = people.map((p) => p.email);
+    expect(emails).toContain("staffer@sow.org.au");
+    expect(emails).not.toContain("someone@gmail.com");
+  });
+});
+
 describe("seed preserves existing heads", () => {
   test("re-seeding keeps department and division heads where names match", async () => {
     const t = await setup();
