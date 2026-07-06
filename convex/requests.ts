@@ -1618,6 +1618,13 @@ export const submitReceipt = mutation({
     // Strip the UI-only saveAccount flag before storing.
     const storedRecipients = args.recipients.map(({ saveAccount: _s, ...r }) => r);
     const totalAmount = storedRecipients.reduce((sum, r) => sum + r.amount, 0);
+    // The per-recipient cap alone still lets the SUM dwarf the sanity ceiling
+    // that submit/pay enforce on a single amount — hold the total to it too.
+    if (totalAmount > MAX_REQUEST_AMOUNT) {
+      throw new ConvexError(
+        `Receipt totals above $${MAX_REQUEST_AMOUNT.toLocaleString("en-AU")} can't be submitted here — talk to Finance directly.`
+      );
+    }
     await ctx.db.patch("requests", args.requestId, {
       receipt: { totalAmount, recipients: storedRecipients },
       paid: false,

@@ -1456,6 +1456,16 @@ describe("deadlock prevention and validation fixes", () => {
     await expect(
       attempt({ accountName: "R", bsb: "0", accountNumber: "1", amount: 95 })
     ).rejects.toThrow(/receipt file/);
+    // Each recipient is under the sanity ceiling, but the SUM must honour it too.
+    await expect(
+      rachel.mutation(api.requests.submitReceipt, {
+        requestId: request._id,
+        recipients: [
+          { accountName: "R", bsb: "0", accountNumber: "1", amount: 600_000, attachments: [file] },
+          { accountName: "S", bsb: "0", accountNumber: "2", amount: 600_000, attachments: [file] },
+        ],
+      })
+    ).rejects.toThrow(/talk to Finance/);
 
     await attempt({
       accountName: "R",

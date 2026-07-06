@@ -127,18 +127,27 @@ export const checkReceipts = internalAction({
     receipts: v.array(v.object({ id: v.string(), token: v.string() })),
   },
   handler: async (ctx, args) => {
-    const response = await fetch("https://exp.host/--/api/v2/push/getReceipts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids: args.receipts.map((r) => r.id) }),
-    });
-    if (!response.ok) {
-      console.error("Expo receipts error", response.status, await response.text());
-      return null;
-    }
-    const result = (await response.json()) as {
+    // Best-effort means best-effort: a network error or malformed body must not
+    // fail the scheduled action — the token just gets another chance at the
+    // next send's receipt check.
+    let result: {
       data?: Record<string, { status: string; details?: { error?: string } }>;
     };
+    try {
+      const response = await fetch("https://exp.host/--/api/v2/push/getReceipts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: args.receipts.map((r) => r.id) }),
+      });
+      if (!response.ok) {
+        console.error("Expo receipts error", response.status, await response.text());
+        return null;
+      }
+      result = (await response.json()) as typeof result;
+    } catch (error) {
+      console.error("Expo receipts fetch failed", error);
+      return null;
+    }
     for (const { id, token } of args.receipts) {
       const receipt = result.data?.[id];
       if (

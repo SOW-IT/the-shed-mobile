@@ -244,6 +244,22 @@ describe("push.send (Expo push action)", () => {
     }
   });
 
+  test("checkReceipts tolerates a rejected fetch (network error)", async () => {
+    const t = convexTest(schema, modules);
+    await seedToken(t, "a@sow.org.au", "ExponentPushToken[1]");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("ECONNRESET")));
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    // Best-effort: the scheduled action resolves instead of failing.
+    await expect(
+      t.action(internal.push.checkReceipts, {
+        receipts: [{ id: "r1", token: "ExponentPushToken[1]" }],
+      })
+    ).resolves.toBeNull();
+    expect(error).toHaveBeenCalledWith("Expo receipts fetch failed", expect.any(Error));
+    const remaining = await t.run((ctx) => ctx.db.query("pushTokens").take(10));
+    expect(remaining).toHaveLength(1);
+  });
+
   test("checkReceipts tolerates a non-ok response and missing receipts", async () => {
     const t = convexTest(schema, modules);
     await seedToken(t, "a@sow.org.au", "ExponentPushToken[1]");
