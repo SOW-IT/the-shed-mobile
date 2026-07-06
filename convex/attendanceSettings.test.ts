@@ -58,9 +58,14 @@ describe("attendance tags (branch coverage)", () => {
         deleteIds: [],
       })
     ).rejects.toThrow(/admins or campus leaders/i);
+    // ensureDefaults is opportunistic (screens any staff can open fire it on
+    // mount), so a non-manager is a silent no-op — nothing seeded, no error.
     await expect(
       staff.mutation(api.attendanceMetadata.ensureDefaults, {})
-    ).rejects.toThrow(/admins or campus leaders/i);
+    ).resolves.toBe(0);
+    expect(
+      await t.run((ctx) => ctx.db.query("attendanceMetadata").collect())
+    ).toEqual([]);
     await expect(
       staff.mutation(api.attendanceMetadata.saveAll, { fields: [], deleteIds: [] })
     ).rejects.toThrow(/admins or campus leaders/i);
