@@ -30,6 +30,11 @@ All notable changes to **The SHED** mobile app. This project follows
   staff-only.
 - Personal (non-staff) accounts never appear in the Admin → Users assignment
   lists or the people picker; those remain @sow.org.au-only.
+- **Web app moving to its own domain: `theshed.sow.org.au`** (from
+  `the-shed-web.vercel.app`). Email/notification links, the canonical app URL,
+  and the app's universal-link config now use the new domain; the old
+  `.vercel.app` address keeps working during the cutover. Requires DNS + Vercel
+  domain setup and the prod `SITE_URL` env var (see LAUNCH.md § 6).
 
 ## [1.7.2] — 2026-07-05
 

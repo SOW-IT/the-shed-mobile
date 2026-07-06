@@ -3,7 +3,8 @@
 Step-by-step, in dependency order. Code-side work is done; every item here
 needs an account, a credential, or a dashboard only you can access.
 Deployment names used below: Convex dev `industrious-robin-425`, Convex prod
-`outgoing-stoat-395`, web app `https://the-shed-web.vercel.app`.
+`outgoing-stoat-395`, web app `https://theshed.sow.org.au` (Vercel project
+`the-shed-web`, custom domain on the `sow.org.au` zone).
 
 ---
 
@@ -30,9 +31,17 @@ Deployment names used below: Convex dev `industrious-robin-425`, Convex prod
 3. **APIs & Services → Credentials → Create credentials → OAuth client ID**:
    - Application type: **Web application** (yes, also for the mobile apps —
      Convex Auth handles the OAuth exchange server-side).
-   - Authorized redirect URIs (add both):
+   - Authorized redirect URIs — one per provider **per deployment** (the
+     `googlePersonal` provider added in 1.7.4 has its own callback path, so all
+     four are required):
      - `https://outgoing-stoat-395.convex.site/api/auth/callback/google`
+     - `https://outgoing-stoat-395.convex.site/api/auth/callback/googlePersonal`
      - `https://industrious-robin-425.convex.site/api/auth/callback/google`
+     - `https://industrious-robin-425.convex.site/api/auth/callback/googlePersonal`
+   - Because non-staff Google accounts can now sign in (1.7.4), the consent
+     screen **Audience must be External** (Internal blocks non-org accounts).
+     Add `sow.org.au` under **Authorized domains** and set the **App name** to
+     "The SHED" so the consent screen reads "Sign in to The SHED".
 4. Set the client id/secret on both Convex deployments:
    ```bash
    npx convex env set AUTH_GOOGLE_ID <client-id>
@@ -40,7 +49,7 @@ Deployment names used below: Convex dev `industrious-robin-425`, Convex prod
    npx convex env set --prod AUTH_GOOGLE_ID <client-id>
    npx convex env set --prod AUTH_GOOGLE_SECRET <client-secret>
    ```
-5. **Test**: open <https://the-shed-web.vercel.app> → Sign in with Google
+5. **Test**: open <https://theshed.sow.org.au> → Sign in with Google
    with a sow.org.au account.
 6. Make yourself the real admin (replaces the placeholder):
    ```bash
@@ -147,9 +156,25 @@ npx eas credentials   # iOS: distribution cert + provisioning profile + APNs
       files incl. bank account details, push tokens.
 - [ ] **Original logo vector** — current store icon is upscaled from a 512px
       PNG; a vector/1024px source would sharpen it (regeneration is scripted).
-- [ ] *(Optional)* custom domain for the web app (`vercel domains add ...`),
-      then update `APP_URL`/`SITE_URL`, the OAuth origins, app.json's
-      `associatedDomains`/`intentFilters`, and the `.well-known` files.
+- [ ] **Custom domain `theshed.sow.org.au`** (migrating off `the-shed-web.vercel.app`
+      in 1.7.4). The code side is done (canonical URL, `app.json` deep-link
+      hosts, docs); the remaining steps are infra:
+      1. **Vercel**: `the-shed-web` project → Settings → Domains → add
+         `theshed.sow.org.au`. Vercel shows the DNS target + provisions SSL.
+      2. **DNS** (`sow.org.au` zone): add the record Vercel asks for — a
+         `CNAME theshed → cname.vercel-dns.com` (or the `A`/`ALIAS` it lists).
+      3. **Convex prod env**: `npx convex env set --prod SITE_URL https://theshed.sow.org.au`
+         (and `APP_URL` if it's set). Web OAuth redirects and email links then
+         use the new host. The old `.vercel.app` URL keeps working, so this is
+         non-breaking.
+      4. **`.well-known` files** are served by the web app, so they cover the
+         new domain automatically once DNS resolves — no change needed.
+      5. **Native deep links**: the new host is already in `app.json`
+         (`associatedDomains`/`intentFilters`, alongside the old one for links
+         already shared); universal links on it take effect in the next native
+         build. The Google OAuth **redirect URIs live on `*.convex.site`, not
+         the web domain**, so they do NOT change — but add `sow.org.au` to the
+         consent screen's Authorized domains (§1).
 
 ---
 

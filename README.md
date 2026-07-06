@@ -212,7 +212,8 @@ SITE_URL/APP_URL, Resend are set; Google OAuth + directory-sync vars need
 `npx convex run --prod admin:seed '{"adminEmail":"you@sow.org.au"}'`.
 
 The same app runs in the browser via react-native-web, hosted at
-**<https://the-shed-web.vercel.app>** (Vercel project `the-shed-web`),
+**<https://theshed.sow.org.au>** (Vercel project `the-shed-web`, served on the
+custom domain `theshed.sow.org.au` in the `sow.org.au` DNS zone),
 **pointed at the prod deployment**. Mobile production builds (eas.json) use
 prod too; only local dev uses the dev deployment. Redeploy the site with:
 
@@ -225,7 +226,7 @@ routes.) When Google sign-in is configured, also set the deployment's
 `SITE_URL` to the hosted URL so web OAuth redirects return there:
 
 ```bash
-npx convex env set SITE_URL https://the-shed-web.vercel.app
+npx convex env set SITE_URL https://theshed.sow.org.au
 ```
 
 A parallel **dev web** runs at **<https://the-shed-web-dev.vercel.app>** (a

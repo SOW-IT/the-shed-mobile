@@ -430,7 +430,7 @@ export const TopBar = ({
               data.
             </Txt>
             <Txt style={{ color: t.muted }}>
-              The live app lives at the-shed-web.vercel.app.
+              The live app lives at theshed.sow.org.au.
             </Txt>
           </View>
         </Sheet>
