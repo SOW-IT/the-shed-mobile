@@ -113,8 +113,10 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   },
   providers: [
     Google({
-      // `hd` asks Google to restrict the account picker to the organisation;
-      // the profile callback enforces it server-side (hd alone is advisory).
+      // The staff sign-in. `hd` asks Google to restrict the account picker to
+      // the organisation; the profile callback enforces it server-side (hd
+      // alone is advisory). Non-org accounts use the `googlePersonal` provider
+      // below instead.
       authorization: { params: { hd: allowedDomain, prompt: "select_account" } },
       profile(profile) {
         const email = (profile.email ?? "").toLowerCase();
@@ -125,6 +127,30 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
           id: profile.sub,
           name: profile.name,
           email,
+          image: profile.picture,
+        };
+      },
+    }),
+    // Non-staff Google sign-in (1.7.4): any Google account may sign in here.
+    // Reuses the same Google OAuth client as the staff provider (explicit
+    // clientId/secret, since @auth/core would otherwise look for
+    // AUTH_GOOGLEPERSONAL_ID), but drops the `hd` hint and the domain check so
+    // personal accounts can reach the public surfaces (Home, Org, Insights).
+    // A personal account never resolves to a staff profile — staff roles link
+    // by @${allowedDomain} email — so it stays a visitor with an account, and
+    // is excluded from the admin Users assignment lists.
+    // NOTE: the Google Cloud OAuth consent screen must be "External" for
+    // non-org accounts to be accepted by Google itself.
+    Google({
+      id: "googlePersonal",
+      clientId: process.env.AUTH_GOOGLE_ID,
+      clientSecret: process.env.AUTH_GOOGLE_SECRET,
+      authorization: { params: { prompt: "select_account" } },
+      profile(profile) {
+        return {
+          id: profile.sub,
+          name: profile.name,
+          email: (profile.email ?? "").toLowerCase(),
           image: profile.picture,
         };
       },

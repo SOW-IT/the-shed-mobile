@@ -28,6 +28,18 @@ export const currentStaffYear = () => staffYearForDate(new Date());
 export const nextStaffYear = () => currentStaffYear() + 1;
 
 /**
+ * The organisation's Google Workspace domain (staff accounts). Personal
+ * (non-staff) accounts can sign in too (1.7.4) but never resolve to a staff
+ * profile and are kept out of the admin Users assignment lists.
+ */
+export const allowedDomain = () =>
+  process.env.AUTH_ALLOWED_DOMAIN ?? "sow.org.au";
+
+/** True when an email belongs to the organisation's staff domain. */
+export const isOrgEmail = (email: string | null | undefined): boolean =>
+  !!email && email.toLowerCase().endsWith(`@${allowedDomain()}`);
+
+/**
  * The caller's email, or null when unauthenticated. Convex Auth JWTs carry
  * ONLY `sub` (userId|sessionId) — no email claim — so the email is resolved
  * from the caller's users row; the identity email claim is a fallback for

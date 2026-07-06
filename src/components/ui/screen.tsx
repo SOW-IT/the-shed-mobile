@@ -148,6 +148,10 @@ export const TopBar = ({
   // the same check the tabs use, not merely being signed in.
   const me = useQuery(api.directory.me);
   const isStaff = !!me?.profile;
+  // The logo takes staff back to their workspace (as it always has, via the
+  // Home redirect), but visitors and signed-in accounts without a staff profile
+  // land on the public Home tab (1.7.4) — the Home surface is theirs now.
+  const logoHref = isStaff ? (me?.isCampusLeader ? "/attendance" : "/") : "/home";
   const unread =
     useQuery(api.notifications.unreadCount, isStaff ? {} : "skip") ?? 0;
   const [testInfo, setTestInfo] = useState(false);
@@ -155,22 +159,32 @@ export const TopBar = ({
   // the top bar lives inside an overflow-hidden collapsing clip, so anything
   // anchored inside it would be cut off at the bar's edge.
   const [signInMenu, setSignInMenu] = useState(false);
-  const { signInWithGoogle, busy, error, clearError } = useGoogleSignIn();
-  const signInAndClose = async () => {
+  // Two Google flows: the org-restricted staff account, and any personal
+  // (non-staff) Google account (1.7.4). Apple sign-in is planned but pending
+  // Apple Developer credentials.
+  const sow = useGoogleSignIn("google");
+  const personal = useGoogleSignIn("googlePersonal");
+  const busy = sow.busy || personal.busy;
+  const error = sow.error ?? personal.error;
+  const clearError = () => {
+    sow.clearError();
+    personal.clearError();
+  };
+  const signInAndClose = async (signIn: () => Promise<void>) => {
     setSignInMenu(false);
     clearError();
-    await signInWithGoogle();
+    await signIn();
   };
   return (
     <View style={styles.topBar}>
       <Animated.View style={{ transform: [{ scale: home.scale }] }}>
         <Pressable
-          onPress={() => router.push("/home")}
+          onPress={() => router.push(logoHref)}
           onPressIn={home.onPressIn}
           onPressOut={home.onPressOut}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel="Go to Home"
+          accessibilityLabel={isStaff ? "Go to your workspace" : "Go to Home"}
         >
           <Image
             source={require("../../../assets/images/the-shed-compact-logo.png")}
@@ -318,7 +332,7 @@ export const TopBar = ({
           >
             <Pressable
               disabled={busy}
-              onPress={signInAndClose}
+              onPress={() => void signInAndClose(sow.signInWithGoogle)}
               accessibilityRole="button"
               accessibilityLabel="Sign in with your SOW account"
               style={({ pressed }) => [
@@ -333,6 +347,24 @@ export const TopBar = ({
               )}
               <Text style={[typography.headline, { color: t.text }]}>
                 Sign in with your SOW account
+              </Text>
+            </Pressable>
+            <View
+              style={[styles.dropdownDivider, { backgroundColor: t.separator }]}
+            />
+            <Pressable
+              disabled={busy}
+              onPress={() => void signInAndClose(personal.signInWithGoogle)}
+              accessibilityRole="button"
+              accessibilityLabel="Sign in with a personal Google account"
+              style={({ pressed }) => [
+                styles.dropdownItem,
+                pressed && { opacity: 0.6 },
+              ]}
+            >
+              <Ionicons name="logo-google" size={18} color={t.text} />
+              <Text style={[typography.headline, { color: t.text }]}>
+                Sign in with Google
               </Text>
             </Pressable>
             {error ? (

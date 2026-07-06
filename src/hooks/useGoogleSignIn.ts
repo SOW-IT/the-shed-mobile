@@ -16,6 +16,20 @@ maybeCompleteAuthSession();
 // reports dismiss/cancel a moment before the OS delivers the redirect deep link.
 const REDIRECT_GRACE_MS = 2500;
 
+/**
+ * The two Google providers configured server-side (convex/auth.ts):
+ *  - "google": staff sign-in, restricted to the org domain.
+ *  - "googlePersonal": any Google account (non-staff), for the public surfaces.
+ */
+export type GoogleProvider = "google" | "googlePersonal";
+
+// On web the sign-in is a full-page redirect, so the provider that initiated it
+// must survive the round-trip to Google and back. sessionStorage lives for the
+// tab's lifetime (including navigating away and returning), so the code-exchange
+// on return can complete against the SAME provider — exchanging a personal
+// account's code against the org-restricted "google" provider would be rejected.
+const PENDING_PROVIDER_KEY = "pendingGoogleAuthProvider";
+
 /** Pull the OAuth `code` from a redirect URL. `Linking.parse` understands the
  *  app's custom scheme (theshedmobile://…) more reliably than the URL polyfill,
  *  with `new URL` as a fallback for https redirects. */
@@ -56,9 +70,15 @@ export const useWebAuthCodeExchange = () => {
     if (!code) return;
     // Remove code from URL so a page refresh doesn't re-attempt a used code.
     window.history.replaceState({}, "", window.location.pathname);
+    // Complete against the provider that started the flow (defaults to the staff
+    // provider for any legacy/in-flight redirect that predates this key).
+    const provider =
+      (window.sessionStorage.getItem(PENDING_PROVIDER_KEY) as GoogleProvider) ||
+      "google";
+    window.sessionStorage.removeItem(PENDING_PROVIDER_KEY);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- OAuth code exchange on load
     setBusy(true);
-    void signIn("google", { code })
+    void signIn(provider, { code })
       .catch((e: unknown) => setError(errorText(e)))
       .finally(() => setBusy(false));
   }, [signIn]);
@@ -74,8 +94,12 @@ const errorText = (e: unknown): string =>
  * (the signed-out avatar dropdown). On web it's a full-page redirect to Google
  * (the code exchange on return is {@link useWebAuthCodeExchange}); on native
  * it drives the auth session + deep-link dance below.
+ *
+ * `provider` selects which server-side Google provider to use: the org-restricted
+ * staff "google" (default) or "googlePersonal" for any account (see
+ * {@link GoogleProvider}).
  */
-export const useGoogleSignIn = () => {
+export const useGoogleSignIn = (provider: GoogleProvider = "google") => {
   const { signIn } = useAuthActions();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -85,10 +109,13 @@ export const useGoogleSignIn = () => {
     setBusy(true);
     try {
       if (Platform.OS === "web") {
+        // Remember which provider started the flow so the code-exchange on
+        // return (useWebAuthCodeExchange) completes against the same one.
+        window.sessionStorage.setItem(PENDING_PROVIDER_KEY, provider);
         // Full-page redirect to Google (back to wherever this app is served
         // from). Stay busy — we're navigating away, and resetting would briefly
         // re-enable the button before the redirect actually happens.
-        await signIn("google", { redirectTo: window.location.origin });
+        await signIn(provider, { redirectTo: window.location.origin });
         return;
       }
       // Pass the scheme explicitly so the staging build always produces
@@ -98,7 +125,7 @@ export const useGoogleSignIn = () => {
       const redirectTo = makeRedirectUri({
         scheme: Array.isArray(scheme) ? scheme[0] : scheme,
       });
-      const { redirect } = await signIn("google", { redirectTo });
+      const { redirect } = await signIn(provider, { redirectTo });
       if (!redirect) {
         setBusy(false);
         return;
@@ -172,7 +199,7 @@ export const useGoogleSignIn = () => {
       if (code) {
         // On success the app flips to Authenticated in place, so stay busy
         // rather than flicker back to clickable while the flip lands.
-        await signIn("google", { code });
+        await signIn(provider, { code });
         setBusy(false);
         return;
       }

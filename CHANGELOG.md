@@ -6,6 +6,31 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.7.4] — 2026-07-06
+
+### Added
+
+- **Home is now a tab for everyone.** The Home button sits on the left of the
+  bottom bar for all users — visitors and signed-in staff alike — so anyone can
+  return to the SOW landing surface at any time.
+- **Sign in with a personal Google account.** The sign-in menu now offers a
+  second option alongside "Sign in with your SOW account", letting anyone sign
+  in with a personal (non-staff) Google account to use the public surfaces.
+  _(Requires the Google OAuth consent screen to be "External"; Sign in with
+  Apple is planned once Apple Developer credentials are configured.)_
+
+### Changed
+
+- **The top-left logo** takes signed-out visitors and signed-in accounts without
+  a staff profile to the Home tab; staff still land on their workspace.
+- **Insights is fully available to any signed-in account.** Signing in — even
+  without a staff profile — now unlocks the full org-wide General dashboard (the
+  year picker and per-year breakdown), not just the public preview. The
+  per-campus Attendance view, which shows individual student data, stays
+  staff-only.
+- Personal (non-staff) accounts never appear in the Admin → Users assignment
+  lists or the people picker; those remain @sow.org.au-only.
+
 ## [1.7.2] — 2026-07-05
 
 ### Fixed

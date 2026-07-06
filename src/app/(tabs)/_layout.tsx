@@ -192,17 +192,17 @@ const AnimatedTabBarButton = ({
 };
 
 /**
- * The bottom tab navigator. The app is public (1.7.0): Home is the visitor
- * landing surface and is shown ONLY while signed out — once signed in (staff or
- * not) it drops off the bar. The Org chart and Insights are visible to everyone
- * (Insights shows org-wide trends publicly and gates its per-campus view
- * internally), while Requests and Attendance appear only for signed-in users
- * with a staff profile, and Admin is reached from the Org list (admins / the
- * Finance head). Tab order and the launch tab depend on role: visitors land on
- * Home; signed-in non-staff land on the Org chart (their only content tabs are
- * Insights + Org); campus leaders (President / VP / Executive / Student Leader)
- * get Attendance first and no Requests tab; everyone else (staff) launches on
- * Requests.
+ * The bottom tab navigator. The app is public (1.7.0): Home is the leftmost tab
+ * for EVERYONE — visitors and signed-in users alike (1.7.4), the SOW landing
+ * surface anyone can return to. The Org chart and Insights are visible to
+ * everyone (Insights shows org-wide trends publicly and gates its per-campus
+ * view internally), while Requests and Attendance appear only for signed-in
+ * users with a staff profile, and Admin is reached from the Org list (admins /
+ * the Finance head). Tab order and the launch tab depend on role: visitors land
+ * on Home; signed-in non-staff land on the Org chart (their content tabs are
+ * Home + Insights + Org); campus leaders (President / VP / Executive / Student
+ * Leader) get Attendance first and no Requests tab; everyone else (staff)
+ * launches on Requests.
  */
 export default function TabsLayout() {
   const { isAuthenticated } = useConvexAuth();
@@ -298,12 +298,12 @@ export default function TabsLayout() {
       {/* Keep screens in a fixed declaration order so Expo Router registers tab
           bar slots correctly. Hidden tabs use href: null (they don't appear in
           the bar but still occupy their slot in the route list). */}
-      {/* Home is the visitor landing surface only — hidden once signed in. */}
+      {/* Home is the leftmost tab for everyone — visitors and signed-in users
+          (1.7.4), so anyone can return to the SOW landing surface. */}
       <Tabs.Screen
         name="home"
         options={{
           title: "Home",
-          ...(isAuthenticated ? { href: null } : {}),
           tabBarIcon: tabIcon("home-outline", "home"),
         }}
       />

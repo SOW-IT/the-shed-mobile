@@ -1011,6 +1011,18 @@ describe("listUnassignedUsers directory name fallback", () => {
     const user = unassigned.find((u) => u.email === "noname@sow.org.au")!;
     expect(user.name).toBe("Directory Name");
   });
+
+  test("excludes non-org (personal) accounts from the assignment list", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", { email: "staffer@sow.org.au", name: "Staffer" });
+      await ctx.db.insert("users", { email: "someone@gmail.com", name: "Someone" });
+    });
+    const unassigned = (await asUser(t, ADMIN).query(api.admin.listUnassignedUsers, { year: YEAR }))!;
+    const emails = unassigned.map((u) => u.email);
+    expect(emails).toContain("staffer@sow.org.au");
+    expect(emails).not.toContain("someone@gmail.com");
+  });
 });
 
 describe("seed preserves existing heads", () => {
