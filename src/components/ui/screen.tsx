@@ -340,7 +340,7 @@ export const TopBar = ({
                 pressed && { opacity: 0.6 },
               ]}
             >
-              {busy ? (
+              {sow.busy ? (
                 <SowSpinner size={18} onDark={t.dark} />
               ) : (
                 <Ionicons name="logo-google" size={18} color={t.text} />
@@ -362,7 +362,11 @@ export const TopBar = ({
                 pressed && { opacity: 0.6 },
               ]}
             >
-              <Ionicons name="logo-google" size={18} color={t.text} />
+              {personal.busy ? (
+                <SowSpinner size={18} onDark={t.dark} />
+              ) : (
+                <Ionicons name="logo-google" size={18} color={t.text} />
+              )}
               <Text style={[typography.headline, { color: t.text }]}>
                 Sign in with Google
               </Text>
