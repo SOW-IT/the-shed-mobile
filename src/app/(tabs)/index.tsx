@@ -222,9 +222,9 @@ export default function RequestsScreen() {
 
   if (me?.isCampusLeader) return <Redirect href="/attendance" />;
 
-  // Visitors (signed out) land on the public Org chart — "/" is still the
-  // web entry point even though the Requests tab is hidden for them.
-  if (me === null) return <Redirect href="/org" />;
+  // Visitors (signed out) land on the public Home tab — "/" is still the web
+  // entry point even though the Requests tab is hidden for them (1.7.5).
+  if (me === null) return <Redirect href="/home" />;
 
   if (me.profile === null) {
     return (
