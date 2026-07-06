@@ -238,11 +238,23 @@ export const eventsForExport = query({
     // Scoped by date range, not staff year, on purpose: an export may span the
     // Oct-1 rollover (or several years). Each event still resolves its own
     // staff/calendar year for profiles and member fields in resolveExportEvents.
-    const all = await ctx.db.query("events").collect();
+    // The date bounds are applied through the by_dateStart index (not a full
+    // collect + JS filter) so a ranged export only ever reads the rows inside
+    // its window — a whole-history scan grows with every year and heads for the
+    // per-query document-read limit.
+    const all = await ctx.db
+      .query("events")
+      .withIndex("by_dateStart", (q) => {
+        if (dateStart != null && dateEnd != null) {
+          return q.gte("dateStart", dateStart).lte("dateStart", dateEnd);
+        }
+        if (dateStart != null) return q.gte("dateStart", dateStart);
+        if (dateEnd != null) return q.lte("dateStart", dateEnd);
+        return q;
+      })
+      .collect();
     const events = all
       .filter((e) => eventIncludesSubgroup(e.subgroups, subgroup))
-      .filter((e) => dateStart == null || e.dateStart >= dateStart)
-      .filter((e) => dateEnd == null || e.dateStart <= dateEnd)
       .filter(
         (e) =>
           !tagFilter ||

@@ -89,13 +89,63 @@ export const send = internalAction({
       return null;
     }
     const result = (await response.json()) as {
-      data?: { status: string; details?: { error?: string } }[];
+      data?: { status: string; id?: string; details?: { error?: string } }[];
     };
-    // Prune tokens for uninstalled apps.
+    // Prune tokens for uninstalled apps. A dead token can surface in the
+    // ticket immediately…
+    const receiptIdToToken = new Map<string, string>();
     for (let i = 0; i < (result.data ?? []).length; i++) {
       const ticket = result.data![i];
       if (ticket.status === "error" && ticket.details?.error === "DeviceNotRegistered") {
         await ctx.runMutation(internal.push.removeToken, { token: tokens[i].token });
+      } else if (ticket.status === "ok" && ticket.id) {
+        receiptIdToToken.set(ticket.id, tokens[i].token);
+      }
+    }
+    // …but per Expo's delivery model most DeviceNotRegistered results only
+    // appear in the RECEIPT, fetched after the ticket. Without this follow-up,
+    // uninstalled devices' tokens were effectively never pruned — they pile up
+    // (crowding the per-email take(20) cap) and repeatedly pushing to dead
+    // tokens risks Expo throttling the project. Receipts are available within
+    // ~15 minutes; check once, best-effort.
+    if (receiptIdToToken.size > 0) {
+      await ctx.scheduler.runAfter(15 * 60 * 1000, internal.push.checkReceipts, {
+        receipts: [...receiptIdToToken.entries()].map(([id, token]) => ({ id, token })),
+      });
+    }
+    return null;
+  },
+});
+
+/**
+ * Follow-up to `send`: fetch the delivery receipts for its tickets and prune
+ * any token whose receipt reports DeviceNotRegistered. Best-effort — a failed
+ * fetch just means the token gets another chance at the next send.
+ */
+export const checkReceipts = internalAction({
+  args: {
+    receipts: v.array(v.object({ id: v.string(), token: v.string() })),
+  },
+  handler: async (ctx, args) => {
+    const response = await fetch("https://exp.host/--/api/v2/push/getReceipts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: args.receipts.map((r) => r.id) }),
+    });
+    if (!response.ok) {
+      console.error("Expo receipts error", response.status, await response.text());
+      return null;
+    }
+    const result = (await response.json()) as {
+      data?: Record<string, { status: string; details?: { error?: string } }>;
+    };
+    for (const { id, token } of args.receipts) {
+      const receipt = result.data?.[id];
+      if (
+        receipt?.status === "error" &&
+        receipt.details?.error === "DeviceNotRegistered"
+      ) {
+        await ctx.runMutation(internal.push.removeToken, { token });
       }
     }
     return null;

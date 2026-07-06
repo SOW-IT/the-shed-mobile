@@ -197,12 +197,18 @@ function AttendanceRowBase({
     primarySnapped.value = false;
     runOnJS(setSnapClosed)();
     if (onActionStart) runOnJS(onActionStart)();
+    // Fire the action at commit time, NOT from the animation's completion
+    // callback: the collapse below is presentation only. Gating the action on
+    // `done` silently dropped it whenever the 200ms animation was interrupted —
+    // the row unmounting mid-collapse (a concurrent sign-out prepending to the
+    // list and pushing this row past the pagination slice, or the search text
+    // changing) meant the mutation was never sent while the caller's optimistic
+    // entry stayed forever, showing a sign-in that never reached the server.
+    runOnJS(onAction)();
     translateX.value = withTiming(-rowWidth, { duration: 180 });
     opacity.value = withTiming(0, { duration: 180 });
     marginBottomValue.value = withTiming(0, { duration: 200 });
-    itemHeight.value = withTiming(0, { duration: 200 }, (done) => {
-      if (done) runOnJS(onAction)();
-    });
+    itemHeight.value = withTiming(0, { duration: 200 });
   };
   /* eslint-enable react-hooks/immutability */
 

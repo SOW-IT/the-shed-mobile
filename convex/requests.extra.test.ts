@@ -161,6 +161,24 @@ describe("submit validation", () => {
     ).rejects.toThrow(/describe what the request/);
   });
 
+  test("rejects non-finite and absurd amounts", async () => {
+    const t = await setup();
+    // Convex numbers are IEEE754 doubles — Infinity passes a bare `> 0` check
+    // and then poisons every total computed from it.
+    await expect(
+      asUser(t, RACHEL).mutation(api.requests.submit, {
+        description: "x",
+        amount: Infinity,
+      })
+    ).rejects.toThrow(/positive number/);
+    await expect(
+      asUser(t, RACHEL).mutation(api.requests.submit, {
+        description: "x",
+        amount: 2_000_000,
+      })
+    ).rejects.toThrow(/talk to Finance/);
+  });
+
   test("a Head of Division with no resolvable department is asked to pick one", async () => {
     const t = await setup();
     // A division head whose division has no departments at all.

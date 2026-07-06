@@ -338,6 +338,13 @@ const notifyNextActor = async (
 };
 
 /**
+ * Sanity ceiling on any single money amount (request, recipient, payment).
+ * Well above any real reimbursement, so it only ever rejects typos and junk
+ * values (e.g. Infinity survives a bare `> 0` check) before they poison totals.
+ */
+const MAX_REQUEST_AMOUNT = 1_000_000;
+
+/**
  * Submit a new reimbursement request for the caller's own department.
  * Steps the submitter would review themselves are auto-approved so a request
  * can never deadlock waiting on its own submitter (see REQUESTS_FLOW.md).
@@ -353,8 +360,16 @@ export const submit = mutation({
   },
   handler: async (ctx, args) => {
     const { email, year, profile } = await requireProfile(ctx);
-    if (!(args.amount > 0)) {
+    // Number.isFinite as well as > 0: Convex numbers are IEEE754 doubles, so
+    // Infinity passes a bare positivity check and then poisons every total
+    // computed from it (NaN already fails > 0).
+    if (!Number.isFinite(args.amount) || !(args.amount > 0)) {
       throw new ConvexError("Amount must be a positive number.");
+    }
+    if (args.amount > MAX_REQUEST_AMOUNT) {
+      throw new ConvexError(
+        `Amounts above $${MAX_REQUEST_AMOUNT.toLocaleString("en-AU")} can't be submitted here — talk to Finance directly.`
+      );
     }
     if (args.description.trim() === "") {
       throw new ConvexError("Please describe what the request is for.");
@@ -1587,7 +1602,11 @@ export const submitReceipt = mutation({
         }
       }
     }
-    if (args.recipients.some((r) => !(r.amount > 0))) {
+    if (
+      args.recipients.some(
+        (r) => !Number.isFinite(r.amount) || !(r.amount > 0) || r.amount > MAX_REQUEST_AMOUNT
+      )
+    ) {
       throw new ConvexError("Every recipient amount must be a positive number.");
     }
     if (attachmentCount > MAX_RECEIPT_ATTACHMENTS) {
@@ -1695,7 +1714,11 @@ export const pay = mutation({
   },
   handler: async (ctx, args) => {
     const caller = await requireProfile(ctx);
-    if (!(args.paidAmount > 0)) {
+    if (
+      !Number.isFinite(args.paidAmount) ||
+      !(args.paidAmount > 0) ||
+      args.paidAmount > MAX_REQUEST_AMOUNT
+    ) {
       throw new ConvexError("The paid amount must be a positive number.");
     }
     const request = await ctx.db.get("requests", args.requestId);

@@ -80,4 +80,42 @@ describe("contact.submit rate limiting", () => {
 
     expect(res).toBeNull();
   });
+
+  test("global cap blocks a flood even when every sender address is different", async () => {
+    const t = convexTest(schema, modules);
+    // Simulate an abuser rotating addresses: 30 distinct senders inside the
+    // window (seeded directly — going through submit would email each one).
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      for (let i = 0; i < 30; i++) {
+        await ctx.db.insert("contactRateLimit", {
+          fromEmail: `abuser${i}@example.com`,
+          submittedAt: now - i * 1000,
+        });
+      }
+    });
+    await expect(
+      t.mutation(api.contact.submit, {
+        email: "abuser-next@example.com",
+        message: "yet another",
+      })
+    ).rejects.toThrow(/a lot of messages/);
+  });
+
+  test("stale rate-limit rows are pruned on submit", async () => {
+    const t = convexTest(schema, modules);
+    // A row that fell out of the window can never affect a future check.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("contactRateLimit", {
+        fromEmail: "old@example.com",
+        submittedAt: Date.now() - 2 * 60 * 60 * 1000,
+      });
+    });
+    await t.mutation(api.contact.submit, {
+      email: EMAIL_A,
+      message: "fresh message",
+    });
+    const rows = await t.run((ctx) => ctx.db.query("contactRateLimit").take(10));
+    expect(rows.map((r) => r.fromEmail)).toEqual([EMAIL_A]);
+  });
 });

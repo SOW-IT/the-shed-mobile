@@ -29,26 +29,42 @@ export const saveAll = mutation({
   },
   handler: async (ctx, { tags, deleteIds }) => {
     const { email: actorEmail } = await requireAttendanceManager(ctx);
-    for (const id of deleteIds) {
-      const row = await ctx.db.get(id);
-      if (!row) continue;
-      // Tags are global, so a deleted tag can be referenced by an event in any
-      // year — scrub it from every event that carries it, not just one year's.
-      const events = await ctx.db.query("events").collect();
-      for (const event of events) {
-        if (!event.tagIds?.includes(id)) continue;
-        const tagIds = event.tagIds.filter((tagId) => tagId !== id);
+    // Resolve the rows being deleted first, then scrub their ids from events in
+    // ONE pass over the table. Tags are global, so a deleted tag can be
+    // referenced by an event in any year — and scanning per deleted id (the old
+    // shape) multiplied the whole-table read by deleteIds.length, which heads
+    // straight for the per-mutation document-read limit as events accumulate.
+    const deleteRows = (
+      await Promise.all(deleteIds.map((id) => ctx.db.get(id)))
+    ).filter((row): row is NonNullable<typeof row> => row !== null);
+    if (deleteRows.length > 0) {
+      const deleteSet = new Set(deleteRows.map((row) => row._id));
+      for (const event of await ctx.db.query("events").collect()) {
+        if (!event.tagIds?.some((tagId) => deleteSet.has(tagId))) continue;
+        const tagIds = event.tagIds.filter((tagId) => !deleteSet.has(tagId));
         await ctx.db.patch(event._id, {
           tagIds: tagIds.length > 0 ? tagIds : undefined,
         });
       }
-      await ctx.db.delete(id);
-      await logAttendanceAction(ctx, {
-        actorEmail,
-        entityType: "tag",
-        action: "tag.delete",
-        summary: `Deleted tag "${row.name}"`,
-      });
+      for (const row of deleteRows) {
+        await ctx.db.delete(row._id);
+        await logAttendanceAction(ctx, {
+          actorEmail,
+          entityType: "tag",
+          action: "tag.delete",
+          summary: `Deleted tag "${row.name}"`,
+        });
+      }
+    }
+    // Names must be unique within the submitted batch AND against rows already
+    // in the catalogue: the client round-trips the full list, but two managers
+    // saving concurrently don't conflict under OCC (the insert path used to
+    // read nothing), so both inserts landed and left duplicate names.
+    const deletedIds = new Set(deleteRows.map((row) => row._id));
+    const existingByName = new Map<string, Id<"attendanceTags">>();
+    for (const row of await ctx.db.query("attendanceTags").collect()) {
+      if (deletedIds.has(row._id)) continue;
+      existingByName.set(row.name.trim().toLowerCase(), row._id);
     }
     const names = new Set<string>();
     for (const tag of tags) {
@@ -56,6 +72,10 @@ export const saveAll = mutation({
       if (!name) throw new ConvexError("Every tag needs a name.");
       const lower = name.toLowerCase();
       if (names.has(lower)) throw new ConvexError(`Duplicate tag "${name}".`);
+      const conflict = existingByName.get(lower);
+      if (conflict !== undefined && conflict !== tag.id) {
+        throw new ConvexError(`A tag named "${name}" already exists.`);
+      }
       names.add(lower);
       if (tag.id) {
         const existing = await ctx.db.get(tag.id);
