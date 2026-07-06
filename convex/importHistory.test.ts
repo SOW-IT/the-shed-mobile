@@ -178,6 +178,40 @@ describe("email changes: the person stays the same", () => {
     expect(profile.serviceHistory.map((h) => h.year)).toEqual([YEAR, YEAR - 1]);
   });
 
+  test("a legacy profile already bound to another user is NOT claimed by a matching local part", async () => {
+    const t = await setup();
+    // A DIFFERENT person owns sam@sowaustralia.com and has signed in before
+    // (their profile carries a userId). A new hire with the same local part on
+    // the new domain must not inherit their identity.
+    const { newUserId, legacyProfileId, oldUserId } = await t.run(async (ctx) => {
+      const oldUserId = await ctx.db.insert("users", {
+        email: "sam@sowaustralia.com",
+      });
+      const legacyProfileId = await ctx.db.insert("staffProfiles", {
+        email: "sam@sowaustralia.com",
+        year: YEAR - 1,
+        assignments: [{ role: "Staff", department: "Data and IT" }],
+        userId: oldUserId,
+      });
+      const newUserId = await ctx.db.insert("users", { email: "sam@sow.org.au" });
+      return { newUserId, legacyProfileId, oldUserId };
+    });
+
+    await t.mutation(internal.userLink.link, { userId: newUserId });
+
+    await t.run(async (ctx) => {
+      // The legacy profile keeps its email and owner; nothing bound to the new user.
+      const legacy = (await ctx.db.get(legacyProfileId))!;
+      expect(legacy.email).toBe("sam@sowaustralia.com");
+      expect(legacy.userId).toBe(oldUserId);
+      const bound = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_userId", (q) => q.eq("userId", newUserId))
+        .take(10);
+      expect(bound).toHaveLength(0);
+    });
+  });
+
   test("people without an imported id get their user id as the person key", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);

@@ -121,7 +121,9 @@ export function CreateEventSheet({
   const eventName = event?.name ?? "";
 
   useEffect(() => {
-    if (visible) void ensureMetadata({});
+    // Opportunistic seeding (server no-ops for non-managers); fire-and-forget,
+    // so a transient failure must not surface as an unhandled rejection.
+    if (visible) void ensureMetadata({}).catch(() => {});
   }, [visible, ensureMetadata]);
 
   // Initialise the wizard once per opening. Gating on the open transition keeps

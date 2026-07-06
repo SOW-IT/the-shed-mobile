@@ -423,7 +423,11 @@ export default defineSchema({
   })
     // Compound index so the window check reads only a sender's recent rows
     // (bounded), rather than collecting their whole history.
-    .index("by_email_and_time", ["fromEmail", "submittedAt"]),
+    .index("by_email_and_time", ["fromEmail", "submittedAt"])
+    // Time-only index for the global (all-senders) cap: the per-email limit is
+    // keyed on a caller-supplied address, so alone it's bypassed by rotating
+    // addresses. Also lets stale rows be pruned by age.
+    .index("by_time", ["submittedAt"]),
 
   // Pre-computed Attendance → Insights dashboard aggregates, refreshed weekly by
   // the `attendance metrics recompute` cron (Thursdays). One row per

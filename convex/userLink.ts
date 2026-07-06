@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { internalMutation, MutationCtx } from "./_generated/server";
 
@@ -9,6 +10,9 @@ import { internalMutation, MutationCtx } from "./_generated/server";
  * profiles are claimed and re-keyed to the new address.
  */
 const LEGACY_EMAIL_DOMAINS = ["sowaustralia.com"];
+
+/** Who hears about automatic legacy-domain claims (same inbox as the rollover summary). */
+const LEGACY_CLAIM_NOTIFY_EMAIL = "it@sow.org.au";
 
 /**
  * Re-keys every email-keyed reference from oldEmail to newEmail: staff
@@ -37,12 +41,19 @@ async function rekeyEmail(ctx: MutationCtx, oldEmail: string, newEmail: string) 
     }
   }
 
-  const requests = await ctx.db
-    .query("requests")
-    .withIndex("by_requester", (q) => q.eq("requesterEmail", oldEmail))
-    .take(1000);
-  for (const request of requests) {
-    await ctx.db.patch("requests", request._id, { requesterEmail: newEmail });
+  // Drain in batches rather than a single capped take — a one-shot take(1000)
+  // silently left any further requests keyed to the old email, hiding them
+  // from the renamed person's "Mine" tab with no error. Each patched batch
+  // falls out of the index read, so the loop terminates.
+  for (;;) {
+    const requests = await ctx.db
+      .query("requests")
+      .withIndex("by_requester", (q) => q.eq("requesterEmail", oldEmail))
+      .take(500);
+    if (requests.length === 0) break;
+    for (const request of requests) {
+      await ctx.db.patch("requests", request._id, { requesterEmail: newEmail });
+    }
   }
 
   const departments = await ctx.db.query("departments").take(2000);
@@ -151,7 +162,28 @@ export async function linkUserProfiles(ctx: MutationCtx, userId: Id<"users">) {
         .withIndex("by_email_and_year", (q) => q.eq("email", legacyEmail))
         .take(100);
       if (legacy.length > 0) {
+        // A legacy profile already bound to a DIFFERENT user id belongs to
+        // someone who has signed in before — matching local parts alone must
+        // not hand their identity (profiles, requests, headships) to a new
+        // account. Only unbound legacy rows are claimable.
+        if (legacy.some((p) => p.userId !== undefined && p.userId !== userId)) {
+          break;
+        }
         await rekeyEmail(ctx, legacyEmail, email);
+        // The claim is legitimate for genuine domain-migration stragglers, but
+        // a same-local-part collision with a departed person would silently
+        // reassign their history — so IT always hears about it and can undo a
+        // wrong match while it's fresh.
+        await ctx.scheduler.runAfter(0, internal.emails.send, {
+          to: LEGACY_CLAIM_NOTIFY_EMAIL,
+          subject: `Legacy profile claim: ${legacyEmail} → ${email}`,
+          body:
+            `${email} signed in for the first time and automatically claimed ` +
+            `the profiles previously keyed to ${legacyEmail} (${legacy.length} ` +
+            `profile year(s), plus their requests and org placements).\n\n` +
+            `If these are two different people, this needs to be undone — ` +
+            `contact Data and IT to re-key the affected rows.`,
+        });
         unbound = await ctx.db
           .query("staffProfiles")
           .withIndex("by_email_and_year", (q) => q.eq("email", email))

@@ -207,6 +207,22 @@ describe("attendanceExport", () => {
       "Recent Tagged",
     ]);
 
+    // Single-sided bounds range through the index too: from-only drops the old
+    // event; to-only keeps just the old event.
+    const fromOnly = await leader.query(api.attendanceExport.eventsForExport, {
+      subgroup: USYD,
+      dateStart: Date.now() - 3 * DAY,
+    });
+    expect(fromOnly!.events.map((e) => e.name).sort()).toEqual([
+      "Collab",
+      "Recent Tagged",
+    ]);
+    const toOnly = await leader.query(api.attendanceExport.eventsForExport, {
+      subgroup: USYD,
+      dateEnd: Date.now() - 5 * DAY,
+    });
+    expect(toOnly!.events.map((e) => e.name)).toEqual(["Old Untagged"]);
+
     // Tag filter keeps only the Weekly-tagged event.
     const tagged = await leader.query(api.attendanceExport.eventsForExport, {
       subgroup: USYD,

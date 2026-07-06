@@ -92,7 +92,14 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         // Staging app variant (separate bundle id) uses its own scheme so it can
         // be installed alongside production — see app.config.js.
         redirectTo.startsWith("theshedmobilestaging://") ||
-        redirectTo.startsWith("exp://")
+        // Expo Go during local dev only. exp://<host> makes Expo Go load a
+        // bundle FROM that host, so a bare exp:// prefix would hand the OAuth
+        // code to an attacker-controlled bundle via a crafted sign-in link.
+        // Restrict to loopback / RFC1918 LAN hosts — the only places a dev
+        // server legitimately runs.
+        /^exp:\/\/(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?([/?]|$)/.test(
+          redirectTo
+        )
       ) {
         return redirectTo;
       }

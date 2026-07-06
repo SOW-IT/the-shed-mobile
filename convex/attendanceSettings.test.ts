@@ -58,9 +58,14 @@ describe("attendance tags (branch coverage)", () => {
         deleteIds: [],
       })
     ).rejects.toThrow(/admins or campus leaders/i);
+    // ensureDefaults is opportunistic (screens any staff can open fire it on
+    // mount), so a non-manager is a silent no-op — nothing seeded, no error.
     await expect(
       staff.mutation(api.attendanceMetadata.ensureDefaults, {})
-    ).rejects.toThrow(/admins or campus leaders/i);
+    ).resolves.toBe(0);
+    expect(
+      await t.run((ctx) => ctx.db.query("attendanceMetadata").collect())
+    ).toEqual([]);
     await expect(
       staff.mutation(api.attendanceMetadata.saveAll, { fields: [], deleteIds: [] })
     ).rejects.toThrow(/admins or campus leaders/i);
@@ -149,6 +154,39 @@ describe("attendance tags", () => {
         deleteIds: [],
       })
     ).rejects.toThrow(/Duplicate tag/i);
+  });
+
+  test("inserting a name that already exists in the catalogue is rejected", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceTags.saveAll, {
+      tags: [{ name: "Retreat", colour: "purple" }],
+      deleteIds: [],
+    });
+    // A second save that doesn't round-trip the existing row (e.g. a stale or
+    // concurrent client) must not create a duplicate-named tag.
+    await expect(
+      leader.mutation(api.attendanceTags.saveAll, {
+        tags: [{ name: "retreat" }],
+        deleteIds: [],
+      })
+    ).rejects.toThrow(/already exists/i);
+    // Updating the existing row under its own name (normal full-list save) is fine.
+    const [tag] = await leader.query(api.attendanceTags.list, {});
+    await leader.mutation(api.attendanceTags.saveAll, {
+      tags: [{ id: tag._id, name: "Retreat", colour: "teal" }],
+      deleteIds: [],
+    });
+    const [updated] = await leader.query(api.attendanceTags.list, {});
+    expect(updated.colour).toBe("teal");
+    // Deleting a tag in the same save frees its name for a new insert.
+    await leader.mutation(api.attendanceTags.saveAll, {
+      tags: [{ name: "Retreat", colour: "red" }],
+      deleteIds: [tag._id],
+    });
+    const after = await leader.query(api.attendanceTags.list, {});
+    expect(after).toHaveLength(1);
+    expect(after[0].colour).toBe("red");
   });
 });
 

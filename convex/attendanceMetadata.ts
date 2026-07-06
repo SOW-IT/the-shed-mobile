@@ -15,6 +15,7 @@ import { canonicalSubgroup, subgroupMatches } from "../shared/rollcall";
 import { internalMutation, mutation, query } from "./_generated/server";
 import {
   currentStaffYear,
+  isAttendanceManagerProfile,
   optionalProfile,
   requireAttendanceManager,
 } from "./model";
@@ -127,11 +128,21 @@ export const list = query({
   },
 });
 
-/** Seed the global Year, Gender, Campus, Role fields when none exist yet. */
+/**
+ * Seed the global Year, Gender, Campus, Role fields when none exist yet.
+ * Opportunistic: screens any staff can open (Members tab, event wizard) fire
+ * this blind on mount, so a caller who may not manage the shared settings is a
+ * silent no-op rather than an error — the Convex client logs every server
+ * error loudly in dev, and a plain-staff mount is not an error. Mutating the
+ * catalogue (saveAll) still requires the manager role outright.
+ */
 export const ensureDefaults = mutation({
   args: {},
   handler: async (ctx) => {
-    await requireAttendanceManager(ctx);
+    const caller = await optionalProfile(ctx);
+    if (!caller || !(await isAttendanceManagerProfile(ctx, caller.profile))) {
+      return 0;
+    }
     const existing = await ctx.db.query("attendanceMetadata").collect();
     if (existing.length > 0) return existing.length;
 

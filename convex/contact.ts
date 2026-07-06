@@ -8,6 +8,16 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_MESSAGE = 5000;
 const WINDOW_MS = 60 * 60 * 1000;
 const MAX_SUBMISSIONS = 3;
+/**
+ * Global (all-senders) cap per window. The per-email limit alone is keyed on a
+ * caller-supplied address, so an anonymous abuser bypasses it by rotating
+ * addresses — flooding the inbox and relaying acknowledgment emails to
+ * arbitrary third parties on our Resend account. Real traffic is a handful of
+ * messages a day, so a generous global ceiling never bites legitimately.
+ */
+const MAX_SUBMISSIONS_GLOBAL = 30;
+/** Rows older than this are dead weight; opportunistically pruned on submit. */
+const PRUNE_BATCH = 50;
 
 /** Public "Contact us" form (Home → Partner). */
 export const submit = mutation({
@@ -51,6 +61,25 @@ export const submit = mutation({
         "You've submitted a few messages recently. Please wait an hour before sending another."
       );
     }
+    // Global cap across ALL senders (bounded read, newest window only) — the
+    // per-email check above is trivially bypassed by rotating addresses.
+    const globalInWindow = await ctx.db
+      .query("contactRateLimit")
+      .withIndex("by_time", (q) => q.gt("submittedAt", now - WINDOW_MS))
+      .take(MAX_SUBMISSIONS_GLOBAL);
+    if (globalInWindow.length >= MAX_SUBMISSIONS_GLOBAL) {
+      throw new ConvexError(
+        "The contact form is receiving a lot of messages right now. Please try again later."
+      );
+    }
+
+    // Opportunistically prune rows that fell out of the window — they can never
+    // influence a future check, and without this the table grows forever.
+    const stale = await ctx.db
+      .query("contactRateLimit")
+      .withIndex("by_time", (q) => q.lte("submittedAt", now - WINDOW_MS))
+      .take(PRUNE_BATCH);
+    for (const row of stale) await ctx.db.delete("contactRateLimit", row._id);
 
     await ctx.db.insert("contactRateLimit", {
       fromEmail,

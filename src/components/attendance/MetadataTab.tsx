@@ -150,7 +150,9 @@ export function MetadataTab({
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    void ensureDefaults({});
+    // Opportunistic seeding (server no-ops for non-managers); fire-and-forget,
+    // so a transient failure must not surface as an unhandled rejection.
+    void ensureDefaults({}).catch(() => {});
   }, [ensureDefaults]);
 
   useEffect(() => {
