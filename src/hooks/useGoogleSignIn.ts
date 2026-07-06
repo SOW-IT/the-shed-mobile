@@ -23,6 +23,18 @@ const REDIRECT_GRACE_MS = 2500;
  */
 export type GoogleProvider = "google" | "googlePersonal";
 
+/**
+ * The result of an interactive sign-in attempt:
+ *  - "signed-in": completed, the app is now authenticated.
+ *  - "cancelled": the user dismissed the browser (no action needed).
+ *  - "rejected": the provider authenticated the account, but our backend refused
+ *    it (e.g. an @sow.org.au account used on the non-staff Google option). The
+ *    OAuth callback redirects back with no code, so it's otherwise silent — the
+ *    UI surfaces a message for this case.
+ *  - "error": an unexpected failure; `error` state carries the message.
+ */
+export type SignInOutcome = "signed-in" | "cancelled" | "rejected" | "error";
+
 // On web the sign-in is a full-page redirect, so the provider that initiated it
 // must survive the round-trip to Google and back. sessionStorage lives for the
 // tab's lifetime (including navigating away and returning), so the code-exchange
@@ -104,7 +116,7 @@ export const useGoogleSignIn = (provider: GoogleProvider = "google") => {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (): Promise<SignInOutcome> => {
     setError(null);
     setBusy(true);
     try {
@@ -116,7 +128,7 @@ export const useGoogleSignIn = (provider: GoogleProvider = "google") => {
         // from). Stay busy — we're navigating away, and resetting would briefly
         // re-enable the button before the redirect actually happens.
         await signIn(provider, { redirectTo: window.location.origin });
-        return;
+        return "cancelled"; // page is navigating away; value is unused
       }
       // Pass the scheme explicitly so the staging build always produces
       // theshedmobilestaging:// rather than exp://localhost when run via
@@ -128,7 +140,7 @@ export const useGoogleSignIn = (provider: GoogleProvider = "google") => {
       const { redirect } = await signIn(provider, { redirectTo });
       if (!redirect) {
         setBusy(false);
-        return;
+        return "cancelled";
       }
       // Capture the OAuth redirect from whichever source delivers it first: the
       // auth-session result, or a deep-link event. On a fresh install the first
@@ -138,7 +150,11 @@ export const useGoogleSignIn = (provider: GoogleProvider = "google") => {
       // second attempt warmed the session. When the session fails to swallow the
       // redirect, the OS hands theshedmobile://…?code= to the app as a normal
       // deep link, so this Linking listener recovers it on that first try.
-      const outcome = await new Promise<{ url: string | null; error?: unknown }>(
+      const outcome = await new Promise<{
+        url: string | null;
+        error?: unknown;
+        rejected?: boolean;
+      }>(
         (resolve) => {
           let settled = false;
           let graceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -146,6 +162,12 @@ export const useGoogleSignIn = (provider: GoogleProvider = "google") => {
           // error, NOT a user cancel/dismiss — those resolve). Surfaced only if
           // the grace window also yields no code.
           let sessionError: unknown = null;
+          // Set when the browser completed the OAuth round-trip (type
+          // "success") but handed back a URL with no code. That's not a cancel —
+          // it means our backend's callback refused the account (profile() threw,
+          // e.g. an org email on the non-staff option) and redirected home
+          // without a code. Distinguishes "rejected" from "cancelled".
+          let completedNoCode = false;
           const finishUrl = (url: string) => {
             if (settled) return;
             settled = true;
@@ -157,7 +179,7 @@ export const useGoogleSignIn = (provider: GoogleProvider = "google") => {
             if (settled) return;
             settled = true;
             sub.remove();
-            resolve({ url: null, error: sessionError });
+            resolve({ url: null, error: sessionError, rejected: completedNoCode });
           };
           // Only settle on a deep link that actually carries the OAuth `code` —
           // an unrelated universal/notification link arriving mid-session must
@@ -182,7 +204,10 @@ export const useGoogleSignIn = (provider: GoogleProvider = "google") => {
               if (result.type === "success" && codeFromUrl(result.url)) {
                 finishUrl(result.url);
               } else {
-                // cancel / dismiss / success-without-code: user-driven, no error.
+                // A "success" with no code means the callback redirected home
+                // without one — a backend rejection, not a user cancel. Flag it
+                // so we can tell them why (vs. dismiss/cancel, which stays quiet).
+                if (result.type === "success") completedNoCode = true;
                 startGrace();
               }
             },
@@ -201,16 +226,18 @@ export const useGoogleSignIn = (provider: GoogleProvider = "google") => {
         // rather than flicker back to clickable while the flip lands.
         await signIn(provider, { code });
         setBusy(false);
-        return;
+        return "signed-in";
       }
       // A real session failure with no recovered code — surface it rather than
       // silently re-enabling as if the user had just cancelled.
       if (outcome.error) throw outcome.error;
       // No redirect captured, or the user dismissed the browser — re-enable.
       setBusy(false);
+      return outcome.rejected ? "rejected" : "cancelled";
     } catch (e) {
       setError(errorText(e));
       setBusy(false);
+      return "error";
     }
   };
 

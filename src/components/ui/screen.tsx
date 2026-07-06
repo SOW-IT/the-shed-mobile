@@ -7,6 +7,7 @@ import { api } from "@convex/_generated/api";
 import { useConvexAuth, useQuery } from "convex/react";
 import { ReactNode, Ref, useEffect, useState } from "react";
 import {
+  Alert,
   Animated,
   Image,
   Modal,
@@ -19,7 +20,11 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { useRouter } from "expo-router";
 import { USE_NATIVE_DRIVER, spacing, typography, useAppTheme } from "@/theme";
 import { IS_DEV_ENVIRONMENT } from "@/env";
-import { useGoogleSignIn } from "@/hooks/useGoogleSignIn";
+import {
+  type GoogleProvider,
+  type SignInOutcome,
+  useGoogleSignIn,
+} from "@/hooks/useGoogleSignIn";
 import { TOP_BAR_HEIGHT } from "@/components/useTopBarCollapse";
 import { Avatar, Toast, ToastState } from "./feedback";
 import { usePressScale } from "./format";
@@ -170,10 +175,31 @@ export const TopBar = ({
     sow.clearError();
     personal.clearError();
   };
-  const signInAndClose = async (signIn: () => Promise<void>) => {
+  const signInAndClose = async (
+    signIn: () => Promise<SignInOutcome>,
+    kind: GoogleProvider
+  ) => {
     setSignInMenu(false);
     clearError();
-    await signIn();
+    const outcome = await signIn();
+    // The provider authenticated the account but our backend refused it. The
+    // OAuth callback comes back with no code, so without this the attempt would
+    // just quietly do nothing — tell the user why and where to go instead.
+    if (outcome === "rejected") {
+      if (kind === "googlePersonal") {
+        Alert.alert(
+          "Use your SOW account",
+          "That looks like a SOW organisation account. Please tap “Sign in with your SOW account” to sign in with it.",
+          [{ text: "OK" }]
+        );
+      } else {
+        Alert.alert(
+          "SOW account required",
+          "Only SOW organisation accounts can sign in here. To browse as a guest, tap “Sign in with Google” instead.",
+          [{ text: "OK" }]
+        );
+      }
+    }
   };
   return (
     <View style={styles.topBar}>
@@ -332,7 +358,7 @@ export const TopBar = ({
           >
             <Pressable
               disabled={busy}
-              onPress={() => void signInAndClose(sow.signInWithGoogle)}
+              onPress={() => void signInAndClose(sow.signInWithGoogle, "google")}
               accessibilityRole="button"
               accessibilityLabel="Sign in with your SOW account"
               style={({ pressed }) => [
@@ -354,7 +380,9 @@ export const TopBar = ({
             />
             <Pressable
               disabled={busy}
-              onPress={() => void signInAndClose(personal.signInWithGoogle)}
+              onPress={() =>
+                void signInAndClose(personal.signInWithGoogle, "googlePersonal")
+              }
               accessibilityRole="button"
               accessibilityLabel="Sign in with a personal Google account"
               style={({ pressed }) => [
