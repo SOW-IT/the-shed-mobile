@@ -141,9 +141,10 @@ export default function AttendanceScreen() {
   }
 
   // The staff tools need a provisioned staff profile (the tab itself is hidden
-  // for everyone else). Signed-out visitors and signed-in non-staff accounts
-  // deep-linking here are sent to the public Org chart instead.
-  if (!me?.profile) return <Redirect href="/org" />;
+  // for everyone else). Anyone else deep-linking here is redirected: signed-out
+  // visitors to the public Home tab (their default, 1.7.5), signed-in non-staff
+  // accounts to the Org chart.
+  if (!me?.profile) return <Redirect href={me === null ? "/home" : "/org"} />;
 
   const tabs: PagerTab[] = [
     {

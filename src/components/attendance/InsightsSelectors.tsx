@@ -37,6 +37,7 @@ function SelectorFab({
         onPress={() => setOpen(true)}
         style={({ pressed }) => [
           styles.fab,
+          styles.fabRight,
           t.shadowCard,
           { backgroundColor: t.primary, opacity: pressed ? 0.85 : 1 },
         ]}
@@ -215,8 +216,12 @@ const styles = StyleSheet.create({
   fab: {
     // Matches the org chart's FloatingYearPicker so the two screens' selectors
     // sit in the same spot (styles.floatingYearPicker: right lg, bottom md).
+    // The horizontal edge is set by fabRight/fabLeft — NOT here — because on
+    // web react-native-web compiles styles to additive atomic classes and drops
+    // `undefined`, so a later `right: undefined` can't unset a base `right`
+    // (the pill then pins to BOTH edges and stretches full width). Keeping the
+    // base edge-agnostic avoids that.
     position: "absolute",
-    right: spacing.lg,
     bottom: spacing.md,
     flexDirection: "row",
     alignItems: "center",
@@ -226,9 +231,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     zIndex: 20,
   },
-  // Opposite corner from the scope/range selector.
+  // Bottom-right corner (scope/range selectors).
+  fabRight: {
+    right: spacing.lg,
+  },
+  // Opposite corner from the scope/range selector (chart-mode toggle).
   fabLeft: {
-    right: undefined,
     left: spacing.lg,
   },
   optionRow: {

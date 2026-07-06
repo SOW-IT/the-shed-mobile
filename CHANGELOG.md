@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.7.5] — 2026-07-06
+
+### Changed
+
+- **Signed-out visitors now default to the Home tab** instead of the Org chart.
+  The web entry point (`/`) and staff-tab deep links redirect signed-out users
+  to Home; signed-in accounts without a staff profile still land on the Org
+  chart.
+
 ## [1.7.4] — 2026-07-06
 
 ### Added
