@@ -144,10 +144,16 @@ npx eas credentials   # iOS: distribution cert + provisioning profile + APNs
 
 ## 6. After credentials exist — small finishers
 
-- [ ] **Universal links**: fill `web/.well-known/apple-app-site-association.example`
-      (Apple **Team ID**) and `assetlinks.json.example` (Android signing
-      **SHA-256** from `eas credentials`), drop the `.example` suffixes, run
-      `npm run deploy:web`. Email links then open the native app.
+- [x] **Universal links**: real `web/.well-known/apple-app-site-association`
+      (Team ID `4FH642K7X2`) and `assetlinks.json` (Android SHA-256 from the
+      `credentials/android` keystore) are committed, and `web/vercel.json` serves
+      the AASA file as `application/json`. They go live on the next
+      `npm run deploy:web`; universal links then work once a native build ships
+      the updated `app.json` `associatedDomains`.
+      ⚠️ **If Google Play App Signing is enabled**, Play re-signs the app with
+      its own key — add the Play Console's **app-signing SHA-256** to the
+      `sha256_cert_fingerprints` array in `assetlinks.json` too (the array takes
+      multiple), otherwise Android App Links won't verify for Play installs.
 - [ ] **Workspace directory sync**: service account + domain-wide delegation
       (exact steps in README → "Workspace directory sync"); set the three
       `GOOGLE_SA_*` env vars with `--prod` (and on dev if wanted).

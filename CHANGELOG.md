@@ -35,6 +35,11 @@ All notable changes to **The SHED** mobile app. This project follows
   and the app's universal-link config now use the new domain; the old
   `.vercel.app` address keeps working during the cutover. Requires DNS + Vercel
   domain setup and the prod `SITE_URL` env var (see LAUNCH.md § 6).
+- **Universal / app links are now configured.** The real
+  `web/.well-known/apple-app-site-association` and `assetlinks.json` are in place
+  (served as JSON via `web/vercel.json`), so tapping a `theshed.sow.org.au` link
+  opens the native app — effective once these deploy and a native build ships
+  the updated `associatedDomains`.
 
 ## [1.7.2] — 2026-07-05
 
