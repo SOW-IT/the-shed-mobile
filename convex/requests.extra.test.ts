@@ -90,7 +90,7 @@ describe("appUrl", () => {
     vi.stubEnv("SITE_URL", "   ");
     expect(appUrl("/x")).toBe("https://app.example.com/x");
     vi.stubEnv("APP_URL", undefined);
-    expect(appUrl("/y")).toBe("https://the-shed-web.vercel.app/y");
+    expect(appUrl("/y")).toBe("https://theshed.sow.org.au/y");
   });
 
   test("normalises a trailing slash so links never double up", () => {

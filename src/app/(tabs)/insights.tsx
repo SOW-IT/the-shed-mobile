@@ -82,18 +82,22 @@ export default function InsightsScreen() {
     return <LoadingState />;
   }
 
-  // Insights (1.7.0):
+  // Insights:
   // - General: org-wide trend charts (aggregate head-counts) are open to
-  //   everyone. Visitors get the charts plus a "sign in to view more" prompt at
-  //   the bottom, and no year picker; the per-year card breakdown is staff-only.
-  // - Attendance: staff-only. Visitors don't see the tab at all, so the top-bar
-  //   segments collapse to just General for them.
+  //   everyone. Any signed-in account — even without a staff profile (1.7.4) —
+  //   gets the FULL General view (year picker + per-year card breakdown); only
+  //   signed-out visitors get the trimmed public preview and the "sign in to
+  //   view more" prompt.
+  // - Attendance: staff-only (shows per-campus student data). Visitors and
+  //   signed-in non-staff don't see the tab, so the top-bar segments collapse to
+  //   just General for them.
   const isStaff = !!me?.profile;
-  const signInPrompt = !isStaff ? (
+  const isSignedIn = !!me;
+  const signInPrompt = !isSignedIn ? (
     <EmptyState
       icon="log-in-outline"
       title="Sign in to view more"
-      message="You're seeing the public view. Sign in with your SOW account to see the full dashboard."
+      message="You're seeing the public view. Sign in to see the full dashboard."
     />
   ) : null;
 
@@ -102,10 +106,11 @@ export default function InsightsScreen() {
     label: "General",
     render: () => (
       <>
-        {/* Visitors have no year picker, so `generalYear` stays null (All years);
-            publicPreview keeps the per-year cards staff-only. */}
-        <GeneralMetricsTab year={generalYear} publicPreview={!isStaff} />
-        {/* Sign-in prompt sits below the graphs for visitors. */}
+        {/* Signed-out visitors have no year picker, so `generalYear` stays null
+            (All years); publicPreview trims the per-year cards for them. Any
+            signed-in account gets the full breakdown (1.7.4). */}
+        <GeneralMetricsTab year={generalYear} publicPreview={!isSignedIn} />
+        {/* Sign-in prompt sits below the graphs for signed-out visitors. */}
         {signInPrompt}
       </>
     ),
@@ -129,26 +134,25 @@ export default function InsightsScreen() {
   const tabs: PagerTab[] = isStaff ? [generalTab, attendanceTab] : [generalTab];
   const activeKey = tabs.some((t) => t.key === active) ? active : "general";
 
-  // The bottom-right selector is per-tab: range/collaborative on Attendance,
-  // All-vs-year scope on General. Visitors get neither (no picker), only the
-  // bottom-left bars/lines toggle.
+  // The bottom-right selector is per-tab: range/collaborative on the staff-only
+  // Attendance tab, All-vs-year scope on General for any signed-in account
+  // (1.7.4). Signed-out visitors get neither (no picker), only the bottom-left
+  // bars/lines toggle.
   const floating = (
     <>
-      {isStaff ? (
-        activeKey === "attendance" ? (
-          <AttendanceRangeFab
-            rangeWeeks={rangeWeeks}
-            onRangeChange={setRangeWeeks}
-            includeCollaborative={includeCollaborative}
-            onCollaborativeChange={setIncludeCollaborative}
-          />
-        ) : (
-          <GeneralScopeFab
-            years={staffTrends?.years ?? []}
-            value={generalYear}
-            onChange={setGeneralYear}
-          />
-        )
+      {activeKey === "attendance" && isStaff ? (
+        <AttendanceRangeFab
+          rangeWeeks={rangeWeeks}
+          onRangeChange={setRangeWeeks}
+          includeCollaborative={includeCollaborative}
+          onCollaborativeChange={setIncludeCollaborative}
+        />
+      ) : isSignedIn ? (
+        <GeneralScopeFab
+          years={staffTrends?.years ?? []}
+          value={generalYear}
+          onChange={setGeneralYear}
+        />
       ) : null}
       <ChartModeFab mode={chartMode} onChange={setChartMode} />
     </>

@@ -2,7 +2,7 @@
   "expo": {
     "name": "The SHED",
     "slug": "the-shed-mobile",
-    "version": "1.7.3",
+    "version": "1.7.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "theshedmobile",
@@ -11,6 +11,7 @@
       "bundleIdentifier": "au.org.sow.theshed",
       "supportsTablet": true,
       "associatedDomains": [
+        "applinks:theshed.sow.org.au",
         "applinks:the-shed-web.vercel.app"
       ],
       "infoPlist": {
@@ -24,6 +25,10 @@
           "action": "VIEW",
           "autoVerify": true,
           "data": [
+            {
+              "scheme": "https",
+              "host": "theshed.sow.org.au"
+            },
             {
               "scheme": "https",
               "host": "the-shed-web.vercel.app"

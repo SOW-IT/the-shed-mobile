@@ -2,10 +2,12 @@ import Google from "@auth/core/providers/google";
 import { ConvexCredentials } from "@convex-dev/auth/providers/ConvexCredentials";
 import { convexAuth, createAccount, retrieveAccount } from "@convex-dev/auth/server";
 import { DataModel } from "./_generated/dataModel";
+import { allowedDomain as resolveAllowedDomain } from "./model";
 import { linkUserProfiles } from "./userLink";
 
-// Only accounts from this Google Workspace organisation may sign in.
-const allowedDomain = process.env.AUTH_ALLOWED_DOMAIN ?? "sow.org.au";
+// The organisation's Google Workspace domain. Single source of truth lives in
+// model.ts (also used by the admin org-only filters); resolved once here.
+const allowedDomain = resolveAllowedDomain();
 
 // ── E2E test-login (NON-PRODUCTION ONLY) ─────────────────────────────────────
 // A credentials provider that signs in as an existing sow.org.au email WITHOUT
@@ -113,13 +115,49 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   },
   providers: [
     Google({
-      // `hd` asks Google to restrict the account picker to the organisation;
-      // the profile callback enforces it server-side (hd alone is advisory).
+      // The staff sign-in. `hd` asks Google to restrict the account picker to
+      // the organisation; the profile callback enforces it server-side (hd
+      // alone is advisory). Non-org accounts use the `googlePersonal` provider
+      // below instead.
       authorization: { params: { hd: allowedDomain, prompt: "select_account" } },
       profile(profile) {
         const email = (profile.email ?? "").toLowerCase();
         if (!email.endsWith(`@${allowedDomain}`)) {
           throw new Error(`Only ${allowedDomain} Google accounts can sign in`);
+        }
+        return {
+          id: profile.sub,
+          name: profile.name,
+          email,
+          image: profile.picture,
+        };
+      },
+    }),
+    // Non-staff Google sign-in (1.7.4): any Google account may sign in here.
+    // Reuses the same Google OAuth client as the staff provider (explicit
+    // clientId/secret, since @auth/core would otherwise look for
+    // AUTH_GOOGLEPERSONAL_ID), but drops the `hd` hint and the domain check so
+    // personal accounts can reach the public surfaces (Home, Org, Insights).
+    // A personal account never resolves to a staff profile — staff roles link
+    // by @${allowedDomain} email — so it stays a visitor with an account, and
+    // is excluded from the admin Users assignment lists.
+    // NOTE: the Google Cloud OAuth consent screen must be "External" for
+    // non-org accounts to be accepted by Google itself.
+    Google({
+      id: "googlePersonal",
+      clientId: process.env.AUTH_GOOGLE_ID,
+      clientSecret: process.env.AUTH_GOOGLE_SECRET,
+      authorization: { params: { prompt: "select_account" } },
+      profile(profile) {
+        const email = (profile.email ?? "").toLowerCase();
+        // Org accounts must use the staff "google" provider above so they
+        // resolve to their existing user/profile. Letting a sow.org.au account
+        // in here would mint a second auth account for the same person (a
+        // different provider id → a separate account row) and split their state.
+        if (email.endsWith(`@${allowedDomain}`)) {
+          throw new Error(
+            `Use "Sign in with your SOW account" for your @${allowedDomain} account.`
+          );
         }
         return {
           id: profile.sub,

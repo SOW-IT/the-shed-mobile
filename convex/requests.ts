@@ -106,7 +106,7 @@ export const appUrl = (path?: string) => {
   const base = (
     process.env.SITE_URL?.trim() ||
     process.env.APP_URL?.trim() ||
-    "https://the-shed-web.vercel.app"
+    "https://theshed.sow.org.au"
   ).replace(/\/+$/, "");
   return `${base}${path ?? ""}`;
 };

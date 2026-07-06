@@ -71,6 +71,10 @@ export const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
+  dropdownDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: spacing.lg,
+  },
   dropdownError: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.sm,

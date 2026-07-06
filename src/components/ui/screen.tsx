@@ -7,6 +7,7 @@ import { api } from "@convex/_generated/api";
 import { useConvexAuth, useQuery } from "convex/react";
 import { ReactNode, Ref, useEffect, useState } from "react";
 import {
+  Alert,
   Animated,
   Image,
   Modal,
@@ -19,7 +20,11 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { useRouter } from "expo-router";
 import { USE_NATIVE_DRIVER, spacing, typography, useAppTheme } from "@/theme";
 import { IS_DEV_ENVIRONMENT } from "@/env";
-import { useGoogleSignIn } from "@/hooks/useGoogleSignIn";
+import {
+  type GoogleProvider,
+  type SignInOutcome,
+  useGoogleSignIn,
+} from "@/hooks/useGoogleSignIn";
 import { TOP_BAR_HEIGHT } from "@/components/useTopBarCollapse";
 import { Avatar, Toast, ToastState } from "./feedback";
 import { usePressScale } from "./format";
@@ -148,6 +153,10 @@ export const TopBar = ({
   // the same check the tabs use, not merely being signed in.
   const me = useQuery(api.directory.me);
   const isStaff = !!me?.profile;
+  // The logo takes staff back to their workspace (as it always has, via the
+  // Home redirect), but visitors and signed-in accounts without a staff profile
+  // land on the public Home tab (1.7.4) — the Home surface is theirs now.
+  const logoHref = isStaff ? (me?.isCampusLeader ? "/attendance" : "/") : "/home";
   const unread =
     useQuery(api.notifications.unreadCount, isStaff ? {} : "skip") ?? 0;
   const [testInfo, setTestInfo] = useState(false);
@@ -155,22 +164,53 @@ export const TopBar = ({
   // the top bar lives inside an overflow-hidden collapsing clip, so anything
   // anchored inside it would be cut off at the bar's edge.
   const [signInMenu, setSignInMenu] = useState(false);
-  const { signInWithGoogle, busy, error, clearError } = useGoogleSignIn();
-  const signInAndClose = async () => {
+  // Two Google flows: the org-restricted staff account, and any personal
+  // (non-staff) Google account (1.7.4). Apple sign-in is planned but pending
+  // Apple Developer credentials.
+  const sow = useGoogleSignIn("google");
+  const personal = useGoogleSignIn("googlePersonal");
+  const busy = sow.busy || personal.busy;
+  const error = sow.error ?? personal.error;
+  const clearError = () => {
+    sow.clearError();
+    personal.clearError();
+  };
+  const signInAndClose = async (
+    signIn: () => Promise<SignInOutcome>,
+    kind: GoogleProvider
+  ) => {
     setSignInMenu(false);
     clearError();
-    await signInWithGoogle();
+    const outcome = await signIn();
+    // The provider authenticated the account but our backend refused it. The
+    // OAuth callback comes back with no code, so without this the attempt would
+    // just quietly do nothing — tell the user why and where to go instead.
+    if (outcome === "rejected") {
+      if (kind === "googlePersonal") {
+        Alert.alert(
+          "Use your SOW account",
+          "That looks like a SOW organisation account. Please tap “Sign in with your SOW account” to sign in with it.",
+          [{ text: "OK" }]
+        );
+      } else {
+        Alert.alert(
+          "SOW account required",
+          "Only SOW organisation accounts can sign in here. To browse as a guest, tap “Sign in with Google” instead.",
+          [{ text: "OK" }]
+        );
+      }
+    }
   };
   return (
     <View style={styles.topBar}>
       <Animated.View style={{ transform: [{ scale: home.scale }] }}>
         <Pressable
-          onPress={() => router.push("/home")}
+          onPress={() => router.push(logoHref)}
           onPressIn={home.onPressIn}
           onPressOut={home.onPressOut}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel="Go to Home"
+          accessibilityLabel={isStaff ? "Go to your workspace" : "Go to Home"}
         >
           <Image
             source={require("../../../assets/images/the-shed-compact-logo.png")}
@@ -318,7 +358,7 @@ export const TopBar = ({
           >
             <Pressable
               disabled={busy}
-              onPress={signInAndClose}
+              onPress={() => void signInAndClose(sow.signInWithGoogle, "google")}
               accessibilityRole="button"
               accessibilityLabel="Sign in with your SOW account"
               style={({ pressed }) => [
@@ -326,13 +366,37 @@ export const TopBar = ({
                 pressed && { opacity: 0.6 },
               ]}
             >
-              {busy ? (
+              {sow.busy ? (
                 <SowSpinner size={18} onDark={t.dark} />
               ) : (
                 <Ionicons name="logo-google" size={18} color={t.text} />
               )}
               <Text style={[typography.headline, { color: t.text }]}>
                 Sign in with your SOW account
+              </Text>
+            </Pressable>
+            <View
+              style={[styles.dropdownDivider, { backgroundColor: t.separator }]}
+            />
+            <Pressable
+              disabled={busy}
+              onPress={() =>
+                void signInAndClose(personal.signInWithGoogle, "googlePersonal")
+              }
+              accessibilityRole="button"
+              accessibilityLabel="Sign in with a personal Google account"
+              style={({ pressed }) => [
+                styles.dropdownItem,
+                pressed && { opacity: 0.6 },
+              ]}
+            >
+              {personal.busy ? (
+                <SowSpinner size={18} onDark={t.dark} />
+              ) : (
+                <Ionicons name="logo-google" size={18} color={t.text} />
+              )}
+              <Text style={[typography.headline, { color: t.text }]}>
+                Sign in with Google
               </Text>
             </Pressable>
             {error ? (
@@ -366,7 +430,7 @@ export const TopBar = ({
               data.
             </Txt>
             <Txt style={{ color: t.muted }}>
-              The live app lives at the-shed-web.vercel.app.
+              The live app lives at theshed.sow.org.au.
             </Txt>
           </View>
         </Sheet>

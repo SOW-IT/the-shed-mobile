@@ -16,6 +16,32 @@ maybeCompleteAuthSession();
 // reports dismiss/cancel a moment before the OS delivers the redirect deep link.
 const REDIRECT_GRACE_MS = 2500;
 
+/**
+ * The two Google providers configured server-side (convex/auth.ts):
+ *  - "google": staff sign-in, restricted to the org domain.
+ *  - "googlePersonal": any Google account (non-staff), for the public surfaces.
+ */
+export type GoogleProvider = "google" | "googlePersonal";
+
+/**
+ * The result of an interactive sign-in attempt:
+ *  - "signed-in": completed, the app is now authenticated.
+ *  - "cancelled": the user dismissed the browser (no action needed).
+ *  - "rejected": the provider authenticated the account, but our backend refused
+ *    it (e.g. an @sow.org.au account used on the non-staff Google option). The
+ *    OAuth callback redirects back with no code, so it's otherwise silent — the
+ *    UI surfaces a message for this case.
+ *  - "error": an unexpected failure; `error` state carries the message.
+ */
+export type SignInOutcome = "signed-in" | "cancelled" | "rejected" | "error";
+
+// On web the sign-in is a full-page redirect, so the provider that initiated it
+// must survive the round-trip to Google and back. sessionStorage lives for the
+// tab's lifetime (including navigating away and returning), so the code-exchange
+// on return can complete against the SAME provider — exchanging a personal
+// account's code against the org-restricted "google" provider would be rejected.
+const PENDING_PROVIDER_KEY = "pendingGoogleAuthProvider";
+
 /** Pull the OAuth `code` from a redirect URL. `Linking.parse` understands the
  *  app's custom scheme (theshedmobile://…) more reliably than the URL polyfill,
  *  with `new URL` as a fallback for https redirects. */
@@ -56,9 +82,15 @@ export const useWebAuthCodeExchange = () => {
     if (!code) return;
     // Remove code from URL so a page refresh doesn't re-attempt a used code.
     window.history.replaceState({}, "", window.location.pathname);
+    // Complete against the provider that started the flow (defaults to the staff
+    // provider for any legacy/in-flight redirect that predates this key).
+    const provider =
+      (window.sessionStorage.getItem(PENDING_PROVIDER_KEY) as GoogleProvider) ||
+      "google";
+    window.sessionStorage.removeItem(PENDING_PROVIDER_KEY);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- OAuth code exchange on load
     setBusy(true);
-    void signIn("google", { code })
+    void signIn(provider, { code })
       .catch((e: unknown) => setError(errorText(e)))
       .finally(() => setBusy(false));
   }, [signIn]);
@@ -74,22 +106,29 @@ const errorText = (e: unknown): string =>
  * (the signed-out avatar dropdown). On web it's a full-page redirect to Google
  * (the code exchange on return is {@link useWebAuthCodeExchange}); on native
  * it drives the auth session + deep-link dance below.
+ *
+ * `provider` selects which server-side Google provider to use: the org-restricted
+ * staff "google" (default) or "googlePersonal" for any account (see
+ * {@link GoogleProvider}).
  */
-export const useGoogleSignIn = () => {
+export const useGoogleSignIn = (provider: GoogleProvider = "google") => {
   const { signIn } = useAuthActions();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (): Promise<SignInOutcome> => {
     setError(null);
     setBusy(true);
     try {
       if (Platform.OS === "web") {
+        // Remember which provider started the flow so the code-exchange on
+        // return (useWebAuthCodeExchange) completes against the same one.
+        window.sessionStorage.setItem(PENDING_PROVIDER_KEY, provider);
         // Full-page redirect to Google (back to wherever this app is served
         // from). Stay busy — we're navigating away, and resetting would briefly
         // re-enable the button before the redirect actually happens.
-        await signIn("google", { redirectTo: window.location.origin });
-        return;
+        await signIn(provider, { redirectTo: window.location.origin });
+        return "cancelled"; // page is navigating away; value is unused
       }
       // Pass the scheme explicitly so the staging build always produces
       // theshedmobilestaging:// rather than exp://localhost when run via
@@ -98,10 +137,10 @@ export const useGoogleSignIn = () => {
       const redirectTo = makeRedirectUri({
         scheme: Array.isArray(scheme) ? scheme[0] : scheme,
       });
-      const { redirect } = await signIn("google", { redirectTo });
+      const { redirect } = await signIn(provider, { redirectTo });
       if (!redirect) {
         setBusy(false);
-        return;
+        return "cancelled";
       }
       // Capture the OAuth redirect from whichever source delivers it first: the
       // auth-session result, or a deep-link event. On a fresh install the first
@@ -111,7 +150,11 @@ export const useGoogleSignIn = () => {
       // second attempt warmed the session. When the session fails to swallow the
       // redirect, the OS hands theshedmobile://…?code= to the app as a normal
       // deep link, so this Linking listener recovers it on that first try.
-      const outcome = await new Promise<{ url: string | null; error?: unknown }>(
+      const outcome = await new Promise<{
+        url: string | null;
+        error?: unknown;
+        rejected?: boolean;
+      }>(
         (resolve) => {
           let settled = false;
           let graceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -119,6 +162,12 @@ export const useGoogleSignIn = () => {
           // error, NOT a user cancel/dismiss — those resolve). Surfaced only if
           // the grace window also yields no code.
           let sessionError: unknown = null;
+          // Set when the browser completed the OAuth round-trip (type
+          // "success") but handed back a URL with no code. That's not a cancel —
+          // it means our backend's callback refused the account (profile() threw,
+          // e.g. an org email on the non-staff option) and redirected home
+          // without a code. Distinguishes "rejected" from "cancelled".
+          let completedNoCode = false;
           const finishUrl = (url: string) => {
             if (settled) return;
             settled = true;
@@ -130,7 +179,7 @@ export const useGoogleSignIn = () => {
             if (settled) return;
             settled = true;
             sub.remove();
-            resolve({ url: null, error: sessionError });
+            resolve({ url: null, error: sessionError, rejected: completedNoCode });
           };
           // Only settle on a deep link that actually carries the OAuth `code` —
           // an unrelated universal/notification link arriving mid-session must
@@ -155,7 +204,10 @@ export const useGoogleSignIn = () => {
               if (result.type === "success" && codeFromUrl(result.url)) {
                 finishUrl(result.url);
               } else {
-                // cancel / dismiss / success-without-code: user-driven, no error.
+                // A "success" with no code means the callback redirected home
+                // without one — a backend rejection, not a user cancel. Flag it
+                // so we can tell them why (vs. dismiss/cancel, which stays quiet).
+                if (result.type === "success") completedNoCode = true;
                 startGrace();
               }
             },
@@ -172,18 +224,20 @@ export const useGoogleSignIn = () => {
       if (code) {
         // On success the app flips to Authenticated in place, so stay busy
         // rather than flicker back to clickable while the flip lands.
-        await signIn("google", { code });
+        await signIn(provider, { code });
         setBusy(false);
-        return;
+        return "signed-in";
       }
       // A real session failure with no recovered code — surface it rather than
       // silently re-enabling as if the user had just cancelled.
       if (outcome.error) throw outcome.error;
       // No redirect captured, or the user dismissed the browser — re-enable.
       setBusy(false);
+      return outcome.rejected ? "rejected" : "cancelled";
     } catch (e) {
       setError(errorText(e));
       setBusy(false);
+      return "error";
     }
   };
 

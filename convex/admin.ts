@@ -36,6 +36,7 @@ import {
   getProfile,
   getYearSettings,
   isAdminProfile,
+  isOrgEmail,
   nextStaffYear,
   optionalEmail,
   requireAdmin,
@@ -615,6 +616,9 @@ export const listUnassignedUsers = query({
     const unassigned: { email: string; name: string | null }[] = [];
     for (const user of users) {
       if (!user.email || leaverEmails.has(user.email)) continue;
+      // Non-staff (personal) accounts can sign in (1.7.4) but are never
+      // assignable staff — keep them out of the Users assignment list.
+      if (!isOrgEmail(user.email)) continue;
       const profile = await getProfile(ctx, user.email, args.year);
       if (!profile) {
         unassigned.push({
@@ -1159,7 +1163,9 @@ export const people = query({
     }
     const users = await ctx.db.query("users").take(1000);
     for (const user of users) {
-      if (!user.email) continue;
+      // Skip non-staff (personal) accounts — the people picker feeds staff
+      // assignment surfaces (heads, delegates), which are org-only (1.7.4).
+      if (!user.email || !isOrgEmail(user.email)) continue;
       const existing = byEmail.get(user.email);
       byEmail.set(user.email, {
         email: user.email,
