@@ -22,20 +22,29 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ### Fixed
 
-- **Admin screen no longer crashes on a stray duplicate profile.** The admin
-  People area gates every query on the caller's staff profile and the
-  department lookups behind it, and those reads used `.unique()` — which throws
-  a hard "Server Error" if it ever sees two rows for the same person-year or
-  department-year (as can briefly happen mid-import or during the annual
-  staff-year rollover). One such collision blanked the whole admin screen with
-  "Something went wrong". The reads now use `.first()` (matching the existing
-  attendance-member lookup), so a transient duplicate degrades gracefully
-  instead of taking the screen down. Write paths still enforce one profile per
-  person-year.
+- **Switching the admin People picker to the next staff year no longer crashes
+  the screen.** Admins manage both the current and next staff year, but the
+  People list judged admin rights from the caller's profile _for the year being
+  viewed_ — and an admin's authority usually comes from a division headship or
+  Data-and-IT membership that their next-year profile doesn't carry. So picking
+  next year threw "Only admins or the Finance Head can view people" and blanked
+  the whole admin screen with "Something went wrong". Admin rights are now judged
+  from the current staff year (the same basis as the rest of the admin screen),
+  so the next year opens normally; the Finance Head still gets access for that
+  year's delegation picker.
 - **The full-screen error fallback now follows the theme.** "Something went
   wrong" previously always rendered on a light cream background; in dark mode it
   flashed a bright panel. It now uses the app's dark palette (deep-green
   background, light text) when the system is in dark mode.
+
+### Changed (internal)
+
+- **Admin reads tolerate a stray duplicate profile/department.** `getProfile`
+  and `getDepartment` now use `.first()` instead of `.unique()` (matching the
+  existing attendance-member lookup), so a duplicate person-year or
+  department-year row that briefly exists mid-import or mid-rollover degrades
+  gracefully in reads rather than throwing a hard "Server Error". Write paths
+  still enforce one row per key.
 
 ## [1.8.0] — 2026-07-07
 

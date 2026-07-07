@@ -1352,14 +1352,21 @@ const requireFinanceSettingsAccess = async (
   action: string
 ): Promise<string> => {
   const callerEmail = await requireEmail(ctx);
-  const callerProfile = await getProfile(ctx, callerEmail, year);
-  if (!callerProfile) throw new ConvexError("No profile found for your account.");
-  if (await isAdminProfile(ctx, callerProfile)) return callerEmail;
+  // Admin status is judged on the caller's CURRENT staff-year profile — the same
+  // basis as requireAdmin (which gates the sibling admin queries listUnassigned/
+  // listLeavers). Admins manage the current AND next staff year, but an admin's
+  // authority usually comes from a division headship or Data-and-IT membership
+  // that their *next-year* profile doesn't carry — so gating on the viewed year
+  // meant switching the year picker to next year threw "Only admins…" and blanked
+  // the whole admin screen. Basing it on the current year keeps `people` in step
+  // with its sibling queries.
+  const adminProfile = await getProfile(ctx, callerEmail, currentStaffYear());
+  if (adminProfile && (await isAdminProfile(ctx, adminProfile))) return callerEmail;
+  // Otherwise the Finance Head of the viewed year may view people — they need it
+  // for that year's approver-delegation picker.
   const financeDept = await getDepartment(ctx, year, FINANCE);
-  if (financeDept?.headEmail !== callerEmail) {
-    throw new ConvexError(`Only admins or the Finance Head can ${action}.`);
-  }
-  return callerEmail;
+  if (financeDept?.headEmail === callerEmail) return callerEmail;
+  throw new ConvexError(`Only admins or the Finance Head can ${action}.`);
 };
 
 /** The Budget Manager must be a member of the Finance department that year. */

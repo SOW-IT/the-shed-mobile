@@ -714,14 +714,14 @@ describe("setBudgetManager (Finance Head path)", () => {
     expect(after.budgetManagerEmail).toBe("cara@sow.org.au");
   });
 
-  test("rejects when the caller has no profile", async () => {
+  test("rejects a caller who is neither an admin nor the Finance Head", async () => {
     const t = await setup();
     await expect(
       asUser(t, "ghost@sow.org.au").mutation(api.admin.setBudgetManager, {
         year: YEAR,
         email: BELLA,
       })
-    ).rejects.toThrow(/No profile found/);
+    ).rejects.toThrow(/admins or the Finance Head/);
   });
 
   test("a non-admin, non-Finance-Head is rejected", async () => {
@@ -1071,6 +1071,26 @@ describe("people org-only filtering", () => {
     expect(people.some((p) => p.email === "dupe@sow.org.au")).toBe(true);
     // A duplicated person holds a profile, so they are not "unassigned".
     expect((unassigned ?? []).some((u) => u.email === "dupe@sow.org.au")).toBe(false);
+  });
+
+  test("an admin can view next-year people even when their next-year profile isn't an admin one", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const nextYear = YEAR + 1;
+    // ADMIN is an admin for the CURRENT year (seed), but their next-year profile
+    // is a plain, non-admin one — the real case after a rollover that didn't carry
+    // their division headship / Data-and-IT membership forward. Admin access must
+    // be judged on the current year (like requireAdmin), not the year being viewed.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: ADMIN,
+        year: nextYear,
+        assignments: [{ role: "Staff", department: "Missions" }],
+      });
+    });
+    // Previously threw "Only admins or the Finance Head can view people".
+    const people = await admin.query(api.admin.people, { year: nextYear });
+    expect(Array.isArray(people)).toBe(true);
   });
 });
 
