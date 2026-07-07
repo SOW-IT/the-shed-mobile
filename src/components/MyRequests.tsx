@@ -210,7 +210,7 @@ const NewRequestSheet = ({
           value={amount}
           onChangeText={(text) => setAmount(currencyText(text))}
           placeholder="0.00"
-          keyboardType="numeric"
+          keyboardType="decimal-pad"
         />
         <Select
           label="Department"
@@ -591,7 +591,7 @@ const ReceiptSheet = ({
             onChangeText={(amount) =>
               updateRecipient(index, { amount: currencyText(amount) })
             }
-            keyboardType="numeric"
+            keyboardType="decimal-pad"
           />
           {recipient.files.map((file, fileIndex) => (
             <Row key={`${file.storageId}-${fileIndex}`}>

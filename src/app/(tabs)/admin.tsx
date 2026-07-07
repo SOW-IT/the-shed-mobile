@@ -1470,7 +1470,7 @@ export default function AdminScreen() {
                   label="Threshold ($)"
                   value={thresholdValue}
                   onChangeText={(text) => setThresholdInput(currencyText(text))}
-                  keyboardType="numeric"
+                  keyboardType="decimal-pad"
                 />
                 <Btn
                   title="Set Threshold"

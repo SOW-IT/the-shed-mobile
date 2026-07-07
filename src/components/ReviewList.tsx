@@ -171,7 +171,7 @@ const PaySheet = ({
         label="Paid amount ($)"
         value={paidAmount}
         onChangeText={(text) => setPaidAmount(currencyText(text))}
-        keyboardType="numeric"
+        keyboardType="decimal-pad"
       />
       <Field label="Comment (optional)" value={comment} onChangeText={setComment} />
       <ErrorBanner message={error} />

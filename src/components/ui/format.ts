@@ -58,10 +58,14 @@ export const digitsOnly = (text: string): string => text.replace(/[^0-9]/g, "");
 export const maskAccount = (accountNumber: string): string =>
   accountNumber.length > 4 ? `••${accountNumber.slice(-4)}` : accountNumber;
 
-/** Keeps digits and a single decimal point — for $ amount inputs. */
+/** Keeps digits and a single decimal point, capped at 2 fractional digits —
+ *  for $ amount inputs (dollars and cents). A trailing point is preserved while
+ *  typing (e.g. "12." stays "12." so the next keystroke lands after the dot). */
 export const currencyText = (text: string): string => {
-  const [whole, ...decimals] = text.replace(/[^0-9.]/g, "").split(".");
-  return decimals.length === 0 ? whole : `${whole}.${decimals.join("")}`;
+  const [whole, ...rest] = text.replace(/[^0-9.]/g, "").split(".");
+  if (rest.length === 0) return whole;
+  const cents = rest.join("").slice(0, 2);
+  return `${whole}.${cents}`;
 };
 
 /** Stagger helper: caps the cascade so long lists don't feel sluggish. Kept

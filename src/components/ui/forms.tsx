@@ -23,7 +23,7 @@ export const Field = ({
   value: string;
   onChangeText: (text: string) => void;
   placeholder?: string;
-  keyboardType?: "default" | "numeric" | "email-address";
+  keyboardType?: "default" | "numeric" | "decimal-pad" | "email-address";
   multiline?: boolean;
   /** Read-only with a lock affordance, matching locked Select fields. */
   disabled?: boolean;
