@@ -1,6 +1,6 @@
 # Sign in with Apple — implementation plan
 
-**Status: implemented (1.8.0).** Code landed per this plan; the remaining
+**Status: implemented (1.7.6).** Code landed per this plan; the remaining
 external step is enabling the Sign In with Apple capability on the App IDs and
 cutting a new native build (see §1–§2). Manual device testing (§6) is pending
 that build.
@@ -138,14 +138,14 @@ Details:
 A `ConvexCredentials` provider with `id: "apple"`, following the
 `retrieveAccount`/`createAccount` pattern of `E2eLogin`:
 
-```
+```text
 authorize({ identityToken, rawNonce, fullName }, ctx):
   1. Verify the JWT with jose:
        jwtVerify(identityToken, createRemoteJWKSet("https://appleid.apple.com/auth/keys"), {
          issuer: "https://appleid.apple.com",
          audience: ["au.org.sow.theshed", "au.org.sow.theshed.staging"],
        })
-  2. Check the nonce claim against rawNonce (raw or SHA-256 — see §3).
+  2. Check the nonce claim against rawNonce (raw value — see §3).
   3. Extract sub (stable per-Apple-ID user id — the account key),
      email, email_verified (Apple may send booleans as strings — normalise).
   4. If email ends with @<allowedDomain> → throw
@@ -235,7 +235,8 @@ In `src/components/ui/screen.tsx`, add a row **below "Sign in with Google"**
 
 1. Land server + client in one PR; deploy Convex first (`apple` provider is
    additive and inert until a client calls it), then EAS builds.
-2. Version → **1.8.0** (new feature), CHANGELOG under Added.
+2. Version → **1.7.6** (patch bump — this repo ships features as patches),
+   CHANGELOG under Added.
 3. Submit the build and **reply to the 4.8 rejection** in App Store Connect:
    Sign in with Apple is now offered alongside Google with equal prominence.
 4. Post-release: watch Convex logs for `apple` authorize failures (JWKS
@@ -265,4 +266,4 @@ In `src/components/ui/screen.tsx`, add a row **below "Sign in with Google"**
 | `convex/appleIdentity.ts` | new — token verification + claim/domain validation (unit-testable) |
 | `convex/appleIdentity.test.ts` | new — verification/edge-case tests |
 | `convex/auth.ts` | + `Apple` `ConvexCredentials` provider |
-| `CHANGELOG.md` / `app.json` version | 1.8.0 entry |
+| `CHANGELOG.md` / version files | 1.7.6 entry (`package.json`, `package-lock.json`, `app.json`) |
