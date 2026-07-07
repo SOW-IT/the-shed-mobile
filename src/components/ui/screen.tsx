@@ -207,6 +207,16 @@ export const TopBar = ({
           [{ text: "OK" }]
         );
       }
+    } else if (outcome === "error") {
+      // An unexpected failure (e.g. Apple token verification, a JWKS/network
+      // error). The per-hook error message renders inside the menu, but we've
+      // just closed it — so surface a prompt here or the attempt looks like it
+      // silently did nothing. (A cancel stays quiet, as before.)
+      Alert.alert(
+        "Sign-in failed",
+        "Something went wrong signing you in. Please try again.",
+        [{ text: "OK" }]
+      );
     }
   };
   return (
