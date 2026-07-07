@@ -360,6 +360,14 @@ export default function EventAttendanceScreen() {
       setColumnsHeight(h > 120 ? h : undefined);
     });
   }, [windowHeight, insets.bottom, hasFooter]);
+  // The footer is pinned outside the scroll, so toggling it (e.g. starting a
+  // search) doesn't re-fire the columns' onLayout — re-measure here so the
+  // reserved gap tracks the footer and the columns stay bounded above it.
+  // (measureColumns is a no-op when the columns aren't mounted — the ref is null
+  // outside the two-column layout.)
+  useEffect(() => {
+    measureColumns();
+  }, [measureColumns, twoColumn]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset paging when roster/search changes
