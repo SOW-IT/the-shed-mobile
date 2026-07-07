@@ -82,10 +82,15 @@ export async function getProfile(
   email: string,
   year: number
 ): Promise<Doc<"staffProfiles"> | null> {
+  // `.first()` (not `.unique()`) so a stray duplicate (email, year) — e.g. one
+  // transiently present mid-import or mid-rollover — can never throw inside a
+  // read and take down every admin query that gates on the caller's profile.
+  // Write paths still enforce one profile per person-year. Same rationale as
+  // findMemberByEmail.
   return await ctx.db
     .query("staffProfiles")
     .withIndex("by_email_and_year", (q) => q.eq("email", email).eq("year", year))
-    .unique();
+    .first();
 }
 
 /**
@@ -247,10 +252,13 @@ export async function getDepartment(
   year: number,
   name: string
 ): Promise<Doc<"departments"> | null> {
+  // `.first()` (not `.unique()`) so a stray duplicate (year, name) can't throw
+  // inside a read — isAdminProfile and the finance gate call this on every
+  // admin query, so a single duplicate would otherwise blank the admin screen.
   return await ctx.db
     .query("departments")
     .withIndex("by_year_and_name", (q) => q.eq("year", year).eq("name", name))
-    .unique();
+    .first();
 }
 
 export async function getDivision(

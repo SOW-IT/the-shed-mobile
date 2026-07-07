@@ -1037,6 +1037,41 @@ describe("people org-only filtering", () => {
     expect(emails).toContain("staffer@sow.org.au");
     expect(emails).not.toContain("someone@gmail.com");
   });
+
+  test("survives a stray duplicate (email, year) profile instead of throwing", async () => {
+    const t = await setup();
+    // A second row for the same person-year — as can transiently exist mid-import
+    // or mid-rollover. getProfile/getDepartment now use .first() (not .unique()),
+    // so neither the finance gate (which looks up the caller's own profile) nor
+    // the per-user lookups throw a bare "Server Error" that blanks the screen.
+    await t.run(async (ctx) => {
+      // Duplicate the ADMIN's own profile — this is the reported admin:people
+      // path, where requireFinanceSettingsAccess looks up the caller.
+      await ctx.db.insert("staffProfiles", {
+        email: ADMIN,
+        year: YEAR,
+        assignments: [{ role: "Staff", department: "Data and IT" }],
+      });
+      // Duplicate a non-admin user too — exercises the per-user getProfile in
+      // listUnassignedUsers.
+      await ctx.db.insert("users", { email: "dupe@sow.org.au", name: "Dupe" });
+      for (let i = 0; i < 2; i++) {
+        await ctx.db.insert("staffProfiles", {
+          email: "dupe@sow.org.au",
+          year: YEAR,
+          assignments: [{ role: "Staff", department: "Finance" }],
+        });
+      }
+    });
+    const admin = asUser(t, ADMIN);
+    // Awaiting these is the assertion: with .unique() they rejected with a bare
+    // "Server Error"; with .first() they resolve.
+    const people = (await admin.query(api.admin.people, { year: YEAR }))!;
+    const unassigned = await admin.query(api.admin.listUnassignedUsers, { year: YEAR });
+    expect(people.some((p) => p.email === "dupe@sow.org.au")).toBe(true);
+    // A duplicated person holds a profile, so they are not "unassigned".
+    expect((unassigned ?? []).some((u) => u.email === "dupe@sow.org.au")).toBe(false);
+  });
 });
 
 describe("seed preserves existing heads", () => {

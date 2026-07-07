@@ -6,6 +6,25 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.8.2] — 2026-07-07
+
+### Fixed
+
+- **Admin screen no longer crashes on a stray duplicate profile.** The admin
+  People area gates every query on the caller's staff profile and the
+  department lookups behind it, and those reads used `.unique()` — which throws
+  a hard "Server Error" if it ever sees two rows for the same person-year or
+  department-year (as can briefly happen mid-import or during the annual
+  staff-year rollover). One such collision blanked the whole admin screen with
+  "Something went wrong". The reads now use `.first()` (matching the existing
+  attendance-member lookup), so a transient duplicate degrades gracefully
+  instead of taking the screen down. Write paths still enforce one profile per
+  person-year.
+- **The full-screen error fallback now follows the theme.** "Something went
+  wrong" previously always rendered on a light cream background; in dark mode it
+  flashed a bright panel. It now uses the app's dark palette (deep-green
+  background, light text) when the system is in dark mode.
+
 ## [1.8.0] — 2026-07-07
 
 ### Added
