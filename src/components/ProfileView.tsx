@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
+import Constants from "expo-constants";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useState } from "react";
@@ -219,11 +220,18 @@ export const ProfileView = ({ email }: { email?: string }) => {
         ))
       )}
       {profile.isMe && (
-        <Btn
-          title="Sign out"
-          variant="danger"
-          onPress={() => setConfirmingSignOut(true)}
-        />
+        <>
+          <Btn
+            title="Sign out"
+            variant="danger"
+            onPress={() => setConfirmingSignOut(true)}
+          />
+          <Text
+            style={[typography.caption, { color: t.muted, textAlign: "center" }]}
+          >
+            Version {Constants.expoConfig?.version ?? "—"}
+          </Text>
+        </>
       )}
 
       <ConfirmDialog

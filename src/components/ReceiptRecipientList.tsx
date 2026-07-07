@@ -75,6 +75,12 @@ export const ReceiptRecipientList = ({ request }: { request: Doc<"requests"> }) 
           )}
         </View>
       ))}
+      {receipt.recipients.length > 1 ? (
+        <View style={styles.totalRow}>
+          <Txt style={{ fontWeight: "800", flexGrow: 1 }}>Total</Txt>
+          <Txt style={{ fontWeight: "800" }}>${formatAmount(receipt.totalAmount)}</Txt>
+        </View>
+      ) : null}
       {anyDeleted ? (
         <Text style={[typography.caption, { color: t.muted, fontStyle: "italic" }]}>
           Receipt files are deleted one year after a request is paid. The file
@@ -92,4 +98,10 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   fileLink: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 2 },
+  totalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.md,
+    paddingTop: 2,
+  },
 });
