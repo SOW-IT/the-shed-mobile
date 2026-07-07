@@ -58,21 +58,10 @@ export const digitsOnly = (text: string): string => text.replace(/[^0-9]/g, "");
 export const maskAccount = (accountNumber: string): string =>
   accountNumber.length > 4 ? `••${accountNumber.slice(-4)}` : accountNumber;
 
-/** Keeps digits and a single decimal point, capped at 2 fractional digits —
- *  for $ amount inputs (dollars and cents). A trailing point is preserved while
- *  typing (e.g. "12." stays "12." so the next keystroke lands after the dot). */
-export const currencyText = (text: string): string => {
-  const [whole, ...rest] = text.replace(/[^0-9.]/g, "").split(".");
-  if (rest.length === 0) return whole;
-  const cents = rest.join("").slice(0, 2);
-  return `${whole}.${cents}`;
-};
-
-/** Formats a $ amount for display. A whole-dollar value stays bare ("12"), but
- *  any value with cents is shown to exactly 2 decimals ("12.5" → "12.50") so
- *  amounts don't read as a stray single-digit cents figure. */
-export const formatAmount = (amount: number): string =>
-  Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
+// Money input/display helpers live in shared/money.ts (react-native-free so
+// they're unit-testable); re-exported here so call sites keep importing them
+// from "@/components/ui".
+export { currencyText, formatAmount } from "@shared/money";
 
 /** Stagger helper: caps the cascade so long lists don't feel sluggish. Kept
  *  short (per-item + total cap) so lists snap in rather than trickle. */

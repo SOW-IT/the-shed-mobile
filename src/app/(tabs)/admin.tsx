@@ -26,6 +26,7 @@ import {
   Card,
   ConfirmDialog,
   currencyText,
+  formatAmount,
   ErrorBanner,
   errorMessage,
   Field,
@@ -1460,7 +1461,7 @@ export default function AdminScreen() {
               Requests at or above this amount also need the Director&apos;s
               approval.
               {configuredThreshold == null
-                ? ` Using the standard default of $${DIRECTOR_APPROVAL_THRESHOLD.toLocaleString()}.`
+                ? ` Using the standard default of $${formatAmount(DIRECTOR_APPROVAL_THRESHOLD)}.`
                 : ""}{" "}
               Only affects requests submitted from now on.
             </Muted>

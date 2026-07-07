@@ -61,8 +61,8 @@ const buildGuideSteps = (directorThreshold: number) => [
   },
   {
     icon: "shield-checkmark-outline" as const,
-    title: `Director approval (≥ $${directorThreshold.toLocaleString()})`,
-    detail: `Requests at or above $${directorThreshold.toLocaleString()} also need Director sign-off.`,
+    title: `Director approval (≥ $${formatAmount(directorThreshold)})`,
+    detail: `Requests at or above $${formatAmount(directorThreshold)} also need Director sign-off.`,
   },
   {
     icon: "checkmark-circle-outline" as const,
@@ -220,7 +220,7 @@ const NewRequestSheet = ({
           onSelect={setDepartment}
         />
         {Number(amount) >= directorThreshold ? (
-          <Muted>{`Requests of $${directorThreshold.toLocaleString()} or more also require Director approval.`}</Muted>
+          <Muted>{`Requests of $${formatAmount(directorThreshold)} or more also require Director approval.`}</Muted>
         ) : null}
         <ErrorBanner message={error} />
       </Sheet>
