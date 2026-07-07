@@ -10,7 +10,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useWebAuthCodeExchange } from "@/hooks/useGoogleSignIn";
 import { LoadingState } from "@/components/ui";
-import { useAppTheme } from "@/theme";
+import { durations, useAppTheme } from "@/theme";
 
 // The dev-client's floating menu bubble overlaps real UI (it's blocked E2E taps
 // on the avatar/bell and the Review tab's Approve button in different spots) —
@@ -97,6 +97,9 @@ const RootStack = () => (
     screenOptions={{
       headerShown: false,
       animation: "slide_from_right",
+      // Shorter than the ~350ms iOS default so pushing/popping screens feels
+      // quick to tap in and out of (durations.screen; iOS native-stack).
+      animationDuration: durations.screen,
       gestureEnabled: true,
     }}
   >

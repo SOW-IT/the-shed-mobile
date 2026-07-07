@@ -22,6 +22,14 @@ All notable changes to **The SHED** mobile app. This project follows
   _(Requires the Sign In with Apple capability on the App IDs and a new native
   build; the row is hidden on Android and web.)_
 
+### Changed
+
+- **Snappier overlay and screen animations.** The sign-in dropdown, option
+  sheets, and dialogs now fade in/out quickly (and dismiss faster than they
+  appear), screen push/pop transitions are shorter, and list/content entrances
+  cascade in faster — so you can tap in and out without waiting on motion.
+  Durations are centralised in one place (`durations` in `theme.ts`).
+
 ## [1.7.5] — 2026-07-06
 
 ### Changed

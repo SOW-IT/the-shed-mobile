@@ -3,9 +3,9 @@
 // "@/components/ui".
 
 import { Children, ReactNode, useEffect, useState } from "react";
-import { Animated, Easing, Image, Platform, StyleProp, Text, TextProps, View, ViewStyle } from "react-native";
+import { Animated, Easing, Image, Modal, Platform, StyleProp, Text, TextProps, View, ViewStyle } from "react-native";
 import Reanimated, { cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming, Easing as ReanimatedEasing } from "react-native-reanimated";
-import { USE_NATIVE_DRIVER, typography, useAppTheme } from "@/theme";
+import { USE_NATIVE_DRIVER, durations, typography, useAppTheme } from "@/theme";
 import { styles } from "./styles";
 
 const ReanimatedImage = Reanimated.createAnimatedComponent(Image);
@@ -30,19 +30,19 @@ export const FadeInView = ({
   style?: StyleProp<ViewStyle>;
 }) => {
   const [opacity] = useState(() => new Animated.Value(0));
-  const [translateY] = useState(() => new Animated.Value(12));
+  const [translateY] = useState(() => new Animated.Value(8));
   useEffect(() => {
     Animated.parallel([
       Animated.timing(opacity, {
         toValue: 1,
-        duration: 360,
+        duration: durations.fadeIn,
         delay,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: USE_NATIVE_DRIVER,
       }),
       Animated.timing(translateY, {
         toValue: 0,
-        duration: 360,
+        duration: durations.fadeIn,
         delay,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: USE_NATIVE_DRIVER,
@@ -53,6 +53,59 @@ export const FadeInView = ({
     <Animated.View style={[{ opacity, transform: [{ translateY }] }, style]}>
       {children}
     </Animated.View>
+  );
+};
+
+/**
+ * A transparent Modal with a fast opacity fade in/out. React Native's built-in
+ * `Modal animationType="fade"` runs a fixed ~300ms crossfade with no way to
+ * tune the duration; this replaces it so overlays (the sign-in dropdown, the
+ * option Sheet, form dialogs) can be tapped in and out quickly. The OS Modal
+ * mounts instantly (`animationType="none"`) and we drive the fade ourselves,
+ * keeping the Modal mounted through the exit animation before unmounting.
+ *
+ * Drop-in for `<Modal visible transparent animationType="fade" onRequestClose>`
+ * — same children/backdrop structure; only the appear/disappear speed changes.
+ */
+export const FastModal = ({
+  visible,
+  onRequestClose,
+  children,
+}: {
+  visible: boolean;
+  onRequestClose?: () => void;
+  children: ReactNode;
+}) => {
+  const [mounted, setMounted] = useState(visible);
+  const [opacity] = useState(() => new Animated.Value(visible ? 1 : 0));
+  useEffect(() => {
+    if (visible) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- mount the Modal, then fade in
+      setMounted(true);
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: durations.overlayIn,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: USE_NATIVE_DRIVER,
+      }).start();
+    } else {
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration: durations.overlayOut,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: USE_NATIVE_DRIVER,
+        // Unmount only after the fade-out finishes, so the exit animates
+        // instead of the content vanishing instantly.
+      }).start(({ finished }) => {
+        if (finished) setMounted(false);
+      });
+    }
+  }, [visible, opacity]);
+  if (!mounted) return null;
+  return (
+    <Modal visible transparent animationType="none" onRequestClose={onRequestClose}>
+      <Animated.View style={{ flex: 1, opacity }}>{children}</Animated.View>
+    </Modal>
   );
 };
 

@@ -64,5 +64,6 @@ export const currencyText = (text: string): string => {
   return decimals.length === 0 ? whole : `${whole}.${decimals.join("")}`;
 };
 
-/** Stagger helper: caps the cascade so long lists don't feel sluggish. */
-export const stagger = (index: number): number => Math.min(index, 8) * 50;
+/** Stagger helper: caps the cascade so long lists don't feel sluggish. Kept
+ *  short (per-item + total cap) so lists snap in rather than trickle. */
+export const stagger = (index: number): number => Math.min(index, 8) * 24;

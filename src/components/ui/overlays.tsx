@@ -7,7 +7,6 @@ import { ReactNode, useEffect, useRef, useState } from "react";
 import {
   Keyboard,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -21,7 +20,7 @@ import { spacing, typography, useAppTheme } from "@/theme";
 import { Btn } from "./buttons";
 import { Field, OptionSheet } from "./forms";
 import { useRegisterModal } from "./modalPresence";
-import { Muted, Row, Txt } from "./primitives";
+import { FastModal, Muted, Row, Txt } from "./primitives";
 import { styles } from "./styles";
 
 /**
@@ -235,7 +234,7 @@ export const Sheet = ({
   const bodyStyle = [contentStyle ?? styles.sheetContent, !hasFooter && { paddingBottom: spacing.lg }];
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <FastModal visible={visible} onRequestClose={onClose}>
       <View style={{ flex: 1 }}>
         <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: t.overlay }]} onPress={onClose} />
         <KeyboardAvoidingView
@@ -282,7 +281,7 @@ export const Sheet = ({
           </View>
         </KeyboardAvoidingView>
       </View>
-    </Modal>
+    </FastModal>
   );
   /* eslint-enable react-hooks/refs */
 };

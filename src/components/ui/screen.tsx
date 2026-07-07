@@ -10,7 +10,6 @@ import {
   Alert,
   Animated,
   Image,
-  Modal,
   Pressable,
   ScrollView,
   Text,
@@ -34,7 +33,7 @@ import { Avatar, Toast, ToastState } from "./feedback";
 import { usePressScale } from "./format";
 import { Segment } from "./forms";
 import { Sheet } from "./overlays";
-import { FadeInView, SowSpinner, Txt } from "./primitives";
+import { FadeInView, FastModal, SowSpinner, Txt } from "./primitives";
 import { styles } from "./styles";
 
 export const Screen = ({
@@ -325,11 +324,10 @@ export const TopBar = ({
           </Pressable>
         )}
       </View>
-      {/* Signed-out avatar dropdown: a small menu anchored under the avatar. */}
-      <Modal
+      {/* Signed-out avatar dropdown: a small menu anchored under the avatar.
+          FastModal gives it a quick fade so it's fast to tap open and closed. */}
+      <FastModal
         visible={signInMenu}
-        transparent
-        animationType="fade"
         onRequestClose={() => setSignInMenu(false)}
       >
         <Pressable
@@ -466,7 +464,7 @@ export const TopBar = ({
             ) : null}
           </View>
         </Pressable>
-      </Modal>
+      </FastModal>
       {IS_DEV_ENVIRONMENT ? (
         <Sheet
           visible={testInfo}
