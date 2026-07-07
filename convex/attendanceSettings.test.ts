@@ -810,6 +810,31 @@ describe("attendance members", () => {
     expect(row?.email).toBe(OUTSIDER);
   });
 
+  test("roster subtitle omits campus (shown by the chip) but keeps other metadata", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceMetadata.ensureDefaults, {});
+    const fields = await leader.query(api.attendanceMetadata.list, {});
+    const campusField = fields.find((f) => f.key === "Campus")!;
+    const genderField = fields.find((f) => f.key === "Gender")!;
+    const usydId = Object.entries(campusField.values ?? {}).find(
+      ([, label]) => label === USYD
+    )?.[0]!;
+    const maleId = Object.entries(genderField.values ?? {}).find(
+      ([, label]) => label === "Male"
+    )?.[0]!;
+    await leader.mutation(api.attendanceMembers.create, {
+      name: "Campus Guest",
+      metadata: { [campusField._id]: usydId, [genderField._id]: maleId },
+    });
+    const roster = await leader.query(api.attendance.roster, { year: YEAR });
+    const row = roster.find((r) => r.name === "Campus Guest")!;
+    // Campus rides on the chip (university), not the subtitle; other metadata stays.
+    expect(row.university).toBe(USYD);
+    expect(row.subtitle ?? "").not.toContain(USYD);
+    expect(row.subtitle).toContain("Male");
+  });
+
   test("search, filter, sort, and paginate", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);

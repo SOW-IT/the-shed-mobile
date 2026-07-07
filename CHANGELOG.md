@@ -6,6 +6,46 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.8.2] — 2026-07-07
+
+### Changed
+
+- **Signed-in attendees now show their details, not just the time.** A
+  signed-in roll-call row previously showed only the sign-in time (and any
+  note). It now appends the same roles / metadata line an unsigned row shows —
+  e.g. "5:03 PM · President · 3rd year" — so a person reads the same in either
+  list, just with the time up front.
+- **Campus dropped from roll-call subtitles.** Both signed-in and not-signed-in
+  rows no longer repeat the campus in the subtitle line — the row's right-hand
+  chip already shows it. Campus remains searchable (typing e.g. "Macquarie"
+  still matches).
+
+### Fixed
+
+- **Switching the admin People picker to the next staff year no longer crashes
+  the screen.** Admins manage both the current and next staff year, but the
+  People list judged admin rights from the caller's profile _for the year being
+  viewed_ — and an admin's authority usually comes from a division headship or
+  Data-and-IT membership that their next-year profile doesn't carry. So picking
+  next year threw "Only admins or the Finance Head can view people" and blanked
+  the whole admin screen with "Something went wrong". Admin rights are now judged
+  from the current staff year (the same basis as the rest of the admin screen),
+  so the next year opens normally; the Finance Head still gets access for that
+  year's delegation picker.
+- **The full-screen error fallback now follows the theme.** "Something went
+  wrong" previously always rendered on a light cream background; in dark mode it
+  flashed a bright panel. It now uses the app's dark palette (deep-green
+  background, light text) when the system is in dark mode.
+
+### Changed (internal)
+
+- **Admin reads tolerate a stray duplicate profile/department.** `getProfile`
+  and `getDepartment` now use `.first()` instead of `.unique()` (matching the
+  existing attendance-member lookup), so a duplicate person-year or
+  department-year row that briefly exists mid-import or mid-rollover degrades
+  gracefully in reads rather than throwing a hard "Server Error". Write paths
+  still enforce one row per key.
+
 ## [1.8.0] — 2026-07-07
 
 ### Added

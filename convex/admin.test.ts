@@ -714,14 +714,14 @@ describe("setBudgetManager (Finance Head path)", () => {
     expect(after.budgetManagerEmail).toBe("cara@sow.org.au");
   });
 
-  test("rejects when the caller has no profile", async () => {
+  test("rejects a caller who is neither an admin nor the Finance Head", async () => {
     const t = await setup();
     await expect(
       asUser(t, "ghost@sow.org.au").mutation(api.admin.setBudgetManager, {
         year: YEAR,
         email: BELLA,
       })
-    ).rejects.toThrow(/No profile found/);
+    ).rejects.toThrow(/admins or the Finance Head/);
   });
 
   test("a non-admin, non-Finance-Head is rejected", async () => {
@@ -1036,6 +1036,61 @@ describe("people org-only filtering", () => {
     const emails = people.map((p) => p.email);
     expect(emails).toContain("staffer@sow.org.au");
     expect(emails).not.toContain("someone@gmail.com");
+  });
+
+  test("survives a stray duplicate (email, year) profile instead of throwing", async () => {
+    const t = await setup();
+    // A second row for the same person-year — as can transiently exist mid-import
+    // or mid-rollover. getProfile/getDepartment now use .first() (not .unique()),
+    // so neither the finance gate (which looks up the caller's own profile) nor
+    // the per-user lookups throw a bare "Server Error" that blanks the screen.
+    await t.run(async (ctx) => {
+      // Duplicate the ADMIN's own profile — this is the reported admin:people
+      // path, where requireFinanceSettingsAccess looks up the caller.
+      await ctx.db.insert("staffProfiles", {
+        email: ADMIN,
+        year: YEAR,
+        assignments: [{ role: "Staff", department: "Data and IT" }],
+      });
+      // Duplicate a non-admin user too — exercises the per-user getProfile in
+      // listUnassignedUsers.
+      await ctx.db.insert("users", { email: "dupe@sow.org.au", name: "Dupe" });
+      for (let i = 0; i < 2; i++) {
+        await ctx.db.insert("staffProfiles", {
+          email: "dupe@sow.org.au",
+          year: YEAR,
+          assignments: [{ role: "Staff", department: "Finance" }],
+        });
+      }
+    });
+    const admin = asUser(t, ADMIN);
+    // Awaiting these is the assertion: with .unique() they rejected with a bare
+    // "Server Error"; with .first() they resolve.
+    const people = (await admin.query(api.admin.people, { year: YEAR }))!;
+    const unassigned = await admin.query(api.admin.listUnassignedUsers, { year: YEAR });
+    expect(people.some((p) => p.email === "dupe@sow.org.au")).toBe(true);
+    // A duplicated person holds a profile, so they are not "unassigned".
+    expect((unassigned ?? []).some((u) => u.email === "dupe@sow.org.au")).toBe(false);
+  });
+
+  test("an admin can view next-year people even when their next-year profile isn't an admin one", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const nextYear = YEAR + 1;
+    // ADMIN is an admin for the CURRENT year (seed), but their next-year profile
+    // is a plain, non-admin one — the real case after a rollover that didn't carry
+    // their division headship / Data-and-IT membership forward. Admin access must
+    // be judged on the current year (like requireAdmin), not the year being viewed.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: ADMIN,
+        year: nextYear,
+        assignments: [{ role: "Staff", department: "Missions" }],
+      });
+    });
+    // Previously threw "Only admins or the Finance Head can view people".
+    const people = await admin.query(api.admin.people, { year: nextYear });
+    expect(Array.isArray(people)).toBe(true);
   });
 });
 

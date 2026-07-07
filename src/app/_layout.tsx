@@ -134,7 +134,8 @@ export default function RootLayout() {
   // ErrorBoundary is the OUTERMOST wrapper so a render error anywhere below —
   // including in the gesture-handler / theme / auth providers, not just the
   // screens — shows the fallback instead of a blank screen or a hard crash. Its
-  // fallback uses fixed brand colours, so it renders fine without ThemeProvider.
+  // fallback themes off useColorScheme (a built-in RN hook), so it tracks
+  // light/dark fine even out here above the navigation ThemeProvider.
   return (
     <ErrorBoundary>
       {/* Root host for react-native-gesture-handler so the roll-call swipe rows
