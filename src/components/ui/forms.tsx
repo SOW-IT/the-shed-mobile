@@ -4,10 +4,10 @@
 
 import { Ionicons } from "@expo/vector-icons";
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from "react-native";
+import { Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from "react-native";
 import { USE_NATIVE_DRIVER, spacing, typography, useAppTheme } from "@/theme";
 import { useRegisterModal } from "./modalPresence";
-import { Txt } from "./primitives";
+import { FastModal, Txt } from "./primitives";
 import { styles } from "./styles";
 
 export const Field = ({
@@ -112,7 +112,7 @@ export const OptionSheet = ({
   const hasFooter = retainedFooter != null;
   const bodyStyle = [contentStyle ?? styles.optionList];
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <FastModal visible={visible} onRequestClose={onClose}>
       <View style={{ flex: 1 }}>
         <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: t.overlay }]} onPress={onClose} />
         <KeyboardAvoidingView
@@ -158,7 +158,7 @@ export const OptionSheet = ({
           </View>
         </KeyboardAvoidingView>
       </View>
-    </Modal>
+    </FastModal>
   );
   /* eslint-enable react-hooks/refs */
 };

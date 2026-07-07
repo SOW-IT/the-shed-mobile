@@ -1,7 +1,14 @@
 import Google from "@auth/core/providers/google";
 import { ConvexCredentials } from "@convex-dev/auth/providers/ConvexCredentials";
 import { convexAuth, createAccount, retrieveAccount } from "@convex-dev/auth/server";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 import { DataModel } from "./_generated/dataModel";
+import {
+  APPLE_ISSUER,
+  APPLE_JWKS_URL,
+  assertNotOrgEmail,
+  verifyAppleIdentityToken,
+} from "./appleIdentity";
 import { allowedDomain as resolveAllowedDomain } from "./model";
 import { linkUserProfiles } from "./userLink";
 
@@ -62,6 +69,85 @@ const E2eLogin = ConvexCredentials<DataModel>({
         emailVerificationTime: Date.now(),
       },
       shouldLinkViaEmail: true,
+    });
+    return { userId: user._id };
+  },
+});
+
+// ── Sign in with Apple ───────────────────────────────────────────────────────
+// The equivalent third-party login required by App Store Guideline 4.8: it
+// limits data to name + email, lets users hide their email behind a private
+// relay, and doesn't harvest interactions for ads. The native sheet (client:
+// src/hooks/useAppleSignIn.ts) returns a signed identity token; we verify it
+// here against Apple's public keys and mint/reuse an account keyed by Apple's
+// stable `sub`. No browser redirect and no redirect-callback entry are involved
+// — the token arrives in-process. Claim/nonce/domain logic (and its tests) live
+// in appleIdentity.ts; only the JWKS/network wiring stays here, out of coverage.
+//
+// Both bundle ids are accepted as the token audience so the same code serves
+// production and the side-by-side staging app (see app.config.js).
+const APPLE_AUDIENCES = ["au.org.sow.theshed", "au.org.sow.theshed.staging"];
+
+// Apple's JWKS, fetched lazily and cached for this isolate's lifetime. jose is
+// edge-compatible, so this runs in the default Convex runtime (no "use node").
+let appleJwks: ReturnType<typeof createRemoteJWKSet> | null = null;
+const verifyAppleJwt = async (
+  identityToken: string,
+  audiences: string[]
+): Promise<Record<string, unknown>> => {
+  appleJwks ??= createRemoteJWKSet(new URL(APPLE_JWKS_URL));
+  const { payload } = await jwtVerify(identityToken, appleJwks, {
+    issuer: APPLE_ISSUER,
+    audience: audiences,
+  });
+  return payload as Record<string, unknown>;
+};
+
+const AppleLogin = ConvexCredentials<DataModel>({
+  id: "apple",
+  authorize: async (credentials, ctx) => {
+    const identityToken = String(credentials.identityToken ?? "");
+    // Apple echoes this nonce into the token; a match binds the token to this
+    // sign-in attempt. Optional — older clients / non-native paths may omit it.
+    const rawNonce =
+      credentials.rawNonce != null ? String(credentials.rawNonce) : undefined;
+    // Apple returns the display name ONLY on the first authorization for this
+    // Apple ID; the client forwards it because it never appears in the token.
+    const fullName =
+      typeof credentials.fullName === "string" && credentials.fullName.trim()
+        ? credentials.fullName.trim()
+        : null;
+
+    const { sub, email, emailVerified } = await verifyAppleIdentityToken(
+      identityToken,
+      rawNonce,
+      APPLE_AUDIENCES,
+      verifyAppleJwt
+    );
+    // Org accounts must use the staff "google" provider so they resolve to their
+    // existing user/profile (same guard as googlePersonal).
+    assertNotOrgEmail(email, allowedDomain);
+
+    // Reuse the account for this Apple ID if it exists; otherwise create it.
+    const existing = await retrieveAccount(ctx, {
+      provider: "apple",
+      account: { id: sub },
+    }).catch(() => null);
+    if (existing) return { userId: existing.user._id };
+
+    const { user } = await createAccount(ctx, {
+      provider: "apple",
+      account: { id: sub },
+      profile: {
+        name: fullName ?? email?.split("@")[0] ?? "Apple user",
+        ...(email ? { email } : {}),
+        ...(emailVerified ? { emailVerificationTime: Date.now() } : {}),
+      },
+      // Link by email only when Apple vouches it's verified: someone who
+      // previously used "Sign in with Google" with the same address then
+      // resolves to the SAME user instead of a duplicate. An unverified /
+      // withheld email is never trusted for linking.
+      shouldLinkViaEmail: emailVerified && !!email,
     });
     return { userId: user._id };
   },
@@ -167,6 +253,9 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         };
       },
     }),
+    // Sign in with Apple (iOS) — the Guideline 4.8 equivalent login. Verified
+    // server-side against Apple's public keys; see AppleLogin above.
+    AppleLogin,
     // Present only on deployments with E2E_AUTH_ENABLED === "true" (never prod).
     ...(e2eAuthEnabled ? [E2eLogin] : []),
   ],

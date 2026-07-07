@@ -10,7 +10,6 @@ import {
   Alert,
   Animated,
   Image,
-  Modal,
   Pressable,
   ScrollView,
   Text,
@@ -25,12 +24,16 @@ import {
   type SignInOutcome,
   useGoogleSignIn,
 } from "@/hooks/useGoogleSignIn";
+import {
+  useAppleSignIn,
+  useAppleSignInAvailable,
+} from "@/hooks/useAppleSignIn";
 import { TOP_BAR_HEIGHT } from "@/components/useTopBarCollapse";
 import { Avatar, Toast, ToastState } from "./feedback";
 import { usePressScale } from "./format";
 import { Segment } from "./forms";
 import { Sheet } from "./overlays";
-import { FadeInView, SowSpinner, Txt } from "./primitives";
+import { FadeInView, FastModal, SowSpinner, Txt } from "./primitives";
 import { styles } from "./styles";
 
 export const Screen = ({
@@ -164,29 +167,33 @@ export const TopBar = ({
   // the top bar lives inside an overflow-hidden collapsing clip, so anything
   // anchored inside it would be cut off at the bar's edge.
   const [signInMenu, setSignInMenu] = useState(false);
-  // Two Google flows: the org-restricted staff account, and any personal
-  // (non-staff) Google account (1.7.4). Apple sign-in is planned but pending
-  // Apple Developer credentials.
+  // Three sign-in flows: the org-restricted staff Google account, any personal
+  // (non-staff) Google account (1.7.4), and Sign in with Apple (1.8.0) — the
+  // Guideline 4.8 equivalent login, offered on iOS where the OS supports it.
   const sow = useGoogleSignIn("google");
   const personal = useGoogleSignIn("googlePersonal");
-  const busy = sow.busy || personal.busy;
-  const error = sow.error ?? personal.error;
+  const apple = useAppleSignIn();
+  const appleAvailable = useAppleSignInAvailable();
+  const busy = sow.busy || personal.busy || apple.busy;
+  const error = sow.error ?? personal.error ?? apple.error;
   const clearError = () => {
     sow.clearError();
     personal.clearError();
+    apple.clearError();
   };
   const signInAndClose = async (
     signIn: () => Promise<SignInOutcome>,
-    kind: GoogleProvider
+    kind: GoogleProvider | "apple"
   ) => {
     setSignInMenu(false);
     clearError();
     const outcome = await signIn();
-    // The provider authenticated the account but our backend refused it. The
-    // OAuth callback comes back with no code, so without this the attempt would
-    // just quietly do nothing — tell the user why and where to go instead.
+    // The provider authenticated the account but our backend refused it (for the
+    // Google flows the OAuth callback returns with no code; for Apple the server
+    // throws a tagged error). Without this the attempt would quietly do nothing —
+    // tell the user why and where to go instead.
     if (outcome === "rejected") {
-      if (kind === "googlePersonal") {
+      if (kind === "googlePersonal" || kind === "apple") {
         Alert.alert(
           "Use your SOW account",
           "That looks like a SOW organisation account. Please tap “Sign in with your SOW account” to sign in with it.",
@@ -199,6 +206,16 @@ export const TopBar = ({
           [{ text: "OK" }]
         );
       }
+    } else if (outcome === "error") {
+      // An unexpected failure (e.g. Apple token verification, a JWKS/network
+      // error). The per-hook error message renders inside the menu, but we've
+      // just closed it — so surface a prompt here or the attempt looks like it
+      // silently did nothing. (A cancel stays quiet, as before.)
+      Alert.alert(
+        "Sign-in failed",
+        "Something went wrong signing you in. Please try again.",
+        [{ text: "OK" }]
+      );
     }
   };
   return (
@@ -307,11 +324,10 @@ export const TopBar = ({
           </Pressable>
         )}
       </View>
-      {/* Signed-out avatar dropdown: a small menu anchored under the avatar. */}
-      <Modal
+      {/* Signed-out avatar dropdown: a small menu anchored under the avatar.
+          FastModal gives it a quick fade so it's fast to tap open and closed. */}
+      <FastModal
         visible={signInMenu}
-        transparent
-        animationType="fade"
         onRequestClose={() => setSignInMenu(false)}
       >
         <Pressable
@@ -399,6 +415,42 @@ export const TopBar = ({
                 Sign in with Google
               </Text>
             </Pressable>
+            {/* Sign in with Apple (iOS only, where the OS supports it) — the
+                Guideline 4.8 equivalent login. Rendered as a matching list row
+                (not AppleAuthenticationButton) so it sits at equal prominence
+                with the Google options; the label + Apple logo satisfy Apple's
+                branding rules. */}
+            {appleAvailable ? (
+              <>
+                <View
+                  style={[
+                    styles.dropdownDivider,
+                    { backgroundColor: t.separator },
+                  ]}
+                />
+                <Pressable
+                  disabled={busy}
+                  onPress={() =>
+                    void signInAndClose(apple.signInWithApple, "apple")
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel="Sign in with Apple"
+                  style={({ pressed }) => [
+                    styles.dropdownItem,
+                    pressed && { opacity: 0.6 },
+                  ]}
+                >
+                  {apple.busy ? (
+                    <SowSpinner size={18} onDark={t.dark} />
+                  ) : (
+                    <Ionicons name="logo-apple" size={18} color={t.text} />
+                  )}
+                  <Text style={[typography.headline, { color: t.text }]}>
+                    Sign in with Apple
+                  </Text>
+                </Pressable>
+              </>
+            ) : null}
             {error ? (
               <Text
                 style={[
@@ -412,7 +464,7 @@ export const TopBar = ({
             ) : null}
           </View>
         </Pressable>
-      </Modal>
+      </FastModal>
       {IS_DEV_ENVIRONMENT ? (
         <Sheet
           visible={testInfo}

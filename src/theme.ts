@@ -15,6 +15,23 @@ import { Platform, TextStyle, useColorScheme, ViewStyle } from "react-native";
 export const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
 /**
+ * Shared animation durations (ms). Deliberately short so overlays and screens
+ * feel tap-in / tap-out fast rather than languid — dismissals are quicker than
+ * entrances so getting *out* never feels like waiting. Tune here to restyle the
+ * whole app's motion in one place.
+ */
+export const durations = {
+  /** Dropdowns / modals / sheets fading in (see FastModal). */
+  overlayIn: 130,
+  /** …and out. Snappier than the entrance so dismiss feels instant. */
+  overlayOut: 100,
+  /** Stack push/pop transition (iOS native-stack animationDuration). */
+  screen: 220,
+  /** Content entrance drift-up (FadeInView). */
+  fadeIn: 190,
+} as const;
+
+/**
  * Height of the bottom tab bar, excluding the safe-area inset. Shared between
  * the tab bar itself and floating overlays (year picker, Make Request) so they
  * clear it consistently.
