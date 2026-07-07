@@ -6,6 +6,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.8.5] — 2026-07-07
+
+### Changed
+
+- **Roster splits into two columns on wide screens.** On tablets, landscape, and
+  the web/desktop app (anything wider than a phone in portrait), an event's
+  attendance roster now shows side by side — not signed in on the left, signed in
+  on the right — instead of stacked. Each column scrolls on its own, so scrolling
+  one side never moves the other or the rest of the page. Phones in portrait are
+  unchanged (single column).
+
 ## [1.8.4] — 2026-07-07
 
 ### Added

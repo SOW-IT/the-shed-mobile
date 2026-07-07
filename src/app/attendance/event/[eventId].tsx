@@ -2,7 +2,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "@convex/_generated/api";
 import { Id } from "@convex/_generated/dataModel";
@@ -50,6 +58,16 @@ const UNSIGNED_ROW_HEIGHT = 72 + spacing.sm;
  * avoiding layout jumps under the list.
  */
 const UNSIGNED_LIST_HEIGHT = UNSIGNED_ROW_HEIGHT * 3;
+
+/**
+ * Above this window width the roster switches to a two-column layout — not
+ * signed in on the left, signed in on the right, each scrolling independently.
+ * Comfortably wider than any iPhone in portrait (≤ 430pt), so it only kicks in
+ * on tablets, landscape, and the web/desktop app, where each ~half-width column
+ * is still wide enough for a member card. Below it, the single-column stack is
+ * unchanged.
+ */
+const TWO_COLUMN_MIN_WIDTH = 700;
 
 /** When to drop a row's "newly added" lock — a hair past its entrance grow-in,
  *  derived from the row's own animation duration so the two stay in sync. */
@@ -223,6 +241,11 @@ export default function EventAttendanceScreen() {
   // stay locked even then (see canReverseSignIn), so the real roll-call can't be
   // erased — those rows render greyed-out.
   const canEdit = !pastEvent || editUnlocked;
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  // Split into side-by-side columns only when there's room AND there's a
+  // not-signed-in list to put on the left (a locked past event has none, so it
+  // stays single-column). See TWO_COLUMN_MIN_WIDTH.
+  const twoColumn = windowWidth >= TWO_COLUMN_MIN_WIDTH && canEdit;
 
   const closeEdit = () => {
     setEditOpen(false);
@@ -321,6 +344,22 @@ export default function EventAttendanceScreen() {
 
   const searchQuery = search.trim().toLowerCase();
   const isSearching = searchQuery.length > 0;
+
+  // Two-column layout needs an explicit height so each column's own ScrollView
+  // scrolls rather than the whole page. A `flex: 1` child of the Screen's
+  // ScrollView isn't bounded (the content can always grow), so instead measure
+  // the columns' on-screen top and take the space down to the bottom — robust to
+  // a taller badge row. `hasFooter` reserves room for the pinned footer button.
+  const columnsRef = useRef<View>(null);
+  const [columnsHeight, setColumnsHeight] = useState<number>();
+  const hasFooter = (isSearching && canEdit) || pastEvent;
+  const measureColumns = useCallback(() => {
+    columnsRef.current?.measureInWindow((_x, y) => {
+      const gap = insets.bottom + (hasFooter ? 96 : spacing.md);
+      const h = windowHeight - y - gap;
+      setColumnsHeight(h > 120 ? h : undefined);
+    });
+  }, [windowHeight, insets.bottom, hasFooter]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset paging when roster/search changes
@@ -658,6 +697,140 @@ export default function EventAttendanceScreen() {
     else if (a.email) void openEdit({ staffEmail: a.email, attendance: attendanceCtx });
   };
 
+  // Section headers and row lists are extracted so the single-column stack and
+  // the wide two-column layout can share them without duplicating the maps.
+  const notSignedInHeader = (
+    <View style={[styles.section, styles.sectionHeader]}>
+      <Text style={[typography.label, { color: t.muted }]}>Not signed in</Text>
+      <CountChip
+        count={optimisticUnsignedCount}
+        accessibilityLabel={`${optimisticUnsignedCount} not signed in`}
+      />
+    </View>
+  );
+
+  const signedInHeader = (
+    <View style={[styles.section, styles.sectionHeader]}>
+      <Text style={[typography.label, { color: t.muted }]}>Signed in</Text>
+      <CountChip
+        count={optimisticSignedInCount}
+        accessibilityLabel={`${optimisticSignedInCount} signed in`}
+      />
+    </View>
+  );
+
+  const unsignedRows = (
+    <>
+      {visibleUnsigned.map((m, index) => {
+        const isEntering =
+          optimisticSignedOut.has(m.key) ||
+          remoteSignedOut.has(m.key) ||
+          newlyAddedUnsigned.has(m.key);
+        const isExiting = remoteSignedIn.has(m.key);
+        const isAnimating = isEntering || isExiting;
+        const isSuppressed = suppressUnsignedFadeIn.has(m.key);
+        const staggerIndex = visibleSignedIn.length + index;
+        const nextKey = visibleUnsigned[index + 1]?.key;
+        const row = (
+          <AttendanceRow
+            name={m.name}
+            subtitle={memberSubtitle(m)}
+            photo={m.photo ?? null}
+            university={m.university}
+            roles={m.roles}
+            mode="suggested"
+            // The list only renders when canEdit, so a row is blocked
+            // only while its enter/exit animation plays — and it's held
+            // non-interactive without greying out (dimmed stays false).
+            disabled={isAnimating}
+            entering={isEntering}
+            exiting={isExiting}
+            revealTrigger={revealTriggers.get(m.key) ?? 0}
+            onExited={isExiting ? () => setRemoteSignedIn((s) => { const n = new Set(s); n.delete(m.key); return n; }) : undefined}
+            onActionStart={isAnimating ? undefined : () => { onSignInStart(m); if (nextKey) triggerReveal(nextKey); }}
+            onAction={() => { if (!isAnimating) onSignIn(m); }}
+            onEdit={!isAnimating ? () => editRosterEntry(m) : undefined}
+          />
+        );
+        return isAnimating || isSuppressed ? (
+          <View key={m.key}>{row}</View>
+        ) : (
+          <FadeInView key={m.key} delay={Math.min(staggerIndex, 12) * 35}>{row}</FadeInView>
+        );
+      })}
+      {visibleUnsigned.length < filteredUnsignedList.length ? (
+        <Btn
+          title={`Load more (${filteredUnsignedList.length - visibleUnsigned.length} left)`}
+          variant="ghost"
+          onPress={() => setUnsignedLimit((limit) => limit + UNSIGNED_PAGE_SIZE)}
+        />
+      ) : null}
+    </>
+  );
+
+  const signedInRows = (
+    <>
+      {visibleSignedIn.map((a, index) => {
+        const isEntering = (a._id as string).startsWith("optimistic:");
+        const isExiting = remoteSignedOut.has(personKey(a));
+        const isAnimating = isEntering || isExiting;
+        const aKey = personKey(a);
+        const isSuppressed = suppressFadeIn.has(aKey);
+        const nextKey = personKey(visibleSignedIn[index + 1] ?? {});
+        // Key by the stable person key (not _id) so the optimistic
+        // synthetic row and its confirmed real row share one instance —
+        // the mutation landing flips `entering` false without remounting,
+        // so the spawn-in animation never replays.
+        const rowKey = aKey || (a._id as string);
+        const row = (
+          <AttendanceRow
+            name={a.name}
+            subtitle={signedInSubtitle(a)}
+            photo={a.photo ?? null}
+            university={a.university}
+            roles={a.roles}
+            mode="signedIn"
+            // Attendees signed in before/during a finished event are
+            // locked (greyed, never sign-out-able). A retroactive add is
+            // editable once editing is enabled. Both honour canEdit.
+            // `dimmed` greys only genuinely-locked rows; an in-flight
+            // optimistic row is held non-interactive (disabled) without
+            // the grey.
+            disabled={
+              !canReverseSignIn(event, a.signInTime) || !canEdit || isAnimating
+            }
+            dimmed={!canReverseSignIn(event, a.signInTime) || !canEdit}
+            entering={isEntering}
+            exiting={isExiting}
+            revealTrigger={revealTriggers.get(aKey) ?? 0}
+            onExited={isExiting ? () => setRemoteSignedOut((s) => { const n = new Map(s); n.delete(aKey); return n; }) : undefined}
+            onActionStart={isAnimating ? undefined : () => { onSignOutStart(a); if (nextKey) triggerReveal(nextKey); }}
+            onAction={() => { if (!isAnimating) onSignOut(a); }}
+            onEdit={canEdit && !isAnimating ? () => editSignedIn(a) : undefined}
+          />
+        );
+        return isAnimating || isSuppressed ? (
+          <View key={rowKey}>{row}</View>
+        ) : (
+          <FadeInView key={rowKey} delay={Math.min(index, 12) * 35}>{row}</FadeInView>
+        );
+      })}
+      {visibleSignedIn.length < filteredSignedInList.length ? (
+        <Btn
+          title={`Load more (${filteredSignedInList.length - visibleSignedIn.length} left)`}
+          variant="ghost"
+          onPress={() => setSignedInLimit((limit) => limit + ROSTER_PAGE_SIZE)}
+        />
+      ) : null}
+    </>
+  );
+
+  // Shown in place of the not-signed-in list when it's empty — but not while
+  // searching, where an empty list just reads as "no matches".
+  const unsignedEmptyState = isSearching ? null : (
+    <Muted>Everyone in the pool is signed in 🎉</Muted>
+  );
+
   return (
     <Screen
       title={event.name}
@@ -665,8 +838,11 @@ export default function EventAttendanceScreen() {
       onBack={() => router.back()}
       toast={toast}
       // Index 1 is the member search box (index 0 is the grouped badges/notice
-      // block) — pin it so it stays reachable while the roster scrolls.
-      stickyHeaderIndices={[1]}
+      // block) — pin it so it stays reachable while the roster scrolls. In the
+      // two-column layout the page itself doesn't scroll (each column does), so
+      // pinning would be a no-op — and it can fight the flex-filled columns, so
+      // it's dropped there.
+      stickyHeaderIndices={twoColumn ? undefined : [1]}
       headerRight={
         <View style={styles.headerMeta}>
           <View style={styles.headerActions}>
@@ -808,166 +984,76 @@ export default function EventAttendanceScreen() {
         </View>
       </View>
 
-      {/* While searching, both lists below are filtered in place. The "Signed
-          in" section stays visible even with no matches (see its condition
-          below); counts always show the event total, not the filtered subset. */}
-
-      {/* The not-signed-in roster only appears once the event is editable:
-          future/ongoing events always (canEdit is true), a finished event only
-          after "Enable editing" is tapped. While searching it's hidden when no
-          not-signed-in member matches, so it never shows an empty header. */}
-      {canEdit ? (
-        <>
-          {/* Not-signed-in list sits above the signed-in list. Like the signed-in
-              section it stays visible during a search even with no matches — the
-              title and count remain with an empty list under them. The signed-in
-              rows are still staggered first (see staggerIndex below), so on
-              initial load they animate in before the not-signed-in remainder. */}
-          <View style={[styles.section, styles.sectionHeader]}>
-            <Text style={[typography.label, { color: t.muted }]}>Not signed in</Text>
-            <CountChip
-              count={optimisticUnsignedCount}
-              accessibilityLabel={`${optimisticUnsignedCount} not signed in`}
-            />
+      {/* While searching, both lists are filtered in place; counts always show
+          the event total, not the filtered subset. Wide screens (see twoColumn)
+          split the roster into two independently-scrolling columns — not signed
+          in on the left, signed in on the right. Narrow screens stack them, with
+          the not-signed-in list in its own short scroll above the signed-in one.
+          The not-signed-in roster only shows once the event is editable
+          (future/ongoing always; a finished event after "Enable editing"). */}
+      {twoColumn ? (
+        <View
+          ref={columnsRef}
+          onLayout={measureColumns}
+          style={[
+            styles.columns,
+            columnsHeight != null ? { height: columnsHeight } : { flex: 1 },
+          ]}
+        >
+          <View style={styles.column}>
+            {notSignedInHeader}
+            {filteredUnsignedList.length === 0 ? (
+              unsignedEmptyState
+            ) : (
+              <ScrollView
+                style={styles.columnScroll}
+                nestedScrollEnabled
+                showsVerticalScrollIndicator
+                keyboardShouldPersistTaps="handled"
+              >
+                {unsignedRows}
+              </ScrollView>
+            )}
           </View>
-          {filteredUnsignedList.length === 0 ? (
-            // No "everyone's in 🎉" while searching — that reads as a no-match
-            // empty list, so just leave the list empty under the header.
-            isSearching ? null : (
-              <Muted>Everyone in the pool is signed in 🎉</Muted>
-            )
-          ) : (
+          <View style={styles.column}>
+            {signedInHeader}
             <ScrollView
-              style={styles.unsignedScroll}
+              style={styles.columnScroll}
               nestedScrollEnabled
               showsVerticalScrollIndicator
               keyboardShouldPersistTaps="handled"
             >
-              {visibleUnsigned.map((m, index) => {
-                const isEntering =
-                  optimisticSignedOut.has(m.key) ||
-                  remoteSignedOut.has(m.key) ||
-                  newlyAddedUnsigned.has(m.key);
-                const isExiting = remoteSignedIn.has(m.key);
-                const isAnimating = isEntering || isExiting;
-                const isSuppressed = suppressUnsignedFadeIn.has(m.key);
-                const staggerIndex = visibleSignedIn.length + index;
-                const nextKey = visibleUnsigned[index + 1]?.key;
-                const row = (
-                  <AttendanceRow
-                    name={m.name}
-                    subtitle={memberSubtitle(m)}
-                    photo={m.photo ?? null}
-                    university={m.university}
-                    roles={m.roles}
-                    mode="suggested"
-                    // The list only renders when canEdit, so a row is blocked
-                    // only while its enter/exit animation plays — and it's held
-                    // non-interactive without greying out (dimmed stays false).
-                    disabled={isAnimating}
-                    entering={isEntering}
-                    exiting={isExiting}
-                    revealTrigger={revealTriggers.get(m.key) ?? 0}
-                    onExited={isExiting ? () => setRemoteSignedIn((s) => { const n = new Set(s); n.delete(m.key); return n; }) : undefined}
-                    onActionStart={isAnimating ? undefined : () => { onSignInStart(m); if (nextKey) triggerReveal(nextKey); }}
-                    onAction={() => { if (!isAnimating) onSignIn(m); }}
-                    onEdit={!isAnimating ? () => editRosterEntry(m) : undefined}
-                  />
-                );
-                return isAnimating || isSuppressed ? (
-                  <View key={m.key}>{row}</View>
-                ) : (
-                  <FadeInView key={m.key} delay={Math.min(staggerIndex, 12) * 35}>{row}</FadeInView>
-                );
-              })}
-              {visibleUnsigned.length < filteredUnsignedList.length ? (
-                <Btn
-                  title={`Load more (${filteredUnsignedList.length - visibleUnsigned.length} left)`}
-                  variant="ghost"
-                  onPress={() =>
-                    setUnsignedLimit((limit) => limit + UNSIGNED_PAGE_SIZE)
-                  }
-                />
-              ) : null}
+              {signedInRows}
             </ScrollView>
-          )}
-        </>
-      ) : null}
-
-      {/* Always shown — the "Signed in" title and total count stay put even with
-          zero signed-in members (or no search matches), with an empty list under
-          them, so the layout below "Not signed in" never shifts. */}
-      {(
-        <>
-          <View style={[styles.section, styles.sectionHeader]}>
-            <Text style={[typography.label, { color: t.muted }]}>Signed in</Text>
-            <CountChip
-              count={optimisticSignedInCount}
-              accessibilityLabel={`${optimisticSignedInCount} signed in`}
-            />
           </View>
-              {/* Wrapped so the Screen scroll's outer `gap` doesn't stack on top
-                  of each row's marginBottom — keeps the row spacing tight and
-                  matching the not-signed-in list (which sits in its own scroll). */}
-              <View>
-              {visibleSignedIn.map((a, index) => {
-                const isEntering = (a._id as string).startsWith("optimistic:");
-                const isExiting = remoteSignedOut.has(personKey(a));
-                const isAnimating = isEntering || isExiting;
-                const aKey = personKey(a);
-                const isSuppressed = suppressFadeIn.has(aKey);
-                const nextKey = personKey(visibleSignedIn[index + 1] ?? {});
-                // Key by the stable person key (not _id) so the optimistic
-                // synthetic row and its confirmed real row share one instance —
-                // the mutation landing flips `entering` false without remounting,
-                // so the spawn-in animation never replays.
-                const rowKey = aKey || (a._id as string);
-                const row = (
-                  <AttendanceRow
-                    name={a.name}
-                    subtitle={signedInSubtitle(a)}
-                    photo={a.photo ?? null}
-                    university={a.university}
-                    roles={a.roles}
-                    mode="signedIn"
-                    // Attendees signed in before/during a finished event are
-                    // locked (greyed, never sign-out-able). A retroactive add is
-                    // editable once editing is enabled. Both honour canEdit.
-                    // `dimmed` greys only genuinely-locked rows; an in-flight
-                    // optimistic row is held non-interactive (disabled) without
-                    // the grey.
-                    disabled={
-                      !canReverseSignIn(event, a.signInTime) || !canEdit || isAnimating
-                    }
-                    dimmed={!canReverseSignIn(event, a.signInTime) || !canEdit}
-                    entering={isEntering}
-                    exiting={isExiting}
-                    revealTrigger={revealTriggers.get(aKey) ?? 0}
-                    onExited={isExiting ? () => setRemoteSignedOut((s) => { const n = new Map(s); n.delete(aKey); return n; }) : undefined}
-                    onActionStart={isAnimating ? undefined : () => { onSignOutStart(a); if (nextKey) triggerReveal(nextKey); }}
-                    onAction={() => { if (!isAnimating) onSignOut(a); }}
-                    onEdit={canEdit && !isAnimating ? () => editSignedIn(a) : undefined}
-                  />
-                );
-                return isAnimating || isSuppressed ? (
-                  <View key={rowKey}>{row}</View>
-                ) : (
-                  <FadeInView key={rowKey} delay={Math.min(index, 12) * 35}>{row}</FadeInView>
-                );
-              })}
-              {visibleSignedIn.length < filteredSignedInList.length ? (
-                <Btn
-                  title={`Load more (${filteredSignedInList.length - visibleSignedIn.length} left)`}
-                  variant="ghost"
-                  onPress={() =>
-                    setSignedInLimit((limit) => limit + ROSTER_PAGE_SIZE)
-                  }
-                />
-              ) : null}
-              </View>
+        </View>
+      ) : (
+        <>
+          {canEdit ? (
+            <>
+              {notSignedInHeader}
+              {filteredUnsignedList.length === 0 ? (
+                unsignedEmptyState
+              ) : (
+                <ScrollView
+                  style={styles.unsignedScroll}
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {unsignedRows}
+                </ScrollView>
+              )}
             </>
-          )}
-      <View style={{ height: spacing.xxl }} />
+          ) : null}
+          {signedInHeader}
+          {/* Plain View wrapper so the Screen scroll's outer `gap` doesn't stack
+              on each row's marginBottom — keeps spacing tight, matching the
+              not-signed-in list. */}
+          <View>{signedInRows}</View>
+        </>
+      )}
+      {twoColumn ? null : <View style={{ height: spacing.xxl }} />}
 
       {metadataFields ? (
         <EditMemberSheet
@@ -1096,4 +1182,12 @@ const styles = StyleSheet.create({
   // page content is short, the Screen's scroll container stretches, and this list
   // would otherwise grow past its height (showing ~5 cards). Keep it rigid.
   unsignedScroll: { height: UNSIGNED_LIST_HEIGHT, flexGrow: 0, flexShrink: 0 },
+  // Two-column (wide) roster. `flex: 1` fills the space the Screen's scroll
+  // container leaves below the header/search (its contentContainer sets
+  // flexGrow 1, so the columns get a bounded height); each column's inner
+  // ScrollView then scrolls on its own without moving the page or the other
+  // column. minWidth 0 lets the columns shrink evenly instead of overflowing.
+  columns: { flexDirection: "row", gap: spacing.md },
+  column: { flex: 1, minWidth: 0 },
+  columnScroll: { flex: 1 },
 });
