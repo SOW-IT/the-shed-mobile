@@ -1,6 +1,9 @@
 # Sign in with Apple — implementation plan
 
-**Status: planned — not yet implemented.**
+**Status: implemented (1.8.0).** Code landed per this plan; the remaining
+external step is enabling the Sign In with Apple capability on the App IDs and
+cutting a new native build (see §1–§2). Manual device testing (§6) is pending
+that build.
 
 ## Why
 
@@ -113,14 +116,13 @@ Details:
 
 - **Nonce.** Generate a cryptographically random nonce per attempt and send
   the raw value to the server alongside the token; the server accepts the
-  token only if its `nonce` claim matches. ⚠️ Implementation check: confirm
-  whether SDK 56's `expo-apple-authentication` passes `nonce` to
-  `ASAuthorizationOpenIDRequest` verbatim or SHA-256-hashes it first (the
-  module has done the latter historically — the Firebase integration docs
-  rely on it). Decide by inspecting a real token on device, then have the
-  server compare against the raw nonce or its SHA-256 accordingly, and pin
-  the behaviour with a comment. Primary security is the signature +
-  `aud`/`iss`/`exp` checks; the nonce closes token replay across requests.
+  token only if its `nonce` claim matches. ✅ Resolved: SDK 56's
+  `expo-apple-authentication` passes the nonce through **verbatim** — the iOS
+  layer does `request.nonce = options.nonce` with no hashing
+  (`ios/AppleAuthenticationRequest.swift`) — so Apple echoes the raw value
+  into the token's `nonce` claim and the server compares against `rawNonce`
+  directly (no SHA-256). Primary security is the signature + `aud`/`iss`/`exp`
+  checks; the nonce closes token replay across requests.
 - **Outcome mapping.** `signInAsync` throws `ERR_REQUEST_CANCELED` when the
   user dismisses the sheet → return `"cancelled"` (silent, matching Google).
   A server-side refusal (org email, §4) arrives as a thrown error from

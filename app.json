@@ -2,7 +2,7 @@
   "expo": {
     "name": "The SHED",
     "slug": "the-shed-mobile",
-    "version": "1.7.5",
+    "version": "1.8.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "theshedmobile",
@@ -10,6 +10,7 @@
     "ios": {
       "bundleIdentifier": "au.org.sow.theshed",
       "supportsTablet": true,
+      "usesAppleSignIn": true,
       "associatedDomains": [
         "applinks:theshed.sow.org.au",
         "applinks:the-shed-web.vercel.app"
@@ -68,6 +69,7 @@
       ],
       "expo-secure-store",
       "expo-web-browser",
+      "expo-apple-authentication",
       "expo-sharing",
       "expo-status-bar",
       [

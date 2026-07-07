@@ -6,6 +6,22 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.8.0] — 2026-07-07
+
+### Added
+
+- **Sign in with Apple.** The signed-out menu now offers "Sign in with Apple"
+  on iOS, below the two Google options, satisfying App Store **Guideline 4.8
+  (Login Services)** — an equivalent login that limits data to name + email,
+  lets users hide their email behind a private relay, and doesn't harvest
+  interactions for advertising. The native system sheet returns a signed
+  identity token that the backend verifies against Apple's public keys before
+  creating or reusing an account. Like a personal Google account, an Apple
+  account is a visitor unless its email matches a staff profile; an
+  `@sow.org.au` address is redirected to "Sign in with your SOW account".
+  _(Requires the Sign In with Apple capability on the App IDs and a new native
+  build; the row is hidden on Android and web.)_
+
 ## [1.7.5] — 2026-07-06
 
 ### Changed
