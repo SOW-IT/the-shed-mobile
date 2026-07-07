@@ -152,13 +152,13 @@ export const roster = query({
           )
         ),
       ];
-      const orgSubtitle =
-        roles.length > 0
-          ? roles.join(" · ")
-          : campuses.length > 0
-            ? campuses.join(" · ")
-            : "";
-      const metaSubtitle = metadataSubtitle(shadow?.metadata, new Set([ROLE_FIELD_KEY]));
+      // Campus is deliberately omitted — the row's right-hand chip already shows
+      // it (subgroup pill), so repeating it in the subtitle is redundant.
+      const orgSubtitle = roles.length > 0 ? roles.join(" · ") : "";
+      const metaSubtitle = metadataSubtitle(
+        shadow?.metadata,
+        new Set([ROLE_FIELD_KEY, CAMPUS_FIELD_KEY])
+      );
       const subtitle = [orgSubtitle, metaSubtitle].filter(Boolean).join(" · ");
       const user = p.userId ? await ctx.db.get(p.userId) : null;
       return {
@@ -184,14 +184,8 @@ export const roster = query({
       roles: [],
       campuses: [],
       university: resolveUniversity(metadataFields, m.metadata),
-      subtitle: metadataFields
-        .map((f) => {
-          const raw = m.metadata?.[f._id];
-          if (!raw) return null;
-          return formatMetadataFieldValue(f.key, raw, memberYear, f.values);
-        })
-        .filter(Boolean)
-        .join(" · "),
+      // Campus omitted — shown by the row's chip (see staff rows above).
+      subtitle: metadataSubtitle(m.metadata, new Set([CAMPUS_FIELD_KEY])) || undefined,
     }));
 
     const rows = [...staffRows, ...extraRows];
@@ -363,9 +357,12 @@ export const listByEvent = query({
           campuses,
           // The staff-year profile's campus wins over a (possibly stale) overlay.
           university: campuses[0] ?? resolveUniversity(metadataFields, shadow?.metadata, campuses),
+          // Campus excluded — the row's chip already shows it.
           subtitle: metadataSubtitle(
             shadow?.metadata,
-            profile ? new Set([ROLE_FIELD_KEY]) : new Set()
+            profile
+              ? new Set([ROLE_FIELD_KEY, CAMPUS_FIELD_KEY])
+              : new Set([CAMPUS_FIELD_KEY])
           ) || undefined,
           photo: user?.image ?? null,
         },
@@ -392,7 +389,7 @@ export const listByEvent = query({
             roles: [],
             campuses: [],
             university: resolveUniversity(metadataFields, member?.metadata),
-            subtitle: metadataSubtitle(member?.metadata) || undefined,
+            subtitle: metadataSubtitle(member?.metadata, new Set([CAMPUS_FIELD_KEY])) || undefined,
             photo: null,
           };
         }

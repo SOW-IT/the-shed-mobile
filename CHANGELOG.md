@@ -12,9 +12,13 @@ All notable changes to **The SHED** mobile app. This project follows
 
 - **Signed-in attendees now show their details, not just the time.** A
   signed-in roll-call row previously showed only the sign-in time (and any
-  note). It now appends the same roles / campus / metadata line an unsigned
-  row shows — e.g. "5:03 PM · President · Macquarie" — so a person reads the
-  same in either list, just with the time up front.
+  note). It now appends the same roles / metadata line an unsigned row shows —
+  e.g. "5:03 PM · President · 3rd year" — so a person reads the same in either
+  list, just with the time up front.
+- **Campus dropped from roll-call subtitles.** Both signed-in and not-signed-in
+  rows no longer repeat the campus in the subtitle line — the row's right-hand
+  chip already shows it. Campus remains searchable (typing e.g. "Macquarie"
+  still matches).
 
 ### Fixed
 

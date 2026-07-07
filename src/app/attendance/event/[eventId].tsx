@@ -55,38 +55,30 @@ const UNSIGNED_LIST_HEIGHT = UNSIGNED_ROW_HEIGHT * 3;
  *  derived from the row's own animation duration so the two stay in sync. */
 const NEWLY_ADDED_CLEAR_MS = ATTENDANCE_ROW_ENTER_MS + 40;
 
-/** Subtitle for a roster row. */
+/** Subtitle for a roster row. Campus is intentionally left out — the row's
+ *  right-hand chip already shows it, so repeating it here is redundant. */
 const memberSubtitle = (member: {
   roles: string[];
-  campuses: string[];
   subtitle?: string;
 }): string | undefined => {
   if (member.subtitle) return member.subtitle;
   if (member.roles.length > 0) return member.roles.join(" · ");
-  if (member.campuses.length > 0)
-    return member.campuses.map(subgroupLabel).join(" · ");
   return undefined;
 };
 
 /** Subtitle for a signed-in row: the sign-in time, then the same
- *  roles/campuses/metadata "other information" an unsigned roster row shows, then
- *  any note. `subtitle` here is the metadata line only (listByEvent keeps roles
- *  out of it), so it's combined with the org line — mirroring how the roster
- *  query builds its subtitle — so the same person reads identically in either
- *  list, just with the time up front. */
+ *  roles/metadata "other information" an unsigned roster row shows, then any
+ *  note. `subtitle` here is the metadata line only (listByEvent keeps roles out
+ *  of it), so it's combined with the roles line — mirroring how the roster query
+ *  builds its subtitle — so the same person reads identically in either list,
+ *  just with the time up front. Campus is omitted (shown by the row's chip). */
 const signedInSubtitle = (member: {
   signInTime: number;
   notes?: string;
   roles: string[];
-  campuses: string[];
   subtitle?: string;
 }): string => {
-  const org =
-    member.roles.length > 0
-      ? member.roles.join(" · ")
-      : member.campuses.length > 0
-        ? member.campuses.map(subgroupLabel).join(" · ")
-        : "";
+  const org = member.roles.length > 0 ? member.roles.join(" · ") : "";
   const info = [org, member.subtitle].filter(Boolean).join(" · ");
   const trimmed = member.notes?.trim();
   const notePreview = trimmed
@@ -480,23 +472,26 @@ export default function EventAttendanceScreen() {
   }, [newlyAddedUnsigned]);
 
   // While searching, the two lists below are filtered in place by
-  // name/email/subtitle/roles (matching the Members tab's search surface) —
-  // there's no separate "Results" list. An empty query passes everything
-  // through. Roles are matched explicitly because a signed-in row's subtitle
-  // (from listByEvent) is metadata-only and doesn't carry the person's org
-  // roles, unlike the unsigned roster rows.
+  // name/email/subtitle/roles/campus (matching the Members tab's search
+  // surface) — there's no separate "Results" list. An empty query passes
+  // everything through. Roles and campus are matched explicitly because a
+  // signed-in row's subtitle (from listByEvent) is metadata-only, and campus is
+  // kept out of both lists' subtitles (it's on the chip) — so without this a
+  // search like "Macquarie" would match nothing.
   const matchesSearch = useCallback(
     (p: {
       name: string;
       email?: string | null;
       subtitle?: string;
       roles?: string[];
+      university?: string;
     }) =>
       p.name.toLowerCase().includes(searchQuery) ||
       (p.email?.toLowerCase().includes(searchQuery) ?? false) ||
       (p.subtitle?.toLowerCase().includes(searchQuery) ?? false) ||
       (p.roles?.some((role) => role.toLowerCase().includes(searchQuery)) ??
-        false),
+        false) ||
+      (p.university?.toLowerCase().includes(searchQuery) ?? false),
     [searchQuery]
   );
   const filteredUnsignedList = useMemo(
