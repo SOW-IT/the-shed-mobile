@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [1.7.6] — 2026-07-07
+## [1.8.0] — 2026-07-07
 
 ### Added
 
