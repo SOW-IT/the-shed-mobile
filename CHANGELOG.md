@@ -8,6 +8,14 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [1.8.2] — 2026-07-07
 
+### Changed
+
+- **Signed-in attendees now show their details, not just the time.** A
+  signed-in roll-call row previously showed only the sign-in time (and any
+  note). It now appends the same roles / campus / metadata line an unsigned
+  row shows — e.g. "5:03 PM · President · Macquarie" — so a person reads the
+  same in either list, just with the time up front.
+
 ### Fixed
 
 - **Admin screen no longer crashes on a stray duplicate profile.** The admin

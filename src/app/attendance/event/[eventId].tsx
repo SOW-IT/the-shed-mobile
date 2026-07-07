@@ -68,12 +68,35 @@ const memberSubtitle = (member: {
   return undefined;
 };
 
-const signedInSubtitle = (signInTime: number, notes?: string): string => {
-  const base = formatSignInTime(signInTime);
-  const trimmed = notes?.trim();
-  if (!trimmed) return base;
-  const preview = trimmed.length > 36 ? `${trimmed.slice(0, 36)}…` : trimmed;
-  return `${base} · ${preview}`;
+/** Subtitle for a signed-in row: the sign-in time, then the same
+ *  roles/campuses/metadata "other information" an unsigned roster row shows, then
+ *  any note. `subtitle` here is the metadata line only (listByEvent keeps roles
+ *  out of it), so it's combined with the org line — mirroring how the roster
+ *  query builds its subtitle — so the same person reads identically in either
+ *  list, just with the time up front. */
+const signedInSubtitle = (member: {
+  signInTime: number;
+  notes?: string;
+  roles: string[];
+  campuses: string[];
+  subtitle?: string;
+}): string => {
+  const org =
+    member.roles.length > 0
+      ? member.roles.join(" · ")
+      : member.campuses.length > 0
+        ? member.campuses.map(subgroupLabel).join(" · ")
+        : "";
+  const info = [org, member.subtitle].filter(Boolean).join(" · ");
+  const trimmed = member.notes?.trim();
+  const notePreview = trimmed
+    ? trimmed.length > 36
+      ? `${trimmed.slice(0, 36)}…`
+      : trimmed
+    : "";
+  return [formatSignInTime(member.signInTime), info, notePreview]
+    .filter(Boolean)
+    .join(" · ");
 };
 
 /** Rounded people-count chip — reused for the header total and the two section
@@ -907,7 +930,7 @@ export default function EventAttendanceScreen() {
                 const row = (
                   <AttendanceRow
                     name={a.name}
-                    subtitle={signedInSubtitle(a.signInTime, a.notes)}
+                    subtitle={signedInSubtitle(a)}
                     photo={a.photo ?? null}
                     university={a.university}
                     roles={a.roles}
