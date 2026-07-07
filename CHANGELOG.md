@@ -6,6 +6,18 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.8.4] — 2026-07-07
+
+### Added
+
+- **Receipt total.** When a receipt has more than one recipient, the submit
+  sheet now shows a locked, auto-calculated "Total ($)" that sums the recipient
+  amounts (read-only, so it's clearly derived), and the request card shows a
+  matching **Total** line at the bottom of the receipts. Single-recipient
+  receipts are unchanged — the one amount already is the total.
+- **App version on your profile.** Your profile now shows the app version (e.g.
+  "Version 1.8.4") under the Sign out button.
+
 ## [1.8.3] — 2026-07-07
 
 ### Fixed

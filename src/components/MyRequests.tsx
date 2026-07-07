@@ -524,6 +524,14 @@ const ReceiptSheet = ({
     void send();
   };
 
+  // Live total of the per-recipient amounts, shown read-only so it's clearly
+  // derived (never typed). `|| 0` keeps a half-typed amount (".", "") from
+  // turning the sum into NaN while the user is still entering figures.
+  const receiptTotal = recipients.reduce(
+    (sum, r) => sum + (Number(r.amount) || 0),
+    0
+  );
+
   return (
     <Sheet
       visible={request !== null}
@@ -626,6 +634,14 @@ const ReceiptSheet = ({
         variant="ghost"
         onPress={() => setRecipients((previous) => [...previous, emptyRecipient()])}
       />
+      {recipients.length > 1 ? (
+        <Field
+          label="Total ($)"
+          value={formatAmount(receiptTotal)}
+          onChangeText={() => {}}
+          disabled
+        />
+      ) : null}
       <ErrorBanner message={error} />
       <ConfirmDialog
         visible={confirmExceeds !== null}
