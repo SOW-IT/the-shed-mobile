@@ -19,6 +19,7 @@ import { Doc, Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "../theme";
 import {
   Card,
+  formatAmount,
   IconButton,
   LoadingBar,
   LoadingState,
@@ -453,7 +454,7 @@ export const RequestCard = ({
     <>
       <View style={styles.topRow}>
         <View style={styles.topSide}>
-          <Text style={[typography.amount, { color: t.text }]}>${request.amount}</Text>
+          <Text style={[typography.amount, { color: t.text }]}>${formatAmount(request.amount)}</Text>
         </View>
         <View style={[styles.statusPill, { backgroundColor: chip.bg }]}>
           <Text numberOfLines={1} style={[styles.statusPillText, { color: chip.fg }]}>
@@ -490,7 +491,7 @@ export const RequestCard = ({
         <View style={[styles.paidBox, { backgroundColor: t.successSoft }]}>
           <Ionicons name="checkmark-circle" size={15} color={t.success} />
           <Text style={[typography.caption, { color: t.success, flex: 1, fontWeight: "600" }]}>
-            Paid ${request.paidAmount}
+            Paid ${formatAmount(request.paidAmount)}
             {request.payComment ? ` — ${request.payComment}` : ""}
           </Text>
         </View>

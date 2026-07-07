@@ -16,6 +16,7 @@ import {
   errorMessage,
   FadeInView,
   Field,
+  formatAmount,
   IconButton,
   LoadingState,
   Muted,
@@ -171,7 +172,7 @@ const PaySheet = ({
         label="Paid amount ($)"
         value={paidAmount}
         onChangeText={(text) => setPaidAmount(currencyText(text))}
-        keyboardType="numeric"
+        keyboardType="decimal-pad"
       />
       <Field label="Comment (optional)" value={comment} onChangeText={setComment} />
       <ErrorBanner message={error} />
@@ -369,7 +370,7 @@ export const ReviewList = ({
         title="Approve request?"
         message={
           approveTarget
-            ? `$${approveTarget.request.amount} from ${approveRequesterName ?? approveTarget.request.requesterEmail} — moves to the next step.`
+            ? `$${formatAmount(approveTarget.request.amount)} from ${approveRequesterName ?? approveTarget.request.requesterEmail} — moves to the next step.`
             : undefined
         }
         confirmLabel="Approve"

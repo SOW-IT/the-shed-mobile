@@ -58,11 +58,10 @@ export const digitsOnly = (text: string): string => text.replace(/[^0-9]/g, "");
 export const maskAccount = (accountNumber: string): string =>
   accountNumber.length > 4 ? `••${accountNumber.slice(-4)}` : accountNumber;
 
-/** Keeps digits and a single decimal point — for $ amount inputs. */
-export const currencyText = (text: string): string => {
-  const [whole, ...decimals] = text.replace(/[^0-9.]/g, "").split(".");
-  return decimals.length === 0 ? whole : `${whole}.${decimals.join("")}`;
-};
+// Money input/display helpers live in shared/money.ts (react-native-free so
+// they're unit-testable); re-exported here so call sites keep importing them
+// from "@/components/ui".
+export { currencyText, formatAmount } from "@shared/money";
 
 /** Stagger helper: caps the cascade so long lists don't feel sluggish. Kept
  *  short (per-item + total cap) so lists snap in rather than trickle. */

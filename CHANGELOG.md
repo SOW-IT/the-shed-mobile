@@ -6,6 +6,23 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.8.3] — 2026-07-07
+
+### Fixed
+
+- **Money fields now accept cents.** The request amount, receipt amount, paid
+  amount, and the Director-approval threshold used the plain numeric keyboard,
+  which on iOS has no decimal-point key — so amounts like "12.50" couldn't be
+  entered. They now use the decimal keypad, and the shared input filter caps the
+  entry at two fractional digits (dollars and cents), silently dropping any
+  extra typed digits rather than accepting fractions of a cent.
+- **Amounts with cents now display to two decimals, with thousands
+  separators.** A request, receipt, paid amount, or the Director-approval
+  threshold that has a fractional part is shown to exactly two decimals (e.g. an
+  amount entered as "12.5" reads as "$12.50"), and dollars are grouped
+  ("$1,234.50"). Whole-dollar amounts stay bare ("$12"). All money figures share
+  one formatter so they read consistently.
+
 ## [1.8.2] — 2026-07-07
 
 ### Changed
