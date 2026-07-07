@@ -23,6 +23,7 @@ import {
   errorMessage,
   FadeInView,
   Field,
+  formatAmount,
   IconButton,
   LoadingState,
   maskAccount,
@@ -631,7 +632,7 @@ const ReceiptSheet = ({
         title="Receipt exceeds request"
         message={
           confirmExceeds && request
-            ? `Your $${confirmExceeds.total} receipt exceeds the requested $${request.amount}. You'll be paid up to the requested amount.`
+            ? `Your $${formatAmount(confirmExceeds.total)} receipt exceeds the requested $${formatAmount(request.amount)}. You'll be paid up to the requested amount.`
             : undefined
         }
         confirmLabel="Submit Anyway"
@@ -833,7 +834,7 @@ export const MyRequests = ({
                       ? () =>
                           setConfirm({
                             title: "Delete request?",
-                            message: `Your declined $${request.amount} request ("${request.description}") will be permanently deleted.`,
+                            message: `Your declined $${formatAmount(request.amount)} request ("${request.description}") will be permanently deleted.`,
                             confirmLabel: "Delete",
                             onConfirm: () => void handleDeleteDeclined(request._id),
                           })
@@ -841,7 +842,7 @@ export const MyRequests = ({
                       ? () =>
                           setConfirm({
                             title: "Cancel request?",
-                            message: `Your $${request.amount} request ("${request.description}") and its approvals will be permanently deleted.`,
+                            message: `Your $${formatAmount(request.amount)} request ("${request.description}") and its approvals will be permanently deleted.`,
                             confirmLabel: "Cancel Request",
                             onConfirm: () => void handleCancel(request._id),
                           })
@@ -875,7 +876,7 @@ export const MyRequests = ({
                           title: "Send a nudge?",
                           message: onCooldown
                             ? `You can nudge again in ${formatCooldown(status?.remainingMs ?? 0)}.`
-                            : `Reminds whoever needs to action your $${r.amount} request ("${r.description}"). Once per day.`,
+                            : `Reminds whoever needs to action your $${formatAmount(r.amount)} request ("${r.description}"). Once per day.`,
                           confirmLabel: "Send Nudge",
                           destructive: false,
                           confirmDisabled: onCooldown,

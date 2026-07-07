@@ -68,6 +68,12 @@ export const currencyText = (text: string): string => {
   return `${whole}.${cents}`;
 };
 
+/** Formats a $ amount for display. A whole-dollar value stays bare ("12"), but
+ *  any value with cents is shown to exactly 2 decimals ("12.5" → "12.50") so
+ *  amounts don't read as a stray single-digit cents figure. */
+export const formatAmount = (amount: number): string =>
+  Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
+
 /** Stagger helper: caps the cascade so long lists don't feel sluggish. Kept
  *  short (per-item + total cap) so lists snap in rather than trickle. */
 export const stagger = (index: number): number => Math.min(index, 8) * 24;

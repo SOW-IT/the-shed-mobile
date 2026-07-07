@@ -4,7 +4,7 @@ import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { LoadingBar, Muted, Row, Txt } from "@/components/ui";
+import { formatAmount, LoadingBar, Muted, Row, Txt } from "@/components/ui";
 
 /**
  * A submitted receipt's recipients: each one's bank details and receipt files
@@ -27,7 +27,7 @@ export const ReceiptRecipientList = ({ request }: { request: Doc<"requests"> }) 
         <View key={i} style={[styles.recipient, { backgroundColor: t.inputBackground }]}>
           <Row>
             <Txt style={{ fontWeight: "700", flexGrow: 1 }}>{recipient.accountName}</Txt>
-            <Txt style={{ fontWeight: "700" }}>${recipient.amount}</Txt>
+            <Txt style={{ fontWeight: "700" }}>${formatAmount(recipient.amount)}</Txt>
           </Row>
           <Muted>
             BSB {recipient.bsb} · Account {recipient.accountNumber}

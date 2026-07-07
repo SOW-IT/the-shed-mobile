@@ -16,6 +16,10 @@ All notable changes to **The SHED** mobile app. This project follows
   entered. They now use the decimal keypad, and the shared input filter caps the
   entry at two fractional digits (dollars and cents), silently dropping any
   extra typed digits rather than accepting fractions of a cent.
+- **Amounts with cents now display to two decimals.** A request, receipt, or
+  paid amount that has a fractional part is shown to exactly two decimals (e.g.
+  an amount entered as "12.5" reads as "$12.50"). Whole-dollar amounts stay
+  bare ("$12").
 
 ## [1.8.2] — 2026-07-07
 

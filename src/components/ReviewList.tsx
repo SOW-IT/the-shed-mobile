@@ -16,6 +16,7 @@ import {
   errorMessage,
   FadeInView,
   Field,
+  formatAmount,
   IconButton,
   LoadingState,
   Muted,
@@ -369,7 +370,7 @@ export const ReviewList = ({
         title="Approve request?"
         message={
           approveTarget
-            ? `$${approveTarget.request.amount} from ${approveRequesterName ?? approveTarget.request.requesterEmail} — moves to the next step.`
+            ? `$${formatAmount(approveTarget.request.amount)} from ${approveRequesterName ?? approveTarget.request.requesterEmail} — moves to the next step.`
             : undefined
         }
         confirmLabel="Approve"
