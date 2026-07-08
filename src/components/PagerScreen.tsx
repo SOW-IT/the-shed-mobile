@@ -14,11 +14,12 @@ import {
   NativeSyntheticEvent,
   Platform,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
-import { spacing, useAppTheme } from "@/theme";
+import { spacing, useAppTheme, WIDE_SCREEN_MIN_WIDTH } from "@/theme";
 import { PagerCarousel } from "@/components/PagerCarousel";
 import { TabBar, TopBar } from "@/components/ui";
 import {
@@ -125,6 +126,8 @@ export const PagerScreen = ({
   fullWidth?: boolean;
 }) => {
   const t = useAppTheme();
+  // Only lift the reading cap on genuinely wide screens (see fullWidth).
+  const wide = useWindowDimensions().width >= WIDE_SCREEN_MIN_WIDTH;
   const me = useQuery(api.directory.me);
   const insets = useSafeAreaInsets();
   // Fractional page position shared with the tab bar so its underline tracks
@@ -308,7 +311,10 @@ export const PagerScreen = ({
           style={{ backgroundColor: t.background }}
           contentContainerStyle={[
             styles.page,
-            fullWidth && { maxWidth: undefined },
+            // `maxWidth: "100%"` (not undefined — RN Web keeps the base 720 when
+            // a later value is undefined) lifts the reading cap to the full width,
+            // but only once the screen is genuinely wide.
+            fullWidth && wide && { maxWidth: "100%" as const },
             // Only the footer's own tab needs the taller bottom inset; the others
             // (where the footer is slid away) keep the slimmer one. A footer with no
             // footerTabKey is pinned on every tab, so all pages get the inset.
