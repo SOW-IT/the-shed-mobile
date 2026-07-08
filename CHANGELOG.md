@@ -22,6 +22,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ### Changed
 
+- **Admin console uses the full width with card grids.** On wide screens the
+  Users, Structure and Other tabs now lay each section's cards out left-to-right
+  (380pt each, as many per row as fit) instead of one 720pt column — the whole
+  year's staff, departments and settings scan at a glance. The Structure sub-tab
+  bar (Roles / Divisions / Departments / Universities) keeps its reading-width
+  cap, and phones are unchanged (the grids collapse to a single column).
+- **Event attendance page is a little wider.** The roster's container now caps
+  at 840pt (was 720), giving the side-by-side signed-in / not-signed-in columns
+  more room on tablets and desktop.
 - **Org chart reads as a centred tree.** Every card (Director, division heads,
   departments, campuses) is now a fixed narrow width, centred, and wraps — so a
   division with one department shows a single centred card instead of one

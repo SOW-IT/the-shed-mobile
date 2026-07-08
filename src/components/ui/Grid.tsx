@@ -32,6 +32,7 @@ export const Grid = ({
   children,
   minColumnWidth = 300,
   fixedWidth,
+  align = "center",
   gap = spacing.md,
 }: {
   children: ReactNode;
@@ -43,6 +44,12 @@ export const Grid = ({
    * Takes precedence over `minColumnWidth` when set.
    */
   fixedWidth?: number;
+  /**
+   * Row alignment in fixed-width mode: "center" for tree-like layouts (Org
+   * chart), "start" to rank cards from the left under a left-aligned section
+   * title (Admin console). Fill mode always packs from the left.
+   */
+  align?: "center" | "start";
   gap?: number;
 }) => {
   const items = Children.toArray(children);
@@ -66,7 +73,8 @@ export const Grid = ({
         flexDirection: "row",
         flexWrap: "wrap",
         gap,
-        justifyContent: fixedWidth != null ? "center" : "flex-start",
+        justifyContent:
+          fixedWidth != null && align === "center" ? "center" : "flex-start",
       }}
     >
       {items.map((child, i) => (

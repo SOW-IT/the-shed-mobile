@@ -847,6 +847,9 @@ export default function EventAttendanceScreen() {
       subtitle="Attendance"
       onBack={() => router.back()}
       toast={toast}
+      // A bit wider than the 720 default so the two-column roster's columns
+      // aren't cramped.
+      maxWidth={840}
       // Index 1 is the member search box (index 0 is the grouped badges/notice
       // block) — pin it so it stays reachable while the roster scrolls. In the
       // two-column layout the page itself doesn't scroll (each column does), so
