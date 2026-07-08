@@ -3,7 +3,7 @@ import Constants from "expo-constants";
 import { makeRedirectUri } from "expo-auth-session";
 import * as Linking from "expo-linking";
 import { maybeCompleteAuthSession, openAuthSessionAsync } from "expo-web-browser";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Platform } from "react-native";
 
 // Dismiss any auth session left dangling by a previous redirect so the next one
@@ -115,12 +115,12 @@ export const useWebAuthCodeExchange = () => {
       .finally(() => setBusy(false));
   }, [signIn]);
 
-  return {
-    busy,
-    error,
-    rejectedProvider,
-    clearRejected: () => setRejectedProvider(null),
-  };
+  // Stable references (useCallback) so the caller's alert effects only re-run
+  // when the actual error/rejection state changes, not on every render.
+  const clearError = useCallback(() => setError(null), []);
+  const clearRejected = useCallback(() => setRejectedProvider(null), []);
+
+  return { busy, error, rejectedProvider, clearError, clearRejected };
 };
 
 const errorText = (e: unknown): string =>

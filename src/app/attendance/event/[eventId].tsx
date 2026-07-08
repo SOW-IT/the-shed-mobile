@@ -1002,8 +1002,8 @@ export default function EventAttendanceScreen() {
           split the roster into two independently-scrolling columns — not signed
           in on the left, signed in on the right. Narrow screens stack them, with
           the not-signed-in list in its own short scroll above the signed-in one.
-          The not-signed-in roster only shows once the event is editable
-          (future/ongoing always; a finished event after "Enable editing"). */}
+          The not-signed-in roster always renders; on a finished event it's
+          read-only (rows greyed out) until "Enable editing". */}
       {twoColumn ? (
         <View
           ref={columnsRef}

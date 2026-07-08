@@ -85,16 +85,18 @@ const AuthGate = () => {
   // redirect lands. Hold the loading state while it runs so we don't flash the
   // signed-out shell before auth resolves, and surface a failed exchange
   // (expired / re-used code) instead of silently dropping the visitor.
-  const { busy, error, rejectedProvider, clearRejected } =
+  const { busy, error, rejectedProvider, clearError, clearRejected } =
     useWebAuthCodeExchange();
   // These two come from the WEB code-exchange only, and React Native Web's
   // Alert.alert is a no-op — so use the browser's own dialog (window.alert),
-  // which is what actually shows on the web app.
+  // which is what actually shows on the web app. Clear the state once shown so
+  // Strict Mode's double-run effects (dev) can't alert twice.
   useEffect(() => {
     if (error && typeof window !== "undefined") {
       window.alert(`Sign-in didn't finish\n\n${error}`);
+      clearError();
     }
-  }, [error]);
+  }, [error, clearError]);
   // Web equivalent of the phone's rejected-account popup: an @sow.org.au email
   // used on the personal Google option (or a non-org email on the staff one) is
   // refused silently after the redirect, so tell the user where to go instead.

@@ -1,4 +1,4 @@
-import { Children, ReactNode } from "react";
+import { Children, isValidElement, ReactNode } from "react";
 import { View } from "react-native";
 import { spacing } from "@/theme";
 
@@ -77,8 +77,11 @@ export const Grid = ({
           fixedWidth != null && align === "center" ? "center" : "flex-start",
       }}
     >
+      {/* Children.toArray keys every element (preserving explicit keys, e.g.
+          ".$dept-name"), so keyed children keep their wrapper across reorders
+          instead of being re-matched by position. */}
       {items.map((child, i) => (
-        <View key={i} style={perChild}>
+        <View key={isValidElement(child) ? child.key ?? i : i} style={perChild}>
           {child}
         </View>
       ))}
