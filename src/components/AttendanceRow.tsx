@@ -129,7 +129,13 @@ function AttendanceRowBase({
 }: AttendanceRowProps) {
   const t = useAppTheme();
   const { width: screenWidth } = useWindowDimensions();
-  const rowWidth = Math.min(screenWidth, 720) - spacing.lg * 2;
+  // The card's ACTUAL laid-out width — measured, not derived from the window.
+  // In the two-column / grid layouts a card is far narrower than the window, so
+  // a window-based width mis-sized the tap-reveal thirds (the right-third
+  // sign-in strip shrank to the far edge) and the swipe commit distance. Falls
+  // back to the full-content width for the first frame before onLayout fires.
+  const [measuredWidth, setMeasuredWidth] = useState(0);
+  const rowWidth = measuredWidth || Math.min(screenWidth, 720) - spacing.lg * 2;
   const commitDistance = rowWidth / 2;
   const primaryColor = mode === "suggested" ? t.success : t.danger;
   const campusColour = university ? universityColour(university) : undefined;
@@ -494,6 +500,10 @@ function AttendanceRowBase({
         <Animated.View
           accessibilityRole="button"
           accessibilityLabel={name}
+          onLayout={(e) => {
+            const w = e.nativeEvent.layout.width;
+            if (w > 0 && w !== measuredWidth) setMeasuredWidth(w);
+          }}
           style={[
             styles.card,
             {

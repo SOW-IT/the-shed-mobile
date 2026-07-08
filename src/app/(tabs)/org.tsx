@@ -14,9 +14,17 @@ import {
   Grid,
   LoadingState,
   Muted,
+  ReadableColumn,
   stagger,
   Txt,
 } from "@/components/ui";
+
+/**
+ * Every org-chart card (Director, Staff, division heads, departments, campuses)
+ * is capped to this width and centred, so the chart reads as a narrow, centred
+ * "reverse tree" rather than cards stretched across a wide screen.
+ */
+const ORG_CARD_WIDTH = 340;
 
 const Person = ({
   person,
@@ -96,9 +104,11 @@ export default function OrgChartScreen() {
       {/* Director */}
       {chart.director ? (
         <FadeInView delay={40}>
-          <View style={[styles.directorCard, t.shadowCard, { backgroundColor: t.card }]}>
-            <Person person={chart.director} bold tag={chart.director.role ?? "Director"} size={46} />
-          </View>
+          <ReadableColumn maxWidth={ORG_CARD_WIDTH}>
+            <View style={[styles.directorCard, t.shadowCard, { backgroundColor: t.card }]}>
+              <Person person={chart.director} bold tag={chart.director.role ?? "Director"} size={46} />
+            </View>
+          </ReadableColumn>
         </FadeInView>
       ) : (
         <Muted>No Director assigned for {chart.year} yet.</Muted>
@@ -109,18 +119,22 @@ export default function OrgChartScreen() {
       {chart.staff.length > 0 && (
         <FadeInView delay={stagger(1)}>
           <View style={styles.divisionBlock}>
-            <Text style={[typography.label, { color: t.muted }]}>Staff</Text>
-            <View
-              style={[
-                styles.deptCard,
-                t.shadowCard,
-                { backgroundColor: t.card, borderLeftColor: t.primary },
-              ]}
-            >
-              {chart.staff.map((member) => (
-                <Person key={member.email} person={member} />
-              ))}
-            </View>
+            <Text style={[typography.label, styles.centerLabel, { color: t.muted }]}>
+              Staff
+            </Text>
+            <ReadableColumn maxWidth={ORG_CARD_WIDTH}>
+              <View
+                style={[
+                  styles.deptCard,
+                  t.shadowCard,
+                  { backgroundColor: t.card, borderLeftColor: t.primary },
+                ]}
+              >
+                {chart.staff.map((member) => (
+                  <Person key={member.email} person={member} />
+                ))}
+              </View>
+            </ReadableColumn>
           </View>
         </FadeInView>
       )}
@@ -130,24 +144,25 @@ export default function OrgChartScreen() {
         <FadeInView key={division.name} delay={stagger(divisionIndex + 2)}>
           <View style={styles.divisionBlock}>
             {/* Division label */}
-            <Text style={[typography.label, { color: t.muted }]}>
+            <Text style={[typography.label, styles.centerLabel, { color: t.muted }]}>
               {division.name}
             </Text>
 
             {/* Head of Division — contained row */}
             {division.head ? (
-              <View style={[styles.divisionHeadRow, t.shadowCard, { backgroundColor: t.card }]}>
-                <Person person={division.head} bold tag="Head of Division" size={34} />
-              </View>
+              <ReadableColumn maxWidth={ORG_CARD_WIDTH}>
+                <View style={[styles.divisionHeadRow, t.shadowCard, { backgroundColor: t.card }]}>
+                  <Person person={division.head} bold tag="Head of Division" size={34} />
+                </View>
+              </ReadableColumn>
             ) : null}
 
-            {/* Departments */}
+            {/* Departments — uniform narrow cards, centred and wrapping (a
+                "reverse tree"); a single department is just one centred card. */}
             {division.departments.length === 0 ? (
               <Muted>No departments.</Muted>
             ) : (
-              // Wide screens split a division's departments into as many columns
-              // as fit (~300pt each); phones stay single-column.
-              <Grid minColumnWidth={300}>
+              <Grid fixedWidth={ORG_CARD_WIDTH}>
                 {division.departments.map((dept) => (
                   <View
                     key={dept.name}
@@ -179,8 +194,10 @@ export default function OrgChartScreen() {
       {chart.universities.some((u) => u.members.length > 0) && (
         <FadeInView delay={stagger(chart.divisions.length + 2)}>
           <View style={styles.divisionBlock}>
-            <Text style={[typography.label, { color: t.muted }]}>Campus</Text>
-            <Grid minColumnWidth={300}>
+            <Text style={[typography.label, styles.centerLabel, { color: t.muted }]}>
+              Campus
+            </Text>
+            <Grid fixedWidth={ORG_CARD_WIDTH}>
               {chart.universities
                 .filter((u) => u.members.length > 0)
                 .map((u) => (
@@ -219,6 +236,11 @@ const styles = StyleSheet.create({
   divisionBlock: {
     marginBottom: spacing.md,
     gap: spacing.md,
+  },
+  // Section labels (Staff / division name / Campus) centre over the centred
+  // cards so the chart reads as a tidy tree rather than left-aligned headers.
+  centerLabel: {
+    textAlign: "center",
   },
   divisionHeadRow: {
     borderRadius: radius.lg,

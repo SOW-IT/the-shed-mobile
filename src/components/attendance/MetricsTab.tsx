@@ -40,6 +40,7 @@ import {
   EmptyState,
   FadeInView,
   LoadingState,
+  ReadableColumn,
   Sheet,
   stagger,
 } from "@/components/ui";
@@ -510,8 +511,11 @@ export function MetricsTab({
             })()}
           </View>
 
-          {/* Needs follow-up — a per-campus pastoral tool, hidden org-wide. */}
+          {/* Needs follow-up — a per-campus pastoral tool, hidden org-wide. It's
+              a reading list, so keep it a comfortable member-card width and
+              centred rather than stretched across a wide screen. */}
           {orgWide ? null : (
+          <ReadableColumn maxWidth={560}>
           <View style={[styles.followCard, { backgroundColor: t.card }, t.shadowCard]}>
             <View style={styles.followHeader}>
               <Ionicons name="heart-outline" size={18} color={t.primary} />
@@ -544,6 +548,7 @@ export function MetricsTab({
               </Text>
             ) : null}
           </View>
+          </ReadableColumn>
           )}
 
           <View style={{ height: spacing.xxl }} />

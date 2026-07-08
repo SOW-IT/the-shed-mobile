@@ -242,10 +242,10 @@ export default function EventAttendanceScreen() {
   // erased — those rows render greyed-out.
   const canEdit = !pastEvent || editUnlocked;
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  // Split into side-by-side columns only when there's room AND there's a
-  // not-signed-in list to put on the left (a locked past event has none, so it
-  // stays single-column). See TWO_COLUMN_MIN_WIDTH.
-  const twoColumn = windowWidth >= TWO_COLUMN_MIN_WIDTH && canEdit;
+  // Split into side-by-side columns when there's room. Both lists are always
+  // present now (the not-signed-in list shows read-only on a locked event too),
+  // so this no longer depends on canEdit. See TWO_COLUMN_MIN_WIDTH.
+  const twoColumn = windowWidth >= TWO_COLUMN_MIN_WIDTH;
 
   const closeEdit = () => {
     setEditOpen(false);
@@ -747,17 +747,19 @@ export default function EventAttendanceScreen() {
             university={m.university}
             roles={m.roles}
             mode="suggested"
-            // The list only renders when canEdit, so a row is blocked
-            // only while its enter/exit animation plays — and it's held
-            // non-interactive without greying out (dimmed stays false).
-            disabled={isAnimating}
+            // The not-signed-in list stays visible on a finished event too (so
+            // you can see who missed it), but read-only until editing is enabled
+            // — greyed and non-interactive, matching the locked signed-in rows.
+            // While editable it's blocked only during its enter/exit animation.
+            disabled={isAnimating || !canEdit}
+            dimmed={!canEdit}
             entering={isEntering}
             exiting={isExiting}
             revealTrigger={revealTriggers.get(m.key) ?? 0}
             onExited={isExiting ? () => setRemoteSignedIn((s) => { const n = new Set(s); n.delete(m.key); return n; }) : undefined}
-            onActionStart={isAnimating ? undefined : () => { onSignInStart(m); if (nextKey) triggerReveal(nextKey); }}
-            onAction={() => { if (!isAnimating) onSignIn(m); }}
-            onEdit={!isAnimating ? () => editRosterEntry(m) : undefined}
+            onActionStart={isAnimating || !canEdit ? undefined : () => { onSignInStart(m); if (nextKey) triggerReveal(nextKey); }}
+            onAction={() => { if (!isAnimating && canEdit) onSignIn(m); }}
+            onEdit={!isAnimating && canEdit ? () => editRosterEntry(m) : undefined}
           />
         );
         return isAnimating || isSuppressed ? (
@@ -845,6 +847,9 @@ export default function EventAttendanceScreen() {
       subtitle="Attendance"
       onBack={() => router.back()}
       toast={toast}
+      // A bit wider than the 720 default so the two-column roster's columns
+      // aren't cramped.
+      maxWidth={840}
       // Index 1 is the member search box (index 0 is the grouped badges/notice
       // block) — pin it so it stays reachable while the roster scrolls. In the
       // two-column layout the page itself doesn't scroll (each column does), so
@@ -997,8 +1002,8 @@ export default function EventAttendanceScreen() {
           split the roster into two independently-scrolling columns — not signed
           in on the left, signed in on the right. Narrow screens stack them, with
           the not-signed-in list in its own short scroll above the signed-in one.
-          The not-signed-in roster only shows once the event is editable
-          (future/ongoing always; a finished event after "Enable editing"). */}
+          The not-signed-in roster always renders; on a finished event it's
+          read-only (rows greyed out) until "Enable editing". */}
       {twoColumn ? (
         <View
           ref={columnsRef}
@@ -1037,23 +1042,19 @@ export default function EventAttendanceScreen() {
         </View>
       ) : (
         <>
-          {canEdit ? (
-            <>
-              {notSignedInHeader}
-              {filteredUnsignedList.length === 0 ? (
-                unsignedEmptyState
-              ) : (
-                <ScrollView
-                  style={styles.unsignedScroll}
-                  nestedScrollEnabled
-                  showsVerticalScrollIndicator
-                  keyboardShouldPersistTaps="handled"
-                >
-                  {unsignedRows}
-                </ScrollView>
-              )}
-            </>
-          ) : null}
+          {notSignedInHeader}
+          {filteredUnsignedList.length === 0 ? (
+            unsignedEmptyState
+          ) : (
+            <ScrollView
+              style={styles.unsignedScroll}
+              nestedScrollEnabled
+              showsVerticalScrollIndicator
+              keyboardShouldPersistTaps="handled"
+            >
+              {unsignedRows}
+            </ScrollView>
+          )}
           {signedInHeader}
           {/* Plain View wrapper so the Screen scroll's outer `gap` doesn't stack
               on each row's marginBottom — keeps spacing tight, matching the

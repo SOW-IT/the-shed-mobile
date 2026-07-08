@@ -47,6 +47,7 @@ export const Screen = ({
   onBack,
   onEndReached,
   stickyHeaderIndices,
+  maxWidth,
 }: {
   children?: ReactNode;
   toast?: ToastState;
@@ -70,6 +71,11 @@ export const Screen = ({
    * title/headerRight/onBack is set) is accounted for automatically.
    */
   stickyHeaderIndices?: number[];
+  /**
+   * Overrides the 720pt reading-width cap on the scroll content — e.g. the
+   * event attendance page, whose two-column roster earns a wider column.
+   */
+  maxWidth?: number;
 }) => {
   const t = useAppTheme();
   const headerShown = !!(title || headerRight || onBack);
@@ -83,7 +89,11 @@ export const Screen = ({
         showsVerticalScrollIndicator={false}
         stickyHeaderIndices={resolvedStickyIndices}
         style={{ backgroundColor: t.background }}
-        contentContainerStyle={[styles.scroll, footer != null && { paddingBottom: 96 }]}
+        contentContainerStyle={[
+          styles.scroll,
+          maxWidth != null && { maxWidth },
+          footer != null && { paddingBottom: 96 },
+        ]}
         scrollEventThrottle={onEndReached ? 16 : undefined}
         onScroll={
           onEndReached

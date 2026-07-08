@@ -131,6 +131,12 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
   }
 
   const width = containerWidth;
+  // Charts flow in a grid too — as many as fit at ~440pt each — so on a wide
+  // screen they sit side by side (like the summary cards) instead of one huge
+  // chart per row. Below ~880pt it's a single full-width chart.
+  const chartCols = Math.max(1, Math.floor(width / 440));
+  const chartWidth =
+    chartCols > 1 ? (width - spacing.sm * (chartCols - 1)) / chartCols : width;
 
   // ── Year-by-year: summary cards for the selected year, vs the prior year. ──
   // The detailed per-year cards stay staff-only; the public preview only ever
@@ -225,11 +231,12 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
   // ── All years: the multi-year trend charts. ──
   return (
     <View onLayout={onLayout} style={styles.grid}>
+      <View style={styles.cardGrid}>
       <FadeInView delay={stagger(0)}>
         <ChartCard
           title="All staff"
           subtitle="Head-count per staff year"
-          width={width}
+          width={chartWidth}
           fullscreenContent={
             <BarChart
               points={charts.allStaff}
@@ -251,7 +258,7 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
         <ChartCard
           title="Staff vs student leaders"
           subtitle="Per staff year"
-          width={width}
+          width={chartWidth}
           legendItems={[
             { key: "returning", colour: t.primary, label: "Staff" },
             { key: "fresh", colour: t.accent, label: "Student leaders" },
@@ -277,7 +284,7 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
         <ChartCard
           title="Student leaders by campus"
           subtitle="Per staff year"
-          width={width}
+          width={chartWidth}
           legendItems={trends.campuses.map(
             (campus): LegendItem => ({
               key: campusAcronym(campus),
@@ -305,7 +312,7 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
           <ChartCard
             title="Weekly meeting attendance"
             subtitle="Average per staff year (from 2025)"
-            width={width}
+            width={chartWidth}
             legendItems={campusAttendance!.campuses.map(
               (c): LegendItem => ({
                 key: campusAcronym(c.campus),
@@ -333,6 +340,7 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
           </ChartCard>
         </FadeInView>
       ) : null}
+      </View>
 
       <View style={{ height: spacing.xxl }} />
     </View>

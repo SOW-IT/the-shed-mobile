@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import {
   type Assignment,
@@ -31,9 +31,11 @@ import {
   errorMessage,
   Field,
   FloatingYearPicker,
+  Grid,
   IconButton,
   LoadingState,
   Muted,
+  ReadableColumn,
   Row,
   Screen,
   SectionTitle,
@@ -56,6 +58,23 @@ import { useGroupedProfiles } from "@/hooks/useGroupedProfiles";
  */
 
 type DeleteConfirm = { name: string; message: string; onConfirm: () => void };
+
+/**
+ * Card width for the wide-screen admin grids: every section lays its cards out
+ * left-to-right at this width, fitting as many per row as the screen allows
+ * (Grid fixed-width mode collapses to a single full-width column on phones).
+ * Close to the phone reading width so the inline edit forms stay comfortable,
+ * and sized so two columns fit an iPad-portrait / 768pt window
+ * (2×360 + 12 gap ≤ 768 − 2×16 page padding) and three fit a desktop.
+ */
+const ADMIN_CARD_WIDTH = 360;
+
+/** A section's cards, flowing left-to-right and wrapping (see ADMIN_CARD_WIDTH). */
+const CardGrid = ({ children }: { children: ReactNode }) => (
+  <Grid fixedWidth={ADMIN_CARD_WIDTH} align="start">
+    {children}
+  </Grid>
+);
 
 type AdminTab = "users" | "structure" | "other";
 const ADMIN_TABS = [
@@ -821,7 +840,9 @@ export default function AdminScreen() {
           {editable && (unassigned ?? []).length > 0 && (
             <>
               <SectionTitle>Signed in, no assignment — {selectedYear}</SectionTitle>
-              {(unassigned ?? []).map((user) => renderUnassignedCard(user))}
+              <CardGrid>
+                {(unassigned ?? []).map((user) => renderUnassignedCard(user))}
+              </CardGrid>
             </>
           )}
 
@@ -830,7 +851,9 @@ export default function AdminScreen() {
               <SectionTitle>
                 In directory, no assignment — {selectedYear} ({directoryOnlyUnassigned.length})
               </SectionTitle>
-              {directoryOnlyUnassigned.map((user) => renderUnassignedCard(user))}
+              <CardGrid>
+                {directoryOnlyUnassigned.map((user) => renderUnassignedCard(user))}
+              </CardGrid>
             </>
           )}
 
@@ -839,7 +862,9 @@ export default function AdminScreen() {
               <SectionTitle>
                 Leaving — {selectedYear} ({(leavers ?? []).length})
               </SectionTitle>
-              {(leavers ?? []).map((user) => renderLeaverCard(user))}
+              <CardGrid>
+                {(leavers ?? []).map((user) => renderLeaverCard(user))}
+              </CardGrid>
             </>
           )}
 
@@ -847,7 +872,7 @@ export default function AdminScreen() {
           {director ? (
             <>
               <SectionTitle>Director — {selectedYear}</SectionTitle>
-              {renderProfileCard(director, t.primary)}
+              <CardGrid>{renderProfileCard(director, t.primary)}</CardGrid>
             </>
           ) : null}
 
@@ -861,7 +886,9 @@ export default function AdminScreen() {
             return (
               <View key={group.division} style={{ gap: spacing.md }}>
                 <SectionTitle>{group.division} — {selectedYear}</SectionTitle>
-                {group.head ? renderProfileCard(group.head, t.primary) : null}
+                {group.head ? (
+                  <CardGrid>{renderProfileCard(group.head, t.primary)}</CardGrid>
+                ) : null}
                 {group.departments.map((dept) => {
                   const deptAccent = dept.colour ?? t.primary;
                   return (
@@ -877,15 +904,21 @@ export default function AdminScreen() {
                       >
                         {dept.name}
                       </Text>
-                      {dept.head ? renderProfileCard(dept.head, deptAccent) : null}
-                      {dept.profiles.map((profile) =>
-                        renderProfileCard(profile, deptAccent)
-                      )}
+                      <CardGrid>
+                        {dept.head ? renderProfileCard(dept.head, deptAccent) : null}
+                        {dept.profiles.map((profile) =>
+                          renderProfileCard(profile, deptAccent)
+                        )}
+                      </CardGrid>
                     </View>
                   );
                 })}
-                {group.divisionOnlyProfiles.map((profile) =>
-                  renderProfileCard(profile, t.primary)
+                {group.divisionOnlyProfiles.length > 0 && (
+                  <CardGrid>
+                    {group.divisionOnlyProfiles.map((profile) =>
+                      renderProfileCard(profile, t.primary)
+                    )}
+                  </CardGrid>
                 )}
               </View>
             );
@@ -900,9 +933,11 @@ export default function AdminScreen() {
                 style={accentContainerStyle(campusAccent)}
               >
                 <SectionTitle>{group.university} — {selectedYear}</SectionTitle>
-                {group.profiles.map((profile) =>
-                  renderProfileCard(profile, campusAccent)
-                )}
+                <CardGrid>
+                  {group.profiles.map((profile) =>
+                    renderProfileCard(profile, campusAccent)
+                  )}
+                </CardGrid>
               </View>
             );
           })}
@@ -911,7 +946,9 @@ export default function AdminScreen() {
           {nonCampusOtherProfiles.length > 0 && (
             <>
               <SectionTitle>Other — {selectedYear}</SectionTitle>
-              {nonCampusOtherProfiles.map((profile) => renderProfileCard(profile))}
+              <CardGrid>
+                {nonCampusOtherProfiles.map((profile) => renderProfileCard(profile))}
+              </CardGrid>
             </>
           )}
         </>
@@ -919,15 +956,20 @@ export default function AdminScreen() {
 
       {key === "structure" && (
         <>
-          <Segmented
-            segments={STRUCTURE_SUB_TABS}
-            active={structureSubTab}
-            onChange={(key) => setStructureSubTab(key as StructureSubTab)}
-          />
+          {/* The sub-tab bar keeps its reading-width cap even though the page
+              content goes full width — a screen-wide pill switcher reads badly. */}
+          <ReadableColumn>
+            <Segmented
+              segments={STRUCTURE_SUB_TABS}
+              active={structureSubTab}
+              onChange={(key) => setStructureSubTab(key as StructureSubTab)}
+            />
+          </ReadableColumn>
 
           {structureSubTab === "roles" && (
             <>
           <SectionTitle>Roles — {selectedYear}</SectionTitle>
+          <CardGrid>
           {(structure?.roles ?? []).length === 0 && (
             <Card><Muted>No roles yet.</Muted></Card>
           )}
@@ -1028,12 +1070,14 @@ export default function AdminScreen() {
               />
             </Card>
           )}
+          </CardGrid>
             </>
           )}
 
           {structureSubTab === "divisions" && (
             <>
           <SectionTitle>Divisions — {selectedYear}</SectionTitle>
+          <CardGrid>
           {(structure?.divisions ?? []).map((division) => {
             const isEditingThis = editingDivisionKey === division.name;
             return (
@@ -1157,12 +1201,14 @@ export default function AdminScreen() {
               />
             </Card>
           )}
+          </CardGrid>
             </>
           )}
 
           {structureSubTab === "universities" && (
             <>
           <SectionTitle>Universities — {selectedYear}</SectionTitle>
+          <CardGrid>
           {(structure?.universities ?? []).length === 0 && (
             <Card><Muted>No universities yet.</Muted></Card>
           )}
@@ -1255,12 +1301,14 @@ export default function AdminScreen() {
               />
             </Card>
           )}
+          </CardGrid>
             </>
           )}
 
           {structureSubTab === "departments" && (
             <>
           <SectionTitle>Departments — {selectedYear}</SectionTitle>
+          <CardGrid>
           {(structure?.departments ?? []).map((department) => {
             const isEditingThis = editingDepartmentKey === department.name;
             return (
@@ -1403,13 +1451,17 @@ export default function AdminScreen() {
               />
             </Card>
           )}
+          </CardGrid>
             </>
           )}
         </>
       )}
 
       {key === "other" && (
-        <>
+        // Each titled settings section is one grid cell, so the sections tile
+        // side by side on wide screens instead of stacking down one column.
+        <CardGrid>
+          <View style={{ gap: spacing.md }}>
           <SectionTitle>Budget Manager — {selectedYear}</SectionTitle>
           <Card>
             {editable ? (
@@ -1454,7 +1506,9 @@ export default function AdminScreen() {
               />
             )}
           </Card>
+          </View>
 
+          <View style={{ gap: spacing.md }}>
           <SectionTitle>Director Approval Threshold — {selectedYear}</SectionTitle>
           <Card>
             <Muted>
@@ -1495,9 +1549,10 @@ export default function AdminScreen() {
               </Muted>
             )}
           </Card>
+          </View>
 
           {hasAccess && (
-            <>
+            <View style={{ gap: spacing.md }}>
               <SectionTitle>Approver Delegation — {selectedYear}</SectionTitle>
               <Card>
                 <Muted>
@@ -1568,11 +1623,11 @@ export default function AdminScreen() {
                   </>
                 )}
               </Card>
-            </>
+            </View>
           )}
 
           {isAdmin && (
-            <>
+            <View style={{ gap: spacing.md }}>
               <SectionTitle>Directory Sync</SectionTitle>
               <Card>
                 <Muted>
@@ -1595,9 +1650,9 @@ export default function AdminScreen() {
                   onPress={() => setSyncConfirm(true)}
                 />
               </Card>
-            </>
+            </View>
           )}
-        </>
+        </CardGrid>
       )}
     </>
   );
@@ -1613,6 +1668,9 @@ export default function AdminScreen() {
   return (
     <>
       <PagerScreen
+        // Wide screens tile each section's cards left-to-right (see CardGrid),
+        // which needs the full width rather than the 720pt reading cap.
+        fullWidth
         tabs={adminTabs}
         activeKey={activeTab}
         onActiveKeyChange={(key) => {
