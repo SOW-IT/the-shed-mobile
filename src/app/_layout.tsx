@@ -5,7 +5,7 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { Alert, Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useWebAuthCodeExchange } from "@/hooks/useGoogleSignIn";
@@ -87,27 +87,25 @@ const AuthGate = () => {
   // (expired / re-used code) instead of silently dropping the visitor.
   const { busy, error, rejectedProvider, clearRejected } =
     useWebAuthCodeExchange();
+  // These two come from the WEB code-exchange only, and React Native Web's
+  // Alert.alert is a no-op — so use the browser's own dialog (window.alert),
+  // which is what actually shows on the web app.
   useEffect(() => {
-    if (error) Alert.alert("Sign-in didn't finish", error);
+    if (error && typeof window !== "undefined") {
+      window.alert(`Sign-in didn't finish\n\n${error}`);
+    }
   }, [error]);
   // Web equivalent of the phone's rejected-account popup: an @sow.org.au email
   // used on the personal Google option (or a non-org email on the staff one) is
   // refused silently after the redirect, so tell the user where to go instead.
   useEffect(() => {
-    if (!rejectedProvider) return;
-    if (rejectedProvider === "googlePersonal") {
-      Alert.alert(
-        "Use your SOW account",
-        "That looks like a SOW organisation account. Please tap “Sign in with your SOW account” to sign in with it.",
-        [{ text: "OK", onPress: clearRejected }]
-      );
-    } else {
-      Alert.alert(
-        "SOW account required",
-        "Only SOW organisation accounts can sign in here. To browse as a guest, tap “Sign in with Google” instead.",
-        [{ text: "OK", onPress: clearRejected }]
-      );
-    }
+    if (!rejectedProvider || typeof window === "undefined") return;
+    window.alert(
+      rejectedProvider === "googlePersonal"
+        ? "Use your SOW account\n\nThat looks like a SOW organisation account. Please use “Sign in with your SOW account” to sign in with it."
+        : "SOW account required\n\nOnly SOW organisation accounts can sign in here. To browse as a guest, use “Sign in with Google” instead."
+    );
+    clearRejected();
   }, [rejectedProvider, clearRejected]);
   return isLoading || busy ? <LoadingState /> : <RootStack />;
 };

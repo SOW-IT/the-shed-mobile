@@ -1,5 +1,5 @@
-import { Children, ReactNode, useState } from "react";
-import { LayoutChangeEvent, View } from "react-native";
+import { Children, ReactNode } from "react";
+import { View } from "react-native";
 import { spacing } from "@/theme";
 
 /**
@@ -31,34 +31,46 @@ export const ReadableColumn = ({
 export const Grid = ({
   children,
   minColumnWidth = 300,
+  fixedWidth,
   gap = spacing.md,
 }: {
   children: ReactNode;
   minColumnWidth?: number;
+  /**
+   * Fixed-width mode: each child is laid out at exactly this width (capped to the
+   * container on narrow screens) and the row is centered, wrapping to new rows —
+   * a "tree" of uniform cards rather than columns stretched to fill the width.
+   * Takes precedence over `minColumnWidth` when set.
+   */
+  fixedWidth?: number;
   gap?: number;
 }) => {
-  const [width, setWidth] = useState(0);
   const items = Children.toArray(children);
-  const columns = Math.max(
-    1,
-    Math.min(items.length, Math.floor((width + gap) / (minColumnWidth + gap)))
-  );
-  // Only pin a pixel width once we have both a measurement and >1 column; a
-  // single column just fills the row so it matches the non-grid layout exactly.
-  const columnWidth =
-    width > 0 && columns > 1 ? (width - gap * (columns - 1)) / columns : undefined;
-  const onLayout = (e: LayoutChangeEvent) =>
-    setWidth(e.nativeEvent.layout.width);
+
+  // Both modes are pure flexbox — no onLayout measurement/setState, so dragging
+  // the window doesn't re-render on every tick (which flickered the columns).
+  // The browser/Yoga reflows the wrap smoothly as the width crosses a threshold.
+  const perChild =
+    fixedWidth != null
+      ? // Fixed-width, centred: uniform cards, capped so they don't overflow a
+        // narrow screen. Row is centred (see justifyContent below).
+        { width: fixedWidth, maxWidth: "100%" as const }
+      : // Fill: each card grows from a minColumnWidth basis to fill the row,
+        // wrapping when another minColumnWidth card won't fit. flexShrink lets a
+        // lone card shrink below the basis on a narrow screen instead of
+        // overflowing.
+        { flexGrow: 1, flexShrink: 1, flexBasis: minColumnWidth };
   return (
     <View
-      onLayout={onLayout}
-      style={{ flexDirection: "row", flexWrap: "wrap", gap }}
+      style={{
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap,
+        justifyContent: fixedWidth != null ? "center" : "flex-start",
+      }}
     >
       {items.map((child, i) => (
-        <View
-          key={i}
-          style={columnWidth != null ? { width: columnWidth } : { width: "100%" }}
-        >
+        <View key={i} style={perChild}>
           {child}
         </View>
       ))}

@@ -6,6 +6,39 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.8.7] — 2026-07-08
+
+### Fixed
+
+- **The web sign-in message now actually shows.** Signing in with a SOW email on
+  the personal "Sign in with Google" option was still silent on the web app —
+  React Native Web's `Alert` is a no-op, so the message never rendered. It now
+  uses the browser's own dialog. (Same for the "Sign-in didn't finish" error.)
+- **Attendance rows: tapping the right side reveals the sign-in arrow.** The
+  tap-to-preview used the window width, not the card's actual width, so in the
+  wide/column layouts the right-side sign-in reveal shrank to a sliver at the far
+  edge (while the left-side edit reveal stayed generous). Cards now measure their
+  real width, so both sides reveal evenly (and swipe distances are right too).
+
+### Changed
+
+- **Org chart reads as a centred tree.** Every card (Director, division heads,
+  departments, campuses) is now a fixed narrow width, centred, and wraps — so a
+  division with one department shows a single centred card instead of one
+  stretched across the screen, and several departments sit side by side as a
+  centred row.
+- **Not-signed-in list stays visible on finished events.** You no longer have to
+  tap "Enable editing" to see who didn't sign in — the list shows read-only
+  (greyed) until editing is enabled.
+- **General insights charts sit side by side.** The trend charts now flow in a
+  grid (as many as fit, ~440pt each) like the summary cards, rather than one full
+  width chart per row. The "Needs follow-up" list is centred at a comfortable
+  reading width.
+- **Wide layouts no longer flicker while resizing.** The responsive grids
+  (org chart, requests) are now pure flexbox instead of measuring on every layout
+  tick, so dragging the window smaller reflows smoothly instead of flickering
+  between column counts.
+
 ## [1.8.6] — 2026-07-08
 
 ### Changed
