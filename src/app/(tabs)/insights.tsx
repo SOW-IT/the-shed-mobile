@@ -165,6 +165,9 @@ export default function InsightsScreen() {
         activeKey={activeKey}
         onActiveKeyChange={setActive}
         floating={floating}
+        // Charts read better using the whole width on tablets/desktop than
+        // squeezed into the 720pt column.
+        fullWidth
       />
       <EditMemberSheet
         visible={memberSheetOpen}

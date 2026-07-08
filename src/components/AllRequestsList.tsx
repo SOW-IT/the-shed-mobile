@@ -9,6 +9,7 @@ import { RequestCard } from "@/components/RequestCard";
 import {
   EmptyState,
   FadeInView,
+  Grid,
   LoadingState,
   SectionTitle,
   Segmented,
@@ -145,18 +146,21 @@ export const AllRequestsList = ({
           }
         />
       ) : (
-        shown.map((request, index) => (
-          <FadeInView key={request._id} delay={stagger(index)}>
-            <RequestCard
-              request={request}
-              showRequester
-              collapsible={isCompleted}
-              autoExpand={request._id === focusId}
-              autoOpenThread={request._id === focusId && focusThread}
-              deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}
-            />
-          </FadeInView>
-        ))
+        // Wide screens lay requests out as side-by-side columns; phones stack.
+        <Grid minColumnWidth={380}>
+          {shown.map((request, index) => (
+            <FadeInView key={request._id} delay={stagger(index)}>
+              <RequestCard
+                request={request}
+                showRequester
+                collapsible={isCompleted}
+                autoExpand={request._id === focusId}
+                autoOpenThread={request._id === focusId && focusThread}
+                deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}
+              />
+            </FadeInView>
+          ))}
+        </Grid>
       )}
       {hasMore && (
         <View style={{ alignItems: "center", paddingVertical: spacing.md }}>

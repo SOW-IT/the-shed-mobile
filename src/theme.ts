@@ -38,6 +38,15 @@ export const durations = {
  */
 export const BOTTOM_TAB_HEIGHT = 50;
 
+/**
+ * Layouts switch from a single phone-style column to wide, multi-column views at
+ * or above this width (points) — comfortably past any iPhone in portrait
+ * (≤ 430pt), so it only affects tablets, landscape, and the web/desktop app.
+ * Shared so every responsive surface (attendance roster, org chart, metrics,
+ * requests) uses the same breakpoint.
+ */
+export const WIDE_SCREEN_MIN_WIDTH = 700;
+
 /** 4pt spacing scale. */
 export const spacing = {
   xs: 4,

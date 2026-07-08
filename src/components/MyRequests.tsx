@@ -22,6 +22,7 @@ import {
   ErrorBanner,
   errorMessage,
   FadeInView,
+  Grid,
   Field,
   formatAmount,
   IconButton,
@@ -815,7 +816,9 @@ export const MyRequests = ({
           }
         />
       ) : (
-        [...requests]
+        // Wide screens lay requests out as side-by-side columns; phones stack.
+        <Grid minColumnWidth={380}>
+          {[...requests]
           .sort((a, b) => {
             // Requests needing action (submit receipt or resubmit after decline) float up
             const needsAction = (r: typeof a) =>
@@ -904,7 +907,8 @@ export const MyRequests = ({
                 </RequestCard>
               </FadeInView>
             );
-          })
+          })}
+        </Grid>
       )}
       <NewRequestSheet
         visible={newOpen}

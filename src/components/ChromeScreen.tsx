@@ -1,9 +1,9 @@
 import { useQuery } from "convex/react";
 import { ReactNode } from "react";
-import { Animated, StyleSheet, View } from "react-native";
+import { Animated, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
-import { spacing, useAppTheme } from "@/theme";
+import { spacing, useAppTheme, WIDE_SCREEN_MIN_WIDTH } from "@/theme";
 import { TopBar } from "@/components/ui";
 import { TOP_BAR_HEIGHT, useTopBarCollapse } from "@/components/useTopBarCollapse";
 
@@ -16,17 +16,27 @@ export const ChromeScreen = ({
   children,
   footer,
   floating,
+  fullWidth = false,
 }: {
   children?: ReactNode;
   /** Pinned full-width area above the bottom bar (e.g. an action pill). */
   footer?: ReactNode;
   /** Absolutely-positioned overlays over the whole screen (e.g. year picker). */
   floating?: ReactNode;
+  /**
+   * Drop the 720pt reading-width cap so content spans the screen — for wide,
+   * multi-column layouts (e.g. the Org chart's per-division column grids). Off
+   * by default; most screens keep the cap for readability.
+   */
+  fullWidth?: boolean;
 }) => {
   const t = useAppTheme();
   const me = useQuery(api.directory.me);
   const insets = useSafeAreaInsets();
   const { collapseStyle, barOpacityStyle, scrollProps } = useTopBarCollapse();
+  // Only lift the reading cap once there's genuinely a wide screen; below the
+  // breakpoint the window is already narrower than the cap, so it's a no-op.
+  const wide = useWindowDimensions().width >= WIDE_SCREEN_MIN_WIDTH;
   return (
     // A plain View, not SafeAreaView: SafeAreaView applies its inset natively,
     // outside Yoga's layout tree, so the absolutely-positioned topBarClip below
@@ -40,7 +50,13 @@ export const ChromeScreen = ({
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
         style={[styles.body, { backgroundColor: t.background }]}
-        contentContainerStyle={[styles.scroll, { paddingTop: spacing.xs + TOP_BAR_HEIGHT + insets.top }]}
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingTop: spacing.xs + TOP_BAR_HEIGHT + insets.top },
+          // `maxWidth: "100%"` (not undefined — RN Web keeps the base 720 when a
+          // later value is undefined) lifts the reading cap to the full width.
+          fullWidth && wide && { maxWidth: "100%" as const },
+        ]}
         {...scrollProps}
       >
         {children}
