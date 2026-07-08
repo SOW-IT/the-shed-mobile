@@ -24,7 +24,8 @@ All notable changes to **The SHED** mobile app. This project follows
 
 - **Admin console uses the full width with card grids.** On wide screens the
   Users, Structure and Other tabs now lay each section's cards out left-to-right
-  (380pt each, as many per row as fit) instead of one 720pt column — the whole
+  (360pt each, as many per row as fit — two on an iPad portrait, three on a
+  desktop) instead of one 720pt column — the whole
   year's staff, departments and settings scan at a glance. The Structure sub-tab
   bar (Roles / Divisions / Departments / Universities) keeps its reading-width
   cap, and phones are unchanged (the grids collapse to a single column).

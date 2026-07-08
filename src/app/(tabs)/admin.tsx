@@ -63,9 +63,11 @@ type DeleteConfirm = { name: string; message: string; onConfirm: () => void };
  * Card width for the wide-screen admin grids: every section lays its cards out
  * left-to-right at this width, fitting as many per row as the screen allows
  * (Grid fixed-width mode collapses to a single full-width column on phones).
- * Matches the phone reading width so the inline edit forms stay comfortable.
+ * Close to the phone reading width so the inline edit forms stay comfortable,
+ * and sized so two columns fit an iPad-portrait / 768pt window
+ * (2×360 + 12 gap ≤ 768 − 2×16 page padding) and three fit a desktop.
  */
-const ADMIN_CARD_WIDTH = 380;
+const ADMIN_CARD_WIDTH = 360;
 
 /** A section's cards, flowing left-to-right and wrapping (see ADMIN_CARD_WIDTH). */
 const CardGrid = ({ children }: { children: ReactNode }) => (
