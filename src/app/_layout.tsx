@@ -85,10 +85,30 @@ const AuthGate = () => {
   // redirect lands. Hold the loading state while it runs so we don't flash the
   // signed-out shell before auth resolves, and surface a failed exchange
   // (expired / re-used code) instead of silently dropping the visitor.
-  const { busy, error } = useWebAuthCodeExchange();
+  const { busy, error, rejectedProvider, clearRejected } =
+    useWebAuthCodeExchange();
   useEffect(() => {
     if (error) Alert.alert("Sign-in didn't finish", error);
   }, [error]);
+  // Web equivalent of the phone's rejected-account popup: an @sow.org.au email
+  // used on the personal Google option (or a non-org email on the staff one) is
+  // refused silently after the redirect, so tell the user where to go instead.
+  useEffect(() => {
+    if (!rejectedProvider) return;
+    if (rejectedProvider === "googlePersonal") {
+      Alert.alert(
+        "Use your SOW account",
+        "That looks like a SOW organisation account. Please tap “Sign in with your SOW account” to sign in with it.",
+        [{ text: "OK", onPress: clearRejected }]
+      );
+    } else {
+      Alert.alert(
+        "SOW account required",
+        "Only SOW organisation accounts can sign in here. To browse as a guest, tap “Sign in with Google” instead.",
+        [{ text: "OK", onPress: clearRejected }]
+      );
+    }
+  }, [rejectedProvider, clearRejected]);
   return isLoading || busy ? <LoadingState /> : <RootStack />;
 };
 

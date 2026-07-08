@@ -6,7 +6,33 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [1.8.5] — 2026-07-07
+## [1.8.6] — 2026-07-08
+
+### Changed
+
+- **Wide screens use the space.** Beyond the attendance roster (1.8.5), more
+  screens now switch to a wide, multi-column layout above a phone-portrait width
+  (~700pt — tablets, landscape, web/desktop):
+  - **Org chart:** each division's departments lay out as columns (as many as
+    fit, ~300pt each, wrapping when there are more), and the campuses do the
+    same — instead of one long stacked list.
+  - **Metrics / Insights:** charts span the full screen width rather than a
+    720pt column.
+  - **Requests:** the Mine and All lists show as side-by-side cards. (Review and
+    Bank stay a single readable column.)
+  Phones in portrait are unchanged.
+
+### Fixed
+
+- **Signing in with a SOW email on the personal "Sign in with Google" option now
+  explains itself on the web app.** On phones it already showed a "Use your SOW
+  account" prompt; on the web it failed silently after the redirect. It now shows
+  the same message.
+- **Opening a link in the app no longer also opens the App Store.** On mobile
+  web, tapping "Open" on the app prompt could still bounce to the store a moment
+  later if the tap was slow. The store fallback now only fires when the app
+  clearly didn't open (the tab is still visible and focused), so it's the app or
+  the store, never both.
 
 ### Changed
 

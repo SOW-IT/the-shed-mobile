@@ -16,12 +16,19 @@ export const ChromeScreen = ({
   children,
   footer,
   floating,
+  fullWidth = false,
 }: {
   children?: ReactNode;
   /** Pinned full-width area above the bottom bar (e.g. an action pill). */
   footer?: ReactNode;
   /** Absolutely-positioned overlays over the whole screen (e.g. year picker). */
   floating?: ReactNode;
+  /**
+   * Drop the 720pt reading-width cap so content spans the screen — for wide,
+   * multi-column layouts (e.g. the Org chart's per-division column grids). Off
+   * by default; most screens keep the cap for readability.
+   */
+  fullWidth?: boolean;
 }) => {
   const t = useAppTheme();
   const me = useQuery(api.directory.me);
@@ -40,7 +47,11 @@ export const ChromeScreen = ({
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
         style={[styles.body, { backgroundColor: t.background }]}
-        contentContainerStyle={[styles.scroll, { paddingTop: spacing.xs + TOP_BAR_HEIGHT + insets.top }]}
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingTop: spacing.xs + TOP_BAR_HEIGHT + insets.top },
+          fullWidth && { maxWidth: undefined },
+        ]}
         {...scrollProps}
       >
         {children}

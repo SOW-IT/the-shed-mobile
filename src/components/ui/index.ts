@@ -3,6 +3,7 @@
 // "@/components/ui".
 
 export * from "./format";
+export * from "./Grid";
 export * from "./styles";
 export * from "./primitives";
 export * from "./feedback";

@@ -97,6 +97,7 @@ export const PagerScreen = ({
   footerTabKey,
   footers,
   floating,
+  fullWidth = false,
 }: {
   tabs: PagerTab[];
   activeKey: string;
@@ -116,6 +117,12 @@ export const PagerScreen = ({
   footers?: PagerTabFooter[];
   /** Absolutely-positioned overlays (e.g. the year picker). */
   floating?: ReactNode;
+  /**
+   * Drop the 720pt reading-width cap so pages span the screen — for wide,
+   * chart-heavy tabs (Metrics/Insights). Off by default. Only applies to the
+   * shared page ScrollView; self-scrolling tabs manage their own width.
+   */
+  fullWidth?: boolean;
 }) => {
   const t = useAppTheme();
   const me = useQuery(api.directory.me);
@@ -301,6 +308,7 @@ export const PagerScreen = ({
           style={{ backgroundColor: t.background }}
           contentContainerStyle={[
             styles.page,
+            fullWidth && { maxWidth: undefined },
             // Only the footer's own tab needs the taller bottom inset; the others
             // (where the footer is slid away) keep the slimmer one. A footer with no
             // footerTabKey is pinned on every tab, so all pages get the inset.

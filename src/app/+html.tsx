@@ -55,14 +55,25 @@ export default function Root({ children }: { children: React.ReactNode }) {
                     ? "https://apps.apple.com/app/id6781592871"
                     : "https://play.google.com/store/apps/details?id=au.org.sow.theshed";
 
-                  var fallback = setTimeout(function () { window.location = store; }, 1500);
+                  var fallback = setTimeout(function () {
+                    // Only go to the store if the app clearly did NOT open. If
+                    // tapping "Open" (or the app taking over) backgrounded or
+                    // unfocused this tab, the app opened — going to the store too
+                    // would land the user in BOTH the app and the store. This
+                    // guard makes it strictly one or the other even when the
+                    // cancel listeners below fire late (a slow tap on the prompt).
+                    if (document.hidden || (document.hasFocus && !document.hasFocus())) return;
+                    window.location = store;
+                  }, 2000);
                   var cancel = function () { clearTimeout(fallback); };
-                  // App opened -> tab hidden; or the visitor cancelled the prompt
-                  // and is interacting with the web app -> keep them here.
+                  // App opened / the "Open in app?" prompt took focus -> tab
+                  // hidden or blurred; or the visitor cancelled and is using the
+                  // web app -> keep them here and drop the store fallback.
                   document.addEventListener("visibilitychange", function () {
                     if (document.hidden) cancel();
                   });
                   window.addEventListener("pagehide", cancel);
+                  window.addEventListener("blur", cancel);
                   window.addEventListener("pointerdown", cancel, { once: true });
                   window.addEventListener("touchstart", cancel, { once: true });
                   window.addEventListener("keydown", cancel, { once: true });

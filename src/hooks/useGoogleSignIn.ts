@@ -65,6 +65,13 @@ const codeFromUrl = (url: string): string | null => {
 export const useWebAuthCodeExchange = () => {
   const { signIn } = useAuthActions();
   const [error, setError] = useState<string | null>(null);
+  // Set when a web sign-in returns rejected (see below): the OAuth callback
+  // redirected home with no code because the backend refused the account. The
+  // provider it was attempted with picks the right message. Mirrors the native
+  // "rejected" outcome, which the phone surfaces from signInAndClose.
+  const [rejectedProvider, setRejectedProvider] = useState<GoogleProvider | null>(
+    null
+  );
   const [busy, setBusy] = useState(
     () =>
       Platform.OS === "web" &&
@@ -79,23 +86,41 @@ export const useWebAuthCodeExchange = () => {
     if (Platform.OS !== "web") return;
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
-    if (!code) return;
+    const pending = window.sessionStorage.getItem(
+      PENDING_PROVIDER_KEY
+    ) as GoogleProvider | null;
+    if (!code) {
+      // We started a sign-in (pending provider set) but came back with no code:
+      // the OAuth callback refused the account and redirected home (e.g. an
+      // @sow.org.au email on the personal Google option), so it's otherwise
+      // silent on web. Surface it — the same message the phone shows — instead
+      // of leaving the user staring at an unchanged, still-signed-out page.
+      if (pending) {
+        window.sessionStorage.removeItem(PENDING_PROVIDER_KEY);
+        window.history.replaceState({}, "", window.location.pathname);
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot on load
+        setRejectedProvider(pending);
+      }
+      return;
+    }
     // Remove code from URL so a page refresh doesn't re-attempt a used code.
     window.history.replaceState({}, "", window.location.pathname);
     // Complete against the provider that started the flow (defaults to the staff
     // provider for any legacy/in-flight redirect that predates this key).
-    const provider =
-      (window.sessionStorage.getItem(PENDING_PROVIDER_KEY) as GoogleProvider) ||
-      "google";
+    const provider = pending || "google";
     window.sessionStorage.removeItem(PENDING_PROVIDER_KEY);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- OAuth code exchange on load
     setBusy(true);
     void signIn(provider, { code })
       .catch((e: unknown) => setError(errorText(e)))
       .finally(() => setBusy(false));
   }, [signIn]);
 
-  return { busy, error };
+  return {
+    busy,
+    error,
+    rejectedProvider,
+    clearRejected: () => setRejectedProvider(null),
+  };
 };
 
 const errorText = (e: unknown): string =>

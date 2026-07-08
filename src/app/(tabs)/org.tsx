@@ -11,6 +11,7 @@ import {
   Avatar,
   FadeInView,
   FloatingYearPicker,
+  Grid,
   LoadingState,
   Muted,
   stagger,
@@ -73,6 +74,9 @@ export default function OrgChartScreen() {
 
   return (
     <ChromeScreen
+      // Wide screens lay each division's departments (and the campuses) out as
+      // columns, which needs the full width rather than the 720pt reading cap.
+      fullWidth
       floating={
         chart.availableYears.length > 1 ? (
           <FloatingYearPicker
@@ -141,27 +145,31 @@ export default function OrgChartScreen() {
             {division.departments.length === 0 ? (
               <Muted>No departments.</Muted>
             ) : (
-              division.departments.map((dept) => (
-                <View
-                  key={dept.name}
-                  style={[
-                    styles.deptCard,
-                    t.shadowCard,
-                    { backgroundColor: t.card, borderLeftColor: dept.colour ?? t.primary },
-                  ]}
-                >
-                  <Text style={[typography.label, { color: t.faint }]}>{dept.name}</Text>
-                  {dept.head ? (
-                    <Person person={dept.head} bold tag="Head of Dept" />
-                  ) : null}
-                  {dept.members.map((member) => (
-                    <Person key={member.email} person={member} />
-                  ))}
-                  {dept.members.length === 0 && !dept.head ? (
-                    <Muted>No members yet</Muted>
-                  ) : null}
-                </View>
-              ))
+              // Wide screens split a division's departments into as many columns
+              // as fit (~300pt each); phones stay single-column.
+              <Grid minColumnWidth={300}>
+                {division.departments.map((dept) => (
+                  <View
+                    key={dept.name}
+                    style={[
+                      styles.deptCard,
+                      t.shadowCard,
+                      { backgroundColor: t.card, borderLeftColor: dept.colour ?? t.primary },
+                    ]}
+                  >
+                    <Text style={[typography.label, { color: t.faint }]}>{dept.name}</Text>
+                    {dept.head ? (
+                      <Person person={dept.head} bold tag="Head of Dept" />
+                    ) : null}
+                    {dept.members.map((member) => (
+                      <Person key={member.email} person={member} />
+                    ))}
+                    {dept.members.length === 0 && !dept.head ? (
+                      <Muted>No members yet</Muted>
+                    ) : null}
+                  </View>
+                ))}
+              </Grid>
             )}
           </View>
         </FadeInView>
@@ -172,26 +180,28 @@ export default function OrgChartScreen() {
         <FadeInView delay={stagger(chart.divisions.length + 2)}>
           <View style={styles.divisionBlock}>
             <Text style={[typography.label, { color: t.muted }]}>Campus</Text>
-            {chart.universities
-              .filter((u) => u.members.length > 0)
-              .map((u) => (
-                <View
-                  key={u.name}
-                  style={[
-                    styles.deptCard,
-                    t.shadowCard,
-                    {
-                      backgroundColor: t.card,
-                      borderLeftColor: universityColour(u.name) ?? t.primary,
-                    },
-                  ]}
-                >
-                  <Text style={[typography.label, { color: t.faint }]}>{u.name}</Text>
-                  {u.members.map((member) => (
-                    <Person key={member.email} person={member} />
-                  ))}
-                </View>
-              ))}
+            <Grid minColumnWidth={300}>
+              {chart.universities
+                .filter((u) => u.members.length > 0)
+                .map((u) => (
+                  <View
+                    key={u.name}
+                    style={[
+                      styles.deptCard,
+                      t.shadowCard,
+                      {
+                        backgroundColor: t.card,
+                        borderLeftColor: universityColour(u.name) ?? t.primary,
+                      },
+                    ]}
+                  >
+                    <Text style={[typography.label, { color: t.faint }]}>{u.name}</Text>
+                    {u.members.map((member) => (
+                      <Person key={member.email} person={member} />
+                    ))}
+                  </View>
+                ))}
+            </Grid>
           </View>
         </FadeInView>
       )}

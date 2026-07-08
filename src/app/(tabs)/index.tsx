@@ -22,6 +22,7 @@ import {
   Btn,
   Card,
   FadeInView,
+  ReadableColumn,
   FloatingYearPicker,
   FooterAction,
   LoadingState,
@@ -281,11 +282,21 @@ export default function RequestsScreen() {
   const renderTab = (key: string) => {
     switch (key) {
       case "review":
-        return <ReviewList focusId={focus} focusThread={focusThread} focusReopenKey={focusReopenKey} />;
+        // Review + Bank stay single-column, so cap them for readability even
+        // though the pager is full-width for the multi-column Mine/All lists.
+        return (
+          <ReadableColumn>
+            <ReviewList focusId={focus} focusThread={focusThread} focusReopenKey={focusReopenKey} />
+          </ReadableColumn>
+        );
       case "all":
         return renderAll();
       case "bank":
-        return <BankTab />;
+        return (
+          <ReadableColumn>
+            <BankTab />
+          </ReadableColumn>
+        );
       default:
         return (
           <MyRequests
@@ -315,6 +326,9 @@ export default function RequestsScreen() {
         tabs={tabs}
         activeKey={activeSegment}
         onActiveKeyChange={setActive}
+        // Wide screens lay the Mine/All request lists out as columns (the Grid
+        // in each list); Review/Bank cap themselves with ReadableColumn.
+        fullWidth
         onEndReached={(key) => {
           if (key === "all") loadMoreRef.current?.();
         }}
