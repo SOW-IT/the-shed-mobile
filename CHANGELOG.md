@@ -6,6 +6,35 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.8.9] — 2026-07-09
+
+### Fixed
+
+- **Staff-year rollover is idempotent.** A second Oct 1 cron run (or accidental
+  re-run) no longer overwrites next-year heads, assignments, or the Budget
+  Manager — completion is recorded on `yearSettings`, and the cron no-ops
+  without re-emailing IT. Manual `copyYear` still works; pass `force: true` to
+  intentionally redo.
+- **Large orgs no longer lose rows in the annual copy.** Divisions, departments,
+  universities, roles, and staff profiles are streamed for the full year instead
+  of hard `take()` caps.
+- **Director is found even past the 1000th profile.** Approver resolution streams
+  the year instead of stopping early.
+- **Failed Resend sends surface in the Convex dashboard.** HTTP errors from
+  Resend now throw (so scheduled emails show as failed) instead of only logging.
+  The rollover IT email also includes a Deployment URL line.
+
+### Changed
+
+- **Receipt purge runs an hour after rollover** (Sep 30 15:00 UTC) so the two
+  heavy jobs don't share the same minute.
+- **Director approval threshold is copied** into the next staff year alongside
+  the Budget Manager.
+
+### Added
+
+- Follow-up notes in `docs/rollover-crons-audit.md` for the 1.8.9 remediations.
+
 ## [1.8.8] — 2026-07-09
 
 ### Fixed
