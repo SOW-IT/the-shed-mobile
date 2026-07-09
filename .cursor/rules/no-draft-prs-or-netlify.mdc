@@ -1,0 +1,9 @@
+---
+description: Never open draft PRs or hand out draft Netlify URLs
+alwaysApply: true
+---
+
+# No draft PRs or Netlify links
+
+- **GitHub PRs:** Always open as ready for review (`draft: false` / no `--draft`). Never leave a PR in draft unless the user explicitly asks for a draft.
+- **Netlify explain pages:** Always deploy with `--prod` and give the user the production HTTPS URL (e.g. `https://the-shed-pr-<n>-explain.netlify.app` or the shared `the-shed-pr-verify-explain` site). Never hand out draft/unique deploy URLs (`https://<hash>--…netlify.app`) as the link to open.

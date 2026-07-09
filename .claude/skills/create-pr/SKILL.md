@@ -154,6 +154,8 @@ git push -u origin <branch>
 gh pr create --title "<title>" --body "<body>"
 ```
 
+- **Never open as draft** — ready for review by default (`draft: false` /
+  no `--draft`). Only draft if the user explicitly asks.
 - **Title convention:** conventional-commit prefix + summary + version in
   parentheses, matching history:
   - `feat: public Home tab + open org chart, staff tools behind sign-in (1.7.0)`
@@ -181,16 +183,17 @@ set -a && source "$HOME/.hermes/.env" && set +a
    version, what changed, user-visible bullets, **Verification** (verified /
    not verified), how to try it, PR URL. Large type, short sections.
 2. Put screenshots under e.g. `shots/` and reference them relatively.
-3. Deploy (draft by default; use `--prod` only for a dedicated explain site
-   you own, e.g. `the-shed-pr-verify-explain`):
+3. **Always deploy with `--prod`** and hand the user the production HTTPS URL
+   — never a draft/unique `https://<hash>--….netlify.app` link:
 
 ```bash
-# Draft / unique URL (safe default)
+# PR-specific explain site (preferred when handing a dedicated URL)
 npx --yes netlify-cli deploy \
   --auth "$NETLIFY_AUTH_TOKEN" \
   --dir /tmp/pr-<n>-explain \
   --site-name the-shed-pr-<n>-explain \
-  --no-build
+  --no-build \
+  --prod
 
 # Or update the shared explain site
 npx --yes netlify-cli deploy \
@@ -201,8 +204,9 @@ npx --yes netlify-cli deploy \
   --prod
 ```
 
-4. Confirm the URL returns HTTP 200 before handing it to the user.
-5. Give the user the **HTTPS URL** plus the GitHub PR URL.
+4. Confirm the **production** URL returns HTTP 200 before handing it to the user
+   (e.g. `https://the-shed-pr-<n>-explain.netlify.app`).
+5. Give the user the **production HTTPS URL** plus the GitHub PR URL.
 
 ## 8. Report back
 
