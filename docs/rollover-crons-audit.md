@@ -35,7 +35,19 @@ Addressed in the follow-up PR after this audit:
   Convex dashboard; rollover IT email includes a `Deployment:` line.
 - **Purge cron staggered** to Sep 30 **15:00 UTC** (one hour after rollover).
 
-Remaining items below are still runbook / follow-up work.
+## Follow-up remediation (1.8.10)
+
+Addressed in the third follow-up PR:
+
+- **IANA `Australia/Sydney`** for `staffYearForDate` / `sydneyCalendarYear` /
+  `staffYearStartMs` (no more fixed UTC+10/+11 offsets).
+- **7-day post-rollover auth grace** — `requireProfile` / `optionalProfile` /
+  `directory.me` reuse the previous-year profile for the first week after Oct 1
+  when the new year isn't provisioned yet (`withinRolloverAuthGrace`).
+- **Documented intentional deferrals** for live request caps, leavers/delegations
+  copy, and event staff-year-by-start-date (product decisions, not silent bugs).
+
+Remaining items below are still larger refactors / product decisions.
 
 ## Executive summary
 
@@ -43,30 +55,29 @@ Rollover is thoughtfully designed: the cron fires **one minute after** the
 Sydney Oct 1 boundary, copies **new-current → new-next** via a non-destructive
 merge keyed by name / `importId`, and reimbursement **carry-over** keeps
 in-flight requests on their creation-year approvers with a current-year
-fallback. As of 1.8.9 the copy is idempotent (completion guard), streams the
-full year (no take caps), copies the director threshold, and the receipt purge
-runs an hour later. Remaining sharp edges are mostly product/ops: the auth
-cliff if next-year profiles aren't pre-provisioned, wall-clock year derivation
-inside queries, and live request-list caps.
+fallback. As of 1.8.10 the copy is idempotent, streams the full year, uses
+IANA Sydney time, and grants a 7-day auth grace after Oct 1. Remaining sharp
+edges are mostly larger refactors: wall-clock year derivation inside many
+queries, and live request-list caps.
 
 ## Findings
 
 | Severity | Area | Finding | Why it matters | Status / suggested fix |
 | -------- | ---- | ------- | -------------- | ---------------------- |
 | **High** | Rollover | `copyYearData` used `.unique()` on destination year-scoped rows | A stray duplicate `(year, name)` or `(email, year)` threw and aborted the whole cron; IT email never sent | **Fixed** — switched to `.first()` |
-| **High** | Auth at boundary | `requireProfile()` always loads the **current** staff year | At 00:01 Sydney Oct 1, anyone without a profile for the new year gets “No role/department assigned” even if they had one yesterday | Pre-provision next-year profiles before Oct 1; optional grace-period fallback for read-only flows |
+| **High** | Auth at boundary | `requireProfile()` always loads the **current** staff year | At 00:01 Sydney Oct 1, anyone without a profile for the new year gets “No role/department assigned” even if they had one yesterday | **Fixed (1.8.10)** — 7-day grace reuses previous-year profile |
 | **Medium** | Idempotency | Re-running `rollOverStaffYear` / `copyYear` **overwrites** conflicting destination rows from source | Manual re-run or cron retry clobbers intentional next-year heads / assignments / budget manager | **Fixed (1.8.9)** — `rolloverCompletedAt` guard; `copyYear` needs `force:true` |
 | **Medium** | Partial next-year setup | Source wins on conflict for structure + profiles; universities/roles are insert-if-missing only | Admin edits to overlapping keys revert; leftover destination-only roles flip `allowedRolesForYear` to data-driven validation | Pre-rollover checklist; optional “force reset destination year” path |
 | **Medium** | Caps | `copyYearData` used `take(200)` divisions/depts, `take(50)` universities/roles, `take(2000)` profiles | Large org → silent omission from the copy | **Fixed (1.8.9)** — stream full indexed year |
 | **Medium** | Admin UX | `financeMembers` gated admin on the **viewed** year profile | Next-year Budget Manager picker blanked for current-year admins after rollover | **Fixed** — current-year admin check |
-| **Medium** | Queries / time | Multiple queries call `currentStaffYear()` / `staffYearForDate(new Date())` | Non-deterministic queries; subscriptions can churn at the boundary | Pass `year` from the client or derive from stored fields |
+| **Medium** | Queries / time | Multiple queries call `currentStaffYear()` / `staffYearForDate(new Date())` | Non-deterministic queries; subscriptions can churn at the boundary | **Deferred** — cross-cutting; pass `year` from client (separate refactor) |
 | **Medium** | Approvers | `getApprovers` scanned at most **1000** profiles/year for Director | >1000 profiles → Director step may be missing | **Fixed (1.8.9)** — stream until Director found |
-| **Medium** | Reminders / live lists | `yearRequests` / `openRequestsAcrossYears` capped (live limit) | Busy year → some open / carried-over requests never reminded or listed | Paginate or index “open + stale”; keep CSV export unbounded |
+| **Medium** | Reminders / live lists | `yearRequests` / `openRequestsAcrossYears` capped (live limit) | Busy year → some open / carried-over requests never reminded or listed | **Deferred** — intentional live-subscription bound; needs open-request index + pagination |
 | **Low** | Email | Rollover emails IT via Resend; missing key / HTTP failure only logs | IT may not know rollover ran; mutation still succeeds | **Partially fixed (1.8.9)** — HTTP failures throw; missing key still no-ops (dev-friendly); body includes Deployment URL |
-| **Low** | Not copied | Leavers, delegations, `directorApprovalThreshold` are not copied | Expected gaps; finance/delegation setup needed each year | **Threshold copied (1.8.9)**; leavers/delegations still runbook |
+| **Low** | Not copied | Leavers, delegations, `directorApprovalThreshold` are not copied | Expected gaps; finance/delegation setup needed each year | **Threshold copied (1.8.9)**; leavers/delegations **intentionally not copied** (year-specific admin decisions) |
 | **Low** | Cron interaction | Purge (14:00 UTC) and rollover (14:01 UTC) same night | Mostly different tables; purge can be a long full-year stream | **Fixed (1.8.9)** — purge at 15:00 UTC |
-| **Low** | Events | `eventStaffYear` buckets by **start date only** | Multi-day event spanning Oct 1 uses pre-rollover profiles for the whole event | Document; or split metrics by sign-in date |
-| **Low** | Timezone model | `staffYearForDate` uses fixed UTC+10, not IANA `Australia/Sydney` | Correct for Oct 1 midnight (AEST); fragile if boundary rules change | Prefer `Temporal` / `Intl` with `Australia/Sydney` |
+| **Low** | Events | `eventStaffYear` buckets by **start date only** | Multi-day event spanning Oct 1 uses pre-rollover profiles for the whole event | **Documented as intentional** — one event keeps one staff-year profile set |
+| **Low** | Timezone model | `staffYearForDate` uses fixed UTC+10, not IANA `Australia/Sydney` | Correct for Oct 1 midnight (AEST); fragile if boundary rules change | **Fixed (1.8.10)** — `Intl` + `Australia/Sydney` |
 
 ## Cron inventory
 
@@ -121,18 +132,20 @@ point* for the year two ahead; don't re-run after editing that destination.
 **Code follow-up:** record completion per `(from, to)` and no-op on re-entry,
 or offer an explicit “reset destination then copy” flag.
 
-### 3. Auth cliff at midnight Oct 1
+### 3. Auth cliff at midnight Oct 1 (mitigated in 1.8.10)
 
-`requireProfile` / `requireAdmin` always resolve against `currentStaffYear()`.
-The moment the year flips, a user whose next-year profile was never provisioned
-loses access even though yesterday's profile still exists. Rollover *does*
-copy profiles into the year two ahead — but the **new current** year must
-already have been prepared (by last year's rollover or by admins) before the
-boundary.
+`requireProfile` / `requireAdmin` / `directory.me` resolve against
+`currentStaffYear()`. As of 1.8.10, if the new year has no profile yet but the
+previous year does, and `withinRolloverAuthGrace(year)` is true (first 7 days
+after Sydney midnight Oct 1), the previous-year profile is reused while
+`caller.year` stays the **current** staff year — so new submissions still land
+in the new year once a profile exists, and carry-over approvals keep working
+during the grace window.
 
-**Runbook:** before Oct 1, confirm the upcoming staff year has divisions,
-departments, heads, Budget Manager, Director, and staff profiles. The Admin
-year picker already allows editing current + next.
+After the grace window, a missing new-year profile still means “No
+role/department assigned”. **Runbook:** before Oct 1, confirm the upcoming
+staff year has divisions, departments, heads, Budget Manager, Director, and
+staff profiles. The Admin year picker already allows editing current + next.
 
 ### 4. In-flight requests (solid)
 
