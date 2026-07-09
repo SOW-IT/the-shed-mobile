@@ -59,7 +59,7 @@ describe("emails.send (Resend action)", () => {
     });
   });
 
-  test("logs but swallows a non-ok Resend response", async () => {
+  test("throws on a non-ok Resend response so scheduled sends surface as failed", async () => {
     const t = convexTest(schema, modules);
     vi.stubEnv("RESEND_API_KEY", "re_test");
     vi.stubEnv("RESEND_FROM_EMAIL", "noreply@sow.org.au");
@@ -71,14 +71,13 @@ describe("emails.send (Resend action)", () => {
         text: () => Promise.resolve("bad request"),
       })
     );
-    const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    const result = await t.action(internal.emails.send, {
-      to: "x@sow.org.au",
-      subject: "S",
-      body: "B",
-    });
-    expect(result).toBeNull();
-    expect(error).toHaveBeenCalledWith("Resend error", 422, "bad request");
+    await expect(
+      t.action(internal.emails.send, {
+        to: "x@sow.org.au",
+        subject: "S",
+        body: "B",
+      })
+    ).rejects.toThrow(/Resend error 422/);
   });
 });
 

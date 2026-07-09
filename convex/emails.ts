@@ -35,7 +35,10 @@ export const send = internalAction({
       }),
     });
     if (!response.ok) {
-      console.error("Resend error", response.status, await response.text());
+      const detail = await response.text();
+      // Throw so the scheduled function shows as failed in the Convex dashboard
+      // (rollover IT email, request notifications, …) instead of only logging.
+      throw new Error(`Resend error ${response.status}: ${detail}`);
     }
     return null;
   },

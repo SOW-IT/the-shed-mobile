@@ -9,6 +9,7 @@ import {
   roleNeedsUniversity,
   rolesOfLike,
   staffYearForDate,
+  withinRolloverAuthGrace,
 } from "../shared/flow";
 import { staffEmailCandidates } from "../shared/rollcallImport";
 import { Doc } from "./_generated/dataModel";
@@ -67,14 +68,33 @@ export async function requireEmail(ctx: Ctx): Promise<string> {
   return email;
 }
 
+/**
+ * Resolve the caller's staff profile for the live staff year, with a short
+ * post-Oct-1 grace: if the new year has no profile yet but the previous year
+ * does, and we're still inside `withinRolloverAuthGrace`, reuse the previous
+ * profile while keeping `year` as the *current* staff year. That way the app
+ * stays usable for ~a week after rollover (approve carry-overs, browse Admin)
+ * while admins finish provisioning, without writing new requests into the old
+ * year.
+ */
+async function profileForCurrentYear(
+  ctx: Ctx,
+  email: string
+): Promise<CallerContext | null> {
+  const year = currentStaffYear();
+  const profile = await getProfile(ctx, email, year);
+  if (profile) return { email, year, profile };
+  if (!withinRolloverAuthGrace(year)) return null;
+  const previous = await getProfile(ctx, email, year - 1);
+  if (!previous) return null;
+  return { email, year, profile: previous };
+}
+
 /** Caller context for queries: null when unauthenticated or unprovisioned. */
 export async function optionalProfile(ctx: Ctx): Promise<CallerContext | null> {
   const email = await optionalEmail(ctx);
   if (!email) return null;
-  const year = currentStaffYear();
-  const profile = await getProfile(ctx, email, year);
-  if (!profile) return null;
-  return { email, year, profile };
+  return await profileForCurrentYear(ctx, email);
 }
 
 export async function getProfile(
@@ -149,14 +169,14 @@ export interface CallerContext {
 /** The signed-in caller plus their profile for the current staff year. */
 export async function requireProfile(ctx: Ctx): Promise<CallerContext> {
   const email = await requireEmail(ctx);
-  const year = currentStaffYear();
-  const profile = await getProfile(ctx, email, year);
-  if (!profile) {
+  const caller = await profileForCurrentYear(ctx, email);
+  if (!caller) {
+    const year = currentStaffYear();
     throw new ConvexError(
       `No role/department assigned to ${email} for ${year}. Ask an admin to set you up.`
     );
   }
-  return { email, year, profile };
+  return caller;
 }
 
 /** A profile's roles; reads the legacy single-role field transparently. */
@@ -341,17 +361,22 @@ export async function getApprovers(
   const finance = await getDepartment(ctx, year, FINANCE);
   const settings = await getYearSettings(ctx, year);
   // Roles are arrays now, so the Director is found by scanning the year's
-  // profiles (small table) rather than via the legacy role index.
-  const profiles = await ctx.db
+  // profiles rather than via a legacy role index. Stream the full year (no
+  // take cap) so a large org can't silently miss the Director past row 1000.
+  let directorEmail: string | undefined;
+  for await (const profile of ctx.db
     .query("staffProfiles")
-    .withIndex("by_year", (q) => q.eq("year", year))
-    .take(1000);
-  const directorProfile = profiles.find((p) => rolesOf(p).includes(DIRECTOR));
+    .withIndex("by_year", (q) => q.eq("year", year))) {
+    if (rolesOf(profile).includes(DIRECTOR)) {
+      directorEmail = profile.email;
+      break;
+    }
+  }
   return {
     hodEmail: department?.headEmail,
     budgetManagerEmail: settings?.budgetManagerEmail,
     financeHeadEmail: finance?.headEmail,
-    directorEmail: directorProfile?.email,
+    directorEmail,
   };
 }
 

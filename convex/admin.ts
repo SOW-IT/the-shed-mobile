@@ -1630,27 +1630,35 @@ export const removeDelegation = mutation({
 
 /**
  * Copies the `from` year's divisions, departments, universities, roles, staff
- * profiles and budget manager into the `to` year, leaving both years' existing
- * data intact. Non-destructive merge keyed by natural keys (name, or person
- * email/importId for profiles): the source overwrites on conflict, anything the
- * destination already had that the source lacks is kept, and nothing is
- * duplicated. Shared by copyYear (manual) and rollOverStaffYear (the cron).
+ * profiles, budget manager and director-approval threshold into the `to` year,
+ * leaving both years' existing data intact. Non-destructive merge keyed by
+ * natural keys (name, or person email/importId for profiles): the source
+ * overwrites on conflict, anything the destination already had that the source
+ * lacks is kept, and nothing is duplicated. Shared by copyYear (manual) and
+ * rollOverStaffYear (the cron).
  *
  * Because it never deletes, stale destination roles/universities survive by
  * design (an admin's in-progress next-year setup must not be wiped). This is
  * safe given the rollover target year is normally empty when first seeded; a
  * leftover role would otherwise flip allowedRolesForYear to data-driven
  * validation, so clear that year's roles by hand if you ever need to reset it.
+ *
+ * Source reads stream the full indexed year (no take caps) so a large org
+ * cannot silently omit rows from the annual copy.
  */
 const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
   if (from === to) throw new ConvexError("from and to must differ.");
-  const counts = { divisions: 0, departments: 0, profiles: 0, budgetManagers: 0 };
+  const counts = {
+    divisions: 0,
+    departments: 0,
+    profiles: 0,
+    budgetManagers: 0,
+    directorThresholds: 0,
+  };
 
-  const divisions = await ctx.db
+  for await (const division of ctx.db
     .query("divisions")
-    .withIndex("by_year_and_name", (q) => q.eq("year", from))
-    .take(200);
-  for (const division of divisions) {
+    .withIndex("by_year_and_name", (q) => q.eq("year", from))) {
     // `.first()` (not `.unique()`): a stray duplicate (year, name) must not abort
     // the annual rollover cron — the same hardening as getDepartment / getProfile.
     const existing = await ctx.db
@@ -1665,11 +1673,9 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
     }
     counts.divisions++;
   }
-  const departments = await ctx.db
+  for await (const department of ctx.db
     .query("departments")
-    .withIndex("by_year_and_name", (q) => q.eq("year", from))
-    .take(200);
-  for (const department of departments) {
+    .withIndex("by_year_and_name", (q) => q.eq("year", from))) {
     const existing = await ctx.db
       .query("departments")
       .withIndex("by_year_and_name", (q) =>
@@ -1688,11 +1694,9 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
     }
     counts.departments++;
   }
-  const universities = await ctx.db
+  for await (const university of ctx.db
     .query("universities")
-    .withIndex("by_year_and_name", (q) => q.eq("year", from))
-    .take(50);
-  for (const university of universities) {
+    .withIndex("by_year_and_name", (q) => q.eq("year", from))) {
     const existing = await ctx.db
       .query("universities")
       .withIndex("by_year_and_name", (q) =>
@@ -1703,11 +1707,9 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
       await ctx.db.insert("universities", { year: to, name: university.name });
     }
   }
-  const roles = await ctx.db
+  for await (const role of ctx.db
     .query("roles")
-    .withIndex("by_year_and_name", (q) => q.eq("year", from))
-    .take(50);
-  for (const role of roles) {
+    .withIndex("by_year_and_name", (q) => q.eq("year", from))) {
     const existing = await ctx.db
       .query("roles")
       .withIndex("by_year_and_name", (q) => q.eq("year", to).eq("name", role.name))
@@ -1716,11 +1718,9 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
       await ctx.db.insert("roles", { year: to, name: role.name });
     }
   }
-  const profiles = await ctx.db
+  for await (const profile of ctx.db
     .query("staffProfiles")
-    .withIndex("by_year", (q) => q.eq("year", from))
-    .take(2000);
-  for (const profile of profiles) {
+    .withIndex("by_year", (q) => q.eq("year", from))) {
     const fields = {
       assignments: assignmentsOf(profile),
       name: profile.name,
@@ -1752,36 +1752,85 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
     counts.profiles++;
   }
 
-  // Mirror the source's budget manager onto the destination when it has one;
-  // a destination budget manager is left untouched when the source has none.
+  // Mirror the source's budget manager and director threshold onto the
+  // destination when the source has them; destination values are left
+  // untouched when the source has none.
   const fromSettings = await getYearSettings(ctx, from);
-  if (fromSettings?.budgetManagerEmail) {
+  if (fromSettings?.budgetManagerEmail || fromSettings?.directorApprovalThreshold !== undefined) {
     const toSettings = await getYearSettings(ctx, to);
-    if (toSettings) {
-      await ctx.db.patch("yearSettings", toSettings._id, {
-        budgetManagerEmail: fromSettings.budgetManagerEmail,
-      });
-    } else {
-      await ctx.db.insert("yearSettings", {
-        year: to,
-        budgetManagerEmail: fromSettings.budgetManagerEmail,
-      });
+    const patch: {
+      budgetManagerEmail?: string;
+      directorApprovalThreshold?: number;
+    } = {};
+    if (fromSettings.budgetManagerEmail) {
+      patch.budgetManagerEmail = fromSettings.budgetManagerEmail;
+      counts.budgetManagers++;
     }
-    counts.budgetManagers++;
+    if (fromSettings.directorApprovalThreshold !== undefined) {
+      patch.directorApprovalThreshold = fromSettings.directorApprovalThreshold;
+      counts.directorThresholds++;
+    }
+    if (toSettings) {
+      await ctx.db.patch("yearSettings", toSettings._id, patch);
+    } else {
+      await ctx.db.insert("yearSettings", { year: to, ...patch });
+    }
+  }
+
+  // Record completion so a cron retry / accidental re-run can no-op instead of
+  // overwriting intentional next-year admin edits (see rollOverStaffYear).
+  const toSettings = await getYearSettings(ctx, to);
+  const completion = {
+    rolloverCopiedFrom: from,
+    rolloverCompletedAt: Date.now(),
+  };
+  if (toSettings) {
+    await ctx.db.patch("yearSettings", toSettings._id, completion);
+  } else {
+    await ctx.db.insert("yearSettings", { year: to, ...completion });
   }
 
   return counts;
 };
 
+type CopyYearCounts = Awaited<ReturnType<typeof copyYearData>>;
+
+/** True when `to` was already seeded from `from` by a previous copy/rollover. */
+const alreadyCopiedFrom = async (
+  ctx: MutationCtx,
+  from: number,
+  to: number
+): Promise<boolean> => {
+  const settings = await getYearSettings(ctx, to);
+  return (
+    settings?.rolloverCopiedFrom === from &&
+    settings.rolloverCompletedAt !== undefined
+  );
+};
+
 /**
  * Copies one year's divisions, departments, universities, roles, staff
- * profiles and budget manager into another year (non-destructive merge; see
- * copyYearData) — e.g. provisioning next year from the current one at rollover.
+ * profiles, budget manager and director threshold into another year
+ * (non-destructive merge; see copyYearData) — e.g. provisioning next year from
+ * the current one at rollover.
  * Run with: npx convex run admin:copyYear '{"from":2026,"to":2027}'
+ * Pass `force: true` to redo a copy that already recorded completion for this
+ * (from, to) pair (otherwise throws — protects next-year admin edits).
  */
 export const copyYear = internalMutation({
-  args: { from: v.number(), to: v.number() },
-  handler: async (ctx, args) => copyYearData(ctx, args.from, args.to),
+  args: {
+    from: v.number(),
+    to: v.number(),
+    force: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    if (!args.force && (await alreadyCopiedFrom(ctx, args.from, args.to))) {
+      throw new ConvexError(
+        `${args.to} was already copied from ${args.from}. Pass force:true to overwrite.`
+      );
+    }
+    return await copyYearData(ctx, args.from, args.to);
+  },
 });
 
 /** Where the staff-year rollover summary email goes. */
@@ -1794,14 +1843,35 @@ const ROLLOVER_NOTIFY_EMAIL = "it@sow.org.au";
  * current staff year so admins can start configuring it from a populated copy,
  * then emails IT a summary of what was copied.
  * e.g. firing on 2026-10-01 copies 2027 -> 2028.
+ *
+ * Idempotent: if this (from, to) pair already recorded completion, returns
+ * `{ skipped: true }` without mutating or re-emailing — so a cron retry cannot
+ * clobber intentional next-year admin edits. Use copyYear with force:true for
+ * an intentional redo.
  */
 export const rollOverStaffYear = internalMutation({
   args: {},
   handler: async (ctx) => {
     const from = currentStaffYear();
     const to = nextStaffYear();
-    const counts = await copyYearData(ctx, from, to);
+    if (await alreadyCopiedFrom(ctx, from, to)) {
+      console.log(
+        `rollOverStaffYear: skipping — ${to} already copied from ${from}`
+      );
+      return {
+        skipped: true as const,
+        from,
+        to,
+        divisions: 0,
+        departments: 0,
+        profiles: 0,
+        budgetManagers: 0,
+        directorThresholds: 0,
+      };
+    }
+    const counts: CopyYearCounts = await copyYearData(ctx, from, to);
     const subject = `THE SHED: staff year rollover — ${from} copied to ${to}`;
+    const siteUrl = process.env.SITE_URL ?? process.env.APP_URL ?? "unknown";
     const body = [
       `The annual staff-year rollover ran and prefilled ${to} from ${from}.`,
       "",
@@ -1810,15 +1880,18 @@ export const rollOverStaffYear = internalMutation({
       `  Departments:  ${counts.departments}`,
       `  Staff profiles: ${counts.profiles}`,
       `  Budget manager: ${counts.budgetManagers === 1 ? "yes" : "none"}`,
+      `  Director threshold: ${counts.directorThresholds === 1 ? "yes" : "none"}`,
       "",
       `${to} is now the next staff year and ready to configure in THE SHED.`,
+      "",
+      `Deployment: ${siteUrl}`,
     ].join("\n");
     await ctx.scheduler.runAfter(0, internal.emails.send, {
       to: ROLLOVER_NOTIFY_EMAIL,
       subject,
       body,
     });
-    return counts;
+    return { skipped: false as const, from, to, ...counts };
   },
 });
 

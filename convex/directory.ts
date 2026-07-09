@@ -19,6 +19,7 @@ import {
   isAdminProfile,
   nextStaffYear,
   optionalEmail,
+  optionalProfile,
   rolesOf,
 } from "./model";
 
@@ -50,14 +51,18 @@ export const serverInfo = query({
 export const me = query({
   args: {},
   handler: async (ctx) => {
-    const email = await optionalEmail(ctx);
+    // optionalProfile applies the post-Oct-1 auth grace (previous-year profile
+    // for ~a week when the new year isn't provisioned yet). Unauthenticated →
+    // null; signed-in but unprovisioned (and outside grace) → profile: null.
+    const caller = await optionalProfile(ctx);
+    const email = caller?.email ?? (await optionalEmail(ctx));
     if (!email) return null;
-    const year = currentStaffYear();
+    const year = caller?.year ?? currentStaffYear();
     const user = await ctx.db
       .query("users")
       .withIndex("email", (q) => q.eq("email", email))
       .first();
-    const profile = await getProfile(ctx, email, year);
+    const profile = caller?.profile ?? null;
     const dirUser = await ctx.db
       .query("directoryUsers")
       .withIndex("by_email", (q) => q.eq("email", email))

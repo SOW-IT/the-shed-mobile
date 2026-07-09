@@ -18,6 +18,51 @@ All notable changes to **The SHED** mobile app. This project follows
   ~56.0.15, `expo-dev-client` → ~56.0.22, `expo-sharing` → ~56.0.21).
   Supersedes #218, #219, #220, #221, and #222.
 
+## [1.8.10] — 2026-07-09
+
+### Fixed
+
+- **Staff year uses Australia/Sydney, not a hard-coded UTC offset.** Oct 1 and
+  Jan 1 boundaries now go through `Intl` with the IANA zone, so DST rule changes
+  can't silently drift the rollover instant.
+- **A week of breathing room after Oct 1.** If your new staff-year profile isn't
+  ready yet, the app reuses last year's profile for the first 7 days after
+  rollover (sign-in, approvals, Admin) instead of locking you out at midnight.
+
+### Changed
+
+- **Documented intentional deferrals** in the rollover audit: live request-list
+  caps stay bounded on purpose; leavers/delegations are not auto-copied;
+  multi-day events keep the staff year of their start date.
+
+## [1.8.9] — 2026-07-09
+
+### Fixed
+
+- **Staff-year rollover is idempotent.** A second Oct 1 cron run (or accidental
+  re-run) no longer overwrites next-year heads, assignments, or the Budget
+  Manager — completion is recorded on `yearSettings`, and the cron no-ops
+  without re-emailing IT. Manual `copyYear` still works; pass `force: true` to
+  intentionally redo.
+- **Large orgs no longer lose rows in the annual copy.** Divisions, departments,
+  universities, roles, and staff profiles are streamed for the full year instead
+  of hard `take()` caps.
+- **Director is found even past the 1000th profile.** Approver resolution streams
+  the year instead of stopping early.
+- **Failed Resend sends surface in the Convex dashboard.** HTTP errors from
+  Resend now throw (so scheduled emails show as failed) instead of only logging.
+  The rollover IT email also includes a Deployment URL line.
+
+### Changed
+
+- **Receipt purge runs an hour after rollover** (Sep 30 15:00 UTC) so the two
+  heavy jobs don't share the same minute.
+- **Director approval threshold is copied** into the next staff year alongside
+  the Budget Manager.
+
+### Added
+
+- Follow-up notes in `docs/rollover-crons-audit.md` for the 1.8.9 remediations.
 
 ## [1.8.8] — 2026-07-09
 
