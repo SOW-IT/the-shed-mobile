@@ -2,7 +2,7 @@
   "expo": {
     "name": "The SHED",
     "slug": "the-shed-mobile",
-    "version": "1.8.8",
+    "version": "1.8.9",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "theshedmobile",

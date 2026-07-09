@@ -862,9 +862,14 @@ describe("copyYear", () => {
     expect(next.divisions.map((d) => d.name)).toContain("Kept Division");
     expect(next.budgetManagerEmail).toBe(BELLA);
 
-    // Copying again (destination yearSettings now exists) hits the patch branch
-    // and must not duplicate any copied division.
-    const recounts = await t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR + 1 });
+    // Copying again with force (destination yearSettings now exists) hits the
+    // patch branch and must not duplicate any copied division. Without force
+    // the completion guard would refuse a re-copy.
+    const recounts = await t.mutation(internal.admin.copyYear, {
+      from: YEAR,
+      to: YEAR + 1,
+      force: true,
+    });
     expect(recounts.budgetManagers).toBe(1);
     const govRows = await t.run((ctx) =>
       ctx.db
@@ -879,6 +884,11 @@ describe("copyYear", () => {
     await expect(
       t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR })
     ).rejects.toThrow(/must differ/);
+
+    // Without force, a second copy of the same (from, to) is refused.
+    await expect(
+      t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR + 1 })
+    ).rejects.toThrow(/already copied/);
   });
 
   test("merges the role catalog, keeping the destination's own roles and not duplicating overlaps", async () => {
@@ -973,6 +983,8 @@ describe("rollOverStaffYear", () => {
     await admin.mutation(api.admin.upsertUniversity, { year: YEAR + 1, name: "Kept University" });
 
     const counts = await t.mutation(internal.admin.rollOverStaffYear, {});
+    expect(counts.skipped).toBe(false);
+    if (counts.skipped) throw new Error("unreachable");
     expect(counts.divisions).toBeGreaterThan(0);
     expect(counts.budgetManagers).toBe(1);
 
@@ -994,6 +1006,40 @@ describe("rollOverStaffYear", () => {
     expect((email!.args[0] as { subject: string }).subject).toContain(
       `${YEAR} copied to ${YEAR + 1}`
     );
+    expect((email!.args[0] as { body: string }).body).toContain("Deployment:");
+
+    // A second run no-ops (idempotent) — does not re-email or overwrite.
+    const emailsBefore = scheduled.filter((s) => s.name === "emails:send").length;
+    const again = await t.mutation(internal.admin.rollOverStaffYear, {});
+    expect(again.skipped).toBe(true);
+    const scheduledAfter = await t.run((ctx) =>
+      ctx.db.system.query("_scheduled_functions").collect()
+    );
+    expect(scheduledAfter.filter((s) => s.name === "emails:send")).toHaveLength(
+      emailsBefore
+    );
+  });
+
+  test("copies the director approval threshold alongside the budget manager", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
+    await admin.mutation(api.admin.setDirectorThreshold, { year: YEAR, amount: 7500 });
+
+    const counts = await t.mutation(internal.admin.rollOverStaffYear, {});
+    expect(counts.skipped).toBe(false);
+    if (counts.skipped) throw new Error("unreachable");
+    expect(counts.directorThresholds).toBe(1);
+
+    const settings = await t.run(async (ctx) =>
+      ctx.db
+        .query("yearSettings")
+        .withIndex("by_year", (q) => q.eq("year", YEAR + 1))
+        .unique()
+    );
+    expect(settings?.directorApprovalThreshold).toBe(7500);
+    expect(settings?.rolloverCopiedFrom).toBe(YEAR);
+    expect(settings?.rolloverCompletedAt).toEqual(expect.any(Number));
   });
 
   test("survives stray duplicate destination rows instead of aborting the cron", async () => {
@@ -1021,6 +1067,8 @@ describe("rollOverStaffYear", () => {
       }
     });
     const counts = await t.mutation(internal.admin.rollOverStaffYear, {});
+    expect(counts.skipped).toBe(false);
+    if (counts.skipped) throw new Error("unreachable");
     expect(counts.divisions).toBeGreaterThan(0);
     expect(counts.profiles).toBeGreaterThan(0);
     expect(counts.budgetManagers).toBe(1);

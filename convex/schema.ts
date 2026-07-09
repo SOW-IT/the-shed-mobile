@@ -137,6 +137,11 @@ export default defineSchema({
     // approval. Unset falls back to DIRECTOR_APPROVAL_THRESHOLD (the historical
     // default); Finance can change it per year. See shared/flow.ts.
     directorApprovalThreshold: v.optional(v.number()),
+    // Set when rollOverStaffYear / copyYear finishes seeding this year from
+    // another. Lets the Oct 1 cron no-op on re-entry so a retry doesn't clobber
+    // intentional next-year admin edits (pass force:true on copyYear to redo).
+    rolloverCopiedFrom: v.optional(v.number()),
+    rolloverCompletedAt: v.optional(v.number()),
   }).index("by_year", ["year"]),
 
   // Approver delegations (out-of-office cover): for `year`, the delegate
