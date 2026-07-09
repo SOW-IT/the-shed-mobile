@@ -35,18 +35,19 @@ commands live in `README.md` and `package.json` scripts. Node 22, npm (only
 
 **Fresh local backend is empty — one-time bootstrap after `convex dev` is up:**
 1. Auth keys: `node scripts/generate-auth-keys.mjs`, then
-   `npx convex env set JWT_PRIVATE_KEY -- "$(cat jwt_private_key.tmp)"`,
-   `npx convex env set JWKS "$(cat jwks.tmp)"` (delete the two `*.tmp` files
-   after). Also `npx convex env set SITE_URL http://localhost:8081` and
-   `APP_URL http://localhost:8081`. Without JWT keys, sign-in fails.
-2. Sign-in without Google OAuth (dev bypass): set
-   `E2E_AUTH_ENABLED=true` and `E2E_AUTH_SECRET=<secret>` on the deployment, then
+   `CONVEX_AGENT_MODE=anonymous npx convex env set JWT_PRIVATE_KEY -- "$(cat jwt_private_key.tmp)"`,
+   `CONVEX_AGENT_MODE=anonymous npx convex env set JWKS "$(cat jwks.tmp)"` (delete the two `*.tmp` files
+   after). Also `CONVEX_AGENT_MODE=anonymous npx convex env set SITE_URL http://localhost:8081` and
+   `CONVEX_AGENT_MODE=anonymous npx convex env set APP_URL http://localhost:8081`. Without JWT keys, sign-in fails.
+2. Sign-in without Google OAuth (dev bypass):
+   `CONVEX_AGENT_MODE=anonymous npx convex env set E2E_AUTH_ENABLED true` and
+   `CONVEX_AGENT_MODE=anonymous npx convex env set E2E_AUTH_SECRET <secret>`, then
    in the browser open
    `http://localhost:8081/e2e-auth?email=<name>@sow.org.au&secret=<secret>`
    — it signs in as that (org-domain) email and redirects to `/`. This bypass is
    dev/test-only and must never be enabled on prod.
 3. Seed org data:
-   `npx convex run admin:seed '{"adminEmail":"<name>@sow.org.au"}'`.
+   `CONVEX_AGENT_MODE=anonymous npx convex run admin:seed '{"adminEmail":"<name>@sow.org.au"}'`.
 
 **Submitting a reimbursement request** is blocked until the org has a Head for
 the request's department, a Head for Finance, and a **Budget Manager**. Assign
