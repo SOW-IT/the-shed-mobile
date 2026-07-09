@@ -8,6 +8,18 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [1.8.12] — 2026-07-10
 
+### Fixed
+- **Rollover no longer aborts on a duplicate `yearSettings` row.**
+  `getYearSettings` now uses `.first()` (same as profiles/departments), so a
+  stray duplicate can't throw and stop the Oct 1 cron or Finance settings reads.
+- **Director lookup no longer walks every staff profile on the hot path.**
+  Assigning or clearing the Director caches their email on `yearSettings`;
+  `getApprovers` reads the cache (and only scans when the cache is unset).
+- **Staff-year / Sydney calendar boundaries survive a broken `Intl` zone.**
+  If `Intl.formatToParts` throws or returns junk (historically shaky on some
+  Android Hermes builds), we fall back to fixed AEDT/AEST offset math so the
+  app doesn't crash or mis-bucket around Oct 1 / Jan 1.
+
 ### Changed
 - **Lists load more as you scroll — no more "Load more" buttons.** The All →
   Ongoing tab now pages 20 at a time like Completed, and every attendance list

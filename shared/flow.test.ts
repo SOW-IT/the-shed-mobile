@@ -113,6 +113,23 @@ describe("staffYearForDate", () => {
     // 14:00 UTC on Sep 30 is 00:00 Oct 1 in Sydney → new year.
     expect(staffYearForDate(new Date("2026-09-30T14:00:00Z"))).toBe(2027);
   });
+
+  test("falls back to fixed AEDT/AEST offsets when Intl.formatToParts is broken", () => {
+    const Original = Intl.DateTimeFormat;
+    // Simulate a Hermes build that throws on IANA zones.
+    // @ts-expect-error — temporary stub for the fallback path
+    Intl.DateTimeFormat = function Broken() {
+      throw new RangeError("Invalid time zone specified: Australia/Sydney");
+    };
+    try {
+      expect(staffYearForDate(new Date("2026-09-30T13:59:00Z"))).toBe(2026);
+      expect(staffYearForDate(new Date("2026-09-30T14:00:00Z"))).toBe(2027);
+      expect(sydneyCalendarYear(new Date("2025-12-31T12:59:00Z"))).toBe(2025);
+      expect(sydneyCalendarYear(new Date("2025-12-31T13:00:00Z"))).toBe(2026);
+    } finally {
+      Intl.DateTimeFormat = Original;
+    }
+  });
 });
 
 describe("eventStaffYear", () => {

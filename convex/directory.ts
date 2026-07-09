@@ -432,7 +432,7 @@ export const yearStructure = query({
     const settings = await ctx.db
       .query("yearSettings")
       .withIndex("by_year", (q) => q.eq("year", args.year))
-      .unique();
+      .first();
     return {
       divisions: divisions.map((d) => ({
         name: d.name,

@@ -214,6 +214,31 @@ describe("setStaffProfile validation", () => {
       roles: ["Director", "Staff"],
       department: "Finance",
     });
+    // Assigning the Director caches their email on yearSettings so getApprovers
+    // doesn't walk every profile.
+    const settings = await t.run(async (ctx) =>
+      ctx.db.query("yearSettings").withIndex("by_year", (q) => q.eq("year", YEAR)).first()
+    );
+    expect(settings?.directorEmail).toBe("first@sow.org.au");
+  });
+
+  test("removing the Director clears the yearSettings cache", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "solo@sow.org.au",
+      year: YEAR,
+      roles: ["Director"],
+    });
+    await admin.mutation(api.admin.removeStaffProfile, {
+      email: "solo@sow.org.au",
+      year: YEAR,
+    });
+    const settings = await t.run(async (ctx) =>
+      ctx.db.query("yearSettings").withIndex("by_year", (q) => q.eq("year", YEAR)).first()
+    );
+    // "" = known absent — getApprovers must not re-scan the year.
+    expect(settings?.directorEmail).toBe("");
   });
 
   test("rejects an unmanaged year", async () => {
@@ -1063,6 +1088,12 @@ describe("rollOverStaffYear", () => {
           email: BELLA,
           year: YEAR + 1,
           assignments: [{ role: "Staff", department: "Finance" }],
+        });
+        // Duplicate yearSettings used to abort alreadyCopiedFrom / completion
+        // via getYearSettings().unique() — must survive with .first().
+        await ctx.db.insert("yearSettings", {
+          year: YEAR + 1,
+          budgetManagerEmail: BELLA,
         });
       }
     });
