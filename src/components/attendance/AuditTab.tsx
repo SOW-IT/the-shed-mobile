@@ -1,10 +1,17 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
-import { useEffect, useMemo, useState } from "react";
+import {
+  MutableRefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Animated, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { Btn, EmptyState, LoadingState, MultiSelect } from "@/components/ui";
+import { EmptyState, LoadingState, MultiSelect, SowSpinner } from "@/components/ui";
 import {
   PAGER_PAGE_BOTTOM_INSET,
   PAGER_PAGE_CONTENT,
@@ -65,7 +72,14 @@ type AuditRow = {
   detail: string | null;
 };
 
-export function AuditTab({ scrollProps }: { scrollProps?: TopBarScrollProps }) {
+export function AuditTab({
+  scrollProps,
+  loadMoreRef,
+}: {
+  scrollProps?: TopBarScrollProps;
+  /** Parent PagerScreen drives infinite scroll via this ref. */
+  loadMoreRef?: MutableRefObject<(() => void) | null>;
+}) {
   const t = useAppTheme();
 
   const [search, setSearch] = useState("");
@@ -107,6 +121,25 @@ export function AuditTab({ scrollProps }: { scrollProps?: TopBarScrollProps }) {
       return [...prev, ...page.page.filter((r) => !seen.has(r.id))];
     });
   }, [page, cursor]);
+
+  const hasMore = page != null && !page.isDone;
+  const continueCursor = page?.continueCursor;
+  const pending = useRef(false);
+  useEffect(() => {
+    pending.current = false;
+  }, [cursor, page?.isDone]);
+  const loadMore = useCallback(() => {
+    if (pending.current || !hasMore || continueCursor == null) return;
+    pending.current = true;
+    setCursor(continueCursor);
+  }, [hasMore, continueCursor]);
+  useEffect(() => {
+    if (!loadMoreRef) return;
+    loadMoreRef.current = hasMore ? loadMore : null;
+    return () => {
+      loadMoreRef.current = null;
+    };
+  }, [loadMoreRef, hasMore, loadMore]);
 
   const activeFilterCount =
     entityTypes.length + actorEmails.length + eventIds.length;
@@ -306,12 +339,10 @@ export function AuditTab({ scrollProps }: { scrollProps?: TopBarScrollProps }) {
               </View>
             </View>
           ))}
-          {page && !page.isDone ? (
-            <Btn
-              title="Load more"
-              variant="ghost"
-              onPress={() => setCursor(page.continueCursor)}
-            />
+          {hasMore ? (
+            <View style={{ alignItems: "center", paddingVertical: spacing.md }}>
+              <SowSpinner size={36} />
+            </View>
           ) : null}
         </>
       )}

@@ -176,7 +176,7 @@ The bottom tab bar is role-gated. Admin is **never** a bottom tab — it opens v
 ## 3.10 All segment (Finance) & sorting
 - [ ] Segmented control: **Ongoing** vs **Completed**
 - [ ] Ongoing sorts by unread comments → status priority → date
-- [ ] Completed paginated (20 at a time, infinite scroll)
+- [ ] Ongoing and Completed paginated (20 at a time, infinite scroll)
 - [ ] Floating year picker (All segment only) lets Finance browse prior years (back to 2021), read-only, with prior-year receipt-deletion warning copy; prior-year Mine view shows "No requests in {year}" when empty
 - [ ] Carry-over: incomplete prior-year request still appears in Mine/All; original-year approvers **and** current officeholders can action it
 - [ ] Admin bar ("Open admin tools") on the All page opens Admin **with the Other tab preselected** (Budget Manager + threshold)
@@ -210,7 +210,7 @@ The bottom tab bar is role-gated. Admin is **never** a bottom tab — it opens v
 - [ ] Campus/subgroup ring selector shows all groups, highlights selection; "No groups yet" when no campuses exist
 - [ ] Event list sorted within the staff year; badge cycles UPCOMING → LIVE → ENDED (~every 60s); LIVE green, ENDED greyed
 - [ ] Card shows date/time range, "ATTENDANCE: N", tag pills, subgroup pills (collaborative)
-- [ ] "Load more" paginates; tapping a card opens the sign-in screen
+- [ ] Infinite scroll paginates; tapping a card opens the sign-in screen
 - [ ] Edit (pencil) opens the event form; Export opens the Export sheet
 - [ ] Group chips label non-campus staff roles as **STAFF**
 

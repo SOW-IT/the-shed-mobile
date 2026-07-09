@@ -1,0 +1,25 @@
+---
+description: Prefer cheaper models for explore/subagents; Composer for trivial work
+alwaysApply: true
+---
+
+# Subagent / explore model selection
+
+When launching Task subagents (explore, generalPurpose, etc.) or otherwise
+delegating examination work, pick models by difficulty — do not default the
+parent/high model for every spawn.
+
+## Mapping
+
+| Work | Model | Notes |
+| --- | --- | --- |
+| Exploring, reading, examining, summarizing diffs/code, gathering context | **Grok 4.5** at the lightest available tier | Prefer medium or low when those slugs exist. Today Task only allows `grok-4.5-fast-xhigh` and `grok-4.5-xhigh` — use **`grok-4.5-fast-xhigh`** for explore/examination. |
+| Very trivial / easy tasks (rename, small copy edit, mechanical file move, simple status check) | **Composer 2.5** | Use `composer-2.5` or `composer-2.5-fast`. |
+| Hard implementation, merge conflicts, security-sensitive fixes, ambiguous design | Parent / stronger model | Keep on the main agent or an explicitly stronger slug. |
+
+## Rules
+
+- Pass an explicit `model` on Task launches for explore and trivial work.
+- Prefer parallel cheap explores over one expensive deep agent when the question is “where is X / what does Y do”.
+- If a requested Grok medium/low slug is not in the Task allowlist, use `grok-4.5-fast-xhigh` and do not invent slugs.
+- Never substitute a different model family silently when the user named one; if unavailable, say so and use the mapping above.

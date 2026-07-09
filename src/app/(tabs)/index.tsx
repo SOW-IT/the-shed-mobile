@@ -216,7 +216,7 @@ export default function RequestsScreen() {
   // back up on return, so it isn't gated on the active segment here.
   const showMakeRequest = me?.profile != null;
 
-  // Wired to the active list's completed-tab "reveal more" handler (or null).
+  // Wired to AllRequestsList's infinite-scroll "reveal more" handler (or null).
   const loadMoreRef = useRef<(() => void) | null>(null);
 
   if (me === undefined) return <Screen><LoadingState /></Screen>;

@@ -32,7 +32,6 @@ import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
 import { ExportSheet } from "@/components/attendance/ExportSheet";
 import {
-  Btn,
   ConfirmDialog,
   EmptyState,
   errorMessage,
@@ -42,12 +41,13 @@ import {
   LoadingState,
   Muted,
   Screen,
+  SowSpinner,
   type ToastState,
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 const ROSTER_PAGE_SIZE = 30;
-/** The not-signed-in list starts short; "Load more" reveals the rest. */
+/** The not-signed-in list starts short; scroll reveals more. */
 const UNSIGNED_PAGE_SIZE = 10;
 /** One AttendanceRow's vertical footprint: the 72px card + its bottom margin. */
 const UNSIGNED_ROW_HEIGHT = 72 + spacing.sm;
@@ -569,6 +569,45 @@ export default function EventAttendanceScreen() {
 
   const visibleUnsigned = filteredUnsignedList.slice(0, unsignedLimit);
   const visibleSignedIn = filteredSignedInList.slice(0, signedInLimit);
+  const hasMoreUnsigned = visibleUnsigned.length < filteredUnsignedList.length;
+  const hasMoreSignedIn = visibleSignedIn.length < filteredSignedInList.length;
+
+  // Nested roster ScrollViews (unsigned column / two-column layout) need their
+  // own near-bottom handlers — Screen.onEndReached only covers the outer page
+  // scroll (signed-in list in single-column mode).
+  const lastUnsignedEndHeight = useRef(-1);
+  const lastSignedInEndHeight = useRef(-1);
+  const onUnsignedScroll = useCallback(
+    (e: { nativeEvent: { layoutMeasurement: { height: number }; contentOffset: { y: number }; contentSize: { height: number } } }) => {
+      if (!hasMoreUnsigned) return;
+      const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+      const distance =
+        contentSize.height - (contentOffset.y + layoutMeasurement.height);
+      if (distance < 200 && contentSize.height > lastUnsignedEndHeight.current) {
+        lastUnsignedEndHeight.current = contentSize.height;
+        setUnsignedLimit((limit) => limit + UNSIGNED_PAGE_SIZE);
+      }
+    },
+    [hasMoreUnsigned]
+  );
+  const onSignedInColumnScroll = useCallback(
+    (e: { nativeEvent: { layoutMeasurement: { height: number }; contentOffset: { y: number }; contentSize: { height: number } } }) => {
+      if (!hasMoreSignedIn) return;
+      const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+      const distance =
+        contentSize.height - (contentOffset.y + layoutMeasurement.height);
+      if (distance < 200 && contentSize.height > lastSignedInEndHeight.current) {
+        lastSignedInEndHeight.current = contentSize.height;
+        setSignedInLimit((limit) => limit + ROSTER_PAGE_SIZE);
+      }
+    },
+    [hasMoreSignedIn]
+  );
+  // Outer Screen scroll drives signed-in paging in the single-column layout.
+  const loadMoreSignedIn = useCallback(() => {
+    if (!hasMoreSignedIn) return;
+    setSignedInLimit((limit) => limit + ROSTER_PAGE_SIZE);
+  }, [hasMoreSignedIn]);
 
   if (event === undefined || attendance === undefined || subgroups === undefined) {
     return <LoadingState />;
@@ -769,11 +808,9 @@ export default function EventAttendanceScreen() {
         );
       })}
       {visibleUnsigned.length < filteredUnsignedList.length ? (
-        <Btn
-          title={`Load more (${filteredUnsignedList.length - visibleUnsigned.length} left)`}
-          variant="ghost"
-          onPress={() => setUnsignedLimit((limit) => limit + UNSIGNED_PAGE_SIZE)}
-        />
+        <View style={{ alignItems: "center", paddingVertical: spacing.sm }}>
+          <SowSpinner size={28} />
+        </View>
       ) : null}
     </>
   );
@@ -826,11 +863,9 @@ export default function EventAttendanceScreen() {
         );
       })}
       {visibleSignedIn.length < filteredSignedInList.length ? (
-        <Btn
-          title={`Load more (${filteredSignedInList.length - visibleSignedIn.length} left)`}
-          variant="ghost"
-          onPress={() => setSignedInLimit((limit) => limit + ROSTER_PAGE_SIZE)}
-        />
+        <View style={{ alignItems: "center", paddingVertical: spacing.sm }}>
+          <SowSpinner size={28} />
+        </View>
       ) : null}
     </>
   );
@@ -856,6 +891,10 @@ export default function EventAttendanceScreen() {
       // pinning would be a no-op — and it can fight the flex-filled columns, so
       // it's dropped there.
       stickyHeaderIndices={twoColumn ? undefined : [1]}
+      // Single-column: signed-in list lives in the outer Screen scroll.
+      onEndReached={
+        !twoColumn && hasMoreSignedIn ? loadMoreSignedIn : undefined
+      }
       headerRight={
         <View style={styles.headerMeta}>
           <View style={styles.headerActions}>
@@ -1023,6 +1062,8 @@ export default function EventAttendanceScreen() {
                 nestedScrollEnabled
                 showsVerticalScrollIndicator
                 keyboardShouldPersistTaps="handled"
+                scrollEventThrottle={16}
+                onScroll={onUnsignedScroll}
               >
                 {unsignedRows}
               </ScrollView>
@@ -1035,6 +1076,8 @@ export default function EventAttendanceScreen() {
               nestedScrollEnabled
               showsVerticalScrollIndicator
               keyboardShouldPersistTaps="handled"
+              scrollEventThrottle={16}
+              onScroll={onSignedInColumnScroll}
             >
               {signedInRows}
             </ScrollView>
@@ -1051,6 +1094,8 @@ export default function EventAttendanceScreen() {
               nestedScrollEnabled
               showsVerticalScrollIndicator
               keyboardShouldPersistTaps="handled"
+              scrollEventThrottle={16}
+              onScroll={onUnsignedScroll}
             >
               {unsignedRows}
             </ScrollView>
