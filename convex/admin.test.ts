@@ -214,6 +214,57 @@ describe("setStaffProfile validation", () => {
       roles: ["Director", "Staff"],
       department: "Finance",
     });
+    // Assigning the Director caches their email on yearSettings so getApprovers
+    // doesn't walk every profile.
+    const settings = await t.run(async (ctx) =>
+      ctx.db.query("yearSettings").withIndex("by_year", (q) => q.eq("year", YEAR)).first()
+    );
+    expect(settings?.directorEmail).toBe("first@sow.org.au");
+  });
+
+  test("removing the Director clears the yearSettings cache", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "solo@sow.org.au",
+      year: YEAR,
+      roles: ["Director"],
+    });
+    await admin.mutation(api.admin.removeStaffProfile, {
+      email: "solo@sow.org.au",
+      year: YEAR,
+    });
+    const settings = await t.run(async (ctx) =>
+      ctx.db.query("yearSettings").withIndex("by_year", (q) => q.eq("year", YEAR)).first()
+    );
+    // "" = known absent — getApprovers must not re-scan the year.
+    expect(settings?.directorEmail).toBe("");
+  });
+
+  test("getApprovers scans profiles when the Director cache is unset", async () => {
+    const { getApprovers } = await import("./model");
+    const t = await setup();
+    // Insert the Director directly — bypasses setStaffProfile's cache write —
+    // and leave yearSettings without a directorEmail field so the scan path runs.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: "legacy-dir@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Director" }],
+      });
+      // Ensure any existing yearSettings row has no directorEmail field.
+      const settings = await ctx.db
+        .query("yearSettings")
+        .withIndex("by_year", (q) => q.eq("year", YEAR))
+        .first();
+      if (settings) {
+        await ctx.db.patch("yearSettings", settings._id, {
+          directorEmail: undefined,
+        });
+      }
+    });
+    const approvers = await t.run((ctx) => getApprovers(ctx, YEAR, "Finance"));
+    expect(approvers.directorEmail).toBe("legacy-dir@sow.org.au");
   });
 
   test("rejects an unmanaged year", async () => {
@@ -974,6 +1025,13 @@ describe("rollOverStaffYear", () => {
   test("prefills the next staff year from the current staff year, keeping its existing data", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
+    // Assign Director before upserting a custom role — once a roles catalog
+    // exists for the year, only catalogued names are assignable.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "director@sow.org.au",
+      year: YEAR,
+      roles: ["Director"],
+    });
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Outsource" });
     await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
     // Data already in the next year is kept (non-destructive merge) — a
@@ -995,6 +1053,15 @@ describe("rollOverStaffYear", () => {
     expect(next.roles).toContain("Kept Role");
     expect(next.universities).toContain("Kept University");
     expect(next.budgetManagerEmail).toBe(BELLA);
+
+    // Rollover caches the copied Director on the destination yearSettings.
+    const nextSettings = await t.run(async (ctx) =>
+      ctx.db
+        .query("yearSettings")
+        .withIndex("by_year", (q) => q.eq("year", YEAR + 1))
+        .first()
+    );
+    expect(nextSettings?.directorEmail).toBe("director@sow.org.au");
 
     // A summary email to IT is scheduled.
     const scheduled = await t.run((ctx) =>
@@ -1063,6 +1130,12 @@ describe("rollOverStaffYear", () => {
           email: BELLA,
           year: YEAR + 1,
           assignments: [{ role: "Staff", department: "Finance" }],
+        });
+        // Duplicate yearSettings used to abort alreadyCopiedFrom / completion
+        // via getYearSettings().unique() — must survive with .first().
+        await ctx.db.insert("yearSettings", {
+          year: YEAR + 1,
+          budgetManagerEmail: BELLA,
         });
       }
     });

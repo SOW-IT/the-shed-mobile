@@ -5,7 +5,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@convex/_generated/api";
 import { useConvexAuth, useQuery } from "convex/react";
-import { ReactNode, Ref, useEffect, useState } from "react";
+import { ReactNode, Ref, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
@@ -36,6 +36,9 @@ import { Sheet } from "./overlays";
 import { FadeInView, FastModal, SowSpinner, Txt } from "./primitives";
 import { styles } from "./styles";
 
+/** How close to the bottom (px) before onEndReached fires. */
+const NEAR_BOTTOM = 600;
+
 export const Screen = ({
   children,
   toast,
@@ -63,7 +66,10 @@ export const Screen = ({
   headerRight?: ReactNode;
   /** When set, shows a back chevron to the left of the title. */
   onBack?: () => void;
-  /** Fired while the user scrolls within ~600px of the bottom (infinite load). */
+  /**
+   * Fired once while the user scrolls within ~600px of the bottom (infinite
+   * load). Re-fires only after the content grows — same dedupe as PagerScreen.
+   */
   onEndReached?: () => void;
   /**
    * Indices (into `children`) of elements that should pin to the top while the
@@ -82,6 +88,12 @@ export const Screen = ({
   const resolvedStickyIndices = stickyHeaderIndices?.map(
     (i) => i + (headerShown ? 1 : 0)
   );
+  // Content height at which onEndReached last fired — only re-fire after growth.
+  const lastEndReachedHeight = useRef(-1);
+  const onEndReachedRef = useRef(onEndReached);
+  useEffect(() => {
+    onEndReachedRef.current = onEndReached;
+  }, [onEndReached]);
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: t.background }]} edges={["top"]}>
       <ScrollView
@@ -99,9 +111,21 @@ export const Screen = ({
           onEndReached
             ? ({ nativeEvent }) => {
                 const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+                // Content can shrink when this Screen stays mounted across a
+                // route/filter change — forget the old high-water mark so a
+                // shorter list can still fire onEndReached.
+                if (contentSize.height < lastEndReachedHeight.current) {
+                  lastEndReachedHeight.current = -1;
+                }
                 const distanceFromBottom =
                   contentSize.height - (contentOffset.y + layoutMeasurement.height);
-                if (distanceFromBottom < 600) onEndReached();
+                if (
+                  distanceFromBottom < NEAR_BOTTOM &&
+                  contentSize.height > lastEndReachedHeight.current
+                ) {
+                  lastEndReachedHeight.current = contentSize.height;
+                  onEndReachedRef.current?.();
+                }
               }
             : undefined
         }

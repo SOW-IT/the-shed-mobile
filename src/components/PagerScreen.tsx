@@ -274,10 +274,16 @@ export const PagerScreen = ({
       const endReached = onEndReachedRef.current;
       if (!endReached) return;
       const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+      const lastHeight = lastEndReachedHeight.current[tabKey] ?? -1;
+      // Content can shrink when a tab's dataset is filtered/swapped — forget the
+      // old high-water mark so a shorter list can still fire onEndReached.
+      if (contentSize.height < lastHeight) {
+        lastEndReachedHeight.current[tabKey] = -1;
+      }
       const distanceToBottom =
         contentSize.height - (contentOffset.y + layoutMeasurement.height);
-      const lastHeight = lastEndReachedHeight.current[tabKey] ?? -1;
-      if (distanceToBottom < NEAR_BOTTOM && contentSize.height > lastHeight) {
+      const effectiveLast = lastEndReachedHeight.current[tabKey] ?? -1;
+      if (distanceToBottom < NEAR_BOTTOM && contentSize.height > effectiveLast) {
         lastEndReachedHeight.current[tabKey] = contentSize.height;
         endReached(tabKey);
       }

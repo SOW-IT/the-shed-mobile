@@ -176,7 +176,7 @@ The bottom tab bar is role-gated. Admin is **never** a bottom tab — it opens v
 ## 3.10 All segment (Finance) & sorting
 - [ ] Segmented control: **Ongoing** vs **Completed**
 - [ ] Ongoing sorts by unread comments → status priority → date
-- [ ] Completed paginated (20 at a time, infinite scroll)
+- [ ] Ongoing and Completed paginated (20 at a time, infinite scroll)
 - [ ] Floating year picker (All segment only) lets Finance browse prior years (back to 2021), read-only, with prior-year receipt-deletion warning copy; prior-year Mine view shows "No requests in {year}" when empty
 - [ ] Carry-over: incomplete prior-year request still appears in Mine/All; original-year approvers **and** current officeholders can action it
 - [ ] Admin bar ("Open admin tools") on the All page opens Admin **with the Other tab preselected** (Budget Manager + threshold)
@@ -210,7 +210,7 @@ The bottom tab bar is role-gated. Admin is **never** a bottom tab — it opens v
 - [ ] Campus/subgroup ring selector shows all groups, highlights selection; "No groups yet" when no campuses exist
 - [ ] Event list sorted within the staff year; badge cycles UPCOMING → LIVE → ENDED (~every 60s); LIVE green, ENDED greyed
 - [ ] Card shows date/time range, "ATTENDANCE: N", tag pills, subgroup pills (collaborative)
-- [ ] "Load more" paginates; tapping a card opens the sign-in screen
+- [ ] Infinite scroll paginates; tapping a card opens the sign-in screen
 - [ ] Edit (pencil) opens the event form; Export opens the Export sheet
 - [ ] Group chips label non-campus staff roles as **STAFF**
 
@@ -244,7 +244,7 @@ The bottom tab bar is role-gated. Admin is **never** a bottom tab — it opens v
 - [ ] Signing in the same person twice is idempotent
 - [ ] Notes field in edit sheet only for signed-in attendance
 - [ ] "Create [search text]" footer creates a member and signs them in
-- [ ] "Load more" works on both lists
+- [ ] Infinite scroll works on both lists
 - [ ] Staff subtitles don't double the role ("President · President" bug — regression watch)
 - [ ] **Multi-user sync:** sign-in/out on device A animates on device B
 
@@ -294,7 +294,7 @@ The bottom tab bar is role-gated. Admin is **never** a bottom tab — it opens v
 - [ ] Actor names resolve for legacy-domain emails (@sowaustralia.com ↔ @sow.org.au)
 - [ ] Search (400ms debounce) matches summary/detail **and the person acted on** (e.g. who was signed in)
 - [ ] Filters: Action type / Performed by / Event, AND-combined; "Clear All"; active count
-- [ ] "Load more" paginates — **including while filtered/searched** (multi-page paginator crash — regression watch)
+- [ ] Infinite scroll paginates — **including while filtered/searched** (multi-page paginator crash — regression watch)
 
 ## 5.10 Export
 - [ ] Group export: date-range (spinner pickers, no overlay spill) + tag filters + metadata checkboxes
@@ -490,7 +490,7 @@ The bottom tab bar is role-gated. Admin is **never** a bottom tab — it opens v
 - [ ] Top-level error banners on failed mutations; clear on retry/context change
 - [ ] Optimistic actions (approve/decline/comment/reactions, bank edits, sign-in/out) roll back or surface a recoverable error on server rejection *(needs fault injection — not Maestro-automatable)*
 - [ ] Failed file upload (receipt/avatar) surfaces an actionable error and leaves the form usable
-- [ ] "Load more" shows progress and recovers after a failed page
+- [ ] Infinite scroll shows progress and recovers after a failed page
 - [ ] No-profile / insufficient-role screens show access copy, never a blank screen
 - [ ] A render error shows the root ErrorBoundary fallback, not a blank screen/crash
 

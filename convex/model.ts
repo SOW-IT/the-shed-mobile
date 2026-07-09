@@ -309,10 +309,13 @@ export async function getYearSettings(
   ctx: Ctx,
   year: number
 ): Promise<Doc<"yearSettings"> | null> {
+  // `.first()` (not `.unique()`) so a stray duplicate yearSettings row — e.g.
+  // mid-import / mid-re-copy — can't throw and abort rollover or Finance
+  // settings reads. Same rationale as getProfile / getDepartment.
   return await ctx.db
     .query("yearSettings")
     .withIndex("by_year", (q) => q.eq("year", year))
-    .unique();
+    .first();
 }
 
 /**
@@ -351,6 +354,28 @@ export interface Approvers {
   directorEmail?: string;
 }
 
+/**
+ * Cache the year's Director email on `yearSettings` so getApprovers doesn't
+ * walk every staff profile. Pass an email to set, or `""` / `undefined` to
+ * record "known absent" (empty string) so subsequent reads skip the scan.
+ */
+export async function setCachedDirectorEmail(
+  ctx: MutationCtx,
+  year: number,
+  directorEmail: string | undefined
+): Promise<void> {
+  // Empty string = known absent (skip scan). A missing field still means
+  // "not yet cached" and triggers a one-time profile walk.
+  const value = directorEmail && directorEmail.length > 0 ? directorEmail : "";
+  const settings = await getYearSettings(ctx, year);
+  if (settings) {
+    if (settings.directorEmail === value) return;
+    await ctx.db.patch("yearSettings", settings._id, { directorEmail: value });
+    return;
+  }
+  await ctx.db.insert("yearSettings", { year, directorEmail: value });
+}
+
 /** Resolves who approves each step for a request in a department this year. */
 export async function getApprovers(
   ctx: Ctx,
@@ -360,16 +385,22 @@ export async function getApprovers(
   const department = await getDepartment(ctx, year, departmentName);
   const finance = await getDepartment(ctx, year, FINANCE);
   const settings = await getYearSettings(ctx, year);
-  // Roles are arrays now, so the Director is found by scanning the year's
-  // profiles rather than via a legacy role index. Stream the full year (no
-  // take cap) so a large org can't silently miss the Director past row 1000.
+  // Prefer the cached Director on yearSettings (maintained by Admin when the
+  // role is assigned/cleared). `""` means "known absent" — skip the scan.
+  // Missing field means not yet cached → one-time profile scan so legacy years
+  // without a cache still resolve correctly.
   let directorEmail: string | undefined;
-  for await (const profile of ctx.db
-    .query("staffProfiles")
-    .withIndex("by_year", (q) => q.eq("year", year))) {
-    if (rolesOf(profile).includes(DIRECTOR)) {
-      directorEmail = profile.email;
-      break;
+  if (settings?.directorEmail !== undefined) {
+    directorEmail =
+      settings.directorEmail === "" ? undefined : settings.directorEmail;
+  } else {
+    for await (const profile of ctx.db
+      .query("staffProfiles")
+      .withIndex("by_year", (q) => q.eq("year", year))) {
+      if (rolesOf(profile).includes(DIRECTOR)) {
+        directorEmail = profile.email;
+        break;
+      }
     }
   }
   return {

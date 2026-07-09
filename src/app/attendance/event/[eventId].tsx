@@ -32,7 +32,6 @@ import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
 import { ExportSheet } from "@/components/attendance/ExportSheet";
 import {
-  Btn,
   ConfirmDialog,
   EmptyState,
   errorMessage,
@@ -42,12 +41,13 @@ import {
   LoadingState,
   Muted,
   Screen,
+  SowSpinner,
   type ToastState,
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 const ROSTER_PAGE_SIZE = 30;
-/** The not-signed-in list starts short; "Load more" reveals the rest. */
+/** The not-signed-in list starts short; scroll reveals more. */
 const UNSIGNED_PAGE_SIZE = 10;
 /** One AttendanceRow's vertical footprint: the 72px card + its bottom margin. */
 const UNSIGNED_ROW_HEIGHT = 72 + spacing.sm;
@@ -225,6 +225,10 @@ export default function EventAttendanceScreen() {
   const [confirmEnableEdit, setConfirmEnableEdit] = useState(false);
   const [unsignedLimit, setUnsignedLimit] = useState(UNSIGNED_PAGE_SIZE);
   const [signedInLimit, setSignedInLimit] = useState(ROSTER_PAGE_SIZE);
+  // High-water marks for nested roster ScrollViews — reset when the event /
+  // search changes so a shorter list isn't blocked by a taller prior one.
+  const lastUnsignedEndHeight = useRef(-1);
+  const lastSignedInEndHeight = useRef(-1);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset unlock when opening another event
@@ -373,7 +377,9 @@ export default function EventAttendanceScreen() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset paging when roster/search changes
     setUnsignedLimit(UNSIGNED_PAGE_SIZE);
     setSignedInLimit(ROSTER_PAGE_SIZE);
-  }, [search, signedInKeys]);
+    lastUnsignedEndHeight.current = -1;
+    lastSignedInEndHeight.current = -1;
+  }, [search, signedInKeys, event?._id]);
 
   // Signed-in members display newest-first, as returned by the backend.
   const rosterByKey = useMemo(() => {
@@ -569,6 +575,49 @@ export default function EventAttendanceScreen() {
 
   const visibleUnsigned = filteredUnsignedList.slice(0, unsignedLimit);
   const visibleSignedIn = filteredSignedInList.slice(0, signedInLimit);
+  const hasMoreUnsigned = visibleUnsigned.length < filteredUnsignedList.length;
+  const hasMoreSignedIn = visibleSignedIn.length < filteredSignedInList.length;
+
+  // Nested roster ScrollViews (unsigned column / two-column layout) need their
+  // own near-bottom handlers — Screen.onEndReached only covers the outer page
+  // scroll (signed-in list in single-column mode).
+  const onUnsignedScroll = useCallback(
+    (e: { nativeEvent: { layoutMeasurement: { height: number }; contentOffset: { y: number }; contentSize: { height: number } } }) => {
+      const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+      if (contentSize.height < lastUnsignedEndHeight.current) {
+        lastUnsignedEndHeight.current = -1;
+      }
+      if (!hasMoreUnsigned) return;
+      const distance =
+        contentSize.height - (contentOffset.y + layoutMeasurement.height);
+      if (distance < 200 && contentSize.height > lastUnsignedEndHeight.current) {
+        lastUnsignedEndHeight.current = contentSize.height;
+        setUnsignedLimit((limit) => limit + UNSIGNED_PAGE_SIZE);
+      }
+    },
+    [hasMoreUnsigned]
+  );
+  const onSignedInColumnScroll = useCallback(
+    (e: { nativeEvent: { layoutMeasurement: { height: number }; contentOffset: { y: number }; contentSize: { height: number } } }) => {
+      const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+      if (contentSize.height < lastSignedInEndHeight.current) {
+        lastSignedInEndHeight.current = -1;
+      }
+      if (!hasMoreSignedIn) return;
+      const distance =
+        contentSize.height - (contentOffset.y + layoutMeasurement.height);
+      if (distance < 200 && contentSize.height > lastSignedInEndHeight.current) {
+        lastSignedInEndHeight.current = contentSize.height;
+        setSignedInLimit((limit) => limit + ROSTER_PAGE_SIZE);
+      }
+    },
+    [hasMoreSignedIn]
+  );
+  // Outer Screen scroll drives signed-in paging in the single-column layout.
+  const loadMoreSignedIn = useCallback(() => {
+    if (!hasMoreSignedIn) return;
+    setSignedInLimit((limit) => limit + ROSTER_PAGE_SIZE);
+  }, [hasMoreSignedIn]);
 
   if (event === undefined || attendance === undefined || subgroups === undefined) {
     return <LoadingState />;
@@ -769,11 +818,9 @@ export default function EventAttendanceScreen() {
         );
       })}
       {visibleUnsigned.length < filteredUnsignedList.length ? (
-        <Btn
-          title={`Load more (${filteredUnsignedList.length - visibleUnsigned.length} left)`}
-          variant="ghost"
-          onPress={() => setUnsignedLimit((limit) => limit + UNSIGNED_PAGE_SIZE)}
-        />
+        <View style={{ alignItems: "center", paddingVertical: spacing.sm }}>
+          <SowSpinner size={28} />
+        </View>
       ) : null}
     </>
   );
@@ -826,11 +873,9 @@ export default function EventAttendanceScreen() {
         );
       })}
       {visibleSignedIn.length < filteredSignedInList.length ? (
-        <Btn
-          title={`Load more (${filteredSignedInList.length - visibleSignedIn.length} left)`}
-          variant="ghost"
-          onPress={() => setSignedInLimit((limit) => limit + ROSTER_PAGE_SIZE)}
-        />
+        <View style={{ alignItems: "center", paddingVertical: spacing.sm }}>
+          <SowSpinner size={28} />
+        </View>
       ) : null}
     </>
   );
@@ -856,6 +901,10 @@ export default function EventAttendanceScreen() {
       // pinning would be a no-op — and it can fight the flex-filled columns, so
       // it's dropped there.
       stickyHeaderIndices={twoColumn ? undefined : [1]}
+      // Single-column: signed-in list lives in the outer Screen scroll.
+      onEndReached={
+        !twoColumn && hasMoreSignedIn ? loadMoreSignedIn : undefined
+      }
       headerRight={
         <View style={styles.headerMeta}>
           <View style={styles.headerActions}>
@@ -1023,6 +1072,8 @@ export default function EventAttendanceScreen() {
                 nestedScrollEnabled
                 showsVerticalScrollIndicator
                 keyboardShouldPersistTaps="handled"
+                scrollEventThrottle={16}
+                onScroll={onUnsignedScroll}
               >
                 {unsignedRows}
               </ScrollView>
@@ -1035,6 +1086,8 @@ export default function EventAttendanceScreen() {
               nestedScrollEnabled
               showsVerticalScrollIndicator
               keyboardShouldPersistTaps="handled"
+              scrollEventThrottle={16}
+              onScroll={onSignedInColumnScroll}
             >
               {signedInRows}
             </ScrollView>
@@ -1051,6 +1104,8 @@ export default function EventAttendanceScreen() {
               nestedScrollEnabled
               showsVerticalScrollIndicator
               keyboardShouldPersistTaps="handled"
+              scrollEventThrottle={16}
+              onScroll={onUnsignedScroll}
             >
               {unsignedRows}
             </ScrollView>

@@ -1,5 +1,5 @@
 import { Redirect, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "convex/react";
 import { staffYearForDate, sydneyCalendarYear } from "../../../shared/flow";
 import { defaultAttendanceSubgroup } from "../../../shared/rollcall";
@@ -43,6 +43,11 @@ export default function AttendanceScreen() {
   const [confirmSaveMeta, setConfirmSaveMeta] = useState(false);
   const [confirmRevertTags, setConfirmRevertTags] = useState(false);
   const [confirmRevertMeta, setConfirmRevertMeta] = useState(false);
+
+  // Infinite-scroll handlers for paginated attendance tabs (events / members / audit).
+  const eventsLoadMoreRef = useRef<(() => void) | null>(null);
+  const membersLoadMoreRef = useRef<(() => void) | null>(null);
+  const auditLoadMoreRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!subgroups?.length || selectedSubgroup !== null) return;
@@ -156,6 +161,7 @@ export default function AttendanceScreen() {
           subgroups={subgroups}
           selectedSubgroup={subgroup}
           onSelectedSubgroupChange={setSelectedSubgroup}
+          loadMoreRef={eventsLoadMoreRef}
         />
       ),
     },
@@ -169,6 +175,7 @@ export default function AttendanceScreen() {
           year={year}
           onEditMember={openEditMember}
           scrollProps={scrollProps}
+          loadMoreRef={membersLoadMoreRef}
         />
       ),
     },
@@ -198,7 +205,9 @@ export default function AttendanceScreen() {
       label: "Audit",
       // Owns its ScrollView so its filter + search block can be a sticky header.
       selfScrolling: true,
-      render: (scrollProps) => <AuditTab scrollProps={scrollProps} />,
+      render: (scrollProps) => (
+        <AuditTab scrollProps={scrollProps} loadMoreRef={auditLoadMoreRef} />
+      ),
     },
   ];
 
@@ -209,6 +218,11 @@ export default function AttendanceScreen() {
         activeKey={active}
         onActiveKeyChange={setActive}
         footers={tabFooters}
+        onEndReached={(key) => {
+          if (key === "events") eventsLoadMoreRef.current?.();
+          else if (key === "members") membersLoadMoreRef.current?.();
+          else if (key === "audit") auditLoadMoreRef.current?.();
+        }}
       />
       {subgroup && subgroups ? (
         <CreateEventSheet

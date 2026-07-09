@@ -1,6 +1,12 @@
 import { useQuery } from "convex/react";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import {
+  MutableRefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -18,10 +24,10 @@ import { CampusMark } from "@/components/CampusMark";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { ExportSheet } from "@/components/attendance/ExportSheet";
 import {
-  Btn,
   EmptyState,
   FadeInView,
   LoadingState,
+  SowSpinner,
   stagger,
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
@@ -51,11 +57,14 @@ export function EventsTab({
   subgroups,
   selectedSubgroup,
   onSelectedSubgroupChange,
+  loadMoreRef,
 }: {
   year: number;
   subgroups: string[];
   selectedSubgroup: string | null;
   onSelectedSubgroupChange: (subgroup: string) => void;
+  /** Parent ScrollView drives infinite scroll via this ref. */
+  loadMoreRef?: MutableRefObject<(() => void) | null>;
 }) {
   const t = useAppTheme();
   const router = useRouter();
@@ -93,6 +102,25 @@ export function EventsTab({
       return [...prev, ...page.events.filter((e) => !seen.has(e._id))];
     });
   }, [page, cursor]);
+
+  const hasMore = page != null && !page.isDone;
+  const continueCursor = page?.continueCursor;
+  const pending = useRef(false);
+  useEffect(() => {
+    pending.current = false;
+  }, [cursor, page?.isDone]);
+  const loadMore = useCallback(() => {
+    if (pending.current || !hasMore || continueCursor == null) return;
+    pending.current = true;
+    setPagination({ subgroup, cursor: continueCursor });
+  }, [hasMore, continueCursor, subgroup]);
+  useEffect(() => {
+    if (!loadMoreRef) return;
+    loadMoreRef.current = hasMore ? loadMore : null;
+    return () => {
+      loadMoreRef.current = null;
+    };
+  }, [loadMoreRef, hasMore, loadMore]);
 
   const [editingEventId, setEditingEventId] = useState<Id<"events"> | null>(null);
   const editingEvent = accumulated.find((event) => event._id === editingEventId);
@@ -332,12 +360,10 @@ export function EventsTab({
             })}
             </View>
           )}
-          {page && !page.isDone ? (
-            <Btn
-              title="Load more"
-              variant="ghost"
-              onPress={() => setPagination({ subgroup, cursor: page.continueCursor })}
-            />
+          {hasMore ? (
+            <View style={{ alignItems: "center", paddingVertical: spacing.md }}>
+              <SowSpinner size={36} />
+            </View>
           ) : null}
         </>
       )}

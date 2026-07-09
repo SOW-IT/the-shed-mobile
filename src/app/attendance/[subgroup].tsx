@@ -1,20 +1,20 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { formatEventDate, subgroupColour, subgroupLabel } from "../../../shared/rollcall";
 import {
   Card,
   Chip,
-  Btn,
   EmptyState,
   FadeInView,
   FooterAction,
   LoadingState,
   Muted,
   Screen,
+  SowSpinner,
   stagger,
 } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
@@ -57,6 +57,18 @@ export default function SubgroupEventsScreen() {
     });
   }, [result, cursor]);
 
+  const hasMore = result != null && !result.isDone;
+  const continueCursor = result?.continueCursor;
+  const pending = useRef(false);
+  useEffect(() => {
+    pending.current = false;
+  }, [cursor, result?.isDone]);
+  const loadMore = useCallback(() => {
+    if (pending.current || !hasMore || continueCursor == null) return;
+    pending.current = true;
+    setPagination({ subgroup, cursor: continueCursor });
+  }, [hasMore, continueCursor, subgroup]);
+
   if (result === undefined && events.length === 0) return <LoadingState />;
 
   return (
@@ -65,6 +77,7 @@ export default function SubgroupEventsScreen() {
         title={subgroupLabel(subgroup)}
         subtitle="Events"
         onBack={() => router.back()}
+        onEndReached={hasMore ? loadMore : undefined}
       >
         {events.length === 0 && result?.isDone ? (
           <EmptyState
@@ -76,7 +89,7 @@ export default function SubgroupEventsScreen() {
           <EmptyState
             icon="search-outline"
             title="Looking for older events"
-            message="Load more to keep scanning this subgroup's history."
+            message="Scroll to keep scanning this subgroup's history."
           />
         ) : (
           events.map((event, i) => (
@@ -127,12 +140,10 @@ export default function SubgroupEventsScreen() {
             </FadeInView>
           ))
         )}
-        {result && !result.isDone ? (
-          <Btn
-            title="Load more"
-            variant="ghost"
-            onPress={() => setPagination({ subgroup, cursor: result.continueCursor })}
-          />
+        {hasMore ? (
+          <View style={{ alignItems: "center", paddingVertical: spacing.md }}>
+            <SowSpinner size={36} />
+          </View>
         ) : null}
         <View style={{ height: spacing.xxl }} />
       </Screen>

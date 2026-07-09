@@ -292,31 +292,70 @@ export const STEP_LABELS: Record<ApprovalStep, string> = {
 export const SYDNEY_TIME_ZONE = "Australia/Sydney";
 
 /**
+ * Fixed-offset fallback for Sydney calendar parts when `Intl` + IANA zone is
+ * unavailable or broken (historically shaky on some Android Hermes builds).
+ * Oct–Mar use AEDT (+11); Apr–Sep use AEST (+10). Good enough for staff-year
+ * / calendar-year boundaries — midnight Oct 1 is always AEST, midnight Jan 1
+ * is always AEDT.
+ */
+const sydneyYmdFixedOffset = (
+  date: Date
+): { year: number; month: number; day: number; hour: number } => {
+  // Probe with +10 first to learn the Sydney month, then re-shift if AEDT.
+  const aest = new Date(date.getTime() + 10 * 60 * 60 * 1000);
+  const monthProbe = aest.getUTCMonth() + 1;
+  const offsetH = monthProbe >= 4 && monthProbe <= 9 ? 10 : 11;
+  const local = new Date(date.getTime() + offsetH * 60 * 60 * 1000);
+  return {
+    year: local.getUTCFullYear(),
+    month: local.getUTCMonth() + 1,
+    day: local.getUTCDate(),
+    hour: local.getUTCHours(),
+  };
+};
+
+/**
  * Calendar Y/M/D (and hour) in Australia/Sydney for `date`, via Intl so DST
  * transitions are handled by the platform instead of hard-coded UTC offsets.
+ * Falls back to fixed AEDT/AEST offsets if Intl.formatToParts throws or
+ * returns unusable parts (Android Hermes guard).
  */
 const sydneyYmd = (
   date: Date
 ): { year: number; month: number; day: number; hour: number } => {
-  const parts = new Intl.DateTimeFormat("en-AU", {
-    timeZone: SYDNEY_TIME_ZONE,
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    hour: "numeric",
-    hour12: false,
-  }).formatToParts(date);
-  const num = (type: Intl.DateTimeFormatPartTypes) => {
-    const value = parts.find((p) => p.type === type)?.value;
-    // Intl may emit "24" for midnight in some engines — normalise to 0.
-    return Number((value ?? "0") === "24" ? "0" : (value ?? "0"));
-  };
-  return {
-    year: num("year"),
-    month: num("month"),
-    day: num("day"),
-    hour: num("hour"),
-  };
+  try {
+    const parts = new Intl.DateTimeFormat("en-AU", {
+      timeZone: SYDNEY_TIME_ZONE,
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      hour12: false,
+    }).formatToParts(date);
+    const num = (type: Intl.DateTimeFormatPartTypes) => {
+      const value = parts.find((p) => p.type === type)?.value;
+      // Intl may emit "24" for midnight in some engines — normalise to 0.
+      return Number((value ?? "0") === "24" ? "0" : (value ?? "0"));
+    };
+    const year = num("year");
+    const month = num("month");
+    const day = num("day");
+    const hour = num("hour");
+    // Reject clearly broken output (e.g. zone ignored → NaN / zeros).
+    if (
+      !Number.isFinite(year) ||
+      year < 1970 ||
+      month < 1 ||
+      month > 12 ||
+      day < 1 ||
+      day > 31
+    ) {
+      return sydneyYmdFixedOffset(date);
+    }
+    return { year, month, day, hour };
+  } catch {
+    return sydneyYmdFixedOffset(date);
+  }
 };
 
 /**

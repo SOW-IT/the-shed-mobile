@@ -133,6 +133,11 @@ export default defineSchema({
   yearSettings: defineTable({
     year: v.number(),
     budgetManagerEmail: v.optional(v.string()),
+    // Cached Director email for this year — kept in sync when Admin assigns or
+    // clears the Director role. Lets getApprovers avoid a full staffProfiles
+    // scan on every request create/advance. Unset means "unknown / not yet
+    // cached" (callers may fall back to a one-time scan + backfill).
+    directorEmail: v.optional(v.string()),
     // The $ amount at or above which a request also needs the Director's
     // approval. Unset falls back to DIRECTOR_APPROVAL_THRESHOLD (the historical
     // default); Finance can change it per year. See shared/flow.ts.

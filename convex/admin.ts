@@ -43,7 +43,28 @@ import {
   requireEmail,
   resolveImportId,
   rolesOf,
+  setCachedDirectorEmail,
 } from "./model";
+
+/**
+ * Keep yearSettings.directorEmail in sync when a staff profile's Director role
+ * changes. Setting the role caches this email; clearing it (or deleting the
+ * profile) records "" so getApprovers skips the full-year scan.
+ */
+const syncDirectorCacheAfterProfileChange = async (
+  ctx: MutationCtx,
+  year: number,
+  email: string,
+  nowDirector: boolean,
+  previous: Doc<"staffProfiles"> | null
+) => {
+  const wasDirector = previous ? rolesOf(previous).includes(DIRECTOR) : false;
+  if (nowDirector) {
+    await setCachedDirectorEmail(ctx, year, email);
+  } else if (wasDirector) {
+    await setCachedDirectorEmail(ctx, year, "");
+  }
+};
 
 /** Admins may only manage the current staff year and the next one. */
 const assertManagedYear = (year: number) => {
@@ -354,14 +375,29 @@ export const setStaffProfile = mutation({
           assignments,
           importId: existing.importId ?? (await resolveImportId(ctx, email)),
         });
+        await syncDirectorCacheAfterProfileChange(
+          ctx,
+          args.year,
+          email,
+          assignments.some((a) => a.role === DIRECTOR),
+          existing
+        );
         return existing._id;
       } else {
-        return await ctx.db.insert("staffProfiles", {
+        const id = await ctx.db.insert("staffProfiles", {
           email,
           year: args.year,
           assignments,
           importId: await resolveImportId(ctx, email),
         });
+        await syncDirectorCacheAfterProfileChange(
+          ctx,
+          args.year,
+          email,
+          assignments.some((a) => a.role === DIRECTOR),
+          existing
+        );
+        return id;
       }
     }
 
@@ -530,6 +566,13 @@ export const setStaffProfile = mutation({
         importId: await resolveImportId(ctx, email),
       });
     }
+    await syncDirectorCacheAfterProfileChange(
+      ctx,
+      args.year,
+      email,
+      assignments.some((a) => a.role === DIRECTOR),
+      existing
+    );
     return profileId;
   },
 });
@@ -541,6 +584,7 @@ export const removeStaffProfile = mutation({
     assertManagedYear(args.year);
     const email = args.email.trim().toLowerCase();
     const profile = await getProfile(ctx, email, args.year);
+    const wasDirector = profile ? rolesOf(profile).includes(DIRECTOR) : false;
     if (profile) await ctx.db.delete("staffProfiles", profile._id);
     // Don't leave a removed person assigned as the Budget Manager or as a
     // department head — both would silently deadlock approvals.
@@ -549,6 +593,9 @@ export const removeStaffProfile = mutation({
       await ctx.db.patch("yearSettings", settings._id, {
         budgetManagerEmail: undefined,
       });
+    }
+    if (wasDirector) {
+      await setCachedDirectorEmail(ctx, args.year, "");
     }
     const yearDepartments = await ctx.db
       .query("departments")
@@ -1779,10 +1826,22 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
 
   // Record completion so a cron retry / accidental re-run can no-op instead of
   // overwriting intentional next-year admin edits (see rollOverStaffYear).
+  // Also cache the destination year's Director (from the profiles we just
+  // copied) so getApprovers doesn't walk every profile on first use.
+  let directorEmail = "";
+  for await (const profile of ctx.db
+    .query("staffProfiles")
+    .withIndex("by_year", (q) => q.eq("year", to))) {
+    if (rolesOf(profile).includes(DIRECTOR)) {
+      directorEmail = profile.email;
+      break;
+    }
+  }
   const toSettings = await getYearSettings(ctx, to);
   const completion = {
     rolloverCopiedFrom: from,
     rolloverCompletedAt: Date.now(),
+    directorEmail,
   };
   if (toSettings) {
     await ctx.db.patch("yearSettings", toSettings._id, completion);

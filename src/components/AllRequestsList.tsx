@@ -17,8 +17,8 @@ import {
   stagger,
 } from "@/components/ui";
 
-/** How many completed requests to reveal per infinite-scroll page. */
-const COMPLETED_PAGE_SIZE = 20;
+/** How many requests to reveal per infinite-scroll page (both tabs). */
+const PAGE_SIZE = 20;
 
 const STATUS_PRIORITY: Record<string, number> = {
   "AWAITING PAYMENT": 0,
@@ -57,9 +57,9 @@ export const AllRequestsList = ({
   focusThread?: boolean;
   focusReopenKey?: string;
   /**
-   * Set by the parent screen's ScrollView so it can drive the completed-tab
-   * infinite scroll. Points at this list's "reveal more" handler, or null when
-   * there's nothing more to reveal.
+   * Set by the parent screen's ScrollView so it can drive infinite scroll.
+   * Points at this list's "reveal more" handler, or null when there's nothing
+   * more to reveal.
    */
   loadMoreRef?: MutableRefObject<(() => void) | null>;
 }) => {
@@ -91,15 +91,15 @@ export const AllRequestsList = ({
     unread
   );
 
-  // Completed requests are revealed a page at a time as the user scrolls down.
-  const [visible, setVisible] = useState(COMPLETED_PAGE_SIZE);
+  // Both tabs reveal a page at a time as the user scrolls down.
+  const [visible, setVisible] = useState(PAGE_SIZE);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset paging on filter/year change
-    setVisible(COMPLETED_PAGE_SIZE);
+    setVisible(PAGE_SIZE);
   }, [filter, year]);
 
-  const shown = isCompleted ? filtered.slice(0, visible) : filtered;
-  const hasMore = isCompleted && filtered.length > shown.length;
+  const shown = filtered.slice(0, visible);
+  const hasMore = filtered.length > shown.length;
 
   // Guard against the scroll handler firing many times before the next render:
   // reveal at most one page per render cycle.
@@ -110,7 +110,7 @@ export const AllRequestsList = ({
   const loadMore = useCallback(() => {
     if (pending.current) return;
     pending.current = true;
-    setVisible((n) => n + COMPLETED_PAGE_SIZE);
+    setVisible((n) => n + PAGE_SIZE);
   }, []);
   useEffect(() => {
     if (!loadMoreRef) return;
@@ -148,8 +148,8 @@ export const AllRequestsList = ({
       ) : (
         // Wide screens lay requests out as side-by-side columns; phones stack.
         <Grid minColumnWidth={380}>
-          {shown.map((request, index) => (
-            <FadeInView key={request._id} delay={stagger(index)}>
+          {shown.map((request, index) => {
+            const card = (
               <RequestCard
                 request={request}
                 showRequester
@@ -158,8 +158,18 @@ export const AllRequestsList = ({
                 autoOpenThread={request._id === focusId && focusThread}
                 deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}
               />
-            </FadeInView>
-          ))}
+            );
+            // Skip entrance animation on pages revealed by scroll — only the
+            // first page needs the stagger, and animating hundreds of cards
+            // as they mount is wasted work.
+            return index < PAGE_SIZE ? (
+              <FadeInView key={request._id} delay={stagger(index)}>
+                {card}
+              </FadeInView>
+            ) : (
+              <View key={request._id}>{card}</View>
+            );
+          })}
         </Grid>
       )}
       {hasMore && (
