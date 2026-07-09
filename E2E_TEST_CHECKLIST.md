@@ -244,7 +244,7 @@ The bottom tab bar is role-gated. Admin is **never** a bottom tab — it opens v
 - [ ] Signing in the same person twice is idempotent
 - [ ] Notes field in edit sheet only for signed-in attendance
 - [ ] "Create [search text]" footer creates a member and signs them in
-- [ ] "Load more" works on both lists
+- [ ] Infinite scroll works on both lists
 - [ ] Staff subtitles don't double the role ("President · President" bug — regression watch)
 - [ ] **Multi-user sync:** sign-in/out on device A animates on device B
 
@@ -294,7 +294,7 @@ The bottom tab bar is role-gated. Admin is **never** a bottom tab — it opens v
 - [ ] Actor names resolve for legacy-domain emails (@sowaustralia.com ↔ @sow.org.au)
 - [ ] Search (400ms debounce) matches summary/detail **and the person acted on** (e.g. who was signed in)
 - [ ] Filters: Action type / Performed by / Event, AND-combined; "Clear All"; active count
-- [ ] "Load more" paginates — **including while filtered/searched** (multi-page paginator crash — regression watch)
+- [ ] Infinite scroll paginates — **including while filtered/searched** (multi-page paginator crash — regression watch)
 
 ## 5.10 Export
 - [ ] Group export: date-range (spinner pickers, no overlay spill) + tag filters + metadata checkboxes
@@ -490,7 +490,7 @@ The bottom tab bar is role-gated. Admin is **never** a bottom tab — it opens v
 - [ ] Top-level error banners on failed mutations; clear on retry/context change
 - [ ] Optimistic actions (approve/decline/comment/reactions, bank edits, sign-in/out) roll back or surface a recoverable error on server rejection *(needs fault injection — not Maestro-automatable)*
 - [ ] Failed file upload (receipt/avatar) surfaces an actionable error and leaves the form usable
-- [ ] "Load more" shows progress and recovers after a failed page
+- [ ] Infinite scroll shows progress and recovers after a failed page
 - [ ] No-profile / insufficient-role screens show access copy, never a blank screen
 - [ ] A render error shows the root ErrorBoundary fallback, not a blank screen/crash
 
