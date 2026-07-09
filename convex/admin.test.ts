@@ -776,6 +776,35 @@ describe("financeMembers", () => {
       await asUser(t, "ghost@sow.org.au").query(api.admin.financeMembers, { year: YEAR })
     ).toBeNull();
   });
+
+  test("an admin can open the next-year Finance picker even when their next-year profile isn't admin", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const nextYear = YEAR + 1;
+    // Seed next-year Finance so the picker has someone to return, and give ADMIN
+    // a plain (non-admin) next-year profile — the post-rollover case.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("departments", {
+        year: nextYear,
+        name: "Finance",
+        division: "Governance",
+        headEmail: FIONA,
+      });
+      await ctx.db.insert("staffProfiles", {
+        email: BELLA,
+        year: nextYear,
+        assignments: [{ role: "Staff", department: "Finance" }],
+      });
+      await ctx.db.insert("staffProfiles", {
+        email: ADMIN,
+        year: nextYear,
+        assignments: [{ role: "Staff", department: "Missions" }],
+      });
+    });
+    // Previously returned null because admin was judged on the viewed year.
+    const members = await admin.query(api.admin.financeMembers, { year: nextYear });
+    expect(members?.map((m) => m.email)).toContain(BELLA);
+  });
 });
 
 describe("chaplain university assignment", () => {
@@ -965,6 +994,36 @@ describe("rollOverStaffYear", () => {
     expect((email!.args[0] as { subject: string }).subject).toContain(
       `${YEAR} copied to ${YEAR + 1}`
     );
+  });
+
+  test("survives stray duplicate destination rows instead of aborting the cron", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
+    // Transient duplicates in the destination year (mid-import / mid-re-copy)
+    // used to make copyYearData's .unique() throw and abort the whole rollover.
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 2; i++) {
+        await ctx.db.insert("divisions", {
+          year: YEAR + 1,
+          name: "Governance",
+        });
+        await ctx.db.insert("departments", {
+          year: YEAR + 1,
+          name: "Finance",
+          division: "Governance",
+        });
+        await ctx.db.insert("staffProfiles", {
+          email: BELLA,
+          year: YEAR + 1,
+          assignments: [{ role: "Staff", department: "Finance" }],
+        });
+      }
+    });
+    const counts = await t.mutation(internal.admin.rollOverStaffYear, {});
+    expect(counts.divisions).toBeGreaterThan(0);
+    expect(counts.profiles).toBeGreaterThan(0);
+    expect(counts.budgetManagers).toBe(1);
   });
 });
 
