@@ -241,6 +241,32 @@ describe("setStaffProfile validation", () => {
     expect(settings?.directorEmail).toBe("");
   });
 
+  test("getApprovers scans profiles when the Director cache is unset", async () => {
+    const { getApprovers } = await import("./model");
+    const t = await setup();
+    // Insert the Director directly — bypasses setStaffProfile's cache write —
+    // and leave yearSettings without a directorEmail field so the scan path runs.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: "legacy-dir@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Director" }],
+      });
+      // Ensure any existing yearSettings row has no directorEmail field.
+      const settings = await ctx.db
+        .query("yearSettings")
+        .withIndex("by_year", (q) => q.eq("year", YEAR))
+        .first();
+      if (settings) {
+        await ctx.db.patch("yearSettings", settings._id, {
+          directorEmail: undefined,
+        });
+      }
+    });
+    const approvers = await t.run((ctx) => getApprovers(ctx, YEAR, "Finance"));
+    expect(approvers.directorEmail).toBe("legacy-dir@sow.org.au");
+  });
+
   test("rejects an unmanaged year", async () => {
     const t = await setup();
     await expect(
