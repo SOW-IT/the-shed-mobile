@@ -122,15 +122,14 @@ wins**. Budget manager is overwritten when the source has one (not cleared when
 it doesn't). Universities and roles are insert-if-missing only.
 
 So if admins carefully configure next year and someone re-runs
-`npx convex run admin:rollOverStaffYear` (or the cron retries after a partial
-failure that somehow re-invokes), heads and assignments on overlapping keys
-revert toward the current-year snapshot. There is no `rolloverCompletedAt`
-guard.
+`npx convex run admin:rollOverStaffYear` **with `force: true`** (or before
+1.8.9 markers exist on a pre-provisioned destination), heads and assignments
+on overlapping keys revert toward the current-year snapshot.
 
-**Operational mitigation today:** treat the post-Oct-1 copy as a *starting
-point* for the year two ahead; don't re-run after editing that destination.
-**Code follow-up:** record completion per `(from, to)` and no-op on re-entry,
-or offer an explicit “reset destination then copy” flag.
+**As of 1.8.9:** `rolloverCompletedAt` / `rolloverCopiedFrom` make the default
+path a no-op after a successful copy; `copyYear` requires `force: true` to
+re-copy. **Deploy note:** years provisioned before 1.8.9 without those markers
+can still be re-copied once until markers are backfilled.
 
 ### 3. Auth cliff at midnight Oct 1 (mitigated in 1.8.10)
 
@@ -166,16 +165,17 @@ export remains the unbounded path by design.
 | -------------- | ---------- |
 | Divisions, departments (+ heads, colours) | `leavers` |
 | Universities (insert only), roles (insert only) | `approverDelegations` |
-| Staff profiles (assignments, name, userId, importId) | `directorApprovalThreshold` |
-| Budget manager email (if set in source) | Attendance tags / events / requests |
+| Staff profiles (assignments, name, userId, importId) | Attendance tags / events / requests |
+| Budget manager email (if set in source) | |
+| `directorApprovalThreshold` (if set in source; 1.8.9+) | |
 
 ### 6. Same-night purge + rollover
 
-`purgeOldReceiptFiles` runs at the flip instant (14:00 UTC); rollover at 14:01.
-They touch different concerns (storage attachments vs year-scoped org tables),
-so correctness interaction is low. Operationally, a very large purge could make
-the night noisy in logs / function budget — staggering to another day is a
-nice-to-have, not urgent.
+`purgeOldReceiptFiles` runs at **15:00 UTC** (staggered in 1.8.9); rollover at
+14:01. They touch different concerns (storage attachments vs year-scoped org
+tables), so correctness interaction is low. Operationally, a very large purge
+could make the night noisy in logs / function budget — further staggering to
+another day is a nice-to-have, not urgent.
 
 ### 7. Wall-clock year inside queries
 
