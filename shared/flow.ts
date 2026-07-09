@@ -288,51 +288,96 @@ export const STEP_LABELS: Record<ApprovalStep, string> = {
   financeHead: "Finance Head",
 };
 
+/** IANA zone for all Sydney calendar / staff-year boundaries. */
+export const SYDNEY_TIME_ZONE = "Australia/Sydney";
+
+/**
+ * Calendar Y/M/D (and hour) in Australia/Sydney for `date`, via Intl so DST
+ * transitions are handled by the platform instead of hard-coded UTC offsets.
+ */
+const sydneyYmd = (
+  date: Date
+): { year: number; month: number; day: number; hour: number } => {
+  const parts = new Intl.DateTimeFormat("en-AU", {
+    timeZone: SYDNEY_TIME_ZONE,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    hour12: false,
+  }).formatToParts(date);
+  const num = (type: Intl.DateTimeFormatPartTypes) => {
+    const value = parts.find((p) => p.type === type)?.value;
+    // Intl may emit "24" for midnight in some engines — normalise to 0.
+    return Number((value ?? "0") === "24" ? "0" : (value ?? "0"));
+  };
+  return {
+    year: num("year"),
+    month: num("month"),
+    day: num("day"),
+    hour: num("hour"),
+  };
+};
+
 /**
  * The staff year rolls over at midnight on October 1st, Sydney time: from
  * that moment the app operates on the next calendar year's roles, departments
- * and requests. Midnight Oct 1 is always AEST (UTC+10 — daylight saving starts
- * at 2am on the first Sunday of October, which is on or after Oct 1, so the
- * boundary instant is never inside DST), so shifting +10h and reading UTC
- * fields lands the boundary on Sydney midnight regardless of where this runs
- * (the Convex server is UTC; a client is in the device's timezone).
+ * and requests. Resolved via `Australia/Sydney` (not a fixed UTC offset) so the
+ * boundary tracks the IANA zone if DST rules ever change. Today midnight Oct 1
+ * is always AEST (DST starts at 2am on the first Sunday of October).
  */
 export const staffYearForDate = (date: Date): number => {
-  const sydney = new Date(date.getTime() + 10 * 60 * 60 * 1000);
-  return sydney.getUTCMonth() >= 9
-    ? sydney.getUTCFullYear() + 1
-    : sydney.getUTCFullYear();
+  const { year, month } = sydneyYmd(date);
+  return month >= 10 ? year + 1 : year;
 };
 
 /**
  * The staff year an event belongs to, derived from its start date (epoch ms).
  * Events carry no stored `year` column — this is the single place that maps an
  * event to its staff year, so it always tracks `staffYearForDate`. An event
- * spanning the rollover is bucketed by where it STARTS.
+ * spanning the rollover is bucketed by where it STARTS (intentional: one event
+ * keeps one staff-year profile set for the whole roll-call).
  */
 export const eventStaffYear = (dateStart: number): number =>
   staffYearForDate(new Date(dateStart));
 
 /**
  * The first instant (epoch ms) of staff year `year` — i.e. Sydney midnight on
- * October 1 of the previous calendar year (AEST, UTC+10 → Sep 30 14:00 UTC).
+ * October 1 of the previous calendar year. Midnight Oct 1 is always AEST
+ * (UTC+10 — DST starts at 2am on the first Sunday of October), so this is a
+ * fixed UTC instant. Year *membership* still goes through `staffYearForDate`
+ * (IANA `Australia/Sydney`) so the two stay aligned.
  * A staff year is a contiguous start-date window, so the events with
  * `eventStaffYear(dateStart) === year` are exactly those with
- * `staffYearStartMs(year) <= dateStart < staffYearStartMs(year + 1)`. This lets
- * a `by_dateStart` range query stand in for the dropped `by_year` index.
+ * `staffYearStartMs(year) <= dateStart < staffYearStartMs(year + 1)`.
  */
 export const staffYearStartMs = (year: number): number =>
   Date.UTC(year - 1, 8, 30, 14, 0, 0, 0);
 
 /**
- * The calendar year in Sydney — which is what attendance members and metadata
- * are keyed by. The year only ever rolls over at Jan 1, which is always inside
- * AEDT (UTC+11 — Australian daylight saving runs October→April), so shifting
- * +11h and reading the UTC year lands the boundary on Sydney midnight wherever
- * this runs. (Contrast staffYearForDate, whose Oct 1 boundary is AEST, +10.)
+ * How long after Sydney midnight Oct 1 a staffer may still authenticate using
+ * their *previous* staff-year profile if the new year isn't provisioned yet.
+ * Keeps the app usable for the first week of the new year while admins finish
+ * assignments. See `requireProfile` / `optionalProfile` in convex/model.ts.
  */
-export const sydneyCalendarYear = (date: Date): number =>
-  new Date(date.getTime() + 11 * 60 * 60 * 1000).getUTCFullYear();
+export const ROLLOVER_AUTH_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** True when `now` is within the post-rollover auth grace for `staffYear`. */
+export const withinRolloverAuthGrace = (
+  staffYear: number,
+  now: Date = new Date()
+): boolean => {
+  const start = staffYearStartMs(staffYear);
+  const t = now.getTime();
+  return t >= start && t < start + ROLLOVER_AUTH_GRACE_MS;
+};
+
+/**
+ * The calendar year in Sydney — which is what attendance members and metadata
+ * are keyed by. Uses `Australia/Sydney` so the Jan 1 boundary tracks AEDT/AEST
+ * correctly (contrast the old fixed +11h shift).
+ */
+export const sydneyCalendarYear = (date: Date): number => sydneyYmd(date).year;
 
 /**
  * Earliest staff year with any reimbursement requests (the old web app's

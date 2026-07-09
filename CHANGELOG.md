@@ -6,6 +6,23 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.8.10] — 2026-07-09
+
+### Fixed
+
+- **Staff year uses Australia/Sydney, not a hard-coded UTC offset.** Oct 1 and
+  Jan 1 boundaries now go through `Intl` with the IANA zone, so DST rule changes
+  can't silently drift the rollover instant.
+- **A week of breathing room after Oct 1.** If your new staff-year profile isn't
+  ready yet, the app reuses last year's profile for the first 7 days after
+  rollover (sign-in, approvals, Admin) instead of locking you out at midnight.
+
+### Changed
+
+- **Documented intentional deferrals** in the rollover audit: live request-list
+  caps stay bounded on purpose; leavers/delegations are not auto-copied;
+  multi-day events keep the staff year of their start date.
+
 ## [1.8.9] — 2026-07-09
 
 ### Fixed

@@ -21,6 +21,7 @@ import {
   staffYearStartMs,
   sydneyCalendarYear,
   stepsForRequest,
+  withinRolloverAuthGrace,
 } from "./flow";
 
 describe("formatAssignment", () => {
@@ -106,7 +107,7 @@ describe("staffYearForDate", () => {
     expect(staffYearForDate(new Date("2026-12-31"))).toBe(2027);
   });
 
-  test("rolls over at Sydney midnight (AEST, UTC+10), not UTC midnight", () => {
+  test("rolls over at Sydney midnight (Australia/Sydney), not UTC midnight", () => {
     // 13:59 UTC on Sep 30 is still 23:59 Sep 30 in Sydney → old year.
     expect(staffYearForDate(new Date("2026-09-30T13:59:00Z"))).toBe(2026);
     // 14:00 UTC on Sep 30 is 00:00 Oct 1 in Sydney → new year.
@@ -139,18 +140,29 @@ describe("staffYearStartMs", () => {
   });
 });
 
+describe("withinRolloverAuthGrace", () => {
+  test("is true for the first week after Sydney midnight Oct 1", () => {
+    const start = staffYearStartMs(2027);
+    expect(withinRolloverAuthGrace(2027, new Date(start))).toBe(true);
+    expect(withinRolloverAuthGrace(2027, new Date(start + 3 * 24 * 60 * 60 * 1000))).toBe(
+      true
+    );
+    expect(withinRolloverAuthGrace(2027, new Date(start + 7 * 24 * 60 * 60 * 1000))).toBe(
+      false
+    );
+    expect(withinRolloverAuthGrace(2027, new Date(start - 1))).toBe(false);
+  });
+});
+
 describe("sydneyCalendarYear", () => {
   test("returns the Sydney calendar year, mid-year", () => {
     expect(sydneyCalendarYear(new Date("2026-06-15"))).toBe(2026);
   });
 
-  test("rolls over at Sydney midnight (AEDT, UTC+11) on Jan 1", () => {
-    // Jan 1 in Sydney is always inside daylight saving (AEDT, +11), so Sydney
+  test("rolls over at Sydney midnight on Jan 1 (Australia/Sydney)", () => {
+    // Jan 1 in Sydney is inside daylight saving (AEDT, +11), so Sydney
     // midnight Jan 1 2026 is 13:00 UTC on Dec 31 2025.
-    // 12:59 UTC Dec 31 is still 23:59 Dec 31 in Sydney → old year.
     expect(sydneyCalendarYear(new Date("2025-12-31T12:59:00Z"))).toBe(2025);
-    // 13:00 UTC Dec 31 is 00:00 Jan 1 in Sydney → new year. (A +10h offset
-    // would wrongly keep this in 2025.)
     expect(sydneyCalendarYear(new Date("2025-12-31T13:00:00Z"))).toBe(2026);
   });
 });
