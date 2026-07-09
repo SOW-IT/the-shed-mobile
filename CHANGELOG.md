@@ -6,6 +6,26 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.8.8] — 2026-07-09
+
+### Fixed
+
+- **Staff-year rollover no longer aborts on stray duplicate rows.** The annual
+  Oct 1 copy used to throw if a destination year already had a duplicate
+  division, department, or profile (e.g. mid-import). It now matches with
+  `.first()` like the rest of the admin read path, so the cron can finish and
+  still email IT.
+- **Budget Manager picker works for next year after rollover.** Admins whose
+  next-year profile is a plain staff assignment (no Data-and-IT / division-head
+  role yet) can still open the Finance member list for that year — the same
+  current-year admin gate already used by the rest of the Admin screen.
+
+### Added
+
+- **Rollover & cron audit** (`docs/rollover-crons-audit.md`): failure modes for
+  `copyYear` / `rollOverStaffYear`, every job in `crons.ts`, carry-over
+  requests, and an Oct 1 runbook.
+
 ## [1.8.7] — 2026-07-08
 
 ### Fixed

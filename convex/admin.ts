@@ -1527,9 +1527,13 @@ export const financeMembers = query({
     if ((await optionalEmail(ctx)) === null) return null;
     const callerEmail = await optionalEmail(ctx);
     if (!callerEmail) return null;
-    const callerProfile = await getProfile(ctx, callerEmail, args.year);
-    if (!callerProfile) return null;
-    const isAdmin = await isAdminProfile(ctx, callerProfile);
+    // Same gate as requireFinanceSettingsAccess / people: admin authority is
+    // judged on the CURRENT staff year (next-year profiles often lack the
+    // Data-and-IT / division-head assignment that makes someone an admin). The
+    // Finance Head of the *viewed* year may still open the picker.
+    const adminProfile = await getProfile(ctx, callerEmail, currentStaffYear());
+    const isAdmin =
+      !!adminProfile && (await isAdminProfile(ctx, adminProfile));
     if (!isAdmin) {
       const financeDept = await getDepartment(ctx, args.year, FINANCE);
       if (financeDept?.headEmail !== callerEmail) return null;
@@ -1647,10 +1651,12 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
     .withIndex("by_year_and_name", (q) => q.eq("year", from))
     .take(200);
   for (const division of divisions) {
+    // `.first()` (not `.unique()`): a stray duplicate (year, name) must not abort
+    // the annual rollover cron — the same hardening as getDepartment / getProfile.
     const existing = await ctx.db
       .query("divisions")
       .withIndex("by_year_and_name", (q) => q.eq("year", to).eq("name", division.name))
-      .unique();
+      .first();
     const fields = { headEmail: division.headEmail };
     if (existing) {
       await ctx.db.patch("divisions", existing._id, fields);
@@ -1669,7 +1675,7 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
       .withIndex("by_year_and_name", (q) =>
         q.eq("year", to).eq("name", department.name)
       )
-      .unique();
+      .first();
     const fields = {
       division: department.division,
       headEmail: department.headEmail,
@@ -1692,7 +1698,7 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
       .withIndex("by_year_and_name", (q) =>
         q.eq("year", to).eq("name", university.name)
       )
-      .unique();
+      .first();
     if (!existing) {
       await ctx.db.insert("universities", { year: to, name: university.name });
     }
@@ -1705,7 +1711,7 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
     const existing = await ctx.db
       .query("roles")
       .withIndex("by_year_and_name", (q) => q.eq("year", to).eq("name", role.name))
-      .unique();
+      .first();
     if (!existing) {
       await ctx.db.insert("roles", { year: to, name: role.name });
     }
@@ -1737,7 +1743,7 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
         .withIndex("by_email_and_year", (q) =>
           q.eq("email", profile.email).eq("year", to)
         )
-        .unique());
+        .first());
     if (existing) {
       await ctx.db.patch("staffProfiles", existing._id, fields);
     } else {
