@@ -999,6 +999,13 @@ describe("rollOverStaffYear", () => {
   test("prefills the next staff year from the current staff year, keeping its existing data", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
+    // Assign Director before upserting a custom role — once a roles catalog
+    // exists for the year, only catalogued names are assignable.
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "director@sow.org.au",
+      year: YEAR,
+      roles: ["Director"],
+    });
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Outsource" });
     await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
     // Data already in the next year is kept (non-destructive merge) — a
@@ -1020,6 +1027,15 @@ describe("rollOverStaffYear", () => {
     expect(next.roles).toContain("Kept Role");
     expect(next.universities).toContain("Kept University");
     expect(next.budgetManagerEmail).toBe(BELLA);
+
+    // Rollover caches the copied Director on the destination yearSettings.
+    const nextSettings = await t.run(async (ctx) =>
+      ctx.db
+        .query("yearSettings")
+        .withIndex("by_year", (q) => q.eq("year", YEAR + 1))
+        .first()
+    );
+    expect(nextSettings?.directorEmail).toBe("director@sow.org.au");
 
     // A summary email to IT is scheduled.
     const scheduled = await t.run((ctx) =>

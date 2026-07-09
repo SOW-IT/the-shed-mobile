@@ -130,6 +130,27 @@ describe("staffYearForDate", () => {
       Intl.DateTimeFormat = Original;
     }
   });
+
+  test("falls back when Intl returns unusable calendar parts", () => {
+    const Original = Intl.DateTimeFormat;
+    // @ts-expect-error — temporary stub for the junk-parts fallback
+    Intl.DateTimeFormat = function Junk() {
+      return {
+        formatToParts: () => [
+          { type: "year", value: "0" },
+          { type: "month", value: "0" },
+          { type: "day", value: "0" },
+          { type: "hour", value: "0" },
+        ],
+      };
+    };
+    try {
+      expect(staffYearForDate(new Date("2026-09-30T14:00:00Z"))).toBe(2027);
+      expect(sydneyCalendarYear(new Date("2025-12-31T13:00:00Z"))).toBe(2026);
+    } finally {
+      Intl.DateTimeFormat = Original;
+    }
+  });
 });
 
 describe("eventStaffYear", () => {
