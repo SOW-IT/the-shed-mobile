@@ -6,6 +6,18 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.8.11] — 2026-07-10
+
+### Changed
+- **Expo SDK 56 dependency alignment (safe patch bumps).** Dependabot opened
+  several chore PRs that jumped individual packages to Expo SDK 57 / React
+  Native 0.86 / TypeScript 7, which break `npm ci` against this app's SDK 56
+  peer ranges (`react-native-reanimated` needs RN ≤0.85; `convex-helpers`
+  needs TypeScript ^5.5 || ^6). This release instead runs `npx expo install
+  --fix` so every Expo module stays on the SDK 56 line (e.g. `expo` →
+  ~56.0.15, `expo-dev-client` → ~56.0.22, `expo-sharing` → ~56.0.21).
+  Supersedes #218, #219, #220, #221, and #222.
+
 ## [1.8.10] — 2026-07-09
 
 ### Fixed
