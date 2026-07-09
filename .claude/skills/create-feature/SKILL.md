@@ -22,7 +22,7 @@ skill.
 | Convex | Shared cloud **dev** deployment via `.env.local` (`EXPO_PUBLIC_CONVEX_*`). Do **not** use `CONVEX_AGENT_MODE=anonymous` on this Mac unless the user asks for an isolated local backend. |
 | Metro | `http://localhost:8081` — usually `expo start --dev-client`. Restart from **this worktree** if the wrong tree is serving. |
 | Simulator | iOS sim with **The SHED** (`au.org.sow.theshed`); drive with **baguette** |
-| Chrome | Open Metro / web at `http://localhost:8081` for web smoke |
+| Chrome | Open Expo web at `http://localhost:8082` for web smoke |
 | Netlify | `NETLIFY_AUTH_TOKEN` in `~/.hermes/.env` for phone HTML explain pages |
 | Checks | `npm run lint`, `npm run typecheck`, `npm test` / `npm run test:coverage` (no backend required) |
 
@@ -70,11 +70,12 @@ npm test                 # or npm run test:coverage before PR
 **UI (when the change is visible):**
 
 1. Confirm Metro is this worktree: `curl -s http://localhost:8081/status`.
-   If not, from the worktree: `npx expo start --dev-client --port 8081`.
+   If not, from the worktree: `npx expo start --dev-client --port 8081`
+   (`expo` is a local dependency — `npx` resolves the pinned workspace copy).
 2. Native: `baguette list` → use the `Booted` sim; tap/swipe via baguette.
    Reload the app after JS changes.
-3. Web: Expo web on `:8082` and/or Playwright screenshots (prefer Playwright
-   over headless Chrome `--screenshot` for RN-web).
+3. Web: `npx expo start --web --port 8082` and/or Playwright screenshots
+   (prefer Playwright over headless Chrome `--screenshot` for RN-web).
 4. Optional signed-in smoke without Google: e2e-auth bypass when
    `E2E_AUTH_ENABLED` is set on the deployment — see `.maestro/README.md` and
    `AGENTS.md` (Mac section). Never enable that bypass on prod.

@@ -111,6 +111,12 @@ export const Screen = ({
           onEndReached
             ? ({ nativeEvent }) => {
                 const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+                // Content can shrink when this Screen stays mounted across a
+                // route/filter change — forget the old high-water mark so a
+                // shorter list can still fire onEndReached.
+                if (contentSize.height < lastEndReachedHeight.current) {
+                  lastEndReachedHeight.current = -1;
+                }
                 const distanceFromBottom =
                   contentSize.height - (contentOffset.y + layoutMeasurement.height);
                 if (

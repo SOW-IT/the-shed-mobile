@@ -225,6 +225,10 @@ export default function EventAttendanceScreen() {
   const [confirmEnableEdit, setConfirmEnableEdit] = useState(false);
   const [unsignedLimit, setUnsignedLimit] = useState(UNSIGNED_PAGE_SIZE);
   const [signedInLimit, setSignedInLimit] = useState(ROSTER_PAGE_SIZE);
+  // High-water marks for nested roster ScrollViews — reset when the event /
+  // search changes so a shorter list isn't blocked by a taller prior one.
+  const lastUnsignedEndHeight = useRef(-1);
+  const lastSignedInEndHeight = useRef(-1);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset unlock when opening another event
@@ -373,7 +377,9 @@ export default function EventAttendanceScreen() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset paging when roster/search changes
     setUnsignedLimit(UNSIGNED_PAGE_SIZE);
     setSignedInLimit(ROSTER_PAGE_SIZE);
-  }, [search, signedInKeys]);
+    lastUnsignedEndHeight.current = -1;
+    lastSignedInEndHeight.current = -1;
+  }, [search, signedInKeys, event?._id]);
 
   // Signed-in members display newest-first, as returned by the backend.
   const rosterByKey = useMemo(() => {
@@ -575,12 +581,13 @@ export default function EventAttendanceScreen() {
   // Nested roster ScrollViews (unsigned column / two-column layout) need their
   // own near-bottom handlers — Screen.onEndReached only covers the outer page
   // scroll (signed-in list in single-column mode).
-  const lastUnsignedEndHeight = useRef(-1);
-  const lastSignedInEndHeight = useRef(-1);
   const onUnsignedScroll = useCallback(
     (e: { nativeEvent: { layoutMeasurement: { height: number }; contentOffset: { y: number }; contentSize: { height: number } } }) => {
-      if (!hasMoreUnsigned) return;
       const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+      if (contentSize.height < lastUnsignedEndHeight.current) {
+        lastUnsignedEndHeight.current = -1;
+      }
+      if (!hasMoreUnsigned) return;
       const distance =
         contentSize.height - (contentOffset.y + layoutMeasurement.height);
       if (distance < 200 && contentSize.height > lastUnsignedEndHeight.current) {
@@ -592,8 +599,11 @@ export default function EventAttendanceScreen() {
   );
   const onSignedInColumnScroll = useCallback(
     (e: { nativeEvent: { layoutMeasurement: { height: number }; contentOffset: { y: number }; contentSize: { height: number } } }) => {
-      if (!hasMoreSignedIn) return;
       const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+      if (contentSize.height < lastSignedInEndHeight.current) {
+        lastSignedInEndHeight.current = -1;
+      }
+      if (!hasMoreSignedIn) return;
       const distance =
         contentSize.height - (contentOffset.y + layoutMeasurement.height);
       if (distance < 200 && contentSize.height > lastSignedInEndHeight.current) {

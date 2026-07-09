@@ -184,12 +184,13 @@ set -a && source "$HOME/.hermes/.env" && set +a
    not verified), how to try it, PR URL. Large type, short sections.
 2. Put screenshots under e.g. `shots/` and reference them relatively.
 3. **Always deploy with `--prod`** and hand the user the production HTTPS URL
-   — never a draft/unique `https://<hash>--….netlify.app` link:
+   — never a draft/unique `https://<hash>--….netlify.app` link. Auth via the
+   sourced `NETLIFY_AUTH_TOKEN` env var (do not pass `--auth` on the CLI — it
+   exposes the token in the process list):
 
 ```bash
 # PR-specific explain site (preferred when handing a dedicated URL)
 npx --yes netlify-cli deploy \
-  --auth "$NETLIFY_AUTH_TOKEN" \
   --dir /tmp/pr-<n>-explain \
   --site-name the-shed-pr-<n>-explain \
   --no-build \
@@ -197,7 +198,6 @@ npx --yes netlify-cli deploy \
 
 # Or update the shared explain site
 npx --yes netlify-cli deploy \
-  --auth "$NETLIFY_AUTH_TOKEN" \
   --dir /tmp/pr-<n>-explain \
   --site the-shed-pr-verify-explain \
   --no-build \
