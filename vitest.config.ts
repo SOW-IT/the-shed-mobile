@@ -5,6 +5,9 @@ export default defineConfig({
     // Exclude nested git worktrees (e.g. .claude/worktrees/<branch>) — they're
     // separate checkouts on other branches, not part of this tree's suite.
     exclude: [...configDefaults.exclude, "**/.claude/worktrees/**"],
+    // Default 5s flakes under CI load for importHistory (full Firestore backfill)
+    // and rollcall listBySubgroup stress tests (~1000 creates).
+    testTimeout: 20_000,
     environment: "edge-runtime",
     server: { deps: { inline: ["convex-test"] } },
     coverage: {
