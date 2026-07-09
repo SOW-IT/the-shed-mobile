@@ -6,6 +6,20 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.8.12] — 2026-07-10
+
+### Changed
+- **Lists load more as you scroll — no more "Load more" buttons.** The All →
+  Ongoing tab now pages 20 at a time like Completed, and every attendance list
+  that used a Load more button (Events, Members, Audit, subgroup events, and
+  the event roll-call roster) now reveals the next page when you scroll near
+  the bottom. A small spinner shows while the next page is loading.
+
+### Added
+- **Mac feature workflow skills.** `create-feature` and an expanded
+  `create-pr` skill document the local Metro / baguette / Netlify verify loop
+  used on this machine before opening a PR.
+
 ## [1.8.11] — 2026-07-10
 
 ### Changed
