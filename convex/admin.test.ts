@@ -324,6 +324,26 @@ describe("ensureUniversity", () => {
   });
 });
 
+describe("removeUniversityRow", () => {
+  test("removes a university and is a no-op when already gone", async () => {
+    const t = await setup();
+    await t.mutation(internal.admin.ensureUniversity, {
+      year: YEAR,
+      name: "Temp Ops Campus",
+    });
+    const removed = await t.mutation(internal.admin.removeUniversityRow, {
+      year: YEAR,
+      name: "Temp Ops Campus",
+    });
+    expect(removed.removed).toBe(true);
+    const again = await t.mutation(internal.admin.removeUniversityRow, {
+      year: YEAR,
+      name: "Temp Ops Campus",
+    });
+    expect(again.removed).toBe(false);
+  });
+});
+
 describe("removeUniversity", () => {
   test("removes an unused university and no-ops on a missing one", async () => {
     const t = await setup();

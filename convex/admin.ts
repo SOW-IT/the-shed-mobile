@@ -965,6 +965,40 @@ export const ensureUniversity = internalMutation({
   },
 });
 
+/**
+ * Ops counterpart to {@link ensureUniversity}: delete a university row for a
+ * year (and strip it from that year's staff assignments). Idempotent when
+ * missing. e.g. remove a campus from prod current year while keeping it on next:
+ * `npx convex run admin:removeUniversityRow '{"year":2026,"name":"Western Sydney University"}' --prod`
+ */
+export const removeUniversityRow = internalMutation({
+  args: { year: v.number(), name: v.string() },
+  handler: async (ctx, args) => {
+    const name = args.name.trim();
+    if (!name) throw new ConvexError("University name is required.");
+    const university = await ctx.db
+      .query("universities")
+      .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", name))
+      .first();
+    if (!university) {
+      return { removed: false as const, year: args.year, name, profilesTouched: 0 };
+    }
+    let profilesTouched = 0;
+    for await (const profile of ctx.db
+      .query("staffProfiles")
+      .withIndex("by_year", (q) => q.eq("year", args.year))) {
+      const current = assignmentsOf(profile);
+      const filtered = current.filter((a) => a.university !== name);
+      if (filtered.length !== current.length) {
+        await patchFromAssignments(ctx, profile, filtered);
+        profilesTouched++;
+      }
+    }
+    await ctx.db.delete("universities", university._id);
+    return { removed: true as const, year: args.year, name, profilesTouched };
+  },
+});
+
 export const updateUniversity = mutation({
   args: { year: v.number(), oldName: v.string(), newName: v.string() },
   handler: async (ctx, args) => {
