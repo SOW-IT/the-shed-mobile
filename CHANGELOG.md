@@ -11,8 +11,9 @@ All notable changes to **The SHED** mobile app. This project follows
 ### Changed
 - **WSU Instagram is `@sowwsu`.** The Western Sydney University campus card
   now links to the campus handle instead of the org-wide account.
-- **WSU / Seasons copy drops em dashes.** Connect wording uses commas instead,
-  for easier reading on phone.
+- **WSU / Seasons copy matches the campus announcement.** Connect describes
+  SOW WSU as the newest campus and Seasons as Thursdays 6pm on Parramatta
+  South Campus (no em dashes).
 
 ## [1.9.0] — 2026-07-10
 

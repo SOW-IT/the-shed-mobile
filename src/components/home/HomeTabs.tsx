@@ -397,7 +397,9 @@ const CampusDetailModal = ({
             </Text>
             <Text style={[typography.body, { color: t.text }]}>
               {isWsu
-                ? SEASONS.line
+                ? campus.meeting
+                  ? `${campus.meeting.day} · ${campus.meeting.time}\n${campus.meeting.location}\n\n${SEASONS.line}`
+                  : SEASONS.line
                 : campus.meeting
                   ? `${campus.meeting.day} · ${campus.meeting.time}\n${campus.meeting.location}`
                   : "Meetups move around the semester. Contact us and we’ll point you to this term’s Weekly Meeting."}

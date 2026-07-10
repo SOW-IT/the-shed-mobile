@@ -208,15 +208,17 @@ export const CAMPUSES: Campus[] = [
   {
     slug: "wsu",
     name: "Western Sydney University",
-    area: "Western Sydney",
-    short: "Seasons biblical training on campus.",
+    area: "Parramatta South",
+    short: "Seasons Thursdays 6pm, Parramatta South.",
     about: [
-      "SOW at Western Sydney University is growing a gospel community across WSU’s campuses, discipling students in the Reformed tradition and connecting them with the wider SOW network.",
-      "Alongside campus fellowship, WSU is home to Seasons, a biblical training course that walks students through God’s word with teaching, discussion and practical application.",
+      "SOW WSU is the newest campus addition to SOW’s ministry, reaching students across Western Sydney with the gospel.",
+      "WSU hosts Seasons, our biblical training program, every Thursday at 6pm on the Parramatta South Campus.",
     ],
-    // Weekly Meeting slot still settling for the new campus; Seasons is the
-    // headline gathering for now (see {@link SEASONS}).
-    meeting: null,
+    meeting: {
+      day: "Thursdays",
+      time: "6pm",
+      location: "Parramatta South Campus",
+    },
     instagram: "sowwsu",
     photos: [],
   },
@@ -264,17 +266,17 @@ export const REAP = {
 };
 
 /**
- * Seasons: a biblical training course hosted at Western Sydney University.
- * Shown on the Home → Connect tab alongside REAP and the campus list.
+ * Seasons: SOW’s biblical training program at Western Sydney University
+ * (Parramatta South). Schedule lives on the WSU campus `meeting` field.
+ * Shown on Home → Connect alongside REAP and the campus list.
  */
 export const SEASONS = {
   name: "Seasons",
   campus: "Western Sydney University",
   line:
-    "A biblical training course held at Western Sydney University. Seasons " +
-    "walks students through God’s word with teaching, discussion and " +
-    "practical application, grounding discipleship for the WSU campus and " +
-    "anyone from the wider SOW network who wants to go deeper.",
+    "SOW’s biblical training program at Western Sydney University. Come " +
+    "along to open God’s word with teaching, discussion and practical " +
+    "application. Follow @sowwsu for updates.",
 };
 
 /**
