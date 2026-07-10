@@ -325,17 +325,29 @@ describe("ensureUniversity", () => {
 });
 
 describe("removeUniversityRow", () => {
-  test("removes a university and is a no-op when already gone", async () => {
+  test("removes a university, strips profile assignments, and no-ops when gone", async () => {
     const t = await setup();
+    const admin = asUser(t, ADMIN);
     await t.mutation(internal.admin.ensureUniversity, {
       year: YEAR,
       name: "Temp Ops Campus",
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "sl-ops@sow.org.au",
+      year: YEAR,
+      assignments: [{ role: "Student Leader", university: "Temp Ops Campus" }],
     });
     const removed = await t.mutation(internal.admin.removeUniversityRow, {
       year: YEAR,
       name: "Temp Ops Campus",
     });
     expect(removed.removed).toBe(true);
+    expect(removed.profilesTouched).toBe(1);
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const sl = profiles.find((p) => p.email === "sl-ops@sow.org.au");
+    expect(sl?.assignments?.some((a) => a.university === "Temp Ops Campus")).toBe(
+      false
+    );
     const again = await t.mutation(internal.admin.removeUniversityRow, {
       year: YEAR,
       name: "Temp Ops Campus",
