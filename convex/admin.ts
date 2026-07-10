@@ -944,6 +944,27 @@ export const upsertUniversity = mutation({
   },
 });
 
+/**
+ * Idempotent university insert for ops / one-shot seeds (no admin session).
+ * e.g. `npx convex run admin:ensureUniversity '{"year":2027,"name":"Western Sydney University"}' --prod`
+ */
+export const ensureUniversity = internalMutation({
+  args: { year: v.number(), name: v.string() },
+  handler: async (ctx, args) => {
+    const name = args.name.trim();
+    if (!name) throw new ConvexError("University name is required.");
+    const existing = await ctx.db
+      .query("universities")
+      .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", name))
+      .first();
+    if (existing) {
+      return { id: existing._id, created: false as const, year: args.year, name };
+    }
+    const id = await ctx.db.insert("universities", { year: args.year, name });
+    return { id, created: true as const, year: args.year, name };
+  },
+});
+
 export const updateUniversity = mutation({
   args: { year: v.number(), oldName: v.string(), newName: v.string() },
   handler: async (ctx, args) => {
@@ -1970,6 +1991,7 @@ const UNIVERSITIES = [
   "University of New South Wales",
   "University of Sydney",
   "University of Technology, Sydney",
+  "Western Sydney University",
 ];
 
 /**

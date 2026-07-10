@@ -35,6 +35,7 @@ const CAMPUS_ACRONYM: Record<string, string> = {
   "University of New South Wales": "UNSW",
   "University of Sydney": "USYD",
   "University of Technology, Sydney": "UTS",
+  "Western Sydney University": "WSU",
 };
 const campusAcronym = (name: string) => CAMPUS_ACRONYM[name] ?? name;
 

@@ -196,6 +196,8 @@ describe("subgroupColour", () => {
   test("a known campus uses its brand colour", () => {
     expect(subgroupColour("University of Sydney")).toBe("#B5403D");
     expect(subgroupColour("University of New South Wales")).toBe("#619445");
+    expect(subgroupColour("Western Sydney University")).toBe("#A60F2D");
+    expect(subgroupColour("WSU")).toBe("#A60F2D");
   });
 
   test("an unknown campus falls back to slate", () => {

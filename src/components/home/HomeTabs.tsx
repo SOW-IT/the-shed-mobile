@@ -34,6 +34,7 @@ import {
   OUR_STORY,
   REAP,
   RESOURCE_WEBSITES,
+  SEASONS,
   SOCIALS,
   VALUES,
 } from "./content";
@@ -305,11 +306,38 @@ export const CampusesTab = () => {
         </Card>
       </FadeInView>
 
-      {/* Key events are run for the whole ministry, not per campus. */}
+      {/* Seasons is the biblical training course hosted at WSU. */}
       <FadeInView delay={stagger(base + 5)}>
-        <SectionTitle>Key events</SectionTitle>
+        <SectionTitle>{SEASONS.name}</SectionTitle>
       </FadeInView>
       <FadeInView delay={stagger(base + 6)}>
+        <Card>
+          <View style={{ gap: spacing.sm }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: spacing.sm,
+              }}
+            >
+              <CampusMark
+                campus={SEASONS.campus}
+                logoSource="university"
+                variant="circle"
+                circleDiameter={32}
+              />
+              <Txt style={styles.cardTitle}>{SEASONS.campus}</Txt>
+            </View>
+            <Muted>{SEASONS.line}</Muted>
+          </View>
+        </Card>
+      </FadeInView>
+
+      {/* Key events are run for the whole ministry, not per campus. */}
+      <FadeInView delay={stagger(base + 7)}>
+        <SectionTitle>Key events</SectionTitle>
+      </FadeInView>
+      <FadeInView delay={stagger(base + 8)}>
         <Card>
           <View style={{ gap: spacing.sm }}>
             {KEY_EVENTS.map((event) => (
@@ -322,7 +350,7 @@ export const CampusesTab = () => {
         </Card>
       </FadeInView>
 
-      <FadeInView delay={stagger(base + 7)}>
+      <FadeInView delay={stagger(base + 9)}>
         <Card>
           <Txt style={styles.cardTitle}>New to a campus?</Txt>
           <Muted>
@@ -355,28 +383,38 @@ const CampusDetailModal = ({
   onClose: () => void;
 }) => {
   const t = useAppTheme();
+  const isWsu = campus?.slug === "wsu";
   return (
     <Sheet visible={!!campus} onClose={onClose} title={campus ? campus.name : ""}>
       {campus ? (
         <View style={{ gap: spacing.md }}>
+          {campus.about.map((para) => (
+            <Muted key={para}>{para}</Muted>
+          ))}
           <View style={{ gap: spacing.xs }}>
-            <Text style={[typography.label, { color: t.muted }]}>Weekly Meeting</Text>
+            <Text style={[typography.label, { color: t.muted }]}>
+              {isWsu ? SEASONS.name : "Weekly Meeting"}
+            </Text>
             <Text style={[typography.body, { color: t.text }]}>
-              {campus.meeting
-                ? `${campus.meeting.day} · ${campus.meeting.time}\n${campus.meeting.location}`
-                : "Meetups move around the semester. Contact us and we’ll point you to this term’s Weekly Meeting."}
+              {isWsu
+                ? SEASONS.line
+                : campus.meeting
+                  ? `${campus.meeting.day} · ${campus.meeting.time}\n${campus.meeting.location}`
+                  : "Meetups move around the semester. Contact us and we’ll point you to this term’s Weekly Meeting."}
             </Text>
           </View>
-          <View style={{ gap: spacing.xs }}>
-            <Text style={[typography.label, { color: t.muted }]}>Programs</Text>
-            <View style={{ gap: 4 }}>
-              {CAMPUS_PROGRAMS.map((program) => (
-                <Text key={program.name} style={[typography.body, { color: t.text }]}>
-                  • {program.name}
-                </Text>
-              ))}
+          {!isWsu ? (
+            <View style={{ gap: spacing.xs }}>
+              <Text style={[typography.label, { color: t.muted }]}>Programs</Text>
+              <View style={{ gap: 4 }}>
+                {CAMPUS_PROGRAMS.map((program) => (
+                  <Text key={program.name} style={[typography.body, { color: t.text }]}>
+                    • {program.name}
+                  </Text>
+                ))}
+              </View>
             </View>
-          </View>
+          ) : null}
           <Btn
             title={`Follow @${campus.instagram}`}
             variant="tonal"

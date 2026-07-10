@@ -336,7 +336,7 @@ The bottom tab bar is role-gated. Admin is **never** a bottom tab — it opens v
 ## 6.3 Chart interactions (both segments)
 - [ ] Bar charts have a left y-axis (max/75%/50%/25%/0); line charts use a uniform "nice" y-axis
 - [ ] X-axis year labels shortened ('24) with skip-logic — no overlap on long runs
-- [ ] Campus legend uses acronyms (ACU, MACQ, UNSW, USYD, UTS)
+- [ ] Campus legend uses acronyms (ACU, MACQ, UNSW, USYD, UTS, WSU)
 - [ ] Tap a chart card → fullscreen (portrait phone rotates to landscape; web/landscape fills naturally)
 - [ ] In fullscreen, tap a bar → tooltip pill with value(s) + year (multi-value with colour dots for stacked charts)
 - [ ] Chart container height stable as selection changes (no jumping)

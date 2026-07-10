@@ -205,6 +205,21 @@ export const CAMPUSES: Campus[] = [
     instagram: "sowmq",
     photos: [],
   },
+  {
+    slug: "wsu",
+    name: "Western Sydney University",
+    area: "Western Sydney",
+    short: "Seasons biblical training on campus.",
+    about: [
+      "SOW at Western Sydney University is growing a gospel community across WSU’s campuses, discipling students in the Reformed tradition and connecting them with the wider SOW network.",
+      "Alongside campus fellowship, WSU is home to Seasons — a biblical training course that walks students through God’s word with teaching, discussion and practical application.",
+    ],
+    // Weekly Meeting slot still settling for the new campus; Seasons is the
+    // headline gathering for now (see {@link SEASONS}).
+    meeting: null,
+    instagram: "studentoutreachtotheworld",
+    photos: [],
+  },
 ];
 
 export const findCampus = (slug: string): Campus | undefined =>
@@ -223,9 +238,9 @@ export const CAMPUS_INTRO =
 /**
  * On-campus programs each campus runs through the semester, sourced from
  * sow.org.au/campus-ministry. REAP, Seasons and key events aren't tied to a
- * single campus (REAP runs everywhere but each campus works through its own
- * material), so they live in their own entries ({@link REAP}, {@link KEY_EVENTS})
- * rather than here.
+ * single campus card in the same way (REAP runs everywhere but each campus
+ * works through its own material; Seasons is hosted at WSU), so they live in
+ * their own entries ({@link REAP}, {@link SEASONS}, {@link KEY_EVENTS}).
  */
 export const CAMPUS_PROGRAMS: { name: string; line: string }[] = [
   {
@@ -246,6 +261,20 @@ export const REAP = {
   name: "REAP",
   line:
     "Reading, Encouragement, Accountability and Prayer. Bible study and accountability in small groups, with each campus working through its own material.",
+};
+
+/**
+ * Seasons — a biblical training course hosted at Western Sydney University.
+ * Shown on the Home → Connect tab alongside REAP and the campus list.
+ */
+export const SEASONS = {
+  name: "Seasons",
+  campus: "Western Sydney University",
+  line:
+    "A biblical training course held at Western Sydney University. Seasons " +
+    "walks students through God’s word with teaching, discussion and " +
+    "practical application — grounding discipleship for the WSU campus and " +
+    "anyone from the wider SOW network who wants to go deeper.",
 };
 
 /**

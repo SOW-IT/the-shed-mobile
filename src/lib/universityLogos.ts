@@ -6,13 +6,14 @@ import { SOW_SUBGROUP } from "../../shared/rollcall";
  * Coloured campus wordmarks, keyed by acronym (see shared/flow DISPLAY_ACRONYMS).
  * The image colours match shared/flow UNIVERSITY_COLOURS. Note Macquarie's asset
  * files are prefixed "MQU" while its acronym is "MACQ". Campuses without a
- * wordmark asset (ACU, WSU) fall back to a colour swatch in the UI.
+ * wordmark asset (ACU) falls back to a colour swatch in the UI.
  */
 const LOGOS: Record<string, ImageSourcePropType> = {
   USYD: require("../../assets/images/USYD-red.png"),
   UNSW: require("../../assets/images/UNSW-green.png"),
   UTS: require("../../assets/images/UTS-blue.png"),
   MACQ: require("../../assets/images/MQU-yellow.png"),
+  WSU: require("../../assets/images/WSU-crimson.png"),
 };
 
 /** SOW mark for the org-wide sub-group — light on dark UI, dark on light UI. */

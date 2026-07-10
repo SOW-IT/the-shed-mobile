@@ -299,6 +299,31 @@ describe("upsertUniversity", () => {
   });
 });
 
+describe("ensureUniversity", () => {
+  test("is idempotent — seed already includes WSU; a novel name inserts once", async () => {
+    const t = await setup();
+    // Seed's UNIVERSITIES list already includes Western Sydney University.
+    const seeded = await t.mutation(internal.admin.ensureUniversity, {
+      year: YEAR,
+      name: "Western Sydney University",
+    });
+    expect(seeded.created).toBe(false);
+    expect(seeded.name).toBe("Western Sydney University");
+
+    const first = await t.mutation(internal.admin.ensureUniversity, {
+      year: YEAR,
+      name: "Example New Campus",
+    });
+    expect(first.created).toBe(true);
+    const second = await t.mutation(internal.admin.ensureUniversity, {
+      year: YEAR,
+      name: "Example New Campus",
+    });
+    expect(second.created).toBe(false);
+    expect(second.id).toBe(first.id);
+  });
+});
+
 describe("removeUniversity", () => {
   test("removes an unused university and no-ops on a missing one", async () => {
     const t = await setup();
