@@ -299,6 +299,63 @@ describe("upsertUniversity", () => {
   });
 });
 
+describe("ensureUniversity", () => {
+  test("is idempotent — seed already includes WSU; a novel name inserts once", async () => {
+    const t = await setup();
+    // Seed's UNIVERSITIES list already includes Western Sydney University.
+    const seeded = await t.mutation(internal.admin.ensureUniversity, {
+      year: YEAR,
+      name: "Western Sydney University",
+    });
+    expect(seeded.created).toBe(false);
+    expect(seeded.name).toBe("Western Sydney University");
+
+    const first = await t.mutation(internal.admin.ensureUniversity, {
+      year: YEAR,
+      name: "Example New Campus",
+    });
+    expect(first.created).toBe(true);
+    const second = await t.mutation(internal.admin.ensureUniversity, {
+      year: YEAR,
+      name: "Example New Campus",
+    });
+    expect(second.created).toBe(false);
+    expect(second.id).toBe(first.id);
+  });
+});
+
+describe("removeUniversityRow", () => {
+  test("removes a university, strips profile assignments, and no-ops when gone", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await t.mutation(internal.admin.ensureUniversity, {
+      year: YEAR,
+      name: "Temp Ops Campus",
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "sl-ops@sow.org.au",
+      year: YEAR,
+      assignments: [{ role: "Student Leader", university: "Temp Ops Campus" }],
+    });
+    const removed = await t.mutation(internal.admin.removeUniversityRow, {
+      year: YEAR,
+      name: "Temp Ops Campus",
+    });
+    expect(removed.removed).toBe(true);
+    expect(removed.profilesTouched).toBe(1);
+    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
+    const sl = profiles.find((p) => p.email === "sl-ops@sow.org.au");
+    expect(sl?.assignments?.some((a) => a.university === "Temp Ops Campus")).toBe(
+      false
+    );
+    const again = await t.mutation(internal.admin.removeUniversityRow, {
+      year: YEAR,
+      name: "Temp Ops Campus",
+    });
+    expect(again.removed).toBe(false);
+  });
+});
+
 describe("removeUniversity", () => {
   test("removes an unused university and no-ops on a missing one", async () => {
     const t = await setup();

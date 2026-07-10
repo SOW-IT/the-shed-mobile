@@ -72,9 +72,13 @@ describe("importHistory: backfill from the old web app's Firestore", () => {
         .query("universities")
         .withIndex("by_year_and_name", (q) => q.eq("year", 2026))
         .take(50);
-      expect(universities.map((u) => u.name).sort()).toEqual([
-        ...data2026.universities,
-      ]);
+      // Seed already planted the current year's campus list (incl. WSU); import
+      // only inserts missing names, so the union is seed ∪ import data.
+      expect(universities.map((u) => u.name).sort()).toEqual(
+        [
+          ...new Set([...data2026.universities, "Western Sydney University"]),
+        ].sort()
+      );
     });
 
     // The org chart for an imported year shows campus people by university.

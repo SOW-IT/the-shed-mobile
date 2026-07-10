@@ -21,6 +21,7 @@ import {
   staffYearStartMs,
   sydneyCalendarYear,
   stepsForRequest,
+  universityColour,
   withinRolloverAuthGrace,
 } from "./flow";
 
@@ -66,9 +67,16 @@ describe("acronyms", () => {
   test("known names map to their short form; unknown names pass through", () => {
     expect(acronym("Head of Department")).toBe("HOD");
     expect(acronym("University of New South Wales")).toBe("UNSW");
+    expect(acronym("Western Sydney University")).toBe("WSU");
     expect(acronym("Marketing")).toBe("Marketing");
     // The table backs the helper; spot-check it stays in sync.
     expect(DISPLAY_ACRONYMS["University of Sydney"]).toBe("USYD");
+    expect(DISPLAY_ACRONYMS["Western Sydney University"]).toBe("WSU");
+  });
+
+  test("campus brand colours match the shared palette", () => {
+    expect(universityColour("Western Sydney University")).toBe("#A60F2D");
+    expect(universityColour("WSU")).toBe("#A60F2D");
   });
 });
 

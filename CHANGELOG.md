@@ -6,6 +6,23 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.9.0] — 2026-07-10
+
+### Added
+- **Western Sydney University (WSU) campus.** Attendance, Insights, Org chart,
+  Admin, and the public Home → Connect list now include Western Sydney
+  University as a campus group, with crimson branding (`#A60F2D`) and a matching
+  wordmark. Production seeds the **2027** university row (next staff year);
+  ops helpers `admin:ensureUniversity` / `admin:removeUniversityRow` can add or
+  remove a year-scoped campus without an admin session.
+- **Seasons on Home.** Connect explains Seasons — the biblical training course
+  held at WSU — alongside REAP and the campus cards.
+
+### Changed
+- **WSU brand colour** updated from `#990033` to crimson `#A60F2D` everywhere
+  campus colour is used (org chart, attendance chips, member-card outlines,
+  Insights charts).
+
 ## [1.8.12] — 2026-07-10
 
 ### Fixed

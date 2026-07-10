@@ -108,7 +108,7 @@ export const UNIVERSITY_COLOURS: Record<string, string> = {
   UTS: "#3B5499",
   MACQ: "#F2C259",
   ACU: "#57427A",
-  WSU: "#990033",
+  WSU: "#A60F2D",
   SOW: "#000000",
 };
 
