@@ -212,12 +212,12 @@ export const CAMPUSES: Campus[] = [
     short: "Seasons biblical training on campus.",
     about: [
       "SOW at Western Sydney University is growing a gospel community across WSU’s campuses, discipling students in the Reformed tradition and connecting them with the wider SOW network.",
-      "Alongside campus fellowship, WSU is home to Seasons — a biblical training course that walks students through God’s word with teaching, discussion and practical application.",
+      "Alongside campus fellowship, WSU is home to Seasons, a biblical training course that walks students through God’s word with teaching, discussion and practical application.",
     ],
     // Weekly Meeting slot still settling for the new campus; Seasons is the
     // headline gathering for now (see {@link SEASONS}).
     meeting: null,
-    instagram: "studentoutreachtotheworld",
+    instagram: "sowwsu",
     photos: [],
   },
 ];
@@ -264,7 +264,7 @@ export const REAP = {
 };
 
 /**
- * Seasons — a biblical training course hosted at Western Sydney University.
+ * Seasons: a biblical training course hosted at Western Sydney University.
  * Shown on the Home → Connect tab alongside REAP and the campus list.
  */
 export const SEASONS = {
@@ -273,7 +273,7 @@ export const SEASONS = {
   line:
     "A biblical training course held at Western Sydney University. Seasons " +
     "walks students through God’s word with teaching, discussion and " +
-    "practical application — grounding discipleship for the WSU campus and " +
+    "practical application, grounding discipleship for the WSU campus and " +
     "anyone from the wider SOW network who wants to go deeper.",
 };
 
