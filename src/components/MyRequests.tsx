@@ -448,7 +448,10 @@ const ReceiptSheet = ({
         }
         blobs.push(blob);
       }
-      const uploaded: DraftFile[] = [];
+      // Append each file as soon as it lands so a later network failure keeps
+      // earlier successes in the draft (not orphaned in Convex storage). Files
+      // discarded by closing the sheet without submit remain unreclaimed —
+      // same accepted limitation as a single cancelled upload.
       for (const [i, asset] of assets.entries()) {
         const blob = blobs[i]!;
         const uploadUrl = await generateUploadUrl();
@@ -461,15 +464,15 @@ const ReceiptSheet = ({
         });
         if (!response.ok) throw new Error(`Upload of ${asset.name} failed`);
         const { storageId } = await response.json();
-        uploaded.push({ storageId, name: asset.name });
+        const uploaded: DraftFile = { storageId, name: asset.name };
+        setRecipients((previous) =>
+          previous.map((recipient, recipientIndex) =>
+            recipientIndex === index
+              ? { ...recipient, files: [...recipient.files, uploaded] }
+              : recipient
+          )
+        );
       }
-      setRecipients((previous) =>
-        previous.map((recipient, i) =>
-          i === index
-            ? { ...recipient, files: [...recipient.files, ...uploaded] }
-            : recipient
-        )
-      );
     } finally {
       setUploading(false);
     }
