@@ -7,6 +7,24 @@ export type LocalUploadSource = {
   mimeType?: string | null;
 };
 
+const mimeFromUri = (uri: string): string | null => {
+  const path = uri.split("?")[0]?.toLowerCase() ?? "";
+  if (path.endsWith(".png")) return "image/png";
+  if (path.endsWith(".jpg") || path.endsWith(".jpeg")) return "image/jpeg";
+  if (path.endsWith(".webp")) return "image/webp";
+  if (path.endsWith(".heic")) return "image/heic";
+  if (path.endsWith(".pdf")) return "application/pdf";
+  return null;
+};
+
+/** Prefer the picker MIME, then a Blob type / URI extension — never assume JPEG. */
+const resolveContentType = (
+  mimeType: string | null | undefined,
+  uri: string,
+  blobType?: string | null
+): string =>
+  mimeType?.trim() || blobType?.trim() || mimeFromUri(uri) || "application/octet-stream";
+
 /**
  * Byte length of a local file URI.
  *
@@ -35,15 +53,12 @@ export async function uploadLocalFileToUrl(
   uploadUrl: string,
   source: LocalUploadSource
 ): Promise<Id<"_storage">> {
-  const contentType = source.mimeType?.trim() || "application/octet-stream";
-
   if (Platform.OS === "web") {
     const blob = await (await fetch(source.uri)).blob();
+    const contentType = resolveContentType(source.mimeType, source.uri, blob.type);
     const response = await fetch(uploadUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": source.mimeType?.trim() || blob.type || contentType,
-      },
+      headers: { "Content-Type": contentType },
       body: blob,
     });
     if (!response.ok) throw new Error("Upload failed");
@@ -55,6 +70,7 @@ export async function uploadLocalFileToUrl(
   if (!file.exists) {
     throw new Error("That file could not be read. Try picking it again.");
   }
+  const contentType = resolveContentType(source.mimeType, source.uri);
   const result = await file.upload(uploadUrl, {
     httpMethod: "POST",
     mimeType: contentType,
@@ -63,7 +79,12 @@ export async function uploadLocalFileToUrl(
   if (result.status < 200 || result.status >= 300) {
     throw new Error("Upload failed");
   }
-  const { storageId } = JSON.parse(result.body) as { storageId: Id<"_storage"> };
+  let storageId: Id<"_storage"> | undefined;
+  try {
+    storageId = (JSON.parse(result.body) as { storageId?: Id<"_storage"> }).storageId;
+  } catch {
+    throw new Error("Upload failed");
+  }
   if (!storageId) throw new Error("Upload failed");
   return storageId;
 }

@@ -85,7 +85,9 @@ export const ProfileView = ({ email }: { email?: string }) => {
       const uploadUrl = await generateAvatarUploadUrl();
       const storageId = await uploadLocalFileToUrl(uploadUrl, {
         uri: asset.uri,
-        mimeType: asset.mimeType ?? "image/jpeg",
+        // Pass through null — uploadLocalFile infers from URI / Blob type
+        // instead of assuming JPEG (edited PNGs would otherwise be mislabeled).
+        mimeType: asset.mimeType,
       });
       await setAvatar({ storageId });
     } catch (e) {
