@@ -1,8 +1,9 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
+import { Alert, Platform, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import {
   DIRECTOR_APPROVAL_THRESHOLD,
   requestCompleted,
@@ -428,23 +429,19 @@ const ReceiptSheet = ({
       })
     );
 
-  const attachFiles = async (index: number) => {
-    setError(null);
+  type PickedReceipt = { uri: string; name: string; mimeType?: string | null };
+
+  const uploadPickedReceipts = async (index: number, assets: PickedReceipt[]) => {
+    if (assets.length === 0) return;
+    setUploading(true);
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        multiple: true,
-        type: ["image/*", "application/pdf"],
-        copyToCacheDirectory: true,
-      });
-      if (result.canceled) return;
-      setUploading(true);
       const uploaded: DraftFile[] = [];
-      for (const asset of result.assets) {
+      for (const asset of assets) {
         const blob = await (await fetch(asset.uri)).blob();
         if (blob.size > MAX_UPLOAD_BYTES) {
           const maxMb = Math.round(MAX_UPLOAD_BYTES / (1024 * 1024));
           throw new Error(
-            `${asset.name ?? "File"} is too large. Each receipt must be ${maxMb}MB or less.`
+            `${asset.name} is too large. Each receipt must be ${maxMb}MB or less.`
           );
         }
         const uploadUrl = await generateUploadUrl();
@@ -457,7 +454,7 @@ const ReceiptSheet = ({
         });
         if (!response.ok) throw new Error(`Upload of ${asset.name} failed`);
         const { storageId } = await response.json();
-        uploaded.push({ storageId, name: asset.name ?? "receipt" });
+        uploaded.push({ storageId, name: asset.name });
       }
       setRecipients((previous) =>
         previous.map((recipient, i) =>
@@ -466,11 +463,79 @@ const ReceiptSheet = ({
             : recipient
         )
       );
-    } catch (e) {
-      setError(errorMessage(e));
     } finally {
       setUploading(false);
     }
+  };
+
+  const attachFromFiles = async (index: number) => {
+    setError(null);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        multiple: true,
+        type: ["image/*", "application/pdf"],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled) return;
+      await uploadPickedReceipts(
+        index,
+        result.assets.map((asset) => ({
+          uri: asset.uri,
+          name: asset.name || "receipt",
+          mimeType: asset.mimeType,
+        }))
+      );
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
+  const attachFromGallery = async (index: number) => {
+    setError(null);
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        setError("Photo library access is needed to attach receipt photos.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsMultipleSelection: true,
+        quality: 0.9,
+      });
+      if (result.canceled) return;
+      await uploadPickedReceipts(
+        index,
+        result.assets.map((asset, assetIndex) => {
+          const ext =
+            asset.mimeType === "image/png"
+              ? "png"
+              : asset.mimeType === "image/webp"
+                ? "webp"
+                : "jpg";
+          return {
+            uri: asset.uri,
+            name: asset.fileName?.trim() || `receipt-${assetIndex + 1}.${ext}`,
+            mimeType: asset.mimeType,
+          };
+        })
+      );
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
+  /** Native: choose Photo Library or Files. Web: system file picker covers both. */
+  const attachFiles = (index: number) => {
+    if (Platform.OS === "web") {
+      void attachFromFiles(index);
+      return;
+    }
+    Alert.alert("Attach receipt", "Choose from your photo library or files.", [
+      { text: "Photo Library", onPress: () => void attachFromGallery(index) },
+      { text: "Files", onPress: () => void attachFromFiles(index) },
+      { text: "Cancel", style: "cancel" },
+    ]);
   };
 
   const send = async () => {
@@ -618,9 +683,9 @@ const ReceiptSheet = ({
             </Row>
           ))}
           <Btn
-            title={uploading ? "Uploading…" : "Attach receipt files"}
+            title={uploading ? "Uploading…" : "Attach receipts"}
             variant="tonal"
-            onPress={() => void attachFiles(index)}
+            onPress={() => attachFiles(index)}
             disabled={uploading}
           />
           <SaveAccountToggle

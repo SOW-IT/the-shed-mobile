@@ -6,6 +6,14 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.9.2] — 2026-07-11
+
+### Changed
+- **Receipts on iOS/Android can come from Photos or Files.** Tapping Attach
+  receipts now asks whether to pick from the photo library or the system file
+  picker (PDFs and images), so phone photos don’t have to be saved into Files
+  first. Web still uses the browser file chooser.
+
 ## [1.9.1] — 2026-07-10
 
 ### Changed

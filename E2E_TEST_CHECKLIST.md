@@ -137,6 +137,7 @@ The bottom tab bar is role-gated. Admin is **never** a bottom tab — it opens v
 ## 3.6 Receipt submission (requester, after full approval)
 - [ ] Cloud-upload icon opens **Submit Receipt**
 - [ ] Add recipient: Account Name, BSB (digits only), Account Number (digits only), positive amount, ≥1 file
+- [ ] **Native Attach receipts** offers Photo Library or Files; gallery multi-select and PDF/image files both upload; web uses the browser file chooser
 - [ ] **Preferred bank account auto-fills** recipient fields; saved-account chips fill on tap; **×** forgets the account (Bank tab updates on return)
 - [ ] "Save Account for Future Use" toggle hidden/disabled when already saved
 - [ ] Validation: no account name / non-digit BSB-account / no file — each blocked with its message
