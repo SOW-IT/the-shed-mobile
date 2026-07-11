@@ -435,7 +435,9 @@ const ReceiptSheet = ({
     if (assets.length === 0) return;
     setUploading(true);
     try {
-      const uploaded: DraftFile[] = [];
+      // Validate every file before uploading any, so a later oversize pick
+      // doesn't leave earlier uploads orphaned in Convex storage.
+      const blobs: Blob[] = [];
       for (const asset of assets) {
         const blob = await (await fetch(asset.uri)).blob();
         if (blob.size > MAX_UPLOAD_BYTES) {
@@ -444,6 +446,11 @@ const ReceiptSheet = ({
             `${asset.name} is too large. Each receipt must be ${maxMb}MB or less.`
           );
         }
+        blobs.push(blob);
+      }
+      const uploaded: DraftFile[] = [];
+      for (const [i, asset] of assets.entries()) {
+        const blob = blobs[i]!;
         const uploadUrl = await generateUploadUrl();
         const response = await fetch(uploadUrl, {
           method: "POST",
