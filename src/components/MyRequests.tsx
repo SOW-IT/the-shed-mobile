@@ -15,6 +15,10 @@ import { Doc, Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { RequestCard } from "@/components/RequestCard";
 import {
+  getLocalFileSizeBytes,
+  uploadLocalFileToUrl,
+} from "@/lib/uploadLocalFile";
+import {
   Btn,
   ConfirmDialog,
   currencyText,
@@ -437,33 +441,30 @@ const ReceiptSheet = ({
     try {
       // Validate every file before uploading any, so a later oversize pick
       // doesn't leave earlier uploads orphaned in Convex storage.
-      const blobs: Blob[] = [];
       for (const asset of assets) {
-        const blob = await (await fetch(asset.uri)).blob();
-        if (blob.size > MAX_UPLOAD_BYTES) {
+        const size = await getLocalFileSizeBytes(asset.uri);
+        if (size > MAX_UPLOAD_BYTES) {
           const maxMb = Math.round(MAX_UPLOAD_BYTES / (1024 * 1024));
           throw new Error(
             `${asset.name} is too large. Each receipt must be ${maxMb}MB or less.`
           );
         }
-        blobs.push(blob);
       }
       // Append each file as soon as it lands so a later network failure keeps
       // earlier successes in the draft (not orphaned in Convex storage). Files
       // discarded by closing the sheet without submit remain unreclaimed —
       // same accepted limitation as a single cancelled upload.
-      for (const [i, asset] of assets.entries()) {
-        const blob = blobs[i]!;
+      for (const asset of assets) {
         const uploadUrl = await generateUploadUrl();
-        const response = await fetch(uploadUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": asset.mimeType ?? blob.type ?? "application/octet-stream",
-          },
-          body: blob,
-        });
-        if (!response.ok) throw new Error(`Upload of ${asset.name} failed`);
-        const { storageId } = await response.json();
+        let storageId: Id<"_storage">;
+        try {
+          storageId = await uploadLocalFileToUrl(uploadUrl, asset);
+        } catch (e) {
+          if (e instanceof Error && e.message === "Upload failed") {
+            throw new Error(`Upload of ${asset.name} failed`);
+          }
+          throw e;
+        }
         const uploaded: DraftFile = { storageId, name: asset.name };
         setRecipients((previous) =>
           previous.map((recipient, recipientIndex) =>

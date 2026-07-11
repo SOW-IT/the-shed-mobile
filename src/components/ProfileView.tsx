@@ -10,6 +10,10 @@ import { acronym, formatAssignment, staffYearForDate } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { radius, spacing, typography, useAppTheme } from "../theme";
 import {
+  getLocalFileSizeBytes,
+  uploadLocalFileToUrl,
+} from "@/lib/uploadLocalFile";
+import {
   Avatar,
   Btn,
   Card,
@@ -73,19 +77,18 @@ export const ProfileView = ({ email }: { email?: string }) => {
       if (result.canceled) return;
       setUploading(true);
       const asset = result.assets[0];
-      const blob = await (await fetch(asset.uri)).blob();
-      if (blob.size > MAX_UPLOAD_BYTES) {
+      const size = await getLocalFileSizeBytes(asset.uri);
+      if (size > MAX_UPLOAD_BYTES) {
         const maxMb = Math.round(MAX_UPLOAD_BYTES / (1024 * 1024));
         throw new Error(`Image is too large. Please choose one ${maxMb}MB or less.`);
       }
       const uploadUrl = await generateAvatarUploadUrl();
-      const response = await fetch(uploadUrl, {
-        method: "POST",
-        headers: { "Content-Type": asset.mimeType ?? blob.type ?? "image/jpeg" },
-        body: blob,
+      const storageId = await uploadLocalFileToUrl(uploadUrl, {
+        uri: asset.uri,
+        // Pass through null — uploadLocalFile infers from URI / Blob type
+        // instead of assuming JPEG (edited PNGs would otherwise be mislabeled).
+        mimeType: asset.mimeType,
       });
-      if (!response.ok) throw new Error("Upload failed");
-      const { storageId } = await response.json();
       await setAvatar({ storageId });
     } catch (e) {
       setError(errorMessage(e));
