@@ -6,6 +6,13 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.9.3] — 2026-07-11
+
+### Fixed
+- **Native receipt (and avatar) uploads no longer fail with a Blob error.**
+  iOS/Android now upload via expo-file-system instead of React Native's
+  unsupported `fetch(uri).blob()` path ("Creating blobs from ArrayBuffer…").
+
 ## [1.9.2] — 2026-07-11
 
 ### Changed
