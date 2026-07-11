@@ -459,8 +459,11 @@ const ReceiptSheet = ({
         let storageId: Id<"_storage">;
         try {
           storageId = await uploadLocalFileToUrl(uploadUrl, asset);
-        } catch {
-          throw new Error(`Upload of ${asset.name} failed`);
+        } catch (e) {
+          if (e instanceof Error && e.message === "Upload failed") {
+            throw new Error(`Upload of ${asset.name} failed`);
+          }
+          throw e;
         }
         const uploaded: DraftFile = { storageId, name: asset.name };
         setRecipients((previous) =>
