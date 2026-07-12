@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.9.4] — 2026-07-13
+
+### Fixed
+- **Opening the app from a push notification no longer stacks loading screens forever.**
+  A sticky last-notification response was replayed on every remount while the
+  app was still loading your role, so tapping a push could loop the spinner
+  until you force-quit. The tap is now followed once, cleared, and only after
+  navigation is ready.
+
 ## [1.9.3] — 2026-07-11
 
 ### Fixed

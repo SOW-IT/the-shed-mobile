@@ -209,7 +209,14 @@ export default function TabsLayout() {
   const me = useQuery(api.directory.me);
   const t = useAppTheme();
   const insets = useSafeAreaInsets();
-  usePushRegistration();
+  // `initialRouteName` is read once when Tabs mounts, so wait for `me` to
+  // resolve before mounting — otherwise a signed-in campus leader can briefly
+  // land on Requests (or a hidden tab) before their role loads.
+  const waitingForRole = isAuthenticated && me === undefined;
+  // Don't follow a push deep link while this layout is still showing
+  // LoadingState instead of <Tabs> — that remount used to replay the sticky
+  // last-notification response and stack SowSpinner forever.
+  usePushRegistration({ navigationReady: !waitingForRole });
 
   const isCampusLeader = me?.isCampusLeader ?? false;
   // The staff tools need a provisioned staff profile, not just a Google
@@ -253,10 +260,7 @@ export default function TabsLayout() {
 
   const tabTotal = mineActionCount + mineUnread + reviewActionCount + reviewUnread;
 
-  // `initialRouteName` is read once when Tabs mounts, so wait for `me` to
-  // resolve before mounting — otherwise a signed-in campus leader can briefly
-  // land on Requests (or a hidden tab) before their role loads.
-  if (isAuthenticated && me === undefined) {
+  if (waitingForRole) {
     return <LoadingState />;
   }
 

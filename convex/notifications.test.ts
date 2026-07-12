@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { isAllowedDeepLink } from "../shared/deepLinks";
+import { consumeNotificationDeepLink, isAllowedDeepLink } from "../shared/deepLinks";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { requestUrl } from "./requests";
@@ -318,5 +318,40 @@ describe("notification deep-links are followable by the push-tap handler", () =>
     expect(isAllowedDeepLink("/reviewevil")).toBe(false);
     expect(isAllowedDeepLink("https://evil.example.com")).toBe(false);
     expect(isAllowedDeepLink("/admin")).toBe(false);
+  });
+});
+
+describe("consumeNotificationDeepLink (push-tap once)", () => {
+  // Regression: remounting the push handler used to re-read the sticky last
+  // notification response and router.push the same URL forever (SowSpinner loop).
+  const response = (id: string, url: unknown) => ({
+    notification: {
+      request: {
+        identifier: id,
+        content: { data: { url } },
+      },
+    },
+  });
+
+  test("returns an allow-listed url once per notification id", () => {
+    const handled = new Set<string>();
+    expect(consumeNotificationDeepLink(response("n1", "/?tab=review"), handled)).toBe(
+      "/?tab=review"
+    );
+    expect(consumeNotificationDeepLink(response("n1", "/?tab=review"), handled)).toBe(null);
+    expect(consumeNotificationDeepLink(response("n2", "/?tab=mine"), handled)).toBe(
+      "/?tab=mine"
+    );
+  });
+
+  test("marks the id handled even when the url is missing or disallowed", () => {
+    const handled = new Set<string>();
+    expect(consumeNotificationDeepLink(response("bad", "/admin"), handled)).toBe(null);
+    expect(handled.has("bad")).toBe(true);
+    expect(consumeNotificationDeepLink(response("bad", "/?tab=review"), handled)).toBe(null);
+  });
+
+  test("ignores null responses", () => {
+    expect(consumeNotificationDeepLink(null, new Set())).toBe(null);
   });
 });
