@@ -42,6 +42,7 @@ import {
   optionalProfile,
   requireProfile,
   rolesOf,
+  withDelegatesForYear,
   type Approvers,
   type CallerContext,
 } from "./model";
@@ -236,15 +237,15 @@ export const involvedApproverEmails = (
 };
 
 /**
- * Who to notify for a request's pending step: the approver of the request's
- * own year, falling back to the current year's officeholder when that person
- * is gone (carried-over requests). Exported for tests.
+ * Resolve the pending officeholder and the staff year their cover rows apply
+ * to (request year when that year's person is set, else the current-year
+ * fallback). Exported for reminders / tests.
  */
-export const nextApproverEmail = (
+export const nextApproverWithYear = (
   request: Doc<"requests">,
   approvers: Approvers,
   fallback?: Approvers
-): string | undefined => {
+): { email: string; year: number } | undefined => {
   const step = currentStep(request);
   if (step === null) return undefined;
   const selectors: Record<Step, (a: Approvers) => string | undefined> = {
@@ -253,8 +254,23 @@ export const nextApproverEmail = (
     director: (a) => a.directorEmail,
     financeHead: (a) => a.financeHeadEmail,
   };
-  return selectors[step](approvers) ?? (fallback ? selectors[step](fallback) : undefined);
+  const primary = selectors[step](approvers);
+  if (primary) return { email: primary, year: requestYear(request) };
+  const secondary = fallback ? selectors[step](fallback) : undefined;
+  if (secondary) return { email: secondary, year: currentStaffYear() };
+  return undefined;
 };
+
+/**
+ * Who to notify for a request's pending step: the approver of the request's
+ * own year, falling back to the current year's officeholder when that person
+ * is gone (carried-over requests). Exported for tests.
+ */
+export const nextApproverEmail = (
+  request: Doc<"requests">,
+  approvers: Approvers,
+  fallback?: Approvers
+): string | undefined => nextApproverWithYear(request, approvers, fallback)?.email;
 
 /**
  * The single person a request currently needs action from: the pending
@@ -290,8 +306,9 @@ export async function actionOwnerEmail(
 }
 
 /**
- * Emails whoever the request now waits on; when fully approved, tells the
- * requester to submit their receipt and the approver chain that it cleared.
+ * Emails whoever the request now waits on (officeholder + their year-scoped
+ * delegates); when fully approved, tells the requester to submit their receipt
+ * and the approver chain that it cleared.
  */
 const notifyNextActor = async (
   ctx: MutationCtx,
@@ -302,16 +319,21 @@ const notifyNextActor = async (
 ) => {
   const step = currentStep(request);
   if (step !== null) {
-    const approverEmail = nextApproverEmail(request, approvers, fallback);
-    await notify(ctx, {
-      to: approverEmail,
-      actor,
-      subject: `A reimbursement request of $${request.amount} needs your ${STEP_LABELS[step]} approval`,
-      pushTitle: "Approval needed",
-      body: `The request below is waiting on your approval in THE SHED.\n\n${requestSummary(request)}`,
-      url: approverEmail ? requestUrl(approverEmail, request) : undefined,
-      requestId: request._id,
-    });
+    const next = nextApproverWithYear(request, approvers, fallback);
+    const recipients = next
+      ? await withDelegatesForYear(ctx, next.year, next.email)
+      : [];
+    for (const to of recipients) {
+      await notify(ctx, {
+        to,
+        actor,
+        subject: `A reimbursement request of $${request.amount} needs your ${STEP_LABELS[step]} approval`,
+        pushTitle: "Approval needed",
+        body: `The request below is waiting on your approval in THE SHED.\n\n${requestSummary(request)}`,
+        url: requestUrl(to, request),
+        requestId: request._id,
+      });
+    }
   } else if (requestFullyApproved(request)) {
     await notify(ctx, {
       to: request.requesterEmail,
@@ -1655,21 +1677,27 @@ export const submitReceipt = mutation({
         ? approvers
         : await getApprovers(ctx, currentYear, FINANCE);
     const requesterName = await displayName(ctx, request.requesterEmail, reqYear);
-    const financeHeads = new Set(
-      [approvers.financeHeadEmail, currentApprovers.financeHeadEmail].filter(
-        (e): e is string => e !== undefined
-      )
-    );
-    for (const financeHead of financeHeads) {
-      await notify(ctx, {
-        to: financeHead,
-        actor: email,
-        subject: `A receipt for $${totalAmount} is ready to pay`,
-        pushTitle: "Receipt ready to pay",
-        body: `${requesterName} submitted their receipt (total $${totalAmount}). Please pay the reimbursement in THE SHED.\n\n${requestSummary(request)}`,
-        url: requestUrl(financeHead, request),
-        requestId: request._id,
-      });
+    // Officeholder(s) of the request year and current year, plus anyone covering
+    // them that year — so a Finance-Head delegate also gets the ready-to-pay push.
+    const seen = new Set<string>();
+    const headsByYear: Array<[number, string | undefined]> = [
+      [reqYear, approvers.financeHeadEmail],
+      [currentYear, currentApprovers.financeHeadEmail],
+    ];
+    for (const [year, head] of headsByYear) {
+      for (const to of await withDelegatesForYear(ctx, year, head)) {
+        if (seen.has(to)) continue;
+        seen.add(to);
+        await notify(ctx, {
+          to,
+          actor: email,
+          subject: `A receipt for $${totalAmount} is ready to pay`,
+          pushTitle: "Receipt ready to pay",
+          body: `${requesterName} submitted their receipt (total $${totalAmount}). Please pay the reimbursement in THE SHED.\n\n${requestSummary(request)}`,
+          url: requestUrl(to, request),
+          requestId: request._id,
+        });
+      }
     }
     return null;
   },

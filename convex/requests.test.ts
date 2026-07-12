@@ -3,7 +3,7 @@ import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
-import { involvedApproverEmails, nextApproverEmail } from "./requests";
+import { involvedApproverEmails, nextApproverEmail, nextApproverWithYear } from "./requests";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -332,6 +332,41 @@ describe("approver delegation (out-of-office cover)", () => {
     await asUser(t, RACHEL).mutation(api.requests.approve, { requestId: req._id, step: "director" });
     const [updated] = (await asUser(t, HENRY).query(api.requests.myRequests, {}))!;
     expect(updated.approvedByDirector).toBe("APPROVED");
+  });
+
+  test("a delegate also gets the approval-needed push / in-app notification", async () => {
+    const t = await setup();
+    // Rachel covers Henry (Marketing HOD) for this staff year.
+    await asUser(t, ADMIN).mutation(api.admin.addDelegation, {
+      year: YEAR,
+      fromEmail: HENRY,
+      toEmail: RACHEL,
+    });
+    // Bella (Finance) can't submit a Marketing HOD-pending request. Provision
+    // Justin as Marketing staff so submit lands on Henry (and Rachel as cover).
+    const JUSTIN = "justin@sow.org.au";
+    await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+      year: YEAR,
+      email: JUSTIN,
+      roles: ["Staff"],
+      department: "Marketing",
+    });
+
+    expect(await asUser(t, RACHEL).query(api.notifications.unreadCount, {})).toBe(0);
+    expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(0);
+
+    await asUser(t, JUSTIN).mutation(api.requests.submit, {
+      description: "needs hod",
+      amount: 50,
+    });
+
+    // Both the real HOD and the delegate get the "Approval needed" ping.
+    expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(1);
+    expect(await asUser(t, RACHEL).query(api.notifications.unreadCount, {})).toBe(1);
+    const henryFeed = await asUser(t, HENRY).query(api.notifications.list, {});
+    const rachelFeed = await asUser(t, RACHEL).query(api.notifications.list, {});
+    expect(henryFeed![0].title).toMatch(/approval/i);
+    expect(rachelFeed![0].title).toMatch(/approval/i);
   });
 });
 
@@ -1241,15 +1276,35 @@ describe("audit trail and reminders", () => {
       approvedByBudgetManager: "PENDING",
       approvedByDirector: undefined,
       approvedByFinanceHead: "PENDING",
+      _creationTime: staffYearStartMs(YEAR - 1),
     } as never as Parameters<typeof nextApproverEmail>[0];
     // Last year's Budget Manager is gone (no assignment recorded).
     const lastYear = { hodEmail: HENRY, budgetManagerEmail: undefined, financeHeadEmail: undefined };
     const thisYear = { hodEmail: HENRY, budgetManagerEmail: BELLA, financeHeadEmail: FIONA };
     expect(nextApproverEmail(carriedOver, lastYear, thisYear)).toBe(BELLA);
+    expect(nextApproverWithYear(carriedOver, lastYear, thisYear)).toEqual({
+      email: BELLA,
+      year: YEAR,
+    });
     // The request-year officeholder wins when they still exist.
     expect(
       nextApproverEmail(carriedOver, { ...lastYear, budgetManagerEmail: "olga@sow.org.au" }, thisYear)
     ).toBe("olga@sow.org.au");
+    expect(
+      nextApproverWithYear(
+        carriedOver,
+        { ...lastYear, budgetManagerEmail: "olga@sow.org.au" },
+        thisYear
+      )
+    ).toEqual({ email: "olga@sow.org.au", year: YEAR - 1 });
+    // Pending step but no officeholder in either year → nowhere to notify.
+    expect(
+      nextApproverWithYear(carriedOver, lastYear, {
+        hodEmail: HENRY,
+        budgetManagerEmail: undefined,
+        financeHeadEmail: FIONA,
+      })
+    ).toBeUndefined();
     // No step pending -> nobody to notify.
     expect(
       nextApproverEmail(

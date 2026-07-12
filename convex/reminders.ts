@@ -8,7 +8,12 @@ import {
 } from "../shared/flow";
 import { Doc } from "./_generated/dataModel";
 import { internalMutation, MutationCtx } from "./_generated/server";
-import { currentStaffYear, getApprovers, type Approvers } from "./model";
+import {
+  currentStaffYear,
+  getApprovers,
+  withDelegatesForYear,
+  type Approvers,
+} from "./model";
 import { notify, openRequestsAcrossYears } from "./requests";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -100,16 +105,20 @@ export const remindStale = internalMutation({
       // Approvers of the request's own year, falling back to this year's
       // officeholders (carry-overs may outlive a departed approver).
       const reqYear = eventStaffYear(request._creationTime);
-      const requestYear = await getApprovers(ctx, reqYear, request.department);
-      const thisYear =
+      const requestYearApprovers = await getApprovers(ctx, reqYear, request.department);
+      const thisYearApprovers =
         reqYear === year
-          ? requestYear
+          ? requestYearApprovers
           : await getApprovers(ctx, year, request.department);
       const pick = (selector: (a: Approvers) => string | undefined) =>
-        selector(requestYear) ?? selector(thisYear);
+        selector(requestYearApprovers) !== undefined
+          ? { email: selector(requestYearApprovers)!, year: reqYear }
+          : selector(thisYearApprovers) !== undefined
+            ? { email: selector(thisYearApprovers)!, year }
+            : undefined;
 
       const step = currentStep(request);
-      let to: string | undefined;
+      let recipients: string[] = [];
       let waitingOn = "";
       let url = "/?tab=review";
       if (step !== null) {
@@ -119,23 +128,36 @@ export const remindStale = internalMutation({
           director: (a) => a.directorEmail,
           financeHead: (a) => a.financeHeadEmail,
         };
-        to = pick(selectors[step]);
+        const next = pick(selectors[step]);
+        recipients = next
+          ? await withDelegatesForYear(ctx, next.year, next.email)
+          : [];
         waitingOn = `your ${STEP_LABELS[step]} approval`;
       } else if (!request.receipt) {
-        to = request.requesterEmail;
+        recipients = [request.requesterEmail];
         waitingOn = "your receipt";
         url = "/?tab=mine";
       } else if (request.paid === false) {
         const finance = await getApprovers(ctx, reqYear, FINANCE);
         const financeNow =
           reqYear === year ? finance : await getApprovers(ctx, year, FINANCE);
-        to = finance.financeHeadEmail ?? financeNow.financeHeadEmail;
+        const head =
+          finance.financeHeadEmail !== undefined
+            ? { email: finance.financeHeadEmail, year: reqYear }
+            : financeNow.financeHeadEmail !== undefined
+              ? { email: financeNow.financeHeadEmail, year }
+              : undefined;
+        recipients = head
+          ? await withDelegatesForYear(ctx, head.year, head.email)
+          : [];
         waitingOn = "payment";
       }
-      if (!to) continue;
+      if (recipients.length === 0) continue;
 
       const days = Math.floor((now - lastMovement) / DAY_MS);
-      await remind(ctx, to, request, waitingOn, days, url);
+      for (const to of recipients) {
+        await remind(ctx, to, request, waitingOn, days, url);
+      }
       await ctx.db.patch("requests", request._id, {
         lastReminderAt: now,
         reminderCount: count + 1,

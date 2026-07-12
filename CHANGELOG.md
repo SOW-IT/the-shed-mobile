@@ -14,6 +14,11 @@ All notable changes to **The SHED** mobile app. This project follows
   app was still loading your role, so tapping a push could loop the spinner
   until you force-quit. The tap is now followed once, cleared, and only after
   navigation is ready.
+- **Approver delegates now get the same push (and in-app / email) as the person
+  they’re covering.** “Approval needed”, stale reminders, receipt-ready-to-pay,
+  and comment pings to the action owner fan out to year-scoped delegates too —
+  so covering Missions (or any other office) for a staff year includes the
+  notification, not just Review-tab access.
 
 ## [1.9.3] — 2026-07-11
 

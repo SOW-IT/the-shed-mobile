@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
-import { getApprovers, getProfile, optionalProfile, requireProfile } from "./model";
+import { getApprovers, getProfile, optionalProfile, requireProfile, currentStaffYear, withDelegatesForYear } from "./model";
 import { actionOwnerEmail, involvedApproverEmails, notify, requestUrl } from "./requests";
 import { ALLOWED_REACTIONS, APPROVED, eventStaffYear, staffYearStartMs } from "../shared/flow";
 
@@ -42,14 +42,24 @@ export const add = mutation({
     });
 
     // Notify the people with a stake in the thread, deduped, never the author:
-    //  - whoever the request currently waits on (or the requester as fallback)
+    //  - whoever the request currently waits on (or the requester as fallback),
+    //    including year-scoped delegates covering that officeholder
     //  - everyone who has already approved it (so earlier approvers stay in the
     //    loop on follow-up discussion).
     const recipients = new Set<string>();
     const owner = await actionOwnerEmail(ctx, request);
-    if (owner && owner !== email) recipients.add(owner);
-    else if (request.requesterEmail !== email) recipients.add(request.requesterEmail);
     const reqYear = eventStaffYear(request._creationTime);
+    if (owner && owner !== email) {
+      // Cover rows are year-scoped; include request year and current year so
+      // carry-over requests still ping a stand-in who covers the live officeholder.
+      for (const year of new Set([reqYear, currentStaffYear()])) {
+        for (const to of await withDelegatesForYear(ctx, year, owner)) {
+          if (to !== email) recipients.add(to);
+        }
+      }
+    } else if (request.requesterEmail !== email) {
+      recipients.add(request.requesterEmail);
+    }
     const approvers = await getApprovers(ctx, reqYear, request.department);
     for (const approver of involvedApproverEmails(request, approvers, [APPROVED])) {
       if (approver !== email) recipients.add(approver);

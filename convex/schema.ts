@@ -160,6 +160,8 @@ export default defineSchema({
     .index("by_year", ["year"])
     // Hot path: everyone who delegated TO a given person this year.
     .index("by_year_and_to", ["year", "toEmail"])
+    // Fan-out: everyone covering a given officeholder (push / email / reminders).
+    .index("by_year_and_from", ["year", "fromEmail"])
     // Exact lookup for dedupe-on-add.
     .index("by_year_and_from_and_to", ["year", "fromEmail", "toEmail"]),
 
