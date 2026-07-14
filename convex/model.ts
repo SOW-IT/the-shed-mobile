@@ -335,7 +335,9 @@ export async function delegatorsForYear(
 }
 
 /**
- * Emails covering `fromEmail` for `year` (their delegates / stand-ins).
+ * Emails covering `fromEmail` for `year` (their delegates / stand-ins). Used
+ * to fan out approval / reminder / receipt-ready notifications so stand-ins
+ * get the same push as the officeholder.
  */
 export async function delegatesForYear(
   ctx: Ctx,
@@ -349,6 +351,18 @@ export async function delegatesForYear(
     )
     .take(DELEGATION_QUERY_LIMIT);
   return rows.map((r) => r.toEmail);
+}
+
+/**
+ * `email` plus everyone covering them for `year`. Empty when `email` is missing.
+ */
+export async function withDelegatesForYear(
+  ctx: Ctx,
+  year: number,
+  email: string | undefined
+): Promise<string[]> {
+  if (!email) return [];
+  return [...new Set([email, ...(await delegatesForYear(ctx, year, email))])];
 }
 
 /**

@@ -6,6 +6,20 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.9.6] — 2026-07-14
+
+### Fixed
+- **Opening the app from a push notification no longer stacks loading screens forever.**
+  A sticky last-notification response was replayed on every remount while the
+  app was still loading your role, so tapping a push could loop the spinner
+  until you force-quit. The tap is now followed once, cleared, and only after
+  navigation is ready.
+- **Approver delegates now get the same push (and in-app / email) as the person
+  they’re covering.** “Approval needed”, stale reminders, receipt-ready-to-pay,
+  and comment pings to the action owner fan out to year-scoped delegates too —
+  so covering Missions (or any other office) for a staff year includes the
+  notification, not just Review-tab access.
+
 ## [1.9.5] — 2026-07-14
 
 ### Fixed
@@ -20,7 +34,6 @@ All notable changes to **The SHED** mobile app. This project follows
   When someone is covering (e.g. HOD*), the status strip shows the stand-in’s
   name with a * on the role. Tapping the step explains they are covering for
   the usual person and can approve in their place.
-
 
 ## [1.9.3] — 2026-07-11
 
