@@ -1573,10 +1573,6 @@ async function resolveStepDisplay(
     ? await resolveApproverName(ctx, officeholderEmail, reqYear)
     : null;
 
-  const delegateEmails = officeholderEmail
-    ? await delegatesForOfficeholderYears(ctx, reqYear, officeholderEmail)
-    : [];
-
   // Completed by a non-officeholder (typically a stand-in): show them.
   if (
     !pending &&
@@ -1596,23 +1592,31 @@ async function resolveStepDisplay(
   }
 
   // Pending with active cover: stand-in replaces the officeholder on the card.
-  if (pending && officeholderEmail && delegateEmails.length > 0) {
-    const primary = delegateEmails[0]!;
-    const name = await resolveApproverName(ctx, primary, reqYear);
-    const otherDelegateNames: string[] = [];
-    for (const d of delegateEmails.slice(1)) {
-      otherDelegateNames.push(
-        (await resolveApproverName(ctx, d, reqYear)) ?? d
-      );
+  // Only fetch delegates when this path can apply (skip completed / no-cover).
+  if (pending && officeholderEmail) {
+    const delegateEmails = await delegatesForOfficeholderYears(
+      ctx,
+      reqYear,
+      officeholderEmail
+    );
+    if (delegateEmails.length > 0) {
+      const primary = delegateEmails[0]!;
+      const name = await resolveApproverName(ctx, primary, reqYear);
+      const otherDelegateNames: string[] = [];
+      for (const d of delegateEmails.slice(1)) {
+        otherDelegateNames.push(
+          (await resolveApproverName(ctx, d, reqYear)) ?? d
+        );
+      }
+      return {
+        name,
+        email: primary,
+        isDelegated: true,
+        officeholderEmail,
+        officeholderName,
+        otherDelegateNames,
+      };
     }
-    return {
-      name,
-      email: primary,
-      isDelegated: true,
-      officeholderEmail,
-      officeholderName,
-      otherDelegateNames,
-    };
   }
 
   return {
