@@ -6,6 +6,13 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.9.5] — 2026-07-14
+
+### Fixed
+- **Android push notifications for the Play internal-testing build.** Production
+  builds now include Firebase `google-services.json` (via EAS env), and the
+  existing `theshedsow` service account is used for FCM V1 delivery.
+
 ## [1.9.4] — 2026-07-14
 
 ### Fixed
@@ -13,6 +20,7 @@ All notable changes to **The SHED** mobile app. This project follows
   When someone is covering (e.g. HOD*), the status strip shows the stand-in’s
   name with a * on the role. Tapping the step explains they are covering for
   the usual person and can approve in their place.
+
 
 ## [1.9.3] — 2026-07-11
 
