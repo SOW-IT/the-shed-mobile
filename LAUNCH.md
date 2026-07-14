@@ -118,13 +118,18 @@ npx eas credentials   # iOS: distribution cert + provisioning profile + APNs
 
 ## 5. Android — internal testing track
 
-1. Push notifications first (one-time): in the [Firebase console](https://console.firebase.google.com)
-   open the existing `sowwebsite-50dec` project → Add app → **Android**,
-   package `au.org.sow.theshed` → download `google-services.json` into the
-   repo root, then add to app.json: `"android": { "googleServicesFile": "./google-services.json", ... }`.
-   Then Firebase → Project settings → Service accounts → generate a key, and
-   upload it via `eas credentials` → Android → *Google Service Account Key
-   for FCM V1*.
+1. Push notifications (FCM) — Firebase project **`theshedsow`** (production /
+   preview only; staging package is separate and does **not** use this file):
+   - [x] EAS already has the Google service account
+     `expo-dev@theshedsow.iam.gserviceaccount.com` assigned as **FCM V1** for
+     `au.org.sow.theshed` (and staging app id).
+   - [x] Android app `au.org.sow.theshed` registered; `GOOGLE_SERVICES_JSON`
+     uploaded as an EAS file env for production/preview.
+   - [ ] Confirm IAM: that service account has **Firebase Cloud Messaging API
+     Admin** on project `theshedsow` (Google Cloud → IAM).
+   - Production/preview `app.config.js` picks up `GOOGLE_SERVICES_JSON` (or a
+     local `./google-services.json`). Staging builds omit `googleServicesFile`
+     until a Firebase Android app for `au.org.sow.theshed.staging` exists.
 2. Build: `npx eas build --platform android --profile production` (produces
    an `.aab`).
 3. [Play Console](https://play.google.com/console) → **Create app** ("THE

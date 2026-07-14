@@ -8,12 +8,48 @@
 // The variant is selected with the APP_VARIANT env var, set per build profile in
 // eas.json (APP_VARIANT=staging for the staging profile; unset otherwise, which
 // resolves to production).
+//
+// Android push (FCM): production/preview only. Prefer EAS file env
+// `GOOGLE_SERVICES_JSON`, with a local `./google-services.json` fallback.
+// Staging omits googleServicesFile (different applicationId).
+
+const fs = require("fs");
+const path = require("path");
 
 const IS_STAGING = process.env.APP_VARIANT === "staging";
 
+const resolveGoogleServicesFile = () => {
+  // Prefer the EAS file env (secret). On EAS Build machines this is set to the
+  // downloaded file path. Avoid falling back to a local gitignored file during
+  // `eas build` config evaluation — that path is not uploaded in the archive.
+  if (process.env.GOOGLE_SERVICES_JSON) {
+    return process.env.GOOGLE_SERVICES_JSON;
+  }
+  if (process.env.EAS_BUILD === "true") {
+    return undefined;
+  }
+  const local = path.resolve(__dirname, "google-services.json");
+  return fs.existsSync(local) ? "./google-services.json" : undefined;
+};
+
 module.exports = ({ config }) => {
+  // google-services.json is for production package `au.org.sow.theshed` only.
+  // Staging uses `au.org.sow.theshed.staging` and must not reuse that file
+  // (Firebase "No matching client found"). Add a separate staging Firebase
+  // Android app + env if/when staging Android push is needed.
+  const googleServicesFile = IS_STAGING
+    ? undefined
+    : resolveGoogleServicesFile();
+  const withAndroidPush = {
+    ...config,
+    android: {
+      ...config.android,
+      ...(googleServicesFile ? { googleServicesFile } : {}),
+    },
+  };
+
   if (!IS_STAGING) {
-    return config;
+    return withAndroidPush;
   }
 
   return {

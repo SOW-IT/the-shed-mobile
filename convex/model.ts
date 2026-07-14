@@ -335,9 +335,9 @@ export async function delegatorsForYear(
 }
 
 /**
- * Emails covering `fromEmail` for `year` (their delegates). Used to fan out
- * approval / reminder / receipt-ready notifications so stand-ins get the same
- * push as the officeholder.
+ * Emails covering `fromEmail` for `year` (their delegates / stand-ins). Used
+ * to fan out approval / reminder / receipt-ready notifications so stand-ins
+ * get the same push as the officeholder.
  */
 export async function delegatesForYear(
   ctx: Ctx,
