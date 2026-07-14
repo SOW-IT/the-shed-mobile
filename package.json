@@ -1,7 +1,7 @@
 {
   "name": "theshed",
   "main": "expo-router/entry",
-  "version": "1.9.3",
+  "version": "1.9.4",
   "dependencies": {
     "@auth/core": "^0.41.2",
     "@convex-dev/auth": "^0.0.94",

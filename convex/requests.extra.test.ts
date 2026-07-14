@@ -406,7 +406,26 @@ describe("stepInfo", () => {
     }))!;
     expect(hod.email).toBe(HENRY);
     expect(hod.name).toBe("Henry H");
+    expect(hod.isDelegated).toBe(false);
+    expect(hod.officeholderEmail).toBe(HENRY);
     expect(hod.events.map((e) => e.action)).toContain("approved");
+
+    // A second event on the same step exercises newest-first sorting in stepInfo.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("requestEvents", {
+        requestId: id,
+        action: "comment",
+        step: "hod",
+        actorEmail: HENRY,
+        detail: "note",
+      });
+    });
+    const hodAgain = (await asUser(t, RACHEL).query(api.requests.stepInfo, {
+      requestId: id,
+      step: "hod",
+    }))!;
+    expect(hodAgain.events.length).toBeGreaterThanOrEqual(2);
+    expect(hodAgain.events[0]!.at).toBeGreaterThanOrEqual(hodAgain.events[1]!.at);
 
     // The Director step carries the org's Director, but a small request never
     // routed to them, so no director events were recorded.
@@ -428,6 +447,96 @@ describe("stepInfo", () => {
     expect(
       await asUser(t, RACHEL).query(api.requests.stepInfo, { requestId: id, step: "hod" })
     ).toBeNull();
+  });
+
+  test("pending HOD step shows the stand-in when cover is active", async () => {
+    const t = await setup();
+    await t.run((ctx) => ctx.db.insert("directoryUsers", { email: RACHEL, name: "Rachel R" }));
+    await t.run((ctx) => ctx.db.insert("directoryUsers", { email: HENRY, name: "Henry H" }));
+    await asUser(t, ADMIN).mutation(api.admin.addDelegation, {
+      year: YEAR,
+      fromEmail: HENRY,
+      toEmail: RACHEL,
+    });
+    // Justin submits so HOD stays pending (Rachel covering Henry).
+    const JUSTIN = "justin@sow.org.au";
+    await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+      year: YEAR,
+      email: JUSTIN,
+      roles: ["Staff"],
+      department: "Marketing",
+    });
+    await asUser(t, JUSTIN).mutation(api.requests.submit, {
+      description: "covered",
+      amount: 40,
+    });
+    const [req] = (await asUser(t, JUSTIN).query(api.requests.myRequests, {}))!;
+
+    const hod = (await asUser(t, JUSTIN).query(api.requests.stepInfo, {
+      requestId: req._id,
+      step: "hod",
+    }))!;
+    expect(hod.isDelegated).toBe(true);
+    expect(hod.email).toBe(RACHEL);
+    expect(hod.name).toBe("Rachel R");
+    expect(hod.officeholderEmail).toBe(HENRY);
+    expect(hod.officeholderName).toBe("Henry H");
+
+    const actors = (await asUser(t, JUSTIN).query(api.requests.stepActors, {
+      requestId: req._id,
+    }))!;
+    expect(actors.hod.isDelegated).toBe(true);
+    expect(actors.hod.email).toBe(RACHEL);
+    expect(actors.hod.officeholderEmail).toBe(HENRY);
+
+    // After the stand-in approves, the card keeps showing them (not Henry).
+    await asUser(t, RACHEL).mutation(api.requests.approve, {
+      requestId: req._id,
+      step: "hod",
+    });
+    const after = (await asUser(t, JUSTIN).query(api.requests.stepActors, {
+      requestId: req._id,
+    }))!;
+    expect(after.hod.isDelegated).toBe(true);
+    expect(after.hod.email).toBe(RACHEL);
+    expect(after.hod.actedAt).toBeTypeOf("number");
+  });
+
+  test("multiple stand-ins list extras on stepInfo", async () => {
+    const t = await setup();
+    const OTHER = "other@sow.org.au";
+    await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+      year: YEAR,
+      email: OTHER,
+      roles: ["Staff"],
+      department: "Marketing",
+    });
+    await t.run((ctx) => ctx.db.insert("directoryUsers", { email: OTHER, name: "Other O" }));
+    await asUser(t, ADMIN).mutation(api.admin.addDelegation, {
+      year: YEAR,
+      fromEmail: HENRY,
+      toEmail: RACHEL,
+    });
+    await asUser(t, ADMIN).mutation(api.admin.addDelegation, {
+      year: YEAR,
+      fromEmail: HENRY,
+      toEmail: OTHER,
+    });
+    await asUser(t, RACHEL).mutation(api.requests.submit, {
+      description: "multi-cover",
+      amount: 25,
+    });
+    const [req] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    // Rachel can't see her own pending HOD in toReview, but stepInfo still resolves.
+    // Self-submit: HOD pending for Henry; Rachel is a stand-in but also requester —
+    // step display still lists stand-ins alphabetically.
+    const hod = (await asUser(t, BELLA).query(api.requests.stepInfo, {
+      requestId: req._id,
+      step: "hod",
+    }))!;
+    expect(hod.isDelegated).toBe(true);
+    expect([RACHEL, OTHER]).toContain(hod.email);
+    expect(hod.otherDelegateNames.length).toBe(1);
   });
 });
 
