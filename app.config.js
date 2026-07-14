@@ -9,11 +9,9 @@
 // eas.json (APP_VARIANT=staging for the staging profile; unset otherwise, which
 // resolves to production).
 //
-// Android push (FCM): google-services.json is gitignored. Prefer the EAS file
-// env `GOOGLE_SERVICES_JSON` (production/preview builds), with a local
-// `./google-services.json` fallback for `eas build` from a machine that has
-// the file. Download from Firebase project `theshedsow` for package
-// `au.org.sow.theshed`.
+// Android push (FCM): production/preview only. Prefer EAS file env
+// `GOOGLE_SERVICES_JSON`, with a local `./google-services.json` fallback.
+// Staging omits googleServicesFile (different applicationId).
 
 const fs = require("fs");
 const path = require("path");
@@ -35,7 +33,13 @@ const resolveGoogleServicesFile = () => {
 };
 
 module.exports = ({ config }) => {
-  const googleServicesFile = resolveGoogleServicesFile();
+  // google-services.json is for production package `au.org.sow.theshed` only.
+  // Staging uses `au.org.sow.theshed.staging` and must not reuse that file
+  // (Firebase "No matching client found"). Add a separate staging Firebase
+  // Android app + env if/when staging Android push is needed.
+  const googleServicesFile = IS_STAGING
+    ? undefined
+    : resolveGoogleServicesFile();
   const withAndroidPush = {
     ...config,
     android: {
@@ -49,21 +53,21 @@ module.exports = ({ config }) => {
   }
 
   return {
-    ...withAndroidPush,
+    ...config,
     name: "The SHED Staging",
     // Own deep-link scheme so staging and production can be installed
     // side-by-side without the OS confusing which app owns the OAuth redirect.
     // This scheme is allowlisted in convex/auth.ts's `redirect` callback.
     scheme: "theshedmobilestaging",
     ios: {
-      ...withAndroidPush.ios,
+      ...config.ios,
       bundleIdentifier: "au.org.sow.theshed.staging",
       // Universal Links for the dev web so the staging app intercepts https://
       // the-shed-web-dev.vercel.app links without going through the browser.
       associatedDomains: ["applinks:the-shed-web-dev.vercel.app"],
     },
     android: {
-      ...withAndroidPush.android,
+      ...config.android,
       package: "au.org.sow.theshed.staging",
       // App Links for the dev web — autoVerify requires the assetlinks.json to
       // be served at https://the-shed-web-dev.vercel.app/.well-known/assetlinks.json.
