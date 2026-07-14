@@ -21,8 +21,14 @@ const path = require("path");
 const IS_STAGING = process.env.APP_VARIANT === "staging";
 
 const resolveGoogleServicesFile = () => {
+  // Prefer the EAS file env (secret). On EAS Build machines this is set to the
+  // downloaded file path. Avoid falling back to a local gitignored file during
+  // `eas build` config evaluation — that path is not uploaded in the archive.
   if (process.env.GOOGLE_SERVICES_JSON) {
     return process.env.GOOGLE_SERVICES_JSON;
+  }
+  if (process.env.EAS_BUILD === "true") {
+    return undefined;
   }
   const local = path.resolve(__dirname, "google-services.json");
   return fs.existsSync(local) ? "./google-services.json" : undefined;
