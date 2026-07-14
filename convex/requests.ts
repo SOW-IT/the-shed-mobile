@@ -33,6 +33,7 @@ import {
 import {
   actAsEmails,
   currentStaffYear,
+  delegatesForYear,
   displayName,
   getApprovers,
   getDepartment,
@@ -1442,8 +1443,8 @@ function approverEmailMap(approvers: Approvers): Record<Step, string | undefined
 }
 
 /**
- * Info about a single approval step: who owns it, their name, and any
- * audit events recorded for that step (approved / declined / auto-approved).
+ * Info about a single approval step: who is shown on the card (delegate when
+ * covering), the officeholder they stand in for, and that step's audit events.
  */
 export const stepInfo = query({
   args: { requestId: v.id("requests"), step: stepValidator },
@@ -1451,24 +1452,45 @@ export const stepInfo = query({
     if (!(await optionalProfile(ctx))) return null;
     const request = await ctx.db.get("requests", args.requestId);
     if (!request) return null;
-    const approvers = await getApprovers(ctx, requestYear(request), request.department);
-    const email = approverEmailMap(approvers)[args.step] ?? null;
-    const name = email ? await resolveApproverName(ctx, email, requestYear(request)) : null;
+    const reqYear = requestYear(request);
+    const approvers = await getApprovers(ctx, reqYear, request.department);
+    const officeholderEmail = approverEmailMap(approvers)[args.step] ?? null;
     const allEvents = await ctx.db
       .query("requestEvents")
       .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
       .take(200);
-    const events = allEvents
+    const stepEvents = allEvents
       .filter((e) => e.step === args.step)
-      .map((e) => ({ at: e._creationTime, action: e.action, detail: e.detail ?? null }));
-    return { email, name, events };
+      .sort((a, b) => b._creationTime - a._creationTime);
+    const events = stepEvents.map((e) => ({
+      at: e._creationTime,
+      action: e.action,
+      detail: e.detail ?? null,
+      actorEmail: e.actorEmail,
+    }));
+    const latestAction = stepEvents.find(
+      (e) =>
+        e.action === "approved" ||
+        e.action === "declined" ||
+        e.action === "auto-approved"
+    );
+    const display = await resolveStepDisplay(ctx, {
+      reqYear,
+      officeholderEmail,
+      latestActorEmail: latestAction?.actorEmail ?? null,
+      pending: latestAction === undefined,
+    });
+    return {
+      ...display,
+      events,
+    };
   },
 });
 
 /**
  * Names + action timestamps for all approval steps on one request.
- * Loaded once per card so the stepper can show who each approver is
- * and when they acted without separate per-step queries.
+ * When someone is covering an officeholder for the staff year, the card shows
+ * the stand-in's name (and a * on the role label) instead of the original.
  */
 export const stepActors = query({
   args: { requestId: v.id("requests") },
@@ -1485,7 +1507,7 @@ export const stepActors = query({
       .take(200);
     const result: Record<
       string,
-      { name: string | null; email: string | null; actedAt: number | null }
+      StepActorDisplay & { actedAt: number | null }
     > = {};
     for (const step of [
       "hod",
@@ -1493,8 +1515,7 @@ export const stepActors = query({
       "director",
       "financeHead",
     ] as const) {
-      const email = emailMap[step] ?? null;
-      const name = email ? await resolveApproverName(ctx, email, reqYear) : null;
+      const officeholderEmail = emailMap[step] ?? null;
       const stepEvent = allEvents
         .filter(
           (e) =>
@@ -1504,14 +1525,128 @@ export const stepActors = query({
               e.action === "auto-approved")
         )
         .sort((a, b) => b._creationTime - a._creationTime)[0];
-      result[step] = { name, email, actedAt: stepEvent?._creationTime ?? null };
+      const display = await resolveStepDisplay(ctx, {
+        reqYear,
+        officeholderEmail,
+        latestActorEmail: stepEvent?.actorEmail ?? null,
+        pending: stepEvent === undefined,
+      });
+      result[step] = {
+        ...display,
+        actedAt: stepEvent?._creationTime ?? null,
+      };
     }
-    return result as Record<
-      Step,
-      { name: string | null; email: string | null; actedAt: number | null }
-    >;
+    return result as Record<Step, StepActorDisplay & { actedAt: number | null }>;
   },
 });
+
+type StepActorDisplay = {
+  /** Name shown under the step (stand-in when covering). */
+  name: string | null;
+  /** Email for the shown person. */
+  email: string | null;
+  /** True when the shown person is covering for the officeholder. */
+  isDelegated: boolean;
+  officeholderEmail: string | null;
+  officeholderName: string | null;
+  /** Other stand-ins for this officeholder this year (excluding `email`). */
+  otherDelegateNames: string[];
+};
+
+/**
+ * Pick who to show on the stepper for one step.
+ * - Pending + cover exists → show the (first) stand-in, mark delegated.
+ * - Completed by someone other than the officeholder → show that actor as cover.
+ * - Otherwise → officeholder.
+ */
+async function resolveStepDisplay(
+  ctx: QueryCtx,
+  opts: {
+    reqYear: number;
+    officeholderEmail: string | null;
+    latestActorEmail: string | null;
+    pending: boolean;
+  }
+): Promise<StepActorDisplay> {
+  const { reqYear, officeholderEmail, latestActorEmail, pending } = opts;
+  const officeholderName = officeholderEmail
+    ? await resolveApproverName(ctx, officeholderEmail, reqYear)
+    : null;
+
+  // Completed by a non-officeholder (typically a stand-in): show them.
+  if (
+    !pending &&
+    latestActorEmail &&
+    officeholderEmail &&
+    latestActorEmail !== officeholderEmail
+  ) {
+    const name = await resolveApproverName(ctx, latestActorEmail, reqYear);
+    return {
+      name,
+      email: latestActorEmail,
+      isDelegated: true,
+      officeholderEmail,
+      officeholderName,
+      otherDelegateNames: [],
+    };
+  }
+
+  // Pending with active cover: stand-in replaces the officeholder on the card.
+  // Only fetch delegates when this path can apply (skip completed / no-cover).
+  if (pending && officeholderEmail) {
+    const delegateEmails = await delegatesForOfficeholderYears(
+      ctx,
+      reqYear,
+      officeholderEmail
+    );
+    if (delegateEmails.length > 0) {
+      const primary = delegateEmails[0]!;
+      const name = await resolveApproverName(ctx, primary, reqYear);
+      const otherDelegateNames: string[] = [];
+      for (const d of delegateEmails.slice(1)) {
+        otherDelegateNames.push(
+          (await resolveApproverName(ctx, d, reqYear)) ?? d
+        );
+      }
+      return {
+        name,
+        email: primary,
+        isDelegated: true,
+        officeholderEmail,
+        officeholderName,
+        otherDelegateNames,
+      };
+    }
+  }
+
+  return {
+    name: officeholderName,
+    email: officeholderEmail,
+    isDelegated: false,
+    officeholderEmail,
+    officeholderName,
+    otherDelegateNames: [],
+  };
+}
+
+/** Delegates covering `officeholder` for the request year (and current year if different). */
+async function delegatesForOfficeholderYears(
+  ctx: QueryCtx,
+  reqYear: number,
+  officeholderEmail: string
+): Promise<string[]> {
+  const years = new Set([reqYear, currentStaffYear()]);
+  const emails: string[] = [];
+  const seen = new Set<string>();
+  for (const year of years) {
+    for (const d of await delegatesForYear(ctx, year, officeholderEmail)) {
+      if (seen.has(d)) continue;
+      seen.add(d);
+      emails.push(d);
+    }
+  }
+  return emails.sort();
+}
 
 /** Upload URL for receipt/invoice files (one file per generated URL). */
 export const generateReceiptUploadUrl = mutation({

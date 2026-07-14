@@ -13,6 +13,15 @@ All notable changes to **The SHED** mobile app. This project follows
   builds now include Firebase `google-services.json` (via EAS env), and the
   existing `theshedsow` service account is used for FCM V1 delivery.
 
+## [1.9.4] — 2026-07-14
+
+### Fixed
+- **Delegated approvers now show on request cards instead of the officeholder.**
+  When someone is covering (e.g. HOD*), the status strip shows the stand-in’s
+  name with a * on the role. Tapping the step explains they are covering for
+  the usual person and can approve in their place.
+
+
 ## [1.9.3] — 2026-07-11
 
 ### Fixed
