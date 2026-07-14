@@ -335,6 +335,23 @@ export async function delegatorsForYear(
 }
 
 /**
+ * Emails covering `fromEmail` for `year` (their delegates / stand-ins).
+ */
+export async function delegatesForYear(
+  ctx: Ctx,
+  year: number,
+  fromEmail: string
+): Promise<string[]> {
+  const rows = await ctx.db
+    .query("approverDelegations")
+    .withIndex("by_year_and_from", (q) =>
+      q.eq("year", year).eq("fromEmail", fromEmail)
+    )
+    .take(DELEGATION_QUERY_LIMIT);
+  return rows.map((r) => r.toEmail);
+}
+
+/**
  * The set of approver-identities `email` may act as for `year`: themselves plus
  * anyone who delegated their authority to them. Used to widen the "is the
  * caller this step's approver?" checks so a delegate can stand in.

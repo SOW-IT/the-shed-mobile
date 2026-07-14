@@ -128,12 +128,17 @@ const StepInfoModal = ({
     api.requests.stepInfo,
     step ? { requestId, step } : "skip"
   );
+  const title = step
+    ? `${STEP_LABELS[step]}${info?.isDelegated ? "*" : ""}`
+    : "";
+  const officeholderLabel =
+    info?.officeholderName ?? info?.officeholderEmail ?? "the usual approver";
   return (
     <Sheet
       visible={step !== null}
       onClose={onClose}
       scrollable={false}
-      title={step ? STEP_LABELS[step] : ""}
+      title={title}
     >
       {!info ? (
         <LoadingState />
@@ -149,6 +154,17 @@ const StepInfoModal = ({
               <Muted>No one assigned to this step yet.</Muted>
             )}
           </View>
+          {info.isDelegated ? (
+            <Muted>
+              {info.name ?? "This person"} is covering for {officeholderLabel}
+              {isActiveStep
+                ? " and can approve in their place."
+                : " and approved (or declined) in their place."}
+              {info.otherDelegateNames.length > 0
+                ? ` Also covering: ${info.otherDelegateNames.join(", ")}.`
+                : ""}
+            </Muted>
+          ) : null}
           {info.events.length === 0 ? (
             isActiveStep ? <Muted>Awaiting action</Muted> : null
           ) : (
@@ -172,8 +188,8 @@ const StepInfoModal = ({
 
 /**
  * The approval chain as a connected stepper. Tap any circle to see who owns
- * that step and what they've done. Shows the approver's name and when they
- * acted inline under each step.
+ * that step and what they've done. Shows the approver's name (or their stand-in
+ * with a * on the role when covering) and when they acted under each step.
  */
 const StepLine = ({ request }: { request: Doc<"requests"> }) => {
   const t = useAppTheme();
@@ -286,6 +302,7 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
                   ]}
                 >
                   {STEP_LABELS[step]}
+                  {actor?.isDelegated ? "*" : ""}
                 </Text>
                 {actors === undefined ? (
                   // Names + times stream in after the card opens — show blurred
