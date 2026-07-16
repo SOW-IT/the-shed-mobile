@@ -47,7 +47,7 @@
     "@types/react": "~19.2.2",
     "@vitest/coverage-v8": "^4.1.9",
     "convex-test": "^0.0.54",
-    "eslint": "^9.39.4",
+    "eslint": "^10.7.0",
     "eslint-config-expo": "^56.0.4",
     "typescript": "~6.0.3",
     "vitest": "^4.1.8"
