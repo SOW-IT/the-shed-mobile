@@ -6,7 +6,7 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
-## [1.9.8] — 2026-07-17
+## [1.10.0] — 2026-07-17
 
 ### Changed
 - **Upgraded to Expo SDK 57 (React Native 0.86).** Bumped `expo` → ~57.0.6 and
