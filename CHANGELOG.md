@@ -6,6 +6,24 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.9.8] — 2026-07-17
+
+### Changed
+- **Upgraded to Expo SDK 57 (React Native 0.86).** Bumped `expo` → ~57.0.6 and
+  ran `npx expo install --fix` to move every Expo module, React Native
+  (0.85 → 0.86), Reanimated (4.3 → 4.5), Worklets (0.8 → 0.10) and
+  `eslint-config-expo` (56 → 57) onto the SDK 57 line. `npm ci`, lint,
+  typecheck, the 668-test suite and the web export (`expo export --platform
+  web`, the Vercel build) all pass — the export was previously red because
+  Dependabot's standalone `expo-constants@57` bump collided with `expo-router`'s
+  SDK 56 peer range. This is the SDK 57 jump that 1.8.11 deliberately deferred.
+  Supersedes Dependabot #233 (`actions/setup-node` 6→7), #234
+  (`expo-file-system`), #235 (`expo-system-ui`), #237 (`expo-auth-session`) and
+  #238 (`expo-constants`). #236 (ESLint 9→10) is **not** included:
+  `eslint-config-expo@57` still pins `eslint-plugin-react@7.37.5`, which calls
+  the ESLint-10-removed `context.getFilename()` API, so ESLint stays on ^9 until
+  upstream adds ESLint 10 support.
+
 ## [1.9.7] — 2026-07-16
 
 ### Changed
