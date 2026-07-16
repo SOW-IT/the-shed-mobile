@@ -434,6 +434,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: 12,
     height: 44,
+    // A touch more breathing room between the Filters button above and the
+    // search bar (adds to the sticky block's own gap).
+    marginTop: spacing.xs,
     marginBottom: spacing.sm,
   },
   searchInput: { flex: 1, fontSize: 15 },

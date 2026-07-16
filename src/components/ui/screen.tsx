@@ -190,10 +190,8 @@ export const TopBar = ({
   // the same check the tabs use, not merely being signed in.
   const me = useQuery(api.directory.me);
   const isStaff = !!me?.profile;
-  // The logo takes staff back to their workspace (as it always has, via the
-  // Home redirect), but visitors and signed-in accounts without a staff profile
-  // land on the public Home tab (1.7.4) — the Home surface is theirs now.
-  const logoHref = isStaff ? (me?.isCampusLeader ? "/attendance" : "/") : "/home";
+  // Tapping the logo always returns to the public Home tab, for everyone.
+  const logoHref = "/home";
   const unread =
     useQuery(api.notifications.unreadCount, isStaff ? {} : "skip") ?? 0;
   const [testInfo, setTestInfo] = useState(false);
@@ -261,7 +259,7 @@ export const TopBar = ({
           onPressOut={home.onPressOut}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel={isStaff ? "Go to your workspace" : "Go to Home"}
+          accessibilityLabel="Go to Home"
         >
           <Image
             source={require("../../../assets/images/the-shed-compact-logo.png")}
