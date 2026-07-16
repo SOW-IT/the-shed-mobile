@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useRef } from "react";
-import { Animated, StyleSheet, View } from "react-native";
+import { Animated, Keyboard, StyleSheet, View } from "react-native";
 import PagerView from "react-native-pager-view";
 import type { PagerScrollState, PagerTab } from "@/components/PagerScreen";
 
@@ -72,6 +72,10 @@ export const PagerCarousel = ({
       // to the live offset — the back-and-forth flicker.
       onPageScrollStateChanged={(e: { nativeEvent: { pageScrollState: string } }) => {
         const state = e.nativeEvent.pageScrollState as PagerScrollState;
+        // Lower an open keyboard as soon as a swipe between tabs begins — the
+        // field being edited is leaving the screen, so the keyboard shouldn't
+        // linger over the page sliding in.
+        if (state === "dragging") Keyboard.dismiss();
         if (state === "idle" && scrollState.current === "settling") {
           scrollPosition?.setValue(position.current);
           onScrollStateChange?.("idle", lastScroll.current, position.current);

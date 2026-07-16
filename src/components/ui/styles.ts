@@ -14,7 +14,7 @@ export const styles = StyleSheet.create({
     minHeight: 48,
     paddingVertical: spacing.sm,
   },
-  topBarRight: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  topBarRight: { flexDirection: "row", alignItems: "center", gap: spacing.lg },
   signInButton: {
     flexDirection: "row",
     alignItems: "center",
