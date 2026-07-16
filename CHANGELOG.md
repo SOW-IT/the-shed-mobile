@@ -6,6 +6,21 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.9.7] — 2026-07-16
+
+### Changed
+- **The top-left SHED logo always takes you to Home now.** Tapping it from any
+  screen returns to the public Home tab, for everyone.
+- **A little more breathing room in the top bar and attendance search.** The
+  notification bell and your profile picture no longer sit flush together, and
+  the Members and Audit search bars now have a small gap below the Filters
+  button.
+
+### Fixed
+- **Swiping between the attendance tabs now lowers the keyboard.** If you were
+  typing in a search box and flicked across to another tab, the keyboard used
+  to linger over the new page — it now drops as soon as the swipe begins.
+
 ## [1.9.6] — 2026-07-14
 
 ### Fixed
