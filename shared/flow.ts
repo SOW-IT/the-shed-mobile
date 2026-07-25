@@ -504,3 +504,13 @@ export const REACTION_EMOJIS: readonly string[] = [
 
 /** Membership test for {@link REACTION_EMOJIS}, used by the server validator. */
 export const ALLOWED_REACTIONS = new Set(REACTION_EMOJIS);
+
+/**
+ * The one-tap subset shown on a comment row; the rest live behind "More".
+ * Here rather than in the sheet so a test can hold it to being a subset of
+ * {@link REACTION_EMOJIS} — a quick emoji the server rejects would fail only
+ * on tap, which is exactly the drift the shared list exists to prevent.
+ */
+export const QUICK_REACTION_EMOJIS: readonly string[] = [
+  "👍", "❤️", "😂", "🎉", "🙏", "👀", "✅",
+];

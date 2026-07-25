@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   acronym,
+  ALLOWED_REACTIONS,
   APPROVED,
   type ApprovalState,
   currentStep,
@@ -8,6 +9,8 @@ import {
   DISPLAY_ACRONYMS,
   formatAssignment,
   PENDING,
+  QUICK_REACTION_EMOJIS,
+  REACTION_EMOJIS,
   type RequestLifecycle,
   requestCompleted,
   requestDeclined,
@@ -293,5 +296,27 @@ describe("currentStep", () => {
     expect(currentStep(approvedAll())).toBeNull();
     // Declined -> closed, no current step.
     expect(currentStep(base({ approvedByHOD: DECLINED }))).toBeNull();
+  });
+});
+
+describe("reaction catalogue", () => {
+  test("validates exactly the emoji the picker offers", () => {
+    expect(ALLOWED_REACTIONS.size).toBe(REACTION_EMOJIS.length);
+    for (const emoji of REACTION_EMOJIS) {
+      expect(ALLOWED_REACTIONS.has(emoji)).toBe(true);
+    }
+  });
+
+  test("offers no quick reaction the server would reject", () => {
+    // The quick row is a hand-picked subset; if someone edits one list and not
+    // the other, the emoji would fail only when a user actually taps it.
+    for (const emoji of QUICK_REACTION_EMOJIS) {
+      expect(ALLOWED_REACTIONS.has(emoji)).toBe(true);
+    }
+  });
+
+  test("lists each emoji once, so the picker has no duplicate keys", () => {
+    expect(new Set(REACTION_EMOJIS).size).toBe(REACTION_EMOJIS.length);
+    expect(new Set(QUICK_REACTION_EMOJIS).size).toBe(QUICK_REACTION_EMOJIS.length);
   });
 });

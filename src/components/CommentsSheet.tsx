@@ -6,7 +6,7 @@ import { api } from "../../convex/_generated/api";
 import { Doc, Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "../theme";
 import { compactAgo } from "@shared/datetime";
-import { REACTION_EMOJIS } from "@shared/flow";
+import { QUICK_REACTION_EMOJIS, REACTION_EMOJIS } from "@shared/flow";
 import {
   Avatar,
   errorMessage,
@@ -26,7 +26,7 @@ const CLOSE_ANIMATION_MS = 300;
  * picker can never offer an emoji `comments.toggleReaction` would reject — or
  * silently omit one that was added server-side.
  */
-const QUICK_EMOJIS = ["👍", "❤️", "😂", "🎉", "🙏", "👀", "✅"];
+const QUICK_EMOJIS = QUICK_REACTION_EMOJIS;
 const MORE_EMOJIS = REACTION_EMOJIS;
 
 /** Optimistic comments carry a synthetic id (`optimistic-…`) until the server

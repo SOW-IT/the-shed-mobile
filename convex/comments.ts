@@ -117,7 +117,7 @@ export const list = query({
     // for every comment they posted.
     const threadYear = eventStaffYear(request._creationTime);
     const nameByEmail = new Map<string, Promise<string | null>>();
-    const authorName = (email: string): Promise<string | null> => {
+    const nameFor = (email: string): Promise<string | null> => {
       let name = nameByEmail.get(email);
       if (!name) {
         name = resolveName(ctx, email, threadYear);
@@ -144,7 +144,7 @@ export const list = query({
       result.push({
         id: comment._id,
         authorEmail: comment.authorEmail,
-        authorName: await authorName(comment.authorEmail),
+        authorName: await nameFor(comment.authorEmail),
         body: comment.body,
         at: comment._creationTime,
         isMine: comment.authorEmail === caller.email,

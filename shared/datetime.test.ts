@@ -55,6 +55,25 @@ describe("parseDateInputValue", () => {
     // …but a real leap day parses.
     expect(parseDateInputValue("2024-02-29")).not.toBeNull();
   });
+
+  it("reads a year literally, so early years round-trip", () => {
+    // `new Date(99, 0, 1)` would mean 1999 — this must mean the year 99.
+    const parsed = parseDateInputValue("0099-01-01");
+    expect(parsed).not.toBeNull();
+    expect(parsed!.getFullYear()).toBe(99);
+    expect(toDateInputValue(parsed!)).toBe("0099-01-01");
+  });
+
+  it("round-trips whatever toDateInputValue emits", () => {
+    const early = new Date(0);
+    early.setFullYear(99, 0, 1);
+    early.setHours(0, 0, 0, 0);
+    for (const date of [new Date(2024, 5, 9), new Date(2026, 11, 31), early]) {
+      expect(parseDateInputValue(toDateInputValue(date))?.getTime()).toBe(
+        date.getTime()
+      );
+    }
+  });
 });
 
 describe("parseTimeInputValue", () => {
@@ -84,6 +103,21 @@ describe("parseDateTimeInputValues", () => {
   it("is null when either half is unusable", () => {
     expect(parseDateTimeInputValues("2024-6-9", "17:30")).toBeNull();
     expect(parseDateTimeInputValues("2024-06-09", "17")).toBeNull();
+  });
+
+  it("moves a DST-skipped wall-clock time forward rather than rejecting it", () => {
+    // Sydney springs forward 2am → 3am on the first Sunday of October, so
+    // 02:30 doesn't exist that day. Only assert when the suite is running in a
+    // zone that actually has that gap; elsewhere 02:30 is an ordinary time.
+    const ms = parseDateTimeInputValues("2026-10-04", "02:30");
+    expect(ms).not.toBeNull();
+    const at = new Date(ms!);
+    const midnight = new Date(2026, 9, 4);
+    const skipped =
+      midnight.getTimezoneOffset() !==
+      new Date(2026, 9, 5).getTimezoneOffset();
+    expect(at.getHours()).toBe(skipped ? 3 : 2);
+    expect(at.getMinutes()).toBe(30);
   });
 });
 
