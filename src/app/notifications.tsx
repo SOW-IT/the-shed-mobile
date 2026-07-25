@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "../theme";
+import { compactAgo } from "@shared/datetime";
 import {
   EmptyState,
   FadeInView,
@@ -14,18 +15,6 @@ import {
   stagger,
   Txt,
 } from "@/components/ui";
-
-/** Compact "time ago" for the feed (e.g. now, 5m, 3h, 2d, 12 Jun). */
-const ago = (ms: number): string => {
-  const mins = Math.floor((Date.now() - ms) / 60000);
-  if (mins < 1) return "now";
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d`;
-  return new Date(ms).toLocaleDateString(undefined, { day: "numeric", month: "short" });
-};
 
 /**
  * The in-app notification feed: every flow event that pinged the caller, newest
@@ -104,7 +93,7 @@ export default function NotificationsScreen() {
               {n.body}
             </Text>
           ) : null}
-          <Text style={[typography.caption, { color: t.faint }]}>{ago(n.at)}</Text>
+          <Text style={[typography.caption, { color: t.faint }]}>{compactAgo(n.at)}</Text>
         </View>
         {!n.read ? (
           <View style={[styles.unreadDot, { backgroundColor: t.primary }]} />

@@ -10,6 +10,10 @@ import {
   ROLE_FIELD_KEY,
   STUDENT_YEAR_FIELD_KEY,
 } from "../../../shared/attendanceMemberMeta";
+import {
+  parseDateInputValue,
+  toDateInputValue,
+} from "../../../shared/datetime";
 import { subgroupLabel } from "../../../shared/rollcall";
 import {
   buildAttendanceCsv,
@@ -48,7 +52,6 @@ const NOTES_FIELD_KEY = NOTES_HEADER;
 /** Earliest selectable export date. */
 const MIN_DATE = new Date(2024, 0, 1);
 
-const pad = (n: number) => String(n).padStart(2, "0");
 const startOfDay = (ms: number): number => {
   const d = new Date(ms);
   d.setHours(0, 0, 0, 0);
@@ -61,18 +64,10 @@ const endOfDay = (ms: number): number => {
 };
 
 /** ms → "YYYY-MM-DD" for a date field value/min/max. */
-const toInputDate = (ms: number): string => {
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-};
+const toInputDate = (ms: number): string => toDateInputValue(new Date(ms));
 /** "YYYY-MM-DD" → ms at local midnight, or undefined when cleared/invalid. */
-const fromInputDate = (value: string): number | undefined => {
-  if (!value) return undefined;
-  const [y, m, d] = value.split("-").map(Number);
-  if (!y || !m || !d) return undefined;
-  const date = new Date(y, m - 1, d);
-  return Number.isNaN(date.getTime()) ? undefined : date.getTime();
-};
+const fromInputDate = (value: string): number | undefined =>
+  parseDateInputValue(value)?.getTime();
 
 const ToggleRow = ({
   label,

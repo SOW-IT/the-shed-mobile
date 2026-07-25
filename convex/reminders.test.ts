@@ -84,8 +84,8 @@ async function approveRequest(t: TestConvex<typeof schema>, id: Awaited<ReturnTy
   await asUser(t, FIONA).mutation(api.requests.approve, { requestId: id, step: "financeHead" });
 }
 
-/** Submits a receipt for an approved request and pays it (completing it). */
-async function completeRequest(t: TestConvex<typeof schema>, id: Awaited<ReturnType<typeof pendingRequest>>) {
+/** Submits a receipt for an approved request (leaving it awaiting payment). */
+async function submitReceipt(t: TestConvex<typeof schema>, id: Awaited<ReturnType<typeof pendingRequest>>) {
   const file = await storedReceipt(t);
   await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
     requestId: id,
@@ -93,8 +93,24 @@ async function completeRequest(t: TestConvex<typeof schema>, id: Awaited<ReturnT
       { accountName: "R", bsb: "062000", accountNumber: "12345678", amount: 100, attachments: [file] },
     ],
   });
+}
+
+/** Submits a receipt for an approved request and pays it (completing it). */
+async function completeRequest(t: TestConvex<typeof schema>, id: Awaited<ReturnType<typeof pendingRequest>>) {
+  await submitReceipt(t, id);
   await asUser(t, FIONA).mutation(api.requests.pay, { requestId: id, paidAmount: 100 });
 }
+
+/** In-app notification titles delivered to one person. */
+const notificationTitles = async (t: TestConvex<typeof schema>, email: string) =>
+  (
+    await t.run((ctx) =>
+      ctx.db
+        .query("notifications")
+        .withIndex("by_user", (q) => q.eq("userEmail", email))
+        .collect()
+    )
+  ).map((n) => n.title);
 
 describe("stale reminder schedule", () => {
   afterEach(() => vi.useRealTimers());
@@ -233,6 +249,43 @@ describe("stale reminder schedule", () => {
 
     const request = await t.run((ctx) => ctx.db.get("requests", id));
     expect(request?.reminderCount ?? 0).toBe(0); // untouched
+  });
+
+  test("a request awaiting payment nudges the Finance Head", async () => {
+    const t = await setup();
+    const id = await pendingRequest(t);
+    await approveRequest(t, id);
+    await submitReceipt(t, id);
+
+    advanceDays(1.1);
+    await t.mutation(internal.reminders.remindStale, {});
+
+    const request = await t.run((ctx) => ctx.db.get("requests", id));
+    expect(request?.reminderCount).toBe(1);
+    expect(await notificationTitles(t, FIONA)).toContain("Request reminder");
+  });
+
+  test("nobody is nudged for payment when the year has no Finance Head", async () => {
+    const t = await setup();
+    const id = await pendingRequest(t);
+    await approveRequest(t, id);
+    await submitReceipt(t, id);
+    // The Finance Head leaves after the request was raised: there is nobody
+    // left to chase for payment, in either the request's year or this one.
+    await asUser(t, ADMIN).mutation(api.admin.upsertDepartment, {
+      year: YEAR,
+      name: "Finance",
+      division: "Governance",
+    });
+
+    advanceDays(8);
+    await t.mutation(internal.reminders.remindStale, {});
+
+    const request = await t.run((ctx) => ctx.db.get("requests", id));
+    // No recipient ⇒ no reminder sent and the schedule is left untouched, so
+    // the nudge resumes the moment a new Finance Head is appointed.
+    expect(request?.reminderCount ?? 0).toBe(0);
+    expect(request?.lastReminderAt).toBeUndefined();
   });
 });
 

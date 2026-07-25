@@ -1,4 +1,5 @@
 import { ConvexError, v } from "convex/values";
+import { formatAmount } from "../shared/money";
 import {
   APPROVED,
   assignmentsOf,
@@ -71,7 +72,7 @@ const REQUEST_CLEANUP_BATCH_SIZE = 200;
 const LIVE_REQUESTS_PER_YEAR_LIMIT = 1000;
 
 const requestSummary = (r: Doc<"requests">) =>
-  `Requester: ${r.requesterEmail}\nDepartment: ${r.department}\nAmount: $${r.amount}\nDescription: ${r.description}`;
+  `Requester: ${r.requesterEmail}\nDepartment: ${r.department}\nAmount: $${formatAmount(r.amount)}\nDescription: ${r.description}`;
 
 /** Appends an immutable audit event (timestamp = _creationTime). */
 const logEvent = async (
@@ -328,7 +329,7 @@ const notifyNextActor = async (
       await notify(ctx, {
         to,
         actor,
-        subject: `A reimbursement request of $${request.amount} needs your ${STEP_LABELS[step]} approval`,
+        subject: `A reimbursement request of $${formatAmount(request.amount)} needs your ${STEP_LABELS[step]} approval`,
         pushTitle: "Approval needed",
         body: `The request below is waiting on your approval in THE SHED.\n\n${requestSummary(request)}`,
         url: requestUrl(to, request),
@@ -339,7 +340,7 @@ const notifyNextActor = async (
     await notify(ctx, {
       to: request.requesterEmail,
       actor,
-      subject: `Your reimbursement request of $${request.amount} has been approved`,
+      subject: `Your reimbursement request of $${formatAmount(request.amount)} has been approved`,
       pushTitle: "Request approved",
       body: `Your request has been fully approved. Please open THE SHED and submit your receipt/invoice details.\n\n${requestSummary(request)}`,
       url: requestUrl(request.requesterEmail, request),
@@ -350,7 +351,7 @@ const notifyNextActor = async (
       await notify(ctx, {
         to: email,
         actor,
-        subject: `The $${request.amount} request by ${request.requesterEmail} is fully approved`,
+        subject: `The $${formatAmount(request.amount)} request by ${request.requesterEmail} is fully approved`,
         pushTitle: "Request approved",
         body: `Every step has approved this request; the requester has been asked for their receipt.\n\n${requestSummary(request)}`,
         url: requestUrl(email, request),
@@ -391,7 +392,7 @@ export const submit = mutation({
     }
     if (args.amount > MAX_REQUEST_AMOUNT) {
       throw new ConvexError(
-        `Amounts above $${MAX_REQUEST_AMOUNT.toLocaleString("en-AU")} can't be submitted here — talk to Finance directly.`
+        `Amounts above $${formatAmount(MAX_REQUEST_AMOUNT)} can't be submitted here — talk to Finance directly.`
       );
     }
     if (args.description.trim() === "") {
@@ -527,7 +528,7 @@ export const submit = mutation({
       await notify(ctx, {
         to: email,
         actor: email, // the submitter — acknowledge by email, don't push them
-        subject: `Your reimbursement request of $${request.amount} has been submitted`,
+        subject: `Your reimbursement request of $${formatAmount(request.amount)} has been submitted`,
         pushTitle: "Request submitted",
         body: `Your request has been submitted and sent for approval. You'll be emailed once it's fully approved.\n\n${requestSummary(request)}`,
         url: requestUrl(request.requesterEmail, request),
@@ -1085,7 +1086,7 @@ export const decline = mutation({
     await notify(ctx, {
       to: request.requesterEmail,
       actor: caller.email,
-      subject: `Your reimbursement request of $${request.amount} has been declined`,
+      subject: `Your reimbursement request of $${formatAmount(request.amount)} has been declined`,
       pushTitle: "Request declined",
       body: `Your request was declined at the ${STEP_LABELS[args.step]} step by ${declinerName}.\nReason: ${reason}\n\n${requestSummary(request)}`,
       url: requestUrl(request.requesterEmail, request),
@@ -1097,7 +1098,7 @@ export const decline = mutation({
       await notify(ctx, {
         to: email,
         actor: caller.email,
-        subject: `The $${request.amount} request by ${request.requesterEmail} was declined`,
+        subject: `The $${formatAmount(request.amount)} request by ${request.requesterEmail} was declined`,
         pushTitle: "Request declined",
         body: `Declined at the ${STEP_LABELS[args.step]} step by ${declinerName}.\nReason: ${reason}\n\n${requestSummary(request)}`,
         url: requestUrl(email, request),
@@ -1173,7 +1174,7 @@ export const cancel = mutation({
       await notify(ctx, {
         to: recipient,
         actor: email,
-        subject: `The $${request.amount} request by ${request.requesterEmail} has been cancelled`,
+        subject: `The $${formatAmount(request.amount)} request by ${request.requesterEmail} has been cancelled`,
         pushTitle: "Request cancelled",
         body: `The requester cancelled this request; no further action is needed.\n\n${requestSummary(request)}`,
         // The request is being deleted, so there's nothing to focus — just land
@@ -1386,9 +1387,9 @@ export const nudge = mutation({
     await notify(ctx, {
       to,
       actor: caller.email,
-      subject: `Nudge: a $${request.amount} request is waiting on you`,
+      subject: `Nudge: a $${formatAmount(request.amount)} request is waiting on you`,
       pushTitle: "You've been nudged",
-      body: `${nudgerName} is waiting on your action for a $${request.amount} request.\n\n${requestSummary(request)}`,
+      body: `${nudgerName} is waiting on your action for a $${formatAmount(request.amount)} request.\n\n${requestSummary(request)}`,
       // Land the nudged person where they act: the action owner is either an
       // approver/Finance (→ Review) or the requester awaiting their receipt
       // (→ Mine); requestUrl picks the right segment from `to`.
@@ -1779,7 +1780,7 @@ export const submitReceipt = mutation({
     // that submit/pay enforce on a single amount — hold the total to it too.
     if (totalAmount > MAX_REQUEST_AMOUNT) {
       throw new ConvexError(
-        `Receipt totals above $${MAX_REQUEST_AMOUNT.toLocaleString("en-AU")} can't be submitted here — talk to Finance directly.`
+        `Receipt totals above $${formatAmount(MAX_REQUEST_AMOUNT)} can't be submitted here — talk to Finance directly.`
       );
     }
     await ctx.db.patch("requests", args.requestId, {
@@ -1798,7 +1799,7 @@ export const submitReceipt = mutation({
       email,
       "receipt-submitted",
       undefined,
-      `$${totalAmount}, ${args.recipients.length} recipient${args.recipients.length === 1 ? "" : "s"}`
+      `$${formatAmount(totalAmount)}, ${args.recipients.length} recipient${args.recipients.length === 1 ? "" : "s"}`
     );
     // Notify the Finance Head of the request's year AND the current one
     // (deduped), so a request that carried over a Finance-Head change still
@@ -1826,9 +1827,9 @@ export const submitReceipt = mutation({
         await notify(ctx, {
           to,
           actor: email,
-          subject: `A receipt for $${totalAmount} is ready to pay`,
+          subject: `A receipt for $${formatAmount(totalAmount)} is ready to pay`,
           pushTitle: "Receipt ready to pay",
-          body: `${requesterName} submitted their receipt (total $${totalAmount}). Please pay the reimbursement in THE SHED.\n\n${requestSummary(request)}`,
+          body: `${requesterName} submitted their receipt (total $${formatAmount(totalAmount)}). Please pay the reimbursement in THE SHED.\n\n${requestSummary(request)}`,
           url: requestUrl(to, request),
           requestId: request._id,
         });
@@ -1930,14 +1931,14 @@ export const pay = mutation({
       payComment: args.comment?.trim() || undefined,
       paidTime: Date.now(),
     });
-    await logEvent(ctx, args.requestId, caller.email, "paid", undefined, `$${args.paidAmount}`);
+    await logEvent(ctx, args.requestId, caller.email, "paid", undefined, `$${formatAmount(args.paidAmount)}`);
     const payerName = await displayName(ctx, caller.email, reqYear!);
     await notify(ctx, {
       to: request.requesterEmail,
       actor: caller.email,
-      subject: `Your reimbursement of $${args.paidAmount} has been paid`,
+      subject: `Your reimbursement of $${formatAmount(args.paidAmount)} has been paid`,
       pushTitle: "Reimbursement paid",
-      body: `The Finance Head (${payerName}) has paid your reimbursement.\nPaid: $${args.paidAmount}${args.comment ? `\nComment: ${args.comment}` : ""}\n\n${requestSummary(request)}`,
+      body: `The Finance Head (${payerName}) has paid your reimbursement.\nPaid: $${formatAmount(args.paidAmount)}${args.comment ? `\nComment: ${args.comment}` : ""}\n\n${requestSummary(request)}`,
       url: requestUrl(request.requesterEmail, request),
       requestId: request._id,
     });
@@ -1947,7 +1948,7 @@ export const pay = mutation({
       await notify(ctx, {
         to: yearApprovers.budgetManagerEmail,
         actor: caller.email,
-        subject: `Paid amount differs from requested amount ($${args.paidAmount} vs $${request.amount})`,
+        subject: `Paid amount differs from requested amount ($${formatAmount(args.paidAmount)} vs $${formatAmount(request.amount)})`,
         pushTitle: "Paid amount changed",
         body: `Please update the budget accordingly.\n\n${requestSummary(request)}`,
         url: yearApprovers.budgetManagerEmail

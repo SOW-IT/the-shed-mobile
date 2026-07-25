@@ -1,4 +1,5 @@
 import { csvLine } from "./csv";
+import { pad2, toTimeInputValue } from "../../shared/datetime";
 import { subgroupLabel } from "../../shared/rollcall";
 import type { ExportEvent } from "../../convex/attendanceExport";
 
@@ -18,19 +19,15 @@ export const NOTES_HEADER = "Notes";
 export const isReservedExportFieldKey = (key: string): boolean =>
   key.trim().toLowerCase() === NOTES_HEADER.toLowerCase();
 
-const pad = (n: number) => String(n).padStart(2, "0");
-
 /** dd.mm.yyyy for a date. */
 const formatDate = (ms: number): string => {
   const d = new Date(ms);
-  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
+  return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`;
 };
 
 /** dd.mm.yyyy HH:MM for a date+time. */
-const formatDateTime = (ms: number): string => {
-  const d = new Date(ms);
-  return `${formatDate(ms)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
+const formatDateTime = (ms: number): string =>
+  `${formatDate(ms)} ${toTimeInputValue(new Date(ms))}`;
 
 /**
  * Builds the CSV. Each event is its own section: an event-level info block

@@ -224,7 +224,7 @@ describe("computeSubgroupMetrics — summary & trends", () => {
 
   it("reports a weekly consistency score between 0 and 1", () => {
     const meetings = weeklySeries(3);
-    // Turnout 2, 2, 4 → avg 2.67 / peak 4 = 0.7.
+    // Turnout 2, 2, 4 → avg 2.67 / peak 4 = 0.667 (shown as "67%").
     const attendance = [
       attend(meetings[0], "a"),
       attend(meetings[0], "b"),
@@ -240,6 +240,9 @@ describe("computeSubgroupMetrics — summary & trends", () => {
     );
     expect(data.summary.weeklyConsistency).toBeGreaterThan(0);
     expect(data.summary.weeklyConsistency).toBeLessThanOrEqual(1);
+    // Kept to 3 decimals, not 1: the tab renders this as a whole percentage, so
+    // rounding to 0.7 here would peg every group's score to a multiple of 10%.
+    expect(data.summary.weeklyConsistency).toBe(0.667);
   });
 
   it("has no insights when the selected range holds no events", () => {

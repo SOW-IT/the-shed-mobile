@@ -4,6 +4,7 @@ import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import { getApprovers, getProfile, optionalProfile, requireProfile, currentStaffYear, withDelegatesForYear } from "./model";
 import { actionOwnerEmail, involvedApproverEmails, notify, requestUrl } from "./requests";
 import { ALLOWED_REACTIONS, APPROVED, eventStaffYear, staffYearStartMs } from "../shared/flow";
+import { formatAmount } from "../shared/money";
 
 /** Display name for an email: staff profile first, directory fallback, else null. */
 async function resolveName(
@@ -70,7 +71,7 @@ export const add = mutation({
         await notify(ctx, {
           to,
           actor: email,
-          subject: `New comment on the $${request.amount} ${request.department} request`,
+          subject: `New comment on the $${formatAmount(request.amount)} ${request.department} request`,
           pushTitle: "New comment",
           body: `${authorName} commented:\n"${body}"`,
           // Open the conversation directly: land on the recipient's request tab
@@ -111,6 +112,20 @@ export const list = query({
         .collect()
     ).sort((a, b) => a._creationTime - b._creationTime);
 
+    // A thread is usually a handful of people talking repeatedly, so resolve
+    // each author once instead of re-reading their profile (and directory row)
+    // for every comment they posted.
+    const threadYear = eventStaffYear(request._creationTime);
+    const nameByEmail = new Map<string, Promise<string | null>>();
+    const nameFor = (email: string): Promise<string | null> => {
+      let name = nameByEmail.get(email);
+      if (!name) {
+        name = resolveName(ctx, email, threadYear);
+        nameByEmail.set(email, name);
+      }
+      return name;
+    };
+
     const result = [];
     for (const comment of comments) {
       const reactions = await ctx.db
@@ -129,7 +144,7 @@ export const list = query({
       result.push({
         id: comment._id,
         authorEmail: comment.authorEmail,
-        authorName: await resolveName(ctx, comment.authorEmail, eventStaffYear(request._creationTime)),
+        authorName: await nameFor(comment.authorEmail),
         body: comment.body,
         at: comment._creationTime,
         isMine: comment.authorEmail === caller.email,

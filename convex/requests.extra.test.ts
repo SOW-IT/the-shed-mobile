@@ -1076,3 +1076,64 @@ describe("browsing past years", () => {
     ).rejects.toThrow(/Only Finance/);
   });
 });
+
+describe("money in the audit trail and notifications", () => {
+  test("amounts are written the way the app shows them (grouped, 2dp with cents)", async () => {
+    const t = await setup();
+    await asUser(t, RACHEL).mutation(api.requests.submit, {
+      description: "conference",
+      amount: 1234.5,
+    });
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    await asUser(t, HENRY).mutation(api.requests.approve, {
+      requestId: request._id,
+      step: "hod",
+    });
+    await asUser(t, BELLA).mutation(api.requests.approve, {
+      requestId: request._id,
+      step: "budgetManager",
+    });
+    await asUser(t, FIONA).mutation(api.requests.approve, {
+      requestId: request._id,
+      step: "financeHead",
+    });
+    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
+      requestId: request._id,
+      recipients: [
+        {
+          accountName: "R",
+          bsb: "062000",
+          accountNumber: "12345678",
+          amount: 1234.5,
+          attachments: [await storedReceipt(t)],
+        },
+      ],
+    });
+    await asUser(t, FIONA).mutation(api.requests.pay, {
+      requestId: request._id,
+      paidAmount: 1234.5,
+    });
+
+    const details = (
+      await t.run((ctx) =>
+        ctx.db
+          .query("requestEvents")
+          .withIndex("by_request", (q) => q.eq("requestId", request._id))
+          .collect()
+      )
+    ).flatMap((e) => (e.detail ? [e.detail] : []));
+    // Not "$1234.5": the audit trail reads like every money figure in the app.
+    expect(details).toContain("$1,234.50");
+    expect(details).toContain("$1,234.50, 1 recipient");
+  });
+
+  test("the over-the-ceiling error names the limit in grouped dollars", async () => {
+    const t = await setup();
+    await expect(
+      asUser(t, RACHEL).mutation(api.requests.submit, {
+        description: "too big",
+        amount: 2_000_000,
+      })
+    ).rejects.toThrow(/\$1,000,000/);
+  });
+});

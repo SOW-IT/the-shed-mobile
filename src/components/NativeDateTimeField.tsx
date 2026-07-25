@@ -4,6 +4,12 @@ import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { Btn, Sheet, Txt } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
+import {
+  parseDateInputValue,
+  parseTimeInputValue,
+  toDateInputValue,
+  toTimeInputValue,
+} from "@shared/datetime";
 
 /**
  * Native date/time fields. They mirror the string API of WebDateTimeInput
@@ -20,22 +26,11 @@ import { spacing, typography, useAppTheme } from "@/theme";
  * but never rendered.
  */
 
-const pad = (n: number) => String(n).padStart(2, "0");
-
-const dateToInput = (d: Date): string =>
-  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const inputToDate = (value: string): Date | null => {
-  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return null;
-  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  return Number.isNaN(d.getTime()) ? null : d;
-};
-const timeToInput = (d: Date): string => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const inputToTime = (value: string): Date | null => {
-  const m = value.match(/^(\d{1,2}):(\d{2})$/);
-  if (!m) return null;
+  const parts = parseTimeInputValue(value);
+  if (!parts) return null;
   const d = new Date();
-  d.setHours(Number(m[1]), Number(m[2]), 0, 0);
+  d.setHours(parts.hours, parts.minutes, 0, 0);
   return d;
 };
 
@@ -143,9 +138,9 @@ export const NativeDateInput = ({
 }) => {
   const t = useAppTheme();
   const [open, setOpen] = useState(false);
-  const current = inputToDate(value);
-  const minDate = min ? inputToDate(min) ?? undefined : undefined;
-  const maxDate = max ? inputToDate(max) ?? undefined : undefined;
+  const current = parseDateInputValue(value);
+  const minDate = min ? parseDateInputValue(min) ?? undefined : undefined;
+  const maxDate = max ? parseDateInputValue(max) ?? undefined : undefined;
   // The picker must open on a value within [min, max]; fall back to today.
   const initial = clampDate(current ?? new Date(), minDate, maxDate);
   return (
@@ -181,7 +176,7 @@ export const NativeDateInput = ({
             minimumDate={minDate}
             maximumDate={maxDate}
             accentColor={t.primary}
-            onValueChange={(_event, date) => onChange(dateToInput(date))}
+            onValueChange={(_event, date) => onChange(toDateInputValue(date))}
             onDismiss={() => setOpen(false)}
           />
         </View>
@@ -228,7 +223,7 @@ export const NativeTimeInput = ({
             style={{ width: "100%" }}
             value={initial}
             accentColor={t.primary}
-            onValueChange={(_event, date) => onChange(timeToInput(date))}
+            onValueChange={(_event, date) => onChange(toTimeInputValue(date))}
             onDismiss={() => setOpen(false)}
           />
         </View>

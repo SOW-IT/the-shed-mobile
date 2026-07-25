@@ -490,9 +490,27 @@ export const currentStep = (r: ApprovalState): ApprovalStep | null => {
   return null;
 };
 
-/** The full set of emoji the reaction picker exposes. Validated server-side too. */
-export const ALLOWED_REACTIONS = new Set([
+/**
+ * The full set of emoji the reaction picker exposes, in picker order. The one
+ * source of truth: the comment sheet renders this list and
+ * `comments.toggleReaction` validates against {@link ALLOWED_REACTIONS} below,
+ * so the two can't drift into offering an emoji the server rejects.
+ */
+export const REACTION_EMOJIS: readonly string[] = [
   "👍", "👎", "❤️", "🔥", "🎉", "😂", "😅", "🙏", "👀", "✅",
   "❌", "⚠️", "💰", "💸", "🧾", "📎", "⏳", "🚀", "💯", "🤝",
   "🙌", "👏", "🤔", "😮", "😢", "😡", "🥳", "🫡", "💪", "✍️",
-]);
+];
+
+/** Membership test for {@link REACTION_EMOJIS}, used by the server validator. */
+export const ALLOWED_REACTIONS = new Set(REACTION_EMOJIS);
+
+/**
+ * The one-tap subset shown on a comment row; the rest live behind "More".
+ * Here rather than in the sheet so a test can hold it to being a subset of
+ * {@link REACTION_EMOJIS} — a quick emoji the server rejects would fail only
+ * on tap, which is exactly the drift the shared list exists to prevent.
+ */
+export const QUICK_REACTION_EMOJIS: readonly string[] = [
+  "👍", "❤️", "😂", "🎉", "🙏", "👀", "✅",
+];
