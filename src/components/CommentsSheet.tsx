@@ -5,6 +5,8 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Doc, Id } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "../theme";
+import { compactAgo } from "@shared/datetime";
+import { REACTION_EMOJIS } from "@shared/flow";
 import {
   Avatar,
   errorMessage,
@@ -18,29 +20,19 @@ import {
 /** Roughly the Sheet's Modal fade duration; we hold the query this long on close. */
 const CLOSE_ANIMATION_MS = 300;
 
-/** A handful of one-tap reactions; the rest live behind "More". */
+/**
+ * A handful of one-tap reactions; the rest live behind "More". "More" is the
+ * shared catalogue the server validates against (`ALLOWED_REACTIONS`), so the
+ * picker can never offer an emoji `comments.toggleReaction` would reject — or
+ * silently omit one that was added server-side.
+ */
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "🎉", "🙏", "👀", "✅"];
-const MORE_EMOJIS = [
-  "👍", "👎", "❤️", "🔥", "🎉", "😂", "😅", "🙏", "👀", "✅",
-  "❌", "⚠️", "💰", "💸", "🧾", "📎", "⏳", "🚀", "💯", "🤝",
-  "🙌", "👏", "🤔", "😮", "😢", "😡", "🥳", "🫡", "💪", "✍️",
-];
+const MORE_EMOJIS = REACTION_EMOJIS;
 
 /** Optimistic comments carry a synthetic id (`optimistic-…`) until the server
  *  reconciles them; reactions can't target a row that doesn't exist yet. */
 const isOptimisticId = (id: Id<"requestComments">) =>
   String(id).startsWith("optimistic-");
-
-const compactAgo = (ms: number): string => {
-  const mins = Math.floor((Date.now() - ms) / 60000);
-  if (mins < 1) return "now";
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d`;
-  return new Date(ms).toLocaleDateString(undefined, { day: "numeric", month: "short" });
-};
 
 /**
  * The clarification thread for a request: read the conversation, post a

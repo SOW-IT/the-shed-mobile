@@ -382,6 +382,35 @@ describe("events + roll-call", () => {
     ).toHaveLength(0);
   });
 
+  test("a legacy row storing 'ALL' alongside 'SOW' isn't read as collaborative", async () => {
+    const leader = asUser(t, LEADER);
+    const { dateStart, dateEnd } = window();
+    // Written straight to the table: the legacy shape predates the write-time
+    // normalisation, so it can only be reproduced by bypassing `create`.
+    const id = await t.run((ctx) =>
+      ctx.db.insert("events", {
+        name: "Whole-org night",
+        dateStart,
+        dateEnd,
+        subgroups: [ALL_SUBGROUP, SOW_SUBGROUP],
+      })
+    );
+
+    const list = await leader.query(api.events.listBySubgroup, {
+      subgroup: SOW_SUBGROUP,
+    });
+    expect(list.events).toHaveLength(1);
+    // One org-wide group written two ways is still one group — the events list
+    // must not badge it "Collaborative" or render a duplicate pill, and it must
+    // agree with the export / Insights precompute, which both normalise.
+    expect(list.events[0].collaborative).toBe(false);
+    expect(list.events[0].subgroups).toEqual([SOW_SUBGROUP]);
+
+    const single = await leader.query(api.events.get, { eventId: id });
+    expect(single!.collaborative).toBe(false);
+    expect(single!.subgroups).toEqual([SOW_SUBGROUP]);
+  });
+
   test("listBySubgroup returns a completed empty page when no events match", async () => {
     const leader = asUser(t, LEADER);
     const list = await leader.query(api.events.listBySubgroup, { subgroup: USYD });

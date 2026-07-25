@@ -6,6 +6,36 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.10.1] — 2026-07-25
+
+### Fixed
+- **Dollar amounts in emails, notifications and the request history now read
+  like they do in the app.** A $1,234.50 request used to turn up as "$1234.5" in
+  its approval email, its push notification and its audit trail — cents dropped,
+  no thousands separator. Every money figure the backend writes now uses the
+  same formatting as the screens, so an amount reads the same wherever you see
+  it.
+- **The "Weekly consistency" figure is no longer rounded to the nearest 10%.**
+  It was being stored to one decimal place before being shown as a percentage,
+  so a group sitting at 67% steadiness displayed "70%" and the number could only
+  ever land on 0%, 10%, 20% and so on. It now shows the real figure.
+- **Older events are no longer mislabelled "Collaborative".** Some events
+  imported from the previous system record the whole-org group twice (under both
+  its old and current name). The events list counted that as two groups, badged
+  the event as shared between campuses and drew a duplicate campus pill — while
+  the CSV export and Insights, which tidy the value up first, correctly treated
+  it as one group. All three now agree.
+
+### Changed
+- **Groundwork: shared date, time and money helpers.** The date and time fields,
+  the CSV export, the notification feed and the comment thread each carried their
+  own private copy of the same formatting code; they now share one tested set, so
+  a fix in one place lands everywhere. The comment reaction picker is likewise
+  now built from the same emoji list the server validates against, so the two
+  can't drift apart. No visible change — a reminder about who to chase for an
+  approval also now goes through the exact same "who's next" logic the approval
+  flow itself uses, rather than a second copy of it.
+
 ## [1.10.0] — 2026-07-17
 
 ### Changed

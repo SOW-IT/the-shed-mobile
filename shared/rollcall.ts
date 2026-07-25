@@ -4,6 +4,7 @@
  * truth. Ported from time-to-rollcall's model files, decoupled from Firestore.
  */
 
+import { pad2 } from "./datetime";
 import { DISPLAY_ACRONYMS, UNIVERSITY_COLOURS, universityColour } from "./flow";
 
 /**
@@ -127,10 +128,9 @@ export const formatEventDate = (dateStart: number): string => {
 /** Event date + time span as shown in the events list, e.g.
  *  "24.06.25, 5:00 pm - 7:00 pm". */
 export const formatEventRange = (startMs: number, endMs: number): string => {
-  const twoDigit = (value: number) => String(value).padStart(2, "0");
   const start = new Date(startMs);
   const end = new Date(endMs);
-  const date = `${twoDigit(start.getDate())}.${twoDigit(
+  const date = `${pad2(start.getDate())}.${pad2(
     start.getMonth() + 1
   )}.${String(start.getFullYear()).slice(-2)}`;
   const time = (dateValue: Date) =>

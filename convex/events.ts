@@ -106,11 +106,27 @@ async function resolveTags(ctx: QueryCtx, tagIds?: Id<"attendanceTags">[]) {
   return tags.filter((t): t is NonNullable<typeof t> => !!t);
 }
 
-const annotate = async (ctx: QueryCtx, event: Doc<"events">) => ({
-  ...event,
-  collaborative: event.subgroups.length > 1,
-  tags: await resolveTags(ctx, event.tagIds),
-});
+/**
+ * The event as the app reads it: sub-groups canonicalised, the collaborative
+ * flag derived from them, and its tags resolved.
+ *
+ * `subgroups` is normalised (not passed through raw) because legacy rows can
+ * store the org-wide group as "ALL" and can repeat a campus — writes have
+ * deduped/folded since, but old and imported rows haven't been rewritten. Left
+ * raw, `["ALL", "SOW"]` counts as two sub-groups: the events list badges the
+ * event "Collaborative" and both screens render a duplicate campus pill, while
+ * the export and Insights precompute — which both normalise first — treat the
+ * same event as single-group. Normalising here makes all three agree.
+ */
+const annotate = async (ctx: QueryCtx, event: Doc<"events">) => {
+  const subgroups = normalizeSubgroups(event.subgroups);
+  return {
+    ...event,
+    subgroups,
+    collaborative: subgroups.length > 1,
+    tags: await resolveTags(ctx, event.tagIds),
+  };
+};
 
 async function validateEventFields(
   ctx: MutationCtx,

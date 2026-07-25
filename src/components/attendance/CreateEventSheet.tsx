@@ -22,45 +22,23 @@ import { Platform, Pressable, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Doc, Id } from "../../../convex/_generated/dataModel";
 import {
+  pad2,
+  parseDateTimeInputValues,
+  toDateInputValue,
+  toTimeInputValue,
+} from "../../../shared/datetime";
+import {
   subgroupLabel,
   subgroupMatches,
 } from "../../../shared/rollcall";
 
-const parseDateTime = (dateStr: string, timeStr: string): number | null => {
-  const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  const timeMatch = timeStr.match(/^(\d{1,2}):(\d{2})$/);
-  if (!match || !timeMatch) return null;
-  const d = new Date(
-    Number(match[1]),
-    Number(match[2]) - 1,
-    Number(match[3]),
-    Number(timeMatch[1]),
-    Number(timeMatch[2]),
-  );
-  return d.getTime();
-};
+const defaultDate = (): string => toDateInputValue(new Date());
 
-const defaultDate = (): string => {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-};
+const defaultTime = (hour: number): string => `${pad2(hour)}:00`;
 
-const defaultTime = (hour: number): string =>
-  `${String(hour).padStart(2, "0")}:00`;
+const dateInputFromMs = (ms: number): string => toDateInputValue(new Date(ms));
 
-const dateInputFromMs = (ms: number): string => {
-  const d = new Date(ms);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-};
-
-const timeInputFromMs = (ms: number): string => {
-  const d = new Date(ms);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(
-    d.getMinutes(),
-  ).padStart(2, "0")}`;
-};
+const timeInputFromMs = (ms: number): string => toTimeInputValue(new Date(ms));
 
 type EditableEvent = Pick<
   Doc<"events">,
@@ -223,8 +201,8 @@ export function CreateEventSheet({
     if (submitting) return;
     setSubmitting(true);
     setError(null);
-    const dateStart = parseDateTime(dateStr, startTime);
-    let dateEnd = parseDateTime(dateStr, endTime);
+    const dateStart = parseDateTimeInputValues(dateStr, startTime);
+    let dateEnd = parseDateTimeInputValues(dateStr, endTime);
     if (dateStart === null || dateEnd === null) {
       setError("Enter a valid date (YYYY-MM-DD) and times (HH:MM).");
       setSubmitting(false);

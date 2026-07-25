@@ -284,7 +284,15 @@ export const humanGap = (from: number, to: number): string => {
   return `${Math.round(days / 7)} weeks`;
 };
 
+/** One decimal place — for headcount averages ("14.3 people"). */
 const round1 = (n: number): number => Math.round(n * 10) / 10;
+
+/**
+ * Three decimal places — for 0…1 ratios (shares, consistency). These are shown
+ * as whole percentages, so they need at least 2 decimals of resolution;
+ * `round1` would quantise the displayed figure to multiples of 10%.
+ */
+const roundRatio = (n: number): number => Math.round(n * 1000) / 1000;
 
 // ───────────────────────────── Core compute ───────────────────────────────
 
@@ -404,7 +412,7 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
   const peakWeekly = weeklyCounts.reduce((m, c) => Math.max(m, c), 0);
   const weeklyConsistency =
     weeklyCounts.length > 0 && peakWeekly > 0
-      ? round1(
+      ? roundRatio(
           weeklyCounts.reduce((s, c) => s + c, 0) / weeklyCounts.length / peakWeekly
         )
       : null;
@@ -503,7 +511,7 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
   const leaderSum = leaderPoints.reduce((s, p) => s + p.primary, 0);
   const leaderTotal = leaderPoints.reduce((s, p) => s + p.primary + p.rest, 0);
   const leaderShare =
-    leaderTotal > 0 ? Math.round((leaderSum / leaderTotal) * 1000) / 1000 : null;
+    leaderTotal > 0 ? roundRatio(leaderSum / leaderTotal) : null;
   const leadersVsOthers = trimTrend(leaderPoints);
 
   // This campus vs other campuses — meaningless org-wide, so omitted there.
@@ -530,7 +538,7 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
     const homeSum = campusPoints.reduce((s, p) => s + p.primary, 0);
     const knownTotal = campusPoints.reduce((s, p) => s + p.primary + p.rest, 0);
     homeCampusShare =
-      knownTotal > 0 ? Math.round((homeSum / knownTotal) * 1000) / 1000 : null;
+      knownTotal > 0 ? roundRatio(homeSum / knownTotal) : null;
     campusMix = trimTrend(campusPoints);
   }
 

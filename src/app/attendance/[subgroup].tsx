@@ -4,7 +4,12 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
-import { formatEventDate, subgroupColour, subgroupLabel } from "../../../shared/rollcall";
+import {
+  formatEventDate,
+  subgroupColour,
+  subgroupLabel,
+  subgroupMatches,
+} from "../../../shared/rollcall";
 import {
   Card,
   Chip,
@@ -122,7 +127,7 @@ export default function SubgroupEventsScreen() {
                       <View style={styles.badgeRow}>
                         <Chip label="Collaborative" />
                         {event.subgroups
-                          .filter((s) => s !== subgroup)
+                          .filter((s) => !subgroupMatches(s, subgroup))
                           .map((s) => (
                             <Chip key={s} label={subgroupLabel(s)} />
                           ))}

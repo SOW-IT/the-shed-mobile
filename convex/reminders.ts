@@ -4,17 +4,20 @@ import {
   FINANCE,
   requestCompleted,
   STEP_LABELS,
-  type ApprovalStep,
 } from "../shared/flow";
+import { formatAmount } from "../shared/money";
 import { Doc } from "./_generated/dataModel";
 import { internalMutation, MutationCtx } from "./_generated/server";
 import {
   currentStaffYear,
   getApprovers,
   withDelegatesForYear,
-  type Approvers,
 } from "./model";
-import { notify, openRequestsAcrossYears } from "./requests";
+import {
+  nextApproverWithYear,
+  notify,
+  openRequestsAcrossYears,
+} from "./requests";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -30,6 +33,23 @@ const reminderDelayMs = (count: number): number => {
   return 7 * DAY_MS;
 };
 
+/**
+ * Prefer the officeholder from the request's own staff year, falling back to
+ * this year's — a carry-over request may outlive the person who held the role
+ * when it was raised. The returned year is the one the stand-in (delegation)
+ * rows should be read for, since cover is recorded per staff year.
+ */
+const preferRequestYear = (
+  requestYearEmail: string | undefined,
+  currentYearEmail: string | undefined,
+  requestYear: number,
+  currentYear: number
+): { email: string; year: number } | undefined => {
+  if (requestYearEmail) return { email: requestYearEmail, year: requestYear };
+  if (currentYearEmail) return { email: currentYearEmail, year: currentYear };
+  return undefined;
+};
+
 const remind = async (
   ctx: MutationCtx,
   to: string,
@@ -38,7 +58,7 @@ const remind = async (
   days: number,
   url: string
 ) => {
-  const subject = `Reminder: a $${request.amount} request has been waiting ${days} days`;
+  const subject = `Reminder: a $${formatAmount(request.amount)} request has been waiting ${days} days`;
   // Route through the shared notify helper so a reminder produces the same trio
   // as every other flow update — email + in-app feed entry (with an unread
   // badge) + push — rather than the email-and-push-only path it used before.
@@ -49,7 +69,7 @@ const remind = async (
     to,
     subject,
     pushTitle: "Request reminder",
-    body: `The request below has been waiting on ${waitingOn} for ${days} days. Please action it in THE SHED.\n\nRequester: ${request.requesterEmail}\nDepartment: ${request.department}\nAmount: $${request.amount}\nDescription: ${request.description}`,
+    body: `The request below has been waiting on ${waitingOn} for ${days} days. Please action it in THE SHED.\n\nRequester: ${request.requesterEmail}\nDepartment: ${request.department}\nAmount: $${formatAmount(request.amount)}\nDescription: ${request.description}`,
     url,
     requestId: request._id,
   });
@@ -110,25 +130,20 @@ export const remindStale = internalMutation({
         reqYear === year
           ? requestYearApprovers
           : await getApprovers(ctx, year, request.department);
-      const pick = (selector: (a: Approvers) => string | undefined) =>
-        selector(requestYearApprovers) !== undefined
-          ? { email: selector(requestYearApprovers)!, year: reqYear }
-          : selector(thisYearApprovers) !== undefined
-            ? { email: selector(thisYearApprovers)!, year }
-            : undefined;
 
       const step = currentStep(request);
       let recipients: string[] = [];
       let waitingOn = "";
       let url = "/?tab=review";
       if (step !== null) {
-        const selectors: Record<ApprovalStep, (a: Approvers) => string | undefined> = {
-          hod: (a) => a.hodEmail,
-          budgetManager: (a) => a.budgetManagerEmail,
-          director: (a) => a.directorEmail,
-          financeHead: (a) => a.financeHeadEmail,
-        };
-        const next = pick(selectors[step]);
+        // Same resolution the request mutations use for "who's next", so a
+        // reminder can never nudge a different person than the approval flow
+        // itself would.
+        const next = nextApproverWithYear(
+          request,
+          requestYearApprovers,
+          thisYearApprovers
+        );
         recipients = next
           ? await withDelegatesForYear(ctx, next.year, next.email)
           : [];
@@ -141,12 +156,12 @@ export const remindStale = internalMutation({
         const finance = await getApprovers(ctx, reqYear, FINANCE);
         const financeNow =
           reqYear === year ? finance : await getApprovers(ctx, year, FINANCE);
-        const head =
-          finance.financeHeadEmail !== undefined
-            ? { email: finance.financeHeadEmail, year: reqYear }
-            : financeNow.financeHeadEmail !== undefined
-              ? { email: financeNow.financeHeadEmail, year }
-              : undefined;
+        const head = preferRequestYear(
+          finance.financeHeadEmail,
+          financeNow.financeHeadEmail,
+          reqYear,
+          year
+        );
         recipients = head
           ? await withDelegatesForYear(ctx, head.year, head.email)
           : [];
