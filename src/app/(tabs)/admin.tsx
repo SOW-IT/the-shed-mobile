@@ -970,6 +970,23 @@ export default function AdminScreen() {
             <>
           <SectionTitle>Roles — {selectedYear}</SectionTitle>
           <CardGrid>
+          {editable && (
+            <Card>
+              <Field
+                label="New role"
+                value={roleName}
+                onChangeText={setRoleName}
+              />
+              <Btn
+                title="Add Role"
+                onPress={() =>
+                  void run(() =>
+                    upsertRole({ year: selectedYear, name: roleName })
+                  ).then((ok) => ok && setRoleName(""))
+                }
+              />
+            </Card>
+          )}
           {(structure?.roles ?? []).length === 0 && (
             <Card><Muted>No roles yet.</Muted></Card>
           )}
@@ -1053,23 +1070,6 @@ export default function AdminScreen() {
               </Card>
             );
           })}
-          {editable && (
-            <Card>
-              <Field
-                label="New role"
-                value={roleName}
-                onChangeText={setRoleName}
-              />
-              <Btn
-                title="Add Role"
-                onPress={() =>
-                  void run(() =>
-                    upsertRole({ year: selectedYear, name: roleName })
-                  ).then((ok) => ok && setRoleName(""))
-                }
-              />
-            </Card>
-          )}
           </CardGrid>
             </>
           )}
@@ -1078,6 +1078,39 @@ export default function AdminScreen() {
             <>
           <SectionTitle>Divisions — {selectedYear}</SectionTitle>
           <CardGrid>
+          {editable && (
+            <Card>
+              <Field
+                label="New division name"
+                value={divisionName}
+                onChangeText={setDivisionName}
+              />
+              <Select
+                label="Head of Division (a person can head several divisions)"
+                value={divisionHead}
+                options={[{ label: "— No head —", value: "" }, ...personOptions]}
+                onSelect={setDivisionHead}
+                placeholder="Choose a person…"
+              />
+              <Btn
+                title="Add Division"
+                onPress={() =>
+                  void run(() =>
+                    upsertDivision({
+                      year: selectedYear,
+                      name: divisionName,
+                      headEmail: divisionHead || undefined,
+                    })
+                  ).then((ok) => {
+                    if (ok) {
+                      setDivisionName("");
+                      setDivisionHead("");
+                    }
+                  })
+                }
+              />
+            </Card>
+          )}
           {(structure?.divisions ?? []).map((division) => {
             const isEditingThis = editingDivisionKey === division.name;
             return (
@@ -1168,39 +1201,6 @@ export default function AdminScreen() {
               </Card>
             );
           })}
-          {editable && (
-            <Card>
-              <Field
-                label="New division name"
-                value={divisionName}
-                onChangeText={setDivisionName}
-              />
-              <Select
-                label="Head of Division (a person can head several divisions)"
-                value={divisionHead}
-                options={[{ label: "— No head —", value: "" }, ...personOptions]}
-                onSelect={setDivisionHead}
-                placeholder="Choose a person…"
-              />
-              <Btn
-                title="Add Division"
-                onPress={() =>
-                  void run(() =>
-                    upsertDivision({
-                      year: selectedYear,
-                      name: divisionName,
-                      headEmail: divisionHead || undefined,
-                    })
-                  ).then((ok) => {
-                    if (ok) {
-                      setDivisionName("");
-                      setDivisionHead("");
-                    }
-                  })
-                }
-              />
-            </Card>
-          )}
           </CardGrid>
             </>
           )}
@@ -1209,6 +1209,23 @@ export default function AdminScreen() {
             <>
           <SectionTitle>Universities — {selectedYear}</SectionTitle>
           <CardGrid>
+          {editable && (
+            <Card>
+              <Field
+                label="New university"
+                value={universityName}
+                onChangeText={setUniversityName}
+              />
+              <Btn
+                title="Add University"
+                onPress={() =>
+                  void run(() =>
+                    upsertUniversity({ year: selectedYear, name: universityName })
+                  ).then((ok) => ok && setUniversityName(""))
+                }
+              />
+            </Card>
+          )}
           {(structure?.universities ?? []).length === 0 && (
             <Card><Muted>No universities yet.</Muted></Card>
           )}
@@ -1284,23 +1301,6 @@ export default function AdminScreen() {
               </Card>
             );
           })}
-          {editable && (
-            <Card>
-              <Field
-                label="New university"
-                value={universityName}
-                onChangeText={setUniversityName}
-              />
-              <Btn
-                title="Add University"
-                onPress={() =>
-                  void run(() =>
-                    upsertUniversity({ year: selectedYear, name: universityName })
-                  ).then((ok) => ok && setUniversityName(""))
-                }
-              />
-            </Card>
-          )}
           </CardGrid>
             </>
           )}
@@ -1309,6 +1309,43 @@ export default function AdminScreen() {
             <>
           <SectionTitle>Departments — {selectedYear}</SectionTitle>
           <CardGrid>
+          {editable && (
+            <Card>
+              <Field
+                label="New department name"
+                value={departmentName}
+                onChangeText={setDepartmentName}
+              />
+              <Select
+                label="Division"
+                value={selectedDepartmentDivision}
+                options={divisionNames}
+                onSelect={setDepartmentDivision}
+                placeholder="Choose a division…"
+              />
+              <Select
+                label="Head of Department"
+                value={departmentHead}
+                options={[{ label: "— No head —", value: "" }, ...personOptions]}
+                onSelect={setDepartmentHead}
+                placeholder="Choose a person…"
+              />
+              <Btn
+                title="Add Department"
+                disabled={!departmentName.trim() || !selectedDepartmentDivision}
+                onPress={() =>
+                  void run(() =>
+                    upsertDepartment({
+                      year: selectedYear,
+                      name: departmentName,
+                      division: selectedDepartmentDivision,
+                      headEmail: departmentHead || undefined,
+                    })
+                  ).then((ok) => ok && setDepartmentName(""))
+                }
+              />
+            </Card>
+          )}
           {(structure?.departments ?? []).map((department) => {
             const isEditingThis = editingDepartmentKey === department.name;
             return (
@@ -1414,43 +1451,6 @@ export default function AdminScreen() {
               </Card>
             );
           })}
-          {editable && (
-            <Card>
-              <Field
-                label="New department name"
-                value={departmentName}
-                onChangeText={setDepartmentName}
-              />
-              <Select
-                label="Division"
-                value={selectedDepartmentDivision}
-                options={divisionNames}
-                onSelect={setDepartmentDivision}
-                placeholder="Choose a division…"
-              />
-              <Select
-                label="Head of Department"
-                value={departmentHead}
-                options={[{ label: "— No head —", value: "" }, ...personOptions]}
-                onSelect={setDepartmentHead}
-                placeholder="Choose a person…"
-              />
-              <Btn
-                title="Add Department"
-                disabled={!departmentName.trim() || !selectedDepartmentDivision}
-                onPress={() =>
-                  void run(() =>
-                    upsertDepartment({
-                      year: selectedYear,
-                      name: departmentName,
-                      division: selectedDepartmentDivision,
-                      headEmail: departmentHead || undefined,
-                    })
-                  ).then((ok) => ok && setDepartmentName(""))
-                }
-              />
-            </Card>
-          )}
           </CardGrid>
             </>
           )}

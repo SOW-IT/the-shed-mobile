@@ -429,10 +429,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     overflow: "hidden",
   },
+  /** Full-bleed to the page gutter: the row carries no horizontal padding of
+   *  its own, so an event's date, name and pills line up with the "Events"
+   *  header and the campus strip above rather than sitting indented inside the
+   *  list. The owner-campus stripe on an external event is drawn as a left
+   *  border, which sits in that reclaimed space. */
   eventRow: {
     paddingVertical: spacing.md,
-    paddingRight: spacing.md,
-    paddingLeft: spacing.md,
     gap: spacing.sm,
   },
   eventContent: {
