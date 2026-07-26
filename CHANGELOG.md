@@ -6,6 +6,20 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.10.2] — 2026-07-26
+
+### Changed
+- **The "add" box in Admin → Structure now sits at the top of each list.** Adding
+  a role, division, department or university meant scrolling past everything
+  that already existed to reach the form at the bottom — worst on Departments
+  and Universities, where the list only grows. The form is now the first thing
+  in each list, so adding is always one scroll away from the top.
+- **Events fill the width of the screen.** The event list had its own indent on
+  top of the page margin, so event dates and names sat further in than the
+  "Events" heading and the campus row above them. That indent is gone: each
+  event now lines up with everything else on the page and has more room for
+  long names and tags.
+
 ## [1.10.1] — 2026-07-25
 
 ### Fixed
