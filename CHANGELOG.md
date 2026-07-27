@@ -6,6 +6,14 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.10.3] — 2026-07-27
+
+### Added
+- **The production database is now backed up automatically every day.** A
+  database-only Convex snapshot is exported to private Google Cloud Storage so
+  recovery does not depend solely on Convex's built-in retention window. Stored
+  files are intentionally excluded from these backups.
+
 ## [1.10.2] — 2026-07-26
 
 ### Changed
