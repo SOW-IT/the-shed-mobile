@@ -1,8 +1,8 @@
 # The Shed Mobile — Maestro E2E suite
 
-End-to-end UI tests driven by [Maestro](https://maestro.mobile.dev), generated
-from [`E2E_TEST_CHECKLIST.md`](../E2E_TEST_CHECKLIST.md) (v1.7.1). Folder numbers
-mirror the checklist sections.
+End-to-end UI tests driven by [Maestro](https://maestro.mobile.dev), covering
+every user-facing action in the app (originally generated against v1.7.1).
+Folder numbers group the flows by app area.
 
 ```
 .maestro/
