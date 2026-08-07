@@ -17,6 +17,9 @@ All notable changes to **The SHED** mobile app. This project follows
   name and pills line up with the "Events" heading whether or not the event
   belongs to another group.
 
+- **Routine dependency updates.** Convex, `@auth/core`, `expo-auth-session` and
+  the CI checkout action move to their latest compatible patch releases.
+
 ### Removed
 - **Retired four documents that no longer describe the app.** The end-to-end
   test checklist has been replaced by the Maestro suite that was generated from

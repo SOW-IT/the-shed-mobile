@@ -245,9 +245,14 @@ export function EventsTab({
                       style={[
                         styles.eventAccent,
                         {
-                          backgroundColor: isExternalEvent
-                            ? ownerColour
-                            : "transparent",
+                          // Same mapping as the campus ring above: SOW's brand
+                          // colour is black, which is invisible against the dark
+                          // theme's background, so fall back to the logo cream.
+                          backgroundColor: !isExternalEvent
+                            ? "transparent"
+                            : isOrgWideSubgroup(ownerSubgroup) && t.dark
+                              ? t.text
+                              : ownerColour,
                         },
                       ]}
                     />
