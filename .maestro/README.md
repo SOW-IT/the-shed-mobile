@@ -5,7 +5,7 @@ the app's automated user-facing flows (originally generated against v1.7.1).
 Flows tagged `manual` are excluded from automation by design — see
 `config.yaml`. Folder numbers group the flows by app area.
 
-```
+```text
 .maestro/
 ├── config.yaml            # suite config, tags, exclude `manual`
 ├── .env.example           # copy → .env, fill accounts (git-ignored)
