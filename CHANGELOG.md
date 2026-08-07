@@ -6,6 +6,26 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.10.4] — 2026-08-07
+
+### Changed
+- **The colour stripe marking another group's event now runs down the very edge
+  of the events list.** It previously sat a little way in from the edge, tucked
+  tight against the date, and it nudged those events' text slightly right of
+  every other row — so the list never quite lined up. The stripe now sits in the
+  margin, the line between events runs the full width, and every event's date,
+  name and pills line up with the "Events" heading whether or not the event
+  belongs to another group.
+
+- **Routine dependency updates.** Convex, `@auth/core`, `expo-auth-session` and
+  the CI checkout action move to their latest compatible patch releases.
+
+### Removed
+- **Retired four documents that no longer describe the app.** The end-to-end
+  test checklist has been replaced by the Maestro suite that was generated from
+  it, and the two audit reports and the Sign in with Apple plan all describe
+  work that has since shipped.
+
 ## [1.10.3] — 2026-07-27
 
 ### Added

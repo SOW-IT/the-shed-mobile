@@ -233,13 +233,29 @@ export function EventsTab({
                         borderTopWidth: StyleSheet.hairlineWidth,
                         borderTopColor: t.separator,
                       },
-                      {
-                        borderLeftWidth: isExternalEvent ? 4 : 0,
-                        borderLeftColor: isExternalEvent ? ownerColour : "transparent",
-                        backgroundColor: t.background,
-                      },
+                      { backgroundColor: t.background },
                     ]}
                   >
+                    {/* Absolutely positioned so it sits in the page gutter
+                     *  without displacing the row — previously this was a left
+                     *  border, which pushed an external event's content 4px
+                     *  right of every other row. Always rendered (transparent
+                     *  for our own events) to keep the tree stable. */}
+                    <View
+                      style={[
+                        styles.eventAccent,
+                        {
+                          // Same mapping as the campus ring above: SOW's brand
+                          // colour is black, which is invisible against the dark
+                          // theme's background, so fall back to the logo cream.
+                          backgroundColor: !isExternalEvent
+                            ? "transparent"
+                            : isOrgWideSubgroup(ownerSubgroup) && t.dark
+                              ? t.text
+                              : ownerColour,
+                        },
+                      ]}
+                    />
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={`Open ${event.name}`}
@@ -425,18 +441,28 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   exportButtonText: { fontSize: 13, fontWeight: "700" },
+  /** Escapes PagerScreen's `spacing.lg` page padding so the owner-campus stripe
+   *  and the row dividers reach the very edge of the page, while everything
+   *  else on the tab keeps the normal inset. */
   eventsList: {
-    borderRadius: radius.md,
+    marginHorizontal: -spacing.lg,
     overflow: "hidden",
   },
-  /** Full-bleed to the page gutter: the row carries no horizontal padding of
-   *  its own, so an event's date, name and pills line up with the "Events"
-   *  header and the campus strip above rather than sitting indented inside the
-   *  list. The owner-campus stripe on an external event is drawn as a left
-   *  border, which sits in that reclaimed space. */
+  /** The row spans the full bleed; each row re-applies `spacing.lg` itself, so
+   *  an event's date, name and pills still line up with the "Events" header and
+   *  the campus strip above. */
   eventRow: {
+    position: "relative",
     paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
     gap: spacing.sm,
+  },
+  eventAccent: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
   },
   eventContent: {
     gap: spacing.md,

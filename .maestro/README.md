@@ -1,27 +1,28 @@
 # The Shed Mobile — Maestro E2E suite
 
-End-to-end UI tests driven by [Maestro](https://maestro.mobile.dev), generated
-from [`E2E_TEST_CHECKLIST.md`](../E2E_TEST_CHECKLIST.md) (v1.7.1). Folder numbers
-mirror the checklist sections.
+End-to-end UI tests driven by [Maestro](https://maestro.mobile.dev), covering
+the app's automated user-facing flows (originally generated against v1.7.1).
+Flows tagged `manual` are excluded from automation by design — see
+`config.yaml`. Folder numbers group the flows by app area.
 
-```
+```text
 .maestro/
 ├── config.yaml            # suite config, tags, exclude `manual`
 ├── .env.example           # copy → .env, fill accounts (git-ignored)
 ├── common/                # reusable subflows (launch, sign-in, sign-out, deep link)
-├── 00-launch-and-gating/  # §0  tab gating, logo→Home
-├── 01-public/             # §1  signed-out Home/Insights/Org/contact/sign-in
-├── 02-auth/               # §2  sign-out, deep-link-while-out, (manual) grace window
-├── 03-requests/           # §3  reimbursement lifecycle
-├── 04-bank/               # §4  bank accounts
-├── 05-attendance/         # §5  events, roll-call, members, tags, metadata, audit, export
-├── 06-insights/           # §6  General + Attendance dashboards
-├── 07-org-chart/          # §7  public org chart
-├── 08-profile/            # §8  own profile / person
-├── 09-admin/              # §9  admin access, structure, other
-├── 10-notifications/      # §10 in-app bell (+ manual push)
-├── 11-deeplinks/          # §11 routed screens
-└── 12-cross-cutting/      # §12 test chip, chrome collapse, (manual) sync/cron
+├── 00-launch-and-gating/  # tab gating, logo→Home
+├── 01-public/             # signed-out Home/Insights/Org/contact/sign-in
+├── 02-auth/               # sign-out, deep-link-while-out, (manual) grace window
+├── 03-requests/           # reimbursement lifecycle
+├── 04-bank/               # bank accounts
+├── 05-attendance/         # events, roll-call, members, tags, metadata, audit, export
+├── 06-insights/           # General + Attendance dashboards
+├── 07-org-chart/          # public org chart
+├── 08-profile/            # own profile / person
+├── 09-admin/              # admin access, structure, other
+├── 10-notifications/      # in-app bell (+ manual push)
+├── 11-deeplinks/          # routed screens
+└── 12-cross-cutting/      # test chip, chrome collapse, (manual) sync/cron
 ```
 
 ## Prerequisites
@@ -29,7 +30,7 @@ mirror the checklist sections.
 1. **Install Maestro** — `curl -fsSL https://get.maestro.mobile.dev | bash`
 2. **A running build on a simulator/emulator or device.** Use the **staging**
    build so tests hit the test/dev Convex backend and the "Test Environment"
-   chip shows (checklist §12.5/§12.6):
+   chip shows (see `12-cross-cutting/test-environment-chip.yaml`):
    - iOS: `APP_ID=au.org.sow.theshed.staging`, scheme `theshedmobilestaging`
    - Build & install: `eas build --profile staging` (or a local dev client).
 3. **Seeded test accounts & data** in the test backend (see below).
@@ -313,15 +314,15 @@ The app has almost no `testID`s, so flows target **visible text** and the
 ~40 `accessibilityLabel`s (e.g. `"Open admin tools"`, `"Submit receipt"`,
 `"Nudge approver"`). Where a flow is flaky, the highest-leverage fix is to add a
 `testID` in the component and switch the step to `id:`. Regex text matchers
-(`.*…`) are used where copy is dynamic; exact strings are used where the
-checklist pins them (validation messages, empty states).
+(`.*…`) are used where copy is dynamic; exact strings are used where the copy is
+fixed (validation messages, empty states).
 
 ## Not automatable here (tracked as `manual`)
 
 Fault injection (optimistic rollback, upload failures, ErrorBoundary),
 multi-device real-time sync, scheduled crons (year rollover, receipt purge,
 directory sync, stale reminders), push delivery/registration, OS file/photo
-pickers, and release-build startup — see the `*.MANUAL.yaml` files and checklist
-§12. Several of these are already covered by unit tests
+pickers, and release-build startup — see the `*.MANUAL.yaml` files and
+`12-cross-cutting/`. Several of these are already covered by unit tests
 (`convex/contact.test.ts`, `src/lib/attendanceCsv.test.ts`,
 `shared/deepLinks.ts`).
