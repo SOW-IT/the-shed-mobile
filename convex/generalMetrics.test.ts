@@ -3,6 +3,15 @@ import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, test } from "vitest";
 import { staffYearForDate } from "../shared/flow";
 import { api } from "./_generated/api";
+import {
+  avgTenureYears,
+  lifetimeAvgTenureYears,
+  lifetimeTenureAtLeastPct,
+  profilePersonKey,
+  retentionRate,
+  tenureAtLeastPct,
+  turnoverRate,
+} from "./generalMetrics";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -16,10 +25,16 @@ const asUser = (t: TestConvex<typeof schema>, email: string) =>
   t.withIdentity({ email, subject: email, issuer: "test" });
 
 type Assignment = { role: string; department?: string; university?: string };
-const profile = (email: string, year: number, assignments: Assignment[]) => ({
+const profile = (
+  email: string,
+  year: number,
+  assignments: Assignment[],
+  extra?: { importId?: string }
+) => ({
   email,
   year,
   assignments,
+  ...extra,
 });
 
 /** Seed profiles across two staff years, including the caller so auth passes. */
@@ -40,6 +55,69 @@ async function seed(t: TestConvex<typeof schema>) {
     for (const row of rows) await ctx.db.insert("staffProfiles", row);
   });
 }
+
+describe("turnover and tenure helpers", () => {
+  test("profilePersonKey prefers importId over email", () => {
+    expect(profilePersonKey({ email: "a@sow.org.au", importId: "uid-1" })).toBe(
+      "import:uid-1"
+    );
+    expect(profilePersonKey({ email: "a@sow.org.au" })).toBe("email:a@sow.org.au");
+  });
+
+  test("turnoverRate is leavers / prior head-count", () => {
+    expect(turnoverRate(new Set(["a", "b", "c"]), new Set(["a", "c"]))).toBe(
+      33.3
+    );
+    expect(turnoverRate(new Set(["a"]), new Set(["a"]))).toBe(0);
+    expect(turnoverRate(new Set(), new Set(["a"]))).toBeNull();
+  });
+
+  test("retentionRate is stayers / prior head-count (complement of turnover)", () => {
+    expect(retentionRate(new Set(["a", "b", "c"]), new Set(["a", "c"]))).toBe(
+      66.7
+    );
+    expect(retentionRate(new Set(["a"]), new Set(["a"]))).toBe(100);
+    expect(retentionRate(new Set(), new Set(["a"]))).toBeNull();
+  });
+
+  test("tenureAtLeastPct counts careers spanning min years as-of a year", () => {
+    const yearsByPerson = new Map<string, Set<number>>([
+      ["a", new Set([2024, 2025])],
+      ["b", new Set([2025])],
+      ["c", new Set([2023, 2024, 2025])],
+    ]);
+    // Present in 2025: a (2y), b (1y), c (3y) → 2 of 3 have ≥2 years.
+    expect(
+      tenureAtLeastPct(new Set(["a", "b", "c"]), yearsByPerson, 2025)
+    ).toBe(66.7);
+    // As of 2024: a has only 2024 so far (1y), c has 2023+2024 (2y) → 50%.
+    expect(tenureAtLeastPct(new Set(["a", "c"]), yearsByPerson, 2024)).toBe(50);
+  });
+
+  test("avgTenureYears is the mean career length as-of a year", () => {
+    const yearsByPerson = new Map<string, Set<number>>([
+      ["a", new Set([2024, 2025])],
+      ["b", new Set([2025])],
+      ["c", new Set([2023, 2024, 2025])],
+    ]);
+    // (2 + 1 + 3) / 3 = 2.0
+    expect(avgTenureYears(new Set(["a", "b", "c"]), yearsByPerson, 2025)).toBe(
+      2
+    );
+    expect(avgTenureYears(new Set(), yearsByPerson, 2025)).toBe(0);
+  });
+
+  test("lifetimeTenureAtLeastPct is over everyone ever in the map", () => {
+    const yearsByPerson = new Map<string, Set<number>>([
+      ["a", new Set([2024, 2025])],
+      ["b", new Set([2025])],
+    ]);
+    expect(lifetimeTenureAtLeastPct(yearsByPerson)).toBe(50);
+    expect(lifetimeTenureAtLeastPct(new Map())).toBe(0);
+    // (2 + 1) / 2 = 1.5
+    expect(lifetimeAvgTenureYears(yearsByPerson)).toBe(1.5);
+  });
+});
 
 describe("staffTrends", () => {
   test("is public — anonymous and profile-less callers see the org-wide trends", async () => {
@@ -83,6 +161,105 @@ describe("staffTrends", () => {
       { campus: "UNSW", counts: [0, 1] },
       { campus: "USYD", counts: [1, 2] },
     ]);
+  });
+
+  test("reports year-over-year turnover, retention, and multi-year tenure", async () => {
+    const t = convexTest(schema, modules);
+    await seed(t);
+    const trends = (await asUser(t, CALLER).query(api.generalMetrics.staffTrends, {}))!;
+
+    // PREV has no prior year → null. YEAR: everyone from PREV (caller + bob)
+    // stayed, so overall / staff / SL turnover are all 0 and retention 100.
+    expect(trends.turnover.overall).toEqual([null, 0]);
+    expect(trends.turnover.staff).toEqual([null, 0]);
+    expect(trends.turnover.studentLeaders).toEqual([null, 0]);
+    expect(trends.retention.overall).toEqual([null, 100]);
+    expect(trends.retention.staff).toEqual([null, 100]);
+    expect(trends.retention.studentLeaders).toEqual([null, 100]);
+
+    // As of PREV everyone is in year 1 of their career → 0% with ≥2 years.
+    // As of YEAR: caller and bob have 2 years; carol and dave have 1 → overall
+    // 2/4 = 50%. Staff is only the caller (2y) → 100%. SLs are bob (2y) +
+    // carol/dave (1y) → 1/3 ≈ 33.3%.
+    expect(trends.tenure2Plus.overall).toEqual([0, 50]);
+    expect(trends.tenure2Plus.staff).toEqual([0, 100]);
+    expect(trends.tenure2Plus.studentLeaders).toEqual([0, 33.3]);
+
+    // Mean years so far: PREV all 1.0. YEAR overall (2+2+1+1)/4 = 1.5;
+    // staff = 2; SLs (2+1+1)/3 ≈ 1.3.
+    expect(trends.avgTenureYears.overall).toEqual([1, 1.5]);
+    expect(trends.avgTenureYears.staff).toEqual([1, 2]);
+    expect(trends.avgTenureYears.studentLeaders).toEqual([1, 1.3]);
+
+    // Lifetime: 4 distinct people (caller, bob, carol, dave); 2 have ≥2 years.
+    // Staff ever: just caller (2 years) → 100%. SLs ever: bob/carol/dave; only
+    // bob has 2 years → 1/3 ≈ 33.3%. Avg years: overall (2+2+1+1)/4 = 1.5.
+    expect(trends.lifetimeTenure2Plus).toEqual({
+      overall: 50,
+      staff: 100,
+      studentLeaders: 33.3,
+    });
+    expect(trends.lifetimeAvgTenureYears).toEqual({
+      overall: 1.5,
+      staff: 2,
+      studentLeaders: 1.3,
+    });
+  });
+
+  test("counts a leaver toward turnover and links a person across email renames", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      // Alice leaves after PREV; Bob renames email between years but keeps importId.
+      await ctx.db.insert(
+        "staffProfiles",
+        profile("alice@sow.org.au", PREV, [{ role: "Staff", department: "Ops" }])
+      );
+      await ctx.db.insert(
+        "staffProfiles",
+        profile(
+          "bob.old@sow.org.au",
+          PREV,
+          [{ role: "Student Leader", university: "USYD" }],
+          { importId: "bob-1" }
+        )
+      );
+      await ctx.db.insert(
+        "staffProfiles",
+        profile(
+          "bob.new@sow.org.au",
+          YEAR,
+          [{ role: "Student Leader", university: "USYD" }],
+          { importId: "bob-1" }
+        )
+      );
+      await ctx.db.insert(
+        "staffProfiles",
+        profile(CALLER, YEAR, [{ role: "Staff", department: "Marketing" }])
+      );
+    });
+    const trends = (await asUser(t, CALLER).query(api.generalMetrics.staffTrends, {}))!;
+
+    // PREV: alice (staff) + bob. YEAR: bob + caller.
+    // Overall: alice left (1 of 2) → 50% turnover / 50% retention.
+    // Staff: alice left → 100% turnover / 0% retention.
+    // SLs: bob stayed → 0% turnover / 100% retention.
+    expect(trends.turnover.overall).toEqual([null, 50]);
+    expect(trends.turnover.staff).toEqual([null, 100]);
+    expect(trends.turnover.studentLeaders).toEqual([null, 0]);
+    expect(trends.retention.overall).toEqual([null, 50]);
+    expect(trends.retention.staff).toEqual([null, 0]);
+    expect(trends.retention.studentLeaders).toEqual([null, 100]);
+
+    // Bob's two emails share importId, so lifetime SL tenure is 1 person with
+    // 2 years (100%). Staff ever = alice (1y) + caller (1y) → 0% with ≥2y.
+    // Overall people: alice, bob, caller — only bob has 2 years → 33.3%.
+    expect(trends.lifetimeTenure2Plus.studentLeaders).toBe(100);
+    expect(trends.lifetimeTenure2Plus.staff).toBe(0);
+    expect(trends.lifetimeTenure2Plus.overall).toBe(33.3);
+    // Avg years: overall (1+2+1)/3 ≈ 1.3; staff 1; SL 2.
+    expect(trends.lifetimeAvgTenureYears.overall).toBe(1.3);
+    expect(trends.lifetimeAvgTenureYears.staff).toBe(1);
+    expect(trends.lifetimeAvgTenureYears.studentLeaders).toBe(2);
   });
 
   test("counts a leader with two campus roles once per campus, not twice", async () => {
