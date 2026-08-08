@@ -6,6 +6,12 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.10.5] — 2026-08-08
+
+### Changed
+- **Routine dependency alignment.** `expo-router` and `eslint-config-expo` move
+  to the versions Expo SDK 57 expects. No user-facing behaviour changes.
+
 ## [1.10.4] — 2026-08-07
 
 ### Changed
