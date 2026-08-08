@@ -6,6 +6,12 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.10.5] — 2026-08-08
+
+### Changed
+- **Routine tooling update.** `eslint-config-expo` moves to the version Expo
+  SDK 57 expects. Lint-time only — no app code or behaviour changes.
+
 ## [1.10.4] — 2026-08-07
 
 ### Changed

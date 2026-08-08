@@ -1,7 +1,7 @@
 {
   "name": "theshed",
   "main": "expo-router/entry",
-  "version": "1.10.4",
+  "version": "1.10.5",
   "dependencies": {
     "@auth/core": "^0.41.3",
     "@convex-dev/auth": "^0.0.94",
@@ -48,7 +48,7 @@
     "@vitest/coverage-v8": "^4.1.9",
     "convex-test": "^0.0.54",
     "eslint": "^9.39.4",
-    "eslint-config-expo": "~57.0.0",
+    "eslint-config-expo": "~57.0.1",
     "typescript": "~6.0.3",
     "vitest": "^4.1.8"
   },
