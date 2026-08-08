@@ -384,6 +384,12 @@ function YAxis({ max, chartHeight, ticks }: { max: number; chartHeight: number; 
     Math.round(max * 0.25),
     0,
   ];
+  // Sub-10 axes (e.g. average years served) need one decimal so quarters like
+  // 1.25 don't both round to "1" and look duplicated.
+  const fmtTick = (v: number) =>
+    Number.isInteger(v) || Math.abs(v - Math.round(v)) < 1e-9
+      ? String(Math.round(v))
+      : (Math.round(v * 10) / 10).toFixed(1);
   return (
     <View style={[styles.yAxis, { height: chartContainerH(chartHeight) }]}>
       {values.map((v, i) => (
@@ -395,7 +401,7 @@ function YAxis({ max, chartHeight, ticks }: { max: number; chartHeight: number; 
           ]}
           numberOfLines={1}
         >
-          {v}
+          {fmtTick(v)}
         </Text>
       ))}
     </View>
@@ -1095,6 +1101,8 @@ export function MultiStackedBarChart({
   fullscreen = false,
   tooltipLabel,
   stacked = true,
+  axisMax,
+  keepZeros = false,
 }: {
   points: MultiStackPoint[];
   fullscreen?: boolean;
@@ -1107,6 +1115,17 @@ export function MultiStackedBarChart({
    * wouldn't mean anything.
    */
   stacked?: boolean;
+  /**
+   * Pin the y-axis ceiling (e.g. 100 for rate charts). When omitted the axis
+   * auto-scales to the data via {@link niceAxis}.
+   */
+  axisMax?: number;
+  /**
+   * Keep zero-valued segments in the chart (height 0, no BAR_MIN stub). Rate
+   * charts use this so a real 0% is distinct from a missing segment, without
+   * drawing a catastrophic-looking stub.
+   */
+  keepZeros?: boolean;
 }) {
   const t = useAppTheme();
   const mode = useChartMode();
@@ -1120,27 +1139,29 @@ export function MultiStackedBarChart({
     p.segments.reduce((s, seg) => s + seg.value, 0),
   );
   // Bars are stacked, so they scale to the per-point total.
-  const stackedMax = Math.max(1, ...totals);
-  const scale = (n: number) => (n / stackedMax) * chartHeight;
+  const stackedDataMax = Math.max(1, ...totals);
   // Grouped (unstacked) bars scale to the tallest single segment value —
   // scaling to the stacked total would squash every bar against the floor.
-  const groupedMax = Math.max(
+  const groupedDataMax = Math.max(
     1,
     ...points.flatMap((p) => p.segments.map((seg) => seg.value)),
   );
-  const groupedScale = (n: number) => (n / groupedMax) * chartHeight;
+  const dataMax = stacked ? stackedDataMax : groupedDataMax;
+  // Fixed ceiling (rate charts) or nice-step ticks (avg years / counts).
+  const axis =
+    axisMax !== undefined
+      ? {
+          max: axisMax,
+          ticks: [axisMax, axisMax * 0.75, axisMax * 0.5, axisMax * 0.25, 0],
+        }
+      : niceAxis(dataMax, chartHeight);
+  const scale = (n: number) => (n / axis.max) * chartHeight;
   const labelFor = (i: number) =>
     tooltipLabel ? tooltipLabel(points[i]) : points[i].label;
   if (mode === "line") {
     // One line per segment (e.g. per campus), keyed off the first point's
     // segment order so colours and keys stay stable across points.
     const keys = points[0].segments;
-    // Lines aren't stacked, so scale to the tallest single segment value —
-    // scaling to the stacked total would squash every line against the floor.
-    const lineMax = Math.max(
-      1,
-      ...points.flatMap((p) => p.segments.map((seg) => seg.value))
-    );
     return (
       <LineSeriesChart
         labels={points.map((p) => p.label)}
@@ -1149,7 +1170,7 @@ export function MultiStackedBarChart({
           colour: seg.colour,
           values: points.map((p) => p.segments[si]?.value ?? 0),
         }))}
-        max={lineMax}
+        max={axis.max}
         fullscreen={fullscreen}
         tooltipLabelFor={labelFor}
         selectedKey={selectedKey}
@@ -1160,7 +1181,7 @@ export function MultiStackedBarChart({
     <View
       style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}
     >
-      <YAxis max={stacked ? stackedMax : groupedMax} chartHeight={chartHeight} />
+      <YAxis max={axis.max} chartHeight={chartHeight} ticks={axis.ticks} />
       <View style={{ flex: 1, height: chartContainerH(chartHeight) }}>
         <View
           onLayout={fit.onLayout}
@@ -1176,7 +1197,11 @@ export function MultiStackedBarChart({
             ? null
             : points.map((p, i) => {
                 const total = totals[i];
-                const filtered = p.segments.filter((seg) => seg.value > 0);
+                // Default: drop zero segments (campus empties). Rate charts pass
+                // keepZeros so a real 0% stays in the tooltip without a BAR_MIN stub.
+                const filtered = keepZeros
+                  ? p.segments
+                  : p.segments.filter((seg) => seg.value > 0);
                 // Fullscreen legend tap moves that segment to the bottom of
                 // the stack — only meaningful when segments are actually
                 // stacked (grouped bars have no "bottom" to move to).
@@ -1187,7 +1212,8 @@ export function MultiStackedBarChart({
                         ...filtered.filter((s) => s.key === selectedKey),
                       ]
                     : filtered;
-                const barHeight = Math.max(BAR_MIN, scale(total));
+                const barHeight =
+                  total > 0 ? Math.max(BAR_MIN, scale(total)) : 0;
                 const gapCount = Math.max(0, visible.length - 1);
                 const gaps = Math.min(
                   gapCount * SEG_GAP,
@@ -1276,7 +1302,11 @@ export function MultiStackedBarChart({
                             key={seg.key}
                             style={{
                               width: groupSegWidth,
-                              height: Math.max(BAR_MIN, groupedScale(seg.value)),
+                              // Real 0 → height 0 (no BAR_MIN stub that reads as a low %).
+                              height:
+                                seg.value <= 0
+                                  ? 0
+                                  : Math.max(BAR_MIN, scale(seg.value)),
                               backgroundColor: seg.colour,
                               marginLeft: si === 0 ? 0 : SEG_GAP,
                               borderTopLeftRadius: radius.sm,

@@ -15,10 +15,188 @@ import {
   STUDENT_LEADER_ROLE_FILTER_ROLES,
 } from "../shared/attendanceMemberMeta";
 
+/** Percent with one decimal (e.g. 33.3). */
+const pct1 = (numerator: number, denominator: number): number =>
+  Math.round((numerator / denominator) * 1000) / 10;
+
+/**
+ * Durable person key across staff years. Prefer `importId` (survives email
+ * renames); fall back to the normalised profile email when the person was
+ * never imported or linked. Email is lowercased + trimmed so case/whitespace
+ * alone can't register as a leave + join.
+ *
+ * Optional `emailToImportId` resolves mixed coverage: if any year of a person
+ * carries `importId`, every row for that email uses the same import key so
+ * partially-backfilled history doesn't look like a leave + join.
+ */
+export const profilePersonKey = (
+  p: { email: string; importId?: string },
+  emailToImportId?: ReadonlyMap<string, string>
+): string => {
+  const email = p.email.trim().toLowerCase();
+  const importId = p.importId ?? emailToImportId?.get(email);
+  return importId ? `import:${importId}` : `email:${email}`;
+};
+
+/**
+ * Map each email to an `importId` seen on any profile for that email. Used so
+ * {@link profilePersonKey} is stable when only some years are backfilled.
+ */
+export const buildEmailToImportId = (
+  profiles: readonly { email: string; importId?: string }[]
+): Map<string, string> => {
+  const map = new Map<string, string>();
+  for (const p of profiles) {
+    if (!p.importId) continue;
+    map.set(p.email.trim().toLowerCase(), p.importId);
+  }
+  return map;
+};
+
+/**
+ * Share of `prior` people missing from `current` (standard year-over-year
+ * turnover). `null` when there is no prior roster to measure against.
+ */
+export const turnoverRate = (
+  prior: ReadonlySet<string>,
+  current: ReadonlySet<string>
+): number | null => {
+  if (prior.size === 0) return null;
+  let leavers = 0;
+  for (const key of prior) if (!current.has(key)) leavers += 1;
+  return pct1(leavers, prior.size);
+};
+
+/**
+ * Share of `prior` people still present in `current` (year-over-year retention).
+ * Complement of {@link turnoverRate}; `null` when there is no prior roster.
+ */
+export const retentionRate = (
+  prior: ReadonlySet<string>,
+  current: ReadonlySet<string>
+): number | null => {
+  if (prior.size === 0) return null;
+  let stayers = 0;
+  for (const key of prior) if (current.has(key)) stayers += 1;
+  return pct1(stayers, prior.size);
+};
+
+/** Count of distinct career years ≤ asOfYear for one person. */
+const yearsServedAsOf = (
+  years: ReadonlySet<number> | undefined,
+  asOfYear: number
+): number => {
+  if (!years) return 0;
+  let n = 0;
+  for (const y of years) if (y <= asOfYear) n += 1;
+  return n;
+};
+
+/**
+ * Of people present in a category, the share whose career in that category
+ * spans at least `minYears` distinct staff years (as of `asOfYear`, only years
+ * ≤ asOfYear count). `null` when nobody is present in the lens (so charts don't
+ * plot an empty roster as a real 0%).
+ */
+export const tenureAtLeastPct = (
+  present: ReadonlySet<string>,
+  yearsByPerson: ReadonlyMap<string, ReadonlySet<number>>,
+  asOfYear: number,
+  minYears = 2
+): number | null => {
+  if (present.size === 0) return null;
+  let count = 0;
+  for (const key of present) {
+    if (yearsServedAsOf(yearsByPerson.get(key), asOfYear) >= minYears) {
+      count += 1;
+    }
+  }
+  return pct1(count, present.size);
+};
+
+/**
+ * Mean number of staff years served so far (as of `asOfYear`) among people
+ * present. One decimal; `null` when nobody is present in the lens.
+ */
+export const avgTenureYears = (
+  present: ReadonlySet<string>,
+  yearsByPerson: ReadonlyMap<string, ReadonlySet<number>>,
+  asOfYear: number
+): number | null => {
+  if (present.size === 0) return null;
+  let total = 0;
+  for (const key of present) {
+    total += yearsServedAsOf(yearsByPerson.get(key), asOfYear);
+  }
+  return Math.round((total / present.size) * 10) / 10;
+};
+
+/** Lifetime share of people (ever in the map) with ≥ `minYears` years. */
+export const lifetimeTenureAtLeastPct = (
+  yearsByPerson: ReadonlyMap<string, ReadonlySet<number>>,
+  minYears = 2
+): number => {
+  if (yearsByPerson.size === 0) return 0;
+  let count = 0;
+  for (const years of yearsByPerson.values()) {
+    if (years.size >= minYears) count += 1;
+  }
+  return pct1(count, yearsByPerson.size);
+};
+
+/** Lifetime mean career length (distinct staff years) across everyone ever. */
+export const lifetimeAvgTenureYears = (
+  yearsByPerson: ReadonlyMap<string, ReadonlySet<number>>
+): number => {
+  if (yearsByPerson.size === 0) return 0;
+  let total = 0;
+  for (const years of yearsByPerson.values()) total += years.size;
+  return Math.round((total / yearsByPerson.size) * 10) / 10;
+};
+
+const emptyPersonSets = () => ({
+  all: new Set<string>(),
+  staff: new Set<string>(),
+  studentLeaders: new Set<string>(),
+});
+
+const rateSeries = v.object({
+  overall: v.array(v.union(v.number(), v.null())),
+  staff: v.array(v.union(v.number(), v.null())),
+  studentLeaders: v.array(v.union(v.number(), v.null())),
+});
+
+// Per-year rates/averages: null when that lens has nobody present that year
+// (distinct from a real 0% / 0.0 average).
+const pctSeries = v.object({
+  overall: v.array(v.union(v.number(), v.null())),
+  staff: v.array(v.union(v.number(), v.null())),
+  studentLeaders: v.array(v.union(v.number(), v.null())),
+});
+
+const lifetimePct = v.object({
+  overall: v.number(),
+  staff: v.number(),
+  studentLeaders: v.number(),
+});
+
+const avgYearsSeries = v.object({
+  overall: v.array(v.union(v.number(), v.null())),
+  staff: v.array(v.union(v.number(), v.null())),
+  studentLeaders: v.array(v.union(v.number(), v.null())),
+});
+
+const lifetimeAvgYears = v.object({
+  overall: v.number(),
+  staff: v.number(),
+  studentLeaders: v.number(),
+});
+
 /**
  * Org-wide "General" insights, plotted one point per staff year (staff roles and
  * campus assignments are stored per year in `staffProfiles`, so the staff year
- * is the only meaningful time axis):
+ * is the only meaningful time axis). All rates below are **staffProfiles only**
+ * (org-chart staff + student leaders), not attendance members.
  *
  *  - `allStaff`      — every distinct person with a profile that year.
  *  - `staff` / `studentLeaders` — the same staff-vs-student-leader split the
@@ -27,6 +205,14 @@ import {
  *    non-university staff-profile role. A person can match both lenses (rare), so
  *    the two series aren't required to sum to `allStaff`.
  *  - `studentLeadersByCampus` — distinct student leaders per university, per year.
+ *  - `turnover` / `retention` — year-over-year leave / stay rates (people in
+ *    year Y−1 missing from / still in Y). First year is `null` (no prior).
+ *  - `tenure2Plus` — of people present that year, the % with ≥2 staff years of
+ *    service in that lens so far (years ≤ that year).
+ *  - `avgTenureYears` — mean career length (distinct staff years so far) among
+ *    people present that year.
+ *  - `lifetimeTenure2Plus` / `lifetimeAvgTenureYears` — same lenses over
+ *    everyone ever in the history (≤ current staff year).
  *
  * Reads every `staffProfiles` row once (one row per person per year). The table
  * holds a single row per person-year, so this stays comfortably within a query's
@@ -47,6 +233,14 @@ export const staffTrends = query({
       studentLeadersByCampus: v.array(
         v.object({ campus: v.string(), counts: v.array(v.number()) })
       ),
+      // Aligned to `years`; first year (and empty prior roster) is null.
+      turnover: rateSeries,
+      retention: rateSeries,
+      // Aligned to `years`; null when nobody is present in that lens that year.
+      tenure2Plus: pctSeries,
+      avgTenureYears: avgYearsSeries,
+      lifetimeTenure2Plus: lifetimePct,
+      lifetimeAvgTenureYears: lifetimeAvgYears,
     })
   ),
   handler: async (ctx) => {
@@ -73,18 +267,53 @@ export const staffTrends = query({
     const campusByYear = new Map<number, Map<string, Set<string>>>();
     const campusSet = new Set<string>();
 
+    // Distinct people per year (for turnover) and career years per person (for
+    // tenure). Person identity follows importId when present (and applies any
+    // importId seen for that email to years that lack it) so renames / partial
+    // backfill don't look like a leave + join.
+    const emailToImportId = buildEmailToImportId(profiles);
+    const peopleByYear = new Map<
+      number,
+      ReturnType<typeof emptyPersonSets>
+    >();
+    const yearsAll = new Map<string, Set<number>>();
+    const yearsStaff = new Map<string, Set<number>>();
+    const yearsStudentLeaders = new Map<string, Set<number>>();
+
+    const addYear = (
+      map: Map<string, Set<number>>,
+      key: string,
+      year: number
+    ) => {
+      const set = map.get(key) ?? new Set<number>();
+      set.add(year);
+      map.set(key, set);
+    };
+
     for (const profile of profiles) {
       const roles = (profile.assignments ?? []).map((a) => a.role);
       const tally =
         totals.get(profile.year) ?? { all: 0, staff: 0, studentLeaders: 0 };
       tally.all += 1;
-      if (roleFilterMatches(STAFF_ROLE_FILTER_LABEL, roles)) tally.staff += 1;
+      const isStaff = roleFilterMatches(STAFF_ROLE_FILTER_LABEL, roles);
+      if (isStaff) tally.staff += 1;
       const isStudentLeader = roleFilterMatches(
         STUDENT_LEADER_ROLE_FILTER_LABEL,
         roles
       );
       if (isStudentLeader) tally.studentLeaders += 1;
       totals.set(profile.year, tally);
+
+      const key = profilePersonKey(profile, emailToImportId);
+      const sets = peopleByYear.get(profile.year) ?? emptyPersonSets();
+      sets.all.add(key);
+      if (isStaff) sets.staff.add(key);
+      if (isStudentLeader) sets.studentLeaders.add(key);
+      peopleByYear.set(profile.year, sets);
+
+      addYear(yearsAll, key, profile.year);
+      if (isStaff) addYear(yearsStaff, key, profile.year);
+      if (isStudentLeader) addYear(yearsStudentLeaders, key, profile.year);
 
       if (isStudentLeader) {
         const campuses = new Set(
@@ -120,6 +349,76 @@ export const staffTrends = query({
       ),
     }));
 
+    const empty = emptyPersonSets();
+
+    // Year-over-year leave/stay for each lens; first year has no prior roster.
+    const yoyRate = (
+      rateFn: typeof turnoverRate,
+      lens: keyof ReturnType<typeof emptyPersonSets>
+    ) =>
+      years.map((year, i) => {
+        if (i === 0) return null;
+        return rateFn(
+          peopleByYear.get(years[i - 1])?.[lens] ?? empty[lens],
+          peopleByYear.get(year)?.[lens] ?? empty[lens]
+        );
+      });
+
+    const turnover = {
+      overall: yoyRate(turnoverRate, "all"),
+      staff: yoyRate(turnoverRate, "staff"),
+      studentLeaders: yoyRate(turnoverRate, "studentLeaders"),
+    };
+    const retention = {
+      overall: yoyRate(retentionRate, "all"),
+      staff: yoyRate(retentionRate, "staff"),
+      studentLeaders: yoyRate(retentionRate, "studentLeaders"),
+    };
+
+    const tenure2Plus = {
+      overall: years.map((year) =>
+        tenureAtLeastPct(
+          peopleByYear.get(year)?.all ?? empty.all,
+          yearsAll,
+          year
+        )
+      ),
+      staff: years.map((year) =>
+        tenureAtLeastPct(
+          peopleByYear.get(year)?.staff ?? empty.staff,
+          yearsStaff,
+          year
+        )
+      ),
+      studentLeaders: years.map((year) =>
+        tenureAtLeastPct(
+          peopleByYear.get(year)?.studentLeaders ?? empty.studentLeaders,
+          yearsStudentLeaders,
+          year
+        )
+      ),
+    };
+
+    const avgTenureYearsSeries = {
+      overall: years.map((year) =>
+        avgTenureYears(peopleByYear.get(year)?.all ?? empty.all, yearsAll, year)
+      ),
+      staff: years.map((year) =>
+        avgTenureYears(
+          peopleByYear.get(year)?.staff ?? empty.staff,
+          yearsStaff,
+          year
+        )
+      ),
+      studentLeaders: years.map((year) =>
+        avgTenureYears(
+          peopleByYear.get(year)?.studentLeaders ?? empty.studentLeaders,
+          yearsStudentLeaders,
+          year
+        )
+      ),
+    };
+
     return {
       computedAt: Date.now(),
       years,
@@ -128,6 +427,20 @@ export const staffTrends = query({
       studentLeaders: years.map((y) => totals.get(y)!.studentLeaders),
       campuses,
       studentLeadersByCampus,
+      turnover,
+      retention,
+      tenure2Plus,
+      avgTenureYears: avgTenureYearsSeries,
+      lifetimeTenure2Plus: {
+        overall: lifetimeTenureAtLeastPct(yearsAll),
+        staff: lifetimeTenureAtLeastPct(yearsStaff),
+        studentLeaders: lifetimeTenureAtLeastPct(yearsStudentLeaders),
+      },
+      lifetimeAvgTenureYears: {
+        overall: lifetimeAvgTenureYears(yearsAll),
+        staff: lifetimeAvgTenureYears(yearsStaff),
+        studentLeaders: lifetimeAvgTenureYears(yearsStudentLeaders),
+      },
     };
   },
 });
