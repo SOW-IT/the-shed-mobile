@@ -511,38 +511,54 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
   // ── All years: lifetime tenure cards + multi-year trend charts. ──
   const cardCols = width >= 640 ? 3 : 2;
   const cardWidth = (width - spacing.sm * (cardCols - 1)) / cardCols;
+  // Hide lenses that never had anyone (don't show a misleading 0.0% / 0).
+  const everOverall = trends.allStaff.some((n) => n > 0);
+  const everStaff = trends.staff.some((n) => n > 0);
+  const everLeaders = trends.studentLeaders.some((n) => n > 0);
   const lifetimeCards = [
-    {
-      label: "Overall ≥2 years",
-      value: fmtPct(trends.lifetimeTenure2Plus.overall),
-      hint: "ever served · so far",
-    },
-    {
-      label: "Staff ≥2 years",
-      value: fmtPct(trends.lifetimeTenure2Plus.staff),
-      hint: "years in this role",
-    },
-    {
-      label: "Student leaders ≥2 years",
-      value: fmtPct(trends.lifetimeTenure2Plus.studentLeaders),
-      hint: "years in this role",
-    },
-    {
-      label: "Overall avg years",
-      value: fmtAvg(trends.lifetimeAvgTenureYears.overall),
-      hint: "years served so far",
-    },
-    {
-      label: "Staff avg years",
-      value: fmtAvg(trends.lifetimeAvgTenureYears.staff),
-      hint: "years in this role so far",
-    },
-    {
-      label: "Student leader avg years",
-      value: fmtAvg(trends.lifetimeAvgTenureYears.studentLeaders),
-      hint: "years in this role so far",
-    },
-  ];
+    everOverall
+      ? {
+          label: "Overall ≥2 years",
+          value: fmtPct(trends.lifetimeTenure2Plus.overall),
+          hint: "ever served · so far",
+        }
+      : null,
+    everStaff
+      ? {
+          label: "Staff ≥2 years",
+          value: fmtPct(trends.lifetimeTenure2Plus.staff),
+          hint: "years in this role",
+        }
+      : null,
+    everLeaders
+      ? {
+          label: "Student leaders ≥2 years",
+          value: fmtPct(trends.lifetimeTenure2Plus.studentLeaders),
+          hint: "years in this role",
+        }
+      : null,
+    everOverall
+      ? {
+          label: "Overall avg years",
+          value: fmtAvg(trends.lifetimeAvgTenureYears.overall),
+          hint: "years served so far",
+        }
+      : null,
+    everStaff
+      ? {
+          label: "Staff avg years",
+          value: fmtAvg(trends.lifetimeAvgTenureYears.staff),
+          hint: "years in this role so far",
+        }
+      : null,
+    everLeaders
+      ? {
+          label: "Student leader avg years",
+          value: fmtAvg(trends.lifetimeAvgTenureYears.studentLeaders),
+          hint: "years in this role so far",
+        }
+      : null,
+  ].filter((c): c is { label: string; value: string; hint: string } => c !== null);
 
   const rateLegend: LegendItem[] = [
     { key: "Overall", colour: t.text, label: "Overall" },

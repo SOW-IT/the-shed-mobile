@@ -5,6 +5,7 @@ import { staffYearForDate } from "../shared/flow";
 import { api } from "./_generated/api";
 import {
   avgTenureYears,
+  buildEmailToImportId,
   lifetimeAvgTenureYears,
   lifetimeTenureAtLeastPct,
   profilePersonKey,
@@ -65,6 +66,17 @@ describe("turnover and tenure helpers", () => {
     // Case/whitespace alone must not create a distinct person.
     expect(profilePersonKey({ email: "  A@SOW.ORG.AU  " })).toBe(
       "email:a@sow.org.au"
+    );
+  });
+
+  test("profilePersonKey reuses importId from other years of the same email", () => {
+    const emailToImportId = buildEmailToImportId([
+      { email: "a@sow.org.au", importId: "uid-1" }, // later year, backfilled
+      { email: "a@sow.org.au" }, // earlier year, no importId yet
+    ]);
+    // Without the map, the second row would key by email and split the person.
+    expect(profilePersonKey({ email: "a@sow.org.au" }, emailToImportId)).toBe(
+      "import:uid-1"
     );
   });
 
@@ -266,6 +278,32 @@ describe("staffTrends", () => {
     expect(trends.lifetimeAvgTenureYears.overall).toBe(1.3);
     expect(trends.lifetimeAvgTenureYears.staff).toBe(1);
     expect(trends.lifetimeAvgTenureYears.studentLeaders).toBe(2);
+  });
+
+  test("partial importId backfill does not split one email into two people", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      // Same person: earlier year lacks importId; later year has it.
+      await ctx.db.insert(
+        "staffProfiles",
+        profile(CALLER, PREV, [{ role: "Staff", department: "Marketing" }])
+      );
+      await ctx.db.insert(
+        "staffProfiles",
+        profile(
+          CALLER,
+          YEAR,
+          [{ role: "Staff", department: "Marketing" }],
+          { importId: "caller-1" }
+        )
+      );
+    });
+    const trends = (await asUser(t, CALLER).query(api.generalMetrics.staffTrends, {}))!;
+    // One person stayed → 0% turnover, 100% retention; lifetime 1 person with 2y.
+    expect(trends.turnover.staff).toEqual([null, 0]);
+    expect(trends.retention.staff).toEqual([null, 100]);
+    expect(trends.lifetimeTenure2Plus.staff).toBe(100);
+    expect(trends.lifetimeAvgTenureYears.staff).toBe(2);
   });
 
   test("counts a leader with two campus roles once per campus, not twice", async () => {

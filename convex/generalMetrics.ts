@@ -24,14 +24,34 @@ const pct1 = (numerator: number, denominator: number): number =>
  * renames); fall back to the normalised profile email when the person was
  * never imported or linked. Email is lowercased + trimmed so case/whitespace
  * alone can't register as a leave + join.
+ *
+ * Optional `emailToImportId` resolves mixed coverage: if any year of a person
+ * carries `importId`, every row for that email uses the same import key so
+ * partially-backfilled history doesn't look like a leave + join.
  */
-export const profilePersonKey = (p: {
-  email: string;
-  importId?: string;
-}): string =>
-  p.importId
-    ? `import:${p.importId}`
-    : `email:${p.email.trim().toLowerCase()}`;
+export const profilePersonKey = (
+  p: { email: string; importId?: string },
+  emailToImportId?: ReadonlyMap<string, string>
+): string => {
+  const email = p.email.trim().toLowerCase();
+  const importId = p.importId ?? emailToImportId?.get(email);
+  return importId ? `import:${importId}` : `email:${email}`;
+};
+
+/**
+ * Map each email to an `importId` seen on any profile for that email. Used so
+ * {@link profilePersonKey} is stable when only some years are backfilled.
+ */
+export const buildEmailToImportId = (
+  profiles: readonly { email: string; importId?: string }[]
+): Map<string, string> => {
+  const map = new Map<string, string>();
+  for (const p of profiles) {
+    if (!p.importId) continue;
+    map.set(p.email.trim().toLowerCase(), p.importId);
+  }
+  return map;
+};
 
 /**
  * Share of `prior` people missing from `current` (standard year-over-year
@@ -216,7 +236,7 @@ export const staffTrends = query({
       // Aligned to `years`; first year (and empty prior roster) is null.
       turnover: rateSeries,
       retention: rateSeries,
-      // Aligned to `years`; 0 when nobody is present in that lens that year.
+      // Aligned to `years`; null when nobody is present in that lens that year.
       tenure2Plus: pctSeries,
       avgTenureYears: avgYearsSeries,
       lifetimeTenure2Plus: lifetimePct,
@@ -248,8 +268,10 @@ export const staffTrends = query({
     const campusSet = new Set<string>();
 
     // Distinct people per year (for turnover) and career years per person (for
-    // tenure). Person identity follows importId when present so email renames
-    // don't look like a leave + join.
+    // tenure). Person identity follows importId when present (and applies any
+    // importId seen for that email to years that lack it) so renames / partial
+    // backfill don't look like a leave + join.
+    const emailToImportId = buildEmailToImportId(profiles);
     const peopleByYear = new Map<
       number,
       ReturnType<typeof emptyPersonSets>
@@ -282,7 +304,7 @@ export const staffTrends = query({
       if (isStudentLeader) tally.studentLeaders += 1;
       totals.set(profile.year, tally);
 
-      const key = profilePersonKey(profile);
+      const key = profilePersonKey(profile, emailToImportId);
       const sets = peopleByYear.get(profile.year) ?? emptyPersonSets();
       sets.all.add(key);
       if (isStaff) sets.staff.add(key);
