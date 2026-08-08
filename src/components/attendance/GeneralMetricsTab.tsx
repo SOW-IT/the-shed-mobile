@@ -4,8 +4,8 @@
  *  - all staff head-count over time,
  *  - staff vs student leaders (the attendance member-filter split),
  *  - student leaders by campus,
- *  - year-over-year turnover and retention (overall / staff / student leaders),
- *  - share serving ≥2 staff years + average years served (per year + lifetime).
+ *  - year-over-year retention (turnover is the complement, shown as a hint),
+ *  - share serving ≥2 years in-role + average years served so far.
  *
  * For everyone this tab is visible, but non-staff users get a sign-in prompt and
  * a limited public scope: only "All years" and 2026 are selectable. The detailed
@@ -61,8 +61,8 @@ const yoyDelta = (cur: number, prev: number | undefined): Delta => {
 };
 
 /**
- * Absolute percentage-point change for rate metrics (turnover / tenure), where
- * a relative % of a % would read oddly. Returns null when either side is missing.
+ * Absolute percentage-point change for rate metrics (retention / tenure %),
+ * where a relative % of a % would read oddly. Null when either side is missing.
  */
 const ppDelta = (
   cur: number | null | undefined,
@@ -77,6 +77,31 @@ const ppDelta = (
     direction: diff > 0 ? "up" : "down",
   };
 };
+
+/** Absolute change in years for avg-tenure cards (not percentage points). */
+const yearsDelta = (
+  cur: number | null | undefined,
+  prev: number | null | undefined
+): Delta => {
+  if (cur === null || cur === undefined) return null;
+  if (prev === null || prev === undefined) return null;
+  const diff = Math.round((cur - prev) * 10) / 10;
+  if (diff === 0) return { text: "0y", direction: "flat" };
+  return {
+    text: `${diff > 0 ? "+" : ""}${fmtAvg(diff)}y`,
+    direction: diff > 0 ? "up" : "down",
+  };
+};
+
+/** Push a chart segment only when the value is a real reading (not null). */
+const rateSegment = (
+  key: string,
+  value: number | null | undefined,
+  colour: string
+): { key: string; value: number; colour: string } | null =>
+  value === null || value === undefined
+    ? null
+    : { key, value, colour };
 
 export function GeneralMetricsTab({ year, publicPreview }: { year: number | null; publicPreview?: boolean }) {
   const t = useAppTheme();
@@ -113,8 +138,8 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
       })),
     }));
 
-    // Rates are compared, not summed — grouped bars. Skip the first year for
-    // yoy leave/stay rates (always null: no prior roster).
+    // Rates are compared, not summed — grouped bars. Only emit segments with a
+    // real reading (null = no prior roster / empty lens); never coerce null→0.
     const rateSeriesByYear = (
       series: {
         overall: (number | null)[];
@@ -123,71 +148,27 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
       }
     ): MultiStackPoint[] =>
       trends.years
-        .map((y, i) => ({
-          at: y,
-          label: yearLabel(y),
-          overall: series.overall[i],
-          staff: series.staff[i],
-          studentLeaders: series.studentLeaders[i],
-        }))
-        .filter(
-          (p) =>
-            p.overall !== null || p.staff !== null || p.studentLeaders !== null
-        )
-        .map((p) => ({
-          at: p.at,
-          label: p.label,
-          segments: [
-            { key: "Overall", value: p.overall ?? 0, colour: t.text },
-            { key: "Staff", value: p.staff ?? 0, colour: t.primary },
-            { key: "SLs", value: p.studentLeaders ?? 0, colour: t.accent },
-          ],
-        }));
+        .map((y, i) => {
+          const segments = [
+            rateSegment("Overall", series.overall[i], t.text),
+            rateSegment("Staff", series.staff[i], t.primary),
+            rateSegment("SLs", series.studentLeaders[i], t.accent),
+          ].filter((s): s is { key: string; value: number; colour: string } => !!s);
+          return { at: y, label: yearLabel(y), segments };
+        })
+        .filter((p) => p.segments.length > 0);
 
-    const turnoverByYear = rateSeriesByYear(trends.turnover);
+    // Retention only — turnover is the same number inverted (shown as a card hint).
     const retentionByYear = rateSeriesByYear(trends.retention);
 
-    const tenure2PlusByYear: MultiStackPoint[] = trends.years.map((y, i) => ({
-      at: y,
-      label: yearLabel(y),
-      segments: [
-        { key: "Overall", value: trends.tenure2Plus.overall[i], colour: t.text },
-        { key: "Staff", value: trends.tenure2Plus.staff[i], colour: t.primary },
-        {
-          key: "SLs",
-          value: trends.tenure2Plus.studentLeaders[i],
-          colour: t.accent,
-        },
-      ],
-    }));
+    const tenure2PlusByYear = rateSeriesByYear(trends.tenure2Plus);
 
-    const avgTenureByYear: MultiStackPoint[] = trends.years.map((y, i) => ({
-      at: y,
-      label: yearLabel(y),
-      segments: [
-        {
-          key: "Overall",
-          value: trends.avgTenureYears.overall[i],
-          colour: t.text,
-        },
-        {
-          key: "Staff",
-          value: trends.avgTenureYears.staff[i],
-          colour: t.primary,
-        },
-        {
-          key: "SLs",
-          value: trends.avgTenureYears.studentLeaders[i],
-          colour: t.accent,
-        },
-      ],
-    }));
+    const avgTenureByYear = rateSeriesByYear(trends.avgTenureYears);
 
     return {
       allStaff,
       staffVsLeaders,
       leadersByCampus,
-      turnoverByYear,
       retentionByYear,
       tenure2PlusByYear,
       avgTenureByYear,
@@ -290,25 +271,34 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
       value: number | null;
       delta: Delta;
       hint: string;
-      tone?: "positive" | "attention" | "default";
+      tone?: "positive" | "default";
     };
 
-    // Retention / turnover for year Y vs prior year's roster.
-    const yoyHint =
-      prevYear !== undefined ? `vs ${prevYear} roster` : "needs a prior year";
-    const retentionCards: RateCard[] = [
+    // Retention for year Y vs prior year's roster. Turnover is the complement
+    // (same prior denominator) — surface it as a hint, not a second card grid.
+    const retentionHint = (
+      left: number | null | undefined,
+      priorN: number | undefined
+    ) => {
+      if (prevYear === undefined) return "needs a prior year";
+      const parts: string[] = [`vs ${prevYear}`];
+      if (priorN !== undefined) parts.push(`n=${priorN}`);
+      if (left !== null && left !== undefined) parts.push(`${fmtAvg(left)}% left`);
+      return parts.join(" · ");
+    };
+    const retentionAll: RateCard[] = [
       {
         label: "Overall retention",
         value: trends.retention.overall[i],
         delta: ppDelta(trends.retention.overall[i], at(trends.retention.overall)),
-        hint: yoyHint,
+        hint: retentionHint(trends.turnover.overall[i], at(trends.allStaff)),
         tone: "positive",
       },
       {
         label: "Staff retention",
         value: trends.retention.staff[i],
         delta: ppDelta(trends.retention.staff[i], at(trends.retention.staff)),
-        hint: yoyHint,
+        hint: retentionHint(trends.turnover.staff[i], at(trends.staff)),
         tone: "positive",
       },
       {
@@ -318,48 +308,30 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
           trends.retention.studentLeaders[i],
           at(trends.retention.studentLeaders)
         ),
-        hint: yoyHint,
+        hint: retentionHint(
+          trends.turnover.studentLeaders[i],
+          at(trends.studentLeaders)
+        ),
         tone: "positive",
       },
     ];
-    const turnoverCards: RateCard[] = [
-      {
-        label: "Overall turnover",
-        value: trends.turnover.overall[i],
-        delta: ppDelta(trends.turnover.overall[i], at(trends.turnover.overall)),
-        hint: yoyHint,
-      },
-      {
-        label: "Staff turnover",
-        value: trends.turnover.staff[i],
-        delta: ppDelta(trends.turnover.staff[i], at(trends.turnover.staff)),
-        hint: yoyHint,
-      },
-      {
-        label: "Student leader turnover",
-        value: trends.turnover.studentLeaders[i],
-        delta: ppDelta(
-          trends.turnover.studentLeaders[i],
-          at(trends.turnover.studentLeaders)
-        ),
-        hint: yoyHint,
-      },
-    ];
+    const retentionCards = retentionAll.filter((c) => c.value !== null);
 
-    // Of people present this year: ≥2 years share + mean career length.
-    const tenureCards: RateCard[] = [
+    // Of people present this year: ≥2 years share + mean years so far.
+    // Staff/SL lenses count years *in that role* (SL→staff is a common path).
+    const tenureAll: RateCard[] = [
       {
         label: "Overall ≥2 years",
         value: trends.tenure2Plus.overall[i],
         delta: ppDelta(trends.tenure2Plus.overall[i], at(trends.tenure2Plus.overall)),
-        hint: "of people this year",
+        hint: `of people this year · n=${trends.allStaff[i]}`,
         tone: "positive",
       },
       {
         label: "Staff ≥2 years",
         value: trends.tenure2Plus.staff[i],
         delta: ppDelta(trends.tenure2Plus.staff[i], at(trends.tenure2Plus.staff)),
-        hint: "of staff this year",
+        hint: `years in this role · n=${trends.staff[i]}`,
         tone: "positive",
       },
       {
@@ -369,45 +341,54 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
           trends.tenure2Plus.studentLeaders[i],
           at(trends.tenure2Plus.studentLeaders)
         ),
-        hint: "of leaders this year",
+        hint: `years in this role · n=${trends.studentLeaders[i]}`,
         tone: "positive",
       },
     ];
+    const tenureCards = tenureAll.filter((c) => c.value !== null);
+
     type YearsCard = {
       label: string;
       value: number;
       delta: Delta;
       hint: string;
     };
-    const avgYearsCards: YearsCard[] = [
-      {
-        label: "Overall avg years",
-        value: trends.avgTenureYears.overall[i],
-        delta: ppDelta(
-          trends.avgTenureYears.overall[i],
-          at(trends.avgTenureYears.overall)
-        ),
-        hint: "mean staff years so far",
-      },
-      {
-        label: "Staff avg years",
-        value: trends.avgTenureYears.staff[i],
-        delta: ppDelta(
-          trends.avgTenureYears.staff[i],
-          at(trends.avgTenureYears.staff)
-        ),
-        hint: "mean staff years so far",
-      },
-      {
-        label: "Student leader avg years",
-        value: trends.avgTenureYears.studentLeaders[i],
-        delta: ppDelta(
-          trends.avgTenureYears.studentLeaders[i],
-          at(trends.avgTenureYears.studentLeaders)
-        ),
-        hint: "mean staff years so far",
-      },
-    ];
+    const avgYearsCards: YearsCard[] = (
+      [
+        {
+          label: "Overall avg years",
+          value: trends.avgTenureYears.overall[i],
+          delta: yearsDelta(
+            trends.avgTenureYears.overall[i],
+            at(trends.avgTenureYears.overall)
+          ),
+          hint: `years served so far · n=${trends.allStaff[i]}`,
+        },
+        {
+          label: "Staff avg years",
+          value: trends.avgTenureYears.staff[i],
+          delta: yearsDelta(
+            trends.avgTenureYears.staff[i],
+            at(trends.avgTenureYears.staff)
+          ),
+          hint: `years in this role so far · n=${trends.staff[i]}`,
+        },
+        {
+          label: "Student leader avg years",
+          value: trends.avgTenureYears.studentLeaders[i],
+          delta: yearsDelta(
+            trends.avgTenureYears.studentLeaders[i],
+            at(trends.avgTenureYears.studentLeaders)
+          ),
+          hint: `years in this role so far · n=${trends.studentLeaders[i]}`,
+        },
+      ] as {
+        label: string;
+        value: number | null;
+        delta: Delta;
+        hint: string;
+      }[]
+    ).filter((c): c is YearsCard => c.value !== null);
 
     return (
       <View onLayout={onLayout} style={styles.grid}>
@@ -431,70 +412,61 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
           ))}
         </View>
 
-        <Text style={[typography.headline, { color: t.text }]}>Retention</Text>
-        <Text style={[typography.caption, { color: t.muted }]}>
-          {"Share of last year's roster still serving this year."}
-        </Text>
-        <View style={styles.cardGrid}>
-          {retentionCards.map((card, idx) => (
-            <FadeInView key={card.label} delay={stagger(idx)}>
-              <MetricCard
-                label={card.label}
-                value={fmtPct(card.value)}
-                delta={card.delta}
-                hint={card.hint}
-                tone={card.tone ?? "default"}
-                width={cardWidth}
-              />
-            </FadeInView>
-          ))}
-        </View>
+        {retentionCards.length > 0 ? (
+          <>
+            <Text style={[typography.headline, { color: t.text }]}>Retention</Text>
+            <Text style={[typography.caption, { color: t.muted }]}>
+              {"Share of last year's roster still serving this year. The % who left is the complement."}
+            </Text>
+            <View style={styles.cardGrid}>
+              {retentionCards.map((card, idx) => (
+                <FadeInView key={card.label} delay={stagger(idx)}>
+                  <MetricCard
+                    label={card.label}
+                    value={fmtPct(card.value)}
+                    delta={card.delta}
+                    hint={card.hint}
+                    tone={card.tone ?? "default"}
+                    width={cardWidth}
+                  />
+                </FadeInView>
+              ))}
+            </View>
+          </>
+        ) : null}
 
-        <Text style={[typography.headline, { color: t.text }]}>Turnover</Text>
-        <Text style={[typography.caption, { color: t.muted }]}>
-          {"Share of last year's roster no longer serving this year."}
-        </Text>
-        <View style={styles.cardGrid}>
-          {turnoverCards.map((card, idx) => (
-            <FadeInView key={card.label} delay={stagger(idx)}>
-              <MetricCard
-                label={card.label}
-                value={fmtPct(card.value)}
-                delta={card.delta}
-                hint={card.hint}
-                width={cardWidth}
-              />
-            </FadeInView>
-          ))}
-        </View>
-
-        <Text style={[typography.headline, { color: t.text }]}>
-          Serve at least 2 years
-        </Text>
-        <Text style={[typography.caption, { color: t.muted }]}>
-          Of people present this year, the share with two or more staff years so
-          far.
-        </Text>
-        <View style={styles.cardGrid}>
-          {tenureCards.map((card, idx) => (
-            <FadeInView key={card.label} delay={stagger(idx)}>
-              <MetricCard
-                label={card.label}
-                value={fmtPct(card.value)}
-                delta={card.delta}
-                hint={card.hint}
-                tone={card.tone ?? "default"}
-                width={cardWidth}
-              />
-            </FadeInView>
-          ))}
-        </View>
+        {tenureCards.length > 0 ? (
+          <>
+            <Text style={[typography.headline, { color: t.text }]}>
+              Serve at least 2 years
+            </Text>
+            <Text style={[typography.caption, { color: t.muted }]}>
+              Of people present this year, the share with two or more years so
+              far. Staff and student-leader cards count years in that role.
+            </Text>
+            <View style={styles.cardGrid}>
+              {tenureCards.map((card, idx) => (
+                <FadeInView key={card.label} delay={stagger(idx)}>
+                  <MetricCard
+                    label={card.label}
+                    value={fmtPct(card.value)}
+                    delta={card.delta}
+                    hint={card.hint}
+                    tone={card.tone ?? "default"}
+                    width={cardWidth}
+                  />
+                </FadeInView>
+              ))}
+            </View>
+          </>
+        ) : null}
 
         <Text style={[typography.headline, { color: t.text }]}>
-          Average years served
+          Average years served so far
         </Text>
         <Text style={[typography.caption, { color: t.muted }]}>
-          Mean number of staff years so far among people present this year.
+          Mean distinct years so far among people present this year. Staff and
+          student-leader cards count years in that role only.
         </Text>
         <View style={styles.cardGrid}>
           {avgYearsCards.map((card, idx) => (
@@ -543,32 +515,32 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
     {
       label: "Overall ≥2 years",
       value: fmtPct(trends.lifetimeTenure2Plus.overall),
-      hint: "lifetime",
+      hint: "ever served · so far",
     },
     {
       label: "Staff ≥2 years",
       value: fmtPct(trends.lifetimeTenure2Plus.staff),
-      hint: "lifetime",
+      hint: "years in this role",
     },
     {
       label: "Student leaders ≥2 years",
       value: fmtPct(trends.lifetimeTenure2Plus.studentLeaders),
-      hint: "lifetime",
+      hint: "years in this role",
     },
     {
       label: "Overall avg years",
       value: fmtAvg(trends.lifetimeAvgTenureYears.overall),
-      hint: "lifetime mean",
+      hint: "years served so far",
     },
     {
       label: "Staff avg years",
       value: fmtAvg(trends.lifetimeAvgTenureYears.staff),
-      hint: "lifetime mean",
+      hint: "years in this role so far",
     },
     {
       label: "Student leader avg years",
       value: fmtAvg(trends.lifetimeAvgTenureYears.studentLeaders),
-      hint: "lifetime mean",
+      hint: "years in this role so far",
     },
   ];
 
@@ -585,7 +557,8 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
       </Text>
       <Text style={[typography.caption, { color: t.muted }]}>
         Of everyone who has ever held a staff profile in each group: share with
-        two or more years, and mean career length.
+        two or more years, and mean years served so far. Staff and student-leader
+        cards count years in that role (not total time at The Shed).
       </Text>
       <View style={styles.cardGrid}>
         {lifetimeCards.map((card, idx) => (
@@ -681,7 +654,7 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
         <FadeInView delay={stagger(3)}>
           <ChartCard
             title="Retention rate"
-            subtitle="% of prior year's roster who stayed"
+            subtitle="% of prior year's roster who stayed (axis 0–100)"
             width={chartWidth}
             legendItems={rateLegend}
             fullscreenContent={
@@ -689,6 +662,8 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
                 points={charts.retentionByYear}
                 tooltipLabel={(p) => String(p.at)}
                 stacked={false}
+                axisMax={100}
+                keepZeros
                 fullscreen
               />
             }
@@ -697,84 +672,71 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
               points={charts.retentionByYear}
               tooltipLabel={(p) => String(p.at)}
               stacked={false}
+              axisMax={100}
+              keepZeros
             />
           </ChartCard>
         </FadeInView>
       ) : null}
 
-      {charts.turnoverByYear.length > 0 ? (
+      {charts.tenure2PlusByYear.length > 0 ? (
         <FadeInView delay={stagger(4)}>
           <ChartCard
-            title="Turnover rate"
-            subtitle="% of prior year's roster who left"
+            title="Serve at least 2 years"
+            subtitle="% of people present with ≥2 years so far (axis 0–100)"
             width={chartWidth}
             legendItems={rateLegend}
             fullscreenContent={
               <MultiStackedBarChart
-                points={charts.turnoverByYear}
+                points={charts.tenure2PlusByYear}
                 tooltipLabel={(p) => String(p.at)}
                 stacked={false}
+                axisMax={100}
+                keepZeros
                 fullscreen
               />
             }
           >
             <MultiStackedBarChart
-              points={charts.turnoverByYear}
+              points={charts.tenure2PlusByYear}
               tooltipLabel={(p) => String(p.at)}
               stacked={false}
+              axisMax={100}
+              keepZeros
             />
           </ChartCard>
         </FadeInView>
       ) : null}
 
-      <FadeInView delay={stagger(5)}>
-        <ChartCard
-          title="Serve at least 2 years"
-          subtitle="% of people present that year with ≥2 years so far"
-          width={chartWidth}
-          legendItems={rateLegend}
-          fullscreenContent={
-            <MultiStackedBarChart
-              points={charts.tenure2PlusByYear}
-              tooltipLabel={(p) => String(p.at)}
-              stacked={false}
-              fullscreen
-            />
-          }
-        >
-          <MultiStackedBarChart
-            points={charts.tenure2PlusByYear}
-            tooltipLabel={(p) => String(p.at)}
-            stacked={false}
-          />
-        </ChartCard>
-      </FadeInView>
-
-      <FadeInView delay={stagger(6)}>
-        <ChartCard
-          title="Average years served"
-          subtitle="Mean staff years so far among people present"
-          width={chartWidth}
-          legendItems={rateLegend}
-          fullscreenContent={
+      {charts.avgTenureByYear.length > 0 ? (
+        <FadeInView delay={stagger(5)}>
+          <ChartCard
+            title="Average years served so far"
+            subtitle="Mean years so far among people present (staff/SL = in role)"
+            width={chartWidth}
+            legendItems={rateLegend}
+            fullscreenContent={
+              <MultiStackedBarChart
+                points={charts.avgTenureByYear}
+                tooltipLabel={(p) => String(p.at)}
+                stacked={false}
+                keepZeros
+                fullscreen
+              />
+            }
+          >
             <MultiStackedBarChart
               points={charts.avgTenureByYear}
               tooltipLabel={(p) => String(p.at)}
               stacked={false}
-              fullscreen
+              keepZeros
             />
-          }
-        >
-          <MultiStackedBarChart
-            points={charts.avgTenureByYear}
-            tooltipLabel={(p) => String(p.at)}
-            stacked={false}
-          />
-        </ChartCard>
-      </FadeInView>
+          </ChartCard>
+        </FadeInView>
+      ) : null}
 
       {campusWeekly ? (
-        <FadeInView delay={stagger(7)}>
+        <FadeInView delay={stagger(6)}>
           <ChartCard
             title="Weekly meeting attendance"
             subtitle="Average per staff year (from 2025)"

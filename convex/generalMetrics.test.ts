@@ -57,11 +57,15 @@ async function seed(t: TestConvex<typeof schema>) {
 }
 
 describe("turnover and tenure helpers", () => {
-  test("profilePersonKey prefers importId over email", () => {
+  test("profilePersonKey prefers importId and normalises email", () => {
     expect(profilePersonKey({ email: "a@sow.org.au", importId: "uid-1" })).toBe(
       "import:uid-1"
     );
     expect(profilePersonKey({ email: "a@sow.org.au" })).toBe("email:a@sow.org.au");
+    // Case/whitespace alone must not create a distinct person.
+    expect(profilePersonKey({ email: "  A@SOW.ORG.AU  " })).toBe(
+      "email:a@sow.org.au"
+    );
   });
 
   test("turnoverRate is leavers / prior head-count", () => {
@@ -92,6 +96,8 @@ describe("turnover and tenure helpers", () => {
     ).toBe(66.7);
     // As of 2024: a has only 2024 so far (1y), c has 2023+2024 (2y) → 50%.
     expect(tenureAtLeastPct(new Set(["a", "c"]), yearsByPerson, 2024)).toBe(50);
+    // Empty lens → null (not 0%) so charts don't invent a reading.
+    expect(tenureAtLeastPct(new Set(), yearsByPerson, 2025)).toBeNull();
   });
 
   test("avgTenureYears is the mean career length as-of a year", () => {
@@ -104,7 +110,7 @@ describe("turnover and tenure helpers", () => {
     expect(avgTenureYears(new Set(["a", "b", "c"]), yearsByPerson, 2025)).toBe(
       2
     );
-    expect(avgTenureYears(new Set(), yearsByPerson, 2025)).toBe(0);
+    expect(avgTenureYears(new Set(), yearsByPerson, 2025)).toBeNull();
   });
 
   test("lifetimeTenureAtLeastPct is over everyone ever in the map", () => {

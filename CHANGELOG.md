@@ -9,13 +9,14 @@ All notable changes to **The SHED** mobile app. This project follows
 ## [1.10.6] — 2026-08-08
 
 ### Added
-- **General insights now show how long people stay, and how many leave.** On
-  Insights → General you get year-over-year retention and turnover for overall,
-  staff, and student leaders; the share who have served at least two staff
-  years; and the average number of years served — both for a single staff year
+- **General insights now show how long people stay.** On Insights → General you
+  get year-over-year retention (with “% left” and prior roster size in the
+  hint), the share who have served at least two years, and average years served
+  so far — for overall, staff, and student leaders, both for a single staff year
   and over the whole history. All of these come from staff profiles only (org
-  chart staff and student leaders), not attendance members. The All-years view
-  adds lifetime summary cards and trend charts for the same rates.
+  chart staff and student leaders), not attendance members. Staff and
+  student-leader tenure count years in that role. Rate charts use a fixed 0–100
+  axis; empty lenses are omitted rather than plotted as 0%.
 
 ## [1.10.5] — 2026-08-08
 

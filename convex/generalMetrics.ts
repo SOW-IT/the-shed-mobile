@@ -21,13 +21,17 @@ const pct1 = (numerator: number, denominator: number): number =>
 
 /**
  * Durable person key across staff years. Prefer `importId` (survives email
- * renames); fall back to the profile email when the person was never imported
- * or linked.
+ * renames); fall back to the normalised profile email when the person was
+ * never imported or linked. Email is lowercased + trimmed so case/whitespace
+ * alone can't register as a leave + join.
  */
 export const profilePersonKey = (p: {
   email: string;
   importId?: string;
-}): string => (p.importId ? `import:${p.importId}` : `email:${p.email}`);
+}): string =>
+  p.importId
+    ? `import:${p.importId}`
+    : `email:${p.email.trim().toLowerCase()}`;
 
 /**
  * Share of `prior` people missing from `current` (standard year-over-year
@@ -71,15 +75,16 @@ const yearsServedAsOf = (
 /**
  * Of people present in a category, the share whose career in that category
  * spans at least `minYears` distinct staff years (as of `asOfYear`, only years
- * ≤ asOfYear count).
+ * ≤ asOfYear count). `null` when nobody is present in the lens (so charts don't
+ * plot an empty roster as a real 0%).
  */
 export const tenureAtLeastPct = (
   present: ReadonlySet<string>,
   yearsByPerson: ReadonlyMap<string, ReadonlySet<number>>,
   asOfYear: number,
   minYears = 2
-): number => {
-  if (present.size === 0) return 0;
+): number | null => {
+  if (present.size === 0) return null;
   let count = 0;
   for (const key of present) {
     if (yearsServedAsOf(yearsByPerson.get(key), asOfYear) >= minYears) {
@@ -91,14 +96,14 @@ export const tenureAtLeastPct = (
 
 /**
  * Mean number of staff years served so far (as of `asOfYear`) among people
- * present. One decimal; 0 when nobody is present.
+ * present. One decimal; `null` when nobody is present in the lens.
  */
 export const avgTenureYears = (
   present: ReadonlySet<string>,
   yearsByPerson: ReadonlyMap<string, ReadonlySet<number>>,
   asOfYear: number
-): number => {
-  if (present.size === 0) return 0;
+): number | null => {
+  if (present.size === 0) return null;
   let total = 0;
   for (const key of present) {
     total += yearsServedAsOf(yearsByPerson.get(key), asOfYear);
@@ -141,10 +146,12 @@ const rateSeries = v.object({
   studentLeaders: v.array(v.union(v.number(), v.null())),
 });
 
+// Per-year rates/averages: null when that lens has nobody present that year
+// (distinct from a real 0% / 0.0 average).
 const pctSeries = v.object({
-  overall: v.array(v.number()),
-  staff: v.array(v.number()),
-  studentLeaders: v.array(v.number()),
+  overall: v.array(v.union(v.number(), v.null())),
+  staff: v.array(v.union(v.number(), v.null())),
+  studentLeaders: v.array(v.union(v.number(), v.null())),
 });
 
 const lifetimePct = v.object({
@@ -154,9 +161,9 @@ const lifetimePct = v.object({
 });
 
 const avgYearsSeries = v.object({
-  overall: v.array(v.number()),
-  staff: v.array(v.number()),
-  studentLeaders: v.array(v.number()),
+  overall: v.array(v.union(v.number(), v.null())),
+  staff: v.array(v.union(v.number(), v.null())),
+  studentLeaders: v.array(v.union(v.number(), v.null())),
 });
 
 const lifetimeAvgYears = v.object({
