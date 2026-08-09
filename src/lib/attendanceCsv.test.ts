@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 import {
+  ATTENDANCE_PCT_HEADER,
   buildAttendanceCsv,
+  buildAttendanceMatrixCsv,
   exportSlug,
   NOTES_HEADER,
   type ExportEventForCsv,
@@ -153,6 +155,235 @@ describe("buildAttendanceCsv", () => {
     const lines = buildAttendanceCsv([event], []).split("\r\n");
     expect(lines[0]).toBe("Event,'=cmd|calc"); // formula trigger neutralised
     expect(lines[lines.length - 1]).toContain('"Smith, ""Bob"""'); // escaped
+  });
+});
+
+describe("buildAttendanceMatrixCsv", () => {
+  const eventA = (): ExportEventForCsv =>
+    baseEvent({
+      _id: "a",
+      name: "Week 1",
+      dateStart: at("2026-03-04T17:00:00"),
+      attendanceCount: 2,
+      rows: [
+        {
+          name: "Ada Lovelace",
+          email: "ada@sow.org.au",
+          signInTime: at("2026-03-04T17:05:00"),
+          metadata: { Gender: "Female", Role: "Student Leader" },
+        },
+        {
+          name: "Bob Smith",
+          email: "bob@sow.org.au",
+          signInTime: at("2026-03-04T17:10:00"),
+          metadata: { Gender: "Male", Role: "Staff" },
+        },
+      ],
+    });
+
+  const eventB = (): ExportEventForCsv =>
+    baseEvent({
+      _id: "b",
+      name: "Week 2",
+      dateStart: at("2026-03-11T17:00:00"),
+      attendanceCount: 1,
+      rows: [
+        {
+          name: "Ada Lovelace",
+          email: "ada@sow.org.au",
+          signInTime: at("2026-03-11T17:05:00"),
+          metadata: { Gender: "Female", Role: "Student Leader" },
+        },
+      ],
+    });
+
+  test("rows are people, columns are events, with attendance % and Y marks", () => {
+    const lines = buildAttendanceMatrixCsv(
+      [eventA(), eventB()],
+      ["Gender", "Role", NOTES_HEADER]
+    ).split("\r\n");
+
+    // Totals align under the event columns (after Name, Email, Gender, Role, %).
+    expect(lines[0]).toBe("Total Attendance,,,,,2,1");
+    // Notes are dropped from the matrix even if selected.
+    expect(lines[1]).toBe(
+      `Name,Email,Gender,Role,${ATTENDANCE_PCT_HEADER},Week 1,Week 2`
+    );
+    // Sorted by name: Ada then Bob. Ada attended both → 100%; Bob only Week 1 → 50%.
+    expect(lines[2]).toBe(
+      "Ada Lovelace,ada@sow.org.au,Female,Student Leader,100%,Y,Y"
+    );
+    expect(lines[3]).toBe("Bob Smith,bob@sow.org.au,Male,Staff,50%,Y,");
+    expect(lines).toHaveLength(4);
+  });
+
+  test("people without email are keyed by name and still appear", () => {
+    const guestOnly = baseEvent({
+      _id: "g",
+      name: "Welcome",
+      attendanceCount: 1,
+      rows: [
+        {
+          name: "Guest Person",
+          email: "",
+          signInTime: at("2026-03-04T17:00:00"),
+          metadata: { Gender: "Female" },
+        },
+      ],
+    });
+    const lines = buildAttendanceMatrixCsv([guestOnly], ["Gender"]).split(
+      "\r\n"
+    );
+    expect(lines[2]).toBe("Guest Person,,Female,100%,Y");
+  });
+
+  test("duplicate event names get a date suffix on the column header", () => {
+    const a = baseEvent({
+      _id: "a",
+      name: "Weekly",
+      dateStart: at("2026-03-04T17:00:00"),
+      rows: [
+        {
+          name: "Ada Lovelace",
+          email: "ada@sow.org.au",
+          signInTime: at("2026-03-04T17:05:00"),
+          metadata: {},
+        },
+      ],
+    });
+    const b = baseEvent({
+      _id: "b",
+      name: "Weekly",
+      dateStart: at("2026-03-11T17:00:00"),
+      rows: [
+        {
+          name: "Ada Lovelace",
+          email: "ada@sow.org.au",
+          signInTime: at("2026-03-11T17:05:00"),
+          metadata: {},
+        },
+      ],
+    });
+    const header = buildAttendanceMatrixCsv([a, b], [])
+      .split("\r\n")[1];
+    expect(header).toBe(
+      `Name,Email,${ATTENDANCE_PCT_HEADER},Weekly (04.03.2026),Weekly (11.03.2026)`
+    );
+  });
+
+  test("zero-attendance events stay as columns but don't drag attendance % down", () => {
+    const empty = baseEvent({
+      _id: "empty",
+      name: "Empty Night",
+      attendanceCount: 0,
+      rows: [],
+    });
+    const withPeople = eventA();
+    const lines = buildAttendanceMatrixCsv(
+      [empty, withPeople],
+      []
+    ).split("\r\n");
+    expect(lines[0]).toBe("Total Attendance,,,0,2");
+    expect(lines[1]).toBe(
+      `Name,Email,${ATTENDANCE_PCT_HEADER},Empty Night,Week 1`
+    );
+    // Empty Night is excluded from the denominator (like the reference sheet),
+    // so Ada who only attended Week 1 still reads 100%.
+    expect(lines[2]).toBe("Ada Lovelace,ada@sow.org.au,100%,,Y");
+  });
+
+  test("a metadata field named Attendance % does not duplicate the % column", () => {
+    const lines = buildAttendanceMatrixCsv(
+      [eventA()],
+      ["Gender", ATTENDANCE_PCT_HEADER]
+    ).split("\r\n");
+    expect(lines[1]).toBe(
+      `Name,Email,Gender,${ATTENDANCE_PCT_HEADER},Week 1`
+    );
+    // Gender value only once; no second Attendance % metadata column.
+    expect(lines[2]).toBe("Ada Lovelace,ada@sow.org.au,Female,100%,Y");
+  });
+
+  test("same event name on the same day gets an occurrence suffix", () => {
+    const a = baseEvent({
+      _id: "a",
+      name: "Weekly",
+      dateStart: at("2026-03-04T17:00:00"),
+      attendanceCount: 1,
+      rows: [
+        {
+          name: "Ada Lovelace",
+          email: "ada@sow.org.au",
+          signInTime: at("2026-03-04T17:05:00"),
+          metadata: {},
+        },
+      ],
+    });
+    const b = baseEvent({
+      _id: "b",
+      name: "Weekly",
+      dateStart: at("2026-03-04T19:00:00"),
+      attendanceCount: 1,
+      rows: [
+        {
+          name: "Ada Lovelace",
+          email: "ada@sow.org.au",
+          signInTime: at("2026-03-04T19:05:00"),
+          metadata: {},
+        },
+      ],
+    });
+    const header = buildAttendanceMatrixCsv([a, b], []).split("\r\n")[1];
+    expect(header).toBe(
+      `Name,Email,${ATTENDANCE_PCT_HEADER},Weekly (04.03.2026),Weekly (04.03.2026) #2`
+    );
+  });
+
+  test("emailless people with the same name at one event stay as separate rows", () => {
+    const night = baseEvent({
+      _id: "n",
+      name: "Open Night",
+      attendanceCount: 2,
+      rows: [
+        {
+          name: "Unknown",
+          email: "",
+          signInTime: at("2026-03-04T17:00:00"),
+          metadata: {},
+        },
+        {
+          name: "Unknown",
+          email: "",
+          signInTime: at("2026-03-04T17:10:00"),
+          metadata: {},
+        },
+      ],
+    });
+    const lines = buildAttendanceMatrixCsv([night], []).split("\r\n");
+    expect(lines[0]).toBe("Total Attendance,,,2");
+    // Two body rows, so Y marks sum to the Total Attendance headcount.
+    expect(lines).toHaveLength(4);
+    expect(lines[2]).toBe("Unknown,,100%,Y");
+    expect(lines[3]).toBe("Unknown,,100%,Y");
+  });
+
+  test("defangs formula-injection in names and event titles", () => {
+    const event = baseEvent({
+      _id: "x",
+      name: "=cmd|calc",
+      attendanceCount: 1,
+      rows: [
+        {
+          name: "=HYPERLINK",
+          email: "x@sow.org.au",
+          signInTime: at("2026-03-04T17:05:00"),
+          metadata: {},
+        },
+      ],
+    });
+    const lines = buildAttendanceMatrixCsv([event], []).split("\r\n");
+    expect(lines[1]).toContain("'=cmd|calc");
+    expect(lines[2].startsWith("'=HYPERLINK,")).toBe(true);
   });
 });
 
