@@ -15,6 +15,8 @@ const ATTENDEE_HEADERS = ["Sign In", "Name", "Email"] as const;
  * such field is dropped here — the sign-in note is the canonical "Notes".
  */
 export const NOTES_HEADER = "Notes";
+/** Column header for attendance rate on the person × event matrix export. */
+export const ATTENDANCE_PCT_HEADER = "Attendance %";
 /** A metadata field whose name collides with a reserved export column. */
 export const isReservedExportFieldKey = (key: string): boolean =>
   key.trim().toLowerCase() === NOTES_HEADER.toLowerCase();
@@ -74,6 +76,122 @@ export const buildAttendanceCsv = (
   // Two blank lines between events, so a section break is distinct from the
   // single blank line separating an event's info block from its table.
   return sections.join("\r\n\r\n\r\n");
+};
+
+/**
+ * Person × event attendance grid (one row per person, one column per event).
+ *
+ * Layout matches a classic roll-call sheet:
+ *   1. A "Total Attendance" summary row with the headcount for each event
+ *   2. A header row: Name, Email, chosen metadata, Attendance %, then each event
+ *   3. One body row per person — "Y" when they signed in, blank when they didn't,
+ *      plus Attendance % = events attended / events in the export
+ *
+ * People are de-duplicated by email (falling back to name when email is empty),
+ * sorted A→Z by name. Metadata is taken from their most recent sign-in. Notes
+ * and sign-in timestamps don't fit a multi-event grid, so they're omitted even
+ * if selected for the list export.
+ */
+export const buildAttendanceMatrixCsv = (
+  events: ExportEvent[],
+  fieldKeys: string[]
+): string => {
+  const metadataKeys = fieldKeys.filter((key) => !isReservedExportFieldKey(key));
+  const eventLabels = uniqueEventLabels(events);
+
+  type Person = {
+    name: string;
+    email: string;
+    metadata: Record<string, string>;
+    /** Earliest sign-in per event id (presence only matters). */
+    attended: Set<string>;
+    /** Most recent sign-in time, used to pick which metadata snapshot to keep. */
+    lastSignIn: number;
+  };
+
+  const people = new Map<string, Person>();
+  for (const event of events) {
+    for (const row of event.rows) {
+      const key = personKey(row.email, row.name);
+      const existing = people.get(key);
+      if (!existing) {
+        people.set(key, {
+          name: row.name,
+          email: row.email,
+          metadata: { ...row.metadata },
+          attended: new Set([event._id]),
+          lastSignIn: row.signInTime,
+        });
+        continue;
+      }
+      existing.attended.add(event._id);
+      // Prefer the most recent sign-in's name + metadata (profiles can change).
+      if (row.signInTime >= existing.lastSignIn) {
+        existing.lastSignIn = row.signInTime;
+        existing.name = row.name;
+        existing.metadata = { ...row.metadata };
+        // Keep a non-empty email if a later row is missing one.
+        if (row.email) existing.email = row.email;
+      } else if (!existing.email && row.email) {
+        existing.email = row.email;
+      }
+    }
+  }
+
+  const sorted = [...people.values()].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+  );
+
+  const personColCount = 2 + metadataKeys.length + 1; // Name, Email, meta…, %
+  const totalsRow = csvLine([
+    "Total Attendance",
+    ...Array(personColCount - 1).fill(""),
+    ...events.map((e) => String(e.attendanceCount)),
+  ]);
+  const header = csvLine([
+    "Name",
+    "Email",
+    ...metadataKeys,
+    ATTENDANCE_PCT_HEADER,
+    ...eventLabels,
+  ]);
+  const totalEvents = events.length;
+  const body = sorted.map((person) => {
+    const attended = events.filter((e) => person.attended.has(e._id)).length;
+    const pct =
+      totalEvents === 0
+        ? "0%"
+        : `${Math.round((attended / totalEvents) * 100)}%`;
+    return csvLine([
+      person.name,
+      person.email,
+      ...metadataKeys.map((key) => person.metadata[key] ?? ""),
+      pct,
+      ...events.map((e) => (person.attended.has(e._id) ? "Y" : "")),
+    ]);
+  });
+
+  return [totalsRow, header, ...body].join("\r\n");
+};
+
+/** Stable person key: email when present, otherwise the display name. */
+const personKey = (email: string, name: string): string =>
+  email.trim() ? email.trim().toLowerCase() : `name:${name.trim().toLowerCase()}`;
+
+/**
+ * Column labels for events. Unique names stay as-is; duplicates get a
+ * "dd.mm.yyyy" suffix so two "Weekly Meeting" columns are distinguishable.
+ */
+const uniqueEventLabels = (events: ExportEvent[]): string[] => {
+  const nameCounts = new Map<string, number>();
+  for (const e of events) {
+    nameCounts.set(e.name, (nameCounts.get(e.name) ?? 0) + 1);
+  }
+  return events.map((e) =>
+    (nameCounts.get(e.name) ?? 0) > 1
+      ? `${e.name} (${formatDate(e.dateStart)})`
+      : e.name
+  );
 };
 
 /** A filesystem-safe slug for the export filename (e.g. campus label). */

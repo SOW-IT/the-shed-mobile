@@ -16,7 +16,9 @@ import {
 } from "../../../shared/datetime";
 import { subgroupLabel } from "../../../shared/rollcall";
 import {
+  ATTENDANCE_PCT_HEADER,
   buildAttendanceCsv,
+  buildAttendanceMatrixCsv,
   exportSlug,
   isReservedExportFieldKey,
   NOTES_HEADER,
@@ -44,10 +46,19 @@ const LOCKED_FIELD_KEYS = new Set<string>([
   ROLE_FIELD_KEY,
 ]);
 
-/** Base columns that are always exported and can't be turned off. */
-const ALWAYS_COLUMNS = ["Sign In", "Name", "Email"];
+/** List export: sign-in time + identity columns (always on). */
+const LIST_ALWAYS_COLUMNS = ["Sign In", "Name", "Email"] as const;
+/** Matrix export: identity only — sign-in time doesn't fit a multi-event grid. */
+const MATRIX_ALWAYS_COLUMNS = [
+  "Name",
+  "Email",
+  ATTENDANCE_PCT_HEADER,
+] as const;
 /** Event-specific attendance note column; selectable even though it isn't metadata. */
 const NOTES_FIELD_KEY = NOTES_HEADER;
+
+/** How the CSV is laid out. */
+type ExportFormat = "list" | "matrix";
 
 /** Earliest selectable export date. */
 const MIN_DATE = new Date(2024, 0, 1);
@@ -74,13 +85,25 @@ const ToggleRow = ({
   checked,
   locked,
   onPress,
+  radio,
+  subtitle,
 }: {
   label: string;
   checked: boolean;
   locked?: boolean;
   onPress?: () => void;
+  /** Use radio icons instead of checkboxes (for exclusive format choice). */
+  radio?: boolean;
+  subtitle?: string;
 }) => {
   const t = useAppTheme();
+  const icon = radio
+    ? checked
+      ? "radio-button-on"
+      : "radio-button-off"
+    : checked
+      ? "checkbox"
+      : "square-outline";
   return (
     <Pressable
       disabled={locked}
@@ -99,11 +122,16 @@ const ToggleRow = ({
       ]}
     >
       <Ionicons
-        name={checked ? "checkbox" : "square-outline"}
+        name={icon}
         size={20}
         color={checked ? t.primary : t.faint}
       />
-      <Txt style={[typography.body, { color: t.text, flex: 1 }]}>{label}</Txt>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Txt style={[typography.body, { color: t.text }]}>{label}</Txt>
+        {subtitle ? (
+          <Txt style={[typography.caption, { color: t.muted }]}>{subtitle}</Txt>
+        ) : null}
+      </View>
       {locked ? (
         <Ionicons name="lock-closed" size={14} color={t.faint} />
       ) : null}
@@ -151,8 +179,11 @@ export function ExportSheet({
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [selectedTags, setSelectedTags] = useState<Id<"attendanceTags">[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<string[] | null>(null);
+  // Default to list (existing behaviour). Matrix is the person × event grid.
+  const [format, setFormat] = useState<ExportFormat>("list");
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isMatrix = format === "matrix";
 
   // Reset the form each time the sheet opens.
   useEffect(() => {
@@ -164,20 +195,28 @@ export function ExportSheet({
     setNowMs(Date.now());
     setSelectedTags([]);
     setSelectedKeys(null);
+    setFormat("list");
     setDownloading(false);
     setError(null);
   }, [visible]);
 
   // Default to every visible field selected (locked ones always on).
+  // Notes only apply to the list layout; matrix never includes them.
   useEffect(() => {
     if (!fields || selectedKeys !== null) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- seed once fields load
-    setSelectedKeys([...exportableFields.map((f) => f.key), NOTES_FIELD_KEY]);
-  }, [fields, exportableFields, selectedKeys]);
+    setSelectedKeys([
+      ...exportableFields.map((f) => f.key),
+      ...(isMatrix ? [] : [NOTES_FIELD_KEY]),
+    ]);
+  }, [fields, exportableFields, selectedKeys, isMatrix]);
 
   const orderedFieldKeys = useMemo(
-    () => [...exportableFields.map((f) => f.key), NOTES_FIELD_KEY],
-    [exportableFields]
+    () => [
+      ...exportableFields.map((f) => f.key),
+      ...(isMatrix ? [] : [NOTES_FIELD_KEY]),
+    ],
+    [exportableFields, isMatrix]
   );
 
   const toggleKey = (key: string) => {
@@ -229,9 +268,15 @@ export function ExportSheet({
         setDownloading(false);
         return;
       }
-      const csv = buildAttendanceCsv(exportEvents, chosenKeys);
+      const csv = isMatrix
+        ? buildAttendanceMatrixCsv(exportEvents, chosenKeys)
+        : buildAttendanceCsv(exportEvents, chosenKeys);
+      const slug = exportSlug(label);
+      const filename = isMatrix
+        ? `attendance-grid-${slug}.csv`
+        : `attendance-${slug}.csv`;
       await downloadCsv(
-        `attendance-${exportSlug(label)}.csv`,
+        filename,
         csv,
         isEvent ? `Export ${label}` : `Export ${label} attendance`
       );
@@ -266,6 +311,33 @@ export function ExportSheet({
           collaborative events — to a CSV file.
         </Muted>
       )}
+
+      <Txt style={[typography.label, styles.heading, { color: t.muted }]}>
+        Layout
+      </Txt>
+      <View style={{ gap: 6 }}>
+        <ToggleRow
+          radio
+          label="List by event"
+          subtitle="One section per event with each person's sign-in"
+          checked={!isMatrix}
+          onPress={() => {
+            setFormat("list");
+            // Re-seed field defaults so Notes comes back for the list layout.
+            setSelectedKeys(null);
+          }}
+        />
+        <ToggleRow
+          radio
+          label="Grid by person"
+          subtitle="People down the side, events across the top, with attendance %"
+          checked={isMatrix}
+          onPress={() => {
+            setFormat("matrix");
+            setSelectedKeys(null);
+          }}
+        />
+      </View>
 
       {!isEvent ? (
         <>
@@ -346,9 +418,11 @@ export function ExportSheet({
         Fields to export
       </Txt>
       <View style={{ gap: 6 }}>
-        {ALWAYS_COLUMNS.map((label) => (
-          <ToggleRow key={label} label={label} checked locked />
-        ))}
+        {(isMatrix ? MATRIX_ALWAYS_COLUMNS : LIST_ALWAYS_COLUMNS).map(
+          (label) => (
+            <ToggleRow key={label} label={label} checked locked />
+          )
+        )}
         {exportableFields.map((field) => {
           const locked = LOCKED_FIELD_KEYS.has(field.key);
           return (
@@ -361,12 +435,14 @@ export function ExportSheet({
             />
           );
         })}
-        <ToggleRow
-          key={NOTES_FIELD_KEY}
-          label={NOTES_FIELD_KEY}
-          checked={isSelected(NOTES_FIELD_KEY)}
-          onPress={() => toggleKey(NOTES_FIELD_KEY)}
-        />
+        {!isMatrix ? (
+          <ToggleRow
+            key={NOTES_FIELD_KEY}
+            label={NOTES_FIELD_KEY}
+            checked={isSelected(NOTES_FIELD_KEY)}
+            onPress={() => toggleKey(NOTES_FIELD_KEY)}
+          />
+        ) : null}
       </View>
 
       <ErrorBanner message={error} />

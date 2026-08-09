@@ -6,6 +6,16 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.10.7] — 2026-08-09
+
+### Added
+- **Attendance export can now be a person × event grid.** From Export you can
+  pick “Grid by person” instead of the usual list: people down the side, each
+  event across the top (with a Y when they were there), an Attendance % column,
+  and a Total Attendance row of headcounts per event — the layout you would
+  build by hand in a spreadsheet. The original list-by-event export is
+  unchanged.
+
 ## [1.10.6] — 2026-08-08
 
 ### Added
