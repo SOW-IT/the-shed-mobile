@@ -17,9 +17,22 @@ const ATTENDEE_HEADERS = ["Sign In", "Name", "Email"] as const;
 export const NOTES_HEADER = "Notes";
 /** Column header for attendance rate on the person × event matrix export. */
 export const ATTENDANCE_PCT_HEADER = "Attendance %";
-/** A metadata field whose name collides with a reserved export column. */
-export const isReservedExportFieldKey = (key: string): boolean =>
+
+/** True when `key` is the reserved sign-in Notes column (not metadata). */
+export const isNotesExportFieldKey = (key: string): boolean =>
   key.trim().toLowerCase() === NOTES_HEADER.toLowerCase();
+
+/**
+ * A metadata field whose name collides with a reserved export column
+ * (Notes, or Attendance % on the matrix layout).
+ */
+export const isReservedExportFieldKey = (key: string): boolean => {
+  const k = key.trim().toLowerCase();
+  return (
+    k === NOTES_HEADER.toLowerCase() ||
+    k === ATTENDANCE_PCT_HEADER.toLowerCase()
+  );
+};
 
 /** dd.mm.yyyy for a date. */
 const formatDate = (ms: number): string => {
@@ -44,8 +57,8 @@ export const buildAttendanceCsv = (
   fieldKeys: string[]
 ): string => {
   // Never let a metadata field named "Notes" duplicate the reserved sign-in
-  // note column.
-  const includeNotes = fieldKeys.some(isReservedExportFieldKey);
+  // note column. Other reserved names (e.g. Attendance %) are dropped too.
+  const includeNotes = fieldKeys.some(isNotesExportFieldKey);
   const metadataKeys = fieldKeys.filter((key) => !isReservedExportFieldKey(key));
   const tableHeader = csvLine([
     ...ATTENDEE_HEADERS,
@@ -85,12 +98,15 @@ export const buildAttendanceCsv = (
  *   1. A "Total Attendance" summary row with the headcount for each event
  *   2. A header row: Name, Email, chosen metadata, Attendance %, then each event
  *   3. One body row per person — "Y" when they signed in, blank when they didn't,
- *      plus Attendance % = events attended / events in the export
+ *      plus Attendance % = events attended / events that had any attendance
+ *      (zero-headcount events still appear as columns, but don't drag % down —
+ *      matching the spreadsheet people migrate from)
  *
- * People are de-duplicated by email (falling back to name when email is empty),
- * sorted A→Z by name. Metadata is taken from their most recent sign-in. Notes
- * and sign-in timestamps don't fit a multi-event grid, so they're omitted even
- * if selected for the list export.
+ * People are de-duplicated by email (falling back to name when email is empty).
+ * Two emailless sign-ins with the same name at the same event stay as separate
+ * rows so the Y-mark count still matches Total Attendance. Metadata is taken
+ * from their most recent sign-in. Notes and sign-in timestamps don't fit a
+ * multi-event grid, so they're omitted even if selected for the list export.
  */
 export const buildAttendanceMatrixCsv = (
   events: ExportEvent[],
@@ -103,18 +119,33 @@ export const buildAttendanceMatrixCsv = (
     name: string;
     email: string;
     metadata: Record<string, string>;
-    /** Earliest sign-in per event id (presence only matters). */
+    /** Event ids this person signed in to (presence only). */
     attended: Set<string>;
     /** Most recent sign-in time, used to pick which metadata snapshot to keep. */
     lastSignIn: number;
   };
 
   const people = new Map<string, Person>();
+  let anonSeq = 0;
   for (const event of events) {
     for (const row of event.rows) {
-      const key = personKey(row.email, row.name);
+      let key = personKey(row.email, row.name);
       const existing = people.get(key);
       if (!existing) {
+        people.set(key, {
+          name: row.name,
+          email: row.email,
+          metadata: { ...row.metadata },
+          attended: new Set([event._id]),
+          lastSignIn: row.signInTime,
+        });
+        continue;
+      }
+      // Emailless rows that already have a Y for this event are distinct people
+      // sharing a display name (e.g. two "Unknown" guests). Keep them separate
+      // so the grid's Y marks still sum to Total Attendance.
+      if (!row.email.trim() && existing.attended.has(event._id)) {
+        key = `${key}#${++anonSeq}`;
         people.set(key, {
           name: row.name,
           email: row.email,
@@ -155,13 +186,19 @@ export const buildAttendanceMatrixCsv = (
     ATTENDANCE_PCT_HEADER,
     ...eventLabels,
   ]);
-  const totalEvents = events.length;
+  // Zero-headcount events (cancelled / not rolled) stay as columns but are
+  // excluded from the denominator so they don't drag every % down.
+  const countedEvents = events.filter((e) => e.attendanceCount > 0);
+  const totalCounted = countedEvents.length;
   const body = sorted.map((person) => {
-    const attended = events.filter((e) => person.attended.has(e._id)).length;
+    const attended = countedEvents.reduce(
+      (n, e) => n + (person.attended.has(e._id) ? 1 : 0),
+      0
+    );
     const pct =
-      totalEvents === 0
+      totalCounted === 0
         ? "0%"
-        : `${Math.round((attended / totalEvents) * 100)}%`;
+        : `${Math.round((attended / totalCounted) * 100)}%`;
     return csvLine([
       person.name,
       person.email,
@@ -180,18 +217,25 @@ const personKey = (email: string, name: string): string =>
 
 /**
  * Column labels for events. Unique names stay as-is; duplicates get a
- * "dd.mm.yyyy" suffix so two "Weekly Meeting" columns are distinguishable.
+ * "dd.mm.yyyy" suffix. If the dated label still collides (same name + same day),
+ * a "#2" / "#3" … occurrence suffix is appended.
  */
 const uniqueEventLabels = (events: ExportEvent[]): string[] => {
   const nameCounts = new Map<string, number>();
   for (const e of events) {
     nameCounts.set(e.name, (nameCounts.get(e.name) ?? 0) + 1);
   }
-  return events.map((e) =>
+  const baseLabels = events.map((e) =>
     (nameCounts.get(e.name) ?? 0) > 1
       ? `${e.name} (${formatDate(e.dateStart)})`
       : e.name
   );
+  const seen = new Map<string, number>();
+  return baseLabels.map((label) => {
+    const n = (seen.get(label) ?? 0) + 1;
+    seen.set(label, n);
+    return n === 1 ? label : `${label} #${n}`;
+  });
 };
 
 /** A filesystem-safe slug for the export filename (e.g. campus label). */

@@ -219,6 +219,17 @@ export function ExportSheet({
     [exportableFields, isMatrix]
   );
 
+  /** Switch layout without wiping metadata field picks — only Notes is toggled. */
+  const setExportFormat = (next: ExportFormat) => {
+    if (next === format) return;
+    setFormat(next);
+    setSelectedKeys((prev) => {
+      if (prev === null) return null;
+      const withoutNotes = prev.filter((k) => k !== NOTES_FIELD_KEY);
+      return next === "list" ? [...withoutNotes, NOTES_FIELD_KEY] : withoutNotes;
+    });
+  };
+
   const toggleKey = (key: string) => {
     if (LOCKED_FIELD_KEYS.has(key)) return;
     setSelectedKeys((prev) => {
@@ -321,21 +332,14 @@ export function ExportSheet({
           label="List by event"
           subtitle="One section per event with each person's sign-in"
           checked={!isMatrix}
-          onPress={() => {
-            setFormat("list");
-            // Re-seed field defaults so Notes comes back for the list layout.
-            setSelectedKeys(null);
-          }}
+          onPress={() => setExportFormat("list")}
         />
         <ToggleRow
           radio
           label="Grid by person"
           subtitle="People down the side, events across the top, with attendance %"
           checked={isMatrix}
-          onPress={() => {
-            setFormat("matrix");
-            setSelectedKeys(null);
-          }}
+          onPress={() => setExportFormat("matrix")}
         />
       </View>
 
