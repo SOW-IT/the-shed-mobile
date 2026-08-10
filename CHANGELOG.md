@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.10.8] — 2026-08-10
+
+### Fixed
+- **Grid export no longer merges different people who share a name.** The
+  person × event CSV used to key rows by display name when someone had no email,
+  so two “John Smith”s (or two “Unknown” guests) became one row. Each person is
+  now tracked by a stable identity (email, member id, or attendance row id) so
+  same names stay separate while the same person still lines up across events.
+
 ## [1.10.7] — 2026-08-09
 
 ### Added

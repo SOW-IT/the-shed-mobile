@@ -102,11 +102,12 @@ export const buildAttendanceCsv = (
  *      (zero-headcount events still appear as columns, but don't drag % down —
  *      matching the spreadsheet people migrate from)
  *
- * People are de-duplicated by email (falling back to name when email is empty).
- * Two emailless sign-ins with the same name at the same event stay as separate
- * rows so the Y-mark count still matches Total Attendance. Metadata is taken
- * from their most recent sign-in. Notes and sign-in timestamps don't fit a
- * multi-event grid, so they're omitted even if selected for the list export.
+ * People are de-duplicated by {@link ExportEvent}'s per-row `identityKey`
+ * (email / member id / attendance row id) — **never by display name**, so two
+ * people called "John Smith" stay as two rows. The same person across events
+ * still merges correctly via a stable key. Metadata is taken from their most
+ * recent sign-in. Notes and sign-in timestamps don't fit a multi-event grid,
+ * so they're omitted even if selected for the list export.
  */
 export const buildAttendanceMatrixCsv = (
   events: ExportEvent[],
@@ -126,26 +127,11 @@ export const buildAttendanceMatrixCsv = (
   };
 
   const people = new Map<string, Person>();
-  let anonSeq = 0;
   for (const event of events) {
     for (const row of event.rows) {
-      let key = personKey(row.email, row.name);
+      const key = matrixPersonKey(row);
       const existing = people.get(key);
       if (!existing) {
-        people.set(key, {
-          name: row.name,
-          email: row.email,
-          metadata: { ...row.metadata },
-          attended: new Set([event._id]),
-          lastSignIn: row.signInTime,
-        });
-        continue;
-      }
-      // Emailless rows that already have a Y for this event are distinct people
-      // sharing a display name (e.g. two "Unknown" guests). Keep them separate
-      // so the grid's Y marks still sum to Total Attendance.
-      if (!row.email.trim() && existing.attended.has(event._id)) {
-        key = `${key}#${++anonSeq}`;
         people.set(key, {
           name: row.name,
           email: row.email,
@@ -211,9 +197,20 @@ export const buildAttendanceMatrixCsv = (
   return [totalsRow, header, ...body].join("\r\n");
 };
 
-/** Stable person key: email when present, otherwise the display name. */
-const personKey = (email: string, name: string): string =>
-  email.trim() ? email.trim().toLowerCase() : `name:${name.trim().toLowerCase()}`;
+/**
+ * Stable matrix row key. Prefer the backend `identityKey` (never name-based).
+ * Fallback for incomplete fixtures: email when present, else a unique key from
+ * sign-in time alone — display name is never part of the key.
+ */
+const matrixPersonKey = (row: {
+  identityKey?: string;
+  email: string;
+  signInTime: number;
+}): string => {
+  if (row.identityKey?.trim()) return row.identityKey.trim();
+  if (row.email.trim()) return `email:${row.email.trim().toLowerCase()}`;
+  return `anon:${row.signInTime}`;
+};
 
 /**
  * Column labels for events. Unique names stay as-is; duplicates get a
