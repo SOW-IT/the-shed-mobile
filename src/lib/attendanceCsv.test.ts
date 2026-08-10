@@ -452,6 +452,38 @@ describe("buildAttendanceMatrixCsv", () => {
     expect(lines[3]).toBe("Unknown,,100%,Y");
   });
 
+  test("rows missing identityKey with the same sign-in time stay separate", () => {
+    // Legacy/incomplete fixtures with no identityKey and identical timestamps
+    // must not collapse — the anon fallback uses event id + row index.
+    const sameMs = at("2026-03-04T17:00:00");
+    const night = baseEvent({
+      _id: "n",
+      name: "Open Night",
+      attendanceCount: 2,
+      rows: [
+        {
+          name: "Guest A",
+          email: "",
+          signInTime: sameMs,
+          metadata: {},
+          identityKey: "",
+        },
+        {
+          name: "Guest B",
+          email: "",
+          signInTime: sameMs,
+          metadata: {},
+          identityKey: "",
+        },
+      ],
+    });
+    const lines = buildAttendanceMatrixCsv([night], []).split("\r\n");
+    expect(lines[0]).toBe("Total Attendance,,,2");
+    expect(lines).toHaveLength(4);
+    expect(lines[2]).toBe("Guest A,,100%,Y");
+    expect(lines[3]).toBe("Guest B,,100%,Y");
+  });
+
   test("defangs formula-injection in names and event titles", () => {
     const event = baseEvent({
       _id: "x",

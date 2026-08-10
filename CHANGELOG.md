@@ -6,6 +6,14 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.10.9] — 2026-08-10
+
+### Fixed
+- **Grid export’s anonymous-identity fallback no longer collides.** Incomplete
+  rows without an identity key used only sign-in time as a key, so two people
+  who signed in in the same millisecond could still merge. The fallback now
+  uses event id + row index so those rows stay separate.
+
 ## [1.10.8] — 2026-08-10
 
 ### Fixed

@@ -128,8 +128,9 @@ export const buildAttendanceMatrixCsv = (
 
   const people = new Map<string, Person>();
   for (const event of events) {
-    for (const row of event.rows) {
-      const key = matrixPersonKey(row);
+    for (let rowIndex = 0; rowIndex < event.rows.length; rowIndex += 1) {
+      const row = event.rows[rowIndex];
+      const key = matrixPersonKey(row, event._id, rowIndex);
       const existing = people.get(key);
       if (!existing) {
         people.set(key, {
@@ -200,16 +201,21 @@ export const buildAttendanceMatrixCsv = (
 /**
  * Stable matrix row key. Prefer the backend `identityKey` (never name-based).
  * Fallback for incomplete fixtures: email when present, else a unique key from
- * sign-in time alone — display name is never part of the key.
+ * event id + row index (not sign-in time alone, so two rows at the same ms
+ * stay separate). Display name is never part of the key.
  */
-const matrixPersonKey = (row: {
-  identityKey?: string;
-  email: string;
-  signInTime: number;
-}): string => {
+const matrixPersonKey = (
+  row: {
+    identityKey?: string;
+    email: string;
+    signInTime: number;
+  },
+  eventId: string,
+  rowIndex: number
+): string => {
   if (row.identityKey?.trim()) return row.identityKey.trim();
   if (row.email.trim()) return `email:${row.email.trim().toLowerCase()}`;
-  return `anon:${row.signInTime}`;
+  return `anon:${eventId}:${rowIndex}`;
 };
 
 /**
