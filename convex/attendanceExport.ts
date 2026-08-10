@@ -21,6 +21,14 @@ export type ExportRow = {
    * (stable across years) so the CSV columns line up regardless of which
    * year's field ids produced them. */
   metadata: Record<string, string>;
+  /**
+   * Stable identity for matrix aggregation. Never derived from display name
+   * alone — two people called "John Smith" stay as two rows.
+   * - `email:<lowercased>` when an email is known
+   * - `member:<id>` for an attendance member without email
+   * - `row:<attendanceId>` for unlinked sign-ins (unique; no cross-event merge)
+   */
+  identityKey: string;
 };
 
 /** One event with its roll-call, ready to turn into CSV rows. */
@@ -137,6 +145,7 @@ async function resolveExportEvents(
             signInTime: row.signInTime,
             notes: row.notes,
             metadata: resolveMetadata(shadow?.metadata),
+            identityKey: `email:${email}`,
           };
         }
         if (row.memberId) {
@@ -146,21 +155,29 @@ async function resolveExportEvents(
           if (member?.email) {
             const profile = profileFor(member.email);
             if (profile) {
+              const email = profile.email.toLowerCase();
               return {
                 name: profile.name ?? member.name,
-                email: profile.email.toLowerCase(),
+                email,
                 signInTime: row.signInTime,
                 notes: row.notes,
                 metadata: resolveMetadata(member.metadata),
+                identityKey: `email:${email}`,
               };
             }
           }
+          const email = member?.email?.toLowerCase() ?? "";
           return {
             name: member?.name ?? "Unknown",
-            email: member?.email ?? "",
+            email,
             signInTime: row.signInTime,
             notes: row.notes,
             metadata: resolveMetadata(member?.metadata),
+            // Prefer email identity when the member has one; otherwise the
+            // member document id — never the display name.
+            identityKey: email
+              ? `email:${email}`
+              : `member:${String(row.memberId)}`,
           };
         }
         return {
@@ -169,28 +186,28 @@ async function resolveExportEvents(
           signInTime: row.signInTime,
           notes: row.notes,
           metadata: {},
+          // Unlinked sign-in: unique per attendance row so same-name guests
+          // never collapse into one matrix row.
+          identityKey: `row:${String(row._id)}`,
         };
       });
-    // Collapse rows that resolve to the same staff email — a person can have
-    // both an `email` and a `memberId` sign-in (legacy/imported data) that
-    // resolve to one profile; export them once (earliest sign-in). Rows without
-    // an email (unresolved members) can't be merged and pass through.
-    const byEmail = new Map<string, ExportRow>();
+    // Collapse rows that resolve to the same identity — a person can have both
+    // an `email` and a `memberId` sign-in (legacy/imported data) that resolve
+    // to one profile; export them once (earliest sign-in). Unlinked rows use a
+    // unique `row:` key and never merge.
+    const byIdentity = new Map<string, ExportRow>();
     const rows: ExportRow[] = [];
     for (const row of resolvedRows) {
-      if (!row.email) {
-        rows.push(row);
-        continue;
-      }
-      const existing = byEmail.get(row.email);
+      const existing = byIdentity.get(row.identityKey);
       if (!existing) {
-        byEmail.set(row.email, row);
+        byIdentity.set(row.identityKey, row);
         rows.push(row);
       } else if (row.signInTime < existing.signInTime) {
         existing.signInTime = row.signInTime;
         existing.notes = row.notes;
         existing.metadata = row.metadata;
         existing.name = row.name;
+        if (row.email) existing.email = row.email;
       }
     }
     rows.sort((a, b) => b.signInTime - a.signInTime);

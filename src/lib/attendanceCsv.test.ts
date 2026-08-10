@@ -10,6 +10,36 @@ import {
 
 const at = (iso: string) => new Date(iso).getTime();
 
+/** Build an export row with a stable identityKey (never name-only). */
+const exportRow = (row: {
+  name: string;
+  email?: string;
+  signInTime: number;
+  notes?: string;
+  metadata?: Record<string, string>;
+  /** Override identity; defaults to email:… or member/row keys when given. */
+  identityKey?: string;
+  memberId?: string;
+  attendanceId?: string;
+}): ExportEventForCsv["rows"][number] => {
+  const email = row.email ?? "";
+  const identityKey =
+    row.identityKey ??
+    (email.trim()
+      ? `email:${email.trim().toLowerCase()}`
+      : row.memberId
+        ? `member:${row.memberId}`
+        : `row:${row.attendanceId ?? String(row.signInTime)}`);
+  return {
+    name: row.name,
+    email,
+    signInTime: row.signInTime,
+    notes: row.notes,
+    metadata: row.metadata ?? {},
+    identityKey,
+  };
+};
+
 const baseEvent = (
   overrides: Partial<ExportEventForCsv> = {}
 ): ExportEventForCsv => ({
@@ -23,13 +53,13 @@ const baseEvent = (
   tags: ["Weekly"],
   attendanceCount: 1,
   rows: [
-    {
+    exportRow({
       name: "Ada Lovelace",
       email: "ada@sow.org.au",
       signInTime: at("2026-03-04T17:05:00"),
       notes: "early",
       metadata: { Gender: "Female", Campus: "University of Sydney" },
-    },
+    }),
   ],
   ...overrides,
 });
@@ -58,13 +88,13 @@ describe("buildAttendanceCsv", () => {
     // metadata field must be dropped so the export has exactly one "Notes".
     const event = baseEvent({
       rows: [
-        {
+        exportRow({
           name: "Ada Lovelace",
           email: "ada@sow.org.au",
           signInTime: at("2026-03-04T17:05:00"),
           notes: "sign-in note",
           metadata: { Gender: "Female", Notes: "metadata note" },
-        },
+        }),
       ],
     });
     const lines = buildAttendanceCsv([event], ["Gender", "Notes"]).split("\r\n");
@@ -101,12 +131,12 @@ describe("buildAttendanceCsv", () => {
   test("a missing metadata value becomes an empty cell", () => {
     const event = baseEvent({
       rows: [
-        {
+        exportRow({
           name: "No Meta",
           email: "nm@sow.org.au",
           signInTime: at("2026-03-04T17:10:00"),
           metadata: {},
-        },
+        }),
       ],
     });
     const lines = buildAttendanceCsv([event], ["Gender", NOTES_HEADER]).split("\r\n");
@@ -144,12 +174,12 @@ describe("buildAttendanceCsv", () => {
     const event = baseEvent({
       name: "=cmd|calc",
       rows: [
-        {
+        exportRow({
           name: 'Smith, "Bob"',
           email: "bob@sow.org.au",
           signInTime: at("2026-03-04T17:05:00"),
           metadata: {},
-        },
+        }),
       ],
     });
     const lines = buildAttendanceCsv([event], []).split("\r\n");
@@ -166,18 +196,18 @@ describe("buildAttendanceMatrixCsv", () => {
       dateStart: at("2026-03-04T17:00:00"),
       attendanceCount: 2,
       rows: [
-        {
+        exportRow({
           name: "Ada Lovelace",
           email: "ada@sow.org.au",
           signInTime: at("2026-03-04T17:05:00"),
           metadata: { Gender: "Female", Role: "Student Leader" },
-        },
-        {
+        }),
+        exportRow({
           name: "Bob Smith",
           email: "bob@sow.org.au",
           signInTime: at("2026-03-04T17:10:00"),
           metadata: { Gender: "Male", Role: "Staff" },
-        },
+        }),
       ],
     });
 
@@ -188,12 +218,12 @@ describe("buildAttendanceMatrixCsv", () => {
       dateStart: at("2026-03-11T17:00:00"),
       attendanceCount: 1,
       rows: [
-        {
+        exportRow({
           name: "Ada Lovelace",
           email: "ada@sow.org.au",
           signInTime: at("2026-03-11T17:05:00"),
           metadata: { Gender: "Female", Role: "Student Leader" },
-        },
+        }),
       ],
     });
 
@@ -217,18 +247,19 @@ describe("buildAttendanceMatrixCsv", () => {
     expect(lines).toHaveLength(4);
   });
 
-  test("people without email are keyed by name and still appear", () => {
+  test("people without email still appear (keyed by member/row identity)", () => {
     const guestOnly = baseEvent({
       _id: "g",
       name: "Welcome",
       attendanceCount: 1,
       rows: [
-        {
+        exportRow({
           name: "Guest Person",
           email: "",
           signInTime: at("2026-03-04T17:00:00"),
           metadata: { Gender: "Female" },
-        },
+          memberId: "m-guest",
+        }),
       ],
     });
     const lines = buildAttendanceMatrixCsv([guestOnly], ["Gender"]).split(
@@ -243,12 +274,12 @@ describe("buildAttendanceMatrixCsv", () => {
       name: "Weekly",
       dateStart: at("2026-03-04T17:00:00"),
       rows: [
-        {
+        exportRow({
           name: "Ada Lovelace",
           email: "ada@sow.org.au",
           signInTime: at("2026-03-04T17:05:00"),
           metadata: {},
-        },
+        }),
       ],
     });
     const b = baseEvent({
@@ -256,12 +287,12 @@ describe("buildAttendanceMatrixCsv", () => {
       name: "Weekly",
       dateStart: at("2026-03-11T17:00:00"),
       rows: [
-        {
+        exportRow({
           name: "Ada Lovelace",
           email: "ada@sow.org.au",
           signInTime: at("2026-03-11T17:05:00"),
           metadata: {},
-        },
+        }),
       ],
     });
     const header = buildAttendanceMatrixCsv([a, b], [])
@@ -311,12 +342,12 @@ describe("buildAttendanceMatrixCsv", () => {
       dateStart: at("2026-03-04T17:00:00"),
       attendanceCount: 1,
       rows: [
-        {
+        exportRow({
           name: "Ada Lovelace",
           email: "ada@sow.org.au",
           signInTime: at("2026-03-04T17:05:00"),
           metadata: {},
-        },
+        }),
       ],
     });
     const b = baseEvent({
@@ -325,12 +356,12 @@ describe("buildAttendanceMatrixCsv", () => {
       dateStart: at("2026-03-04T19:00:00"),
       attendanceCount: 1,
       rows: [
-        {
+        exportRow({
           name: "Ada Lovelace",
           email: "ada@sow.org.au",
           signInTime: at("2026-03-04T19:05:00"),
           metadata: {},
-        },
+        }),
       ],
     });
     const header = buildAttendanceMatrixCsv([a, b], []).split("\r\n")[1];
@@ -339,24 +370,78 @@ describe("buildAttendanceMatrixCsv", () => {
     );
   });
 
-  test("emailless people with the same name at one event stay as separate rows", () => {
+  test("people with the same display name stay as separate rows", () => {
+    // Two distinct members both named "John Smith" (no email) — different
+    // identityKeys so they must never collapse into one matrix row.
+    const week1 = baseEvent({
+      _id: "w1",
+      name: "Week 1",
+      attendanceCount: 2,
+      rows: [
+        exportRow({
+          name: "John Smith",
+          email: "",
+          signInTime: at("2026-03-04T17:00:00"),
+          memberId: "member-a",
+          metadata: { Gender: "Male" },
+        }),
+        exportRow({
+          name: "John Smith",
+          email: "",
+          signInTime: at("2026-03-04T17:05:00"),
+          memberId: "member-b",
+          metadata: { Gender: "Male" },
+        }),
+      ],
+    });
+    const week2 = baseEvent({
+      _id: "w2",
+      name: "Week 2",
+      attendanceCount: 1,
+      rows: [
+        // Only member-a returns — must not merge with member-b just because
+        // the display name matches.
+        exportRow({
+          name: "John Smith",
+          email: "",
+          signInTime: at("2026-03-11T17:00:00"),
+          memberId: "member-a",
+          metadata: { Gender: "Male" },
+        }),
+      ],
+    });
+    const lines = buildAttendanceMatrixCsv(
+      [week1, week2],
+      ["Gender"]
+    ).split("\r\n");
+    expect(lines[0]).toBe("Total Attendance,,,,2,1");
+    // Two John Smith rows: one at 100% (both weeks), one at 50% (week 1 only).
+    expect(lines).toHaveLength(4);
+    const body = lines.slice(2);
+    expect(body).toContain("John Smith,,Male,100%,Y,Y");
+    expect(body).toContain("John Smith,,Male,50%,Y,");
+  });
+
+  test("unlinked same-name guests never merge across or within events", () => {
     const night = baseEvent({
       _id: "n",
       name: "Open Night",
       attendanceCount: 2,
       rows: [
-        {
+        exportRow({
           name: "Unknown",
           email: "",
           signInTime: at("2026-03-04T17:00:00"),
+          attendanceId: "att-1",
           metadata: {},
-        },
-        {
+        }),
+        exportRow({
           name: "Unknown",
           email: "",
           signInTime: at("2026-03-04T17:10:00"),
+          attendanceId: "att-2",
           metadata: {},
-        },
+        }),
       ],
     });
     const lines = buildAttendanceMatrixCsv([night], []).split("\r\n");
@@ -373,12 +458,12 @@ describe("buildAttendanceMatrixCsv", () => {
       name: "=cmd|calc",
       attendanceCount: 1,
       rows: [
-        {
+        exportRow({
           name: "=HYPERLINK",
           email: "x@sow.org.au",
           signInTime: at("2026-03-04T17:05:00"),
           metadata: {},
-        },
+        }),
       ],
     });
     const lines = buildAttendanceMatrixCsv([event], []).split("\r\n");
