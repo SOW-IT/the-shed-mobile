@@ -446,11 +446,13 @@ export default defineSchema({
   // (sub-group, time range) so the dashboard reads a single bounded document
   // instead of scanning attendance history on the client. `subgroup` is stored
   // canonicalised (legacy "ALL" folded to "SOW"); `rangeWeeks` is one of the
-  // precomputed presets `RANGE_WEEKS` (1/2/4/8/12) — the whole-staff-year range
-  // (0, STAFF_YEAR_RANGE) is supported by the logic but not currently
-  // precomputed. The `data` shape mirrors shared/attendanceMetrics.ts
-  // `SubgroupMetricsData` (see convex/metricsData.ts). Also refreshed within
-  // minutes of roll-call changes by the `attendance metrics dirty recompute` cron.
+  // precomputed presets `RANGE_WEEKS` (1 / 4 / 52 = week / month / year) — the
+  // whole-staff-year range (0, STAFF_YEAR_RANGE) is supported by the logic but
+  // not currently precomputed. Custom date ranges are computed on demand via
+  // `liveSnapshot` (not stored). The `data` shape mirrors
+  // shared/attendanceMetrics.ts `SubgroupMetricsData` (see convex/metricsData.ts).
+  // Also refreshed within minutes of roll-call changes by the
+  // `attendance metrics dirty recompute` cron.
   attendanceMetricsSnapshots: defineTable({
     subgroup: v.string(),
     rangeWeeks: v.number(),

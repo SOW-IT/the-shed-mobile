@@ -42,13 +42,14 @@ reading every event's attendance in one mutation. It:
    (`gatherAttendanceChunk`), keyed by the shared `personKey`.
 4. Resolves each attendee's display name / subtitle / photo and cheap breakdown
    fields (Campus, Role) (`gatherPersons`).
-5. Runs `computeSubgroupMetrics` for every preset range (**1 / 2 / 4 / 8 / 12
-   weeks** — `RANGE_WEEKS`) × collaborative-included/excluded, and upserts one
-   `attendanceMetricsSnapshots` row per combination (`writeSnapshots`, resilient
-   to duplicate rows so racing recomputes can't wedge later reads). The
-   whole-**staff-year** range is supported by the pure logic
-   (`STAFF_YEAR_RANGE`) but is **not** currently precomputed or offered in the UI
-   (`ALL_RANGES = [...RANGE_WEEKS]`); re-add it in both places to bring it back.
+5. Runs `computeSubgroupMetrics` for every preset range (**past week / month /
+   year** — `RANGE_WEEKS` = 1 / 4 / 52) × collaborative-included/excluded, and
+   upserts one `attendanceMetricsSnapshots` row per combination
+   (`writeSnapshots`, resilient to duplicate rows so racing recomputes can't
+   wedge later reads). **Custom** date ranges are computed on demand via
+   `liveSnapshot` (not stored). The whole-**staff-year** range is supported by
+   the pure logic (`STAFF_YEAR_RANGE`) but is **not** currently precomputed
+   (`ALL_RANGES = [...RANGE_WEEKS]`).
 
 The tab reads a snapshot via `api.attendanceMetrics.snapshot`, which tolerates a
 stale prior-staff-year row (treated as "not ready") and a rare duplicate row

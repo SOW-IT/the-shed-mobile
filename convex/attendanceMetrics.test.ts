@@ -107,7 +107,7 @@ describe("attendanceMetrics", () => {
       subgroup: USYD,
     });
 
-    for (const rangeWeeks of [1, 2, 4, 8, 12]) {
+    for (const rangeWeeks of [1, 4, 52]) {
       for (const includeCollaborative of [true, false]) {
         const snap = await leader.query(api.attendanceMetrics.snapshot, {
           subgroup: USYD,
@@ -117,6 +117,120 @@ describe("attendanceMetrics", () => {
         expect(snap, `range ${rangeWeeks} collab ${includeCollaborative}`).not.toBeNull();
       }
     }
+  });
+
+  test("liveSnapshot returns null when not signed in", async () => {
+    const { t } = await setup();
+    const end = Date.now();
+    const start = end - 14 * DAY;
+    expect(
+      await t.action(api.attendanceMetrics.liveSnapshot, {
+        subgroup: USYD,
+        rangeStartMs: start,
+        rangeEndMs: end,
+        includeCollaborative: true,
+      })
+    ).toBeNull();
+  });
+
+  test("liveSnapshot computes a custom range on demand", async () => {
+    const { leader } = await setup();
+    const e1 = await leader.mutation(api.events.create, {
+      name: "Custom A",
+      ...window(10),
+      subgroups: [USYD],
+    });
+    const e2 = await leader.mutation(api.events.create, {
+      name: "Custom B",
+      ...window(2),
+      subgroups: [USYD],
+    });
+    await leader.mutation(api.attendance.signIn, { eventId: e1, email: LEADER });
+    await leader.mutation(api.attendance.signIn, { eventId: e2, email: LEADER });
+    await leader.mutation(api.attendance.signIn, { eventId: e2, email: STAFF });
+
+    const end = Date.now();
+    // Window that includes only the more recent event (2 days ago).
+    const start = end - 5 * DAY;
+    const live = await leader.action(api.attendanceMetrics.liveSnapshot, {
+      subgroup: USYD,
+      rangeStartMs: start,
+      rangeEndMs: end,
+      includeCollaborative: true,
+    });
+    expect(live).not.toBeNull();
+    expect(live!.data.summary.eventsHeld).toBe(1);
+    expect(live!.data.summary.uniqueAttendees).toBe(2);
+    expect(live!.computedAt).toBeGreaterThan(0);
+  });
+
+  test("liveSnapshot rejects inverted or over-long ranges", async () => {
+    const { leader } = await setup();
+    const end = Date.now();
+    await expect(
+      leader.action(api.attendanceMetrics.liveSnapshot, {
+        subgroup: USYD,
+        rangeStartMs: end,
+        rangeEndMs: end - DAY,
+        includeCollaborative: true,
+      })
+    ).rejects.toThrow(/start before the end/i);
+    await expect(
+      leader.action(api.attendanceMetrics.liveSnapshot, {
+        subgroup: USYD,
+        rangeStartMs: end - 3 * 365 * DAY,
+        rangeEndMs: end,
+        includeCollaborative: true,
+      })
+    ).rejects.toThrow(/two years/i);
+  });
+
+  test("liveSnapshot still finds range events when many later events exist", async () => {
+    // Without loadEnd, gatherEvents takes the newest MAX_EVENT_SCAN events
+    // after loadStart — a flood of post-range events would crowd out the
+    // in-range ones. With loadEnd, only events ≤ range end are scanned.
+    const { t, leader } = await setup();
+    const rangeEnd = Date.now() - 30 * DAY;
+    const rangeStart = rangeEnd - 14 * DAY;
+    const inRangeAt = rangeStart + 3 * DAY;
+
+    // One real event inside the custom window, with attendance.
+    const inRangeId = await t.run(async (ctx) =>
+      ctx.db.insert("events", {
+        name: "In-range meeting",
+        dateStart: inRangeAt,
+        dateEnd: inRangeAt + 2 * 60 * 60 * 1000,
+        subgroups: [USYD],
+      })
+    );
+    await leader.mutation(api.attendance.signIn, {
+      eventId: inRangeId,
+      email: LEADER,
+    });
+
+    // Flood of later events that would fill a newest-first scan without loadEnd.
+    // MAX_EVENT_SCAN is 4000; insert enough after rangeEnd to exceed it.
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 4001; i++) {
+        const at = rangeEnd + (i + 1) * 60_000; // after rangeEnd, 1 min apart
+        await ctx.db.insert("events", {
+          name: `Later ${i}`,
+          dateStart: at,
+          dateEnd: at + 60_000,
+          subgroups: [USYD],
+        });
+      }
+    });
+
+    const live = await leader.action(api.attendanceMetrics.liveSnapshot, {
+      subgroup: USYD,
+      rangeStartMs: rangeStart,
+      rangeEndMs: rangeEnd,
+      includeCollaborative: true,
+    });
+    expect(live).not.toBeNull();
+    expect(live!.data.summary.eventsHeld).toBe(1);
+    expect(live!.data.summary.uniqueAttendees).toBe(1);
   });
 
   test("recomputeNow requires an attendance manager", async () => {

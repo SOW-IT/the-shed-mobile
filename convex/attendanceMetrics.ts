@@ -37,6 +37,7 @@ import {
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import {
+  action,
   internalAction,
   internalMutation,
   internalQuery,
@@ -48,8 +49,15 @@ import {
 import { currentStaffYear, optionalProfile, requireAttendanceManager } from "./model";
 import { metricsDataValidator } from "./metricsData";
 
-/** How far back to load events for classification look-back (regulars, gaps). */
-const HISTORY_WEEKS = 26;
+/** Cap on a custom live range so a pathological request can't page forever. */
+const LIVE_RANGE_MAX_MS = 2 * 365 * DAY_MS;
+
+/**
+ * How far back to load events for classification look-back (regulars, gaps)
+ * and the previous comparable period. Sized for the longest preset (past year
+ * = 52 weeks) plus its previous period and a little slack.
+ */
+const HISTORY_WEEKS = 110;
 /** Newest events *for the sub-group* kept per recompute (bounds the window). */
 const MAX_EVENTS = 800;
 /**
@@ -93,9 +101,9 @@ const metricsPersonValidator = v.object({
 });
 
 /**
- * Every range we precompute — the UI presets. The whole-staff-year range is
- * excluded for now (short trailing windows only); re-add STAFF_YEAR_RANGE here
- * and in the UI options to bring it back.
+ * Every range we precompute — the UI presets (week / month / year). The
+ * whole-staff-year range is excluded; re-add STAFF_YEAR_RANGE here and in the
+ * UI options to bring it back. Custom ranges use {@link liveSnapshot}.
  */
 const ALL_RANGES = [...RANGE_WEEKS] as const;
 /** Collaborative-event variants precomputed so the UI toggle reads a snapshot. */
@@ -143,26 +151,38 @@ export async function markSubgroupsDirty(
 }
 
 /**
- * Bounded event gather for one sub-group: scan the newest events since
- * `loadStart`, filter to the sub-group, resolve which are Weekly Meetings, and
- * return the (bounded) `MetricsEvent[]` plus their ids. One transaction — reads
- * at most MAX_EVENT_SCAN event docs, well under Convex's limits.
+ * Bounded event gather for one sub-group: scan the newest events in
+ * `[loadStart, loadEnd]`, filter to the sub-group, resolve which are Weekly
+ * Meetings, and return the (bounded) `MetricsEvent[]` plus their ids. One
+ * transaction — reads at most MAX_EVENT_SCAN event docs, well under Convex's
+ * limits.
+ *
+ * `loadEnd` is required so a historical custom range isn't starved when more
+ * than MAX_EVENT_SCAN events exist after the range (newest-first scan would
+ * otherwise fill with later events and drop everything in the window).
  */
 export const gatherEvents = internalQuery({
-  args: { subgroup: v.string(), loadStart: v.number() },
+  args: {
+    subgroup: v.string(),
+    loadStart: v.number(),
+    /** Inclusive upper bound on dateStart (typically `now` / range end). */
+    loadEnd: v.number(),
+  },
   returns: v.object({
     eventIds: v.array(v.id("events")),
     metricsEvents: v.array(metricsEventValidator),
   }),
-  handler: async (ctx, { subgroup, loadStart }) => {
+  handler: async (ctx, { subgroup, loadStart, loadEnd }) => {
     const canonical = canonicalSubgroup(subgroup);
-    // Scan the newest MAX_EVENT_SCAN events since loadStart, THEN filter to this
-    // sub-group and keep its newest MAX_EVENTS — so a sub-group that meets
-    // rarely among many busier ones still gets its own older events, rather than
-    // being crowded out of a small newest-N raw window.
+    // Scan the newest MAX_EVENT_SCAN events in [loadStart, loadEnd], THEN filter
+    // to this sub-group and keep its newest MAX_EVENTS — so a sub-group that
+    // meets rarely among many busier ones still gets its own older events,
+    // rather than being crowded out of a small newest-N raw window.
     const scanned = await ctx.db
       .query("events")
-      .withIndex("by_dateStart", (q) => q.gte("dateStart", loadStart))
+      .withIndex("by_dateStart", (q) =>
+        q.gte("dateStart", loadStart).lte("dateStart", loadEnd)
+      )
       .order("desc")
       .take(MAX_EVENT_SCAN);
     const events = scanned
@@ -266,7 +286,7 @@ export const recomputeSubgroup = internalAction({
 
     const { eventIds, metricsEvents } = await ctx.runQuery(
       internal.attendanceMetrics.gatherEvents,
-      { subgroup: canonical, loadStart }
+      { subgroup: canonical, loadStart, loadEnd: now }
     );
 
     // Page attendance in bounded chunks so no single read transaction loads more
@@ -609,6 +629,100 @@ export const snapshot = query({
       computedAt: row.computedAt,
       data: row.data,
     };
+  },
+});
+
+/** Staff-only gate used by {@link liveSnapshot} (actions can't read auth tables). */
+export const canReadMetrics = internalQuery({
+  args: {},
+  returns: v.boolean(),
+  handler: async (ctx) => !!(await optionalProfile(ctx)),
+});
+
+/**
+ * On-demand metrics for a custom date range. Same gather + pure compute path as
+ * the weekly recompute, but for one [start, end] window and without writing a
+ * snapshot. Used by the Attendance Insights custom range picker.
+ */
+export const liveSnapshot = action({
+  args: {
+    subgroup: v.string(),
+    rangeStartMs: v.number(),
+    rangeEndMs: v.number(),
+    includeCollaborative: v.boolean(),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      computedAt: v.number(),
+      data: metricsDataValidator,
+    })
+  ),
+  handler: async (ctx, { subgroup, rangeStartMs, rangeEndMs, includeCollaborative }) => {
+    const allowed = await ctx.runQuery(internal.attendanceMetrics.canReadMetrics, {});
+    if (!allowed) return null;
+
+    if (
+      !Number.isFinite(rangeStartMs) ||
+      !Number.isFinite(rangeEndMs) ||
+      rangeEndMs <= rangeStartMs
+    ) {
+      throw new ConvexError("Custom range needs a start before the end.");
+    }
+    if (rangeEndMs - rangeStartMs > LIVE_RANGE_MAX_MS) {
+      throw new ConvexError("Custom range can't be longer than two years.");
+    }
+
+    const canonical = canonicalSubgroup(subgroup);
+    const year = currentStaffYear();
+    // Treat the range end as "now" so absolute-day reasons (lapsed, re-engaged)
+    // and the previous-period window are relative to the custom end date.
+    const now = rangeEndMs;
+    const periodLen = rangeEndMs - rangeStartMs;
+    // Load the selected period, its previous comparable period, and a rolling
+    // classification look-back — same idea as the precompute gather window.
+    const loadStart = Math.min(
+      rangeStartMs - periodLen,
+      now - HISTORY_WEEKS * WEEK_MS
+    );
+
+    const { eventIds, metricsEvents } = await ctx.runQuery(
+      internal.attendanceMetrics.gatherEvents,
+      { subgroup: canonical, loadStart, loadEnd: now }
+    );
+
+    const attendance: MetricsAttendance[] = [];
+    const uniqueKeys = new Set<string>();
+    for (let i = 0; i < eventIds.length; i += ATTENDANCE_CHUNK) {
+      const rows = await ctx.runQuery(
+        internal.attendanceMetrics.gatherAttendanceChunk,
+        { eventIds: eventIds.slice(i, i + ATTENDANCE_CHUNK) }
+      );
+      for (const row of rows) {
+        attendance.push(row);
+        uniqueKeys.add(row.personKey);
+      }
+    }
+
+    const persons = await ctx.runQuery(internal.attendanceMetrics.gatherPersons, {
+      keys: [...uniqueKeys].slice(0, MAX_PERSONS),
+      year,
+    });
+
+    const data = sanitize(
+      computeSubgroupMetrics({
+        now,
+        subgroup: canonical,
+        rangeStartMs,
+        historyStartMs: loadStart,
+        events: metricsEvents,
+        attendance,
+        persons,
+        includeCollaborative,
+      })
+    );
+
+    return { computedAt: Date.now(), data };
   },
 });
 

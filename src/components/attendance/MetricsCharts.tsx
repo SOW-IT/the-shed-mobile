@@ -35,9 +35,10 @@ import type {
 const BAR_MIN = 3; // minimum visible bar height
 const CHART_HEIGHT = 120;
 const CHART_HEIGHT_FULL = 220; // taller in fullscreen (fits rotated landscape on typical phones)
-const BAR_MAX_W = 40; // widest a single bar gets (a few points)
+const BAR_MAX_W = 36; // widest a single bar gets (a few points)
 const BAR_MIN_W = 5; // thinnest bar (many points in a range)
-const BAR_MIN_GAP = 6; // minimum space between bars
+/** Fixed gap between adjacent bars — kept tight so bars read as a group, not spread. */
+const BAR_GAP = 4;
 const BAR_LABEL_H = 15; // fixed x-axis label row height
 const BAR_VALUE_H = 18; // fixed space reserved above bars for the value label
 const Y_AXIS_W = 32; // width reserved for y-axis labels
@@ -70,8 +71,9 @@ function niceAxis(
   dataMax: number,
   chartHeight: number
 ): { max: number; ticks: number[] } {
-  // ~1 tick per 48px of height, clamped so we never show 1 line or a wall of them.
-  const targetTicks = Math.max(2, Math.min(6, Math.round(chartHeight / 48)));
+  // ~1 tick per 32px — denser than before so small card charts stay readable
+  // without expanding to fullscreen for the numbers.
+  const targetTicks = Math.max(3, Math.min(7, Math.round(chartHeight / 32)));
   const safeMax = Number.isFinite(dataMax) && dataMax > 0 ? dataMax : 1;
   const step = niceStep(safeMax / targetTicks);
   const max = Math.ceil(safeMax / step) * step;
@@ -220,6 +222,7 @@ function LineSeriesChart({
         style={{ flex: 1, height: chartContainerH(chartHeight) }}
         onLayout={(e) => setW(e.nativeEvent.layout.width)}
       >
+        <ChartGrid max={axisMax} ticks={ticks} chartHeight={chartHeight} />
         {/* Line overlay, aligned to the same drawing region the bars use. */}
         <View
           pointerEvents="none"
@@ -322,30 +325,102 @@ function LineSeriesChart({
 
 /**
  * Size `count` bars to fit a measured width instead of scrolling.
+ *
+ * Bars stay in a tight cluster (fixed {@link BAR_GAP}) and are centred when
+ * there is leftover width — never stretched with `space-between`, which made
+ * sparse series (e.g. a few weekly meetings) look oddly spread out.
  */
 function useBarFit(count: number, chartHeight = CHART_HEIGHT) {
   const [w, setW] = useState(0);
   const onLayout = (e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width);
-  const raw =
-    w > 0
-      ? (w - BAR_MIN_GAP * Math.max(0, count - 1)) / Math.max(1, count)
-      : BAR_MAX_W;
-  const barWidth = Math.max(BAR_MIN_W, Math.min(BAR_MAX_W, Math.floor(raw)));
+  let barWidth = BAR_MAX_W;
+  let gap = BAR_GAP;
+  if (w > 0 && count > 0) {
+    const gaps = Math.max(0, count - 1);
+    const neededAtMax = count * BAR_MAX_W + gaps * BAR_GAP;
+    if (neededAtMax > w) {
+      // Shrink bars first; then compress the gap (down to 0) so a dense series
+      // like Past year (52 points) still fits a narrow mobile card without
+      // overflowing. Only if that still overflows do we go below BAR_MIN_W.
+      barWidth = Math.max(
+        BAR_MIN_W,
+        Math.floor((w - gaps * BAR_GAP) / count)
+      );
+      if (count * barWidth + gaps * BAR_GAP > w && gaps > 0) {
+        gap = Math.max(
+          0,
+          Math.min(BAR_GAP, Math.floor((w - count * BAR_MIN_W) / gaps))
+        );
+        barWidth = Math.max(1, Math.floor((w - gaps * gap) / count));
+      }
+    }
+  }
   const showValues = barWidth >= 18;
   const LABEL_MIN_PX = 22;
+  const slotPitch = barWidth + gap;
   const labelStep =
     barWidth >= LABEL_MIN_PX
       ? 1
-      : Math.ceil(LABEL_MIN_PX / Math.max(1, barWidth));
-  const spread = w > 0 && count * barWidth < w;
-  const justify: "center" | "space-between" | "flex-start" =
-    count <= 1 ? "center" : spread ? "space-between" : "flex-start";
-  return { w, onLayout, barWidth, showValues, labelStep, justify, chartHeight };
+      : Math.ceil(LABEL_MIN_PX / Math.max(1, slotPitch));
+  // Always centre the cluster — leftover space stays as equal side padding.
+  return {
+    w,
+    onLayout,
+    barWidth,
+    gap,
+    showValues,
+    labelStep,
+    justify: "center" as const,
+    chartHeight,
+  };
 }
 
-/** Inner bar width — a small inset when the bar is wide, flush when it's thin. */
+/** Inner bar width — a light inset when wide, nearly flush when thin. */
 const barInner = (barWidth: number): number =>
-  Math.max(3, barWidth - (barWidth > 16 ? 10 : 1));
+  Math.max(1, barWidth - (barWidth > 16 ? 4 : 1));
+
+/**
+ * Horizontal gridlines aligned to y-axis ticks, drawn behind bars/lines so
+ * values are easier to read on the small card charts.
+ */
+function ChartGrid({
+  max,
+  ticks,
+  chartHeight,
+}: {
+  max: number;
+  ticks: number[];
+  chartHeight: number;
+}) {
+  const t = useAppTheme();
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        position: "absolute",
+        left: 0,
+        right: 0,
+        top: BAR_VALUE_H,
+        height: chartHeight,
+      }}
+    >
+      {ticks.map((v, i) => (
+        <View
+          key={i}
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: yAt(v, max, chartHeight),
+            height: StyleSheet.hairlineWidth * 2,
+            backgroundColor: t.separator,
+            opacity: v === 0 ? 0.85 : 0.45,
+          }}
+        />
+      ))}
+    </View>
+  );
+}
 
 /**
  * Fixed-height x-axis label under a bar.
@@ -825,7 +900,8 @@ export function BarChart({
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   if (points.length === 0) return <EmptyChart />;
-  const max = Math.max(1, ...points.map((p) => p.value));
+  const dataMax = Math.max(1, ...points.map((p) => p.value));
+  const { max: axisMax, ticks } = niceAxis(dataMax, chartHeight);
   const labelFor = (i: number) =>
     tooltipLabel ? tooltipLabel(points[i]) : points[i].label;
   if (mode === "line") {
@@ -833,7 +909,7 @@ export function BarChart({
       <LineSeriesChart
         labels={points.map((p) => p.label)}
         series={[{ key: "", colour: bar, values: points.map((p) => p.value) }]}
-        max={max}
+        max={dataMax}
         fullscreen={fullscreen}
         tooltipLabelFor={labelFor}
       />
@@ -843,8 +919,9 @@ export function BarChart({
     <View
       style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}
     >
-      <YAxis max={max} chartHeight={chartHeight} />
+      <YAxis max={axisMax} chartHeight={chartHeight} ticks={ticks} />
       <View style={{ flex: 1, height: chartContainerH(chartHeight) }}>
+        <ChartGrid max={axisMax} ticks={ticks} chartHeight={chartHeight} />
         <View
           onLayout={fit.onLayout}
           style={[
@@ -860,6 +937,7 @@ export function BarChart({
             : points.map((p, i) => {
                 const selected =
                   fullscreen && (selectedIdx === i || hoveredIdx === i);
+                const isLast = i === points.length - 1;
                 return (
                   <Pressable
                     key={`${p.at}-${i}`}
@@ -874,7 +952,11 @@ export function BarChart({
                     }
                     style={[
                       styles.barSlot,
-                      { width: fit.barWidth, zIndex: selected ? 10 : 0 },
+                      {
+                        width: fit.barWidth,
+                        marginRight: isLast ? 0 : fit.gap,
+                        zIndex: selected ? 10 : 0,
+                      },
                     ]}
                   >
                     {selected ? (
@@ -892,7 +974,7 @@ export function BarChart({
                         width: barInner(fit.barWidth),
                         height: Math.max(
                           BAR_MIN,
-                          (p.value / max) * chartHeight,
+                          (p.value / axisMax) * chartHeight,
                         ),
                         backgroundColor: selected ? t.accent : bar,
                         borderRadius: radius.sm,
@@ -931,7 +1013,11 @@ export function StackedBarChart({
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   if (points.length === 0) return <EmptyChart />;
   // Bars are stacked, so they scale to the per-point total.
-  const stackedMax = Math.max(1, ...points.map((p) => p.fresh + p.returning));
+  const stackedDataMax = Math.max(
+    1,
+    ...points.map((p) => p.fresh + p.returning)
+  );
+  const { max: stackedMax, ticks } = niceAxis(stackedDataMax, chartHeight);
   const scale = (n: number) => (n / stackedMax) * chartHeight;
   // Label every 2nd bar (like the line chart), so a run of year labels reads
   // cleanly instead of crowding — while still honouring the width-based skip
@@ -988,8 +1074,9 @@ export function StackedBarChart({
     <View
       style={[styles.chartWithYAxis, { height: chartContainerH(chartHeight) }]}
     >
-      <YAxis max={stackedMax} chartHeight={chartHeight} />
+      <YAxis max={stackedMax} chartHeight={chartHeight} ticks={ticks} />
       <View style={{ flex: 1, height: chartContainerH(chartHeight) }}>
+        <ChartGrid max={stackedMax} ticks={ticks} chartHeight={chartHeight} />
         <View
           onLayout={fit.onLayout}
           style={[
@@ -1013,6 +1100,7 @@ export function StackedBarChart({
                 const visible = segmentOrder
                   .map((s) => ({ ...s, value: values[s.id] }))
                   .filter((s) => s.value > 0);
+                const isLast = i === points.length - 1;
                 return (
                   <Pressable
                     key={`${p.at}-${i}`}
@@ -1027,7 +1115,11 @@ export function StackedBarChart({
                     }
                     style={[
                       styles.barSlot,
-                      { width: fit.barWidth, zIndex: selected ? 10 : 0 },
+                      {
+                        width: fit.barWidth,
+                        marginRight: isLast ? 0 : fit.gap,
+                        zIndex: selected ? 10 : 0,
+                      },
                     ]}
                   >
                     {selected ? (
@@ -1183,6 +1275,11 @@ export function MultiStackedBarChart({
     >
       <YAxis max={axis.max} chartHeight={chartHeight} ticks={axis.ticks} />
       <View style={{ flex: 1, height: chartContainerH(chartHeight) }}>
+        <ChartGrid
+          max={axis.max}
+          ticks={axis.ticks}
+          chartHeight={chartHeight}
+        />
         <View
           onLayout={fit.onLayout}
           style={[
@@ -1230,6 +1327,7 @@ export function MultiStackedBarChart({
                   visible.length > 0
                     ? Math.max(1, (innerWidth - groupGaps) / visible.length)
                     : innerWidth;
+                const isLast = i === points.length - 1;
                 return (
                   <Pressable
                     key={`${p.at}-${i}`}
@@ -1244,7 +1342,11 @@ export function MultiStackedBarChart({
                     }
                     style={[
                       styles.barSlot,
-                      { width: fit.barWidth, zIndex: selected ? 10 : 0 },
+                      {
+                        width: fit.barWidth,
+                        marginRight: isLast ? 0 : fit.gap,
+                        zIndex: selected ? 10 : 0,
+                      },
                     ]}
                   >
                     {selected ? (

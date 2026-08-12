@@ -17,8 +17,8 @@ tags:
 - assertVisible: "General"
 - assertVisible: "Attendance"     # staff see both segments
 
-# Scope FAB switches All years ↔ specific staff year. Its accessibilityLabel
-# is "<sheet title>: <current value>" (e.g. "Compare: All years"), not
+# Scope FAB switches Last Ny / All history ↔ specific staff year. Its
+# accessibilityLabel is "<sheet title>: <current value>" (e.g. "Compare: Last 5y"), not
 # "Select year" — that text doesn't exist anywhere in the component.
 - tapOn:
     text: ".*Compare:.*"
@@ -29,13 +29,25 @@ tags:
 
 # §6.2 Attendance segment (staff only).
 - tapOn: "Attendance"
-# Range FAB defaults to 2 wks + collaborative toggle. Its accessibilityLabel
-# is "Time range: <n> wks" — "Select range" doesn't exist either.
+# Range FAB defaults to Past month + collaborative toggle. Its accessibilityLabel
+# is "Time range: Past month" (or another preset/custom label).
 - tapOn:
     text: ".*Time range:.*"
     optional: true
 - assertVisible:
-    text: ".*(wks|wk|Collaborative).*"
+    text: "Past week"
+    optional: true
+- assertVisible:
+    text: "Past month"
+    optional: true
+- assertVisible:
+    text: "Past year"
+    optional: true
+- assertVisible:
+    text: "Custom"
+    optional: true
+- assertVisible:
+    text: "Collaborative events"
     optional: true
 - tapOn:
     text: "Close"

@@ -1,24 +1,26 @@
 /**
  * Insights → General. Org-wide trends from convex/generalMetrics.ts (all from
  * `staffProfiles` only — org-chart staff + student leaders, not attendance):
- *  - all staff head-count over time,
- *  - staff vs student leaders (the attendance member-filter split),
+ *  - all staff head-count over time, broken into staff + student leaders,
  *  - student leaders by campus,
  *  - year-over-year retention (turnover is the complement, shown as a hint),
  *  - share serving ≥2 years in-role + average years served so far.
  *
- * For everyone this tab is visible, but non-staff users get a sign-in prompt and
- * a limited public scope: only "All years" and 2026 are selectable. The detailed
- * per-year cards stay staff-only.
+ * Trend charts default to the last {@link GENERAL_RECENT_YEARS} years (operational
+ * view); the scope picker can expand to all history or a single year of cards.
+ * Non-staff signed-out visitors get a public preview (trends only).
  */
 import { useQuery } from "convex/react";
 import { useMemo, useState } from "react";
 import { LayoutChangeEvent, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { subgroupColour } from "../../../shared/rollcall";
-import type { SplitPoint, TrendPoint } from "../../../shared/attendanceMetrics";
 import {
-  BarChart,
+  GENERAL_RECENT_YEARS,
+  type SplitPoint,
+} from "../../../shared/attendanceMetrics";
+import type { GeneralScope } from "@/components/attendance/InsightsSelectors";
+import {
   ChartCard,
   type LegendItem,
   MetricCard,
@@ -103,7 +105,17 @@ const rateSegment = (
     ? null
     : { key, value, colour };
 
-export function GeneralMetricsTab({ year, publicPreview }: { year: number | null; publicPreview?: boolean }) {
+export function GeneralMetricsTab({
+  scope,
+  publicPreview,
+}: {
+  /**
+   * null = recent years trend (default operational view);
+   * "all" = full history; a year number = that year's summary cards.
+   */
+  scope: GeneralScope;
+  publicPreview?: boolean;
+}) {
   const t = useAppTheme();
   const { width: windowWidth } = useWindowDimensions();
   const [containerWidth, setContainerWidth] = useState(windowWidth);
@@ -113,50 +125,65 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
   const trends = useQuery(api.generalMetrics.staffTrends, {});
   const campusAttendance = useQuery(api.generalMetrics.campusWeeklyAttendance, {});
 
+  // Trend charts: default to the last N years (operational); "all" shows history.
+  const trendYearCount =
+    scope === "all" ? Number.POSITIVE_INFINITY : GENERAL_RECENT_YEARS;
+
   const charts = useMemo(() => {
     if (!trends) return null;
     const yearLabel = (y: number) => `'${String(y).slice(-2)}`;
-    const allStaff: TrendPoint[] = trends.years.map((y, i) => ({
+    const start =
+      trends.years.length > trendYearCount
+        ? trends.years.length - trendYearCount
+        : 0;
+    const years = trends.years.slice(start);
+    const idx = (i: number) => start + i;
+
+    // Single stacked chart: total head-count broken into staff + student leaders
+    // (replaces the redundant "All staff" + "Staff vs student leaders" pair).
+    const staffBreakdown: SplitPoint[] = years.map((y, i) => ({
       at: y,
       label: yearLabel(y),
-      value: trends.allStaff[i],
+      returning: trends.staff[idx(i)],
+      fresh: trends.studentLeaders[idx(i)],
     }));
-    // Staff (bottom, primary) + student leaders (top, accent) stacked per year.
-    const staffVsLeaders: SplitPoint[] = trends.years.map((y, i) => ({
-      at: y,
-      label: yearLabel(y),
-      returning: trends.staff[i],
-      fresh: trends.studentLeaders[i],
-    }));
-    const leadersByCampus: MultiStackPoint[] = trends.years.map((y, i) => ({
+    const leadersByCampus: MultiStackPoint[] = years.map((y, i) => ({
       at: y,
       label: yearLabel(y),
       segments: trends.studentLeadersByCampus.map((c) => ({
         key: campusAcronym(c.campus),
-        value: c.counts[i],
+        value: c.counts[idx(i)],
         colour: subgroupColour(c.campus),
       })),
     }));
 
     // Rates are compared, not summed — grouped bars. Only emit segments with a
     // real reading (null = no prior roster / empty lens); never coerce null→0.
+    // Tolerate a missing series (older snapshots / partial payloads) rather than
+    // crashing the whole General tab.
     const rateSeriesByYear = (
-      series: {
-        overall: (number | null)[];
-        staff: (number | null)[];
-        studentLeaders: (number | null)[];
-      }
-    ): MultiStackPoint[] =>
-      trends.years
+      series:
+        | {
+            overall: (number | null)[];
+            staff: (number | null)[];
+            studentLeaders: (number | null)[];
+          }
+        | null
+        | undefined
+    ): MultiStackPoint[] => {
+      if (!series?.overall || !series.staff || !series.studentLeaders) return [];
+      return years
         .map((y, i) => {
+          const j = idx(i);
           const segments = [
-            rateSegment("Overall", series.overall[i], t.text),
-            rateSegment("Staff", series.staff[i], t.primary),
-            rateSegment("SLs", series.studentLeaders[i], t.accent),
+            rateSegment("Overall", series.overall[j], t.text),
+            rateSegment("Staff", series.staff[j], t.primary),
+            rateSegment("SLs", series.studentLeaders[j], t.accent),
           ].filter((s): s is { key: string; value: number; colour: string } => !!s);
           return { at: y, label: yearLabel(y), segments };
         })
         .filter((p) => p.segments.length > 0);
+    };
 
     // Retention only — turnover is the same number inverted (shown as a card hint).
     const retentionByYear = rateSeriesByYear(trends.retention);
@@ -166,14 +193,15 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
     const avgTenureByYear = rateSeriesByYear(trends.avgTenureYears);
 
     return {
-      allStaff,
-      staffVsLeaders,
+      staffBreakdown,
       leadersByCampus,
       retentionByYear,
       tenure2PlusByYear,
       avgTenureByYear,
+      trendStartYear: years[0],
+      trendEndYear: years[years.length - 1],
     };
-  }, [trends, t.text, t.primary, t.accent]);
+  }, [trends, trendYearCount, t.text, t.primary, t.accent]);
 
   // Average weekly-meeting attendance per campus, one point per staff year from
   // 2025 (when attendance recording began). The current year's point is a YTD
@@ -182,16 +210,23 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
     if (!campusAttendance || campusAttendance.years.length === 0) return null;
     if (campusAttendance.campuses.length === 0) return null;
     const yearLabel = (y: number) => `'${String(y).slice(-2)}`;
-    return campusAttendance.years.map((y, i) => ({
-      at: y,
-      label: yearLabel(y),
-      segments: campusAttendance.campuses.map((c) => ({
-        key: campusAcronym(c.campus),
-        value: c.averages[i],
-        colour: subgroupColour(c.campus),
-      })),
-    }));
-  }, [campusAttendance]);
+    const start =
+      campusAttendance.years.length > trendYearCount
+        ? campusAttendance.years.length - trendYearCount
+        : 0;
+    return campusAttendance.years.slice(start).map((y, i) => {
+      const j = start + i;
+      return {
+        at: y,
+        label: yearLabel(y),
+        segments: campusAttendance.campuses.map((c) => ({
+          key: campusAcronym(c.campus),
+          value: c.averages[j],
+          colour: subgroupColour(c.campus),
+        })),
+      };
+    });
+  }, [campusAttendance, trendYearCount]);
 
   if (trends === undefined) return <LoadingState />;
   // `null` means the query couldn't resolve a staff profile for the caller (not
@@ -226,10 +261,12 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
 
   // ── Year-by-year: summary cards for the selected year, vs the prior year. ──
   // The detailed per-year cards stay staff-only; the public preview only ever
-  // shows the All-years trend charts below.
-  const yearIndex = year === null ? -1 : trends.years.indexOf(year);
-  if (!publicPreview && year !== null && yearIndex >= 0) {
+  // shows the trend charts below.
+  const selectedYear = typeof scope === "number" ? scope : null;
+  const yearIndex = selectedYear === null ? -1 : trends.years.indexOf(selectedYear);
+  if (!publicPreview && selectedYear !== null && yearIndex >= 0) {
     const i = yearIndex;
+    const year = selectedYear;
     const prevYear = i > 0 ? trends.years[i - 1] : undefined;
     const at = <T,>(arr: T[]): T | undefined => (i > 0 ? arr[i - 1] : undefined);
 
@@ -515,46 +552,48 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
   const everOverall = trends.allStaff.some((n) => n > 0);
   const everStaff = trends.staff.some((n) => n > 0);
   const everLeaders = trends.studentLeaders.some((n) => n > 0);
+  const life2 = trends.lifetimeTenure2Plus;
+  const lifeAvg = trends.lifetimeAvgTenureYears;
   const lifetimeCards = [
-    everOverall
+    everOverall && life2
       ? {
           label: "Overall ≥2 years",
-          value: fmtPct(trends.lifetimeTenure2Plus.overall),
+          value: fmtPct(life2.overall),
           hint: "ever served · so far",
         }
       : null,
-    everStaff
+    everStaff && life2
       ? {
           label: "Staff ≥2 years",
-          value: fmtPct(trends.lifetimeTenure2Plus.staff),
+          value: fmtPct(life2.staff),
           hint: "years in this role",
         }
       : null,
-    everLeaders
+    everLeaders && life2
       ? {
           label: "Student leaders ≥2 years",
-          value: fmtPct(trends.lifetimeTenure2Plus.studentLeaders),
+          value: fmtPct(life2.studentLeaders),
           hint: "years in this role",
         }
       : null,
-    everOverall
+    everOverall && lifeAvg
       ? {
           label: "Overall avg years",
-          value: fmtAvg(trends.lifetimeAvgTenureYears.overall),
+          value: fmtAvg(lifeAvg.overall),
           hint: "years served so far",
         }
       : null,
-    everStaff
+    everStaff && lifeAvg
       ? {
           label: "Staff avg years",
-          value: fmtAvg(trends.lifetimeAvgTenureYears.staff),
+          value: fmtAvg(lifeAvg.staff),
           hint: "years in this role so far",
         }
       : null,
-    everLeaders
+    everLeaders && lifeAvg
       ? {
           label: "Student leader avg years",
-          value: fmtAvg(trends.lifetimeAvgTenureYears.studentLeaders),
+          value: fmtAvg(lifeAvg.studentLeaders),
           hint: "years in this role so far",
         }
       : null,
@@ -568,55 +607,43 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
 
   return (
     <View onLayout={onLayout} style={styles.grid}>
-      <Text style={[typography.headline, { color: t.text }]}>
-        Tenure (staff profiles)
-      </Text>
-      <Text style={[typography.caption, { color: t.muted }]}>
-        Of everyone who has ever held a staff profile in each group: share with
-        two or more years, and mean years served so far. Staff and student-leader
-        cards count years in that role (not total time at The Shed).
-      </Text>
-      <View style={styles.cardGrid}>
-        {lifetimeCards.map((card, idx) => (
-          <FadeInView key={card.label} delay={stagger(idx)}>
-            <MetricCard
-              label={card.label}
-              value={card.value}
-              hint={card.hint}
-              tone="positive"
-              width={cardWidth}
-            />
-          </FadeInView>
-        ))}
-      </View>
+      {/* Lifetime tenure cards are staff/signed-in only — public preview is
+          trends-only (see Insights screen publicPreview contract). */}
+      {!publicPreview && lifetimeCards.length > 0 ? (
+        <>
+          <Text style={[typography.headline, { color: t.text }]}>
+            Tenure (staff profiles)
+          </Text>
+          <Text style={[typography.caption, { color: t.muted }]}>
+            Of everyone who has ever held a staff profile in each group: share with
+            two or more years, and mean years served so far. Staff and student-leader
+            cards count years in that role (not total time at The Shed).
+          </Text>
+          <View style={styles.cardGrid}>
+            {lifetimeCards.map((card, idx) => (
+              <FadeInView key={card.label} delay={stagger(idx)}>
+                <MetricCard
+                  label={card.label}
+                  value={card.value}
+                  hint={card.hint}
+                  tone="positive"
+                  width={cardWidth}
+                />
+              </FadeInView>
+            ))}
+          </View>
+        </>
+      ) : null}
 
       <View style={styles.cardGrid}>
       <FadeInView delay={stagger(0)}>
         <ChartCard
           title="All staff"
-          subtitle="Head-count per staff year"
-          width={chartWidth}
-          fullscreenContent={
-            <BarChart
-              points={charts.allStaff}
-              colour={t.primary}
-              tooltipLabel={(p) => String(p.at)}
-              fullscreen
-            />
+          subtitle={
+            charts.trendStartYear && charts.trendEndYear
+              ? `Staff + student leaders · ${charts.trendStartYear}–${charts.trendEndYear}`
+              : "Staff + student leaders per year"
           }
-        >
-          <BarChart
-            points={charts.allStaff}
-            colour={t.primary}
-            tooltipLabel={(p) => String(p.at)}
-          />
-        </ChartCard>
-      </FadeInView>
-
-      <FadeInView delay={stagger(1)}>
-        <ChartCard
-          title="Staff vs student leaders"
-          subtitle="Per staff year"
           width={chartWidth}
           legendItems={[
             { key: "returning", colour: t.primary, label: "Staff" },
@@ -624,7 +651,7 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
           ]}
           fullscreenContent={
             <StackedBarChart
-              points={charts.staffVsLeaders}
+              points={charts.staffBreakdown}
               labels={{ fresh: "SLs", returning: "Staff" }}
               tooltipLabel={(p) => String(p.at)}
               fullscreen
@@ -632,14 +659,14 @@ export function GeneralMetricsTab({ year, publicPreview }: { year: number | null
           }
         >
           <StackedBarChart
-            points={charts.staffVsLeaders}
+            points={charts.staffBreakdown}
             labels={{ fresh: "Leaders", returning: "Staff" }}
             tooltipLabel={(p) => String(p.at)}
           />
         </ChartCard>
       </FadeInView>
 
-      <FadeInView delay={stagger(2)}>
+      <FadeInView delay={stagger(1)}>
         <ChartCard
           title="Student leaders by campus"
           subtitle="Per staff year"
