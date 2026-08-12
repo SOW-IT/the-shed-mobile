@@ -531,22 +531,42 @@ export function MetricsTab({
               ));
               // Org-wide only: average weekly-meeting turnout for each campus,
               // leading the chart list so it's the first thing SOW leaders see.
-              const campusWeeklyChart =
-                orgWide && campusWeekly && campusWeekly.length > 0 ? (
-                  <ChartCard
-                    key="campusWeekly"
-                    title="Avg weekly attendance by campus"
-                    subtitle="Each campus's weekly meetings"
-                    width={chartWidth}
-                  >
-                    <BreakdownBars
-                      rows={campusWeekly.map((c) => ({
-                        label: c.campus,
-                        value: c.avgWeekly,
-                      }))}
-                    />
-                  </ChartCard>
-                ) : null;
+              // Custom ranges don't fan out per-campus live computes — show a
+              // clear empty card rather than silently dropping the chart.
+              const campusWeeklyChart = !orgWide
+                ? null
+                : isCustom
+                  ? (
+                      <ChartCard
+                        key="campusWeekly"
+                        title="Avg weekly attendance by campus"
+                        subtitle="Not available for custom ranges — pick a preset"
+                        width={chartWidth}
+                      >
+                        <Text style={[typography.caption, { color: t.muted }]}>
+                          Per-campus averages use precomputed campus snapshots,
+                          which only cover Past week / month / year. Switch to a
+                          preset to see this breakdown.
+                        </Text>
+                      </ChartCard>
+                    )
+                  : campusWeekly && campusWeekly.length > 0
+                    ? (
+                        <ChartCard
+                          key="campusWeekly"
+                          title="Avg weekly attendance by campus"
+                          subtitle="Each campus's weekly meetings"
+                          width={chartWidth}
+                        >
+                          <BreakdownBars
+                            rows={campusWeekly.map((c) => ({
+                              label: c.campus,
+                              value: c.avgWeekly,
+                            }))}
+                          />
+                        </ChartCard>
+                      )
+                    : null;
               const ordered = weekly
                 ? [
                     campusWeeklyChart,

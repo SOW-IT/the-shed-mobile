@@ -185,6 +185,54 @@ describe("attendanceMetrics", () => {
     ).rejects.toThrow(/two years/i);
   });
 
+  test("liveSnapshot still finds range events when many later events exist", async () => {
+    // Without loadEnd, gatherEvents takes the newest MAX_EVENT_SCAN events
+    // after loadStart — a flood of post-range events would crowd out the
+    // in-range ones. With loadEnd, only events ≤ range end are scanned.
+    const { t, leader } = await setup();
+    const rangeEnd = Date.now() - 30 * DAY;
+    const rangeStart = rangeEnd - 14 * DAY;
+    const inRangeAt = rangeStart + 3 * DAY;
+
+    // One real event inside the custom window, with attendance.
+    const inRangeId = await t.run(async (ctx) =>
+      ctx.db.insert("events", {
+        name: "In-range meeting",
+        dateStart: inRangeAt,
+        dateEnd: inRangeAt + 2 * 60 * 60 * 1000,
+        subgroups: [USYD],
+      })
+    );
+    await leader.mutation(api.attendance.signIn, {
+      eventId: inRangeId,
+      email: LEADER,
+    });
+
+    // Flood of later events that would fill a newest-first scan without loadEnd.
+    // MAX_EVENT_SCAN is 4000; insert enough after rangeEnd to exceed it.
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 4001; i++) {
+        const at = rangeEnd + (i + 1) * 60_000; // after rangeEnd, 1 min apart
+        await ctx.db.insert("events", {
+          name: `Later ${i}`,
+          dateStart: at,
+          dateEnd: at + 60_000,
+          subgroups: [USYD],
+        });
+      }
+    });
+
+    const live = await leader.action(api.attendanceMetrics.liveSnapshot, {
+      subgroup: USYD,
+      rangeStartMs: rangeStart,
+      rangeEndMs: rangeEnd,
+      includeCollaborative: true,
+    });
+    expect(live).not.toBeNull();
+    expect(live!.data.summary.eventsHeld).toBe(1);
+    expect(live!.data.summary.uniqueAttendees).toBe(1);
+  });
+
   test("recomputeNow requires an attendance manager", async () => {
     const { t } = await setup();
     const outsider = asUser(t, "nobody@sow.org.au");

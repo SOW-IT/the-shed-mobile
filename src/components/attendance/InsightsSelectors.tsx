@@ -139,7 +139,7 @@ export function AttendanceRangeFab({
   const t = useAppTheme();
   // Capture "today" once on mount so render stays pure (no Date.now() in render).
   const [today] = useState(() => toDateInput(Date.now()));
-  // Draft custom dates while the sheet is open (commit on Apply).
+  // Draft custom dates while the sheet is open (commit only on Apply).
   const [customStart, setCustomStart] = useState(() =>
     range.kind === "custom"
       ? toDateInput(range.startMs)
@@ -148,7 +148,10 @@ export function AttendanceRangeFab({
   const [customEnd, setCustomEnd] = useState(() =>
     range.kind === "custom" ? toDateInput(range.endMs) : toDateInput(Date.now())
   );
-  const customSelected = range.kind === "custom";
+  // Local highlight for the Custom row while editing dates — does not commit
+  // a range (and so does not kick off liveSnapshot) until Apply.
+  const [pickingCustom, setPickingCustom] = useState(false);
+  const customSelected = range.kind === "custom" || pickingCustom;
   const draftStartMs = fromDateInputStart(customStart);
   const draftEndMs = fromDateInputEnd(customEnd);
   const customValid =
@@ -170,22 +173,23 @@ export function AttendanceRangeFab({
             <OptionRow
               key={weeks}
               label={rangeLabel(weeks)}
-              selected={range.kind === "preset" && range.weeks === weeks}
-              onPress={() => onRangeChange({ kind: "preset", weeks })}
+              selected={
+                !pickingCustom &&
+                range.kind === "preset" &&
+                range.weeks === weeks
+              }
+              onPress={() => {
+                setPickingCustom(false);
+                onRangeChange({ kind: "preset", weeks });
+              }}
             />
           ))}
           <OptionRow
             label="Custom"
             selected={customSelected}
             onPress={() => {
-              // Selecting Custom alone just reveals the date fields; Apply commits.
-              if (!customSelected && customValid && draftStartMs && draftEndMs) {
-                onRangeChange({
-                  kind: "custom",
-                  startMs: draftStartMs,
-                  endMs: draftEndMs,
-                });
-              }
+              // Reveal / highlight the date fields only — Apply commits.
+              setPickingCustom(true);
             }}
           />
           <View style={styles.customBlock}>
@@ -218,6 +222,7 @@ export function AttendanceRangeFab({
                   startMs: draftStartMs,
                   endMs: draftEndMs,
                 });
+                setPickingCustom(false);
                 close();
               }}
             />

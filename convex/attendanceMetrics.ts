@@ -151,26 +151,38 @@ export async function markSubgroupsDirty(
 }
 
 /**
- * Bounded event gather for one sub-group: scan the newest events since
- * `loadStart`, filter to the sub-group, resolve which are Weekly Meetings, and
- * return the (bounded) `MetricsEvent[]` plus their ids. One transaction — reads
- * at most MAX_EVENT_SCAN event docs, well under Convex's limits.
+ * Bounded event gather for one sub-group: scan the newest events in
+ * `[loadStart, loadEnd]`, filter to the sub-group, resolve which are Weekly
+ * Meetings, and return the (bounded) `MetricsEvent[]` plus their ids. One
+ * transaction — reads at most MAX_EVENT_SCAN event docs, well under Convex's
+ * limits.
+ *
+ * `loadEnd` is required so a historical custom range isn't starved when more
+ * than MAX_EVENT_SCAN events exist after the range (newest-first scan would
+ * otherwise fill with later events and drop everything in the window).
  */
 export const gatherEvents = internalQuery({
-  args: { subgroup: v.string(), loadStart: v.number() },
+  args: {
+    subgroup: v.string(),
+    loadStart: v.number(),
+    /** Inclusive upper bound on dateStart (typically `now` / range end). */
+    loadEnd: v.number(),
+  },
   returns: v.object({
     eventIds: v.array(v.id("events")),
     metricsEvents: v.array(metricsEventValidator),
   }),
-  handler: async (ctx, { subgroup, loadStart }) => {
+  handler: async (ctx, { subgroup, loadStart, loadEnd }) => {
     const canonical = canonicalSubgroup(subgroup);
-    // Scan the newest MAX_EVENT_SCAN events since loadStart, THEN filter to this
-    // sub-group and keep its newest MAX_EVENTS — so a sub-group that meets
-    // rarely among many busier ones still gets its own older events, rather than
-    // being crowded out of a small newest-N raw window.
+    // Scan the newest MAX_EVENT_SCAN events in [loadStart, loadEnd], THEN filter
+    // to this sub-group and keep its newest MAX_EVENTS — so a sub-group that
+    // meets rarely among many busier ones still gets its own older events,
+    // rather than being crowded out of a small newest-N raw window.
     const scanned = await ctx.db
       .query("events")
-      .withIndex("by_dateStart", (q) => q.gte("dateStart", loadStart))
+      .withIndex("by_dateStart", (q) =>
+        q.gte("dateStart", loadStart).lte("dateStart", loadEnd)
+      )
       .order("desc")
       .take(MAX_EVENT_SCAN);
     const events = scanned
@@ -274,7 +286,7 @@ export const recomputeSubgroup = internalAction({
 
     const { eventIds, metricsEvents } = await ctx.runQuery(
       internal.attendanceMetrics.gatherEvents,
-      { subgroup: canonical, loadStart }
+      { subgroup: canonical, loadStart, loadEnd: now }
     );
 
     // Page attendance in bounded chunks so no single read transaction loads more
@@ -676,7 +688,7 @@ export const liveSnapshot = action({
 
     const { eventIds, metricsEvents } = await ctx.runQuery(
       internal.attendanceMetrics.gatherEvents,
-      { subgroup: canonical, loadStart }
+      { subgroup: canonical, loadStart, loadEnd: now }
     );
 
     const attendance: MetricsAttendance[] = [];

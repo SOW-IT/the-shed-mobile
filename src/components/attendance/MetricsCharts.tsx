@@ -339,17 +339,19 @@ function useBarFit(count: number, chartHeight = CHART_HEIGHT) {
     const gaps = Math.max(0, count - 1);
     const neededAtMax = count * BAR_MAX_W + gaps * BAR_GAP;
     if (neededAtMax > w) {
-      // Shrink bars first; only compress the gap if bars hit the floor.
+      // Shrink bars first; then compress the gap (down to 0) so a dense series
+      // like Past year (52 points) still fits a narrow mobile card without
+      // overflowing. Only if that still overflows do we go below BAR_MIN_W.
       barWidth = Math.max(
         BAR_MIN_W,
         Math.floor((w - gaps * BAR_GAP) / count)
       );
       if (count * barWidth + gaps * BAR_GAP > w && gaps > 0) {
-        gap = Math.max(2, Math.floor((w - count * BAR_MIN_W) / gaps));
-        barWidth = Math.max(
-          BAR_MIN_W,
-          Math.floor((w - gaps * gap) / count)
+        gap = Math.max(
+          0,
+          Math.min(BAR_GAP, Math.floor((w - count * BAR_MIN_W) / gaps))
         );
+        barWidth = Math.max(1, Math.floor((w - gaps * gap) / count));
       }
     }
   }
@@ -375,7 +377,7 @@ function useBarFit(count: number, chartHeight = CHART_HEIGHT) {
 
 /** Inner bar width — a light inset when wide, nearly flush when thin. */
 const barInner = (barWidth: number): number =>
-  Math.max(3, barWidth - (barWidth > 16 ? 4 : 1));
+  Math.max(1, barWidth - (barWidth > 16 ? 4 : 1));
 
 /**
  * Horizontal gridlines aligned to y-axis ticks, drawn behind bars/lines so

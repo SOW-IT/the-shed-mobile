@@ -35,7 +35,19 @@ tags:
     text: ".*Time range:.*"
     optional: true
 - assertVisible:
-    text: ".*(Past week|Past month|Past year|Custom|Collaborative).*"
+    text: "Past week"
+    optional: true
+- assertVisible:
+    text: "Past month"
+    optional: true
+- assertVisible:
+    text: "Past year"
+    optional: true
+- assertVisible:
+    text: "Custom"
+    optional: true
+- assertVisible:
+    text: "Collaborative events"
     optional: true
 - tapOn:
     text: "Close"

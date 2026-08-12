@@ -607,27 +607,33 @@ export function GeneralMetricsTab({
 
   return (
     <View onLayout={onLayout} style={styles.grid}>
-      <Text style={[typography.headline, { color: t.text }]}>
-        Tenure (staff profiles)
-      </Text>
-      <Text style={[typography.caption, { color: t.muted }]}>
-        Of everyone who has ever held a staff profile in each group: share with
-        two or more years, and mean years served so far. Staff and student-leader
-        cards count years in that role (not total time at The Shed).
-      </Text>
-      <View style={styles.cardGrid}>
-        {lifetimeCards.map((card, idx) => (
-          <FadeInView key={card.label} delay={stagger(idx)}>
-            <MetricCard
-              label={card.label}
-              value={card.value}
-              hint={card.hint}
-              tone="positive"
-              width={cardWidth}
-            />
-          </FadeInView>
-        ))}
-      </View>
+      {/* Lifetime tenure cards are staff/signed-in only — public preview is
+          trends-only (see Insights screen publicPreview contract). */}
+      {!publicPreview && lifetimeCards.length > 0 ? (
+        <>
+          <Text style={[typography.headline, { color: t.text }]}>
+            Tenure (staff profiles)
+          </Text>
+          <Text style={[typography.caption, { color: t.muted }]}>
+            Of everyone who has ever held a staff profile in each group: share with
+            two or more years, and mean years served so far. Staff and student-leader
+            cards count years in that role (not total time at The Shed).
+          </Text>
+          <View style={styles.cardGrid}>
+            {lifetimeCards.map((card, idx) => (
+              <FadeInView key={card.label} delay={stagger(idx)}>
+                <MetricCard
+                  label={card.label}
+                  value={card.value}
+                  hint={card.hint}
+                  tone="positive"
+                  width={cardWidth}
+                />
+              </FadeInView>
+            ))}
+          </View>
+        </>
+      ) : null}
 
       <View style={styles.cardGrid}>
       <FadeInView delay={stagger(0)}>
