@@ -62,14 +62,21 @@ function SelectorFab({
   icon = "options-outline",
   sheetTitle,
   children,
+  onClosed,
 }: {
   label: string;
   icon?: keyof typeof Ionicons.glyphMap;
   sheetTitle: string;
   children: (close: () => void) => ReactNode;
+  /** Called whenever the sheet closes (Done, backdrop, or Apply). */
+  onClosed?: () => void;
 }) {
   const t = useAppTheme();
   const [open, setOpen] = useState(false);
+  const close = () => {
+    setOpen(false);
+    onClosed?.();
+  };
   return (
     <>
       <Pressable
@@ -88,8 +95,8 @@ function SelectorFab({
           {label}
         </Text>
       </Pressable>
-      <Sheet visible={open} onClose={() => setOpen(false)} title={sheetTitle}>
-        {children(() => setOpen(false))}
+      <Sheet visible={open} onClose={close} title={sheetTitle}>
+        {children(close)}
       </Sheet>
     </>
   );
@@ -166,6 +173,9 @@ export function AttendanceRangeFab({
       icon="calendar-outline"
       label={attendanceRangeFabLabel(range)}
       sheetTitle="Time range"
+      // Drop draft highlight on dismiss so reopen matches the committed range
+      // (customSelected then comes only from range.kind === "custom").
+      onClosed={() => setPickingCustom(false)}
     >
       {(close) => (
         <View style={{ gap: spacing.sm }}>
@@ -222,8 +232,7 @@ export function AttendanceRangeFab({
                   startMs: draftStartMs,
                   endMs: draftEndMs,
                 });
-                setPickingCustom(false);
-                close();
+                close(); // onClosed clears pickingCustom; parent range keeps Custom selected
               }}
             />
           </View>
