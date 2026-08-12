@@ -3,6 +3,8 @@ import {
   computeSubgroupMetrics,
   DAY_MS,
   METRICS_THRESHOLDS as T,
+  RANGE_WEEKS,
+  rangeLabel,
   rangeStartFor,
   STAFF_YEAR_RANGE,
   WEEK_MS,
@@ -259,6 +261,15 @@ describe("computeSubgroupMetrics — summary & trends", () => {
     const data = computeSubgroupMetrics(build([e], [attend(e, "a")], [person("a")]));
     expect(data.summary.eventsHeld).toBe(1);
     expect(data.hasEnoughHistory).toBe(true);
+  });
+});
+
+describe("range presets", () => {
+  it("offers week, month, and year windows", () => {
+    expect([...RANGE_WEEKS]).toEqual([1, 4, 52]);
+    expect(rangeLabel(1)).toBe("Past week");
+    expect(rangeLabel(4)).toBe("Past month");
+    expect(rangeLabel(52)).toBe("Past year");
   });
 });
 

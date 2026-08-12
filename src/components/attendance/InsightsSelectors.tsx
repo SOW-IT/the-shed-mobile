@@ -3,17 +3,58 @@
  * PagerScreen's `floating` slot so they stay pinned above the bottom tab bar:
  *  - {@link AttendanceRangeFab}: the time range + collaborative-events toggle for
  *    the per-campus Attendance dashboard (lifted out of its top filter bar).
- *  - {@link GeneralScopeFab}: "All years" vs a specific staff year for the
- *    General staff-trend dashboard (a year switches it to a vs-last-year view).
+ *  - {@link GeneralScopeFab}: recent years / all history / a specific staff year
+ *    for the General staff-trend dashboard.
  */
 import { Ionicons } from "@expo/vector-icons";
 import { ReactNode, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { RANGE_WEEKS } from "../../../shared/attendanceMetrics";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  RANGE_WEEKS,
+  rangeLabel,
+  type RangeWeeks,
+} from "../../../shared/attendanceMetrics";
+import { NativeDateInput } from "@/components/NativeDateTimeField";
+import { WebDateInput } from "@/components/WebDateTimeInput";
 import { Btn, Sheet } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
-const rangeLabel = (weeks: number) => (weeks === 1 ? "1 wk" : `${weeks} wks`);
+/** Attendance Insights range: a preset trailing window or a custom [start, end]. */
+export type AttendanceRangeSelection =
+  | { kind: "preset"; weeks: RangeWeeks }
+  | { kind: "custom"; startMs: number; endMs: number };
+
+const pad = (n: number) => String(n).padStart(2, "0");
+const toDateInput = (ms: number): string => {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+/** Local midnight for a YYYY-MM-DD string. */
+const fromDateInputStart = (value: string): number | null => {
+  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
+  return Number.isNaN(d.getTime()) ? null : d.getTime();
+};
+/** Local end-of-day for a YYYY-MM-DD string. */
+const fromDateInputEnd = (value: string): number | null => {
+  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 23, 59, 59, 999);
+  return Number.isNaN(d.getTime()) ? null : d.getTime();
+};
+
+const formatShort = (ms: number) =>
+  new Date(ms).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "2-digit",
+  });
+
+export const attendanceRangeFabLabel = (range: AttendanceRangeSelection): string => {
+  if (range.kind === "preset") return rangeLabel(range.weeks);
+  return `${formatShort(range.startMs)} – ${formatShort(range.endMs)}`;
+};
 
 /** The floating pill button + its selector sheet. `children` gets a `close`. */
 function SelectorFab({
@@ -85,29 +126,102 @@ function OptionRow({
 }
 
 export function AttendanceRangeFab({
-  rangeWeeks,
+  range,
   onRangeChange,
   includeCollaborative,
   onCollaborativeChange,
 }: {
-  rangeWeeks: number;
-  onRangeChange: (weeks: number) => void;
+  range: AttendanceRangeSelection;
+  onRangeChange: (range: AttendanceRangeSelection) => void;
   includeCollaborative: boolean;
   onCollaborativeChange: (value: boolean) => void;
 }) {
   const t = useAppTheme();
+  // Capture "today" once on mount so render stays pure (no Date.now() in render).
+  const [today] = useState(() => toDateInput(Date.now()));
+  // Draft custom dates while the sheet is open (commit on Apply).
+  const [customStart, setCustomStart] = useState(() =>
+    range.kind === "custom"
+      ? toDateInput(range.startMs)
+      : toDateInput(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  );
+  const [customEnd, setCustomEnd] = useState(() =>
+    range.kind === "custom" ? toDateInput(range.endMs) : toDateInput(Date.now())
+  );
+  const customSelected = range.kind === "custom";
+  const draftStartMs = fromDateInputStart(customStart);
+  const draftEndMs = fromDateInputEnd(customEnd);
+  const customValid =
+    draftStartMs !== null &&
+    draftEndMs !== null &&
+    draftStartMs < draftEndMs;
+
+  const DateField = Platform.OS === "web" ? WebDateInput : NativeDateInput;
+
   return (
-    <SelectorFab icon="calendar-outline" label={rangeLabel(rangeWeeks)} sheetTitle="Time range">
+    <SelectorFab
+      icon="calendar-outline"
+      label={attendanceRangeFabLabel(range)}
+      sheetTitle="Time range"
+    >
       {(close) => (
         <View style={{ gap: spacing.sm }}>
           {RANGE_WEEKS.map((weeks) => (
             <OptionRow
               key={weeks}
               label={rangeLabel(weeks)}
-              selected={weeks === rangeWeeks}
-              onPress={() => onRangeChange(weeks)}
+              selected={range.kind === "preset" && range.weeks === weeks}
+              onPress={() => onRangeChange({ kind: "preset", weeks })}
             />
           ))}
+          <OptionRow
+            label="Custom"
+            selected={customSelected}
+            onPress={() => {
+              // Selecting Custom alone just reveals the date fields; Apply commits.
+              if (!customSelected && customValid && draftStartMs && draftEndMs) {
+                onRangeChange({
+                  kind: "custom",
+                  startMs: draftStartMs,
+                  endMs: draftEndMs,
+                });
+              }
+            }}
+          />
+          <View style={styles.customBlock}>
+            <Text style={[typography.caption, { color: t.muted }]}>
+              Custom range
+            </Text>
+            <View style={styles.customDates}>
+              <DateField
+                label="From"
+                value={customStart}
+                max={customEnd || today}
+                onChange={setCustomStart}
+              />
+              <DateField
+                label="To"
+                value={customEnd}
+                min={customStart}
+                max={today}
+                onChange={setCustomEnd}
+              />
+            </View>
+            <Btn
+              title="Apply custom range"
+              variant="tonal"
+              disabled={!customValid}
+              onPress={() => {
+                if (!draftStartMs || !draftEndMs) return;
+                onRangeChange({
+                  kind: "custom",
+                  startMs: draftStartMs,
+                  endMs: draftEndMs,
+                });
+                close();
+              }}
+            />
+          </View>
           <Pressable
             accessibilityRole="switch"
             accessibilityState={{ checked: includeCollaborative }}
@@ -166,26 +280,44 @@ export function ChartModeFab({
   );
 }
 
+/** null = recent years (default operational view); "all" = full history; year = card view. */
+export type GeneralScope = number | null | "all";
+
 export function GeneralScopeFab({
   years,
   value,
   onChange,
+  recentYears,
 }: {
   years: number[];
-  /** null = All years (trend view); a year = that year vs the previous one. */
-  value: number | null;
-  onChange: (value: number | null) => void;
+  value: GeneralScope;
+  onChange: (value: GeneralScope) => void;
+  /** How many years the "Recent" trend view shows. */
+  recentYears: number;
 }) {
-  const label = value === null ? "All years" : String(value);
+  const label =
+    value === null
+      ? `Last ${recentYears}y`
+      : value === "all"
+        ? "All history"
+        : String(value);
   return (
     <SelectorFab icon="stats-chart-outline" label={label} sheetTitle="Compare">
       {(close) => (
         <View style={{ gap: spacing.sm }}>
           <OptionRow
-            label="All years"
+            label={`Last ${recentYears} years`}
             selected={value === null}
             onPress={() => {
               onChange(null);
+              close();
+            }}
+          />
+          <OptionRow
+            label="All history"
+            selected={value === "all"}
+            onPress={() => {
+              onChange("all");
               close();
             }}
           />
@@ -254,5 +386,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 2,
     marginTop: spacing.xs,
+  },
+  customBlock: {
+    gap: spacing.sm,
+    paddingHorizontal: 2,
+    paddingTop: spacing.xs,
+  },
+  customDates: {
+    flexDirection: "row",
+    gap: spacing.sm,
   },
 });

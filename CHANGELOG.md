@@ -6,6 +6,16 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.10.10] — 2026-08-12
+
+### Changed
+- **Insights attendance time ranges are simpler, and you can pick custom dates.** The range picker is now Past week / Past month / Past year (instead of 1–12 week steps), with a custom From–To option for anything else. Charts default to the past month so leaders see a current operational window rather than a long trail of history.
+
+- **General staff charts open on recent years, not the full archive.** Trend charts show the last five staff years by default, with All history still available when you want the long view. The redundant “All staff” and “Staff vs student leaders” pair is one stacked “All staff” chart broken into staff and student leaders.
+
+### Fixed
+- **Bar charts no longer stretch sparse bars across the card.** Bars sit next to each other in a tight cluster with clearer grid lines and denser axis ticks, so weekly meeting turnout is easier to read without opening the large chart.
+
 ## [1.10.9] — 2026-08-10
 
 ### Fixed

@@ -72,17 +72,41 @@ export const METRICS_THRESHOLDS = {
   minEventsForInsights: 1,
 } as const;
 
-/** The preset trailing-week ranges offered in the UI. */
-export const RANGE_WEEKS = [1, 2, 4, 8, 12] as const;
+/**
+ * Preset trailing windows offered in the Attendance Insights UI and precomputed
+ * server-side: past week, past month (~4 weeks), past year.
+ */
+export const RANGE_WEEKS = [1, 4, 52] as const;
 export type RangeWeeks = (typeof RANGE_WEEKS)[number];
+
+/** Human labels for the preset ranges (UI + meta line). */
+export const RANGE_LABELS: Record<RangeWeeks, string> = {
+  1: "Past week",
+  4: "Past month",
+  52: "Past year",
+};
+
+/** Label for a rangeWeeks value; falls back to "N wks" for unknown presets. */
+export const rangeLabel = (weeks: number): string =>
+  weeks in RANGE_LABELS
+    ? RANGE_LABELS[weeks as RangeWeeks]
+    : weeks === 1
+      ? "1 wk"
+      : `${weeks} wks`;
 
 /**
  * Sentinel `rangeWeeks` value meaning "the whole current staff year". Retained
  * for {@link rangeStartFor}, but not currently offered in the UI or precomputed
- * (see ALL_RANGES in convex/attendanceMetrics.ts) — the presets are all short
- * trailing windows for now.
+ * (see ALL_RANGES in convex/attendanceMetrics.ts) — the presets are the
+ * week/month/year trailing windows.
  */
 export const STAFF_YEAR_RANGE = 0;
+
+/**
+ * How many recent staff years the General trend charts show by default
+ * (operational view). "All history" in the scope picker shows everything.
+ */
+export const GENERAL_RECENT_YEARS = 5;
 
 // ───────────────────────────── Input types ────────────────────────────────
 

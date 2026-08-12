@@ -8,9 +8,9 @@
  * Definitions/thresholds live in shared/attendanceMetrics.ts; see
  * docs/attendance-metrics.md.
  */
-import { useQuery } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   LayoutChangeEvent,
   Pressable,
@@ -23,11 +23,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import {
-  RANGE_WEEKS,
+  rangeLabel,
   type FollowUpPerson,
+  type SubgroupMetricsData,
 } from "../../../shared/attendanceMetrics";
 import { isOrgWideSubgroup, subgroupColour } from "../../../shared/rollcall";
 import { CampusMark } from "@/components/CampusMark";
+import {
+  type AttendanceRangeSelection,
+  attendanceRangeFabLabel,
+} from "@/components/attendance/InsightsSelectors";
 import {
   BarChart,
   BreakdownBars,
@@ -48,12 +53,6 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 const CAMPUS_MARK = 40;
 const FOLLOW_UP_SHOWN = 25;
-
-type RangeOption = { label: string; weeks: number };
-const RANGE_OPTIONS: RangeOption[] = RANGE_WEEKS.map((w) => ({
-  label: w === 1 ? "1 wk" : `${w} wks`,
-  weeks: w,
-}));
 
 const timeAgo = (ms: number): string => {
   const diff = Date.now() - ms;
@@ -82,7 +81,7 @@ export function MetricsTab({
   selectedSubgroup,
   onSelectedSubgroupChange,
   onOpenMember,
-  rangeWeeks,
+  range,
   includeCollaborative,
 }: {
   subgroups: string[];
@@ -90,7 +89,7 @@ export function MetricsTab({
   onSelectedSubgroupChange: (subgroup: string) => void;
   onOpenMember: (memberId: Id<"attendanceMembers">) => void;
   // Owned by the Insights screen and driven by the bottom-right range selector.
-  rangeWeeks: number;
+  range: AttendanceRangeSelection;
   includeCollaborative: boolean;
 }) {
   const t = useAppTheme();
@@ -101,25 +100,77 @@ export function MetricsTab({
   const [containerWidth, setContainerWidth] = useState(windowWidth);
   const [detail, setDetail] = useState<TileDetail | null>(null);
 
+  // Preset ranges read a precomputed snapshot; custom ranges compute on demand.
+  const presetWeeks = range.kind === "preset" ? range.weeks : null;
   const snapshot = useQuery(
     api.attendanceMetrics.snapshot,
-    subgroup ? { subgroup, rangeWeeks, includeCollaborative } : "skip"
+    subgroup && presetWeeks !== null
+      ? { subgroup, rangeWeeks: presetWeeks, includeCollaborative }
+      : "skip"
   );
+
+  const liveSnapshot = useAction(api.attendanceMetrics.liveSnapshot);
+  const [live, setLive] = useState<{
+    computedAt: number;
+    data: SubgroupMetricsData;
+  } | null>(null);
+  const [liveLoading, setLiveLoading] = useState(false);
+  const [liveError, setLiveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (range.kind !== "custom" || !subgroup) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear when leaving custom
+      setLive(null);
+      setLiveError(null);
+      setLiveLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLiveLoading(true);
+    setLiveError(null);
+    liveSnapshot({
+      subgroup,
+      rangeStartMs: range.startMs,
+      rangeEndMs: range.endMs,
+      includeCollaborative,
+    })
+      .then((result) => {
+        if (cancelled) return;
+        setLive(result);
+        setLiveLoading(false);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setLive(null);
+        setLiveLoading(false);
+        setLiveError(
+          err instanceof Error ? err.message : "Couldn't load this custom range."
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [range, subgroup, includeCollaborative, liveSnapshot]);
 
   // Org-wide (SOW) view: show average weekly attendance per campus (drawn from
   // each campus's own snapshot) and drop the follow-up list, which is a
-  // per-campus pastoral tool rather than an org-wide one.
+  // per-campus pastoral tool rather than an org-wide one. Custom ranges skip
+  // this fan-out (no per-campus live compute).
   const orgWide = subgroup ? isOrgWideSubgroup(subgroup) : false;
   const campusWeekly = useQuery(
     api.attendanceMetrics.campusWeeklyAverages,
-    orgWide ? { rangeWeeks, includeCollaborative } : "skip"
+    orgWide && presetWeeks !== null
+      ? { rangeWeeks: presetWeeks, includeCollaborative }
+      : "skip"
   );
 
   const wide = containerWidth >= 640;
   const onLayout = (e: LayoutChangeEvent) =>
     setContainerWidth(e.nativeEvent.layout.width);
   const rangeText =
-    RANGE_OPTIONS.find((o) => o.weeks === rangeWeeks)?.label ?? `${rangeWeeks} wks`;
+    range.kind === "preset"
+      ? rangeLabel(range.weeks)
+      : attendanceRangeFabLabel(range);
 
   // Responsive grids: more columns on a big screen, comfortable on mobile.
   const cardCols = wide ? 3 : 2;
@@ -141,7 +192,13 @@ export function MetricsTab({
     }
   };
 
-  const data = snapshot?.data;
+  const isCustom = range.kind === "custom";
+  const loading = isCustom ? liveLoading : snapshot === undefined;
+  const notReady = isCustom
+    ? !liveLoading && live === null && !liveError
+    : snapshot === null;
+  const data = isCustom ? live?.data : snapshot?.data;
+  const computedAt = isCustom ? live?.computedAt : snapshot?.computedAt;
   const summaryCards = useMemo<SummaryCard[]>(() => {
     if (!data) return [];
     const s = data.summary;
@@ -264,22 +321,28 @@ export function MetricsTab({
           selection and when the snapshot was last refreshed. */}
       <View style={styles.metaRow}>
         <Text style={[typography.caption, { color: t.muted }]}>
-          {`Last ${rangeText}${includeCollaborative ? " · incl. collaborative" : ""}`}
+          {`${rangeText}${includeCollaborative ? " · incl. collaborative" : ""}`}
         </Text>
-        {snapshot ? (
+        {computedAt ? (
           <View style={styles.refresh}>
             <Ionicons name="time-outline" size={14} color={t.faint} />
             <Text style={[typography.caption, { color: t.faint }]}>
-              {`Updated ${timeAgo(snapshot.computedAt)}`}
+              {`Updated ${timeAgo(computedAt)}`}
             </Text>
           </View>
         ) : null}
       </View>
 
       {/* States. */}
-      {subgroup && snapshot === undefined ? (
+      {subgroup && loading ? (
         <LoadingState />
-      ) : snapshot === null ? (
+      ) : liveError ? (
+        <EmptyState
+          icon="alert-circle-outline"
+          title="Couldn't load custom range"
+          message={liveError}
+        />
+      ) : notReady ? (
         <EmptyState
           icon="sparkles-outline"
           title="Insights aren't ready yet"

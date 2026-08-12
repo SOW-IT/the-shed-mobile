@@ -1,6 +1,7 @@
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
+import { GENERAL_RECENT_YEARS } from "../../../shared/attendanceMetrics";
 import { staffYearForDate, sydneyCalendarYear } from "../../../shared/flow";
 import { defaultAttendanceSubgroup } from "../../../shared/rollcall";
 import { api } from "../../../convex/_generated/api";
@@ -9,7 +10,9 @@ import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
 import { GeneralMetricsTab } from "@/components/attendance/GeneralMetricsTab";
 import {
   AttendanceRangeFab,
+  type AttendanceRangeSelection,
   ChartModeFab,
+  type GeneralScope,
   GeneralScopeFab,
 } from "@/components/attendance/InsightsSelectors";
 import {
@@ -48,9 +51,14 @@ export default function InsightsScreen() {
   );
   // Owned here so the bottom-right selectors (rendered in PagerScreen's floating
   // slot) can drive them from outside the tab bodies.
-  const [rangeWeeks, setRangeWeeks] = useState(2);
+  // Default to past month — operational view rather than the longest history.
+  const [attendanceRange, setAttendanceRange] = useState<AttendanceRangeSelection>({
+    kind: "preset",
+    weeks: 4,
+  });
   const [includeCollaborative, setIncludeCollaborative] = useState(true);
-  const [generalYear, setGeneralYear] = useState<number | null>(null); // null = All years
+  // null = recent years (default); "all" = full history; year number = cards.
+  const [generalScope, setGeneralScope] = useState<GeneralScope>(null);
   const [chartMode, setChartMode] = useState<ChartMode>("bar");
   // Just the year list for the General selector; the tab runs its own query too
   // (Convex dedupes the identical call).
@@ -106,10 +114,9 @@ export default function InsightsScreen() {
     label: "General",
     render: () => (
       <>
-        {/* Signed-out visitors have no year picker, so `generalYear` stays null
-            (All years); publicPreview trims the per-year cards for them. Any
-            signed-in account gets the full breakdown (1.7.4). */}
-        <GeneralMetricsTab year={generalYear} publicPreview={!isSignedIn} />
+        {/* Signed-out visitors have no year picker, so scope stays null
+            (recent years); publicPreview trims the per-year cards for them. */}
+        <GeneralMetricsTab scope={generalScope} publicPreview={!isSignedIn} />
         {/* Sign-in prompt sits below the graphs for signed-out visitors. */}
         {signInPrompt}
       </>
@@ -124,7 +131,7 @@ export default function InsightsScreen() {
         selectedSubgroup={subgroup}
         onSelectedSubgroupChange={setSelectedSubgroup}
         onOpenMember={openEditMember}
-        rangeWeeks={rangeWeeks}
+        range={attendanceRange}
         includeCollaborative={includeCollaborative}
       />
     ),
@@ -135,23 +142,24 @@ export default function InsightsScreen() {
   const activeKey = tabs.some((t) => t.key === active) ? active : "general";
 
   // The bottom-right selector is per-tab: range/collaborative on the staff-only
-  // Attendance tab, All-vs-year scope on General for any signed-in account
+  // Attendance tab, recent/all/year scope on General for any signed-in account
   // (1.7.4). Signed-out visitors get neither (no picker), only the bottom-left
   // bars/lines toggle.
   const floating = (
     <>
       {activeKey === "attendance" && isStaff ? (
         <AttendanceRangeFab
-          rangeWeeks={rangeWeeks}
-          onRangeChange={setRangeWeeks}
+          range={attendanceRange}
+          onRangeChange={setAttendanceRange}
           includeCollaborative={includeCollaborative}
           onCollaborativeChange={setIncludeCollaborative}
         />
       ) : isSignedIn ? (
         <GeneralScopeFab
           years={staffTrends?.years ?? []}
-          value={generalYear}
-          onChange={setGeneralYear}
+          value={generalScope}
+          onChange={setGeneralScope}
+          recentYears={GENERAL_RECENT_YEARS}
         />
       ) : null}
       <ChartModeFab mode={chartMode} onChange={setChartMode} />

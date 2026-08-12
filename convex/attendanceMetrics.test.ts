@@ -107,7 +107,7 @@ describe("attendanceMetrics", () => {
       subgroup: USYD,
     });
 
-    for (const rangeWeeks of [1, 2, 4, 8, 12]) {
+    for (const rangeWeeks of [1, 4, 52]) {
       for (const includeCollaborative of [true, false]) {
         const snap = await leader.query(api.attendanceMetrics.snapshot, {
           subgroup: USYD,
@@ -117,6 +117,72 @@ describe("attendanceMetrics", () => {
         expect(snap, `range ${rangeWeeks} collab ${includeCollaborative}`).not.toBeNull();
       }
     }
+  });
+
+  test("liveSnapshot returns null when not signed in", async () => {
+    const { t } = await setup();
+    const end = Date.now();
+    const start = end - 14 * DAY;
+    expect(
+      await t.action(api.attendanceMetrics.liveSnapshot, {
+        subgroup: USYD,
+        rangeStartMs: start,
+        rangeEndMs: end,
+        includeCollaborative: true,
+      })
+    ).toBeNull();
+  });
+
+  test("liveSnapshot computes a custom range on demand", async () => {
+    const { leader } = await setup();
+    const e1 = await leader.mutation(api.events.create, {
+      name: "Custom A",
+      ...window(10),
+      subgroups: [USYD],
+    });
+    const e2 = await leader.mutation(api.events.create, {
+      name: "Custom B",
+      ...window(2),
+      subgroups: [USYD],
+    });
+    await leader.mutation(api.attendance.signIn, { eventId: e1, email: LEADER });
+    await leader.mutation(api.attendance.signIn, { eventId: e2, email: LEADER });
+    await leader.mutation(api.attendance.signIn, { eventId: e2, email: STAFF });
+
+    const end = Date.now();
+    // Window that includes only the more recent event (2 days ago).
+    const start = end - 5 * DAY;
+    const live = await leader.action(api.attendanceMetrics.liveSnapshot, {
+      subgroup: USYD,
+      rangeStartMs: start,
+      rangeEndMs: end,
+      includeCollaborative: true,
+    });
+    expect(live).not.toBeNull();
+    expect(live!.data.summary.eventsHeld).toBe(1);
+    expect(live!.data.summary.uniqueAttendees).toBe(2);
+    expect(live!.computedAt).toBeGreaterThan(0);
+  });
+
+  test("liveSnapshot rejects inverted or over-long ranges", async () => {
+    const { leader } = await setup();
+    const end = Date.now();
+    await expect(
+      leader.action(api.attendanceMetrics.liveSnapshot, {
+        subgroup: USYD,
+        rangeStartMs: end,
+        rangeEndMs: end - DAY,
+        includeCollaborative: true,
+      })
+    ).rejects.toThrow(/start before the end/i);
+    await expect(
+      leader.action(api.attendanceMetrics.liveSnapshot, {
+        subgroup: USYD,
+        rangeStartMs: end - 3 * 365 * DAY,
+        rangeEndMs: end,
+        includeCollaborative: true,
+      })
+    ).rejects.toThrow(/two years/i);
   });
 
   test("recomputeNow requires an attendance manager", async () => {
