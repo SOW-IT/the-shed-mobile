@@ -1972,6 +1972,9 @@ export const rollOverStaffYear = internalMutation({
       console.log(
         `rollOverStaffYear: skipping — ${to} already copied from ${from}`
       );
+      // Still rebuild Insights: the copy may have been done days earlier, but
+      // the clock just flipped and last year's snapshots are now stale.
+      await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeAll, {});
       return {
         skipped: true as const,
         from,
@@ -2005,6 +2008,10 @@ export const rollOverStaffYear = internalMutation({
       subject,
       body,
     });
+    // Insights snapshots are keyed by staff year. The moment the year flips
+    // they all read as "not ready"; kick a full recompute so the 15-minute
+    // dirty cron isn't the only thing standing between leaders and the tab.
+    await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeAll, {});
     return { skipped: false as const, from, to, ...counts };
   },
 });

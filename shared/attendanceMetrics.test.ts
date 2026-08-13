@@ -333,6 +333,32 @@ describe("computeSubgroupMetrics — filters & scoping", () => {
       { label: "UNSW", value: 1 },
     ]);
   });
+
+  it("classifies breakdowns by the event's staff year, not the clock year", () => {
+    // One minute into staff year 2027, looking at a trailing window that is
+    // still all September 2026. The leaver has no 2027 profile (Member now)
+    // but was Staff in 2026 — September's Role column must keep Staff.
+    const now = Date.UTC(2026, 8, 30, 14, 1, 0); // Oct 1 2026 00:01 Sydney
+    const september = weekly(Date.UTC(2026, 8, 17, 8, 0, 0)); // 17 Sep
+    const data = computeSubgroupMetrics(
+      build(
+        [september],
+        [attend(september, "leaver")],
+        [
+          person("leaver", {
+            breakdown: { Role: "Member" },
+            breakdownByYear: {
+              "2026": { Role: "Staff" },
+              "2027": { Role: "Member" },
+            },
+          }),
+        ],
+        { now, rangeStartMs: now - 4 * WEEK_MS, historyStartMs: now - 8 * WEEK_MS }
+      )
+    );
+    const role = data.breakdowns.find((b) => b.field === "Role");
+    expect(role?.rows).toEqual([{ label: "Staff", value: 1 }]);
+  });
 });
 
 describe("computeSubgroupMetrics — follow-up ordering", () => {

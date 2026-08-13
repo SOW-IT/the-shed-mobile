@@ -6,6 +6,33 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.10.11] — 2026-08-14
+
+### Fixed
+- **Insights no longer go blank on 1 October.** When the staff year flips at
+  Sydney midnight, last year's snapshots used to read as "not ready" and stay
+  that way until Thursday's weekly rebuild — the 15-minute refresh had nothing
+  marked dirty. The rollover now kicks a full rebuild, the 15-minute cron
+  heals any campus still on last year's snapshot (including a brand-new
+  campus), and the Attendance tab computes on the fly while that catches up.
+  Past year works the same way if its snapshot hasn't been precomputed yet.
+
+- **September attendance keeps last year's roles after the flip.** A staffer
+  who hasn't been assigned for the new year used to be rewritten as a Member
+  in September's Role breakdown the moment the clock moved. People are now
+  classified against the staff year of the event they attended.
+
+- **General Insights don't drop off a cliff on 1 October.** An empty new year
+  is no longer plotted as a row of zeros, and staff-trend charts keep last
+  year's complete roster as the newest point for the first week while
+  assignments are still being finished.
+
+- **Insights charts are easier to read.** Every staff year is labelled (no
+  more skipped '23 / '25), legends sit under the title instead of squeezing
+  beside it, weekly-meeting bars are wider, the E2E test campus is off the
+  public charts, and the last chart can scroll clear of the Bars / range
+  pills.
+
 ## [1.10.10] — 2026-08-12
 
 ### Changed

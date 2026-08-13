@@ -1120,7 +1120,8 @@ describe("rollOverStaffYear", () => {
     );
     expect(nextSettings?.directorEmail).toBe("director@sow.org.au");
 
-    // A summary email to IT is scheduled.
+    // A summary email to IT is scheduled, plus a full Insights rebuild so the
+    // tab isn't blank until Thursday after the year flip.
     const scheduled = await t.run((ctx) =>
       ctx.db.system.query("_scheduled_functions").collect()
     );
@@ -1131,6 +1132,9 @@ describe("rollOverStaffYear", () => {
       `${YEAR} copied to ${YEAR + 1}`
     );
     expect((email!.args[0] as { body: string }).body).toContain("Deployment:");
+    expect(
+      scheduled.some((s) => s.name === "attendanceMetrics:recomputeAll")
+    ).toBe(true);
 
     // A second run no-ops (idempotent) — does not re-email or overwrite.
     const emailsBefore = scheduled.filter((s) => s.name === "emails:send").length;

@@ -96,6 +96,11 @@ const metricsPersonValidator = v.object({
   subtitle: v.optional(v.string()),
   photo: v.optional(v.union(v.string(), v.null())),
   breakdown: v.optional(v.record(v.string(), v.string())),
+  // Year → field labels so a range that still holds last year's events
+  // classifies people against that year's profile, not the clock year.
+  breakdownByYear: v.optional(
+    v.record(v.string(), v.record(v.string(), v.string()))
+  ),
   isStudentLeader: v.optional(v.boolean()),
   campuses: v.optional(v.array(v.string())),
 });
@@ -352,13 +357,27 @@ async function resolvePersons(
   keys: string[],
   year: number
 ): Promise<MetricsPerson[]> {
-  // Load the year's staff profiles once so staff keys are a map lookup.
-  const profiles = await ctx.db
-    .query("staffProfiles")
-    .withIndex("by_year", (q) => q.eq("year", year))
-    .collect();
-  const profileByEmail = new Map(profiles.map((p) => [p.email.toLowerCase(), p]));
-  const matchProfile = (email: string): Doc<"staffProfiles"> | undefined => {
+  // Load this staff year and the previous one. Trailing Insights windows
+  // reach into September after the Oct 1 flip; last year's profile is what
+  // those events should classify against.
+  const years = [year - 1, year];
+  const profilesByYear = new Map<number, Map<string, Doc<"staffProfiles">>>();
+  for (const y of years) {
+    const profiles = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_year", (q) => q.eq("year", y))
+      .collect();
+    profilesByYear.set(
+      y,
+      new Map(profiles.map((p) => [p.email.toLowerCase(), p]))
+    );
+  }
+  const matchProfile = (
+    email: string,
+    y: number
+  ): Doc<"staffProfiles"> | undefined => {
+    const profileByEmail = profilesByYear.get(y);
+    if (!profileByEmail) return undefined;
     for (const candidate of staffEmailCandidates(email)) {
       const hit = profileByEmail.get(candidate);
       if (hit) return hit;
@@ -393,13 +412,13 @@ async function resolvePersons(
   for (const key of keys) {
     if (key.startsWith(STAFF_PREFIX)) {
       const email = key.slice(STAFF_PREFIX.length);
-      const profile = matchProfile(email);
+      const profile = matchProfile(email, year);
       const roles = profile
         ? [...new Set(assignmentsOf(profile).map((a) => a.role))]
         : [];
-      // Staff-ness follows the CURRENT staff year: someone with no profile this
-      // year, or a profile that carries no assignment (no role), is treated as a
-      // Member from this year on — even if they were staff previously.
+      // Operational identity (follow-up list, composition charts) follows the
+      // CURRENT staff year: someone with no profile this year, or a profile
+      // that carries no assignment, is treated as a Member from this year on.
       const isStaff = !!profile && assignmentsOf(profile).length > 0;
       const campuses = profile
         ? [
@@ -411,6 +430,27 @@ async function resolvePersons(
           ]
         : [];
       const user = profile?.userId ? await ctx.db.get(profile.userId) : null;
+      const breakdownByYear: Record<string, Record<string, string>> = {};
+      for (const y of years) {
+        const yearProfile = matchProfile(email, y);
+        const yearRoles = yearProfile
+          ? [...new Set(assignmentsOf(yearProfile).map((a) => a.role))]
+          : [];
+        const yearIsStaff =
+          !!yearProfile && assignmentsOf(yearProfile).length > 0;
+        const yearCampuses = yearProfile
+          ? [
+              ...new Set(
+                assignmentsOf(yearProfile).flatMap((a) =>
+                  a.university && roleNeedsUniversity(a.role) ? [a.university] : []
+                )
+              ),
+            ]
+          : [];
+        breakdownByYear[String(y)] = yearIsStaff
+          ? buildBreakdown(yearRoles[0], yearCampuses[0])
+          : buildBreakdown("Member", undefined);
+      }
       persons.push({
         key,
         kind: isStaff ? "staff" : "member",
@@ -420,6 +460,7 @@ async function resolvePersons(
         breakdown: isStaff
           ? buildBreakdown(roles[0], campuses[0])
           : buildBreakdown("Member", undefined),
+        breakdownByYear,
         isStudentLeader: roles.some(roleNeedsUniversity),
         // Every campus the profile holds a campus role at is a home campus;
         // org-side staff have none and stay out of the campus-mix chart.
@@ -554,9 +595,11 @@ export const recomputeAll = internalMutation({
 
 /**
  * Cron entry (short interval): recompute every sub-group flagged dirty by a
- * roll-call / event change since the last run, then clear the flags. Fans out
- * one bounded recompute per sub-group (like {@link recomputeAll}); the dirty set
- * is small (at most one row per sub-group), so this stays cheap between runs.
+ * roll-call / event change since the last run, then clear the flags. Also
+ * rebuilds any current-year campus (or SOW) whose newest snapshot is missing
+ * or still stamped with a prior staff year — that's what heals Insights after
+ * the October 1 flip, when nothing is flagged dirty but every row is stale.
+ * Fans out one bounded recompute per sub-group (like {@link recomputeAll}).
  */
 export const recomputeDirty = internalMutation({
   args: {},
@@ -567,7 +610,44 @@ export const recomputeDirty = internalMutation({
     // leave the flags in place: each recompute clears its own once it succeeds
     // (see clearDirty), so a recompute that throws keeps its retry signal for
     // the next run instead of being silently dropped here.
-    for (const subgroup of new Set(dirty.map((r) => r.subgroup))) {
+    const targets = new Set(dirty.map((r) => r.subgroup));
+
+    // Stale-year / missing snapshots: the 15-minute cron is the recovery path
+    // so the tab doesn't stay "not ready" until Thursday after Oct 1 (or after
+    // a new campus / range preset lands).
+    const year = currentStaffYear();
+    const universities = await ctx.db
+      .query("universities")
+      .withIndex("by_year_and_name", (q) => q.eq("year", year))
+      .collect();
+    const expected = [SOW_SUBGROUP, ...universities.map((u) => u.name)].map(
+      canonicalSubgroup
+    );
+    const snapshots = await ctx.db.query("attendanceMetricsSnapshots").collect();
+    // A group is only "ready" when every preset × collaborative variant
+    // exists for this staff year. One leftover 4-week row must not hide a
+    // missing Past year (52) snapshot after a range-preset change or a
+    // partial recompute.
+    const currentYearReady = new Set<string>();
+    for (const row of snapshots) {
+      if (row.staffYear === year) {
+        currentYearReady.add(
+          `${row.subgroup}\0${row.rangeWeeks}\0${row.includeCollaborative}`
+        );
+      }
+    }
+    for (const subgroup of expected) {
+      const complete = ALL_RANGES.every((rangeWeeks) =>
+        COLLAB_VARIANTS.every((includeCollaborative) =>
+          currentYearReady.has(
+            `${subgroup}\0${rangeWeeks}\0${includeCollaborative}`
+          )
+        )
+      );
+      if (!complete) targets.add(subgroup);
+    }
+
+    for (const subgroup of targets) {
       await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeSubgroup, {
         subgroup,
       });
