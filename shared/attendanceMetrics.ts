@@ -139,6 +139,11 @@ export type MetricsPerson = {
    */
   isStudentLeader?: boolean;
   /**
+   * Staff-year → student-leader flag. Composition charts use the year of the
+   * event so a 2026 leader is not dropped from September the morning of Oct 1.
+   */
+  leaderByYear?: Record<string, boolean>;
+  /**
    * The person's home campuses (raw university names): every campus the staff
    * profile holds a campus role at (usually one, but a person can hold roles
    * at several universities), or a member's Campus metadata. Empty/undefined
@@ -146,6 +151,8 @@ export type MetricsPerson = {
    * left out of the this-campus-vs-others chart rather than guessed either way.
    */
   campuses?: string[];
+  /** Staff-year → home campuses (same event-year rule as {@link leaderByYear}). */
+  campusesByYear?: Record<string, string[]>;
 };
 
 export type MetricsEvent = {
@@ -338,6 +345,18 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
   const T = METRICS_THRESHOLDS;
 
   const personByKey = new Map(input.persons.map((p) => [p.key, p]));
+  const yearKey = (at: number) => String(eventStaffYear(at));
+  const isLeaderAt = (key: string, at: number): boolean => {
+    const person = personByKey.get(key);
+    if (!person) return false;
+    const yearly = person.leaderByYear?.[yearKey(at)];
+    return yearly ?? !!person.isStudentLeader;
+  };
+  const campusesAt = (key: string, at: number): string[] | undefined => {
+    const person = personByKey.get(key);
+    if (!person) return undefined;
+    return person.campusesByYear?.[yearKey(at)] ?? person.campuses;
+  };
 
   // Sub-group events we care about, oldest → newest. Collaborative events are
   // optionally excluded so a leader can look at just their own group's rhythm.
@@ -534,7 +553,7 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
     let primary = 0;
     let rest = 0;
     for (const key of attendeesByEvent.get(e.id) ?? []) {
-      if (personByKey.get(key)?.isStudentLeader) primary += 1;
+      if (isLeaderAt(key, e.dateStart)) primary += 1;
       else rest += 1;
     }
     return { at: e.dateStart, label: shortDate(e.dateStart), primary, rest };
@@ -557,7 +576,7 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
       let primary = 0;
       let rest = 0;
       for (const key of attendeesByEvent.get(e.id) ?? []) {
-        const campuses = personByKey.get(key)?.campuses;
+        const campuses = campusesAt(key, e.dateStart);
         if (!campuses || campuses.length === 0) continue;
         // A person holding a campus role HERE is from this campus, even if
         // they also hold one elsewhere (multi-campus staff count as home).

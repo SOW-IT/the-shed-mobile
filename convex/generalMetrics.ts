@@ -2,11 +2,7 @@ import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { currentStaffYear } from "./model";
-import {
-  eventStaffYear,
-  staffYearStartMs,
-  withinRolloverAuthGrace,
-} from "../shared/flow";
+import { eventStaffYear, staffYearStartMs } from "../shared/flow";
 import {
   isOrgWideSubgroup,
   normalizeSubgroups,
@@ -256,17 +252,12 @@ export const staffTrends = query({
     // Exclude the upcoming staff year: staff for next year are only partially
     // pre-assigned, so its counts are incomplete and would read as a misleading
     // dip on the trend. (The org chart surfaces next year explicitly; the trend
-    // deliberately stops at the current year.)
-    //
-    // The first week after Oct 1 is the same shape: the new current year is
-    // still being assigned, so hide it during the auth-grace window and keep
-    // the last complete year as the newest point.
+    // stops at the *current* year.) The moment Oct 1 flips the current year,
+    // that year is included — last-5y then slides forward so leaders see the
+    // live roster, not last year's frozen picture.
     const currentYear = currentStaffYear();
-    const latestTrendYear = withinRolloverAuthGrace(currentYear)
-      ? currentYear - 1
-      : currentYear;
     const profiles = (await ctx.db.query("staffProfiles").collect()).filter(
-      (p) => p.year <= latestTrendYear
+      (p) => p.year <= currentYear
     );
 
     // year -> tallies. campusByYear tracks distinct student-leader emails per
