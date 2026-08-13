@@ -274,6 +274,9 @@ describe("October rollover → General Insights", () => {
     // live roster, not last year's freeze.
     expect(after!.years.at(-1)).toBe(2027);
     expect(after!.years).toContain(2026);
-    expect(after!.staff.at(-1)!).toBeLessThan(before!.staff.at(-1)!);
+    // 2026: seed admin (Data and IT Staff) + LAPSED. 2027: neither has a
+    // Staff row (LEADER is Student Leader both years).
+    expect(before!.staff.at(-1)).toBe(2);
+    expect(after!.staff.at(-1)).toBe(0);
   });
 });
