@@ -1381,33 +1381,6 @@ export function MultiStackedBarChart({
                       <Text style={[styles.barValue, { color: t.muted }]}>
                         {total}
                       </Text>
-                    ) : !stacked && groupSegWidth >= 10 ? (
-                      <View
-                        style={{
-                          width: innerWidth,
-                          flexDirection: "row",
-                          justifyContent: "space-between",
-                          paddingTop: 0,
-                        }}
-                      >
-                        {visible.map((seg) => (
-                          <Text
-                            key={`v-${seg.key}`}
-                            style={[
-                              styles.barValue,
-                              {
-                                color: t.muted,
-                                width: groupSegWidth,
-                                textAlign: "center",
-                                fontSize: 9,
-                              },
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {seg.value > 0 ? Math.round(seg.value) : ""}
-                          </Text>
-                        ))}
-                      </View>
                     ) : null}
                     {stacked ? (
                       <View
