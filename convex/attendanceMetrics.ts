@@ -624,12 +624,27 @@ export const recomputeDirty = internalMutation({
       canonicalSubgroup
     );
     const snapshots = await ctx.db.query("attendanceMetricsSnapshots").collect();
+    // A group is only "ready" when every preset × collaborative variant
+    // exists for this staff year. One leftover 4-week row must not hide a
+    // missing Past year (52) snapshot after a range-preset change or a
+    // partial recompute.
     const currentYearReady = new Set<string>();
     for (const row of snapshots) {
-      if (row.staffYear === year) currentYearReady.add(row.subgroup);
+      if (row.staffYear === year) {
+        currentYearReady.add(
+          `${row.subgroup}\0${row.rangeWeeks}\0${row.includeCollaborative}`
+        );
+      }
     }
     for (const subgroup of expected) {
-      if (!currentYearReady.has(subgroup)) targets.add(subgroup);
+      const complete = ALL_RANGES.every((rangeWeeks) =>
+        COLLAB_VARIANTS.every((includeCollaborative) =>
+          currentYearReady.has(
+            `${subgroup}\0${rangeWeeks}\0${includeCollaborative}`
+          )
+        )
+      );
+      if (!complete) targets.add(subgroup);
     }
 
     for (const subgroup of targets) {

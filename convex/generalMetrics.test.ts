@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
-import { describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate } from "../shared/flow";
 import { api } from "./_generated/api";
 import {
@@ -335,6 +335,16 @@ describe("staffTrends", () => {
 });
 
 describe("campusWeeklyAttendance", () => {
+  // These cases treat 2026 as the live staff year (empty 2026 is omitted;
+  // empty 2025 is not). Freeze the clock so they stay valid after 1 Oct 2026.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(Date.UTC(2026, 5, 1))); // 1 Jun 2026 → staff year 2026
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   // A weekly meeting: an event tagged "Weekly Meeting" for one campus sub-group,
   // with `count` sign-in rows. Returns the event id.
   async function weeklyMeeting(
