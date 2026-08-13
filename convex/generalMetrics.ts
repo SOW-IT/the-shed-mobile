@@ -2,7 +2,11 @@ import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { currentStaffYear } from "./model";
-import { eventStaffYear, staffYearStartMs } from "../shared/flow";
+import {
+  eventStaffYear,
+  staffYearStartMs,
+  withinRolloverAuthGrace,
+} from "../shared/flow";
 import {
   isOrgWideSubgroup,
   normalizeSubgroups,
@@ -253,9 +257,16 @@ export const staffTrends = query({
     // pre-assigned, so its counts are incomplete and would read as a misleading
     // dip on the trend. (The org chart surfaces next year explicitly; the trend
     // deliberately stops at the current year.)
+    //
+    // The first week after Oct 1 is the same shape: the new current year is
+    // still being assigned, so hide it during the auth-grace window and keep
+    // the last complete year as the newest point.
     const currentYear = currentStaffYear();
+    const latestTrendYear = withinRolloverAuthGrace(currentYear)
+      ? currentYear - 1
+      : currentYear;
     const profiles = (await ctx.db.query("staffProfiles").collect()).filter(
-      (p) => p.year <= currentYear
+      (p) => p.year <= latestTrendYear
     );
 
     // year -> tallies. campusByYear tracks distinct student-leader emails per
@@ -573,6 +584,17 @@ export const campusWeeklyAttendance = query({
           return Math.round((b.total / b.meetings) * 10) / 10;
         }),
       }));
+
+    // Don't plot the brand-new staff year as a floor of zeros the morning
+    // after rollover — omit it until at least one campus has held a meeting.
+    if (years.length > 0 && years[years.length - 1] === currentYear) {
+      const last = years.length - 1;
+      const empty = campuses.length === 0 || campuses.every((c) => c.averages[last] === 0);
+      if (empty) {
+        years.pop();
+        for (const campus of campuses) campus.averages.pop();
+      }
+    }
 
     return { years, campuses };
   },

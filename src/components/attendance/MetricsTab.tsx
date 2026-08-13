@@ -24,9 +24,11 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import {
   rangeLabel,
+  rangeStartFor,
   type FollowUpPerson,
   type SubgroupMetricsData,
 } from "../../../shared/attendanceMetrics";
+import { staffYearForDate, staffYearStartMs } from "../../../shared/flow";
 import { isOrgWideSubgroup, subgroupColour } from "../../../shared/rollcall";
 import { CampusMark } from "@/components/CampusMark";
 import {
@@ -117,21 +119,37 @@ export function MetricsTab({
   const [liveLoading, setLiveLoading] = useState(false);
   const [liveError, setLiveError] = useState<string | null>(null);
 
+  // Custom ranges always compute on demand. Preset ranges also fall back to a
+  // live compute when the precomputed snapshot is missing (new 52-week preset
+  // before Thursday's cron, or the morning after the Oct 1 staff-year flip).
+  const presetNeedsLive = range.kind === "preset" && snapshot === null;
   useEffect(() => {
-    if (range.kind !== "custom" || !subgroup) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear when leaving custom
+    const useLive =
+      !!subgroup && (range.kind === "custom" || presetNeedsLive);
+    if (!useLive) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear when snapshot is enough
       setLive(null);
       setLiveError(null);
       setLiveLoading(false);
       return;
     }
+    const now = Date.now();
+    const rangeStartMs =
+      range.kind === "custom"
+        ? range.startMs
+        : rangeStartFor(
+            now,
+            range.weeks,
+            staffYearStartMs(staffYearForDate(new Date(now)))
+          );
+    const rangeEndMs = range.kind === "custom" ? range.endMs : now;
     let cancelled = false;
     setLiveLoading(true);
     setLiveError(null);
     liveSnapshot({
       subgroup,
-      rangeStartMs: range.startMs,
-      rangeEndMs: range.endMs,
+      rangeStartMs,
+      rangeEndMs,
       includeCollaborative,
     })
       .then((result) => {
@@ -144,13 +162,17 @@ export function MetricsTab({
         setLive(null);
         setLiveLoading(false);
         setLiveError(
-          err instanceof Error ? err.message : "Couldn't load this custom range."
+          err instanceof Error
+            ? err.message
+            : range.kind === "custom"
+              ? "Couldn't load this custom range."
+              : "Couldn't load attendance insights."
         );
       });
     return () => {
       cancelled = true;
     };
-  }, [range, subgroup, includeCollaborative, liveSnapshot]);
+  }, [range, subgroup, includeCollaborative, liveSnapshot, presetNeedsLive]);
 
   // Org-wide (SOW) view: show average weekly attendance per campus (drawn from
   // each campus's own snapshot) and drop the follow-up list, which is a
@@ -192,13 +214,13 @@ export function MetricsTab({
     }
   };
 
-  const isCustom = range.kind === "custom";
-  const loading = isCustom ? liveLoading : snapshot === undefined;
-  const notReady = isCustom
+  const usingLive = range.kind === "custom" || presetNeedsLive;
+  const loading = usingLive ? liveLoading : snapshot === undefined;
+  const notReady = usingLive
     ? !liveLoading && live === null && !liveError
     : snapshot === null;
-  const data = isCustom ? live?.data : snapshot?.data;
-  const computedAt = isCustom ? live?.computedAt : snapshot?.computedAt;
+  const data = usingLive ? live?.data : snapshot?.data;
+  const computedAt = usingLive ? live?.computedAt : snapshot?.computedAt;
   const summaryCards = useMemo<SummaryCard[]>(() => {
     if (!data) return [];
     const s = data.summary;
@@ -339,7 +361,11 @@ export function MetricsTab({
       ) : liveError ? (
         <EmptyState
           icon="alert-circle-outline"
-          title="Couldn't load custom range"
+          title={
+            range.kind === "custom"
+              ? "Couldn't load custom range"
+              : "Couldn't load insights"
+          }
           message={liveError}
         />
       ) : notReady ? (
@@ -535,7 +561,7 @@ export function MetricsTab({
               // clear empty card rather than silently dropping the chart.
               const campusWeeklyChart = !orgWide
                 ? null
-                : isCustom
+                : range.kind === "custom"
                   ? (
                       <ChartCard
                         key="campusWeekly"

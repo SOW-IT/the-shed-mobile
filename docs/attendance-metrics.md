@@ -21,12 +21,17 @@ fresh by two crons, both fanning out one bounded recompute per sub-group:
 - **Weekly full refresh** (`attendance metrics recompute`, **Thursdays 03:00 UTC
   ≈ Thu ~1pm Sydney**) — recomputes every sub-group as a baseline.
 - **Dirty recompute** (`attendance metrics dirty recompute`, **every 15
-  minutes**) — recomputes only the sub-groups flagged stale since the last run,
-  so a roll-call or event change shows up in Insights within minutes rather than
-  waiting for Thursday. Roll-call sign-in / sign-out / sign-in-time edits and
-  genuine event changes call `markSubgroupsDirty`; the recompute worker clears a
-  sub-group's flag only **after** it succeeds, so a failed recompute keeps its
-  retry signal (see `recomputeDirty` / `clearDirty`).
+  minutes**) — recomputes the sub-groups flagged stale since the last run, so a
+  roll-call or event change shows up in Insights within minutes rather than
+  waiting for Thursday. It also rebuilds any current-year campus (or SOW) whose
+  snapshot is missing or still stamped with last staff year, so the tab recovers
+  within 15 minutes of the October 1 rollover (and the rollover cron itself
+  kicks a full `recomputeAll`). Roll-call sign-in / sign-out / sign-in-time
+  edits and genuine event changes call `markSubgroupsDirty`; the recompute
+  worker clears a sub-group's flag only **after** it succeeds, so a failed
+  recompute keeps its retry signal (see `recomputeDirty` / `clearDirty`).
+  While a current-year snapshot is missing, the Attendance tab falls back to
+  the same on-demand `liveSnapshot` used for custom ranges.
 
 Each recompute runs as an **action** (`recomputeSubgroup`) so it can page the
 large attendance read across several bounded query transactions instead of

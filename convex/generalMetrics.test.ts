@@ -402,7 +402,10 @@ describe("campusWeeklyAttendance", () => {
       });
     });
     const res = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
-    expect(res.campuses).toEqual([{ campus: "USYD", averages: [12, 0] }]);
+    // Current year (2026) has no weekly meetings yet — omit it rather than
+    // plotting a trailing 0 that reads as a collapse.
+    expect(res.years).toEqual([2025]);
+    expect(res.campuses).toEqual([{ campus: "USYD", averages: [12] }]);
   });
 
   test("skips org-wide (SOW) weekly meetings — they belong to no campus", async () => {
@@ -412,6 +415,7 @@ describe("campusWeeklyAttendance", () => {
     // create a campus bucket of its own.
     await weeklyMeeting(t, { campus: "SOW", dateStart: IN_2025, count: 40 });
     const res = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
-    expect(res.campuses).toEqual([{ campus: "USYD", averages: [9, 0] }]);
+    expect(res.years).toEqual([2025]);
+    expect(res.campuses).toEqual([{ campus: "USYD", averages: [9] }]);
   });
 });
