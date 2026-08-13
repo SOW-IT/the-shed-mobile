@@ -278,5 +278,24 @@ describe("October rollover → General Insights", () => {
     // Staff row (LEADER is Student Leader both years).
     expect(before!.staff.at(-1)).toBe(2);
     expect(after!.staff.at(-1)).toBe(0);
+    // Ratios stay on the last complete year during the first-week grace —
+    // a 0-staff 2027 point must not render as 100% turnover.
+    expect(after!.retention.staff.at(-1)).toBeNull();
+    expect(after!.turnover.staff.at(-1)).toBeNull();
+    expect(after!.tenure2Plus.staff.at(-1)).toBeNull();
+    expect(after!.avgTenureYears.staff.at(-1)).toBeNull();
+  });
+
+  test("rate series start using the new year after the first-week grace", async () => {
+    const { leader } = await setupBeforeRollover();
+    at(ROLLOVER + 7 * DAY);
+    const after = await leader.query(api.generalMetrics.staffTrends, {});
+    expect(after!.years.at(-1)).toBe(2027);
+    // No 2027 Staff rows vs two 2026 Staff → 100% leave / 0% stay.
+    expect(after!.turnover.staff.at(-1)).toBe(100);
+    expect(after!.retention.staff.at(-1)).toBe(0);
+    // LEADER is Student Leader both years, so SL rates are a real reading.
+    expect(after!.retention.studentLeaders.at(-1)).toBe(100);
+    expect(after!.turnover.studentLeaders.at(-1)).toBe(0);
   });
 });

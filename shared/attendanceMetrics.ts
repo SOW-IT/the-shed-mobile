@@ -141,6 +141,8 @@ export type MetricsPerson = {
   /**
    * Staff-year → student-leader flag. Composition charts use the year of the
    * event so a 2026 leader is not dropped from September the morning of Oct 1.
+   * Only years the backend loaded (current and the two before) are present;
+   * a missing key falls back to {@link isStudentLeader} (the current year).
    */
   leaderByYear?: Record<string, boolean>;
   /**
@@ -151,7 +153,10 @@ export type MetricsPerson = {
    * left out of the this-campus-vs-others chart rather than guessed either way.
    */
   campuses?: string[];
-  /** Staff-year → home campuses (same event-year rule as {@link leaderByYear}). */
+  /**
+   * Staff-year → home campuses (same event-year rule and fallback as
+   * {@link leaderByYear}).
+   */
   campusesByYear?: Record<string, string[]>;
 };
 

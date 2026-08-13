@@ -2,7 +2,11 @@ import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { currentStaffYear } from "./model";
-import { eventStaffYear, staffYearStartMs } from "../shared/flow";
+import {
+  eventStaffYear,
+  staffYearStartMs,
+  withinRolloverAuthGrace,
+} from "../shared/flow";
 import {
   isOrgWideSubgroup,
   normalizeSubgroups,
@@ -249,13 +253,17 @@ export const staffTrends = query({
     // shows a sign-in prompt for the fuller per-year breakdown, but the trend
     // charts themselves need no account.
 
-    // Exclude the upcoming staff year: staff for next year are only partially
-    // pre-assigned, so its counts are incomplete and would read as a misleading
-    // dip on the trend. (The org chart surfaces next year explicitly; the trend
-    // stops at the *current* year.) The moment Oct 1 flips the current year,
-    // that year is included — last-5y then slides forward so leaders see the
-    // live roster, not last year's frozen picture.
+    // Upcoming year (pre-assignments) stays off the chart — org chart shows it.
+    // Current year is included the moment Oct 1 flips, so last-5y slides
+    // forward. Ratios (retention / tenure) still stop at last *complete* year
+    // during the first-week auth grace: a 30%-assigned roster would otherwise
+    // read as ~70% turnover. Weekly averages (below) omit a year until a
+    // meeting exists — zeros aren't an average, while a partial head-count is
+    // a real (if unfinished) roster.
     const currentYear = currentStaffYear();
+    const latestCompleteYear = withinRolloverAuthGrace(currentYear)
+      ? currentYear - 1
+      : currentYear;
     const profiles = (await ctx.db.query("staffProfiles").collect()).filter(
       (p) => p.year <= currentYear
     );
@@ -306,16 +314,20 @@ export const staffTrends = query({
       if (isStudentLeader) tally.studentLeaders += 1;
       totals.set(profile.year, tally);
 
-      const key = profilePersonKey(profile, emailToImportId);
-      const sets = peopleByYear.get(profile.year) ?? emptyPersonSets();
-      sets.all.add(key);
-      if (isStaff) sets.staff.add(key);
-      if (isStudentLeader) sets.studentLeaders.add(key);
-      peopleByYear.set(profile.year, sets);
+      // Rate / lifetime identity stops at last complete year during grace so
+      // a half-assigned Oct roster doesn't look like a mass resignation.
+      if (profile.year <= latestCompleteYear) {
+        const key = profilePersonKey(profile, emailToImportId);
+        const sets = peopleByYear.get(profile.year) ?? emptyPersonSets();
+        sets.all.add(key);
+        if (isStaff) sets.staff.add(key);
+        if (isStudentLeader) sets.studentLeaders.add(key);
+        peopleByYear.set(profile.year, sets);
 
-      addYear(yearsAll, key, profile.year);
-      if (isStaff) addYear(yearsStaff, key, profile.year);
-      if (isStudentLeader) addYear(yearsStudentLeaders, key, profile.year);
+        addYear(yearsAll, key, profile.year);
+        if (isStaff) addYear(yearsStaff, key, profile.year);
+        if (isStudentLeader) addYear(yearsStudentLeaders, key, profile.year);
+      }
 
       if (isStudentLeader) {
         const campuses = new Set(
@@ -354,17 +366,20 @@ export const staffTrends = query({
     const empty = emptyPersonSets();
 
     // Year-over-year leave/stay for each lens; first year has no prior roster.
+    // Incomplete current year during grace → null (not a fake 0% / 100%).
     const yoyRate = (
       rateFn: typeof turnoverRate,
       lens: keyof ReturnType<typeof emptyPersonSets>
     ) =>
       years.map((year, i) => {
-        if (i === 0) return null;
+        if (i === 0 || year > latestCompleteYear) return null;
         return rateFn(
           peopleByYear.get(years[i - 1])?.[lens] ?? empty[lens],
           peopleByYear.get(year)?.[lens] ?? empty[lens]
         );
       });
+    const rateForYear = (year: number, compute: () => number | null) =>
+      year > latestCompleteYear ? null : compute();
 
     const turnover = {
       overall: yoyRate(turnoverRate, "all"),
@@ -379,44 +394,56 @@ export const staffTrends = query({
 
     const tenure2Plus = {
       overall: years.map((year) =>
-        tenureAtLeastPct(
-          peopleByYear.get(year)?.all ?? empty.all,
-          yearsAll,
-          year
+        rateForYear(year, () =>
+          tenureAtLeastPct(
+            peopleByYear.get(year)?.all ?? empty.all,
+            yearsAll,
+            year
+          )
         )
       ),
       staff: years.map((year) =>
-        tenureAtLeastPct(
-          peopleByYear.get(year)?.staff ?? empty.staff,
-          yearsStaff,
-          year
+        rateForYear(year, () =>
+          tenureAtLeastPct(
+            peopleByYear.get(year)?.staff ?? empty.staff,
+            yearsStaff,
+            year
+          )
         )
       ),
       studentLeaders: years.map((year) =>
-        tenureAtLeastPct(
-          peopleByYear.get(year)?.studentLeaders ?? empty.studentLeaders,
-          yearsStudentLeaders,
-          year
+        rateForYear(year, () =>
+          tenureAtLeastPct(
+            peopleByYear.get(year)?.studentLeaders ?? empty.studentLeaders,
+            yearsStudentLeaders,
+            year
+          )
         )
       ),
     };
 
     const avgTenureYearsSeries = {
       overall: years.map((year) =>
-        avgTenureYears(peopleByYear.get(year)?.all ?? empty.all, yearsAll, year)
+        rateForYear(year, () =>
+          avgTenureYears(peopleByYear.get(year)?.all ?? empty.all, yearsAll, year)
+        )
       ),
       staff: years.map((year) =>
-        avgTenureYears(
-          peopleByYear.get(year)?.staff ?? empty.staff,
-          yearsStaff,
-          year
+        rateForYear(year, () =>
+          avgTenureYears(
+            peopleByYear.get(year)?.staff ?? empty.staff,
+            yearsStaff,
+            year
+          )
         )
       ),
       studentLeaders: years.map((year) =>
-        avgTenureYears(
-          peopleByYear.get(year)?.studentLeaders ?? empty.studentLeaders,
-          yearsStudentLeaders,
-          year
+        rateForYear(year, () =>
+          avgTenureYears(
+            peopleByYear.get(year)?.studentLeaders ?? empty.studentLeaders,
+            yearsStudentLeaders,
+            year
+          )
         )
       ),
     };
@@ -576,8 +603,10 @@ export const campusWeeklyAttendance = query({
         }),
       }));
 
-    // Don't plot the brand-new staff year as a floor of zeros the morning
-    // after rollover — omit it until at least one campus has held a meeting.
+    // Head-count charts include the new current year immediately (a partial
+    // roster is still a roster). Weekly averages don't: a year with no
+    // meetings yet is not "average 0", it's "no data" — drop it until
+    // someone actually meets.
     if (years.length > 0 && years[years.length - 1] === currentYear) {
       const last = years.length - 1;
       const empty = campuses.length === 0 || campuses.every((c) => c.averages[last] === 0);
