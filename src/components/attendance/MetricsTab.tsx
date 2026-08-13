@@ -660,7 +660,8 @@ export function MetricsTab({
           </ReadableColumn>
           )}
 
-          <View style={{ height: spacing.xxl }} />
+          {/* Clear the Bars / range pills so the last chart can scroll above them. */}
+          <View style={{ height: 96 }} />
         </>
       ) : null}
 

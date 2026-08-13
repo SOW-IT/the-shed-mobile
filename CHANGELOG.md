@@ -27,6 +27,12 @@ All notable changes to **The SHED** mobile app. This project follows
   year's complete roster as the newest point for the first week while
   assignments are still being finished.
 
+- **Insights charts are easier to read.** Every staff year is labelled (no
+  more skipped '23 / '25), legends sit under the title instead of squeezing
+  beside it, weekly-meeting bars are wider, the E2E test campus is off the
+  public charts, and the last chart can scroll clear of the Bars / range
+  pills.
+
 ## [1.10.10] — 2026-08-12
 
 ### Changed
