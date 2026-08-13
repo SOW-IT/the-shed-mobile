@@ -102,7 +102,9 @@ const metricsPersonValidator = v.object({
     v.record(v.string(), v.record(v.string(), v.string()))
   ),
   isStudentLeader: v.optional(v.boolean()),
+  leaderByYear: v.optional(v.record(v.string(), v.boolean())),
   campuses: v.optional(v.array(v.string())),
+  campusesByYear: v.optional(v.record(v.string(), v.array(v.string()))),
 });
 
 /**
@@ -431,6 +433,8 @@ async function resolvePersons(
         : [];
       const user = profile?.userId ? await ctx.db.get(profile.userId) : null;
       const breakdownByYear: Record<string, Record<string, string>> = {};
+      const leaderByYear: Record<string, boolean> = {};
+      const campusesByYear: Record<string, string[]> = {};
       for (const y of years) {
         const yearProfile = matchProfile(email, y);
         const yearRoles = yearProfile
@@ -450,6 +454,8 @@ async function resolvePersons(
         breakdownByYear[String(y)] = yearIsStaff
           ? buildBreakdown(yearRoles[0], yearCampuses[0])
           : buildBreakdown("Member", undefined);
+        leaderByYear[String(y)] = yearRoles.some(roleNeedsUniversity);
+        campusesByYear[String(y)] = yearCampuses;
       }
       persons.push({
         key,
@@ -462,9 +468,11 @@ async function resolvePersons(
           : buildBreakdown("Member", undefined),
         breakdownByYear,
         isStudentLeader: roles.some(roleNeedsUniversity),
+        leaderByYear,
         // Every campus the profile holds a campus role at is a home campus;
         // org-side staff have none and stay out of the campus-mix chart.
         campuses,
+        campusesByYear,
       });
     } else if (key.startsWith(MEMBER_PREFIX)) {
       const id = ctx.db.normalizeId("attendanceMembers", key.slice(MEMBER_PREFIX.length));

@@ -260,19 +260,23 @@ describe("October rollover → General Insights", () => {
     }
   });
 
-  test("staff trends keep last year's head-count during the rollover grace", async () => {
+  test("staff trends pick up the new current year the instant the clock flips", async () => {
     const { leader } = await setupBeforeRollover();
 
     const before = await leader.query(api.generalMetrics.staffTrends, {});
     expect(before!.years).not.toContain(2027);
-    const staff2026 = before!.staff.at(-1)!;
+    expect(before!.years.at(-1)).toBe(2026);
 
     at(ROLLOVER + 60_000);
     const after = await leader.query(api.generalMetrics.staffTrends, {});
-    // Same grace window as post-Oct-1 auth: hide the still-being-assigned
-    // year so the newest point is last year's complete roster, not a dip.
-    expect(after!.years.at(-1)).toBe(2026);
-    expect(after!.years).not.toContain(2027);
-    expect(after!.staff.at(-1)!).toBe(staff2026);
+    // Upcoming-year hide no longer applies: 2027 is current, so the last-5y
+    // window can slide forward. Partial 2027 assignments still show — the
+    // live roster, not last year's freeze.
+    expect(after!.years.at(-1)).toBe(2027);
+    expect(after!.years).toContain(2026);
+    // 2026: seed admin (Data and IT Staff) + LAPSED. 2027: neither has a
+    // Staff row (LEADER is Student Leader both years).
+    expect(before!.staff.at(-1)).toBe(2);
+    expect(after!.staff.at(-1)).toBe(0);
   });
 });
