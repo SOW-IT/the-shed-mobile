@@ -16,6 +16,7 @@ export const Field = ({
   onChangeText,
   placeholder,
   keyboardType,
+  autoCapitalize = "none",
   multiline,
   disabled,
 }: {
@@ -24,6 +25,7 @@ export const Field = ({
   onChangeText: (text: string) => void;
   placeholder?: string;
   keyboardType?: "default" | "numeric" | "decimal-pad" | "email-address";
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
   multiline?: boolean;
   /** Read-only with a lock affordance, matching locked Select fields. */
   disabled?: boolean;
@@ -54,7 +56,7 @@ export const Field = ({
           placeholder={placeholder}
           placeholderTextColor={t.faint}
           keyboardType={keyboardType}
-          autoCapitalize="none"
+          autoCapitalize={autoCapitalize}
           multiline={multiline}
           editable={!disabled}
           onFocus={() => setFocused(true)}

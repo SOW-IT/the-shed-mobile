@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.10.13] — 2026-08-18
+
+### Changed
+- **New attendance members now start each word with a capital.** Typing or
+  pasting "jane doe" in the create-member form becomes "Jane Doe" as you go
+  (and when the name is saved), so a new person isn't stored in all-lowercase
+  just because the keyboard didn't shift. Existing names are left alone when
+  you edit them.
+
 ## [1.10.12] — 2026-08-14
 
 ### Changed
