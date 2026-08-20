@@ -6,6 +6,64 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.10.13] — 2026-08-18
+
+### Changed
+- **New attendance members now start each word with a capital.** Typing or
+  pasting "jane doe" in the create-member form becomes "Jane Doe" as you go
+  (and when the name is saved), so a new person isn't stored in all-lowercase
+  just because the keyboard didn't shift. Existing names are left alone when
+  you edit them.
+- **CSV export lets you turn Year, Gender, Campus and Role off.** Those four
+  used to sit locked on with a padlock, same as Name and Email, so every
+  export included them even when you only wanted a short list. They now
+  behave like the other metadata columns — on by default, but you can
+  uncheck them. Sign in, name, email (and attendance % on the grid) stay
+  locked, because the file still needs to identify each person.
+
+## [1.10.12] — 2026-08-14
+
+### Changed
+- **General Insights now move with the staff year on 1 October.** The last-five-years
+  staff charts used to keep showing last year’s roster for the first week after
+  rollover. They now include the new current year as soon as the clock flips
+  (next year’s pre-assignments stay hidden). Weekly-meeting averages still omit
+  a year until that campus has actually met, so you don’t get a row of zeros.
+
+### Fixed
+- **September’s “student leaders vs everyone else” and campus-mix charts keep
+  last year’s identities after the flip.** A 2026 student leader who hasn’t been
+  assigned for the new year was being counted as “everyone else” (and dropped
+  from home-campus) the moment October started. Those charts now use the staff
+  year of the event, same as the Role breakdown.
+
+## [1.10.11] — 2026-08-14
+
+### Fixed
+- **Insights no longer go blank on 1 October.** When the staff year flips at
+  Sydney midnight, last year's snapshots used to read as "not ready" and stay
+  that way until Thursday's weekly rebuild — the 15-minute refresh had nothing
+  marked dirty. The rollover now kicks a full rebuild, the 15-minute cron
+  heals any campus still on last year's snapshot (including a brand-new
+  campus), and the Attendance tab computes on the fly while that catches up.
+  Past year works the same way if its snapshot hasn't been precomputed yet.
+
+- **September attendance keeps last year's roles after the flip.** A staffer
+  who hasn't been assigned for the new year used to be rewritten as a Member
+  in September's Role breakdown the moment the clock moved. People are now
+  classified against the staff year of the event they attended.
+
+- **General Insights don't drop off a cliff on 1 October.** An empty new year
+  is no longer plotted as a row of zeros, and staff-trend charts keep last
+  year's complete roster as the newest point for the first week while
+  assignments are still being finished.
+
+- **Insights charts are easier to read.** Every staff year is labelled (no
+  more skipped '23 / '25), legends sit under the title instead of squeezing
+  beside it, weekly-meeting bars are wider, the E2E test campus is off the
+  public charts, and the last chart can scroll clear of the Bars / range
+  pills.
+
 ## [1.10.10] — 2026-08-12
 
 ### Changed

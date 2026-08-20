@@ -16,6 +16,7 @@
  * reasons say "Follow-up suggested", never imply judgement.
  */
 
+import { eventStaffYear } from "./flow";
 import {
   eventIncludesSubgroup,
   isOrgWideSubgroup,
@@ -126,11 +127,22 @@ export type MetricsPerson = {
    */
   breakdown?: Record<string, string>;
   /**
+   * Staff-year → field labels. Breakdowns for a period event use the year of
+   * that event so September attendance is not re-labelled the moment the
+   * clock flips to October. Keys are year numbers as strings (Convex records).
+   */
+  breakdownByYear?: Record<string, Record<string, string>>;
+  /**
    * Holds a campus (university-scoped) role this staff year, or — for an
    * attendance-only member — is tagged one in their Role metadata. Resolved by
    * the backend; drives the leaders-vs-others composition chart.
    */
   isStudentLeader?: boolean;
+  /**
+   * Staff-year → student-leader flag. Composition charts use the year of the
+   * event so a 2026 leader is not dropped from September the morning of Oct 1.
+   */
+  leaderByYear?: Record<string, boolean>;
   /**
    * The person's home campuses (raw university names): every campus the staff
    * profile holds a campus role at (usually one, but a person can hold roles
@@ -139,6 +151,8 @@ export type MetricsPerson = {
    * left out of the this-campus-vs-others chart rather than guessed either way.
    */
   campuses?: string[];
+  /** Staff-year → home campuses (same event-year rule as {@link leaderByYear}). */
+  campusesByYear?: Record<string, string[]>;
 };
 
 export type MetricsEvent = {
@@ -331,6 +345,18 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
   const T = METRICS_THRESHOLDS;
 
   const personByKey = new Map(input.persons.map((p) => [p.key, p]));
+  const yearKey = (at: number) => String(eventStaffYear(at));
+  const isLeaderAt = (key: string, at: number): boolean => {
+    const person = personByKey.get(key);
+    if (!person) return false;
+    const yearly = person.leaderByYear?.[yearKey(at)];
+    return yearly ?? !!person.isStudentLeader;
+  };
+  const campusesAt = (key: string, at: number): string[] | undefined => {
+    const person = personByKey.get(key);
+    if (!person) return undefined;
+    return person.campusesByYear?.[yearKey(at)] ?? person.campuses;
+  };
 
   // Sub-group events we care about, oldest → newest. Collaborative events are
   // optionally excluded so a leader can look at just their own group's rhythm.
@@ -527,7 +553,7 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
     let primary = 0;
     let rest = 0;
     for (const key of attendeesByEvent.get(e.id) ?? []) {
-      if (personByKey.get(key)?.isStudentLeader) primary += 1;
+      if (isLeaderAt(key, e.dateStart)) primary += 1;
       else rest += 1;
     }
     return { at: e.dateStart, label: shortDate(e.dateStart), primary, rest };
@@ -550,7 +576,7 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
       let primary = 0;
       let rest = 0;
       for (const key of attendeesByEvent.get(e.id) ?? []) {
-        const campuses = personByKey.get(key)?.campuses;
+        const campuses = campusesAt(key, e.dateStart);
         if (!campuses || campuses.length === 0) continue;
         // A person holding a campus role HERE is from this campus, even if
         // they also hold one elsewhere (multi-campus staff count as home).
@@ -693,11 +719,31 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
   const cappedFollowUps = followUps.slice(0, T.followUpLimit);
 
   // ── Optional metadata breakdowns (unique period attendees by field value) ──
+  // Classify each person against the staff year of their most recent event in
+  // the selected range — not the clock year — so a trailing window that still
+  // sits in September keeps last year's Role/Campus after the Oct 1 flip.
+  const latestPeriodAt = new Map<string, number>();
+  for (const e of periodEvents) {
+    for (const key of attendeesByEvent.get(e.id) ?? []) {
+      const prev = latestPeriodAt.get(key);
+      if (prev === undefined || e.dateStart > prev) latestPeriodAt.set(key, e.dateStart);
+    }
+  }
+  const breakdownFor = (key: string): Record<string, string> | undefined => {
+    const person = personByKey.get(key);
+    if (!person) return undefined;
+    const at = latestPeriodAt.get(key);
+    if (at !== undefined && person.breakdownByYear) {
+      const yearly = person.breakdownByYear[String(eventStaffYear(at))];
+      if (yearly) return yearly;
+    }
+    return person.breakdown;
+  };
   const breakdownFields = new Map<string, Map<string, Set<string>>>();
   for (const key of periodAttendees) {
-    const person = personByKey.get(key);
-    if (!person?.breakdown) continue;
-    for (const [field, value] of Object.entries(person.breakdown)) {
+    const breakdown = breakdownFor(key);
+    if (!breakdown) continue;
+    for (const [field, value] of Object.entries(breakdown)) {
       if (!value) continue;
       let byValue = breakdownFields.get(field);
       if (!byValue) breakdownFields.set(field, (byValue = new Map()));

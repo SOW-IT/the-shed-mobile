@@ -44,6 +44,9 @@ const CAMPUS_ACRONYM: Record<string, string> = {
 };
 const campusAcronym = (name: string) => CAMPUS_ACRONYM[name] ?? name;
 
+/** Seeded/test campuses belong in Admin, not on a leader-facing chart. */
+const isNoiseCampus = (name: string) => /e2e\s*test/i.test(name);
+
 /** Averages carry one decimal; drop a trailing ".0" so whole numbers read clean. */
 const fmtAvg = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
@@ -147,10 +150,13 @@ export function GeneralMetricsTab({
       returning: trends.staff[idx(i)],
       fresh: trends.studentLeaders[idx(i)],
     }));
+    const campusSeries = trends.studentLeadersByCampus.filter(
+      (c) => !isNoiseCampus(c.campus)
+    );
     const leadersByCampus: MultiStackPoint[] = years.map((y, i) => ({
       at: y,
       label: yearLabel(y),
-      segments: trends.studentLeadersByCampus.map((c) => ({
+      segments: campusSeries.map((c) => ({
         key: campusAcronym(c.campus),
         value: c.counts[idx(i)],
         colour: subgroupColour(c.campus),
@@ -214,12 +220,18 @@ export function GeneralMetricsTab({
       campusAttendance.years.length > trendYearCount
         ? campusAttendance.years.length - trendYearCount
         : 0;
-    return campusAttendance.years.slice(start).map((y, i) => {
+    const yearSlice = campusAttendance.years.slice(start);
+    const liveCampuses = campusAttendance.campuses.filter((c) => {
+      if (isNoiseCampus(c.campus)) return false;
+      return yearSlice.some((_, i) => c.averages[start + i] > 0);
+    });
+    if (liveCampuses.length === 0) return null;
+    return yearSlice.map((y, i) => {
       const j = start + i;
       return {
         at: y,
         label: yearLabel(y),
-        segments: campusAttendance.campuses.map((c) => ({
+        segments: liveCampuses.map((c) => ({
           key: campusAcronym(c.campus),
           value: c.averages[j],
           colour: subgroupColour(c.campus),
@@ -278,7 +290,7 @@ export function GeneralMetricsTab({
       { label: "Student leaders", value: trends.studentLeaders[i], delta: yoyDelta(trends.studentLeaders[i], at(trends.studentLeaders)), tone: "positive" },
       // Skip campuses with nobody this year — an empty card reads as a gap.
       ...trends.studentLeadersByCampus
-        .filter((c) => c.counts[i] > 0)
+        .filter((c) => c.counts[i] > 0 && !isNoiseCampus(c.campus))
         .map((c) => ({
           label: campusAcronym(c.campus),
           value: c.counts[i],
@@ -540,7 +552,7 @@ export function GeneralMetricsTab({
           </>
         ) : null}
 
-        <View style={{ height: spacing.xxl }} />
+        <View style={{ height: 96 }} />
       </View>
     );
   }
@@ -652,7 +664,7 @@ export function GeneralMetricsTab({
           fullscreenContent={
             <StackedBarChart
               points={charts.staffBreakdown}
-              labels={{ fresh: "SLs", returning: "Staff" }}
+              labels={{ fresh: "Student leaders", returning: "Staff" }}
               tooltipLabel={(p) => String(p.at)}
               fullscreen
             />
@@ -660,7 +672,7 @@ export function GeneralMetricsTab({
         >
           <StackedBarChart
             points={charts.staffBreakdown}
-            labels={{ fresh: "Leaders", returning: "Staff" }}
+            labels={{ fresh: "Student leaders", returning: "Staff" }}
             tooltipLabel={(p) => String(p.at)}
           />
         </ChartCard>
@@ -671,13 +683,15 @@ export function GeneralMetricsTab({
           title="Student leaders by campus"
           subtitle="Per staff year"
           width={chartWidth}
-          legendItems={trends.campuses.map(
-            (campus): LegendItem => ({
-              key: campusAcronym(campus),
-              colour: subgroupColour(campus),
-              label: campusAcronym(campus),
-            }),
-          )}
+          legendItems={trends.campuses
+            .filter((campus) => !isNoiseCampus(campus))
+            .map(
+              (campus): LegendItem => ({
+                key: campusAcronym(campus),
+                colour: subgroupColour(campus),
+                label: campusAcronym(campus),
+              }),
+            )}
           fullscreenContent={
             <MultiStackedBarChart
               points={charts.leadersByCampus}
@@ -784,11 +798,11 @@ export function GeneralMetricsTab({
             title="Weekly meeting attendance"
             subtitle="Average per staff year (from 2025)"
             width={chartWidth}
-            legendItems={campusAttendance!.campuses.map(
-              (c): LegendItem => ({
-                key: campusAcronym(c.campus),
-                colour: subgroupColour(c.campus),
-                label: campusAcronym(c.campus),
+            legendItems={(campusWeekly[0]?.segments ?? []).map(
+              (seg): LegendItem => ({
+                key: seg.key,
+                colour: seg.colour,
+                label: seg.key,
               }),
             )}
             fullscreenContent={
@@ -813,7 +827,8 @@ export function GeneralMetricsTab({
       ) : null}
       </View>
 
-      <View style={{ height: spacing.xxl }} />
+      {/* Clear the Bars / Last 5y pills so the last chart can scroll above them. */}
+      <View style={{ height: 96 }} />
     </View>
   );
 }

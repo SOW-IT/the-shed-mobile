@@ -252,7 +252,9 @@ export const staffTrends = query({
     // Exclude the upcoming staff year: staff for next year are only partially
     // pre-assigned, so its counts are incomplete and would read as a misleading
     // dip on the trend. (The org chart surfaces next year explicitly; the trend
-    // deliberately stops at the current year.)
+    // stops at the *current* year.) The moment Oct 1 flips the current year,
+    // that year is included — last-5y then slides forward so leaders see the
+    // live roster, not last year's frozen picture.
     const currentYear = currentStaffYear();
     const profiles = (await ctx.db.query("staffProfiles").collect()).filter(
       (p) => p.year <= currentYear
@@ -573,6 +575,17 @@ export const campusWeeklyAttendance = query({
           return Math.round((b.total / b.meetings) * 10) / 10;
         }),
       }));
+
+    // Don't plot the brand-new staff year as a floor of zeros the morning
+    // after rollover — omit it until at least one campus has held a meeting.
+    if (years.length > 0 && years[years.length - 1] === currentYear) {
+      const last = years.length - 1;
+      const empty = campuses.length === 0 || campuses.every((c) => c.averages[last] === 0);
+      if (empty) {
+        years.pop();
+        for (const campus of campuses) campus.averages.pop();
+      }
+    }
 
     return { years, campuses };
   },

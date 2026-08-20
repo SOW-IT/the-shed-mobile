@@ -211,7 +211,9 @@ function LineSeriesChart({
   const { max: axisMax, ticks } = niceAxis(max, chartHeight);
   const LABEL_MIN_PX = 22;
   const labelStep =
-    colW >= LABEL_MIN_PX ? 1 : Math.ceil(LABEL_MIN_PX / Math.max(1, colW || 1));
+    count <= 8 || colW >= LABEL_MIN_PX
+      ? 1
+      : Math.ceil(LABEL_MIN_PX / Math.max(1, colW || 1));
   const multi = series.length > 1;
   return (
     <View
@@ -330,14 +332,18 @@ function LineSeriesChart({
  * there is leftover width — never stretched with `space-between`, which made
  * sparse series (e.g. a few weekly meetings) look oddly spread out.
  */
-function useBarFit(count: number, chartHeight = CHART_HEIGHT) {
+function useBarFit(
+  count: number,
+  chartHeight = CHART_HEIGHT,
+  maxBarWidth = BAR_MAX_W
+) {
   const [w, setW] = useState(0);
   const onLayout = (e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width);
-  let barWidth = BAR_MAX_W;
+  let barWidth = maxBarWidth;
   let gap = BAR_GAP;
   if (w > 0 && count > 0) {
     const gaps = Math.max(0, count - 1);
-    const neededAtMax = count * BAR_MAX_W + gaps * BAR_GAP;
+    const neededAtMax = count * maxBarWidth + gaps * BAR_GAP;
     if (neededAtMax > w) {
       // Shrink bars first; then compress the gap (down to 0) so a dense series
       // like Past year (52 points) still fits a narrow mobile card without
@@ -358,8 +364,10 @@ function useBarFit(count: number, chartHeight = CHART_HEIGHT) {
   const showValues = barWidth >= 18;
   const LABEL_MIN_PX = 22;
   const slotPitch = barWidth + gap;
+  // A short series (staff years, a couple of weeklies) should name every bar.
+  // Only skip labels once the range is dense enough that they'd collide.
   const labelStep =
-    barWidth >= LABEL_MIN_PX
+    count <= 8 || barWidth >= LABEL_MIN_PX
       ? 1
       : Math.ceil(LABEL_MIN_PX / Math.max(1, slotPitch));
   // Always centre the cluster — leftover space stays as equal side padding.
@@ -1019,10 +1027,10 @@ export function StackedBarChart({
   );
   const { max: stackedMax, ticks } = niceAxis(stackedDataMax, chartHeight);
   const scale = (n: number) => (n / stackedMax) * chartHeight;
-  // Label every 2nd bar (like the line chart), so a run of year labels reads
-  // cleanly instead of crowding — while still honouring the width-based skip
-  // when bars get thin.
-  const labelStep = Math.max(2, fit.labelStep);
+  // Honour the width-based skip (and the short-series "label every bar" rule
+  // in useBarFit) — forcing every 2nd label hid '23/'25 on the 5-year staff
+  // chart even when there was plenty of room.
+  const labelStep = fit.labelStep;
   const labelFor = (i: number) =>
     tooltipLabel ? tooltipLabel(points[i]) : points[i].label;
   if (mode === "line") {
@@ -1223,7 +1231,18 @@ export function MultiStackedBarChart({
   const mode = useChartMode();
   const { selectedKey } = useChartSelection();
   const chartHeight = fullscreen ? CHART_HEIGHT_FULL : CHART_HEIGHT;
-  const fit = useBarFit(points.length, chartHeight);
+  const maxSegs = Math.max(1, ...points.map((p) => p.segments.length));
+  // Grouped bars need a wider slot per year so 3–4 campus/rate series stay
+  // readable instead of becoming 6px slivers inside a 36px stack.
+  const groupedSlot = Math.max(
+    BAR_MAX_W,
+    maxSegs * 12 + Math.max(0, maxSegs - 1) * SEG_GAP
+  );
+  const fit = useBarFit(
+    points.length,
+    chartHeight,
+    stacked ? BAR_MAX_W : groupedSlot
+  );
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   if (points.length === 0) return <EmptyChart />;
@@ -1626,21 +1645,17 @@ const styles = StyleSheet.create({
     right: spacing.md,
   },
   chartHeader: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "flex-start",
-    gap: spacing.sm,
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: spacing.xs,
     // Reserve room for the absolutely-positioned expand icon so title text
     // never wraps underneath it.
     paddingRight: spacing.xl,
   },
-  // Grows/shrinks with the row but keeps a floor width, so the legend (fixed
-  // width) is what wraps onto its own line once the row runs out of room —
-  // not the title getting squeezed to nothing.
   chartTitleBlock: {
-    flexGrow: 1,
+    flexGrow: 0,
     flexShrink: 1,
-    minWidth: 120,
+    minWidth: 0,
   },
   chartHeaderRight: {
     flexDirection: "row",

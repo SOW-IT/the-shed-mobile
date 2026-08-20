@@ -628,6 +628,37 @@ const EMPTY_DATA = {
   hasWeeklyMeetings: false,
 };
 
+describe("recomputeDirty snapshot completeness", () => {
+  test("rebuilds a group that has some current-year rows but is missing a range variant", async () => {
+    const { t } = await setup();
+    await t.run(async (ctx) => {
+      for (const rangeWeeks of [1, 4, 52]) {
+        for (const includeCollaborative of [true, false]) {
+          // Leave Past year × exclude-collaborative missing.
+          if (rangeWeeks === 52 && includeCollaborative === false) continue;
+          await ctx.db.insert("attendanceMetricsSnapshots", {
+            subgroup: USYD,
+            rangeWeeks,
+            includeCollaborative,
+            staffYear: YEAR,
+            computedAt: Date.now(),
+            data: EMPTY_DATA,
+          });
+        }
+      }
+    });
+
+    await t.mutation(internal.attendanceMetrics.recomputeDirty, {});
+    const scheduled = await t.run(async (ctx) => {
+      const jobs = await ctx.db.system.query("_scheduled_functions").collect();
+      return jobs
+        .filter((j) => j.name === "attendanceMetrics:recomputeSubgroup")
+        .map((j) => (j.args[0] as { subgroup: string }).subgroup);
+    });
+    expect(scheduled).toContain(USYD);
+  });
+});
+
 describe("campusWeeklyAverages", () => {
   const snap = (avgWeekly: number | null) => ({
     ...EMPTY_DATA,
