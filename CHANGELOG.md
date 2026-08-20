@@ -6,6 +6,39 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.10.15] — 2026-08-21
+
+### Fixed
+- **A campus can no longer quietly unlock itself when the staff year turns
+  over.** The Campus options on a member came from the current staff year's
+  universities alone, so at midnight on October 1 a campus that hadn't been set
+  up in the new year stopped counting as part of the org structure — it became
+  an ordinary, deletable option even though every member from that campus was
+  still sitting on it. Campus options now come from the previous and current
+  staff years together, so the turnover leaves them alone. A campus that has
+  been absent for a full year does become removable, which is the point.
+
+### Changed
+- **The staff-year rollover summary now reports everything it copied, and goes
+  to info@sow.org.au.** The yearly email that confirms the rollover ran listed
+  divisions, departments, staff profiles, the budget manager and the director
+  threshold — but not the universities or roles, which it also copies. That
+  made it impossible to tell from the email whether the campus list had carried
+  over, and the campus list decides which Campus options members can be given.
+  Both are now in the summary.
+
+### Documentation
+- **The repo now says what its words mean.** A `CONTEXT-MAP.md` splits the app
+  into its three areas — the org structure, reimbursements, and attendance —
+  each with a glossary, plus decision records under `docs/adr/` covering that
+  split, the campus/university relationship, and the October 1 rollover.
+- **README and LAUNCH.md now match the app.** README described release
+  workflows and inputs that no longer exist and said sign-in was staff-only,
+  which stopped being true when visitor sign-in shipped. LAUNCH.md still listed
+  work as outstanding that has since been done and verified. Both have been
+  rewritten against the live setup, and the PR checklist now asks for the docs
+  to be kept true as part of shipping.
+
 ## [1.10.14] — 2026-08-20
 
 ### Changed
