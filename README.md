@@ -7,6 +7,11 @@ from [REQUESTS_FLOW.md](https://github.com/SOW-IT/theshed/blob/main/REQUESTS_FLO
 [Submit] → HOD → Budget Manager → (Director ≥ $5,000) → Finance Head → Receipt → Payment
 ```
 
+The repo's domain vocabulary and the decisions behind it live in
+[CONTEXT-MAP.md](CONTEXT-MAP.md) and [docs/adr/](docs/adr/). Read those before
+changing anything seasonal — the October 1 staff-year rollover in particular
+([ADR 0003](docs/adr/0003-october-1-staff-year-rollover.md)).
+
 ## What's implemented
 
 - **Approval chain** enforced server-side in Convex: each step can only be
@@ -37,9 +42,11 @@ from [REQUESTS_FLOW.md](https://github.com/SOW-IT/theshed/blob/main/REQUESTS_FLO
   (Events, Missions).
 - **Pre-provisioning by email**: assign a role/department to someone who has
   never signed in; it links up on their first Google sign-in.
-- **Google sign-in** via Convex Auth, restricted to the `sow.org.au`
-  workspace (`hd` hint + server-side domain check); name/email sync from the
-  Google profile on each sign-in.
+- **Google sign-in** via Convex Auth, through two providers: `google` for
+  `sow.org.au` staff accounts (`hd` hint + server-side domain check) and
+  `googlePersonal` for personal accounts, which sign in as **visitors** — an
+  account with no staff profile. Each provider refuses the other's emails.
+  Name/email sync from the Google profile on each sign-in.
 - **Email notifications** via Resend: submitter confirmation, "needs your
   approval" to the next approver at every step, declines (with reason),
   receipt-ready-to-pay to the Finance Head, paid confirmation, and a Budget
@@ -130,22 +137,35 @@ explicit admin action.
 
 ## CI/CD
 
-- **Lint, Typecheck & Test** (`.github/workflows/ci.yml`): every PR and push to
-  `main` runs lint, the typecheck, and the backend tests (with coverage
-  thresholds).
-- **EAS Build** (`.github/workflows/eas-build.yml`): **manual only** — never
-  runs on PRs or merges. Build and store submissions are triggered by hand from
-  *Actions → EAS Build → Run workflow* (from `main`). See
-  [Releasing to TestFlight and the App Store](#releasing-to-testflight-and-the-app-store).
-- **Deploy** (`.github/workflows/deploy.yml`): every merge to `main` (after
-  the same gate) deploys the **prod Convex backend** and republishes the
-  **hosted web app** against it — push-to-deploy, like the web repo. Needs
-  two repo secrets: `CONVEX_DEPLOY_KEY` (Convex dashboard → prod deployment →
-  Settings → Deploy key) and `VERCEL_TOKEN`
-  (<https://vercel.com/account/tokens>). Until they exist it passes with a
-  warning and skips. (Vercel's own git integration can't be used: Hobby plans
-  can't connect private org-owned repos.) Manual fallbacks remain
-  `npx convex deploy -y` and `npm run deploy:web`.
+Six workflows, in `.github/workflows/`:
+
+| Workflow | File | Trigger |
+| --- | --- | --- |
+| Lint, Typecheck & Test | `ci.yml` | every PR and push to `main` (tests run with coverage thresholds) |
+| Convex Deploy | `convex-deploy.yml` | merges to `main` → deploys the **prod** backend. `workflow_dispatch` deploys prod **only when run from `main`** — from any other ref it deploys a *preview* named after the branch (`--preview-name`), not prod |
+| Deploy web (dev) | `deploy-web-dev.yml` | merges to `main` → publishes the dev web app to `the-shed-web-dev` |
+| Backup Convex to GCS | `convex-backup.yml` | daily at 15:17 UTC (01:17 AEST / 02:17 AEDT) — database-only export, file storage excluded |
+| EAS Staging | `eas-staging.yml` | **manual only** — builds and submits the staging app |
+| EAS Production | `eas-production.yml` | **manual only** — builds and submits the production app |
+
+Both EAS workflows take a **platform** input (`both` / `ios` / `android`,
+default `both`) and are never triggered by a PR or a merge.
+
+The **prod web app** is published by Vercel's own git integration on merges to
+`main`, so it has no workflow of its own. The dev web app does need one,
+because the Convex URL is inlined at build time — a separate backend means a
+separate build, not a re-pointed domain.
+
+Repository secrets these need: `CONVEX_DEPLOY_KEY` (prod backend deploys and
+the GCS backup), `VERCEL_TOKEN` + `VERCEL_PROJECT_ID_DEV` (dev web), and
+`EXPO_TOKEN` (both EAS workflows). Only **Deploy web (dev)** degrades
+gracefully when its secrets are missing — it warns and skips. The other four
+have no such guard and will **fail** the run, which is the right behaviour for
+a deploy but worth knowing before you add a workflow to a fork. The backup also
+needs the repository *variables*
+`GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_BACKUP_SERVICE_ACCOUNT` and
+`GCS_BACKUP_BUCKET`. Manual fallbacks remain `npx convex deploy -y` and
+`npm run deploy:web`.
 
 One-time setup to activate it:
 
@@ -160,14 +180,16 @@ exists, the workflow passes with a warning and skips the build/submit step.
 
 ### Releasing to TestFlight and the App Store
 
-Builds and store submissions are **manual**, driven from GitHub Actions
-(*Actions → EAS Build → Run workflow*, run from `main`). Each run takes two
-inputs:
+Builds and store submissions are **manual**, driven from GitHub Actions and run
+from `main`. Staging and production are **separate workflows**, not one workflow
+with a profile input:
 
-- **profile** — `staging` or `production`
-- **auto_submit** — on (default) = build, then auto-submit the finished build to
-  the stores; off = build only. (EAS runs the submit server-side once the build
-  completes, so one run does both.)
+- *Actions → EAS Staging → Run workflow*
+- *Actions → EAS Production → Run workflow*
+
+Each takes a single **platform** input — `both` (default), `ios` or `android` —
+and builds then submits in one run (EAS performs the submit server-side once the
+build finishes).
 
 There are two app variants (defined in `app.config.js` + `eas.json`) that
 install side-by-side, so testers can keep production while testing staging:
@@ -179,11 +201,11 @@ install side-by-side, so testers can keep production while testing staging:
 
 **Ship staging first, then production:**
 
-1. **Staging** — Run workflow: profile `staging`, auto_submit *on*. It builds
-   and, when done, submits to the *The SHED Staging* app's TestFlight.
+1. **Staging** — run **EAS Staging**. It builds and, when done, submits to the
+   *The SHED Staging* app's TestFlight.
 2. **Test** on TestFlight against the dev backend.
-3. **Production** — Run workflow: profile `production`, auto_submit *on*. It
-   builds and submits to *The SHED*'s TestFlight. To put it on the public App
+3. **Production** — run **EAS Production**. It builds and submits to
+   *The SHED*'s TestFlight. To put it on the public App
    Store, open App Store Connect, attach the build to an App Store version,
    complete the metadata, and **Submit for Review** (TestFlight is just where
    uploaded builds live — promotion to the App Store is a separate manual step

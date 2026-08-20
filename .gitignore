@@ -70,3 +70,6 @@ convex/devE2E.test.ts
 
 # Local Claude Code worktrees — never commit these embedded checkouts
 .claude/worktrees/
+
+# Local Netlify folder
+.netlify

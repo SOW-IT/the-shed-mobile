@@ -1,200 +1,87 @@
-# LAUNCH.md — everything left to configure
+# LAUNCH.md — what is still unconfigured
 
-Step-by-step, in dependency order. Code-side work is done; every item here
-needs an account, a credential, or a dashboard only you can access.
-Deployment names used below: Convex dev `industrious-robin-425`, Convex prod
-`outgoing-stoat-395`, web app `https://theshed.sow.org.au` (Vercel project
-`the-shed-web`, custom domain on the `sow.org.au` zone).
+THE SHED is live. The web app serves from <https://theshed.sow.org.au>, the
+prod Convex backend (`outgoing-stoat-395`) auto-deploys on every merge, and
+both stores have received production builds. This file tracks the launch
+configuration only: what is still outstanding, and — under "Already done" — the
+items checked against the live deployments. It is not a statement about the
+app's runtime behaviour; seasonal work such as the October 1 rollover is
+covered by [ADR 0003](docs/adr/0003-october-1-staff-year-rollover.md), which
+records its own unverified gaps.
 
----
-
-## 0. Accounts (start these first — longest lead times)
-
-- [ ] **Apple Developer Program** — enroll as an *organisation* (needs SOW's
-      D-U-N-S number; US$99/yr; verification can take 1–2 weeks):
-      <https://developer.apple.com/programs/enroll/>
-- [ ] **Google Play Console** — register an *organisation* account (US$25
-      one-off; org accounts skip the 12-tester/14-day closed-testing rule):
-      <https://play.google.com/console/signup>
-- [ ] **Expo account** (free): <https://expo.dev/signup>
+Deployments: Convex dev `industrious-robin-425`, Convex prod
+`outgoing-stoat-395`, web `https://theshed.sow.org.au` (Vercel `the-shed-web`),
+dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 ---
 
-## 1. Google OAuth (sign-in) — do this first, everything is dark without it
+## Still outstanding
 
-1. Open the [Google Cloud console](https://console.cloud.google.com/) with a
-   sow.org.au admin account. Reuse the existing SOW project
-   (`sowwebsite-50dec`) or create one.
-2. **APIs & Services → OAuth consent screen**: set **Audience: Internal**
-   (sow.org.au users only — this also skips Google's app verification).
-   App name "THE SHED", your support email.
-3. **APIs & Services → Credentials → Create credentials → OAuth client ID**:
-   - Application type: **Web application** (yes, also for the mobile apps —
-     Convex Auth handles the OAuth exchange server-side).
-   - Authorized redirect URIs — one per provider **per deployment** (the
-     `googlePersonal` provider added in 1.7.4 has its own callback path, so all
-     four are required):
-     - `https://outgoing-stoat-395.convex.site/api/auth/callback/google`
-     - `https://outgoing-stoat-395.convex.site/api/auth/callback/googlePersonal`
-     - `https://industrious-robin-425.convex.site/api/auth/callback/google`
-     - `https://industrious-robin-425.convex.site/api/auth/callback/googlePersonal`
-   - Because non-staff Google accounts can now sign in (1.7.4), the consent
-     screen **Audience must be External** (Internal blocks non-org accounts).
-     Add `sow.org.au` under **Authorized domains** and set the **App name** to
-     "The SHED" so the consent screen reads "Sign in to The SHED".
-4. Set the client id/secret on both Convex deployments:
-   ```bash
-   npx convex env set AUTH_GOOGLE_ID <client-id>
-   npx convex env set AUTH_GOOGLE_SECRET <client-secret>
-   npx convex env set --prod AUTH_GOOGLE_ID <client-id>
-   npx convex env set --prod AUTH_GOOGLE_SECRET <client-secret>
-   ```
-5. **Test**: open <https://theshed.sow.org.au> → Sign in with Google
-   with a sow.org.au account.
-6. Make yourself the real admin (replaces the placeholder):
-   ```bash
-   npx convex run --prod admin:seed '{"adminEmail":"you@sow.org.au"}'
-   npx convex run admin:seed '{"adminEmail":"you@sow.org.au"}'   # dev too
-   ```
-7. In the app's **Admin tab**: set department heads, the Budget Manager, the
-   Director, and assign staff. (The flow rejects submissions until a Budget
-   Manager and relevant heads exist — by design.)
+- [ ] **Privacy policy URL** — required by both stores. Adapt SOW's existing
+      policy to cover: Google sign-in (name/email), profile photos, receipt
+      files including bank account details, and push tokens.
+- [ ] **Confirm FCM IAM** — that `expo-dev@theshedsow.iam.gserviceaccount.com`
+      holds **Firebase Cloud Messaging API Admin** on project `theshedsow`
+      (Google Cloud → IAM). Push delivery depends on it.
+- [ ] **Confirm `info@sow.org.au` is monitored** — the annual staff-year
+      rollover summary is sent there and is the only receipt that the rollover
+      ran. If IT should keep receiving it, make the address a list rather than
+      a swap.
+- [ ] **Original logo vector** — the store icon is upscaled from a 512px PNG. A
+      vector or 1024px source would sharpen it; regeneration is scripted.
+- [ ] **Staging Firebase app** — no Firebase Android app exists for
+      `au.org.sow.theshed.staging`, so staging builds omit `googleServicesFile`
+      and staging push does not work. Production and preview are unaffected.
+- [ ] **Public store listings** (only if you want them) — iOS is currently
+      distributed through TestFlight. Going public needs screenshots,
+      description, App Privacy labels and a demo account in the review notes;
+      **Unlisted App Distribution** is the lighter option for a staff app.
+      Android likewise needs the store listing, content rating and Data safety
+      form to leave the internal track.
 
 ---
 
-## 2. GitHub repo secrets (unlock the automation that's already wired)
+## Already done — verified
 
-Repo → Settings → Secrets and variables → Actions:
+Recorded so nobody re-does them. Each was confirmed against the live
+deployments, not assumed.
 
-- [ ] `EXPO_TOKEN` — <https://expo.dev/settings/access-tokens> → enables the
-      EAS Build workflow (iOS+Android builds on every merge).
-- [ ] `CONVEX_DEPLOY_KEY` — [Convex dashboard](https://dashboard.convex.dev/t/kimchankwon/the-shed-mobile)
-      → **production** deployment → Settings → Generate deploy key → enables
-      auto-deploy of the prod **backend** on every merge (`convex-deploy.yml`).
-- [ ] `VERCEL_TOKEN` + `VERCEL_PROJECT_ID_DEV` — <https://vercel.com/account/tokens>
-      → power the **dev** web auto-deploy on every merge (`deploy-web-dev.yml`,
-      publishing to `the-shed-web-dev`). The **prod** web is published by
-      Vercel's own git integration on merges to `main`, so it needs no workflow.
+**Accounts and signing** — Apple Developer (Team ID `4FH642K7X2`), Google Play
+and Expo accounts all exist; EAS holds the iOS credentials and the Android
+keystore. *Evidence: EAS Production last succeeded 2026-08-12, EAS Staging
+2026-07-30, both building `ios` and `android`.*
 
-Until set, those workflows pass with a warning and skip.
+**GitHub secrets** — `CONVEX_DEPLOY_KEY`, `CONVEX_PREVIEW_DEPLOY_KEY`,
+`EXPO_TOKEN`, `VERCEL_TOKEN`, `VERCEL_PROJECT_ID_DEV` are all set, and the
+backup's three repository *variables* (`GCP_WORKLOAD_IDENTITY_PROVIDER`,
+`GCP_BACKUP_SERVICE_ACCOUNT`, `GCS_BACKUP_BUCKET`) point at
+`theshedsow-convex-backups`. *Evidence: Convex Deploy, Deploy web (dev) and
+Backup Convex to GCS all succeeded on their latest runs; the backup has run
+daily and cleanly.*
 
----
+**Google OAuth** — `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` and
+`AUTH_ALLOWED_DOMAIN` are set on **both** deployments, covering the `google`
+and `googlePersonal` providers.
 
-## 3. EAS project + signing (after the Expo + Apple accounts exist)
+**Workspace directory sync** — `GOOGLE_SA_CLIENT_EMAIL`,
+`GOOGLE_SA_PRIVATE_KEY` and `GOOGLE_ADMIN_IMPERSONATE` are set on **both**
+deployments, so the weekly sync is live rather than no-opping.
 
-```bash
-npx eas init          # links the repo to your Expo account (commit the change)
-npx eas credentials   # iOS: distribution cert + provisioning profile + APNs
-                      #      push key (let EAS create & manage all of them)
-                      # Android: generate the keystore (EAS-managed)
-```
+**Auth keys and email** — `JWT_PRIVATE_KEY`, `JWKS`, `SITE_URL`,
+`RESEND_API_KEY`, `RESEND_FROM_EMAIL` set on both; prod also has `APP_URL`.
 
----
+**The dev-only sign-in bypass is not on prod.** `E2E_AUTH_ENABLED` and
+`E2E_AUTH_SECRET` exist on dev only. Keep it that way — it grants a session
+from a URL.
 
-## 4. iOS — TestFlight first, store later
+**Custom domain** — `theshed.sow.org.au` resolves and serves, with `SITE_URL`
+pointed at it.
 
-1. Accept the agreements in [App Store Connect](https://appstoreconnect.apple.com)
-   (Business → Agreements) once enrollment clears.
-2. Build: `npx eas build --platform ios --profile production`
-   (or merge to main once `EXPO_TOKEN` is set — the workflow queues it).
-3. Create an **App Store Connect API key** (Users and Access → Integrations →
-   API keys, role *App Manager*) — `eas submit` asks for it once and stores it.
-4. Submit: `npx eas submit --platform ios --latest` — creates the app record
-   (bundle id `au.org.sow.theshed`) and uploads to **TestFlight**.
-   (The encryption-compliance question is pre-answered in app.json.)
-5. App Store Connect → TestFlight → **Internal Testing**: add testers (up to
-   100 by Apple ID email, instant, no review). Testers install the TestFlight
-   app and accept the invite. Builds expire after 90 days — fine, you'll ship
-   newer ones.
-6. **Going beyond TestFlight** — pick one:
-   - **Unlisted App Distribution** (recommended for an internal staff app):
-     apply once at <https://developer.apple.com/contact/request/unlisted-app/>;
-     the app gets a private App Store link, no public listing.
-   - Public App Store listing: needs screenshots, description, a **privacy
-     policy URL**, App Privacy labels (collects: name, email, photos, bank
-     details), and a sow.org.au demo account in the review notes.
+**Universal links** — real `apple-app-site-association` (Team ID above) and
+`assetlinks.json` are committed and served, with `web/vercel.json` giving the
+AASA file an `application/json` content type.
 
----
-
-## 5. Android — internal testing track
-
-1. Push notifications (FCM) — Firebase project **`theshedsow`** (production /
-   preview only; staging package is separate and does **not** use this file):
-   - [x] EAS already has the Google service account
-     `expo-dev@theshedsow.iam.gserviceaccount.com` assigned as **FCM V1** for
-     `au.org.sow.theshed` (and staging app id).
-   - [x] Android app `au.org.sow.theshed` registered; `GOOGLE_SERVICES_JSON`
-     uploaded as an EAS file env for production/preview.
-   - [ ] Confirm IAM: that service account has **Firebase Cloud Messaging API
-     Admin** on project `theshedsow` (Google Cloud → IAM).
-   - Production/preview `app.config.js` picks up `GOOGLE_SERVICES_JSON` (or a
-     local `./google-services.json`). Staging builds omit `googleServicesFile`
-     until a Firebase Android app for `au.org.sow.theshed.staging` exists.
-2. Build: `npx eas build --platform android --profile production` (produces
-   an `.aab`).
-3. [Play Console](https://play.google.com/console) → **Create app** ("THE
-   SHED", App, Free).
-4. **First upload is manual** (Google requires it): Testing → Internal
-   testing → Create release → upload the `.aab` (download from the EAS
-   dashboard) → roll out. Add a tester email list and share the opt-in link.
-5. Automate later submissions: Play Console → Setup → API access → create a
-   service account with *Release manager* permission → JSON key →
-   `npx eas submit --platform android --latest`.
-6. Production later: Store listing, content rating questionnaire, **Data
-   safety form** (same data categories as iOS), then promote the internal
-   release. For staff-only distribution, just keep using the internal track
-   (100 testers) or a closed track with a Google Group.
-
----
-
-## 6. After credentials exist — small finishers
-
-- [x] **Universal links**: real `web/.well-known/apple-app-site-association`
-      (Team ID `4FH642K7X2`) and `assetlinks.json` (Android SHA-256 from the
-      `credentials/android` keystore) are committed, and `web/vercel.json` serves
-      the AASA file as `application/json`. They go live on the next
-      `npm run deploy:web`; universal links then work once a native build ships
-      the updated `app.json` `associatedDomains`.
-      ⚠️ **If Google Play App Signing is enabled**, Play re-signs the app with
-      its own key — add the Play Console's **app-signing SHA-256** to the
-      `sha256_cert_fingerprints` array in `assetlinks.json` too (the array takes
-      multiple), otherwise Android App Links won't verify for Play installs.
-- [ ] **Workspace directory sync**: service account + domain-wide delegation
-      (exact steps in README → "Workspace directory sync"); set the three
-      `GOOGLE_SA_*` env vars with `--prod` (and on dev if wanted).
-- [ ] **Privacy policy URL** — required by both stores; adapt SOW's existing
-      policy to mention: Google sign-in (name/email), profile photos, receipt
-      files incl. bank account details, push tokens.
-- [ ] **Original logo vector** — current store icon is upscaled from a 512px
-      PNG; a vector/1024px source would sharpen it (regeneration is scripted).
-- [ ] **Custom domain `theshed.sow.org.au`** (migrating off `the-shed-web.vercel.app`
-      in 1.7.4). The code side is done (canonical URL, `app.json` deep-link
-      hosts, docs); the remaining steps are infra:
-      1. **Vercel**: `the-shed-web` project → Settings → Domains → add
-         `theshed.sow.org.au`. Vercel shows the DNS target + provisions SSL.
-      2. **DNS** (`sow.org.au` zone): add the record Vercel asks for — a
-         `CNAME theshed → cname.vercel-dns.com` (or the `A`/`ALIAS` it lists).
-      3. **Convex prod env**: `npx convex env set --prod SITE_URL https://theshed.sow.org.au`
-         (and `APP_URL` if it's set). Web OAuth redirects and email links then
-         use the new host. The old `.vercel.app` URL keeps working, so this is
-         non-breaking.
-      4. **`.well-known` files** are served by the web app, so they cover the
-         new domain automatically once DNS resolves — no change needed.
-      5. **Native deep links**: the new host is already in `app.json`
-         (`associatedDomains`/`intentFilters`, alongside the old one for links
-         already shared); universal links on it take effect in the next native
-         build. The Google OAuth **redirect URIs live on `*.convex.site`, not
-         the web domain**, so they do NOT change — but add `sow.org.au` to the
-         consent screen's Authorized domains (§1).
-
----
-
-## Suggested order of attack
-
-1. Today: **Apple enrollment** (slowest) + Play Console + Expo account.
-2. Same sitting: **Google OAuth** (§1) → sign in on the web app → seed your
-   admin → set up the org in the Admin tab. The app is now genuinely usable
-   on the web while the stores grind.
-3. Add the **three GitHub secrets** (§2) → CI/CD is fully live.
-4. When Apple clears: §3 → §4 (TestFlight same day).
-5. §5 Android in parallel, §6 finishers as credentials appear.
+> ⚠️ If **Google Play App Signing** is enabled, Play re-signs with its own key.
+> Add the Play Console's app-signing SHA-256 to the `sha256_cert_fingerprints`
+> array in `assetlinks.json` (it takes several) or Android App Links will not
+> verify for Play installs.

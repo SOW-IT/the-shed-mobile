@@ -12,7 +12,13 @@ import {
   STUDENT_YEAR_VALUES,
 } from "../shared/attendanceMemberMeta";
 import { canonicalSubgroup, subgroupMatches } from "../shared/rollcall";
-import { internalMutation, mutation, query } from "./_generated/server";
+import {
+  internalMutation,
+  mutation,
+  type MutationCtx,
+  query,
+  type QueryCtx,
+} from "./_generated/server";
 import {
   currentStaffYear,
   isAttendanceManagerProfile,
@@ -55,26 +61,55 @@ const mergeSelectValues = (
 };
 
 /**
- * List the (global) metadata field definitions, ordered. Campus/Role select
- * options are kept in sync with the CURRENT staff year's universities/roles.
+ * The campus labels that stay locked in the `Campus` field: the union of the
+ * previous and current staff years' universities.
+ *
+ * Locking only the current year would unlock a campus the moment the staff year
+ * flips on Oct 1 — a member is very unlikely to leave their university that
+ * morning, so the option would stop being org-derived while every member still
+ * sat on it. Two years is the whole window: a campus absent for a full year is
+ * genuinely gone and should become droppable. `Role` deliberately does NOT
+ * union this way (see docs/adr/0003) — retired per-year role names should be
+ * droppable, and its locked set already has a static floor in `ROLES`.
+ */
+const lockedUniversityNames = async (
+  ctx: QueryCtx | MutationCtx,
+  // One snapshot, taken by the caller. `currentStaffYear()` reads the clock, so
+  // two separate calls straddling Sydney midnight on Oct 1 would yield
+  // [year - 2, year] and silently drop the year in between — in the very code
+  // whose job is to be correct across that instant.
+  orgYear: number
+): Promise<string[]> => {
+  const rows = await Promise.all(
+    [orgYear - 1, orgYear].map((year) =>
+      ctx.db
+        .query("universities")
+        .withIndex("by_year_and_name", (q) => q.eq("year", year))
+        .collect()
+    )
+  );
+  return [...new Set(rows.flat().map((u) => u.name))];
+};
+
+/**
+ * List the (global) metadata field definitions, ordered. Role select options
+ * are kept in sync with the CURRENT staff year's roles; Campus options use the
+ * previous + current years' universities so the Oct 1 flip cannot unlock a
+ * campus (see `lockedUniversityNames` and docs/adr/0003).
  */
 export const list = query({
   args: { subgroup: v.optional(v.string()) },
   handler: async (ctx, { subgroup }) => {
     if (!(await optionalProfile(ctx))) return [];
     const orgYear = currentStaffYear();
-    const [rows, universities, roleRows] = await Promise.all([
+    const [rows, universityNames, roleRows] = await Promise.all([
       ctx.db.query("attendanceMetadata").collect(),
-      ctx.db
-        .query("universities")
-        .withIndex("by_year_and_name", (q) => q.eq("year", orgYear))
-        .collect(),
+      lockedUniversityNames(ctx, orgYear),
       ctx.db
         .query("roles")
         .withIndex("by_year_and_name", (q) => q.eq("year", orgYear))
         .collect(),
     ]);
-    const universityNames = universities.map((u) => u.name);
     const orgRoles = [...new Set([...ROLES, ...roleRows.map((r) => r.name)])];
 
     return rows
@@ -107,8 +142,10 @@ export const list = query({
           ...field,
           values,
           subgroup: undefined,
-          // Synced to the year's `universities` table — not the stored snapshot —
-          // so a campus removed there is no longer locked here.
+          // Synced to the previous + current staff years' `universities` —
+          // not the stored snapshot — so the Oct 1 flip does not unlock a
+          // campus out from under the members sitting on it. A campus absent
+          // for a whole year falls out of the union and unlocks then.
           lockedValues: universityNames,
         };
       }
@@ -244,11 +281,7 @@ export const saveAll = mutation({
         summary: `Deleted member field "${row.key}"`,
       });
     }
-    const universities = await ctx.db
-      .query("universities")
-      .withIndex("by_year_and_name", (q) => q.eq("year", orgYear))
-      .collect();
-    const universityNames = universities.map((u) => u.name);
+    const universityNames = await lockedUniversityNames(ctx, orgYear);
     const roleRows = await ctx.db
       .query("roles")
       .withIndex("by_year_and_name", (q) => q.eq("year", orgYear))

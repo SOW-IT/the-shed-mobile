@@ -61,6 +61,30 @@ Format follows the existing file exactly:
   from the user's point of view, not the implementation diff.
 - Leave an empty `## [Unreleased]` section at the top.
 
+## 2b. Keep the docs true (required)
+
+The docs drift because nothing checks them. These four claims go stale every
+time we ship, so re-read them against **this** change before moving on:
+
+- **`README.md` → "What's implemented"** — did this PR add, remove or change a
+  user-visible capability? A feature that ships without a line here is
+  invisible to the next reader.
+- **`README.md` → CI/CD table** — did this PR add, rename or delete anything in
+  `.github/workflows/`? The table names files; a rename makes it a lie. Check
+  with `ls .github/workflows/`.
+- **`LAUNCH.md`** — did this PR finish something listed under "Still
+  outstanding", or newly require a credential, env var or dashboard step? Move
+  completed items into "Already done" *with the evidence that proves it*, not
+  just a tick.
+- **`CONTEXT-MAP.md` and `docs/context/*.md`** — did this PR introduce a domain
+  term, or use an existing one in a new way? New vocabulary belongs in the
+  glossary for its context while it is still fresh. If the change is a decision
+  that is hard to reverse, surprising without context, and the result of a real
+  trade-off, add an ADR under `docs/adr/` (next number, see existing files).
+
+None of this is optional-if-busy: a PR that changes behaviour and no docs is
+the normal way the drift happens.
+
 ## 3. Run the CI checks locally
 
 GitHub Actions (`.github/workflows/ci.yml`) runs lint, typecheck, and the
