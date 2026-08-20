@@ -5,12 +5,6 @@ import { Platform, Pressable, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import {
-  CAMPUS_FIELD_KEY,
-  GENDER_FIELD_KEY,
-  ROLE_FIELD_KEY,
-  STUDENT_YEAR_FIELD_KEY,
-} from "../../../shared/attendanceMemberMeta";
-import {
   parseDateInputValue,
   toDateInputValue,
 } from "../../../shared/datetime";
@@ -37,14 +31,6 @@ import {
   Txt,
 } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
-
-/** Metadata fields that must always be in the export (req: lock specific ones). */
-const LOCKED_FIELD_KEYS = new Set<string>([
-  STUDENT_YEAR_FIELD_KEY,
-  GENDER_FIELD_KEY,
-  CAMPUS_FIELD_KEY,
-  ROLE_FIELD_KEY,
-]);
 
 /** List export: sign-in time + identity columns (always on). */
 const LIST_ALWAYS_COLUMNS = ["Sign In", "Name", "Email"] as const;
@@ -200,7 +186,9 @@ export function ExportSheet({
     setError(null);
   }, [visible]);
 
-  // Default to every visible field selected (locked ones always on).
+  // Default to every visible field selected. Identity columns (Sign In / Name /
+  // Email, plus Attendance % on the grid) stay locked on; metadata and Notes
+  // are all toggleable, including Year / Gender / Campus / Role.
   // Notes only apply to the list layout; matrix never includes them.
   useEffect(() => {
     if (!fields || selectedKeys !== null) return;
@@ -231,7 +219,6 @@ export function ExportSheet({
   };
 
   const toggleKey = (key: string) => {
-    if (LOCKED_FIELD_KEYS.has(key)) return;
     setSelectedKeys((prev) => {
       const base = prev ?? orderedFieldKeys;
       return base.includes(key)
@@ -241,7 +228,7 @@ export function ExportSheet({
   };
 
   const isSelected = (key: string) =>
-    LOCKED_FIELD_KEYS.has(key) || (selectedKeys ?? []).includes(key);
+    (selectedKeys ?? orderedFieldKeys).includes(key);
 
   const download = async () => {
     setError(null);
@@ -427,18 +414,14 @@ export function ExportSheet({
             <ToggleRow key={label} label={label} checked locked />
           )
         )}
-        {exportableFields.map((field) => {
-          const locked = LOCKED_FIELD_KEYS.has(field.key);
-          return (
-            <ToggleRow
-              key={field._id}
-              label={field.key}
-              checked={isSelected(field.key)}
-              locked={locked}
-              onPress={() => toggleKey(field.key)}
-            />
-          );
-        })}
+        {exportableFields.map((field) => (
+          <ToggleRow
+            key={field._id}
+            label={field.key}
+            checked={isSelected(field.key)}
+            onPress={() => toggleKey(field.key)}
+          />
+        ))}
         {!isMatrix ? (
           <ToggleRow
             key={NOTES_FIELD_KEY}
