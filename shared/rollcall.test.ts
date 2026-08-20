@@ -6,6 +6,7 @@ import {
   contrastingText,
   defaultAttendanceSubgroup,
   defaultEventWindow,
+  capitalizeMemberName,
   displayNameFromEmail,
   eventHasEnded,
   eventIncludesSubgroup,
@@ -23,6 +24,25 @@ import {
   subgroupMatches,
   weeklyMeetingSlot,
 } from "./rollcall";
+
+describe("capitalizeMemberName", () => {
+  test("capitalizes the first letter and the letter after each space", () => {
+    expect(capitalizeMemberName("jane doe")).toBe("Jane Doe");
+    expect(capitalizeMemberName("jane")).toBe("Jane");
+    expect(capitalizeMemberName(" jane  smith")).toBe(" Jane  Smith");
+  });
+
+  test("leaves already-capital letters and the rest of each word as typed", () => {
+    expect(capitalizeMemberName("Jane Doe")).toBe("Jane Doe");
+    expect(capitalizeMemberName("JANE DOE")).toBe("JANE DOE");
+    expect(capitalizeMemberName("McDonald")).toBe("McDonald");
+    expect(capitalizeMemberName("mary-jane smith")).toBe("Mary-jane Smith");
+  });
+
+  test("returns an empty string unchanged", () => {
+    expect(capitalizeMemberName("")).toBe("");
+  });
+});
 
 describe("displayNameFromEmail", () => {
   test("title-cases a first.last local part", () => {

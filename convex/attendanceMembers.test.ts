@@ -224,3 +224,14 @@ describe("attendanceMembers.list — filters and sort", () => {
     expect(apple).toBeLessThan(zebra);
   });
 });
+
+describe("attendanceMembers.create — name capitalization", () => {
+  test("capitalizes the first letter of each word on create", async () => {
+    const { leader } = await setup();
+    const memberId = await leader.mutation(api.attendanceMembers.create, {
+      name: "  jane doe ",
+    });
+    const row = await leader.query(api.attendanceMembers.get, { memberId });
+    expect(row?.name).toBe("Jane Doe");
+  });
+});

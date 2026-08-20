@@ -13,6 +13,7 @@ import {
   STUDENT_YEAR_FIELD_KEY,
   yearOptionIdForStoredValue,
 } from "../../../shared/attendanceMemberMeta";
+import { capitalizeMemberName } from "../../../shared/rollcall";
 import {
   Btn,
   errorMessage,
@@ -100,7 +101,7 @@ export function EditMemberSheet({
       setEmail(row.email ?? "");
       setMetadata(row.metadata ?? {});
     } else if (!memberId) {
-      setName(prefillName ?? "");
+      setName(capitalizeMemberName(prefillName ?? ""));
       setEmail("");
       setMetadata({});
     }
@@ -215,8 +216,13 @@ export function EditMemberSheet({
           <Field
             label="Name"
             value={name}
-            onChangeText={setName}
+            onChangeText={
+              memberId
+                ? setName
+                : (text) => setName(capitalizeMemberName(text))
+            }
             placeholder="Full name"
+            autoCapitalize={memberId ? "none" : "words"}
             disabled={isStaffOverlay}
           />
           {hasDuplicate ? (

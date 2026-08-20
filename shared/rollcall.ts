@@ -148,6 +148,15 @@ export const formatSignInTime = (ms: number): string =>
   });
 
 /**
+ * Capitalize the first letter of a name and the first letter after each space.
+ * Other letters are left as typed, so "McDonald" stays "McDonald" and "JOHN"
+ * stays "JOHN". Used when creating an attendance member so "jane doe" is
+ * stored as "Jane Doe".
+ */
+export const capitalizeMemberName = (value: string): string =>
+  value.replace(/(^|\s)\S/g, (ch) => ch.toUpperCase());
+
+/**
  * Turn an email local part like `first.last@sow.org.au` into a readable
  * "First Last". Splits on the usual separators (`.`, `_`, `-`, `+`) and
  * title-cases each word. Returns null when the address doesn't look like a
