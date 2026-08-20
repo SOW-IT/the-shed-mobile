@@ -359,10 +359,11 @@ async function resolvePersons(
   keys: string[],
   year: number
 ): Promise<MetricsPerson[]> {
-  // Load this staff year and the previous one. Trailing Insights windows
-  // reach into September after the Oct 1 flip; last year's profile is what
-  // those events should classify against.
-  const years = [year - 1, year];
+  // Current year plus the two before it. A 2-year custom range (the
+  // liveSnapshot cap) can span three staff years (e.g. Aug 2024–Aug 2026
+  // → 2025/2026/2027 after an Oct flip). Trailing presets only need
+  // year-1, but loading year-2 is cheap (one indexed read).
+  const years = [year - 2, year - 1, year];
   const profilesByYear = new Map<number, Map<string, Doc<"staffProfiles">>>();
   for (const y of years) {
     const profiles = await ctx.db

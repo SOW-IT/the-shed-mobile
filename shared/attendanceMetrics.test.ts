@@ -580,4 +580,31 @@ describe("computeSubgroupMetrics — composition charts", () => {
       expect.objectContaining({ primary: 1, rest: 0 }),
     ]);
   });
+
+  it("falls back to the current-year flag when the event year is not in the map", () => {
+    // Event in staff year 2025; maps only have 2026/2027. The 2025 key is
+    // missing, so composition uses isStudentLeader / campuses.
+    const now = Date.UTC(2026, 8, 30, 14, 1, 0);
+    const older = weekly(Date.UTC(2025, 2, 4, 8, 0, 0), ["USYD"]); // Mar 2025
+    const personRow = person("lead", {
+      isStudentLeader: true,
+      campuses: ["USYD"],
+      leaderByYear: { "2026": false, "2027": false },
+      campusesByYear: { "2026": [], "2027": [] },
+    });
+    const data = computeSubgroupMetrics(
+      build([older], [attend(older, "lead")], [personRow], {
+        now,
+        subgroup: "USYD",
+        rangeStartMs: Date.UTC(2025, 0, 1),
+        historyStartMs: Date.UTC(2025, 0, 1),
+      })
+    );
+    expect(data.leadersVsOthers).toEqual([
+      expect.objectContaining({ primary: 1, rest: 0 }),
+    ]);
+    expect(data.campusMix).toEqual([
+      expect.objectContaining({ primary: 1, rest: 0 }),
+    ]);
+  });
 });
