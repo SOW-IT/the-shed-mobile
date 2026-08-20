@@ -265,7 +265,7 @@ export const BankTab = () => {
       id,
       title: `Delete "${name}"?`,
       message: isPreferred
-        ? "This is your auto-fill account — deleting it turns off payment auto-fill."
+        ? "This is your auto-fill account. Deleting it turns off payment auto-fill."
         : undefined,
     });
   };

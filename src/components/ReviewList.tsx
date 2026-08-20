@@ -67,7 +67,7 @@ const DeclineSheet = ({
     // server still enforces this as a backstop.
     if (reason.trim() === "") {
       setError(
-        "Please give a reason for declining — the requester will be notified with it."
+        "Please give a reason for declining. The requester will be notified with it."
       );
       return;
     }
@@ -370,7 +370,7 @@ export const ReviewList = ({
         title="Approve request?"
         message={
           approveTarget
-            ? `$${formatAmount(approveTarget.request.amount)} from ${approveRequesterName ?? approveTarget.request.requesterEmail} — moves to the next step.`
+            ? `$${formatAmount(approveTarget.request.amount)} from ${approveRequesterName ?? approveTarget.request.requesterEmail}. Moves to the next step.`
             : undefined
         }
         confirmLabel="Approve"

@@ -348,7 +348,7 @@ async function notifyStaffOfNewEvent(
       email: false,
       subject: `New event: ${event.name}`,
       pushTitle: "New event",
-      body: `${event.name} — ${where}`,
+      body: `${event.name} · ${where}`,
       url: `/attendance/event/${event._id}`,
     });
   }

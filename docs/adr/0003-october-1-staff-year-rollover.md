@@ -31,7 +31,9 @@ copy that would be a no-op should be told rather than silently ignored.
 intentional next-year admin edits.
 
 **The summary email is the only receipt.** It goes to `info@sow.org.au` and
-reports every table copied — divisions, departments, universities, roles, staff
+`it@sow.org.au` as two independent sends rather than one multi-recipient
+email: `emails.send` throws on a Resend error, so a single bad address would
+otherwise suppress the summary for everyone. It reports every table copied — divisions, departments, universities, roles, staff
 profiles, budget manager, director threshold. Universities matter here
 specifically: they drive the `Campus` field's locked options, so a silent no-op
 in that copy would surface to admins as options unlocking for no visible reason.

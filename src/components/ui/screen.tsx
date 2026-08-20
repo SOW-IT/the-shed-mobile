@@ -276,7 +276,7 @@ export const TopBar = ({
             onPress={() => setTestInfo(true)}
             hitSlop={6}
             accessibilityRole="button"
-            accessibilityLabel="Test environment — what is this?"
+            accessibilityLabel="Test environment. What is this?"
             style={({ pressed }) => [
               styles.testChip,
               { backgroundColor: t.warning },

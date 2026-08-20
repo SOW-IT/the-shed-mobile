@@ -1040,7 +1040,7 @@ export default function AdminScreen() {
                         name="lock-closed-outline"
                         size={20}
                         color={t.muted}
-                        accessibilityLabel="Managed by the app — can't be renamed or deleted"
+                        accessibilityLabel="Managed by the app. Can't be renamed or deleted"
                       />
                     )}
                     {editable && !isSystemRole(role) && (

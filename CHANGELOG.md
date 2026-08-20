@@ -6,6 +6,20 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.10.16] — 2026-08-21
+
+### Changed
+- **The yearly rollover summary now goes to both Info and IT.** It was sent to
+  Info alone, so IT lost sight of the one message that confirms the staff-year
+  rollover ran. Both addresses now receive it as separate emails, so a problem
+  delivering to one cannot stop the other arriving.
+- **Tidied the wording across the app.** Sentences that were joined with a dash
+  are now plain sentences, which reads better and gives screen readers a proper
+  pause. Where a dash was only separating two pieces of information, such as an
+  event name and its location, it now uses the same dot separator the rest of
+  the app already uses. Wording SOW publishes on its own website, including the
+  mission statement, the values and the campus descriptions, is untouched.
+
 ## [1.10.15] — 2026-08-21
 
 ### Fixed

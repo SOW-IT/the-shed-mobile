@@ -1068,7 +1068,7 @@ export const decline = mutation({
     const caller = await requireProfile(ctx);
     const reason = args.reason.trim();
     if (!reason) {
-      throw new ConvexError("Please give a reason for declining — the requester will be notified with it.");
+      throw new ConvexError("Please give a reason for declining. The requester will be notified with it.");
     }
     const { request, approvers } = await authorizeStep(
       ctx,

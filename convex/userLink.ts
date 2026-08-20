@@ -181,8 +181,8 @@ export async function linkUserProfiles(ctx: MutationCtx, userId: Id<"users">) {
             `${email} signed in for the first time and automatically claimed ` +
             `the profiles previously keyed to ${legacyEmail} (${legacy.length} ` +
             `profile year(s), plus their requests and org placements).\n\n` +
-            `If these are two different people, this needs to be undone — ` +
-            `contact Data and IT to re-key the affected rows.`,
+            `If these are two different people, this needs to be undone. ` +
+            `Contact Data and IT to re-key the affected rows.`,
         });
         unbound = await ctx.db
           .query("staffProfiles")
