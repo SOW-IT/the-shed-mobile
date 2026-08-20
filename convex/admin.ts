@@ -1753,6 +1753,8 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
   const counts = {
     divisions: 0,
     departments: 0,
+    universities: 0,
+    roles: 0,
     profiles: 0,
     budgetManagers: 0,
     directorThresholds: 0,
@@ -1807,6 +1809,7 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
       .first();
     if (!existing) {
       await ctx.db.insert("universities", { year: to, name: university.name });
+      counts.universities++;
     }
   }
   for await (const role of ctx.db
@@ -1818,6 +1821,7 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
       .first();
     if (!existing) {
       await ctx.db.insert("roles", { year: to, name: role.name });
+      counts.roles++;
     }
   }
   for await (const profile of ctx.db
@@ -1948,7 +1952,7 @@ export const copyYear = internalMutation({
 });
 
 /** Where the staff-year rollover summary email goes. */
-const ROLLOVER_NOTIFY_EMAIL = "it@sow.org.au";
+const ROLLOVER_NOTIFY_EMAIL = "info@sow.org.au";
 
 /**
  * Oct 1 rollover (cron): on that day the staff year advances, so
@@ -1981,6 +1985,8 @@ export const rollOverStaffYear = internalMutation({
         to,
         divisions: 0,
         departments: 0,
+        universities: 0,
+        roles: 0,
         profiles: 0,
         budgetManagers: 0,
         directorThresholds: 0,
@@ -1995,6 +2001,8 @@ export const rollOverStaffYear = internalMutation({
       "Copied:",
       `  Divisions:    ${counts.divisions}`,
       `  Departments:  ${counts.departments}`,
+      `  Universities: ${counts.universities}`,
+      `  Roles:        ${counts.roles}`,
       `  Staff profiles: ${counts.profiles}`,
       `  Budget manager: ${counts.budgetManagers === 1 ? "yes" : "none"}`,
       `  Director threshold: ${counts.directorThresholds === 1 ? "yes" : "none"}`,

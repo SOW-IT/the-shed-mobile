@@ -48,6 +48,67 @@ async function setup() {
 
 const window = () => ({ dateStart: Date.now(), dateEnd: Date.now() + 3600_000 });
 
+describe("Campus locked options across the staff-year rollover", () => {
+  /**
+   * The `Campus` field's locked options are the union of the previous and
+   * current staff years' universities, so the Oct 1 flip cannot unlock a campus
+   * out from under the members sitting on it (docs/adr/0002). Inserting
+   * directly: `upsertUniversity` only accepts the current and next year, and
+   * the case under test is a university that exists ONLY in the year just gone.
+   */
+  test("a university from the previous staff year stays locked", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // A name `admin.seed` does NOT seed into the current year, so the only
+    // reason it can appear in the locked set is the previous-year half of the
+    // union.
+    const UOW = "University of Wollongong";
+    await t.run(async (ctx) => {
+      await ctx.db.insert("universities", { year: YEAR - 1, name: UOW });
+    });
+    await admin.mutation(api.attendanceMetadata.ensureDefaults, {});
+
+    const campus = (await admin.query(api.attendanceMetadata.list, {})).find(
+      (f) => f.key === "Campus"
+    )!;
+    // Present as a selectable option and locked, despite belonging to no
+    // current-year `universities` row.
+    expect(Object.values(campus.values ?? {})).toContain(UOW);
+    expect(campus.lockedValues).toContain(UOW);
+    // The current year's universities stay locked too — union, not replacement.
+    expect(campus.lockedValues).toContain(USYD);
+    expect(campus.lockedValues).toContain(MACQ);
+  });
+
+  test("a campus in neither year is a custom option, not a locked one", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.attendanceMetadata.ensureDefaults, {});
+    const campus = (await admin.query(api.attendanceMetadata.list, {})).find(
+      (f) => f.key === "Campus"
+    )!;
+    await admin.mutation(api.attendanceMetadata.saveAll, {
+      fields: [
+        {
+          id: campus._id,
+          key: "Campus",
+          type: "select",
+          order: campus.order,
+          values: { ...campus.values, "90": "Online" },
+          lockedValues: campus.lockedValues,
+        },
+      ],
+      deleteIds: [],
+    });
+
+    const updated = (await admin.query(api.attendanceMetadata.list, {})).find(
+      (f) => f.key === "Campus"
+    )!;
+    expect(Object.values(updated.values ?? {})).toContain("Online");
+    expect(updated.lockedValues).not.toContain("Online");
+  });
+});
+
 describe("attendance tags (branch coverage)", () => {
   test("plain staff cannot manage shared attendance settings", async () => {
     const t = await setup();

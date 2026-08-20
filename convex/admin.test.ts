@@ -1120,18 +1120,24 @@ describe("rollOverStaffYear", () => {
     );
     expect(nextSettings?.directorEmail).toBe("director@sow.org.au");
 
-    // A summary email to IT is scheduled, plus a full Insights rebuild so the
+    // A summary email is scheduled, plus a full Insights rebuild so the
     // tab isn't blank until Thursday after the year flip.
     const scheduled = await t.run((ctx) =>
       ctx.db.system.query("_scheduled_functions").collect()
     );
     const email = scheduled.find((s) => s.name === "emails:send");
     expect(email).toBeDefined();
-    expect(email!.args[0]).toMatchObject({ to: "it@sow.org.au" });
+    expect(email!.args[0]).toMatchObject({ to: "info@sow.org.au" });
     expect((email!.args[0] as { subject: string }).subject).toContain(
       `${YEAR} copied to ${YEAR + 1}`
     );
-    expect((email!.args[0] as { body: string }).body).toContain("Deployment:");
+    const emailBody = (email!.args[0] as { body: string }).body;
+    expect(emailBody).toContain("Deployment:");
+    // The summary is the only receipt anyone gets that the rollover ran, so it
+    // reports every table copied — universities included, because they drive
+    // the Campus field's locked options (see docs/adr/0002).
+    expect(emailBody).toContain("Universities: 5");
+    expect(emailBody).toContain("Roles:        1");
     expect(
       scheduled.some((s) => s.name === "attendanceMetrics:recomputeAll")
     ).toBe(true);
