@@ -27,7 +27,6 @@ export const DELEGATION_QUERY_LIMIT = 500;
 
 export const currentStaffYear = () => staffYearForDate(new Date());
 export const nextStaffYear = () => currentStaffYear() + 1;
-export const previousStaffYear = () => currentStaffYear() - 1;
 
 /**
  * The organisation's Google Workspace domain (staff accounts). Personal

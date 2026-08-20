@@ -23,7 +23,6 @@ import {
   currentStaffYear,
   isAttendanceManagerProfile,
   optionalProfile,
-  previousStaffYear,
   requireAttendanceManager,
 } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
@@ -74,10 +73,15 @@ const mergeSelectValues = (
  * droppable, and its locked set already has a static floor in `ROLES`.
  */
 const lockedUniversityNames = async (
-  ctx: QueryCtx | MutationCtx
+  ctx: QueryCtx | MutationCtx,
+  // One snapshot, taken by the caller. `currentStaffYear()` reads the clock, so
+  // two separate calls straddling Sydney midnight on Oct 1 would yield
+  // [year - 2, year] and silently drop the year in between — in the very code
+  // whose job is to be correct across that instant.
+  orgYear: number
 ): Promise<string[]> => {
   const rows = await Promise.all(
-    [previousStaffYear(), currentStaffYear()].map((year) =>
+    [orgYear - 1, orgYear].map((year) =>
       ctx.db
         .query("universities")
         .withIndex("by_year_and_name", (q) => q.eq("year", year))
@@ -100,7 +104,7 @@ export const list = query({
     const orgYear = currentStaffYear();
     const [rows, universityNames, roleRows] = await Promise.all([
       ctx.db.query("attendanceMetadata").collect(),
-      lockedUniversityNames(ctx),
+      lockedUniversityNames(ctx, orgYear),
       ctx.db
         .query("roles")
         .withIndex("by_year_and_name", (q) => q.eq("year", orgYear))
@@ -277,7 +281,7 @@ export const saveAll = mutation({
         summary: `Deleted member field "${row.key}"`,
       });
     }
-    const universityNames = await lockedUniversityNames(ctx);
+    const universityNames = await lockedUniversityNames(ctx, orgYear);
     const roleRows = await ctx.db
       .query("roles")
       .withIndex("by_year_and_name", (q) => q.eq("year", orgYear))

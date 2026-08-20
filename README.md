@@ -142,9 +142,9 @@ Six workflows, in `.github/workflows/`:
 | Workflow | File | Trigger |
 | --- | --- | --- |
 | Lint, Typecheck & Test | `ci.yml` | every PR and push to `main` (tests run with coverage thresholds) |
-| Convex Deploy | `convex-deploy.yml` | merges to `main` → deploys the **prod** backend; `workflow_dispatch` for an on-demand deploy |
+| Convex Deploy | `convex-deploy.yml` | merges to `main` → deploys the **prod** backend. `workflow_dispatch` deploys prod **only when run from `main`** — from any other ref it deploys a *preview* named after the branch (`--preview-name`), not prod |
 | Deploy web (dev) | `deploy-web-dev.yml` | merges to `main` → publishes the dev web app to `the-shed-web-dev` |
-| Backup Convex to GCS | `convex-backup.yml` | daily at 15:17 UTC (≈01:17 AEST) — database-only export, file storage excluded |
+| Backup Convex to GCS | `convex-backup.yml` | daily at 15:17 UTC (01:17 AEST / 02:17 AEDT) — database-only export, file storage excluded |
 | EAS Staging | `eas-staging.yml` | **manual only** — builds and submits the staging app |
 | EAS Production | `eas-production.yml` | **manual only** — builds and submits the production app |
 
@@ -158,8 +158,11 @@ separate build, not a re-pointed domain.
 
 Repository secrets these need: `CONVEX_DEPLOY_KEY` (prod backend deploys and
 the GCS backup), `VERCEL_TOKEN` + `VERCEL_PROJECT_ID_DEV` (dev web), and
-`EXPO_TOKEN` (both EAS workflows). Until a secret exists its workflow passes
-with a warning and skips. The backup also needs the repository *variables*
+`EXPO_TOKEN` (both EAS workflows). Only **Deploy web (dev)** degrades
+gracefully when its secrets are missing — it warns and skips. The other four
+have no such guard and will **fail** the run, which is the right behaviour for
+a deploy but worth knowing before you add a workflow to a fork. The backup also
+needs the repository *variables*
 `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_BACKUP_SERVICE_ACCOUNT` and
 `GCS_BACKUP_BUCKET`. Manual fallbacks remain `npx convex deploy -y` and
 `npm run deploy:web`.

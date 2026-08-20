@@ -2,9 +2,12 @@
 
 THE SHED is live. The web app serves from <https://theshed.sow.org.au>, the
 prod Convex backend (`outgoing-stoat-395`) auto-deploys on every merge, and
-both stores have received production builds. This file tracks only what is
-still outstanding; everything else has been verified as working and is recorded
-under "Already done" for reference.
+both stores have received production builds. This file tracks the launch
+configuration only: what is still outstanding, and — under "Already done" — the
+items checked against the live deployments. It is not a statement about the
+app's runtime behaviour; seasonal work such as the October 1 rollover is
+covered by [ADR 0003](docs/adr/0003-october-1-staff-year-rollover.md), which
+records its own unverified gaps.
 
 Deployments: Convex dev `industrious-robin-425`, Convex prod
 `outgoing-stoat-395`, web `https://theshed.sow.org.au` (Vercel `the-shed-web`),
@@ -20,6 +23,10 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 - [ ] **Confirm FCM IAM** — that `expo-dev@theshedsow.iam.gserviceaccount.com`
       holds **Firebase Cloud Messaging API Admin** on project `theshedsow`
       (Google Cloud → IAM). Push delivery depends on it.
+- [ ] **Confirm `info@sow.org.au` is monitored** — the annual staff-year
+      rollover summary is sent there and is the only receipt that the rollover
+      ran. If IT should keep receiving it, make the address a list rather than
+      a swap.
 - [ ] **Original logo vector** — the store icon is upscaled from a 512px PNG. A
       vector or 1024px source would sharpen it; regeneration is scripted.
 - [ ] **Staging Firebase app** — no Firebase Android app exists for

@@ -12,9 +12,11 @@ university — which is why it is written down.
 Mechanically: the `Campus` member-metadata field's options are the stored
 option map merged, on read, with the `universities` table
 (`attendanceMetadata.list` → `mergeSelectValues`). The merge only ever adds, so
-the containment holds by construction; the year's Universities are returned as
+the containment holds by construction; Universities are returned as
 `lockedValues` and cannot be deleted, while admins may add extra options
-freely. The same normalisation runs on write, so a re-save is not mistaken for
+freely. The locked set spans the **previous and current staff years**, not just
+the current one, so the October 1 flip cannot unlock a campus — see
+[ADR 0003](./0003-october-1-staff-year-rollover.md) for why. The same normalisation runs on write, so a re-save is not mistaken for
 an edit and stored option ids never change meaning.
 
 ## Considered Options

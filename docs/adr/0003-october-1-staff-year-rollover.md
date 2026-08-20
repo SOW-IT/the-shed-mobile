@@ -22,9 +22,13 @@ moment the clock moves.
 
 **It is idempotent by record, not by guess.** `alreadyCopiedFrom` checks
 `rolloverCopiedFrom` and `rolloverCompletedAt` on the destination year's
-settings. A retry returns `{ skipped: true }` without mutating or re-emailing,
-so it cannot clobber intentional next-year admin edits. `copyYear` with
-`force: true` is the deliberate redo.
+settings. The two callers then diverge deliberately: the cron
+(`rollOverStaffYear`) returns `{ skipped: true }` without mutating or
+re-emailing, because an unattended retry must be harmless; the manual
+`copyYear` mutation *throws* a `ConvexError`, because a human who asked for a
+copy that would be a no-op should be told rather than silently ignored.
+`copyYear` with `force: true` is the deliberate redo. Neither can clobber
+intentional next-year admin edits.
 
 **The summary email is the only receipt.** It goes to `info@sow.org.au` and
 reports every table copied — divisions, departments, universities, roles, staff

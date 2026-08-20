@@ -1079,6 +1079,31 @@ describe("copyYear", () => {
 });
 
 describe("rollOverStaffYear", () => {
+  test("the summary counts source rows, not inserts, when the next year is preconfigured", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    // The destination already holds a university and a role the SOURCE also
+    // has, so both copies skip their insert. The summary email is the only
+    // receipt anyone gets that the rollover ran — reporting 0 here would read
+    // as "the campus list did not carry over" when in fact it was already
+    // there. Counts therefore track source rows processed, matching what
+    // divisions/departments/profiles have always reported.
+    const [sourceUni] = (await admin.query(api.directory.yearStructure, { year: YEAR }))!
+      .universities;
+    await admin.mutation(api.admin.upsertUniversity, { year: YEAR + 1, name: sourceUni });
+    await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Outsource" });
+    await admin.mutation(api.admin.upsertRole, { year: YEAR + 1, name: "Outsource" });
+
+    const source = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    const counts = await t.mutation(internal.admin.rollOverStaffYear, {});
+    expect(counts.skipped).toBe(false);
+    // Exact, not `> 0`: the overlapping rows are the whole point, and a
+    // count of "everything except the ones already there" would still be
+    // greater than zero while under-reporting the copy.
+    expect(counts.universities).toBe(source.universities.length);
+    expect(counts.roles).toBe(source.roles.length);
+  });
+
   test("prefills the next staff year from the current staff year, keeping its existing data", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);

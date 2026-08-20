@@ -1809,8 +1809,12 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
       .first();
     if (!existing) {
       await ctx.db.insert("universities", { year: to, name: university.name });
-      counts.universities++;
     }
+    // Counts every source row processed, not just the inserts — the same
+    // meaning divisions/departments/profiles carry. A destination that was
+    // preconfigured must not report "Universities: 0" as though nothing
+    // carried over; the summary is the only receipt anyone gets.
+    counts.universities++;
   }
   for await (const role of ctx.db
     .query("roles")
@@ -1821,8 +1825,8 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
       .first();
     if (!existing) {
       await ctx.db.insert("roles", { year: to, name: role.name });
-      counts.roles++;
     }
+    counts.roles++;
   }
   for await (const profile of ctx.db
     .query("staffProfiles")
