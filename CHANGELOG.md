@@ -6,6 +6,21 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.10.14] — 2026-08-20
+
+### Changed
+- **Retention and tenure wait a week after 1 October before using the new roster.**
+  Head-count charts still pick up the new staff year the moment the clock flips,
+  but retention, turnover, and years-served stay on last year’s complete numbers
+  for the first week. A half-finished assignment list no longer reads as a mass
+  resignation.
+
+### Fixed
+- **Custom attendance ranges that span three staff years keep the right identities.**
+  A two-year custom window can cross two October flips (for example August to
+  August). Those charts now load the extra year, so people aren’t rewritten as
+  this year’s role just because the older year wasn’t in the map.
+
 ## [1.10.13] — 2026-08-18
 
 ### Changed
