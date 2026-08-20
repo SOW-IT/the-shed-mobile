@@ -16,7 +16,7 @@ import {
   yearMetadataSortKey,
   yearOptionIdForStoredValue,
 } from "../shared/attendanceMemberMeta";
-import { personDisplayName } from "../shared/rollcall";
+import { capitalizeMemberName, personDisplayName } from "../shared/rollcall";
 import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
 import { mutation, query } from "./_generated/server";
 import {
@@ -516,7 +516,7 @@ export const create = mutation({
   },
   handler: async (ctx, { name, email, metadata }) => {
     const { email: actorEmail } = await requireProfile(ctx);
-    const trimmed = name.trim();
+    const trimmed = capitalizeMemberName(name.trim());
     if (!trimmed) throw new ConvexError("Name is required.");
     const memberId = await ctx.db.insert("attendanceMembers", {
       name: trimmed,

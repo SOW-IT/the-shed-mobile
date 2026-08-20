@@ -6,6 +6,21 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.10.13] — 2026-08-18
+
+### Changed
+- **New attendance members now start each word with a capital.** Typing or
+  pasting "jane doe" in the create-member form becomes "Jane Doe" as you go
+  (and when the name is saved), so a new person isn't stored in all-lowercase
+  just because the keyboard didn't shift. Existing names are left alone when
+  you edit them.
+- **CSV export lets you turn Year, Gender, Campus and Role off.** Those four
+  used to sit locked on with a padlock, same as Name and Email, so every
+  export included them even when you only wanted a short list. They now
+  behave like the other metadata columns — on by default, but you can
+  uncheck them. Sign in, name, email (and attendance % on the grid) stay
+  locked, because the file still needs to identify each person.
+
 ## [1.10.12] — 2026-08-14
 
 ### Changed
