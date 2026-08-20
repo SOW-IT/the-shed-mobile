@@ -70,6 +70,7 @@ const ToggleRow = ({
   label,
   checked,
   locked,
+  disabled,
   onPress,
   radio,
   subtitle,
@@ -77,12 +78,15 @@ const ToggleRow = ({
   label: string;
   checked: boolean;
   locked?: boolean;
+  /** Non-interactive without the padlock (e.g. still loading). */
+  disabled?: boolean;
   onPress?: () => void;
   /** Use radio icons instead of checkboxes (for exclusive format choice). */
   radio?: boolean;
   subtitle?: string;
 }) => {
   const t = useAppTheme();
+  const inactive = Boolean(locked || disabled);
   const icon = radio
     ? checked
       ? "radio-button-on"
@@ -92,7 +96,7 @@ const ToggleRow = ({
       : "square-outline";
   return (
     <Pressable
-      disabled={locked}
+      disabled={inactive}
       onPress={onPress}
       style={({ pressed }) => [
         {
@@ -103,7 +107,7 @@ const ToggleRow = ({
           paddingHorizontal: 12,
           borderRadius: 12,
           backgroundColor: checked ? t.primarySoft : t.ghost,
-          opacity: pressed && !locked ? 0.7 : 1,
+          opacity: pressed && !inactive ? 0.7 : inactive && !locked ? 0.6 : 1,
         },
       ]}
     >
@@ -218,7 +222,12 @@ export function ExportSheet({
     });
   };
 
+  const fieldsReady = fields !== undefined;
+
   const toggleKey = (key: string) => {
+    // Don't commit a partial selection while metadata is still loading — that
+    // would skip the default-all-on seed and leave Year/Gender/etc. unchecked.
+    if (!fieldsReady) return;
     setSelectedKeys((prev) => {
       const base = prev ?? orderedFieldKeys;
       return base.includes(key)
@@ -419,6 +428,7 @@ export function ExportSheet({
             key={field._id}
             label={field.key}
             checked={isSelected(field.key)}
+            disabled={!fieldsReady}
             onPress={() => toggleKey(field.key)}
           />
         ))}
@@ -427,6 +437,7 @@ export function ExportSheet({
             key={NOTES_FIELD_KEY}
             label={NOTES_FIELD_KEY}
             checked={isSelected(NOTES_FIELD_KEY)}
+            disabled={!fieldsReady}
             onPress={() => toggleKey(NOTES_FIELD_KEY)}
           />
         ) : null}
