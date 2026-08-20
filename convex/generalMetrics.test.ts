@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
-import { describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate } from "../shared/flow";
 import { api } from "./_generated/api";
 import {
@@ -335,6 +335,16 @@ describe("staffTrends", () => {
 });
 
 describe("campusWeeklyAttendance", () => {
+  // These cases treat 2026 as the live staff year (empty 2026 is omitted;
+  // empty 2025 is not). Freeze the clock so they stay valid after 1 Oct 2026.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(Date.UTC(2026, 5, 1))); // 1 Jun 2026 → staff year 2026
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   // A weekly meeting: an event tagged "Weekly Meeting" for one campus sub-group,
   // with `count` sign-in rows. Returns the event id.
   async function weeklyMeeting(
@@ -402,7 +412,10 @@ describe("campusWeeklyAttendance", () => {
       });
     });
     const res = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
-    expect(res.campuses).toEqual([{ campus: "USYD", averages: [12, 0] }]);
+    // Current year (2026) has no weekly meetings yet — omit it rather than
+    // plotting a trailing 0 that reads as a collapse.
+    expect(res.years).toEqual([2025]);
+    expect(res.campuses).toEqual([{ campus: "USYD", averages: [12] }]);
   });
 
   test("skips org-wide (SOW) weekly meetings — they belong to no campus", async () => {
@@ -412,6 +425,7 @@ describe("campusWeeklyAttendance", () => {
     // create a campus bucket of its own.
     await weeklyMeeting(t, { campus: "SOW", dateStart: IN_2025, count: 40 });
     const res = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
-    expect(res.campuses).toEqual([{ campus: "USYD", averages: [9, 0] }]);
+    expect(res.years).toEqual([2025]);
+    expect(res.campuses).toEqual([{ campus: "USYD", averages: [9] }]);
   });
 });

@@ -16,10 +16,11 @@ tags:
 - assertVisible:
     text: ".*(Export|Date range|Metadata).*"
 
-# Notes column selectable exactly once; locked fields always included — verified
-# by the CSV builder unit tests (src/lib/attendanceCsv.test.ts). Here we just
-# confirm the sheet opens and metadata checkboxes render. Only the locked
-# "Sign In" checkbox is above the fold — Name/Email/Notes are further down.
+# Notes and every metadata column (including Year/Gender/Campus/Role) are
+# toggleable; identity columns stay locked. CSV inclusion is covered by
+# src/lib/attendanceCsv.test.ts. Here we just confirm the sheet opens and
+# metadata checkboxes render. Only the locked "Sign In" checkbox is above
+# the fold — Name/Email/Notes are further down.
 - scrollUntilVisible:
     element:
       text: ".*Notes.*"

@@ -5,12 +5,6 @@ import { Platform, Pressable, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import {
-  CAMPUS_FIELD_KEY,
-  GENDER_FIELD_KEY,
-  ROLE_FIELD_KEY,
-  STUDENT_YEAR_FIELD_KEY,
-} from "../../../shared/attendanceMemberMeta";
-import {
   parseDateInputValue,
   toDateInputValue,
 } from "../../../shared/datetime";
@@ -37,14 +31,6 @@ import {
   Txt,
 } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
-
-/** Metadata fields that must always be in the export (req: lock specific ones). */
-const LOCKED_FIELD_KEYS = new Set<string>([
-  STUDENT_YEAR_FIELD_KEY,
-  GENDER_FIELD_KEY,
-  CAMPUS_FIELD_KEY,
-  ROLE_FIELD_KEY,
-]);
 
 /** List export: sign-in time + identity columns (always on). */
 const LIST_ALWAYS_COLUMNS = ["Sign In", "Name", "Email"] as const;
@@ -84,6 +70,7 @@ const ToggleRow = ({
   label,
   checked,
   locked,
+  disabled,
   onPress,
   radio,
   subtitle,
@@ -91,12 +78,15 @@ const ToggleRow = ({
   label: string;
   checked: boolean;
   locked?: boolean;
+  /** Non-interactive without the padlock (e.g. still loading). */
+  disabled?: boolean;
   onPress?: () => void;
   /** Use radio icons instead of checkboxes (for exclusive format choice). */
   radio?: boolean;
   subtitle?: string;
 }) => {
   const t = useAppTheme();
+  const inactive = Boolean(locked || disabled);
   const icon = radio
     ? checked
       ? "radio-button-on"
@@ -106,7 +96,7 @@ const ToggleRow = ({
       : "square-outline";
   return (
     <Pressable
-      disabled={locked}
+      disabled={inactive}
       onPress={onPress}
       style={({ pressed }) => [
         {
@@ -117,7 +107,7 @@ const ToggleRow = ({
           paddingHorizontal: 12,
           borderRadius: 12,
           backgroundColor: checked ? t.primarySoft : t.ghost,
-          opacity: pressed && !locked ? 0.7 : 1,
+          opacity: pressed && !inactive ? 0.7 : inactive && !locked ? 0.6 : 1,
         },
       ]}
     >
@@ -200,7 +190,9 @@ export function ExportSheet({
     setError(null);
   }, [visible]);
 
-  // Default to every visible field selected (locked ones always on).
+  // Default to every visible field selected. Identity columns (Sign In / Name /
+  // Email, plus Attendance % on the grid) stay locked on; metadata and Notes
+  // are all toggleable, including Year / Gender / Campus / Role.
   // Notes only apply to the list layout; matrix never includes them.
   useEffect(() => {
     if (!fields || selectedKeys !== null) return;
@@ -230,8 +222,12 @@ export function ExportSheet({
     });
   };
 
+  const fieldsReady = fields !== undefined;
+
   const toggleKey = (key: string) => {
-    if (LOCKED_FIELD_KEYS.has(key)) return;
+    // Don't commit a partial selection while metadata is still loading — that
+    // would skip the default-all-on seed and leave Year/Gender/etc. unchecked.
+    if (!fieldsReady) return;
     setSelectedKeys((prev) => {
       const base = prev ?? orderedFieldKeys;
       return base.includes(key)
@@ -241,7 +237,7 @@ export function ExportSheet({
   };
 
   const isSelected = (key: string) =>
-    LOCKED_FIELD_KEYS.has(key) || (selectedKeys ?? []).includes(key);
+    (selectedKeys ?? orderedFieldKeys).includes(key);
 
   const download = async () => {
     setError(null);
@@ -427,23 +423,21 @@ export function ExportSheet({
             <ToggleRow key={label} label={label} checked locked />
           )
         )}
-        {exportableFields.map((field) => {
-          const locked = LOCKED_FIELD_KEYS.has(field.key);
-          return (
-            <ToggleRow
-              key={field._id}
-              label={field.key}
-              checked={isSelected(field.key)}
-              locked={locked}
-              onPress={() => toggleKey(field.key)}
-            />
-          );
-        })}
+        {exportableFields.map((field) => (
+          <ToggleRow
+            key={field._id}
+            label={field.key}
+            checked={isSelected(field.key)}
+            disabled={!fieldsReady}
+            onPress={() => toggleKey(field.key)}
+          />
+        ))}
         {!isMatrix ? (
           <ToggleRow
             key={NOTES_FIELD_KEY}
             label={NOTES_FIELD_KEY}
             checked={isSelected(NOTES_FIELD_KEY)}
+            disabled={!fieldsReady}
             onPress={() => toggleKey(NOTES_FIELD_KEY)}
           />
         ) : null}
