@@ -102,7 +102,7 @@ export const submit = mutation({
     // the confirmation without that abuse vector.
     await ctx.scheduler.runAfter(0, internal.emails.send, {
       to: fromEmail,
-      subject: "We've received your message, Student Outreach to the World",
+      subject: "We've received your message",
       body:
         "Hi,\n\n" +
         "Thanks for reaching out to Student Outreach to the World. We've received " +
