@@ -443,8 +443,8 @@ export function GeneralMetricsTab({
       <View onLayout={onLayout} style={styles.grid}>
         <Text style={[typography.caption, { color: t.muted }]}>
           {prevYear !== undefined
-            ? `Staff year ${year} — change vs ${prevYear}. Staff profiles only.`
-            : `Staff year ${year} — no earlier year to compare against. Staff profiles only.`}
+            ? `Staff year ${year}, change vs ${prevYear}. Staff profiles only.`
+            : `Staff year ${year}. No earlier year to compare against. Staff profiles only.`}
         </Text>
         <View style={styles.cardGrid}>
           {cards.map((card, idx) => (

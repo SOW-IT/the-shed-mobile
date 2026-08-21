@@ -90,7 +90,7 @@ const History = ({ request }: { request: Doc<"requests"> }) => {
             </Text>
             <Text style={[typography.caption, { color: t.muted }]}>
               {new Date(event.at).toLocaleString()} · {event.actor}
-              {event.detail ? ` — ${event.detail}` : ""}
+              {event.detail ? ` · ${event.detail}` : ""}
             </Text>
           </View>
         </View>
@@ -175,7 +175,7 @@ const StepInfoModal = ({
                 </Text>
                 <Muted>
                   {new Date(event.at).toLocaleString()}
-                  {event.detail ? ` — ${event.detail}` : ""}
+                  {event.detail ? ` · ${event.detail}` : ""}
                 </Muted>
               </View>
             ))
@@ -509,7 +509,7 @@ export const RequestCard = ({
           <Ionicons name="checkmark-circle" size={15} color={t.success} />
           <Text style={[typography.caption, { color: t.success, flex: 1, fontWeight: "600" }]}>
             Paid ${formatAmount(request.paidAmount)}
-            {request.payComment ? ` — ${request.payComment}` : ""}
+            {request.payComment ? ` · ${request.payComment}` : ""}
           </Text>
         </View>
       ) : null}

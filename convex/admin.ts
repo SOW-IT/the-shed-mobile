@@ -265,7 +265,7 @@ export const setStaffProfile = mutation({
         // Staff link) and is preserved untouched — only block NEWLY granting one.
         if (isHeadRole(a.role) && !existingHeadRoles.includes(a.role)) {
           throw new ConvexError(
-            "Head of Department and Head of Division are assigned through the Structure section — edit the department or division directly to change its head."
+            "Head of Department and Head of Division are assigned through the Structure section. Edit the department or division directly to change its head."
           );
         }
       }
@@ -282,7 +282,7 @@ export const setStaffProfile = mutation({
         );
         if (existingDirector) {
           throw new ConvexError(
-            `${existingDirector.email} is already the Director for ${args.year} — there can only be one.`
+            `${existingDirector.email} is already the Director for ${args.year}. There can only be one.`
           );
         }
       }
@@ -308,7 +308,7 @@ export const setStaffProfile = mutation({
           const chaplaincy = await getDepartment(ctx, args.year, CHAPLAINCY_DEPARTMENT);
           if (!chaplaincy) {
             throw new ConvexError(
-              `The "${CHAPLAINCY_DEPARTMENT}" department doesn't exist in ${args.year} — create it first.`
+              `The "${CHAPLAINCY_DEPARTMENT}" department doesn't exist in ${args.year}. Create it first.`
             );
           }
         }
@@ -421,7 +421,7 @@ export const setStaffProfile = mutation({
     // — only block NEWLY granting a head role through a staff-profile edit.
     if (roles.some((r) => isHeadRole(r) && !existingHeadRoles.includes(r))) {
       throw new ConvexError(
-        "Head of Department and Head of Division are assigned through the Structure section — edit the department or division directly to change its head."
+        "Head of Department and Head of Division are assigned through the Structure section. Edit the department or division directly to change its head."
       );
     }
 
@@ -436,7 +436,7 @@ export const setStaffProfile = mutation({
       );
       if (existingDirector) {
         throw new ConvexError(
-          `${existingDirector.email} is already the Director for ${args.year} — there can only be one.`
+          `${existingDirector.email} is already the Director for ${args.year}. There can only be one.`
         );
       }
     }
@@ -495,7 +495,7 @@ export const setStaffProfile = mutation({
       const chaplaincy = await getDepartment(ctx, args.year, CHAPLAINCY_DEPARTMENT);
       if (!chaplaincy) {
         throw new ConvexError(
-          `The "${CHAPLAINCY_DEPARTMENT}" department doesn't exist in ${args.year} — create it first.`
+          `The "${CHAPLAINCY_DEPARTMENT}" department doesn't exist in ${args.year}. Create it first.`
         );
       }
     }
@@ -891,7 +891,7 @@ export const removeDivision = mutation({
         .take(200);
       if (requests.some((r) => !requestCompleted(r))) {
         throw new ConvexError(
-          `"${dept.name}" still has open requests in ${args.year} — complete or cancel them first.`
+          `"${dept.name}" still has open requests in ${args.year}. Complete or cancel them first.`
         );
       }
     }
@@ -1165,7 +1165,7 @@ export const removeRole = mutation({
     );
     if (inUse.length > 0) {
       throw new ConvexError(
-        `"${name}" is still assigned to ${inUse.length} ${inUse.length === 1 ? "person" : "people"} in ${args.year} — reassign them first.`
+        `"${name}" is still assigned to ${inUse.length} ${inUse.length === 1 ? "person" : "people"} in ${args.year}. Reassign them first.`
       );
     }
     await ctx.db.delete("roles", role._id);
@@ -1410,7 +1410,7 @@ export const removeDepartment = mutation({
       .take(200);
     if (requests.some((request) => !requestCompleted(request))) {
       throw new ConvexError(
-        `"${args.name}" still has open requests in ${args.year} — complete or cancel them first.`
+        `"${args.name}" still has open requests in ${args.year}. Complete or cancel them first.`
       );
     }
 
@@ -1955,8 +1955,13 @@ export const copyYear = internalMutation({
   },
 });
 
-/** Where the staff-year rollover summary email goes. */
-const ROLLOVER_NOTIFY_EMAIL = "info@sow.org.au";
+/**
+ * Where the staff-year rollover summary goes. One scheduled send per address
+ * rather than a single multi-recipient email: `emails.send` throws on a Resend
+ * error, so a single bad address would take the whole summary down with it —
+ * and this email is the only receipt anyone gets that the rollover ran.
+ */
+const ROLLOVER_NOTIFY_EMAILS = ["info@sow.org.au", "it@sow.org.au"] as const;
 
 /**
  * Oct 1 rollover (cron): on that day the staff year advances, so
@@ -1997,7 +2002,7 @@ export const rollOverStaffYear = internalMutation({
       };
     }
     const counts: CopyYearCounts = await copyYearData(ctx, from, to);
-    const subject = `THE SHED: staff year rollover — ${from} copied to ${to}`;
+    const subject = `THE SHED: staff year rollover, ${from} copied to ${to}`;
     const siteUrl = process.env.SITE_URL ?? process.env.APP_URL ?? "unknown";
     const body = [
       `The annual staff-year rollover ran and prefilled ${to} from ${from}.`,
@@ -2015,11 +2020,9 @@ export const rollOverStaffYear = internalMutation({
       "",
       `Deployment: ${siteUrl}`,
     ].join("\n");
-    await ctx.scheduler.runAfter(0, internal.emails.send, {
-      to: ROLLOVER_NOTIFY_EMAIL,
-      subject,
-      body,
-    });
+    for (const to of ROLLOVER_NOTIFY_EMAILS) {
+      await ctx.scheduler.runAfter(0, internal.emails.send, { to, subject, body });
+    }
     // Insights snapshots are keyed by staff year. The moment the year flips
     // they all read as "not ready"; kick a full recompute so the 15-minute
     // dirty cron isn't the only thing standing between leaders and the tab.

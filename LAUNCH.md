@@ -24,9 +24,9 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       holds **Firebase Cloud Messaging API Admin** on project `theshedsow`
       (Google Cloud → IAM). Push delivery depends on it.
 - [ ] **Confirm `info@sow.org.au` is monitored** — the annual staff-year
-      rollover summary is sent there and is the only receipt that the rollover
-      ran. If IT should keep receiving it, make the address a list rather than
-      a swap.
+      rollover summary now goes to both `info@sow.org.au` and `it@sow.org.au`,
+      and is the only receipt that the rollover ran. IT keeps receiving it; this
+      is just a check that the Info inbox is watched too.
 - [ ] **Original logo vector** — the store icon is upscaled from a 512px PNG. A
       vector or 1024px source would sharpen it; regeneration is scripted.
 - [ ] **Staging Firebase app** — no Firebase Android app exists for

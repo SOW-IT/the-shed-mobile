@@ -788,7 +788,7 @@ export function ChartCard({
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${title} — tap to expand`}
+        accessibilityLabel={`${title}. Tap to expand.`}
         onPress={() => {
           setSelectedKey(null);
           setFull(true);

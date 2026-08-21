@@ -1150,9 +1150,14 @@ describe("rollOverStaffYear", () => {
     const scheduled = await t.run((ctx) =>
       ctx.db.system.query("_scheduled_functions").collect()
     );
-    const email = scheduled.find((s) => s.name === "emails:send");
+    const emails = scheduled.filter((s) => s.name === "emails:send");
+    // One send per recipient — both Info and IT get the summary, and a bad
+    // address on one cannot suppress the other.
+    expect(
+      emails.map((e) => (e.args[0] as { to: string }).to).sort()
+    ).toEqual(["info@sow.org.au", "it@sow.org.au"]);
+    const email = emails[0];
     expect(email).toBeDefined();
-    expect(email!.args[0]).toMatchObject({ to: "info@sow.org.au" });
     expect((email!.args[0] as { subject: string }).subject).toContain(
       `${YEAR} copied to ${YEAR + 1}`
     );

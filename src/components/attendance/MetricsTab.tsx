@@ -243,7 +243,7 @@ export function MetricsTab({
           : "no baseline yet",
       detail: {
         title: "Average weekly meeting attendance",
-        body: "The average number of people at each weekly meeting in the selected range — counting only events tagged “Weekly Meeting”, so make-up or one-off events don't dilute it. The arrow compares this to the previous period of the same length. This is the headline for groups that gather weekly; “—” means no weekly meetings fell in the range.",
+        body: "The average number of people at each weekly meeting in the selected range, counting only events tagged “Weekly Meeting”, so make-up or one-off events don't dilute it. The arrow compares this to the previous period of the same length. This is the headline for groups that gather weekly; “—” means no weekly meetings fell in the range.",
       },
     };
     const eventCard: SummaryCard = {
@@ -283,7 +283,7 @@ export function MetricsTab({
         tone: "positive" as const,
         detail: {
           title: "Newcomers",
-          body: "People attending for the first time ever — their first recorded attendance (across all loaded history) falls within roughly the last 30 days, or the selected range if it is shorter. Deliberately anchored to “recently new” rather than the whole range, so a long range doesn't count everyone who joined months ago.",
+          body: "People attending for the first time ever. Their first recorded attendance (across all loaded history) falls within roughly the last 30 days, or the selected range if it is shorter. Deliberately anchored to “recently new” rather than the whole range, so a long range doesn't count everyone who joined months ago.",
         },
       },
       {
@@ -303,7 +303,7 @@ export function MetricsTab({
             : `${Math.round(s.weeklyConsistency * 100)}%`,
         detail: {
           title: "Weekly consistency",
-          body: "How steady weekly-meeting turnout is over the range — average weekly attendance divided by the best week. 100% means every week matched the peak; a lower figure means turnout swings more. “—” when there were no weekly meetings in the range.",
+          body: "How steady weekly-meeting turnout is over the range. Average weekly attendance divided by the best week. 100% means every week matched the peak; a lower figure means turnout swings more. “—” when there were no weekly meetings in the range.",
         },
       },
     ];
@@ -378,7 +378,7 @@ export function MetricsTab({
         <EmptyState
           icon="calendar-outline"
           title="No events in this range"
-          message="Nothing recorded for this group in this range yet — try a longer range, or include collaborative events to widen the view."
+          message="Nothing recorded for this group in this range yet. Try a longer range, or include collaborative events to widen the view."
         />
       ) : data ? (
         <>
@@ -566,7 +566,7 @@ export function MetricsTab({
                       <ChartCard
                         key="campusWeekly"
                         title="Avg weekly attendance by campus"
-                        subtitle="Not available for custom ranges — pick a preset"
+                        subtitle="Not available for custom ranges. Pick a preset."
                         width={chartWidth}
                       >
                         <Text style={[typography.caption, { color: t.muted }]}>
