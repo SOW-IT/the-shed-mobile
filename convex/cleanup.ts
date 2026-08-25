@@ -4,7 +4,6 @@ import { Doc } from "./_generated/dataModel";
 import { internalMutation, type MutationCtx } from "./_generated/server";
 import { currentStaffYear } from "./model";
 
-/** Delete live receipt blobs on one request; keep the attachment records. */
 const purgeRequestReceiptFiles = async (
   ctx: MutationCtx,
   request: Doc<"requests">
@@ -35,15 +34,7 @@ const purgeRequestReceiptFiles = async (
   return { filesDeleted };
 };
 
-/**
- * Yearly cron (01:00 Oct 1 Sydney = Sep 30 15:00 UTC), after the flip: delete
- * stored receipt files on requests from previous-previous staff year and
- * older. On 1 Oct 2026 current is 2027, so that is everything created before
- * 1 Oct 2025 (through 30 Sep 2025). Current and previous staff years are
- * kept. Paid or not. Attachment records stay, flagged `deleted`.
- *
- * `beforeMs` overrides the cutoff for tests / one-off runs.
- */
+/** Cutoff defaults to the start of the previous staff year (keeps current + previous). */
 export const purgeOldReceiptFiles = internalMutation({
   args: { beforeMs: v.optional(v.number()) },
   handler: async (ctx, args) => {
@@ -75,10 +66,6 @@ export const purgeOldReceiptFiles = internalMutation({
   },
 });
 
-/**
- * Paginated one-off: delete stored files on requests created before `beforeMs`.
- * Same keep-the-record rule as the yearly cron.
- */
 export const purgeReceiptFilesCreatedBefore = internalMutation({
   args: {
     beforeMs: v.number(),

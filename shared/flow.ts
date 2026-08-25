@@ -370,20 +370,13 @@ export const staffYearForDate = (date: Date): number => {
   return month >= 10 ? year + 1 : year;
 };
 
-/**
- * The staff year that begins at this 1 Oct. Before October that is next
- * (on 30 Sep 2026: 2027); from 1 Oct it is current (already flipped).
- * The prefill copies this year into the one after it.
- */
+/** Staff year that begins at this 1 Oct: next before October, current after. */
 export const incomingStaffYear = (date: Date = new Date()): number => {
   const current = staffYearForDate(date);
   return sydneyYmd(date).month < 10 ? current + 1 : current;
 };
 
-/**
- * True on 30 Sep from 21:00 Sydney until midnight — the prefill window, when
- * dirty Insights rebuilds both the current year and the incoming year.
- */
+/** Sydney 21:00–midnight on 30 Sep. */
 export const withinPrefillWindow = (now: Date = new Date()): boolean => {
   const { month, day, hour } = sydneyYmd(now);
   return month === 9 && day === 30 && hour >= 21;
@@ -412,21 +405,13 @@ export const eventStaffYear = (dateStart: number): number =>
 export const staffYearStartMs = (year: number): number =>
   Date.UTC(year - 1, 8, 30, 14, 0, 0, 0);
 
-/**
- * How long after Sydney midnight Oct 1 General Insights keeps using last
- * year's complete roster for retention / turnover / tenure. Separate from
- * auth grace, which now runs until the calendar year catches up.
- */
+/** First week after Oct 1: General Insights rates stay on last complete year. */
 export const ROLLOVER_RATE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** @deprecated Use ROLLOVER_RATE_GRACE_MS. Kept so older tests still compile. */
+/** @deprecated Use ROLLOVER_RATE_GRACE_MS. */
 export const ROLLOVER_AUTH_GRACE_MS = ROLLOVER_RATE_GRACE_MS;
 
-/**
- * True from rollover until the calendar year catches up to `staffYear`
- * (Sydney midnight 1 Jan). A person with no current-year profile may still
- * act as Staff on last year's row. See `requireProfile` in convex/model.ts.
- */
+/** Auth grace: after Oct 1 until the calendar year catches up (1 Jan). */
 export const withinRolloverAuthGrace = (
   staffYear: number,
   now: Date = new Date()
@@ -435,7 +420,6 @@ export const withinRolloverAuthGrace = (
   return sydneyCalendarYear(now) < staffYear;
 };
 
-/** True for the first week after rollover — General Insights rate series only. */
 export const withinRolloverRateGrace = (
   staffYear: number,
   now: Date = new Date()

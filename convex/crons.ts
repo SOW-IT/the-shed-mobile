@@ -13,16 +13,10 @@ crons.cron("stale request reminders", "0 22 * * *", internal.reminders.remindSta
 // Convex guidelines (no crons.weekly/daily helpers).
 crons.cron("google directory sync", "0 21 * * 1", internal.directorySync.run, {});
 
-// 21:00 Sydney 30 Sep = 11:00 UTC (AEST, UTC+10). Prefill copies the incoming
-// staff year into the year after it (on 2026-09-30 that is 2027 -> 2028) and
-// writes incoming-year Insights so the tab is ready at midnight. The clock,
-// not this job, is the rollover. See docs/adr/0003.
+// 21:00 Sydney 30 Sep = 11:00 UTC. See docs/adr/0003.
 crons.cron("staff year prefill", "0 11 30 9 *", internal.admin.prefillNextStaffYear, {});
 
-// 01:00 Sydney 1 Oct = 15:00 UTC 30 Sep. After the flip, so currentStaffYear()
-// is already the new year. Deletes receipt files on requests from
-// previous-previous staff year and older (on 2026-10-01: through 30 Sep 2025).
-// Attachment records (and names) stay — only the download dies.
+// 01:00 Sydney 1 Oct = 15:00 UTC 30 Sep, after the flip.
 crons.cron("purge old receipt files", "0 15 30 9 *", internal.cleanup.purgeOldReceiptFiles, {});
 
 // Weekly, Thursday 03:00 UTC (≈ Thu 1–2pm Sydney): refresh the Attendance →

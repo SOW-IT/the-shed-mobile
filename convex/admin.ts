@@ -2020,11 +2020,6 @@ const prefillNextStaffYearHandler = async (ctx: MutationCtx) => {
   return { skipped: false as const, from, to, ...counts };
 };
 
-/**
- * 21:00 30 Sep cron: copies incoming → incoming+1 (2027 → 2028 around the
- * 2026-10-01 rollover) and recomputes Insights for the incoming year so the
- * tab is ready at midnight. Idempotent skip still recomputes Insights.
- */
 export const prefillNextStaffYear = internalMutation({
   args: {},
   handler: prefillNextStaffYearHandler,

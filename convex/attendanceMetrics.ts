@@ -510,12 +510,7 @@ function buildBreakdown(
   return breakdown;
 }
 
-/**
- * Persist a batch of computed snapshots for one sub-group (from the recompute
- * action). Identity is (subgroup, range, collaborative, staff year) so two
- * years can sit together across the Oct 1 flip. Racing recomputes of the
- * same year still collapse to one row — never `.unique()`.
- */
+/** Upsert by (subgroup, range, collaborative, staff year). Never `.unique()`. */
 export const writeSnapshots = internalMutation({
   args: {
     subgroup: v.string(),
@@ -580,10 +575,6 @@ export const clearDirty = internalMutation({
   },
 });
 
-/**
- * Cron entry (weekly, Thursdays): fan out a recompute per sub-group so each
- * runs in its own bounded transaction. Also callable to force a full refresh.
- */
 export const recomputeAll = internalMutation({
   args: { staffYear: v.optional(v.number()) },
   returns: v.null(),
@@ -604,23 +595,11 @@ export const recomputeAll = internalMutation({
   },
 });
 
-/**
- * Cron entry (short interval): recompute every sub-group flagged dirty by a
- * roll-call / event change since the last run, then clear the flags. Also
- * rebuilds any current-year campus (or SOW) whose newest snapshot is missing
- * or still stamped with a prior staff year — that's what heals Insights after
- * the October 1 flip, when nothing is flagged dirty but every row is stale.
- * Fans out one bounded recompute per sub-group (like {@link recomputeAll}).
- */
 export const recomputeDirty = internalMutation({
   args: {},
   returns: v.null(),
   handler: async (ctx) => {
     const dirty = await ctx.db.query("attendanceMetricsDirty").collect();
-    // Dedupe by sub-group (a rare duplicate row must not fan out twice) and
-    // leave the flags in place: each recompute clears its own once it succeeds
-    // (see clearDirty), so a recompute that throws keeps its retry signal for
-    // the next run instead of being silently dropped here.
     const targets = new Set(dirty.map((r) => r.subgroup));
 
     const years = [currentStaffYear()];
@@ -629,10 +608,6 @@ export const recomputeDirty = internalMutation({
       if (!years.includes(incoming)) years.push(incoming);
     }
 
-    // Stale-year / missing snapshots: the 15-minute cron is the recovery path
-    // so the tab doesn't stay "not ready" until Thursday after Oct 1 (or after
-    // a new campus / range preset lands). During the 21:00–midnight prefill
-    // window also heal the incoming year so evening sign-ins land on both.
     const snapshots = await ctx.db.query("attendanceMetricsSnapshots").collect();
     for (const year of years) {
       const universities = await ctx.db
@@ -673,12 +648,6 @@ export const recomputeDirty = internalMutation({
   },
 });
 
-/**
- * Read the precomputed snapshot for a sub-group + range. Returns null when the
- * dashboard hasn't been computed yet (the client then shows a "not ready"
- * state). Authorization is the same as the rest of Attendance: any provisioned
- * staff member of the current staff year.
- */
 export const snapshot = query({
   args: {
     subgroup: v.string(),
@@ -710,9 +679,6 @@ export const snapshot = query({
       )
       .collect();
     if (rows.length === 0) return null;
-    // Resilient to a rare duplicate row (the index isn't a uniqueness
-    // constraint; see writeSnapshots): take the newest rather than `.unique()`,
-    // which would throw and take down the Insights tab.
     const row = rows.reduce((a, b) => (b.computedAt > a.computedAt ? b : a));
     return {
       subgroup: row.subgroup,
@@ -845,7 +811,6 @@ export const campusWeeklyAverages = query({
       .withIndex("by_year_and_name", (q) => q.eq("year", year))
       .collect();
 
-    // The per-campus snapshot reads are independent, so fan them out in parallel.
     const perCampus = await Promise.all(
       universities.map(async (uni) => {
         const rows = await ctx.db

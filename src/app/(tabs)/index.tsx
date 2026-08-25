@@ -174,19 +174,10 @@ export default function RequestsScreen() {
   const queryYear = isPastYear ? (selectedYear as number) : undefined;
   const pickerYears = requestYears?.all ?? [];
 
-  // Viewing last staff year: its receipt files are kept until the next Oct 1
-  // (current + previous staff years). Warn before the following rollover
-  // drops them as previous-previous.
   const isPreviousYear =
     isPastYear && selectedYear === (currentYear as number) - 1;
-  // Two or more staff years back: a rollover has already run, so those receipt
-  // files are gone.
   const isOlderYear =
     isPastYear && (selectedYear as number) < (currentYear as number) - 1;
-  // The calendar year of the upcoming 1 October (the rollover / purge date).
-  // The current staff year is named after that very date, so it IS the next
-  // rollover's calendar year — and it already flips at Sydney midnight Oct 1
-  // (see staffYearForDate), keeping the picker, me.year and this banner aligned.
   const nextRolloverYear = currentYear as number;
 
   const departmentNames = (structure?.departments ?? []).map((d) => d.name);

@@ -38,7 +38,6 @@ export const incomingStaffYear = () => incomingStaffYearForDate(new Date());
 export const allowedDomain = () =>
   process.env.AUTH_ALLOWED_DOMAIN ?? "sow.org.au";
 
-/** True when an email belongs to the organisation's staff domain. */
 export const isOrgEmail = (email: string | null | undefined): boolean =>
   !!email && email.toLowerCase().endsWith(`@${allowedDomain()}`);
 
@@ -70,12 +69,7 @@ export async function requireEmail(ctx: Ctx): Promise<string> {
   return email;
 }
 
-/**
- * Resolve the caller's staff profile for the live staff year, with auth grace
- * until the calendar year catches up (1 Jan): if the new year has no profile
- * yet but the previous year does, reuse the previous profile while keeping
- * `year` as the *current* staff year. New requests land in the new year.
- */
+/** Live-year profile, or last year's during auth grace. `year` stays current. */
 async function profileForCurrentYear(
   ctx: Ctx,
   email: string
@@ -89,7 +83,6 @@ async function profileForCurrentYear(
   return { email, year, profile: previous };
 }
 
-/** Caller context for queries: null when unauthenticated or unprovisioned. */
 export async function optionalProfile(ctx: Ctx): Promise<CallerContext | null> {
   const email = await optionalEmail(ctx);
   if (!email) return null;
