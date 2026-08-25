@@ -370,6 +370,18 @@ export const staffYearForDate = (date: Date): number => {
   return month >= 10 ? year + 1 : year;
 };
 
+/** Staff year that begins at this 1 Oct: next before October, current after. */
+export const incomingStaffYear = (date: Date = new Date()): number => {
+  const current = staffYearForDate(date);
+  return sydneyYmd(date).month < 10 ? current + 1 : current;
+};
+
+/** Sydney 21:00–midnight on 30 Sep. */
+export const withinPrefillWindow = (now: Date = new Date()): boolean => {
+  const { month, day, hour } = sydneyYmd(now);
+  return month === 9 && day === 30 && hour >= 21;
+};
+
 /**
  * The staff year an event belongs to, derived from its start date (epoch ms).
  * Events carry no stored `year` column — this is the single place that maps an
@@ -393,22 +405,28 @@ export const eventStaffYear = (dateStart: number): number =>
 export const staffYearStartMs = (year: number): number =>
   Date.UTC(year - 1, 8, 30, 14, 0, 0, 0);
 
-/**
- * How long after Sydney midnight Oct 1 a staffer may still authenticate using
- * their *previous* staff-year profile if the new year isn't provisioned yet.
- * Keeps the app usable for the first week of the new year while admins finish
- * assignments. See `requireProfile` / `optionalProfile` in convex/model.ts.
- */
-export const ROLLOVER_AUTH_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+/** First week after Oct 1: General Insights rates stay on last complete year. */
+export const ROLLOVER_RATE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** True when `now` is within the post-rollover auth grace for `staffYear`. */
+/** @deprecated Use ROLLOVER_RATE_GRACE_MS. */
+export const ROLLOVER_AUTH_GRACE_MS = ROLLOVER_RATE_GRACE_MS;
+
+/** Auth grace: after Oct 1 until the calendar year catches up (1 Jan). */
 export const withinRolloverAuthGrace = (
+  staffYear: number,
+  now: Date = new Date()
+): boolean => {
+  if (now.getTime() < staffYearStartMs(staffYear)) return false;
+  return sydneyCalendarYear(now) < staffYear;
+};
+
+export const withinRolloverRateGrace = (
   staffYear: number,
   now: Date = new Date()
 ): boolean => {
   const start = staffYearStartMs(staffYear);
   const t = now.getTime();
-  return t >= start && t < start + ROLLOVER_AUTH_GRACE_MS;
+  return t >= start && t < start + ROLLOVER_RATE_GRACE_MS;
 };
 
 /**

@@ -463,11 +463,18 @@ export default defineSchema({
     staffYear: v.number(),
     computedAt: v.number(),
     data: metricsDataValidator,
-  }).index("by_subgroup_and_range", [
-    "subgroup",
-    "rangeWeeks",
-    "includeCollaborative",
-  ]),
+  })
+    .index("by_subgroup_and_range", [
+      "subgroup",
+      "rangeWeeks",
+      "includeCollaborative",
+    ])
+    .index("by_subgroup_range_year", [
+      "subgroup",
+      "rangeWeeks",
+      "includeCollaborative",
+      "staffYear",
+    ]),
 
   // Sub-groups whose metrics snapshot is stale after a roll-call / event change,
   // drained by the short-interval `recomputeDirty` cron (see attendanceMetrics.ts).

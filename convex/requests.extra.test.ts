@@ -860,8 +860,6 @@ describe("deleteDeclined", () => {
 });
 
 describe("cleanup.purgeOldReceiptFiles", () => {
-  const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
-
   /** Builds a paid request with one receipt file, returning its id + storageId. */
   async function paidRequestWithFile(t: TestConvex<typeof schema>) {
     const id = await approvedRequest(t);
@@ -876,25 +874,19 @@ describe("cleanup.purgeOldReceiptFiles", () => {
     return { id, storageId: file.storageId };
   }
 
-  test("purges files of requests paid over a year ago, keeping the record", async () => {
+  test("purges files on requests created before the cutoff, keeping the record", async () => {
     const t = await setup();
     const { id, storageId } = await paidRequestWithFile(t);
-    // Backdate payment to just over a year ago.
-    await t.run((ctx) =>
-      ctx.db.patch("requests", id, { paidTime: Date.now() - ONE_YEAR_MS - 1000 })
-    );
+    const created = (await t.run((ctx) => ctx.db.get("requests", id)))!._creationTime;
 
-    await t.mutation(internal.cleanup.purgeOldReceiptFiles, {});
+    await t.mutation(internal.cleanup.purgeOldReceiptFiles, { beforeMs: created + 1 });
 
-    // The stored blob is gone...
     expect(await t.run((ctx) => ctx.storage.getUrl(storageId))).toBeNull();
-    // ...but the attachment record survives, flagged deleted, with its name.
     const request = (await t.run((ctx) => ctx.db.get("requests", id)))!;
     const attachment = request.receipt!.recipients[0].attachments![0];
     expect(attachment.deleted).toBe(true);
     expect(attachment.name).toBe("receipt.pdf");
 
-    // The query surfaces the file with no link so history still shows it.
     const receipts = (await asUser(t, RACHEL).query(api.requests.receiptAttachments, {
       requestId: id,
     }))!;
@@ -905,10 +897,9 @@ describe("cleanup.purgeOldReceiptFiles", () => {
     });
   });
 
-  test("leaves files of requests paid within the last year untouched", async () => {
+  test("leaves files on requests created at or after the cutoff", async () => {
     const t = await setup();
     const { id, storageId } = await paidRequestWithFile(t);
-    // Paid time is "now" (recent), so it must be kept.
 
     await t.mutation(internal.cleanup.purgeOldReceiptFiles, {});
 
@@ -920,11 +911,37 @@ describe("cleanup.purgeOldReceiptFiles", () => {
   test("is idempotent — a second run does not error on already-purged files", async () => {
     const t = await setup();
     const { id } = await paidRequestWithFile(t);
-    await t.run((ctx) =>
-      ctx.db.patch("requests", id, { paidTime: Date.now() - ONE_YEAR_MS - 1000 })
-    );
-    await t.mutation(internal.cleanup.purgeOldReceiptFiles, {});
-    await t.mutation(internal.cleanup.purgeOldReceiptFiles, {});
+    const created = (await t.run((ctx) => ctx.db.get("requests", id)))!._creationTime;
+    await t.mutation(internal.cleanup.purgeOldReceiptFiles, { beforeMs: created + 1 });
+    await t.mutation(internal.cleanup.purgeOldReceiptFiles, { beforeMs: created + 1 });
+    const request = (await t.run((ctx) => ctx.db.get("requests", id)))!;
+    expect(request.receipt!.recipients[0].attachments![0].deleted).toBe(true);
+  });
+});
+
+describe("cleanup.purgeReceiptFilesCreatedBefore", () => {
+  test("pages through requests created before the cutoff", async () => {
+    const t = await setup();
+    const id = await approvedRequest(t);
+    const file = await storedReceipt(t);
+    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
+      requestId: id,
+      recipients: [
+        { accountName: "Rachel", bsb: "123456", accountNumber: "12345678", amount: 100, attachments: [file] },
+      ],
+    });
+    const created = (await t.run((ctx) => ctx.db.get("requests", id)))!._creationTime;
+    const first = await t.mutation(internal.cleanup.purgeReceiptFilesCreatedBefore, {
+      beforeMs: created + 1,
+      batch: 1,
+    });
+    expect(first.filesDeleted).toBeGreaterThanOrEqual(0);
+    const second = await t.mutation(internal.cleanup.purgeReceiptFilesCreatedBefore, {
+      beforeMs: created + 1,
+      cursor: first.continueCursor,
+      batch: 1,
+    });
+    expect(second.filesDeleted + first.filesDeleted).toBeGreaterThanOrEqual(1);
     const request = (await t.run((ctx) => ctx.db.get("requests", id)))!;
     expect(request.receipt!.recipients[0].attachments![0].deleted).toBe(true);
   });

@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate } from "../shared/flow";
 import { SOW_SUBGROUP } from "../shared/rollcall";
 import { api, internal } from "./_generated/api";
@@ -45,6 +45,23 @@ const window = (offsetDays = 0) => {
 };
 
 describe("attendanceMetrics", () => {
+  afterEach(() => vi.useRealTimers());
+
+  test("recomputeDirty in the prefill window schedules current and incoming years", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-30T11:00:00Z"));
+    const { t } = await setup();
+    await t.mutation(internal.attendanceMetrics.recomputeDirty, {});
+    const jobs = await t.run((ctx) =>
+      ctx.db.system.query("_scheduled_functions").collect()
+    );
+    const years = jobs
+      .filter((j) => j.name === "attendanceMetrics:recomputeSubgroup")
+      .map((j) => (j.args[0] as { staffYear?: number }).staffYear);
+    expect(years).toContain(2026);
+    expect(years).toContain(2027);
+  });
+
   test("snapshot returns null when not signed in", async () => {
     const { t } = await setup();
     expect(
@@ -539,6 +556,47 @@ describe("attendanceMetrics", () => {
         .collect()
     );
     expect(rows).toHaveLength(1); // patched, never duplicated
+  });
+
+  test("snapshot keeps a previous-year row while reading the current year", async () => {
+    const { t, leader } = await setup();
+    await t.run((ctx) =>
+      ctx.db.insert("attendanceMetricsSnapshots", {
+        subgroup: USYD,
+        rangeWeeks: 4,
+        includeCollaborative: true,
+        staffYear: YEAR - 1,
+        computedAt: Date.now(),
+        data: EMPTY_DATA,
+      })
+    );
+    await t.run((ctx) =>
+      ctx.db.insert("attendanceMetricsSnapshots", {
+        subgroup: USYD,
+        rangeWeeks: 4,
+        includeCollaborative: true,
+        staffYear: YEAR,
+        computedAt: Date.now(),
+        data: EMPTY_DATA,
+      })
+    );
+    const snap = await leader.query(api.attendanceMetrics.snapshot, {
+      subgroup: USYD,
+      rangeWeeks: 4,
+    });
+    expect(snap?.staffYear).toBe(YEAR);
+    const rows = await t.run((ctx) =>
+      ctx.db
+        .query("attendanceMetricsSnapshots")
+        .withIndex("by_subgroup_and_range", (q) =>
+          q
+            .eq("subgroup", USYD)
+            .eq("rangeWeeks", 4)
+            .eq("includeCollaborative", true)
+        )
+        .collect()
+    );
+    expect(rows).toHaveLength(2);
   });
 
   test("snapshot ignores a stale previous-staff-year row", async () => {

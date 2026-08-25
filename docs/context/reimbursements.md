@@ -39,7 +39,13 @@ The amount at or above which a Request gains a Director step. Per year.
 
 **Receipt**:
 Proof of spend attached after approval, before payment. Distinct from the
-Request itself — a Request exists long before its receipt does.
+Request itself: a Request exists long before its receipt does.
+
+**Receipt file**:
+The stored blob on a Receipt. Kept for the current and previous staff years.
+At rollover, files from previous-previous and older are deleted. The Request
+and the file name stay; only the download dies.
+_Avoid_: invoice (the domain word is Receipt; the UI still says receipt/invoice)
 
 **Deadlock prevention**:
 Refusing a submission up front when the year is missing an approver that

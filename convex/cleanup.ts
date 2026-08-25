@@ -1,81 +1,101 @@
 import { v } from "convex/values";
 import { EARLIEST_REQUEST_YEAR, staffYearStartMs } from "../shared/flow";
-import { internalMutation } from "./_generated/server";
+import { Doc } from "./_generated/dataModel";
+import { internalMutation, type MutationCtx } from "./_generated/server";
 import { currentStaffYear } from "./model";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-/** Receipt files are kept for one year after a request is paid, then purged. */
-const RETENTION_DAYS = 365;
+const purgeRequestReceiptFiles = async (
+  ctx: MutationCtx,
+  request: Doc<"requests">
+): Promise<{ filesDeleted: number }> => {
+  if (!request.receipt) return { filesDeleted: 0 };
+  let filesDeleted = 0;
+  let changed = false;
+  const recipients = await Promise.all(
+    request.receipt.recipients.map(async (recipient) => {
+      if (!recipient.attachments?.length) return recipient;
+      const attachments = await Promise.all(
+        recipient.attachments.map(async (attachment) => {
+          if (attachment.deleted) return attachment;
+          await ctx.storage.delete(attachment.storageId);
+          filesDeleted++;
+          changed = true;
+          return { ...attachment, deleted: true };
+        })
+      );
+      return { ...recipient, attachments };
+    })
+  );
+  if (changed) {
+    await ctx.db.patch("requests", request._id, {
+      receipt: { ...request.receipt, recipients },
+    });
+  }
+  return { filesDeleted };
+};
 
-/**
- * Yearly cron (01:00 Oct 1 Sydney time = Sep 30 15:00 UTC): deletes the
- * stored receipt/invoice files of every request that was paid more than a year
- * ago, an hour after the staff-year rollover cron so the two jobs don't share
- * the same minute. The attachment records are kept (and flagged `deleted`) so
- * historical requests still show that a file was attached — only the download
- * link stops working. Idempotent: attachments already flagged `deleted` are
- * skipped, so re-runs are harmless.
- *
- * `olderThanDays` overrides the retention window (defaults to one year); used
- * for manual runs e.g. `npx convex run cleanup:purgeOldReceiptFiles '{"olderThanDays":730}'`.
- */
+/** Cutoff defaults to the start of the previous staff year (keeps current + previous). */
 export const purgeOldReceiptFiles = internalMutation({
-  args: { olderThanDays: v.optional(v.number()) },
+  args: { beforeMs: v.optional(v.number()) },
   handler: async (ctx, args) => {
-    const cutoff = Date.now() - (args.olderThanDays ?? RETENTION_DAYS) * DAY_MS;
+    const cutoff =
+      args.beforeMs ?? staffYearStartMs(currentStaffYear() - 1);
     let filesDeleted = 0;
     let requestsTouched = 0;
 
-    // Files this old only belong to past years' requests, so iterate the
-    // bounded set of staff years rather than scanning the whole table. Stream
-    // each year's requests (no fixed cap) so a busy year never leaves files
-    // beyond an arbitrary limit unpurged.
     for (let year = EARLIEST_REQUEST_YEAR; year <= currentStaffYear(); year++) {
+      const yearStart = staffYearStartMs(year);
+      const yearEnd = staffYearStartMs(year + 1);
+      if (yearStart >= cutoff) break;
+      const end = Math.min(yearEnd, cutoff);
       for await (const request of ctx.db
         .query("requests")
         .withIndex("by_creation_time", (q) =>
-          q
-            .gte("_creationTime", staffYearStartMs(year))
-            .lt("_creationTime", staffYearStartMs(year + 1))
+          q.gte("_creationTime", yearStart).lt("_creationTime", end)
         )) {
-        if (
-          request.paid !== true ||
-          request.paidTime === undefined ||
-          request.paidTime >= cutoff ||
-          !request.receipt
-        ) {
-          continue;
-        }
-
-        let changed = false;
-        const recipients = await Promise.all(
-          request.receipt.recipients.map(async (recipient) => {
-            if (!recipient.attachments?.length) return recipient;
-            const attachments = await Promise.all(
-              recipient.attachments.map(async (attachment) => {
-                if (attachment.deleted) return attachment; // already purged
-                await ctx.storage.delete(attachment.storageId);
-                filesDeleted++;
-                changed = true;
-                return { ...attachment, deleted: true };
-              })
-            );
-            return { ...recipient, attachments };
-          })
-        );
-
-        if (changed) {
-          await ctx.db.patch("requests", request._id, {
-            receipt: { ...request.receipt, recipients },
-          });
-          requestsTouched++;
-        }
+        const purged = await purgeRequestReceiptFiles(ctx, request);
+        filesDeleted += purged.filesDeleted;
+        if (purged.filesDeleted > 0) requestsTouched++;
       }
     }
 
     console.log(
-      `purgeOldReceiptFiles: deleted ${filesDeleted} file(s) across ${requestsTouched} request(s) paid before ${new Date(cutoff).toISOString()}`
+      `purgeOldReceiptFiles: deleted ${filesDeleted} file(s) across ${requestsTouched} request(s) created before ${new Date(cutoff).toISOString()}`
     );
     return null;
+  },
+});
+
+export const purgeReceiptFilesCreatedBefore = internalMutation({
+  args: {
+    beforeMs: v.number(),
+    cursor: v.optional(v.union(v.string(), v.null())),
+    batch: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const batch = args.batch ?? 50;
+    const page = await ctx.db
+      .query("requests")
+      .withIndex("by_creation_time", (q) => q.lt("_creationTime", args.beforeMs))
+      .paginate({ numItems: batch, cursor: args.cursor ?? null });
+
+    let filesDeleted = 0;
+    let requestsTouched = 0;
+    for (const request of page.page) {
+      const purged = await purgeRequestReceiptFiles(ctx, request);
+      filesDeleted += purged.filesDeleted;
+      if (purged.filesDeleted > 0) requestsTouched++;
+    }
+
+    console.log(
+      `purgeReceiptFilesCreatedBefore: deleted ${filesDeleted} file(s) across ${requestsTouched} request(s) created before ${new Date(args.beforeMs).toISOString()} (done=${page.isDone})`
+    );
+    return {
+      filesDeleted,
+      requestsTouched,
+      scanned: page.page.length,
+      isDone: page.isDone,
+      continueCursor: page.continueCursor,
+    };
   },
 });

@@ -13,19 +13,10 @@ crons.cron("stale request reminders", "0 22 * * *", internal.reminders.remindSta
 // Convex guidelines (no crons.weekly/daily helpers).
 crons.cron("google directory sync", "0 21 * * 1", internal.directorySync.run, {});
 
-// Sep 30 14:01 UTC = 00:01 Oct 1 Sydney time: the staff year rolls over at
-// Sydney midnight Oct 1 (see staffYearForDate — midnight Oct 1 is AEST, UTC+10),
-// so by 00:01 currentStaffYear() is already the new year. Prefill the next staff
-// year (2 calendar years out) from the new current staff year, e.g. on 2026-10-01
-// copy 2027 -> 2028, then email IT a summary. Admins can then configure the new
-// year from a populated copy.
-crons.cron("staff year rollover", "1 14 30 9 *", internal.admin.rollOverStaffYear, {});
+// 21:00 Sydney 30 Sep = 11:00 UTC. See docs/adr/0003.
+crons.cron("staff year prefill", "0 11 30 9 *", internal.admin.prefillNextStaffYear, {});
 
-// Sep 30 15:00 UTC = 01:00 Oct 1 Sydney (AEST, UTC+10) — one hour after the
-// staff-year rollover cron (14:01 UTC) so the two heavy jobs don't share the
-// same minute. Purges receipt/invoice files attached to requests paid more
-// than a year ago. Attachment records (and names) are kept so history still
-// shows a file was there — only the download link dies.
+// 01:00 Sydney 1 Oct = 15:00 UTC 30 Sep, after the flip.
 crons.cron("purge old receipt files", "0 15 30 9 *", internal.cleanup.purgeOldReceiptFiles, {});
 
 // Weekly, Thursday 03:00 UTC (≈ Thu 1–2pm Sydney): refresh the Attendance →
