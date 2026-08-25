@@ -2030,7 +2030,12 @@ export const prefillNextStaffYear = internalMutation({
   handler: prefillNextStaffYearHandler,
 });
 
-/** @deprecated Alias for runbooks that still call rollOverStaffYear. */
+/**
+ * @deprecated Alias for runbooks that still call rollOverStaffYear. The year
+ * pair changed: this now copies `incomingStaffYear()` into `incoming + 1`, not
+ * `currentStaffYear()` into `nextStaffYear()`. Outside October those differ.
+ * For an explicit source and destination, use `copyYear`.
+ */
 export const rollOverStaffYear = internalMutation({
   args: {},
   handler: prefillNextStaffYearHandler,
