@@ -17,7 +17,6 @@ import {
   stagger,
 } from "@/components/ui";
 
-/** How many requests to reveal per infinite-scroll page (both tabs). */
 const PAGE_SIZE = 20;
 
 const STATUS_PRIORITY: Record<string, number> = {
@@ -33,7 +32,6 @@ const sortRequests = (
   unread: Record<string, number>
 ): Doc<"requests">[] =>
   [...list].sort((a, b) => {
-    // Requests with unread comments float to the top (most unread first).
     const ua = unread[a._id] ?? 0;
     const ub = unread[b._id] ?? 0;
     if (ua !== ub) return ub - ua;
@@ -43,7 +41,6 @@ const sortRequests = (
     return b._creationTime - a._creationTime;
   });
 
-/** Every request this year (Finance only), split into ongoing/completed. */
 export const AllRequestsList = ({
   year,
   loadMoreRef,
@@ -52,29 +49,20 @@ export const AllRequestsList = ({
   focusReopenKey,
 }: {
   year?: number;
-  /** Notification deep-link: id of the request to focus (expand / open thread). */
   focusId?: string;
   focusThread?: boolean;
   focusReopenKey?: string;
-  /**
-   * Set by the parent screen's ScrollView so it can drive infinite scroll.
-   * Points at this list's "reveal more" handler, or null when there's nothing
-   * more to reveal.
-   */
   loadMoreRef?: MutableRefObject<(() => void) | null>;
 }) => {
   const requests = useQuery(
     api.requests.allRequests,
     year !== undefined ? { year } : {}
   );
-  // Per-request unread comment counts, to float requests with unread to the top.
   const unread =
     useQuery(
       api.comments.unreadCountsForRequests,
       requests ? { requestIds: requests.map((r) => r._id) } : "skip"
     ) ?? {};
-  // Past years (year set) are almost all completed, so default to that tab;
-  // reset the default whenever the browsed year changes.
   const [filter, setFilter] = useState<"ongoing" | "completed">(
     year !== undefined ? "completed" : "ongoing"
   );
@@ -91,7 +79,6 @@ export const AllRequestsList = ({
     unread
   );
 
-  // Both tabs reveal a page at a time as the user scrolls down.
   const [visible, setVisible] = useState(PAGE_SIZE);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset paging on filter/year change
@@ -101,8 +88,6 @@ export const AllRequestsList = ({
   const shown = filtered.slice(0, visible);
   const hasMore = filtered.length > shown.length;
 
-  // Guard against the scroll handler firing many times before the next render:
-  // reveal at most one page per render cycle.
   const pending = useRef(false);
   useEffect(() => {
     pending.current = false;
@@ -146,7 +131,6 @@ export const AllRequestsList = ({
           }
         />
       ) : (
-        // Wide screens lay requests out as side-by-side columns; phones stack.
         <Grid minColumnWidth={380}>
           {shown.map((request, index) => {
             const card = (
@@ -159,9 +143,6 @@ export const AllRequestsList = ({
                 deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}
               />
             );
-            // Skip entrance animation on pages revealed by scroll — only the
-            // first page needs the stagger, and animating hundreds of cards
-            // as they mount is wasted work.
             return index < PAGE_SIZE ? (
               <FadeInView key={request._id} delay={stagger(index)}>
                 {card}

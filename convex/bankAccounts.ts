@@ -2,19 +2,11 @@ import { ConvexError, v } from "convex/values";
 import { mutation, MutationCtx, query } from "./_generated/server";
 import { optionalEmail, requireEmail } from "./model";
 
-/**
- * Remembers a bank account the caller used on a receipt so they don't have to
- * re-type it next time. Deduped per (email, bsb, accountNumber): a repeat use
- * just refreshes the account name and bumps it to the top of the picker.
- * Called from submitReceipt for every recipient on the requester's behalf.
- */
 export async function rememberBankAccount(
   ctx: MutationCtx,
   email: string,
   account: { accountName: string; bsb: string; accountNumber: string }
 ): Promise<void> {
-  // Canonicalise the owner key and account fields so case/whitespace
-  // differences can't split one logical account into duplicate rows.
   const ownerEmail = email.trim().toLowerCase();
   const accountName = account.accountName.trim();
   const bsb = account.bsb.trim();
@@ -41,18 +33,16 @@ export async function rememberBankAccount(
   });
 }
 
-/** The caller's saved bank accounts, most-recently-used first. */
 export const listMine = query({
   args: {},
   handler: async (ctx) => {
     const email = await optionalEmail(ctx);
-    if (!email) return null; // auth still attaching
+    if (!email) return null;
     const accounts = await ctx.db
       .query("savedBankAccounts")
       .withIndex("by_email", (q) => q.eq("email", email))
       .take(100);
     const sorted = accounts.sort((a, b) => b.lastUsedAt - a.lastUsedAt);
-    // If only one account, it is implicitly preferred.
     const hasExplicitPreferred = sorted.some((a) => a.preferred === true);
     return sorted.map((a, i) => ({
       id: a._id,
@@ -64,7 +54,6 @@ export const listMine = query({
   },
 });
 
-/** Marks one of the caller's saved accounts as preferred, clearing the others. */
 export const setPreferred = mutation({
   args: { id: v.id("savedBankAccounts") },
   handler: async (ctx, args) => {
@@ -84,12 +73,6 @@ export const setPreferred = mutation({
   },
 });
 
-/**
- * Adds a bank account the caller typed in directly (e.g. from the Bank tab).
- * By default the account is saved without changing which account is preferred;
- * pass `makePreferred: true` to make it the new auto-fill account. Reuses an
- * existing row with the same BSB + account number rather than duplicating it.
- */
 export const addAccount = mutation({
   args: {
     accountName: v.string(),
@@ -106,10 +89,6 @@ export const addAccount = mutation({
     if (!bsb) throw new ConvexError("BSB is required.");
     if (!accountNumber) throw new ConvexError("Account number is required.");
 
-    // Snapshot the caller's accounts *before* inserting so we can tell which one
-    // is currently the effective preferred: the explicitly-flagged account, or
-    // (per listMine's fallback) the most-recently-used one. Adding without
-    // opting in must not change which account is preferred.
     const before = await ctx.db
       .query("savedBankAccounts")
       .withIndex("by_email", (q) => q.eq("email", email))
@@ -139,10 +118,6 @@ export const addAccount = mutation({
       });
     }
 
-    // Opting in makes the added account preferred. Otherwise keep whatever was
-    // already preferred — but if that was only *implicit* (no explicit flag),
-    // pin it explicitly now so the freshly-bumped account can't silently usurp
-    // the preferred slot via the most-recently-used fallback.
     const preferredId = args.makePreferred ? targetId : priorPreferredId ?? targetId;
     if (args.makePreferred || !hadExplicitPreferred) {
       const all = await ctx.db
@@ -159,7 +134,6 @@ export const addAccount = mutation({
   },
 });
 
-/** Updates the details of one of the caller's saved accounts. */
 export const updateAccount = mutation({
   args: {
     id: v.id("savedBankAccounts"),
@@ -193,7 +167,6 @@ export const updateAccount = mutation({
   },
 });
 
-/** Forgets one of the caller's saved accounts. If it was preferred, promotes the next most-recently-used. */
 export const remove = mutation({
   args: { id: v.id("savedBankAccounts") },
   handler: async (ctx, args) => {
@@ -205,7 +178,6 @@ export const remove = mutation({
     const wasPreferred = account.preferred === true;
     await ctx.db.delete("savedBankAccounts", args.id);
     if (wasPreferred) {
-      // Promote the next most-recently-used account as preferred.
       const remaining = (
         await ctx.db
           .query("savedBankAccounts")

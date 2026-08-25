@@ -1,4 +1,3 @@
-/** Normalise legacy roll-call member names for import. */
 export function canonicalImportMemberName(name: string): string {
   const trimmed = name.trim().replace(/\s+/g, " ");
   if (trimmed.toLowerCase() === "daniel kim snr") return "Daniel Kim";
@@ -10,10 +9,6 @@ const normalizedEmail = (email: string | undefined): string | undefined => {
   return lower && lower.includes("@") ? lower : undefined;
 };
 
-/**
- * Map legacy roll-call emails (`first.last@sowaustralia.com`) and special cases
- * to the staff profile email used in `staffProfiles` (`first.last@sow.org.au`).
- */
 export function canonicalStaffEmailFromLegacy(member: {
   name: string;
   email?: string;
@@ -28,7 +23,6 @@ export function canonicalStaffEmailFromLegacy(member: {
   return `${localPart}@sow.org.au`;
 }
 
-/** Prefer staff profile email when legacy data can be mapped. */
 export function resolveImportStaffEmail(member: {
   name: string;
   email?: string;
@@ -38,12 +32,6 @@ export function resolveImportStaffEmail(member: {
   );
 }
 
-/**
- * Email-only legacy mapping for matching past-year attendance to staff
- * profiles at read time: `first.last@sowaustralia.com` → `first.last@sow.org.au`.
- * Any other (already-canonical or non-staff) email is returned lowercased, so
- * this is a no-op for current data.
- */
 export function canonicalStaffEmail(
   email: string | undefined
 ): string | undefined {
@@ -58,13 +46,6 @@ export function canonicalStaffEmail(
 
 const SOW_STAFF_DOMAINS = ["sow.org.au", "sowaustralia.com"] as const;
 
-/**
- * Both staff-domain spellings of a SOW email, newest domain first. Staff
- * profiles changed domain over time — older staff years use
- * `first.last@sowaustralia.com`, newer ones `first.last@sow.org.au` — so
- * matching a member to a profile has to try both. A non-SOW (personal) email
- * returns just itself, so it can never collide with a staff profile.
- */
 export function staffEmailCandidates(email: string | undefined): string[] {
   const lower = normalizedEmail(email);
   if (!lower) return [];
@@ -77,13 +58,6 @@ export function staffEmailCandidates(email: string | undefined): string[] {
   return [lower];
 }
 
-/**
- * A single canonical key for an email, used to link an attendance member to a
- * staff profile by their `email` alone. Trims, lowercases, and collapses the two
- * SOW staff-domain spellings (…@sow.org.au / …@sowaustralia.com) to one value,
- * so a member and profile that differ only by domain, case, or stray whitespace
- * resolve to the same person. Returns `undefined` for a blank/invalid email.
- */
 export function canonicalEmailKey(email: string | undefined): string | undefined {
   return staffEmailCandidates(email)[0];
 }

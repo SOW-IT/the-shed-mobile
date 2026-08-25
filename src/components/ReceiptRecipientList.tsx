@@ -6,11 +6,6 @@ import { Doc } from "../../convex/_generated/dataModel";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { formatAmount, LoadingBar, Muted, Row, Txt } from "@/components/ui";
 
-/**
- * A submitted receipt's recipients: each one's bank details and receipt files
- * as tappable links (signed URLs — tap to view or download). Shared by the
- * request card's receipt section and the Pay sheet so both render identically.
- */
 export const ReceiptRecipientList = ({ request }: { request: Doc<"requests"> }) => {
   const t = useAppTheme();
   const files = useQuery(api.requests.receiptAttachments, {
@@ -33,7 +28,6 @@ export const ReceiptRecipientList = ({ request }: { request: Doc<"requests"> }) 
             BSB {recipient.bsb} · Account {recipient.accountNumber}
           </Muted>
           {files === undefined ? (
-            // Files (signed URLs) load async — show a blurred placeholder link.
             <View style={styles.fileLink}>
               <Ionicons name="document-attach-outline" size={15} color={t.muted} />
               <LoadingBar width={140} height={11} />
@@ -41,8 +35,6 @@ export const ReceiptRecipientList = ({ request }: { request: Doc<"requests"> }) 
           ) : null}
           {(files?.[i]?.attachments ?? []).map((file, j) =>
             file.deleted ? (
-              // The file was purged by the retention cron; show the name so
-              // history is intact, but it is no longer openable.
               <View key={j} style={styles.fileLink}>
                 <Ionicons name="document-outline" size={15} color={t.muted} />
                 <Text

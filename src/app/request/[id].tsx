@@ -4,13 +4,6 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { EmptyState, LoadingState, Screen } from "@/components/ui";
 
-/**
- * Legacy deep-link target for a single request. Notifications now link straight
- * to the live Requests tab where the action is taken (see `requestUrl` in
- * convex/requests.ts), so this route just forwards there — to "Mine" for the
- * requester, "Review" for everyone else — focusing the request so it expands.
- * Kept so older notifications/bookmarks still land somewhere useful.
- */
 export default function RequestRedirectScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const me = useQuery(api.directory.me);

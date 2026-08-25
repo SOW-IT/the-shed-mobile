@@ -202,8 +202,6 @@ describe("push.send (Expo push action)", () => {
       await seedToken(t, "a@sow.org.au", "ExponentPushToken[live]");
       const fetchMock = vi
         .fn()
-        // send: both tickets ok, with receipt ids — DeviceNotRegistered mostly
-        // only surfaces in the receipt, not the ticket.
         .mockResolvedValueOnce({
           ok: true,
           json: () =>
@@ -214,7 +212,6 @@ describe("push.send (Expo push action)", () => {
               ],
             }),
         })
-        // getReceipts: the first device was uninstalled.
         .mockResolvedValueOnce({
           ok: true,
           json: () =>
@@ -228,7 +225,6 @@ describe("push.send (Expo push action)", () => {
       vi.stubGlobal("fetch", fetchMock);
 
       await t.action(internal.push.send, { to: "a@sow.org.au", title: "T", body: "B" });
-      // The receipt check runs 15 minutes later as a scheduled action.
       await t.finishAllScheduledFunctions(vi.runAllTimers);
 
       expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -248,7 +244,6 @@ describe("push.send (Expo push action)", () => {
     await seedToken(t, "a@sow.org.au", "ExponentPushToken[1]");
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("ECONNRESET")));
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    // Best-effort: the scheduled action resolves instead of failing.
     await expect(
       t.action(internal.push.checkReceipts, {
         receipts: [{ id: "r1", token: "ExponentPushToken[1]" }],
@@ -262,7 +257,6 @@ describe("push.send (Expo push action)", () => {
   test("checkReceipts tolerates a non-ok response and missing receipts", async () => {
     const t = convexTest(schema, modules);
     await seedToken(t, "a@sow.org.au", "ExponentPushToken[1]");
-    // Non-ok: logged, nothing pruned.
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -277,7 +271,6 @@ describe("push.send (Expo push action)", () => {
     });
     expect(error).toHaveBeenCalledWith("Expo receipts error", 500, "boom");
 
-    // A receipt absent from the response (still pending) is left alone.
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ data: {} }) })
@@ -291,10 +284,6 @@ describe("push.send (Expo push action)", () => {
 });
 
 describe("notification deep-links are followable by the push-tap handler", () => {
-  // Regression guard: the push-tap handler (src/hooks/usePushRegistration.ts)
-  // only navigates to URLs that pass isAllowedDeepLink. Request notifications
-  // land on the `/?tab=...` home deep-link, so the allow-list must accept it —
-  // otherwise tapping a request push silently routes nowhere.
   const fakeRequest = {
     _id: "req123" as Id<"requests">,
     requesterEmail: "requester@sow.org.au",
@@ -303,7 +292,6 @@ describe("notification deep-links are followable by the push-tap handler", () =>
   test("requestUrl shapes (Mine, Review) are allowed", () => {
     expect(isAllowedDeepLink(requestUrl(fakeRequest.requesterEmail, fakeRequest))).toBe(true);
     expect(isAllowedDeepLink(requestUrl("approver@sow.org.au", fakeRequest))).toBe(true);
-    // Comment notifications' focus+thread deep link must also be followable.
     expect(
       isAllowedDeepLink(requestUrl("approver@sow.org.au", fakeRequest, { thread: true }))
     ).toBe(true);
@@ -322,8 +310,6 @@ describe("notification deep-links are followable by the push-tap handler", () =>
 });
 
 describe("consumeNotificationDeepLink (push-tap once)", () => {
-  // Regression: remounting the push handler used to re-read the sticky last
-  // notification response and router.push the same URL forever (SowSpinner loop).
   const response = (id: string, url: unknown) => ({
     notification: {
       request: {

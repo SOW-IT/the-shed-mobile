@@ -24,12 +24,10 @@ describe("importHistory: backfill from the old web app's Firestore", () => {
   test("fills every year's structure and people, and re-runs cleanly", async () => {
     const t = await setup();
     const first = await t.mutation(internal.importHistory.run, {});
-    // 2008-2026 from the backup; 2027+ is rolled from live data instead.
     expect(first.profiles).toBeGreaterThan(750);
     expect(IMPORT_DATA.years.some((y) => y.year > 2026)).toBe(false);
     expect(first.budgetManagers).toBeGreaterThanOrEqual(6);
 
-    // Re-running must upsert, not duplicate (unique (email, year) survives).
     const second = await t.mutation(internal.importHistory.run, {});
     expect(second.divisions).toBe(0);
     expect(second.universities).toBe(0);
@@ -41,7 +39,6 @@ describe("importHistory: backfill from the old web app's Firestore", () => {
         .withIndex("by_year_and_name", (q) => q.eq("year", 2026).eq("name", "Finance"))
         .unique();
       expect(finance?.division).toBe("Governance");
-      // 2026 emails are on the new Workspace domain (DOMAIN_MIGRATED_YEARS).
       expect(finance?.headEmail).toMatch(/@sow\.org\.au$/);
 
       const settings = await ctx.db
@@ -50,7 +47,6 @@ describe("importHistory: backfill from the old web app's Firestore", () => {
         .unique();
       expect(settings?.budgetManagerEmail).toBe(data2026.budgetManagerEmail);
 
-      // Every imported profile carries the durable person id.
       const profiles = await ctx.db
         .query("staffProfiles")
         .withIndex("by_year", (q) => q.eq("year", 2026))
@@ -58,7 +54,6 @@ describe("importHistory: backfill from the old web app's Firestore", () => {
       const imported = profiles.filter((p) => p.importId !== undefined);
       expect(imported.length).toBe(data2026.profiles.length);
 
-      // Student Leaders came in with a university and no department.
       const studentLeaders = imported.filter((p) =>
         (p.assignments ?? []).some((a) => a.role === "Student Leader")
       );
@@ -72,8 +67,6 @@ describe("importHistory: backfill from the old web app's Firestore", () => {
         .query("universities")
         .withIndex("by_year_and_name", (q) => q.eq("year", 2026))
         .take(50);
-      // Seed already planted the current year's campus list (incl. WSU); import
-      // only inserts missing names, so the union is seed ∪ import data.
       expect(universities.map((u) => u.name).sort()).toEqual(
         [
           ...new Set([...data2026.universities, "Western Sydney University"]),
@@ -81,15 +74,12 @@ describe("importHistory: backfill from the old web app's Firestore", () => {
       );
     });
 
-    // The org chart for an imported year shows campus people by university.
     const chart = (await asUser(t, ADMIN).query(api.directory.orgChart, {
       year: 2026,
     }))!;
     const campus = chart.universities.flatMap((u) => u.members);
     expect(campus.length).toBeGreaterThan(20);
 
-    // Division heads come from the division itself, so one person can head
-    // several: in 2026 Sijin Yang heads Chaplaincy AND Engagement.
     const headOf = (name: string) =>
       chart.divisions.find((d) => d.name === name)?.head?.email;
     expect(headOf("Chaplaincy")).toBe("sijin.yang@sow.org.au");
@@ -105,7 +95,6 @@ describe("email changes: the person stays the same", () => {
     const newEmail = "jane.doe@sow.org.au";
 
     const userId = await t.run(async (ctx) => {
-      // Imported history: same person (importId) under different emails.
       await ctx.db.insert("staffProfiles", {
         email: oldEmail,
         year: YEAR - 2,
@@ -123,7 +112,6 @@ describe("email changes: the person stays the same", () => {
       return await ctx.db.insert("users", { email: newEmail, name: "Jane Doe" });
     });
 
-    // What Convex Auth runs after every sign-in.
     await t.mutation(internal.userLink.link, { userId });
 
     await t.run(async (ctx) => {
@@ -132,11 +120,9 @@ describe("email changes: the person stays the same", () => {
         .withIndex("by_userId", (q) => q.eq("userId", userId))
         .take(10);
       expect(bound.length).toBe(2);
-      // The old year was re-keyed to the current address.
       expect(bound.map((p) => p.email)).toEqual([newEmail, newEmail]);
     });
 
-    // Service history shows both years under the new email.
     const profile = (await asUser(t, newEmail).query(api.profile.get, {}))!;
     expect(profile.serviceHistory.map((h) => h.year)).toEqual([YEAR, YEAR - 2]);
     expect(profile.serviceHistory[1].university).toBe("University of Sydney");
@@ -144,7 +130,6 @@ describe("email changes: the person stays the same", () => {
 
   test("first sign-in after the Workspace domain migration claims legacy-domain profiles", async () => {
     const t = await setup();
-    // Imported from the old app under the previous Workspace domain.
     const userId = await t.run(async (ctx) => {
       await ctx.db.insert("staffProfiles", {
         email: "mia.cho@sowaustralia.com",
@@ -160,7 +145,6 @@ describe("email changes: the person stays the same", () => {
         ],
         importId: "uid-mia",
       });
-      // The same person, signing in with the org's new domain.
       return await ctx.db.insert("users", { email: "mia.cho@sow.org.au" });
     });
 
@@ -177,16 +161,12 @@ describe("email changes: the person stays the same", () => {
       );
     });
 
-    // Their service history follows them onto the new address.
     const profile = (await asUser(t, "mia.cho@sow.org.au").query(api.profile.get, {}))!;
     expect(profile.serviceHistory.map((h) => h.year)).toEqual([YEAR, YEAR - 1]);
   });
 
   test("a legacy profile already bound to another user is NOT claimed by a matching local part", async () => {
     const t = await setup();
-    // A DIFFERENT person owns sam@sowaustralia.com and has signed in before
-    // (their profile carries a userId). A new hire with the same local part on
-    // the new domain must not inherit their identity.
     const { newUserId, legacyProfileId, oldUserId } = await t.run(async (ctx) => {
       const oldUserId = await ctx.db.insert("users", {
         email: "sam@sowaustralia.com",
@@ -204,7 +184,6 @@ describe("email changes: the person stays the same", () => {
     await t.mutation(internal.userLink.link, { userId: newUserId });
 
     await t.run(async (ctx) => {
-      // The legacy profile keeps its email and owner; nothing bound to the new user.
       const legacy = (await ctx.db.get(legacyProfileId))!;
       expect(legacy.email).toBe("sam@sowaustralia.com");
       expect(legacy.userId).toBe(oldUserId);
@@ -221,7 +200,6 @@ describe("email changes: the person stays the same", () => {
     const admin = asUser(t, ADMIN);
     const newcomer = "noah.new@sow.org.au";
 
-    // Pre-provisioned before ever signing in: no users row, no person key.
     await admin.mutation(api.admin.setStaffProfile, {
       email: newcomer,
       year: YEAR,
@@ -236,7 +214,6 @@ describe("email changes: the person stays the same", () => {
       expect(profile?.importId).toBeUndefined();
     });
 
-    // First sign-in fills it with their user id, on every bound year.
     const userId = await t.run((ctx) => ctx.db.insert("users", { email: newcomer }));
     await t.mutation(internal.userLink.link, { userId });
     await t.run(async (ctx) => {
@@ -247,7 +224,6 @@ describe("email changes: the person stays the same", () => {
       expect(profile?.importId).toBe(userId);
     });
 
-    // Provisioning another year after sign-in picks the key up immediately.
     await admin.mutation(api.admin.upsertDivision, {
       year: YEAR + 1,
       name: "Governance",
@@ -318,8 +294,6 @@ describe("email changes: the person stays the same", () => {
     const newEmail = "jay@sow.org.au";
 
     const userId = await t.run(async (ctx) => {
-      // The same year exists under both the old and the new email (e.g. an
-      // admin re-provisioned the person manually after they lost access).
       await ctx.db.insert("staffProfiles", {
         email: oldEmail,
         year: YEAR,
@@ -338,12 +312,10 @@ describe("email changes: the person stays the same", () => {
     await t.mutation(internal.userLink.link, { userId });
 
     await t.run(async (ctx) => {
-      // .unique() would throw if both rows survived under the new email.
       const profile = await ctx.db
         .query("staffProfiles")
         .withIndex("by_email_and_year", (q) => q.eq("email", newEmail).eq("year", YEAR))
         .unique();
-      // the existing row wins
       expect(profile?.assignments).toEqual([
         { role: "Staff", department: "Missions" },
       ]);
@@ -356,8 +328,6 @@ describe("importHistory: re-import after a re-key", () => {
     const t = await setup();
     await t.mutation(internal.importHistory.run, {});
 
-    // Someone imported under the old domain signs in with the new one —
-    // all of their years get re-keyed and bound.
     const imported = IMPORT_DATA.years.find((y) => y.year === 2025)!.profiles.find(
       (p) => p.email.endsWith("@sowaustralia.com") && (p.roles ?? []).length > 0
     )!;
@@ -365,7 +335,6 @@ describe("importHistory: re-import after a re-key", () => {
     const userId = await t.run((ctx) => ctx.db.insert("users", { email: newEmail }));
     await t.mutation(internal.userLink.link, { userId });
 
-    // Re-importing must update the re-keyed rows, not re-insert old ones.
     await t.mutation(internal.importHistory.run, {});
     await t.run(async (ctx) => {
       const rows = await ctx.db
@@ -373,9 +342,9 @@ describe("importHistory: re-import after a re-key", () => {
         .withIndex("by_importId", (q) => q.eq("importId", imported.importId))
         .take(50);
       const years = rows.map((r) => r.year);
-      expect(new Set(years).size).toBe(years.length); // one row per year
+      expect(new Set(years).size).toBe(years.length);
       for (const row of rows) {
-        expect(row.email).toBe(newEmail); // the newer address survives
+        expect(row.email).toBe(newEmail);
       }
     });
   });
@@ -404,13 +373,11 @@ describe("multi-headship: one person, several divisions/departments", () => {
     const headed = structure.divisions.filter((d) => d.headEmail === sijin);
     expect(headed.map((d) => d.name).sort()).toEqual(["Engagement", "Operations"]);
 
-    // The reverse-synced profile got the role once and kept its first division.
     const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
     const profile = profiles.find((p) => p.email === sijin)!;
     expect(profile.roles).toEqual(["Head of Division"]);
     expect(profile.assignments?.some((a) => a.division === "Engagement")).toBe(true);
 
-    // Re-saving the division (no-op) vacates neither division.
     await admin.mutation(api.admin.upsertDivision, {
       year: YEAR,
       name: "Engagement",
@@ -421,13 +388,11 @@ describe("multi-headship: one person, several divisions/departments", () => {
       after.divisions.filter((d) => d.headEmail === sijin).map((d) => d.name).sort()
     ).toEqual(["Engagement", "Operations"]);
 
-    // The org chart shows them on top of both divisions.
     const chart = (await admin.query(api.directory.orgChart, { year: YEAR }))!;
     expect(
       chart.divisions.filter((d) => d.head?.email === sijin).map((d) => d.name).sort()
     ).toEqual(["Engagement", "Operations"]);
 
-    // Clearing the head via the structure section vacates every division they head.
     await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "Engagement" });
     await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "Operations" });
     const vacated = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
@@ -438,7 +403,6 @@ describe("multi-headship: one person, several divisions/departments", () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     const henry = "henry@sow.org.au";
-    // Henry heads both Marketing and Events.
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR,
       name: "Marketing",
@@ -451,7 +415,6 @@ describe("multi-headship: one person, several divisions/departments", () => {
       division: "Operations",
       headEmail: henry,
     });
-    // Re-saving via the structure section keeps Events too.
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR,
       name: "Marketing",
@@ -476,7 +439,6 @@ describe("Student Leaders pick a university, not a department", () => {
     const admin = asUser(t, ADMIN);
     const leader = "lara.lee@sow.org.au";
 
-    // No university given -> rejected.
     await expect(
       admin.mutation(api.admin.setStaffProfile, {
         email: leader,
@@ -485,7 +447,6 @@ describe("Student Leaders pick a university, not a department", () => {
       })
     ).rejects.toThrow(/university/i);
 
-    // A university that doesn't exist that year -> rejected.
     await expect(
       admin.mutation(api.admin.setStaffProfile, {
         email: leader,
@@ -495,7 +456,6 @@ describe("Student Leaders pick a university, not a department", () => {
       })
     ).rejects.toThrow(/university/i);
 
-    // One of the seeded universities works; no department is needed.
     await admin.mutation(api.admin.setStaffProfile, {
       email: leader,
       year: YEAR,
@@ -514,7 +474,6 @@ describe("Student Leaders pick a university, not a department", () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
 
-    // Vice President (like President/Executive) is a campus role.
     await expect(
       admin.mutation(api.admin.setStaffProfile, {
         email: "vinh.vp@sow.org.au",
@@ -529,7 +488,6 @@ describe("Student Leaders pick a university, not a department", () => {
       university: "University of Sydney",
     });
 
-    // Member takes neither a department nor a university.
     await admin.mutation(api.admin.setStaffProfile, {
       email: "mona.member@sow.org.au",
       year: YEAR,
@@ -565,7 +523,6 @@ describe("Student Leaders pick a university, not a department", () => {
       roles: ["Student Leader"],
       university: "Australian Catholic University",
     });
-    // Deletion now cascades — strips the assignment rather than refusing.
     await admin.mutation(api.admin.removeUniversity, {
       year: YEAR,
       name: "Australian Catholic University",

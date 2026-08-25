@@ -11,11 +11,11 @@ const modules = import.meta.glob("./**/*.ts");
 const YEAR = staffYearForDate(new Date());
 
 const ADMIN = "admin@sow.org.au";
-const RACHEL = "rachel@sow.org.au"; // Marketing staff
-const HENRY = "henry@sow.org.au"; // Marketing HOD
-const BELLA = "bella@sow.org.au"; // Finance staff, Budget Manager
-const FIONA = "fiona@sow.org.au"; // Finance head
-const DAN = "dan@sow.org.au"; // Director
+const RACHEL = "rachel@sow.org.au";
+const HENRY = "henry@sow.org.au";
+const BELLA = "bella@sow.org.au";
+const FIONA = "fiona@sow.org.au";
+const DAN = "dan@sow.org.au";
 
 const asUser = (t: TestConvex<typeof schema>, email: string) =>
   t.withIdentity({ email, subject: email, issuer: "test" });
@@ -54,7 +54,6 @@ async function setup() {
   return t;
 }
 
-/** Submits and fully approves a request, returning its id. */
 async function approvedRequest(t: TestConvex<typeof schema>, amount = 100) {
   await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount });
   const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
@@ -74,9 +73,7 @@ describe("appUrl", () => {
   afterEach(() => vi.unstubAllEnvs());
 
   test("prefers the deployment's SITE_URL so links match the environment", () => {
-    // The dev deployment's SITE_URL is the dev web build...
     vi.stubEnv("SITE_URL", "https://the-shed-web-dev.vercel.app");
-    // ...and a stale APP_URL pointing at prod must NOT override it (the bug).
     vi.stubEnv("APP_URL", "https://the-shed-web.vercel.app");
     expect(appUrl()).toBe("https://the-shed-web-dev.vercel.app");
     expect(appUrl("/review")).toBe("https://the-shed-web-dev.vercel.app/review");
@@ -86,7 +83,6 @@ describe("appUrl", () => {
     vi.stubEnv("SITE_URL", undefined);
     vi.stubEnv("APP_URL", "https://app.example.com");
     expect(appUrl("/x")).toBe("https://app.example.com/x");
-    // A blank/whitespace SITE_URL is treated as unset (not a host-less link).
     vi.stubEnv("SITE_URL", "   ");
     expect(appUrl("/x")).toBe("https://app.example.com/x");
     vi.stubEnv("APP_URL", undefined);
@@ -112,7 +108,6 @@ describe("notification deep-links", () => {
   });
 
   test("requestUrl with { thread } focuses the request and opens its thread", () => {
-    // Comment notifications open the conversation directly (focus + thread).
     expect(requestUrl(RACHEL, fakeRequest, { thread: true })).toBe(
       `/?tab=mine&focus=${fakeRequest._id}&thread=1`
     );
@@ -133,13 +128,9 @@ describe("notification deep-links", () => {
         .collect()
     );
     expect(henryNotifs).toHaveLength(1);
-    // The URL lands on the Review tab in general (no per-request focus); the
-    // requestId is passed to notify() explicitly so opening the request later
-    // still marks this notification read.
     expect(henryNotifs[0].url).toBe("/?tab=review");
     expect(henryNotifs[0].requestId).toBe(request._id);
 
-    // The submitter is the actor → email-only acknowledgement, no in-app row.
     const rachelNotifs = await t.run((ctx) =>
       ctx.db
         .query("notifications")
@@ -163,8 +154,6 @@ describe("submit validation", () => {
 
   test("rejects non-finite and absurd amounts", async () => {
     const t = await setup();
-    // Convex numbers are IEEE754 doubles — Infinity passes a bare `> 0` check
-    // and then poisons every total computed from it.
     await expect(
       asUser(t, RACHEL).mutation(api.requests.submit, {
         description: "x",
@@ -181,7 +170,6 @@ describe("submit validation", () => {
 
   test("a Head of Division with no resolvable department is asked to pick one", async () => {
     const t = await setup();
-    // A division head whose division has no departments at all.
     await asUser(t, ADMIN).mutation(api.admin.upsertDivision, {
       year: YEAR,
       name: "Empty Division",
@@ -202,13 +190,11 @@ describe("allRequests authorization", () => {
     await expect(
       asUser(t, RACHEL).query(api.requests.allRequests, {})
     ).rejects.toThrow(/Only Finance staff/);
-    // Finance staff get the list.
     expect(await asUser(t, BELLA).query(api.requests.allRequests, {})).toEqual([]);
   });
 });
 
 describe("requestsForExport", () => {
-  /** Inserts a paid request for `email` in `year`. */
   const seed = async (
     t: TestConvex<typeof schema>,
     year: number,
@@ -232,9 +218,6 @@ describe("requestsForExport", () => {
   };
 
   test("Finance gets the selected years, with out-of-range years filtered", async () => {
-    // Seed before setup() so convex-test's monotonic _lastCreationTime guard
-    // doesn't clamp past-year rows to the current real-time range.
-    // Use a fresh convexTest instance seeded chronologically, then run setup.
     const t = convexTest(schema, modules);
     await seed(t, YEAR - 1, "last year");
     await seed(t, YEAR, "this year");
@@ -256,7 +239,6 @@ describe("requestsForExport", () => {
     await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
 
     const bella = asUser(t, BELLA);
-    // Years outside [EARLIEST_REQUEST_YEAR, caller.year] are silently dropped.
     const rows = (await bella.query(api.requests.requestsForExport, {
       years: [YEAR + 1, YEAR, YEAR - 1, 2020],
     }))!;
@@ -265,13 +247,11 @@ describe("requestsForExport", () => {
       "this year",
     ]);
 
-    // Only the requested year is returned; the other is excluded.
     const onlyThis = (await bella.query(api.requests.requestsForExport, {
       years: [YEAR],
     }))!;
     expect(onlyThis.map((r) => r.description)).toEqual(["this year"]);
 
-    // No years selected -> empty export.
     expect(
       await bella.query(api.requests.requestsForExport, { years: [] })
     ).toEqual([]);
@@ -312,11 +292,9 @@ describe("cancel validation", () => {
     const t = await setup();
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
     const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
-    // Someone else can't cancel it.
     await expect(
       asUser(t, HENRY).mutation(api.requests.cancel, { requestId: request._id })
     ).rejects.toThrow(/only cancel your own/);
-    // Decline it -> completed -> the requester can no longer cancel.
     await asUser(t, HENRY).mutation(api.requests.decline, {
       requestId: request._id,
       step: "hod",
@@ -338,7 +316,6 @@ describe("cancel validation", () => {
     } finally {
       vi.useRealTimers();
     }
-    // Gone, with its events.
     const events = await t.run((ctx) =>
       ctx.db
         .query("requestEvents")
@@ -356,8 +333,6 @@ describe("authorizeStep guards", () => {
   });
 
   test("a missing/foreign-year request reports not found", async () => {
-    // Seed the request at YEAR-2 _creationTime BEFORE setup() so convex-test's
-    // monotonic guard doesn't clamp it to the current real-time range.
     vi.setSystemTime(staffYearStartMs(YEAR - 2) + 1);
     const t = convexTest(schema, modules);
     const requestId = await t.run((ctx) =>
@@ -372,7 +347,6 @@ describe("authorizeStep guards", () => {
       })
     );
     vi.useRealTimers();
-    // Now run admin setup so HENRY has a profile to look up.
     await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.upsertDepartment, {
@@ -395,8 +369,6 @@ describe("authorizeStep guards", () => {
 describe("stepInfo", () => {
   test("returns the approver, resolved name, and that step's events", async () => {
     const t = await setup();
-    // Give Henry a directory name (no staff-profile name) to exercise the
-    // directory fallback in resolveApproverName.
     await t.run((ctx) => ctx.db.insert("directoryUsers", { email: HENRY, name: "Henry H" }));
     const id = await approvedRequest(t);
 
@@ -410,7 +382,6 @@ describe("stepInfo", () => {
     expect(hod.officeholderEmail).toBe(HENRY);
     expect(hod.events.map((e) => e.action)).toContain("approved");
 
-    // A second event on the same step exercises newest-first sorting in stepInfo.
     await t.run(async (ctx) => {
       await ctx.db.insert("requestEvents", {
         requestId: id,
@@ -427,8 +398,6 @@ describe("stepInfo", () => {
     expect(hodAgain.events.length).toBeGreaterThanOrEqual(2);
     expect(hodAgain.events[0]!.at).toBeGreaterThanOrEqual(hodAgain.events[1]!.at);
 
-    // The Director step carries the org's Director, but a small request never
-    // routed to them, so no director events were recorded.
     const director = (await asUser(t, RACHEL).query(api.requests.stepInfo, {
       requestId: id,
       step: "director",
@@ -436,7 +405,6 @@ describe("stepInfo", () => {
     expect(director.email).toBe(DAN);
     expect(director.events).toHaveLength(0);
 
-    // Unauthenticated -> null; unknown request -> null.
     expect(await t.query(api.requests.stepInfo, { requestId: id, step: "hod" })).toBeNull();
   });
 
@@ -458,7 +426,6 @@ describe("stepInfo", () => {
       fromEmail: HENRY,
       toEmail: RACHEL,
     });
-    // Justin submits so HOD stays pending (Rachel covering Henry).
     const JUSTIN = "justin@sow.org.au";
     await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
       year: YEAR,
@@ -489,7 +456,6 @@ describe("stepInfo", () => {
     expect(actors.hod.email).toBe(RACHEL);
     expect(actors.hod.officeholderEmail).toBe(HENRY);
 
-    // After the stand-in approves, the card keeps showing them (not Henry).
     await asUser(t, RACHEL).mutation(api.requests.approve, {
       requestId: req._id,
       step: "hod",
@@ -527,9 +493,6 @@ describe("stepInfo", () => {
       amount: 25,
     });
     const [req] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
-    // Rachel can't see her own pending HOD in toReview, but stepInfo still resolves.
-    // Self-submit: HOD pending for Henry; Rachel is a stand-in but also requester —
-    // step display still lists stand-ins alphabetically.
     const hod = (await asUser(t, BELLA).query(api.requests.stepInfo, {
       requestId: req._id,
       step: "hod",
@@ -551,12 +514,9 @@ describe("stepActors", () => {
     expect(actors.budgetManager.email).toBe(BELLA);
     expect(actors.financeHead.email).toBe(FIONA);
     expect(actors.hod.actedAt).toBeTypeOf("number");
-    // The Director step carries the org's Director, but it never actioned a
-    // small request -> an email, but no action time.
     expect(actors.director.email).toBe(DAN);
     expect(actors.director.actedAt).toBeNull();
 
-    // Unauthenticated -> null.
     expect(await t.query(api.requests.stepActors, { requestId: id })).toBeNull();
   });
 
@@ -586,7 +546,6 @@ describe("submitReceipt validation", () => {
     const id = await approvedRequest(t);
     const file = await storedReceipt(t);
 
-    // Not the requester.
     await expect(
       asUser(t, HENRY).mutation(api.requests.submitReceipt, {
         requestId: id,
@@ -596,12 +555,10 @@ describe("submitReceipt validation", () => {
       })
     ).rejects.toThrow(/your own requests/);
 
-    // Empty recipients list.
     await expect(
       asUser(t, RACHEL).mutation(api.requests.submitReceipt, { requestId: id, recipients: [] })
     ).rejects.toThrow(/at least one recipient/);
 
-    // A second submission after a valid one.
     await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
       requestId: id,
       recipients: [
@@ -655,16 +612,13 @@ describe("receiptAttachments", () => {
         },
       ],
     });
-    // Henry (Marketing HOD, not Finance, not requester) -> null.
     expect(
       await asUser(t, HENRY).query(api.requests.receiptAttachments, { requestId: id })
     ).toBeNull();
-    // The requester sees them.
     const mine = await asUser(t, RACHEL).query(api.requests.receiptAttachments, {
       requestId: id,
     });
     expect(mine).toHaveLength(1);
-    // Unauthenticated -> null.
     expect(await t.query(api.requests.receiptAttachments, { requestId: id })).toBeNull();
   });
 
@@ -679,8 +633,6 @@ describe("receiptAttachments", () => {
 
 describe("pay validation", () => {
   test("guards amount, not-found, payer identity and lifecycle state", async () => {
-    // Seed the foreign-year request BEFORE setup() so convex-test's monotonic
-    // _lastCreationTime guard doesn't clamp it to the current real-time range.
     vi.setSystemTime(staffYearStartMs(YEAR - 2) + 1);
     const t = convexTest(schema, modules);
     const foreignId = await t.run((ctx) =>
@@ -697,7 +649,6 @@ describe("pay validation", () => {
       })
     );
     vi.useRealTimers();
-    // Run admin setup with the real clock on the same instance.
     await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.upsertDepartment, {
@@ -717,17 +668,14 @@ describe("pay validation", () => {
 
     const id = await approvedRequest(t);
 
-    // Non-positive amount.
     await expect(
       asUser(t, FIONA).mutation(api.requests.pay, { requestId: id, paidAmount: 0 })
     ).rejects.toThrow(/positive number/);
 
-    // Awaiting receipt, not payment.
     await expect(
       asUser(t, FIONA).mutation(api.requests.pay, { requestId: id, paidAmount: 90 })
     ).rejects.toThrow(/not awaiting payment/);
 
-    // Submit the receipt, then a non-Finance-Head tries to pay.
     await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
       requestId: id,
       recipients: [
@@ -744,7 +692,6 @@ describe("pay validation", () => {
       asUser(t, BELLA).mutation(api.requests.pay, { requestId: id, paidAmount: 90 })
     ).rejects.toThrow(/Only the Finance Head/);
 
-    // A foreign-year request (YEAR-2) reports not found.
     await expect(
       asUser(t, FIONA).mutation(api.requests.pay, { requestId: foreignId, paidAmount: 90 })
     ).rejects.toThrow(/Request not found/);
@@ -765,7 +712,6 @@ describe("pay validation", () => {
         },
       ],
     });
-    // Pay less than requested -> the differing-amount notification branch.
     await asUser(t, FIONA).mutation(api.requests.pay, {
       requestId: id,
       paidAmount: 80,
@@ -805,7 +751,6 @@ describe("deleteDeclined", () => {
     const t = await setup();
     const id = await declinedRequest(t);
 
-    // Add a comment with reaction and a read marker so we can verify cleanup.
     await asUser(t, HENRY).mutation(api.comments.add, { requestId: id, body: "fyi" });
     const [comment] = (await asUser(t, HENRY).query(api.comments.list, { requestId: id }))!;
     await asUser(t, RACHEL).mutation(api.comments.toggleReaction, { commentId: comment.id, emoji: "👍" });
@@ -819,9 +764,7 @@ describe("deleteDeclined", () => {
       vi.useRealTimers();
     }
 
-    // Request is gone.
     expect(await asUser(t, RACHEL).query(api.requests.get, { requestId: id })).toBeNull();
-    // All related records cleaned up (scoped to this request/comment).
     await t.run(async (ctx) => {
       expect(
         await ctx.db.query("requestEvents").withIndex("by_request", (q) => q.eq("requestId", id)).take(10)
@@ -842,12 +785,10 @@ describe("deleteDeclined", () => {
     const t = await setup();
     const id = await declinedRequest(t);
 
-    // Another user can't delete it.
     await expect(
       asUser(t, HENRY).mutation(api.requests.deleteDeclined, { requestId: id })
     ).rejects.toThrow(/your own requests/);
 
-    // Can't delete a non-declined request.
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "y", amount: 50 });
     const pending = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!.find(
       (r) => r.description === "y" && r.amount === 50
@@ -860,7 +801,6 @@ describe("deleteDeclined", () => {
 });
 
 describe("cleanup.purgeOldReceiptFiles", () => {
-  /** Builds a paid request with one receipt file, returning its id + storageId. */
   async function paidRequestWithFile(t: TestConvex<typeof schema>) {
     const id = await approvedRequest(t);
     const file = await storedReceipt(t);
@@ -976,12 +916,6 @@ describe("importHistory.personHistory", () => {
 });
 
 describe("browsing past years", () => {
-  /**
-   * Inserts a fully-paid historical request at the given year's _creationTime.
-   * Must be called before setup() on a fresh convexTest instance (or
-   * chronologically after any prior inserts) so convex-test's monotonically
-   * increasing _lastCreationTime guard doesn't clamp to the wrong year.
-   */
   const seedPastRequest = async (
     t: TestConvex<typeof schema>,
     email: string,
@@ -1005,22 +939,14 @@ describe("browsing past years", () => {
     return id;
   };
 
-  /**
-   * Creates a convexTest instance, seeds historical requests at the given years
-   * (chronologically), then runs the standard admin setup.
-   * The historical seeds must happen before setup() so convex-test's monotonic
-   * _lastCreationTime doesn't clamp them to the current real time.
-   */
   async function setupWithHistory(
     seeds: { email: string; year: number; description: string }[]
   ) {
     const t = convexTest(schema, modules);
-    // Seed historical rows in chronological order (oldest first).
     const sorted = [...seeds].sort((a, b) => a.year - b.year);
     for (const s of sorted) {
       await seedPastRequest(t, s.email, s.year, s.description);
     }
-    // Now run the standard admin setup with the real clock.
     await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.upsertDepartment, {
@@ -1051,7 +977,6 @@ describe("browsing past years", () => {
     const live = (await rachel.query(api.requests.myRequests, {}))!;
     expect(live.map((r) => r.description)).toEqual(["this year"]);
 
-    // Both past-year rows, sorted newest-first (the later insert wins).
     const past = (await rachel.query(api.requests.myRequests, { year: YEAR - 2 }))!;
     expect(past.map((r) => r.description)).toEqual(["old two", "old one"]);
   });
@@ -1064,12 +989,11 @@ describe("browsing past years", () => {
     await rachel.mutation(api.requests.submit, { description: "this year", amount: 50 });
 
     const years = (await rachel.query(api.requests.requestYears, {}))!;
-    expect(years.mine).toEqual([YEAR, YEAR - 2]); // newest-first, deduped
+    expect(years.mine).toEqual([YEAR, YEAR - 2]);
   });
 
   test("requestYears never offers years before 2021, even with older org data", async () => {
     const t = await setup();
-    // An old division exists (org history goes back to 2008) but no requests can.
     await t.run((ctx) =>
       ctx.db.insert("divisions", { year: 2019, name: "Governance" })
     );
@@ -1139,7 +1063,6 @@ describe("money in the audit trail and notifications", () => {
           .collect()
       )
     ).flatMap((e) => (e.detail ? [e.detail] : []));
-    // Not "$1234.5": the audit trail reads like every money figure in the app.
     expect(details).toContain("$1,234.50");
     expect(details).toContain("$1,234.50, 1 recipient");
   });

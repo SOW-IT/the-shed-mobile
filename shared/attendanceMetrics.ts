@@ -1,21 +1,3 @@
-/**
- * Pure, shared logic for the Attendance → Insights (Metrics) dashboard.
- *
- * No Convex or React Native imports, so the backend precompute
- * (`convex/attendanceMetrics.ts`) and the app agree on ONE source of truth for
- * how leaders' insights are derived. All thresholds live in
- * {@link METRICS_THRESHOLDS} so they can be tuned without touching logic.
- *
- * The dashboard answers, for a sub-group and time range:
- *  - overall attendance trends and how they compare to the previous period
- *  - weekly-meeting health
- *  - who may need pastoral / leadership follow-up (with explainable reasons)
- *  - newcomers and recently re-engaged people
- *
- * Language is deliberately gentle — these are people, not numbers. Follow-up
- * reasons say "Follow-up suggested", never imply judgement.
- */
-
 import { eventStaffYear } from "./flow";
 import {
   eventIncludesSubgroup,
@@ -23,71 +5,34 @@ import {
   subgroupMatches,
 } from "./rollcall";
 
-// ───────────────────────────── Constants ──────────────────────────────────
-
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const WEEK_MS = 7 * DAY_MS;
 
-/**
- * Minimum gap between manual dashboard refreshes for one sub-group. The weekly
- * cron already keeps snapshots current; the manual "Refresh" is a recovery path,
- * so it's throttled to once per week per group (enforced server-side in
- * `recomputeNow`, mirrored in the UI to disable the button).
- */
 export const MANUAL_REFRESH_COOLDOWN_MS = WEEK_MS;
 
-/**
- * Tunable thresholds for every classification. Adjust here; the logic and the
- * explainable labels both read from this object so they never drift.
- */
 export const METRICS_THRESHOLDS = {
-  /**
-   * Regular: attended at least this many relevant events within the SELECTED
-   * range (the follow-up "recent activity" window follows the range selector)…
-   */
   regularMinEvents: 3,
-  /** …OR attended at least this fraction of recent weekly meetings. */
   regularWeeklyRate: 0.5,
-  /** At risk: a regular who attended 0 of the last N weekly meetings held. */
   atRiskMissedWeeklies: 3,
-  /** Lapsed: previously regular, but nothing in the last N days. */
   lapsedDays: 30,
-  /** Newcomer: first-ever attendance within the last N days (or the period). */
   newcomerDays: 30,
-  /** Re-engaged: attended recently after a prior gap of at least N days. */
   reengagedGapDays: 30,
-  /** Rolling-average trend window, in events. */
   rollingAvgWindow: 4,
-  /** How many recent weekly meetings define "recent" for the weekly rate. */
   recentWeeklyWindow: 6,
-  /** Cap on the follow-up list so a snapshot stays well under Convex's 1MB. */
   followUpLimit: 60,
-  /** Cap on per-event trend points kept in a snapshot. */
   trendPointLimit: 40,
-  /**
-   * Minimum events *in the selected range* before insights render. Kept low (1)
-   * so short ranges (1–2 weeks) still show something as soon as there's an
-   * event, rather than sitting on "not enough history"; below this, the range is
-   * simply empty ("No events in this range").
-   */
   minEventsForInsights: 1,
 } as const;
 
-/**
- * Preset trailing windows offered in the Attendance Insights UI and precomputed
- * server-side: past week, past month (~4 weeks), past year.
- */
 export const RANGE_WEEKS = [1, 4, 52] as const;
 export type RangeWeeks = (typeof RANGE_WEEKS)[number];
 
-/** Human labels for the preset ranges (UI + meta line). */
 export const RANGE_LABELS: Record<RangeWeeks, string> = {
   1: "Past week",
   4: "Past month",
   52: "Past year",
 };
 
-/** Label for a rangeWeeks value; falls back to "N wks" for unknown presets. */
 export const rangeLabel = (weeks: number): string =>
   weeks in RANGE_LABELS
     ? RANGE_LABELS[weeks as RangeWeeks]
@@ -95,68 +40,23 @@ export const rangeLabel = (weeks: number): string =>
       ? "1 wk"
       : `${weeks} wks`;
 
-/**
- * Sentinel `rangeWeeks` value meaning "the whole current staff year". Retained
- * for {@link rangeStartFor}, but not currently offered in the UI or precomputed
- * (see ALL_RANGES in convex/attendanceMetrics.ts) — the presets are the
- * week/month/year trailing windows.
- */
 export const STAFF_YEAR_RANGE = 0;
 
-/**
- * How many recent staff years the General trend charts show by default
- * (operational view). "All history" in the scope picker shows everything.
- */
 export const GENERAL_RECENT_YEARS = 5;
-
-// ───────────────────────────── Input types ────────────────────────────────
 
 export type PersonKind = "staff" | "member";
 
 export type MetricsPerson = {
-  /** `personKey` from shared/rollcall — the stable identity join key. */
   key: string;
   name: string;
   kind: PersonKind;
   subtitle?: string;
   photo?: string | null;
-  /**
-   * Field → value labels used for the optional metadata breakdowns
-   * (e.g. { Campus: "USYD", Role: "Student Leader" }). Bounded and pre-resolved
-   * by the backend so this module stays free of metadata-id plumbing.
-   */
   breakdown?: Record<string, string>;
-  /**
-   * Staff-year → field labels. Breakdowns for a period event use the year of
-   * that event so September attendance is not re-labelled the moment the
-   * clock flips to October. Keys are year numbers as strings (Convex records).
-   */
   breakdownByYear?: Record<string, Record<string, string>>;
-  /**
-   * Holds a campus (university-scoped) role this staff year, or — for an
-   * attendance-only member — is tagged one in their Role metadata. Resolved by
-   * the backend; drives the leaders-vs-others composition chart.
-   */
   isStudentLeader?: boolean;
-  /**
-   * Staff-year → student-leader flag. Composition charts use the year of the
-   * event so a 2026 leader is not dropped from September the morning of Oct 1.
-   * Only years the backend loaded (current and the two before) are present;
-   * a missing key falls back to {@link isStudentLeader} (the current year).
-   */
   leaderByYear?: Record<string, boolean>;
-  /**
-   * The person's home campuses (raw university names): every campus the staff
-   * profile holds a campus role at (usually one, but a person can hold roles
-   * at several universities), or a member's Campus metadata. Empty/undefined
-   * when unknown (e.g. org-side staff with no campus role) — such people are
-   * left out of the this-campus-vs-others chart rather than guessed either way.
-   */
   campuses?: string[];
-  /**
-   * Staff-year → home campuses (same event-year rule and fallback as
-   * {@link leaderByYear}).
-   */
   campusesByYear?: Record<string, string[]>;
 };
 
@@ -178,23 +78,16 @@ export type MetricsAttendance = {
 export type ComputeInput = {
   now: number;
   subgroup: string;
-  /** Start of the display period (attendance before this is history/context). */
   rangeStartMs: number;
-  /** Earliest event loaded — the classification look-back horizon. */
   historyStartMs: number;
   events: MetricsEvent[];
   attendance: MetricsAttendance[];
   persons: MetricsPerson[];
-  /** Exclude multi-sub-group (collaborative) events when false. */
   includeCollaborative: boolean;
 };
 
-// ───────────────────────────── Output types ───────────────────────────────
-
 export type TrendPoint = { at: number; label: string; value: number };
-/** New (`fresh`) vs returning attendees for one point in time. */
 export type SplitPoint = { at: number; label: string; fresh: number; returning: number };
-/** Two-part composition of one event's turnout (e.g. leaders vs everyone else). */
 export type CompositionPoint = {
   at: number;
   label: string;
@@ -205,34 +98,16 @@ export type CompositionPoint = {
 export type MetricsSummary = {
   avgAttendance: number;
   avgAttendancePrev: number | null;
-  /** Percentage change vs the previous comparable period; null if no baseline. */
   changePct: number | null;
-  /**
-   * Average turnout at weekly meetings only (events tagged "Weekly Meeting").
-   * null when the sub-group held no weekly meetings in the range — the primary
-   * headline for groups that run a weekly gathering.
-   */
   avgWeeklyAttendance: number | null;
   avgWeeklyAttendancePrev: number | null;
-  /** Percentage change in weekly-meeting turnout vs the previous period. */
   weeklyChangePct: number | null;
   eventsHeld: number;
   uniqueAttendees: number;
   newcomers: number;
   followUpCount: number;
-  /** 0..1 steadiness of weekly-meeting turnout; null when no weekly meetings. */
   weeklyConsistency: number | null;
-  /**
-   * 0..1 share of attendances by student leaders at the composition events
-   * (weekly meetings when the group runs them, else all period events); null
-   * with no attendances. Optional: snapshots computed before 1.6.14 lack it.
-   */
   leaderShare?: number | null;
-  /**
-   * 0..1 share of known-campus attendances from THIS campus at the composition
-   * events; null with no known-campus attendances, undefined org-wide and on
-   * pre-1.6.14 snapshots.
-   */
   homeCampusShare?: number | null;
 };
 
@@ -250,7 +125,6 @@ export type FollowUpPerson = {
   subtitle?: string;
   photo?: string | null;
   lastAttended: number | null;
-  /** Attendances within the selected range (the "recent activity" window). */
   recentCount: number;
   reasonCode: FollowUpReasonCode;
   reason: string;
@@ -268,39 +142,19 @@ export type SubgroupMetricsData = {
   weeklyTrend: TrendPoint[];
   uniqueByMonth: TrendPoint[];
   newVsReturning: SplitPoint[];
-  /**
-   * Per composition event (weekly meetings when the group runs them): student
-   * leaders (`primary`) vs everyone else (`rest`). Optional: undefined on
-   * snapshots computed before 1.6.14.
-   */
   leadersVsOthers?: CompositionPoint[];
-  /**
-   * Per composition event: attendees whose home campus is THIS sub-group
-   * (`primary`) vs those from another campus (`rest`); people with no known
-   * campus are excluded. Undefined for the org-wide view and on pre-1.6.14
-   * snapshots.
-   */
   campusMix?: CompositionPoint[];
   followUps: FollowUpPerson[];
   breakdowns: MetricsBreakdown[];
-  /** False when there aren't enough events yet to say anything useful. */
   hasEnoughHistory: boolean;
-  /**
-   * True when the sub-group runs weekly meetings (any "Weekly Meeting"-tagged
-   * event in loaded history). The UI leads with the weekly-meeting lens — the
-   * weekly average, weekly trend, and weekly new-vs-returning — for these groups.
-   */
   hasWeeklyMeetings: boolean;
 };
-
-// ───────────────────────────── Formatting ─────────────────────────────────
 
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
-/** Deterministic short date label ("6 Jul") — locale-independent for tests. */
 export const shortDate = (ms: number): string => {
   const d = new Date(ms);
   return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
@@ -319,7 +173,6 @@ const monthLabel = (ms: number): string => {
 const daysBetween = (from: number, to: number): number =>
   Math.max(0, Math.round((to - from) / DAY_MS));
 
-/** "3 days ago", "2 weeks ago" — for the explainable follow-up copy. */
 export const humanGap = (from: number, to: number): string => {
   const days = daysBetween(from, to);
   if (days <= 1) return "1 day";
@@ -327,24 +180,10 @@ export const humanGap = (from: number, to: number): string => {
   return `${Math.round(days / 7)} weeks`;
 };
 
-/** One decimal place — for headcount averages ("14.3 people"). */
 const round1 = (n: number): number => Math.round(n * 10) / 10;
 
-/**
- * Three decimal places — for 0…1 ratios (shares, consistency). These are shown
- * as whole percentages, so they need at least 2 decimals of resolution;
- * `round1` would quantise the displayed figure to multiples of 10%.
- */
 const roundRatio = (n: number): number => Math.round(n * 1000) / 1000;
 
-// ───────────────────────────── Core compute ───────────────────────────────
-
-/**
- * Build the dashboard snapshot for one sub-group over one time range. Pure:
- * given the same bounded inputs it always returns the same aggregates, so it
- * can be unit-tested exhaustively (see shared/attendanceMetrics.test.ts) and
- * run identically on the server precompute.
- */
 export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData {
   const { now, subgroup, rangeStartMs, historyStartMs, includeCollaborative } = input;
   const T = METRICS_THRESHOLDS;
@@ -363,8 +202,6 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
     return person.campusesByYear?.[yearKey(at)] ?? person.campuses;
   };
 
-  // Sub-group events we care about, oldest → newest. Collaborative events are
-  // optionally excluded so a leader can look at just their own group's rhythm.
   const events = input.events
     .filter(
       (e) =>
@@ -376,15 +213,10 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
     .sort((a, b) => a.dateStart - b.dateStart);
   const eventIds = new Set(events.map((e) => e.id));
   const eventById = new Map(events.map((e) => [e.id, e]));
-  // Does this sub-group run weekly meetings at all (over loaded history)? Drives
-  // the weekly-meeting-first lens in the UI and the new-vs-returning basis below.
   const hasWeeklyMeetings = events.some((e) => e.isWeeklyMeeting);
 
-  // eventId → distinct person keys who attended (dedupe defensive double rows).
   const attendeesByEvent = new Map<string, Set<string>>();
-  // personKey → sorted attendance timestamps (event start times), any event.
   const timeline = new Map<string, number[]>();
-  // personKey → sorted weekly-meeting attendance timestamps.
   const weeklyTimeline = new Map<string, number[]>();
 
   for (const row of input.attendance) {
@@ -393,7 +225,7 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
     const event = eventById.get(row.eventId)!;
     let set = attendeesByEvent.get(row.eventId);
     if (!set) attendeesByEvent.set(row.eventId, (set = new Set()));
-    if (set.has(row.personKey)) continue; // dedupe: one attendance per person/event
+    if (set.has(row.personKey)) continue;
     set.add(row.personKey);
     (timeline.get(row.personKey) ?? setDefault(timeline, row.personKey)).push(
       event.dateStart
@@ -411,7 +243,6 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
   const countFor = (eventId: string): number =>
     attendeesByEvent.get(eventId)?.size ?? 0;
 
-  // Period slices.
   const periodEvents = events.filter((e) => e.dateStart >= rangeStartMs);
   const periodLen = Math.max(0, now - rangeStartMs);
   const prevStartMs = rangeStartMs - periodLen;
@@ -431,8 +262,6 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
       ? Math.round(((avgAttendance - avgAttendancePrev) / avgAttendancePrev) * 100)
       : null;
 
-  // Weekly-meeting-only slices and averages — the headline for groups that run a
-  // weekly gathering. Same period/previous-period comparison, over weekly meetings.
   const periodWeeklies = periodEvents.filter((e) => e.isWeeklyMeeting);
   const prevWeeklies = prevEvents.filter((e) => e.isWeeklyMeeting);
   const avgWeeklyAttendance = periodWeeklies.length ? avg(periodWeeklies) : null;
@@ -444,16 +273,11 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
         )
       : null;
 
-  // Unique attendees in the period.
   const periodAttendees = new Set<string>();
   for (const e of periodEvents) {
     for (const key of attendeesByEvent.get(e.id) ?? []) periodAttendees.add(key);
   }
 
-  // Newcomers: someone whose first-ever attendance (over loaded history) is
-  // recent. "Recent" is the MORE recent of the period start and the newcomer
-  // window, so a long range (e.g. the staff year) still only counts people new
-  // within the last `newcomerDays`, not everyone who joined months ago.
   const newcomerCutoff = Math.max(rangeStartMs, now - T.newcomerDays * DAY_MS);
   let newcomers = 0;
   for (const key of periodAttendees) {
@@ -461,8 +285,6 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
     if (first !== undefined && first >= newcomerCutoff) newcomers += 1;
   }
 
-  // Weekly-meeting consistency: steadiness of turnout across the period's
-  // weekly meetings — average attendance ÷ peak attendance (1 = rock steady).
   const weeklyCounts = periodWeeklies.map((e) => countFor(e.id));
   const peakWeekly = weeklyCounts.reduce((m, c) => Math.max(m, c), 0);
   const weeklyConsistency =
@@ -472,8 +294,6 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
         )
       : null;
 
-  // ── Trends ──
-  // Keep only the most recent `trendPointLimit` points so a snapshot stays small.
   const trimTrend = <E,>(list: E[]): E[] =>
     list.length > T.trendPointLimit ? list.slice(-T.trendPointLimit) : list;
 
@@ -503,7 +323,6 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
     }))
   );
 
-  // Unique attendees per calendar month (last 6 months of loaded history).
   const monthOrder: string[] = [];
   const monthAt = new Map<string, number>();
   const monthSets = new Map<string, Set<string>>();
@@ -523,14 +342,9 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
     value: monthSets.get(key)!.size,
   }));
 
-  // New vs returning. For weekly-meeting groups this is "fresh vs returning at
-  // weekly meetings" (a person is fresh the first weekly meeting they ever
-  // appear at); otherwise it spans all period events. Prioritising the weekly
-  // stream keeps the headline focused on the group's core gathering.
   const splitEvents = hasWeeklyMeetings ? periodWeeklies : periodEvents;
   const splitTimeline = hasWeeklyMeetings ? weeklyTimeline : timeline;
   const seenBefore = new Set<string>();
-  // Prime with anyone whose first (weekly) attendance predates the period.
   for (const [key, list] of splitTimeline) {
     if (list[0] < rangeStartMs) seenBefore.add(key);
   }
@@ -549,11 +363,6 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
     })
   );
 
-  // ── Composition at the core gathering (same event basis as new-vs-returning:
-  // weekly meetings when the group runs them, else all period events). ──
-
-  // Student leaders vs everyone else, per event, with the period-wide share of
-  // attendances by leaders (summed BEFORE the trend is trimmed for display).
   const leaderPoints: CompositionPoint[] = splitEvents.map((e) => {
     let primary = 0;
     let rest = 0;
@@ -569,11 +378,6 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
     leaderTotal > 0 ? roundRatio(leaderSum / leaderTotal) : null;
   const leadersVsOthers = trimTrend(leaderPoints);
 
-  // This campus vs other campuses — meaningless org-wide, so omitted there.
-  // Only people with a KNOWN home campus are counted: org-side staff (no
-  // campus role) and members without Campus metadata are excluded rather than
-  // guessed onto either side, so the two segments may sum to less than the
-  // event's turnout.
   let campusMix: CompositionPoint[] | undefined;
   let homeCampusShare: number | null | undefined;
   if (!isOrgWideSubgroup(subgroup)) {
@@ -583,8 +387,6 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
       for (const key of attendeesByEvent.get(e.id) ?? []) {
         const campuses = campusesAt(key, e.dateStart);
         if (!campuses || campuses.length === 0) continue;
-        // A person holding a campus role HERE is from this campus, even if
-        // they also hold one elsewhere (multi-campus staff count as home).
         if (campuses.some((c) => subgroupMatches(c, subgroup))) primary += 1;
         else rest += 1;
       }
@@ -597,34 +399,21 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
     campusMix = trimTrend(campusPoints);
   }
 
-  // ── Follow-up classification ──
-  // The chronological list of weekly meetings held (subgroup), for "missed the
-  // last N" and the recent-rate checks.
   const weeklyEventsAsc = events.filter((e) => e.isWeeklyMeeting);
   const lastNWeeklies = weeklyEventsAsc.slice(-T.atRiskMissedWeeklies);
-  // "Recent" activity (regularMinEvents, declining) is scoped to the SELECTED
-  // range, so who needs follow-up moves with the 4/8/12-week / staff-year
-  // selector: a short range asks "regular lately?", a long one "regular this
-  // year?". Loaded history before the range still informs the absolute-time
-  // reasons (lapsed / re-engaged) below. (For the default 8-week view this
-  // equals the old now−8-weeks window, so that view is unchanged.)
   const recentCutoff = rangeStartMs;
-  // The weekly-attendance rate is measured over the most recent weekly meetings
-  // (recentWeeklyWindow), not a fixed week span, so a run of make-up meetings
-  // can't dilute it.
   const recentWeeklies = weeklyEventsAsc.slice(-T.recentWeeklyWindow);
 
   const followUps: FollowUpPerson[] = [];
   for (const [key, attended] of timeline) {
     const person = personByKey.get(key);
-    if (!person) continue; // unknown identity — skip rather than show "Unknown"
+    if (!person) continue;
     const first = attended[0];
     const last = attended[attended.length - 1];
     const total = attended.length;
     const recentCount = attended.filter((t) => t >= recentCutoff).length;
     const weekliesAttended = new Set(weeklyTimeline.get(key) ?? []);
 
-    // Regular?
     const recentWeeklyHits = recentWeeklies.filter((e) =>
       weekliesAttended.has(e.dateStart)
     ).length;
@@ -633,7 +422,6 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
     const isRegular =
       recentCount >= T.regularMinEvents || weeklyRate >= T.regularWeeklyRate;
 
-    // At risk: a regular who attended none of the last N weekly meetings held.
     const missedAllRecentWeeklies =
       lastNWeeklies.length >= T.atRiskMissedWeeklies &&
       lastNWeeklies.every((e) => !weekliesAttended.has(e.dateStart));
@@ -645,17 +433,12 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
           reason: `Missed the last ${T.atRiskMissedWeeklies} weekly meetings`,
         };
       }
-      // Lapsed: attended enough historically to count as a regular, but has
-      // been away longer than the lapse window.
       if (total >= T.regularMinEvents && last < now - T.lapsedDays * DAY_MS) {
         return {
           code: "lapsed",
           reason: `Used to attend regularly, absent for ${humanGap(last, now)}`,
         };
       }
-      // Newcomer who hasn't returned: first attended within the newcomer window
-      // (same MORE-recent-bound cutoff as the summary count), came once, and a
-      // relevant weekly meeting has since given them a chance to return.
       if (
         total === 1 &&
         first >= newcomerCutoff &&
@@ -666,7 +449,6 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
           reason: `Newcomer: first attended ${humanGap(first, now)} ago, hasn't returned`,
         };
       }
-      // Re-engaged: back within the recent window after a long prior gap.
       if (attended.length >= 2 && last >= now - T.reengagedGapDays * DAY_MS) {
         const prior = attended[attended.length - 2];
         if (last - prior >= T.reengagedGapDays * DAY_MS) {
@@ -676,9 +458,6 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
           };
         }
       }
-      // Declining: fewer attendances in the most recent half of the selected
-      // range than the half before it (and still attending, so not already
-      // lapsed). Splitting the range itself keeps this in step with the window.
       const midMs = recentCutoff + (now - recentCutoff) / 2;
       const recentHalf = attended.filter((t) => t >= midMs).length;
       const priorHalf = attended.filter(
@@ -708,7 +487,6 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
     });
   }
 
-  // Urgency order for the list; then longest-absent first within a reason.
   const reasonRank: Record<FollowUpReasonCode, number> = {
     at_risk: 0,
     lapsed: 1,
@@ -723,10 +501,6 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
   });
   const cappedFollowUps = followUps.slice(0, T.followUpLimit);
 
-  // ── Optional metadata breakdowns (unique period attendees by field value) ──
-  // Classify each person against the staff year of their most recent event in
-  // the selected range — not the clock year — so a trailing window that still
-  // sits in September keeps last year's Role/Campus after the Oct 1 flip.
   const latestPeriodAt = new Map<string, number>();
   for (const e of periodEvents) {
     for (const key of attendeesByEvent.get(e.id) ?? []) {
@@ -775,7 +549,6 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
       eventsHeld: periodEvents.length,
       uniqueAttendees: periodAttendees.size,
       newcomers,
-      // The full qualifying population — the cap only bounds the rendered list.
       followUpCount: followUps.length,
       weeklyConsistency,
       leaderShare,
@@ -791,14 +564,10 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
     followUps: cappedFollowUps,
     breakdowns,
     hasWeeklyMeetings,
-    // Gate on events *in the selected range* — a group with lots of old history
-    // but only one event in the last 4 weeks still has nothing meaningful to
-    // trend, so "enough history" tracks what the dashboard actually renders.
     hasEnoughHistory: periodEvents.length >= T.minEventsForInsights,
   };
 }
 
-/** Human, non-judgemental heading for a follow-up reason group. */
 export const REASON_LABELS: Record<FollowUpReasonCode, string> = {
   at_risk: "Follow-up suggested",
   lapsed: "Been away a while",
@@ -807,14 +576,12 @@ export const REASON_LABELS: Record<FollowUpReasonCode, string> = {
   reengaged: "Recently returned",
 };
 
-/** Set-and-return helper so timeline pushes read cleanly above. */
 function setDefault<K, V>(map: Map<K, V>, key: K, value?: V): V {
   const v = value ?? ([] as unknown as V);
   map.set(key, v);
   return v;
 }
 
-/** The concrete start-of-range ms for a `rangeWeeks` selection. */
 export const rangeStartFor = (
   now: number,
   rangeWeeks: number,

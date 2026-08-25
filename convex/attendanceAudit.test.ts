@@ -9,8 +9,8 @@ const modules = import.meta.glob("./**/*.ts");
 const YEAR = staffYearForDate(new Date());
 
 const ADMIN = "admin@sow.org.au";
-const STAFF = "staff@sow.org.au"; // department staff who performs actions
-const OTHER = "other@sow.org.au"; // a second staff member, separate actor
+const STAFF = "staff@sow.org.au";
+const OTHER = "other@sow.org.au";
 
 const USYD = "University of Sydney";
 
@@ -81,7 +81,7 @@ describe("attendance audit logging", () => {
     });
 
     await staff.mutation(api.attendance.signIn, { eventId, memberId });
-    await staff.mutation(api.attendance.signIn, { eventId, memberId }); // no-op
+    await staff.mutation(api.attendance.signIn, { eventId, memberId });
 
     const signInLogs = (await allLogs(t)).filter(
       (l) => l.action === "attendance.signIn"
@@ -105,7 +105,6 @@ describe("attendance audit logging", () => {
       name: "Sam Member",
     });
 
-    // Sign out before sign-in: nothing to remove, so nothing logged.
     await staff.mutation(api.attendance.signOut, { eventId, memberId });
     expect(
       (await allLogs(t)).filter((l) => l.action === "attendance.signOut")
@@ -169,8 +168,6 @@ describe("attendance audit logging", () => {
     expect(bySearch.page).toHaveLength(1);
     expect(bySearch.page[0].summary).toContain("Beta");
 
-    // Event + actor combine: eventA was created by STAFF, so filtering it by a
-    // different actor must return nothing (not every row for the event).
     const eventPlusOtherActor = await viewer.query(api.attendanceAudit.list, {
       eventId: eventA,
       actorEmail: OTHER,
@@ -232,15 +229,12 @@ describe("attendance audit logging", () => {
       dateEnd,
       subgroups: [USYD],
     });
-    // STAFF (the actor) signs OTHER in — OTHER appears only as subjectEmail.
     await asUser(t, STAFF).mutation(api.attendance.signIn, {
       eventId,
       email: OTHER,
     });
 
     const res = await asUser(t, ADMIN).query(api.attendanceAudit.list, {
-      // The full address: the summary carries a display name derived from the
-      // email's local part, so only the subjectEmail field can match this.
       search: OTHER,
       paginationOpts: { numItems: 50, cursor: null },
     });
@@ -282,11 +276,6 @@ describe("attendance audit logging", () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
     const { dateStart, dateEnd } = window();
-    // One matching row (oldest), then many non-matching ones. A newest-first scan
-    // must page past all the fillers before it finds the single match, so filling
-    // `numItems` matches needs several underlying pages in ONE list() call. The
-    // old built-in `.paginate()`-in-a-loop threw "ran multiple paginated queries"
-    // and crashed the Audit tab here; `paginator` walks the pages fine.
     await staff.mutation(api.events.create, {
       name: "Unicorn Gala",
       dateStart,
@@ -321,15 +310,12 @@ describe("attendance audit logging", () => {
       dateEnd,
       subgroups: [USYD],
     });
-    // A second live event so filterOptions has >1 event to sort by date.
     const laterEvent = await staff.mutation(api.events.create, {
       name: "Later Event",
       dateStart: dateStart + 1000,
       dateEnd: dateEnd + 1000,
       subgroups: [USYD],
     });
-    // An event referenced by a sign-in log, then deleted: its log row keeps the
-    // eventId, but filterOptions must skip the now-missing event.
     const goneEvent = await asUser(t, OTHER).mutation(api.events.create, {
       name: "Gone Event",
       dateStart,
@@ -353,7 +339,6 @@ describe("attendance audit logging", () => {
     expect(eventIds).toContain(liveEvent);
     expect(eventIds).toContain(laterEvent);
     expect(eventIds).not.toContain(goneEvent);
-    // Newest event first.
     expect(options.events[0].id).toBe(laterEvent);
   });
 
@@ -388,7 +373,6 @@ describe("audit logging across attendance mutations", () => {
       subgroups: [USYD],
     });
 
-    // Real change → one logged update with a detail of what changed.
     await staff.mutation(api.events.update, {
       eventId,
       name: "Renamed",
@@ -397,7 +381,6 @@ describe("audit logging across attendance mutations", () => {
       subgroups: [USYD, "SOW"],
       tagIds: [],
     });
-    // No-op save (identical values) → nothing logged.
     await staff.mutation(api.events.update, {
       eventId,
       name: "Renamed",
@@ -451,7 +434,6 @@ describe("audit logging across attendance mutations", () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
 
-    // Plain member: update name, then delete (with a sign-in to exercise detail).
     const plain = await staff.mutation(api.attendanceMembers.create, {
       name: "Plain",
     });
@@ -460,7 +442,6 @@ describe("audit logging across attendance mutations", () => {
       name: "Plain Renamed",
     });
 
-    // Staff overlay: ensureForStaff creates it, then update goes the staff path.
     const overlay = await staff.mutation(api.attendanceMembers.ensureForStaff, {
       staffEmail: STAFF,
       staffYear: YEAR,
@@ -485,7 +466,7 @@ describe("audit logging across attendance mutations", () => {
     expect(actions.filter((a) => a === "member.update")).toHaveLength(2);
     expect(actions.filter((a) => a === "member.create").length).toBeGreaterThanOrEqual(
       2
-    ); // plain + ensureForStaff overlay
+    );
     const del = (await allLogs(t)).find((l) => l.action === "member.delete");
     expect(del?.detail).toContain("attendance record");
   });
@@ -493,8 +474,6 @@ describe("audit logging across attendance mutations", () => {
   test("ensureForStaff reuses an existing member row without a duplicate log", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    // A row already exists under the staff email — since members link by email,
-    // ensureForStaff should reuse it (no insert, no spurious link log).
     const preexisting = await staff.mutation(api.attendanceMembers.create, {
       name: "Pre Existing",
       email: STAFF,
@@ -503,10 +482,9 @@ describe("audit logging across attendance mutations", () => {
       staffEmail: STAFF,
       staffYear: YEAR,
     });
-    expect(reused).toBe(preexisting); // same row, no duplicate
+    expect(reused).toBe(preexisting);
 
     const logs = await allLogs(t);
-    // Only the original create for this row — ensureForStaff added nothing.
     expect(
       logs.filter((l) => l.action === "member.create" && l.memberId === preexisting)
     ).toHaveLength(1);
@@ -524,17 +502,14 @@ describe("audit logging across attendance mutations", () => {
     let tags = await staff.query(api.attendanceTags.list, {});
     const tagId = tags[0]._id;
 
-    // Rename.
     await staff.mutation(api.attendanceTags.saveAll, {
       tags: [{ id: tagId, name: "Weekly Meeting" }],
       deleteIds: [],
     });
-    // Plain update (same name, different colour).
     await staff.mutation(api.attendanceTags.saveAll, {
       tags: [{ id: tagId, name: "Weekly Meeting", colour: "#abcdef" }],
       deleteIds: [],
     });
-    // Delete.
     await staff.mutation(api.attendanceTags.saveAll, {
       tags: [],
       deleteIds: [tagId],
@@ -560,7 +535,6 @@ describe("audit logging across attendance mutations", () => {
     const tags = await staff.query(api.attendanceTags.list, {});
     const idOf = (n: string) => tags.find((x) => x.name === n)!._id;
 
-    // The client re-sends every tag on save; only Beta's colour changes here.
     await staff.mutation(api.attendanceTags.saveAll, {
       tags: [
         { id: idOf("Alpha"), name: "Alpha" },
@@ -586,17 +560,14 @@ describe("audit logging across attendance mutations", () => {
     let fields = await staff.query(api.attendanceMetadata.list, {});
     const field = fields.find((f) => f.key === "Cohort")!;
 
-    // Rename.
     await staff.mutation(api.attendanceMetadata.saveAll, {
       fields: [{ id: field._id, key: "Group", type: "input", order: 50 }],
       deleteIds: [],
     });
-    // Unchanged: should NOT log.
     await staff.mutation(api.attendanceMetadata.saveAll, {
       fields: [{ id: field._id, key: "Group", type: "input", order: 50 }],
       deleteIds: [],
     });
-    // Delete.
     await staff.mutation(api.attendanceMetadata.saveAll, {
       fields: [],
       deleteIds: [field._id],
@@ -604,7 +575,6 @@ describe("audit logging across attendance mutations", () => {
 
     const meta = (await allLogs(t)).filter((l) => l.entityType === "metadata");
     expect(meta.filter((l) => l.action === "metadata.create")).toHaveLength(1);
-    // Exactly one update (the rename); the unchanged save logs nothing.
     expect(meta.filter((l) => l.action === "metadata.update")).toHaveLength(1);
     expect(meta.filter((l) => l.action === "metadata.delete")).toHaveLength(1);
     expect(meta.find((l) => l.action === "metadata.update")?.summary).toContain(
@@ -626,7 +596,6 @@ describe("audit logging across attendance mutations", () => {
     const alpha = fields.find((f) => f.key === "Alpha")!;
     const beta = fields.find((f) => f.key === "Beta")!;
 
-    // Swap their positions only.
     await staff.mutation(api.attendanceMetadata.saveAll, {
       fields: [
         { id: alpha._id, key: "Alpha", type: "input", order: 1 },
@@ -641,7 +610,6 @@ describe("audit logging across attendance mutations", () => {
     expect(reorders[0].summary).toContain("Swapped order");
     expect(reorders[0].summary).toContain("Alpha");
     expect(reorders[0].summary).toContain("Beta");
-    // The swap must not also emit generic "Updated member field" rows.
     expect(meta.filter((l) => l.action === "metadata.update")).toHaveLength(0);
   });
 
@@ -659,7 +627,6 @@ describe("audit logging across attendance mutations", () => {
     const fields = await staff.query(api.attendanceMetadata.list, {});
     const id = (k: string) => fields.find((f) => f.key === k)!._id;
 
-    // Rotate all three (not a clean two-field swap).
     await staff.mutation(api.attendanceMetadata.saveAll, {
       fields: [
         { id: id("One"), key: "One", type: "input", order: 2 },
@@ -677,13 +644,9 @@ describe("audit logging across attendance mutations", () => {
     expect(reorders[0].summary).not.toContain("Swapped");
   });
 
-  // UAT #1: adding a field re-indexes every field's order (client sends 0..N),
-  // which shifted absolute orders and spammed a "Reordered…" entry for untouched
-  // fields whose relative position never changed.
   test("adding a field over non-contiguous orders logs no spurious reorder", async () => {
     const t = await setup();
     const staff = asUser(t, ADMIN);
-    // Simulate accumulated non-contiguous orders (e.g. left by earlier deletes).
     await staff.mutation(api.attendanceMetadata.saveAll, {
       fields: [
         { key: "Alpha", type: "input", order: 0 },
@@ -694,8 +657,6 @@ describe("audit logging across attendance mutations", () => {
     });
     const fields = await staff.query(api.attendanceMetadata.list, {});
     const id = (k: string) => fields.find((f) => f.key === k)!._id;
-    // Client adds "Delta" and reindexes everyone to a contiguous 0..3 — same
-    // relative order, so nothing was actually reordered.
     await staff.mutation(api.attendanceMetadata.saveAll, {
       fields: [
         { id: id("Alpha"), key: "Alpha", type: "input", order: 0 },
@@ -714,17 +675,12 @@ describe("audit logging across attendance mutations", () => {
     ).toHaveLength(1);
   });
 
-  // UAT #1: Campus/Role fold in the live universities/roles on read, so re-saving
-  // them unchanged (with a university added since the row was seeded) diffed as an
-  // edit and spammed "Updated member field Campus".
   test("re-saving a synced Campus field after a new university logs no update", async () => {
     const t = await setup();
     const staff = asUser(t, ADMIN);
     await staff.mutation(api.attendanceMetadata.ensureDefaults, {});
-    // Added after the Campus row was seeded — list() merges it in on read.
     await staff.mutation(api.admin.upsertUniversity, { year: YEAR, name: "UNSW" });
     const fields = await staff.query(api.attendanceMetadata.list, {});
-    // Client saves every field back (values as read) while adding one new field.
     await staff.mutation(api.attendanceMetadata.saveAll, {
       fields: [
         ...fields.map((f, i) => ({
@@ -756,10 +712,7 @@ describe("audit logging across attendance mutations", () => {
       dateEnd,
       subgroups: [USYD],
     });
-    // Write a few audit rows so the query has something to return.
     await staff.mutation(api.attendance.signIn, { eventId, email: STAFF });
-    // A syntactically invalid JSON string (not parseable by JSON.parse) must not
-    // throw — it should be treated as "no cursor" and restart from the beginning.
     const result = await staff.query(api.attendanceAudit.list, {
       paginationOpts: { numItems: 10, cursor: "not-json{{" },
     });

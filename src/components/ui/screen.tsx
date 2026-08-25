@@ -1,7 +1,3 @@
-// Part of the ui design-system, split out of the former monolithic ui.tsx.
-// All symbols are re-exported from ./index so call sites still import from
-// "@/components/ui".
-
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@convex/_generated/api";
 import { useConvexAuth, useQuery } from "convex/react";
@@ -36,7 +32,6 @@ import { Sheet } from "./overlays";
 import { FadeInView, FastModal, SowSpinner, Txt } from "./primitives";
 import { styles } from "./styles";
 
-/** How close to the bottom (px) before onEndReached fires. */
 const NEAR_BOTTOM = 600;
 
 export const Screen = ({
@@ -54,33 +49,14 @@ export const Screen = ({
 }: {
   children?: ReactNode;
   toast?: ToastState;
-  /** Exposes the screen's ScrollView, e.g. to scroll back to the top. */
   scrollRef?: Ref<ScrollView>;
-  /** Pinned full-width area between the scroll content and the tab bar. */
   footer?: ReactNode;
-  /** Large display title rendered at the top of the scroll content. */
   title?: string;
-  /** Quiet line above the title — greeting, date, context. */
   subtitle?: string;
-  /** Rendered to the right of the title (e.g. an avatar or a year picker). */
   headerRight?: ReactNode;
-  /** When set, shows a back chevron to the left of the title. */
   onBack?: () => void;
-  /**
-   * Fired once while the user scrolls within ~600px of the bottom (infinite
-   * load). Re-fires only after the content grows — same dedupe as PagerScreen.
-   */
   onEndReached?: () => void;
-  /**
-   * Indices (into `children`) of elements that should pin to the top while the
-   * rest scrolls under them — e.g. a search bar. The built-in header (when a
-   * title/headerRight/onBack is set) is accounted for automatically.
-   */
   stickyHeaderIndices?: number[];
-  /**
-   * Overrides the 720pt reading-width cap on the scroll content — e.g. the
-   * event attendance page, whose two-column roster earns a wider column.
-   */
   maxWidth?: number;
 }) => {
   const t = useAppTheme();
@@ -88,7 +64,6 @@ export const Screen = ({
   const resolvedStickyIndices = stickyHeaderIndices?.map(
     (i) => i + (headerShown ? 1 : 0)
   );
-  // Content height at which onEndReached last fired — only re-fire after growth.
   const lastEndReachedHeight = useRef(-1);
   const onEndReachedRef = useRef(onEndReached);
   useEffect(() => {
@@ -111,9 +86,6 @@ export const Screen = ({
           onEndReached
             ? ({ nativeEvent }) => {
                 const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
-                // Content can shrink when this Screen stays mounted across a
-                // route/filter change — forget the old high-water mark so a
-                // shorter list can still fire onEndReached.
                 if (contentSize.height < lastEndReachedHeight.current) {
                   lastEndReachedHeight.current = -1;
                 }
@@ -166,12 +138,6 @@ export const Screen = ({
   );
 };
 
-/**
- * Top chrome for the main screens: the SOW logo (taps → Home) on the left
- * and the profile avatar (taps → Profile) on the right. Replaces the per-screen
- * page titles. The logo art is a black wordmark, tinted to the theme text colour
- * so it reads on both the cream and deep-green backgrounds.
- */
 export const TopBar = ({
   photo,
   name,
@@ -186,22 +152,13 @@ export const TopBar = ({
   const bell = usePressScale();
   const profile = usePressScale();
   const { isAuthenticated } = useConvexAuth();
-  // Notifications are a staff surface — gated on a provisioned staff profile,
-  // the same check the tabs use, not merely being signed in.
   const me = useQuery(api.directory.me);
   const isStaff = !!me?.profile;
-  // Tapping the logo always returns to the public Home tab, for everyone.
   const logoHref = "/home";
   const unread =
     useQuery(api.notifications.unreadCount, isStaff ? {} : "skip") ?? 0;
   const [testInfo, setTestInfo] = useState(false);
-  // Signed-out avatar dropdown (Sign in with Google). Rendered as a Modal —
-  // the top bar lives inside an overflow-hidden collapsing clip, so anything
-  // anchored inside it would be cut off at the bar's edge.
   const [signInMenu, setSignInMenu] = useState(false);
-  // Three sign-in flows: the org-restricted staff Google account, any personal
-  // (non-staff) Google account (1.7.4), and Sign in with Apple (1.8.0) — the
-  // Guideline 4.8 equivalent login, offered on iOS where the OS supports it.
   const sow = useGoogleSignIn("google");
   const personal = useGoogleSignIn("googlePersonal");
   const apple = useAppleSignIn();
@@ -220,10 +177,6 @@ export const TopBar = ({
     setSignInMenu(false);
     clearError();
     const outcome = await signIn();
-    // The provider authenticated the account but our backend refused it (for the
-    // Google flows the OAuth callback returns with no code; for Apple the server
-    // throws a tagged error). Without this the attempt would quietly do nothing —
-    // tell the user why and where to go instead.
     if (outcome === "rejected") {
       if (kind === "googlePersonal" || kind === "apple") {
         Alert.alert(
@@ -239,10 +192,6 @@ export const TopBar = ({
         );
       }
     } else if (outcome === "error") {
-      // An unexpected failure (e.g. Apple token verification, a JWKS/network
-      // error). The per-hook error message renders inside the menu, but we've
-      // just closed it — so surface a prompt here or the attempt looks like it
-      // silently did nothing. (A cancel stays quiet, as before.)
       Alert.alert(
         "Sign-in failed",
         "Something went wrong signing you in. Please try again.",
@@ -268,8 +217,6 @@ export const TopBar = ({
           />
         </Pressable>
       </Animated.View>
-      {/* On the dev / staging build, a centred warning chip makes it obvious
-          this isn't production; tapping it explains what the environment is. */}
       <View style={styles.topBarCenter} pointerEvents="box-none">
         {IS_DEV_ENVIRONMENT ? (
           <Pressable
@@ -289,8 +236,6 @@ export const TopBar = ({
         ) : null}
       </View>
       <View style={styles.topBarRight}>
-        {/* Notifications are a staff concern — hidden for visitors and
-            signed-in non-staff accounts. */}
         {isStaff ? (
           <Animated.View style={{ transform: [{ scale: bell.scale }] }}>
             <Pressable
@@ -331,11 +276,8 @@ export const TopBar = ({
             </Pressable>
           </Animated.View>
         ) : (
-          // Visitors get a clear, wider call-to-action instead of an empty avatar.
           <Pressable
             onPress={() => {
-              // Clear any error left over from a previous failed attempt so a
-              // stale message doesn't reappear when the menu reopens.
               clearError();
               setSignInMenu(true);
             }}
@@ -356,8 +298,6 @@ export const TopBar = ({
           </Pressable>
         )}
       </View>
-      {/* Signed-out avatar dropdown: a small menu anchored under the avatar.
-          FastModal gives it a quick fade so it's fast to tap open and closed. */}
       <FastModal
         visible={signInMenu}
         onRequestClose={() => setSignInMenu(false)}
@@ -365,14 +305,6 @@ export const TopBar = ({
         <Pressable
           style={styles.dropdownBackdrop}
           accessibilityLabel="Close menu"
-          // Without this, the backdrop's own accessibilityLabel makes it a
-          // single opaque accessibility element that swallows everything
-          // nested inside — including the actual "Sign in with your SOW
-          // account" button, which sits inside this same Pressable as its
-          // child. That made the sign-in action unreachable to VoiceOver
-          // (and to any accessibility-tree-based automation), not just
-          // visually tappable. Letting children report individually is the
-          // fix; the backdrop's own tap-to-dismiss still works for touch.
           accessible={false}
           onPress={() => {
             if (!busy) {
@@ -382,11 +314,6 @@ export const TopBar = ({
           }}
         >
           <View
-            // The backdrop is `accessible={false}` (so the sign-in button is
-            // reachable), which drops its "Close menu" action from the a11y
-            // tree. Scope VoiceOver focus to the menu and expose a discoverable
-            // dismiss via the native escape gesture (two-finger scrub) so
-            // closing stays reachable without a visible close button.
             accessibilityViewIsModal
             accessibilityActions={[{ name: "escape", label: "Close menu" }]}
             onAccessibilityAction={(e) => {
@@ -447,11 +374,6 @@ export const TopBar = ({
                 Sign in with Google
               </Text>
             </Pressable>
-            {/* Sign in with Apple (iOS only, where the OS supports it) — the
-                Guideline 4.8 equivalent login. Rendered as a matching list row
-                (not AppleAuthenticationButton) so it sits at equal prominence
-                with the Google options; the label + Apple logo satisfy Apple's
-                branding rules. */}
             {appleAvailable ? (
               <>
                 <View
@@ -523,11 +445,6 @@ export const TopBar = ({
   );
 };
 
-/**
- * Full-width, square, top-pinned tab switcher: equal-width tabs with an
- * underline under the active one (no rounded pill). Carries the same action /
- * unread badges as {@link Segmented}. Hidden when there are fewer than 2 tabs.
- */
 export const TabBar = ({
   segments,
   active,
@@ -537,12 +454,6 @@ export const TabBar = ({
   segments: Segment[];
   active: string;
   onChange: (key: string) => void;
-  /**
-   * Fractional page position (0 = first tab, 1 = second, …). When supplied —
-   * e.g. driven by the pager's scroll on native — the selected-tab underline
-   * tracks it continuously. Without it, the underline springs to the active
-   * tab on change (the tab-to-tab animation used on web).
-   */
   position?: Animated.Value;
 }) => {
   const t = useAppTheme();
@@ -551,11 +462,10 @@ export const TabBar = ({
     segments.findIndex((segment) => segment.key === active),
     0
   );
-  // Fallback driver when no external position is passed (web / tab taps).
   const [internal] = useState(() => new Animated.Value(activeIndex));
   const pos = position ?? internal;
   useEffect(() => {
-    if (position) return; // externally driven — don't fight it
+    if (position) return;
     Animated.spring(internal, {
       toValue: activeIndex,
       useNativeDriver: USE_NATIVE_DRIVER,
@@ -566,8 +476,6 @@ export const TabBar = ({
 
   if (segments.length < 2) return null;
   const segWidth = width / segments.length;
-  // position 0→1 moves the underline exactly one segment over; linear
-  // extrapolation covers any number of segments.
   const translateX = pos.interpolate({
     inputRange: [0, 1],
     outputRange: [0, segWidth],
@@ -616,8 +524,6 @@ export const TabBar = ({
                 </View>
               ) : null}
             </View>
-            {/* Transparent spacer: reserves the underline's height so the bar
-                doesn't change size when the real (absolute) indicator slides. */}
             <View style={styles.tabIndicator} />
           </Pressable>
         );

@@ -49,19 +49,9 @@ async function setup() {
 const window = () => ({ dateStart: Date.now(), dateEnd: Date.now() + 3600_000 });
 
 describe("Campus locked options across the staff-year rollover", () => {
-  /**
-   * The `Campus` field's locked options are the union of the previous and
-   * current staff years' universities, so the Oct 1 flip cannot unlock a campus
-   * out from under the members sitting on it (docs/adr/0002). Inserting
-   * directly: `upsertUniversity` only accepts the current and next year, and
-   * the case under test is a university that exists ONLY in the year just gone.
-   */
   test("a university from the previous staff year stays locked", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // A name `admin.seed` does NOT seed into the current year, so the only
-    // reason it can appear in the locked set is the previous-year half of the
-    // union.
     const UOW = "University of Wollongong";
     await t.run(async (ctx) => {
       await ctx.db.insert("universities", { year: YEAR - 1, name: UOW });
@@ -71,11 +61,8 @@ describe("Campus locked options across the staff-year rollover", () => {
     const campus = (await admin.query(api.attendanceMetadata.list, {})).find(
       (f) => f.key === "Campus"
     )!;
-    // Present as a selectable option and locked, despite belonging to no
-    // current-year `universities` row.
     expect(Object.values(campus.values ?? {})).toContain(UOW);
     expect(campus.lockedValues).toContain(UOW);
-    // The current year's universities stay locked too — union, not replacement.
     expect(campus.lockedValues).toContain(USYD);
     expect(campus.lockedValues).toContain(MACQ);
   });
@@ -119,8 +106,6 @@ describe("attendance tags (branch coverage)", () => {
         deleteIds: [],
       })
     ).rejects.toThrow(/admins or campus leaders/i);
-    // ensureDefaults is opportunistic (screens any staff can open fire it on
-    // mount), so a non-manager is a silent no-op — nothing seeded, no error.
     await expect(
       staff.mutation(api.attendanceMetadata.ensureDefaults, {})
     ).resolves.toBe(0);
@@ -160,7 +145,6 @@ describe("attendance tags (branch coverage)", () => {
       tags: [],
       deleteIds: [tag._id],
     });
-    // Tag is gone; deleting the same stale id again is silently ignored.
     await expect(
       leader.mutation(api.attendanceTags.saveAll, {
         tags: [],
@@ -224,15 +208,12 @@ describe("attendance tags", () => {
       tags: [{ name: "Retreat", colour: "purple" }],
       deleteIds: [],
     });
-    // A second save that doesn't round-trip the existing row (e.g. a stale or
-    // concurrent client) must not create a duplicate-named tag.
     await expect(
       leader.mutation(api.attendanceTags.saveAll, {
         tags: [{ name: "retreat" }],
         deleteIds: [],
       })
     ).rejects.toThrow(/already exists/i);
-    // Updating the existing row under its own name (normal full-list save) is fine.
     const [tag] = await leader.query(api.attendanceTags.list, {});
     await leader.mutation(api.attendanceTags.saveAll, {
       tags: [{ id: tag._id, name: "Retreat", colour: "teal" }],
@@ -240,7 +221,6 @@ describe("attendance tags", () => {
     });
     const [updated] = await leader.query(api.attendanceTags.list, {});
     expect(updated.colour).toBe("teal");
-    // Deleting a tag in the same save frees its name for a new insert.
     await leader.mutation(api.attendanceTags.saveAll, {
       tags: [{ name: "Retreat", colour: "red" }],
       deleteIds: [tag._id],
@@ -254,8 +234,6 @@ describe("attendance tags", () => {
 describe("consolidateAttendanceTags migration", () => {
   test("merges same-named tags into one global row, unions scopes, remaps events", async () => {
     const t = await setup();
-    // Two legacy "Weekly Meeting" rows with different sub-group scopes, plus a
-    // duplicate row whose scope overlaps the first.
     const { a2025, a2026, dup, keep, evId } = await t.run(async (ctx) => {
       const a2025 = await ctx.db.insert("attendanceTags", {
         name: "Weekly Meeting",
@@ -267,8 +245,6 @@ describe("consolidateAttendanceTags migration", () => {
         colour: "teal",
         subgroups: ["UNSW"],
       });
-      // A third same-named row whose scope overlaps a2025 — the union must
-      // de-duplicate USYD rather than list it twice.
       const dup = await ctx.db.insert("attendanceTags", {
         name: "Weekly Meeting",
         subgroups: [USYD],
@@ -292,7 +268,6 @@ describe("consolidateAttendanceTags migration", () => {
       internal.attendanceTags.consolidateAttendanceTags,
       {}
     );
-    // Two "Weekly Meeting" variants collapse into the earliest survivor.
     expect(res.merged).toBe(2);
 
     const rows = await t.run(async (ctx) =>
@@ -303,21 +278,15 @@ describe("consolidateAttendanceTags migration", () => {
     );
     expect(weekly).toHaveLength(1);
     const survivor = weekly[0];
-    // Survivor is the earliest-created row (a2025).
     expect(survivor._id).toBe(a2025);
-    // Scopes are unioned across the merged rows (USYD de-duplicated).
     expect(new Set(survivor.subgroups)).toEqual(new Set([USYD, "UNSW"]));
 
-    // The event's tag id that pointed at a loser (a2026) now points at the
-    // survivor, de-duplicated, with the untouched tag preserved.
     const event = await t.run(async (ctx) => ctx.db.get(evId));
     expect(new Set(event!.tagIds)).toEqual(new Set([survivor._id, keep]));
 
-    // The non-duplicate tag survives; the duplicate is gone.
     expect(rows.some((r) => r._id === keep)).toBe(true);
     expect(rows.some((r) => r._id === dup)).toBe(false);
 
-    // Idempotent: a second run merges nothing.
     const again = await t.mutation(
       internal.attendanceTags.consolidateAttendanceTags,
       {}
@@ -328,7 +297,6 @@ describe("consolidateAttendanceTags migration", () => {
   test("takes a loser's colour when the survivor has none, and leaves unrelated/tag-less events alone", async () => {
     const t = await setup();
     const { survivorId, soloEventId, taglessId } = await t.run(async (ctx) => {
-      // Survivor has neither colour nor year; the later duplicate carries one.
       const survivor = await ctx.db.insert("attendanceTags", {
         name: "Camp",
         subgroups: [USYD],
@@ -338,9 +306,7 @@ describe("consolidateAttendanceTags migration", () => {
         colour: "red",
         subgroups: [USYD],
       });
-      // A tag with no duplicate and no year — nothing to change or clear.
       const solo = await ctx.db.insert("attendanceTags", { name: "Solo" });
-      // Event referencing only the untouched solo tag → left byte-for-byte.
       const soloEventId = await ctx.db.insert("events", {
         name: "Solo event",
         dateStart: Date.now(),
@@ -348,7 +314,6 @@ describe("consolidateAttendanceTags migration", () => {
         subgroups: [USYD],
         tagIds: [solo],
       });
-      // Event with no tags at all → skipped by the remap pass.
       const taglessId = await ctx.db.insert("events", {
         name: "No tags",
         dateStart: Date.now(),
@@ -362,17 +327,13 @@ describe("consolidateAttendanceTags migration", () => {
       internal.attendanceTags.consolidateAttendanceTags,
       {}
     );
-    // Only the "Camp" duplicate merges.
     expect(res.merged).toBe(1);
-    // The merge remapped nothing (no event referenced the loser).
     expect(res.eventsRemapped).toBe(0);
 
     const survivor = await t.run(async (ctx) => ctx.db.get(survivorId));
-    // Survivor inherited the loser's colour and kept its (unchanged) scope.
     expect(survivor?.colour).toBe("red");
     expect(survivor?.subgroups).toEqual([USYD]);
 
-    // Neither event was rewritten.
     const soloEvent = await t.run(async (ctx) => ctx.db.get(soloEventId));
     expect(soloEvent?.tagIds).toHaveLength(1);
     const tagless = await t.run(async (ctx) => ctx.db.get(taglessId));
@@ -571,7 +532,6 @@ describe("attendance metadata", () => {
       )?.type
     ).toBe("input");
 
-    // Deleting an id that no longer exists is silently skipped.
     const ghostId = await t.run(async (ctx) => {
       const id = await ctx.db.insert("attendanceMetadata", {
         key: "Ghost",
@@ -597,13 +557,11 @@ describe("attendance metadata", () => {
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
 
-    // Add a custom role + campus, persist the snapshot, then remove them.
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Volunteer" });
     await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: "Temp Uni" });
     const seeded = await leader.query(api.attendanceMetadata.list, { });
     expect(seeded.find((f) => f.key === "Role")!.lockedValues).toContain("Volunteer");
     expect(seeded.find((f) => f.key === "Campus")!.lockedValues).toContain("Temp Uni");
-    // Persist so the stored snapshot records Volunteer/Temp Uni as locked.
     await leader.mutation(api.attendanceMetadata.saveAll, {
       fields: seeded
         .filter((f) => f.key === "Role" || f.key === "Campus")
@@ -621,23 +579,18 @@ describe("attendance metadata", () => {
     await admin.mutation(api.admin.removeRole, { year: YEAR, name: "Volunteer" });
     await admin.mutation(api.admin.removeUniversity, { year: YEAR, name: "Temp Uni" });
 
-    // After removal the lock set follows the tables, dropping the stale entries
-    // even though they remain in the persisted snapshot.
     const after = await leader.query(api.attendanceMetadata.list, { });
     const role = after.find((f) => f.key === "Role")!;
     const campus = after.find((f) => f.key === "Campus")!;
     expect(role.lockedValues).not.toContain("Volunteer");
-    expect(role.lockedValues).toContain("Staff"); // base ROLES stay locked
+    expect(role.lockedValues).toContain("Staff");
     expect(campus.lockedValues).not.toContain("Temp Uni");
-    expect(campus.lockedValues).toContain(USYD); // still-present campus stays locked
+    expect(campus.lockedValues).toContain(USYD);
   });
 });
 
 describe("attendance members", () => {
   test("optionIdForLabel fallback: campus not in field values returns the label", async () => {
-    // Seed metadata first, then add a new university that the campus field
-    // doesn't know about. When list() runs staffLockedMetadata() for the new
-    // staff member it calls optionIdForLabel which falls through to "return label".
     const t = await setup();
     const admin = asUser(t, ADMIN);
     const leader = asUser(t, LEADER);
@@ -653,7 +606,6 @@ describe("attendance members", () => {
       year: YEAR,
       paginationOpts: { numItems: 100, cursor: null },
     });
-    // The row exists even when the campus id can't be found in the field values
     expect(page.page.some((r) => r.email === OUTSIDER)).toBe(true);
   });
 
@@ -664,9 +616,6 @@ describe("attendance members", () => {
     const fields = await leader.query(api.attendanceMetadata.list, { });
     const roleField = fields.find((f) => f.key === "Role")!;
 
-    // Insert a staff profile with empty assignments directly to bypass the
-    // API constraint ("Pick at least one role"), then verify staffLockedMetadata
-    // deletes the role key from the shadow's metadata (the else-branch at line 75).
     const profileId = await t.run(async (ctx) => {
       return await ctx.db.insert("staffProfiles", {
         email: OUTSIDER,
@@ -689,9 +638,7 @@ describe("attendance members", () => {
       paginationOpts: { numItems: 100, cursor: null },
     });
     const row = page.page.find((r) => r.email === OUTSIDER);
-    // The locked metadata should not have a role set (profile has no role)
     expect(row?.metadata[roleField._id]).toBeUndefined();
-    // Clean up the spurious profile (no_role is not valid in the real app)
     await t.run(async (ctx) => { await ctx.db.delete(profileId); });
   });
 
@@ -723,14 +670,11 @@ describe("attendance members", () => {
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const fields = await leader.query(api.attendanceMetadata.list, { });
     const yearField = fields.find((f) => f.key === "Year")!;
-    // Added as an attendance-only member (no staffEmail) under the email that
-    // is a staff profile this year — the rollover-duplicate scenario.
     const memberId = await leader.mutation(api.attendanceMembers.create, {
       name: "Future Leader",
       email: LEADER,
     });
 
-    // This year (LEADER holds a profile): one combined staff row, not two.
     const thisYear = await leader.query(api.attendanceMembers.list, {
       year: YEAR,
       paginationOpts: { numItems: 50, cursor: null },
@@ -761,8 +705,6 @@ describe("attendance members", () => {
     expect(updated?.email).toBe(LEADER);
     expect(updated.metadata?.[yearField._id]).toBe(String(YEAR - 2));
 
-    // A year in which LEADER held no profile: shown as the plain member they
-    // were then, not retroactively promoted to staff.
     const pastYear = await leader.query(api.attendanceMembers.list, {
       year: YEAR - 5,
       paginationOpts: { numItems: 50, cursor: null },
@@ -775,9 +717,6 @@ describe("attendance members", () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
-    // A pool member whose email is a SOW address with no staff profile this
-    // year. Linking is by email alone, so with no matching profile it's just a
-    // plain member (there's no longer a staffEmail flag to hide it behind).
     const ghostId = await t.run(async (ctx) =>
       ctx.db.insert("attendanceMembers", {
         name: "Ghost",
@@ -797,8 +736,6 @@ describe("attendance members", () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
-    // STAFF was added as an attendance-only member under the staff email, before
-    // being asked for as a staff overlay.
     const memberId = await leader.mutation(api.attendanceMembers.create, {
       name: "Staff Person",
       email: STAFF,
@@ -807,7 +744,6 @@ describe("attendance members", () => {
       staffEmail: STAFF,
     });
     expect(ensured).toBe(memberId);
-    // Linked purely by email — one row.
     const rows = (
       await t.run(async (ctx) => ctx.db.query("attendanceMembers").collect())
     ).filter((m) => m.email === STAFF);
@@ -818,8 +754,6 @@ describe("attendance members", () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
-    // Created through the app with messy casing/whitespace — writes normalise it,
-    // so the exact-match by_email link still finds it (no duplicate overlay).
     const memberId = await leader.mutation(api.attendanceMembers.create, {
       name: "Cased Staff",
       email: "  STAFF@SOW.ORG.AU  ",
@@ -842,8 +776,6 @@ describe("attendance members", () => {
     const memberId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
       staffEmail: LEADER,
     });
-    // LEADER holds a profile in the current staff year but not YEAR - 5, so the
-    // overlay must not be silently edited as a plain member for that year.
     await expect(
       leader.mutation(api.attendanceMembers.update, {
         memberId,
@@ -856,7 +788,6 @@ describe("attendance members", () => {
   test("ensureForStaff won't adopt an unlinked member without a staff profile", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
-    // OUTSIDER has no staff profile this year, but exists as a plain member.
     const memberId = await leader.mutation(api.attendanceMembers.create, {
       name: "Outside Person",
       email: OUTSIDER,
@@ -866,7 +797,6 @@ describe("attendance members", () => {
         staffEmail: OUTSIDER,
       })
     ).rejects.toThrow(/not found/i);
-    // The plain member is left untouched — not converted to a staff overlay.
     const row = await t.run((ctx) => ctx.db.get(memberId));
     expect(row?.email).toBe(OUTSIDER);
   });
@@ -890,7 +820,6 @@ describe("attendance members", () => {
     });
     const roster = await leader.query(api.attendance.roster, { year: YEAR });
     const row = roster.find((r) => r.name === "Campus Guest")!;
-    // Campus rides on the chip (university), not the subtitle; other metadata stays.
     expect(row.university).toBe(USYD);
     expect(row.subtitle ?? "").not.toContain(USYD);
     expect(row.subtitle).toContain("Male");
@@ -1322,11 +1251,9 @@ describe("attendanceMembers.byName", () => {
     await leader.mutation(api.attendanceMembers.create, { name: "Jane Doe" });
     await leader.mutation(api.attendanceMembers.create, { name: "Someone Else" });
 
-    // Unauthenticated callers get nothing.
     expect(await t.query(api.attendanceMembers.byName, { name: "Jane Doe" })).toEqual(
       []
     );
-    // Empty/whitespace name short-circuits.
     expect(await leader.query(api.attendanceMembers.byName, { name: "  " })).toEqual(
       []
     );
@@ -1348,8 +1275,6 @@ describe("attendanceMembers.byName", () => {
 describe("consolidateAttendanceMetadata migration", () => {
   test("merges duplicate fields into one global set and remaps member metadata", async () => {
     const t = convexTest(schema, modules);
-    // Pre-consolidation shape: two duplicate Gender rows with DIFFERENT
-    // option-id schemes, plus an input "Notes" pair, inserted directly.
     const ids = await t.run(async (ctx) => {
       const genderA = await ctx.db.insert("attendanceMetadata", {
         key: "Gender",
@@ -1373,22 +1298,18 @@ describe("consolidateAttendanceMetadata migration", () => {
         type: "input" as const,
         order: 2,
       });
-      // M references the LOSER (B) gender id, value Female (B "1").
       const m = await ctx.db.insert("attendanceMembers", {
         name: "M",
         metadata: { [genderB]: "1" },
       });
-      // N has BOTH ids set — the clobber guard keeps the survivor's value.
       const n = await ctx.db.insert("attendanceMembers", {
         name: "N",
         metadata: { [genderA]: "1", [genderB]: "2" },
       });
-      // P has an unknown option id on the loser — it passes through.
       const p = await ctx.db.insert("attendanceMembers", {
         name: "P",
         metadata: { [genderB]: "9" },
       });
-      // Q references the loser INPUT field.
       const q = await ctx.db.insert("attendanceMembers", {
         name: "Q",
         metadata: { [notesB]: "hi" },
@@ -1408,7 +1329,6 @@ describe("consolidateAttendanceMetadata migration", () => {
     const gender = rows.filter((r) => r.key === "Gender");
     expect(gender).toHaveLength(1);
     expect(gender[0]._id).toBe(ids.genderA);
-    // The survivor gained the loser-only "Other" label.
     expect(Object.values(gender[0].values ?? {})).toContain("Other");
     expect(rows.filter((r) => r.key === "Notes")).toHaveLength(1);
 
@@ -1417,18 +1337,13 @@ describe("consolidateAttendanceMetadata migration", () => {
     const survFemaleId = Object.entries(gender[0].values ?? {}).find(
       ([, label]) => label === "Female"
     )![0];
-    // M: B "1" (Female) remapped to the survivor's Female id, by label.
     expect((await meta(ids.m))[ids.genderA]).toBe(survFemaleId);
     expect((await meta(ids.m))[ids.genderB]).toBeUndefined();
-    // N: survivor already had a value, so it is kept; loser id dropped.
     expect((await meta(ids.n))[ids.genderA]).toBe("1");
     expect((await meta(ids.n))[ids.genderB]).toBeUndefined();
-    // P: an unknown option id passes through unchanged.
     expect((await meta(ids.p))[ids.genderA]).toBe("9");
-    // Q: the input value moves to the survivor input field.
     expect((await meta(ids.q))[ids.notesA]).toBe("hi");
 
-    // Idempotent: a second run merges nothing.
     const again = await t.mutation(
       internal.attendanceMetadata.consolidateAttendanceMetadata,
       {}

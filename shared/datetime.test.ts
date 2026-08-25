@@ -52,12 +52,10 @@ describe("parseDateInputValue", () => {
     expect(parseDateInputValue("2024-02-31")).toBeNull();
     expect(parseDateInputValue("2023-02-29")).toBeNull();
     expect(parseDateInputValue("0000-00-00")).toBeNull();
-    // …but a real leap day parses.
     expect(parseDateInputValue("2024-02-29")).not.toBeNull();
   });
 
   it("reads a year literally, so early years round-trip", () => {
-    // `new Date(99, 0, 1)` would mean 1999 — this must mean the year 99.
     const parsed = parseDateInputValue("0099-01-01");
     expect(parsed).not.toBeNull();
     expect(parsed!.getFullYear()).toBe(99);
@@ -106,9 +104,6 @@ describe("parseDateTimeInputValues", () => {
   });
 
   it("moves a DST-skipped wall-clock time forward rather than rejecting it", () => {
-    // Sydney springs forward 2am → 3am on the first Sunday of October, so
-    // 02:30 doesn't exist that day. Only assert when the suite is running in a
-    // zone that actually has that gap; elsewhere 02:30 is an ordinary time.
     const ms = parseDateTimeInputValues("2026-10-04", "02:30");
     expect(ms).not.toBeNull();
     const at = new Date(ms!);

@@ -36,7 +36,6 @@ describe("student year from commencement", () => {
     expect(studentYearLevelFromCommencement(2024, 2024)).toBe("1");
     expect(studentYearLevelFromCommencement(2024, 2025)).toBe("2");
     expect(studentYearLevelFromCommencement(2024, 2028)).toBe("5");
-    // No "6+" cap any more — show the actual number of years since commencement.
     expect(studentYearLevelFromCommencement(2024, 2029)).toBe("6");
     expect(studentYearLevelFromCommencement(2024, 2034)).toBe("11");
   });
@@ -44,11 +43,9 @@ describe("student year from commencement", () => {
   test("picking a level stores the implied commencement year", () => {
     expect(commencementYearFromLevel("1", 2026)).toBe(2026);
     expect(commencementYearFromLevel("3", 2026)).toBe(2024);
-    // Levels now go up to 15.
     expect(commencementYearFromLevel("7", 2026)).toBe(2020);
     expect(commencementYearFromLevel("15", 2026)).toBe(2012);
     expect(commencementYearFromLevel("16", 2026)).toBeNull();
-    // Legacy labels still resolve to a sixth year.
     expect(commencementYearFromLevel("6+", 2026)).toBe(2021);
     expect(commencementYearFromLevel("Alumni", 2026)).toBe(2021);
     expect(
@@ -133,21 +130,11 @@ describe("partitionSelectOptions", () => {
     expect(roleFilterMatches("Student Leader", ["Staff"], null)).toBe(false);
     expect(roleFilterMatches("Staff", ["Head of Department"], null)).toBe(true);
     expect(roleFilterMatches("Staff", ["President"], null)).toBe(false);
-    // The role catalog is data-driven: a custom role added in the admin Roles
-    // UI is a staff-side role too, so the Staff bucket must not be limited to
-    // the built-in ROLES list — that would leave a person whose only role is a
-    // custom one matching no filter option at all.
     expect(roleFilterMatches("Staff", ["Media Coordinator"], null)).toBe(true);
     expect(roleFilterMatches("Student Leader", ["Media Coordinator"], null)).toBe(false);
-    // A profile whose only assignment is member-scoped is not staff.
     expect(roleFilterMatches("Staff", ["Member"], null)).toBe(false);
     expect(roleFilterMatches("Staff", [], "Staff")).toBe(false);
     expect(roleFilterMatches("Staff", [], "Member")).toBe(false);
-    // A student leader may be an attendance-only member (no profile role) tagged
-    // with a campus role in metadata — the Student Leader bucket matches those
-    // via the metadata fallback. (Staff, above, does not: paid staff always have
-    // a profile.) A person who is both a profile and a member is collapsed to one
-    // row in attendanceMembers.list, so this counts leaders, not duplicates.
     expect(roleFilterMatches("Student Leader", [], "Student Leader")).toBe(true);
     expect(roleFilterMatches("Student Leader", [], "President")).toBe(true);
     expect(roleFilterMatches("Student Leader", [], "Executive")).toBe(true);
@@ -174,7 +161,6 @@ describe("gender and field helpers", () => {
     expect(canonicalizeGenderValues({ "2": "Male", "3": "Female" })).toEqual(
       GENDER_VALUES
     );
-    // Value that is neither "male" nor "female" — exercises the implicit else branch
     expect(canonicalizeGenderValues({ "5": "Custom" })).toEqual(GENDER_VALUES);
   });
 
@@ -187,9 +173,7 @@ describe("gender and field helpers", () => {
   test("canonicalizeGenderOptionId maps legacy Female id", () => {
     expect(canonicalizeGenderOptionId("3", { "3": "Female" })).toBe("2");
     expect(canonicalizeGenderOptionId("2", { "2": "Male" })).toBe("1");
-    // stored id is "1" or "2" but label is not male/female — pass through
     expect(canonicalizeGenderOptionId("1", { "1": "Other" })).toBe("1");
-    // stored id is not "1" or "2" and label doesn't match — pass through
     expect(canonicalizeGenderOptionId("99", {})).toBe("99");
   });
 
@@ -202,7 +186,6 @@ describe("gender and field helpers", () => {
   test("isCommencementYear and yearMetadataSortKey", () => {
     expect(isCommencementYear("2024")).toBe(true);
     expect(isCommencementYear("3")).toBe(false);
-    // Zero-padded so a string compare orders levels numerically (e.g. "05" < "08").
     expect(yearMetadataSortKey("2024", 2028, YEAR_OPTIONS)).toBe("05");
     expect(yearMetadataSortKey("2021", 2028, YEAR_OPTIONS)).toBe("08");
     expect(yearMetadataSortKey("2021", 2028, YEAR_OPTIONS) < yearMetadataSortKey("2014", 2028, YEAR_OPTIONS)).toBe(
@@ -215,10 +198,6 @@ describe("gender and field helpers", () => {
   });
 
   test("partitionSelectOptions sort covers bi-in-order branch", () => {
-    // Alpha (ai=0) and Beta (ai=1) are label-matched; Xenon (ai=-1) is id-matched.
-    // Placing Xenon last in the object ensures it is inserted last by the sort's
-    // internal pass, so it gets compared as `a` against Alpha (bi=0) and Beta
-    // (bi=1), triggering the `if (bi >= 0) return 1` branch (line 220).
     const { locked } = partitionSelectOptions(
       { a: "Alpha", b: "Beta", x: "Xenon" },
       ["Alpha", "Beta", "x"]

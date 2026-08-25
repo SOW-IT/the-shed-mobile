@@ -74,7 +74,6 @@ const LIVE_REQUESTS_PER_YEAR_LIMIT = 1000;
 const requestSummary = (r: Doc<"requests">) =>
   `Requester: ${r.requesterEmail}\nDepartment: ${r.department}\nAmount: $${formatAmount(r.amount)}\nDescription: ${r.description}`;
 
-/** Appends an immutable audit event (timestamp = _creationTime). */
 const logEvent = async (
   ctx: MutationCtx,
   requestId: Id<"requests">,
@@ -92,20 +91,7 @@ const logEvent = async (
   });
 };
 
-/**
- * The hosted web app, for links in emails (universal links open the native
- * app). Uses the deployment's own `SITE_URL` — the same per-deployment web URL
- * Convex Auth redirects to — so links always match the environment: the dev
- * deployment's SITE_URL is the dev web build, prod's is production. Falls back
- * to `APP_URL`, then the production URL, if SITE_URL is ever unset.
- *
- * (SITE_URL is preferred over APP_URL because APP_URL is a separate, manually
- * maintained override that has drifted before — e.g. left pointing at prod on
- * the dev deployment, which sent dev/test emails to the production app.)
- */
 export const appUrl = (path?: string) => {
-  // `||` (not `??`) so an empty/whitespace env var is treated as unset and falls
-  // through; strip any trailing slash so we never produce `host//path`.
   const base = (
     process.env.SITE_URL?.trim() ||
     process.env.APP_URL?.trim() ||
@@ -114,38 +100,16 @@ export const appUrl = (path?: string) => {
   return `${base}${path ?? ""}`;
 };
 
-/**
- * Notifies a person about a request update by email AND push notification.
- * `url` is the in-app route: pushes deep-link to it, emails get it appended
- * as an HTTPS link into the hosted app.
- */
 export const notify = async (
   ctx: MutationCtx,
   opts: {
     to: string | undefined;
-    /**
-     * Who triggered this update. We never push someone for their own action —
-     * the email below is their acknowledgement — so when `to === actor` only
-     * the email is sent.
-     */
     actor?: string;
-    /** Email subject — a full sentence with the details. */
     subject: string;
-    /** Concise push-notification title; falls back to `subject`. */
     pushTitle?: string;
     body: string;
     url?: string;
-    /**
-     * The request this is about, so the in-app notification can be auto-read
-     * when that request is viewed. Defaults to the id parsed from a
-     * `/request/<id>` url, so most callers needn't pass it.
-     */
     requestId?: Id<"requests">;
-    /**
-     * Whether to also send an email. Defaults to true. Set false for high-fanout
-     * pushes (e.g. notifying every campus staffer of a new event) where an email
-     * blast would be spam — those get the push + in-app feed entry only.
-     */
     email?: boolean;
   }
 ) => {
@@ -158,22 +122,13 @@ export const notify = async (
       body: `${body}\n\nOpen in THE SHED: ${appUrl(url)}`,
     });
   }
-  // Don't buzz people for something they just did themselves; the email is
-  // their receipt.
   if (actor && to === actor) return;
   const title = pushTitle ?? subject;
-  // Lead line only; the email carries the full details. Shared by the push and
-  // the in-app notification feed.
   const lead = body.split("\n")[0];
-  // Link to the request so opening it later marks this notification read.
-  // Callers pass `requestId` explicitly; the legacy `/request/<id>` url parse is
-  // a fallback for older call sites / notifications that predate the explicit
-  // arg. (Current tab deep-links — `/?tab=...` — carry no id, hence the arg.)
   const idInUrl = url?.match(/^\/request\/([^/?#]+)/)?.[1];
   const linkedRequestId =
     requestId ??
     (idInUrl ? (ctx.db.normalizeId("requests", idInUrl) ?? undefined) : undefined);
-  // In-app notification history (mirrors the push), with an unread badge.
   await ctx.db.insert("notifications", {
     userEmail: to,
     title,
@@ -190,21 +145,9 @@ export const notify = async (
   });
 };
 
-/**
- * Where a notification about `request` should deep-link for recipient `to`: the
- * Requests-tab segment they'll actually action it from — their own request
- * lives under "Mine", anything else (they are an approver / Finance) under
- * "Review". Lands the recipient straight on the live tab where the action is
- * taken; it no longer focuses a specific request (callers pass `requestId` to
- * `notify` so the in-app notification is still auto-read when that request is
- * opened).
- */
 export const requestUrl = (
   to: string,
   request: Pick<Doc<"requests">, "_id" | "requesterEmail">,
-  // State/approval notifications land on the recipient's Requests tab (default).
-  // A comment notification is about a specific conversation, so it can focus the
-  // request and open its thread — `thread` implies `focus`.
   opts?: { thread?: boolean }
 ): string => {
   const tab = to === request.requesterEmail ? "mine" : "review";
@@ -213,11 +156,6 @@ export const requestUrl = (
   return url;
 };
 
-/**
- * The approver emails attached to steps of this request whose status is in
- * `statuses` — the "relevant people" for chain-wide notifications. Excludes
- * the requester (their own steps were auto-approved). Exported for tests.
- */
 export const involvedApproverEmails = (
   request: Doc<"requests">,
   approvers: Approvers,
@@ -231,18 +169,13 @@ export const involvedApproverEmails = (
   ];
   const emails: string[] = [];
   for (const [step, status, email] of steps) {
-    if (status === undefined) continue; // no Director step on this request
+    if (status === undefined) continue;
     if (step === "hod" && request.department === FINANCE) continue;
     if (email && statuses.includes(status)) emails.push(email);
   }
   return [...new Set(emails)].filter((e) => e !== request.requesterEmail);
 };
 
-/**
- * Resolve the pending officeholder and the staff year their cover rows apply
- * to (request year when that year's person is set, else the current-year
- * fallback). Exported for reminders / tests.
- */
 export const nextApproverWithYear = (
   request: Doc<"requests">,
   approvers: Approvers,
@@ -263,24 +196,12 @@ export const nextApproverWithYear = (
   return undefined;
 };
 
-/**
- * Who to notify for a request's pending step: the approver of the request's
- * own year, falling back to the current year's officeholder when that person
- * is gone (carried-over requests). Exported for tests.
- */
 export const nextApproverEmail = (
   request: Doc<"requests">,
   approvers: Approvers,
   fallback?: Approvers
 ): string | undefined => nextApproverWithYear(request, approvers, fallback)?.email;
 
-/**
- * The single person a request currently needs action from: the pending
- * approver, else the requester (awaiting their receipt), else the Finance Head
- * (awaiting payment), else nobody (paid or declined). Carried-over requests
- * fall back to the current year's officeholder. Used to route comment
- * notifications. Exported for tests.
- */
 export async function actionOwnerEmail(
   ctx: QueryCtx | MutationCtx,
   request: Doc<"requests">
@@ -297,21 +218,16 @@ export async function actionOwnerEmail(
     return nextApproverEmail(request, approvers, currentApprovers);
   }
   if (requestDeclined(request) || !requestFullyApproved(request)) return undefined;
-  if (!request.receipt) return request.requesterEmail; // awaiting receipt
+  if (!request.receipt) return request.requesterEmail;
   if (request.paid === false) {
     const finance = await getApprovers(ctx, reqYear, FINANCE);
     const financeNow =
       reqYear === year ? finance : await getApprovers(ctx, year, FINANCE);
     return finance.financeHeadEmail ?? financeNow.financeHeadEmail;
   }
-  return undefined; // paid / completed
+  return undefined;
 }
 
-/**
- * Emails whoever the request now waits on (officeholder + their year-scoped
- * delegates); when fully approved, tells the requester to submit their receipt
- * and the approver chain that it cleared.
- */
 const notifyNextActor = async (
   ctx: MutationCtx,
   request: Doc<"requests">,
@@ -346,7 +262,6 @@ const notifyNextActor = async (
       url: requestUrl(request.requesterEmail, request),
       requestId: request._id,
     });
-    // The whole approver chain hears that the request cleared.
     for (const email of involvedApproverEmails(request, approvers, [APPROVED])) {
       await notify(ctx, {
         to: email,
@@ -361,32 +276,16 @@ const notifyNextActor = async (
   }
 };
 
-/**
- * Sanity ceiling on any single money amount (request, recipient, payment).
- * Well above any real reimbursement, so it only ever rejects typos and junk
- * values (e.g. Infinity survives a bare `> 0` check) before they poison totals.
- */
 const MAX_REQUEST_AMOUNT = 1_000_000;
 
-/**
- * Submit a new reimbursement request for the caller's own department.
- * Steps the submitter would review themselves are auto-approved so a request
- * can never deadlock waiting on its own submitter (see REQUESTS_FLOW.md).
- */
 export const submit = mutation({
   args: {
     description: v.string(),
     amount: v.number(),
-    // Requests can be submitted on behalf of any existing department;
-    // defaults to the submitter's own (or, for Heads of Division, the first
-    // department under their division).
     department: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { email, year, profile } = await requireProfile(ctx);
-    // Number.isFinite as well as > 0: Convex numbers are IEEE754 doubles, so
-    // Infinity passes a bare positivity check and then poisons every total
-    // computed from it (NaN already fails > 0).
     if (!Number.isFinite(args.amount) || !(args.amount > 0)) {
       throw new ConvexError("Amount must be a positive number.");
     }
@@ -402,10 +301,6 @@ export const submit = mutation({
     const roles = rolesOf(profile);
     const assignments = assignmentsOf(profile);
 
-    // The request may be submitted for any department. When none is given,
-    // default to a department they are Head of Department of, else the first
-    // department in their assignments, else (for a pure Head of Division) the
-    // first department under a division they head.
     let department = args.department?.trim();
     if (!department) {
       department =
@@ -435,8 +330,6 @@ export const submit = mutation({
     }
 
     const approvers = await getApprovers(ctx, year, department);
-    // The Director-approval cutoff is configurable per year by Finance; fall
-    // back to the historical default when this year hasn't set one.
     const yearSettings = await getYearSettings(ctx, year);
     const needsDirector =
       args.amount >= directorThresholdOr(yearSettings?.directorApprovalThreshold);
@@ -448,13 +341,7 @@ export const submit = mutation({
       : undefined;
     let approvedByFinanceHead: ApprovalStatus = PENDING;
 
-    // The Finance department has no separate HOD step.
     if (department === FINANCE) approvedByHOD = APPROVED;
-    // No HOD step when the submitter is this department's head, the Director,
-    // or the head of the division this department belongs to. The division's
-    // authoritative `headEmail` covers heading several divisions (it's checked
-    // per the submitted department's division), so no assignment-derived check
-    // is needed here.
     const divisionDoc = await getDivision(ctx, year, departmentDoc.division);
     if (
       approvers.hodEmail === email ||
@@ -463,21 +350,16 @@ export const submit = mutation({
     ) {
       approvedByHOD = APPROVED;
     }
-    // The Budget Manager never reviews their own request.
     if (approvers.budgetManagerEmail === email) approvedByBudgetManager = APPROVED;
-    // Nor does a Director review their own >= $5000 request.
     if (needsDirector && roles.includes(DIRECTOR)) {
       approvedByDirector = APPROVED;
     }
-    // The Finance Head's own requests skip HOD, Budget Manager and Finance Head.
     if (approvers.financeHeadEmail === email) {
       approvedByHOD = APPROVED;
       approvedByBudgetManager = APPROVED;
       approvedByFinanceHead = APPROVED;
     }
 
-    // Refuse to create a request that would deadlock: every step that is
-    // still pending must have someone able to approve it.
     const missing: string[] = [];
     if (approvedByHOD === PENDING && !approvers.hodEmail) {
       missing.push(`Head for the ${department} department`);
@@ -527,7 +409,7 @@ export const submit = mutation({
     if (request) {
       await notify(ctx, {
         to: email,
-        actor: email, // the submitter — acknowledge by email, don't push them
+        actor: email,
         subject: `Your reimbursement request of $${formatAmount(request.amount)} has been submitted`,
         pushTitle: "Request submitted",
         body: `Your request has been submitted and sent for approval. You'll be emailed once it's fully approved.\n\n${requestSummary(request)}`,
@@ -551,12 +433,6 @@ const yearRequests = async (ctx: QueryCtx | MutationCtx, year: number) =>
     .order("desc")
     .take(LIVE_REQUESTS_PER_YEAR_LIMIT);
 
-/**
- * The current year's live request window plus the previous year's
- * still-incomplete requests, so in-flight requests survive the October 1
- * rollover instead of being orphaned. Full unbounded year reads are reserved
- * for the explicit CSV export query below, not live subscriptions.
- */
 export const openRequestsAcrossYears = async (
   ctx: QueryCtx | MutationCtx,
   year: number
@@ -568,7 +444,6 @@ export const openRequestsAcrossYears = async (
   return [...current, ...carriedOver];
 };
 
-/** Resolves approvers per (year, department), cached for a single query. */
 const makeApproverResolver = (ctx: QueryCtx) => {
   const cache = new Map<string, Promise<Approvers>>();
   return (year: number, department: string): Promise<Approvers> => {
@@ -624,15 +499,11 @@ async function requestForCaller(
   return { ...request, receipt: receiptSummary(request) };
 }
 
-/**
- * The caller's own requests: everything from the current staff year plus any
- * still-incomplete requests carried over from the previous year.
- */
 export const myRequests = query({
   args: { year: v.optional(v.number()) },
   handler: async (ctx, args) => {
     const caller = await optionalProfile(ctx);
-    if (!caller) return null; // auth still attaching, or unprovisioned
+    if (!caller) return null;
     const { email, year } = caller;
     const fetch = (y: number) =>
       ctx.db
@@ -646,8 +517,6 @@ export const myRequests = query({
         )
         .order("desc")
         .take(200);
-    // Browsing a specific past staff year: show exactly that year's requests,
-    // with no carry-over merge (that only makes sense for the live year).
     if (args.year !== undefined && args.year !== year) {
       return (await fetch(args.year)).sort((a, b) => b._creationTime - a._creationTime);
     }
@@ -659,30 +528,20 @@ export const myRequests = query({
   },
 });
 
-/**
- * The staff years the caller can browse in the requests view: every year they
- * have a request in (plus the current one) for "Mine", and every year with an
- * org structure for "All" (Finance). Sorted newest-first for the picker.
- */
 export const requestYears = query({
   args: {},
   handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
-    // The caller's own requests are bounded to one user, so collect() is safe.
     const mineRows = await ctx.db
       .query("requests")
       .withIndex("by_requester", (q) => q.eq("requesterEmail", caller.email))
       .collect();
-    // Only offer years that can actually have requests (>= 2021), newest-first.
     const yearsFrom = (years: number[]) =>
       [...new Set([currentStaffYear(), ...years])]
         .filter((y) => y >= EARLIEST_REQUEST_YEAR)
         .sort((a, b) => b - a);
     const mine = yearsFrom(mineRows.map((r) => requestYear(r)));
-    // Discover which years have an org structure with one indexed probe per
-    // candidate year. This stays bounded (a handful of years) instead of
-    // collecting the whole divisions table, which grows with every year added.
     const allYears: number[] = [];
     for (let y = currentStaffYear(); y >= EARLIEST_REQUEST_YEAR; y--) {
       const hasStructure = await ctx.db
@@ -696,11 +555,6 @@ export const requestYears = query({
   },
 });
 
-/**
- * Everything the caller can currently act on, grouped by the capacity they
- * act in. Each request is matched against the approvers OF ITS OWN YEAR, so
- * carried-over requests stay actionable by the people who held the role then.
- */
 export const toReview = query({
   args: {},
   handler: async (ctx) => {
@@ -709,7 +563,6 @@ export const toReview = query({
     const { email, year } = caller;
     const open = await openRequestsAcrossYears(ctx, year);
     const approversFor = makeApproverResolver(ctx);
-    // The caller's roles in a given year (Director gating is per-year too).
     const rolesByYear = new Map<number, string[]>();
     const callerRolesIn = async (y: number) => {
       if (!rolesByYear.has(y)) {
@@ -718,8 +571,6 @@ export const toReview = query({
       }
       return rolesByYear.get(y)!;
     };
-    // The approver-identities the caller can act as in a given year (themselves
-    // plus anyone who delegated to them), cached per year.
     const actAsByYear = new Map<number, Promise<Set<string>>>();
     const actAsIn = (y: number) => {
       let cached = actAsByYear.get(y);
@@ -738,16 +589,11 @@ export const toReview = query({
 
     for (const request of open) {
       const reqYear = requestYear(request);
-      // Carried-over requests can be actioned by the approvers of the
-      // request's own year AND this year's officeholders, so a departed
-      // approver never strands a leftover request.
       const requestYearApprovers = await approversFor(reqYear, request.department);
       const thisYear =
         reqYear === year
           ? requestYearApprovers
           : await approversFor(year, request.department);
-      // A match if the caller IS the approver, or a delegate of them — checked
-      // against the request's own year and (for carry-overs) the current year.
       const actAsRequestYear = await actAsIn(reqYear);
       const actAsThisYear =
         reqYear === year ? actAsRequestYear : await actAsIn(year);
@@ -760,7 +606,6 @@ export const toReview = query({
         );
       };
 
-      // Ready to Pay includes the Finance Head's own requests.
       if (
         request.receipt !== undefined &&
         request.paid === false &&
@@ -791,28 +636,13 @@ export const toReview = query({
   },
 });
 
-/** How many reviewed requests to return for the "Reviewed" list. */
 const REVIEWED_LIMIT = 50;
 
-/**
- * Requests the signed-in approver has already actioned — approved, declined,
- * or auto-approved (the requester was also that step's approver) — newest
- * review first. Sourced from the immutable audit trail (not the request's own
- * approval flags) so it reflects who actually acted, covering delegates and
- * carried-over approvals, and is deduped to one card per request.
- */
 export const reviewed = query({
   args: {},
   handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
-    // Stream the caller's own audit events newest first (the index's implicit
-    // _creationTime tiebreaker) and collect approve/decline/auto-approve
-    // actions, deduped to one entry per request (an approver can act on more
-    // than one step of the same request, e.g. a Director who is also its
-    // HOD). Filtering and deduping happen DURING the scan so a fixed
-    // pre-filter limit can never drop older valid cards — we stop only once
-    // REVIEWED_LIMIT unique requests are found or the actor's events run out.
     const seen = new Set<Id<"requests">>();
     const reviewedIds: Id<"requests">[] = [];
     for await (const event of ctx.db
@@ -831,10 +661,6 @@ export const reviewed = query({
       if (reviewedIds.length >= REVIEWED_LIMIT) break;
     }
 
-    // Approvers still own the context for requests they've cleared while those
-    // requests wait on staff receipts. Keep those visible in Reviewed even when
-    // a busy approval history pushes the original approval event past
-    // REVIEWED_LIMIT; comment notifications deep-link to this section.
     const approversFor = makeApproverResolver(ctx);
     const actAsByYear = new Map<number, Promise<Set<string>>>();
     const actAsIn = (year: number) => {
@@ -875,12 +701,6 @@ export const reviewed = query({
   },
 });
 
-/**
- * All requests across the organisation — Finance staff only. Includes the
- * previous year's still-incomplete requests for the live staff year. Live reads
- * are explicitly bounded per year; Finance CSV export is the full unbounded
- * read path.
- */
 export const allRequests = query({
   args: { year: v.optional(v.number()) },
   handler: async (ctx, args) => {
@@ -889,8 +709,6 @@ export const allRequests = query({
     if (!isMemberOfDepartment(caller.profile, FINANCE)) {
       throw new ConvexError("Only Finance staff can view all requests.");
     }
-    // A specific past year shows just that year; the live year carries over
-    // the previous year's still-open requests.
     if (args.year !== undefined && args.year !== caller.year) {
       return await yearRequests(ctx, args.year);
     }
@@ -898,13 +716,6 @@ export const allRequests = query({
   },
 });
 
-/**
- * Every request in the given staff years, for a Finance CSV export. Finance
- * staff only. Strictly per-year (no carry-over merge) so each selected year's
- * rows stand alone. Reads each year in full with `.collect()` rather than the
- * bounded live `yearRequests`: an export must not silently truncate, and this
- * is an explicit, on-demand action rather than a live subscription.
- */
 export const requestsForExport = query({
   args: { years: v.array(v.number()) },
   handler: async (ctx, args) => {
@@ -933,10 +744,6 @@ export const requestsForExport = query({
   },
 });
 
-/**
- * Validates the caller is the approver for `step` on this request, that all
- * prior steps are approved and this one is pending. Returns the request.
- */
 async function authorizeStep(
   ctx: MutationCtx,
   caller: CallerContext,
@@ -949,7 +756,6 @@ async function authorizeStep(
 }> {
   const request = await ctx.db.get("requests", requestId);
   const reqYear = request ? requestYear(request) : null;
-  // Current-year requests plus incomplete carry-overs from last year.
   if (
     !request ||
     (reqYear !== caller.year && reqYear !== caller.year - 1)
@@ -962,16 +768,11 @@ async function authorizeStep(
   if (request.requesterEmail === caller.email) {
     throw new ConvexError("You can't review your own request.");
   }
-  // Approvers come from the REQUEST's year; for carried-over requests the
-  // current year's officeholders may act too (a departed approver must never
-  // strand a leftover request).
   const approvers = await getApprovers(ctx, reqYear!, request.department);
   const currentApprovers =
     reqYear === caller.year
       ? approvers
       : await getApprovers(ctx, caller.year, request.department);
-  // The caller matches a step if they ARE its approver or a delegate of them,
-  // checked against the request's year and (for carry-overs) the current year.
   const actAsRequest = await actAsEmails(ctx, reqYear!, caller.email);
   const actAsCurrent =
     reqYear === caller.year
@@ -989,7 +790,6 @@ async function authorizeStep(
     reqYear === caller.year
       ? caller.profile
       : await getProfile(ctx, caller.email, reqYear!);
-  // The Director step is role-based; a delegate of the Director may also act.
   const isDirector =
     rolesOf(caller.profile).includes(DIRECTOR) ||
     (requestYearProfile !== null &&
@@ -1052,7 +852,6 @@ export const approve = mutation({
       ...(requestFullyApproved(updated) ? { approvedTime: Date.now() } : {}),
     });
     await logEvent(ctx, args.requestId, caller.email, "approved", args.step);
-    // Tell the next approver (or the requester, once fully approved).
     await notifyNextActor(ctx, updated, approvers, currentApprovers, caller.email);
     return null;
   },
@@ -1092,7 +891,6 @@ export const decline = mutation({
       url: requestUrl(request.requesterEmail, request),
       requestId: request._id,
     });
-    // Approvers who had already approved hear that it was declined downstream.
     for (const email of involvedApproverEmails(request, approvers, [APPROVED])) {
       if (email === caller.email) continue;
       await notify(ctx, {
@@ -1140,7 +938,6 @@ export const cleanupRequestAuditAndNudges = internalMutation({
   },
 });
 
-/** The requester can cancel while the request is not paid and not declined. */
 export const cancel = mutation({
   args: { requestId: v.id("requests") },
   handler: async (ctx, args) => {
@@ -1152,8 +949,6 @@ export const cancel = mutation({
     if (requestCompleted(request)) {
       throw new ConvexError("Completed requests can't be cancelled.");
     }
-    // Per REQUESTS_FLOW.md, everyone involved hears about the cancellation:
-    // approvers who already approved, plus whoever it is waiting on now.
     const approvers = await getApprovers(ctx, requestYear(request), request.department);
     const recipients = new Set(
       involvedApproverEmails(request, approvers, [APPROVED])
@@ -1177,16 +972,12 @@ export const cancel = mutation({
         subject: `The $${formatAmount(request.amount)} request by ${request.requesterEmail} has been cancelled`,
         pushTitle: "Request cancelled",
         body: `The requester cancelled this request; no further action is needed.\n\n${requestSummary(request)}`,
-        // The request is being deleted, so there's nothing to focus — just land
-        // approvers on their review queue.
         url: "/?tab=review",
       });
     }
     await ctx.scheduler.runAfter(0, internal.requests.cleanupRequestAuditAndNudges, {
       requestId: args.requestId,
     });
-    // ...along with its comment thread, reactions and read markers. Drained in
-    // batches so a request with an unusually long thread leaves no orphans.
     for (;;) {
       const comments = await ctx.db
         .query("requestComments")
@@ -1222,11 +1013,6 @@ export const cancel = mutation({
   },
 });
 
-/**
- * The requester can delete a declined request to clear it from their list.
- * Unlike cancel, no notifications are sent (the decline notification already
- * went out; everyone involved already knows).
- */
 export const deleteDeclined = mutation({
   args: { requestId: v.id("requests") },
   handler: async (ctx, args) => {
@@ -1241,7 +1027,6 @@ export const deleteDeclined = mutation({
     await ctx.scheduler.runAfter(0, internal.requests.cleanupRequestAuditAndNudges, {
       requestId: args.requestId,
     });
-    // Clean up comment thread, reactions, and read markers.
     for (;;) {
       const comments = await ctx.db
         .query("requestComments")
@@ -1277,18 +1062,13 @@ export const deleteDeclined = mutation({
   },
 });
 
-const NUDGE_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 1 nudge per person per request per day
+const NUDGE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const MAX_RECEIPT_RECIPIENTS = 20;
 const MAX_ATTACHMENTS_PER_RECIPIENT = 10;
 const MAX_RECEIPT_ATTACHMENTS = 50;
 const MAX_ATTACHMENT_NAME_LENGTH = 200;
 const MAX_RECEIPT_FILE_BYTES = 2 * 1024 * 1024;
 
-/**
- * Emails allowed to nudge a request: the requester and any approver who has
- * already approved (a participant other than the current action owner). Shared
- * by `canNudge` and `nudge` so the UI button and the mutation stay in sync.
- */
 async function nudgeParticipantEmails(
   ctx: QueryCtx | MutationCtx,
   request: Doc<"requests">
@@ -1300,17 +1080,6 @@ async function nudgeParticipantEmails(
   ]);
 }
 
-/**
- * Whether the signed-in user may nudge this request, and the cooldown state.
- * Mirrors the `nudge` mutation's eligibility: the caller must be a participant
- * (requester or an approver who has approved) and the request must be waiting
- * on someone else.
- *
- * Returns null when the caller is never eligible (the button is hidden). When
- * eligible, returns a server-derived `{ onCooldown, remainingMs }` so the UI
- * shows the cooldown without trusting the device clock; the mutation stays the
- * authoritative gate.
- */
 export const canNudge = query({
   args: { requestId: v.id("requests") },
   returns: v.union(
@@ -1339,12 +1108,6 @@ export const canNudge = query({
   },
 });
 
-/**
- * Send a manual nudge to whoever a request is currently waiting on. Rate-
- * limited to one nudge per person per request per day. Any participant who
- * is not the current action owner may nudge: the requester and any approver
- * who has already approved.
- */
 export const nudge = mutation({
   args: { requestId: v.id("requests") },
   handler: async (ctx, args) => {
@@ -1353,7 +1116,6 @@ export const nudge = mutation({
     if (!request) throw new ConvexError("Request not found.");
     if (requestCompleted(request)) throw new ConvexError("This request is already completed.");
 
-    // Rate-limit: one nudge per person per request per 24 hours.
     const recent = await ctx.db
       .query("requestNudges")
       .withIndex("by_nudger_and_request", (q) =>
@@ -1365,14 +1127,10 @@ export const nudge = mutation({
       throw new ConvexError("You already nudged this request today. Try again tomorrow.");
     }
 
-    // Determine the current action owner.
     const to = await actionOwnerEmail(ctx, request);
     if (!to) throw new ConvexError("No one to nudge right now.");
     if (to === caller.email) throw new ConvexError("This request is currently waiting on you.");
 
-    // Only participants may nudge someone else: the requester or an approver who
-    // has already approved. Otherwise any signed-in user could nudge unrelated
-    // requests. (The action owner above is excluded with a clearer message.)
     if (!(await nudgeParticipantEmails(ctx, request)).has(caller.email)) {
       throw new ConvexError("Only the requester or an approver on this request can nudge it.");
     }
@@ -1390,9 +1148,6 @@ export const nudge = mutation({
       subject: `Nudge: a $${formatAmount(request.amount)} request is waiting on you`,
       pushTitle: "You've been nudged",
       body: `${nudgerName} is waiting on your action for a $${formatAmount(request.amount)} request.\n\n${requestSummary(request)}`,
-      // Land the nudged person where they act: the action owner is either an
-      // approver/Finance (→ Review) or the requester awaiting their receipt
-      // (→ Mine); requestUrl picks the right segment from `to`.
       url: requestUrl(to, request),
       requestId: request._id,
     });
@@ -1400,11 +1155,7 @@ export const nudge = mutation({
   },
 });
 
-/** A single request, for the detail screen push notifications land on. */
 export const get = query({
-  // Accept a raw string (not v.id) so a malformed id from a stale deep link or
-  // bookmark resolves to a graceful "not found" instead of throwing an
-  // ArgumentValidationError that trips the top-level error boundary.
   args: { requestId: v.string() },
   handler: async (ctx, args) => {
     const caller = await optionalProfile(ctx);
@@ -1416,10 +1167,6 @@ export const get = query({
   },
 });
 
-/**
- * The audit trail for a request: who actioned each step, when, and any
- * detail (decline reason, amounts). Visible to any signed-in staff member.
- */
 export const auditTrail = query({
   args: { requestId: v.id("requests") },
   handler: async (ctx, args) => {
@@ -1440,7 +1187,6 @@ export const auditTrail = query({
   },
 });
 
-/** Resolves a display name for an approver email: profile first, directory fallback. */
 async function resolveApproverName(
   ctx: QueryCtx,
   email: string,
@@ -1455,7 +1201,6 @@ async function resolveApproverName(
   return dirUser?.name ?? null;
 }
 
-/** Builds a step→email map from an Approvers record. */
 function approverEmailMap(approvers: Approvers): Record<Step, string | undefined> {
   return {
     hod: approvers.hodEmail,
@@ -1465,10 +1210,6 @@ function approverEmailMap(approvers: Approvers): Record<Step, string | undefined
   };
 }
 
-/**
- * Info about a single approval step: who is shown on the card (delegate when
- * covering), the officeholder they stand in for, and that step's audit events.
- */
 export const stepInfo = query({
   args: { requestId: v.id("requests"), step: stepValidator },
   handler: async (ctx, args) => {
@@ -1510,11 +1251,6 @@ export const stepInfo = query({
   },
 });
 
-/**
- * Names + action timestamps for all approval steps on one request.
- * When someone is covering an officeholder for the staff year, the card shows
- * the stand-in's name (and a * on the role label) instead of the original.
- */
 export const stepActors = query({
   args: { requestId: v.id("requests") },
   handler: async (ctx, args) => {
@@ -1564,24 +1300,14 @@ export const stepActors = query({
 });
 
 type StepActorDisplay = {
-  /** Name shown under the step (stand-in when covering). */
   name: string | null;
-  /** Email for the shown person. */
   email: string | null;
-  /** True when the shown person is covering for the officeholder. */
   isDelegated: boolean;
   officeholderEmail: string | null;
   officeholderName: string | null;
-  /** Other stand-ins for this officeholder this year (excluding `email`). */
   otherDelegateNames: string[];
 };
 
-/**
- * Pick who to show on the stepper for one step.
- * - Pending + cover exists → show the (first) stand-in, mark delegated.
- * - Completed by someone other than the officeholder → show that actor as cover.
- * - Otherwise → officeholder.
- */
 async function resolveStepDisplay(
   ctx: QueryCtx,
   opts: {
@@ -1596,7 +1322,6 @@ async function resolveStepDisplay(
     ? await resolveApproverName(ctx, officeholderEmail, reqYear)
     : null;
 
-  // Completed by a non-officeholder (typically a stand-in): show them.
   if (
     !pending &&
     latestActorEmail &&
@@ -1614,8 +1339,6 @@ async function resolveStepDisplay(
     };
   }
 
-  // Pending with active cover: stand-in replaces the officeholder on the card.
-  // Only fetch delegates when this path can apply (skip completed / no-cover).
   if (pending && officeholderEmail) {
     const delegateEmails = await delegatesForOfficeholderYears(
       ctx,
@@ -1652,7 +1375,6 @@ async function resolveStepDisplay(
   };
 }
 
-/** Delegates covering `officeholder` for the request year (and current year if different). */
 async function delegatesForOfficeholderYears(
   ctx: QueryCtx,
   reqYear: number,
@@ -1671,7 +1393,6 @@ async function delegatesForOfficeholderYears(
   return emails.sort();
 }
 
-/** Upload URL for receipt/invoice files (one file per generated URL). */
 export const generateReceiptUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
@@ -1680,11 +1401,6 @@ export const generateReceiptUploadUrl = mutation({
   },
 });
 
-/**
- * The requester submits receipt details once fully approved: one or more
- * recipients, each with account details, an amount and any number of
- * receipt/invoice file attachments.
- */
 export const submitReceipt = mutation({
   args: {
     requestId: v.id("requests"),
@@ -1724,8 +1440,6 @@ export const submitReceipt = mutation({
     if (args.recipients.length > MAX_RECEIPT_RECIPIENTS) {
       throw new ConvexError(`Receipts can have at most ${MAX_RECEIPT_RECIPIENTS} recipients.`);
     }
-    // Convex storage metadata has no uploader identity, so bind receipt files
-    // to this request's receipt-eligible window before storing references.
     const receiptUploadReadyAt = request.approvedTime ?? request._creationTime;
     let attachmentCount = 0;
     for (const recipient of args.recipients) {
@@ -1773,11 +1487,8 @@ export const submitReceipt = mutation({
     if (!args.recipients.some((r) => (r.attachments ?? []).length > 0)) {
       throw new ConvexError("Attach at least one receipt file.");
     }
-    // Strip the UI-only saveAccount flag before storing.
     const storedRecipients = args.recipients.map(({ saveAccount: _s, ...r }) => r);
     const totalAmount = storedRecipients.reduce((sum, r) => sum + r.amount, 0);
-    // The per-recipient cap alone still lets the SUM dwarf the sanity ceiling
-    // that submit/pay enforce on a single amount — hold the total to it too.
     if (totalAmount > MAX_REQUEST_AMOUNT) {
       throw new ConvexError(
         `Receipt totals above $${formatAmount(MAX_REQUEST_AMOUNT)} can't be submitted here — talk to Finance directly.`
@@ -1787,7 +1498,6 @@ export const submitReceipt = mutation({
       receipt: { totalAmount, recipients: storedRecipients },
       paid: false,
     });
-    // Save bank details unless the user explicitly opted out (saveAccount === false).
     for (const recipient of args.recipients) {
       if (recipient.saveAccount !== false) {
         await rememberBankAccount(ctx, email, recipient);
@@ -1801,10 +1511,6 @@ export const submitReceipt = mutation({
       undefined,
       `$${formatAmount(totalAmount)}, ${args.recipients.length} recipient${args.recipients.length === 1 ? "" : "s"}`
     );
-    // Notify the Finance Head of the request's year AND the current one
-    // (deduped), so a request that carried over a Finance-Head change still
-    // reaches whoever can actually pay it now — mirroring notifyNextActor's
-    // carry-over fallback, and toReview/pay which both accept either year's head.
     const reqYear = requestYear(request);
     const approvers = await getApprovers(ctx, reqYear, FINANCE);
     const currentYear = currentStaffYear();
@@ -1813,8 +1519,6 @@ export const submitReceipt = mutation({
         ? approvers
         : await getApprovers(ctx, currentYear, FINANCE);
     const requesterName = await displayName(ctx, request.requesterEmail, reqYear);
-    // Officeholder(s) of the request year and current year, plus anyone covering
-    // them that year — so a Finance-Head delegate also gets the ready-to-pay push.
     const seen = new Set<string>();
     const headsByYear: Array<[number, string | undefined]> = [
       [reqYear, approvers.financeHeadEmail],
@@ -1839,11 +1543,6 @@ export const submitReceipt = mutation({
   },
 });
 
-/**
- * Signed URLs for a request's receipt attachments, grouped per recipient.
- * Visible to the requester, Finance staff, and the Finance Head of the
- * request's or current year.
- */
 export const receiptAttachments = query({
   args: { requestId: v.id("requests") },
   handler: async (ctx, args) => {
@@ -1852,8 +1551,6 @@ export const receiptAttachments = query({
     const request = await ctx.db.get("requests", args.requestId);
     if (!request) return null;
 
-    // Null (not a throw): this backs an inline section on request cards,
-    // and an unauthorised viewer should just not see the files.
     if (!(await canViewReceiptDetails(ctx, caller, request))) return null;
 
     if (!request.receipt) return [];
@@ -1863,8 +1560,6 @@ export const receiptAttachments = query({
         attachments: await Promise.all(
           (recipient.attachments ?? []).map(async (attachment) => ({
             name: attachment.name,
-            // Purged files (deleted by the yearly retention cron) keep their
-            // record but have no working link.
             deleted: attachment.deleted ?? false,
             url: attachment.deleted
               ? null
@@ -1876,7 +1571,6 @@ export const receiptAttachments = query({
   },
 });
 
-/** The Finance Head pays a receipt-submitted reimbursement. */
 export const pay = mutation({
   args: {
     requestId: v.id("requests"),
@@ -1900,8 +1594,6 @@ export const pay = mutation({
     ) {
       throw new ConvexError("Request not found.");
     }
-    // The Finance Head of the request's year OR the current one pays it — or a
-    // delegate standing in for either.
     const approvers = await getApprovers(ctx, reqYear!, FINANCE);
     const currentApprovers =
       reqYear === caller.year
@@ -1942,7 +1634,6 @@ export const pay = mutation({
       url: requestUrl(request.requesterEmail, request),
       requestId: request._id,
     });
-    // The Budget Manager should know when the paid amount differs.
     if (args.paidAmount !== request.amount) {
       const yearApprovers = await getApprovers(ctx, reqYear!, request.department);
       await notify(ctx, {

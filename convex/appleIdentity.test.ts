@@ -18,9 +18,6 @@ import {
 const AUD = "au.org.sow.theshed";
 const AUDIENCES = [AUD, "au.org.sow.theshed.staging"];
 
-// A real jose keypair so we can mint genuinely-signed tokens and verify them
-// through the same jose path auth.ts uses — proving signature/issuer/audience/
-// expiry enforcement, not just our claim parsing.
 let privateKey: KeyObject | CryptoKey;
 let realVerify: JwtVerifier;
 
@@ -36,7 +33,6 @@ beforeAll(async () => {
   };
 });
 
-/** Mint a signed token with sensible Apple-like defaults, overridable per test. */
 const sign = (
   claims: Record<string, unknown>,
   opts: { issuer?: string; audience?: string; expiresIn?: string } = {}
@@ -49,7 +45,6 @@ const sign = (
     .setExpirationTime(opts.expiresIn ?? "5m")
     .sign(privateKey);
 
-/** A fake verifier returning a fixed payload — for exercising claim parsing. */
 const fakeVerify =
   (payload: Record<string, unknown>): JwtVerifier =>
   async () =>
@@ -71,7 +66,7 @@ describe("verifyAppleIdentityToken — signature & claims (real jose)", () => {
     );
     expect(id).toEqual({
       sub: "001234.abcdef",
-      email: "person@example.com", // lower-cased
+      email: "person@example.com",
       emailVerified: true,
     });
   });

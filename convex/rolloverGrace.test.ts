@@ -13,14 +13,12 @@ afterEach(() => {
 
 describe("post-rollover auth grace", () => {
   test("requireProfile falls back to the previous-year profile after Oct 1", async () => {
-    // Staff year 2027 begins at Sydney midnight Oct 1 2026 (= Sep 30 14:00 UTC).
     const start = staffYearStartMs(2027);
     vi.useFakeTimers();
-    vi.setSystemTime(new Date(start + 2 * 24 * 60 * 60 * 1000)); // 2 days in
+    vi.setSystemTime(new Date(start + 2 * 24 * 60 * 60 * 1000));
 
     const t = convexTest(schema, modules);
     const email = "grace@sow.org.au";
-    // Only a previous-year (2026) profile exists — the cliff case after Oct 1.
     await t.run(async (ctx) => {
       await ctx.db.insert("staffProfiles", {
         email,
@@ -74,7 +72,7 @@ describe("post-rollover auth grace", () => {
 
   test("directory.me has no profile after 1 Jan without a new-year row", async () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-12-31T13:00:00Z")); // Sydney midnight 1 Jan 2027
+    vi.setSystemTime(new Date("2026-12-31T13:00:00Z"));
 
     const t = convexTest(schema, modules);
     const email = "late@sow.org.au";

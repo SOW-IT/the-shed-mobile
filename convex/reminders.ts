@@ -21,24 +21,12 @@ import {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/**
- * Reminder schedule (measured from last movement):
- *   1st nudge  → after 1 day
- *   2nd nudge  → after 3 days
- *   subsequent → every 7 days (weekly)
- */
 const reminderDelayMs = (count: number): number => {
   if (count === 0) return DAY_MS;
   if (count === 1) return 3 * DAY_MS;
   return 7 * DAY_MS;
 };
 
-/**
- * Prefer the officeholder from the request's own staff year, falling back to
- * this year's — a carry-over request may outlive the person who held the role
- * when it was raised. The returned year is the one the stand-in (delegation)
- * rows should be read for, since cover is recorded per staff year.
- */
 const preferRequestYear = (
   requestYearEmail: string | undefined,
   currentYearEmail: string | undefined,
@@ -59,12 +47,6 @@ const remind = async (
   url: string
 ) => {
   const subject = `Reminder: a $${formatAmount(request.amount)} request has been waiting ${days} days`;
-  // Route through the shared notify helper so a reminder produces the same trio
-  // as every other flow update — email + in-app feed entry (with an unread
-  // badge) + push — rather than the email-and-push-only path it used before.
-  // notify appends the "Open in THE SHED" link to the email and derives the push
-  // / in-app lead from the first body line. `requestId` keeps the in-app
-  // notification auto-read once the recipient opens the request.
   await notify(ctx, {
     to,
     subject,
@@ -75,12 +57,6 @@ const remind = async (
   });
 };
 
-/**
- * Daily cron: nudges whoever a request is waiting on once it goes stale.
- * Schedule: 1st reminder after 1 day of no movement, 2nd after 3 days, then
- * every 7 days thereafter. The audit trail supplies the last-movement time;
- * lastReminderAt / reminderCount track how many have gone out.
- */
 export const remindStale = internalMutation({
   args: {},
   handler: async (ctx) => {
@@ -99,31 +75,17 @@ export const remindStale = internalMutation({
         request._creationTime,
         ...events.map((event) => event._creationTime)
       );
-      // A movement after the last reminder (an approval/receipt/payment that
-      // advanced the request — typically to a NEW action owner) restarts the
-      // whole tiered schedule, so the next person to act gets the fast 1-day →
-      // 3-day cadence rather than inheriting the previous step's slow weekly
-      // tier. Without this reset, every approver after the first would wait up
-      // to 7 days for their first reminder.
       const movedSinceReminder =
         request.lastReminderAt !== undefined && lastMovement > request.lastReminderAt;
-      // Legacy rows may carry a lastReminderAt without a reminderCount; treat
-      // them as already having had one reminder so they aren't re-sent as a
-      // fresh first reminder after deploy.
       const count = movedSinceReminder
         ? 0
         : (request.reminderCount ?? (request.lastReminderAt ? 1 : 0));
-      // Next reminder is due `reminderDelayMs(count)` after the later of the
-      // last reminder and the last movement — a newer approval/receipt/payment
-      // event restarts the clock — or after last movement for the very first.
       const baseline =
         count === 0
           ? lastMovement
           : Math.max(lastMovement, request.lastReminderAt ?? lastMovement);
       if (now - baseline < reminderDelayMs(count)) continue;
 
-      // Approvers of the request's own year, falling back to this year's
-      // officeholders (carry-overs may outlive a departed approver).
       const reqYear = eventStaffYear(request._creationTime);
       const requestYearApprovers = await getApprovers(ctx, reqYear, request.department);
       const thisYearApprovers =
@@ -136,9 +98,6 @@ export const remindStale = internalMutation({
       let waitingOn = "";
       let url = "/?tab=review";
       if (step !== null) {
-        // Same resolution the request mutations use for "who's next", so a
-        // reminder can never nudge a different person than the approval flow
-        // itself would.
         const next = nextApproverWithYear(
           request,
           requestYearApprovers,

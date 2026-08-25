@@ -94,8 +94,6 @@ describe("attendanceMetrics", () => {
     await leader.mutation(api.attendance.signIn, { eventId: e1, email: STAFF });
     await leader.mutation(api.attendance.signIn, { eventId: e2, email: LEADER });
 
-    // Run the same bounded recompute the cron fans out (call directly rather
-    // than via the scheduler so it completes within the test).
     await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
     });
@@ -107,7 +105,6 @@ describe("attendanceMetrics", () => {
     expect(after).not.toBeNull();
     expect(after!.data.summary.eventsHeld).toBe(2);
     expect(after!.data.summary.uniqueAttendees).toBe(2);
-    // avg of 2 attendees + 1 attendee across two events = 1.5
     expect(after!.data.summary.avgAttendance).toBe(1.5);
     expect(after!.data.attendanceByEvent).toHaveLength(2);
   });
@@ -167,7 +164,6 @@ describe("attendanceMetrics", () => {
     await leader.mutation(api.attendance.signIn, { eventId: e2, email: STAFF });
 
     const end = Date.now();
-    // Window that includes only the more recent event (2 days ago).
     const start = end - 5 * DAY;
     const live = await leader.action(api.attendanceMetrics.liveSnapshot, {
       subgroup: USYD,
@@ -203,15 +199,11 @@ describe("attendanceMetrics", () => {
   });
 
   test("liveSnapshot still finds range events when many later events exist", async () => {
-    // Without loadEnd, gatherEvents takes the newest MAX_EVENT_SCAN events
-    // after loadStart — a flood of post-range events would crowd out the
-    // in-range ones. With loadEnd, only events ≤ range end are scanned.
     const { t, leader } = await setup();
     const rangeEnd = Date.now() - 30 * DAY;
     const rangeStart = rangeEnd - 14 * DAY;
     const inRangeAt = rangeStart + 3 * DAY;
 
-    // One real event inside the custom window, with attendance.
     const inRangeId = await t.run(async (ctx) =>
       ctx.db.insert("events", {
         name: "In-range meeting",
@@ -225,11 +217,9 @@ describe("attendanceMetrics", () => {
       email: LEADER,
     });
 
-    // Flood of later events that would fill a newest-first scan without loadEnd.
-    // MAX_EVENT_SCAN is 4000; insert enough after rangeEnd to exceed it.
     await t.run(async (ctx) => {
       for (let i = 0; i < 4001; i++) {
-        const at = rangeEnd + (i + 1) * 60_000; // after rangeEnd, 1 min apart
+        const at = rangeEnd + (i + 1) * 60_000;
         await ctx.db.insert("events", {
           name: `Later ${i}`,
           dateStart: at,
@@ -260,11 +250,9 @@ describe("attendanceMetrics", () => {
 
   test("recomputeNow (manager) schedules a refresh per-subgroup and for all", async () => {
     const { leader } = await setup();
-    // With a sub-group: schedules that sub-group's recompute.
     await expect(
       leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: USYD })
     ).resolves.toBeNull();
-    // Without a sub-group: fans out to every sub-group via recomputeAll.
     await expect(
       leader.mutation(api.attendanceMetrics.recomputeNow, {})
     ).resolves.toBeNull();
@@ -285,7 +273,6 @@ describe("attendanceMetrics", () => {
       subgroups: [USYD],
     });
     await leader.mutation(api.attendance.signIn, { eventId: e, email: LEADER });
-    // A second change to the same sub-groups is de-duped (no extra rows).
     await leader.mutation(api.attendance.signIn, { eventId: e, email: STAFF });
     await leader.mutation(api.events.update, {
       eventId: e,
@@ -296,19 +283,14 @@ describe("attendanceMetrics", () => {
     const dirty = await t.run((ctx) =>
       ctx.db.query("attendanceMetricsDirty").collect()
     );
-    // The event's sub-group plus the org-wide SOW aggregate, de-duped.
     expect(new Set(dirty.map((r) => r.subgroup))).toEqual(
       new Set([SOW_SUBGROUP, USYD])
     );
 
-    // Draining schedules a recompute per dirty sub-group but LEAVES the flags in
-    // place — each recompute clears its own only after it succeeds (see
-    // clearDirty), so a failed recompute keeps its retry signal.
     await t.mutation(internal.attendanceMetrics.recomputeDirty, {});
     expect(
       await t.run((ctx) => ctx.db.query("attendanceMetricsDirty").collect())
     ).toHaveLength(2);
-    // Running the scheduled recomputes acks (clears) their flags.
     for (const subgroup of [SOW_SUBGROUP, USYD]) {
       await t.action(internal.attendanceMetrics.recomputeSubgroup, { subgroup });
     }
@@ -316,7 +298,6 @@ describe("attendanceMetrics", () => {
       await t.run((ctx) => ctx.db.query("attendanceMetricsDirty").collect())
     ).toHaveLength(0);
 
-    // A later change re-flags them.
     await leader.mutation(api.events.remove, { eventId: e });
     expect(
       (await t.run((ctx) => ctx.db.query("attendanceMetricsDirty").collect()))
@@ -350,8 +331,6 @@ describe("attendanceMetrics", () => {
   test("composition charts: leaders vs others and this campus vs visitors", async () => {
     const { t, leader } = await setup();
     const admin = asUser(t, ADMIN);
-    // A visiting student leader from another campus, and an org-side Director
-    // with no home campus at all.
     await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: "UNSW" });
     await admin.mutation(api.admin.setStaffProfile, {
       email: "visitor@sow.org.au",
@@ -364,7 +343,6 @@ describe("attendanceMetrics", () => {
       year: YEAR,
       roles: ["Director"],
     });
-    // An attendance-only member whose home campus comes from Campus metadata.
     await leader.mutation(api.attendanceMetadata.ensureDefaults, {});
     const fields = await leader.query(api.attendanceMetadata.list, {});
     const campusField = fields.find((f) => f.key === "Campus")!;
@@ -375,8 +353,6 @@ describe("attendanceMetrics", () => {
       name: "Local Member",
       metadata: { [campusField._id]: usydOptionId },
     });
-    // And one counted as a leader purely via Role metadata (no profile, no
-    // campus) — the members-side Student-Leader fallback.
     const roleField = fields.find((f) => f.key === "Role")!;
     const slOptionId = Object.entries(roleField.values ?? {}).find(
       ([, label]) => label === "Student Leader"
@@ -404,20 +380,15 @@ describe("attendanceMetrics", () => {
       subgroup: USYD,
       rangeWeeks: 4,
     });
-    // Leaders: LEADER, the visiting UNSW leader, and the Role-tagged member;
-    // others: director + local member.
     expect(snap!.data.leadersVsOthers).toEqual([
       expect.objectContaining({ primary: 3, rest: 2 }),
     ]);
     expect(snap!.data.summary.leaderShare).toBe(0.6);
-    // Campus: LEADER + member are USYD, visitor is UNSW; the campus-less
-    // director is excluded rather than guessed onto either side.
     expect(snap!.data.campusMix).toEqual([
       expect.objectContaining({ primary: 2, rest: 1 }),
     ]);
     expect(snap!.data.summary.homeCampusShare).toBe(0.667);
 
-    // The org-wide view never gets a campus mix.
     await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: SOW_SUBGROUP,
     });
@@ -436,9 +407,6 @@ describe("attendanceMetrics", () => {
       ...window(2),
       subgroups: [USYD],
     });
-    // An email with no staffProfile this year — matchProfile finds nothing, so
-    // the person is treated as a Member (no current-year role), resolved from
-    // their email alone.
     await leader.mutation(api.attendance.signIn, {
       eventId: e,
       email: "ghost@sow.org.au",
@@ -451,15 +419,12 @@ describe("attendanceMetrics", () => {
       rangeWeeks: 4,
     });
     expect(snap!.data.summary.uniqueAttendees).toBe(1);
-    // No current-year role ⇒ listed under the Member role breakdown.
     const role = snap!.data.breakdowns.find((b) => b.field === "Role");
     expect(role?.rows.some((r) => r.label === "Member")).toBe(true);
   });
 
   test("treats a staff profile with no assignment this year as a Member", async () => {
     const { t, leader } = await setup();
-    // A profile that exists for the year but carries no assignment (e.g. someone
-    // who was staff previously and has no role this staff year).
     await t.run((ctx) =>
       ctx.db.insert("staffProfiles", {
         email: "former@sow.org.au",
@@ -485,13 +450,11 @@ describe("attendanceMetrics", () => {
       rangeWeeks: 4,
     });
     const role = snap!.data.breakdowns.find((b) => b.field === "Role");
-    // Classified as Member, not under any staff role.
     expect(role?.rows.map((r) => r.label)).toEqual(["Member"]);
   });
 
   test("recomputeNow is throttled to once per week per sub-group", async () => {
     const { t, leader } = await setup();
-    // A fresh current-year snapshot blocks a manual refresh for a week.
     await t.run((ctx) =>
       ctx.db.insert("attendanceMetricsSnapshots", {
         subgroup: USYD,
@@ -555,7 +518,7 @@ describe("attendanceMetrics", () => {
         )
         .collect()
     );
-    expect(rows).toHaveLength(1); // patched, never duplicated
+    expect(rows).toHaveLength(1);
   });
 
   test("snapshot keeps a previous-year row while reading the current year", async () => {
@@ -620,8 +583,6 @@ describe("attendanceMetrics", () => {
 
   test("recompute heals duplicate snapshot rows and reads the newest", async () => {
     const { t, leader } = await setup();
-    // Two rows for the same (subgroup, range, collaborative) — the state a race
-    // between the weekly cron, the dirty cron and a manual refresh could leave.
     for (const computedAt of [Date.now() - 1000, Date.now()]) {
       await t.run((ctx) =>
         ctx.db.insert("attendanceMetricsSnapshots", {
@@ -634,14 +595,12 @@ describe("attendanceMetrics", () => {
         })
       );
     }
-    // The query tolerates the duplicate (never `.unique()`), returning one row.
     expect(
       await leader.query(api.attendanceMetrics.snapshot, {
         subgroup: USYD,
         rangeWeeks: 4,
       })
     ).not.toBeNull();
-    // A recompute patches one and deletes the extra, leaving a single row.
     await t.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
     });
@@ -660,7 +619,6 @@ describe("attendanceMetrics", () => {
   });
 });
 
-/** A minimal, validator-shaped snapshot payload for the stale-year test. */
 const EMPTY_DATA = {
   summary: {
     avgAttendance: 0,
@@ -692,7 +650,6 @@ describe("recomputeDirty snapshot completeness", () => {
     await t.run(async (ctx) => {
       for (const rangeWeeks of [1, 4, 52]) {
         for (const includeCollaborative of [true, false]) {
-          // Leave Past year × exclude-collaborative missing.
           if (rangeWeeks === 52 && includeCollaborative === false) continue;
           await ctx.db.insert("attendanceMetricsSnapshots", {
             subgroup: USYD,
@@ -731,7 +688,7 @@ describe("campusWeeklyAverages", () => {
   });
 
   test("returns each campus's newest current-year weekly avg, sorted desc; omits missing/stale/null", async () => {
-    const { t, leader } = await setup(); // setup() already creates the USYD campus
+    const { t, leader } = await setup();
     const admin = asUser(t, ADMIN);
     const UNSW = "UNSW";
     for (const name of [UNSW, "Macquarie", "NoSnap Uni", "Stale Uni"]) {
@@ -751,13 +708,11 @@ describe("campusWeeklyAverages", () => {
           computedAt: opts?.computedAt ?? Date.now(),
           data: snap(avgWeekly),
         });
-      // USYD keeps an older and a newer row — the newest (12) should win.
       await mk(USYD, 5, { computedAt: 1000 });
       await mk(USYD, 12, { computedAt: 2000 });
       await mk(UNSW, 20);
-      await mk("Macquarie", null); // no weekly meetings in range → omitted
-      await mk("Stale Uni", 99, { staffYear: YEAR - 1 }); // prior year → omitted
-      // "NoSnap Uni" has no snapshot at all → omitted
+      await mk("Macquarie", null);
+      await mk("Stale Uni", 99, { staffYear: YEAR - 1 });
     });
 
     expect(

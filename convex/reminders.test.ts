@@ -9,16 +9,14 @@ const modules = import.meta.glob("./**/*.ts");
 const YEAR = staffYearForDate(new Date());
 
 const ADMIN = "admin@sow.org.au";
-const RACHEL = "rachel@sow.org.au"; // Marketing staff
-const HENRY = "henry@sow.org.au"; // Marketing HOD
-const BELLA = "bella@sow.org.au"; // Finance staff, Budget Manager
-const FIONA = "fiona@sow.org.au"; // Finance head
+const RACHEL = "rachel@sow.org.au";
+const HENRY = "henry@sow.org.au";
+const BELLA = "bella@sow.org.au";
+const FIONA = "fiona@sow.org.au";
 
 const asUser = (t: TestConvex<typeof schema>, email: string) =>
   t.withIdentity({ email, subject: email, issuer: "test" });
 
-/** canNudge returns null (ineligible) or { onCooldown, remainingMs }; this
- *  collapses it back to "can the user nudge right now?". */
 const canNudgeNow = async (
   t: TestConvex<typeof schema>,
   email: string,
@@ -35,7 +33,6 @@ const storedReceipt = async (t: TestConvex<typeof schema>) => ({
   name: "receipt.pdf",
 });
 
-/** Advance the fake clock by `days` days from now. */
 const advanceDays = (days: number) => {
   vi.useFakeTimers({ now: Date.now(), toFake: ["Date"] });
   vi.setSystemTime(Date.now() + days * 24 * 60 * 60 * 1000);
@@ -67,7 +64,6 @@ async function setup() {
   return t;
 }
 
-/** Submits a request and returns its id (pending HOD approval). */
 async function pendingRequest(t: TestConvex<typeof schema>) {
   await asUser(t, RACHEL).mutation(api.requests.submit, {
     description: "test",
@@ -77,14 +73,12 @@ async function pendingRequest(t: TestConvex<typeof schema>) {
   return request._id;
 }
 
-/** Fully approves a pending request. */
 async function approveRequest(t: TestConvex<typeof schema>, id: Awaited<ReturnType<typeof pendingRequest>>) {
   await asUser(t, HENRY).mutation(api.requests.approve, { requestId: id, step: "hod" });
   await asUser(t, BELLA).mutation(api.requests.approve, { requestId: id, step: "budgetManager" });
   await asUser(t, FIONA).mutation(api.requests.approve, { requestId: id, step: "financeHead" });
 }
 
-/** Submits a receipt for an approved request (leaving it awaiting payment). */
 async function submitReceipt(t: TestConvex<typeof schema>, id: Awaited<ReturnType<typeof pendingRequest>>) {
   const file = await storedReceipt(t);
   await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
@@ -95,13 +89,11 @@ async function submitReceipt(t: TestConvex<typeof schema>, id: Awaited<ReturnTyp
   });
 }
 
-/** Submits a receipt for an approved request and pays it (completing it). */
 async function completeRequest(t: TestConvex<typeof schema>, id: Awaited<ReturnType<typeof pendingRequest>>) {
   await submitReceipt(t, id);
   await asUser(t, FIONA).mutation(api.requests.pay, { requestId: id, paidAmount: 100 });
 }
 
-/** In-app notification titles delivered to one person. */
 const notificationTitles = async (t: TestConvex<typeof schema>, email: string) =>
   (
     await t.run((ctx) =>
@@ -119,7 +111,6 @@ describe("stale reminder schedule", () => {
     const t = await setup();
     const id = await pendingRequest(t);
 
-    // Run cron immediately (< 1 day since submission).
     await t.mutation(internal.reminders.remindStale, {});
 
     const request = await t.run((ctx) => ctx.db.get("requests", id));
@@ -143,16 +134,14 @@ describe("stale reminder schedule", () => {
     const t = await setup();
     const id = await pendingRequest(t);
 
-    // Fire the 1st reminder.
     advanceDays(1.1);
     await t.mutation(internal.reminders.remindStale, {});
 
-    // 1 more day later — not enough for the 2nd (needs 3 days from 1st).
     advanceDays(1);
     await t.mutation(internal.reminders.remindStale, {});
 
     const request = await t.run((ctx) => ctx.db.get("requests", id));
-    expect(request?.reminderCount).toBe(1); // still only 1
+    expect(request?.reminderCount).toBe(1);
   });
 
   test("2nd reminder fires 3 days after the 1st", async () => {
@@ -173,19 +162,16 @@ describe("stale reminder schedule", () => {
     const t = await setup();
     const id = await pendingRequest(t);
 
-    // Fire 1st (after 1 day) and 2nd (3 days after 1st).
     advanceDays(1.1);
     await t.mutation(internal.reminders.remindStale, {});
     advanceDays(3.1);
     await t.mutation(internal.reminders.remindStale, {});
 
-    // 6 days after 2nd reminder — too soon.
     advanceDays(6);
     await t.mutation(internal.reminders.remindStale, {});
     let request = await t.run((ctx) => ctx.db.get("requests", id));
     expect(request?.reminderCount).toBe(2);
 
-    // 7+ days after 2nd reminder — fires.
     advanceDays(1.1);
     await t.mutation(internal.reminders.remindStale, {});
     request = await t.run((ctx) => ctx.db.get("requests", id));
@@ -196,8 +182,6 @@ describe("stale reminder schedule", () => {
     const t = await setup();
     const id = await pendingRequest(t);
 
-    // Drive the HOD step up to the weekly tier (1st after 1d, 2nd after 3d,
-    // 3rd after 7d) so reminderCount reaches 3.
     advanceDays(1.1);
     await t.mutation(internal.reminders.remindStale, {});
     advanceDays(3.1);
@@ -207,12 +191,8 @@ describe("stale reminder schedule", () => {
     let request = await t.run((ctx) => ctx.db.get("requests", id));
     expect(request?.reminderCount).toBe(3);
 
-    // HOD approves — the request moves to the Budget Manager. This movement is
-    // newer than the last reminder, so the schedule should restart.
     await asUser(t, HENRY).mutation(api.requests.approve, { requestId: id, step: "hod" });
 
-    // 1 day after the move is enough for the Budget Manager's first reminder
-    // (fast tier), even though the request had reached the weekly tier at HOD.
     advanceDays(1.1);
     await t.mutation(internal.reminders.remindStale, {});
     request = await t.run((ctx) => ctx.db.get("requests", id));
@@ -230,8 +210,6 @@ describe("stale reminder schedule", () => {
     advanceDays(7.1);
     await t.mutation(internal.reminders.remindStale, {});
 
-    // Still on the HOD step, no movement: 1 day later is too soon for the next
-    // weekly reminder, so nothing fires and the tier stays put.
     advanceDays(1);
     await t.mutation(internal.reminders.remindStale, {});
     const request = await t.run((ctx) => ctx.db.get("requests", id));
@@ -248,7 +226,7 @@ describe("stale reminder schedule", () => {
     await t.mutation(internal.reminders.remindStale, {});
 
     const request = await t.run((ctx) => ctx.db.get("requests", id));
-    expect(request?.reminderCount ?? 0).toBe(0); // untouched
+    expect(request?.reminderCount ?? 0).toBe(0);
   });
 
   test("a request awaiting payment nudges the Finance Head", async () => {
@@ -270,8 +248,6 @@ describe("stale reminder schedule", () => {
     const id = await pendingRequest(t);
     await approveRequest(t, id);
     await submitReceipt(t, id);
-    // The Finance Head leaves after the request was raised: there is nobody
-    // left to chase for payment, in either the request's year or this one.
     await asUser(t, ADMIN).mutation(api.admin.upsertDepartment, {
       year: YEAR,
       name: "Finance",
@@ -282,8 +258,6 @@ describe("stale reminder schedule", () => {
     await t.mutation(internal.reminders.remindStale, {});
 
     const request = await t.run((ctx) => ctx.db.get("requests", id));
-    // No recipient ⇒ no reminder sent and the schedule is left untouched, so
-    // the nudge resumes the moment a new Finance Head is appointed.
     expect(request?.reminderCount ?? 0).toBe(0);
     expect(request?.lastReminderAt).toBeUndefined();
   });
@@ -322,10 +296,6 @@ describe("nudge", () => {
   test("different users can each nudge independently within the same day", async () => {
     const t = await setup();
     const id = await pendingRequest(t);
-    // HENRY is the HOD (current action owner) — he can't nudge himself.
-    // Use RACHEL and BELLA (already-approved BM would need a different scenario).
-    // Here RACHEL is the requester. Let's add someone who has already approved.
-    // Approve HOD first, now waiting on BM (BELLA). HENRY and RACHEL can both nudge.
     await asUser(t, HENRY).mutation(api.requests.approve, { requestId: id, step: "hod" });
     await asUser(t, RACHEL).mutation(api.requests.nudge, { requestId: id });
     await asUser(t, HENRY).mutation(api.requests.nudge, { requestId: id });
@@ -381,7 +351,6 @@ describe("nudge", () => {
   test("cannot nudge when you are the current action owner", async () => {
     const t = await setup();
     const id = await pendingRequest(t);
-    // HENRY is the HOD — the request is currently waiting on him.
     await expect(
       asUser(t, HENRY).mutation(api.requests.nudge, { requestId: id })
     ).rejects.toThrow(/waiting on you/);
@@ -390,8 +359,6 @@ describe("nudge", () => {
   test("a profiled non-participant cannot nudge", async () => {
     const t = await setup();
     const id = await pendingRequest(t);
-    // Request is waiting on HENRY (HOD). BELLA (Budget Manager) hasn't approved
-    // yet and isn't the requester, so she's not a participant who may nudge.
     expect(await asUser(t, BELLA).query(api.requests.canNudge, { requestId: id })).toBeNull();
     await expect(
       asUser(t, BELLA).mutation(api.requests.nudge, { requestId: id })

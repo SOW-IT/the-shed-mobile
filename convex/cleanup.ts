@@ -34,7 +34,6 @@ const purgeRequestReceiptFiles = async (
   return { filesDeleted };
 };
 
-/** Cutoff defaults to the start of the previous staff year (keeps current + previous). */
 export const purgeOldReceiptFiles = internalMutation({
   args: { beforeMs: v.optional(v.number()) },
   handler: async (ctx, args) => {

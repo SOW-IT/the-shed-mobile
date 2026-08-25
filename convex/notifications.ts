@@ -2,15 +2,9 @@ import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { optionalProfile, requireProfile } from "./model";
 
-/** How many notifications the feed loads (newest first). */
 const FEED_LIMIT = 50;
-/** Cap for the unread badge count probe. */
 const UNREAD_PROBE = 100;
 
-/**
- * The caller's notification feed, newest first. Returns null while auth is
- * still attaching (so the screen shows a spinner rather than "empty").
- */
 export const list = query({
   args: {},
   handler: async (ctx) => {
@@ -32,7 +26,6 @@ export const list = query({
   },
 });
 
-/** Unread count for the top-bar bell badge (probed, capped at UNREAD_PROBE). */
 export const unreadCount = query({
   args: {},
   handler: async (ctx) => {
@@ -48,7 +41,6 @@ export const unreadCount = query({
   },
 });
 
-/** Marks one of the caller's notifications read. */
 export const markRead = mutation({
   args: { id: v.id("notifications") },
   handler: async (ctx, args) => {
@@ -64,11 +56,6 @@ export const markRead = mutation({
   },
 });
 
-/**
- * Marks the caller's notifications for one request read — called when they open
- * that request (or its comment thread), so a notification clears once they've
- * actually seen what it was about. No-ops gracefully while auth is attaching.
- */
 export const markReadForRequest = mutation({
   args: { requestId: v.id("requests") },
   handler: async (ctx, args) => {
@@ -93,7 +80,6 @@ export const markReadForRequest = mutation({
   },
 });
 
-/** Marks all of the caller's notifications read, in bounded batches. */
 export const markAllRead = mutation({
   args: {},
   handler: async (ctx) => {

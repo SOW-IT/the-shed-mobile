@@ -46,7 +46,6 @@ export function MembersTab({
   year: number;
   onEditMember: (memberId: Id<"attendanceMembers">) => void;
   scrollProps?: TopBarScrollProps;
-  /** Parent PagerScreen drives infinite scroll via this ref. */
   loadMoreRef?: MutableRefObject<(() => void) | null>;
 }) {
   const t = useAppTheme();
@@ -76,8 +75,6 @@ export function MembersTab({
   >([]);
 
   useEffect(() => {
-    // Opportunistic seeding (server no-ops for non-managers); fire-and-forget,
-    // so a transient failure must not surface as an unhandled rejection.
     void ensureDefaults({}).catch(() => {});
   }, [ensureDefaults]);
 
@@ -153,8 +150,6 @@ export function MembersTab({
   return (
     <Animated.ScrollView
       showsVerticalScrollIndicator={false}
-      // Index 0 is the grouped filter + search block — pin it so both stay
-      // reachable while the member list scrolls under it.
       stickyHeaderIndices={[0]}
       style={{ backgroundColor: t.background }}
       contentContainerStyle={[
@@ -164,9 +159,6 @@ export function MembersTab({
       ]}
       {...scrollProps}
     >
-      {/* Sticky: the filter controls and search bar pin to the top while the
-          member list scrolls under them. The opaque page-background wrapper
-          masks rows passing behind the rounded controls. */}
       <View style={[styles.stickyControls, { backgroundColor: t.background }]}>
       <View style={styles.filterSummary}>
         <Pressable
@@ -295,9 +287,6 @@ export function MembersTab({
       ) : accumulated.length === 0 ? (
         <EmptyState icon="people-outline" title="No members match" />
       ) : (
-        // Wrapped in a View so the page's outer `gap` doesn't stack on top of each
-        // row's marginBottom — keeps the inter-card spacing equal to the signed-in
-        // / not-signed-in lists (a single spacing.sm gap).
         <View>
           {accumulated.map((row) => {
             const campusColour = row.university
@@ -329,9 +318,6 @@ export function MembersTab({
                   if (row.memberId) {
                     onEditMember(row.memberId as Id<"attendanceMembers">);
                   } else if (row.email) {
-                    // A staff-profile row with no attendance shadow yet — this
-                    // covers both active staff and former staff now shown as a
-                    // Member (role-less this year): both edit via their email.
                     void ensureForStaff({ staffEmail: row.email, staffYear: year })
                       .then(onEditMember)
                       .catch((e) => console.error("ensureForStaff failed", e));
@@ -389,10 +375,7 @@ export function MembersTab({
 }
 
 const styles = StyleSheet.create({
-  // Rest the sticky controls below the floating top bar; they pin under the tab
-  // bar as it collapses. The list scrolls up under the bar.
   selfScrollingPage: { paddingTop: PAGER_TOP_BAR_INSET },
-  // Holds the (sticky) filter controls + search bar with compact internal gaps.
   stickyControls: { gap: spacing.sm, paddingTop: spacing.sm },
   filterSummary: {
     flexDirection: "row",
@@ -434,8 +417,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: 12,
     height: 44,
-    // A touch more breathing room between the Filters button above and the
-    // search bar (adds to the sticky block's own gap).
     marginTop: spacing.xs,
     marginBottom: spacing.sm,
   },

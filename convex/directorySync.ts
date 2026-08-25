@@ -11,25 +11,10 @@ import {
 } from "./_generated/server";
 import { getProfile, optionalEmail, requireAdmin } from "./model";
 
-/**
- * Google Workspace directory sync via the Admin SDK Directory API, using a
- * service account with domain-wide delegation. Required deployment env vars:
- *   GOOGLE_SA_CLIENT_EMAIL      service account email
- *   GOOGLE_SA_PRIVATE_KEY       service account private key (PEM; \n escaped ok)
- *   GOOGLE_ADMIN_IMPERSONATE    a Workspace admin to act as
- * The synced list powers the admin screen's people picker; it never creates
- * staff profiles by itself — assignment stays an explicit admin action.
- */
-
 const SCOPE = "https://www.googleapis.com/auth/admin.directory.user.readonly";
 const DIRECTORY_LIMIT = 10000;
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 
-/**
- * Decodes the Directory API's web-safe photo data to bytes. Google's variant
- * maps `+`→`-`, `/`→`_` and the `=` padding to `*` (and sometimes `.`), so we
- * translate those back, strip the padding, then re-pad by length before atob.
- */
 const base64urlToBytes = (data: string): Uint8Array => {
   const normalised = data
     .replace(/-/g, "+")
@@ -61,7 +46,6 @@ const pemToArrayBuffer = (pem: string): ArrayBuffer => {
   return bytes.buffer;
 };
 
-/** Service-account JWT -> OAuth access token (domain-wide delegation). */
 async function getAccessToken(): Promise<string> {
   const clientEmail = process.env.GOOGLE_SA_CLIENT_EMAIL;
   const privateKeyPem = process.env.GOOGLE_SA_PRIVATE_KEY?.replace(/\\n/g, "\n");
@@ -111,7 +95,6 @@ async function getAccessToken(): Promise<string> {
   return access_token;
 }
 
-/** Fetches a user's Google thumbnail and stores it, returning the storage id. */
 async function fetchPhoto(
   ctx: { storage: { store: (blob: Blob) => Promise<Id<"_storage">> } },
   token: string,
@@ -123,9 +106,6 @@ async function fetchPhoto(
     )}/photos/thumbnail`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
-  // 404 just means the person has no photo set. Any other non-OK status
-  // (401/403/429/5xx) is a real failure — surface it rather than silently
-  // leaving thumbnails stale while the sync still reports success.
   if (response.status === 404) return null;
   if (!response.ok) {
     throw new Error(
@@ -143,21 +123,12 @@ async function fetchPhoto(
   return await ctx.storage.store(blob);
 }
 
-/**
- * Fetches every (non-suspended) Workspace user and stores the list. For people
- * who have a staffProfile (i.e. appear on the org chart / profile pages) we
- * also cache their Google profile thumbnail so faces show before they sign in —
- * skipping re-download when the Google photo etag is unchanged.
- */
 export const run = internalAction({
   args: {},
   handler: async (ctx) => {
     const domain = process.env.AUTH_ALLOWED_DOMAIN ?? "sow.org.au";
     type DirUser = { email: string; name?: string; photoEtag?: string };
     let users: DirUser[] = [];
-    // Thumbnails uploaded during this run, so a later failure (before the
-    // `store` mutation commits) can delete them instead of leaking orphaned
-    // `_storage` blobs that no directoryUsers row will ever point at.
     const uploadedThisRun: Id<"_storage">[] = [];
     try {
       const token = await getAccessToken();
@@ -167,7 +138,6 @@ export const run = internalAction({
         url.searchParams.set("domain", domain);
         url.searchParams.set("maxResults", "500");
         url.searchParams.set("orderBy", "email");
-        // `full` projection is required for the thumbnail photo etag.
         url.searchParams.set("projection", "full");
         if (pageToken) url.searchParams.set("pageToken", pageToken);
         const response = await fetch(url, {
@@ -197,8 +167,6 @@ export const run = internalAction({
         pageToken = page.nextPageToken;
       } while (pageToken);
 
-      // Resolve photos. Only for staff (org chart / profiles), and only when the
-      // Google etag differs from what we already cached.
       const cache = await ctx.runQuery(internal.directorySync.photoSyncState, {});
       const staffEmails = new Set(cache.staffEmails);
       const cachedByEmail = new Map(
@@ -215,13 +183,11 @@ export const run = internalAction({
         const cached = cachedByEmail.get(user.email);
         const wantsPhoto = staffEmails.has(user.email) && !!user.photoEtag;
         if (!wantsPhoto) {
-          // Non-staff (or no Google photo): keep no thumbnail, drop any stale one.
           if (cached?.photoId) stalePhotoIds.push(cached.photoId);
           resolved.push({ email: user.email, name: user.name });
           continue;
         }
         if (cached?.photoId && cached.photoEtag === user.photoEtag) {
-          // Unchanged — reuse the cached thumbnail.
           resolved.push({
             email: user.email,
             name: user.name,
@@ -230,7 +196,6 @@ export const run = internalAction({
           });
           continue;
         }
-        // New or changed photo: fetch it; replace the old one if we got it.
         const photoId = await fetchPhoto(ctx, token, user.email);
         if (photoId) {
           uploadedThisRun.push(photoId);
@@ -242,7 +207,6 @@ export const run = internalAction({
             photoEtag: user.photoEtag,
           });
         } else {
-          // Fetch failed — keep whatever we already had so faces don't vanish.
           resolved.push({
             email: user.email,
             name: user.name,
@@ -257,7 +221,6 @@ export const run = internalAction({
       });
     } catch (error) {
       console.error("Directory sync failed:", error);
-      // Nothing committed the freshly uploaded thumbnails, so delete them.
       for (const id of uploadedThisRun) {
         await ctx.storage.delete(id);
       }
@@ -270,7 +233,6 @@ export const run = internalAction({
   },
 });
 
-/** Cached photo etags + the set of staff emails worth caching a photo for. */
 type PhotoSyncState = {
   photos: {
     email: string;
@@ -281,8 +243,6 @@ type PhotoSyncState = {
 };
 export const photoSyncState = internalQuery({
   args: {},
-  // Explicit return type: this query is called via ctx.runQuery from the same
-  // file, so annotating it avoids a TS circular-inference issue (Convex guideline).
   handler: async (ctx): Promise<PhotoSyncState> => {
     const existing = await ctx.db.query("directoryUsers").take(DIRECTORY_LIMIT);
     const profiles = await ctx.db.query("staffProfiles").take(DIRECTORY_LIMIT);
@@ -319,12 +279,9 @@ export const store = internalMutation({
         photoEtag: v.optional(v.string()),
       })
     ),
-    // Thumbnails replaced this sync (old ids), to delete once the DB points at
-    // the new ones. Removed users' thumbnails are cleaned up below.
     stalePhotoIds: v.optional(v.array(v.id("_storage"))),
   },
   handler: async (ctx, args) => {
-    // Upsert synced users and delete any that are no longer in the directory.
     const existing = await ctx.db.query("directoryUsers").take(DIRECTORY_LIMIT);
     const byEmail = new Map(existing.map((u) => [u.email, u]));
 
@@ -347,12 +304,10 @@ export const store = internalMutation({
         await ctx.db.insert("directoryUsers", user);
       }
     }
-    // Remove users no longer returned by the Google sync (and their thumbnails).
     for (const [, gone] of byEmail) {
       if (gone.photoId) await ctx.storage.delete(gone.photoId);
       await ctx.db.delete("directoryUsers", gone._id);
     }
-    // Delete thumbnails that were replaced by a freshly fetched one.
     for (const stale of args.stalePhotoIds ?? []) {
       await ctx.storage.delete(stale);
     }
@@ -370,7 +325,6 @@ export const recordFailure = internalMutation({
   },
 });
 
-/** Admin button: kick off a sync now (the daily cron also runs one). */
 export const requestSync = mutation({
   args: {},
   handler: async (ctx) => {
@@ -380,14 +334,10 @@ export const requestSync = mutation({
   },
 });
 
-/**
- * The synced directory, annotated with whether each person already has a
- * staff profile for the given year — the admin picker filters on that.
- */
 export const list = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
-    if ((await optionalEmail(ctx)) === null) return null; // auth attaching
+    if ((await optionalEmail(ctx)) === null) return null;
     await requireAdmin(ctx);
     const state = await ctx.db
       .query("syncState")

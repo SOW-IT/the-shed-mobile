@@ -36,8 +36,6 @@ describe("formatAssignment", () => {
     expect(formatAssignment({ role: "Head of Department", department: "Finance" })).toBe(
       "HOD → Finance"
     );
-    // Chaplaincy roles are scoped to a campus; the "Chaplaincy" department is
-    // dropped from the label so it reads as just the campus.
     expect(
       formatAssignment({
         role: "Senior Chaplain",
@@ -45,8 +43,6 @@ describe("formatAssignment", () => {
         university: "University of Sydney",
       })
     ).toBe("Senior Chaplain → USYD");
-    // A non-chaplain role scoped to Chaplaincy keeps its department, so the
-    // scope isn't dropped down to a bare role label.
     expect(
       formatAssignment({ role: "Head of Department", department: "Chaplaincy" })
     ).toBe("HOD → Chaplaincy");
@@ -54,7 +50,6 @@ describe("formatAssignment", () => {
   });
 });
 
-// A fully-pending base state (no Director step) to derive variants from.
 const base = (over: Partial<ApprovalState> = {}): ApprovalState => ({
   approvedByHOD: PENDING,
   approvedByBudgetManager: PENDING,
@@ -75,7 +70,6 @@ describe("acronyms", () => {
     expect(acronym("University of New South Wales")).toBe("UNSW");
     expect(acronym("Western Sydney University")).toBe("WSU");
     expect(acronym("Marketing")).toBe("Marketing");
-    // The table backs the helper; spot-check it stays in sync.
     expect(DISPLAY_ACRONYMS["University of Sydney"]).toBe("USYD");
     expect(DISPLAY_ACRONYMS["Western Sydney University"]).toBe("WSU");
   });
@@ -97,8 +91,6 @@ describe("role classification", () => {
   test("rolesNeedUniversity: campus role alone yes, staff-side override no", () => {
     expect(rolesNeedUniversity(["Student Leader"])).toBe(true);
     expect(rolesNeedUniversity(["Executive", "President"])).toBe(true);
-    // Holding a staff-side role suppresses the university requirement even
-    // when a campus role is also present that year.
     expect(rolesNeedUniversity(["Student Leader", "Staff"])).toBe(false);
     expect(rolesNeedUniversity(["Staff"])).toBe(false);
     expect(rolesNeedUniversity([])).toBe(false);
@@ -122,15 +114,12 @@ describe("staffYearForDate", () => {
   });
 
   test("rolls over at Sydney midnight (Australia/Sydney), not UTC midnight", () => {
-    // 13:59 UTC on Sep 30 is still 23:59 Sep 30 in Sydney → old year.
     expect(staffYearForDate(new Date("2026-09-30T13:59:00Z"))).toBe(2026);
-    // 14:00 UTC on Sep 30 is 00:00 Oct 1 in Sydney → new year.
     expect(staffYearForDate(new Date("2026-09-30T14:00:00Z"))).toBe(2027);
   });
 
   test("falls back to fixed AEDT/AEST offsets when Intl.formatToParts is broken", () => {
     const Original = Intl.DateTimeFormat;
-    // Simulate a Hermes build that throws on IANA zones.
     // @ts-expect-error — temporary stub for the fallback path
     Intl.DateTimeFormat = function Broken() {
       throw new RangeError("Invalid time zone specified: Australia/Sydney");
@@ -177,14 +166,12 @@ describe("eventStaffYear", () => {
 
 describe("staffYearStartMs", () => {
   test("is the first instant of the staff year (Sydney midnight Oct 1)", () => {
-    // Staff year 2027 begins at 00:00 Oct 1 2026 Sydney = Sep 30 2026 14:00 UTC.
     expect(staffYearStartMs(2027)).toBe(Date.parse("2026-09-30T14:00:00Z"));
     expect(eventStaffYear(staffYearStartMs(2027))).toBe(2027);
     expect(eventStaffYear(staffYearStartMs(2027) - 1)).toBe(2026);
   });
 
   test("bounds a contiguous start-date window for each staff year", () => {
-    // Every date in [start(Y), start(Y+1)) derives to Y, and only those.
     for (const year of [2025, 2026, 2027]) {
       expect(eventStaffYear(staffYearStartMs(year))).toBe(year);
       expect(eventStaffYear(staffYearStartMs(year + 1) - 1)).toBe(year);
@@ -202,7 +189,6 @@ describe("incomingStaffYear", () => {
 
 describe("withinPrefillWindow", () => {
   test("is 21:00–midnight Sydney on 30 Sep only", () => {
-    // 21:00 Sydney 30 Sep 2026 = 11:00 UTC.
     expect(withinPrefillWindow(new Date("2026-09-30T10:59:00Z"))).toBe(false);
     expect(withinPrefillWindow(new Date("2026-09-30T11:00:00Z"))).toBe(true);
     expect(withinPrefillWindow(new Date("2026-09-30T13:59:00Z"))).toBe(true);
@@ -217,9 +203,7 @@ describe("withinRolloverAuthGrace", () => {
     expect(withinRolloverAuthGrace(2027, new Date(start + 8 * 24 * 60 * 60 * 1000))).toBe(
       true
     );
-    // 23:59 31 Dec 2026 Sydney = 12:59 UTC 31 Dec (AEDT +11).
     expect(withinRolloverAuthGrace(2027, new Date("2026-12-31T12:59:00Z"))).toBe(true);
-    // 00:00 1 Jan 2027 Sydney = 13:00 UTC 31 Dec.
     expect(withinRolloverAuthGrace(2027, new Date("2026-12-31T13:00:00Z"))).toBe(false);
     expect(withinRolloverAuthGrace(2027, new Date(start - 1))).toBe(false);
   });
@@ -244,8 +228,6 @@ describe("sydneyCalendarYear", () => {
   });
 
   test("rolls over at Sydney midnight on Jan 1 (Australia/Sydney)", () => {
-    // Jan 1 in Sydney is inside daylight saving (AEDT, +11), so Sydney
-    // midnight Jan 1 2026 is 13:00 UTC on Dec 31 2025.
     expect(sydneyCalendarYear(new Date("2025-12-31T12:59:00Z"))).toBe(2025);
     expect(sydneyCalendarYear(new Date("2025-12-31T13:00:00Z"))).toBe(2026);
   });
@@ -261,9 +243,7 @@ describe("approval predicates", () => {
 
   test("requestFullyApproved respects the optional Director step", () => {
     expect(requestFullyApproved(approvedAll())).toBe(true);
-    // Director step present and approved.
     expect(requestFullyApproved(approvedAll({ approvedByDirector: APPROVED }))).toBe(true);
-    // Director step present but still pending.
     expect(requestFullyApproved(approvedAll({ approvedByDirector: PENDING }))).toBe(false);
     expect(requestFullyApproved(base())).toBe(false);
   });
@@ -327,9 +307,7 @@ describe("currentStep", () => {
     expect(
       currentStep(base({ approvedByHOD: APPROVED, approvedByBudgetManager: APPROVED }))
     ).toBe("financeHead");
-    // Fully approved -> nothing pending.
     expect(currentStep(approvedAll())).toBeNull();
-    // Declined -> closed, no current step.
     expect(currentStep(base({ approvedByHOD: DECLINED }))).toBeNull();
   });
 });
@@ -343,8 +321,6 @@ describe("reaction catalogue", () => {
   });
 
   test("offers no quick reaction the server would reject", () => {
-    // The quick row is a hand-picked subset; if someone edits one list and not
-    // the other, the emoji would fail only when a user actually taps it.
     for (const emoji of QUICK_REACTION_EMOJIS) {
       expect(ALLOWED_REACTIONS.has(emoji)).toBe(true);
     }

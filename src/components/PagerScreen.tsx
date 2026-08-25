@@ -33,33 +33,16 @@ export type { TopBarScrollProps } from "@/components/useTopBarCollapse";
 export type PagerTab = {
   key: string;
   label: string;
-  /** Amber action-required count. */
   badge?: number;
-  /** White unread-message count. */
   messageBadge?: number;
   render: (scrollProps?: TopBarScrollProps) => ReactNode;
-  /**
-   * Render the tab's own scroll container instead of wrapping {@link render} in
-   * the shared page ScrollView. Needed when the tab requires `stickyHeaderIndices`
-   * (sticky search bars): those indices only target a ScrollView's *direct*
-   * children, so the elements must live in a ScrollView the tab owns. Use the
-   * exported {@link PAGER_PAGE_CONTENT} style + bottom-inset constants so the
-   * page metrics match the shared container.
-   */
   selfScrolling?: boolean;
 };
 
-/** How close to the bottom (px) before onEndReached fires. */
 const NEAR_BOTTOM = 600;
 
-/**
- * How far (px) to lower the footer to clear the screen as the swipe leaves its
- * tab. The footer pill is ~54px tall sitting ~12px above the bottom bar, so this
- * carries it (and its shadow) fully behind the opaque bottom tab bar.
- */
 const FOOTER_HIDDEN_OFFSET = 120;
 
-/** How quickly the footer snaps into place after a swipe is released. */
 const FOOTER_SETTLE_MS = 140;
 
 export type PagerScrollState = "idle" | "dragging" | "settling";
@@ -79,16 +62,6 @@ const footerYForPosition = (
   return Math.min(dist, 1) * FOOTER_HIDDEN_OFFSET;
 };
 
-/**
- * Page shell for the tabbed main screens (Requests, Manage): the top chrome
- * (logo + avatar) and a full-width square tab bar pinned up top, over a
- * swipeable carousel of pages. Each page scrolls independently.
- *
- * `activeKey` is the single source of truth (owned by the caller). The carousel
- * itself is platform-split — a native `PagerView` (with two-way position sync)
- * on device, and an active-page-only renderer on web, where pager-view pulls in
- * native-only modules.
- */
 export const PagerScreen = ({
   tabs,
   activeKey,
@@ -103,53 +76,27 @@ export const PagerScreen = ({
   tabs: PagerTab[];
   activeKey: string;
   onActiveKeyChange: (key: string) => void;
-  /** Fired with a page's key when it scrolls near its bottom (infinite load). */
   onEndReached?: (key: string) => void;
-  /** Pinned full-width action above the bottom bar (e.g. Make Request). */
   footer?: ReactNode;
-  /**
-   * The tab the {@link footer} belongs to. When set, the footer is mounted on
-   * every page but slides down out of view as the swipe moves away from this
-   * tab, and back up on return — tracking the pager continuously. Omit to keep
-   * the footer pinned on all tabs.
-   */
   footerTabKey?: string;
-  /** One sliding footer per tab (e.g. Create event + Create member). */
   footers?: PagerTabFooter[];
-  /** Absolutely-positioned overlays (e.g. the year picker). */
   floating?: ReactNode;
-  /**
-   * Drop the 720pt reading-width cap so pages span the screen — for wide,
-   * chart-heavy tabs (Metrics/Insights). Off by default. Only applies to the
-   * shared page ScrollView; self-scrolling tabs manage their own width.
-   */
   fullWidth?: boolean;
 }) => {
   const t = useAppTheme();
-  // Only lift the reading cap on genuinely wide screens (see fullWidth).
   const wide = useWindowDimensions().width >= WIDE_SCREEN_MIN_WIDTH;
   const me = useQuery(api.directory.me);
   const insets = useSafeAreaInsets();
-  // Fractional page position shared with the tab bar so its underline tracks
-  // the pager: driven continuously by swipes on native, animated on tab change
-  // on web. See PagerCarousel.
   const initialIndex = Math.max(
     tabs.findIndex((tab) => tab.key === activeKey),
     0
   );
   const [pagerPosition] = useState(() => new Animated.Value(initialIndex));
-  // The tab bar is the part of the chrome that never collapses, so we reserve
-  // exactly its height in the flow (the spacer below) and float the rest of the
-  // chrome over the body. Measured so the spacer matches the real tab bar.
   const [tabBarHeight, setTabBarHeight] = useState(48);
   const footerAnimsRef = useRef<Record<string, Animated.Value>>({});
   const footerScrollState = useRef<PagerScrollState>("idle");
   const { collapseStyle, barOpacityStyle, makeScrollHandler, syncToScrollY } =
     useTopBarCollapse();
-  // Each page scrolls independently, so remember every page's latest offset and
-  // re-sync the (shared) top bar to it on tab change. The bar then reflects what
-  // the new page actually shows — collapsed if it's scrolled, shown if it's at
-  // the top — instead of popping back open on every tab switch.
   const lastScrollYByTab = useRef<Record<string, number>>({});
 
   const footerPinned = !!(footer && !footerTabKey && !(footers?.length));
@@ -219,7 +166,6 @@ export const PagerScreen = ({
     [ensureFooterAnim, footerItems, yForFooter]
   );
 
-  // Tab taps and web tab changes — no native pager bounce to follow.
   useEffect(() => {
     syncToScrollY(lastScrollYByTab.current[activeKey] ?? 0);
     if (footerItems.length === 0) return;
@@ -227,11 +173,6 @@ export const PagerScreen = ({
     setAllFooterPositions(activeIndex, true);
   }, [activeIndex, activeKey, footerItems.length, setAllFooterPositions, syncToScrollY]);
 
-  // Track the pager continuously while the finger is down AND through the
-  // release deceleration ("settling"), so the footer slides in lockstep with the
-  // page the whole way. Tracking only during "dragging" left the footer frozen
-  // at the release position on a fast swipe, then jumping to its end-state once
-  // the pager reached idle — the catch-up glitch on a quick page change.
   useEffect(() => {
     if (footerItems.length === 0 || Platform.OS === "web") return;
     const id = pagerPosition.addListener(({ value }) => {
@@ -253,9 +194,6 @@ export const PagerScreen = ({
     },
     [footerItems.length, setAllFooterPositions]
   );
-  // The content height each tab last fired onEndReached at, so we don't re-fire
-  // on every scroll event while the user lingers near the bottom — only once the
-  // page has grown (i.e. more content actually loaded).
   const lastEndReachedHeight = useRef<Record<string, number>>({});
   const onEndReachedRef = useRef(onEndReached);
 
@@ -263,11 +201,6 @@ export const PagerScreen = ({
     onEndReachedRef.current = onEndReached;
   }, [onEndReached]);
 
-  // The collapse is driven on the native thread by Animated.event (inside
-  // makeScrollHandler); the JS listener only records each page's offset and fires
-  // near-bottom pagination. Side effects route through a ref so the (native)
-  // handler stays stable across renders — recreating it would detach and
-  // reattach the native scroll driver on every render.
   const scrollSideEffectsRef = useRef(
     (tabKey: string, e: NativeSyntheticEvent<NativeScrollEvent>) => {
       lastScrollYByTab.current[tabKey] = Math.max(0, e.nativeEvent.contentOffset.y);
@@ -275,8 +208,6 @@ export const PagerScreen = ({
       if (!endReached) return;
       const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
       const lastHeight = lastEndReachedHeight.current[tabKey] ?? -1;
-      // Content can shrink when a tab's dataset is filtered/swapped — forget the
-      // old high-water mark so a shorter list can still fire onEndReached.
       if (contentSize.height < lastHeight) {
         lastEndReachedHeight.current[tabKey] = -1;
       }
@@ -306,9 +237,6 @@ export const PagerScreen = ({
   const renderPage = (tab: PagerTab) => {
     const tabScrollProps = scrollPropsForTab(tab.key);
     return (
-      // A self-scrolling tab owns its ScrollView (so it can use stickyHeaderIndices
-      // on its own direct children); pass it the same scroll behavior as the
-      // shared wrapper, including topbar collapse and near-bottom pagination.
       tab.selfScrolling ? (
         tab.render(tabScrollProps)
       ) : (
@@ -317,13 +245,7 @@ export const PagerScreen = ({
           style={{ backgroundColor: t.background }}
           contentContainerStyle={[
             styles.page,
-            // `maxWidth: "100%"` (not undefined — RN Web keeps the base 720 when
-            // a later value is undefined) lifts the reading cap to the full width,
-            // but only once the screen is genuinely wide.
             fullWidth && wide && { maxWidth: "100%" as const },
-            // Only the footer's own tab needs the taller bottom inset; the others
-            // (where the footer is slid away) keep the slimmer one. A footer with no
-            // footerTabKey is pinned on every tab, so all pages get the inset.
             {
               paddingBottom: footerTabKeys.has(tab.key) ? 96 : 48,
             },
@@ -337,15 +259,7 @@ export const PagerScreen = ({
   };
 
   return (
-    // A plain View, not SafeAreaView: SafeAreaView applies its inset natively,
-    // outside Yoga's layout tree, so the absolutely-positioned chrome below
-    // never sees it and renders under the status bar. The inset is applied by
-    // hand instead — both to this spacer and to the chrome's offset below.
     <View style={[styles.screen, { backgroundColor: t.background }]}>
-      {/* Reserve only the tab bar's (non-collapsing) footprint in the flow, so
-          the carousel sits below it and never moves. The full chrome — top bar +
-          tab bar — floats over the top; the top bar's slice overlaps the
-          carousel and pages clear it with PAGER_TOP_BAR_INSET. */}
       <View style={{ height: insets.top + tabBarHeight }} />
       <PagerCarousel
         tabs={tabs}
@@ -355,10 +269,6 @@ export const PagerScreen = ({
         position={pagerPosition}
         onScrollStateChange={onPagerScrollStateChange}
       />
-      {/* Static clip: the chrome group (top bar + tab bar) slides up within it as
-          the active page scrolls, so the top bar is masked at the screen edge
-          while the tab bar rises to the top. Transparent + overflow-hidden so the
-          space the top bar vacates reveals the body scrolling underneath. */}
       <View style={[styles.chrome, { top: insets.top }]} pointerEvents="box-none">
         <Animated.View
           style={[styles.chromeGroup, { backgroundColor: t.background }, collapseStyle]}
@@ -401,18 +311,12 @@ export const PagerScreen = ({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  // Full-width chrome (top bar + sub tab bar) so it spans the screen like the
-  // bottom tab bar; the scrolling content below stays capped at 720 + centered.
-  // Floated over the body so the body stays full-height and fixed: the body
-  // scrolls under the chrome and the collapsing top bar reveals it.
   chrome: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     width: "100%",
-    // Clip the top bar as it slides up; transparent so the vacated space reveals
-    // the body. The opaque background travels with the group below, not here.
     overflow: "hidden",
     zIndex: 10,
   },
@@ -421,7 +325,6 @@ const styles = StyleSheet.create({
   page: {
     flexGrow: 1,
     paddingHorizontal: spacing.lg,
-    // Clear the floating top bar's slice at rest; content scrolls up under it.
     paddingTop: spacing.md + TOP_BAR_HEIGHT,
     gap: spacing.md,
     maxWidth: 720,
@@ -430,18 +333,7 @@ const styles = StyleSheet.create({
   },
 });
 
-/**
- * `contentContainerStyle` for a self-scrolling tab's own ScrollView, so its page
- * metrics (padding, gap, max width, centering) match the shared container.
- */
 export const PAGER_PAGE_CONTENT = styles.page;
-/**
- * Top inset a self-scrolling tab must apply so its first (sticky) element rests
- * below the floating top bar at scroll 0, then pins just under the tab bar as
- * the bar collapses. Matches the top-bar slice that overlaps the body.
- */
 export const PAGER_TOP_BAR_INSET = TOP_BAR_HEIGHT;
-/** Bottom inset for a self-scrolling tab without a footer pill. */
 export const PAGER_PAGE_BOTTOM_INSET = 48;
-/** Bottom inset for a self-scrolling tab that has a footer pill. */
 export const PAGER_PAGE_BOTTOM_INSET_WITH_FOOTER = 96;

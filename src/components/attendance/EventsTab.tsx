@@ -63,7 +63,6 @@ export function EventsTab({
   subgroups: string[];
   selectedSubgroup: string | null;
   onSelectedSubgroupChange: (subgroup: string) => void;
-  /** Parent ScrollView drives infinite scroll via this ref. */
   loadMoreRef?: MutableRefObject<(() => void) | null>;
 }) {
   const t = useAppTheme();
@@ -144,10 +143,6 @@ export function EventsTab({
           <View style={styles.campusRow}>
             {subgroups.map((sg, i) => {
               const active = sg === subgroup;
-              // SOW's brand colour is black, which is invisible as a ring on the
-              // dark theme's dark background — use the cream logo colour (the dark
-              // theme text colour) so the selected ring matches the SOW mark.
-              // Every other group uses its brand colour.
               const ringColour =
                 isOrgWideSubgroup(sg) && t.dark ? t.text : subgroupColour(sg);
               return (
@@ -161,9 +156,6 @@ export function EventsTab({
                       pressed && { opacity: 0.7 },
                     ]}
                   >
-                    {/* The ring border is always present but transparent until
-                        selected, so selecting only colours it in — the logo never
-                        shifts as the 2.5px border appears/disappears. */}
                     <View
                       style={[
                         styles.campusRing,
@@ -236,18 +228,10 @@ export function EventsTab({
                       { backgroundColor: t.background },
                     ]}
                   >
-                    {/* Absolutely positioned so it sits in the page gutter
-                     *  without displacing the row — previously this was a left
-                     *  border, which pushed an external event's content 4px
-                     *  right of every other row. Always rendered (transparent
-                     *  for our own events) to keep the tree stable. */}
                     <View
                       style={[
                         styles.eventAccent,
                         {
-                          // Same mapping as the campus ring above: SOW's brand
-                          // colour is black, which is invisible against the dark
-                          // theme's background, so fall back to the logo cream.
                           backgroundColor: !isExternalEvent
                             ? "transparent"
                             : isOrgWideSubgroup(ownerSubgroup) && t.dark
@@ -416,9 +400,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     minWidth: 0,
   },
-  /** Selection ring hugging the circular mark — no rectangular chip padding.
-   *  The border is always 2.5px (transparent when unselected) so the layout
-   *  stays put; selecting only changes its colour. */
   campusRing: {
     borderRadius: 999,
     padding: 0,
@@ -441,16 +422,10 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   exportButtonText: { fontSize: 13, fontWeight: "700" },
-  /** Escapes PagerScreen's `spacing.lg` page padding so the owner-campus stripe
-   *  and the row dividers reach the very edge of the page, while everything
-   *  else on the tab keeps the normal inset. */
   eventsList: {
     marginHorizontal: -spacing.lg,
     overflow: "hidden",
   },
-  /** The row spans the full bleed; each row re-applies `spacing.lg` itself, so
-   *  an event's date, name and pills still line up with the "Events" header and
-   *  the campus strip above. */
   eventRow: {
     position: "relative",
     paddingVertical: spacing.md,

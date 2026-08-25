@@ -5,7 +5,6 @@ import { downloadCsv } from "./csvDownload";
 
 export { downloadCsv };
 
-/** CSV columns, in order, with how to derive each cell from a request. */
 const COLUMNS: { header: string; value: (r: Doc<"requests">) => string }[] = [
   { header: "Staff Year", value: (r) => String(eventStaffYear(r._creationTime)) },
   { header: "Created", value: (r) => isoDate(r._creationTime) },
@@ -34,7 +33,6 @@ const COLUMNS: { header: string; value: (r: Doc<"requests">) => string }[] = [
 
 const isoDate = (ms: number): string => new Date(ms).toISOString();
 
-/** Builds the full CSV text (header + one row per request) from request docs. */
 export const buildRequestsCsv = (rows: Doc<"requests">[]): string =>
   buildCsv(
     COLUMNS.map((c) => c.header),

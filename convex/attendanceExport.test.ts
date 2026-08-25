@@ -8,8 +8,6 @@ import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
 const YEAR = staffYearForDate(new Date());
-// Year metadata is keyed to the calendar year (the basis the export resolves the
-// level against), so derive expected levels from this, not the staff year.
 const CAL_YEAR = sydneyCalendarYear(new Date());
 
 const ADMIN = "admin@sow.org.au";
@@ -74,20 +72,17 @@ describe("attendanceExport", () => {
       subgroups: [USYD],
     });
 
-    // Staff sign-in: metadata is the profile's locked Campus/Role.
     await leader.mutation(api.attendanceMembers.ensureForStaff, {
       staffEmail: LEADER,
     });
     await leader.mutation(api.attendance.signIn, { eventId, email: LEADER });
 
-    // A pure attendance-only member with custom metadata on a select field.
     const yearField = (
       await leader.query(api.attendanceMetadata.list, { })
     ).find((f) => f.key === "Year")!;
     const guestId = await leader.mutation(api.attendanceMembers.create, {
       name: "Guest Member",
       email: "guest@example.com",
-      // Commenced two calendar years ago → third year during this event.
       metadata: { [yearField._id]: String(CAL_YEAR - 2) },
     });
     await leader.mutation(api.attendance.signIn, {
@@ -95,8 +90,6 @@ describe("attendanceExport", () => {
       memberId: guestId,
     });
 
-    // A member whose stored Year is neither a commencement year nor a valid
-    // legacy level — it can't be resolved, so Year is omitted for them.
     const unknownYearId = await leader.mutation(api.attendanceMembers.create, {
       name: "Unknown Year",
       metadata: { [yearField._id]: "9999" },
@@ -122,7 +115,6 @@ describe("attendanceExport", () => {
 
     const guestRow = event.rows.find((r) => r.name === "Guest Member")!;
     expect(guestRow.email).toBe("guest@example.com");
-    // Year is the level during the event (third year), not the commencement year.
     expect(guestRow.metadata.Year).toBe("3");
 
     const unknownRow = event.rows.find((r) => r.name === "Unknown Year")!;
@@ -136,7 +128,6 @@ describe("attendanceExport", () => {
       ...window(),
       subgroups: [USYD],
     });
-    // Member row carrying STAFF's email — should resolve to the staff profile.
     const memberId = await leader.mutation(api.attendanceMembers.create, {
       name: "Shadow Of Staff",
       email: STAFF,
@@ -152,7 +143,6 @@ describe("attendanceExport", () => {
 
   test("filters by date range and by tags, and counts collaborative events", async () => {
     const { leader } = await setup();
-    // Tag setup.
     await leader.mutation(api.attendanceTags.saveAll, {
       tags: [{ name: "Weekly" }, { name: "Camp" }],
       deleteIds: [],
@@ -176,14 +166,12 @@ describe("attendanceExport", () => {
       subgroups: [USYD],
     });
     await leader.mutation(api.attendance.signIn, { eventId: old, email: STAFF });
-    // Collaborative event seen by both USYD and MACQ.
     await leader.mutation(api.events.create, {
       name: "Collab",
       ...window(1),
       subgroups: [USYD, MACQ],
     });
 
-    // No filters: all three events for USYD.
     const all = await leader.query(api.attendanceExport.eventsForExport, {
       subgroup: USYD,
     });
@@ -196,7 +184,6 @@ describe("attendanceExport", () => {
     expect(collab.collaborative).toBe(true);
     expect(collab.collaborators).toEqual([MACQ]);
 
-    // Date range excludes the 10-day-old event.
     const ranged = await leader.query(api.attendanceExport.eventsForExport, {
       subgroup: USYD,
       dateStart: Date.now() - 3 * DAY,
@@ -207,8 +194,6 @@ describe("attendanceExport", () => {
       "Recent Tagged",
     ]);
 
-    // Single-sided bounds range through the index too: from-only drops the old
-    // event; to-only keeps just the old event.
     const fromOnly = await leader.query(api.attendanceExport.eventsForExport, {
       subgroup: USYD,
       dateStart: Date.now() - 3 * DAY,
@@ -223,7 +208,6 @@ describe("attendanceExport", () => {
     });
     expect(toOnly!.events.map((e) => e.name)).toEqual(["Old Untagged"]);
 
-    // Tag filter keeps only the Weekly-tagged event.
     const tagged = await leader.query(api.attendanceExport.eventsForExport, {
       subgroup: USYD,
       tagIds: [weekly],
@@ -231,8 +215,6 @@ describe("attendanceExport", () => {
     expect(tagged!.events.map((e) => e.name)).toEqual(["Recent Tagged"]);
     expect(tagged!.events[0].tags).toEqual(["Weekly"]);
 
-    // The collaborative event is also visible under MACQ, where the USYD-only
-    // House field below would be filtered out.
     const fromMacq = await leader.query(api.attendanceExport.eventsForExport, {
       subgroup: MACQ,
     });
@@ -241,7 +223,6 @@ describe("attendanceExport", () => {
 
   test("only exports metadata fields the sub-group can see", async () => {
     const { leader } = await setup();
-    // A custom select field scoped to USYD only.
     await leader.mutation(api.attendanceMetadata.saveAll, {
       fields: [
         {
@@ -291,7 +272,6 @@ describe("attendanceExport", () => {
     const macq = await leader.query(api.attendanceExport.eventsForExport, {
       subgroup: MACQ,
     });
-    // House is invisible to MACQ, so it isn't resolved into the row.
     expect(macq!.events[0].rows[0].metadata.House).toBeUndefined();
   });
 
@@ -317,7 +297,6 @@ describe("attendanceExport", () => {
 
   test("eventForExport: single event, missing event, and empty-subgroup fallback", async () => {
     const { t, leader } = await setup();
-    // Not signed in → null.
     const someEvent = await leader.mutation(api.events.create, {
       name: "Solo",
       ...window(),
@@ -338,14 +317,12 @@ describe("attendanceExport", () => {
     expect(single!.event.name).toBe("Solo");
     expect(single!.event.rows).toHaveLength(1);
 
-    // An explicit subgroup from the caller wins over the event's owner.
     const scoped = await leader.query(api.attendanceExport.eventForExport, {
       eventId: someEvent,
       subgroup: MACQ,
     });
     expect(scoped!.subgroup).toBe(MACQ);
 
-    // Missing event → null.
     await leader.mutation(api.events.remove, { eventId: someEvent });
     expect(
       await leader.query(api.attendanceExport.eventForExport, {
@@ -353,7 +330,6 @@ describe("attendanceExport", () => {
       })
     ).toBeNull();
 
-    // An event with no sub-groups falls back to the org-wide "SOW".
     const emptyId = await t.run(async (ctx) =>
       ctx.db.insert("events", {
         name: "No Subgroups",
@@ -378,7 +354,6 @@ describe("attendanceExport de-duplication", () => {
       ...window(),
       subgroups: [USYD],
     });
-    // LEADER's overlay gives them a memberId alongside their email; both sign in.
     const memberId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
       staffEmail: LEADER,
     });
@@ -404,8 +379,6 @@ describe("attendanceExport de-duplication", () => {
     const memberId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
       staffEmail: LEADER,
     });
-    // The email row is inserted first but signed in LATER than the memberId row,
-    // so de-dup must replace it with the earlier memberId sign-in.
     await t.run(async (ctx) => {
       await ctx.db.insert("attendance", {
         eventId,

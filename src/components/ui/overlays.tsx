@@ -1,7 +1,3 @@
-// Part of the ui design-system, split out of the former monolithic ui.tsx.
-// All symbols are re-exported from ./index so call sites still import from
-// "@/components/ui".
-
 import { Ionicons } from "@expo/vector-icons";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import {
@@ -23,15 +19,6 @@ import { useRegisterModal } from "./modalPresence";
 import { FastModal, Muted, Row, Txt } from "./primitives";
 import { styles } from "./styles";
 
-/**
- * A reusable confirmation dialog modelled on the Structure tab's type-to-confirm
- * sheet. Use it everywhere instead of the platform's native confirm dialogs.
- *
- * Pass `requireText` for high-stakes deletes (e.g. a person): the confirm button
- * stays disabled until the typed text matches it exactly (trimmed). Omit it for a
- * plain Cancel/Confirm dialog. `destructive` (default true) tints the confirm
- * button red; set it false for non-destructive confirmations.
- */
 export const ConfirmDialog = ({
   visible,
   title,
@@ -50,21 +37,16 @@ export const ConfirmDialog = ({
   confirmLabel?: string;
   cancelLabel?: string;
   destructive?: boolean;
-  /** When set, require the user to type this exact text before confirming. */
   requireText?: string;
-  /** Externally disable the confirm button (e.g. an active cooldown). */
   confirmDisabled?: boolean;
   onConfirm: () => void;
   onClose: () => void;
 }) => {
   const [input, setInput] = useState("");
-  // Reset the typed text whenever the dialog closes (covers callers that flip
-  // `visible` off without going through the dialog's own close handler).
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on close
     if (!visible) setInput("");
   }, [visible]);
-  // Normalise both sides: data-sourced requireText may carry stray whitespace.
   const normalizedRequired = requireText?.trim();
   const confirmDisabled =
     confirmDisabledProp ||
@@ -97,8 +79,6 @@ export const ConfirmDialog = ({
       {message ? <Muted>{message}</Muted> : null}
       {requireText !== undefined && (
         <>
-          {/* Spell out — in bold — exactly what has to be typed to unlock the
-              confirm button, so the required name can't be missed. */}
           <Txt>
             Type <Txt style={{ fontWeight: "800" }}>{normalizedRequired}</Txt> to
             confirm.
@@ -115,7 +95,6 @@ export const ConfirmDialog = ({
   );
 };
 
-/** A centered modal dialog with a dimmed backdrop. */
 export const Sheet = ({
   visible,
   onClose,
@@ -132,43 +111,18 @@ export const Sheet = ({
   onClose: () => void;
   children: ReactNode;
   scrollable?: boolean;
-  /** Headline pinned above scrolling content, with a close affordance. */
   title?: string;
-  /** Optional action rendered beside close (e.g. destructive trash icon). */
   headerRight?: ReactNode;
-  /** Overrides default body padding — use for non-form content. */
   contentStyle?: StyleProp<ViewStyle>;
-  /** Pinned action row below scrolling content (e.g. Save). */
   footer?: ReactNode;
-  /**
-   * Keep the scroll pinned to the bottom — for chat-style content (e.g. the
-   * comments thread) where the newest item and the composer below it should
-   * stay in view. New content and the keyboard opening both scroll to the end.
-   */
   stickToBottom?: boolean;
-  /**
-   * Where the dialog sits once the keyboard is open. "center" (default) keeps it
-   * vertically centred in the space above the keyboard — fine for tall, mostly-
-   * full sheets. "bottom" drops it to hug the keyboard, so a short sheet (e.g. the
-   * comments composer) rises just enough to clear the keyboard instead of floating
-   * high up the screen. Resting (no keyboard) placement is centred either way.
-   */
   keyboardAnchor?: "center" | "bottom";
 }) => {
   const t = useAppTheme();
-  // Let a FooterAction on the screen behind us opt out of following the keyboard
-  // while we're open — we do our own keyboard avoidance below.
   useRegisterModal(visible);
-  // Track the keyboard so a bottom-anchored sheet can hug it (see keyboardAnchor).
-  // Only listen while actually visible — callers may keep the sheet mounted
-  // (visible=false) per list row, and idle listeners would pile up otherwise.
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   useEffect(() => {
     if (keyboardAnchor !== "bottom" || Platform.OS !== "ios" || !visible) return;
-    // Seed from the live keyboard: the sheet may open while the keyboard is
-    // already up (e.g. reopening a thread before the last one's keyboard fully
-    // collapses), when no willShow fires — and this also clears any stale-open
-    // state left from the previous time this sheet was shown.
     // eslint-disable-next-line react-hooks/set-state-in-effect -- seed from live keyboard on open
     setKeyboardOpen(Keyboard.isVisible());
     const show = Keyboard.addListener("keyboardWillShow", () => setKeyboardOpen(true));
@@ -178,11 +132,8 @@ export const Sheet = ({
       hide.remove();
     };
   }, [keyboardAnchor, visible]);
-  // Chat-style sheets keep the scroll pinned to the bottom (see stickToBottom).
   const scrollRef = useRef<ScrollView>(null);
   useEffect(() => {
-    // Re-pin to the bottom when the keyboard opens: the scroll area shrinks, so
-    // the composer + latest comment would otherwise slide out of view.
     if (stickToBottom && keyboardOpen) scrollRef.current?.scrollToEnd({ animated: true });
   }, [stickToBottom, keyboardOpen]);
   const anchorBottomLive = keyboardAnchor === "bottom" && keyboardOpen;
@@ -190,8 +141,6 @@ export const Sheet = ({
   const shownTitle = useRef(title);
   const shownChildren = useRef(children);
   const shownFooter = useRef(footer);
-  // Freeze the anchor while visible too, so a sheet dismissed with the keyboard
-  // still up doesn't snap from bottom-anchored to centred mid fade-out.
   const shownAnchorBottom = useRef(anchorBottomLive);
   if (visible) {
     shownTitle.current = title;
@@ -266,9 +215,6 @@ export const Sheet = ({
             {hasFooter ? (
               <View
                 style={styles.sheetFooter}
-                // The footer sits outside the scroll, so its own growth (e.g. a
-                // multiline composer expanding) shrinks the thread without an
-                // onContentSizeChange — re-pin to the bottom when it resizes.
                 onLayout={
                   stickToBottom
                     ? () => scrollRef.current?.scrollToEnd({ animated: true })

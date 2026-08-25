@@ -1,4 +1,3 @@
-/** Tailwind-style tag colour tokens (ported from time-to-rollcall). */
 export const TAG_COLOUR_NAMES = [
   "gray",
   "red",
@@ -21,7 +20,6 @@ export const TAG_COLOUR_NAMES = [
 
 export type TagColourName = (typeof TAG_COLOUR_NAMES)[number];
 
-/** Hex swatches for rendering tag pills in React Native. */
 export const TAG_COLOUR_HEX: Record<TagColourName, string> = {
   gray: "#6B7280",
   red: "#EF4444",

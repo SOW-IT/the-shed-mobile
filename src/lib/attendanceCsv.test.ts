@@ -10,14 +10,12 @@ import {
 
 const at = (iso: string) => new Date(iso).getTime();
 
-/** Build an export row with a stable identityKey (never name-only). */
 const exportRow = (row: {
   name: string;
   email?: string;
   signInTime: number;
   notes?: string;
   metadata?: Record<string, string>;
-  /** Override identity; defaults to email:… or member/row keys when given. */
   identityKey?: string;
   memberId?: string;
   attendanceId?: string;
@@ -68,7 +66,6 @@ describe("buildAttendanceCsv", () => {
   test("writes an event-level info block, then a per-attendee table", () => {
     const csv = buildAttendanceCsv([baseEvent()], ["Gender", "Campus", NOTES_HEADER]);
     const lines = csv.split("\r\n");
-    // Event info is written once for the event, not repeated per person.
     expect(lines.slice(0, 5)).toEqual([
       "Event,Weekly Meeting",
       "Start Date,04.03.2026 17:00",
@@ -76,7 +73,7 @@ describe("buildAttendanceCsv", () => {
       "Tags,Weekly",
       "Collaboration,",
     ]);
-    expect(lines[5]).toBe(""); // blank line between info and table
+    expect(lines[5]).toBe("");
     expect(lines[6]).toBe("Sign In,Name,Email,Gender,Campus,Notes");
     expect(lines[7]).toBe(
       "04.03.2026 17:05,Ada Lovelace,ada@sow.org.au,Female,University of Sydney,early"
@@ -84,8 +81,6 @@ describe("buildAttendanceCsv", () => {
   });
 
   test("a metadata field named 'Notes' doesn't duplicate the sign-in Notes column", () => {
-    // The reserved trailing "Notes" column holds the sign-in note; a same-named
-    // metadata field must be dropped so the export has exactly one "Notes".
     const event = baseEvent({
       rows: [
         exportRow({
@@ -99,10 +94,8 @@ describe("buildAttendanceCsv", () => {
     });
     const lines = buildAttendanceCsv([event], ["Gender", "Notes"]).split("\r\n");
     const header = lines[6];
-    // Exactly one "Notes" column, and it's the trailing reserved one.
     expect(header).toBe("Sign In,Name,Email,Gender,Notes");
     expect(header.split(",").filter((c) => c === "Notes")).toHaveLength(1);
-    // The row carries the sign-in note there, not the metadata note.
     expect(lines[7]).toBe(
       "04.03.2026 17:05,Ada Lovelace,ada@sow.org.au,Female,sign-in note"
     );
@@ -123,7 +116,6 @@ describe("buildAttendanceCsv", () => {
     const header = lines.find((l) => l.startsWith("Sign In,"))!;
     const row = lines[lines.length - 1];
     expect(header).toBe("Sign In,Name,Email,Gender,Notes");
-    // Campus column is dropped because it wasn't selected.
     expect(row).not.toContain("University of Sydney");
     expect(row).toContain("Female");
   });
@@ -141,7 +133,7 @@ describe("buildAttendanceCsv", () => {
     });
     const lines = buildAttendanceCsv([event], ["Gender", NOTES_HEADER]).split("\r\n");
     const row = lines[lines.length - 1];
-    expect(row.endsWith(",,")).toBe(true); // empty Gender + empty Notes
+    expect(row.endsWith(",,")).toBe(true);
   });
 
   test("multiple events become separate sections", () => {
@@ -164,7 +156,6 @@ describe("buildAttendanceCsv", () => {
   test("an event with no attendance still appears as an info block + header", () => {
     const event = baseEvent({ rows: [], attendanceCount: 0 });
     const lines = buildAttendanceCsv([event], ["Gender", NOTES_HEADER]).split("\r\n");
-    // 5 info rows + blank + table header, no data rows.
     expect(lines).toHaveLength(7);
     expect(lines[0]).toBe("Event,Weekly Meeting");
     expect(lines[6]).toBe("Sign In,Name,Email,Gender,Notes");
@@ -183,8 +174,8 @@ describe("buildAttendanceCsv", () => {
       ],
     });
     const lines = buildAttendanceCsv([event], []).split("\r\n");
-    expect(lines[0]).toBe("Event,'=cmd|calc"); // formula trigger neutralised
-    expect(lines[lines.length - 1]).toContain('"Smith, ""Bob"""'); // escaped
+    expect(lines[0]).toBe("Event,'=cmd|calc");
+    expect(lines[lines.length - 1]).toContain('"Smith, ""Bob"""');
   });
 });
 
@@ -233,13 +224,10 @@ describe("buildAttendanceMatrixCsv", () => {
       ["Gender", "Role", NOTES_HEADER]
     ).split("\r\n");
 
-    // Totals align under the event columns (after Name, Email, Gender, Role, %).
     expect(lines[0]).toBe("Total Attendance,,,,,2,1");
-    // Notes are dropped from the matrix even if selected.
     expect(lines[1]).toBe(
       `Name,Email,Gender,Role,${ATTENDANCE_PCT_HEADER},Week 1,Week 2`
     );
-    // Sorted by name: Ada then Bob. Ada attended both → 100%; Bob only Week 1 → 50%.
     expect(lines[2]).toBe(
       "Ada Lovelace,ada@sow.org.au,Female,Student Leader,100%,Y,Y"
     );
@@ -318,8 +306,6 @@ describe("buildAttendanceMatrixCsv", () => {
     expect(lines[1]).toBe(
       `Name,Email,${ATTENDANCE_PCT_HEADER},Empty Night,Week 1`
     );
-    // Empty Night is excluded from the denominator (like the reference sheet),
-    // so Ada who only attended Week 1 still reads 100%.
     expect(lines[2]).toBe("Ada Lovelace,ada@sow.org.au,100%,,Y");
   });
 
@@ -331,7 +317,6 @@ describe("buildAttendanceMatrixCsv", () => {
     expect(lines[1]).toBe(
       `Name,Email,Gender,${ATTENDANCE_PCT_HEADER},Week 1`
     );
-    // Gender value only once; no second Attendance % metadata column.
     expect(lines[2]).toBe("Ada Lovelace,ada@sow.org.au,Female,100%,Y");
   });
 
@@ -371,8 +356,6 @@ describe("buildAttendanceMatrixCsv", () => {
   });
 
   test("people with the same display name stay as separate rows", () => {
-    // Two distinct members both named "John Smith" (no email) — different
-    // identityKeys so they must never collapse into one matrix row.
     const week1 = baseEvent({
       _id: "w1",
       name: "Week 1",
@@ -399,8 +382,6 @@ describe("buildAttendanceMatrixCsv", () => {
       name: "Week 2",
       attendanceCount: 1,
       rows: [
-        // Only member-a returns — must not merge with member-b just because
-        // the display name matches.
         exportRow({
           name: "John Smith",
           email: "",
@@ -415,7 +396,6 @@ describe("buildAttendanceMatrixCsv", () => {
       ["Gender"]
     ).split("\r\n");
     expect(lines[0]).toBe("Total Attendance,,,,2,1");
-    // Two John Smith rows: one at 100% (both weeks), one at 50% (week 1 only).
     expect(lines).toHaveLength(4);
     const body = lines.slice(2);
     expect(body).toContain("John Smith,,Male,100%,Y,Y");
@@ -446,15 +426,12 @@ describe("buildAttendanceMatrixCsv", () => {
     });
     const lines = buildAttendanceMatrixCsv([night], []).split("\r\n");
     expect(lines[0]).toBe("Total Attendance,,,2");
-    // Two body rows, so Y marks sum to the Total Attendance headcount.
     expect(lines).toHaveLength(4);
     expect(lines[2]).toBe("Unknown,,100%,Y");
     expect(lines[3]).toBe("Unknown,,100%,Y");
   });
 
   test("rows missing identityKey with the same sign-in time stay separate", () => {
-    // Legacy/incomplete fixtures with no identityKey and identical timestamps
-    // must not collapse — the anon fallback uses event id + row index.
     const sameMs = at("2026-03-04T17:00:00");
     const night = baseEvent({
       _id: "n",

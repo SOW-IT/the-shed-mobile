@@ -17,7 +17,6 @@ const mimeFromUri = (uri: string): string | null => {
   return null;
 };
 
-/** Prefer the picker MIME, then a Blob type / URI extension — never assume JPEG. */
 const resolveContentType = (
   mimeType: string | null | undefined,
   uri: string,
@@ -25,13 +24,6 @@ const resolveContentType = (
 ): string =>
   mimeType?.trim() || blobType?.trim() || mimeFromUri(uri) || "application/octet-stream";
 
-/**
- * Byte length of a local file URI.
- *
- * On native, React Native's `fetch(uri).blob()` throws
- * "Creating blobs from 'ArrayBuffer' and 'ArrayBufferView' are not supported",
- * so we read size via expo-file-system instead.
- */
 export async function getLocalFileSizeBytes(uri: string): Promise<number> {
   if (Platform.OS === "web") {
     const blob = await (await fetch(uri)).blob();
@@ -44,11 +36,6 @@ export async function getLocalFileSizeBytes(uri: string): Promise<number> {
   return file.size;
 }
 
-/**
- * POST a local file to a Convex `generateUploadUrl` endpoint and return the
- * storage id. Uses expo-file-system's binary upload on native (avoids RN Blob)
- * and the browser Blob path on web.
- */
 export async function uploadLocalFileToUrl(
   uploadUrl: string,
   source: LocalUploadSource

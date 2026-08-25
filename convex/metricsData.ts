@@ -1,10 +1,3 @@
-/**
- * Convex validators for a precomputed Attendance metrics snapshot. Kept in a
- * dependency-free module so both `schema.ts` (the stored `data` column) and
- * `attendanceMetrics.ts` (function `returns`) share one definition — the
- * runtime mirror of {@link SubgroupMetricsData} in shared/attendanceMetrics.ts.
- */
-
 import { v } from "convex/values";
 
 const trendPoint = v.object({
@@ -62,7 +55,6 @@ const summary = v.object({
   newcomers: v.number(),
   followUpCount: v.number(),
   weeklyConsistency: v.union(v.number(), v.null()),
-  // Optional: snapshots computed before 1.6.14 lack the composition fields.
   leaderShare: v.optional(v.union(v.number(), v.null())),
   homeCampusShare: v.optional(v.union(v.number(), v.null())),
 });
@@ -74,8 +66,6 @@ export const metricsDataValidator = v.object({
   weeklyTrend: v.array(trendPoint),
   uniqueByMonth: v.array(trendPoint),
   newVsReturning: v.array(splitPoint),
-  // Optional: snapshots computed before 1.6.14 lack the composition charts;
-  // campusMix is also always absent for the org-wide (SOW) view.
   leadersVsOthers: v.optional(v.array(compositionPoint)),
   campusMix: v.optional(v.array(compositionPoint)),
   followUps: v.array(followUp),

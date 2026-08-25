@@ -12,14 +12,6 @@ import {
 type YearStructure = FunctionReturnType<typeof api.directory.yearStructure>;
 type StaffProfiles = FunctionReturnType<typeof api.admin.listStaffProfiles>;
 
-/**
- * Buckets the year's staff profiles for the Users tab using the same hierarchy
- * as the Org Chart: division head, then departments with their department heads
- * first, then department members. Profiles may appear in multiple org-chart
- * placements when they hold multiple scoped roles. Campus groups intentionally
- * include every campus assignment; only the "Other" fallback is deduped from
- * the hierarchy above.
- */
 export const useGroupedProfiles = (
   structure: YearStructure | undefined,
   profiles: StaffProfiles | undefined
@@ -88,19 +80,11 @@ export const useGroupedProfiles = (
       (p) => !groupedEmails.has(p.email)
     );
 
-    // The Director is org-wide (no division/department/campus scope), so it
-    // otherwise falls into "Other". Hoist it out to render at the very top, like
-    // the Org Chart.
     const director =
       (profiles ?? []).find((p) =>
         (p.assignments ?? []).some((a) => a.role === DIRECTOR)
       ) ?? null;
 
-    // The Director renders in its own hoisted top slot, so strip it from every
-    // other bucket to match the Org Chart (which never repeats the director). A
-    // Director that also carries division/department assignments would otherwise
-    // resurface as a division/department head or member. Departments left empty
-    // once the director is removed are dropped.
     const groupedProfilesWithoutDirector = director
       ? groupedProfiles.map((g) => ({
           ...g,
@@ -118,9 +102,6 @@ export const useGroupedProfiles = (
         }))
       : groupedProfiles;
 
-    // Exclude the Director from campus groups too — it's hoisted to its own top
-    // slot, so a Director that also carries a campus assignment would otherwise
-    // render twice (mirrors the nonCampusOtherProfiles exclusion below).
     const campusProfiles = (profiles ?? []).filter(
       (p) =>
         p.email !== director?.email &&

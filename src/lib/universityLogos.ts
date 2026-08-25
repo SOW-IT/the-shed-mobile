@@ -2,12 +2,6 @@ import { ImageSourcePropType } from "react-native";
 import { acronym } from "../../shared/flow";
 import { SOW_SUBGROUP } from "../../shared/rollcall";
 
-/**
- * Coloured campus wordmarks, keyed by acronym (see shared/flow DISPLAY_ACRONYMS).
- * The image colours match shared/flow UNIVERSITY_COLOURS. Note Macquarie's asset
- * files are prefixed "MQU" while its acronym is "MACQ". Campuses without a
- * wordmark asset (ACU) falls back to a colour swatch in the UI.
- */
 const LOGOS: Record<string, ImageSourcePropType> = {
   USYD: require("../../assets/images/USYD-red.png"),
   UNSW: require("../../assets/images/UNSW-green.png"),
@@ -16,17 +10,14 @@ const LOGOS: Record<string, ImageSourcePropType> = {
   WSU: require("../../assets/images/WSU-crimson.png"),
 };
 
-/** SOW mark for the org-wide sub-group — light on dark UI, dark on light UI. */
 export const sowLogo = (darkTheme: boolean): ImageSourcePropType =>
   darkTheme
     ? require("../../assets/images/mark-cream.png")
     : require("../../assets/images/mark-dark.png");
 
-/** The coloured wordmark for a campus by full name or acronym, or null. */
 export const universityLogo = (name: string): ImageSourcePropType | null =>
   LOGOS[acronym(name)] ?? null;
 
-/** Wordmark for an attendance sub-group (campus name or org-wide "SOW"). */
 export const subgroupLogo = (
   subgroup: string,
   darkTheme = false

@@ -1,11 +1,3 @@
-/**
- * Bottom-right floating selectors for the Insights screens, rendered through
- * PagerScreen's `floating` slot so they stay pinned above the bottom tab bar:
- *  - {@link AttendanceRangeFab}: the time range + collaborative-events toggle for
- *    the per-campus Attendance dashboard (lifted out of its top filter bar).
- *  - {@link GeneralScopeFab}: recent years / all history / a specific staff year
- *    for the General staff-trend dashboard.
- */
 import { Ionicons } from "@expo/vector-icons";
 import { ReactNode, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -19,7 +11,6 @@ import { WebDateInput } from "@/components/WebDateTimeInput";
 import { Btn, Sheet } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
-/** Attendance Insights range: a preset trailing window or a custom [start, end]. */
 export type AttendanceRangeSelection =
   | { kind: "preset"; weeks: RangeWeeks }
   | { kind: "custom"; startMs: number; endMs: number };
@@ -29,14 +20,12 @@ const toDateInput = (ms: number): string => {
   const d = new Date(ms);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
-/** Local midnight for a YYYY-MM-DD string. */
 const fromDateInputStart = (value: string): number | null => {
   const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!m) return null;
   const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
   return Number.isNaN(d.getTime()) ? null : d.getTime();
 };
-/** Local end-of-day for a YYYY-MM-DD string. */
 const fromDateInputEnd = (value: string): number | null => {
   const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!m) return null;
@@ -56,7 +45,6 @@ export const attendanceRangeFabLabel = (range: AttendanceRangeSelection): string
   return `${formatShort(range.startMs)} – ${formatShort(range.endMs)}`;
 };
 
-/** The floating pill button + its selector sheet. `children` gets a `close`. */
 function SelectorFab({
   label,
   icon = "options-outline",
@@ -68,7 +56,6 @@ function SelectorFab({
   icon?: keyof typeof Ionicons.glyphMap;
   sheetTitle: string;
   children: (close: () => void) => ReactNode;
-  /** Called whenever the sheet closes (Done, backdrop, or Apply). */
   onClosed?: () => void;
 }) {
   const t = useAppTheme();
@@ -102,7 +89,6 @@ function SelectorFab({
   );
 }
 
-/** A tappable option row with a trailing check when selected. */
 function OptionRow({
   label,
   selected,
@@ -144,9 +130,7 @@ export function AttendanceRangeFab({
   onCollaborativeChange: (value: boolean) => void;
 }) {
   const t = useAppTheme();
-  // Capture "today" once on mount so render stays pure (no Date.now() in render).
   const [today] = useState(() => toDateInput(Date.now()));
-  // Draft custom dates while the sheet is open (commit only on Apply).
   const [customStart, setCustomStart] = useState(() =>
     range.kind === "custom"
       ? toDateInput(range.startMs)
@@ -155,8 +139,6 @@ export function AttendanceRangeFab({
   const [customEnd, setCustomEnd] = useState(() =>
     range.kind === "custom" ? toDateInput(range.endMs) : toDateInput(Date.now())
   );
-  // Local highlight for the Custom row while editing dates — does not commit
-  // a range (and so does not kick off liveSnapshot) until Apply.
   const [pickingCustom, setPickingCustom] = useState(false);
   const customSelected = range.kind === "custom" || pickingCustom;
   const draftStartMs = fromDateInputStart(customStart);
@@ -173,8 +155,6 @@ export function AttendanceRangeFab({
       icon="calendar-outline"
       label={attendanceRangeFabLabel(range)}
       sheetTitle="Time range"
-      // Drop draft highlight on dismiss so reopen matches the committed range
-      // (customSelected then comes only from range.kind === "custom").
       onClosed={() => setPickingCustom(false)}
     >
       {(close) => (
@@ -198,7 +178,6 @@ export function AttendanceRangeFab({
             label="Custom"
             selected={customSelected}
             onPress={() => {
-              // Reveal / highlight the date fields only — Apply commits.
               setPickingCustom(true);
             }}
           />
@@ -232,7 +211,7 @@ export function AttendanceRangeFab({
                   startMs: draftStartMs,
                   endMs: draftEndMs,
                 });
-                close(); // onClosed clears pickingCustom; parent range keeps Custom selected
+                close();
               }}
             />
           </View>
@@ -256,11 +235,6 @@ export function AttendanceRangeFab({
   );
 }
 
-/**
- * Bottom-left toggle flipping every chart on the screen between bars and lines
- * (see ChartModeProvider). Sits opposite the scope/range selector so the two
- * don't overlap.
- */
 export function ChartModeFab({
   mode,
   onChange,
@@ -294,7 +268,6 @@ export function ChartModeFab({
   );
 }
 
-/** null = recent years (default operational view); "all" = full history; year = card view. */
 export type GeneralScope = number | null | "all";
 
 export function GeneralScopeFab({
@@ -306,7 +279,6 @@ export function GeneralScopeFab({
   years: number[];
   value: GeneralScope;
   onChange: (value: GeneralScope) => void;
-  /** How many years the "Recent" trend view shows. */
   recentYears: number;
 }) {
   const label =
@@ -336,8 +308,6 @@ export function GeneralScopeFab({
             }}
           />
           {[...years].reverse().map((year) => {
-            // Compare against the previous year *on record*, which may not be
-            // year − 1 if a staff year is missing.
             const idx = years.indexOf(year);
             const prev = idx > 0 ? years[idx - 1] : null;
             return (
@@ -360,13 +330,6 @@ export function GeneralScopeFab({
 
 const styles = StyleSheet.create({
   fab: {
-    // Matches the org chart's FloatingYearPicker so the two screens' selectors
-    // sit in the same spot (styles.floatingYearPicker: right lg, bottom md).
-    // The horizontal edge is set by fabRight/fabLeft — NOT here — because on
-    // web react-native-web compiles styles to additive atomic classes and drops
-    // `undefined`, so a later `right: undefined` can't unset a base `right`
-    // (the pill then pins to BOTH edges and stretches full width). Keeping the
-    // base edge-agnostic avoids that.
     position: "absolute",
     bottom: spacing.md,
     flexDirection: "row",
@@ -377,11 +340,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     zIndex: 20,
   },
-  // Bottom-right corner (scope/range selectors).
   fabRight: {
     right: spacing.lg,
   },
-  // Opposite corner from the scope/range selector (chart-mode toggle).
   fabLeft: {
     left: spacing.lg,
   },

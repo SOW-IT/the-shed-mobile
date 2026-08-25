@@ -1,7 +1,3 @@
-// Part of the ui design-system, split out of the former monolithic ui.tsx.
-// All symbols are re-exported from ./index so call sites still import from
-// "@/components/ui".
-
 export * from "./format";
 export * from "./Grid";
 export * from "./styles";

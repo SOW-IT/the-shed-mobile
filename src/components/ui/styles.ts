@@ -1,7 +1,3 @@
-// Part of the ui design-system, split out of the former monolithic ui.tsx.
-// All symbols are re-exported from ./index so call sites still import from
-// "@/components/ui".
-
 import { StyleSheet } from "react-native";
 import { radius, spacing } from "@/theme";
 
@@ -36,8 +32,6 @@ export const styles = StyleSheet.create({
   },
   topBarBadgeText: { color: "#ffffff", fontSize: 10, fontWeight: "800" },
   topBarLogo: { width: 88, height: 30 },
-  // Centred area between the logo and the right-hand icons — holds the
-  // dev/staging "Test Environment" chip.
   topBarCenter: { flex: 1, alignItems: "center", justifyContent: "center" },
   testChip: {
     flexDirection: "row",
@@ -53,8 +47,6 @@ export const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 0.3,
   },
-  // Signed-out avatar dropdown: full-screen dismiss backdrop with the menu
-  // anchored under the top bar's right edge.
   dropdownBackdrop: { flex: 1 },
   dropdownMenu: {
     position: "absolute",
@@ -117,7 +109,6 @@ export const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
     paddingHorizontal: spacing.lg,
-    // Tight top padding so the back/title row sits close to the top of the screen.
     paddingTop: spacing.sm,
     paddingBottom: 48,
     gap: spacing.md,
@@ -152,7 +143,6 @@ export const styles = StyleSheet.create({
     paddingVertical: 9,
   },
   yearPillText: { fontWeight: "700", fontSize: 15 },
-  // Pill buttons, matching the web app's rounded SOW styling.
   btn: {
     paddingHorizontal: spacing.xl,
     paddingVertical: 11,
@@ -223,12 +213,9 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
   },
   optionList: { paddingHorizontal: spacing.md, paddingBottom: spacing.lg, gap: 2 },
-  // Single uniform padding layer for dialog content (no compounding) — sides and
-  // bottom match the title's horizontal inset; top adds to the title's gap.
   confirmContent: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.sm,
-    // Tight bottom inset so the message sits close to the footer actions.
     paddingBottom: spacing.md,
     gap: 14,
   },
@@ -274,9 +261,6 @@ export const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   emptyMessage: { textAlign: "center", lineHeight: 18 },
-  // Fills the available space and centres the spinner so page-level loaders sit
-  // in the middle of the screen. The minHeight keeps it visible if a parent
-  // doesn't give it room to grow.
   loading: {
     flex: 1,
     minHeight: 200,
@@ -326,8 +310,6 @@ export const styles = StyleSheet.create({
     borderRadius: radius.xl,
     width: "100%",
     maxWidth: 480,
-    // Cap well below full height so there's always a clear backdrop area to
-    // tap out, and the dialog never feels like it covers the whole screen.
     maxHeight: "70%",
     overflow: "hidden",
     flexDirection: "column",
@@ -336,9 +318,6 @@ export const styles = StyleSheet.create({
   sheetContent: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.sm,
-    // Bottom padding matches the top so the body is evenly inset (was a much
-    // larger pad, plus extra when a footer existed). The footer below provides
-    // its own spacing.
     paddingBottom: spacing.sm,
     gap: spacing.sm + 2,
   },

@@ -63,7 +63,6 @@ describe("personKey", () => {
     expect(personKey({ email: "First.Last@SOW.org.au" })).toBe(
       "staff:first.last@sow.org.au"
     );
-    // A mixed-case attendance row and a lowercase profile row collapse to one key.
     expect(personKey({ email: "First.Last@SOW.org.au" })).toBe(
       personKey({ email: "first.last@sow.org.au" })
     );
@@ -138,7 +137,6 @@ describe("weeklyMeetingSlot", () => {
 
 describe("nextDateForWeekday", () => {
   test("returns the same day when the weekday already matches", () => {
-    // 2026-06-24 is a Wednesday (getDay() === 3).
     const wed = new Date(2026, 5, 24);
     const next = nextDateForWeekday(3, wed);
     expect(next.getFullYear()).toBe(2026);
@@ -147,7 +145,6 @@ describe("nextDateForWeekday", () => {
   });
 
   test("advances to the next matching weekday otherwise", () => {
-    // From Wed 2026-06-24, the next Tuesday (2) is 2026-06-30.
     const next = nextDateForWeekday(2, new Date(2026, 5, 24));
     expect(next.getDate()).toBe(30);
     expect(next.getDay()).toBe(2);
@@ -343,7 +340,6 @@ describe("compareAttendanceFrequency", () => {
       )
     ).toBeLessThan(0);
 
-    // latestDelta branch: same total, higher latest wins (a comes first → negative)
     expect(
       compareAttendanceFrequency(
         { tagMatches: 0, subgroupMatches: 0, total: 5, latest: 200 },
@@ -355,7 +351,6 @@ describe("compareAttendanceFrequency", () => {
       )
     ).toBeLessThan(0);
 
-    // localeCompare branch: all scores identical, sort by name
     expect(
       compareAttendanceFrequency(
         { tagMatches: 0, subgroupMatches: 0, total: 5, latest: 100 },
@@ -386,10 +381,7 @@ describe("formatters", () => {
       new Date(2026, 5, 24, 17, 0).getTime(),
       new Date(2026, 5, 24, 19, 0).getTime()
     );
-    // Date is built from local components, so it's stable across timezones:
-    // zero-padded day.month and a two-digit year.
     expect(label).toMatch(/^24\.06\.26, /);
-    // Start and end times joined by a hyphen, and the whole label lowercased.
     expect(label).toContain(" - ");
     expect(label).toBe(label.toLowerCase());
   });

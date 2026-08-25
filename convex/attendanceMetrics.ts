@@ -51,36 +51,14 @@ import {
 import { currentStaffYear, optionalProfile, requireAttendanceManager } from "./model";
 import { metricsDataValidator } from "./metricsData";
 
-/** Cap on a custom live range so a pathological request can't page forever. */
 const LIVE_RANGE_MAX_MS = 2 * 365 * DAY_MS;
 
-/**
- * How far back to load events for classification look-back (regulars, gaps)
- * and the previous comparable period. Sized for the longest preset (past year
- * = 52 weeks) plus its previous period and a little slack.
- */
 const HISTORY_WEEKS = 110;
-/** Newest events *for the sub-group* kept per recompute (bounds the window). */
 const MAX_EVENTS = 800;
-/**
- * Raw events scanned (newest-first, all sub-groups) before filtering to one.
- * Sized well above a busy org's event count so a sparse sub-group's older
- * events aren't dropped just because other sub-groups filled the newest slots —
- * still bounded (event docs are small) so the transaction stays safe.
- */
 const MAX_EVENT_SCAN = 4000;
-/** Hard cap on distinct people resolved (names/photos) per recompute. */
 const MAX_PERSONS = 1200;
-/**
- * Events whose attendance is read per gather transaction. The recompute action
- * pages through events in chunks of this size so no single Convex read
- * transaction loads more than ~this many events' worth of attendance rows,
- * keeping each transaction well under the read/document limits even for a
- * busy org-wide (SOW) recompute.
- */
 const ATTENDANCE_CHUNK = 100;
 
-/** Convex validator mirroring shared `MetricsEvent`. */
 const metricsEventValidator = v.object({
   id: v.string(),
   name: v.string(),
@@ -90,7 +68,6 @@ const metricsEventValidator = v.object({
   isWeeklyMeeting: v.boolean(),
 });
 
-/** Convex validator mirroring shared `MetricsPerson`. */
 const metricsPersonValidator = v.object({
   key: v.string(),
   name: v.string(),
@@ -98,8 +75,6 @@ const metricsPersonValidator = v.object({
   subtitle: v.optional(v.string()),
   photo: v.optional(v.union(v.string(), v.null())),
   breakdown: v.optional(v.record(v.string(), v.string())),
-  // Year → field labels so a range that still holds last year's events
-  // classifies people against that year's profile, not the clock year.
   breakdownByYear: v.optional(
     v.record(v.string(), v.record(v.string(), v.string()))
   ),
@@ -109,29 +84,15 @@ const metricsPersonValidator = v.object({
   campusesByYear: v.optional(v.record(v.string(), v.array(v.string()))),
 });
 
-/**
- * Every range we precompute — the UI presets (week / month / year). The
- * whole-staff-year range is excluded; re-add STAFF_YEAR_RANGE here and in the
- * UI options to bring it back. Custom ranges use {@link liveSnapshot}.
- */
 const ALL_RANGES = [...RANGE_WEEKS] as const;
-/** Collaborative-event variants precomputed so the UI toggle reads a snapshot. */
 const COLLAB_VARIANTS = [true, false] as const;
 
 const STAFF_PREFIX = "staff:";
 const MEMBER_PREFIX = "member:";
 
-/** Drop `undefined` fields so the object is a valid Convex value to store. */
 const sanitize = (data: SubgroupMetricsData): SubgroupMetricsData =>
   JSON.parse(JSON.stringify(data));
 
-/**
- * Flag sub-groups as needing a recompute after a roll-call / event change.
- * Cheap: one small, de-duped upsert per sub-group and NO recompute here — the
- * short-interval {@link recomputeDirty} cron drains these, so the dashboard
- * tracks attendance within minutes instead of waiting for the weekly cron. SOW
- * is always included, since its org-wide aggregate reflects every event.
- */
 export async function markSubgroupsDirty(
   ctx: MutationCtx,
   subgroups: string[]
@@ -142,11 +103,6 @@ export async function markSubgroupsDirty(
     const subgroup = canonicalSubgroup(raw);
     if (seen.has(subgroup)) continue;
     seen.add(subgroup);
-    // `.first()`, never `.unique()`: the by_subgroup index isn't a uniqueness
-    // constraint and this runs inside roll-call writes, so a rare duplicate row
-    // must not throw and break a sign-in. Bump `since` to now on an existing row
-    // so a change landing mid-recompute isn't cleared by the worker's ack — the
-    // ack only deletes flags dirtied at/before its start (see clearDirty).
     const existing = await ctx.db
       .query("attendanceMetricsDirty")
       .withIndex("by_subgroup", (q) => q.eq("subgroup", subgroup))
@@ -159,22 +115,10 @@ export async function markSubgroupsDirty(
   }
 }
 
-/**
- * Bounded event gather for one sub-group: scan the newest events in
- * `[loadStart, loadEnd]`, filter to the sub-group, resolve which are Weekly
- * Meetings, and return the (bounded) `MetricsEvent[]` plus their ids. One
- * transaction — reads at most MAX_EVENT_SCAN event docs, well under Convex's
- * limits.
- *
- * `loadEnd` is required so a historical custom range isn't starved when more
- * than MAX_EVENT_SCAN events exist after the range (newest-first scan would
- * otherwise fill with later events and drop everything in the window).
- */
 export const gatherEvents = internalQuery({
   args: {
     subgroup: v.string(),
     loadStart: v.number(),
-    /** Inclusive upper bound on dateStart (typically `now` / range end). */
     loadEnd: v.number(),
   },
   returns: v.object({
@@ -183,10 +127,6 @@ export const gatherEvents = internalQuery({
   }),
   handler: async (ctx, { subgroup, loadStart, loadEnd }) => {
     const canonical = canonicalSubgroup(subgroup);
-    // Scan the newest MAX_EVENT_SCAN events in [loadStart, loadEnd], THEN filter
-    // to this sub-group and keep its newest MAX_EVENTS — so a sub-group that
-    // meets rarely among many busier ones still gets its own older events,
-    // rather than being crowded out of a small newest-N raw window.
     const scanned = await ctx.db
       .query("events")
       .withIndex("by_dateStart", (q) =>
@@ -198,8 +138,6 @@ export const gatherEvents = internalQuery({
       .filter((e) => eventIncludesSubgroup(e.subgroups, canonical))
       .slice(0, MAX_EVENTS);
 
-    // Resolve which events are Weekly Meetings — any tag named "Weekly Meeting"
-    // (tags are global; the name is what marks the pattern).
     const tagIds = new Set<Id<"attendanceTags">>();
     for (const e of events) for (const id of e.tagIds ?? []) tagIds.add(id);
     const tagDocs = await Promise.all([...tagIds].map((id) => ctx.db.get(id)));
@@ -221,12 +159,6 @@ export const gatherEvents = internalQuery({
   },
 });
 
-/**
- * Attendance for a bounded chunk of events, keyed by the shared identity key.
- * The recompute action calls this once per {@link ATTENDANCE_CHUNK}-sized page
- * so each transaction reads only that chunk's attendance rows — the fix for
- * loading every event's attendance in one mutation.
- */
 export const gatherAttendanceChunk = internalQuery({
   args: { eventIds: v.array(v.id("events")) },
   returns: v.array(
@@ -257,37 +189,20 @@ export const gatherAttendanceChunk = internalQuery({
   },
 });
 
-/** Resolve display info for the (bounded) set of people who attended. */
 export const gatherPersons = internalQuery({
   args: { keys: v.array(v.string()), year: v.number() },
   returns: v.array(metricsPersonValidator),
   handler: (ctx, { keys, year }) => resolvePersons(ctx, keys, year),
 });
 
-/**
- * Recompute + persist every range × collaborative-filter snapshot for one
- * sub-group. Runs as an ACTION (scheduled one per sub-group) so it can page the
- * potentially large attendance read across several bounded query transactions
- * instead of reading every event's attendance in a single mutation — which,
- * for the org-wide SOW group over a staff year, could exceed Convex's per-
- * transaction read limits and leave snapshots missing or stale.
- */
 export const recomputeSubgroup = internalAction({
   args: { subgroup: v.string(), staffYear: v.optional(v.number()) },
   returns: v.null(),
   handler: async (ctx, { subgroup, staffYear }) => {
-    // Ack anchor: dirty flags dirtied at/before `startedAt` are cleared once
-    // this succeeds; a change landing mid-recompute bumps `since` past it and is
-    // reprocessed next cron (see clearDirty / markSubgroupsDirty).
     const startedAt = Date.now();
     const canonical = canonicalSubgroup(subgroup);
     const year = staffYear ?? currentStaffYear();
     const now = startedAt;
-    // Load from the EARLIER of the staff-year start and a rolling ~26-week
-    // window (hence Math.min), so a single gather serves every range we compute:
-    // the staff-year range needs events back to the year's start, while the
-    // weekly ranges want a classification look-back (regulars/lapsed/re-engaged)
-    // that can reach into the previous staff year early in a new one.
     const loadStart = Math.min(
       staffYearStartMs(year),
       now - HISTORY_WEEKS * WEEK_MS
@@ -298,8 +213,6 @@ export const recomputeSubgroup = internalAction({
       { subgroup: canonical, loadStart, loadEnd: now }
     );
 
-    // Page attendance in bounded chunks so no single read transaction loads more
-    // than ATTENDANCE_CHUNK events' worth of rows.
     const attendance: MetricsAttendance[] = [];
     const uniqueKeys = new Set<string>();
     for (let i = 0; i < eventIds.length; i += ATTENDANCE_CHUNK) {
@@ -318,7 +231,6 @@ export const recomputeSubgroup = internalAction({
       year,
     });
 
-    // Compute every range × collaborative-filter snapshot (pure, in-memory).
     const snapshots = ALL_RANGES.flatMap((rangeWeeks) => {
       const rangeStartMs = rangeStartFor(now, rangeWeeks, staffYearStartMs(year));
       return COLLAB_VARIANTS.map((includeCollaborative) => ({
@@ -339,8 +251,6 @@ export const recomputeSubgroup = internalAction({
       }));
     });
 
-    // Persist, THEN ack the dirty flag — only now that the recompute succeeded,
-    // so a failure keeps the retry signal for the next cron.
     await ctx.runMutation(internal.attendanceMetrics.writeSnapshots, {
       subgroup: canonical,
       staffYear: year,
@@ -355,16 +265,11 @@ export const recomputeSubgroup = internalAction({
   },
 });
 
-/** Resolve display info (name, subtitle, photo, breakdown fields) per person. */
 async function resolvePersons(
   ctx: QueryCtx,
   keys: string[],
   year: number
 ): Promise<MetricsPerson[]> {
-  // Current year plus the two before it. A 2-year custom range (the
-  // liveSnapshot cap) can span three staff years (e.g. Aug 2024–Aug 2026
-  // → 2025/2026/2027 after an Oct flip). Trailing presets only need
-  // year-1, but loading year-2 is cheap (one indexed read).
   const years = [year - 2, year - 1, year];
   const profilesByYear = new Map<number, Map<string, Doc<"staffProfiles">>>();
   for (const y of years) {
@@ -390,9 +295,6 @@ async function resolvePersons(
     return undefined;
   };
 
-  // The Campus/Role metadata fields, so an attendance-only member's home
-  // campus and student-leader tag resolve from their metadata (staff get both
-  // from their profile). Metadata stores option IDs; map them to labels.
   const metadataFields = await ctx.db.query("attendanceMetadata").collect();
   const campusField = metadataFields.find((f) => f.key === CAMPUS_FIELD_KEY);
   const roleField = metadataFields.find((f) => f.key === ROLE_FIELD_KEY);
@@ -402,7 +304,6 @@ async function resolvePersons(
     const raw = campusField ? metadata?.[campusField._id] : undefined;
     if (!raw) return undefined;
     const label = campusField?.values?.[raw] ?? raw;
-    // "Other" is a real option but not a campus — no home campus to compare.
     return label && label !== "Other" ? label : undefined;
   };
   const memberRoleLabel = (
@@ -421,9 +322,6 @@ async function resolvePersons(
       const roles = profile
         ? [...new Set(assignmentsOf(profile).map((a) => a.role))]
         : [];
-      // Operational identity (follow-up list, composition charts) follows the
-      // CURRENT staff year: someone with no profile this year, or a profile
-      // that carries no assignment, is treated as a Member from this year on.
       const isStaff = !!profile && assignmentsOf(profile).length > 0;
       const campuses = profile
         ? [
@@ -472,8 +370,6 @@ async function resolvePersons(
         breakdownByYear,
         isStudentLeader: roles.some(roleNeedsUniversity),
         leaderByYear,
-        // Every campus the profile holds a campus role at is a home campus;
-        // org-side staff have none and stay out of the campus-mix chart.
         campuses,
         campusesByYear,
       });
@@ -499,7 +395,6 @@ async function resolvePersons(
   return persons;
 }
 
-/** The (bounded) breakdown fields we can derive cheaply without metadata reads. */
 function buildBreakdown(
   role: string | undefined,
   campus: string | undefined
@@ -510,7 +405,6 @@ function buildBreakdown(
   return breakdown;
 }
 
-/** Upsert by (subgroup, range, collaborative, staff year). Never `.unique()`. */
 export const writeSnapshots = internalMutation({
   args: {
     subgroup: v.string(),
@@ -556,12 +450,6 @@ export const writeSnapshots = internalMutation({
   },
 });
 
-/**
- * Clear a sub-group's dirty flags once its recompute has succeeded — but only
- * those dirtied at/before `upTo` (the recompute's start). A change that landed
- * mid-recompute bumped `since` past `upTo` (see markSubgroupsDirty) and is left
- * in place so the next cron reprocesses it.
- */
 export const clearDirty = internalMutation({
   args: { subgroup: v.string(), upTo: v.number() },
   returns: v.null(),
@@ -691,18 +579,12 @@ export const snapshot = query({
   },
 });
 
-/** Staff-only gate used by {@link liveSnapshot} (actions can't read auth tables). */
 export const canReadMetrics = internalQuery({
   args: {},
   returns: v.boolean(),
   handler: async (ctx) => !!(await optionalProfile(ctx)),
 });
 
-/**
- * On-demand metrics for a custom date range. Same gather + pure compute path as
- * the weekly recompute, but for one [start, end] window and without writing a
- * snapshot. Used by the Attendance Insights custom range picker.
- */
 export const liveSnapshot = action({
   args: {
     subgroup: v.string(),
@@ -734,12 +616,8 @@ export const liveSnapshot = action({
 
     const canonical = canonicalSubgroup(subgroup);
     const year = currentStaffYear();
-    // Treat the range end as "now" so absolute-day reasons (lapsed, re-engaged)
-    // and the previous-period window are relative to the custom end date.
     const now = rangeEndMs;
     const periodLen = rangeEndMs - rangeStartMs;
-    // Load the selected period, its previous comparable period, and a rolling
-    // classification look-back — same idea as the precompute gather window.
     const loadStart = Math.min(
       rangeStartMs - periodLen,
       now - HISTORY_WEEKS * WEEK_MS
@@ -785,14 +663,6 @@ export const liveSnapshot = action({
   },
 });
 
-/**
- * Average weekly-meeting attendance for every campus, for the org-wide (SOW)
- * view. Rather than re-deriving per-campus turnout from the org-wide snapshot's
- * events (which are only the SOW-tagged gatherings), this reads each campus's
- * OWN already-computed snapshot and pulls its `avgWeeklyAttendance` — so it's a
- * cheap fan-out over precomputed rows with no extra recompute. Campuses with no
- * snapshot, a stale prior-year one, or no weekly meetings in range are omitted.
- */
 export const campusWeeklyAverages = query({
   args: {
     rangeWeeks: v.number(),
@@ -835,16 +705,6 @@ export const campusWeeklyAverages = query({
   },
 });
 
-/**
- * Force a refresh now (campus leaders + admins). Schedules the same bounded
- * per-sub-group recompute the weekly cron uses, so the dashboard can be brought
- * up to date on demand without waiting for Thursday.
- *
- * Throttled to once per week per sub-group ({@link MANUAL_REFRESH_COOLDOWN_MS}):
- * the cron already keeps snapshots current, so this is a recovery path, not a
- * button to hammer. A group with no snapshot yet (or only a stale prior-year
- * one) can always be built.
- */
 export const recomputeNow = mutation({
   args: { subgroup: v.optional(v.string()) },
   returns: v.null(),
@@ -852,12 +712,6 @@ export const recomputeNow = mutation({
     await requireAttendanceManager(ctx);
     if (subgroup) {
       const canonical = canonicalSubgroup(subgroup);
-      // The cooldown anchor is the NEWEST current-year snapshot for the group.
-      // The rows are few (one per range × collaborative variant), so collect and
-      // take the max `computedAt` rather than `.first()` — a stray/duplicate row
-      // or a prior-year one then can't under-enforce the throttle. Only a
-      // current-year snapshot gates it; a group with none, or only a stale
-      // prior-year one, can always be (re)built (matching the UI's "not ready").
       const rows = await ctx.db
         .query("attendanceMetricsSnapshots")
         .withIndex("by_subgroup_and_range", (q) => q.eq("subgroup", canonical))
@@ -886,6 +740,4 @@ export const recomputeNow = mutation({
   },
 });
 
-// Re-exported so callers/tests can reference the shared thresholds through the
-// backend module too.
 export { METRICS_THRESHOLDS };

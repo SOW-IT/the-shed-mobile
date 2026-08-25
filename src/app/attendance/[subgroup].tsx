@@ -24,7 +24,6 @@ import {
 } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
 
-/** Events run under one sub-group (a campus or "ALL"), newest first. */
 export default function SubgroupEventsScreen() {
   const t = useAppTheme();
   const router = useRouter();

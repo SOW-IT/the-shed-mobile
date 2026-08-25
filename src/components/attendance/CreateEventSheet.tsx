@@ -55,7 +55,6 @@ export function CreateEventSheet({
 }: {
   visible: boolean;
   onClose: () => void;
-  /** Called after a successful delete (e.g. navigate away from the event screen). */
   onDeleted?: () => void;
   subgroup: string;
   subgroups: string[];
@@ -65,7 +64,6 @@ export function CreateEventSheet({
   const router = useRouter();
   const isEditing = event !== undefined;
   const ownerGroup = event?.subgroups[0] ?? subgroup;
-  // Tags are global (not year-scoped) — one shared catalogue for every event.
   const tags = useQuery(api.attendanceTags.list, {});
   const ensureMetadata = useMutation(api.attendanceMetadata.ensureDefaults);
   const createEvent = useMutation(api.events.create);
@@ -84,9 +82,6 @@ export function CreateEventSheet({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteText, setDeleteText] = useState("");
   const [confirmCancel, setConfirmCancel] = useState(false);
-  // The editable fields captured when the sheet opened — the baseline the Save
-  // button and the discard guard compare against (independent of later `event`
-  // refreshes from the parent).
   const [initial, setInitial] = useState({
     name: "",
     tags: [] as Id<"attendanceTags">[],
@@ -99,17 +94,9 @@ export function CreateEventSheet({
   const eventName = event?.name ?? "";
 
   useEffect(() => {
-    // Opportunistic seeding (server no-ops for non-managers); fire-and-forget,
-    // so a transient failure must not surface as an unhandled rejection.
     if (visible) void ensureMetadata({}).catch(() => {});
   }, [visible, ensureMetadata]);
 
-  // Initialise the wizard once per opening. Gating on the open transition keeps
-  // a background `event` refresh from clobbering in-progress edits or moving the
-  // dirty baseline. Editing reloads the event's saved values each open; a NEW
-  // event deliberately keeps its in-progress draft across opens (like the Make
-  // Request sheet), so cancelling and reopening resumes where you left off — the
-  // draft is only cleared after a successful create (see `resetForm`).
   useEffect(() => {
     if (!visible) {
       openedRef.current = false;
@@ -142,8 +129,6 @@ export function CreateEventSheet({
     setInitial(snapshot);
   }, [visible, ownerGroup, event, isEditing]);
 
-  // Clear a new-event draft back to defaults — run after a successful create so
-  // the next "New event" starts fresh rather than resuming the just-saved one.
   const resetForm = () => {
     setStep(0);
     setName("");
@@ -223,7 +208,7 @@ export function CreateEventSheet({
         return;
       }
       const eventId = await createEvent(payload);
-      resetForm(); // draft saved into a real event now — start fresh next time
+      resetForm();
       onClose();
       router.push({
         pathname: "/attendance/event/[eventId]",
@@ -251,8 +236,6 @@ export function CreateEventSheet({
     }
   };
 
-  // Something changed since the sheet opened — compared against the snapshot
-  // (not the live `event` prop, which can refresh underneath us).
   const sameMembers = <T,>(a: readonly T[], b: readonly T[]) =>
     a.length === b.length && a.every((x) => b.includes(x));
   const dirty =
@@ -263,10 +246,6 @@ export function CreateEventSheet({
     startTime !== initial.startTime ||
     endTime !== initial.endTime;
 
-  // New event: cancelling just closes and keeps the draft (nothing is lost, and
-  // no second modal — which previously froze the app on iOS). Editing a real
-  // event still confirms before dropping unsaved changes, since those can't be
-  // resumed the way a draft can.
   const requestClose = () => {
     if (isEditing && dirty) {
       setConfirmCancel(true);
@@ -275,8 +254,6 @@ export function CreateEventSheet({
     onClose();
   };
 
-  // First step's left action cancels; later steps step back. On the last step
-  // the right action saves/creates; edit mode also keeps a Save in the middle.
   const isLastStep = step >= maxStep;
   const leftButton =
     step === 0 ? (
@@ -331,8 +308,6 @@ export function CreateEventSheet({
           }}
         >
           {leftButton}
-          {/* Edit mode keeps Save reachable from every step; on the last step it
-              moves to the right (where it replaces Next). */}
           {isEditing && !isLastStep ? saveButton : null}
           {!isLastStep ? (
             <Btn
@@ -354,8 +329,6 @@ export function CreateEventSheet({
     >
       <View style={{ flexDirection: "row", gap: 6, marginBottom: spacing.sm }}>
         {steps.map((label, i) => {
-          // Step back freely; only step forward once the name is filled (the
-          // same guard the Next button uses).
           const reachable = i <= step || !!name.trim();
           return (
             <Pressable
@@ -365,7 +338,6 @@ export function CreateEventSheet({
               accessibilityState={{ selected: i === step }}
               disabled={!reachable}
               onPress={() => setStep(i)}
-              // Tall, tappable hit area around a slim progress bar.
               style={({ pressed }) => [
                 { flex: 1, paddingVertical: 10 },
                 pressed && reachable && { opacity: 0.6 },
@@ -541,12 +513,6 @@ export function CreateEventSheet({
         title="Discard changes?"
         message="Your unsaved changes will be lost."
         confirmLabel="Discard"
-        // Dismiss this dialog first, THEN close the sheet on the next tick.
-        // ConfirmDialog runs onConfirm() *then* its own close() in the same
-        // press handler, so the dialog's dismissal (onClose → confirmCancel
-        // false) commits this frame; deferring the parent close to the next
-        // tick keeps the two modals from tearing down in one frame, which is
-        // what locks up the UI on iOS.
         onConfirm={() => {
           setTimeout(onClose, 0);
         }}

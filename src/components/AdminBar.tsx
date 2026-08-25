@@ -4,12 +4,6 @@ import { Pressable, StyleSheet } from "react-native";
 import { radius, spacing, useAppTheme } from "@/theme";
 import { FadeInView, Txt } from "@/components/ui";
 
-/**
- * The "Admin" entry bar shown at the top of the Org chart and the Requests "All"
- * tab for admins / the Finance Head — a card that opens the Admin screen. Pass a
- * `tab` to deep-link straight to one of the Admin top-bar segments (e.g. "other"
- * for the finance settings: Budget Manager, Director threshold, delegation).
- */
 export const AdminBar = ({
   tab,
   label = "Admin",

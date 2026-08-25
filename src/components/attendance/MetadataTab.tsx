@@ -28,7 +28,6 @@ import { spacing, typography, useAppTheme } from "@/theme";
 
 type FieldDraft = {
   id?: Id<"attendanceMetadata">;
-  /** Stable React key for unsaved rows (survives reorder). */
   draftKey?: string;
   key: string;
   type: "select" | "input";
@@ -116,12 +115,10 @@ const renderSelectOptionEditor = (
   </View>
 );
 
-/** Save state reported up so the screen can render a sliding footer action. */
 export type SaveControls = {
   dirty: boolean;
   saving: boolean;
   save: () => void;
-  /** Discards unsaved edits, restoring the last-saved server state. */
   revert: () => void;
 };
 
@@ -150,8 +147,6 @@ export function MetadataTab({
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    // Opportunistic seeding (server no-ops for non-managers); fire-and-forget,
-    // so a transient failure must not surface as an unhandled rejection.
     void ensureDefaults({}).catch(() => {});
   }, [ensureDefaults]);
 
@@ -200,9 +195,6 @@ export function MetadataTab({
   const saveMetaNow = async () => {
     setSaving(true);
     setError(null);
-    // Drop the client-only draftKey: it isn't a mutation arg, and clearing it
-    // marks these rows as persisted so the fast "Remove field" path no longer
-    // applies to a just-saved field before the list query rehydrates its id.
     const nextFields = reindexFields(metaDrafts).map((field) => {
       const persisted = { ...field };
       delete persisted.draftKey;
@@ -210,9 +202,6 @@ export function MetadataTab({
     });
     try {
       await saveMetadata({ fields: nextFields, deleteIds: metaDeletes });
-      // Advance the local saved snapshot so the footer clears immediately,
-      // without waiting for the `list` query to round-trip (which would briefly
-      // leave the form "dirty" and let a revert undo the just-saved changes).
       setMetaDrafts(nextFields);
       setSavedFields(nextFields);
       setMetaDeletes([]);
@@ -230,8 +219,6 @@ export function MetadataTab({
     setError(null);
   };
 
-  // Report save state up so the screen can render the sliding footer button.
-  // Re-runs whenever the drafts change so the registered `save` is never stale.
   useEffect(() => {
     onSaveStateChange?.({
       dirty: metadataChanged,
@@ -405,9 +392,6 @@ export function MetadataTab({
                     />
                   ) : null}
                   {field.draftKey ? (
-                    // A never-saved draft (tracked by its draftKey, which is
-                    // cleared on save) holds no data, so it can be discarded
-                    // outright — no confirmation needed.
                     <Btn
                       title="Remove field"
                       variant="ghost"
@@ -512,8 +496,6 @@ export function MetadataTab({
         <Muted>
           This deletes this metadata field and removes its saved value from every member
           that has it. Type{" "}
-          {/* Plain nested Text so it inherits the muted caption size/colour and
-              only the weight changes. */}
           <Text style={{ fontWeight: "800" }}>
             {deleteIndex !== null ? metaDrafts[deleteIndex]?.key?.trim() : ""}
           </Text>{" "}

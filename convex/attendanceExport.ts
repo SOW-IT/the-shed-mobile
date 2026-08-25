@@ -11,27 +11,15 @@ import { Doc } from "./_generated/dataModel";
 import { QueryCtx, query } from "./_generated/server";
 import { optionalProfile } from "./model";
 
-/** One signed-in person, flattened for the export. */
 export type ExportRow = {
   name: string;
   email: string;
   signInTime: number;
   notes?: string;
-  /** Resolved display value per metadata field, keyed by the field's KEY
-   * (stable across years) so the CSV columns line up regardless of which
-   * year's field ids produced them. */
   metadata: Record<string, string>;
-  /**
-   * Stable identity for matrix aggregation. Never derived from display name
-   * alone — two people called "John Smith" stay as two rows.
-   * - `email:<lowercased>` when an email is known
-   * - `member:<id>` for an attendance member without email
-   * - `row:<attendanceId>` for unlinked sign-ins (unique; no cross-event merge)
-   */
   identityKey: string;
 };
 
-/** One event with its roll-call, ready to turn into CSV rows. */
 export type ExportEvent = {
   _id: string;
   name: string;
@@ -39,7 +27,6 @@ export type ExportEvent = {
   dateEnd: number;
   subgroups: string[];
   collaborative: boolean;
-  /** The other sub-groups this event is shared with (empty unless collaborative). */
   collaborators: string[];
   tags: string[];
   attendanceCount: number;
@@ -51,33 +38,22 @@ type MemberDoc = Doc<"attendanceMembers">;
 const first = <T>(arr: (T | null | undefined)[]): T | null =>
   arr.find((x): x is T => !!x) ?? null;
 
-/**
- * Builds the per-event export payloads for a set of events, resolving each
- * signed-in person's name, email and metadata the same way the event screen
- * does — staff identity comes from their profile (event-date staff year),
- * member fields from the attendance member overlay (event calendar year), and
- * metadata values are filtered to the fields the `subgroup` can see.
- */
 async function resolveExportEvents(
   ctx: QueryCtx,
   events: Doc<"events">[],
   subgroup: string
 ): Promise<ExportEvent[]> {
-  // The shared member pool, loaded once. Maps let us resolve a row's metadata
-  // source without an extra read per attendance row.
   const members = await ctx.db.query("attendanceMembers").collect();
   const memberById = new Map<string, MemberDoc>(
     members.map((m) => [String(m._id), m])
   );
   const memberByEmail = new Map<string, MemberDoc>();
   for (const m of members) {
-    // Members link to a staff profile by `email` (both SOW-domain spellings).
     for (const candidate of staffEmailCandidates(m.email)) {
       if (!memberByEmail.has(candidate)) memberByEmail.set(candidate, m);
     }
   }
 
-  // Staff profiles + metadata fields are reused across events of the same year.
   const profilesByYear = new Map<number, Map<string, Doc<"staffProfiles">>>();
   const loadProfiles = async (year: number) => {
     let map = profilesByYear.get(year);
@@ -91,8 +67,6 @@ async function resolveExportEvents(
     }
     return map;
   };
-  // Metadata fields are global; a group only ever exports the metadata it can
-  // see. Loaded once for the whole export.
   const fields = (await ctx.db.query("attendanceMetadata").collect())
     .filter((f) => !f.subgroup || subgroupMatches(f.subgroup, subgroup))
     .sort((a, b) => a.order - b.order);
@@ -114,9 +88,6 @@ async function resolveExportEvents(
       for (const field of fields) {
         const raw = source?.[field._id];
         if (!raw) continue;
-        // Year exports the member's year level *during this event* (e.g. "3"),
-        // resolved against the event's calendar year — matching what the member
-        // card and Edit Member sheet show, not the commencement (start) year.
         const label = formatMetadataFieldValue(
           field.key,
           raw,
@@ -150,8 +121,6 @@ async function resolveExportEvents(
         }
         if (row.memberId) {
           const member = memberById.get(String(row.memberId));
-          // A member whose email belongs to a staff profile this year is shown
-          // (and de-duplicated) as that staff member, mirroring the event screen.
           if (member?.email) {
             const profile = profileFor(member.email);
             if (profile) {
@@ -173,8 +142,6 @@ async function resolveExportEvents(
             signInTime: row.signInTime,
             notes: row.notes,
             metadata: resolveMetadata(member?.metadata),
-            // Prefer email identity when the member has one; otherwise the
-            // member document id — never the display name.
             identityKey: email
               ? `email:${email}`
               : `member:${String(row.memberId)}`,
@@ -186,15 +153,9 @@ async function resolveExportEvents(
           signInTime: row.signInTime,
           notes: row.notes,
           metadata: {},
-          // Unlinked sign-in: unique per attendance row so same-name guests
-          // never collapse into one matrix row.
           identityKey: `row:${String(row._id)}`,
         };
       });
-    // Collapse rows that resolve to the same identity — a person can have both
-    // an `email` and a `memberId` sign-in (legacy/imported data) that resolve
-    // to one profile; export them once (earliest sign-in). Unlinked rows use a
-    // unique `row:` key and never merge.
     const byIdentity = new Map<string, ExportRow>();
     const rows: ExportRow[] = [];
     for (const row of resolvedRows) {
@@ -234,11 +195,6 @@ async function resolveExportEvents(
   return out;
 }
 
-/**
- * Export data for one sub-group: every event it can see (its own plus
- * collaborative events shared with it), optionally narrowed to a date range
- * (by event start) and/or a set of tags. Returns null when not signed in.
- */
 export const eventsForExport = query({
   args: {
     subgroup: v.string(),
@@ -252,13 +208,6 @@ export const eventsForExport = query({
       ? new Set(tagIds.map((id) => String(id)))
       : null;
 
-    // Scoped by date range, not staff year, on purpose: an export may span the
-    // Oct-1 rollover (or several years). Each event still resolves its own
-    // staff/calendar year for profiles and member fields in resolveExportEvents.
-    // The date bounds are applied through the by_dateStart index (not a full
-    // collect + JS filter) so a ranged export only ever reads the rows inside
-    // its window — a whole-history scan grows with every year and heads for the
-    // per-query document-read limit.
     const all = await ctx.db
       .query("events")
       .withIndex("by_dateStart", (q) => {
@@ -283,19 +232,12 @@ export const eventsForExport = query({
   },
 });
 
-/**
- * Export data for a single event (the event page's "Export this event"), with
- * metadata scoped to the event's owning sub-group. Returns null if not signed
- * in or the event is gone.
- */
 export const eventForExport = query({
   args: { eventId: v.id("events"), subgroup: v.optional(v.string()) },
   handler: async (ctx, { eventId, subgroup }) => {
     if (!(await optionalProfile(ctx))) return null;
     const event = await ctx.db.get(eventId);
     if (!event) return null;
-    // Scope metadata to the caller's active sub-group when given (the event
-    // screen passes the one it's viewing); otherwise fall back to the owner.
     const scope = subgroup ?? normalizeSubgroups(event.subgroups)[0] ?? "SOW";
     const [resolved] = await resolveExportEvents(ctx, [event], scope);
     return resolved ? { subgroup: scope, event: resolved } : null;

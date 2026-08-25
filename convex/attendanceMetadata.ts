@@ -34,7 +34,6 @@ const LOCKED_FIELD_KEYS = new Set([
   ROLE_FIELD_KEY,
 ]);
 
-/** A locked token may be a select option id (key) or its display label. */
 const lockedValuePresent = (
   values: Record<string, string>,
   locked: string
@@ -43,7 +42,6 @@ const lockedValuePresent = (
 const nextNumericKey = (values: Record<string, string>): number =>
   Math.max(0, ...Object.keys(values).map(Number).filter(Number.isFinite)) + 1;
 
-/** Add org-sourced labels to a select map, preserving custom entries. */
 const mergeSelectValues = (
   values: Record<string, string>,
   labels: string[]
@@ -60,24 +58,8 @@ const mergeSelectValues = (
   return out;
 };
 
-/**
- * The campus labels that stay locked in the `Campus` field: the union of the
- * previous and current staff years' universities.
- *
- * Locking only the current year would unlock a campus the moment the staff year
- * flips on Oct 1 — a member is very unlikely to leave their university that
- * morning, so the option would stop being org-derived while every member still
- * sat on it. Two years is the whole window: a campus absent for a full year is
- * genuinely gone and should become droppable. `Role` deliberately does NOT
- * union this way (see docs/adr/0003) — retired per-year role names should be
- * droppable, and its locked set already has a static floor in `ROLES`.
- */
 const lockedUniversityNames = async (
   ctx: QueryCtx | MutationCtx,
-  // One snapshot, taken by the caller. `currentStaffYear()` reads the clock, so
-  // two separate calls straddling Sydney midnight on Oct 1 would yield
-  // [year - 2, year] and silently drop the year in between — in the very code
-  // whose job is to be correct across that instant.
   orgYear: number
 ): Promise<string[]> => {
   const rows = await Promise.all(
@@ -91,12 +73,6 @@ const lockedUniversityNames = async (
   return [...new Set(rows.flat().map((u) => u.name))];
 };
 
-/**
- * List the (global) metadata field definitions, ordered. Role select options
- * are kept in sync with the CURRENT staff year's roles; Campus options use the
- * previous + current years' universities so the Oct 1 flip cannot unlock a
- * campus (see `lockedUniversityNames` and docs/adr/0003).
- */
 export const list = query({
   args: { subgroup: v.optional(v.string()) },
   handler: async (ctx, { subgroup }) => {
@@ -142,10 +118,6 @@ export const list = query({
           ...field,
           values,
           subgroup: undefined,
-          // Synced to the previous + current staff years' `universities` —
-          // not the stored snapshot — so the Oct 1 flip does not unlock a
-          // campus out from under the members sitting on it. A campus absent
-          // for a whole year falls out of the union and unlocks then.
           lockedValues: universityNames,
         };
       }
@@ -155,8 +127,6 @@ export const list = query({
           ...field,
           values,
           subgroup: undefined,
-          // Synced to the year's `roles` table (plus the base ROLES) — not the
-          // stored snapshot — so a role removed there is no longer locked here.
           lockedValues: orgRoles,
         };
       }
@@ -165,14 +135,6 @@ export const list = query({
   },
 });
 
-/**
- * Seed the global Year, Gender, Campus, Role fields when none exist yet.
- * Opportunistic: screens any staff can open (Members tab, event wizard) fire
- * this blind on mount, so a caller who may not manage the shared settings is a
- * silent no-op rather than an error — the Convex client logs every server
- * error loudly in dev, and a plain-staff mount is not an error. Mutating the
- * catalogue (saveAll) still requires the manager role outright.
- */
 export const ensureDefaults = mutation({
   args: {},
   handler: async (ctx) => {
@@ -239,7 +201,6 @@ export const ensureDefaults = mutation({
   },
 });
 
-/** Replace all (global) metadata fields (settings editor). */
 export const saveAll = mutation({
   args: {
     fields: v.array(
@@ -288,11 +249,6 @@ export const saveAll = mutation({
       .collect();
     const orgRoles = [...new Set([...ROLES, ...roleRows.map((r) => r.name)])];
 
-    // The canonical select-values for a field, applying the same syncing the
-    // `list` query does on read (Campus/Role fold in the live universities/roles).
-    // Used both when writing and when diffing, so a re-save of an unchanged
-    // Campus/Role field isn't mistaken for an edit just because the stored row
-    // predates a university/role that `list` now merges in.
     const normalizeSelectValues = (
       fieldKey: string,
       raw: Record<string, string>
@@ -307,18 +263,12 @@ export const saveAll = mutation({
               ? mergeSelectValues(raw, orgRoles)
               : raw;
 
-    // Fields whose ONLY change this save is their position. Collected here and
-    // reported as a single reorder event, rather than vague per-field "updates".
     const reorders: { key: string; from: number; to: number }[] = [];
-    // Prior→new order of every field that already existed, to tell a genuine
-    // reorder (the relative sequence changed) from a mere renumber (adding a
-    // field or closing a delete gap shifts absolute orders but not the sequence).
     const persistedOrder: { id: string; from: number; to: number }[] = [];
     const keys = new Set<string>();
     for (const field of fields) {
       const rawKey = field.key.trim();
       if (!rawKey) throw new ConvexError("Every metadata field needs a name.");
-      // Canonicalize reserved key names regardless of input casing.
       const lk = rawKey.toLowerCase();
       const key =
         lk === CAMPUS_FIELD_KEY.toLowerCase() ? CAMPUS_FIELD_KEY :
@@ -346,8 +296,7 @@ export const saveAll = mutation({
           ? [...GENDER_OPTION_IDS, "Male", "Female"]
           : key === STUDENT_YEAR_FIELD_KEY
             ? [...STUDENT_YEAR_LEVELS]
-            : // Campus/Role lock sets are the live universities/roles tables for
-              // this staff year, not the (possibly stale) incoming snapshot.
+            :
               key === "Campus"
           ? universityNames
           : key === "Role"
@@ -368,16 +317,10 @@ export const saveAll = mutation({
         if (!existing) continue;
         persistedOrder.push({ id: field.id, from: existing.order, to: field.order });
         const nextValues = field.type === "select" ? values : undefined;
-        // Diff against the existing values run through the SAME normalisation as
-        // the write, so a synced Campus/Role field re-saved unchanged doesn't
-        // look edited just because its stored snapshot predates a merged label.
         const existingValues =
           existing.type === "select"
             ? normalizeSelectValues(key, { ...(existing.values ?? {}) })
             : undefined;
-        // saveAll rewrites every field on each save; classify what actually
-        // changed so the trail isn't flooded with no-op "updates" and so a pure
-        // reorder reads as a reorder rather than a generic field update.
         const orderChanged = existing.order !== field.order;
         const contentChanged =
           existing.key !== key ||
@@ -404,7 +347,6 @@ export const saveAll = mutation({
                 : `Updated member field "${key}"`,
           });
         } else if (orderChanged) {
-          // Position-only change: defer to one consolidated reorder event below.
           reorders.push({ key, from: existing.order, to: field.order });
         }
       } else {
@@ -425,10 +367,6 @@ export const saveAll = mutation({
       }
     }
 
-    // Only a genuine reorder — the relative sequence of the surviving fields
-    // changed — is logged. Adding a field or deleting one renumbers absolute
-    // orders (the client reindexes to 0..N) without moving anything relative to
-    // the others, and must not spam a "Reordered…" entry.
     const sequenceKey = (by: "from" | "to") =>
       persistedOrder
         .slice()
@@ -437,8 +375,6 @@ export const saveAll = mutation({
         .join(",");
     const relativeOrderChanged = sequenceKey("from") !== sequenceKey("to");
     if (reorders.length && relativeOrderChanged) {
-      // A clean two-field exchange (e.g. moving a field up/down one slot) reads
-      // as a swap; anything larger is a general reorder.
       const isSwap =
         reorders.length === 2 &&
         reorders[0].from === reorders[1].to &&
@@ -457,18 +393,6 @@ export const saveAll = mutation({
   },
 });
 
-/**
- * Collapse any duplicate metadata rows into a single global set — one row per
- * (key, sub-group). Member metadata keys are remapped to the surviving field id;
- * for select fields the stored option ids are remapped BY LABEL, so a member's
- * value keeps its meaning even when two rows numbered their options differently.
- * Idempotent: re-run `npx convex run
- * attendanceMetadata:consolidateAttendanceMetadata` (and --prod) until it reports
- * `merged: 0`.
- *
- * Originally the per-year → global consolidation (it also cleared the now-removed
- * `year` column); kept as an idempotent dedupe safety net.
- */
 export const consolidateAttendanceMetadata = internalMutation({
   args: {},
   handler: async (ctx) => {
@@ -486,7 +410,6 @@ export const consolidateAttendanceMetadata = internalMutation({
     let merged = 0;
 
     for (const group of groups.values()) {
-      // Deterministic survivor: lowest order, then earliest created.
       const sorted = [...group].sort(
         (a, b) => a.order - b.order || a._creationTime - b._creationTime
       );
@@ -512,7 +435,6 @@ export const consolidateAttendanceMetadata = internalMutation({
         const remapOption = (value: string): string => {
           if (loser.type !== "select") return value;
           const label = loser.values?.[value];
-          // No label ⇒ not an option id (e.g. a Year commencement year) — keep.
           return label === undefined ? value : ensureLabel(label);
         };
         for (const member of members) {
@@ -521,12 +443,11 @@ export const consolidateAttendanceMetadata = internalMutation({
           const next = { ...meta };
           const value = next[loser._id];
           delete next[loser._id];
-          // Don't clobber a value already stored under the survivor id.
           if (next[survivor._id] === undefined) {
             next[survivor._id] = remapOption(value);
           }
           await ctx.db.patch(member._id, { metadata: next });
-          member.metadata = next; // keep in sync for later groups
+          member.metadata = next;
         }
         await ctx.db.delete(loser._id);
         merged++;

@@ -12,7 +12,6 @@ const ADMIN = "admin@sow.org.au";
 const asUser = (t: TestConvex<typeof schema>, email: string) =>
   t.withIdentity({ email, subject: email, issuer: "test" });
 
-/** A signed-in identity whose subject resolves to a real users row. */
 const signedIn = (t: TestConvex<typeof schema>, userId: string, email: string) =>
   t.withIdentity({ email, subject: `${userId}|session`, issuer: "test" });
 
@@ -34,7 +33,6 @@ describe("profile.get", () => {
         year: YEAR,
         assignments: [{ role: "Staff", department: "Data and IT" }],
       });
-      // Next year is pre-provisioned but must stay hidden until rollover.
       await ctx.db.insert("staffProfiles", {
         email,
         year: YEAR + 1,
@@ -59,18 +57,14 @@ describe("profile.get", () => {
       await ctx.db.insert("users", { email, localChurch: "Grace Church" });
     });
 
-    // Signed out, asking for a specific person: public.
     const anon = (await t.query(api.profile.get, { email }))!;
     expect(anon.name).toBe("Pat Staff");
     expect(anon.isMe).toBe(false);
     expect(anon.serviceHistory.map((h) => h.year)).toEqual([YEAR]);
-    // The personal church field stays off the public view…
     expect(anon.localChurch).toBeNull();
-    // …but signed-in viewers still see it.
     const viewer = (await asUser(t, ADMIN).query(api.profile.get, { email }))!;
     expect(viewer.localChurch).toBe("Grace Church");
 
-    // The self-profile form (no email) still requires a signed-in caller.
     expect(await t.query(api.profile.get, {})).toBeNull();
   });
 
@@ -78,13 +72,11 @@ describe("profile.get", () => {
     const t = await setup();
     const email = "nav@sow.org.au";
     await t.run(async (ctx) => {
-      // Profile with no name field.
       await ctx.db.insert("staffProfiles", {
         email,
         year: YEAR,
         assignments: [{ role: "Staff", department: "Data and IT" }],
       });
-      // No users row — directory entry is the only name source.
       await ctx.db.insert("directoryUsers", { email, name: "Nav from Directory" });
     });
     const profile = (await asUser(t, email).query(api.profile.get, { email }))!;
@@ -105,14 +97,12 @@ describe("profile.updateChurch", () => {
       await t.run((ctx) => ctx.db.get("users", userId).then((u) => u?.localChurch))
     ).toBe("SOW City");
 
-    // An empty value clears it (the field is removed, not set to "").
     await me.mutation(api.profile.updateChurch, { localChurch: "   " });
     const cleared = await t.run((ctx) =>
       ctx.db.get("users", userId).then((u) => u !== null && "localChurch" in u)
     );
     expect(cleared).toBe(false);
 
-    // A valid user id whose row has since been deleted -> rejected.
     const ghostId = await t.run(async (ctx) => {
       const id = await ctx.db.insert("users", { email: "ghost@sow.org.au" });
       await ctx.db.delete("users", id);
@@ -137,7 +127,6 @@ describe("profile avatars", () => {
     const url = await me.mutation(api.profile.generateAvatarUploadUrl, {});
     expect(typeof url).toBe("string");
 
-    // First avatar.
     const first = await t.run((ctx) =>
       ctx.storage.store(new Blob(["a"], { type: "image/png" }))
     );
@@ -146,8 +135,6 @@ describe("profile avatars", () => {
       await t.run((ctx) => ctx.db.get("users", userId).then((u) => u?.avatarId))
     ).toBe(first);
 
-    // Replacing deletes the old file and stores the new one (covers the
-    // existing-avatar branch).
     const second = await t.run((ctx) =>
       ctx.storage.store(new Blob(["b"], { type: "image/png" }))
     );
@@ -155,7 +142,6 @@ describe("profile avatars", () => {
     expect(
       await t.run((ctx) => ctx.db.get("users", userId).then((u) => u?.avatarId))
     ).toBe(second);
-    // The old file is gone.
     expect(await t.run((ctx) => ctx.storage.getUrl(first))).toBeNull();
   });
 });

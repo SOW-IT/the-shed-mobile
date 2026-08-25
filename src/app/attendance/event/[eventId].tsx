@@ -47,34 +47,14 @@ import {
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 const ROSTER_PAGE_SIZE = 30;
-/** The not-signed-in list starts short; scroll reveals more. */
 const UNSIGNED_PAGE_SIZE = 10;
-/** One AttendanceRow's vertical footprint: the 72px card + its bottom margin. */
 const UNSIGNED_ROW_HEIGHT = 72 + spacing.sm;
-/**
- * Fixed height of the not-signed-in list viewport (it scrolls internally), sized
- * to show exactly three member cards. Kept constant so signing people in/out —
- * which adds/removes rows — never changes the height of the surrounding page,
- * avoiding layout jumps under the list.
- */
 const UNSIGNED_LIST_HEIGHT = UNSIGNED_ROW_HEIGHT * 3;
 
-/**
- * Above this window width the roster switches to a two-column layout — not
- * signed in on the left, signed in on the right, each scrolling independently.
- * Comfortably wider than any iPhone in portrait (≤ 430pt), so it only kicks in
- * on tablets, landscape, and the web/desktop app, where each ~half-width column
- * is still wide enough for a member card. Below it, the single-column stack is
- * unchanged.
- */
 const TWO_COLUMN_MIN_WIDTH = 700;
 
-/** When to drop a row's "newly added" lock — a hair past its entrance grow-in,
- *  derived from the row's own animation duration so the two stay in sync. */
 const NEWLY_ADDED_CLEAR_MS = ATTENDANCE_ROW_ENTER_MS + 40;
 
-/** Subtitle for a roster row. Campus is intentionally left out — the row's
- *  right-hand chip already shows it, so repeating it here is redundant. */
 const memberSubtitle = (member: {
   roles: string[];
   subtitle?: string;
@@ -84,12 +64,6 @@ const memberSubtitle = (member: {
   return undefined;
 };
 
-/** Subtitle for a signed-in row: the sign-in time, then the same
- *  roles/metadata "other information" an unsigned roster row shows, then any
- *  note. `subtitle` here is the metadata line only (listByEvent keeps roles out
- *  of it), so it's combined with the roles line — mirroring how the roster query
- *  builds its subtitle — so the same person reads identically in either list,
- *  just with the time up front. Campus is omitted (shown by the row's chip). */
 const signedInSubtitle = (member: {
   signInTime: number;
   notes?: string;
@@ -109,10 +83,6 @@ const signedInSubtitle = (member: {
     .join(" · ");
 };
 
-/** Rounded people-count chip — reused for the header total and the two section
- *  headers so the "signed in / not signed in" counts share one consistent look.
- *  Takes a contextual label so the header chip (which has no adjacent text)
- *  announces e.g. "12 signed in" rather than a bare number to screen readers. */
 function CountChip({
   count,
   accessibilityLabel,
@@ -140,9 +110,6 @@ export default function EventAttendanceScreen() {
   const t = useAppTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  // This screen is a pushed route with no bottom tab bar, so the footer would
-  // otherwise hug the very bottom edge. Lift it to clear the home indicator and
-  // sit a little higher.
   const footerBottomOffset = insets.bottom + spacing.xl;
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
   const evId = eventId as Id<"events">;
@@ -150,7 +117,6 @@ export default function EventAttendanceScreen() {
   const event = useQuery(api.events.get, { eventId: evId });
   const attendance = useQuery(api.attendance.listByEvent, { eventId: evId });
   const eventSubgroup = event?.subgroups[0];
-  // The roll-call pool is the year's shared staff roster.
   const roster = useQuery(
     api.attendance.roster,
     event ? { year: eventStaffYear(event.dateStart), subgroup: eventSubgroup, eventId: evId } : "skip"
@@ -164,45 +130,24 @@ export default function EventAttendanceScreen() {
   );
   const subgroups = useQuery(api.events.subgroups);
 
-  // Optimistic state: track sign-ins/outs that have been swiped but not yet
-  // confirmed by the Convex query. This keeps total list height constant during
-  // the swipe animation.
   const [optimisticSignedIn, setOptimisticSignedIn] = useState<
     Map<string, NonNullable<typeof roster>[number]>
   >(new Map());
   const [optimisticSignedOut, setOptimisticSignedOut] = useState<Set<string>>(
     new Set()
   );
-  // Keys signed out (reversed) this session, newest-first. Used to pin those
-  // members to the top of the not-signed-in list and keep them there after the
-  // mutation confirms — otherwise the refreshed roster would re-sort them into
-  // their frequency-ranked slot and the row would jump from the top. A key is
-  // dropped once the person is signed back in.
   const [signedOutOrder, setSignedOutOrder] = useState<string[]>([]);
 
-  // Remote animation state: rows changed by another client. We hold them in
-  // their source list with exiting=true while they collapse, and in the
-  // destination list with entering=true while they expand.
   const [remoteSignedIn, setRemoteSignedIn] = useState<Set<string>>(new Set());
-  // Maps key → the removed attendance row, captured from the snapshot before
-  // the server dropped it, so the exiting signed-in row can still render its
-  // collapse (the refreshed server list no longer contains that row).
   const [remoteSignedOut, setRemoteSignedOut] = useState<
     Map<string, NonNullable<typeof attendance>[number]>
   >(new Map());
 
-  // Reveal triggers: incremented when the row above is swiped, so the next
-  // row in the list plays a slide-in animation simultaneously.
   const [revealTriggers, setRevealTriggers] = useState<Map<string, number>>(new Map());
   const triggerReveal = (key: string) =>
     setRevealTriggers((prev) => new Map(prev).set(key, (prev.get(key) ?? 0) + 1));
 
-  // Keys that transitioned from optimistic → real this session. Their real rows
-  // must not re-run the FadeInView entrance since the row was already visible.
   const [suppressFadeIn, setSuppressFadeIn] = useState<Set<string>>(new Set());
-  // Same idea for the not-signed-in list: once a reversed (signed-out) member's
-  // optimistic entrance has confirmed, keep their row wrapped in a plain View so
-  // it doesn't flip to FadeInView and replay a reappear animation.
   const [suppressUnsignedFadeIn, setSuppressUnsignedFadeIn] = useState<Set<string>>(
     new Set()
   );
@@ -225,8 +170,6 @@ export default function EventAttendanceScreen() {
   const [confirmEnableEdit, setConfirmEnableEdit] = useState(false);
   const [unsignedLimit, setUnsignedLimit] = useState(UNSIGNED_PAGE_SIZE);
   const [signedInLimit, setSignedInLimit] = useState(ROSTER_PAGE_SIZE);
-  // High-water marks for nested roster ScrollViews — reset when the event /
-  // search changes so a shorter list isn't blocked by a taller prior one.
   const lastUnsignedEndHeight = useRef(-1);
   const lastSignedInEndHeight = useRef(-1);
 
@@ -235,20 +178,9 @@ export default function EventAttendanceScreen() {
     setEditUnlocked(false);
   }, [event?._id]);
 
-  // Any event — including past years — can be edited; an event that has merely
-  // ended asks for an explicit "Enable editing" tap first to avoid accidental
-  // changes. Members are editable wherever attendance is.
   const pastEvent = event != null && eventHasEnded(event.dateEnd);
-  // On a finished event every change — signing missed people in, signing out a
-  // retroactive add, editing details — is gated behind an explicit "Enable
-  // editing" tap (canEdit). Attendees who were signed in before/during the event
-  // stay locked even then (see canReverseSignIn), so the real roll-call can't be
-  // erased — those rows render greyed-out.
   const canEdit = !pastEvent || editUnlocked;
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  // Split into side-by-side columns when there's room. Both lists are always
-  // present now (the not-signed-in list shows read-only on a locked event too),
-  // so this no longer depends on canEdit. See TWO_COLUMN_MIN_WIDTH.
   const twoColumn = windowWidth >= TWO_COLUMN_MIN_WIDTH;
 
   const closeEdit = () => {
@@ -270,26 +202,16 @@ export default function EventAttendanceScreen() {
     return map;
   }, [attendance]);
 
-  // Track previous signedInKeys to detect remote changes, the prior attendance
-  // snapshot to recover a row the server has already dropped, and whether the
-  // first (initial-load) snapshot has been seeded.
   const prevSignedInKeysRef = useRef<Set<string>>(new Set());
   const prevAttendanceByKeyRef = useRef<
     Map<string, NonNullable<typeof attendance>[number]>
   >(new Map());
   const remoteSyncInitializedRef = useRef(false);
 
-  // Sync optimistic + remote animation state whenever signedInKeys changes.
-  // Reads optimisticSignedIn/Out directly (not via updater) so classification
-  // happens against the snapshot at the moment the query fires — not against
-  // state after a prior updater has already mutated it.
   useEffect(() => {
     const prevByKey = prevAttendanceByKeyRef.current;
     prevAttendanceByKeyRef.current = attendanceByKey;
 
-    // Don't classify the first loaded snapshot as remote changes: once
-    // attendance has loaded, seed the baseline from it and bail, so only later
-    // updates run the remote transfer animations.
     if (!remoteSyncInitializedRef.current) {
       if (attendance === undefined) return;
       remoteSyncInitializedRef.current = true;
@@ -305,8 +227,6 @@ export default function EventAttendanceScreen() {
     const removed = [...prev].filter((k) => !next.has(k));
     if (added.length === 0 && removed.length === 0) return;
 
-    // A person who is signed in is no longer in the not-signed-in list, so drop
-    // them from the top-pin order (covers remote sign-ins and any re-sign-in).
     if (added.length > 0) {
       const addedSet = new Set(added);
       setSignedOutOrder((order) =>
@@ -316,7 +236,6 @@ export default function EventAttendanceScreen() {
       );
     }
 
-    // Classify using the current snapshot of optimistic state.
     const confirmedSignedIn = added.filter((k) => optimisticSignedIn.has(k));
     const genuinelyRemoteSignedIn = added.filter((k) => !optimisticSignedIn.has(k));
     const confirmedSignedOut = removed.filter((k) => optimisticSignedOut.has(k));
@@ -335,8 +254,6 @@ export default function EventAttendanceScreen() {
     if (genuinelyRemoteSignedOut.length > 0)
       setRemoteSignedOut((r) => {
         const n = new Map(r);
-        // Capture the removed row from the prior snapshot; the current server
-        // list no longer has it, so without this the exit row never renders.
         for (const k of genuinelyRemoteSignedOut) {
           const row = prevByKey.get(k);
           if (row) n.set(k, row);
@@ -349,11 +266,6 @@ export default function EventAttendanceScreen() {
   const searchQuery = search.trim().toLowerCase();
   const isSearching = searchQuery.length > 0;
 
-  // Two-column layout needs an explicit height so each column's own ScrollView
-  // scrolls rather than the whole page. A `flex: 1` child of the Screen's
-  // ScrollView isn't bounded (the content can always grow), so instead measure
-  // the columns' on-screen top and take the space down to the bottom — robust to
-  // a taller badge row. `hasFooter` reserves room for the pinned footer button.
   const columnsRef = useRef<View>(null);
   const [columnsHeight, setColumnsHeight] = useState<number>();
   const hasFooter = (isSearching && canEdit) || pastEvent;
@@ -364,11 +276,6 @@ export default function EventAttendanceScreen() {
       setColumnsHeight(h > 120 ? h : undefined);
     });
   }, [windowHeight, insets.bottom, hasFooter]);
-  // The footer is pinned outside the scroll, so toggling it (e.g. starting a
-  // search) doesn't re-fire the columns' onLayout — re-measure here so the
-  // reserved gap tracks the footer and the columns stay bounded above it.
-  // (measureColumns is a no-op when the columns aren't mounted — the ref is null
-  // outside the two-column layout.)
   useEffect(() => {
     measureColumns();
   }, [measureColumns, twoColumn]);
@@ -381,23 +288,15 @@ export default function EventAttendanceScreen() {
     lastSignedInEndHeight.current = -1;
   }, [search, signedInKeys, event?._id]);
 
-  // Signed-in members display newest-first, as returned by the backend.
   const rosterByKey = useMemo(() => {
     const map = new Map<string, NonNullable<typeof roster>[number]>();
     for (const m of roster ?? []) map.set(m.key, m);
     return map;
   }, [roster]);
 
-  // Signed-in members display newest-first, as returned by the backend.
-  // Prepend optimistic/remote sign-ins (entering from height 0). Also retain
-  // remotely signed-out rows (exiting=true) until their collapse completes.
   const signedInList = useMemo(() => {
-    // Entering keys — shown as synthetic rows; suppress their real counterpart
-    // to avoid duplicate keys in the render until the cleanup effect fires.
     const enteringKeys = new Set([...optimisticSignedIn.keys(), ...remoteSignedIn]);
     const real = (attendance ?? []).filter((a) => !enteringKeys.has(personKey(a)));
-    // Exiting rows: the refreshed server list already dropped them, so render
-    // the stored snapshot rows until their collapse animation completes.
     const exitingRows = [...remoteSignedOut.values()];
     const withExiting = exitingRows.length > 0 ? [...exitingRows, ...real] : real;
     if (enteringKeys.size === 0) return withExiting;
@@ -424,16 +323,11 @@ export default function EventAttendanceScreen() {
     return [...pending, ...withExiting];
   }, [attendance, optimisticSignedIn, remoteSignedIn, remoteSignedOut, rosterByKey, evId]);
 
-  // Not-signed-in members. Prepend optimistic/remote sign-outs as entering rows.
-  // Also retain remotely signed-in rows (exiting=true) until their collapse completes.
   const unsignedList = useMemo(() => {
-    // Entering keys — shown as dedicated rows; suppress their real counterpart
-    // to avoid duplicate keys until the cleanup effect fires.
     const enteringKeys = new Set([...optimisticSignedOut, ...remoteSignedOut.keys()]);
     const real = (roster ?? []).filter(
       (m) => !signedInKeys.has(m.key) && !enteringKeys.has(m.key)
     );
-    // Exiting rows: retain in list for their collapse animation.
     const exitingRows = [...remoteSignedIn]
       .map((key) => rosterByKey.get(key))
       .filter((m): m is NonNullable<typeof roster>[number] => m != null);
@@ -443,10 +337,6 @@ export default function EventAttendanceScreen() {
       .filter((m): m is NonNullable<typeof roster>[number] => m != null);
     const combined = enteringKeys.size === 0 ? withExiting : [...pending, ...withExiting];
 
-    // Pin members signed out (reversed) this session to the top, in sign-out
-    // order (newest first). This keeps a just-reversed person where they
-    // optimistically appeared even after the mutation confirms and the roster
-    // re-sorts — so the row never jumps back into its frequency-ranked slot.
     if (signedOutOrder.length === 0) return combined;
     const rank = new Map(signedOutOrder.map((k, i) => [k, i]));
     const pinned: NonNullable<typeof roster> = [];
@@ -456,14 +346,6 @@ export default function EventAttendanceScreen() {
     return [...pinned, ...rest];
   }, [roster, signedInKeys, optimisticSignedOut, remoteSignedIn, remoteSignedOut, rosterByKey, signedOutOrder]);
 
-  // Members that newly appear in the not-signed-in list since the previous
-  // commit. Their card expands its height in (0 → 72) so the list grows
-  // smoothly rather than the new row popping in at full height. The first
-  // population is skipped — FadeInView handles the initial staggered entrance.
-  //
-  // Computed with React's setState-during-render pattern (storing info derived
-  // from the previous render) so the row mounts already knowing it is new,
-  // without reading a ref during render.
   const unsignedKeySig = useMemo(
     () => unsignedList.map((m) => m.key).join(" "),
     [unsignedList]
@@ -472,10 +354,6 @@ export default function EventAttendanceScreen() {
   const [newlyAddedUnsigned, setNewlyAddedUnsigned] = useState<Set<string>>(
     () => new Set()
   );
-  // This screen reuses one instance across events (see the editUnlocked reset
-  // above), so drop the unsigned baseline when the event changes — otherwise the
-  // next event's first resolved roster would diff against the previous event's
-  // signature and flag its rows as newly added (stuck entering/disabled).
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset per-event baseline
     setPrevUnsignedSig(null);
@@ -483,10 +361,6 @@ export default function EventAttendanceScreen() {
     setSignedOutOrder([]);
     setSuppressUnsignedFadeIn(new Set());
   }, [event?._id]);
-  // Wait for the roster to load before seeding the baseline: an empty
-  // loading-render signature ("") would otherwise consume the null sentinel, so
-  // the first real population would diff against "" and flag every row as newly
-  // added — leaving the whole list stuck `entering` (and therefore disabled).
   if (roster !== undefined && prevUnsignedSig !== unsignedKeySig) {
     const prevKeys =
       prevUnsignedSig === null
@@ -500,20 +374,10 @@ export default function EventAttendanceScreen() {
     setNewlyAddedUnsigned(added);
   }
 
-  // The newly-added flag only drives the one-shot entrance animation (and the
-  // brief lock while it plays), so clear it once the animation is done. Without
-  // this, a row that appears and then stays put — e.g. a reversed (signed-out)
-  // member pinned to the top — keeps its `entering`/disabled state forever,
-  // because the list signature never changes again to recompute the set. It
-  // would only unlock on the next list change (such as signing someone else in).
   useEffect(() => {
     if (newlyAddedUnsigned.size === 0) return;
     const keys = newlyAddedUnsigned;
     const timer = setTimeout(() => {
-      // Clearing the flag flips a row's wrapper from View → FadeInView, which
-      // remounts it and would replay the entrance. Suppress every key we clear
-      // (not just locally-reversed ones) so remote sign-outs and backend-created
-      // members keep a stable wrapper and their entrance stays one-shot.
       setSuppressUnsignedFadeIn((s) => {
         const n = new Set(s);
         for (const k of keys) n.add(k);
@@ -524,13 +388,6 @@ export default function EventAttendanceScreen() {
     return () => clearTimeout(timer);
   }, [newlyAddedUnsigned]);
 
-  // While searching, the two lists below are filtered in place by
-  // name/email/subtitle/roles/campus (matching the Members tab's search
-  // surface) — there's no separate "Results" list. An empty query passes
-  // everything through. Roles and campus are matched explicitly because a
-  // signed-in row's subtitle (from listByEvent) is metadata-only, and campus is
-  // kept out of both lists' subtitles (it's on the chip) — so without this a
-  // search like "Macquarie" would match nothing.
   const matchesSearch = useCallback(
     (p: {
       name: string;
@@ -556,12 +413,6 @@ export default function EventAttendanceScreen() {
     [signedInList, isSearching, matchesSearch]
   );
 
-  // Optimistic counts: base server count ± pending swipes, so the pill and
-  // section headers update the moment a swipe commits rather than waiting for
-  // the Convex round-trip to confirm. Only count optimistic entries the server
-  // hasn't reflected yet (sign-ins not yet in attendance, sign-outs still in
-  // it); the cleanup effect clears them a render later, so without this guard
-  // the confirming render briefly double-counts and the pill flickers ±1.
   const pendingSignedIn = [...optimisticSignedIn.keys()].filter(
     (k) => !signedInKeys.has(k)
   ).length;
@@ -578,9 +429,6 @@ export default function EventAttendanceScreen() {
   const hasMoreUnsigned = visibleUnsigned.length < filteredUnsignedList.length;
   const hasMoreSignedIn = visibleSignedIn.length < filteredSignedInList.length;
 
-  // Nested roster ScrollViews (unsigned column / two-column layout) need their
-  // own near-bottom handlers — Screen.onEndReached only covers the outer page
-  // scroll (signed-in list in single-column mode).
   const onUnsignedScroll = useCallback(
     (e: { nativeEvent: { layoutMeasurement: { height: number }; contentOffset: { y: number }; contentSize: { height: number } } }) => {
       const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
@@ -613,7 +461,6 @@ export default function EventAttendanceScreen() {
     },
     [hasMoreSignedIn]
   );
-  // Outer Screen scroll drives signed-in paging in the single-column layout.
   const loadMoreSignedIn = useCallback(() => {
     if (!hasMoreSignedIn) return;
     setSignedInLimit((limit) => limit + ROSTER_PAGE_SIZE);
@@ -633,7 +480,6 @@ export default function EventAttendanceScreen() {
 
   const onSignInStart = (m: NonNullable<typeof roster>[number]) => {
     setOptimisticSignedIn((prev) => new Map(prev).set(m.key, m));
-    // Signing back in removes the person from the not-signed-in list, so unpin.
     setSignedOutOrder((order) =>
       order.includes(m.key) ? order.filter((k) => k !== m.key) : order
     );
@@ -641,9 +487,6 @@ export default function EventAttendanceScreen() {
   const onSignIn = (m: NonNullable<typeof roster>[number]) => {
     if (!canEdit) return;
     hapticSelect();
-    // The optimistic entry only ever clears once the live query confirms it
-    // (see the effect above) — on a rejected mutation nothing else removes
-    // it, so a failure must revert it here or the row shows signed-in forever.
     const onFailure = (e: unknown) => {
       setOptimisticSignedIn((prev) => {
         const next = new Map(prev);
@@ -664,16 +507,12 @@ export default function EventAttendanceScreen() {
     const key = personKey(a);
     if (!key) return;
     setOptimisticSignedOut((prev) => new Set(prev).add(key));
-    // Pin the reversed member to the top of the not-signed-in list and keep them
-    // there after the mutation lands (newest sign-out first).
     setSignedOutOrder((order) => [key, ...order.filter((k) => k !== key)]);
   };
   const onSignOut = (a: NonNullable<typeof attendance>[number]) => {
     if (!canEdit) return;
     hapticSelect();
     const key = personKey(a);
-    // Same revert-on-failure rationale as onSignIn — the optimistic set only
-    // clears once the live query confirms the sign-out.
     const onFailure = (e: unknown) => {
       if (key) {
         setOptimisticSignedOut((prev) => {
@@ -693,8 +532,6 @@ export default function EventAttendanceScreen() {
     setEditOpen(true);
   };
 
-  // Create a brand-new member from the current search text. The sheet opens in
-  // create mode with the name prefilled; on save, onMemberCreated signs them in.
   const openCreateMember = () => {
     if (!canEdit) return;
     hapticSelect();
@@ -708,8 +545,6 @@ export default function EventAttendanceScreen() {
     void signIn({ eventId: evId, memberId }).catch((e) =>
       setToast({ text: errorMessage(e) })
     );
-    // Clear the search so the freshly signed-in member is visible at the top of
-    // the signed-in list rather than hidden behind the search results.
     setSearch("");
   };
 
@@ -726,15 +561,11 @@ export default function EventAttendanceScreen() {
       if (!id && opts.staffEmail) {
         id = await ensureForStaff({
           staffEmail: opts.staffEmail,
-          // Verify the profile against the event's staff year, matching the
-          // roster, so an Oct–Dec event resolves the right year's profile.
           staffYear: event ? eventStaffYear(event.dateStart) : undefined,
         });
       }
       if (id) openMemberEdit(id);
     } catch (e) {
-      // ensureForStaff failed (network, auth expiry, validation) — the edit
-      // sheet never opens, so tell the user instead of failing silently.
       console.error("ensureForStaff failed", e);
       setToast({ text: errorMessage(e) });
     }
@@ -754,8 +585,6 @@ export default function EventAttendanceScreen() {
     else if (a.email) void openEdit({ staffEmail: a.email, attendance: attendanceCtx });
   };
 
-  // Section headers and row lists are extracted so the single-column stack and
-  // the wide two-column layout can share them without duplicating the maps.
   const notSignedInHeader = (
     <View style={[styles.section, styles.sectionHeader]}>
       <Text style={[typography.label, { color: t.muted }]}>Not signed in</Text>
@@ -796,10 +625,6 @@ export default function EventAttendanceScreen() {
             university={m.university}
             roles={m.roles}
             mode="suggested"
-            // The not-signed-in list stays visible on a finished event too (so
-            // you can see who missed it), but read-only until editing is enabled
-            // — greyed and non-interactive, matching the locked signed-in rows.
-            // While editable it's blocked only during its enter/exit animation.
             disabled={isAnimating || !canEdit}
             dimmed={!canEdit}
             entering={isEntering}
@@ -834,10 +659,6 @@ export default function EventAttendanceScreen() {
         const aKey = personKey(a);
         const isSuppressed = suppressFadeIn.has(aKey);
         const nextKey = personKey(visibleSignedIn[index + 1] ?? {});
-        // Key by the stable person key (not _id) so the optimistic
-        // synthetic row and its confirmed real row share one instance —
-        // the mutation landing flips `entering` false without remounting,
-        // so the spawn-in animation never replays.
         const rowKey = aKey || (a._id as string);
         const row = (
           <AttendanceRow
@@ -847,12 +668,6 @@ export default function EventAttendanceScreen() {
             university={a.university}
             roles={a.roles}
             mode="signedIn"
-            // Attendees signed in before/during a finished event are
-            // locked (greyed, never sign-out-able). A retroactive add is
-            // editable once editing is enabled. Both honour canEdit.
-            // `dimmed` greys only genuinely-locked rows; an in-flight
-            // optimistic row is held non-interactive (disabled) without
-            // the grey.
             disabled={
               !canReverseSignIn(event, a.signInTime) || !canEdit || isAnimating
             }
@@ -880,8 +695,6 @@ export default function EventAttendanceScreen() {
     </>
   );
 
-  // Shown in place of the not-signed-in list when it's empty — but not while
-  // searching, where an empty list just reads as "no matches".
   const unsignedEmptyState = isSearching ? null : (
     <Muted>Everyone in the pool is signed in 🎉</Muted>
   );
@@ -892,16 +705,8 @@ export default function EventAttendanceScreen() {
       subtitle="Attendance"
       onBack={() => router.back()}
       toast={toast}
-      // A bit wider than the 720 default so the two-column roster's columns
-      // aren't cramped.
       maxWidth={840}
-      // Index 1 is the member search box (index 0 is the grouped badges/notice
-      // block) — pin it so it stays reachable while the roster scrolls. In the
-      // two-column layout the page itself doesn't scroll (each column does), so
-      // pinning would be a no-op — and it can fight the flex-filled columns, so
-      // it's dropped there.
       stickyHeaderIndices={twoColumn ? undefined : [1]}
-      // Single-column: signed-in list lives in the outer Screen scroll.
       onEndReached={
         !twoColumn && hasMoreSignedIn ? loadMoreSignedIn : undefined
       }
@@ -950,9 +755,6 @@ export default function EventAttendanceScreen() {
       }
       footer={
         isSearching && canEdit ? (
-          // Searching with editing available: offer to create whoever was typed
-          // (and sign them straight in). Takes the footer slot over the past-event
-          // editing toggle, which is still reachable by clearing the search.
           <FooterAction
             title={`Create "${
               search.trim().length > 22
@@ -980,15 +782,8 @@ export default function EventAttendanceScreen() {
         ) : undefined
       }
     >
-      {/* Badges + the past-event notice are grouped into one element so the
-          search box stays at a fixed child index (1) for the page's
-          stickyHeaderIndices, whether or not the notice is showing.
-          collapsable={false} keeps this style-less View in the native tree on
-          Android (otherwise it'd be flattened away, shifting the sticky index). */}
       <View collapsable={false}>
       <View style={styles.badgeRow}>
-        {/* Collab/owner groups on the left, event tags on the right (mirrors
-            the events list's split badge row). */}
         <View style={styles.badgeGroup}>
           {event.subgroups.map((s) => {
             const colour = subgroupColour(s);
@@ -1018,10 +813,6 @@ export default function EventAttendanceScreen() {
 
       </View>
 
-      {/* Search box for the suggested pool. Sticky: pins to the top while the
-          roster scrolls under it. The opaque page-background wrapper masks rows
-          passing behind the rounded pill; paddingTop mirrors the box's bottom
-          spacing so it has some space before the top edge when pinned. */}
       <View style={{ backgroundColor: t.background, paddingTop: spacing.sm }}>
         <View style={[styles.search, { backgroundColor: t.inputBackground }]}>
           <Ionicons name="search" size={16} color={t.faint} />
@@ -1046,13 +837,6 @@ export default function EventAttendanceScreen() {
         </View>
       </View>
 
-      {/* While searching, both lists are filtered in place; counts always show
-          the event total, not the filtered subset. Wide screens (see twoColumn)
-          split the roster into two independently-scrolling columns — not signed
-          in on the left, signed in on the right. Narrow screens stack them, with
-          the not-signed-in list in its own short scroll above the signed-in one.
-          The not-signed-in roster always renders; on a finished event it's
-          read-only (rows greyed out) until "Enable editing". */}
       {twoColumn ? (
         <View
           ref={columnsRef}
@@ -1111,9 +895,6 @@ export default function EventAttendanceScreen() {
             </ScrollView>
           )}
           {signedInHeader}
-          {/* Plain View wrapper so the Screen scroll's outer `gap` doesn't stack
-              on each row's marginBottom — keeps spacing tight, matching the
-              not-signed-in list. */}
           <View>{signedInRows}</View>
         </>
       )}
@@ -1170,7 +951,6 @@ export default function EventAttendanceScreen() {
 }
 
 const styles = StyleSheet.create({
-  // Header right column: actions row on top, event date right-aligned beneath.
   headerMeta: {
     alignItems: "flex-end",
     gap: spacing.xs,
@@ -1205,8 +985,6 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: spacing.sm,
-    // Negative vertical margins trim the scroll's spacing.md gaps above and
-    // below the badge row so it sits closer to the header and the search box.
     marginTop: -spacing.xs,
     marginBottom: -spacing.xs,
   },
@@ -1241,16 +1019,7 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 15 },
   section: { marginTop: spacing.md, marginBottom: spacing.sm },
-  // flexGrow/Shrink 0 pins the viewport to exactly three cards: react-native-web's
-  // ScrollView base style sets flexGrow 1, so when the signed-in list is empty the
-  // page content is short, the Screen's scroll container stretches, and this list
-  // would otherwise grow past its height (showing ~5 cards). Keep it rigid.
   unsignedScroll: { height: UNSIGNED_LIST_HEIGHT, flexGrow: 0, flexShrink: 0 },
-  // Two-column (wide) roster. `flex: 1` fills the space the Screen's scroll
-  // container leaves below the header/search (its contentContainer sets
-  // flexGrow 1, so the columns get a bounded height); each column's inner
-  // ScrollView then scrolls on its own without moving the page or the other
-  // column. minWidth 0 lets the columns shrink evenly instead of overflowing.
   columns: { flexDirection: "row", gap: spacing.md },
   column: { flex: 1, minWidth: 0 },
   columnScroll: { flex: 1 },

@@ -5,16 +5,8 @@ import { FadeInView, stagger } from "@/components/ui";
 import { spacing, useAppTheme } from "@/theme";
 
 const MARK = 40;
-/** Unselected marks fade back so the selected groups read as active. */
 const FADED_OPACITY = 0.35;
 
-/**
- * Group scope selector that mirrors the Events tab's group picker: each group
- * shows its branded logo circle. Selected groups draw a coloured ring and sit
- * at full opacity; unselected groups are dimmed. An optional leading "All"
- * circle is shown for single-select callers (metadata); the Tags picker omits
- * it and instead selects every group by default.
- */
 export function SubgroupScopePicker({
   subgroups,
   isSelected,
@@ -24,7 +16,6 @@ export function SubgroupScopePicker({
   subgroups: string[];
   isSelected: (subgroup: string) => boolean;
   onToggle: (subgroup: string) => void;
-  /** When provided, render a leading "All groups" circle (single-select). */
   allOption?: { selected: boolean; onSelect: () => void };
 }) {
   const t = useAppTheme();
@@ -95,10 +86,6 @@ const styles = StyleSheet.create({
   slot: {
     alignItems: "center",
   },
-  /**
-   * Selection ring hugging the circular mark. The border is always present so
-   * selecting/deselecting only toggles its colour — keeps the layout stable.
-   */
   ring: {
     borderRadius: 999,
     borderWidth: 2.5,
