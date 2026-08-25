@@ -174,8 +174,9 @@ export default function RequestsScreen() {
   const queryYear = isPastYear ? (selectedYear as number) : undefined;
   const pickerYears = requestYears?.all ?? [];
 
-  // Viewing last staff year: its paid requests' receipt files get purged at the
-  // next Oct 1 rollover (the retention cron), so warn before they're gone.
+  // Viewing last staff year: its receipt files are kept until the next Oct 1
+  // (current + previous staff years). Warn before the following rollover
+  // drops them as previous-previous.
   const isPreviousYear =
     isPastYear && selectedYear === (currentYear as number) - 1;
   // Two or more staff years back: a rollover has already run, so those receipt

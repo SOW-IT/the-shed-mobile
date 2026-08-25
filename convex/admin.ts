@@ -32,6 +32,7 @@ import { internalMutation, MutationCtx, mutation, query, QueryCtx } from "./_gen
 import {
   currentStaffYear,
   DELEGATION_QUERY_LIMIT,
+  incomingStaffYear,
   getDepartment,
   getProfile,
   getYearSettings,
@@ -1956,79 +1957,83 @@ export const copyYear = internalMutation({
 });
 
 /**
- * Where the staff-year rollover summary goes. One scheduled send per address
+ * Where the staff-year prefill summary goes. One scheduled send per address
  * rather than a single multi-recipient email: `emails.send` throws on a Resend
  * error, so a single bad address would take the whole summary down with it —
- * and this email is the only receipt anyone gets that the rollover ran.
+ * and this email is the only notice anyone gets that the prefill ran.
  */
-const ROLLOVER_NOTIFY_EMAILS = ["info@sow.org.au", "it@sow.org.au"] as const;
+const PREFILL_NOTIFY_EMAILS = ["info@sow.org.au", "it@sow.org.au"] as const;
+
+const prefillNextStaffYearHandler = async (ctx: MutationCtx) => {
+  const from = incomingStaffYear();
+  const to = from + 1;
+  const recomputeInsights = async () => {
+    await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeAll, {
+      staffYear: from,
+    });
+  };
+  if (await alreadyCopiedFrom(ctx, from, to)) {
+    console.log(
+      `prefillNextStaffYear: skipping — ${to} already copied from ${from}`
+    );
+    await recomputeInsights();
+    return {
+      skipped: true as const,
+      from,
+      to,
+      divisions: 0,
+      departments: 0,
+      universities: 0,
+      roles: 0,
+      profiles: 0,
+      budgetManagers: 0,
+      directorThresholds: 0,
+    };
+  }
+  const counts: CopyYearCounts = await copyYearData(ctx, from, to);
+  const subject = `THE SHED: staff year prefill, ${from} copied to ${to}`;
+  const siteUrl = process.env.SITE_URL ?? process.env.APP_URL ?? "unknown";
+  const body = [
+    `The annual staff-year prefill ran and copied ${from} into ${to}.`,
+    "",
+    "Copied:",
+    `  Divisions:    ${counts.divisions}`,
+    `  Departments:  ${counts.departments}`,
+    `  Universities: ${counts.universities}`,
+    `  Roles:        ${counts.roles}`,
+    `  Staff profiles: ${counts.profiles}`,
+    `  Budget manager: ${counts.budgetManagers === 1 ? "yes" : "none"}`,
+    `  Director threshold: ${counts.directorThresholds === 1 ? "yes" : "none"}`,
+    "",
+    `${to} is now ready to configure in THE SHED as next staff year after ${from}.`,
+    "",
+    `Deployment: ${siteUrl}`,
+  ].join("\n");
+  for (const address of PREFILL_NOTIFY_EMAILS) {
+    await ctx.scheduler.runAfter(0, internal.emails.send, {
+      to: address,
+      subject,
+      body,
+    });
+  }
+  await recomputeInsights();
+  return { skipped: false as const, from, to, ...counts };
+};
 
 /**
- * Oct 1 rollover (cron): on that day the staff year advances, so
- * currentStaffYear() is already next calendar year and nextStaffYear() the one
- * after. Prefills the new next staff year (2 calendar years out) from the new
- * current staff year so admins can start configuring it from a populated copy,
- * then emails IT a summary of what was copied.
- * e.g. firing on 2026-10-01 copies 2027 -> 2028.
- *
- * Idempotent: if this (from, to) pair already recorded completion, returns
- * `{ skipped: true }` without mutating or re-emailing — so a cron retry cannot
- * clobber intentional next-year admin edits. Use copyYear with force:true for
- * an intentional redo.
+ * 21:00 30 Sep cron: copies incoming → incoming+1 (2027 → 2028 around the
+ * 2026-10-01 rollover) and recomputes Insights for the incoming year so the
+ * tab is ready at midnight. Idempotent skip still recomputes Insights.
  */
+export const prefillNextStaffYear = internalMutation({
+  args: {},
+  handler: prefillNextStaffYearHandler,
+});
+
+/** @deprecated Alias for runbooks that still call rollOverStaffYear. */
 export const rollOverStaffYear = internalMutation({
   args: {},
-  handler: async (ctx) => {
-    const from = currentStaffYear();
-    const to = nextStaffYear();
-    if (await alreadyCopiedFrom(ctx, from, to)) {
-      console.log(
-        `rollOverStaffYear: skipping — ${to} already copied from ${from}`
-      );
-      // Still rebuild Insights: the copy may have been done days earlier, but
-      // the clock just flipped and last year's snapshots are now stale.
-      await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeAll, {});
-      return {
-        skipped: true as const,
-        from,
-        to,
-        divisions: 0,
-        departments: 0,
-        universities: 0,
-        roles: 0,
-        profiles: 0,
-        budgetManagers: 0,
-        directorThresholds: 0,
-      };
-    }
-    const counts: CopyYearCounts = await copyYearData(ctx, from, to);
-    const subject = `THE SHED: staff year rollover, ${from} copied to ${to}`;
-    const siteUrl = process.env.SITE_URL ?? process.env.APP_URL ?? "unknown";
-    const body = [
-      `The annual staff-year rollover ran and prefilled ${to} from ${from}.`,
-      "",
-      "Copied:",
-      `  Divisions:    ${counts.divisions}`,
-      `  Departments:  ${counts.departments}`,
-      `  Universities: ${counts.universities}`,
-      `  Roles:        ${counts.roles}`,
-      `  Staff profiles: ${counts.profiles}`,
-      `  Budget manager: ${counts.budgetManagers === 1 ? "yes" : "none"}`,
-      `  Director threshold: ${counts.directorThresholds === 1 ? "yes" : "none"}`,
-      "",
-      `${to} is now the next staff year and ready to configure in THE SHED.`,
-      "",
-      `Deployment: ${siteUrl}`,
-    ].join("\n");
-    for (const to of ROLLOVER_NOTIFY_EMAILS) {
-      await ctx.scheduler.runAfter(0, internal.emails.send, { to, subject, body });
-    }
-    // Insights snapshots are keyed by staff year. The moment the year flips
-    // they all read as "not ready"; kick a full recompute so the 15-minute
-    // dirty cron isn't the only thing standing between leaders and the tab.
-    await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeAll, {});
-    return { skipped: false as const, from, to, ...counts };
-  },
+  handler: prefillNextStaffYearHandler,
 });
 
 /** SOW's organisation structure: division -> departments. */

@@ -6,6 +6,14 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.11.0] — 2026-08-26
+
+### Changed
+- **The 1 October staff-year copy now runs at 9pm the evening before, so Insights is ready at midnight.** The clock still flips the year at Sydney midnight. The job that used to run one minute later, and that people called the rollover, is a prefill: it copies the incoming year into the year after it (on 30 Sep 2026 that is 2027 into 2028) and writes next year's Insights snapshots before anyone opens the tab. A skip no longer re-emails, but it still rebuilds those snapshots. Staff who have not been assigned in the new year can keep using the app until 1 January, not just for a week. Receipt files are kept for the current and previous staff years only: the 1am job after the flip deletes older files (on 1 Oct 2026, everything through 30 Sep 2025). Names stay on the request.
+
+### Documentation
+- **The October 1 contract now names the prefill, auth grace, and receipt retention.** ADR 0003 and the Org / Attendance / Reimbursements glossaries record the two-year-ahead copy, snapshots keyed by staff year, grace until the calendar year catches up, and which receipt files survive the night.
+
 ## [1.10.16] — 2026-08-21
 
 ### Changed

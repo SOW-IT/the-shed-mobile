@@ -20,12 +20,15 @@ import {
   roleNeedsDepartment,
   roleNeedsUniversity,
   rolesNeedUniversity,
+  incomingStaffYear,
   staffYearForDate,
   staffYearStartMs,
+  withinPrefillWindow,
   sydneyCalendarYear,
   stepsForRequest,
   universityColour,
   withinRolloverAuthGrace,
+  withinRolloverRateGrace,
 } from "./flow";
 
 describe("formatAssignment", () => {
@@ -189,17 +192,49 @@ describe("staffYearStartMs", () => {
   });
 });
 
+describe("incomingStaffYear", () => {
+  test("is next before October and current from 1 Oct", () => {
+    expect(incomingStaffYear(new Date("2026-09-30T13:59:00Z"))).toBe(2027);
+    expect(incomingStaffYear(new Date("2026-09-30T14:00:00Z"))).toBe(2027);
+    expect(incomingStaffYear(new Date("2026-06-11T00:00:00Z"))).toBe(2027);
+  });
+});
+
+describe("withinPrefillWindow", () => {
+  test("is 21:00–midnight Sydney on 30 Sep only", () => {
+    // 21:00 Sydney 30 Sep 2026 = 11:00 UTC.
+    expect(withinPrefillWindow(new Date("2026-09-30T10:59:00Z"))).toBe(false);
+    expect(withinPrefillWindow(new Date("2026-09-30T11:00:00Z"))).toBe(true);
+    expect(withinPrefillWindow(new Date("2026-09-30T13:59:00Z"))).toBe(true);
+    expect(withinPrefillWindow(new Date("2026-09-30T14:00:00Z"))).toBe(false);
+  });
+});
+
 describe("withinRolloverAuthGrace", () => {
-  test("is true for the first week after Sydney midnight Oct 1", () => {
+  test("runs from Sydney midnight Oct 1 until Sydney midnight 1 Jan", () => {
     const start = staffYearStartMs(2027);
     expect(withinRolloverAuthGrace(2027, new Date(start))).toBe(true);
-    expect(withinRolloverAuthGrace(2027, new Date(start + 3 * 24 * 60 * 60 * 1000))).toBe(
+    expect(withinRolloverAuthGrace(2027, new Date(start + 8 * 24 * 60 * 60 * 1000))).toBe(
       true
     );
-    expect(withinRolloverAuthGrace(2027, new Date(start + 7 * 24 * 60 * 60 * 1000))).toBe(
+    // 23:59 31 Dec 2026 Sydney = 12:59 UTC 31 Dec (AEDT +11).
+    expect(withinRolloverAuthGrace(2027, new Date("2026-12-31T12:59:00Z"))).toBe(true);
+    // 00:00 1 Jan 2027 Sydney = 13:00 UTC 31 Dec.
+    expect(withinRolloverAuthGrace(2027, new Date("2026-12-31T13:00:00Z"))).toBe(false);
+    expect(withinRolloverAuthGrace(2027, new Date(start - 1))).toBe(false);
+  });
+});
+
+describe("withinRolloverRateGrace", () => {
+  test("is true for the first week after Sydney midnight Oct 1", () => {
+    const start = staffYearStartMs(2027);
+    expect(withinRolloverRateGrace(2027, new Date(start))).toBe(true);
+    expect(withinRolloverRateGrace(2027, new Date(start + 3 * 24 * 60 * 60 * 1000))).toBe(
+      true
+    );
+    expect(withinRolloverRateGrace(2027, new Date(start + 7 * 24 * 60 * 60 * 1000))).toBe(
       false
     );
-    expect(withinRolloverAuthGrace(2027, new Date(start - 1))).toBe(false);
   });
 });
 

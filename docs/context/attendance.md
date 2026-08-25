@@ -41,12 +41,15 @@ options below the locked set but not remove the locked ones. See
 
 **Snapshot**:
 A pre-computed metrics aggregate for one Sub-group and one trailing range,
-keyed by staff year. Insights reads snapshots, never raw attendance.
+keyed by staff year. Current and incoming years may both have rows at once;
+Insights reads the current year only, never raw attendance.
 _Avoid_: aggregate, cache, rollup
 
 **Dirty**:
 A Sub-group whose Snapshot is known stale because a roll-call or event changed.
-A 15-minute cron rebuilds only these; a weekly cron rebuilds everything.
+A 15-minute cron rebuilds only these; a weekly cron rebuilds everything. In
+the hours before rollover, dirty rebuilds both the current year and the
+incoming year so the incoming Snapshot stays honest until the clock flips.
 
 **Needs follow-up**:
 The gentle, explainable list of Members whose attendance has dropped. A

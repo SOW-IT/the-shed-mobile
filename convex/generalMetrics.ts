@@ -5,7 +5,7 @@ import { currentStaffYear } from "./model";
 import {
   eventStaffYear,
   staffYearStartMs,
-  withinRolloverAuthGrace,
+  withinRolloverRateGrace,
 } from "../shared/flow";
 import {
   isOrgWideSubgroup,
@@ -256,12 +256,13 @@ export const staffTrends = query({
     // Upcoming year (pre-assignments) stays off the chart — org chart shows it.
     // Current year is included the moment Oct 1 flips, so last-5y slides
     // forward. Ratios (retention / tenure) still stop at last *complete* year
-    // during the first-week auth grace: a 30%-assigned roster would otherwise
-    // read as ~70% turnover. Weekly averages (below) omit a year until a
-    // meeting exists — zeros aren't an average, while a partial head-count is
-    // a real (if unfinished) roster.
+    // during the first-week *rate* grace (separate from auth grace, which
+    // now runs until 1 Jan): a 30%-assigned roster would otherwise read as
+    // ~70% turnover. Weekly averages (below) omit a year until a meeting
+    // exists — zeros aren't an average, while a partial head-count is a
+    // real (if unfinished) roster.
     const currentYear = currentStaffYear();
-    const latestCompleteYear = withinRolloverAuthGrace(currentYear)
+    const latestCompleteYear = withinRolloverRateGrace(currentYear)
       ? currentYear - 1
       : currentYear;
     const profiles = (await ctx.db.query("staffProfiles").collect()).filter(

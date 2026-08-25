@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
@@ -19,15 +19,16 @@ async function setup() {
   const t = convexTest(schema, modules);
   await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
   const admin = asUser(t, ADMIN);
+  const year = staffYearForDate(new Date());
   await admin.mutation(api.admin.upsertDepartment, {
-    year: YEAR,
+    year,
     name: "Finance",
     division: "Governance",
     headEmail: FIONA,
   });
   await admin.mutation(api.admin.setStaffProfile, {
     email: BELLA,
-    year: YEAR,
+    year,
     roles: ["Staff"],
     department: "Finance",
   });
@@ -1078,8 +1079,46 @@ describe("copyYear", () => {
   });
 });
 
-describe("rollOverStaffYear", () => {
+describe("prefillNextStaffYear", () => {
+  const FROM = 2027;
+  const TO = 2028;
+
+  afterEach(() => vi.useRealTimers());
+
+  const atFlip = () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(staffYearStartMs(FROM) + 60_000));
+  };
+
+  test("before the flip copies incoming → incoming+1, not current → next", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-30T11:00:00Z")); // 21:00 Sydney 30 Sep
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertDivision, { year: 2027, name: "Governance" });
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: 2027,
+      name: "Finance",
+      division: "Governance",
+      headEmail: FIONA,
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: BELLA,
+      year: 2027,
+      roles: ["Staff"],
+      department: "Finance",
+    });
+    await admin.mutation(api.admin.setBudgetManager, { year: 2027, email: BELLA });
+    const counts = await t.mutation(internal.admin.prefillNextStaffYear, {});
+    expect(counts.from).toBe(2027);
+    expect(counts.to).toBe(2028);
+    expect(counts.skipped).toBe(false);
+    if (counts.skipped) throw new Error("unreachable");
+    expect(counts.budgetManagers).toBe(1);
+  });
+
   test("the summary counts source rows, not inserts, when the next year is preconfigured", async () => {
+    atFlip();
     const t = await setup();
     const admin = asUser(t, ADMIN);
     // The destination already holds a university and a role the SOURCE also
@@ -1088,14 +1127,14 @@ describe("rollOverStaffYear", () => {
     // as "the campus list did not carry over" when in fact it was already
     // there. Counts therefore track source rows processed, matching what
     // divisions/departments/profiles have always reported.
-    const [sourceUni] = (await admin.query(api.directory.yearStructure, { year: YEAR }))!
+    const [sourceUni] = (await admin.query(api.directory.yearStructure, { year: FROM }))!
       .universities;
-    await admin.mutation(api.admin.upsertUniversity, { year: YEAR + 1, name: sourceUni });
-    await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Outsource" });
-    await admin.mutation(api.admin.upsertRole, { year: YEAR + 1, name: "Outsource" });
+    await admin.mutation(api.admin.upsertUniversity, { year: TO, name: sourceUni });
+    await admin.mutation(api.admin.upsertRole, { year: FROM, name: "Outsource" });
+    await admin.mutation(api.admin.upsertRole, { year: TO, name: "Outsource" });
 
-    const source = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
-    const counts = await t.mutation(internal.admin.rollOverStaffYear, {});
+    const source = (await admin.query(api.directory.yearStructure, { year: FROM }))!;
+    const counts = await t.mutation(internal.admin.prefillNextStaffYear, {});
     expect(counts.skipped).toBe(false);
     // Exact, not `> 0`: the overlapping rows are the whole point, and a
     // count of "everything except the ones already there" would still be
@@ -1105,30 +1144,31 @@ describe("rollOverStaffYear", () => {
   });
 
   test("prefills the next staff year from the current staff year, keeping its existing data", async () => {
+    atFlip();
     const t = await setup();
     const admin = asUser(t, ADMIN);
     // Assign Director before upserting a custom role — once a roles catalog
     // exists for the year, only catalogued names are assignable.
     await admin.mutation(api.admin.setStaffProfile, {
       email: "director@sow.org.au",
-      year: YEAR,
+      year: FROM,
       roles: ["Director"],
     });
-    await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Outsource" });
-    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
+    await admin.mutation(api.admin.upsertRole, { year: FROM, name: "Outsource" });
+    await admin.mutation(api.admin.setBudgetManager, { year: FROM, email: BELLA });
     // Data already in the next year is kept (non-destructive merge) — a
     // division, a role and a university the source lacks must survive the copy.
-    await admin.mutation(api.admin.upsertDivision, { year: YEAR + 1, name: "Kept Division" });
-    await admin.mutation(api.admin.upsertRole, { year: YEAR + 1, name: "Kept Role" });
-    await admin.mutation(api.admin.upsertUniversity, { year: YEAR + 1, name: "Kept University" });
+    await admin.mutation(api.admin.upsertDivision, { year: TO, name: "Kept Division" });
+    await admin.mutation(api.admin.upsertRole, { year: TO, name: "Kept Role" });
+    await admin.mutation(api.admin.upsertUniversity, { year: TO, name: "Kept University" });
 
-    const counts = await t.mutation(internal.admin.rollOverStaffYear, {});
+    const counts = await t.mutation(internal.admin.prefillNextStaffYear, {});
     expect(counts.skipped).toBe(false);
     if (counts.skipped) throw new Error("unreachable");
     expect(counts.divisions).toBeGreaterThan(0);
     expect(counts.budgetManagers).toBe(1);
 
-    const next = (await admin.query(api.directory.yearStructure, { year: YEAR + 1 }))!;
+    const next = (await admin.query(api.directory.yearStructure, { year: TO }))!;
     expect(next.divisions.map((d) => d.name)).toContain("Governance");
     expect(next.divisions.map((d) => d.name)).toContain("Kept Division");
     expect(next.roles).toContain("Outsource");
@@ -1140,7 +1180,7 @@ describe("rollOverStaffYear", () => {
     const nextSettings = await t.run(async (ctx) =>
       ctx.db
         .query("yearSettings")
-        .withIndex("by_year", (q) => q.eq("year", YEAR + 1))
+        .withIndex("by_year", (q) => q.eq("year", TO))
         .first()
     );
     expect(nextSettings?.directorEmail).toBe("director@sow.org.au");
@@ -1159,7 +1199,7 @@ describe("rollOverStaffYear", () => {
     const email = emails[0];
     expect(email).toBeDefined();
     expect((email!.args[0] as { subject: string }).subject).toContain(
-      `${YEAR} copied to ${YEAR + 1}`
+      `${FROM} copied to ${TO}`
     );
     const emailBody = (email!.args[0] as { body: string }).body;
     expect(emailBody).toContain("Deployment:");
@@ -1174,7 +1214,7 @@ describe("rollOverStaffYear", () => {
 
     // A second run no-ops (idempotent) — does not re-email or overwrite.
     const emailsBefore = scheduled.filter((s) => s.name === "emails:send").length;
-    const again = await t.mutation(internal.admin.rollOverStaffYear, {});
+    const again = await t.mutation(internal.admin.prefillNextStaffYear, {});
     expect(again.skipped).toBe(true);
     const scheduledAfter = await t.run((ctx) =>
       ctx.db.system.query("_scheduled_functions").collect()
@@ -1185,12 +1225,13 @@ describe("rollOverStaffYear", () => {
   });
 
   test("copies the director approval threshold alongside the budget manager", async () => {
+    atFlip();
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
-    await admin.mutation(api.admin.setDirectorThreshold, { year: YEAR, amount: 7500 });
+    await admin.mutation(api.admin.setBudgetManager, { year: FROM, email: BELLA });
+    await admin.mutation(api.admin.setDirectorThreshold, { year: FROM, amount: 7500 });
 
-    const counts = await t.mutation(internal.admin.rollOverStaffYear, {});
+    const counts = await t.mutation(internal.admin.prefillNextStaffYear, {});
     expect(counts.skipped).toBe(false);
     if (counts.skipped) throw new Error("unreachable");
     expect(counts.directorThresholds).toBe(1);
@@ -1198,45 +1239,46 @@ describe("rollOverStaffYear", () => {
     const settings = await t.run(async (ctx) =>
       ctx.db
         .query("yearSettings")
-        .withIndex("by_year", (q) => q.eq("year", YEAR + 1))
+        .withIndex("by_year", (q) => q.eq("year", TO))
         .unique()
     );
     expect(settings?.directorApprovalThreshold).toBe(7500);
-    expect(settings?.rolloverCopiedFrom).toBe(YEAR);
+    expect(settings?.rolloverCopiedFrom).toBe(FROM);
     expect(settings?.rolloverCompletedAt).toEqual(expect.any(Number));
   });
 
   test("survives stray duplicate destination rows instead of aborting the cron", async () => {
+    atFlip();
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
+    await admin.mutation(api.admin.setBudgetManager, { year: FROM, email: BELLA });
     // Transient duplicates in the destination year (mid-import / mid-re-copy)
     // used to make copyYearData's .unique() throw and abort the whole rollover.
     await t.run(async (ctx) => {
       for (let i = 0; i < 2; i++) {
         await ctx.db.insert("divisions", {
-          year: YEAR + 1,
+          year: TO,
           name: "Governance",
         });
         await ctx.db.insert("departments", {
-          year: YEAR + 1,
+          year: TO,
           name: "Finance",
           division: "Governance",
         });
         await ctx.db.insert("staffProfiles", {
           email: BELLA,
-          year: YEAR + 1,
+          year: TO,
           assignments: [{ role: "Staff", department: "Finance" }],
         });
         // Duplicate yearSettings used to abort alreadyCopiedFrom / completion
         // via getYearSettings().unique() — must survive with .first().
         await ctx.db.insert("yearSettings", {
-          year: YEAR + 1,
+          year: TO,
           budgetManagerEmail: BELLA,
         });
       }
     });
-    const counts = await t.mutation(internal.admin.rollOverStaffYear, {});
+    const counts = await t.mutation(internal.admin.prefillNextStaffYear, {});
     expect(counts.skipped).toBe(false);
     if (counts.skipped) throw new Error("unreachable");
     expect(counts.divisions).toBeGreaterThan(0);

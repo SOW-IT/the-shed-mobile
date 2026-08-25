@@ -1,8 +1,10 @@
 import { ConvexError, v } from "convex/values";
 import {
   assignmentsOf,
+  incomingStaffYear,
   roleNeedsUniversity,
   staffYearStartMs,
+  withinPrefillWindow,
 } from "../shared/flow";
 import {
   canonicalSubgroup,
@@ -271,15 +273,15 @@ export const gatherPersons = internalQuery({
  * transaction read limits and leave snapshots missing or stale.
  */
 export const recomputeSubgroup = internalAction({
-  args: { subgroup: v.string() },
+  args: { subgroup: v.string(), staffYear: v.optional(v.number()) },
   returns: v.null(),
-  handler: async (ctx, { subgroup }) => {
+  handler: async (ctx, { subgroup, staffYear }) => {
     // Ack anchor: dirty flags dirtied at/before `startedAt` are cleared once
     // this succeeds; a change landing mid-recompute bumps `since` past it and is
     // reprocessed next cron (see clearDirty / markSubgroupsDirty).
     const startedAt = Date.now();
     const canonical = canonicalSubgroup(subgroup);
-    const year = currentStaffYear();
+    const year = staffYear ?? currentStaffYear();
     const now = startedAt;
     // Load from the EARLIER of the staff-year start and a rolling ~26-week
     // window (hence Math.min), so a single gather serves every range we compute:
@@ -510,11 +512,9 @@ function buildBreakdown(
 
 /**
  * Persist a batch of computed snapshots for one sub-group (from the recompute
- * action). Resilient upsert per (range, collaborative): the
- * `by_subgroup_and_range` index isn't a uniqueness constraint, so racing
- * recomputes (weekly cron + dirty cron + manual refresh) could leave duplicate
- * rows. Collect all matches, patch the first, delete any extras — never
- * `.unique()`, which would throw and break both recompute and later reads.
+ * action). Identity is (subgroup, range, collaborative, staff year) so two
+ * years can sit together across the Oct 1 flip. Racing recomputes of the
+ * same year still collapse to one row — never `.unique()`.
  */
 export const writeSnapshots = internalMutation({
   args: {
@@ -534,11 +534,12 @@ export const writeSnapshots = internalMutation({
     for (const snap of snapshots) {
       const matches = await ctx.db
         .query("attendanceMetricsSnapshots")
-        .withIndex("by_subgroup_and_range", (q) =>
+        .withIndex("by_subgroup_range_year", (q) =>
           q
             .eq("subgroup", subgroup)
             .eq("rangeWeeks", snap.rangeWeeks)
             .eq("includeCollaborative", snap.includeCollaborative)
+            .eq("staffYear", staffYear)
         )
         .collect();
       const doc = {
@@ -584,10 +585,10 @@ export const clearDirty = internalMutation({
  * runs in its own bounded transaction. Also callable to force a full refresh.
  */
 export const recomputeAll = internalMutation({
-  args: {},
+  args: { staffYear: v.optional(v.number()) },
   returns: v.null(),
-  handler: async (ctx) => {
-    const year = currentStaffYear();
+  handler: async (ctx, args) => {
+    const year = args.staffYear ?? currentStaffYear();
     const universities = await ctx.db
       .query("universities")
       .withIndex("by_year_and_name", (q) => q.eq("year", year))
@@ -596,6 +597,7 @@ export const recomputeAll = internalMutation({
     for (const subgroup of subgroups) {
       await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeSubgroup, {
         subgroup,
+        staffYear: year,
       });
     }
     return null;
@@ -621,45 +623,51 @@ export const recomputeDirty = internalMutation({
     // the next run instead of being silently dropped here.
     const targets = new Set(dirty.map((r) => r.subgroup));
 
+    const years = [currentStaffYear()];
+    if (withinPrefillWindow()) {
+      const incoming = incomingStaffYear();
+      if (!years.includes(incoming)) years.push(incoming);
+    }
+
     // Stale-year / missing snapshots: the 15-minute cron is the recovery path
     // so the tab doesn't stay "not ready" until Thursday after Oct 1 (or after
-    // a new campus / range preset lands).
-    const year = currentStaffYear();
-    const universities = await ctx.db
-      .query("universities")
-      .withIndex("by_year_and_name", (q) => q.eq("year", year))
-      .collect();
-    const expected = [SOW_SUBGROUP, ...universities.map((u) => u.name)].map(
-      canonicalSubgroup
-    );
+    // a new campus / range preset lands). During the 21:00–midnight prefill
+    // window also heal the incoming year so evening sign-ins land on both.
     const snapshots = await ctx.db.query("attendanceMetricsSnapshots").collect();
-    // A group is only "ready" when every preset × collaborative variant
-    // exists for this staff year. One leftover 4-week row must not hide a
-    // missing Past year (52) snapshot after a range-preset change or a
-    // partial recompute.
-    const currentYearReady = new Set<string>();
-    for (const row of snapshots) {
-      if (row.staffYear === year) {
-        currentYearReady.add(
-          `${row.subgroup}\0${row.rangeWeeks}\0${row.includeCollaborative}`
-        );
-      }
-    }
-    for (const subgroup of expected) {
-      const complete = ALL_RANGES.every((rangeWeeks) =>
-        COLLAB_VARIANTS.every((includeCollaborative) =>
-          currentYearReady.has(
-            `${subgroup}\0${rangeWeeks}\0${includeCollaborative}`
-          )
-        )
+    for (const year of years) {
+      const universities = await ctx.db
+        .query("universities")
+        .withIndex("by_year_and_name", (q) => q.eq("year", year))
+        .collect();
+      const expected = [SOW_SUBGROUP, ...universities.map((u) => u.name)].map(
+        canonicalSubgroup
       );
-      if (!complete) targets.add(subgroup);
+      const yearReady = new Set<string>();
+      for (const row of snapshots) {
+        if (row.staffYear === year) {
+          yearReady.add(
+            `${row.subgroup}\0${row.rangeWeeks}\0${row.includeCollaborative}`
+          );
+        }
+      }
+      for (const subgroup of expected) {
+        const complete = ALL_RANGES.every((rangeWeeks) =>
+          COLLAB_VARIANTS.every((includeCollaborative) =>
+            yearReady.has(`${subgroup}\0${rangeWeeks}\0${includeCollaborative}`)
+          )
+        );
+        if (!complete) targets.add(subgroup);
+      }
     }
 
     for (const subgroup of targets) {
-      await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeSubgroup, {
-        subgroup,
-      });
+      for (const year of years) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.attendanceMetrics.recomputeSubgroup,
+          { subgroup, staffYear: year }
+        );
+      }
     }
     return null;
   },
@@ -690,13 +698,15 @@ export const snapshot = query({
   ),
   handler: async (ctx, { subgroup, rangeWeeks, includeCollaborative = true }) => {
     if (!(await optionalProfile(ctx))) return null;
+    const year = currentStaffYear();
     const rows = await ctx.db
       .query("attendanceMetricsSnapshots")
-      .withIndex("by_subgroup_and_range", (q) =>
+      .withIndex("by_subgroup_range_year", (q) =>
         q
           .eq("subgroup", canonicalSubgroup(subgroup))
           .eq("rangeWeeks", rangeWeeks)
           .eq("includeCollaborative", includeCollaborative)
+          .eq("staffYear", year)
       )
       .collect();
     if (rows.length === 0) return null;
@@ -704,12 +714,6 @@ export const snapshot = query({
     // constraint; see writeSnapshots): take the newest rather than `.unique()`,
     // which would throw and take down the Insights tab.
     const row = rows.reduce((a, b) => (b.computedAt > a.computedAt ? b : a));
-    // Snapshots are keyed by (subgroup, range, collaborative) but not by staff
-    // year, so a row computed before the Oct 1 rollover would otherwise linger
-    // and show last year's aggregates until the next recompute. Treat a
-    // stale-year snapshot as "not ready" (null) so the UI prompts a refresh
-    // rather than presenting outdated numbers.
-    if (row.staffYear !== currentStaffYear()) return null;
     return {
       subgroup: row.subgroup,
       rangeWeeks: row.rangeWeeks,
@@ -846,16 +850,16 @@ export const campusWeeklyAverages = query({
       universities.map(async (uni) => {
         const rows = await ctx.db
           .query("attendanceMetricsSnapshots")
-          .withIndex("by_subgroup_and_range", (q) =>
+          .withIndex("by_subgroup_range_year", (q) =>
             q
               .eq("subgroup", canonicalSubgroup(uni.name))
               .eq("rangeWeeks", rangeWeeks)
               .eq("includeCollaborative", includeCollaborative)
+              .eq("staffYear", year)
           )
           .collect();
         if (rows.length === 0) return null;
         const row = rows.reduce((a, b) => (b.computedAt > a.computedAt ? b : a));
-        if (row.staffYear !== year) return null;
         const avg = row.data.summary.avgWeeklyAttendance;
         return avg === null ? null : { campus: uni.name, avgWeekly: avg };
       })
@@ -908,6 +912,7 @@ export const recomputeNow = mutation({
       }
       await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeSubgroup, {
         subgroup: canonical,
+        staffYear: currentStaffYear(),
       });
     } else {
       await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeAll, {});

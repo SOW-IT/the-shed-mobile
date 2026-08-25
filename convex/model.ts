@@ -8,6 +8,7 @@ import {
   FINANCE,
   roleNeedsUniversity,
   rolesOfLike,
+  incomingStaffYear as incomingStaffYearForDate,
   staffYearForDate,
   withinRolloverAuthGrace,
 } from "../shared/flow";
@@ -27,6 +28,7 @@ export const DELEGATION_QUERY_LIMIT = 500;
 
 export const currentStaffYear = () => staffYearForDate(new Date());
 export const nextStaffYear = () => currentStaffYear() + 1;
+export const incomingStaffYear = () => incomingStaffYearForDate(new Date());
 
 /**
  * The organisation's Google Workspace domain (staff accounts). Personal
@@ -69,13 +71,10 @@ export async function requireEmail(ctx: Ctx): Promise<string> {
 }
 
 /**
- * Resolve the caller's staff profile for the live staff year, with a short
- * post-Oct-1 grace: if the new year has no profile yet but the previous year
- * does, and we're still inside `withinRolloverAuthGrace`, reuse the previous
- * profile while keeping `year` as the *current* staff year. That way the app
- * stays usable for ~a week after rollover (approve carry-overs, browse Admin)
- * while admins finish provisioning, without writing new requests into the old
- * year.
+ * Resolve the caller's staff profile for the live staff year, with auth grace
+ * until the calendar year catches up (1 Jan): if the new year has no profile
+ * yet but the previous year does, reuse the previous profile while keeping
+ * `year` as the *current* staff year. New requests land in the new year.
  */
 async function profileForCurrentYear(
   ctx: Ctx,

@@ -20,10 +20,12 @@ changing anything seasonal — the October 1 staff-year rollover in particular
   Budget Manager's own, Director's own ≥ $5k, Finance Head's own; Finance
   department requests have no HOD step).
 - **Per-year roles and departments** (`staffProfiles`, `departments`,
-  `divisions`, keyed by year). The staff year rolls over on **October 1**:
-  admins can prepare the next year in advance and it takes effect
-  automatically. In-flight requests **carry over** the rollover — they stay
-  visible and are approved/paid by the approvers of the request's own year.
+  `divisions`, keyed by year). The staff year rolls over on **October 1**.
+  Admins prepare next year in advance; a 21:00 30 Sep prefill copies the
+  incoming year into the one after it so next is never blank. In-flight
+  requests **carry over** the rollover — they stay visible and are
+  approved/paid by the approvers of the request's own year. Receipt files
+  are kept for the current and previous staff years.
   Roles: Staff, Head of Department, **Head of Division** (belongs directly to
   a division rather than a department; no HOD above them), Director.
 - **Deadlock prevention**: submitting is rejected with a clear message while

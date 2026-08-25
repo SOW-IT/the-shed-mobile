@@ -12,7 +12,7 @@ afterEach(() => {
 });
 
 describe("post-rollover auth grace", () => {
-  test("requireProfile falls back to the previous-year profile for the first week", async () => {
+  test("requireProfile falls back to the previous-year profile after Oct 1", async () => {
     // Staff year 2027 begins at Sydney midnight Oct 1 2026 (= Sep 30 14:00 UTC).
     const start = staffYearStartMs(2027);
     vi.useFakeTimers();
@@ -49,10 +49,10 @@ describe("post-rollover auth grace", () => {
     expect(me!.profile).not.toBeNull();
   });
 
-  test("directory.me has no profile after the grace window without a new-year row", async () => {
+  test("directory.me still has a profile 8 days in without a new-year row", async () => {
     const start = staffYearStartMs(2027);
     vi.useFakeTimers();
-    vi.setSystemTime(new Date(start + 8 * 24 * 60 * 60 * 1000)); // 8 days in
+    vi.setSystemTime(new Date(start + 8 * 24 * 60 * 60 * 1000));
 
     const t = convexTest(schema, modules);
     const email = "late@sow.org.au";
@@ -67,7 +67,28 @@ describe("post-rollover auth grace", () => {
     const me = await t
       .withIdentity({ email, subject: email, issuer: "test" })
       .query(api.directory.me, {});
-    // Outside the grace window with no 2027 profile → signed in but unprovisioned.
+    expect(me).not.toBeNull();
+    expect(me!.year).toBe(2027);
+    expect(me!.profile).not.toBeNull();
+  });
+
+  test("directory.me has no profile after 1 Jan without a new-year row", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-12-31T13:00:00Z")); // Sydney midnight 1 Jan 2027
+
+    const t = convexTest(schema, modules);
+    const email = "late@sow.org.au";
+    await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email,
+        year: 2026,
+        assignments: [{ role: "Staff", department: "Finance" }],
+      });
+    });
+
+    const me = await t
+      .withIdentity({ email, subject: email, issuer: "test" })
+      .query(api.directory.me, {});
     expect(me).not.toBeNull();
     expect(me!.year).toBe(2027);
     expect(me!.profile).toBeNull();
