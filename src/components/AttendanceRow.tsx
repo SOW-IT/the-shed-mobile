@@ -15,43 +15,14 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
-/**
- * A roll-call row with direction-based swipe gestures (time-to-rollcall style).
- * A horizontal drag anywhere on the card acts; the side is chosen by the drag
- * DIRECTION rather than where the finger landed, so the whole card is swipeable.
- * A vertical drag fails the pan first (see failOffsetY below) so it falls through
- * to the surrounding list scroll instead of dragging the card:
- *
- *  - Drag LEFT → primary action (sign in / sign out). Reveals the arrow; past the
- *    commit distance (or a fast fling) the row flings off and `onAction` fires. A
- *    shorter drag — or a tap on the right third — snaps open to the arrow preview
- *    (visual only); only a full drag or fling commits.
- *  - Drag RIGHT → edit. Reveals the pencil; a full swipe (or tapping the revealed
- *    strip) opens the edit modal. A tap on the left third snaps open the pencil
- *    preview.
- *
- * Tapping the card while a preview is open closes it; a tap in the middle third
- * does nothing.
- */
-
-/** Minimum drag (px) before snapping to the revealed affordance. */
 const REVEAL_THRESHOLD = 47;
-/** How far the row snaps when revealing an action without committing. */
 const SNAP_POSITION = 47;
-/** Extra distance credited when already snapped open (easier to commit). */
 const REVEALED_BONUS = 80;
 const FRESH_BONUS = 20;
-/** px/ms — matches time-to-rollcall velocity threshold (1.2). */
 const VELOCITY_COMMIT = 1200;
 
-/** Snap / reset duration — matches time-to-rollcall (0.3s). */
 const SLIDE_MS = 280;
 
-/**
- * Duration of a row's entrance (height/opacity grow-in). Exported so callers
- * that gate on the entrance finishing — e.g. clearing a "newly added" flag in
- * the roster screen — stay in sync with this value instead of hard-coding it.
- */
 export const ATTENDANCE_ROW_ENTER_MS = 200;
 const slideTo = (toValue: number) => {
   "worklet";
@@ -72,39 +43,16 @@ export interface AttendanceRowProps {
   university?: string;
   roles?: string[];
   mode: AttendanceRowMode;
-  /** When true, swipes and taps do not fire actions (past event, editing locked). */
   disabled?: boolean;
-  /**
-   * Greys the card out (reduced opacity). Kept separate from `disabled` so a row
-   * can be made non-interactive — e.g. while its optimistic sign-in/out mutation
-   * is in flight — without dimming it. Locked rows (past-event attendees, editing
-   * disabled) pass both.
-   */
   dimmed?: boolean;
-  /**
-   * Disables only the primary (sign in/out) gesture while leaving edit usable —
-   * e.g. a protected attendee on a past event who may be relabelled but not
-   * signed out. The right-side swipe/tap falls through to scroll.
-   */
   actionDisabled?: boolean;
-  /** Sign in / sign out — fired after a left swipe (or tap). */
   onAction: () => void;
-  /** Fired the moment a left swipe commits (before the collapse animation completes). */
   onActionStart?: () => void;
-  /** Member edit — fired after a right swipe past the commit distance. Row stays in the list. */
   onEdit?: () => void;
-  /** Blue-tinted card background (e.g. signed-in member visible while searching). */
   highlightSignedIn?: boolean;
-  /** When true, row enters from height 0 → 72 on mount (for optimistic list insertion). */
   entering?: boolean;
-  /** When set to true after mount, collapses the row and calls onExited when done. */
   exiting?: boolean;
-  /** Called after the exit collapse animation completes. */
   onExited?: () => void;
-  /**
-   * Increment to trigger an expand animation on an already-mounted row
-   * (used when the row above is swiped away and this one needs to slide in).
-   */
   revealTrigger?: number;
 }
 
@@ -129,11 +77,6 @@ function AttendanceRowBase({
 }: AttendanceRowProps) {
   const t = useAppTheme();
   const { width: screenWidth } = useWindowDimensions();
-  // The card's ACTUAL laid-out width — measured, not derived from the window.
-  // In the two-column / grid layouts a card is far narrower than the window, so
-  // a window-based width mis-sized the tap-reveal thirds (the right-third
-  // sign-in strip shrank to the far edge) and the swipe commit distance. Falls
-  // back to the full-content width for the first frame before onLayout fires.
   const [measuredWidth, setMeasuredWidth] = useState(0);
   const rowWidth = measuredWidth || Math.min(screenWidth, 720) - spacing.lg * 2;
   const commitDistance = rowWidth / 2;
@@ -155,13 +98,6 @@ function AttendanceRowBase({
   const editSnapped = useSharedValue(false);
   const primarySnapped = useSharedValue(false);
   const [snapVisual, setSnapVisual] = useState<SnapVisual>("closed");
-  // Web only: while a horizontal swipe is actively dragging the card, flip the
-  // card's CSS touch-action from "pan-y" to "none" so the browser stops
-  // co-scrolling the list vertically for the rest of that gesture — a move can
-  // either swipe the card OR scroll the list, never both. A move that begins
-  // vertically fails the pan first (failOffsetY) and never activates it, so it
-  // still falls through to scroll. No-op on native, where an activated pan
-  // already blocks the surrounding scroll.
   const [scrollLocked, setScrollLocked] = useState(false);
 
   /* eslint-disable react-hooks/immutability -- these are Reanimated shared
@@ -203,13 +139,6 @@ function AttendanceRowBase({
     primarySnapped.value = false;
     runOnJS(setSnapClosed)();
     if (onActionStart) runOnJS(onActionStart)();
-    // Fire the action at commit time, NOT from the animation's completion
-    // callback: the collapse below is presentation only. Gating the action on
-    // `done` silently dropped it whenever the 200ms animation was interrupted —
-    // the row unmounting mid-collapse (a concurrent sign-out prepending to the
-    // list and pushing this row past the pagination slice, or the search text
-    // changing) meant the mutation was never sent while the caller's optimistic
-    // entry stayed forever, showing a sign-in that never reached the server.
     runOnJS(onAction)();
     translateX.value = withTiming(-rowWidth, { duration: 180 });
     opacity.value = withTiming(0, { duration: 180 });
@@ -244,12 +173,6 @@ function AttendanceRowBase({
     translateX.value = slideTo(0);
   };
 
-  // Commit the primary action by tapping its revealed arrow — the click/touch
-  // equivalent of swiping it off. Reuses flingPrimary so the row leaves the list
-  // with the same fling-off-and-collapse as a committed swipe. Without this,
-  // tapping the arrow had no hit target and only a swipe could sign a member
-  // in/out. flingPrimary is a worklet; calling it here runs it on the JS thread,
-  // where its `.value` writes and runOnJS callbacks all work the same.
   const onPrimaryStripPress = () => {
     if (actionDisabled) return;
     flingPrimary();
@@ -257,25 +180,12 @@ function AttendanceRowBase({
 
   const pan = Gesture.Pan()
     .enabled(!disabled)
-    // Declarative activation (vs. manualActivation + onTouchesDown/Move): the
-    // row only captures the touch for a clearly horizontal drag (past 16px on
-    // X). A vertical drag fails the pan first (at 10px on Y) so the touch falls
-    // through to the surrounding scroll views — the inner not-signed-in list
-    // first, then the page once it reaches its end. failOffsetY is intentionally
-    // tighter than activeOffsetX so a near-vertical (slightly diagonal) scroll
-    // releases instead of being swallowed — so a vertical scroll started
-    // anywhere on a card falls through to the list. The low-level touch-event
-    // APIs aren't supported on react-native-gesture-handler's web backend, so
-    // the direction gating below lives in onUpdate/onEnd — which run on web too.
     .activeOffsetX([-16, 16])
     .failOffsetY([-10, 10])
     .onBegin(() => {
       startX.value = translateX.value;
     })
     .onStart(() => {
-      // The pan only activates past activeOffsetX — i.e. a clearly horizontal
-      // drag — so from here this gesture owns the move. Lock out vertical scroll
-      // (web; see scrollLocked) for the remainder of the gesture.
       runOnJS(setScrollLocked)(true);
     })
     .onFinalize(() => {
@@ -283,9 +193,6 @@ function AttendanceRowBase({
     })
     .onUpdate((e) => {
       const next = startX.value + e.translationX;
-      // An already-open card can be dragged from anywhere on it so the whole
-      // card swipes back to closed (or on to commit). It stays on its own side
-      // (clamped to one side of 0).
       if (primarySnapped.value) {
         translateX.value = Math.max(-rowWidth, Math.min(0, next));
         return;
@@ -294,13 +201,6 @@ function AttendanceRowBase({
         translateX.value = Math.min(rowWidth, Math.max(0, next));
         return;
       }
-      // Closed: the side follows the drag DIRECTION, not where the finger
-      // landed, so the card is swipeable from anywhere. A leftward drag reveals
-      // the primary action; a rightward drag reveals edit. A disabled side
-      // (left-drag with actionDisabled, right-drag with no onEdit) stays put.
-      // A disabled side snaps back to 0 rather than holding its last offset, so
-      // reversing direction past the origin into the disabled side cancels the
-      // drag instead of leaving the card stuck open on the just-dragged side.
       if (next < 0) {
         translateX.value = actionDisabled ? 0 : Math.max(-rowWidth, next);
       } else if (next > 0) {
@@ -314,9 +214,6 @@ function AttendanceRowBase({
       const leftDrag = -x;
       const rightDrag = x;
 
-      // Already open: a swipe from anywhere on the card commits if pushed on,
-      // closes if dragged back past the halfway point (or flung back), else
-      // re-snaps to the open preview.
       if (primarySnapped.value) {
         if (leftDrag + REVEALED_BONUS > commitDistance || e.velocityX < -VELOCITY_COMMIT) {
           flingPrimary();
@@ -342,8 +239,6 @@ function AttendanceRowBase({
         return;
       }
 
-      // Closed: commit by the resulting drag direction. A leftward drag drives
-      // the primary action; a rightward drag drives edit.
       if (x < 0 && !actionDisabled) {
         if (leftDrag + FRESH_BONUS > commitDistance || e.velocityX < -VELOCITY_COMMIT) {
           flingPrimary();
@@ -384,14 +279,10 @@ function AttendanceRowBase({
     .maxDistance(8)
     .onEnd((e, success) => {
       if (!success || disabled) return;
-      // A tap with a preview already open just closes it.
       if (editSnapped.value || primarySnapped.value) {
         resetSnap();
         return;
       }
-      // Otherwise a tap in an outer third pops open that side's preview: the
-      // right third reveals the arrow, the left third reveals the pencil. The
-      // middle third does nothing.
       const third = rowWidth / 3;
       if (e.x > rowWidth - third && !actionDisabled) {
         primarySnapped.value = true;
@@ -438,7 +329,6 @@ function AttendanceRowBase({
     <Animated.View
       style={[styles.container, containerStyle, dimmed && styles.disabled]}
     >
-      {/* Edit — revealed when swiping right */}
       <Animated.View
         pointerEvents="none"
         style={[
@@ -453,7 +343,6 @@ function AttendanceRowBase({
         <Ionicons name="pencil" size={22} color="#fff" />
       </Animated.View>
 
-      {/* Sign in / out — revealed when swiping left */}
       <Animated.View
         pointerEvents="none"
         style={[
@@ -486,16 +375,6 @@ function AttendanceRowBase({
         />
       ) : null}
 
-      {/* touchAction (web only): react-native-gesture-handler's web backend
-          sets the card's CSS touch-action to "none" by default, which tells the
-          browser not to scroll when a touch starts on the card — so a vertical
-          drag begun on a card was swallowed and the list never scrolled
-          (failOffsetY can't help once the browser is told not to scroll). "pan-y"
-          hands vertical panning back to the browser (native list scroll) while
-          the handler still owns horizontal swipes. Once a horizontal swipe
-          activates (onStart → scrollLocked) we switch back to "none" so the
-          browser stops co-scrolling the list for the rest of that gesture — the
-          move swipes the card OR scrolls, never both. No-op on native. */}
       <GestureDetector gesture={composed} touchAction={scrollLocked ? "none" : "pan-y"}>
         <Animated.View
           accessibilityRole="button"

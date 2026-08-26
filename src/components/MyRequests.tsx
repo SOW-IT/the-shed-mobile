@@ -48,7 +48,6 @@ export type RequestPrefill = {
   department: string;
 };
 
-/** Walkthrough steps; the Director cutoff is the year's configured threshold. */
 const buildGuideSteps = (directorThreshold: number) => [
   {
     icon: "create-outline" as const,
@@ -94,7 +93,6 @@ export const GuideSheet = ({
 }: {
   visible: boolean;
   onClose: () => void;
-  /** The live year's Director-approval cutoff; defaults to the standard $5,000. */
   directorThreshold?: number;
 }) => {
   const t = useAppTheme();
@@ -129,9 +127,7 @@ const NewRequestSheet = ({
   onClose: () => void;
   departments: string[];
   defaultDepartment: string;
-  /** Set when resubmitting a declined request — pre-fills the form. */
   prefill: RequestPrefill | null;
-  /** The year's Director-approval cutoff, for the inline hint. */
   directorThreshold: number;
 }) => {
   const submit = useMutation(api.requests.submit);
@@ -140,11 +136,6 @@ const NewRequestSheet = ({
   const [department, setDepartment] = useState(defaultDepartment);
   const [error, setError] = useState<string | null>(null);
 
-  // Apply a resubmit prefill when one arrives (its identity changes). The plain
-  // "Make Request" path passes prefill=null and deliberately leaves any
-  // in-progress draft untouched — so cancelling the sheet and reopening it keeps
-  // whatever was typed (description / amount / department) exactly as it was
-  // left. The draft is only cleared after a successful submit.
   useEffect(() => {
     if (!prefill) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- load resubmit prefill
@@ -153,8 +144,6 @@ const NewRequestSheet = ({
     setDepartment(prefill.department);
   }, [prefill]);
 
-  // Adopt the default department once it resolves, without clobbering a value the
-  // user (or a prefill) already chose.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- late default adoption
     if (department === "" && defaultDepartment !== "") setDepartment(defaultDepartment);
@@ -162,12 +151,6 @@ const NewRequestSheet = ({
 
   const handleSubmit = async () => {
     setError(null);
-    // Validate client-side first (mirroring convex/requests.ts:submit) so an
-    // empty/zero field shows its message inline without a server round-trip —
-    // which would throw a ConvexError and surface a red dev-overlay on every
-    // invalid attempt. Report in on-screen field order (Description, Amount,
-    // Department) so a blank form flags the first field the user sees rather
-    // than masking the description error behind the default-zero amount error.
     if (description.trim() === "") {
       setError("Please describe what the request is for.");
       return;
@@ -194,8 +177,6 @@ const NewRequestSheet = ({
   return (
     <Sheet
       visible={visible}
-      // Cancelling (footer Cancel, header X, backdrop, swipe) just closes — the
-      // draft is kept in state for next time, no discard confirmation.
       onClose={onClose}
       title="New Request"
       footer={
@@ -235,8 +216,6 @@ const NewRequestSheet = ({
 
 type DraftFile = { storageId: Id<"_storage">; name: string };
 type DraftRecipient = {
-  /** Stable per-session id used as the list key, so a recipient's inputs stay
-   *  put when rows are added or removed. */
   id: string;
   accountName: string;
   bsb: string;
@@ -265,10 +244,6 @@ type SavedAccount = {
   preferred: boolean;
 };
 
-/**
- * Tappable chips of the caller's previously-used bank accounts. Tapping one
- * fills the recipient's account fields; the × forgets it.
- */
 const SavedAccountPicker = ({
   accounts,
   onPick,
@@ -318,7 +293,6 @@ const SavedAccountPicker = ({
   );
 };
 
-/** Shows a "Save for future use" toggle only when the account isn't already saved. */
 const SaveAccountToggle = ({
   recipient,
   savedAccounts,
@@ -329,7 +303,6 @@ const SaveAccountToggle = ({
   onToggle: (save: boolean) => void;
 }) => {
   const t = useAppTheme();
-  // Don't show if bsb+accountNumber is already in saved list.
   const alreadySaved =
     recipient.bsb &&
     recipient.accountNumber &&
@@ -367,16 +340,12 @@ const ReceiptSheet = ({
   const [recipients, setRecipients] = useState<DraftRecipient[]>([emptyRecipient()]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Set when the receipt total exceeds the request and we need a confirmation.
   const [confirmExceeds, setConfirmExceeds] = useState<{ total: number } | null>(
     null
   );
 
-  // Auto-fill first recipient from preferred account when the sheet opens or
-  // when savedAccounts finish loading for the first time while the sheet is open.
   useEffect(() => {
     if (!request || !savedAccounts || savedAccounts.length === 0) return;
-    // Only auto-fill if the recipient form is still in default empty state.
     const [first] = recipients;
     const isDefault =
       recipients.length === 1 &&
@@ -393,17 +362,11 @@ const ReceiptSheet = ({
       accountNumber: preferred.accountNumber,
       amount: "",
       files: [],
-      saveAccount: false, // already saved
+      saveAccount: false,
     }]);
-  // recipients intentionally excluded — only need to check on sheet open and accounts load
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [request?._id, savedAccounts]);
 
-  // Clear the draft once the sheet closes, so reopening it for a DIFFERENT
-  // request never shows the previous request's recipients, amounts or attached
-  // files (which would otherwise be submitted against the new request). Mirrors
-  // PaySheet/DeclineSheet in ReviewList. Reset on close — not open — so the
-  // auto-fill effect above can still prefill from the saved account next time.
   useEffect(() => {
     if (request !== null) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset draft on close
@@ -439,8 +402,6 @@ const ReceiptSheet = ({
     if (assets.length === 0) return;
     setUploading(true);
     try {
-      // Validate every file before uploading any, so a later oversize pick
-      // doesn't leave earlier uploads orphaned in Convex storage.
       for (const asset of assets) {
         const size = await getLocalFileSizeBytes(asset.uri);
         if (size > MAX_UPLOAD_BYTES) {
@@ -450,10 +411,6 @@ const ReceiptSheet = ({
           );
         }
       }
-      // Append each file as soon as it lands so a later network failure keeps
-      // earlier successes in the draft (not orphaned in Convex storage). Files
-      // discarded by closing the sheet without submit remain unreclaimed —
-      // same accepted limitation as a single cancelled upload.
       for (const asset of assets) {
         const uploadUrl = await generateUploadUrl();
         let storageId: Id<"_storage">;
@@ -536,7 +493,6 @@ const ReceiptSheet = ({
     }
   };
 
-  /** Native: choose Photo Library or Files. Web: system file picker covers both. */
   const attachFiles = (index: number) => {
     if (Platform.OS === "web") {
       void attachFromFiles(index);
@@ -601,9 +557,6 @@ const ReceiptSheet = ({
     void send();
   };
 
-  // Live total of the per-recipient amounts, shown read-only so it's clearly
-  // derived (never typed). `|| 0` keeps a half-typed amount (".", "") from
-  // turning the sum into NaN while the user is still entering figures.
   const receiptTotal = recipients.reduce(
     (sum, r) => sum + (Number(r.amount) || 0),
     0
@@ -737,10 +690,6 @@ const ReceiptSheet = ({
   );
 };
 
-/**
- * Finger-tap nudge button for a single request. Owns its own `canNudge` query
- * so hook rules are satisfied inside a list render.
- */
 type NudgeStatus = { onCooldown: boolean; remainingMs: number };
 
 const NudgeButton = ({
@@ -751,10 +700,6 @@ const NudgeButton = ({
   onNudge: (request: Doc<"requests">, status: NudgeStatus | null) => void;
 }) => {
   const t = useAppTheme();
-  // `canNudge` returns null when the caller is never eligible, else a
-  // server-derived { onCooldown, remainingMs }. The icon stays enabled whenever
-  // eligible — the cooldown is shown (and the action blocked) in the
-  // confirmation modal instead.
   const status = useQuery(api.requests.canNudge, { requestId: request._id });
   const eligible = status != null;
   return (
@@ -778,9 +723,6 @@ const NudgeButton = ({
   );
 };
 
-/** "5h 23m" / "24h 0m" / "12m" / "under a minute" for a remaining cooldown in ms.
- *  Hours always carry a minutes part ("Xh Ym") so the format stays consistent
- *  even right after a nudge, when exactly 24h remain. */
 const formatCooldown = (ms: number): string => {
   const mins = Math.ceil(ms / 60000);
   if (mins < 1) return "under a minute";
@@ -790,7 +732,6 @@ const formatCooldown = (ms: number): string => {
   return `${m}m`;
 };
 
-/** The signed-in user's own requests: list, new-request and receipt forms. */
 export const MyRequests = ({
   departments,
   defaultDepartment,
@@ -811,14 +752,11 @@ export const MyRequests = ({
   prefill: RequestPrefill | null;
   onResubmit: (prefill: RequestPrefill) => void;
   onNewClose: () => void;
-  // A past staff year to browse (read-only). Omit/undefined for the live year.
   year?: number;
   readOnly?: boolean;
-  /** Notification deep-link: id of the request to focus (expand / open thread). */
   focusId?: string;
   focusThread?: boolean;
   focusReopenKey?: string;
-  /** The year's Director-approval cutoff; defaults to the standard $5,000. */
   directorThreshold?: number;
 }) => {
   const t = useAppTheme();
@@ -831,7 +769,6 @@ export const MyRequests = ({
   const sendNudge = useMutation(api.requests.nudge);
   const [receiptFor, setReceiptFor] = useState<Doc<"requests"> | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Drives the in-app confirmation for cancelling, deleting, or nudging a request.
   const [confirm, setConfirm] = useState<{
     title: string;
     message: string;
@@ -892,11 +829,9 @@ export const MyRequests = ({
           }
         />
       ) : (
-        // Wide screens lay requests out as side-by-side columns; phones stack.
         <Grid minColumnWidth={380}>
           {[...requests]
           .sort((a, b) => {
-            // Requests needing action (submit receipt or resubmit after decline) float up
             const needsAction = (r: typeof a) =>
               (requestFullyApproved(r) && !r.receipt) || requestDeclined(r) ? 0 : 1;
             const diff = needsAction(a) - needsAction(b);
@@ -906,8 +841,6 @@ export const MyRequests = ({
           .map((request, index) => {
             const needsReceipt =
               !readOnly && requestFullyApproved(request) && !request.receipt;
-            // Nudge is available when the request is in-flight (waiting on
-            // an approver or on payment) and the requester can't act right now.
             const canNudgeRequest =
               !readOnly &&
               !requestCompleted(request) &&

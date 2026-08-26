@@ -1,9 +1,3 @@
-/**
- * Presentational pieces for the Attendance → Insights dashboard: summary metric
- * cards, lightweight native charts (no charting dependency — bars are Views),
- * and follow-up person rows. All theme-aware and responsive; the parent
- * (MetricsTab) decides column counts from the window width.
- */
 import { Avatar, Card } from "@/components/ui";
 import {
   radius,
@@ -32,24 +26,17 @@ import type {
   TrendPoint,
 } from "../../../shared/attendanceMetrics";
 
-const BAR_MIN = 3; // minimum visible bar height
+const BAR_MIN = 3;
 const CHART_HEIGHT = 120;
-const CHART_HEIGHT_FULL = 220; // taller in fullscreen (fits rotated landscape on typical phones)
-const BAR_MAX_W = 36; // widest a single bar gets (a few points)
-const BAR_MIN_W = 5; // thinnest bar (many points in a range)
-/** Fixed gap between adjacent bars — kept tight so bars read as a group, not spread. */
+const CHART_HEIGHT_FULL = 220;
+const BAR_MAX_W = 36;
+const BAR_MIN_W = 5;
 const BAR_GAP = 4;
-const BAR_LABEL_H = 15; // fixed x-axis label row height
-const BAR_VALUE_H = 18; // fixed space reserved above bars for the value label
-const Y_AXIS_W = 32; // width reserved for y-axis labels
-// Total fixed container height = chart bars + x-label row + value label row
+const BAR_LABEL_H = 15;
+const BAR_VALUE_H = 18;
+const Y_AXIS_W = 32;
 const chartContainerH = (ch: number) => ch + BAR_LABEL_H + BAR_VALUE_H;
 
-/**
- * Round a raw step up to a "nice" number (1, 2, 5 × a power of ten) so the axis
- * lands on human-friendly increments. Steps stay ≥ 1 since every chart here plots
- * integer head-counts — fractional gridlines (2.5, 7.5) would read oddly.
- */
 function niceStep(raw: number): number {
   if (!Number.isFinite(raw) || raw <= 1) return 1;
   const mag = Math.pow(10, Math.floor(Math.log10(raw)));
@@ -58,21 +45,10 @@ function niceStep(raw: number): number {
   return Math.max(1, step * mag);
 }
 
-/**
- * A uniform, evenly-stepped y-axis: 0 at the bottom, a rounded-up "nice" max at
- * the top, and consistent gridlines in between. Rather than only labelling the
- * values the data actually hits, this gives a stable scale that reads
- * pleasantly regardless of the exact data. Tick count scales with the
- * chart's height so short cards aren't crowded and tall fullscreen charts get
- * more detail. Returns the axis `max` (which the series must scale against) and
- * the descending tick list.
- */
 function niceAxis(
   dataMax: number,
   chartHeight: number
 ): { max: number; ticks: number[] } {
-  // ~1 tick per 32px — denser than before so small card charts stay readable
-  // without expanding to fullscreen for the numbers.
   const targetTicks = Math.max(3, Math.min(7, Math.round(chartHeight / 32)));
   const safeMax = Number.isFinite(dataMax) && dataMax > 0 ? dataMax : 1;
   const step = niceStep(safeMax / targetTicks);
@@ -82,34 +58,16 @@ function niceAxis(
   return { max, ticks };
 }
 
-/** Map a data value to a y position in pixels within the chart drawing area. */
 const yAt = (v: number, max: number, chartHeight: number) =>
   max > 0 ? chartHeight - (v / max) * chartHeight : chartHeight;
 
-/**
- * Bar vs line rendering, shared across every chart on the Insights screen via
- * context so a single toggle (see ChartModeFab) flips them all at once. Charts
- * default to bars when no provider is present.
- */
 export type ChartMode = "bar" | "line";
 const ChartModeContext = createContext<ChartMode>("bar");
 export const ChartModeProvider = ChartModeContext.Provider;
 export const useChartMode = (): ChartMode => useContext(ChartModeContext);
 
-/**
- * One legend item a bar/line chart can be tapped-highlighted by. `key` is the
- * stable id a chart's segments/series match against (not necessarily the same
- * as the display `label`).
- */
 export type LegendItem = { key: string; colour: string; label: string };
 
-/**
- * Legend-driven highlighting, scoped to a single ChartCard's fullscreen modal
- * (provided by ChartCard, consumed by whichever bar/line chart it renders).
- * Selecting a legend item — fullscreen only, see ChartCard — either moves that
- * segment to the bottom of a stacked bar (bar mode) or dims every other line
- * and legend entry (line mode).
- */
 type ChartSelection = { selectedKey: string | null; toggle: (key: string) => void };
 const ChartSelectionContext = createContext<ChartSelection>({
   selectedKey: null,
@@ -120,7 +78,6 @@ const useChartSelection = (): ChartSelection => useContext(ChartSelectionContext
 const LINE_STROKE = 2.5;
 const LINE_DOT = 6;
 
-/** One series drawn as connected segments (rotated Views) plus a dot per point. */
 function LinePath({
   points,
   colour,
@@ -128,7 +85,6 @@ function LinePath({
 }: {
   points: { x: number; y: number }[];
   colour: string;
-  /** Dimmed when another series is highlighted (fullscreen legend tap). */
   opacity?: number;
 }) {
   return (
@@ -175,11 +131,6 @@ function LinePath({
   );
 }
 
-/**
- * Line view of any chart: one or more series drawn as separate lines on a shared
- * scale. Tooltips (tap on touch, hover on web) work in fullscreen, mirroring the
- * bar charts. Points are evenly spaced across the measured width.
- */
 function LineSeriesChart({
   labels,
   series,
@@ -189,12 +140,10 @@ function LineSeriesChart({
   selectedKey,
 }: {
   labels: string[];
-  /** `id` is the legend-selection id; defaults to `key` (the display/tooltip label) when omitted. */
   series: { key: string; id?: string; colour: string; values: number[] }[];
   max: number;
   fullscreen: boolean;
   tooltipLabelFor: (i: number) => string;
-  /** Fullscreen legend tap target — every other series dims. */
   selectedKey?: string | null;
 }) {
   const chartHeight = fullscreen ? CHART_HEIGHT_FULL : CHART_HEIGHT;
@@ -205,9 +154,6 @@ function LineSeriesChart({
   const count = labels.length;
   const colW = w > 0 ? w / count : 0;
   const xAt = (i: number) => colW * (i + 0.5);
-  // Uniform 0-based axis with evenly-spaced "nice" gridlines. The series scale
-  // against `axisMax` (the rounded-up top) so points sit on the same gridlines
-  // the labels mark — not just the exact values the lines happen to hit.
   const { max: axisMax, ticks } = niceAxis(max, chartHeight);
   const LABEL_MIN_PX = 22;
   const labelStep =
@@ -225,7 +171,6 @@ function LineSeriesChart({
         onLayout={(e) => setW(e.nativeEvent.layout.width)}
       >
         <ChartGrid max={axisMax} ticks={ticks} chartHeight={chartHeight} />
-        {/* Line overlay, aligned to the same drawing region the bars use. */}
         <View
           pointerEvents="none"
           style={{
@@ -254,7 +199,6 @@ function LineSeriesChart({
               ))
             : null}
         </View>
-        {/* Transparent hit columns carry hover/press + the x-axis labels. */}
         <View
           style={[
             styles.barRow,
@@ -269,15 +213,12 @@ function LineSeriesChart({
             : labels.map((label, i) => {
                 const active =
                   fullscreen && (selectedIdx === i || hoveredIdx === i);
-                // Anchor the tooltip above the highest (smallest y) point.
                 const anchorY = Math.min(
                   ...series.map((s) => yAt(s.values[i], axisMax, chartHeight))
                 );
                 return (
                   <Pressable
                     key={`${label}-${i}`}
-                    // On the small card, let taps fall through to the card so it
-                    // opens fullscreen; only the fullscreen view is interactive.
                     pointerEvents={fullscreen ? "auto" : "none"}
                     onPress={
                       fullscreen
@@ -325,13 +266,6 @@ function LineSeriesChart({
   );
 }
 
-/**
- * Size `count` bars to fit a measured width instead of scrolling.
- *
- * Bars stay in a tight cluster (fixed {@link BAR_GAP}) and are centred when
- * there is leftover width — never stretched with `space-between`, which made
- * sparse series (e.g. a few weekly meetings) look oddly spread out.
- */
 function useBarFit(
   count: number,
   chartHeight = CHART_HEIGHT,
@@ -345,9 +279,6 @@ function useBarFit(
     const gaps = Math.max(0, count - 1);
     const neededAtMax = count * maxBarWidth + gaps * BAR_GAP;
     if (neededAtMax > w) {
-      // Shrink bars first; then compress the gap (down to 0) so a dense series
-      // like Past year (52 points) still fits a narrow mobile card without
-      // overflowing. Only if that still overflows do we go below BAR_MIN_W.
       barWidth = Math.max(
         BAR_MIN_W,
         Math.floor((w - gaps * BAR_GAP) / count)
@@ -364,13 +295,10 @@ function useBarFit(
   const showValues = barWidth >= 18;
   const LABEL_MIN_PX = 22;
   const slotPitch = barWidth + gap;
-  // A short series (staff years, a couple of weeklies) should name every bar.
-  // Only skip labels once the range is dense enough that they'd collide.
   const labelStep =
     count <= 8 || barWidth >= LABEL_MIN_PX
       ? 1
       : Math.ceil(LABEL_MIN_PX / Math.max(1, slotPitch));
-  // Always centre the cluster — leftover space stays as equal side padding.
   return {
     w,
     onLayout,
@@ -383,14 +311,9 @@ function useBarFit(
   };
 }
 
-/** Inner bar width — a light inset when wide, nearly flush when thin. */
 const barInner = (barWidth: number): number =>
   Math.max(1, barWidth - (barWidth > 16 ? 4 : 1));
 
-/**
- * Horizontal gridlines aligned to y-axis ticks, drawn behind bars/lines so
- * values are easier to read on the small card charts.
- */
 function ChartGrid({
   max,
   ticks,
@@ -430,9 +353,6 @@ function ChartGrid({
   );
 }
 
-/**
- * Fixed-height x-axis label under a bar.
- */
 function BarLabel({ text }: { text: string }) {
   const t = useAppTheme();
   return (
@@ -444,20 +364,8 @@ function BarLabel({ text }: { text: string }) {
   );
 }
 
-// Approx line-box height of the 9px tick text, used to centre each label on its
-// value's gridline.
 const Y_TICK_LINE_H = 11;
 
-/**
- * Y-axis column. Each tick is positioned with the SAME scale math the bars and
- * lines use (`yAt` within the drawing area that starts `BAR_VALUE_H` below the
- * top and spans `chartHeight`), so the labels line up exactly with the bar tops
- * / line points instead of being spread evenly by `space-between` — which
- * previously drifted from the real baseline by the padding difference.
- *
- * When `ticks` is omitted it falls back to even quarters (max, 75%, 50%, 25%, 0);
- * callers that pass data-derived ticks get labels that sit on their real points.
- */
 function YAxis({ max, chartHeight, ticks }: { max: number; chartHeight: number; ticks?: number[] }) {
   const t = useAppTheme();
   const values = ticks ?? [
@@ -467,8 +375,6 @@ function YAxis({ max, chartHeight, ticks }: { max: number; chartHeight: number; 
     Math.round(max * 0.25),
     0,
   ];
-  // Sub-10 axes (e.g. average years served) need one decimal so quarters like
-  // 1.25 don't both round to "1" and look duplicated.
   const fmtTick = (v: number) =>
     Number.isInteger(v) || Math.abs(v - Math.round(v)) < 1e-9
       ? String(Math.round(v))
@@ -491,7 +397,6 @@ function YAxis({ max, chartHeight, ticks }: { max: number; chartHeight: number; 
   );
 }
 
-/** One headline number with an optional delta and hint. */
 export function MetricCard({
   label,
   value,
@@ -539,9 +444,6 @@ export function MetricCard({
       <Text style={[typography.amount, { color: accent }]} numberOfLines={1}>
         {value}
       </Text>
-      {/* Delta + hint sit in fixed-height slots (rendered even when empty) so
-          every card in a grid keeps the same height — the tallest it could be —
-          regardless of which cards carry a change or a baseline hint. */}
       <View style={styles.metricFooter}>
         <View style={styles.deltaSlot}>
           {delta ? (
@@ -596,18 +498,6 @@ export function MetricCard({
   return <Card style={[styles.metricCard, { width }]}>{body}</Card>;
 }
 
-/**
- * Fullscreen chart modal. On a portrait phone, app.json locks orientation to
- * portrait, so we render a portrait-sized modal and rotate its content 90° to
- * read as landscape — no native orientation API needed. When the device is
- * already landscape (width > height), or on web, there's nothing to gain from
- * rotating, so we fill the screen in its natural orientation.
- */
-/**
- * A chart's legend dots. Wraps onto its own line under the title once it no
- * longer fits beside it (see the `chartHeader`/`fullscreenHeader` flex-wrap).
- * In fullscreen, tapping an item highlights it — see ChartSelectionContext.
- */
 function Legend({
   items,
   note,
@@ -616,7 +506,6 @@ function Legend({
   onToggle,
 }: {
   items: LegendItem[];
-  /** Small trailing caption, e.g. a data-scope caveat. */
   note?: string;
   interactive?: boolean;
   selectedKey?: string | null;
@@ -624,8 +513,6 @@ function Legend({
 }) {
   const t = useAppTheme();
   const mode = useChartMode();
-  // Dimming other entries only reads sensibly in line mode — in bar mode the
-  // selected segment moves to the bottom of the stack instead.
   const dimOthers = interactive && mode === "line" && selectedKey != null;
   return (
     <View style={styles.legendBlock}>
@@ -686,10 +573,7 @@ function FullscreenChartModal({
 }) {
   const t = useAppTheme();
   const { width: sw, height: sh } = useWindowDimensions();
-  // Only rotate on a native portrait device. If the screen is already landscape
-  // (width > height) or we're on web, show fullscreen in the natural orientation.
   const rotate = Platform.OS !== "web" && sh > sw;
-  // After rotation the container's dims swap: it's sh wide and sw tall.
   const panelW = rotate ? sh : sw;
   const panelH = rotate ? sw : sh;
   return (
@@ -701,11 +585,9 @@ function FullscreenChartModal({
       statusBarTranslucent
     >
       <StatusBar hidden />
-      {/* Full-screen backdrop */}
       <View
         style={[StyleSheet.absoluteFill, { backgroundColor: t.background }]}
       />
-      {/* Rotated landscape container, centred on screen */}
       <View
         style={[
           StyleSheet.absoluteFill,
@@ -718,12 +600,10 @@ function FullscreenChartModal({
             height: panelH,
             transform: rotate ? [{ rotate: "90deg" }] : undefined,
             backgroundColor: t.background,
-            // Uniform outer margin on all 4 sides around the entire panel
             paddingHorizontal: spacing.xxxl,
             paddingVertical: spacing.sm,
           }}
         >
-          {/* Header */}
           <View style={styles.fullscreenHeader}>
             <View style={styles.chartTitleBlock}>
               <Text style={[typography.headline, { color: t.text }]}>
@@ -750,7 +630,6 @@ function FullscreenChartModal({
               <Ionicons name="close" size={22} color={t.text} />
             </Pressable>
           </View>
-          {/* Chart body */}
           <View style={styles.fullscreenBody}>{children}</View>
         </View>
       </View>
@@ -758,7 +637,6 @@ function FullscreenChartModal({
   );
 }
 
-/** Titled container for a chart; tap anywhere to open fullscreen. */
 export function ChartCard({
   title,
   subtitle,
@@ -770,13 +648,10 @@ export function ChartCard({
 }: {
   title: string;
   subtitle?: string;
-  /** Legend dots; tappable in fullscreen (see ChartSelectionContext). */
   legendItems?: LegendItem[];
-  /** Small trailing caption under the legend, e.g. a data-scope caveat. */
   legendNote?: string;
   children: ReactNode;
   width: number;
-  /** Chart rendered inside the fullscreen modal (usually a taller variant). */
   fullscreenContent?: ReactNode;
 }) {
   const t = useAppTheme();
@@ -849,17 +724,11 @@ export function ChartCard({
 
 type TooltipRow = { label: string; value: number; colour?: string };
 
-/**
- * Tooltip shown above a tapped bar in fullscreen mode. Supports a single
- * total value or a breakdown list (one row per segment/stack).
- */
 function BarTooltip({ year, rows }: { year: string; rows: TooltipRow[] }) {
   const t = useAppTheme();
   if (!rows || rows.length === 0) return null;
   const single = rows.length === 1;
   return (
-    // position:absolute so the tooltip floats above the bar without being
-    // constrained to the (potentially narrow) barSlot width
     <View style={[styles.tooltip, { backgroundColor: t.text }]}>
       <Text style={[styles.tooltipYear, { color: t.background }]}>{year}</Text>
       {single ? (
@@ -887,7 +756,6 @@ function BarTooltip({ year, rows }: { year: string; rows: TooltipRow[] }) {
   );
 }
 
-/** Vertical bars sized to fit the card (no horizontal scroll — see useBarFit). */
 export function BarChart({
   points,
   colour,
@@ -897,7 +765,6 @@ export function BarChart({
   points: TrendPoint[];
   colour?: string;
   fullscreen?: boolean;
-  /** Top label for a point's tooltip (defaults to the x-axis label). */
   tooltipLabel?: (p: TrendPoint) => string;
 }) {
   const t = useAppTheme();
@@ -998,18 +865,15 @@ export function BarChart({
   );
 }
 
-/** Stacked returning (bottom) + new (top) attendees per point; fits the card. */
 export function StackedBarChart({
   points,
   fullscreen = false,
-  // Tooltip names for the two segments (top = `fresh`, bottom = `returning`).
   labels = { fresh: "New", returning: "Returning" },
   tooltipLabel,
 }: {
   points: SplitPoint[];
   fullscreen?: boolean;
   labels?: { fresh: string; returning: string };
-  /** Top label for a point's tooltip (defaults to the x-axis label). */
   tooltipLabel?: (p: SplitPoint) => string;
 }) {
   const t = useAppTheme();
@@ -1020,23 +884,16 @@ export function StackedBarChart({
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   if (points.length === 0) return <EmptyChart />;
-  // Bars are stacked, so they scale to the per-point total.
   const stackedDataMax = Math.max(
     1,
     ...points.map((p) => p.fresh + p.returning)
   );
   const { max: stackedMax, ticks } = niceAxis(stackedDataMax, chartHeight);
   const scale = (n: number) => (n / stackedMax) * chartHeight;
-  // Honour the width-based skip (and the short-series "label every bar" rule
-  // in useBarFit) — forcing every 2nd label hid '23/'25 on the 5-year staff
-  // chart even when there was plenty of room.
   const labelStep = fit.labelStep;
   const labelFor = (i: number) =>
     tooltipLabel ? tooltipLabel(points[i]) : points[i].label;
   if (mode === "line") {
-    // Top segment (fresh) and bottom segment (returning) as two separate lines.
-    // Lines aren't stacked, so scale to the tallest single value — using the
-    // stacked total would squash both lines against the floor.
     const lineMax = Math.max(
       1,
       ...points.map((p) => Math.max(p.fresh, p.returning))
@@ -1065,8 +922,6 @@ export function StackedBarChart({
       />
     );
   }
-  // Fullscreen legend tap moves that segment to the bottom of the stack —
-  // everything else stacks on top of it, in their remaining relative order.
   const baseSegments = [
     { id: "fresh" as const, colour: t.accent },
     { id: "returning" as const, colour: t.primary },
@@ -1183,19 +1038,14 @@ export function StackedBarChart({
   );
 }
 
-/** One bar's stacked segments (e.g. student leaders split by campus). */
 export type MultiStackPoint = {
   at: number;
   label: string;
   segments: { key: string; value: number; colour: string }[];
 };
 
-/** Hairline gap between stacked segments so adjacent campus colours read apart. */
 const SEG_GAP = 1.5;
 
-/**
- * N coloured segments stacked per point.
- */
 export function MultiStackedBarChart({
   points,
   fullscreen = false,
@@ -1206,25 +1056,9 @@ export function MultiStackedBarChart({
 }: {
   points: MultiStackPoint[];
   fullscreen?: boolean;
-  /** Top label for a point's tooltip (defaults to the x-axis label). */
   tooltipLabel?: (p: MultiStackPoint) => string;
-  /**
-   * Set false for values that are compared rather than summed (e.g. per-campus
-   * averages) — bar mode then draws one bar per segment side by side, scaled
-   * to the tallest single segment, instead of stacking them into a total that
-   * wouldn't mean anything.
-   */
   stacked?: boolean;
-  /**
-   * Pin the y-axis ceiling (e.g. 100 for rate charts). When omitted the axis
-   * auto-scales to the data via {@link niceAxis}.
-   */
   axisMax?: number;
-  /**
-   * Keep zero-valued segments in the chart (height 0, no BAR_MIN stub). Rate
-   * charts use this so a real 0% is distinct from a missing segment, without
-   * drawing a catastrophic-looking stub.
-   */
   keepZeros?: boolean;
 }) {
   const t = useAppTheme();
@@ -1232,8 +1066,6 @@ export function MultiStackedBarChart({
   const { selectedKey } = useChartSelection();
   const chartHeight = fullscreen ? CHART_HEIGHT_FULL : CHART_HEIGHT;
   const maxSegs = Math.max(1, ...points.map((p) => p.segments.length));
-  // Grouped bars need a wider slot per year so 3–4 campus/rate series stay
-  // readable instead of becoming 6px slivers inside a 36px stack.
   const groupedSlot = Math.max(
     BAR_MAX_W,
     maxSegs * 12 + Math.max(0, maxSegs - 1) * SEG_GAP
@@ -1249,16 +1081,12 @@ export function MultiStackedBarChart({
   const totals = points.map((p) =>
     p.segments.reduce((s, seg) => s + seg.value, 0),
   );
-  // Bars are stacked, so they scale to the per-point total.
   const stackedDataMax = Math.max(1, ...totals);
-  // Grouped (unstacked) bars scale to the tallest single segment value —
-  // scaling to the stacked total would squash every bar against the floor.
   const groupedDataMax = Math.max(
     1,
     ...points.flatMap((p) => p.segments.map((seg) => seg.value)),
   );
   const dataMax = stacked ? stackedDataMax : groupedDataMax;
-  // Fixed ceiling (rate charts) or nice-step ticks (avg years / counts).
   const axis =
     axisMax !== undefined
       ? {
@@ -1270,8 +1098,6 @@ export function MultiStackedBarChart({
   const labelFor = (i: number) =>
     tooltipLabel ? tooltipLabel(points[i]) : points[i].label;
   if (mode === "line") {
-    // One line per segment (e.g. per campus), keyed off the first point's
-    // segment order so colours and keys stay stable across points.
     const keys = points[0].segments;
     return (
       <LineSeriesChart
@@ -1313,14 +1139,9 @@ export function MultiStackedBarChart({
             ? null
             : points.map((p, i) => {
                 const total = totals[i];
-                // Default: drop zero segments (campus empties). Rate charts pass
-                // keepZeros so a real 0% stays in the tooltip without a BAR_MIN stub.
                 const filtered = keepZeros
                   ? p.segments
                   : p.segments.filter((seg) => seg.value > 0);
-                // Fullscreen legend tap moves that segment to the bottom of
-                // the stack — only meaningful when segments are actually
-                // stacked (grouped bars have no "bottom" to move to).
                 const visible =
                   stacked && selectedKey && filtered.some((s) => s.key === selectedKey)
                     ? [
@@ -1423,7 +1244,6 @@ export function MultiStackedBarChart({
                             key={seg.key}
                             style={{
                               width: groupSegWidth,
-                              // Real 0 → height 0 (no BAR_MIN stub that reads as a low %).
                               height:
                                 seg.value <= 0
                                   ? 0
@@ -1447,7 +1267,6 @@ export function MultiStackedBarChart({
   );
 }
 
-/** Small coloured dot + label, for chart legends. */
 export function LegendDot({
   colour,
   label,
@@ -1464,7 +1283,6 @@ export function LegendDot({
   );
 }
 
-/** Horizontal ranked bars for a metadata breakdown (Campus, Role, …). */
 export function BreakdownBars({
   rows,
 }: {
@@ -1521,7 +1339,6 @@ const REASON_TONE: Record<FollowUpReasonCode, keyof AppTheme> = {
   reengaged: "success",
 };
 
-/** One follow-up person, with gentle reason copy and a quick action. */
 export function FollowUpRow({
   person,
   onOpen,
@@ -1599,7 +1416,6 @@ function EmptyChart() {
   );
 }
 
-/** Soft translucent fill from a hex or rgb colour, for reason pills. */
 function withAlpha(colour: string, alpha: number): string {
   if (colour.startsWith("#") && colour.length === 7) {
     const n = parseInt(colour.slice(1), 16);
@@ -1623,7 +1439,6 @@ const styles = StyleSheet.create({
     gap: 2,
     marginTop: 2,
   },
-  // Fixed-height slots keep cards uniform whether or not a delta/hint is present.
   deltaSlot: { height: 17, justifyContent: "center" },
   hintSlot: { height: 15, justifyContent: "center" },
   deltaRow: {
@@ -1636,9 +1451,6 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     position: "relative",
   },
-  // Pinned to the card's padding edge so it always reads as "top right of
-  // the card", independent of how the title/legend above it wrap or how
-  // many legend items there are.
   expandIcon: {
     position: "absolute",
     top: spacing.md,
@@ -1648,8 +1460,6 @@ const styles = StyleSheet.create({
     flexDirection: "column",
     alignItems: "stretch",
     gap: spacing.xs,
-    // Reserve room for the absolutely-positioned expand icon so title text
-    // never wraps underneath it.
     paddingRight: spacing.xl,
   },
   chartTitleBlock: {
@@ -1670,7 +1480,6 @@ const styles = StyleSheet.create({
   },
   yAxis: {
     width: Y_AXIS_W,
-    // Ticks are absolutely positioned on their value's gridline (see YAxis).
     position: "relative",
   },
   yTick: {
@@ -1690,7 +1499,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "flex-end",
     gap: 4,
-    // Reserve space for value label even when hidden, so bars stay at a fixed baseline
     paddingTop: BAR_VALUE_H,
     overflow: "visible",
     position: "relative",
@@ -1747,7 +1555,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  // Fullscreen modal
   fullscreenSafe: {
     flex: 1,
   },
@@ -1773,12 +1580,11 @@ const styles = StyleSheet.create({
     padding: 6,
     marginTop: -4,
   },
-  // Bar tooltip — absolutely positioned so it escapes the narrow barSlot
   tooltip: {
     position: "absolute",
     bottom: "100%",
     left: "50%",
-    transform: [{ translateX: -43 }], // half of minWidth to centre it
+    transform: [{ translateX: -43 }],
     borderRadius: radius.md,
     paddingHorizontal: 9,
     paddingVertical: 6,
@@ -1786,7 +1592,6 @@ const styles = StyleSheet.create({
     minWidth: 86,
     marginBottom: 6,
     gap: 3,
-    // Elevate above sibling bars
     zIndex: 100,
     shadowColor: "#000",
     shadowOpacity: 0.2,

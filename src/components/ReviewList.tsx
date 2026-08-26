@@ -34,8 +34,6 @@ const DeclineSheet = ({
   target: { request: Doc<"requests">; step: Step } | null;
   onClose: () => void;
 }) => {
-  // Optimistic: remove the request from the approver's review list the moment
-  // they confirm, so it disappears behind the closing sheet. Reverts on error.
   const decline = useMutation(api.requests.decline).withOptimisticUpdate(
     (localStore, { requestId, step }) => {
       const data = localStore.getQuery(api.requests.toReview, {});
@@ -50,9 +48,6 @@ const DeclineSheet = ({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // The sheet stays mounted (hidden via `visible`), so reset the form whenever
-  // it opens for a different request — otherwise a previously typed reason
-  // carries over to the next request.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on target change
     setReason("");
@@ -62,9 +57,6 @@ const DeclineSheet = ({
   const handleDecline = async () => {
     if (!target || submitting) return;
     setError(null);
-    // Validate the required reason here so we don't fire a mutation that's
-    // guaranteed to fail server-side (which would log a raw Convex error). The
-    // server still enforces this as a backstop.
     if (reason.trim() === "") {
       setError(
         "Please give a reason for declining. The requester will be notified with it."
@@ -120,8 +112,6 @@ const PaySheet = ({
   const [error, setError] = useState<string | null>(null);
   const [paying, setPaying] = useState(false);
 
-  // Reset when the sheet opens for a different request (it stays mounted, so
-  // the amount/comment would otherwise persist from the last payment).
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on request change
     setPaidAmount("");
@@ -187,24 +177,18 @@ const SECTIONS: { key: Exclude<Step, never>; title: string }[] = [
   { key: "financeHead", title: "Awaiting Your Finance Head Approval" },
 ];
 
-/** Requests waiting on the signed-in approver, grouped by step. */
 export const ReviewList = ({
   focusId,
   focusThread = false,
   focusReopenKey,
 }: {
-  /** Notification deep-link: id of the request to focus (expand / open thread). */
   focusId?: string;
   focusThread?: boolean;
   focusReopenKey?: string;
 } = {}) => {
   const t = useAppTheme();
   const data = useQuery(api.requests.toReview, {});
-  // Requests the approver has already actioned, shown in their own section
-  // beneath the pending ones.
   const reviewed = useQuery(api.requests.reviewed, {});
-  // Optimistic: clear the request from its review section immediately so the
-  // approval feels instant; the next pending step/payer reconciles on response.
   const approve = useMutation(api.requests.approve).withOptimisticUpdate(
     (localStore, { requestId, step }) => {
       const current = localStore.getQuery(api.requests.toReview, {});
@@ -219,8 +203,6 @@ export const ReviewList = ({
     request: Doc<"requests">;
     step: Step;
   } | null>(null);
-  // Approving asks for confirmation first (declining already prompts for a
-  // reason in DeclineSheet).
   const [approveTarget, setApproveTarget] = useState<{
     request: Doc<"requests">;
     step: Step;
@@ -228,9 +210,6 @@ export const ReviewList = ({
   const [payTarget, setPayTarget] = useState<Doc<"requests"> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Resolve the requester's name for the approve-confirmation copy, scoped to
-  // the request's staff year (same lookup the card uses); fall back to the
-  // email until it loads or when the person has no profile name.
   const approveRequesterName = useQuery(
     api.directory.nameForEmail,
     approveTarget
@@ -263,9 +242,6 @@ export const ReviewList = ({
     <>
       <ErrorBanner message={error} />
       {data == null || reviewed === undefined ? (
-        // Wait for BOTH the pending list and the reviewed history before
-        // deciding what to show, so "All caught up" can't flash before the
-        // Reviewed section resolves.
         <LoadingState />
       ) : !hasAnything && !hasReviewed ? (
         <EmptyState
@@ -350,7 +326,6 @@ export const ReviewList = ({
               <SectionTitle>Reviewed ({reviewed.length})</SectionTitle>
               {reviewed.map((request, index) => (
                 <FadeInView key={request._id} delay={stagger(index)}>
-                  {/* Read-only history of what this approver has actioned. */}
                   <RequestCard
                     request={request}
                     showRequester

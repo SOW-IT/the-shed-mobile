@@ -62,10 +62,6 @@ const resolveUniversity = (
   return orgCampuses[0];
 };
 
-/**
- * The shared member pool for a year: every `staffProfile` plus attendance-only
- * members. Each entry carries roles/campuses or metadata for the row subtitle.
- */
 export const roster = query({
   args: {
     year: v.number(),
@@ -75,19 +71,10 @@ export const roster = query({
   handler: async (ctx, { year, subgroup, eventId }) => {
     if (!(await optionalProfile(ctx))) return [];
     const event = eventId ? await ctx.db.get(eventId) : null;
-    // Members + metadata live under the event's CALENDAR year, but staff
-    // roles/campus are read from the profile of the *staff* year of the event's
-    // date — so Jan–Sep events use that year's profiles and Oct–Dec events use
-    // the next staff year's (post-rollover) roles, matched by email. Without an
-    // event in context both default to the asked-for year.
     const profileYear = event ? eventStaffYear(event.dateStart) : year;
     const memberYear = event
       ? sydneyCalendarYear(new Date(event.dateStart))
       : year;
-    // Metadata fields are global; `memberYear` is only the calendar year the
-    // student "Year" level is displayed against. For an event, surface metadata
-    // for any of its sub-groups (a collaborative event spans several); without
-    // one, fall back to the single asked-for group.
     const eventFieldSubgroups = event ? normalizeSubgroups(event.subgroups) : [];
     const metadataFields = (await ctx.db.query("attendanceMetadata").collect())
       .filter((field) => {
@@ -109,10 +96,6 @@ export const roster = query({
       .query("attendanceMembers")
       .collect();
 
-    // Overlay rows link to a staff profile by matching their `email` against the
-    // year's profile emails, trying both SOW domains (older staff years use
-    // @sowaustralia.com, newer @sow.org.au). The matched key is always the
-    // profile's actual email.
     const profileEmails = new Set(profiles.map((p) => p.email.toLowerCase()));
     const matchProfileEmail = (email: string | undefined): string | undefined =>
       staffEmailCandidates(email).find((c) => profileEmails.has(c));
@@ -152,8 +135,6 @@ export const roster = query({
           )
         ),
       ];
-      // Campus is deliberately omitted — the row's right-hand chip already shows
-      // it (subgroup pill), so repeating it in the subtitle is redundant.
       const orgSubtitle = roles.length > 0 ? roles.join(" · ") : "";
       const metaSubtitle = metadataSubtitle(
         shadow?.metadata,
@@ -169,7 +150,6 @@ export const roster = query({
         name: personDisplayName(p.name, p.email),
         roles,
         campuses,
-        // The staff-year profile's campus wins over a (possibly stale) overlay.
         university: campuses[0] ?? resolveUniversity(metadataFields, shadow?.metadata, campuses),
         subtitle: subtitle || undefined,
         photo: user?.image ?? null,
@@ -184,7 +164,6 @@ export const roster = query({
       roles: [],
       campuses: [],
       university: resolveUniversity(metadataFields, m.metadata),
-      // Campus omitted — shown by the row's chip (see staff rows above).
       subtitle: metadataSubtitle(m.metadata, new Set([CAMPUS_FIELD_KEY])) || undefined,
     }));
 
@@ -193,8 +172,6 @@ export const roster = query({
 
     const eventTagIds = new Set((event.tagIds ?? []).map(String));
     const eventSubgroups = new Set(normalizeSubgroups(event.subgroups));
-    // Same staff year as the open event, by start-date range (events carry no
-    // stored year — see eventStaffYear/staffYearStartMs).
     const historyEvents = await ctx.db
       .query("events")
       .withIndex("by_dateStart", (q) =>
@@ -208,11 +185,6 @@ export const roster = query({
       string,
       { tagMatches: number; subgroupMatches: number; total: number; latest: number }
     >();
-    // Fetch every history event's attendance in parallel rather than awaiting
-    // each in turn — Convex pipelines the reads, so this costs one round-trip
-    // instead of N sequential ones. Total documents read (the transaction's
-    // real limit) is the same either way and is bounded by the take() above;
-    // scoring then runs synchronously over the resolved lists.
     const otherHistory = historyEvents.filter((h) => h._id !== event._id);
     const historyAttendances = await Promise.all(
       otherHistory.map((h) =>
@@ -261,14 +233,7 @@ export const roster = query({
   },
 });
 
-/**
- * The roll-call for an event: who's signed in, newest first, each joined with
- * the person's display name for that year (falls back to the email).
- */
 export const listByEvent = query({
-  // Raw string (not v.id): a malformed id from a stale deep link resolves to an
-  // empty list rather than throwing an ArgumentValidationError. The event-screen
-  // route then renders its "Event not found" state from events:get returning null.
   args: { eventId: v.string() },
   handler: async (ctx, { eventId: rawEventId }) => {
     if (!(await optionalProfile(ctx))) return [];
@@ -276,16 +241,8 @@ export const listByEvent = query({
     if (!eventId) return [];
     const event = await ctx.db.get(eventId);
     if (!event) return [];
-    // Staff roles/campus come from the profile of the event date's *staff* year
-    // (Oct 1 rollover); member fields (Year, Gender, …) and the attendance-member
-    // overlays come from the event's CALENDAR year, which for an Oct–Dec event is
-    // one less than its staff year.
     const profileYear = eventStaffYear(event.dateStart);
     const calendarYear = sydneyCalendarYear(new Date(event.dateStart));
-    // Metadata fields are global; `calendarYear` is only the year the student
-    // "Year" level is displayed against. A collaborative event participates in
-    // every one of its sub-groups, so it shows the metadata relevant to any of
-    // them (not just the first/owner).
     const fieldSubgroups = normalizeSubgroups(event.subgroups);
     const metadataFields = (await ctx.db.query("attendanceMetadata").collect())
       .filter(
@@ -313,9 +270,6 @@ export const listByEvent = query({
       .withIndex("by_event", (q) => q.eq("eventId", eventId))
       .collect();
 
-    // Shape a signed-in row from a staff profile. The person's email is matched
-    // against the staff-year profiles trying both SOW domains, and the row is
-    // keyed by the profile's actual email so it lines up with the roster.
     type AttendanceDoc = (typeof rows)[number];
     const staffRowFor = async (row: AttendanceDoc, email: string) => {
       let profile: Awaited<ReturnType<typeof getProfile>> = null;
@@ -324,10 +278,6 @@ export const listByEvent = query({
         if (profile) break;
       }
       const resolvedEmail = profile?.email.toLowerCase() ?? email.toLowerCase();
-      // The attendance member overlay for the event's calendar year (matched by
-      // email, either SOW domain), used as the fallback identity when no staff
-      // profile applies for the event-date staff year (e.g. an Oct–Dec event by
-      // someone who was staff last staff year but isn't this one).
       const shadow = await findMemberByEmail(ctx, resolvedEmail);
       const assignments = profile ? assignmentsOf(profile) : [];
       const roles = [...new Set(assignments.map((assignment) => assignment.role))];
@@ -346,18 +296,11 @@ export const listByEvent = query({
         row: {
           ...row,
           email: resolvedEmail,
-          // Staff profile name wins; otherwise fall back to the calendar-year
-          // attendance member's name, or a readable name derived from the email
-          // rather than showing a bare `first.last@…` address.
           name: personDisplayName(profile?.name ?? shadow?.name, resolvedEmail),
-          // Without a staff profile for this staff year, this person is shown as
-          // the calendar-year attendance member, not staff.
           kind: profile ? ("staff" as const) : ("member" as const),
           roles,
           campuses,
-          // The staff-year profile's campus wins over a (possibly stale) overlay.
           university: campuses[0] ?? resolveUniversity(metadataFields, shadow?.metadata, campuses),
-          // Campus excluded — the row's chip already shows it.
           subtitle: metadataSubtitle(
             shadow?.metadata,
             profile
@@ -376,8 +319,6 @@ export const listByEvent = query({
         }
         if (row.memberId) {
           const member = await ctx.db.get(row.memberId);
-          // A staff member whose email (either SOW domain) belongs to a profile
-          // this year is shown (and de-duplicated) as that staff member.
           if (member?.email) {
             const built = await staffRowFor(row, member.email);
             if (built.profile) return built.row;
@@ -405,10 +346,6 @@ export const listByEvent = query({
         };
       })
     );
-    // Collapse rows that resolve to the same person — a staff member can have
-    // both an `email` sign-in and a `memberId` sign-in (e.g. legacy/imported
-    // data) that resolve to one profile; show them once, keeping the earliest
-    // sign-in. Members without an email can't be merged, so they pass through.
     const byIdentity = new Map<string, (typeof withNames)[number]>();
     for (const row of withNames) {
       const identity = row.email
@@ -425,7 +362,6 @@ export const listByEvent = query({
   },
 });
 
-/** Sign a person in by staff email or attendance member id. Idempotent. */
 export const signIn = mutation({
   args: {
     eventId: v.id("events"),
@@ -455,10 +391,6 @@ export const signIn = mutation({
         email: lower,
         signInTime: Date.now(),
       });
-      // A new sign-in makes this event's sub-groups' insights stale; flag them so
-      // the short-interval cron refreshes within minutes (see markSubgroupsDirty).
-      // Flagged only after a real insert — an idempotent re-sign-in returns above
-      // without dirtying, so a busy roll-call doesn't pile up no-op recomputes.
       await markSubgroupsDirty(ctx, event.subgroups);
       const who = await displayName(ctx, lower, eventStaffYear(event.dateStart));
       await logAttendanceAction(ctx, {
@@ -501,7 +433,6 @@ export const signIn = mutation({
   },
 });
 
-/** Update per-event fields for a signed-in member (notes, sign-in time). */
 export const updateRecord = mutation({
   args: {
     attendanceId: v.id("attendance"),
@@ -521,8 +452,6 @@ export const updateRecord = mutation({
     if (Object.keys(patch).length === 0) return;
     await ctx.db.patch(attendanceId, patch);
     const event = await ctx.db.get(row.eventId);
-    // A changed sign-in time shifts which range/period an attendance falls in, so
-    // the metrics snapshot is stale (a notes-only edit isn't — skip it).
     if (patch.signInTime !== undefined && event) {
       await markSubgroupsDirty(ctx, event.subgroups);
     }
@@ -552,7 +481,6 @@ export const updateRecord = mutation({
   },
 });
 
-/** Remove a person from an event's roll-call. */
 export const signOut = mutation({
   args: {
     eventId: v.id("events"),
@@ -561,8 +489,6 @@ export const signOut = mutation({
   },
   handler: async (ctx, { eventId, email, memberId }) => {
     const { email: actorEmail } = await requireProfile(ctx);
-    // Mirror signIn's contract: exactly one identifier, so an ambiguous call
-    // can't silently leave the member row behind when email lookup misses.
     if (!!email === !!memberId) {
       throw new ConvexError("Provide either email or memberId.");
     }
@@ -582,7 +508,6 @@ export const signOut = mutation({
           );
         }
         await ctx.db.delete(existing._id);
-        // A removed sign-in changes counts/trends, so flag the insights stale.
         if (event) await markSubgroupsDirty(ctx, event.subgroups);
         const who = await displayName(
           ctx,

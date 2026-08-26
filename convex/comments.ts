@@ -6,7 +6,6 @@ import { actionOwnerEmail, involvedApproverEmails, notify, requestUrl } from "./
 import { ALLOWED_REACTIONS, APPROVED, eventStaffYear, staffYearStartMs } from "../shared/flow";
 import { formatAmount } from "../shared/money";
 
-/** Display name for an email: staff profile first, directory fallback, else null. */
 async function resolveName(
   ctx: QueryCtx | MutationCtx,
   email: string,
@@ -21,11 +20,6 @@ async function resolveName(
   return dirUser?.name ?? null;
 }
 
-/**
- * Post a comment on a request's clarification thread. Notifies whoever the
- * request currently needs action from; if the commenter IS that person (or the
- * request is no longer awaiting anyone), the requester is notified instead.
- */
 export const add = mutation({
   args: { requestId: v.id("requests"), body: v.string() },
   handler: async (ctx, args) => {
@@ -42,17 +36,10 @@ export const add = mutation({
       body,
     });
 
-    // Notify the people with a stake in the thread, deduped, never the author:
-    //  - whoever the request currently waits on (or the requester as fallback),
-    //    including year-scoped delegates covering that officeholder
-    //  - everyone who has already approved it (so earlier approvers stay in the
-    //    loop on follow-up discussion).
     const recipients = new Set<string>();
     const owner = await actionOwnerEmail(ctx, request);
     const reqYear = eventStaffYear(request._creationTime);
     if (owner && owner !== email) {
-      // Cover rows are year-scoped; include request year and current year so
-      // carry-over requests still ping a stand-in who covers the live officeholder.
       for (const year of new Set([reqYear, currentStaffYear()])) {
         for (const to of await withDelegatesForYear(ctx, year, owner)) {
           if (to !== email) recipients.add(to);
@@ -74,11 +61,6 @@ export const add = mutation({
           subject: `New comment on the $${formatAmount(request.amount)} ${request.department} request`,
           pushTitle: "New comment",
           body: `${authorName} commented:\n"${body}"`,
-          // Open the conversation directly: land on the recipient's request tab
-          // (Mine for the requester, Review for approvers/Finance), focus this
-          // request, and open its comment thread — so tapping a "new comment"
-          // notification takes you to the comment instead of just the tab.
-          // requestId still keeps the notification auto-read once opened.
           url: requestUrl(to, request, { thread: true }),
           requestId: request._id,
         });
@@ -94,7 +76,6 @@ type ReactionGroup = {
   mine: boolean;
 };
 
-/** The full comment thread for a request, with reactions grouped per emoji. */
 export const list = query({
   args: { requestId: v.id("requests") },
   handler: async (ctx, args) => {
@@ -103,8 +84,6 @@ export const list = query({
     const request = await ctx.db.get("requests", args.requestId);
     if (!request) return null;
 
-    // collect() (not take(N)) so long threads are never truncated; a single
-    // request's comments are a naturally small set.
     const comments = (
       await ctx.db
         .query("requestComments")
@@ -112,9 +91,6 @@ export const list = query({
         .collect()
     ).sort((a, b) => a._creationTime - b._creationTime);
 
-    // A thread is usually a handful of people talking repeatedly, so resolve
-    // each author once instead of re-reading their profile (and directory row)
-    // for every comment they posted.
     const threadYear = eventStaffYear(request._creationTime);
     const nameByEmail = new Map<string, Promise<string | null>>();
     const nameFor = (email: string): Promise<string | null> => {
@@ -155,7 +131,6 @@ export const list = query({
   },
 });
 
-/** Comments by others on one request the given user hasn't read yet. */
 async function unreadCountFor(
   ctx: QueryCtx,
   requestId: Id<"requests">,
@@ -171,13 +146,12 @@ async function unreadCountFor(
   const comments: Doc<"requestComments">[] = await ctx.db
     .query("requestComments")
     .withIndex("by_request", (q) => q.eq("requestId", requestId))
-    .collect(); // small per-request set; never truncate the count
+    .collect();
   return comments.filter(
     (c) => c.authorEmail !== email && c._creationTime > lastReadAt
   ).length;
 }
 
-/** How many comments by others the caller hasn't seen yet (for the badge). */
 export const unreadCount = query({
   args: { requestId: v.id("requests") },
   handler: async (ctx, args) => {
@@ -189,10 +163,6 @@ export const unreadCount = query({
   },
 });
 
-/**
- * Total unread comments across a set of requests — used to fold unread counts
- * into the Mine / To Review segment badges. Deduplicates the ids.
- */
 export const unreadTotalForRequests = query({
   args: { requestIds: v.array(v.id("requests")) },
   handler: async (ctx, args) => {
@@ -206,12 +176,6 @@ export const unreadTotalForRequests = query({
   },
 });
 
-/**
- * Per-request unread counts for the caller across a set of requests — used by
- * the "All" list to surface requests with unread discussion first. Only
- * requests with at least one unread comment are returned, to keep the payload
- * small.
- */
 export const unreadCountsForRequests = query({
   args: { requestIds: v.array(v.id("requests")) },
   handler: async (ctx, args): Promise<Record<Id<"requests">, number>> => {
@@ -226,10 +190,6 @@ export const unreadCountsForRequests = query({
   },
 });
 
-/**
- * Total unread comments the caller has across all their own requests.
- * Used for the tab-level unread indicator in the navigation bar.
- */
 export const myUnreadTotal = query({
   args: {},
   handler: async (ctx) => {
@@ -257,17 +217,12 @@ export const myUnreadTotal = query({
   },
 });
 
-
-/** Marks the caller as having read this request's comments up to now. */
 export const markRead = mutation({
   args: { requestId: v.id("requests") },
   handler: async (ctx, args) => {
     const { email } = await requireProfile(ctx);
     const request = await ctx.db.get("requests", args.requestId);
     if (!request) throw new ConvexError("Request not found.");
-    // Stamp at least the newest existing comment's creation time, not just the
-    // wall clock: a comment's `_creationTime` can be >= `Date.now()` here, which
-    // would otherwise leave a just-posted comment counted as unread.
     const comments = await ctx.db
       .query("requestComments")
       .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
@@ -293,7 +248,6 @@ export const markRead = mutation({
   },
 });
 
-/** Adds the caller's emoji reaction to a comment, or removes it if already set. */
 export const toggleReaction = mutation({
   args: { commentId: v.id("requestComments"), emoji: v.string() },
   handler: async (ctx, args) => {
@@ -312,13 +266,13 @@ export const toggleReaction = mutation({
       .unique();
     if (existing) {
       await ctx.db.delete("commentReactions", existing._id);
-      return false; // removed
+      return false;
     }
     await ctx.db.insert("commentReactions", {
       commentId: args.commentId,
       userEmail: email,
       emoji,
     });
-    return true; // added
+    return true;
   },
 });

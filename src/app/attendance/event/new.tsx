@@ -16,7 +16,6 @@ import {
 } from "@/components/ui";
 import { typography, useAppTheme } from "@/theme";
 
-/** Create an event and tag it with one or more sub-groups (collaborative). */
 export default function NewEventScreen() {
   const t = useAppTheme();
   const router = useRouter();
@@ -25,7 +24,6 @@ export default function NewEventScreen() {
   const createEvent = useMutation(api.events.create);
 
   const [name, setName] = useState("");
-  // Preselect the sub-group we came from, if any.
   const [selected, setSelected] = useState<string[]>(subgroup ? [subgroup] : []);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -36,8 +34,6 @@ export default function NewEventScreen() {
   const collaborative = selected.length > 1;
 
   const submit = async () => {
-    // Guard against rapid double-taps creating duplicate events before the
-    // screen navigates away.
     if (submitting) return;
     setSubmitting(true);
     setError(null);

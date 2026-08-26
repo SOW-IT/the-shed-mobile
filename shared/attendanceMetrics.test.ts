@@ -15,8 +15,7 @@ import {
 } from "./attendanceMetrics";
 import { SOW_SUBGROUP } from "./rollcall";
 
-// A fixed "now" keeps every window deterministic.
-const NOW = Date.UTC(2026, 5, 1, 3, 0, 0); // 1 Jun 2026
+const NOW = Date.UTC(2026, 5, 1, 3, 0, 0);
 const weeksAgo = (w: number) => NOW - w * WEEK_MS;
 const daysAgo = (d: number) => NOW - d * DAY_MS;
 
@@ -68,7 +67,6 @@ const build = (
   ...over,
 });
 
-/** A run of `count` weekly meetings, one per week, ending `endWeeksAgo` back. */
 const weeklySeries = (count: number, endWeeksAgo = 0): MetricsEvent[] =>
   Array.from({ length: count }, (_, i) => weekly(weeksAgo(endWeeksAgo + count - 1 - i)));
 
@@ -77,8 +75,7 @@ const findReason = (data: ReturnType<typeof computeSubgroupMetrics>, key: string
 
 describe("computeSubgroupMetrics — classification", () => {
   it("flags a regular attendee who missed the last N weekly meetings as at_risk", () => {
-    const meetings = weeklySeries(10); // 10 consecutive weekly meetings
-    // Alice attended the first 7, then vanished for the final 3.
+    const meetings = weeklySeries(10);
     const attendance = meetings
       .slice(0, 7)
       .map((m) => attend(m, "alice"));
@@ -92,7 +89,7 @@ describe("computeSubgroupMetrics — classification", () => {
 
   it("does not flag a regular who is still showing up", () => {
     const meetings = weeklySeries(10);
-    const attendance = meetings.map((m) => attend(m, "bob")); // attends all
+    const attendance = meetings.map((m) => attend(m, "bob"));
     const data = computeSubgroupMetrics(
       build(meetings, attendance, [person("bob")])
     );
@@ -100,7 +97,6 @@ describe("computeSubgroupMetrics — classification", () => {
   });
 
   it("flags a former regular with no recent attendance as lapsed", () => {
-    // Attended 4 events, all more than lapsedDays ago.
     const events = [
       oneOff(daysAgo(80)),
       oneOff(daysAgo(72)),
@@ -119,8 +115,7 @@ describe("computeSubgroupMetrics — classification", () => {
   });
 
   it("flags a one-time newcomer who has not returned", () => {
-    const meetings = weeklySeries(4); // weekly meetings over the last 4 weeks
-    // Dave came to the FIRST of those and never again; later meetings existed.
+    const meetings = weeklySeries(4);
     const data = computeSubgroupMetrics(
       build(meetings, [attend(meetings[0], "dave")], [person("dave")])
     );
@@ -138,8 +133,6 @@ describe("computeSubgroupMetrics — classification", () => {
   });
 
   it("does not count months-old joiners as newcomers over a long range", () => {
-    // Staff-year range: someone whose first attendance was ~60 days ago is not
-    // a newcomer (outside the 30-day window), but a 10-day-ago joiner is.
     const oldStart = oneOff(daysAgo(60));
     const oldRecent = oneOff(daysAgo(5));
     const fresh = oneOff(daysAgo(10));
@@ -168,7 +161,6 @@ describe("computeSubgroupMetrics — classification", () => {
   });
 
   it("flags declining attendance for someone tapering off (not yet lapsed)", () => {
-    // Prior half of the 8-week window: 3 attendances. Recent half: 1.
     const events = [
       oneOff(weeksAgo(7)),
       oneOff(weeksAgo(6)),
@@ -186,8 +178,6 @@ describe("computeSubgroupMetrics — classification", () => {
 
 describe("computeSubgroupMetrics — summary & trends", () => {
   it("computes average attendance and change vs the previous period", () => {
-    // Previous 8-week period: 2 events, 1 attendee each → avg 1.
-    // Current 8-week period: 2 events, 3 attendees each → avg 3.
     const prevA = oneOff(weeksAgo(15));
     const prevB = oneOff(weeksAgo(12));
     const curA = oneOff(weeksAgo(6));
@@ -226,7 +216,6 @@ describe("computeSubgroupMetrics — summary & trends", () => {
 
   it("reports a weekly consistency score between 0 and 1", () => {
     const meetings = weeklySeries(3);
-    // Turnout 2, 2, 4 → avg 2.67 / peak 4 = 0.667 (shown as "67%").
     const attendance = [
       attend(meetings[0], "a"),
       attend(meetings[0], "b"),
@@ -242,14 +231,10 @@ describe("computeSubgroupMetrics — summary & trends", () => {
     );
     expect(data.summary.weeklyConsistency).toBeGreaterThan(0);
     expect(data.summary.weeklyConsistency).toBeLessThanOrEqual(1);
-    // Kept to 3 decimals, not 1: the tab renders this as a whole percentage, so
-    // rounding to 0.7 here would peg every group's score to a multiple of 10%.
     expect(data.summary.weeklyConsistency).toBe(0.667);
   });
 
   it("has no insights when the selected range holds no events", () => {
-    // The event sits in loaded history but before the display range starts, so
-    // there are zero events *in the range*.
     const old = oneOff(weeksAgo(15));
     const data = computeSubgroupMetrics(build([old], [attend(old, "a")], [person("a")]));
     expect(data.summary.eventsHeld).toBe(0);
@@ -335,11 +320,8 @@ describe("computeSubgroupMetrics — filters & scoping", () => {
   });
 
   it("classifies breakdowns by the event's staff year, not the clock year", () => {
-    // One minute into staff year 2027, looking at a trailing window that is
-    // still all September 2026. The leaver has no 2027 profile (Member now)
-    // but was Staff in 2026 — September's Role column must keep Staff.
-    const now = Date.UTC(2026, 8, 30, 14, 1, 0); // Oct 1 2026 00:01 Sydney
-    const september = weekly(Date.UTC(2026, 8, 17, 8, 0, 0)); // 17 Sep
+    const now = Date.UTC(2026, 8, 30, 14, 1, 0);
+    const september = weekly(Date.UTC(2026, 8, 17, 8, 0, 0));
     const data = computeSubgroupMetrics(
       build(
         [september],
@@ -365,15 +347,13 @@ describe("computeSubgroupMetrics — follow-up ordering", () => {
   it("orders follow-ups by urgency, then longest-absent within a reason", () => {
     const meetings = weeklySeries(10);
     const attendance = [
-      // At risk: a regular (first 7 weekly meetings) who missed the last 3.
       ...meetings.slice(0, 7).map((m) => attend(m, "risk")),
-      // Two lapsed regulars with different last-seen dates (tiebreak).
       attend(meetings[0], "lapEarly"),
       attend(meetings[1], "lapEarly"),
-      attend(meetings[2], "lapEarly"), // last seen ~7 weeks ago
+      attend(meetings[2], "lapEarly"),
       attend(meetings[0], "lapLater"),
       attend(meetings[1], "lapLater"),
-      attend(meetings[3], "lapLater"), // last seen ~6 weeks ago
+      attend(meetings[3], "lapLater"),
     ];
     const data = computeSubgroupMetrics(
       build(meetings, attendance, [
@@ -387,7 +367,6 @@ describe("computeSubgroupMetrics — follow-up ordering", () => {
       "lapsed",
       "lapsed",
     ]);
-    // Within the lapsed pair, the one absent longer (lapEarly) comes first.
     const lapsed = data.followUps.filter((f) => f.reasonCode === "lapsed");
     expect(lapsed.map((f) => f.key)).toEqual(["lapEarly", "lapLater"]);
   });
@@ -395,7 +374,6 @@ describe("computeSubgroupMetrics — follow-up ordering", () => {
 
 describe("computeSubgroupMetrics — weekly-meeting lens", () => {
   it("averages weekly-meeting turnout separately from all-event turnout", () => {
-    // Two weekly meetings (turnout 2 each) plus one big one-off (turnout 4).
     const w1 = weekly(weeksAgo(3));
     const w2 = weekly(weeksAgo(2));
     const big = oneOff(weeksAgo(1));
@@ -413,7 +391,6 @@ describe("computeSubgroupMetrics — weekly-meeting lens", () => {
       build([w1, w2, big], attendance, ["a", "b", "c", "d"].map((k) => person(k)))
     );
     expect(data.hasWeeklyMeetings).toBe(true);
-    // Weekly average is 2 (the one-off's 4 doesn't inflate it); all-event avg is higher.
     expect(data.summary.avgWeeklyAttendance).toBe(2);
     expect(data.summary.avgAttendance).toBeGreaterThan(2);
   });
@@ -429,9 +406,6 @@ describe("computeSubgroupMetrics — weekly-meeting lens", () => {
   });
 
   it("measures new-vs-returning at weekly meetings when the group runs them", () => {
-    // X first appears at a one-off, THEN at the weekly meetings. Because this
-    // group runs weekly meetings, the split is over weekly meetings only, so X
-    // is "fresh" at their first weekly meeting despite the earlier one-off.
     const pre = oneOff(weeksAgo(4));
     const w1 = weekly(weeksAgo(3));
     const w2 = weekly(weeksAgo(2));
@@ -442,28 +416,24 @@ describe("computeSubgroupMetrics — weekly-meeting lens", () => {
         [person("x")]
       )
     );
-    // Only the two weekly meetings appear in the split, not the one-off.
     expect(data.newVsReturning).toHaveLength(2);
-    expect(data.newVsReturning[0]).toMatchObject({ fresh: 1, returning: 0 }); // first weekly
-    expect(data.newVsReturning[1]).toMatchObject({ fresh: 0, returning: 1 }); // returning
+    expect(data.newVsReturning[0]).toMatchObject({ fresh: 1, returning: 0 });
+    expect(data.newVsReturning[1]).toMatchObject({ fresh: 0, returning: 1 });
   });
 });
 
 describe("computeSubgroupMetrics — follow-up follows the range", () => {
   it("scopes recent-activity counts to the selected range", () => {
-    // 12 weekly meetings ending now; Ed attended only three of them, 5–7 weeks
-    // ago (so outside a 4-week window, inside an 8-week one), and none since.
-    const meetings = weeklySeries(12); // index i → weeksAgo(11 - i)
+    const meetings = weeklySeries(12);
     const attendance = [5, 6, 7].map((w) =>
       attend(meetings[11 - w], "ed")
     );
     const eightWeek = computeSubgroupMetrics(
-      build(meetings, attendance, [person("ed")]) // default range = 8 weeks
+      build(meetings, attendance, [person("ed")])
     );
     const fourWeek = computeSubgroupMetrics(
       build(meetings, attendance, [person("ed")], { rangeStartMs: weeksAgo(4) })
     );
-    // Same data, different window: 3 recent attendances at 8 weeks, 0 at 4 weeks.
     expect(findReason(eightWeek, "ed")?.recentCount).toBe(3);
     expect(findReason(fourWeek, "ed")?.recentCount).toBe(0);
   });
@@ -499,7 +469,6 @@ describe("computeSubgroupMetrics — composition charts", () => {
       expect.objectContaining({ primary: 1, rest: 1 }),
       expect.objectContaining({ primary: 1, rest: 2 }),
     ]);
-    // 2 leader attendances of 5 total across the period.
     expect(data.summary.leaderShare).toBe(0.4);
   });
 
@@ -508,9 +477,8 @@ describe("computeSubgroupMetrics — composition charts", () => {
     const persons = [
       person("home", { campuses: ["USYD"] }),
       person("visitor", { campuses: ["UNSW"] }),
-      // Multi-campus staff count as home when ANY campus matches.
       person("both", { campuses: ["UNSW", "USYD"] }),
-      person("nowhere"), // org-side staff / member without Campus metadata
+      person("nowhere"),
     ];
     const attendance = ["home", "visitor", "both", "nowhere"].map((k) =>
       attend(m, k)
@@ -529,7 +497,6 @@ describe("computeSubgroupMetrics — composition charts", () => {
     );
     expect(data.campusMix).toBeUndefined();
     expect(data.summary.homeCampusShare).toBeUndefined();
-    // The leaders split still computes org-wide.
     expect(data.leadersVsOthers).toHaveLength(1);
   });
 
@@ -547,11 +514,10 @@ describe("computeSubgroupMetrics — composition charts", () => {
   it("share is null when no one attended the composition events", () => {
     const data = computeSubgroupMetrics(build([weekly(weeksAgo(1))], [], []));
     expect(data.summary.leaderShare).toBeNull();
-    expect(data.summary.homeCampusShare).toBeUndefined(); // org-wide default
+    expect(data.summary.homeCampusShare).toBeUndefined();
   });
 
   it("classifies leaders and home campus by the event's staff year", () => {
-    // 1 Oct 2026 00:01 Sydney — staff year 2027. A September weekly is still 2026.
     const now = Date.UTC(2026, 8, 30, 14, 1, 0);
     const september = weekly(Date.UTC(2026, 8, 17, 8, 0, 0), ["USYD"]);
     const leaver = person("leaver", {
@@ -582,10 +548,8 @@ describe("computeSubgroupMetrics — composition charts", () => {
   });
 
   it("falls back to the current-year flag when the event year is not in the map", () => {
-    // Event in staff year 2025; maps only have 2026/2027. The 2025 key is
-    // missing, so composition uses isStudentLeader / campuses.
     const now = Date.UTC(2026, 8, 30, 14, 1, 0);
-    const older = weekly(Date.UTC(2025, 2, 4, 8, 0, 0), ["USYD"]); // Mar 2025
+    const older = weekly(Date.UTC(2025, 2, 4, 8, 0, 0), ["USYD"]);
     const personRow = person("lead", {
       isStudentLeader: true,
       campuses: ["USYD"],

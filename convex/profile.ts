@@ -5,20 +5,11 @@ import { Doc } from "./_generated/dataModel";
 import { assignmentsOf, departmentsOf, divisionsOf } from "../shared/flow";
 import { currentStaffYear, optionalEmail, rolesOf } from "./model";
 
-/**
- * A person's profile: Google-synced identity, self-editable extras (church,
- * photo) and their service history — the role/department they held each year.
- * PUBLIC when a specific `email` is asked for (1.7.0): the org chart is the
- * app's public landing surface, so anyone can open a person from it. The
- * self-profile form (no `email`) still requires a signed-in caller, and the
- * personal `localChurch` field is only shown to signed-in viewers. Name,
- * email, role and department are never editable here.
- */
 export const get = query({
   args: { email: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const callerEmail = await optionalEmail(ctx);
-    if (!callerEmail && !args.email) return null; // own profile needs auth
+    if (!callerEmail && !args.email) return null;
     const email = (args.email ?? callerEmail ?? "").trim().toLowerCase();
 
     const user = await ctx.db
@@ -31,9 +22,6 @@ export const get = query({
       .withIndex("by_email", (q) => q.eq("email", email))
       .unique();
 
-    // Every year's role + department, newest first. The email finds the
-    // person; their bound user id and imported person id then pull in years
-    // they served under an older email address.
     const byEmail = await ctx.db
       .query("staffProfiles")
       .withIndex("by_email_and_year", (q) => q.eq("email", email))
@@ -58,8 +46,6 @@ export const get = query({
         .take(50);
       for (const h of imported) history.set(h._id, h);
     }
-    // Future years (admins pre-provision the next staff year) stay hidden
-    // until the year actually starts at the October 1st rollover.
     const serviceHistory = [...history.values()]
       .filter((h) => h.year <= currentStaffYear())
       .sort((a, b) => b.year - a.year);
@@ -73,7 +59,6 @@ export const get = query({
       isMe: email === callerEmail,
       name: user?.name ?? dirUser?.name ?? anyProfile?.name ?? null,
       photo: avatarUrl ?? user?.image ?? dirPhoto,
-      // Personal detail — kept off the public (signed-out) person view.
       localChurch: callerEmail ? (user?.localChurch ?? null) : null,
       serviceHistory: serviceHistory.map((h) => ({
         year: h.year,
@@ -87,7 +72,6 @@ export const get = query({
   },
 });
 
-/** The signed-in caller's own users row. */
 async function requireOwnUser(ctx: MutationCtx): Promise<Doc<"users">> {
   const userId = await getAuthUserId(ctx);
   const user = userId === null ? null : await ctx.db.get("users", userId);
@@ -95,7 +79,6 @@ async function requireOwnUser(ctx: MutationCtx): Promise<Doc<"users">> {
   return user;
 }
 
-/** Users may edit their own church. Nothing else on the profile is editable. */
 export const updateChurch = mutation({
   args: { localChurch: v.string() },
   handler: async (ctx, args) => {

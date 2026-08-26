@@ -38,22 +38,15 @@ export function EditMemberSheet({
 }: {
   visible: boolean;
   onClose: () => void;
-  /** Calendar year the student "Year" level is shown/encoded against. */
   year: number;
-  /** Staff year a staff overlay's profile (name/email/locked Campus/Role) is read from. */
   staffYear: number;
   memberId: Id<"attendanceMembers"> | null;
   metadataFields: Doc<"attendanceMetadata">[];
-  /** When editing from an event roll-call, notes are stored on the attendance row. */
   eventAttendance?: {
     attendanceId: Id<"attendance">;
     notes?: string;
   } | null;
-  /** In create mode (memberId null), seeds the Name field — e.g. the roll-call
-   *  search text, so "Create member" opens with the typed name already filled. */
   prefillName?: string;
-  /** Fired after a new member is created, with the new id, so the caller can act
-   *  on it (e.g. sign them straight in to the event). Not fired when editing. */
   onCreated?: (memberId: Id<"attendanceMembers">) => void;
 }) {
   const t = useAppTheme();
@@ -78,8 +71,6 @@ export function EditMemberSheet({
   const [deleteText, setDeleteText] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  // Existing members sharing this name — only checked while creating, so an
-  // admin is warned (and must confirm) before adding a duplicate person.
   const duplicates = useQuery(
     api.attendanceMembers.byName,
     visible && !memberId && name.trim() ? { name: name.trim() } : "skip"
@@ -112,7 +103,6 @@ export function EditMemberSheet({
     setConfirmOpen(false);
   }, [visible, memberId, row, eventAttendance?.attendanceId, eventAttendance?.notes, prefillName]);
 
-  // New members with a name clash go through a confirmation step first.
   const handleSave = () => {
     if (hasDuplicate) {
       setConfirmOpen(true);

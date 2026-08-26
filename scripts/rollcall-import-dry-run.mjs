@@ -105,8 +105,6 @@ function readProtoFields(buffer) {
       fields.push({ field, wire, raw: buffer.subarray(index, index + 4) });
       index += 4;
     } else if (wire === 3 || wire === 4) {
-      // Group delimiters appear inside encoded references. They are not useful
-      // for field extraction, so keep scanning.
       fields.push({ field, wire });
     } else {
       break;
@@ -294,7 +292,6 @@ function accessToken() {
         stdio: ["ignore", "pipe", "pipe"],
       }).trim();
     } catch {
-      // Try the next credential source.
     }
   }
   for (const command of firebaseCommands) {
@@ -308,7 +305,6 @@ function accessToken() {
       const token = login.result?.[0]?.tokens?.access_token;
       if (typeof token === "string" && token) return token;
     } catch {
-      // Try the next command name.
     }
   }
   throw new Error(
@@ -394,26 +390,6 @@ function normaliseText(value) {
   return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-/**
- * The staff year an event belongs to — the SOW staff year rolls over on
- * October 1 (Sydney), matching shared/flow.ts `staffYearForDate`/`eventStaffYear`
- * and how the live app derives an event's staff year from its start date
- * (events store no `year` column — see convex/events.ts). So an event is
- * bucketed here exactly as it would be when created in the app: Oct–Dec of year
- * N-1 and Jan–Sep of year N both land in staff year N.
- *
- * This now coincides with the old web app's member roster, which also rolled
- * over ~October 1 (groups/<g>/members/<year>/members). They are still kept
- * decoupled in code — an attendance row's member is resolved against whichever
- * source roster its reference actually points at (see memberDocBySourceId) and
- * embedded on the event — so a future divergence wouldn't break bucketing.
- * Verified against the 2026-06 export.
- *
- * NOTE: historical `events.year` values already imported under the previous
- * Sept-1 boundary were bucketed one calendar year later for September events; a
- * re-run with this Oct-1 rule re-buckets those, which is intentional alignment
- * with the new rollover but is a data change to be aware of.
- */
 function eventStaffYear(dateValue) {
   const sydney = new Date(new Date(dateValue).getTime() + 10 * 60 * 60 * 1000);
   return sydney.getUTCMonth() >= 9
@@ -436,7 +412,6 @@ function validEmail(value) {
     : undefined;
 }
 
-/** Keep in sync with shared/rollcallImport.ts */
 function canonicalImportMemberName(name) {
   const trimmed = String(name ?? "")
     .trim()
@@ -494,14 +469,6 @@ const metadataByKey = new Map();
 const tagsByName = new Map();
 const members = [];
 const events = [];
-// Every source member doc across the rosters a staff year's events can point
-// at, keyed by its full sourceImportId (`<g>/members/<rosterYear>/members/<id>`)
-// — exactly what `sourceReferenceId(row.member)` produces. The Oct 1 staff year
-// now lines up with the web app's ~Oct 1 member roster, but that roster boundary
-// is imprecise, so an event near the rollover may reference the adjacent roster
-// (N-1 or N+1). Load N-1, N and N+1 and resolve each attendance reference against
-// whichever it names. Extra rosters are harmless — matching is by exact
-// sourceImportId, never a fuzzy guess.
 const memberDocBySourceId = new Map();
 const ROSTER_YEARS = [year - 1, year, year + 1];
 
@@ -561,9 +528,6 @@ for (const group of groups) {
         sourceImportId,
       };
       memberDocBySourceId.set(sourceImportId, enriched);
-      // The sign-in pool for this staff year is its own roster (rosterYear ===
-      // year); the adjacent rosters are loaded only to resolve references from
-      // events that sit near the imprecise ~Oct 1 roster boundary.
       if (rosterYear === year) members.push(enriched);
     }
   });
@@ -586,9 +550,6 @@ for (const group of groups) {
           return mapped === "ALL" ? SOW_SUBGROUP : mapped;
         })
         .filter(Boolean),
-      // Keep the raw attendance references for now; they're resolved against the
-      // complete member map in a second pass below (a reference can point at a
-      // member in a group that hasn't been loaded yet).
       members: asArray(event.members).map((row) => ({
         source: sourceReferenceId(row.member),
         signInTime: row.signInTime,
@@ -598,11 +559,6 @@ for (const group of groups) {
   }
 }
 
-// Second pass: now that every group's rosters are loaded, resolve each
-// attendance reference and embed the member's identity + metadata, so the
-// import never has to guess which roster year a reference lives in.
-// `resolved: false` flags a reference whose member doc is in neither roster
-// (genuinely dangling source data).
 for (const event of events) {
   event.members = event.members.map((row) => {
     const doc = row.source ? memberDocBySourceId.get(row.source) : undefined;
@@ -622,10 +578,6 @@ for (const event of events) {
   });
 }
 
-// A few source event docs parse to a non-unique id (e.g. several SOW-group
-// events share the doc id "placeholder"), which would collapse them onto one
-// row under the importer's upsert-by-sourceImportId. Disambiguate every member
-// of a colliding id with its start time so no event is silently dropped.
 const eventIdCounts = new Map();
 for (const event of events) {
   eventIdCounts.set(

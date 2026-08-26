@@ -17,27 +17,14 @@ import {
   SowSpinner,
 } from "./ui";
 
-/** Roughly the Sheet's Modal fade duration; we hold the query this long on close. */
 const CLOSE_ANIMATION_MS = 300;
 
-/**
- * A handful of one-tap reactions; the rest live behind "More". "More" is the
- * shared catalogue the server validates against (`ALLOWED_REACTIONS`), so the
- * picker can never offer an emoji `comments.toggleReaction` would reject — or
- * silently omit one that was added server-side.
- */
 const QUICK_EMOJIS = QUICK_REACTION_EMOJIS;
 const MORE_EMOJIS = REACTION_EMOJIS;
 
-/** Optimistic comments carry a synthetic id (`optimistic-…`) until the server
- *  reconciles them; reactions can't target a row that doesn't exist yet. */
 const isOptimisticId = (id: Id<"requestComments">) =>
   String(id).startsWith("optimistic-");
 
-/**
- * The clarification thread for a request: read the conversation, post a
- * comment, and react to comments with emoji. Opening it marks the thread read.
- */
 export const CommentsSheet = ({
   request,
   visible,
@@ -48,11 +35,6 @@ export const CommentsSheet = ({
   onClose: () => void;
 }) => {
   const t = useAppTheme();
-  // Keep the comments query subscribed until the close animation has
-  // finished. `visible` switches it on immediately; on close we hold the
-  // subscription for the fade duration so the request comments state never
-  // reverts to the loading spinner mid-animation — the query would otherwise
-  // flip to "skip" (-> undefined) the instant the close button is pressed.
   const [active, setActive] = useState(visible);
   useEffect(() => {
     if (visible) {
@@ -68,21 +50,15 @@ export const CommentsSheet = ({
     api.comments.list,
     active ? { requestId: request._id } : "skip"
   );
-  // Also retain the last loaded result so re-opening shows the thread
-  // instantly instead of flashing the spinner before the query resolves.
   const [loaded, setLoaded] = useState<typeof comments>(comments);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- retain last loaded thread
     if (comments !== undefined) setLoaded(comments);
   }, [comments]);
-  // Optimistic: show the comment immediately (as "You") so the thread feels
-  // instant; the real query replaces it on response, or Convex reverts on error.
   const add = useMutation(api.comments.add).withOptimisticUpdate(
     (localStore, { requestId, body }) => {
       const current = localStore.getQuery(api.comments.list, { requestId });
       if (!current) return;
-      // Runs at mutation time (not render); the synthetic id/timestamp are
-      // replaced when the server result lands.
       // eslint-disable-next-line react-hooks/purity -- optimistic id/timestamp
       const now = Date.now();
       localStore.setQuery(api.comments.list, { requestId }, [
@@ -100,11 +76,7 @@ export const CommentsSheet = ({
     }
   );
   const markRead = useMutation(api.comments.markRead);
-  // Also clear any in-app notifications about this request once its thread is
-  // open — reading the comment marks the "new comment" notification read too.
   const markNotificationsRead = useMutation(api.notifications.markReadForRequest);
-  // Optimistic: toggle my reaction locally (add/remove, re-sorted by count) so
-  // the chip updates on tap instead of after the round-trip.
   const toggleReaction = useMutation(api.comments.toggleReaction).withOptimisticUpdate(
     (localStore, { commentId, emoji }) => {
       const current = localStore.getQuery(api.comments.list, { requestId: request._id });
@@ -141,7 +113,6 @@ export const CommentsSheet = ({
   const [reactingTo, setReactingTo] = useState<Id<"requestComments"> | null>(null);
   const [moreFor, setMoreFor] = useState<Id<"requestComments"> | null>(null);
 
-  // Clear the unread badge while the thread is open (including as new ones land).
   useEffect(() => {
     if (visible && comments) {
       void markRead({ requestId: request._id });
@@ -149,7 +120,6 @@ export const CommentsSheet = ({
     }
   }, [visible, comments, markRead, markNotificationsRead, request._id]);
 
-  // Closing the thread also dismisses any open reaction picker.
   useEffect(() => {
     if (!visible) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- dismiss pickers on close
@@ -160,7 +130,7 @@ export const CommentsSheet = ({
 
   const send = async () => {
     const body = draft.trim();
-    if (!body || sending) return; // guard against double-taps
+    if (!body || sending) return;
     setSending(true);
     setDraft("");
     setError(null);
@@ -168,7 +138,7 @@ export const CommentsSheet = ({
       await add({ requestId: request._id, body });
     } catch (e) {
       setError(errorMessage(e));
-      setDraft(body); // restore so the text isn't lost
+      setDraft(body);
     } finally {
       setSending(false);
     }
@@ -177,8 +147,6 @@ export const CommentsSheet = ({
   const react = async (commentId: Id<"requestComments">, emoji: string) => {
     setReactingTo(null);
     setMoreFor(null);
-    // The comment hasn't been persisted yet — toggling a reaction on its
-    // synthetic id would fail the mutation's id validator with a false error.
     if (isOptimisticId(commentId)) return;
     try {
       await toggleReaction({ commentId, emoji });
@@ -346,8 +314,6 @@ export const CommentsSheet = ({
 };
 
 const styles = StyleSheet.create({
-  // Compact, left-aligned to occupy roughly the same footprint as the
-  // "No comments yet" line so the sheet doesn't jump in size after loading.
   loading: { alignSelf: "flex-start", paddingVertical: 2 },
   commentRow: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" },
   commentHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },

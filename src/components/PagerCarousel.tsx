@@ -7,7 +7,6 @@ type Props = {
   activeKey: string;
   onActiveKeyChange: (key: string) => void;
   renderPage: (tab: PagerTab) => ReactNode;
-  /** Fractional page position; animated to the active tab on change. */
   position?: Animated.Value;
   onScrollStateChange?: (
     state: PagerScrollState,
@@ -16,22 +15,14 @@ type Props = {
   ) => void;
 };
 
-/**
- * Web carousel. react-native-pager-view imports native-only modules that can't
- * bundle on web, so on web we render only the active page; tabs are switched via
- * the tab bar rather than by swiping. The native variant lives in
- * PagerCarousel.native.tsx.
- */
 export const PagerCarousel = ({ tabs, activeKey, renderPage, position }: Props) => {
   const index = Math.max(
     tabs.findIndex((tab) => tab.key === activeKey),
     0
   );
-  // No swipe on web, so slide the tab-bar underline to the active tab here.
   useEffect(() => {
     if (!position) return;
     const animation = Animated.timing(position, {
-      // This file is the web-only variant; web has no native animated module.
       toValue: index,
       duration: 220,
       useNativeDriver: false,

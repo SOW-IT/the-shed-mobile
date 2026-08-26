@@ -1,13 +1,6 @@
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 
-/**
- * Bundles the admin screen's ~20 `api.admin.*` mutation handles into one typed
- * object so `AdminScreen` doesn't open with twenty near-identical `useMutation`
- * lines. Destructure exactly what each call site needs:
- *
- *   const { setStaffProfile, upsertDivision } = useAdminMutations();
- */
 export const useAdminMutations = () => ({
   setStaffProfile: useMutation(api.admin.setStaffProfile),
   removeStaffProfile: useMutation(api.admin.removeStaffProfile),

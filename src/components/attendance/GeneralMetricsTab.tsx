@@ -1,15 +1,3 @@
-/**
- * Insights → General. Org-wide trends from convex/generalMetrics.ts (all from
- * `staffProfiles` only — org-chart staff + student leaders, not attendance):
- *  - all staff head-count over time, broken into staff + student leaders,
- *  - student leaders by campus,
- *  - year-over-year retention (turnover is the complement, shown as a hint),
- *  - share serving ≥2 years in-role + average years served so far.
- *
- * Trend charts default to the last {@link GENERAL_RECENT_YEARS} years (operational
- * view); the scope picker can expand to all history or a single year of cards.
- * Non-staff signed-out visitors get a public preview (trends only).
- */
 import { useQuery } from "convex/react";
 import { useMemo, useState } from "react";
 import { LayoutChangeEvent, StyleSheet, Text, useWindowDimensions, View } from "react-native";
@@ -44,19 +32,15 @@ const CAMPUS_ACRONYM: Record<string, string> = {
 };
 const campusAcronym = (name: string) => CAMPUS_ACRONYM[name] ?? name;
 
-/** Seeded/test campuses belong in Admin, not on a leader-facing chart. */
 const isNoiseCampus = (name: string) => /e2e\s*test/i.test(name);
 
-/** Averages carry one decimal; drop a trailing ".0" so whole numbers read clean. */
 const fmtAvg = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
-/** Percentages for metric cards (e.g. 33.3 → "33.3%"). */
 const fmtPct = (n: number | null | undefined) =>
   n === null || n === undefined ? "—" : `${fmtAvg(n)}%`;
 
-/** Year-over-year change of `cur` vs `prev` for a metric card, or null. */
 const yoyDelta = (cur: number, prev: number | undefined): Delta => {
-  if (prev === undefined) return null; // no prior year on record
+  if (prev === undefined) return null;
   if (prev === 0) return cur > 0 ? { text: "new", direction: "up" } : null;
   const pct = Math.round(((cur - prev) / prev) * 100);
   return {
@@ -65,10 +49,6 @@ const yoyDelta = (cur: number, prev: number | undefined): Delta => {
   };
 };
 
-/**
- * Absolute percentage-point change for rate metrics (retention / tenure %),
- * where a relative % of a % would read oddly. Null when either side is missing.
- */
 const ppDelta = (
   cur: number | null | undefined,
   prev: number | null | undefined
@@ -83,7 +63,6 @@ const ppDelta = (
   };
 };
 
-/** Absolute change in years for avg-tenure cards (not percentage points). */
 const yearsDelta = (
   cur: number | null | undefined,
   prev: number | null | undefined
@@ -98,7 +77,6 @@ const yearsDelta = (
   };
 };
 
-/** Push a chart segment only when the value is a real reading (not null). */
 const rateSegment = (
   key: string,
   value: number | null | undefined,
@@ -112,10 +90,6 @@ export function GeneralMetricsTab({
   scope,
   publicPreview,
 }: {
-  /**
-   * null = recent years trend (default operational view);
-   * "all" = full history; a year number = that year's summary cards.
-   */
   scope: GeneralScope;
   publicPreview?: boolean;
 }) {
@@ -128,7 +102,6 @@ export function GeneralMetricsTab({
   const trends = useQuery(api.generalMetrics.staffTrends, {});
   const campusAttendance = useQuery(api.generalMetrics.campusWeeklyAttendance, {});
 
-  // Trend charts: default to the last N years (operational); "all" shows history.
   const trendYearCount =
     scope === "all" ? Number.POSITIVE_INFINITY : GENERAL_RECENT_YEARS;
 
@@ -142,8 +115,6 @@ export function GeneralMetricsTab({
     const years = trends.years.slice(start);
     const idx = (i: number) => start + i;
 
-    // Single stacked chart: total head-count broken into staff + student leaders
-    // (replaces the redundant "All staff" + "Staff vs student leaders" pair).
     const staffBreakdown: SplitPoint[] = years.map((y, i) => ({
       at: y,
       label: yearLabel(y),
@@ -163,10 +134,6 @@ export function GeneralMetricsTab({
       })),
     }));
 
-    // Rates are compared, not summed — grouped bars. Only emit segments with a
-    // real reading (null = no prior roster / empty lens); never coerce null→0.
-    // Tolerate a missing series (older snapshots / partial payloads) rather than
-    // crashing the whole General tab.
     const rateSeriesByYear = (
       series:
         | {
@@ -191,7 +158,6 @@ export function GeneralMetricsTab({
         .filter((p) => p.segments.length > 0);
     };
 
-    // Retention only — turnover is the same number inverted (shown as a card hint).
     const retentionByYear = rateSeriesByYear(trends.retention);
 
     const tenure2PlusByYear = rateSeriesByYear(trends.tenure2Plus);
@@ -209,9 +175,6 @@ export function GeneralMetricsTab({
     };
   }, [trends, trendYearCount, t.text, t.primary, t.accent]);
 
-  // Average weekly-meeting attendance per campus, one point per staff year from
-  // 2025 (when attendance recording began). The current year's point is a YTD
-  // average — only meetings held so far are counted.
   const campusWeekly = useMemo<MultiStackPoint[] | null>(() => {
     if (!campusAttendance || campusAttendance.years.length === 0) return null;
     if (campusAttendance.campuses.length === 0) return null;
@@ -241,9 +204,6 @@ export function GeneralMetricsTab({
   }, [campusAttendance, trendYearCount]);
 
   if (trends === undefined) return <LoadingState />;
-  // `null` means the query couldn't resolve a staff profile for the caller (not
-  // signed in, or not provisioned) — distinct from a provisioned account that
-  // simply has no staff years on record yet.
   if (trends === null) {
     return (
       <EmptyState
@@ -264,16 +224,10 @@ export function GeneralMetricsTab({
   }
 
   const width = containerWidth;
-  // Charts flow in a grid too — as many as fit at ~440pt each — so on a wide
-  // screen they sit side by side (like the summary cards) instead of one huge
-  // chart per row. Below ~880pt it's a single full-width chart.
   const chartCols = Math.max(1, Math.floor(width / 440));
   const chartWidth =
     chartCols > 1 ? (width - spacing.sm * (chartCols - 1)) / chartCols : width;
 
-  // ── Year-by-year: summary cards for the selected year, vs the prior year. ──
-  // The detailed per-year cards stay staff-only; the public preview only ever
-  // shows the trend charts below.
   const selectedYear = typeof scope === "number" ? scope : null;
   const yearIndex = selectedYear === null ? -1 : trends.years.indexOf(selectedYear);
   if (!publicPreview && selectedYear !== null && yearIndex >= 0) {
@@ -288,7 +242,6 @@ export function GeneralMetricsTab({
       { label: "All staff", value: trends.allStaff[i], delta: yoyDelta(trends.allStaff[i], at(trends.allStaff)) },
       { label: "Staff", value: trends.staff[i], delta: yoyDelta(trends.staff[i], at(trends.staff)) },
       { label: "Student leaders", value: trends.studentLeaders[i], delta: yoyDelta(trends.studentLeaders[i], at(trends.studentLeaders)), tone: "positive" },
-      // Skip campuses with nobody this year — an empty card reads as a gap.
       ...trends.studentLeadersByCampus
         .filter((c) => c.counts[i] > 0 && !isNoiseCampus(c.campus))
         .map((c) => ({
@@ -298,8 +251,6 @@ export function GeneralMetricsTab({
         })),
     ];
 
-    // Average weekly-meeting attendance per campus this staff year, vs last —
-    // only from 2025 (attendance start) and only campuses that met this year.
     const caIndex = campusAttendance ? campusAttendance.years.indexOf(year) : -1;
     const attendanceCards =
       campusAttendance && caIndex >= 0
@@ -323,8 +274,6 @@ export function GeneralMetricsTab({
       tone?: "positive" | "default";
     };
 
-    // Retention for year Y vs prior year's roster. Turnover is the complement
-    // (same prior denominator) — surface it as a hint, not a second card grid.
     const retentionHint = (
       left: number | null | undefined,
       priorN: number | undefined
@@ -366,8 +315,6 @@ export function GeneralMetricsTab({
     ];
     const retentionCards = retentionAll.filter((c) => c.value !== null);
 
-    // Of people present this year: ≥2 years share + mean years so far.
-    // Staff/SL lenses count years *in that role* (SL→staff is a common path).
     const tenureAll: RateCard[] = [
       {
         label: "Overall ≥2 years",
@@ -557,10 +504,8 @@ export function GeneralMetricsTab({
     );
   }
 
-  // ── All years: lifetime tenure cards + multi-year trend charts. ──
   const cardCols = width >= 640 ? 3 : 2;
   const cardWidth = (width - spacing.sm * (cardCols - 1)) / cardCols;
-  // Hide lenses that never had anyone (don't show a misleading 0.0% / 0).
   const everOverall = trends.allStaff.some((n) => n > 0);
   const everStaff = trends.staff.some((n) => n > 0);
   const everLeaders = trends.studentLeaders.some((n) => n > 0);
@@ -619,8 +564,6 @@ export function GeneralMetricsTab({
 
   return (
     <View onLayout={onLayout} style={styles.grid}>
-      {/* Lifetime tenure cards are staff/signed-in only — public preview is
-          trends-only (see Insights screen publicPreview contract). */}
       {!publicPreview && lifetimeCards.length > 0 ? (
         <>
           <Text style={[typography.headline, { color: t.text }]}>
@@ -806,9 +749,6 @@ export function GeneralMetricsTab({
               }),
             )}
             fullscreenContent={
-              // Averages are compared, not summed, so bar mode draws one bar
-              // per campus side by side instead of stacking them into a
-              // meaningless total.
               <MultiStackedBarChart
                 points={campusWeekly}
                 tooltipLabel={(p) => String(p.at)}
@@ -827,7 +767,6 @@ export function GeneralMetricsTab({
       ) : null}
       </View>
 
-      {/* Clear the Bars / Last 5y pills so the last chart can scroll above them. */}
       <View style={{ height: 96 }} />
     </View>
   );

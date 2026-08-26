@@ -11,21 +11,6 @@ import {
   toTimeInputValue,
 } from "@shared/datetime";
 
-/**
- * Native date/time fields. They mirror the string API of WebDateTimeInput
- * ("YYYY-MM-DD" for dates, "HH:MM" for times) so a caller can pick the right
- * pair by `Platform.OS` without any value-shape changes.
- *
- * Unlike rendering `DateTimePicker` straight into a form, the picker here opens
- * in its OWN modal `Sheet` (a "Done" footer dismisses it). Both the date and
- * time pickers use the `spinner` (wheel) display on every native platform: the
- * iOS `inline` calendar's month/year expander is a native overlay that spilled
- * out of the sheet and overlapped the surrounding fields, so the spinner — which
- * has no such overlay — sits tidily in its dedicated surface instead. Callers
- * gate these behind `Platform.OS !== "web"`; on web the components are imported
- * but never rendered.
- */
-
 const inputToTime = (value: string): Date | null => {
   const parts = parseTimeInputValue(value);
   if (!parts) return null;
@@ -51,7 +36,6 @@ const clampDate = (d: Date, min?: Date, max?: Date): Date => {
   return new Date(ms);
 };
 
-/** The tappable field that opens the picker sheet (and an optional clear ×). */
 const FieldButton = ({
   label,
   display,
@@ -82,8 +66,6 @@ const FieldButton = ({
           backgroundColor: t.inputBackground,
         }}
       >
-        {/* The clear button is a sibling (not nested) so tapping it can't bubble
-            up and re-open the picker. */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={label}
@@ -130,10 +112,8 @@ export const NativeDateInput = ({
   value: string;
   min?: string;
   max?: string;
-  /** Shown when `value` is empty (e.g. "Any" for an optional range bound). */
   placeholder?: string;
   onChange: (value: string) => void;
-  /** When set, an empty value is allowed and a clear (×) affordance is shown. */
   onClear?: () => void;
 }) => {
   const t = useAppTheme();
@@ -141,7 +121,6 @@ export const NativeDateInput = ({
   const current = parseDateInputValue(value);
   const minDate = min ? parseDateInputValue(min) ?? undefined : undefined;
   const maxDate = max ? parseDateInputValue(max) ?? undefined : undefined;
-  // The picker must open on a value within [min, max]; fall back to today.
   const initial = clampDate(current ?? new Date(), minDate, maxDate);
   return (
     <>
@@ -163,14 +142,7 @@ export const NativeDateInput = ({
         <View style={{ alignSelf: "stretch", paddingVertical: spacing.sm }}>
           <DateTimePicker
             mode="date"
-            // Spinner (not the iOS `inline` calendar) so the month/year expander
-            // overlay can't spill out of the sheet over the other fields.
             display="spinner"
-            // The SwiftUI `Host` only matches its content's height (`matchContents`
-            // is vertical-only), so the wheel needs an explicit width from RN.
-            // Without it the picker collapses to a 0-width frame: the wheel still
-            // *draws* (SwiftUI overflows its bounds) but no touch lands inside it,
-            // so it can't be tapped or dragged. Stretch it to fill the sheet.
             style={{ width: "100%" }}
             value={initial}
             minimumDate={minDate}
@@ -218,8 +190,6 @@ export const NativeTimeInput = ({
           <DateTimePicker
             mode="time"
             display="spinner"
-            // See NativeDateInput: the wheel needs an explicit width or its
-            // 0-width native frame swallows all touches even though it draws.
             style={{ width: "100%" }}
             value={initial}
             accentColor={t.primary}

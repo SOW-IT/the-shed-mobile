@@ -27,13 +27,6 @@ import { Id } from "./_generated/dataModel";
 import { MutationCtx, mutation } from "./_generated/server";
 import { findMemberByEmail, getProfile, requireAdmin } from "./model";
 
-/**
- * Events whose start date falls in staff year `year`. Events store no `year`
- * column — the staff year is derived from dateStart, and a staff year is a
- * contiguous start-date window (see staffYearStartMs), so this range query on
- * `by_dateStart` replaces the dropped `by_year` index. Returns the unexecuted
- * query so callers can `.take`/`.collect`/`.first`.
- */
 const eventsInStaffYear = (ctx: MutationCtx, year: number) =>
   ctx.db
     .query("events")
@@ -67,10 +60,6 @@ const memberInput = v.object({
   metadata: v.optional(v.record(v.string(), v.string())),
 });
 
-// One signed-in attendee on an imported event, already resolved by the dry-run
-// against whichever source roster its reference pointed at (so the importer
-// never has to guess the roster year). `staffEmail` is the legacy-normalised
-// candidate; `metadata` keys are the OLD per-field ids, remapped via fieldMap.
 const eventMemberInput = v.object({
   source: v.optional(v.string()),
   resolved: v.optional(v.boolean()),
@@ -103,18 +92,10 @@ const optionIdForLabel = (
   return label;
 };
 
-/**
- * The calendar year of an event date (Sydney). Member rows and their metadata
- * fields live under this, while the event itself and a staff attendee's
- * role/campus live under the staff year (Oct 1 rollover). For an Oct–Dec event
- * the two differ by one, which is the whole reason they're tracked separately.
- */
 function calendarYearOf(dateMs: number): number {
   return new Date(dateMs + 10 * 60 * 60 * 1000).getUTCFullYear();
 }
 
-// Metadata fields are global (not year-scoped), so import resolves against the
-// single shared set regardless of which year's data is being loaded.
 async function allMetadataFields(ctx: MutationCtx) {
   return await ctx.db.query("attendanceMetadata").collect();
 }
@@ -173,8 +154,6 @@ async function metadataForMember(
   raw: Record<string, string> | undefined,
   fieldMap: Record<string, Id<"attendanceMetadata">>,
   fieldsByKey: Map<string, Awaited<ReturnType<typeof allMetadataFields>>[number]>,
-  // By-id over the FULL field list (fieldsByKey collapses duplicate-key rows, so
-  // it can't see subgroup-specific fields). Precomputed once by the caller.
   byId: Map<string, Awaited<ReturnType<typeof allMetadataFields>>[number]>,
   staffEmail?: string
 ) {
@@ -185,12 +164,6 @@ async function metadataForMember(
     if (!field || !value) continue;
     if (field.key === STUDENT_YEAR_FIELD_KEY) {
       const label = field.values?.[value] ?? value;
-      // NOTE: `year` here is the import's STAFF year, whereas the Year level is
-      // a CALENDAR-year concept everywhere it's displayed/edited. Staff year N is
-      // labelled by its ending calendar year, so this matches for a Jan–Sep view
-      // but can be off by one for an Oct–Dec view (staffYear = calendarYear + 1).
-      // Kept as-is intentionally (rename-only change); revisit if importing an
-      // Oct–Dec cohort ever shows the wrong starting level.
       const commencement = commencementYearFromLevel(label, year);
       if (commencement !== null) out[field._id] = String(commencement);
       continue;
@@ -237,8 +210,6 @@ export const prepare = mutation({
     fieldMap: v.record(v.string(), v.id("attendanceMetadata")),
     tagMap: v.record(v.string(), v.id("attendanceTags")),
   }),
-  // `year` is accepted for import-client compatibility but no longer used:
-  // metadata and tags are both global (not year-scoped).
   handler: async (ctx, { metadata, tags }) => {
     await requireAdmin(ctx);
     const existingFields = await allMetadataFields(ctx);
@@ -247,9 +218,6 @@ export const prepare = mutation({
     for (const field of metadata) {
       const key = field.key.trim();
       if (!key) continue;
-      // A field's global identity is (key, sub-group) — same as the consolidation
-      // migration — so a sub-grouped field never collides with a global one of
-      // the same name.
       const subgroup = field.subgroup ? canonicalSubgroup(field.subgroup) : undefined;
       const existing = existingFields.find(
         (row) =>
@@ -281,8 +249,6 @@ export const prepare = mutation({
 
     const fieldsAfter = await allMetadataFields(ctx);
     for (const field of metadata) {
-      // Match the same (key, sub-group) identity as the upsert above, so a
-      // sub-grouped field's sourceIds don't remap onto a same-key global field.
       const subgroup = field.subgroup ? canonicalSubgroup(field.subgroup) : undefined;
       const row = fieldsAfter.find(
         (candidate) =>
@@ -294,8 +260,6 @@ export const prepare = mutation({
       for (const sourceId of field.sourceIds ?? []) fieldMap[sourceId] = row._id;
     }
 
-    // Tags are global (not year-scoped): resolve against the one shared
-    // catalogue, keyed by lower-cased name, regardless of which year is loaded.
     const existingTags = await ctx.db.query("attendanceTags").collect();
     const tagByName = new Map(
       existingTags.map((row) => [row.name.trim().toLowerCase(), row])
@@ -312,8 +276,6 @@ export const prepare = mutation({
       if (existing) {
         await ctx.db.patch(existing._id, { colour: tag.colour, subgroups });
       }
-      // Reuse a row already resolved earlier in this batch (duplicate name) so
-      // the same tag isn't inserted twice.
       const id =
         tagMap[lower] ??
         existing?._id ??
@@ -406,9 +368,6 @@ export const importMembers = mutation({
 export const importEvents = mutation({
   args: {
     tagMap: v.record(v.string(), v.id("attendanceTags")),
-    // Calendar-year -> (old Firestore field id -> attendanceMetadata id). Member
-    // fields live under each event's CALENDAR year, so an event spanning the
-    // Oct 1 rollover reads its members' field map from `year - 1` or `year`.
     fieldMapByYear: v.record(
       v.string(),
       v.record(v.string(), v.id("attendanceMetadata"))
@@ -425,7 +384,6 @@ export const importEvents = mutation({
     let importedEvents = 0;
     let importedAttendance = 0;
     let skipped = 0;
-    // Member fields are looked up per calendar year; cache them per run.
     const fieldsByYear = new Map<
       number,
       Awaited<ReturnType<typeof allMetadataFields>>
@@ -447,8 +405,6 @@ export const importEvents = mutation({
         const tagId = tagMap[sourceId];
         return tagId ? [tagId] : [];
       });
-      // Dedup by source id alone — it's globally unique per source event, and
-      // the event no longer stores a year to key on.
       const existing = await ctx.db
         .query("events")
         .withIndex("by_sourceImportId", (q) =>
@@ -467,9 +423,6 @@ export const importEvents = mutation({
       if (existing) await ctx.db.patch(existing._id, patch);
       importedEvents++;
 
-      // Member rows + their metadata fields live under the event's CALENDAR
-      // year; a staff attendee's role/campus comes from the STAFF-year profile,
-      // derived from the event's start date (events store no year).
       const calendarYear = calendarYearOf(event.dateStart);
       const staffYear = eventStaffYear(event.dateStart);
       const fieldMap = fieldMapByYear[String(calendarYear)] ?? {};
@@ -479,15 +432,10 @@ export const importEvents = mutation({
 
       for (const row of event.members) {
         const displayName = canonicalImportMemberName(row.name ?? "");
-        // A reference the dry-run couldn't resolve to a source member doc has no
-        // identity to import, so it's counted and skipped rather than guessed.
         if (!row.resolved || !displayName) {
           skipped++;
           continue;
         }
-        // Staff iff the attendee's email (either SOW domain) maps to a profile
-        // of the event-date staff year; that's what makes them link to the
-        // staffProfile for role/campus.
         let profile: Awaited<ReturnType<typeof getProfile>> = null;
         for (const candidate of staffEmailCandidates(row.staffEmail ?? row.email)) {
           profile = await getProfile(ctx, candidate, staffYear);
@@ -506,8 +454,6 @@ export const importEvents = mutation({
           : baseMetadata;
         const signInTime = row.signInTime ?? event.dateStart;
 
-        // Every attendee resolves to an attendanceMember under the calendar
-        // year; attendance then links by memberId only (never a bare email).
         let memberId: Id<"attendanceMembers">;
         if (profile) {
           const staffEmail = profile.email.toLowerCase();
@@ -583,8 +529,6 @@ export const summary = mutation({
   handler: async (ctx, { year }) => {
     await requireAdmin(ctx);
     return {
-      // Metadata and tags are both global (not year-scoped) — the whole shared
-      // set, not a per-year slice.
       metadata: (await ctx.db.query("attendanceMetadata").take(1000)).length,
       tags: (await ctx.db.query("attendanceTags").take(1000)).length,
       members: (
@@ -607,15 +551,6 @@ export const summary = mutation({
   },
 });
 
-/**
- * Wipe roll-call rows for the given year(s) — events + their attendance, plus
- * attendance members, metadata fields and tags — so a year can be re-imported
- * from a clean slate without stale or duplicate rows. Deletes at most `limit`
- * documents per call (to stay under Convex's per-mutation read/write budget) and
- * returns `done: false` while more remain; the caller re-runs until `done`.
- * A busy event's attendance is drained across calls before the event itself is
- * removed. Admin-only; intended for dev re-imports.
- */
 export const resetYears = mutation({
   args: { years: v.array(v.number()), limit: v.optional(v.number()) },
   returns: v.object({ deleted: v.number(), done: v.boolean() }),
@@ -624,7 +559,6 @@ export const resetYears = mutation({
     let deleted = 0;
 
     for (const year of years) {
-      // Drain attendance per event, then delete the (empty) event.
       while (deleted < limit) {
         const eventBatch = await eventsInStaffYear(ctx, year).take(20);
         if (eventBatch.length === 0) break;
@@ -639,7 +573,6 @@ export const resetYears = mutation({
             await ctx.db.delete(row._id);
             deleted++;
           }
-          // Only remove the event once its attendance is fully drained.
           if (rows.length < 200) {
             await ctx.db.delete(event._id);
             deleted++;
@@ -651,11 +584,8 @@ export const resetYears = mutation({
         if (!progressed) break;
       }
 
-      // Tags and metadata are both global (shared across years), so a per-year
-      // reset only removes this year's events + attendance and leaves them be.
     }
 
-    // `done` once no events remain for any year (a handful of cheap probes).
     let done = true;
     for (const year of years) {
       if (await eventsInStaffYear(ctx, year).first()) {
@@ -700,19 +630,11 @@ export const mergeLegacyStaffMembers = mutation({
     }> = [];
 
     for (const member of members) {
-      // Candidate staff emails for this member, treating @sowaustralia.com and
-      // @sow.org.au as the same person (profiles changed domain between staff
-      // years), plus the Daniel Kim Snr name case. Personal/campus emails
-      // produce no staff candidate and stay plain members.
       const candidates = staffEmailCandidates(member.email);
       const legacy = canonicalStaffEmailForLegacyMember(member);
       if (legacy && !candidates.includes(legacy)) candidates.unshift(legacy);
       if (candidates.length === 0) continue;
 
-      // A calendar-year import spans two staff years (Oct 1 rollover), so a
-      // member may be staff in either `year` (Jan–Sep events) or `year + 1`
-      // (Oct–Dec events). Match against whichever year/domain has the profile;
-      // the profile's own email becomes the link target.
       let profile: Awaited<ReturnType<typeof getProfile>> = null;
       for (const candidate of candidates) {
         profile =
@@ -730,15 +652,8 @@ export const mergeLegacyStaffMembers = mutation({
         continue;
       }
       const targetEmail = profile.email.toLowerCase();
-      // Already the canonical overlay for this profile (its email is the profile
-      // email) — nothing to merge, and merging a row into itself would delete it.
       if ((member.email ?? "").toLowerCase() === targetEmail) continue;
 
-      // findMemberByEmail tries both SOW domains, so for a legacy row like
-      // jane.doe@sowaustralia.com it can match `member` itself via the legacy
-      // candidate. Treat that as "no existing overlay" — otherwise we'd patch the
-      // row and then delete it below, losing its metadata instead of preserving
-      // it in a fresh canonical row.
       const found = await findMemberByEmail(ctx, targetEmail);
       const existingOverlay = found && found._id !== member._id ? found : null;
       const mergedMetadata = staffLockedMetadata(fields, profile, {
@@ -799,7 +714,6 @@ export const mergeLegacyStaffMembers = mutation({
   },
 });
 
-/** Rewrite legacy "ALL" org-wide subgroup values to "SOW" for one staff year. */
 export const migrateOrgWideSubgroupToSow = mutation({
   args: { year: v.number() },
   returns: v.object({
@@ -824,7 +738,6 @@ export const migrateOrgWideSubgroupToSow = mutation({
       }
     }
 
-    // Tags are global (not year-scoped) — canonicalise the whole shared set.
     for (const tag of await ctx.db.query("attendanceTags").collect()) {
       if (!tag.subgroups?.length) continue;
       const normalized = normalizeSubgroups(tag.subgroups);
@@ -837,7 +750,6 @@ export const migrateOrgWideSubgroupToSow = mutation({
       }
     }
 
-    // Metadata is global (not year-scoped) — canonicalise the whole shared set.
     for (const field of await ctx.db.query("attendanceMetadata").collect()) {
       if (!field.subgroup) continue;
       const canonical = canonicalSubgroup(field.subgroup);
@@ -851,7 +763,6 @@ export const migrateOrgWideSubgroupToSow = mutation({
   },
 });
 
-/** Restore canonical Gender options and remap member ids (e.g. legacy 3 → Female). */
 export const repairGenderMetadata = mutation({
   args: { year: v.number() },
   returns: v.object({
@@ -894,13 +805,6 @@ export const repairGenderMetadata = mutation({
   },
 });
 
-/**
- * Read-only audit of how every attendance row in a (calendar) year resolves:
- * staff (matched to a profile of the event-date staff year, either SOW domain),
- * a plain attendance member, or a problem. `memberShouldBeStaff` flags rows
- * still pointing at a member whose email matches a staff profile (i.e. a missed
- * link); `noProfileEmail` flags email rows with no profile for that staff year.
- */
 export const auditAttendanceMapping = mutation({
   args: { year: v.number() },
   handler: async (ctx, { year }) => {

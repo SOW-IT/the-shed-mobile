@@ -14,17 +14,12 @@ import {
   SectionTitle,
 } from "@/components/ui";
 
-/** Staff years from the current year back to 2021, newest-first. */
 const yearsFrom = (currentYear: number): number[] => {
   const years: number[] = [];
   for (let y = currentYear; y >= EARLIEST_REQUEST_YEAR; y--) years.push(y);
   return years;
 };
 
-/**
- * Finance-only control (All tab) to export every request for the chosen staff
- * years to a CSV. All years are selected by default; the user can uncheck any.
- */
 export const ExportRequestsCard = ({ currentYear }: { currentYear: number }) => {
   const convex = useConvex();
   const years = yearsFrom(currentYear);
@@ -33,7 +28,6 @@ export const ExportRequestsCard = ({ currentYear }: { currentYear: number }) => 
   const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  // Newest-first list of the chosen years for the confirmation message.
   const chosenLabel = [...selected]
     .map(Number)
     .sort((a, b) => b - a)

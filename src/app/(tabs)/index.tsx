@@ -33,11 +33,6 @@ import {
   WarningBanner,
 } from "@/components/ui";
 
-/**
- * The Requests tab: your own requests, the ones waiting on you (approvers),
- * and every request this year (Finance) — one tab, switched by segments.
- * Push notifications deep-link here with ?tab=review.
- */
 export default function RequestsScreen() {
   const { signOut } = useAuthActions();
   const me = useQuery(api.directory.me);
@@ -46,18 +41,15 @@ export default function RequestsScreen() {
     me?.profile ? { year: me.year } : "skip"
   );
   const myRequests = useQuery(api.requests.myRequests, me?.profile ? {} : "skip");
-  // Past-year browsing for the Mine / All segments. null = the live staff year.
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const requestYears = useQuery(
     api.requests.requestYears,
     me?.profile ? {} : "skip"
   );
-  // Badge for the To Review segment (Convex dedupes with the tab badge).
   const review = useQuery(
     api.requests.toReview,
     me?.profile && me.isApprover ? {} : "skip"
   );
-  // Unread comment counts for segment message badges.
   const myUnreadComments =
     useQuery(api.comments.myUnreadTotal, me?.profile ? {} : "skip") ?? 0;
   const reviewedForBadge = useQuery(
@@ -79,9 +71,6 @@ export default function RequestsScreen() {
         ? { requestIds: reviewRequestIds }
         : "skip"
     ) ?? 0;
-  // Unread comments across every request this year, for the "All" segment badge
-  // (Finance only). Reuses the same query the All list subscribes to, so Convex
-  // dedupes the subscription.
   const allRequestsForBadge = useQuery(
     api.requests.allRequests,
     me?.isFinance ? {} : "skip"
@@ -134,10 +123,6 @@ export default function RequestsScreen() {
     { key: "bank", label: "Bank" },
   ];
 
-  // Deep links (e.g. a notification) choose the segment via ?tab= and, when
-  // they're about a specific request, focus it via ?focus=<id> (and ?thread=1
-  // to open its comment thread). Notification taps also append ?reopen=<token>
-  // so a mounted card can reopen the same dismissed thread on repeated taps.
   const { tab, focus, thread, reopen } = useLocalSearchParams<{
     tab?: string;
     focus?: string;
@@ -148,11 +133,9 @@ export default function RequestsScreen() {
   const focusReopenKey = typeof reopen === "string" ? reopen : undefined;
   const [active, setActive] = useState("mine");
   useEffect(() => {
-    // Sync the segment to the deep-link param when it changes.
     // eslint-disable-next-line react-hooks/set-state-in-effect -- external param sync
     if (typeof tab === "string") setActive(tab);
   }, [tab]);
-  // Landing on a focused request "sees" its notifications — clear them all.
   const markReadForRequest = useMutation(api.notifications.markReadForRequest);
   useEffect(() => {
     if (typeof focus === "string" && focus) {
@@ -161,9 +144,6 @@ export default function RequestsScreen() {
   }, [focus, markReadForRequest]);
   const activeSegment = segments.some((s) => s.key === active) ? active : "mine";
 
-  // Year browsing only applies to the "All" segment. "Mine" and "To Review"
-  // always show the live staff year (with carry-over). null = live year;
-  // picking an earlier year shows that year's requests read-only.
   const currentYear = me?.year;
   const viewingYear = selectedYear ?? currentYear ?? new Date().getFullYear();
   const isPastYear =
@@ -181,9 +161,6 @@ export default function RequestsScreen() {
   const nextRolloverYear = currentYear as number;
 
   const departmentNames = (structure?.departments ?? []).map((d) => d.name);
-  // Default to a department they are Head of Department of, else the first
-  // department in their assignments, else (for a pure Head of Division) the
-  // first department under a division they head. They may still pick any.
   const myAssignments = me?.profile?.assignments ?? [];
   const defaultDepartment =
     myAssignments.find((a) => a.role === HEAD_OF_DEPARTMENT && a.department)
@@ -194,8 +171,6 @@ export default function RequestsScreen() {
     )?.name ??
     "";
 
-  // The live year's Director-approval cutoff (Finance-configurable), resolved
-  // to the standard $5,000 until the setting loads or when unset.
   const directorThreshold = directorThresholdOr(structure?.directorApprovalThreshold);
 
   const [newRequestOpen, setNewRequestOpen] = useState(false);
@@ -203,20 +178,14 @@ export default function RequestsScreen() {
   const [guideOpen, setGuideOpen] = useState(false);
   const openNewRequest = () => { setRequestPrefill(null); setNewRequestOpen(true); };
 
-  // Keep the footer mounted for anyone with a profile, on every segment — the
-  // PagerScreen slides it down when the swipe leaves "mine" (footerTabKey) and
-  // back up on return, so it isn't gated on the active segment here.
   const showMakeRequest = me?.profile != null;
 
-  // Wired to AllRequestsList's infinite-scroll "reveal more" handler (or null).
   const loadMoreRef = useRef<(() => void) | null>(null);
 
   if (me === undefined) return <Screen><LoadingState /></Screen>;
 
   if (me?.isCampusLeader) return <Redirect href="/attendance" />;
 
-  // Visitors (signed out) land on the public Home tab — "/" is still the web
-  // entry point even though the Requests tab is hidden for them (1.7.5).
   if (me === null) return <Redirect href="/home" />;
 
   if (me.profile === null) {
@@ -240,9 +209,6 @@ export default function RequestsScreen() {
     );
   }
 
-  // The "All" page (Finance): an Admin bar into the finance settings (Budget
-  // Manager, Director threshold, delegation — for admins / the Finance Head),
-  // year-purge warnings, then every request for the viewed year.
   const renderAll = () => (
     <>
       {(me.isAdmin || me.isFinanceHead) && <AdminBar tab="other" />}
@@ -274,8 +240,6 @@ export default function RequestsScreen() {
   const renderTab = (key: string) => {
     switch (key) {
       case "review":
-        // Review + Bank stay single-column, so cap them for readability even
-        // though the pager is full-width for the multi-column Mine/All lists.
         return (
           <ReadableColumn>
             <ReviewList focusId={focus} focusThread={focusThread} focusReopenKey={focusReopenKey} />
@@ -318,14 +282,10 @@ export default function RequestsScreen() {
         tabs={tabs}
         activeKey={activeSegment}
         onActiveKeyChange={setActive}
-        // Wide screens lay the Mine/All request lists out as columns (the Grid
-        // in each list); Review/Bank cap themselves with ReadableColumn.
         fullWidth
         onEndReached={(key) => {
           if (key === "all") loadMoreRef.current?.();
         }}
-        // Mounted on every segment so it can slide down on swipe-away and back
-        // up on return (see footerTabKey); PagerScreen drives the animation.
         footer={
           showMakeRequest ? (
             <FooterAction

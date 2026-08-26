@@ -77,7 +77,6 @@ export function AuditTab({
   loadMoreRef,
 }: {
   scrollProps?: TopBarScrollProps;
-  /** Parent PagerScreen drives infinite scroll via this ref. */
   loadMoreRef?: MutableRefObject<(() => void) | null>;
 }) {
   const t = useAppTheme();
@@ -174,8 +173,6 @@ export function AuditTab({
   return (
     <Animated.ScrollView
       showsVerticalScrollIndicator={false}
-      // Index 0 is the grouped filter + search block — pin it so both stay
-      // reachable while the activity list scrolls under them.
       stickyHeaderIndices={[0]}
       style={{ backgroundColor: t.background }}
       contentContainerStyle={[
@@ -185,9 +182,6 @@ export function AuditTab({
       ]}
       {...scrollProps}
     >
-      {/* Sticky: the filter controls and search bar pin to the top while the
-          activity list scrolls under them. The opaque page-background wrapper
-          masks rows passing behind the rounded controls. */}
       <View
         style={[styles.stickyControls, { backgroundColor: t.background }]}
       >
@@ -351,8 +345,6 @@ export function AuditTab({
 }
 
 const styles = StyleSheet.create({
-  // Rest the sticky controls below the floating top bar; they pin under the tab
-  // bar as it collapses. The list scrolls up under the bar.
   selfScrollingPage: { paddingTop: PAGER_TOP_BAR_INSET },
   stickyControls: { gap: spacing.sm, paddingTop: spacing.sm },
   filterSummary: {
@@ -389,8 +381,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: 12,
     height: 44,
-    // A touch more breathing room between the Filters button above and the
-    // search bar (adds to the sticky block's own gap).
     marginTop: spacing.xs,
     marginBottom: spacing.sm,
   },

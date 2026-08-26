@@ -18,37 +18,18 @@ import { MutationCtx, QueryCtx } from "./_generated/server";
 
 type Ctx = QueryCtx | MutationCtx;
 
-/**
- * Read bound shared by every approver-delegation query (delegatorsForYear here
- * and admin.listDelegations) so the authorization set can't silently disagree
- * with the admin list. Delegations are admin-created — a single person being a
- * delegate of hundreds of approvers is implausible, so this never truncates.
- */
 export const DELEGATION_QUERY_LIMIT = 500;
 
 export const currentStaffYear = () => staffYearForDate(new Date());
 export const nextStaffYear = () => currentStaffYear() + 1;
 export const incomingStaffYear = () => incomingStaffYearForDate(new Date());
 
-/**
- * The organisation's Google Workspace domain (staff accounts). Personal
- * (non-staff) accounts can sign in too (1.7.4) but never resolve to a staff
- * profile and are kept out of the admin Users assignment lists.
- */
 export const allowedDomain = () =>
   process.env.AUTH_ALLOWED_DOMAIN ?? "sow.org.au";
 
 export const isOrgEmail = (email: string | null | undefined): boolean =>
   !!email && email.toLowerCase().endsWith(`@${allowedDomain()}`);
 
-/**
- * The caller's email, or null when unauthenticated. Convex Auth JWTs carry
- * ONLY `sub` (userId|sessionId) — no email claim — so the email is resolved
- * from the caller's users row; the identity email claim is a fallback for
- * other token shapes (and tests). QUERIES should use this and return null
- * rather than throwing: the client briefly runs queries while auth tokens
- * attach, and a thrown query crashes the React tree.
- */
 export async function optionalEmail(ctx: Ctx): Promise<string | null> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) return null;
@@ -69,7 +50,6 @@ export async function requireEmail(ctx: Ctx): Promise<string> {
   return email;
 }
 
-/** Live-year profile, or last year's during auth grace. `year` stays current. */
 async function profileForCurrentYear(
   ctx: Ctx,
   email: string
@@ -94,29 +74,12 @@ export async function getProfile(
   email: string,
   year: number
 ): Promise<Doc<"staffProfiles"> | null> {
-  // `.first()` (not `.unique()`) so a stray duplicate (email, year) — e.g. one
-  // transiently present mid-import or mid-rollover — can never throw inside a
-  // read and take down every admin query that gates on the caller's profile.
-  // Write paths still enforce one profile per person-year. Same rationale as
-  // findMemberByEmail.
   return await ctx.db
     .query("staffProfiles")
     .withIndex("by_email_and_year", (q) => q.eq("email", email).eq("year", year))
     .first();
 }
 
-/**
- * The single attendance-member row for an email, if any. An attendance member
- * links to a staff profile purely by its `email` column; both SOW-domain
- * spellings are tried (staffEmailCandidates).
- *
- * The `by_email` lookup is EXACT, so this is only case- and
- * whitespace-insensitive because stored emails are normalised (trim +
- * lowercase) on every write path (create/update/ensureForStaff/import). A
- * looked-up candidate is likewise lowercased by staffEmailCandidates, so both
- * sides match. Uses `.first()` (not `.unique()`) so a stray duplicate email can
- * never throw inside a read.
- */
 export async function findMemberByEmail(
   ctx: Ctx,
   email: string | undefined
@@ -131,11 +94,6 @@ export async function findMemberByEmail(
   return null;
 }
 
-/**
- * A person's display name for notifications: their staff profile name, the
- * directory name as a fallback, else the raw email when we know nothing else.
- * Used so emails never leak into notification titles/bodies.
- */
 export async function displayName(
   ctx: Ctx,
   email: string,
@@ -158,7 +116,6 @@ export interface CallerContext {
   profile: Doc<"staffProfiles">;
 }
 
-/** The signed-in caller plus their profile for the current staff year. */
 export async function requireProfile(ctx: Ctx): Promise<CallerContext> {
   const email = await requireEmail(ctx);
   const caller = await profileForCurrentYear(ctx, email);
@@ -171,27 +128,19 @@ export async function requireProfile(ctx: Ctx): Promise<CallerContext> {
   return caller;
 }
 
-/** A profile's roles; reads the legacy single-role field transparently. */
 export const rolesOf = (profile: Doc<"staffProfiles">): string[] =>
   rolesOfLike(profile);
 
-/**
- * Admins: the Director, the Head of the Human Resources division, the
- * Data and IT department, and any department in the Human Resources division.
- */
 export async function isAdminProfile(
   ctx: Ctx,
   profile: Doc<"staffProfiles">
 ): Promise<boolean> {
   const roles = rolesOf(profile);
   if (roles.includes(DIRECTOR)) return true;
-  // Head of any admin division — read from the authoritative division docs
-  // (headEmail), which already covers a person who heads several divisions.
   const headed = await divisionsHeadedBy(ctx, profile.year, profile.email);
   if (headed.some((division) => ADMIN_DIVISIONS.includes(division.name))) {
     return true;
   }
-  // Membership in any admin department, or any department under an admin division.
   for (const dept of departmentsOf(profile)) {
     if (ADMIN_DEPARTMENTS.includes(dept)) return true;
     const department = await getDepartment(ctx, profile.year, dept);
@@ -212,11 +161,6 @@ export async function requireAdmin(ctx: Ctx): Promise<CallerContext> {
   return caller;
 }
 
-/**
- * Attendance settings/catalogue managers: full admins plus campus leaders.
- * Roll-call actions can stay broad, but shared tags/metadata should not be
- * mutable by every staff profile.
- */
 export async function isAttendanceManagerProfile(
   ctx: Ctx,
   profile: Doc<"staffProfiles">
@@ -236,12 +180,6 @@ export async function requireAttendanceManager(ctx: Ctx): Promise<CallerContext>
   return caller;
 }
 
-/**
- * The durable person key to stamp on a profile being created for `email`:
- * an existing profile's importId for that email (people from the old app),
- * else their users row id (people who joined after the migration), else
- * undefined — userLink fills it with the user id at their first sign-in.
- */
 export async function resolveImportId(
   ctx: Ctx,
   email: string
@@ -264,9 +202,6 @@ export async function getDepartment(
   year: number,
   name: string
 ): Promise<Doc<"departments"> | null> {
-  // `.first()` (not `.unique()`) so a stray duplicate (year, name) can't throw
-  // inside a read — isAdminProfile and the finance gate call this on every
-  // admin query, so a single duplicate would otherwise blank the admin screen.
   return await ctx.db
     .query("departments")
     .withIndex("by_year_and_name", (q) => q.eq("year", year).eq("name", name))
@@ -284,7 +219,6 @@ export async function getDivision(
     .unique();
 }
 
-/** Divisions the given email heads this year. */
 export async function divisionsHeadedBy(
   ctx: Ctx,
   year: number,
@@ -301,19 +235,12 @@ export async function getYearSettings(
   ctx: Ctx,
   year: number
 ): Promise<Doc<"yearSettings"> | null> {
-  // `.first()` (not `.unique()`) so a stray duplicate yearSettings row — e.g.
-  // mid-import / mid-re-copy — can't throw and abort rollover or Finance
-  // settings reads. Same rationale as getProfile / getDepartment.
   return await ctx.db
     .query("yearSettings")
     .withIndex("by_year", (q) => q.eq("year", year))
     .first();
 }
 
-/**
- * Emails that have delegated their approver authority to `email` for `year`
- * (out-of-office cover). Bounded; a person covers at most a handful of others.
- */
 export async function delegatorsForYear(
   ctx: Ctx,
   year: number,
@@ -326,11 +253,6 @@ export async function delegatorsForYear(
   return rows.map((r) => r.fromEmail);
 }
 
-/**
- * Emails covering `fromEmail` for `year` (their delegates / stand-ins). Used
- * to fan out approval / reminder / receipt-ready notifications so stand-ins
- * get the same push as the officeholder.
- */
 export async function delegatesForYear(
   ctx: Ctx,
   year: number,
@@ -345,9 +267,6 @@ export async function delegatesForYear(
   return rows.map((r) => r.toEmail);
 }
 
-/**
- * `email` plus everyone covering them for `year`. Empty when `email` is missing.
- */
 export async function withDelegatesForYear(
   ctx: Ctx,
   year: number,
@@ -357,11 +276,6 @@ export async function withDelegatesForYear(
   return [...new Set([email, ...(await delegatesForYear(ctx, year, email))])];
 }
 
-/**
- * The set of approver-identities `email` may act as for `year`: themselves plus
- * anyone who delegated their authority to them. Used to widen the "is the
- * caller this step's approver?" checks so a delegate can stand in.
- */
 export async function actAsEmails(
   ctx: Ctx,
   year: number,
@@ -377,18 +291,11 @@ export interface Approvers {
   directorEmail?: string;
 }
 
-/**
- * Cache the year's Director email on `yearSettings` so getApprovers doesn't
- * walk every staff profile. Pass an email to set, or `""` / `undefined` to
- * record "known absent" (empty string) so subsequent reads skip the scan.
- */
 export async function setCachedDirectorEmail(
   ctx: MutationCtx,
   year: number,
   directorEmail: string | undefined
 ): Promise<void> {
-  // Empty string = known absent (skip scan). A missing field still means
-  // "not yet cached" and triggers a one-time profile walk.
   const value = directorEmail && directorEmail.length > 0 ? directorEmail : "";
   const settings = await getYearSettings(ctx, year);
   if (settings) {
@@ -399,7 +306,6 @@ export async function setCachedDirectorEmail(
   await ctx.db.insert("yearSettings", { year, directorEmail: value });
 }
 
-/** Resolves who approves each step for a request in a department this year. */
 export async function getApprovers(
   ctx: Ctx,
   year: number,
@@ -408,10 +314,6 @@ export async function getApprovers(
   const department = await getDepartment(ctx, year, departmentName);
   const finance = await getDepartment(ctx, year, FINANCE);
   const settings = await getYearSettings(ctx, year);
-  // Prefer the cached Director on yearSettings (maintained by Admin when the
-  // role is assigned/cleared). `""` means "known absent" — skip the scan.
-  // Missing field means not yet cached → one-time profile scan so legacy years
-  // without a cache still resolve correctly.
   let directorEmail: string | undefined;
   if (settings?.directorEmail !== undefined) {
     directorEmail =
@@ -434,7 +336,6 @@ export async function getApprovers(
   };
 }
 
-/** Departments the given email heads this year (Finance included). */
 export async function departmentsHeadedBy(
   ctx: Ctx,
   year: number,

@@ -31,11 +31,6 @@ import {
   Txt,
 } from "./ui";
 
-/**
- * A person's profile. Church and photo are editable on your own profile;
- * name, email, role and department are read-only everywhere (roles and
- * departments are managed per-year by admins).
- */
 export const ProfileView = ({ email }: { email?: string }) => {
   const t = useAppTheme();
   const { signOut } = useAuthActions();
@@ -50,8 +45,6 @@ export const ProfileView = ({ email }: { email?: string }) => {
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
 
   const router = useRouter();
-  // Swipe-back is handled natively by the parent Stack (which reveals the
-  // previous screen as you drag); we just expose the explicit back button.
   const goBack = router.canGoBack() ? () => router.back() : undefined;
 
   if (!profile) {
@@ -85,8 +78,6 @@ export const ProfileView = ({ email }: { email?: string }) => {
       const uploadUrl = await generateAvatarUploadUrl();
       const storageId = await uploadLocalFileToUrl(uploadUrl, {
         uri: asset.uri,
-        // Pass through null — uploadLocalFile infers from URI / Blob type
-        // instead of assuming JPEG (edited PNGs would otherwise be mislabeled).
         mimeType: asset.mimeType,
       });
       await setAvatar({ storageId });
@@ -241,8 +232,6 @@ export const ProfileView = ({ email }: { email?: string }) => {
         visible={confirmingSignOut}
         title="Sign out of The Shed?"
         confirmLabel="Sign out"
-        // After signing out, land on the public Home page rather than staying on
-        // the (now signed-out) profile screen.
         onConfirm={() => void signOut().then(() => router.replace("/home"))}
         onClose={() => setConfirmingSignOut(false)}
       />

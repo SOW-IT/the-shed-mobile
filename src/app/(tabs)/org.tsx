@@ -19,11 +19,6 @@ import {
   Txt,
 } from "@/components/ui";
 
-/**
- * Every org-chart card (Director, Staff, division heads, departments, campuses)
- * is capped to this width and centred, so the chart reads as a narrow, centred
- * "reverse tree" rather than cards stretched across a wide screen.
- */
 const ORG_CARD_WIDTH = 340;
 
 const Person = ({
@@ -41,8 +36,6 @@ const Person = ({
   const router = useRouter();
   return (
     <Pressable
-      // Stable hook for the org-chart E2E smoke flow to tap a real person card
-      // (avatar + name + role) rather than guessing at broad text/id selectors.
       testID="org-person"
       style={({ pressed }) => [styles.personRow, pressed && { opacity: 0.5 }]}
       onPress={() =>
@@ -67,8 +60,6 @@ export default function OrgChartScreen() {
     api.directory.orgChart,
     selectedYear === null ? {} : { year: selectedYear }
   );
-  // Admin tools moved off the tab bar: signed-in admins / the Finance head
-  // reach them from a button at the top of this list.
   const me = useQuery(api.directory.me);
   const showAdmin = !!(me?.isAdmin || me?.isFinanceHead);
 
@@ -82,8 +73,6 @@ export default function OrgChartScreen() {
 
   return (
     <ChromeScreen
-      // Wide screens lay each division's departments (and the campuses) out as
-      // columns, which needs the full width rather than the 720pt reading cap.
       fullWidth
       floating={
         chart.availableYears.length > 1 ? (
@@ -98,10 +87,8 @@ export default function OrgChartScreen() {
         ) : undefined
       }
     >
-      {/* Admin tools — only for admins / the Finance head, above the Director. */}
       {showAdmin ? <AdminBar /> : null}
 
-      {/* Director */}
       {chart.director ? (
         <FadeInView delay={40}>
           <ReadableColumn maxWidth={ORG_CARD_WIDTH}>
@@ -114,8 +101,6 @@ export default function OrgChartScreen() {
         <Muted>No Director assigned for {chart.year} yet.</Muted>
       )}
 
-      {/* Staff — people not in any department, division or campus, who hold a
-          non-campus role. Shown at the top, just under the Director. */}
       {chart.staff.length > 0 && (
         <FadeInView delay={stagger(1)}>
           <View style={styles.divisionBlock}>
@@ -139,16 +124,13 @@ export default function OrgChartScreen() {
         </FadeInView>
       )}
 
-      {/* Divisions */}
       {chart.divisions.map((division, divisionIndex) => (
         <FadeInView key={division.name} delay={stagger(divisionIndex + 2)}>
           <View style={styles.divisionBlock}>
-            {/* Division label */}
             <Text style={[typography.label, styles.centerLabel, { color: t.muted }]}>
               {division.name}
             </Text>
 
-            {/* Head of Division — contained row */}
             {division.head ? (
               <ReadableColumn maxWidth={ORG_CARD_WIDTH}>
                 <View style={[styles.divisionHeadRow, t.shadowCard, { backgroundColor: t.card }]}>
@@ -157,8 +139,6 @@ export default function OrgChartScreen() {
               </ReadableColumn>
             ) : null}
 
-            {/* Departments — uniform narrow cards, centred and wrapping (a
-                "reverse tree"); a single department is just one centred card. */}
             {division.departments.length === 0 ? (
               <Muted>No departments.</Muted>
             ) : (
@@ -190,7 +170,6 @@ export default function OrgChartScreen() {
         </FadeInView>
       ))}
 
-      {/* Campus */}
       {chart.universities.some((u) => u.members.length > 0) && (
         <FadeInView delay={stagger(chart.divisions.length + 2)}>
           <View style={styles.divisionBlock}>
@@ -237,8 +216,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     gap: spacing.md,
   },
-  // Section labels (Staff / division name / Campus) centre over the centred
-  // cards so the chart reads as a tidy tree rather than left-aligned headers.
   centerLabel: {
     textAlign: "center",
   },

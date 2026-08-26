@@ -35,24 +35,11 @@ LEGACY_DOMAIN = "legacy.invalid"
 FALLBACK_DIVISION = "General"
 OUT_PATH = "convex/importData.ts"
 
-# The org migrated its Workspace to sow.org.au. Years listed here get their
-# WORKSPACE_DOMAIN emails re-keyed to the new domain (same local part), so
-# the import matches the live data after importHistory:migrateEmailDomain.
 DOMAIN_MIGRATED_YEARS = {2026: "sow.org.au"}
 
-# The old app pre-provisioned 2027 by copying stale data forward. The new
-# app rolls 2027 from the live 2026 data instead (admin:copyYear), so the
-# backup's 2027 must never be imported.
 EXCLUDED_YEARS = {2027}
 
-# Corrections to records the old web app itself had wrong, keyed by
-# (year, any email of the person). The fields replace the person's
-# role/department/division/university for that year; identity (email,
-# importId, name) is kept. A year the backup has no doc for gains a row.
 PROFILE_OVERRIDES: dict[tuple[int, str], dict] = {
-    # Daniel Kim's history (confirmed by him, Jun 2026): 2019 was missing,
-    # 2022 carried a stray university, 2025 repeated his 2020 Student
-    # Leader year instead of Head of Department - Data and IT.
     (2019, "daniel.kim@sowaustralia.com"): {
         "roles": ["Member"],
         "university": "University of New South Wales",
@@ -67,7 +54,6 @@ PROFILE_OVERRIDES: dict[tuple[int, str], dict] = {
     },
 }
 
-
 def migrate_domain(email, year):
     new_domain = DOMAIN_MIGRATED_YEARS.get(year)
     if email and new_domain and email.endswith("@" + WORKSPACE_DOMAIN):
@@ -76,10 +62,10 @@ def migrate_domain(email, year):
 
 docs = json.load(open(sys.argv[1], encoding="utf-8"))
 
-user_docs = []  # (year:int, doc_id, body)
-dept_docs = {}  # year -> body
-division_docs = {}  # year -> body
-role_docs = {}  # year -> list[str] (the roles/<year> doc's "roles" array)
+user_docs = []
+dept_docs = {}
+division_docs = {}
+role_docs = {}
 for d in docs:
     path = d["_key"]["path"].split("/")
     if path[0] == "users" and len(path) == 4:
@@ -91,9 +77,7 @@ for d in docs:
     elif path[0] == "roles" and len(path) == 2:
         role_docs[int(path[1])] = d
 
-# ---- Group docs into people (union-find over uids and emails) ----
 parent: dict[str, str] = {}
-
 
 def find(x: str) -> str:
     parent.setdefault(x, x)
@@ -102,16 +86,13 @@ def find(x: str) -> str:
         x = parent[x]
     return x
 
-
 def union(a: str, b: str) -> None:
     ra, rb = find(a), find(b)
     if ra != rb:
         parent[ra] = rb
 
-
 def doc_key(doc_id: str) -> str:
     return doc_id.lower() if "@" in doc_id else doc_id
-
 
 for _, doc_id, d in user_docs:
     key = doc_key(doc_id)
@@ -124,20 +105,17 @@ person_docs: dict[str, list] = collections.defaultdict(list)
 for year, doc_id, d in user_docs:
     person_docs[find(doc_key(doc_id))].append((year, doc_id, d))
 
-# ---- Canonical identity per person ----
 def slugify(text: str) -> str:
     text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
     return re.sub(r"[^a-z0-9]+", ".", text.lower()).strip(".") or "person"
 
-
-person_email: dict[str, str] = {}  # group root -> canonical email
-person_import_id: dict[str, str] = {}  # group root -> durable person key
+person_email: dict[str, str] = {}
+person_import_id: dict[str, str] = {}
 person_name: dict[str, str | None] = {}
 uid_to_root: dict[str, str] = {}
 
 for root, entries in person_docs.items():
     entries.sort(key=lambda e: e[0])
-    # Email candidates: (year, prefers-workspace-domain, email)
     candidates = []
     uids = []
     name = None
@@ -158,7 +136,7 @@ for root, entries in person_docs.items():
     person_import_id[root] = uids[0] if uids else sorted({e for _, _, e in candidates})[0]
     person_name[root] = name
     if candidates:
-        candidates.sort(key=lambda c: (c[0], c[1]))  # latest year, workspace wins
+        candidates.sort(key=lambda c: (c[0], c[1]))
         person_email[root] = candidates[-1][2]
     else:
         person_email[root] = (
@@ -166,11 +144,9 @@ for root, entries in person_docs.items():
             f"@{LEGACY_DOMAIN}"
         )
 
-# Two people must never share a canonical email (getProfile uses .unique()).
 by_email = collections.Counter(person_email.values())
 clashes = {e for e, n in by_email.items() if n > 1}
 assert not clashes, f"canonical email collisions: {clashes}"
-
 
 def email_for(doc_id: str | None) -> str | None:
     """Canonical email for a head/budget-manager reference (uid or email)."""
@@ -181,8 +157,6 @@ def email_for(doc_id: str | None) -> str | None:
     )
     return person_email.get(root) if root else None
 
-
-# ---- Assemble per-year payloads ----
 years = sorted(
     ({y for y, _, _ in user_docs} | set(dept_docs) | set(division_docs) | set(role_docs))
     - EXCLUDED_YEARS
@@ -191,7 +165,6 @@ payload_years = []
 for year in years:
     dept_body = dept_docs.get(year, {})
     departments = []
-    # Division heads live on the division itself (a person can head several).
     division_heads = {
         name: migrate_domain(email_for(info.get("head")), year)
         for name, info in (division_docs.get(year, {}).get("divisions") or {}).items()
@@ -208,8 +181,6 @@ for year in years:
         }
         departments.append({k: v for k, v in department.items() if v is not None})
 
-    # One profile per person per year, merging that person's docs (a person
-    # can have both an email-keyed and a uid-keyed doc in the same year).
     merged: dict[str, dict] = {}
     universities = set()
     for root, entries in person_docs.items():
@@ -235,15 +206,12 @@ for year in years:
             k: v for k, v in profile.items() if v not in (None, [])
         }
 
-    # Heads of Division named in divisions/{year} keep that division on their
-    # profile so the org chart can find them (user docs often omit it).
     for division, info in (division_docs.get(year, {}).get("divisions") or {}).items():
         head_email = email_for(info.get("head"))
         profile = merged.get(head_email) if head_email else None
         if profile is not None and not profile.get("division"):
             profile["division"] = division
 
-    # Hand-confirmed corrections override whatever the backup said.
     for (o_year, o_email), fields in PROFILE_OVERRIDES.items():
         if o_year != year:
             continue
@@ -265,9 +233,6 @@ for year in years:
         {"name": name, "headEmail": division_heads.get(name)}
         for name in sorted(division_names or {FALLBACK_DIVISION})
     ]
-    # The per-year role catalog: the roles/<year> doc when the backup has one,
-    # else the distinct roles actually used by that year's profiles (first-seen
-    # order), mirroring how universities are the distinct values used that year.
     if year in role_docs:
         roles = list(role_docs[year].get("roles") or [])
     else:
@@ -276,8 +241,6 @@ for year in years:
             for role in profile.get("roles", []):
                 if role not in roles:
                     roles.append(role)
-    # The "Member" role has been retired: drop it from the catalogue and from
-    # every profile, removing anyone who is left with no role at all.
     roles = [r for r in roles if r != "Member"]
     for email in list(merged):
         profile = merged[email]

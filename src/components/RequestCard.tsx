@@ -31,7 +31,6 @@ import {
 import { CommentsSheet } from "./CommentsSheet";
 import { ReceiptRecipientList } from "./ReceiptRecipientList";
 
-/** Re-renders the caller once a minute so "… ago" labels stay current. */
 const useMinuteTick = () => {
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -65,7 +64,6 @@ const EVENT_LABELS: Record<string, string> = {
   paid: "Paid",
 };
 
-/** Lazy-loaded audit trail: who actioned each step, and when. */
 const History = ({ request }: { request: Doc<"requests"> }) => {
   const t = useAppTheme();
   const trail = useQuery(api.requests.auditTrail, { requestId: request._id });
@@ -110,7 +108,6 @@ const stepStatus = (
     financeHead: request.approvedByFinanceHead,
   })[step];
 
-/** Modal shown when a step circle is tapped: approver info + audit events. */
 const StepInfoModal = ({
   requestId,
   step,
@@ -119,7 +116,6 @@ const StepInfoModal = ({
 }: {
   requestId: Id<"requests">;
   step: ApprovalStep | null;
-  /** True only when this step is the one currently awaiting action. */
   isActiveStep: boolean;
   onClose: () => void;
 }) => {
@@ -186,11 +182,6 @@ const StepInfoModal = ({
   );
 };
 
-/**
- * The approval chain as a connected stepper. Tap any circle to see who owns
- * that step and what they've done. Shows the approver's name (or their stand-in
- * with a * on the role when covering) and when they acted under each step.
- */
 const StepLine = ({ request }: { request: Doc<"requests"> }) => {
   const t = useAppTheme();
   const [selectedStep, setSelectedStep] = useState<ApprovalStep | null>(null);
@@ -198,8 +189,6 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
   const steps = stepsForRequest(request);
   const actors = useQuery(api.requests.stepActors, { requestId: request._id });
 
-  // L-to-R fill sweep, 3 s total. Connector sweeps 0→2 s, circle sweeps 1→3 s,
-  // so the fill appears to flow off the line and into the circle during the 1 s overlap.
   const [fill] = useState(() => new Animated.Value(0));
   const needsAnimation = active !== null;
   useEffect(() => {
@@ -211,9 +200,7 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
     loop.start();
     return () => loop.stop();
   }, [fill, needsAnimation]);
-  // Connector: sweeps -10→+10 over first ⅔, then stays off-screen right.
   const connectorFillX = fill.interpolate({ inputRange: [0, 2 / 3, 1], outputRange: [-10, 10, 10] });
-  // Circle: hidden off-screen left for first ⅓, then sweeps -22→+22 over last ⅔.
   const circleFillX = fill.interpolate({ inputRange: [0, 1 / 3, 1], outputRange: [-22, -22, 22] });
   const dotColor = t.dark ? t.background : "#ffffff";
 
@@ -227,8 +214,6 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
           const isDeclined = status === DECLINED;
           const isPending = !isApproved && !isDeclined;
 
-          // Colour the connector by the step it leads INTO: green into an
-          // approved step, amber into the active pending step, grey into future steps.
           const connectorColor = isApproved
             ? t.success
             : isDeclined
@@ -305,11 +290,6 @@ const StepLine = ({ request }: { request: Doc<"requests"> }) => {
                   {actor?.isDelegated ? "*" : ""}
                 </Text>
                 {actors === undefined ? (
-                  // Names + times stream in after the card opens — show blurred
-                  // placeholders below each approver instead of leaving a gap.
-                  // Only on actioned steps, which are the ones that will resolve
-                  // to a name/time (pending steps stay empty, so a bar there
-                  // would just flash and vanish on load).
                   isApproved || isDeclined ? (
                     <>
                       <LoadingBar width={40} height={14} />
@@ -351,7 +331,7 @@ const statusChip = (
 ): { bg: string; fg: string } => {
   if (status === "PAID") return t.chip.PAID;
   if (status === "DECLINED") return t.chip.DECLINED;
-  return t.chip.default; // AWAITING …
+  return t.chip.default;
 };
 
 const cardBorderStyle = (
@@ -379,28 +359,16 @@ export const RequestCard = ({
   request: Doc<"requests">;
   showRequester?: boolean;
   onCancel?: () => void;
-  /** When true, draws an amber border to signal the current user needs to act. */
   actionRequired?: boolean;
-  /** Deep-link focus: expand this card on mount (e.g. opened from a notification). */
   autoExpand?: boolean;
-  /** Deep-link focus: open the comment thread on mount (a comment notification). */
   autoOpenThread?: boolean;
-  /** Changes on each notification tap so a mounted card can reopen the thread. */
   deepLinkOpenKey?: string;
-  /**
-   * When true the card starts collapsed to a one-line summary (amount, status,
-   * department, requester, date) with a "View More" toggle. Used for completed
-   * requests, which are read-only and browsed in bulk.
-   */
   collapsible?: boolean;
   children?: ReactNode;
 }) => {
   const t = useAppTheme();
   useMinuteTick();
   const [showHistory, setShowHistory] = useState(false);
-  // Deep-link focus from a notification: start with the comment thread open
-  // and/or the (collapsible) card expanded, derived from the focus props at
-  // mount — no setState-in-effect, so the card opens straight to the action.
   const [showComments, setShowComments] = useState(autoOpenThread);
   const [expanded, setExpanded] = useState(autoExpand && collapsible);
   const requesterName = useQuery(
@@ -415,9 +383,6 @@ export const RequestCard = ({
   const status = requestDisplayStatus(request);
   const chip = statusChip(status, t);
 
-  // Smooth expand/collapse for collapsible cards: the body is mounted only
-  // while open (or closing), and its height animates between 0 and the measured
-  // content height — which also animates the growth as names/files stream in.
   const [bodyMounted, setBodyMounted] = useState(autoExpand && collapsible);
   const [bodyHeight, setBodyHeight] = useState(0);
   const [heightAnim] = useState(() => new Animated.Value(0));
@@ -426,12 +391,6 @@ export const RequestCard = ({
     setExpanded(true);
   };
 
-  // A notification can target a card that's already mounted (for example when
-  // the user taps a comment notification while the Requests tab is alive). Keep
-  // the local open/expanded state in sync with those focus props so the thread
-  // opens immediately instead of waiting for a remount/navigation refresh.
-  // `deepLinkOpenKey` changes on repeated taps of the same notification, so a
-  // dismissed comment sheet can be reopened even when the boolean props stay true.
   useEffect(() => {
     if (autoExpand && collapsible) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- external deep-link focus sync
@@ -464,9 +423,6 @@ export const RequestCard = ({
     }
   }, [expanded, bodyHeight, heightAnim]);
 
-  // The "top of the card" — amount, status, and the meta line. For collapsible
-  // cards it doubles as the toggle: tap to expand when collapsed, collapse when
-  // open.
   const header = (
     <>
       <View style={styles.topRow}>
@@ -581,9 +537,6 @@ export const RequestCard = ({
       {collapsible ? (
         bodyMounted ? (
           <Animated.View
-            // Cancel the Card's gap above us so the header→body spacing lives
-            // inside the measured height (bodyMeasure's paddingTop) and animates
-            // with it — no constant offset to snap away on collapse.
             style={{
               height: heightAnim,
               overflow: "hidden",
@@ -606,11 +559,7 @@ export const RequestCard = ({
 };
 
 const styles = StyleSheet.create({
-  // Matches the Card's own gap so the amount→meta spacing is identical to the
-  // collapsed card, where those rows are direct Card children.
   headerWrap: { gap: spacing.sm + 2 },
-  // The animated body wrapper replaces the Card as the direct parent of these
-  // rows, so it must reproduce the Card's gap between them.
   bodyMeasure: { gap: spacing.sm + 2, paddingTop: spacing.sm + 2 },
   topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   topSide: { flex: 1 },

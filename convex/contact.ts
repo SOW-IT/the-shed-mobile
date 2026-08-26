@@ -8,27 +8,15 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_MESSAGE = 5000;
 const WINDOW_MS = 60 * 60 * 1000;
 const MAX_SUBMISSIONS = 3;
-/**
- * Global (all-senders) cap per window. The per-email limit alone is keyed on a
- * caller-supplied address, so an anonymous abuser bypasses it by rotating
- * addresses — flooding the inbox and relaying acknowledgment emails to
- * arbitrary third parties on our Resend account. Real traffic is a handful of
- * messages a day, so a generous global ceiling never bites legitimately.
- */
 const MAX_SUBMISSIONS_GLOBAL = 30;
-/** Rows older than this are dead weight; opportunistically pruned on submit. */
 const PRUNE_BATCH = 50;
 
-/** Public "Contact us" form (Home → Partner). */
 export const submit = mutation({
   args: {
     email: v.string(),
     message: v.string(),
   },
   handler: async (ctx, { email, message }) => {
-    // A signed-in caller always sends from their locked account email; the
-    // client-supplied address is only trusted for anonymous visitors. This
-    // stops a staff member from spoofing another person as the sender.
     const authedEmail = await optionalEmail(ctx);
     const fromEmail = (authedEmail ?? email).trim().toLowerCase();
     const body = message.trim();
@@ -45,10 +33,6 @@ export const submit = mutation({
       );
     }
 
-    // Rate limit with a bounded read: the compound index lets us fetch only
-    // this sender's rows inside the window, capped at MAX_SUBMISSIONS, so a
-    // public endpoint can never be pushed into scanning an unbounded history
-    // (which would also blow past Convex's transaction read limits).
     const now = Date.now();
     const recentInWindow = await ctx.db
       .query("contactRateLimit")
@@ -61,8 +45,6 @@ export const submit = mutation({
         "You've submitted a few messages recently. Please wait an hour before sending another."
       );
     }
-    // Global cap across ALL senders (bounded read, newest window only) — the
-    // per-email check above is trivially bypassed by rotating addresses.
     const globalInWindow = await ctx.db
       .query("contactRateLimit")
       .withIndex("by_time", (q) => q.gt("submittedAt", now - WINDOW_MS))
@@ -73,8 +55,6 @@ export const submit = mutation({
       );
     }
 
-    // Opportunistically prune rows that fell out of the window — they can never
-    // influence a future check, and without this the table grows forever.
     const stale = await ctx.db
       .query("contactRateLimit")
       .withIndex("by_time", (q) => q.lte("submittedAt", now - WINDOW_MS))
@@ -90,16 +70,9 @@ export const submit = mutation({
       to: CONTACT_INBOX,
       subject: `New contact message from ${fromEmail}`,
       body: `From: ${fromEmail}\n\n${body}`,
-      // So the team can reply straight to the sender instead of copying the
-      // address out of the body.
       replyTo: fromEmail,
     });
 
-    // Acknowledge to the sender. The submitted message is deliberately NOT
-    // echoed back here: for anonymous visitors the recipient address is
-    // caller-controlled, so echoing their text would let the form be used to
-    // relay arbitrary content to arbitrary addresses. A fixed template keeps
-    // the confirmation without that abuse vector.
     await ctx.scheduler.runAfter(0, internal.emails.send, {
       to: fromEmail,
       subject: "We've received your message",

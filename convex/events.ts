@@ -41,11 +41,6 @@ type ListBySubgroupCursor = {
 const encodeListBySubgroupCursor = (cursor: ListBySubgroupCursor) =>
   `event-subgroup:${JSON.stringify(cursor)}`;
 
-// `paginator` (convex-helpers) encodes its cursor as a JSON array string.
-// Anything else — an opaque cursor left over from the old built-in
-// `.paginate()` deploy, or junk — would make `paginator.paginate()` throw, so we
-// drop it and restart from the newest row. Parse fully (not just a `[` prefix)
-// so a truncated/corrupt value like "[" can't slip through and crash paginator.
 const asPaginatorCursor = (value: unknown): string | null => {
   if (typeof value !== "string") return null;
   try {
@@ -76,10 +71,6 @@ const decodeListBySubgroupCursor = (
           .slice(0, EVENTS_SCAN_BATCH_SIZE) as Id<"events">[])
       : [];
     const dbIsDone = parsed.dbIsDone === true;
-    // We never emit a "done" cursor with nothing buffered (encode only wraps a
-    // cursor while there's more to return), so this combination is corrupt or
-    // stale — restart rather than returning an empty "done" page that hides
-    // real events.
     if (dbIsDone && bufferedIds.length === 0) return fresh;
     return { dbCursor: asPaginatorCursor(parsed.dbCursor), dbIsDone, bufferedIds };
   } catch {
@@ -87,7 +78,6 @@ const decodeListBySubgroupCursor = (
   }
 };
 
-/** Quick attendance count for an event, without loading the rows themselves. */
 async function attendanceCount(
   ctx: QueryCtx,
   eventId: Doc<"events">["_id"]
@@ -101,23 +91,10 @@ async function attendanceCount(
 
 async function resolveTags(ctx: QueryCtx, tagIds?: Id<"attendanceTags">[]) {
   if (!tagIds?.length) return [];
-  // Tags are global (not year-scoped) — resolve each surviving row by id.
   const tags = await Promise.all(tagIds.map((id) => ctx.db.get(id)));
   return tags.filter((t): t is NonNullable<typeof t> => !!t);
 }
 
-/**
- * The event as the app reads it: sub-groups canonicalised, the collaborative
- * flag derived from them, and its tags resolved.
- *
- * `subgroups` is normalised (not passed through raw) because legacy rows can
- * store the org-wide group as "ALL" and can repeat a campus — writes have
- * deduped/folded since, but old and imported rows haven't been rewritten. Left
- * raw, `["ALL", "SOW"]` counts as two sub-groups: the events list badges the
- * event "Collaborative" and both screens render a duplicate campus pill, while
- * the export and Insights precompute — which both normalise first — treat the
- * same event as single-group. Normalising here makes all three agree.
- */
 const annotate = async (ctx: QueryCtx, event: Doc<"events">) => {
   const subgroups = normalizeSubgroups(event.subgroups);
   return {
@@ -147,8 +124,6 @@ async function validateEventFields(
     throw new ConvexError("Event end can't be before its start.");
   }
   const uniqueSubgroups = normalizeSubgroups([...new Set(args.subgroups)]);
-  // Staff year of the start date — used here only to validate sub-groups and
-  // tags against that year's catalog; it is NOT stored (derived on read).
   const year = eventStaffYear(args.dateStart);
   const universities = await ctx.db
     .query("universities")
@@ -160,12 +135,8 @@ async function validateEventFields(
       throw new ConvexError(`Unknown sub-group "${subgroup}" for ${year}.`);
     }
   }
-  // Dedupe so the same tag can't be stored twice (which would surface duplicate
-  // pills and duplicate React keys in the events list).
   const uniqueTagIds = args.tagIds?.length ? [...new Set(args.tagIds)] : undefined;
   if (uniqueTagIds) {
-    // Tags are global — an event can carry any tag from the shared catalogue,
-    // so just confirm each id still resolves to a real tag.
     for (const tagId of uniqueTagIds) {
       const tag = await ctx.db.get(tagId);
       if (!tag) {
@@ -182,11 +153,6 @@ async function validateEventFields(
   };
 }
 
-/**
- * Events for one sub-group across all years, newest first, paginated.
- * Returns the first `numItems` (default 20) events plus a `continueCursor`
- * for subsequent pages. Annotates only the current page to keep reads cheap.
- */
 export const listBySubgroup = query({
   args: {
     subgroup: v.string(),
@@ -228,11 +194,6 @@ export const listBySubgroup = query({
         EVENTS_SCAN_BATCH_SIZE,
         MAX_EVENTS_SCANNED_PER_PAGE - scanned
       );
-      // Use convex-helpers' `paginator` rather than the built-in
-      // `ctx.db...paginate()`: a single Convex function may only call the
-      // built-in `.paginate()` once, but a sparse subgroup forces this loop to
-      // scan several batches, which threw "multiple paginated queries in a
-      // single function call". `paginator` has no such limit.
       const batch = await paginator(ctx.db, schema)
         .query("events")
         .withIndex("by_dateStart")
@@ -275,10 +236,6 @@ export const listBySubgroup = query({
   },
 });
 
-/**
- * The roll-call sub-groups: org-wide "SOW" plus every campus in the current
- * staff year's `universities` table.
- */
 export const subgroups = query({
   args: {},
   handler: async (ctx) => {
@@ -296,9 +253,6 @@ export const subgroups = query({
 });
 
 export const get = query({
-  // Accept a raw string (not v.id) so a malformed id from a stale deep link or
-  // bookmark resolves to a graceful "not found" instead of throwing an
-  // ArgumentValidationError that trips the top-level error boundary.
   args: { eventId: v.string() },
   handler: async (ctx, { eventId: rawEventId }) => {
     if (!(await optionalProfile(ctx))) return null;
@@ -309,12 +263,6 @@ export const get = query({
   },
 });
 
-/**
- * Push + in-app notify the staff in an event's group(s) that it was created.
- * A campus sub-group notifies staff whose assignment includes that campus; the
- * org-wide "SOW" sub-group notifies every staff member of the event's year.
- * No email — a fan-out blast would be spam — and never the creator themselves.
- */
 async function notifyStaffOfNewEvent(
   ctx: MutationCtx,
   event: { _id: Id<"events">; name: string; dateStart: number; subgroups: string[] },
@@ -331,7 +279,7 @@ async function notifyStaffOfNewEvent(
   const recipients = new Set<string>();
   for (const p of profiles) {
     const email = p.email.toLowerCase();
-    if (email === actor) continue; // don't notify the creator
+    if (email === actor) continue;
     const inGroup =
       orgWide ||
       assignmentsOf(p).some(
@@ -354,11 +302,6 @@ async function notifyStaffOfNewEvent(
   }
 }
 
-/**
- * Background fan-out for {@link notifyStaffOfNewEvent}, scheduled by `create`
- * so the (potentially org-wide) notification work runs off the event-creation
- * request path — a transient failure here never aborts the event insert.
- */
 export const notifyNewEvent = internalMutation({
   args: { eventId: v.id("events"), actorEmail: v.string() },
   handler: async (ctx, { eventId, actorEmail }) => {
@@ -369,12 +312,6 @@ export const notifyNewEvent = internalMutation({
   },
 });
 
-/**
- * Create an event tagged with one or more sub-groups. Any signed-in staff
- * member may run a roll-call, so this only requires a profile. The year is the
- * staff year of the start date, derived server-side so it always matches the
- * roster the roll-call loads (the roster is keyed by the same staff year).
- */
 export const create = mutation({
   args: {
     name: v.string(),
@@ -401,7 +338,6 @@ export const create = mutation({
       summary: `Created event "${eventFields.name}" (${eventFields.subgroups.join(", ")})`,
       eventId,
     });
-    // Fan out the staff notifications off the request path (see notifyNewEvent).
     await ctx.scheduler.runAfter(0, internal.events.notifyNewEvent, {
       eventId,
       actorEmail: email,
@@ -443,10 +379,7 @@ export const update = mutation({
       changes.push("sub-groups");
     if ((existing.tagIds ?? []).join() !== (eventFields.tagIds ?? []).join())
       changes.push("tags");
-    // Only act on a genuine change, matching the tag/metadata saveAll paths — a
-    // no-op save shouldn't flood the audit trail or schedule useless recomputes.
     if (changes.length) {
-      // Mark both the old and new sub-groups so a re-scoped event refreshes both.
       await markSubgroupsDirty(ctx, [
         ...existing.subgroups,
         ...eventFields.subgroups,

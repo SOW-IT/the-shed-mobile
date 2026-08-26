@@ -3,22 +3,7 @@ import { View } from "react-native";
 import { Txt } from "@/components/ui";
 import { typography, useAppTheme, type AppTheme } from "@/theme";
 
-/**
- * Web-only date/time fields backed by the browser's native pickers. On web,
- * react-native-web renders raw DOM elements via react-dom, so `<input>` works.
- * Values are plain strings: "YYYY-MM-DD" for dates, "HH:MM" for times — which
- * is exactly what the event/export parsing already expects.
- *
- * Callers gate these behind `Platform.OS === "web"`; on native the components
- * are imported but never rendered.
- */
-
 const inputStyle = (t: AppTheme): CSSProperties => ({
-  // Native date/time controls have a wide intrinsic size and (on iOS Safari in
-  // particular) ignore `width`, so they spill out of their flex column on narrow
-  // mobile screens. display:block + width/maxWidth:100% + minWidth:0 force them
-  // to fill — and never exceed — the container instead. -webkit-appearance:none
-  // makes Safari honour the width while the field still opens the native picker.
   display: "block",
   width: "100%",
   maxWidth: "100%",

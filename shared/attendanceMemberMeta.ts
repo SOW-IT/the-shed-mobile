@@ -1,20 +1,3 @@
-/**
- * Attendance member metadata helpers — Year is stored as the **calendar year**
- * the person was in first year (their commencement year); the displayed level
- * (1, 2, 3, …) is derived from that and the calendar year being viewed.
- *
- * The Year level is anchored to the calendar year (Jan 1 rollover) and stays
- * constant across a calendar year. This is deliberately NOT the staff year
- * (Oct 1 rollover) — that's a separate concept that keys staff roles/profiles,
- * which can change at the Oct boundary while a student's Year level does not.
- * Hence the params here are `viewingYear`/`commencementYear`, and every caller
- * passes a calendar year (`sydneyCalendarYear`).
- *
- * The level is uncapped — a sixth-year reads "6", not "6+" — though the picker
- * only offers up to {@link YEAR_LEVEL_MAX} (older members past that still
- * display their real level, they just can't be re-selected from the dropdown).
- */
-
 import {
   MEMBER,
   ROLES,
@@ -47,16 +30,13 @@ const STAFF_PROFILE_ROLE_FILTER_LABELS = new Set<string>(
   ROLES.filter((role) => role !== MEMBER)
 );
 
-/** Highest year level offered by the Year picker. */
 export const YEAR_LEVEL_MAX = 15;
 
-/** Selectable year levels: "1" … "15" (the picker's options, in order). */
 export const STUDENT_YEAR_LEVELS: readonly string[] = Array.from(
   { length: YEAR_LEVEL_MAX },
   (_, i) => String(i + 1)
 );
 
-/** Year select option map (id → label), id "1" → "1" … "15" → "15". */
 export const STUDENT_YEAR_VALUES: Record<string, string> = Object.fromEntries(
   STUDENT_YEAR_LEVELS.map((level) => [level, level])
 );
@@ -64,7 +44,6 @@ export const STUDENT_YEAR_VALUES: Record<string, string> = Object.fromEntries(
 const COMMENCEMENT_YEAR_MIN = 2000;
 const COMMENCEMENT_YEAR_MAX = 2100;
 
-/** True when the stored Year value is a commencement (calendar) year, not a legacy option id. */
 export const isCommencementYear = (stored: string): boolean => {
   const n = parseInt(stored, 10);
   return (
@@ -75,11 +54,6 @@ export const isCommencementYear = (stored: string): boolean => {
   );
 };
 
-/**
- * Derive the student year label for a viewing calendar year. Uncapped: a member
- * in their seventh year reads "7" (not "6+"), so the label always reflects the
- * actual number of years since they commenced.
- */
 export const studentYearLevelFromCommencement = (
   commencementYear: number,
   viewingYear: number
@@ -89,11 +63,6 @@ export const studentYearLevelFromCommencement = (
   return String(level);
 };
 
-/**
- * Commencement (calendar) year implied by picking a level in a given viewing
- * year. Accepts levels 1…{@link YEAR_LEVEL_MAX}; the legacy "6+"/"Alumni" labels
- * still map to a sixth year for data imported before the cap was lifted.
- */
 export const commencementYearFromLevel = (
   levelLabel: string,
   viewingYear: number
@@ -106,7 +75,6 @@ export const commencementYearFromLevel = (
   return viewingYear - (n - 1);
 };
 
-/** Normalise stored Year metadata (commencement year or legacy select id). */
 export const resolveCommencementYear = (
   stored: string,
   viewingYear: number,
@@ -118,7 +86,6 @@ export const resolveCommencementYear = (
   return commencementYearFromLevel(label, viewingYear);
 };
 
-/** Select option id for the derived year level (for filters / edit sheet). */
 export const yearOptionIdForStoredValue = (
   stored: string,
   viewingYear: number,
@@ -138,7 +105,6 @@ export const yearOptionIdForStoredValue = (
   return "";
 };
 
-/** Human-readable label for a metadata field value. */
 export const formatMetadataFieldValue = (
   fieldKey: string,
   stored: string,
@@ -159,7 +125,6 @@ export const formatMetadataFieldValue = (
   return stored;
 };
 
-/** Persist the commencement (calendar) year when the user picks a year level. */
 export const encodeYearMetadataValue = (
   selectedOptionId: string,
   viewingYear: number,
@@ -172,11 +137,6 @@ export const encodeYearMetadataValue = (
   return commencement !== null ? String(commencement) : null;
 };
 
-/**
- * Sort key for Year metadata. Zero-padded so the string compare at the call
- * site orders levels numerically (e.g. "02" before "11"), since levels are no
- * longer capped at a single digit.
- */
 export const yearMetadataSortKey = (
   stored: string,
   viewingYear: number,
@@ -192,7 +152,6 @@ export const yearMetadataSortKey = (
   return level ? level.padStart(2, "0") : "";
 };
 
-/** Remove "Other" from Gender select options (by label only — id "3" may be Female in imports). */
 export const sanitizeGenderValues = (
   values: Record<string, string>
 ): Record<string, string> => {
@@ -204,7 +163,6 @@ export const sanitizeGenderValues = (
   return out;
 };
 
-/** Normalise Gender options to canonical ids: 1 = Male, 2 = Female. */
 export const canonicalizeGenderValues = (
   values: Record<string, string> | undefined
 ): Record<string, string> => {
@@ -218,7 +176,6 @@ export const canonicalizeGenderValues = (
   return out;
 };
 
-/** Map a stored gender option id to the canonical Male/Female ids. */
 export const canonicalizeGenderOptionId = (
   stored: string,
   fieldValues?: Record<string, string>
@@ -232,7 +189,6 @@ export const canonicalizeGenderOptionId = (
 
 export type MetadataSelectOption = { id: string; label: string };
 
-/** Whether a select option is locked to the org structure (Campus / Role). */
 export const isLockedSelectOption = (
   id: string,
   label: string,
@@ -240,10 +196,6 @@ export const isLockedSelectOption = (
 ): boolean =>
   (lockedValues ?? []).includes(label) || (lockedValues ?? []).includes(id);
 
-/**
- * Split select options into org-locked rows (universities / roles) and custom
- * rows added below them in the metadata editor.
- */
 export const partitionSelectOptions = (
   values: Record<string, string> | undefined,
   lockedValues: string[] | undefined
@@ -273,7 +225,6 @@ export const partitionSelectOptions = (
   return { locked, custom };
 };
 
-/** Locked org options first, then custom options — for pickers and filters. */
 export const orderedSelectOptions = (
   values: Record<string, string> | undefined,
   lockedValues: string[] | undefined
@@ -282,7 +233,6 @@ export const orderedSelectOptions = (
   return [...locked, ...custom];
 };
 
-/** Members tab Role filters are broad buckets, not every org role. */
 export const orderedRoleFilterOptions = (
   values: Record<string, string> | undefined,
   lockedValues: string[] | undefined
@@ -301,20 +251,12 @@ export const orderedRoleFilterOptions = (
   return [...grouped, ...extraAttendanceRoles];
 };
 
-/** Whether a row with staff-profile roles should match a grouped Role filter. */
 export const roleFilterMatches = (
   filterLabel: string,
   profileRoles: readonly string[],
   metadataRoleLabel?: string | null
 ): boolean => {
   if (filterLabel === STUDENT_LEADER_ROLE_FILTER_LABEL) {
-    // A student leader may be represented EITHER as a staff profile carrying a
-    // campus role (President / Vice President / Executive / Student Leader) OR as
-    // an attendance-only member tagged with one of those roles in metadata — so
-    // match on the profile's assignment roles when present, else fall back to the
-    // metadata "Role" label. (The same person appearing as both a profile and a
-    // member is collapsed to one row upstream in `attendanceMembers.list`, so
-    // this fallback counts genuine attendance-only leaders, not duplicates.)
     const roles = profileRoles.length
       ? profileRoles
       : metadataRoleLabel
@@ -327,12 +269,6 @@ export const roleFilterMatches = (
     );
   }
   if (filterLabel === STAFF_ROLE_FILTER_LABEL) {
-    // Org assignments are authoritative: any non-campus role other than Member
-    // counts as staff. The role catalog is data-driven (admins add roles per
-    // year), so this must NOT be an allowlist of the built-in ROLES — a person
-    // whose only role is a custom one would otherwise match no filter at all.
-    // (No metadata fallback here, unlike Student Leader: paid staff always
-    // have a profile.)
     return profileRoles.some(
       (role) =>
         !STUDENT_LEADER_ROLE_FILTER_ROLES.includes(
@@ -343,7 +279,6 @@ export const roleFilterMatches = (
   return metadataRoleLabel === filterLabel;
 };
 
-/** Campus and Role allow extra options below the org-derived locked set. */
 export const metadataFieldAllowsCustomOptions = (
   fieldKey: string,
   fieldNameLocked: boolean

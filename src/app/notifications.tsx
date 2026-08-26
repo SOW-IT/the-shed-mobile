@@ -16,10 +16,6 @@ import {
   Txt,
 } from "@/components/ui";
 
-/**
- * The in-app notification feed: every flow event that pinged the caller, newest
- * first, with an unread dot. Tapping one marks it read and opens its target.
- */
 export default function NotificationsScreen() {
   const t = useAppTheme();
   const router = useRouter();
@@ -111,8 +107,6 @@ export default function NotificationsScreen() {
           message="Updates about your requests and approvals will show up here."
         />
       ) : (
-        // Split into Unread / Read sections (both already newest-first) so it's
-        // clear at a glance what still needs attention.
         <>
           {unread.length > 0 ? (
             <>

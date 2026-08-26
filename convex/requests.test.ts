@@ -10,18 +10,16 @@ const modules = import.meta.glob("./**/*.ts");
 
 const YEAR = staffYearForDate(new Date());
 
-// Personas (all provisioned by email, like an admin would).
-const ADMIN = "admin@sow.org.au"; // Data and IT => admin
-const RACHEL = "rachel@sow.org.au"; // Marketing staff
-const HENRY = "henry@sow.org.au"; // Marketing HOD
-const BELLA = "bella@sow.org.au"; // Finance staff, Budget Manager
-const FIONA = "fiona@sow.org.au"; // Finance head
-const DAN = "dan@sow.org.au"; // Director
+const ADMIN = "admin@sow.org.au";
+const RACHEL = "rachel@sow.org.au";
+const HENRY = "henry@sow.org.au";
+const BELLA = "bella@sow.org.au";
+const FIONA = "fiona@sow.org.au";
+const DAN = "dan@sow.org.au";
 
 const asUser = (t: TestConvex<typeof schema>, email: string) =>
   t.withIdentity({ email, subject: email, issuer: "test" });
 
-/** A stored file ready to attach to a test receipt (one is now required). */
 const storedReceipt = async (t: TestConvex<typeof schema>) => ({
   storageId: await t.run((ctx) =>
     ctx.storage.store(new Blob(["receipt"], { type: "application/pdf" }))
@@ -29,7 +27,6 @@ const storedReceipt = async (t: TestConvex<typeof schema>) => ({
   name: "receipt.pdf",
 });
 
-/** Seeds the org chart and personas for the current staff year. */
 async function setup() {
   const t = convexTest(schema, modules);
   await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
@@ -49,7 +46,7 @@ async function setup() {
   const assignments: { email: string; roles: string[]; department?: string }[] = [
     { email: RACHEL, roles: ["Staff"], department: "Marketing" },
     { email: BELLA, roles: ["Staff"], department: "Finance" },
-    { email: DAN, roles: ["Director"] }, // Director is scopeless — no department
+    { email: DAN, roles: ["Director"] },
   ];
   for (const a of assignments) {
     await admin.mutation(api.admin.setStaffProfile, { year: YEAR, email: a.email, roles: a.roles, department: a.department });
@@ -69,7 +66,7 @@ describe("submission auto-approval (REQUESTS_FLOW auto-approval table)", () => {
     );
     expect(small.approvedByHOD).toBe("PENDING");
     expect(small.approvedByDirector).toBeUndefined();
-    expect(big.approvedByDirector).toBe("PENDING"); // boundary: exactly $5000
+    expect(big.approvedByDirector).toBe("PENDING");
   });
 
   test("an HOD's own request skips the HOD step", async () => {
@@ -86,7 +83,7 @@ describe("submission auto-approval (REQUESTS_FLOW auto-approval table)", () => {
     const bella = asUser(t, BELLA);
     await bella.mutation(api.requests.submit, { description: "x", amount: 100 });
     const [request] = (await bella.query(api.requests.myRequests, {}))!;
-    expect(request.approvedByHOD).toBe("APPROVED"); // Finance has no HOD step
+    expect(request.approvedByHOD).toBe("APPROVED");
     expect(request.approvedByBudgetManager).toBe("APPROVED");
     expect(request.approvedByFinanceHead).toBe("PENDING");
   });
@@ -105,7 +102,6 @@ describe("submission auto-approval (REQUESTS_FLOW auto-approval table)", () => {
   test("the Director's own >= $5000 request skips HOD and Director steps", async () => {
     const t = await setup();
     const dan = asUser(t, DAN);
-    // Director is scopeless — must specify which department the request is for.
     await dan.mutation(api.requests.submit, { description: "x", amount: 6000, department: "Marketing" });
     const [request] = (await dan.query(api.requests.myRequests, {}))!;
     expect(request.approvedByHOD).toBe("APPROVED");
@@ -128,7 +124,7 @@ describe("configurable Director approval threshold", () => {
       (a, b) => a.amount - b.amount
     );
     expect(below.approvedByDirector).toBeUndefined();
-    expect(at.approvedByDirector).toBe("PENDING"); // boundary: exactly the cutoff
+    expect(at.approvedByDirector).toBe("PENDING");
   });
 
   test("raising it above an amount drops the Director step for new requests", async () => {
@@ -165,8 +161,6 @@ describe("configurable Director approval threshold", () => {
 
   test("setting it for a year with no settings row inserts one", async () => {
     const t = await setup();
-    // Next year has no yearSettings row yet, so setDirectorThreshold inserts.
-    // Provision the admin there too (isAdmin keys off the "Data and IT" dept).
     await t.run((ctx) =>
       ctx.db.insert("staffProfiles", {
         email: ADMIN,
@@ -188,12 +182,10 @@ describe("configurable Director approval threshold", () => {
 describe("approver delegation (out-of-office cover)", () => {
   test("a delegate can act on the requests the delegator approves", async () => {
     const t = await setup();
-    // BELLA (Finance + Budget Manager) submits → lands straight on Finance Head.
     await asUser(t, BELLA).mutation(api.requests.submit, { description: "x", amount: 100 });
     const [req] = (await asUser(t, BELLA).query(api.requests.myRequests, {}))!;
     expect(req.approvedByFinanceHead).toBe("PENDING");
 
-    // Before delegation, RACHEL (Marketing staff) can neither see nor approve it.
     const before = await asUser(t, RACHEL).query(api.requests.toReview, {});
     expect(before!.financeHead).toHaveLength(0);
     await expect(
@@ -203,14 +195,12 @@ describe("approver delegation (out-of-office cover)", () => {
       })
     ).rejects.toThrow();
 
-    // Admin delegates the Finance Head's authority to RACHEL.
     await asUser(t, ADMIN).mutation(api.admin.addDelegation, {
       year: YEAR,
       fromEmail: FIONA,
       toEmail: RACHEL,
     });
 
-    // RACHEL now counts as an approver, sees the request, and can approve it.
     const me = await asUser(t, RACHEL).query(api.directory.me);
     expect(me?.isApprover).toBe(true);
     expect(me?.isDelegate).toBe(true);
@@ -244,7 +234,6 @@ describe("approver delegation (out-of-office cover)", () => {
 
   test("a delegate still cannot approve their own request", async () => {
     const t = await setup();
-    // RACHEL covers the HOD, then submits her own (HOD-pending) request.
     await asUser(t, ADMIN).mutation(api.admin.addDelegation, {
       year: YEAR,
       fromEmail: HENRY,
@@ -264,9 +253,7 @@ describe("approver delegation (out-of-office cover)", () => {
     const t = await setup();
     await expect(
       asUser(t, RACHEL).mutation(api.admin.addDelegation, { year: YEAR, fromEmail: FIONA, toEmail: HENRY })
-    ).rejects.toThrow(); // ordinary staff — not an admin or the Finance Head
-    // The Finance Head manages delegations alongside admins (same access as the
-    // other finance settings). This one succeeds.
+    ).rejects.toThrow();
     await asUser(t, FIONA).mutation(api.admin.addDelegation, {
       year: YEAR,
       fromEmail: HENRY,
@@ -274,37 +261,35 @@ describe("approver delegation (out-of-office cover)", () => {
     });
     await expect(
       asUser(t, ADMIN).mutation(api.admin.addDelegation, { year: YEAR, fromEmail: FIONA, toEmail: FIONA })
-    ).rejects.toThrow(); // self-delegation
+    ).rejects.toThrow();
     await expect(
       asUser(t, ADMIN).mutation(api.admin.addDelegation, { year: YEAR, fromEmail: FIONA, toEmail: FIONA })
-    ).rejects.toThrow(); // self-delegation
+    ).rejects.toThrow();
     await expect(
       asUser(t, ADMIN).mutation(api.admin.addDelegation, {
         year: YEAR,
         fromEmail: "ghost@sow.org.au",
         toEmail: RACHEL,
       })
-    ).rejects.toThrow(); // unknown delegator
+    ).rejects.toThrow();
     await expect(
       asUser(t, ADMIN).mutation(api.admin.addDelegation, {
         year: YEAR,
         fromEmail: FIONA,
         toEmail: "ghost@sow.org.au",
       })
-    ).rejects.toThrow(); // unknown delegate
+    ).rejects.toThrow();
     await expect(
       asUser(t, ADMIN).mutation(api.admin.addDelegation, {
         year: YEAR,
         fromEmail: "not-an-email",
         toEmail: RACHEL,
       })
-    ).rejects.toThrow(); // malformed email
+    ).rejects.toThrow();
   });
 
   test("a delegate of the Director can approve the Director step", async () => {
     const t = await setup();
-    // Henry (Marketing HOD) submits a >= $5000 request → his HOD auto-approves;
-    // Bella clears the Budget Manager step; now it waits on the Director.
     await asUser(t, HENRY).mutation(api.requests.submit, { description: "big", amount: 6000 });
     const [req] = (await asUser(t, HENRY).query(api.requests.myRequests, {}))!;
     await asUser(t, BELLA).mutation(api.requests.approve, {
@@ -312,7 +297,6 @@ describe("approver delegation (out-of-office cover)", () => {
       step: "budgetManager",
     });
 
-    // Rachel is not the Director, so she can neither see nor approve it.
     await expect(
       asUser(t, RACHEL).mutation(api.requests.approve, { requestId: req._id, step: "director" })
     ).rejects.toThrow();
@@ -320,7 +304,6 @@ describe("approver delegation (out-of-office cover)", () => {
       (await asUser(t, RACHEL).query(api.requests.toReview, {}))!.director
     ).toHaveLength(0);
 
-    // Admin delegates the Director's authority to Rachel — now she can.
     await asUser(t, ADMIN).mutation(api.admin.addDelegation, {
       year: YEAR,
       fromEmail: DAN,
@@ -336,14 +319,11 @@ describe("approver delegation (out-of-office cover)", () => {
 
   test("a delegate also gets the approval-needed push / in-app notification", async () => {
     const t = await setup();
-    // Rachel covers Henry (Marketing HOD) for this staff year.
     await asUser(t, ADMIN).mutation(api.admin.addDelegation, {
       year: YEAR,
       fromEmail: HENRY,
       toEmail: RACHEL,
     });
-    // Bella (Finance) can't submit a Marketing HOD-pending request. Provision
-    // Justin as Marketing staff so submit lands on Henry (and Rachel as cover).
     const JUSTIN = "justin@sow.org.au";
     await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
       year: YEAR,
@@ -360,7 +340,6 @@ describe("approver delegation (out-of-office cover)", () => {
       amount: 50,
     });
 
-    // Both the real HOD and the delegate get the "Approval needed" ping.
     expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(1);
     expect(await asUser(t, RACHEL).query(api.notifications.unreadCount, {})).toBe(1);
     const henryFeed = await asUser(t, HENRY).query(api.notifications.list, {});
@@ -374,9 +353,7 @@ describe("in-app notifications", () => {
   test("a flow event notifies the recipient, not the actor", async () => {
     const t = await setup();
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
-    // The submitter's own acknowledgement isn't added to their own feed.
     expect(await asUser(t, RACHEL).query(api.notifications.unreadCount, {})).toBe(0);
-    // The HOD (the next approver) gets one.
     expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(1);
     const feed = await asUser(t, HENRY).query(api.notifications.list, {});
     expect(feed).toHaveLength(1);
@@ -407,17 +384,12 @@ describe("in-app notifications", () => {
 
   test("a request's notifications clear once that request is opened", async () => {
     const t = await setup();
-    // Rachel submits → Henry (HOD) gets an approval-needed notification, linked
-    // to the request via the requestId passed to notify() (its url is /?tab=review).
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
     const [req] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
     expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(1);
-    // Henry comments → Rachel (the requester) gets a comment notification, linked
-    // to the request via its requestId (its url is /?tab=mine).
     await asUser(t, HENRY).mutation(api.comments.add, { requestId: req._id, body: "why?" });
     expect(await asUser(t, RACHEL).query(api.notifications.unreadCount, {})).toBe(1);
 
-    // Opening the request (or its thread) clears each person's notification for it.
     await asUser(t, HENRY).mutation(api.notifications.markReadForRequest, { requestId: req._id });
     expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(0);
     await asUser(t, RACHEL).mutation(api.notifications.markReadForRequest, { requestId: req._id });
@@ -433,7 +405,6 @@ describe("in-app notifications", () => {
     await asUser(t, HENRY).mutation(api.notifications.markReadForRequest, {
       requestId: reqs[0]._id,
     });
-    // Only the opened request's notification cleared; the other stays unread.
     expect(await asUser(t, HENRY).query(api.notifications.unreadCount, {})).toBe(1);
   });
 });
@@ -446,7 +417,6 @@ describe("approval chain order and authorization", () => {
     const [request] = (await rachel.query(api.requests.myRequests, {}))!;
     expect(request.approvedByDirector).toBe("PENDING");
 
-    // The Director can't jump ahead of the HOD / Budget Manager steps.
     await expect(
       asUser(t, DAN).mutation(api.requests.approve, { requestId: request._id, step: "director" })
     ).rejects.toThrow(/not waiting on that step/);
@@ -456,7 +426,6 @@ describe("approval chain order and authorization", () => {
       requestId: request._id,
       step: "budgetManager",
     });
-    // Dan holds the Director role and approves the (now-ready) Director step.
     await asUser(t, DAN).mutation(api.requests.approve, { requestId: request._id, step: "director" });
     await asUser(t, FIONA).mutation(api.requests.approve, {
       requestId: request._id,
@@ -470,8 +439,6 @@ describe("approval chain order and authorization", () => {
 
   test("submitReceipt notifies the current Finance Head on a carried-over request", async () => {
     const t = await setup();
-    // Last year's Finance dept had a different head who has since left; Fiona is
-    // this year's Finance Head.
     await t.run((ctx) =>
       ctx.db.insert("departments", {
         year: YEAR - 1,
@@ -480,7 +447,6 @@ describe("approval chain order and authorization", () => {
         headEmail: "oldfiona@sow.org.au",
       })
     );
-    // A fully-approved carry-over from last year by Rachel, awaiting a receipt.
     vi.setSystemTime(staffYearStartMs(YEAR - 1) + 1);
     const requestId = await t.run((ctx) =>
       ctx.db.insert("requests", {
@@ -506,7 +472,6 @@ describe("approval chain order and authorization", () => {
         },
       ],
     });
-    // The current Finance Head is told to pay it, not just last year's departed one.
     expect(await asUser(t, FIONA).query(api.notifications.unreadCount, {})).toBe(1);
   });
 
@@ -516,7 +481,6 @@ describe("approval chain order and authorization", () => {
     await rachel.mutation(api.requests.submit, { description: "x", amount: 100 });
     const [request] = (await rachel.query(api.requests.myRequests, {}))!;
 
-    // Budget Manager can't jump the queue before the HOD.
     await expect(
       asUser(t, BELLA).mutation(api.requests.approve, {
         requestId: request._id,
@@ -608,7 +572,7 @@ describe("approval chain order and authorization", () => {
     const review = (await asUser(t, HENRY).query(api.requests.toReview, {}))!;
     expect(review.hod).toHaveLength(1);
     expect(review.hod[0].department).toBe("Marketing");
-    expect(review.budgetManager).toHaveLength(0); // Henry isn't the BM
+    expect(review.budgetManager).toHaveLength(0);
   });
 });
 
@@ -645,7 +609,6 @@ describe("admin and per-year rules", () => {
     }))!;
     expect(nextYearProfiles.map((p) => p.email)).toContain("newhire@sow.org.au");
 
-    // ...but not for years beyond next.
     await expect(
       admin.mutation(api.admin.setStaffProfile, {
         email: "newhire@sow.org.au",
@@ -662,9 +625,8 @@ describe("admin and per-year rules", () => {
       email: "pnc@sow.org.au",
       year: YEAR,
       roles: ["Staff"],
-      department: "People and Culture", // in the Human Resources division
+      department: "People and Culture",
     });
-    // The People and Culture member can now assign roles themselves.
     await asUser(t, "pnc@sow.org.au").mutation(api.admin.setStaffProfile, {
       email: "someone@sow.org.au",
       year: YEAR,
@@ -684,7 +646,6 @@ describe("admin and per-year rules", () => {
     await expect(
       admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: RACHEL })
     ).rejects.toThrow(/Finance/);
-    // Moving the BM out of Finance clears the assignment.
     await admin.mutation(api.admin.setStaffProfile, {
       email: BELLA,
       year: YEAR,
@@ -704,7 +665,6 @@ describe("admin and per-year rules", () => {
     const engagement = chart.divisions.find((d) => d.name === "Engagement");
     const marketing = engagement?.departments.find((d) => d.name === "Marketing");
     expect(marketing?.head?.email).toBe(HENRY);
-    // Members exclude the head and the Director.
     expect(marketing?.members.map((m) => m.email)).toEqual([RACHEL]);
 
     const governance = chart.divisions.find((d) => d.name === "Governance");
@@ -715,7 +675,6 @@ describe("admin and per-year rules", () => {
 
   test("org chart can show previous years via the year parameter", async () => {
     const t = await setup();
-    // Backfill a 2020 structure directly (admins can only write current/next).
     await t.run(async (ctx) => {
       await ctx.db.insert("divisions", { year: 2020, name: "Old Division" });
       await ctx.db.insert("departments", {
@@ -740,15 +699,12 @@ describe("admin and per-year rules", () => {
     expect(past.divisions.map((d) => d.name)).toEqual(["Old Division"]);
     expect(past.divisions[0].departments[0].head?.email).toBe(HENRY);
 
-    // Defaults to the current year when no year is given.
     const current = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
     expect(current.year).toBe(YEAR);
   });
 
   test("profiles: own church is editable, service history spans years, others can view", async () => {
     const t = await setup();
-    // Rachel has signed in before (users row exists, with the Google photo)
-    // and served in 2025 too.
     const rachelUserId = await t.run(async (ctx) => {
       await ctx.db.insert("staffProfiles", {
         email: RACHEL,
@@ -762,7 +718,6 @@ describe("admin and per-year rules", () => {
       });
     });
 
-    // updateChurch resolves the caller's users row from the auth subject.
     const rachelSignedIn = t.withIdentity({
       email: RACHEL,
       subject: `${rachelUserId}|session1`,
@@ -772,7 +727,6 @@ describe("admin and per-year rules", () => {
       localChurch: "SOW City Church",
     });
 
-    // Henry views Rachel's profile from the org chart.
     const viewed = (await asUser(t, HENRY).query(api.profile.get, { email: RACHEL }))!;
     expect(viewed.isMe).toBe(false);
     expect(viewed.name).toBe("Rachel R");
@@ -796,13 +750,10 @@ describe("admin and per-year rules", () => {
       },
     ]);
 
-    // Rachel's own view is editable (isMe) but role/department come from
-    // staffProfiles — profile mutations expose no way to change them.
     const own = (await rachelSignedIn.query(api.profile.get, {}))!;
     expect(own.isMe).toBe(true);
     expect(own.photo).toBe("https://lh3.googleusercontent.com/google-default");
 
-    // Uploading her own photo replaces the Google default everywhere.
     const storageId = await t.run((ctx) =>
       ctx.storage.store(new Blob(["fake-image"], { type: "image/png" }))
     );
@@ -811,7 +762,6 @@ describe("admin and per-year rules", () => {
     expect(updated.photo).not.toBe("https://lh3.googleusercontent.com/google-default");
     expect(updated.photo).toBeTruthy();
 
-    // The org chart shows the uploaded photo too.
     const chart = (await asUser(t, HENRY).query(api.directory.orgChart, {}))!;
     const marketing = chart.divisions
       .flatMap((d) => d.departments)
@@ -822,7 +772,6 @@ describe("admin and per-year rules", () => {
 
   test("the synced Workspace directory powers the admin picker", async () => {
     const t = await setup();
-    // A sync stored three org members (one already has a profile).
     await t.mutation(internal.directorySync.store, {
       users: [
         { email: RACHEL, name: "Rachel R" },
@@ -840,7 +789,6 @@ describe("admin and per-year rules", () => {
     ).toEqual(["newbie@sow.org.au", "fresh@sow.org.au"]);
     expect(directory.users.find((u) => u.email === RACHEL)?.hasProfile).toBe(true);
 
-    // A later sync replaces the list wholesale.
     await t.mutation(internal.directorySync.store, {
       users: [{ email: "only@sow.org.au" }],
     });
@@ -849,7 +797,6 @@ describe("admin and per-year rules", () => {
     }))!;
     expect(replaced.users.map((u) => u.email)).toEqual(["only@sow.org.au"]);
 
-    // Only admins can view or trigger the sync.
     await expect(
       asUser(t, RACHEL).query(api.directorySync.list, { year: YEAR })
     ).rejects.toThrow(/Only admins/);
@@ -860,21 +807,17 @@ describe("admin and per-year rules", () => {
 
   test("an unexpected sign-in is unassigned, visible to admins, and assignable", async () => {
     const t = await setup();
-    // Walter signed in with Google but no admin ever provisioned him.
     await t.run(async (ctx) => {
       await ctx.db.insert("users", { email: "walter@sow.org.au", name: "Walter W" });
     });
     const walter = asUser(t, "walter@sow.org.au");
 
-    // He gets the unassigned experience, not an error.
     const me = (await walter.query(api.directory.me, {}))!;
     expect(me?.profile).toBeNull();
-    // ...and can't touch the request flow.
     await expect(
       walter.mutation(api.requests.submit, { description: "x", amount: 10 })
     ).rejects.toThrow(/No role\/department/);
 
-    // Admins see him in the unassigned list and can assign him.
     const admin = asUser(t, ADMIN);
     const before = (await admin.query(api.admin.listUnassignedUsers, { year: YEAR }))!;
     expect(before.map((u) => u.email)).toContain("walter@sow.org.au");
@@ -887,11 +830,9 @@ describe("admin and per-year rules", () => {
     const after = (await admin.query(api.admin.listUnassignedUsers, { year: YEAR }))!;
     expect(after.map((u) => u.email)).not.toContain("walter@sow.org.au");
 
-    // Now the flow works for him.
     await walter.mutation(api.requests.submit, { description: "x", amount: 10 });
     expect((await walter.query(api.requests.myRequests, {}))!).toHaveLength(1);
 
-    // Provisioned-but-next-year-lapsed people show as unassigned for that year.
     const nextYear = (await admin.query(api.admin.listUnassignedUsers, {
       year: YEAR + 1,
     }))!;
@@ -900,10 +841,8 @@ describe("admin and per-year rules", () => {
 
   test("sign-in binds profiles to the user id; an email rename re-keys everything", async () => {
     const t = await setup();
-    // Rachel has a request in flight, heads nothing, has a push token.
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
     await asUser(t, RACHEL).mutation(api.push.register, { token: "ExponentPushToken[r]" });
-    // Bella is the Budget Manager; give her a users row and bind on sign-in.
     const bellaUserId = await t.run((ctx) =>
       ctx.db.insert("users", { email: BELLA, name: "Bella B" })
     );
@@ -913,7 +852,6 @@ describe("admin and per-year rules", () => {
     );
     expect(bound?.userId).toBe(bellaUserId);
 
-    // Rachel signs in, binds, then her Google email is renamed.
     const rachelUserId = await t.run((ctx) =>
       ctx.db.insert("users", { email: RACHEL, name: "Rachel R" })
     );
@@ -923,7 +861,6 @@ describe("admin and per-year rules", () => {
     );
     await t.mutation(internal.userLink.link, { userId: rachelUserId });
 
-    // Her profile, request and push token all follow the new email...
     const renamed = asUser(t, "rachel.renamed@sow.org.au");
     const mine = (await renamed.query(api.requests.myRequests, {}))!;
     expect(mine).toHaveLength(1);
@@ -932,10 +869,8 @@ describe("admin and per-year rules", () => {
     expect(tokens.find((tk) => tk.token === "ExponentPushToken[r]")?.email).toBe(
       "rachel.renamed@sow.org.au"
     );
-    // ...and the old email is now a stranger (unprovisioned -> null).
     expect(await asUser(t, RACHEL).query(api.requests.myRequests, {})).toBeNull();
 
-    // Headships and the Budget Manager assignment re-key too.
     const fionaUserId = await t.run((ctx) =>
       ctx.db.insert("users", { email: FIONA, name: "Fiona F" })
     );
@@ -950,7 +885,6 @@ describe("admin and per-year rules", () => {
     expect(
       structure.departments.find((d) => d.name === "Finance")?.headEmail
     ).toBe("fiona.new@sow.org.au");
-    // The renamed Finance Head can still approve.
     const [request] = (await renamed.query(api.requests.myRequests, {}))!;
     await asUser(t, HENRY).mutation(api.requests.approve, { requestId: request._id, step: "hod" });
     await asUser(t, BELLA).mutation(api.requests.approve, { requestId: request._id, step: "budgetManager" });
@@ -965,7 +899,6 @@ describe("admin and per-year rules", () => {
     await asUser(t, RACHEL).mutation(api.push.register, {
       token: "ExponentPushToken[abc]",
     });
-    // Same device re-registers under a different account.
     await asUser(t, HENRY).mutation(api.push.register, {
       token: "ExponentPushToken[abc]",
     });
@@ -978,7 +911,6 @@ describe("admin and per-year rules", () => {
     vi.stubEnv("RESEND_API_KEY", "re_test");
     vi.stubEnv("RESEND_FROM_EMAIL", "noreply@sow.org.au");
     const t = await setup();
-    // Devices for the submitter (Rachel) and the approver she's waiting on (her HOD, Henry).
     await t.run((ctx) =>
       ctx.db.insert("pushTokens", { email: RACHEL, token: "ExponentPushToken[rachel]" })
     );
@@ -1010,12 +942,9 @@ describe("admin and per-year rules", () => {
     const pushedTokens = calls
       .filter((c) => c.url.includes("exp.host"))
       .flatMap((c) => c.body.map((m: { to: string }) => m.to));
-    // The submitter's device is never pushed for their own submission...
     expect(pushedTokens).not.toContain("ExponentPushToken[rachel]");
-    // ...but the next approver is.
     expect(pushedTokens).toContain("ExponentPushToken[henry]");
 
-    // The submitter still gets an acknowledgement email.
     const emailedTo = calls
       .filter((c) => c.url.includes("resend.com"))
       .flatMap((c) => c.body.to as string[]);
@@ -1037,7 +966,6 @@ describe("audit trail and reminders", () => {
 
   test("the audit trail records who actioned each step, in order", async () => {
     const t = await setup();
-    // Henry's own request: HOD auto-approved at submission.
     await asUser(t, HENRY).mutation(api.requests.submit, { description: "x", amount: 100 });
     const [request] = (await asUser(t, HENRY).query(api.requests.myRequests, {}))!;
     await asUser(t, BELLA).mutation(api.requests.approve, { requestId: request._id, step: "budgetManager" });
@@ -1070,7 +998,6 @@ describe("audit trail and reminders", () => {
     expect(trail.every((e) => typeof e.at === "number")).toBe(true);
     expect(trail[5].detail).toBe("$90");
 
-    // Decline reasons land in the trail too.
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "y", amount: 50 });
     const [declined] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
     await asUser(t, HENRY).mutation(api.requests.decline, {
@@ -1086,32 +1013,24 @@ describe("audit trail and reminders", () => {
 
   test("reviewed lists what an approver actioned, newest first, deduped per request", async () => {
     const t = await setup();
-    // Rachel (Marketing) submits two; Henry is her HOD.
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "first", amount: 100 });
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "second", amount: 250 });
     const mine = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
     const first = mine.find((r) => r.description === "first")!;
     const second = mine.find((r) => r.description === "second")!;
 
-    // Henry approves the first, declines the second.
     await asUser(t, HENRY).mutation(api.requests.approve, { requestId: first._id, step: "hod" });
     await asUser(t, HENRY).mutation(api.requests.decline, {
       requestId: second._id, step: "hod", reason: "no",
     });
-    // Henry's own request auto-approves his HOD step (he IS the HOD) — that
-    // counts as him having actioned it, so it belongs in his Reviewed list too.
     await asUser(t, HENRY).mutation(api.requests.submit, { description: "henry-own", amount: 50 });
-    // Bella approving the first is HER review, not Henry's.
     await asUser(t, BELLA).mutation(api.requests.approve, {
       requestId: first._id, step: "budgetManager",
     });
 
     const reviewed = (await asUser(t, HENRY).query(api.requests.reviewed, {}))!;
-    // Newest review first (henry-own's auto-approval came after the decline of
-    // "second", which came after the approve of "first"), one card per request.
     expect(reviewed.map((r) => r.description)).toEqual(["henry-own", "second", "first"]);
 
-    // Bella only sees the request she actioned.
     const bellaReviewed = (await asUser(t, BELLA).query(api.requests.reviewed, {}))!;
     expect(bellaReviewed.map((r) => r.description)).toEqual(["first"]);
   });
@@ -1137,7 +1056,6 @@ describe("audit trail and reminders", () => {
       step: "financeHead",
     });
 
-    // Prove this does not depend on the normal actor audit history path.
     await t.run(async (ctx) => {
       for await (const event of ctx.db
         .query("requestEvents")
@@ -1167,12 +1085,10 @@ describe("audit trail and reminders", () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
 
-    // Members assigned -> cascade-strip and succeed.
     await admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Marketing" });
     const structure0 = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
     expect(structure0.departments.map((d) => d.name)).not.toContain("Marketing");
 
-    // Restore Marketing so we can test the open-request guard.
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Marketing", division: "Operations", headEmail: HENRY,
     });
@@ -1180,7 +1096,6 @@ describe("audit trail and reminders", () => {
       email: RACHEL, year: YEAR, assignments: [{ role: "Staff", department: "Marketing" }],
     });
 
-    // Submit and decline a request so it's completed, then remove staff.
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 40 });
     const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
     await asUser(t, HENRY).mutation(api.requests.decline, {
@@ -1190,12 +1105,10 @@ describe("audit trail and reminders", () => {
     await admin.mutation(api.admin.removeStaffProfile, { email: HENRY, year: YEAR });
     await admin.mutation(api.admin.removeStaffProfile, { email: DAN, year: YEAR });
 
-    // The only request is completed (declined), members are gone -> allowed.
     await admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Marketing" });
     const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
     expect(structure.departments.map((d) => d.name)).not.toContain("Marketing");
 
-    // And a department with an OPEN request can't be removed.
     await admin.mutation(api.admin.setStaffProfile, {
       email: "eve@sow.org.au", year: YEAR, roles: ["Staff"], department: "Events",
     });
@@ -1206,7 +1119,6 @@ describe("audit trail and reminders", () => {
       description: "open", amount: 30,
     });
     await admin.mutation(api.admin.removeStaffProfile, { email: "eve@sow.org.au", year: YEAR });
-    // (Naming evan as head auto-provisioned him; remove that profile too.)
     await admin.mutation(api.admin.removeStaffProfile, { email: "evan@sow.org.au", year: YEAR });
     await expect(
       admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Events" })
@@ -1217,7 +1129,6 @@ describe("audit trail and reminders", () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
 
-    // Promoting Nina to Head of Department of Events makes her its head.
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Events", division: "Operations", headEmail: "nina@sow.org.au",
     });
@@ -1226,15 +1137,12 @@ describe("audit trail and reminders", () => {
       "nina@sow.org.au"
     );
 
-    // Removing her from the department head vacates the headship.
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Events", division: "Operations",
     });
     structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
     expect(structure.departments.find((d) => d.name === "Events")?.headEmail).toBeNull();
 
-    // Reverse: naming a never-provisioned head on the department form
-    // creates their profile with the Head of Department role.
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Events", division: "Operations", headEmail: "omar@sow.org.au",
     });
@@ -1243,7 +1151,6 @@ describe("audit trail and reminders", () => {
     expect(omar?.roles).toEqual(["Head of Department"]);
     expect(omar?.assignments?.some((a) => a.department === "Events")).toBe(true);
 
-    // Removing a head's profile vacates the headship too.
     await admin.mutation(api.admin.removeStaffProfile, {
       email: "omar@sow.org.au", year: YEAR,
     });
@@ -1261,9 +1168,9 @@ describe("audit trail and reminders", () => {
     });
     const people = (await asUser(t, ADMIN).query(api.admin.people, { year: YEAR }))!;
     const emails = people.map((p) => p.email);
-    expect(emails).toContain("fresh@sow.org.au"); // directory only
-    expect(emails).toContain(RACHEL); // user + profile
-    expect(new Set(emails).size).toBe(emails.length); // deduped
+    expect(emails).toContain("fresh@sow.org.au");
+    expect(emails).toContain(RACHEL);
+    expect(new Set(emails).size).toBe(emails.length);
     expect(people.find((p) => p.email === RACHEL)?.department).toBe("Marketing");
     expect(people.find((p) => p.email === RACHEL)?.name).toBe("Rachel R");
   });
@@ -1278,7 +1185,6 @@ describe("audit trail and reminders", () => {
       approvedByFinanceHead: "PENDING",
       _creationTime: staffYearStartMs(YEAR - 1),
     } as never as Parameters<typeof nextApproverEmail>[0];
-    // Last year's Budget Manager is gone (no assignment recorded).
     const lastYear = { hodEmail: HENRY, budgetManagerEmail: undefined, financeHeadEmail: undefined };
     const thisYear = { hodEmail: HENRY, budgetManagerEmail: BELLA, financeHeadEmail: FIONA };
     expect(nextApproverEmail(carriedOver, lastYear, thisYear)).toBe(BELLA);
@@ -1286,7 +1192,6 @@ describe("audit trail and reminders", () => {
       email: BELLA,
       year: YEAR,
     });
-    // The request-year officeholder wins when they still exist.
     expect(
       nextApproverEmail(carriedOver, { ...lastYear, budgetManagerEmail: "olga@sow.org.au" }, thisYear)
     ).toBe("olga@sow.org.au");
@@ -1297,7 +1202,6 @@ describe("audit trail and reminders", () => {
         thisYear
       )
     ).toEqual({ email: "olga@sow.org.au", year: YEAR - 1 });
-    // Pending step but no officeholder in either year → nowhere to notify.
     expect(
       nextApproverWithYear(carriedOver, lastYear, {
         hodEmail: HENRY,
@@ -1305,7 +1209,6 @@ describe("audit trail and reminders", () => {
         financeHeadEmail: FIONA,
       })
     ).toBeUndefined();
-    // No step pending -> nobody to notify.
     expect(
       nextApproverEmail(
         { ...carriedOver, approvedByBudgetManager: "APPROVED", approvedByFinanceHead: "APPROVED" } as never,
@@ -1331,12 +1234,10 @@ describe("audit trail and reminders", () => {
       approvedByFinanceHead: "PENDING",
     } as never as Parameters<typeof involvedApproverEmails>[0];
 
-    // Approved-so-far (decline/cancel audience): HOD + BM, no Director step.
     expect(involvedApproverEmails(base, approvers, ["APPROVED"])).toEqual([
       HENRY,
       BELLA,
     ]);
-    // Finance department requests have no HOD step to report on.
     expect(
       involvedApproverEmails(
         { ...base, department: "Finance" } as never,
@@ -1344,7 +1245,6 @@ describe("audit trail and reminders", () => {
         ["APPROVED"]
       )
     ).toEqual([BELLA]);
-    // The requester is never notified as an approver (their own steps).
     expect(
       involvedApproverEmails(
         { ...base, requesterEmail: HENRY } as never,
@@ -1359,7 +1259,6 @@ describe("audit trail and reminders", () => {
     const userId = await t.run((ctx) =>
       ctx.db.insert("users", { email: RACHEL, name: "Rachel R" })
     );
-    // Exactly what production tokens look like: subject only.
     const viaSub = t.withIdentity({ subject: `${userId}|session1`, issuer: "test" });
     await viaSub.mutation(api.requests.submit, { description: "x", amount: 25 });
     const mine = await viaSub.query(api.requests.myRequests, {});
@@ -1372,10 +1271,6 @@ describe("audit trail and reminders", () => {
 
   test("read queries return null (not throw) while auth is still attaching", async () => {
     const t = await setup();
-    // Unauthenticated query calls — the client briefly does this on every
-    // page load / token refresh; throwing here blank-screens the app.
-    // (orgChart is deliberately absent: it's PUBLIC as of 1.7.0 and returns
-    // real data without a caller — covered in directory.test.ts.)
     expect((await t.query(api.directory.availableYears, {}))!).toBeNull();
     expect((await t.query(api.directory.yearStructure, { year: YEAR }))!).toBeNull();
     expect((await t.query(api.requests.myRequests, {}))!).toBeNull();
@@ -1394,7 +1289,6 @@ describe("audit trail and reminders", () => {
       requestId: request._id,
     }))!;
     expect(seen?._id).toBe(request._id);
-    // A cancelled request resolves to null (the screen shows a notice).
     await asUser(t, RACHEL).mutation(api.requests.cancel, { requestId: request._id });
     const gone = (await asUser(t, HENRY).query(api.requests.get, {
       requestId: request._id,
@@ -1407,12 +1301,10 @@ describe("audit trail and reminders", () => {
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
     const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
 
-    // Fresh request: no reminder.
     await t.mutation(internal.reminders.remindStale, {});
     let updated = await t.run((ctx) => ctx.db.get("requests", request._id));
     expect(updated?.lastReminderAt).toBeUndefined();
 
-    // Eight days later it's stale (waiting on Henry's HOD approval).
     vi.useFakeTimers({ now: Date.now(), toFake: ["Date"] });
     vi.setSystemTime(Date.now() + 8 * 24 * 60 * 60 * 1000);
     await t.mutation(internal.reminders.remindStale, {});
@@ -1420,12 +1312,10 @@ describe("audit trail and reminders", () => {
     const firstReminder = updated?.lastReminderAt;
     expect(firstReminder).toBeDefined();
 
-    // Running again the same day doesn't re-nag...
     await t.mutation(internal.reminders.remindStale, {});
     updated = await t.run((ctx) => ctx.db.get("requests", request._id));
     expect(updated?.lastReminderAt).toBe(firstReminder);
 
-    // ...but another week of silence earns another nudge.
     vi.setSystemTime(Date.now() + 8 * 24 * 60 * 60 * 1000);
     await t.mutation(internal.reminders.remindStale, {});
     updated = await t.run((ctx) => ctx.db.get("requests", request._id));
@@ -1458,14 +1348,12 @@ describe("deadlock prevention and validation fixes", () => {
 
   test("a >= $5000 request is rejected while the org has no Director", async () => {
     const t = await setup();
-    // Dan steps down: nobody holds the Director role any more.
     await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
       email: DAN, year: YEAR, roles: ["Staff"], department: "Marketing",
     });
     await expect(
       asUser(t, RACHEL).mutation(api.requests.submit, { description: "big", amount: 6000 })
     ).rejects.toThrow(/Director/);
-    // Small requests don't need a Director and still work.
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "small", amount: 100 });
   });
 
@@ -1511,7 +1399,6 @@ describe("deadlock prevention and validation fixes", () => {
     await expect(
       attempt({ accountName: "R", bsb: "0", accountNumber: "1", amount: 95 })
     ).rejects.toThrow(/receipt file/);
-    // Each recipient is under the sanity ceiling, but the SUM must honour it too.
     await expect(
       rachel.mutation(api.requests.submitReceipt, {
         requestId: request._id,
@@ -1731,9 +1618,6 @@ describe("deadlock prevention and validation fixes", () => {
   });
 
   test("in-flight previous-year requests survive the rollover end to end", async () => {
-    // Seed the carry-over request at YEAR-1 _creationTime BEFORE setup() so
-    // convex-test's monotonic _lastCreationTime guard doesn't clamp it to real
-    // time. Also insert last year's org chart at that same past timestamp.
     vi.setSystemTime(staffYearStartMs(YEAR - 1) + 1);
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
@@ -1758,7 +1642,6 @@ describe("deadlock prevention and validation fixes", () => {
       })
     );
     vi.useRealTimers();
-    // Run the standard admin setup for the current year with the real clock.
     await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.upsertDepartment, {
@@ -1777,16 +1660,13 @@ describe("deadlock prevention and validation fixes", () => {
       year: YEAR, email: DAN, roles: ["Director"],
     });
     await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
-    // HOD approves to advance to budgetManager step.
     await asUser(t, HENRY).mutation(api.requests.approve, {
       requestId: carried, step: "hod",
     });
 
-    // Still visible to the requester...
     const mine = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
     expect(mine.find((r) => r.description === "carried over")).toBeDefined();
 
-    // ...and actionable by last year's approvers, all the way to payment.
     const review = (await asUser(t, BELLA).query(api.requests.toReview, {}))!;
     const carriedDoc = review.budgetManager.find((r) => r.description === "carried over");
     expect(carriedDoc).toBeDefined();
@@ -1815,7 +1695,6 @@ describe("deadlock prevention and validation fixes", () => {
     });
     const paidDoc = await t.run((ctx) => ctx.db.get("requests", carriedDoc!._id));
     expect(paidDoc?.paid).toBe(true);
-    // Once completed, carry-overs drop out of the active lists.
     const after = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
     expect(after.find((r) => r._id === carriedDoc!._id)).toBeUndefined();
   });
@@ -1833,18 +1712,15 @@ describe("deadlock prevention and validation fixes", () => {
 
   test("the Director and the HR division head are admins; other division heads aren't", async () => {
     const t = await setup();
-    // Dan (Director) can manage staff assignments.
     await asUser(t, DAN).mutation(api.admin.setStaffProfile, {
       email: "new@sow.org.au", year: YEAR, roles: ["Staff"], department: "Marketing",
     });
-    // The Head of the Human Resources division is an admin...
     await asUser(t, ADMIN).mutation(api.admin.upsertDivision, {
       year: YEAR, name: "Human Resources", headEmail: "hrhead@sow.org.au",
     });
     await asUser(t, "hrhead@sow.org.au").mutation(api.admin.setStaffProfile, {
       email: "new2@sow.org.au", year: YEAR, roles: ["Staff"], department: "Marketing",
     });
-    // ...but the Head of the Engagement division is not.
     await asUser(t, ADMIN).mutation(api.admin.upsertDivision, {
       year: YEAR, name: "Engagement", headEmail: "enghead@sow.org.au",
     });
@@ -1857,7 +1733,6 @@ describe("deadlock prevention and validation fixes", () => {
 
   test("a carried-over request whose approver left can be actioned by this year's officeholder", async () => {
     const t = await setup();
-    // Last year's Budget Manager (olga) is gone — no profile this year.
     await t.run(async (ctx) => {
       await ctx.db.insert("departments", {
         year: YEAR - 1, name: "Marketing", division: "Engagement", headEmail: HENRY,
@@ -1879,7 +1754,6 @@ describe("deadlock prevention and validation fixes", () => {
       })
     );
     vi.useRealTimers();
-    // This year's Budget Manager (bella) sees and approves it.
     const review = (await asUser(t, BELLA).query(api.requests.toReview, {}))!;
     const stranded = review.budgetManager.find((r) => r.description === "stranded");
     expect(stranded).toBeDefined();
@@ -1897,7 +1771,6 @@ describe("deadlock prevention and validation fixes", () => {
     await asUser(t, BELLA).mutation(api.requests.approve, { requestId: request._id, step: "budgetManager" });
     await asUser(t, FIONA).mutation(api.requests.approve, { requestId: request._id, step: "financeHead" });
 
-    // Two receipt files for the first recipient, one for the second.
     const [fileA, fileB, fileC] = await t.run(async (ctx) => [
       await ctx.storage.store(new Blob(["receipt-a"], { type: "application/pdf" })),
       await ctx.storage.store(new Blob(["receipt-b"], { type: "image/png" })),
@@ -1926,11 +1799,9 @@ describe("deadlock prevention and validation fixes", () => {
       ],
     });
 
-    // Total sums across recipients.
     const updated = await t.run((ctx) => ctx.db.get("requests", request._id));
     expect(updated?.receipt?.totalAmount).toBe(300);
 
-    // The Finance Head sees signed URLs grouped per recipient...
     const receipts = (await asUser(t, FIONA).query(api.requests.receiptAttachments, {
       requestId: request._id,
     }))!;
@@ -1941,8 +1812,6 @@ describe("deadlock prevention and validation fixes", () => {
     ]);
     expect(receipts[1].attachments[0].url).toBeTruthy();
 
-    // ...the requester can view them too, but unrelated staff get nothing
-    // (null, not an error — the query backs an inline card section).
     (await rachel.query(api.requests.receiptAttachments, { requestId: request._id }))!;
     expect(
       await asUser(t, HENRY).query(api.requests.receiptAttachments, {
@@ -1978,7 +1847,6 @@ describe("deadlock prevention and validation fixes", () => {
   test("requests can be submitted on behalf of another department", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Events has no head yet, so submitting for it hits the deadlock guard.
     await expect(
       asUser(t, RACHEL).mutation(api.requests.submit, {
         description: "x", amount: 100, department: "Events",
@@ -1995,13 +1863,11 @@ describe("deadlock prevention and validation fixes", () => {
     expect(request.department).toBe("Events");
     expect(request.approvedByHOD).toBe("PENDING");
 
-    // Events' head reviews it; Rachel's own HOD (Marketing) does not.
     const evanReview = (await asUser(t, "evan@sow.org.au").query(api.requests.toReview, {}))!;
     expect(evanReview.hod.map((r) => r._id)).toContain(request._id);
     const henryReview = (await asUser(t, HENRY).query(api.requests.toReview, {}))!;
     expect(henryReview.hod).toHaveLength(0);
 
-    // Unknown departments are rejected.
     await expect(
       asUser(t, RACHEL).mutation(api.requests.submit, {
         description: "x", amount: 10, department: "Nope",
@@ -2014,7 +1880,6 @@ describe("deadlock prevention and validation fixes", () => {
     await asUser(t, ADMIN).mutation(api.admin.upsertDivision, {
       year: YEAR, name: "Operations", headEmail: "diana@sow.org.au",
     });
-    // Marketing is in Engagement — not Diana's division — so Henry approves.
     await asUser(t, "diana@sow.org.au").mutation(api.requests.submit, {
       description: "x", amount: 60, department: "Marketing",
     });
@@ -2032,14 +1897,12 @@ describe("deadlock prevention and validation fixes", () => {
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Marketing", division: "Engagement", headEmail: "maria@sow.org.au",
     });
-    // Org chart: heads the Engagement division AND Marketing department.
     const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
     const engagement = chart.divisions.find((d) => d.name === "Engagement");
     expect(engagement?.head?.email).toBe("maria@sow.org.au");
     const marketing = engagement?.departments.find((d) => d.name === "Marketing");
     expect(marketing?.head?.email).toBe("maria@sow.org.au");
 
-    // Department-based roles still require a department.
     await expect(
       admin.mutation(api.admin.setStaffProfile, {
         email: "x@sow.org.au",
@@ -2048,8 +1911,6 @@ describe("deadlock prevention and validation fixes", () => {
       })
     ).rejects.toThrow(/Department/);
 
-    // Her own requests file under her department; as a division head she
-    // has no HOD above her.
     const maria = asUser(t, "maria@sow.org.au");
     await maria.mutation(api.requests.submit, { description: "x", amount: 50 });
     const [request] = (await maria.query(api.requests.myRequests, {}))!;
@@ -2061,7 +1922,6 @@ describe("deadlock prevention and validation fixes", () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
 
-    // Fiona: Head of Department (Finance, from setup) + Head of Division (Operations).
     await admin.mutation(api.admin.upsertDivision, {
       year: YEAR, name: "Operations", headEmail: FIONA,
     });
@@ -2073,14 +1933,12 @@ describe("deadlock prevention and validation fixes", () => {
         ?.departments.find((d) => d.name === "Finance")?.head?.email
     ).toBe(FIONA);
 
-    // She is still the Finance Head approver for the whole org...
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
     const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
     await asUser(t, HENRY).mutation(api.requests.approve, { requestId: request._id, step: "hod" });
     await asUser(t, BELLA).mutation(api.requests.approve, { requestId: request._id, step: "budgetManager" });
     await asUser(t, FIONA).mutation(api.requests.approve, { requestId: request._id, step: "financeHead" });
 
-    // ...and can submit on behalf of an Operations department she oversees.
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Events", division: "Operations", headEmail: "evan@sow.org.au",
     });
@@ -2090,9 +1948,6 @@ describe("deadlock prevention and validation fixes", () => {
     const fionaRequests = (await asUser(t, FIONA).query(api.requests.myRequests, {}))!;
     expect(fionaRequests.find((r) => r.department === "Events")?.approvedByHOD).toBe("APPROVED");
 
-    // Head of Division for Governance: org chart placement + her own request
-    // defaults to a Governance department with the HOD step skipped (she
-    // outranks its head), then waits on the Budget Manager as normal.
     await admin.mutation(api.admin.upsertDivision, {
       year: YEAR, name: "Governance", headEmail: "gina@sow.org.au",
     });
@@ -2104,7 +1959,7 @@ describe("deadlock prevention and validation fixes", () => {
       description: "governance", amount: 80,
     });
     const [ginaRequest] = (await asUser(t, "gina@sow.org.au").query(api.requests.myRequests, {}))!;
-    expect(ginaRequest.department).toBe("Compliance"); // first Governance dept
+    expect(ginaRequest.department).toBe("Compliance");
     expect(ginaRequest.approvedByHOD).toBe("APPROVED");
     expect(ginaRequest.approvedByBudgetManager).toBe("PENDING");
   });
@@ -2115,20 +1970,16 @@ describe("deadlock prevention and validation fixes", () => {
     await admin.mutation(api.admin.upsertDivision, {
       year: YEAR, name: "Engagement", headEmail: "diana@sow.org.au",
     });
-    // Shown as the division's head on the org chart.
     const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
     expect(chart.divisions.find((d) => d.name === "Engagement")?.head?.email).toBe(
       "diana@sow.org.au"
     );
-    // Her requests default to a department under her division (first
-    // alphabetically: Alumni), with no HOD step pending — she outranks it.
     const diana = asUser(t, "diana@sow.org.au");
     await diana.mutation(api.requests.submit, { description: "x", amount: 100 });
     const [request] = (await diana.query(api.requests.myRequests, {}))!;
     expect(request.department).toBe("Alumni");
     expect(request.approvedByHOD).toBe("APPROVED");
     expect(request.approvedByBudgetManager).toBe("PENDING");
-    // The division must exist for the year (validated via upsertDepartment).
     await expect(
       admin.mutation(api.admin.upsertDepartment, {
         year: YEAR, name: "SomeDept", division: "Nope",

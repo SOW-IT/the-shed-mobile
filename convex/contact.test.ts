@@ -83,8 +83,6 @@ describe("contact.submit rate limiting", () => {
 
   test("global cap blocks a flood even when every sender address is different", async () => {
     const t = convexTest(schema, modules);
-    // Simulate an abuser rotating addresses: 30 distinct senders inside the
-    // window (seeded directly — going through submit would email each one).
     await t.run(async (ctx) => {
       const now = Date.now();
       for (let i = 0; i < 30; i++) {
@@ -104,7 +102,6 @@ describe("contact.submit rate limiting", () => {
 
   test("stale rate-limit rows are pruned on submit", async () => {
     const t = convexTest(schema, modules);
-    // A row that fell out of the window can never affect a future check.
     await t.run(async (ctx) => {
       await ctx.db.insert("contactRateLimit", {
         fromEmail: "old@example.com",

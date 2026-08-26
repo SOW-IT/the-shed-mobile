@@ -1,16 +1,11 @@
 import { v } from "convex/values";
 import { internalAction } from "./_generated/server";
 
-/**
- * Sends a notification email through Resend. Runs as a scheduled internal
- * action so request mutations never block (or fail) on email delivery.
- */
 export const send = internalAction({
   args: {
     to: v.string(),
     subject: v.string(),
     body: v.string(),
-    /** Optional Reply-To so a recipient can reply straight to the sender. */
     replyTo: v.optional(v.string()),
   },
   handler: async (_ctx, args) => {
@@ -36,8 +31,6 @@ export const send = internalAction({
     });
     if (!response.ok) {
       const detail = await response.text();
-      // Throw so the scheduled function shows as failed in the Convex dashboard
-      // (rollover IT email, request notifications, …) instead of only logging.
       throw new Error(`Resend error ${response.status}: ${detail}`);
     }
     return null;

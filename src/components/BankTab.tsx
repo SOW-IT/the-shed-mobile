@@ -27,8 +27,6 @@ import {
 
 type Mode = "none" | "add" | "edit";
 
-/** A node we can ask for its window-relative position — a DOM element on web,
- *  a native View otherwise. */
 type Measurable = {
   measureInWindow?: (
     callback: (x: number, y: number, width: number, height: number) => void
@@ -36,8 +34,6 @@ type Measurable = {
   getBoundingClientRect?: () => { top: number };
 };
 
-/** Reads a node's window-relative Y. Synchronous on web (so the FLIP offset is
- *  applied before paint, with no flash), via the native callback otherwise. */
 const measureY = (node: Measurable, callback: (y: number | null) => void) => {
   if (Platform.OS === "web") {
     const rect = node.getBoundingClientRect?.();
@@ -49,19 +45,11 @@ const measureY = (node: Measurable, callback: (y: number | null) => void) => {
   }
 };
 
-/**
- * Bank tab: manage your saved bank accounts. Add a preferred (auto-fill)
- * account, edit the preferred one, switch which account is preferred, and
- * remove accounts. The preferred account auto-fills when submitting a receipt.
- */
 export const BankTab = () => {
   const t = useAppTheme();
   const savedAccounts = useQuery(api.bankAccounts.listMine, {});
   const addAccount = useMutation(api.bankAccounts.addAccount);
   const updateAccount = useMutation(api.bankAccounts.updateAccount);
-  // Optimistic: drop the account from the local list immediately (promoting the
-  // next most-recent to preferred, mirroring the server) so the card animates
-  // out on tap; Convex reverts if the delete fails.
   const removeAccount = useMutation(api.bankAccounts.remove).withOptimisticUpdate(
     (localStore, { id }) => {
       const current = localStore.getQuery(api.bankAccounts.listMine, {});
@@ -78,8 +66,6 @@ export const BankTab = () => {
       );
     }
   );
-  // Optimistic: flip the preferred flags locally so the reorder animation runs
-  // the instant the star is tapped, not after the round-trip. Reverts on error.
   const setPreferred = useMutation(api.bankAccounts.setPreferred).withOptimisticUpdate(
     (localStore, { id }) => {
       const current = localStore.getQuery(api.bankAccounts.listMine, {});
@@ -106,10 +92,6 @@ export const BankTab = () => {
     message?: string;
   } | null>(null);
 
-  // State backing the reorder ("star to swap") animation. These maps persist
-  // across re-renders — and across a card moving between the preferred slot and
-  // the others list — so each card keeps its animation identity (keyed by
-  // account id) even as React remounts its wrapper in a different section.
   const [cardRefs] = useState(() => new Map<string, Measurable>());
   const [translateYs] = useState(() => new Map<string, Animated.Value>());
   const [prevPositions] = useState(() => new Map<string, number>());
@@ -118,8 +100,6 @@ export const BankTab = () => {
     (savedAccounts ?? []).find((a) => a.preferred) ?? (savedAccounts ?? [])[0];
   const others = (savedAccounts ?? []).filter((a) => a.id !== preferred?.id);
   const editing = mode !== "none";
-  // Stable signature of the on-screen order; the FLIP effect re-runs only when
-  // the order actually changes (e.g. after setPreferred swaps two accounts).
   const orderKey = [preferred?.id, ...others.map((a) => a.id)]
     .filter(Boolean)
     .join("|");
@@ -133,10 +113,6 @@ export const BankTab = () => {
     return value;
   };
 
-  // FLIP animation: once the list has reordered, offset each card back to where
-  // it just was and animate that offset to zero, so it glides from its old slot
-  // to its new one — the newly starred account rises into the preferred slot and
-  // the demoted one slides down into the others list.
   useLayoutEffect(() => {
     if (editing) return;
     const ids = [preferred?.id, ...others.map((a) => a.id)].filter(Boolean) as string[];
@@ -175,8 +151,6 @@ export const BankTab = () => {
         if (--remaining === 0) finish();
       });
     }
-    // preferred/others are captured through orderKey; we deliberately don't
-    // re-run on the (stable) ref maps or the recreated helper closures.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderKey, editing]);
 
@@ -189,9 +163,6 @@ export const BankTab = () => {
     else cardRefs.delete(id);
   };
 
-  /** Wraps an account card so it participates in the reorder animation. The
-   *  outer View is never transformed (so its measured position stays truthful);
-   *  the inner Animated.View carries the FLIP offset. */
   const animatedWrap = (id: string, children: ReactNode) => (
     <View
       key={id}
@@ -273,10 +244,6 @@ export const BankTab = () => {
   const isEditing = (id: Id<"savedBankAccounts">) =>
     mode === "edit" && editingId === id;
 
-  // In edit mode, keep Save disabled until a field actually differs from the
-  // saved values (mirrors the profile tab's "no change → disabled" behaviour).
-  // Compare against trimmed/digits-only drafts so cosmetic whitespace doesn't
-  // count as a change the server would just normalise away.
   const editingAccount =
     mode === "edit" && editingId
       ? (savedAccounts ?? []).find((a) => a.id === editingId)
@@ -287,8 +254,6 @@ export const BankTab = () => {
     bsbDraft === editingAccount.bsb &&
     numberDraft === editingAccount.accountNumber;
 
-  /** The add/edit form, rendered in place of a card (edit) or the add button
-   *  (add) so the rest of the accounts stay visible above and below. */
   const accountForm = (isAdd: boolean) => (
     <Card style={styles.bankCard}>
       <Field
@@ -338,8 +303,6 @@ export const BankTab = () => {
         <View style={{ marginBottom: spacing.sm }}>
           <Muted>Auto-filled when you submit a receipt.</Muted>
         </View>
-        {/* Form-level errors render inside the form; this banner is for
-            list actions (set preferred / delete) while no form is open. */}
         <ErrorBanner message={mode === "none" ? error : null} />
 
         {preferred ? (
@@ -469,9 +432,6 @@ export const BankTab = () => {
 const styles = StyleSheet.create({
   bankCard: { gap: spacing.xs },
   bankRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  // Space the section header and the cards apart, matching the request lists'
-  // card rhythm (the cards are nested in one FadeInView, so they don't inherit
-  // the screen scroll's gap on their own).
   othersList: { gap: spacing.md },
   addButton: { marginTop: spacing.lg },
 });

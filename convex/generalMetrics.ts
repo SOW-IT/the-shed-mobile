@@ -19,20 +19,9 @@ import {
   STUDENT_LEADER_ROLE_FILTER_ROLES,
 } from "../shared/attendanceMemberMeta";
 
-/** Percent with one decimal (e.g. 33.3). */
 const pct1 = (numerator: number, denominator: number): number =>
   Math.round((numerator / denominator) * 1000) / 10;
 
-/**
- * Durable person key across staff years. Prefer `importId` (survives email
- * renames); fall back to the normalised profile email when the person was
- * never imported or linked. Email is lowercased + trimmed so case/whitespace
- * alone can't register as a leave + join.
- *
- * Optional `emailToImportId` resolves mixed coverage: if any year of a person
- * carries `importId`, every row for that email uses the same import key so
- * partially-backfilled history doesn't look like a leave + join.
- */
 export const profilePersonKey = (
   p: { email: string; importId?: string },
   emailToImportId?: ReadonlyMap<string, string>
@@ -42,10 +31,6 @@ export const profilePersonKey = (
   return importId ? `import:${importId}` : `email:${email}`;
 };
 
-/**
- * Map each email to an `importId` seen on any profile for that email. Used so
- * {@link profilePersonKey} is stable when only some years are backfilled.
- */
 export const buildEmailToImportId = (
   profiles: readonly { email: string; importId?: string }[]
 ): Map<string, string> => {
@@ -57,10 +42,6 @@ export const buildEmailToImportId = (
   return map;
 };
 
-/**
- * Share of `prior` people missing from `current` (standard year-over-year
- * turnover). `null` when there is no prior roster to measure against.
- */
 export const turnoverRate = (
   prior: ReadonlySet<string>,
   current: ReadonlySet<string>
@@ -71,10 +52,6 @@ export const turnoverRate = (
   return pct1(leavers, prior.size);
 };
 
-/**
- * Share of `prior` people still present in `current` (year-over-year retention).
- * Complement of {@link turnoverRate}; `null` when there is no prior roster.
- */
 export const retentionRate = (
   prior: ReadonlySet<string>,
   current: ReadonlySet<string>
@@ -85,7 +62,6 @@ export const retentionRate = (
   return pct1(stayers, prior.size);
 };
 
-/** Count of distinct career years ≤ asOfYear for one person. */
 const yearsServedAsOf = (
   years: ReadonlySet<number> | undefined,
   asOfYear: number
@@ -96,12 +72,6 @@ const yearsServedAsOf = (
   return n;
 };
 
-/**
- * Of people present in a category, the share whose career in that category
- * spans at least `minYears` distinct staff years (as of `asOfYear`, only years
- * ≤ asOfYear count). `null` when nobody is present in the lens (so charts don't
- * plot an empty roster as a real 0%).
- */
 export const tenureAtLeastPct = (
   present: ReadonlySet<string>,
   yearsByPerson: ReadonlyMap<string, ReadonlySet<number>>,
@@ -118,10 +88,6 @@ export const tenureAtLeastPct = (
   return pct1(count, present.size);
 };
 
-/**
- * Mean number of staff years served so far (as of `asOfYear`) among people
- * present. One decimal; `null` when nobody is present in the lens.
- */
 export const avgTenureYears = (
   present: ReadonlySet<string>,
   yearsByPerson: ReadonlyMap<string, ReadonlySet<number>>,
@@ -135,7 +101,6 @@ export const avgTenureYears = (
   return Math.round((total / present.size) * 10) / 10;
 };
 
-/** Lifetime share of people (ever in the map) with ≥ `minYears` years. */
 export const lifetimeTenureAtLeastPct = (
   yearsByPerson: ReadonlyMap<string, ReadonlySet<number>>,
   minYears = 2
@@ -148,7 +113,6 @@ export const lifetimeTenureAtLeastPct = (
   return pct1(count, yearsByPerson.size);
 };
 
-/** Lifetime mean career length (distinct staff years) across everyone ever. */
 export const lifetimeAvgTenureYears = (
   yearsByPerson: ReadonlyMap<string, ReadonlySet<number>>
 ): number => {
@@ -170,8 +134,6 @@ const rateSeries = v.object({
   studentLeaders: v.array(v.union(v.number(), v.null())),
 });
 
-// Per-year rates/averages: null when that lens has nobody present that year
-// (distinct from a real 0% / 0.0 average).
 const pctSeries = v.object({
   overall: v.array(v.union(v.number(), v.null())),
   staff: v.array(v.union(v.number(), v.null())),
@@ -196,32 +158,6 @@ const lifetimeAvgYears = v.object({
   studentLeaders: v.number(),
 });
 
-/**
- * Org-wide "General" insights, plotted one point per staff year (staff roles and
- * campus assignments are stored per year in `staffProfiles`, so the staff year
- * is the only meaningful time axis). All rates below are **staffProfiles only**
- * (org-chart staff + student leaders), not attendance members.
- *
- *  - `allStaff`      — every distinct person with a profile that year.
- *  - `staff` / `studentLeaders` — the same staff-vs-student-leader split the
- *    attendance Members filter uses (`roleFilterMatches`): a person is a student
- *    leader if they hold any university-scoped role, staff if they hold a
- *    non-university staff-profile role. A person can match both lenses (rare), so
- *    the two series aren't required to sum to `allStaff`.
- *  - `studentLeadersByCampus` — distinct student leaders per university, per year.
- *  - `turnover` / `retention` — year-over-year leave / stay rates (people in
- *    year Y−1 missing from / still in Y). First year is `null` (no prior).
- *  - `tenure2Plus` — of people present that year, the % with ≥2 staff years of
- *    service in that lens so far (years ≤ that year).
- *  - `avgTenureYears` — mean career length (distinct staff years so far) among
- *    people present that year.
- *  - `lifetimeTenure2Plus` / `lifetimeAvgTenureYears` — same lenses over
- *    everyone ever in the history (≤ current staff year).
- *
- * Reads every `staffProfiles` row once (one row per person per year). The table
- * holds a single row per person-year, so this stays comfortably within a query's
- * read budget for a staff org's history.
- */
 export const staffTrends = query({
   args: {},
   returns: v.union(
@@ -233,14 +169,11 @@ export const staffTrends = query({
       staff: v.array(v.number()),
       studentLeaders: v.array(v.number()),
       campuses: v.array(v.string()),
-      // One entry per campus; `counts` is aligned to `years` (0 where absent).
       studentLeadersByCampus: v.array(
         v.object({ campus: v.string(), counts: v.array(v.number()) })
       ),
-      // Aligned to `years`; first year (and empty prior roster) is null.
       turnover: rateSeries,
       retention: rateSeries,
-      // Aligned to `years`; null when nobody is present in that lens that year.
       tenure2Plus: pctSeries,
       avgTenureYears: avgYearsSeries,
       lifetimeTenure2Plus: lifetimePct,
@@ -248,13 +181,7 @@ export const staffTrends = query({
     })
   ),
   handler: async (ctx) => {
-    // Public (1.7.0): org-wide head-count trends are open to everyone — these are
-    // aggregate counts per staff year, no individuals. The Insights General tab
-    // shows a sign-in prompt for the fuller per-year breakdown, but the trend
-    // charts themselves need no account.
 
-    // Ratios stay on last complete year during rate grace so a half-assigned
-    // Oct roster does not read as mass turnover. Auth grace is a longer window.
     const currentYear = currentStaffYear();
     const latestCompleteYear = withinRolloverRateGrace(currentYear)
       ? currentYear - 1
@@ -263,8 +190,6 @@ export const staffTrends = query({
       (p) => p.year <= currentYear
     );
 
-    // year -> tallies. campusByYear tracks distinct student-leader emails per
-    // campus so a leader with two campus roles isn't double-counted.
     const totals = new Map<
       number,
       { all: number; staff: number; studentLeaders: number }
@@ -272,10 +197,6 @@ export const staffTrends = query({
     const campusByYear = new Map<number, Map<string, Set<string>>>();
     const campusSet = new Set<string>();
 
-    // Distinct people per year (for turnover) and career years per person (for
-    // tenure). Person identity follows importId when present (and applies any
-    // importId seen for that email to years that lack it) so renames / partial
-    // backfill don't look like a leave + join.
     const emailToImportId = buildEmailToImportId(profiles);
     const peopleByYear = new Map<
       number,
@@ -309,8 +230,6 @@ export const staffTrends = query({
       if (isStudentLeader) tally.studentLeaders += 1;
       totals.set(profile.year, tally);
 
-      // Rate / lifetime identity stops at last complete year during grace so
-      // a half-assigned Oct roster doesn't look like a mass resignation.
       if (profile.year <= latestCompleteYear) {
         const key = profilePersonKey(profile, emailToImportId);
         const sets = peopleByYear.get(profile.year) ?? emptyPersonSets();
@@ -347,8 +266,6 @@ export const staffTrends = query({
       }
     }
 
-    // `years` is empty only when there are no staff profiles on record at all;
-    // the caller (GeneralMetricsTab) renders a "no history yet" empty state then.
     const years = [...totals.keys()].sort((a, b) => a - b);
     const campuses = [...campusSet].sort((a, b) => a.localeCompare(b));
     const studentLeadersByCampus = campuses.map((campus) => ({
@@ -360,8 +277,6 @@ export const staffTrends = query({
 
     const empty = emptyPersonSets();
 
-    // Year-over-year leave/stay for each lens; first year has no prior roster.
-    // Incomplete current year during grace → null (not a fake 0% / 100%).
     const yoyRate = (
       rateFn: typeof turnoverRate,
       lens: keyof ReturnType<typeof emptyPersonSets>
@@ -475,49 +390,25 @@ function setDefault<K>(map: Map<K, Set<string>>, key: K): Set<string> {
   return set;
 }
 
-/**
- * Attendance recording only started in staff year 2025, so weekly-meeting
- * averages are meaningless before it — the chart and cards begin here.
- */
 export const CAMPUS_ATTENDANCE_START_YEAR = 2025;
 
-// Guardrail on the event scan: two-plus staff years of weekly meetings across a
-// handful of campuses is a few hundred events, well under this. Capping the
-// range read keeps the query bounded even if unrelated events pile up.
 const MAX_EVENTS_SCAN = 4000;
 
-/**
- * Average weekly-meeting attendance per campus, one point per staff year from
- * {@link CAMPUS_ATTENDANCE_START_YEAR} to the current year. "Average" is the
- * mean head-count across that campus's Weekly-Meeting-tagged events in the year
- * (attendance rows per event ÷ number of meetings). The current staff year is
- * naturally a year-to-date average since only meetings held so far exist.
- *
- * Buckets by each campus sub-group an event carries (excluding org-wide SOW), so
- * the series self-limit to the campuses that actually run weekly meetings
- * (USYD/UNSW/MACQ/UTS). Public — like `staffTrends`, these are aggregate counts.
- */
 export const campusWeeklyAttendance = query({
   args: {},
   returns: v.object({
     years: v.array(v.number()),
-    // One entry per campus; `averages` is aligned to `years` (0 where no
-    // meetings were held that year).
     campuses: v.array(
       v.object({ campus: v.string(), averages: v.array(v.number()) })
     ),
   }),
   handler: async (ctx) => {
-    // Before 2025 this yields no years (and an empty result), which is correct —
-    // there's no attendance history to average then.
     const currentYear = currentStaffYear();
     const years: number[] = [];
     for (let y = CAMPUS_ATTENDANCE_START_YEAR; y <= currentYear; y++) {
       years.push(y);
     }
 
-    // Weekly meetings live from the 2025 staff-year start onward; a by_dateStart
-    // range read stands in for the dropped by_year index (see staffYearStartMs).
     const events = await ctx.db
       .query("events")
       .withIndex("by_dateStart", (q) =>
@@ -525,8 +416,6 @@ export const campusWeeklyAttendance = query({
       )
       .take(MAX_EVENTS_SCAN);
 
-    // Resolve which events are Weekly Meetings — any tag named "Weekly Meeting"
-    // (tags are global; the name is what marks the pattern).
     const tagIds = new Set<Id<"attendanceTags">>();
     for (const e of events) for (const id of e.tagIds ?? []) tagIds.add(id);
     const tagDocs = await Promise.all([...tagIds].map((id) => ctx.db.get(id)));
@@ -544,9 +433,6 @@ export const campusWeeklyAttendance = query({
         eventStaffYear(e.dateStart) <= currentYear
     );
 
-    // Resolve each meeting's campuses (org-wide SOW dropped) and staff year up
-    // front, keeping only meetings that belong to a campus. `year` is bounded to
-    // [2025, currentYear] by the date-range read + the year filter above.
     const meetings = weeklyMeetings
       .map((e) => ({
         id: e._id,
@@ -557,10 +443,6 @@ export const campusWeeklyAttendance = query({
       }))
       .filter((m) => m.campuses.length > 0);
 
-    // Turnout per meeting, read in parallel (one bounded by_event index read
-    // each) rather than sequentially. The number of Weekly-Meeting events is
-    // inherently small — at most ~one per campus per week — so this stays well
-    // within a query's read budget without a denormalised per-event counter.
     const turnouts = await Promise.all(
       meetings.map((m) =>
         ctx.db
@@ -571,7 +453,6 @@ export const campusWeeklyAttendance = query({
       )
     );
 
-    // (year, campus) -> running total attendance + meeting count, for the mean.
     type Bucket = { total: number; meetings: number };
     const buckets = new Map<string, Bucket>();
     const campusSet = new Set<string>();
@@ -598,10 +479,6 @@ export const campusWeeklyAttendance = query({
         }),
       }));
 
-    // Head-count charts include the new current year immediately (a partial
-    // roster is still a roster). Weekly averages don't: a year with no
-    // meetings yet is not "average 0", it's "no data" — drop it until
-    // someone actually meets.
     if (years.length > 0 && years[years.length - 1] === currentYear) {
       const last = years.length - 1;
       const empty = campuses.length === 0 || campuses.every((c) => c.averages[last] === 0);

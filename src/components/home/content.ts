@@ -1,16 +1,8 @@
-/**
- * Static content for the public Home tab, sourced from sow.org.au and the
- * SOW Brand Guidelines (mission, values) plus THE SHED web app's footer
- * (helpful websites, Christian psychologists, helplines). Kept as plain data
- * so copy edits never touch layout code.
- */
-
 export const MISSION_STATEMENT =
   "Student Outreach to the World (SOW) is a Christian university ministry " +
   "focused on discipling university students to love Jesus, serve His Church " +
   "and reach His world.";
 
-/** The four brand values, verbatim from sow.org.au/our-mission. */
 export const VALUES: { name: string; line: string }[] = [
   { name: "Gospel", line: "The truth of the gospel informs and drives all our activities." },
   { name: "Significance", line: "The truth of the gospel must reach further with deeper impact." },
@@ -18,7 +10,6 @@ export const VALUES: { name: string; line: string }[] = [
   { name: "Diversity", line: "The truth of the gospel must reach people of all nations." },
 ];
 
-/** Story copy drawn from sow.org.au/our-story: evergreen summary. */
 export const OUR_STORY: string[] = [
   "SOW began in 2007 with a vision rally in Sydney’s inner-west, followed by " +
     "a prayer meeting on the lawns of the University of Sydney. From there it " +
@@ -78,7 +69,6 @@ export const SOCIALS: {
   { key: "email", label: "Email", icon: "mail-outline", url: `mailto:${CONTACT_EMAIL}` },
 ];
 
-/** Helpful websites, mirroring THE SHED web app footer. */
 export const RESOURCE_WEBSITES: { name: string; link: string }[] = [
   { name: "Ligonier", link: "https://www.ligonier.org/" },
   { name: "Christ College", link: "https://christcollege.edu.au/" },
@@ -108,31 +98,16 @@ export const HELPLINES: { name: string; phoneNumber: string }[] = [
   { name: "Child Protection Helpline", phoneNumber: "13 21 11" },
 ];
 
-/**
- * Types/content for the Connect section. Weekly meeting day and time are stable
- * per campus (from each campus page on sow.org.au); the exact room can move
- * during the semester, so the location notes when it's announced each term.
- * Update these here whenever a campus changes its slot.
- */
 export type WeeklyMeeting = { day: string; time: string; location: string };
 
 export type Campus = {
-  /** URL-safe id used by the `/campus/[slug]` detail route. */
   slug: string;
-  /** Publicly listed name / university. */
   name: string;
-  /** Suburb / campus the society meets on. */
   area: string;
-  /** One-line summary for the Connect list card. */
   short: string;
-  /** Longer description shown on the campus detail screen. */
   about: string[];
-  /** The weekly meeting's day / time / place. Left null until each campus
-      confirms its time for the semester. */
   meeting: WeeklyMeeting | null;
-  /** The campus's own Instagram handle (without the leading @). */
   instagram: string;
-  /** Campus photos for the detail screen gallery. */
   photos: string[];
 };
 
@@ -232,18 +207,10 @@ export const CAMPUS_MEETING_NOTE =
   "discuss from God’s word and have fellowship with one another. Throughout " +
   "the week, we also hold small groups and do life together!";
 
-/** Shared on-campus ministry framing from sow.org.au/campus-ministry. */
 export const CAMPUS_INTRO =
   "Campus ministry is at the heart of SOW. Each campus offers these shared " +
   "activities throughout the semester, with exact times set by campus leaders:";
 
-/**
- * On-campus programs each campus runs through the semester, sourced from
- * sow.org.au/campus-ministry. REAP, Seasons and key events aren't tied to a
- * single campus card in the same way (REAP runs everywhere but each campus
- * works through its own material; Seasons is hosted at WSU), so they live in
- * their own entries ({@link REAP}, {@link SEASONS}, {@link KEY_EVENTS}).
- */
 export const CAMPUS_PROGRAMS: { name: string; line: string }[] = [
   {
     name: "Weekly Meetings",
@@ -255,21 +222,12 @@ export const CAMPUS_PROGRAMS: { name: string; line: string }[] = [
   },
 ];
 
-/**
- * REAP runs at every campus, but each works through its own material, so it's
- * its own thing rather than a per-campus program.
- */
 export const REAP = {
   name: "REAP",
   line:
     "Reading, Encouragement, Accountability and Prayer. Bible study and accountability in small groups, with each campus working through its own material.",
 };
 
-/**
- * Seasons: SOW’s biblical training program at Western Sydney University
- * (Parramatta South). Schedule lives on the WSU campus `meeting` field.
- * Shown on Home → Connect alongside REAP and the campus list.
- */
 export const SEASONS = {
   name: "Seasons",
   campus: "Western Sydney University",
@@ -279,10 +237,6 @@ export const SEASONS = {
     "application. Follow @sowwsu for updates.",
 };
 
-/**
- * Key events for the whole ministry, across every campus. Just SOW Camp for
- * now; add the rest as they're confirmed each year.
- */
 export const KEY_EVENTS: { name: string; line: string }[] = [
   {
     name: "SOW Camp",

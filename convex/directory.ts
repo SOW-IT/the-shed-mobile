@@ -23,7 +23,6 @@ import {
   rolesOf,
 } from "./model";
 
-/** Authenticated-only info query used by admin sync and other tooling. */
 export const serverInfo = query({
   args: {},
   handler: async (ctx) => {
@@ -47,13 +46,9 @@ export const serverInfo = query({
   },
 });
 
-/** The signed-in caller's profile and capabilities for the current year. */
 export const me = query({
   args: {},
   handler: async (ctx) => {
-    // optionalProfile applies the post-Oct-1 auth grace (previous-year profile
-    // for ~a week when the new year isn't provisioned yet). Unauthenticated →
-    // null; signed-in but unprovisioned (and outside grace) → profile: null.
     const caller = await optionalProfile(ctx);
     const email = caller?.email ?? (await optionalEmail(ctx));
     if (!email) return null;
@@ -83,10 +78,6 @@ export const me = query({
     const headedDepartments = (await departmentsHeadedBy(ctx, year, email)).map(
       (d) => d.name
     );
-    // People who delegated their approver authority to the caller, so a stand-in
-    // sees the To Review tab even without an approver role of their own. Checks
-    // the current AND previous year to match toReview's carry-over window — a
-    // delegate covering last year's approver can still act on leftover requests.
     const [delegatedTo, prevDelegatedTo] = await Promise.all([
       delegatorsForYear(ctx, year, email),
       delegatorsForYear(ctx, year - 1, email),
@@ -111,7 +102,6 @@ export const me = query({
       isBudgetManager: approvers.budgetManagerEmail === email,
       isFinanceHead: approvers.financeHeadEmail === email,
       headedDepartments,
-      // Whether the caller is currently covering anyone as a delegate.
       isDelegate,
       isApprover:
         headedDepartments.some((d) => d !== FINANCE) ||
@@ -119,20 +109,15 @@ export const me = query({
         approvers.financeHeadEmail === email ||
         rolesOf(profile).includes(DIRECTOR) ||
         isDelegate,
-      /** President / VP / Executive / Student Leader — attendance-first UX. */
       isCampusLeader: assignmentsOf(profile).some((a) => roleNeedsUniversity(a.role)),
     };
   },
 });
 
-/** Resolves a display name for any staff email — used on request cards. */
 export const nameForEmail = query({
   args: { email: v.string(), year: v.optional(v.number()) },
   handler: async (ctx, args) => {
     if ((await optionalEmail(ctx)) === null) return null;
-    // Resolve against the given staff year so historical requests show the
-    // requester's name as it was that year (legacy people have no user
-    // account, but their imported staffProfile carries the name).
     const year = args.year ?? currentStaffYear();
     const profile = await getProfile(ctx, args.email, year);
     if (profile?.name) return profile.name;
@@ -144,11 +129,6 @@ export const nameForEmail = query({
   },
 });
 
-/**
- * Every year with an org structure, plus the current year — and the next staff
- * year only for admins (matching orgChart's gate), so the next year isn't
- * discoverable by non-admins through this query either.
- */
 export const availableYears = query({
   args: {},
   handler: async (ctx) => {
@@ -165,9 +145,7 @@ export const availableYears = query({
   },
 });
 
-/** Legacy role that fills the Director slot when no real Director exists. */
 const INTERIM_DIRECTOR = "Interim Director";
-/** Synthetic division name used by the importer when a year has no real divisions. */
 const FALLBACK_DIVISION = "General";
 
 const CAMPUS_ROLE_ORDER = ["President", "Vice President", "Executive", "Student Leader"] as const;
@@ -176,18 +154,6 @@ const campusRoleRank = (roles: string[]) => {
   return idx === -1 ? CAMPUS_ROLE_ORDER.length : idx;
 };
 
-/**
- * The organisation chart for a staff year (defaults to the current one):
- * Director on top, then divisions -> departments (head first) -> members.
- * Names come from the synced Google profile when the person has signed in.
- * Also returns every year that has an org structure, for the year dropdown.
- *
- * PUBLIC: readable without signing in — the Org tab is the app's public
- * landing surface (1.7.0), so anyone can browse who serves where, matching
- * the ministry's public-facing directory. The pre-provisioned NEXT staff
- * year stays admin-only — the Data and IT / Human Resources crew who
- * configure it — so nobody else sees a half-built future chart.
- */
 export const orgChart = query({
   args: { year: v.optional(v.number()) },
   handler: async (ctx, args) => {
@@ -195,7 +161,6 @@ export const orgChart = query({
     const thisYear = currentStaffYear();
     const nextYear = nextStaffYear();
 
-    // Only admins (Data and IT / HR division) may see the next staff year.
     const callerProfile = callerEmail
       ? await getProfile(ctx, callerEmail, thisYear)
       : null;
@@ -203,15 +168,12 @@ export const orgChart = query({
       ? await isAdminProfile(ctx, callerProfile)
       : false;
 
-    // Clamp a future-year request from someone who isn't allowed to see it.
     const requestedYear = args.year ?? thisYear;
     const year =
       requestedYear > thisYear && !(canSeeNextYear && requestedYear === nextYear)
         ? thisYear
         : requestedYear;
 
-    // Distinct years with any structure (divisions are a handful per year),
-    // hiding the next staff year from non-admins.
     const allDivisions = await ctx.db.query("divisions").take(1000);
     const availableYears = [
       ...new Set([...allDivisions.map((d) => d.year), thisYear]),
@@ -251,9 +213,6 @@ export const orgChart = query({
       const dir = directoryByEmail.get(profile.email);
       nameByEmail[profile.email] =
         user?.name ?? dir?.name ?? profile.name ?? null;
-      // Preference order: a custom uploaded photo, then the Google photo synced
-      // on sign-in, then the directory thumbnail cached for people who haven't
-      // signed in yet.
       photoByEmail[profile.email] = user?.avatarId
         ? await ctx.storage.getUrl(user.avatarId)
         : (user?.image ??
@@ -266,15 +225,11 @@ export const orgChart = query({
       role: role ?? null,
     });
 
-    // Org-chart placement is derived strictly from each profile's stored
-    // `assignments` — never the legacy single-scope fields (assignmentsOf would
-    // otherwise fall back to them). These read the assignments array directly.
     const assignmentsFor = (p: (typeof profiles)[number]) => p.assignments ?? [];
     const rolesFor = (p: (typeof profiles)[number]) => [
       ...new Set(assignmentsFor(p).map((a) => a.role)),
     ];
 
-    // A real Director wins; otherwise an "Interim Director" fills the slot.
     const directorProfile =
       profiles.find((p) => rolesFor(p).includes(DIRECTOR)) ??
       profiles.find((p) => rolesFor(p).includes(INTERIM_DIRECTOR)) ??
@@ -285,9 +240,6 @@ export const orgChart = query({
         ? DIRECTOR
         : INTERIM_DIRECTOR;
 
-    // "Staff" = people with no department, no real division and no campus role,
-    // who hold a non-campus role (anyone other than President / Vice President /
-    // Executive / Student Leader), and aren't the director.
     const staffPeople = profiles
       .filter((p) => {
         const myAssignments = assignmentsFor(p);
@@ -312,27 +264,18 @@ export const orgChart = query({
       )
       .map((p) => person(p.email, rolesFor(p).join(", ")));
 
-    // Years before divisions/departments existed keep their "General" division
-    // (older departments are grouped under it). When such a year has no real
-    // departments, the staff are shown in a synthesised "Staff" department under
-    // General rather than as a separate top-level group.
     const generalExists = divisions.some((d) => d.name === FALLBACK_DIVISION);
     const staffUnderGeneral = generalExists && departments.length === 0;
 
     return {
       year,
       availableYears,
-      // The next staff year, surfaced only to admins so the picker can label it.
       nextYear: canSeeNextYear ? nextYear : null,
       director: directorProfile
         ? person(directorProfile.email, directorRole)
         : null,
-      // Shown as a top-level group — except in legacy years where they live in
-      // a "Staff" department under the General division instead (see below).
       staff: staffUnderGeneral ? [] : staffPeople,
       divisions: divisions.map((division) => {
-        // The head named on the division wins (one person can head several);
-        // fall back to a profile whose assignments head this division.
         const divisionHead =
           division.headEmail ??
           profiles.find((p) =>
@@ -346,8 +289,6 @@ export const orgChart = query({
             name: department.name,
             colour: department.colour ?? null,
             head: department.headEmail ? person(department.headEmail) : null,
-            // A person appears under every department they're linked to,
-            // tagged with the role(s) they hold there.
             members: profiles
               .filter(
                 (p) =>
@@ -368,18 +309,12 @@ export const orgChart = query({
         return {
           name: division.name,
           head: divisionHead ? person(divisionHead, HEAD_OF_DIVISION) : null,
-          // Legacy years with no real departments get a synthesised "Staff"
-          // department under General holding everyone who isn't campus.
           departments:
             staffUnderGeneral && division.name === FALLBACK_DIVISION
               ? [{ name: "Staff", colour: null, head: null, members: staffPeople }]
               : realDepartments,
         };
       }),
-      // Campus people (Student Leaders, Executives, …) belong to a
-      // university via a campus-role assignment. Chaplains carry a university
-      // too but render under the Chaplaincy department, so only campus roles
-      // surface here.
       universities: universities.map((university) => ({
         name: university.name,
         members: profiles
@@ -408,7 +343,6 @@ export const orgChart = query({
   },
 });
 
-/** Departments + divisions for a year (signed-in users; admin UI pickers). */
 export const yearStructure = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {

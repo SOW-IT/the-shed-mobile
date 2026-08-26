@@ -9,7 +9,6 @@ import {
 } from "./_generated/server";
 import { requireEmail } from "./model";
 
-/** Called by the app after sign-in to register this device for pushes. */
 export const register = mutation({
   args: { token: v.string() },
   handler: async (ctx, args) => {
@@ -19,7 +18,6 @@ export const register = mutation({
       .withIndex("by_token", (q) => q.eq("token", args.token))
       .unique();
     if (existing) {
-      // The device changed hands (different account signed in).
       if (existing.email !== email) {
         await ctx.db.patch("pushTokens", existing._id, { email });
       }
@@ -51,17 +49,11 @@ export const removeToken = internalMutation({
   },
 });
 
-/**
- * Sends a push notification to every device registered to an email, via the
- * Expo push service. Scheduled from request mutations so flow updates never
- * block on delivery. Dead tokens are pruned on DeviceNotRegistered.
- */
 export const send = internalAction({
   args: {
     to: v.string(),
     title: v.string(),
     body: v.string(),
-    // In-app route to open when the notification is tapped.
     url: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -91,8 +83,6 @@ export const send = internalAction({
     const result = (await response.json()) as {
       data?: { status: string; id?: string; details?: { error?: string } }[];
     };
-    // Prune tokens for uninstalled apps. A dead token can surface in the
-    // ticket immediately…
     const receiptIdToToken = new Map<string, string>();
     for (let i = 0; i < (result.data ?? []).length; i++) {
       const ticket = result.data![i];
@@ -102,12 +92,6 @@ export const send = internalAction({
         receiptIdToToken.set(ticket.id, tokens[i].token);
       }
     }
-    // …but per Expo's delivery model most DeviceNotRegistered results only
-    // appear in the RECEIPT, fetched after the ticket. Without this follow-up,
-    // uninstalled devices' tokens were effectively never pruned — they pile up
-    // (crowding the per-email take(20) cap) and repeatedly pushing to dead
-    // tokens risks Expo throttling the project. Receipts are available within
-    // ~15 minutes; check once, best-effort.
     if (receiptIdToToken.size > 0) {
       await ctx.scheduler.runAfter(15 * 60 * 1000, internal.push.checkReceipts, {
         receipts: [...receiptIdToToken.entries()].map(([id, token]) => ({ id, token })),
@@ -117,19 +101,11 @@ export const send = internalAction({
   },
 });
 
-/**
- * Follow-up to `send`: fetch the delivery receipts for its tickets and prune
- * any token whose receipt reports DeviceNotRegistered. Best-effort — a failed
- * fetch just means the token gets another chance at the next send.
- */
 export const checkReceipts = internalAction({
   args: {
     receipts: v.array(v.object({ id: v.string(), token: v.string() })),
   },
   handler: async (ctx, args) => {
-    // Best-effort means best-effort: a network error or malformed body must not
-    // fail the scheduled action — the token just gets another chance at the
-    // next send's receipt check.
     let result: {
       data?: Record<string, { status: string; details?: { error?: string } }>;
     };

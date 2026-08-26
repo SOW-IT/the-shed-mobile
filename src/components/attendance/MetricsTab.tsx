@@ -1,13 +1,3 @@
-/**
- * Attendance → Insights. A leader-facing dashboard of pre-computed attendance
- * metrics for the selected sub-group and time range: summary cards, lightweight
- * native trend charts, and a gentle "Needs follow-up" list. Reads a snapshot
- * (convex/attendanceMetrics.ts) so it never scans history on-device; snapshots
- * are kept fresh server-side (weekly cron + dirty-recompute on roll-call).
- *
- * Definitions/thresholds live in shared/attendanceMetrics.ts; see
- * docs/attendance-metrics.md.
- */
 import { useAction, useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
@@ -66,7 +56,6 @@ const timeAgo = (ms: number): string => {
   return `${Math.floor(hours / 24)}d ago`;
 };
 
-/** Plain-language explanation shown when a summary tile is tapped. */
 type TileDetail = { title: string; body: string };
 
 type SummaryCard = {
@@ -90,7 +79,6 @@ export function MetricsTab({
   selectedSubgroup: string | null;
   onSelectedSubgroupChange: (subgroup: string) => void;
   onOpenMember: (memberId: Id<"attendanceMembers">) => void;
-  // Owned by the Insights screen and driven by the bottom-right range selector.
   range: AttendanceRangeSelection;
   includeCollaborative: boolean;
 }) {
@@ -102,7 +90,6 @@ export function MetricsTab({
   const [containerWidth, setContainerWidth] = useState(windowWidth);
   const [detail, setDetail] = useState<TileDetail | null>(null);
 
-  // Preset ranges read a precomputed snapshot; custom ranges compute on demand.
   const presetWeeks = range.kind === "preset" ? range.weeks : null;
   const snapshot = useQuery(
     api.attendanceMetrics.snapshot,
@@ -119,9 +106,6 @@ export function MetricsTab({
   const [liveLoading, setLiveLoading] = useState(false);
   const [liveError, setLiveError] = useState<string | null>(null);
 
-  // Custom ranges always compute on demand. Preset ranges also fall back to a
-  // live compute when the precomputed snapshot is missing (new 52-week preset
-  // before Thursday's cron, or the morning after the Oct 1 staff-year flip).
   const presetNeedsLive = range.kind === "preset" && snapshot === null;
   useEffect(() => {
     const useLive =
@@ -174,10 +158,6 @@ export function MetricsTab({
     };
   }, [range, subgroup, includeCollaborative, liveSnapshot, presetNeedsLive]);
 
-  // Org-wide (SOW) view: show average weekly attendance per campus (drawn from
-  // each campus's own snapshot) and drop the follow-up list, which is a
-  // per-campus pastoral tool rather than an org-wide one. Custom ranges skip
-  // this fan-out (no per-campus live compute).
   const orgWide = subgroup ? isOrgWideSubgroup(subgroup) : false;
   const campusWeekly = useQuery(
     api.attendanceMetrics.campusWeeklyAverages,
@@ -194,7 +174,6 @@ export function MetricsTab({
       ? rangeLabel(range.weeks)
       : attendanceRangeFabLabel(range);
 
-  // Responsive grids: more columns on a big screen, comfortable on mobile.
   const cardCols = wide ? 3 : 2;
   const cardWidth =
     (containerWidth - spacing.sm * (cardCols - 1)) / cardCols;
@@ -311,7 +290,6 @@ export function MetricsTab({
 
   return (
     <View onLayout={onLayout} style={{ gap: spacing.md }}>
-      {/* Sub-group picker — mirrors the Events tab's campus row. */}
       {subgroups.length > 0 ? (
         <View style={styles.campusRow}>
           {subgroups.map((sg, i) => {
@@ -338,9 +316,6 @@ export function MetricsTab({
         </View>
       ) : null}
 
-      {/* The time range + collaborative toggle now live in the bottom-right
-          selector (AttendanceRangeFab); this line just reflects the current
-          selection and when the snapshot was last refreshed. */}
       <View style={styles.metaRow}>
         <Text style={[typography.caption, { color: t.muted }]}>
           {`${rangeText}${includeCollaborative ? " · incl. collaborative" : ""}`}
@@ -355,7 +330,6 @@ export function MetricsTab({
         ) : null}
       </View>
 
-      {/* States. */}
       {subgroup && loading ? (
         <LoadingState />
       ) : liveError ? (
@@ -382,7 +356,6 @@ export function MetricsTab({
         />
       ) : data ? (
         <>
-          {/* Summary cards — tap any tile for a plain-language explanation. */}
           <View style={styles.cardGrid}>
             {summaryCards.map((card, i) => (
               <FadeInView key={card.label} delay={stagger(i)}>
@@ -399,9 +372,6 @@ export function MetricsTab({
             ))}
           </View>
 
-          {/* Trend charts. For weekly-meeting groups the weekly lens leads:
-              weekly trend, then new-vs-returning (measured at weekly meetings),
-              then the all-event charts. Other groups keep the per-event order. */}
           <View style={styles.chartGrid}>
             {(() => {
               const weekly = data.hasWeeklyMeetings;
@@ -417,9 +387,6 @@ export function MetricsTab({
                     <BarChart points={data.weeklyTrend} colour={t.success} />
                   </ChartCard>
                 ) : null;
-              // Per-campus only — SOW is an org-wide rollup, not a campus, so
-              // it's excluded from this breakdown (see campusWeeklyChart for
-              // the org-wide equivalent).
               const newVsReturningChart = !orgWide ? (
                 <ChartCard
                   key="newVsReturning"
@@ -435,11 +402,6 @@ export function MetricsTab({
                   <StackedBarChart points={data.newVsReturning} />
                 </ChartCard>
               ) : null;
-              // Composition charts share the new-vs-returning event basis
-              // (weekly meetings when the group runs them). The subtitle
-              // carries the period-wide share and its ratio, oriented so the
-              // larger side reads first (≈2:1 for a 67% majority, ≈1:2 for a
-              // 33% minority) — never "≈1:0.5" or a rounded-to-zero side.
               const basis = weekly ? "At weekly meetings" : undefined;
               const shareSubtitle = (
                 share: number | null | undefined,
@@ -463,7 +425,6 @@ export function MetricsTab({
                   fresh: p.primary,
                   returning: p.rest,
                 }));
-              // Per-campus only — see newVsReturningChart above.
               const leadersVsOthersChart =
                 !orgWide && data.leadersVsOthers && data.leadersVsOthers.length > 0 ? (
                   <ChartCard
@@ -489,8 +450,6 @@ export function MetricsTab({
                     />
                   </ChartCard>
                 ) : null;
-              // Hidden org-wide (campusMix is not computed there) and when
-              // nobody's home campus is known.
               const campusMixChart =
                 data.campusMix &&
                 data.campusMix.some((p) => p.primary + p.rest > 0) ? (
@@ -555,10 +514,6 @@ export function MetricsTab({
                   <BreakdownBars rows={b.rows} />
                 </ChartCard>
               ));
-              // Org-wide only: average weekly-meeting turnout for each campus,
-              // leading the chart list so it's the first thing SOW leaders see.
-              // Custom ranges don't fan out per-campus live computes — show a
-              // clear empty card rather than silently dropping the chart.
               const campusWeeklyChart = !orgWide
                 ? null
                 : range.kind === "custom"
@@ -620,9 +575,6 @@ export function MetricsTab({
             })()}
           </View>
 
-          {/* Needs follow-up — a per-campus pastoral tool, hidden org-wide. It's
-              a reading list, so keep it a comfortable member-card width and
-              centred rather than stretched across a wide screen. */}
           {orgWide ? null : (
           <ReadableColumn maxWidth={560}>
           <View style={[styles.followCard, { backgroundColor: t.card }, t.shadowCard]}>
@@ -660,12 +612,10 @@ export function MetricsTab({
           </ReadableColumn>
           )}
 
-          {/* Clear the Bars / range pills so the last chart can scroll above them. */}
           <View style={{ height: 96 }} />
         </>
       ) : null}
 
-      {/* Tap-a-tile detail: what the metric means and how it's worked out. */}
       <Sheet visible={detail !== null} onClose={() => setDetail(null)} title={detail?.title}>
         <Text style={[typography.body, { color: t.text }]}>{detail?.body}</Text>
       </Sheet>

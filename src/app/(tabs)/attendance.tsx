@@ -18,8 +18,6 @@ import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 export default function AttendanceScreen() {
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const me = useQuery(api.directory.me);
-  // Staff year scopes events/tags/profiles; the calendar year is only the
-  // viewing year for the student "Year" level (metadata fields are global).
   const year = me?.year ?? staffYearForDate(new Date());
   const calendarYear = sydneyCalendarYear(new Date());
   const subgroups = useQuery(api.events.subgroups);
@@ -44,7 +42,6 @@ export default function AttendanceScreen() {
   const [confirmRevertTags, setConfirmRevertTags] = useState(false);
   const [confirmRevertMeta, setConfirmRevertMeta] = useState(false);
 
-  // Infinite-scroll handlers for paginated attendance tabs (events / members / audit).
   const eventsLoadMoreRef = useRef<(() => void) | null>(null);
   const membersLoadMoreRef = useRef<(() => void) | null>(null);
   const auditLoadMoreRef = useRef<(() => void) | null>(null);
@@ -145,10 +142,6 @@ export default function AttendanceScreen() {
     return <LoadingState />;
   }
 
-  // The staff tools need a provisioned staff profile (the tab itself is hidden
-  // for everyone else). Anyone else deep-linking here is redirected: signed-out
-  // visitors to the public Home tab (their default, 1.7.5), signed-in non-staff
-  // accounts to the Org chart.
   if (!me?.profile) return <Redirect href={me === null ? "/home" : "/org"} />;
 
   const tabs: PagerTab[] = [
@@ -168,7 +161,6 @@ export default function AttendanceScreen() {
     {
       key: "members",
       label: "Members",
-      // Owns its ScrollView so its search bar can be a sticky header.
       selfScrolling: true,
       render: (scrollProps) => (
         <MembersTab
@@ -203,7 +195,6 @@ export default function AttendanceScreen() {
     {
       key: "audit",
       label: "Audit",
-      // Owns its ScrollView so its filter + search block can be a sticky header.
       selfScrolling: true,
       render: (scrollProps) => (
         <AuditTab scrollProps={scrollProps} loadMoreRef={auditLoadMoreRef} />

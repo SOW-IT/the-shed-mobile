@@ -10,9 +10,9 @@ const modules = import.meta.glob("./**/*.ts");
 const YEAR = staffYearForDate(new Date());
 
 const ADMIN = "admin@sow.org.au";
-const LEADER = "leader@sow.org.au"; // Student Leader at USYD
-const STAFF = "staff@sow.org.au"; // department staff (no campus)
-const OUTSIDER = "outsider@sow.org.au"; // signed in but no staff profile
+const LEADER = "leader@sow.org.au";
+const STAFF = "staff@sow.org.au";
+const OUTSIDER = "outsider@sow.org.au";
 
 const USYD = "University of Sydney";
 const MACQ = "Macquarie University";
@@ -53,7 +53,6 @@ describe("subgroups", () => {
   test("lists ALL plus the year's campuses, sorted", async () => {
     const t = await setup();
     const subgroups = await asUser(t, LEADER).query(api.events.subgroups, {});
-    // SOW is always first; the campuses follow, alphabetically sorted.
     expect(subgroups[0]).toBe(SOW_SUBGROUP);
     expect(ALL_SUBGROUP).toBe(SOW_SUBGROUP);
     expect(subgroups).toContain(USYD);
@@ -80,18 +79,15 @@ describe("legacy import matching", () => {
       department: "Missions",
     });
     await admin.mutation(api.attendanceMetadata.ensureDefaults, { });
-    // Legacy imported member: old @sowaustralia.com address, no staffEmail.
     const memberId = await admin.mutation(api.attendanceMembers.create, {
       name: "Old Jane",
       email: "jane.doe@sowaustralia.com",
     });
 
-    // Roster: folded into the single staff row, not shown as a separate member.
     const roster = await leader.query(api.attendance.roster, { year: YEAR });
     expect(roster.filter((m) => m.email === "jane.doe@sow.org.au")).toHaveLength(1);
     expect(roster.some((m) => m.name === "Old Jane")).toBe(false);
 
-    // listByEvent: signing the legacy member in shows them as the staff person.
     const { dateStart, dateEnd } = window();
     const eventId = await admin.mutation(api.events.create, {
       name: "E",
@@ -112,7 +108,6 @@ describe("legacy import matching", () => {
     const admin = asUser(t, ADMIN);
     const leader = asUser(t, LEADER);
     await admin.mutation(api.attendanceMetadata.ensureDefaults, { });
-    // No profile for ghost.person@sow.org.au this year.
     const memberId = await admin.mutation(api.attendanceMembers.create, {
       name: "Ghost Person",
       email: "ghost.person@sowaustralia.com",
@@ -142,7 +137,6 @@ describe("legacy import matching", () => {
       dateEnd,
       subgroups: [USYD],
     });
-    // A member id that has since been deleted (e.g. consolidated away).
     const memberId = await t.run(async (ctx) => {
       const id = await ctx.db.insert("attendanceMembers", { name: "Gone" });
       await ctx.db.delete(id);
@@ -156,9 +150,6 @@ describe("legacy import matching", () => {
   test("a member whose email has no matching profile shows as a plain member", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
-    // A pool member whose SOW-address email matches no profile this year links
-    // to nothing, so it's a plain member in the roster (there's no staffEmail
-    // flag to distinguish — and hide — a "stale overlay" any more).
     await t.run(async (ctx) => {
       await ctx.db.insert("attendanceMembers", {
         name: "Ghost Staff",
@@ -175,9 +166,6 @@ describe("mergeLegacyStaffMembers (staff-year-aware relink)", () => {
   test("normalises a legacy @sowaustralia.com member to the profile email, leaving an already-canonical row", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Calendar import year 2025; the staff profiles live in staff year 2026
-    // (the next managed year in tests). LEADER's profile is seeded by setup
-    // under YEAR (2026); add a second dotted-email staff profile for 2026.
     await admin.mutation(api.admin.setStaffProfile, {
       email: "jane.doe@sow.org.au",
       year: 2026,
@@ -185,12 +173,8 @@ describe("mergeLegacyStaffMembers (staff-year-aware relink)", () => {
       university: USYD,
     });
 
-    // Two legacy members under calendar year 2025: m1 is already stored under
-    // the canonical @sow.org.au profile email (so it's already linked and must
-    // be left alone), m2 is still @sowaustralia.com and needs normalising to the
-    // profile's @sow.org.au email.
     const { m1, m2, eventId } = await t.run(async (ctx) => {
-      const dateStart = Date.UTC(2025, 10, 1, 9, 0, 0); // Nov 2025 → staff year 2026
+      const dateStart = Date.UTC(2025, 10, 1, 9, 0, 0);
       const eId = await ctx.db.insert("events", {
         name: "Nov event",
         dateStart,
@@ -199,12 +183,11 @@ describe("mergeLegacyStaffMembers (staff-year-aware relink)", () => {
       });
       const a = await ctx.db.insert("attendanceMembers", {
         name: "Leader Legacy",
-        email: LEADER, // leader@sow.org.au — already the profile email
+        email: LEADER,
       });
       const b = await ctx.db.insert("attendanceMembers", {
         name: "Jane Doe",
         email: "jane.doe@sowaustralia.com",
-        // Metadata must survive the merge onto the canonical row, not be dropped.
         metadata: { keep: "value" },
       });
       await ctx.db.insert("attendance", { eventId: eId, memberId: a, signInTime: dateStart });
@@ -215,7 +198,6 @@ describe("mergeLegacyStaffMembers (staff-year-aware relink)", () => {
     const res = await admin.mutation(api.rollcallImport.mergeLegacyStaffMembers, {
       year: 2025,
     });
-    // Only the legacy-domain row is merged; m1 is already linked by email.
     expect(res.mergedMembers).toBe(1);
     expect(res.attendanceMoved).toBe(1);
 
@@ -232,8 +214,6 @@ describe("mergeLegacyStaffMembers (staff-year-aware relink)", () => {
         oldM2: await ctx.db.get(m2),
       };
     });
-    // m1 kept (already linked, still memberId-keyed); m2 merged away and its
-    // attendance re-keyed to the profile's @sow.org.au email.
     expect(after.oldM1).not.toBeNull();
     expect(after.oldM2).toBeNull();
     expect(after.att).toEqual([
@@ -241,8 +221,6 @@ describe("mergeLegacyStaffMembers (staff-year-aware relink)", () => {
       { email: "jane.doe@sow.org.au", memberId: undefined },
     ]);
 
-    // The legacy row's overlay is preserved as a fresh canonical row (matched by
-    // the legacy domain, it must NOT be patched-then-deleted into oblivion).
     const canonical = await t.run((ctx) =>
       ctx.db
         .query("attendanceMembers")
@@ -258,8 +236,6 @@ describe("staff year derivation for events", () => {
   test("a Sep–Dec attendee with no profile this staff year falls back to the calendar-year member", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
-    // Nov 2025 event (staff year 2026); the attendee was staff in 2025 (has a
-    // calendar-year overlay) but is not in 2026 profiles → show as the member.
     const eventId = await t.run(async (ctx) => {
       const dateStart = Date.UTC(2025, 10, 1, 9, 0, 0);
       await ctx.db.insert("attendanceMembers", {
@@ -288,15 +264,11 @@ describe("staff year derivation for events", () => {
   test("a Sep–Dec event shows the next staff year's roles/campus", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
-    // Oct 15 2023: calendar year 2023, but staff year 2024 (Oct 1 rollover).
     const dateStart = Date.UTC(2023, 9, 15, 9, 0, 0);
     const CAL = 2023;
     const STAFF_YEAR = staffYearForDate(new Date(dateStart));
     expect(STAFF_YEAR).toBe(2024);
 
-    // Past-year profiles/events can't go through admin mutations (year guard),
-    // so seed them directly — mirroring imported data: the event keeps its
-    // calendar year, and LEADER's campus differs per staff year.
     const eventId = await t.run(async (ctx) => {
       await ctx.db.insert("staffProfiles", {
         email: LEADER,
@@ -322,13 +294,11 @@ describe("staff year derivation for events", () => {
       return id;
     });
 
-    // listByEvent: campus comes from the staff-year (2024 → MACQ) profile.
     const listed = await leader.query(api.attendance.listByEvent, { eventId });
     expect(listed).toHaveLength(1);
     expect(listed[0].kind).toBe("staff");
     expect(listed[0].university).toBe(MACQ);
 
-    // roster (event-scoped) resolves the same staff-year profile.
     const roster = await leader.query(api.attendance.roster, {
       year: CAL,
       eventId,
@@ -345,11 +315,9 @@ describe("roster (the shared member pool)", () => {
       year: YEAR,
     });
     const emails = roster.map((m) => m.email);
-    // Admin (seeded) + the two staff we added — regardless of any sub-group.
     expect(emails).toContain(ADMIN);
     expect(emails).toContain(LEADER);
     expect(emails).toContain(STAFF);
-    // The leader's campus is derived from their assignment.
     const leader = roster.find((m) => m.email === LEADER)!;
     expect(leader.roles).toContain("Student Leader");
     expect(leader.campuses).toContain(USYD);
@@ -376,7 +344,6 @@ describe("events + roll-call", () => {
     expect(list.events[0]._id).toEqual(id);
     expect(list.events[0].collaborative).toBe(false);
     expect(list.events[0].attendanceCount).toBe(0);
-    // Not under a campus it wasn't tagged with.
     expect(
       (await leader.query(api.events.listBySubgroup, { subgroup: MACQ })).events
     ).toHaveLength(0);
@@ -385,8 +352,6 @@ describe("events + roll-call", () => {
   test("a legacy row storing 'ALL' alongside 'SOW' isn't read as collaborative", async () => {
     const leader = asUser(t, LEADER);
     const { dateStart, dateEnd } = window();
-    // Written straight to the table: the legacy shape predates the write-time
-    // normalisation, so it can only be reproduced by bypassing `create`.
     const id = await t.run((ctx) =>
       ctx.db.insert("events", {
         name: "Whole-org night",
@@ -400,9 +365,6 @@ describe("events + roll-call", () => {
       subgroup: SOW_SUBGROUP,
     });
     expect(list.events).toHaveLength(1);
-    // One org-wide group written two ways is still one group — the events list
-    // must not badge it "Collaborative" or render a duplicate pill, and it must
-    // agree with the export / Insights precompute, which both normalise.
     expect(list.events[0].collaborative).toBe(false);
     expect(list.events[0].subgroups).toEqual([SOW_SUBGROUP]);
 
@@ -606,9 +568,6 @@ describe("events + roll-call", () => {
     expect(malformed.events.map((e) => e._id)).toEqual([newer]);
     expect(malformed.continueCursor).toBeTruthy();
 
-    // An opaque cursor left over from the previous deploy's built-in
-    // `.paginate()` (not our wrapped format, not a paginator cursor) must be
-    // ignored and pagination restarted, never fed to paginator (which throws).
     const legacy = await leader.query(api.events.listBySubgroup, {
       subgroup: USYD,
       cursor: "opaque-legacy-paginate-cursor",
@@ -616,8 +575,6 @@ describe("events + roll-call", () => {
     });
     expect(legacy.events.map((e) => e._id)).toEqual([newer]);
 
-    // A truncated/corrupt value that merely starts with "[" must not be fed to
-    // paginator (it would throw) — it should be rejected and pagination restart.
     for (const corrupt of ["[", `event-subgroup:${JSON.stringify({ dbCursor: "[" })}`]) {
       const result = await leader.query(api.events.listBySubgroup, {
         subgroup: USYD,
@@ -627,8 +584,6 @@ describe("events + roll-call", () => {
       expect(result.events.map((e) => e._id)).toEqual([newer]);
     }
 
-    // A "done" cursor with nothing buffered is never emitted, so a corrupt/stale
-    // one must restart rather than report an empty done page that hides events.
     const corruptDone = await leader.query(api.events.listBySubgroup, {
       subgroup: USYD,
       cursor: `event-subgroup:${JSON.stringify({ dbIsDone: true, bufferedIds: [] })}`,
@@ -661,7 +616,6 @@ describe("events + roll-call", () => {
     });
     await leader.mutation(api.attendance.signIn, { eventId, email: LEADER });
     await leader.mutation(api.attendance.signIn, { eventId, email: STAFF });
-    // Re-signing the same person is a no-op (one row per person).
     await leader.mutation(api.attendance.signIn, { eventId, email: LEADER });
 
     let rows = await leader.query(api.attendance.listByEvent, { eventId });
@@ -698,7 +652,7 @@ describe("events + roll-call", () => {
   test("past event: an attendee from before/during the event can't be signed out (staff + member paths)", async () => {
     const leader = asUser(t, LEADER);
     const dateStart = Date.now() - 3 * 86_400_000;
-    const dateEnd = dateStart + 3600_000; // ended ~3 days ago
+    const dateEnd = dateStart + 3600_000;
     const { eventId, memberId } = await t.run(async (ctx) => {
       const eventId = await ctx.db.insert("events", {
         name: "Past",
@@ -719,14 +673,12 @@ describe("events + roll-call", () => {
       });
       return { eventId, memberId };
     });
-    // Both the email and member sign-out paths are blocked for genuine attendees.
     await expect(
       leader.mutation(api.attendance.signOut, { eventId, email: STAFF })
     ).rejects.toThrow(/can't be removed/i);
     await expect(
       leader.mutation(api.attendance.signOut, { eventId, memberId })
     ).rejects.toThrow(/can't be removed/i);
-    // Both rows are still there.
     const rows = await leader.query(api.attendance.listByEvent, { eventId });
     expect(rows).toHaveLength(2);
   });
@@ -738,7 +690,6 @@ describe("events + roll-call", () => {
     const eventId = await t.run((ctx) =>
       ctx.db.insert("events", { name: "Past", dateStart, dateEnd, subgroups: [USYD] })
     );
-    // Added a day AFTER the event ended — a mistaken late add, so reversible.
     await t.run((ctx) =>
       ctx.db.insert("attendance", {
         eventId,
@@ -753,7 +704,7 @@ describe("events + roll-call", () => {
 
   test("ongoing event: an attendee can be signed out normally", async () => {
     const leader = asUser(t, LEADER);
-    const { dateStart, dateEnd } = window(); // live (ends in 1h)
+    const { dateStart, dateEnd } = window();
     const eventId = await leader.mutation(api.events.create, {
       name: "Live",
       dateStart,
@@ -793,7 +744,6 @@ describe("events + roll-call", () => {
     const [cleared] = await leader.query(api.attendance.listByEvent, { eventId });
     expect(cleared.notes).toBeUndefined();
 
-    // signInTime update branch
     const newTime = Date.now() - 60_000;
     await leader.mutation(api.attendance.updateRecord, {
       attendanceId: row._id,
@@ -802,7 +752,6 @@ describe("events + roll-call", () => {
     const [timed] = await leader.query(api.attendance.listByEvent, { eventId });
     expect(timed.signInTime).toBe(newTime);
 
-    // empty patch (no-op): passing neither notes nor signInTime
     await expect(
       leader.mutation(api.attendance.updateRecord, { attendanceId: row._id })
     ).resolves.toBeNull();
@@ -836,7 +785,6 @@ describe("events + roll-call", () => {
       expect(list.events.map((e) => e._id)).toContain(id);
       expect(list.events.find((e) => e._id === id)!.collaborative).toBe(true);
     }
-    // events.get annotates the single event with the same collaborative flag.
     const got = await leader.query(api.events.get, { eventId: id });
     expect(got).not.toBeNull();
     expect(got!.collaborative).toBe(true);
@@ -891,8 +839,8 @@ describe("events + roll-call", () => {
 });
 
 describe("new-event notifications", () => {
-  const LEADER2 = "leader2@sow.org.au"; // second Student Leader at USYD
-  const MACQ_LEADER = "macqleader@sow.org.au"; // Student Leader at Macquarie
+  const LEADER2 = "leader2@sow.org.au";
+  const MACQ_LEADER = "macqleader@sow.org.au";
 
   const notifsFor = (t: TestConvex<typeof schema>, email: string) =>
     t.run((ctx) =>
@@ -902,8 +850,6 @@ describe("new-event notifications", () => {
         .collect()
     );
 
-  // create() schedules the fan-out; run it deterministically here (a
-  // runAfter(0) job isn't picked up by finishInProgressScheduledFunctions).
   const createAndDeliver = async (
     t: TestConvex<typeof schema>,
     creator: string,
@@ -929,23 +875,22 @@ describe("new-event notifications", () => {
       email: MACQ_LEADER, year: YEAR, roles: ["Student Leader"], university: MACQ,
     });
 
-    // Creator is itself a USYD leader (in-scope) — proves the creator is still excluded.
     await createAndDeliver(t, LEADER, [USYD]);
 
     const leader2Notifs = await notifsFor(t, LEADER2);
-    expect(leader2Notifs).toHaveLength(1); // another USYD leader is notified
+    expect(leader2Notifs).toHaveLength(1);
     expect(leader2Notifs[0].title.toLowerCase()).toContain("new event");
     expect(leader2Notifs[0].url).toMatch(/^\/attendance\/event\//);
-    expect(await notifsFor(t, LEADER)).toHaveLength(0); // in-scope creator excluded
-    expect(await notifsFor(t, MACQ_LEADER)).toHaveLength(0); // other campus excluded
-    expect(await notifsFor(t, STAFF)).toHaveLength(0); // no campus assignment
+    expect(await notifsFor(t, LEADER)).toHaveLength(0);
+    expect(await notifsFor(t, MACQ_LEADER)).toHaveLength(0);
+    expect(await notifsFor(t, STAFF)).toHaveLength(0);
   });
 
   test("an org-wide (SOW) event notifies all staff except the creator", async () => {
     const t = await setup();
     await createAndDeliver(t, LEADER, [SOW_SUBGROUP]);
-    expect(await notifsFor(t, STAFF)).toHaveLength(1); // org-wide reaches dept staff
-    expect(await notifsFor(t, LEADER)).toHaveLength(0); // creator excluded
+    expect(await notifsFor(t, STAFF)).toHaveLength(1);
+    expect(await notifsFor(t, LEADER)).toHaveLength(0);
   });
 });
 
@@ -1069,8 +1014,6 @@ describe("validation + permissions", () => {
         tagIds: [tag._id, tag._id],
       })
     ).resolves.toBeTruthy();
-    // Tags are global, so any catalogue tag is valid on any event — but a tag id
-    // that no longer exists (deleted) is rejected rather than silently stored.
     await leader.mutation(api.attendanceTags.saveAll, {
       tags: [{ name: "Temp", colour: "red" }],
       deleteIds: [],
@@ -1104,7 +1047,6 @@ describe("guards + edge cases", () => {
       dateEnd,
       subgroups: [USYD],
     });
-    // No identity → every read degrades gracefully rather than leaking data.
     expect(await t.query(api.events.subgroups, {})).toEqual([]);
     expect(await t.query(api.attendance.roster, { year: YEAR })).toEqual([]);
     expect(
@@ -1125,13 +1067,10 @@ describe("guards + edge cases", () => {
       subgroups: [USYD],
     });
     await leader.mutation(api.events.remove, { eventId });
-    // The stale id now resolves to nothing.
     expect(await leader.query(api.events.get, { eventId })).toBeNull();
-    // Removing an already-gone event is a no-op.
     await expect(
       leader.mutation(api.events.remove, { eventId })
     ).resolves.toBeNull();
-    // Signing into a missing event is rejected.
     await expect(
       leader.mutation(api.attendance.signIn, { eventId, email: LEADER })
     ).rejects.toThrow(/Event not found/i);
@@ -1172,11 +1111,9 @@ describe("guards + edge cases", () => {
     });
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const memberId = await leader.mutation(api.attendanceMembers.create, { name: "G" });
-    // Neither identifier.
     await expect(
       leader.mutation(api.attendance.signOut, { eventId })
     ).rejects.toThrow(/either email or memberId/i);
-    // Both identifiers.
     await expect(
       leader.mutation(api.attendance.signOut, { eventId, email: STAFF, memberId })
     ).rejects.toThrow(/either email or memberId/i);
@@ -1239,7 +1176,6 @@ describe("guards + edge cases", () => {
     expect(got?.name).toBe("Updated");
     expect(got?.collaborative).toBe(true);
     expect(got?.tags?.[0]?.name).toBe("Social");
-    // Update a deleted event to exercise the "Event not found" guard
     const staleId = await leader.mutation(api.events.create, {
       name: "Stale",
       dateStart,
@@ -1313,7 +1249,6 @@ describe("guards + edge cases", () => {
 
     const roster = await leader.query(api.attendance.roster, { year: YEAR, eventId: targetId });
     expect(roster.length).toBeGreaterThan(0);
-    // LEADER attended the past tagged event → tagMatches > 0, ranks first
     expect(roster[0].email).toBe(LEADER);
   });
 
@@ -1327,7 +1262,6 @@ describe("guards + edge cases", () => {
     const maleId = Object.entries(genderField.values ?? {}).find(([, v]) => v === "Male")?.[0]!;
     const memberId = await leader.mutation(api.attendanceMembers.create, {
       name: "Test Member",
-      // A non-staff member's campus comes from their own metadata value.
       metadata: { [genderField._id]: maleId, [campusField._id]: USYD },
     });
     const { dateStart, dateEnd } = window();
@@ -1386,7 +1320,6 @@ describe("listByEvent de-duplicates one person signed in twice", () => {
     const admin = asUser(t, ADMIN);
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
-    // LEADER's staff overlay gives them a memberId as well as their email.
     const memberId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
       staffEmail: LEADER,
     });
@@ -1397,7 +1330,6 @@ describe("listByEvent de-duplicates one person signed in twice", () => {
       dateEnd,
       subgroups: [USYD],
     });
-    // Both identifiers sign the same person in (e.g. legacy/imported data).
     await admin.mutation(api.attendance.signIn, { eventId, email: LEADER });
     await admin.mutation(api.attendance.signIn, { eventId, memberId });
     const listed = await leader.query(api.attendance.listByEvent, { eventId });
@@ -1413,7 +1345,6 @@ describe("collaborative events surface every sub-group's metadata", () => {
     const admin = asUser(t, ADMIN);
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
-    // A field relevant only to MACQ.
     const houseFieldId = await t.run(async (ctx) =>
       ctx.db.insert("attendanceMetadata", {
         key: "House",
@@ -1428,7 +1359,6 @@ describe("collaborative events surface every sub-group's metadata", () => {
     });
     const { dateStart, dateEnd } = window();
 
-    // Collaborative across USYD (owner) + MACQ: the MACQ field is shown.
     const collab = await admin.mutation(api.events.create, {
       name: "Collab",
       dateStart,
@@ -1442,8 +1372,6 @@ describe("collaborative events surface every sub-group's metadata", () => {
     expect(collabRows.find((r) => r.name === "Houserson")?.subtitle ?? "").toContain(
       "Red"
     );
-    // The roster (suggested pool) applies the same union — the MACQ field shows
-    // for the collaborative event even though USYD is the asked-for sub-group.
     const collabRoster = await leader.query(api.attendance.roster, {
       year: YEAR,
       subgroup: USYD,
@@ -1453,7 +1381,6 @@ describe("collaborative events surface every sub-group's metadata", () => {
       collabRoster.find((r) => r.name === "Houserson")?.subtitle ?? ""
     ).toContain("Red");
 
-    // A USYD-only event hides the MACQ-scoped field.
     const usydOnly = await admin.mutation(api.events.create, {
       name: "USYD only",
       dateStart,
@@ -1488,7 +1415,6 @@ describe("roster without an event scopes metadata to the asked-for sub-group", (
       name: "Scoped Member",
       metadata: { [houseFieldId]: "Red" },
     });
-    // No event in context: the MACQ-only field is hidden for USYD…
     const usyd = await leader.query(api.attendance.roster, {
       year: YEAR,
       subgroup: USYD,
@@ -1496,7 +1422,6 @@ describe("roster without an event scopes metadata to the asked-for sub-group", (
     expect(
       usyd.find((r) => r.name === "Scoped Member")?.subtitle ?? ""
     ).not.toContain("Red");
-    // …and shown for MACQ.
     const macq = await leader.query(api.attendance.roster, {
       year: YEAR,
       subgroup: MACQ,

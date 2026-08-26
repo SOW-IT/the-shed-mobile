@@ -1,7 +1,3 @@
-// Part of the ui design-system, split out of the former monolithic ui.tsx.
-// All symbols are re-exported from ./index so call sites still import from
-// "@/components/ui".
-
 import { Children, ReactNode, useEffect, useState } from "react";
 import { Animated, Easing, Image, Modal, Platform, StyleProp, Text, TextProps, View, ViewStyle } from "react-native";
 import Reanimated, { cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming, Easing as ReanimatedEasing } from "react-native-reanimated";
@@ -10,16 +6,11 @@ import { styles } from "./styles";
 
 const ReanimatedImage = Reanimated.createAnimatedComponent(Image);
 
-/** Text that follows the system theme. Use instead of the raw <Text>. */
 export const Txt = ({ style, ...props }: TextProps) => {
   const t = useAppTheme();
   return <Text {...props} style={[typography.body, { color: t.text }, style]} />;
 };
 
-/**
- * Gentle mount animation: fade in while drifting up. Wrap list items and
- * pass a small staggered `delay` for a premium cascade.
- */
 export const FadeInView = ({
   children,
   delay = 0,
@@ -56,17 +47,6 @@ export const FadeInView = ({
   );
 };
 
-/**
- * A transparent Modal with a fast opacity fade in/out. React Native's built-in
- * `Modal animationType="fade"` runs a fixed ~300ms crossfade with no way to
- * tune the duration; this replaces it so overlays (the sign-in dropdown, the
- * option Sheet, form dialogs) can be tapped in and out quickly. The OS Modal
- * mounts instantly (`animationType="none"`) and we drive the fade ourselves,
- * keeping the Modal mounted through the exit animation before unmounting.
- *
- * Drop-in for `<Modal visible transparent animationType="fade" onRequestClose>`
- * — same children/backdrop structure; only the appear/disappear speed changes.
- */
 export const FastModal = ({
   visible,
   onRequestClose,
@@ -94,8 +74,6 @@ export const FastModal = ({
         duration: durations.overlayOut,
         easing: Easing.in(Easing.quad),
         useNativeDriver: USE_NATIVE_DRIVER,
-        // Unmount only after the fade-out finishes, so the exit animates
-        // instead of the content vanishing instantly.
       }).start(({ finished }) => {
         if (finished) setMounted(false);
       });
@@ -124,7 +102,6 @@ export const Card = ({
   );
 };
 
-/** Quiet uppercase section label, Linear-style. */
 export const SectionTitle = ({ children }: { children: ReactNode }) => {
   const t = useAppTheme();
   return (
@@ -140,9 +117,7 @@ export const Row = ({
   loading,
 }: {
   children: ReactNode;
-  /** Gives each child an equal share of the width — e.g. Cancel | Save at 50/50. */
   spread?: boolean;
-  /** Replaces the row's children with a centred SOW spinner at button height. */
   loading?: boolean;
 }) => {
   if (loading) {
@@ -181,9 +156,6 @@ export const Muted = ({ children }: { children: ReactNode }) => {
   return <Text style={[typography.caption, { color: t.muted }]}>{children}</Text>;
 };
 
-/** SOW logo that rotates continuously — used as the app's loading spinner.
- * Uses react-native-reanimated so the rotation runs on the UI thread and
- * never freezes when the JS thread is busy (e.g. during heavy renders). */
 export const SowSpinner = ({ size = 64, onDark }: { size?: number; onDark?: boolean }) => {
   const t = useAppTheme();
   const dark = onDark ?? t.dark;
@@ -215,12 +187,6 @@ export const SowSpinner = ({ size = 64, onDark }: { size?: number; onDark?: bool
   );
 };
 
-/**
- * A soft, blurred placeholder bar shown in place of async content (a person's
- * name, a receipt file link) while it loads. The blur + gentle pulse reads as
- * "loading" without a hard skeleton, and resolves to the real value once the
- * query lands.
- */
 export const LoadingBar = ({
   width = 56,
   height = 10,
@@ -256,8 +222,6 @@ export const LoadingBar = ({
         borderRadius: height / 2,
         backgroundColor: t.separator,
         opacity: pulse,
-        // Native wants the object form; web (react-native-web) wants a CSS
-        // string. Either way it frosts the placeholder while loading.
         filter: Platform.OS === "web" ? "blur(2px)" : [{ blur: 2 }],
       }}
     />

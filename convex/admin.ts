@@ -47,11 +47,6 @@ import {
   setCachedDirectorEmail,
 } from "./model";
 
-/**
- * Keep yearSettings.directorEmail in sync when a staff profile's Director role
- * changes. Setting the role caches this email; clearing it (or deleting the
- * profile) records "" so getApprovers skips the full-year scan.
- */
 const syncDirectorCacheAfterProfileChange = async (
   ctx: MutationCtx,
   year: number,
@@ -67,7 +62,6 @@ const syncDirectorCacheAfterProfileChange = async (
   }
 };
 
-/** Admins may only manage the current staff year and the next one. */
 const assertManagedYear = (year: number) => {
   if (year !== currentStaffYear() && year !== nextStaffYear()) {
     throw new ConvexError(
@@ -76,11 +70,6 @@ const assertManagedYear = (year: number) => {
   }
 };
 
-/**
- * Add or remove a person from the year's "not serving" list (idempotent). One
- * row per (year, email): set when a profile is deleted or marked leaving,
- * cleared when they're moved back to the unassigned pool or reassigned.
- */
 const setLeaver = async (
   ctx: MutationCtx,
   year: number,
@@ -98,7 +87,6 @@ const setLeaver = async (
   }
 };
 
-/** The set of emails parked in the year's "not serving" list. */
 const leaverEmailSet = async (
   ctx: QueryCtx,
   year: number
@@ -110,23 +98,14 @@ const leaverEmailSet = async (
   return new Set(rows.map((r) => r.email));
 };
 
-/** The role names assignable in a given year: the year's data-driven catalog, or the built-in ROLES when none exists yet. */
 const allowedRolesForYear = async (ctx: MutationCtx, year: number): Promise<Set<string>> => {
   const rows = await ctx.db.query("roles").withIndex("by_year_and_name", (q) => q.eq("year", year)).take(500);
   return rows.length > 0 ? new Set(rows.map((r) => r.name)) : new Set<string>(ROLES);
 };
 
-// ---------------------------------------------------------------------------
-// Head reverse-sync helpers — keep a profile's assignments (and the legacy
-// single-scope fields) in step with the authoritative department/division
-// headEmail. Heads remain owned by the structure section; these never derive
-// headEmail from a profile.
-// ---------------------------------------------------------------------------
-
 const isHeadRole = (role: string): boolean =>
   role === HEAD_OF_DEPARTMENT || role === HEAD_OF_DIVISION;
 
-/** Patch a profile from a final assignment set. `assignments` is the source of truth. */
 const patchFromAssignments = async (
   ctx: MutationCtx,
   profile: Doc<"staffProfiles">,
@@ -137,14 +116,6 @@ const patchFromAssignments = async (
   });
 };
 
-/**
- * Grant a head role for one specific department/division, mirroring the
- * authoritative headEmail onto the person's profile (creating it if missing).
- * Scope-specific supersede: a non-head link to the *same* department is dropped
- * (you needn't be both Staff and Head of the same dept); links to other
- * departments, divisions and campuses are preserved, so "Staff of A + Head of
- * B" survives. A person may hold both HOD and HODiv at once.
- */
 const grantHead = async (
   ctx: MutationCtx,
   year: number,
@@ -168,12 +139,10 @@ const grantHead = async (
   }
   const kept = assignmentsOf(profile).filter((a) => {
     if (a.role === role) {
-      // Drop an existing head link for this same scope (re-added canonically).
       const existingScope =
         role === HEAD_OF_DEPARTMENT ? a.department : a.division;
       return existingScope !== scopeName;
     }
-    // Supersede a non-head link scoped to this same department.
     if (role === HEAD_OF_DEPARTMENT && !isHeadRole(a.role) && a.department === scopeName) {
       return false;
     }
@@ -182,12 +151,6 @@ const grantHead = async (
   await patchFromAssignments(ctx, profile, [...kept, headAssignment]);
 };
 
-/**
- * Revoke a head role for one specific department/division from a person — used
- * when a headship moves to someone else. Removes only that one head link;
- * other head links and memberships stay. Falls back to a plain Staff link if
- * the person ends up with no assignments at all.
- */
 const revokeHead = async (
   ctx: MutationCtx,
   year: number,
@@ -206,7 +169,6 @@ const revokeHead = async (
   await patchFromAssignments(ctx, profile, finalAssignments);
 };
 
-/** Remap a department/division rename across a profile's assignment scopes. */
 const remapScope = (
   assignments: Assignment[],
   key: "department" | "division" | "university",
@@ -215,14 +177,6 @@ const remapScope = (
 ): Assignment[] =>
   assignments.map((a) => (a[key] === oldName ? { ...a, [key]: newName } : a));
 
-/**
- * Assign roles + department/division/university to a user for a year, by
- * email — works before the user has ever signed in. A person can hold
- * multiple roles (e.g. Head of Division AND Head of Department):
- * division-based roles need a division, Student Leaders need a university
- * instead of a department, everything else needs a department. Only admins;
- * ordinary users can never change their own roles or department.
- */
 export const setStaffProfile = mutation({
   args: {
     email: v.string(),
@@ -249,7 +203,6 @@ export const setStaffProfile = mutation({
     if (!email.includes("@")) throw new ConvexError("Enter a valid email.");
 
     if (args.assignments !== undefined) {
-      // ——— Per-assignment path (new UI) ———
       const drafts = args.assignments;
       if (drafts.length === 0) throw new ConvexError("Add at least one assignment.");
 
@@ -261,9 +214,6 @@ export const setStaffProfile = mutation({
         if (!allowed.has(a.role)) {
           throw new ConvexError(`Roles must be among the roles available for ${args.year}.`);
         }
-        // Head roles are owned by the Structure section. A head role the person
-        // ALREADY holds may be round-tripped by the form (e.g. when adding a
-        // Staff link) and is preserved untouched — only block NEWLY granting one.
         if (isHeadRole(a.role) && !existingHeadRoles.includes(a.role)) {
           throw new ConvexError(
             "Head of Department and Head of Division are assigned through the Structure section. Edit the department or division directly to change its head."
@@ -290,8 +240,6 @@ export const setStaffProfile = mutation({
 
       const builtAssignments: Assignment[] = [];
       for (const draft of drafts) {
-        // A round-tripped head role is preserved from the mirror below, never
-        // rebuilt from the form (which would fabricate an unbacked head link).
         if (isHeadRole(draft.role)) continue;
         const built = assignmentFor(draft.role, {
           department: draft.department,
@@ -369,7 +317,6 @@ export const setStaffProfile = mutation({
         }
       }
 
-      // Assigning a profile means they're serving again — clear any leaver row.
       await setLeaver(ctx, args.year, email, false);
       if (existing) {
         await ctx.db.patch("staffProfiles", existing._id, {
@@ -402,7 +349,6 @@ export const setStaffProfile = mutation({
       }
     }
 
-    // ——— Legacy roles path (unchanged) ———
     const roles = [...new Set(args.roles ?? [])];
     if (roles.length === 0) throw new ConvexError("Pick at least one role.");
     const allowed = await allowedRolesForYear(ctx, args.year);
@@ -417,16 +363,12 @@ export const setStaffProfile = mutation({
       ? rolesOf(existing).filter(isHeadRole)
       : [];
 
-    // Head roles are owned by the Structure section. A head role the person
-    // ALREADY holds may appear in the submitted list and is preserved untouched
-    // — only block NEWLY granting a head role through a staff-profile edit.
     if (roles.some((r) => isHeadRole(r) && !existingHeadRoles.includes(r))) {
       throw new ConvexError(
         "Head of Department and Head of Division are assigned through the Structure section. Edit the department or division directly to change its head."
       );
     }
 
-    // Only one Director per year.
     if (roles.includes(DIRECTOR)) {
       const yearProfiles = await ctx.db
         .query("staffProfiles")
@@ -442,15 +384,8 @@ export const setStaffProfile = mutation({
       }
     }
 
-    // Scope validation considers only the submitted NON-head roles — a
-    // round-tripped head role the person already holds is preserved from the
-    // authoritative mirror and must not drive department/university checks.
     const nonHeadRoles = roles.filter((r) => !isHeadRole(r));
-    // Staff-side roles trump campus roles: their holders never get a
-    // university, so saving also clears any stale one.
     const needsUniversity = rolesNeedUniversity(nonHeadRoles);
-    // Staff, HOD and HODiv never carry a university — all other roles
-    // (Chaplains, Director, campus roles) may optionally or necessarily have one.
     const hasBlockingRole = STAFF_SIDE_ROLES.some((r) => nonHeadRoles.includes(r));
     let university: string | undefined;
     if (!hasBlockingRole) {
@@ -474,9 +409,6 @@ export const setStaffProfile = mutation({
         );
       }
     }
-    // Chaplains are always attached to the Chaplaincy department, never an
-    // admin-picked one. Every other department-scoped role (Staff, Director,
-    // Outsource) shares the one department the admin picked.
     const hasChaplain = nonHeadRoles.some(isChaplainRole);
     const needsPickedDepartment = nonHeadRoles.some(
       (r) => roleNeedsDepartment(r) && !isChaplainRole(r)
@@ -501,9 +433,6 @@ export const setStaffProfile = mutation({
       }
     }
 
-    // Roles may only be stripped (removed without adding a replacement) from
-    // a user who holds a head role. A complete swap (e.g. Director → Staff)
-    // is always allowed; only a pure subset reduction is guarded.
     if (existing && existingHeadRoles.length === 0) {
       const currentRoles = rolesOf(existing);
       const isPureReduction =
@@ -516,19 +445,12 @@ export const setStaffProfile = mutation({
       }
     }
 
-    // Build the per-role scope links for the submitted NON-head roles. The
-    // admin form supplies one department + one university; chaplains override
-    // their department to "Chaplaincy" (handled by assignmentFor). Head roles
-    // are never fabricated here — they come from the preserved mirror below.
     const submitted = nonHeadRoles.map((role) =>
       assignmentFor(role, { department, university })
     );
-    // Head links are owned by the Structure section — preserve them verbatim.
     const preservedHead = existing
       ? assignmentsOf(existing).filter((a) => isHeadRole(a.role))
       : [];
-    // A submitted non-head link to a department this person already heads is
-    // superseded by the headship (don't list them as both head and member).
     const headedDepts = new Set(
       preservedHead
         .filter((a) => a.role === HEAD_OF_DEPARTMENT && a.department)
@@ -539,8 +461,6 @@ export const setStaffProfile = mutation({
     );
     const assignments = dedupeAssignments([...submittedKept, ...preservedHead]);
 
-    // Moving the Budget Manager out of Finance would violate the rule that the
-    // Budget Manager must be a member of the Finance department.
     if (!assignments.some((a) => a.department === FINANCE)) {
       const settings = await getYearSettings(ctx, args.year);
       if (settings?.budgetManagerEmail === email) {
@@ -550,7 +470,6 @@ export const setStaffProfile = mutation({
       }
     }
 
-    // Assigning a profile means they're serving again — clear any leaver row.
     await setLeaver(ctx, args.year, email, false);
     let profileId;
     if (existing) {
@@ -587,8 +506,6 @@ export const removeStaffProfile = mutation({
     const profile = await getProfile(ctx, email, args.year);
     const wasDirector = profile ? rolesOf(profile).includes(DIRECTOR) : false;
     if (profile) await ctx.db.delete("staffProfiles", profile._id);
-    // Don't leave a removed person assigned as the Budget Manager or as a
-    // department head — both would silently deadlock approvals.
     const settings = await getYearSettings(ctx, args.year);
     if (settings?.budgetManagerEmail === email) {
       await ctx.db.patch("yearSettings", settings._id, {
@@ -616,7 +533,6 @@ export const removeStaffProfile = mutation({
         await ctx.db.patch("divisions", div._id, { headEmail: undefined });
       }
     }
-    // A deleted profile moves the person to the year's "not serving" list.
     await setLeaver(ctx, args.year, email, true);
     return null;
   },
@@ -625,7 +541,7 @@ export const removeStaffProfile = mutation({
 export const listStaffProfiles = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
-    if ((await optionalEmail(ctx)) === null) return null; // auth attaching
+    if ((await optionalEmail(ctx)) === null) return null;
     await requireAdmin(ctx);
     const profiles = await ctx.db
       .query("staffProfiles")
@@ -644,28 +560,20 @@ export const listStaffProfiles = query({
   },
 });
 
-/**
- * People who have signed in with Google but have no role/department for the
- * given year — either we never expected them, or they lapsed at rollover.
- * Lets admins spot and assign them instead of needing the email out-of-band.
- */
 export const listUnassignedUsers = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
-    if ((await optionalEmail(ctx)) === null) return null; // auth attaching
+    if ((await optionalEmail(ctx)) === null) return null;
     await requireAdmin(ctx);
     const users = await ctx.db.query("users").take(1000);
     const directoryUsers = await ctx.db.query("directoryUsers").take(4000);
     const directoryNameByEmail = new Map(
       directoryUsers.map((u) => [u.email, u.name ?? null] as const)
     );
-    // People parked in the "not serving" list belong there, not in unassigned.
     const leaverEmails = await leaverEmailSet(ctx, args.year);
     const unassigned: { email: string; name: string | null }[] = [];
     for (const user of users) {
       if (!user.email || leaverEmails.has(user.email)) continue;
-      // Non-staff (personal) accounts can sign in (1.7.4) but are never
-      // assignable staff — keep them out of the Users assignment list.
       if (!isOrgEmail(user.email)) continue;
       const profile = await getProfile(ctx, user.email, args.year);
       if (!profile) {
@@ -679,15 +587,10 @@ export const listUnassignedUsers = query({
   },
 });
 
-/**
- * People marked "not serving" for the year, with names resolved. Excludes
- * anyone who now holds a profile (defensive — a reassign clears the leaver row).
- * Admins only.
- */
 export const listLeavers = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
-    if ((await optionalEmail(ctx)) === null) return null; // auth attaching
+    if ((await optionalEmail(ctx)) === null) return null;
     await requireAdmin(ctx);
     const rows = await ctx.db
       .query("leavers")
@@ -713,7 +616,6 @@ export const listLeavers = query({
   },
 });
 
-/** Park an unassigned person in the year's "not serving" list. Admins only. */
 export const markLeaving = mutation({
   args: { email: v.string(), year: v.number() },
   handler: async (ctx, args) => {
@@ -724,7 +626,6 @@ export const markLeaving = mutation({
   },
 });
 
-/** Move a person out of "not serving" and back into the unassigned pool. */
 export const unmarkLeaving = mutation({
   args: { email: v.string(), year: v.number() },
   handler: async (ctx, args) => {
@@ -764,15 +665,10 @@ export const upsertDivision = mutation({
       });
     }
 
-    // Reverse sync: the head named on a division gets a Head of Division
-    // assignment for it, mirroring the authoritative headEmail. Memberships of
-    // other departments/divisions are preserved, so heading a second division
-    // (or being Staff elsewhere) still works.
     if (headEmail) {
       await grantHead(ctx, args.year, headEmail, HEAD_OF_DIVISION, name);
     }
 
-    // Drop the old head's Head-of-Division link for this division only.
     if (oldHeadEmail && oldHeadEmail !== headEmail) {
       await revokeHead(ctx, args.year, oldHeadEmail, HEAD_OF_DIVISION, name);
     }
@@ -781,10 +677,6 @@ export const upsertDivision = mutation({
   },
 });
 
-/**
- * Inline-edit for an existing division: rename (cascading through departments
- * and staff profiles) and/or update the head, all in one atomic transaction.
- */
 export const updateDivision = mutation({
   args: {
     year: v.number(),
@@ -817,7 +709,6 @@ export const updateDivision = mutation({
 
       await ctx.db.patch("divisions", existing._id, { name: newName, headEmail });
 
-      // Cascade: update departments and staff profiles that reference the old name.
       const departments = await ctx.db
         .query("departments")
         .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
@@ -827,9 +718,6 @@ export const updateDivision = mutation({
           await ctx.db.patch("departments", dept._id, { division: newName });
         }
       }
-      // NOTE: capped at 1000 profiles — if the org ever exceeds this in a
-      // single year, profiles beyond the cap will silently retain the old
-      // division name. Use @convex-dev/migrations for a safe unbounded rename.
       const profiles = await ctx.db
         .query("staffProfiles")
         .withIndex("by_year", (q) => q.eq("year", args.year))
@@ -846,8 +734,6 @@ export const updateDivision = mutation({
       await ctx.db.patch("divisions", existing._id, { headEmail });
     }
 
-    // Reverse sync: grant the Head of Division link to the new head; revoke it
-    // from the old head (this division only). Other memberships are preserved.
     if (headEmail) {
       await grantHead(ctx, args.year, headEmail, HEAD_OF_DIVISION, newName);
     }
@@ -872,7 +758,6 @@ export const removeDivision = mutation({
       .unique();
     if (!division) return null;
 
-    // Cascade: collect all departments belonging to this division.
     const departments = await ctx.db
       .query("departments")
       .withIndex("by_year_and_name", (q) => q.eq("year", args.year))
@@ -880,7 +765,6 @@ export const removeDivision = mutation({
     const divDepts = departments.filter((d) => d.division === args.name);
     const deptNames = new Set(divDepts.map((d) => d.name));
 
-    // Open requests in any child department would become orphaned — refuse.
     for (const dept of divDepts) {
       const requests = await ctx.db
         .query("requests")
@@ -897,8 +781,6 @@ export const removeDivision = mutation({
       }
     }
 
-    // Strip all assignments referencing this division or any of its departments
-    // in one pass (covers HODiv, HOD, and regular staff assignments).
     const profiles = await ctx.db
       .query("staffProfiles")
       .withIndex("by_year", (q) => q.eq("year", args.year))
@@ -913,8 +795,6 @@ export const removeDivision = mutation({
       }
     }
 
-    // Delete the departments and the division itself.
-    // Clear the budget manager when Finance is among the deleted departments.
     if (deptNames.has(FINANCE)) {
       const settings = await getYearSettings(ctx, args.year);
       if (settings?.budgetManagerEmail) {
@@ -945,10 +825,6 @@ export const upsertUniversity = mutation({
   },
 });
 
-/**
- * Idempotent university insert for ops / one-shot seeds (no admin session).
- * e.g. `npx convex run admin:ensureUniversity '{"year":2027,"name":"Western Sydney University"}' --prod`
- */
 export const ensureUniversity = internalMutation({
   args: { year: v.number(), name: v.string() },
   handler: async (ctx, args) => {
@@ -966,12 +842,6 @@ export const ensureUniversity = internalMutation({
   },
 });
 
-/**
- * Ops counterpart to {@link ensureUniversity}: delete a university row for a
- * year (and strip it from that year's staff assignments). Idempotent when
- * missing. e.g. remove a campus from prod current year while keeping it on next:
- * `npx convex run admin:removeUniversityRow '{"year":2026,"name":"Western Sydney University"}' --prod`
- */
 export const removeUniversityRow = internalMutation({
   args: { year: v.number(), name: v.string() },
   handler: async (ctx, args) => {
@@ -1054,7 +924,6 @@ export const removeUniversity = mutation({
       )
       .unique();
     if (!university) return null;
-    // Cascade: strip all assignments pointing to this university from staff profiles.
     const profiles = await ctx.db
       .query("staffProfiles")
       .withIndex("by_year", (q) => q.eq("year", args.year))
@@ -1113,7 +982,6 @@ export const updateRole = mutation({
 
       await ctx.db.patch("roles", existing._id, { name: newName });
 
-      // Cascade: rename the role across that year's staff assignments.
       const profiles = await ctx.db
         .query("staffProfiles")
         .withIndex("by_year", (q) => q.eq("year", args.year))
@@ -1152,8 +1020,6 @@ export const removeRole = mutation({
       )
       .unique();
     if (!role) return null;
-    // Block deletion while anyone that year still holds this role — the
-    // assignment must be reassigned first rather than silently dropped.
     const profiles = await ctx.db
       .query("staffProfiles")
       .withIndex("by_year", (q) => q.eq("year", args.year))
@@ -1217,15 +1083,10 @@ export const upsertDepartment = mutation({
       });
     }
 
-    // Reverse sync: the head named on a department gets a Head of Department
-    // assignment for it (creating the profile if needed). A same-department
-    // Staff link is superseded; links to other departments/divisions/campuses
-    // are preserved, so "Staff of A + Head of B" works. May hold HOD and HODiv.
     if (headEmail) {
       await grantHead(ctx, args.year, headEmail, HEAD_OF_DEPARTMENT, name);
     }
 
-    // Drop the old head's Head-of-Department link for this department only.
     if (oldHeadEmail && oldHeadEmail !== headEmail) {
       await revokeHead(ctx, args.year, oldHeadEmail, HEAD_OF_DEPARTMENT, name);
     }
@@ -1234,17 +1095,10 @@ export const upsertDepartment = mutation({
   },
 });
 
-/**
- * Everyone the org knows about, for admin pickers: provisioned profiles,
- * signed-in users and the synced Workspace directory, deduped by email.
- */
 export const people = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
-    if ((await optionalEmail(ctx)) === null) return null; // auth attaching
-    // Admins and the Finance Head: the Finance Head needs this list for the
-    // Approver Delegation picker. It's the year's people directory — no more
-    // than the now-public org chart already exposes.
+    if ((await optionalEmail(ctx)) === null) return null;
     await requireFinanceSettingsAccess(ctx, args.year, "view people");
     const byEmail = new Map<
       string,
@@ -1266,8 +1120,6 @@ export const people = query({
     }
     const users = await ctx.db.query("users").take(1000);
     for (const user of users) {
-      // Skip non-staff (personal) accounts — the people picker feeds staff
-      // assignment surfaces (heads, delegates), which are org-only (1.7.4).
       if (!user.email || !isOrgEmail(user.email)) continue;
       const existing = byEmail.get(user.email);
       byEmail.set(user.email, {
@@ -1297,11 +1149,6 @@ export const people = query({
   },
 });
 
-/**
- * Inline-edit for an existing department: rename (cascading through staff
- * profiles and requests), change division, and/or update the head — all
- * in one atomic transaction.
- */
 export const updateDepartment = mutation({
   args: {
     year: v.number(),
@@ -1337,18 +1184,12 @@ export const updateDepartment = mutation({
       const conflict = await getDepartment(ctx, args.year, newName);
       if (conflict) throw new ConvexError(`A department named "${newName}" already exists.`);
 
-      // Rename the document and update division + head in one patch.
       await ctx.db.patch("departments", existing._id, {
         name: newName,
         division: args.division,
         headEmail,
       });
 
-      // Cascade: update staff profiles and requests that reference the old name.
-      // NOTE: both loops are capped at 1000 — if the org exceeds 1000 profiles
-      // or 1000 requests in a single department/year, records beyond the cap
-      // will silently retain the old department name. Use @convex-dev/migrations
-      // for a safe unbounded rename at that scale.
       const profiles = await ctx.db
         .query("staffProfiles")
         .withIndex("by_year", (q) => q.eq("year", args.year))
@@ -1379,8 +1220,6 @@ export const updateDepartment = mutation({
       });
     }
 
-    // Reverse sync: grant the Head of Department link to the new head; revoke it
-    // from the old head (this department only). Other memberships are preserved.
     if (headEmail) {
       await grantHead(ctx, args.year, headEmail, HEAD_OF_DEPARTMENT, newName);
     }
@@ -1400,7 +1239,6 @@ export const removeDepartment = mutation({
     const department = await getDepartment(ctx, args.year, args.name);
     if (!department) return null;
 
-    // Open requests would become orphaned — refuse rather than silently corrupt.
     const requests = await ctx.db
       .query("requests")
       .withIndex("by_creation_time", (q) =>
@@ -1415,8 +1253,6 @@ export const removeDepartment = mutation({
       );
     }
 
-    // Cascade: strip all assignments pointing to this department from staff profiles
-    // in one pass (covers HOD and regular staff assignments).
     const yearProfiles = await ctx.db
       .query("staffProfiles")
       .withIndex("by_year", (q) => q.eq("year", args.year))
@@ -1429,7 +1265,6 @@ export const removeDepartment = mutation({
       }
     }
 
-    // Clear the budget manager when the Finance department itself is deleted.
     if (args.name === FINANCE) {
       const settings = await getYearSettings(ctx, args.year);
       if (settings?.budgetManagerEmail) {
@@ -1442,37 +1277,19 @@ export const removeDepartment = mutation({
   },
 });
 
-/**
- * Year-level finance settings (Budget Manager, Director threshold) are editable
- * by admins OR the Finance Head (Head of the Finance department). Throws
- * otherwise; returns the caller's email. `action` completes the error sentence.
- */
 const requireFinanceSettingsAccess = async (
-  // Read-only, so it accepts a query ctx too (mutations satisfy QueryCtx) —
-  // lets the finance-gated queries (people, listDelegations) reuse it.
   ctx: QueryCtx,
   year: number,
   action: string
 ): Promise<string> => {
   const callerEmail = await requireEmail(ctx);
-  // Admin status is judged on the caller's CURRENT staff-year profile — the same
-  // basis as requireAdmin (which gates the sibling admin queries listUnassigned/
-  // listLeavers). Admins manage the current AND next staff year, but an admin's
-  // authority usually comes from a division headship or Data-and-IT membership
-  // that their *next-year* profile doesn't carry — so gating on the viewed year
-  // meant switching the year picker to next year threw "Only admins…" and blanked
-  // the whole admin screen. Basing it on the current year keeps `people` in step
-  // with its sibling queries.
   const adminProfile = await getProfile(ctx, callerEmail, currentStaffYear());
   if (adminProfile && (await isAdminProfile(ctx, adminProfile))) return callerEmail;
-  // Otherwise the Finance Head of the viewed year may view people — they need it
-  // for that year's approver-delegation picker.
   const financeDept = await getDepartment(ctx, year, FINANCE);
   if (financeDept?.headEmail === callerEmail) return callerEmail;
   throw new ConvexError(`Only admins or the Finance Head can ${action}.`);
 };
 
-/** The Budget Manager must be a member of the Finance department that year. */
 export const setBudgetManager = mutation({
   args: { year: v.number(), email: v.string() },
   handler: async (ctx, args) => {
@@ -1497,12 +1314,6 @@ export const setBudgetManager = mutation({
   },
 });
 
-/**
- * The $ amount at or above which a request also needs Director approval, set
- * per staff year by Finance (admins OR the Finance Head). Unset years fall back
- * to DIRECTOR_APPROVAL_THRESHOLD. Only affects requests submitted from now on —
- * existing requests keep the Director step they were created with.
- */
 export const setDirectorThreshold = mutation({
   args: { year: v.number(), amount: v.number() },
   handler: async (ctx, args) => {
@@ -1529,13 +1340,6 @@ export const setDirectorThreshold = mutation({
   },
 });
 
-/**
- * One-off backfill: stamp the historical default ($5,000) onto every staff
- * year from EARLIEST_REQUEST_YEAR through next year that hasn't already set a
- * Director threshold, so past years show an explicit value rather than relying
- * on the code fallback. Idempotent. Run with:
- *   npx convex run admin:backfillDirectorThresholds
- */
 export const backfillDirectorThresholds = internalMutation({
   args: {},
   handler: async (ctx) => {
@@ -1561,19 +1365,10 @@ export const backfillDirectorThresholds = internalMutation({
   },
 });
 
-/**
- * An empty/undefined tag `subgroups` scope has always meant "applies to all
- * groups" implicitly. The Tags picker no longer offers an explicit "All"
- * option, so make that scope explicit. Tags are global (year-less), so fill
- * every such tag with the current staff year's groups (SOW + that year's
- * universities). Idempotent — tags that already have a scope are left untouched.
- */
 export const fillTagScopesWithAllGroups = internalMutation({
   args: {},
   handler: async (ctx) => {
     const tags = await ctx.db.query("attendanceTags").collect();
-    // A single staff year has a handful of universities; bound the read per the
-    // repo's Convex guidelines rather than collecting unboundedly.
     const universities = await ctx.db
       .query("universities")
       .withIndex("by_year_and_name", (q) => q.eq("year", currentStaffYear()))
@@ -1594,14 +1389,6 @@ export const fillTagScopesWithAllGroups = internalMutation({
   },
 });
 
-/**
- * One-off backfill: many imported staff profiles have no `name` (or carry their
- * email as the name), so the app falls back to showing the bare address. Derive
- * a readable "First Last" from the email's local part for those profiles.
- * Profiles that already have a real name, or whose email isn't name-shaped
- * (e.g. synthetic `@legacy.invalid` or numeric handles), are left untouched.
- * Idempotent.
- */
 export const nameStaffProfilesFromEmail = internalMutation({
   args: {},
   handler: async (ctx) => {
@@ -1609,7 +1396,6 @@ export const nameStaffProfilesFromEmail = internalMutation({
     let updated = 0;
     for (const p of profiles) {
       const name = p.name?.trim();
-      // Only touch profiles whose visible name is just the email (or missing).
       if (name && name.toLowerCase() !== p.email.toLowerCase()) continue;
       const derived = displayNameFromEmail(p.email);
       if (!derived) continue;
@@ -1620,20 +1406,12 @@ export const nameStaffProfilesFromEmail = internalMutation({
   },
 });
 
-/**
- * Finance department members for the Budget Manager picker — accessible to
- * the Finance Head and admins (not exposed to general staff).
- */
 export const financeMembers = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
     if ((await optionalEmail(ctx)) === null) return null;
     const callerEmail = await optionalEmail(ctx);
     if (!callerEmail) return null;
-    // Same gate as requireFinanceSettingsAccess / people: admin authority is
-    // judged on the CURRENT staff year (next-year profiles often lack the
-    // Data-and-IT / division-head assignment that makes someone an admin). The
-    // Finance Head of the *viewed* year may still open the picker.
     const adminProfile = await getProfile(ctx, callerEmail, currentStaffYear());
     const isAdmin =
       !!adminProfile && (await isAdminProfile(ctx, adminProfile));
@@ -1651,18 +1429,10 @@ export const financeMembers = query({
   },
 });
 
-// ---------------------------------------------------------------------------
-// Approver delegation (out-of-office cover): a delegate may act on every
-// request the delegator could approve/decline/pay. Admin-managed; the read
-// side lives in model.ts (delegatorsForYear / actAsEmails) so requests.ts can
-// widen its approver checks.
-// ---------------------------------------------------------------------------
-
-/** All approver delegations for a year, with names resolved. Admins only. */
 export const listDelegations = query({
   args: { year: v.number() },
   handler: async (ctx, args) => {
-    if ((await optionalEmail(ctx)) === null) return null; // auth attaching
+    if ((await optionalEmail(ctx)) === null) return null;
     await requireFinanceSettingsAccess(ctx, args.year, "view delegations");
     const rows = await ctx.db
       .query("approverDelegations")
@@ -1676,10 +1446,6 @@ export const listDelegations = query({
   },
 });
 
-/**
- * Delegate every approval the `from` person could do to the `to` person for the
- * year. Both must have a profile that year, and differ. Idempotent per pair.
- */
 export const addDelegation = mutation({
   args: { year: v.number(), fromEmail: v.string(), toEmail: v.string() },
   handler: async (ctx, args) => {
@@ -1714,13 +1480,10 @@ export const addDelegation = mutation({
   },
 });
 
-/** Remove a delegation by id (admins or the Finance Head). Any year, for cleanup. */
 export const removeDelegation = mutation({
   args: { id: v.id("approverDelegations") },
   handler: async (ctx, args) => {
     const row = await ctx.db.get("approverDelegations", args.id);
-    // Authorise against the delegation's own year; fall back to the live staff
-    // year when the row is already gone so a stale id can't skip the check.
     await requireFinanceSettingsAccess(
       ctx,
       row?.year ?? currentStaffYear(),
@@ -1731,24 +1494,6 @@ export const removeDelegation = mutation({
   },
 });
 
-/**
- * Copies the `from` year's divisions, departments, universities, roles, staff
- * profiles, budget manager and director-approval threshold into the `to` year,
- * leaving both years' existing data intact. Non-destructive merge keyed by
- * natural keys (name, or person email/importId for profiles): the source
- * overwrites on conflict, anything the destination already had that the source
- * lacks is kept, and nothing is duplicated. Shared by copyYear (manual) and
- * rollOverStaffYear (the cron).
- *
- * Because it never deletes, stale destination roles/universities survive by
- * design (an admin's in-progress next-year setup must not be wiped). This is
- * safe given the rollover target year is normally empty when first seeded; a
- * leftover role would otherwise flip allowedRolesForYear to data-driven
- * validation, so clear that year's roles by hand if you ever need to reset it.
- *
- * Source reads stream the full indexed year (no take caps) so a large org
- * cannot silently omit rows from the annual copy.
- */
 const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
   if (from === to) throw new ConvexError("from and to must differ.");
   const counts = {
@@ -1764,8 +1509,6 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
   for await (const division of ctx.db
     .query("divisions")
     .withIndex("by_year_and_name", (q) => q.eq("year", from))) {
-    // `.first()` (not `.unique()`): a stray duplicate (year, name) must not abort
-    // the annual rollover cron — the same hardening as getDepartment / getProfile.
     const existing = await ctx.db
       .query("divisions")
       .withIndex("by_year_and_name", (q) => q.eq("year", to).eq("name", division.name))
@@ -1811,10 +1554,6 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
     if (!existing) {
       await ctx.db.insert("universities", { year: to, name: university.name });
     }
-    // Counts every source row processed, not just the inserts — the same
-    // meaning divisions/departments/profiles carry. A destination that was
-    // preconfigured must not report "Universities: 0" as though nothing
-    // carried over; the summary is the only receipt anyone gets.
     counts.universities++;
   }
   for await (const role of ctx.db
@@ -1838,9 +1577,6 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
       userId: profile.userId,
       importId: profile.importId,
     };
-    // Match the same person in the destination year by their durable importId
-    // first (their email may differ year to year), then by email — so a re-copy
-    // updates the existing row rather than inserting a duplicate person-year.
     const byPerson = profile.importId
       ? await ctx.db
           .query("staffProfiles")
@@ -1863,9 +1599,6 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
     counts.profiles++;
   }
 
-  // Mirror the source's budget manager and director threshold onto the
-  // destination when the source has them; destination values are left
-  // untouched when the source has none.
   const fromSettings = await getYearSettings(ctx, from);
   if (fromSettings?.budgetManagerEmail || fromSettings?.directorApprovalThreshold !== undefined) {
     const toSettings = await getYearSettings(ctx, to);
@@ -1888,10 +1621,6 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
     }
   }
 
-  // Record completion so a cron retry / accidental re-run can no-op instead of
-  // overwriting intentional next-year admin edits (see rollOverStaffYear).
-  // Also cache the destination year's Director (from the profiles we just
-  // copied) so getApprovers doesn't walk every profile on first use.
   let directorEmail = "";
   for await (const profile of ctx.db
     .query("staffProfiles")
@@ -1918,7 +1647,6 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
 
 type CopyYearCounts = Awaited<ReturnType<typeof copyYearData>>;
 
-/** True when `to` was already seeded from `from` by a previous copy/rollover. */
 const alreadyCopiedFrom = async (
   ctx: MutationCtx,
   from: number,
@@ -1931,15 +1659,6 @@ const alreadyCopiedFrom = async (
   );
 };
 
-/**
- * Copies one year's divisions, departments, universities, roles, staff
- * profiles, budget manager and director threshold into another year
- * (non-destructive merge; see copyYearData) — e.g. provisioning next year from
- * the current one at rollover.
- * Run with: npx convex run admin:copyYear '{"from":2026,"to":2027}'
- * Pass `force: true` to redo a copy that already recorded completion for this
- * (from, to) pair (otherwise throws — protects next-year admin edits).
- */
 export const copyYear = internalMutation({
   args: {
     from: v.number(),
@@ -1956,12 +1675,6 @@ export const copyYear = internalMutation({
   },
 });
 
-/**
- * Where the staff-year prefill summary goes. One scheduled send per address
- * rather than a single multi-recipient email: `emails.send` throws on a Resend
- * error, so a single bad address would take the whole summary down with it —
- * and this email is the only notice anyone gets that the prefill ran.
- */
 const PREFILL_NOTIFY_EMAILS = ["info@sow.org.au", "it@sow.org.au"] as const;
 
 const prefillNextStaffYearHandler = async (ctx: MutationCtx) => {
@@ -2025,28 +1738,18 @@ export const prefillNextStaffYear = internalMutation({
   handler: prefillNextStaffYearHandler,
 });
 
-/**
- * @deprecated Alias for runbooks that still call rollOverStaffYear. The year
- * pair changed: this now copies `incomingStaffYear()` into `incoming + 1`, not
- * `currentStaffYear()` into `nextStaffYear()`. Outside October those differ.
- * For an explicit source and destination, use `copyYear`.
- */
 export const rollOverStaffYear = internalMutation({
   args: {},
   handler: prefillNextStaffYearHandler,
 });
 
-/** SOW's organisation structure: division -> departments. */
 const ORG_STRUCTURE: Record<string, string[]> = {
   Governance: ["Data and IT", FINANCE, "Compliance"],
   Engagement: ["Marketing", "Alumni"],
   "Human Resources": ["People and Culture", "Training and Development"],
-  // Chaplaincy is a real department so chaplain assignments validate and render
-  // through the normal department machinery.
   Operations: ["Events", "Missions", CHAPLAINCY_DEPARTMENT],
 };
 
-/** Universities with a SOW campus presence (Student Leaders belong to one). */
 const UNIVERSITIES = [
   "Macquarie University",
   "University of New South Wales",
@@ -2055,12 +1758,6 @@ const UNIVERSITIES = [
   "Western Sydney University",
 ];
 
-/**
- * Bootstrap: replaces the current staff year's divisions/departments with the
- * SOW org structure (preserving department heads where names match) and makes
- * `adminEmail` an admin (Data and IT).
- * Run with: npx convex run admin:seed '{"adminEmail":"you@sow.org.au"}'
- */
 export const seed = internalMutation({
   args: { adminEmail: v.string() },
   handler: async (ctx, args) => {

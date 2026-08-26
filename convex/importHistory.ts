@@ -4,12 +4,6 @@ import { internalMutation, internalQuery } from "./_generated/server";
 import { IMPORT_DATA } from "./importData";
 import { rolesOf } from "./model";
 
-/**
- * One person's staffProfiles rows across every year and email they've held
- * (followed via importId, like profile.get). For checking imported history
- * from the CLI:
- *   npx convex run importHistory:personHistory '{"email":"someone@sow.org.au"}'
- */
 export const personHistory = internalQuery({
   args: { email: v.string() },
   handler: async (ctx, args) => {
@@ -41,15 +35,6 @@ export const personHistory = internalQuery({
   },
 });
 
-/**
- * Fills every year's org structure and people from the old web app's
- * Firestore backup (see scripts/build-import-data.py for how importData.ts
- * is generated). Idempotent: everything upserts by its natural key
- * (year+name, email+year), so re-running or running after manual edits is
- * safe — backup data wins for the fields it carries.
- *
- * Run with: npx convex run importHistory:run
- */
 export const run = internalMutation({
   args: {},
   handler: async (ctx) => {
@@ -135,9 +120,6 @@ export const run = internalMutation({
           name: profile.name,
           importId: profile.importId,
         };
-        // Sign-ins re-key a person's live email, so match by the person key
-        // first — re-imports must update that row (keeping the newer email),
-        // never insert a second copy of the person under the backup email.
         const byPerson = await ctx.db
           .query("staffProfiles")
           .withIndex("by_importId", (q) => q.eq("importId", profile.importId))

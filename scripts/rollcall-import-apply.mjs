@@ -21,15 +21,9 @@ const command = process.execPath;
 const convexMain = path.resolve("node_modules", "convex", "bin", "main.js");
 const identity = `{email:'${email}',subject:'${email}',issuer:'rollcall-import'}`;
 
-// Member rows live under their event's CALENDAR year (Sydney), while the events
-// themselves are bucketed by staff year (see the dry-run). Keep in sync with
-// convex/rollcallImport.ts calendarYearOf and shared/flow.ts staffYearForDate.
 const calendarYearOf = (ms) =>
   new Date(ms + 10 * 60 * 60 * 1000).getUTCFullYear();
 
-// Runs against the already-deployed dev functions (push once with
-// `npx convex dev --once` before applying). Embedded events can be large, so we
-// never pass a whole big event in one arg — attendance is chunked per event.
 function runConvex(functionName, args) {
   const jsonArgs = JSON.stringify(args);
   const run = () =>
@@ -42,9 +36,6 @@ function runConvex(functionName, args) {
   try {
     output = run();
   } catch (error) {
-    // ENAMETOOLONG is handled by the caller (it splits the chunk); retry any
-    // other failure once, since a long import occasionally hits a transient
-    // deployment/network hiccup.
     if (error?.code === "ENAMETOOLONG") throw error;
     output = run();
   }
@@ -77,10 +68,6 @@ const metadataPayload = report.metadata.map(
   })
 );
 
-// Member fields (and the per-field id mapping) live under each calendar year the
-// events touch — a staff year spans the previous calendar year's Oct–Dec events
-// and this calendar year's Jan–Sep events, so prepare both and key the field
-// maps by calendar year for importEvents.
 const calendarYears = [
   ...new Set(report.events.map((event) => calendarYearOf(event.dateStart))),
 ].sort();
@@ -95,7 +82,6 @@ for (const calendarYear of calendarYears) {
   console.log(`Prepared metadata for calendar year ${calendarYear}.`);
 }
 
-// Tags live under the staff year, since events (which reference them) do.
 const preparedTags = runConvex("rollcallImport:prepare", {
   year,
   metadata: [],
@@ -143,11 +129,6 @@ const importEvents = report.events
   }))
   .filter((event) => !sourceGroup || event.sourceImportId.startsWith(`${sourceGroup}/`));
 
-// Import one event at a time, splitting its attendees into chunks small enough
-// to pass as a single CLI arg (a busy, metadata-rich event can blow Windows'
-// ~32KB command-line limit). The event upsert is idempotent, so repeating it
-// per chunk just accumulates attendance. If a chunk is still too long
-// (ENAMETOOLONG) we halve it and recurse, so no event is ever too big to import.
 const MEMBER_CHUNK_SIZE = 60;
 
 function importMemberChunk(event, members) {

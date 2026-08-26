@@ -9,10 +9,10 @@ const modules = import.meta.glob("./**/*.ts");
 const YEAR = staffYearForDate(new Date());
 
 const ADMIN = "admin@sow.org.au";
-const RACHEL = "rachel@sow.org.au"; // Marketing staff
-const HENRY = "henry@sow.org.au"; // Marketing HOD
-const BELLA = "bella@sow.org.au"; // Finance staff, Budget Manager
-const FIONA = "fiona@sow.org.au"; // Finance head
+const RACHEL = "rachel@sow.org.au";
+const HENRY = "henry@sow.org.au";
+const BELLA = "bella@sow.org.au";
+const FIONA = "fiona@sow.org.au";
 
 const asUser = (t: TestConvex<typeof schema>, email: string) =>
   t.withIdentity({ email, subject: email, issuer: "test" });
@@ -50,7 +50,6 @@ async function setup() {
   return t;
 }
 
-/** Submits a fully-approved request for Rachel and returns its id. */
 async function approvedRequest(t: TestConvex<typeof schema>, amount = 100) {
   await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount });
   const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
@@ -89,16 +88,12 @@ describe("auto-save on receipt submission", () => {
 
     const saved = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
     expect(saved).toHaveLength(2);
-    // Both recipients are saved (their order within one submission is just
-    // insertion order — the lastUsedAt bump is exercised below).
     expect(saved.map((a) => a.accountName).sort()).toEqual(["Rachel", "Vendor"]);
     expect(saved.find((a) => a.accountName === "Rachel")).toMatchObject({
       bsb: "111111",
       accountNumber: "12345678",
     });
 
-    // A second receipt reusing Rachel's account updates (not duplicates) it,
-    // refreshing the name and bumping it to the top.
     const id2 = await approvedRequest(t, 50);
     await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
       requestId: id2,
@@ -107,10 +102,9 @@ describe("auto-save on receipt submission", () => {
       ],
     });
     const after = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
-    expect(after).toHaveLength(2); // still two, not three
+    expect(after).toHaveLength(2);
     expect(after[0]).toMatchObject({ accountName: "Rachel R", accountNumber: "12345678" });
 
-    // Saved accounts are private to their owner.
     expect(await asUser(t, BELLA).query(api.bankAccounts.listMine, {})).toEqual([]);
   });
 
@@ -125,8 +119,6 @@ describe("auto-save on receipt submission", () => {
     });
     const saved = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
     expect(saved[0].accountName).toBe("Padded");
-    // A short account number is shown in full (no masking) by the client; the
-    // stored value is exactly what was entered.
     expect(saved[0].accountNumber).toBe("1");
   });
 });
@@ -134,7 +126,6 @@ describe("auto-save on receipt submission", () => {
 describe("setPreferred", () => {
   test("marks one account preferred and clears the others, rejects non-owner", async () => {
     const t = await setup();
-    // Save two accounts via two receipt submissions.
     const id1 = await approvedRequest(t, 50);
     await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
       requestId: id1,
@@ -148,17 +139,14 @@ describe("setPreferred", () => {
 
     const accounts = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
     expect(accounts).toHaveLength(2);
-    // With two accounts and no explicit preferred, the first (most-recent) is implicitly preferred.
     expect(accounts[0].preferred).toBe(true);
     expect(accounts[1].preferred).toBe(false);
 
-    // Explicitly set the second one as preferred.
     await asUser(t, RACHEL).mutation(api.bankAccounts.setPreferred, { id: accounts[1].id });
     const after = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
     expect(after.find((a) => a.id === accounts[1].id)!.preferred).toBe(true);
     expect(after.find((a) => a.id === accounts[0].id)!.preferred).toBe(false);
 
-    // Another user can't set Rachel's account.
     await expect(
       asUser(t, BELLA).mutation(api.bankAccounts.setPreferred, { id: accounts[0].id })
     ).rejects.toThrow(/your own saved accounts/);
@@ -185,7 +173,7 @@ describe("updateAccount", () => {
     });
 
     const [updated] = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
-    expect(updated.accountName).toBe("Rachel Updated"); // trimmed
+    expect(updated.accountName).toBe("Rachel Updated");
     expect(updated.bsb).toBe("222222");
     expect(updated.accountNumber).toBe("99999999");
   });
@@ -282,7 +270,7 @@ describe("addAccount", () => {
     const saved = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
     expect(saved).toHaveLength(1);
     expect(saved[0]).toMatchObject({
-      accountName: "Rachel", // trimmed
+      accountName: "Rachel",
       bsb: "111111",
       accountNumber: "12345678",
       preferred: true,
@@ -323,15 +311,12 @@ describe("addAccount", () => {
 
   test("defaults to non-preferred; only re-prefers when makePreferred is set", async () => {
     const t = await setup();
-    // First account, explicitly made preferred (auto-fill).
     await asUser(t, RACHEL).mutation(api.bankAccounts.addAccount, {
       accountName: "X",
       bsb: "111111",
       accountNumber: "11111111",
       makePreferred: true,
     });
-    // Second account added without ticking "make preferred" — saved as an
-    // "other" account, leaving X as the preferred one.
     await asUser(t, RACHEL).mutation(api.bankAccounts.addAccount, {
       accountName: "Y",
       bsb: "222222",
@@ -342,7 +327,6 @@ describe("addAccount", () => {
     expect(saved.find((a) => a.accountName === "X")!.preferred).toBe(true);
     expect(saved.find((a) => a.accountName === "Y")!.preferred).toBe(false);
 
-    // Adding Z with makePreferred makes it the new auto-fill account, clearing X.
     await asUser(t, RACHEL).mutation(api.bankAccounts.addAccount, {
       accountName: "Z",
       bsb: "333333",
@@ -358,8 +342,6 @@ describe("addAccount", () => {
 
   test("adding without opting in keeps the current (implicit) preferred account", async () => {
     const t = await setup();
-    // Two accounts saved via receipts — neither is explicitly preferred, so the
-    // most-recently-used (B) is the effective preferred via listMine's fallback.
     const id1 = await approvedRequest(t, 50);
     await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
       requestId: id1,
@@ -371,9 +353,8 @@ describe("addAccount", () => {
       recipients: [{ accountName: "B", bsb: "2", accountNumber: "22", amount: 50, attachments: [await file(t)] }],
     });
     let saved = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
-    expect(saved.find((a) => a.accountName === "B")!.preferred).toBe(true); // implicit
+    expect(saved.find((a) => a.accountName === "B")!.preferred).toBe(true);
 
-    // Add a third account WITHOUT opting in: it must not steal the preferred slot.
     await asUser(t, RACHEL).mutation(api.bankAccounts.addAccount, {
       accountName: "C",
       bsb: "3",
@@ -387,7 +368,6 @@ describe("addAccount", () => {
 
   test("de-dupes onto an existing account by BSB + number and re-prefers it", async () => {
     const t = await setup();
-    // Two distinct accounts; the second added becomes preferred.
     await asUser(t, RACHEL).mutation(api.bankAccounts.addAccount, {
       accountName: "X",
       bsb: "111111",
@@ -404,8 +384,6 @@ describe("addAccount", () => {
     expect(saved.find((a) => a.accountName === "Y")!.preferred).toBe(true);
     expect(saved.find((a) => a.accountName === "X")!.preferred).toBe(false);
 
-    // Re-adding X's BSB + number with makePreferred updates that row in place
-    // (no duplicate) and makes it preferred again, clearing Y.
     await asUser(t, RACHEL).mutation(api.bankAccounts.addAccount, {
       accountName: "X renamed",
       bsb: "111111",
@@ -413,7 +391,7 @@ describe("addAccount", () => {
       makePreferred: true,
     });
     saved = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
-    expect(saved).toHaveLength(2); // still two, not three
+    expect(saved).toHaveLength(2);
     const x = saved.find((a) => a.accountNumber === "11111111")!;
     expect(x.accountName).toBe("X renamed");
     expect(x.preferred).toBe(true);
@@ -434,24 +412,20 @@ describe("remove", () => {
     const saved = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
     const accountId = saved[0].id;
 
-    // Bella can't remove Rachel's account.
     await expect(
       asUser(t, BELLA).mutation(api.bankAccounts.remove, { id: accountId })
     ).rejects.toThrow(/your own saved accounts/);
 
-    // An unauthenticated caller is rejected too.
     await expect(
       t.mutation(api.bankAccounts.remove, { id: accountId })
     ).rejects.toThrow(/signed in/);
 
-    // Rachel can.
     await asUser(t, RACHEL).mutation(api.bankAccounts.remove, { id: accountId });
     expect(await asUser(t, RACHEL).query(api.bankAccounts.listMine, {})).toEqual([]);
   });
 
   test("deleting the preferred account promotes the next most-recently-used", async () => {
     const t = await setup();
-    // Save three accounts so the sort comparator runs after deletion.
     const id1 = await approvedRequest(t, 50);
     await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
       requestId: id1,
@@ -470,15 +444,13 @@ describe("remove", () => {
 
     const accounts = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
     expect(accounts).toHaveLength(3);
-    // Explicitly prefer account A (the oldest, last in the sorted list).
     const accountA = accounts.find((a) => a.accountName === "A")!;
     await asUser(t, RACHEL).mutation(api.bankAccounts.setPreferred, { id: accountA.id });
 
-    // Delete the preferred account — the most-recently-used of the remaining (C) should be promoted.
     await asUser(t, RACHEL).mutation(api.bankAccounts.remove, { id: accountA.id });
     const remaining = (await asUser(t, RACHEL).query(api.bankAccounts.listMine, {}))!;
     expect(remaining).toHaveLength(2);
-    expect(remaining[0].accountName).toBe("C"); // most-recently-used
+    expect(remaining[0].accountName).toBe("C");
     expect(remaining[0].preferred).toBe(true);
     expect(remaining[1].preferred).toBe(false);
   });

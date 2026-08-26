@@ -13,21 +13,13 @@ const SIZES = {
 export type CampusMarkSize = keyof typeof SIZES;
 
 type CampusMarkProps = {
-  /** Full campus name, acronym, or the attendance sub-group id (incl. "ALL"). */
   campus: string;
   size?: CampusMarkSize;
-  /** When set, pick the logo source explicitly (defaults to sub-group lookup). */
   logoSource?: "subgroup" | "university";
-  /** Circular avatar-style mark for compact pickers (tight to the logo/badge). */
   variant?: "default" | "circle";
-  /** Diameter when `variant="circle"`. */
   circleDiameter?: number;
 };
 
-/**
- * Campus branding for org chart and Attendance: a coloured wordmark when we
- * have one, otherwise a solid badge in the campus colour with its acronym.
- */
 export function CampusMark({
   campus,
   size = "md",

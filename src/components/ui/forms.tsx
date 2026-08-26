@@ -1,7 +1,3 @@
-// Part of the ui design-system, split out of the former monolithic ui.tsx.
-// All symbols are re-exported from ./index so call sites still import from
-// "@/components/ui".
-
 import { Ionicons } from "@expo/vector-icons";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from "react-native";
@@ -27,7 +23,6 @@ export const Field = ({
   keyboardType?: "default" | "numeric" | "decimal-pad" | "email-address";
   autoCapitalize?: "none" | "sentences" | "words" | "characters";
   multiline?: boolean;
-  /** Read-only with a lock affordance, matching locked Select fields. */
   disabled?: boolean;
 }) => {
   const t = useAppTheme();
@@ -77,7 +72,6 @@ const normalizeOptions = (options: readonly SelectOption[]) =>
     typeof option === "string" ? { label: option, value: option } : option
   );
 
-/** Centered dialog option list shared by Select and MultiSelect. */
 export const OptionSheet = ({
   visible,
   title,
@@ -90,14 +84,10 @@ export const OptionSheet = ({
   title: string;
   onClose: () => void;
   children: ReactNode;
-  /** Overrides the default option-list padding — use for non-list content. */
   contentStyle?: StyleProp<ViewStyle>;
-  /** Pinned action row below scrolling content. */
   footer?: ReactNode;
 }) => {
   const t = useAppTheme();
-  // Keep an occluded FooterAction from riding up when this sheet's own field
-  // opens the keyboard (see modalPresence).
   useRegisterModal(visible);
   /* eslint-disable react-hooks/refs -- intentional retain-through-fade pattern */
   const shownTitle = useRef(title);
@@ -213,7 +203,6 @@ export const OptionRow = ({
   );
 };
 
-/** Compact pill that opens a staff-year picker as a bottom sheet. */
 export const YearPill = ({
   year,
   years,
@@ -223,7 +212,6 @@ export const YearPill = ({
   year: number;
   years: number[];
   onSelect: (year: number) => void;
-  /** Optional label formatter for the dropdown rows (e.g. "2026 (current)"). */
   formatLabel?: (year: number) => string;
 }) => {
   const t = useAppTheme();
@@ -259,7 +247,6 @@ export const YearPill = ({
   );
 };
 
-/** The tappable field face shared by Select and MultiSelect. */
 const SelectFace = ({
   label,
   display,
@@ -304,7 +291,6 @@ const SelectFace = ({
   );
 };
 
-/** A labelled dropdown: a field-like button opening a bottom option sheet. */
 export const Select = ({
   label,
   value,
@@ -318,7 +304,6 @@ export const Select = ({
   options: SelectOption[];
   onSelect: (value: string) => void;
   placeholder?: string;
-  /** Renders the field as a read-only, locked dropdown that can't be opened. */
   disabled?: boolean;
 }) => {
   const [open, setOpen] = useState(false);
@@ -351,7 +336,6 @@ export const Select = ({
   );
 };
 
-/** A labelled dropdown that allows selecting multiple values. */
 export const MultiSelect = ({
   label,
   values,
@@ -401,13 +385,10 @@ export const MultiSelect = ({
 export type Segment = {
   key: string;
   label: string;
-  /** Action count — rendered in yellow/warning colour. */
   badge?: number;
-  /** Unread message count — rendered in white. */
   messageBadge?: number;
 };
 
-/** Equal-width pill switcher with a sliding indicator. */
 export const Segmented = ({
   segments,
   active,
@@ -495,12 +476,6 @@ export const Segmented = ({
   );
 };
 
-/**
- * The year picker, fixed bottom-right above the bottom tab bar. Used on screens
- * where the staff year matters (Org, Manage, Requests "All"). Positioned like
- * {@link FooterAction} — the tab navigator already lays content above the bar,
- * so a small bottom offset clears it.
- */
 export const FloatingYearPicker = ({
   year,
   years,
@@ -512,7 +487,6 @@ export const FloatingYearPicker = ({
   years: number[];
   onSelect: (year: number) => void;
   formatLabel?: (year: number) => string;
-  /** Extra px to lift the pill so it clears a pinned footer action below it. */
   bottomOffset?: number;
 }) => {
   return (

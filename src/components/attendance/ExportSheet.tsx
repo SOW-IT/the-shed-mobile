@@ -32,21 +32,16 @@ import {
 } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
 
-/** List export: sign-in time + identity columns (always on). */
 const LIST_ALWAYS_COLUMNS = ["Sign In", "Name", "Email"] as const;
-/** Matrix export: identity only — sign-in time doesn't fit a multi-event grid. */
 const MATRIX_ALWAYS_COLUMNS = [
   "Name",
   "Email",
   ATTENDANCE_PCT_HEADER,
 ] as const;
-/** Event-specific attendance note column; selectable even though it isn't metadata. */
 const NOTES_FIELD_KEY = NOTES_HEADER;
 
-/** How the CSV is laid out. */
 type ExportFormat = "list" | "matrix";
 
-/** Earliest selectable export date. */
 const MIN_DATE = new Date(2024, 0, 1);
 
 const startOfDay = (ms: number): number => {
@@ -60,9 +55,7 @@ const endOfDay = (ms: number): number => {
   return d.getTime();
 };
 
-/** ms → "YYYY-MM-DD" for a date field value/min/max. */
 const toInputDate = (ms: number): string => toDateInputValue(new Date(ms));
-/** "YYYY-MM-DD" → ms at local midnight, or undefined when cleared/invalid. */
 const fromInputDate = (value: string): number | undefined =>
   parseDateInputValue(value)?.getTime();
 
@@ -78,10 +71,8 @@ const ToggleRow = ({
   label: string;
   checked: boolean;
   locked?: boolean;
-  /** Non-interactive without the padlock (e.g. still loading). */
   disabled?: boolean;
   onPress?: () => void;
-  /** Use radio icons instead of checkboxes (for exclusive format choice). */
   radio?: boolean;
   subtitle?: string;
 }) => {
@@ -129,12 +120,6 @@ const ToggleRow = ({
   );
 };
 
-/**
- * Export attendance to CSV. In group mode (no `eventId`) it offers a date range,
- * a tag multi-select, and a metadata-field picker, then exports every event the
- * sub-group can see (including collaborative events). In event mode it exports
- * the single event with the same field picker.
- */
 export function ExportSheet({
   visible,
   onClose,
@@ -144,19 +129,13 @@ export function ExportSheet({
   visible: boolean;
   onClose: () => void;
   subgroup: string;
-  /** When set, exports just this event instead of the whole sub-group. */
   eventId?: Id<"events">;
 }) {
   const t = useAppTheme();
   const convex = useConvex();
   const isEvent = eventId !== undefined;
 
-  // Only the metadata fields this sub-group can see (req: group-scoped list).
-  // Metadata fields and tags are both global (not year-scoped).
   const fields = useQuery(api.attendanceMetadata.list, { subgroup });
-  // A metadata field named "Notes" collides with the export's reserved sign-in
-  // Notes column, so it's never offered as a column here (the builder drops it
-  // too). Everything downstream picks from this filtered list.
   const exportableFields = useMemo(
     () => (fields ?? []).filter((f) => !isReservedExportFieldKey(f.key)),
     [fields]
@@ -165,22 +144,18 @@ export function ExportSheet({
 
   const [fromMs, setFromMs] = useState<number | undefined>(undefined);
   const [toMs, setToMs] = useState<number | undefined>(undefined);
-  // Captured at mount and refreshed on open so the picker's max is "today".
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [selectedTags, setSelectedTags] = useState<Id<"attendanceTags">[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<string[] | null>(null);
-  // Default to list (existing behaviour). Matrix is the person × event grid.
   const [format, setFormat] = useState<ExportFormat>("list");
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isMatrix = format === "matrix";
 
-  // Reset the form each time the sheet opens.
   useEffect(() => {
     if (!visible) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on open
     setFromMs(undefined);
-    // End date defaults to today; the start date is required before exporting.
     setToMs(Date.now());
     setNowMs(Date.now());
     setSelectedTags([]);
@@ -190,10 +165,6 @@ export function ExportSheet({
     setError(null);
   }, [visible]);
 
-  // Default to every visible field selected. Identity columns (Sign In / Name /
-  // Email, plus Attendance % on the grid) stay locked on; metadata and Notes
-  // are all toggleable, including Year / Gender / Campus / Role.
-  // Notes only apply to the list layout; matrix never includes them.
   useEffect(() => {
     if (!fields || selectedKeys !== null) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- seed once fields load
@@ -211,7 +182,6 @@ export function ExportSheet({
     [exportableFields, isMatrix]
   );
 
-  /** Switch layout without wiping metadata field picks — only Notes is toggled. */
   const setExportFormat = (next: ExportFormat) => {
     if (next === format) return;
     setFormat(next);
@@ -225,8 +195,6 @@ export function ExportSheet({
   const fieldsReady = fields !== undefined;
 
   const toggleKey = (key: string) => {
-    // Don't commit a partial selection while metadata is still loading — that
-    // would skip the default-all-on seed and leave Year/Gender/etc. unchecked.
     if (!fieldsReady) return;
     setSelectedKeys((prev) => {
       const base = prev ?? orderedFieldKeys;
@@ -241,10 +209,8 @@ export function ExportSheet({
 
   const download = async () => {
     setError(null);
-    // Whole-day bounds; the picker's min/max already keep From ≤ To ≤ today.
     const dateStart = fromMs != null ? startOfDay(fromMs) : undefined;
     const dateEnd = toMs != null ? endOfDay(toMs) : undefined;
-    // Keep chosen fields in their canonical (ordered) order for the columns.
     const chosenKeys = orderedFieldKeys.filter(isSelected);
 
     setDownloading(true);
@@ -304,7 +270,6 @@ export function ExportSheet({
         <Btn
           title="Export CSV"
           loading={downloading}
-          // Group export needs a start date; event export has no range.
           disabled={fields === undefined || (!isEvent && fromMs == null)}
           onPress={() => void download()}
         />

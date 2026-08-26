@@ -22,7 +22,6 @@ const ADMIN = "admin@sow.org.au";
 const asUser = (t: TestConvex<typeof schema>, email: string) =>
   t.withIdentity({ email, subject: email, issuer: "test" });
 
-/** Seeds the SOW org structure (divisions, departments incl. Chaplaincy). */
 async function setup() {
   const t = convexTest(schema, modules);
   await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
@@ -33,10 +32,6 @@ const profileOf = async (t: TestConvex<typeof schema>, email: string) =>
   (await asUser(t, ADMIN).query(api.admin.listStaffProfiles, { year: YEAR }))!.find(
     (p) => p.email === email
   )!;
-
-// ---------------------------------------------------------------------------
-// assignmentsOf / assignmentFor — pure helpers
-// ---------------------------------------------------------------------------
 
 describe("assignmentsOf (pure)", () => {
   test("returns the stored assignments unchanged", () => {
@@ -90,24 +85,18 @@ describe("assignmentFor (scope derivation)", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Head of multiple departments / divisions
-// ---------------------------------------------------------------------------
-
 describe("heads of multiple scopes", () => {
   test("one person heads two departments and two divisions at once", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     const email = "multi@sow.org.au";
 
-    // Head of two departments…
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Marketing", division: "Engagement", headEmail: email,
     });
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Alumni", division: "Engagement", headEmail: email,
     });
-    // …and two divisions.
     await admin.mutation(api.admin.upsertDivision, {
       year: YEAR, name: "Operations", headEmail: email,
     });
@@ -133,31 +122,26 @@ describe("heads of multiple scopes", () => {
     const first = "first@sow.org.au";
     const second = "second@sow.org.au";
 
-    // First heads Marketing and Alumni.
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Marketing", division: "Engagement", headEmail: first,
     });
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Alumni", division: "Engagement", headEmail: first,
     });
-    // Move only Marketing's headship to second.
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Marketing", division: "Engagement", headEmail: second,
     });
 
     const firstP = await profileOf(t, first);
     const secondP = await profileOf(t, second);
-    // First keeps Alumni, loses Marketing.
     expect(departmentsOf(firstP)).toEqual(["Alumni"]);
     expect(firstP.assignments).toEqual([
       { role: "Head of Department", department: "Alumni" },
     ]);
-    // Second now solely heads Marketing.
     expect(secondP.assignments).toEqual([
       { role: "Head of Department", department: "Marketing" },
     ]);
 
-    // The department records exactly one head.
     const chart = (await admin.query(api.directory.orgChart, { year: YEAR }))!;
     const marketing = chart.divisions
       .flatMap((d) => d.departments)
@@ -166,25 +150,18 @@ describe("heads of multiple scopes", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Mixed person renders in every place they're linked
-// ---------------------------------------------------------------------------
-
 describe("mixed person in the org chart", () => {
   test("HOD of A + Staff of B + HODiv of C appears in all three", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     const email = "mixed@sow.org.au";
 
-    // Staff of Marketing.
     await admin.mutation(api.admin.setStaffProfile, {
       email, year: YEAR, roles: ["Staff"], department: "Marketing",
     });
-    // Head of Finance.
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Finance", division: "Governance", headEmail: email,
     });
-    // Head of Operations division.
     await admin.mutation(api.admin.upsertDivision, {
       year: YEAR, name: "Operations", headEmail: email,
     });
@@ -206,10 +183,6 @@ describe("mixed person in the org chart", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Chaplaincy
-// ---------------------------------------------------------------------------
-
 describe("chaplaincy roles", () => {
   test("a chaplain is fixed to the Chaplaincy department and may carry a campus", async () => {
     const t = await setup();
@@ -230,7 +203,6 @@ describe("chaplaincy roles", () => {
       },
     ]);
     expect(isMemberOfDepartment(p, CHAPLAINCY_DEPARTMENT)).toBe(true);
-    // Chaplains render under Chaplaincy, not the campus block.
     const chart = (await admin.query(api.directory.orgChart, { year: YEAR }))!;
     const usyd = chart.universities.find((u) => u.name === "University of Sydney");
     expect(usyd?.members.map((m) => m.email) ?? []).not.toContain(email);
@@ -239,7 +211,6 @@ describe("chaplaincy roles", () => {
   test("assigning a chaplain fails when the Chaplaincy department is missing", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // The seed creates Chaplaincy; remove it so the guard trips.
     await admin.mutation(api.admin.removeDepartment, {
       year: YEAR, name: CHAPLAINCY_DEPARTMENT,
     });
@@ -256,7 +227,6 @@ describe("admin via division headship", () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     const email = "hrhead@sow.org.au";
-    // Human Resources is an admin division (see ADMIN_DIVISIONS).
     await admin.mutation(api.admin.upsertDivision, {
       year: YEAR, name: "Human Resources", headEmail: email,
     });
@@ -265,16 +235,11 @@ describe("admin via division headship", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Request submission
-// ---------------------------------------------------------------------------
-
 describe("request submit with multiple departments", () => {
   test("defaults to the HOD department, else first assignment department", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     const email = "req@sow.org.au";
-    // Staff of Marketing + Head of Finance.
     await admin.mutation(api.admin.setStaffProfile, {
       email, year: YEAR, roles: ["Staff"], department: "Marketing",
     });
@@ -286,7 +251,6 @@ describe("request submit with multiple departments", () => {
       description: "Lunch", amount: 10,
     });
     const req = await t.run((ctx) => ctx.db.get("requests", id));
-    // Defaults to the department they head.
     expect(req!.department).toBe("Finance");
   });
 
@@ -294,7 +258,6 @@ describe("request submit with multiple departments", () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     const email = "hodiv2@sow.org.au";
-    // Finance approvers must exist or submit refuses (would deadlock).
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Finance", division: "Governance", headEmail: "fhead@sow.org.au",
     });
@@ -302,14 +265,12 @@ describe("request submit with multiple departments", () => {
       email: "bm@sow.org.au", year: YEAR, roles: ["Staff"], department: "Finance",
     });
     await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: "bm@sow.org.au" });
-    // Departments in two different divisions, with heads who are NOT the submitter.
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Marketing", division: "Engagement", headEmail: "mh@sow.org.au",
     });
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Events", division: "Operations", headEmail: "eh@sow.org.au",
     });
-    // Submitter heads BOTH divisions.
     await admin.mutation(api.admin.upsertDivision, {
       year: YEAR, name: "Engagement", headEmail: email,
     });
@@ -322,23 +283,16 @@ describe("request submit with multiple departments", () => {
         description: "x", amount: 10, department,
       });
       const req = await t.run((ctx) => ctx.db.get("requests", id));
-      // Division head's request skips the HOD step in either division.
       expect(req!.approvedByHOD).toBe("APPROVED");
     }
   });
 });
-
-// ---------------------------------------------------------------------------
-// Guarding structural deletes
-// ---------------------------------------------------------------------------
 
 describe("structural deletes cascade to assignments", () => {
   test("removeDepartment strips assignments even when a member is linked via assignments", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     const email = "m@sow.org.au";
-    // Member of Marketing AND head of Finance — Marketing assignment should be
-    // stripped when Marketing is deleted, Finance link must be preserved.
     await admin.mutation(api.admin.setStaffProfile, {
       email, year: YEAR, roles: ["Staff"], department: "Marketing",
     });
@@ -348,7 +302,6 @@ describe("structural deletes cascade to assignments", () => {
     await admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Marketing" });
     const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
     const m = profiles.find((p) => p.email === email)!;
-    // Marketing assignment stripped; Finance (HOD) link survives.
     expect(m.assignments?.some((a) => a.department === "Marketing")).toBe(false);
     expect(m.assignments?.some((a) => a.department === "Finance")).toBe(true);
   });
@@ -372,27 +325,20 @@ describe("structural deletes cascade to assignments", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Finance access via membership (not the single legacy field)
-// ---------------------------------------------------------------------------
-
 describe("finance access via membership", () => {
   test("a Finance member who also heads another dept can be Budget Manager", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     const email = "fin@sow.org.au";
-    // Staff of Finance…
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Finance", division: "Governance",
     });
     await admin.mutation(api.admin.setStaffProfile, {
       email, year: YEAR, roles: ["Staff"], department: "Finance",
     });
-    // …and head of Marketing (so the legacy department would be Marketing).
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Marketing", division: "Engagement", headEmail: email,
     });
-    // Still recognised as Finance for Budget Manager purposes.
     await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email });
     const settings = await t.run((ctx) =>
       ctx.db
@@ -403,10 +349,6 @@ describe("finance access via membership", () => {
     expect(settings?.budgetManagerEmail).toBe(email);
   });
 });
-
-// ---------------------------------------------------------------------------
-// copyYear
-// ---------------------------------------------------------------------------
 
 describe("copyYear", () => {
   test("copies assignments and division headEmail to the next year", async () => {
@@ -437,7 +379,6 @@ describe("copyYear", () => {
       role: "Head of Division", division: "Operations",
     });
 
-    // The division headEmail is carried over (previously a latent bug).
     const nextDivision = await t.run((ctx) =>
       ctx.db
         .query("divisions")

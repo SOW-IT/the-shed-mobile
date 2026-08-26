@@ -1,6 +1,3 @@
-// Generates the JWT keypair Convex Auth needs (same shape as
-// `npx @convex-dev/auth` produces) and writes them to two temp files so they
-// can be piped into `npx convex env set`.
 import { exportJWK, exportPKCS8, generateKeyPair } from "jose";
 import { writeFileSync } from "node:fs";
 

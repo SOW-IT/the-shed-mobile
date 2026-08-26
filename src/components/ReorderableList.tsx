@@ -35,7 +35,6 @@ const measureY = (node: Measurable, callback: (y: number | null) => void) => {
 };
 
 export type ReorderableRenderContext = {
-  /** Grip handle — place at the start of each row header. */
   dragHandle: ReactNode;
   dragging: boolean;
 };
@@ -59,7 +58,6 @@ type DragState = {
   hover: number;
 };
 
-/** Slot index for the dragged row's center given a fixed start index and finger delta. */
 const getTargetIndex = (
   from: number,
   deltaY: number,
@@ -80,7 +78,6 @@ const getTargetIndex = (
   return heights.length - 1;
 };
 
-/** Visual shift for non-dragged rows while hovering over a new slot. */
 const getPreviewOffset = (
   index: number,
   from: number,
@@ -123,7 +120,6 @@ function ReorderableRow({
   id: string;
   index: number;
   disabled: boolean;
-  /** This row is the one being dragged — lift it above its siblings. */
   active: boolean;
   gap: number;
   heightsRef: React.MutableRefObject<Map<string, number>>;
@@ -157,7 +153,6 @@ function ReorderableRow({
       finished.value = true;
       dragging.value = false;
       runOnJS(onDragFinish)(id, e.translationY);
-      // Reset instantly — FLIP handles the settle animation from drop position
       dragY.value = 0;
     })
     .onFinalize(() => {
@@ -190,8 +185,6 @@ function ReorderableRow({
       onLayout={(e: LayoutChangeEvent) => {
         heightsRef.current.set(id, e.nativeEvent.layout.height);
       }}
-      // Lift the dragged row above its siblings so it slides over (not under)
-      // the cards it passes. zIndex governs iOS/web stacking; elevation Android.
       style={[{ marginBottom: gap }, active && styles.activeRow]}
     >
       <Animated.View
@@ -209,7 +202,6 @@ function ReorderableRow({
   );
 }
 
-/** Vertical drag-to-reorder list with FLIP settle animation (Bank-tab style). */
 export function ReorderableList<T>({
   items,
   keyExtractor,
@@ -295,8 +287,6 @@ export function ReorderableList<T>({
       const drag = dragStateRef.current;
       dragStateRef.current = null;
 
-      // Snapshot preview offsets BEFORE resetting, so FLIP can start from the
-      // visual position instead of the card's original slot.
       if (drag && drag.id === id) {
         const draggedHeight = heightsRef.current.get(id) ?? 0;
         const previewOffsets = new Map<string, number>();
@@ -325,7 +315,6 @@ export function ReorderableList<T>({
     [gap, heightsInOrder, items, keyExtractor, onReorder, resetPreviewOffsets]
   );
 
-  // Shift non-dragged rows into the hovered slot while dragging (data order stays fixed).
   useLayoutEffect(() => {
     const drag = dragStateRef.current;
     if (!drag || hoverIndex == null) return;
@@ -341,7 +330,6 @@ export function ReorderableList<T>({
         draggedHeight,
         gap
       );
-      // Stop any in-flight preview animation before starting a new one.
       previewAnimsRef.current.get(rowId)?.stop();
       const ty = getPreviewTranslateY(rowId);
       const anim = Animated.timing(ty, {
@@ -357,7 +345,6 @@ export function ReorderableList<T>({
     });
   }, [gap, hoverIndex, items, keyExtractor]);
 
-  // FLIP settle after a committed reorder (not during drag).
   useLayoutEffect(() => {
     if (draggingKey) return;
     const ids = items.map((item, i) => keyExtractor(item, i));
@@ -368,8 +355,6 @@ export function ReorderableList<T>({
     const nextPositions = new Map<string, number>();
     let remaining = ids.length;
     const finish = () => {
-      // Consume drop info so we adjust FLIP start positions from the visual
-      // position where the user released (not the card's original slot).
       const dropInfo = dropInfoRef.current;
       dropInfoRef.current = null;
 
@@ -378,7 +363,6 @@ export function ReorderableList<T>({
         const newY = nextPositions.get(id);
         if (oldY == null || newY == null) continue;
 
-        // Adjust starting position to where the card visually was at drop.
         let startY = oldY;
         if (dropInfo) {
           if (id === dropInfo.id) {
@@ -405,12 +389,6 @@ export function ReorderableList<T>({
         if (!nextPositions.has(key)) translateYs.current.delete(key);
       }
     };
-    // Measure each card's top relative to the list container, not the window.
-    // Window/viewport coordinates drift by the scroll offset, so a row dropped
-    // after the user scrolled would FLIP from a stale position and the whole
-    // list would appear to slide up and settle back. Container-relative tops
-    // cancel the scroll (card and container move together), so unmoved rows
-    // read identical positions across renders and only reordered rows animate.
     const measureCards = (containerY: number | null) => {
       for (const id of ids) {
         const node = cardRefs.current.get(id);

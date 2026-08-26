@@ -51,7 +51,7 @@ describe("serverInfo", () => {
   test("returns the year, domain and structure for signed-in callers, null otherwise", async () => {
     const t = await setup();
     vi.stubEnv("AUTH_ALLOWED_DOMAIN", "sow.org.au");
-    expect(await t.query(api.directory.serverInfo, {})).toBeNull(); // unauthenticated
+    expect(await t.query(api.directory.serverInfo, {})).toBeNull();
 
     const info = (await asUser(t, RACHEL).query(api.directory.serverInfo, {}))!;
     expect(info.staffYear).toBe(YEAR);
@@ -155,20 +155,17 @@ describe("me", () => {
 describe("nameForEmail", () => {
   test("prefers a profile name, falls back to the directory, else null", async () => {
     const t = await setup();
-    expect(await t.query(api.directory.nameForEmail, { email: RACHEL })).toBeNull(); // unauth
+    expect(await t.query(api.directory.nameForEmail, { email: RACHEL })).toBeNull();
 
-    // No profile name and no directory entry -> null.
     expect(
       await asUser(t, RACHEL).query(api.directory.nameForEmail, { email: HENRY })
     ).toBeNull();
 
-    // Directory fallback.
     await t.run((ctx) => ctx.db.insert("directoryUsers", { email: HENRY, name: "Henry H" }));
     expect(
       await asUser(t, RACHEL).query(api.directory.nameForEmail, { email: HENRY })
     ).toBe("Henry H");
 
-    // A profile name wins over the directory.
     await t.run(async (ctx) => {
       const profile = await ctx.db
         .query("staffProfiles")
@@ -183,7 +180,6 @@ describe("nameForEmail", () => {
 
   test("resolves the name from the given staff year's profile", async () => {
     const t = await setup();
-    // Same person, a different name on an earlier year's imported profile.
     await t.run((ctx) =>
       ctx.db.insert("staffProfiles", {
         email: RACHEL,
@@ -210,13 +206,11 @@ describe("availableYears", () => {
     const years = (await asUser(t, RACHEL).query(api.directory.availableYears, {}))!;
     expect(years).toContain(2020);
     expect(years).toContain(YEAR);
-    // Sorted descending.
     expect([...years].sort((a, b) => b - a)).toEqual(years);
   });
 
   test("exposes the next staff year only to admins", async () => {
     const t = await setup();
-    // A pre-provisioned next-year structure would otherwise leak via this query.
     await t.run((ctx) =>
       ctx.db.insert("divisions", { year: YEAR + 1, name: "Engagement" })
     );
@@ -230,21 +224,17 @@ describe("availableYears", () => {
 describe("orgChart", () => {
   test("public (1.7.0): readable signed out, next staff year stays hidden", async () => {
     const t = await setup();
-    // No identity at all — the Org tab is the app's public landing surface.
     const chart = (await t.query(api.directory.orgChart, {}))!;
     expect(chart.year).toBe(YEAR);
     expect(chart.director?.email).toBe(DAN);
     expect(chart.nextYear).toBeNull();
     expect(chart.availableYears.every((y) => y <= YEAR)).toBe(true);
-    // Asking for the pre-provisioned next year clamps back to the current one.
     const clamped = (await t.query(api.directory.orgChart, { year: YEAR + 1 }))!;
     expect(clamped.year).toBe(YEAR);
   });
 
   test("uses directory name as fallback when profile and user have no name", async () => {
     const t = await setup();
-    // HENRY has a staff profile (head of Marketing) but no name anywhere.
-    // A directoryUsers entry should be used as the name fallback.
     await t.run((ctx) =>
       ctx.db.insert("directoryUsers", { email: HENRY, name: "Henry from Directory" })
     );
@@ -257,8 +247,6 @@ describe("orgChart", () => {
 
   test("a real Director fills the slot and is excluded from staff/members", async () => {
     const t = await setup();
-    // DAN is a Director in Marketing (from setup). HENRY also gets an Interim
-    // Director role, but the real Director must still win the slot.
     await t.run((ctx) =>
       ctx.db.insert("staffProfiles", {
         email: "interim@sow.org.au",
@@ -269,9 +257,7 @@ describe("orgChart", () => {
     const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
     expect(chart.director?.email).toBe(DAN);
     expect(chart.director?.role).toBe("Director");
-    // The Director is not also listed in the Staff group…
     expect(chart.staff.some((s) => s.email === DAN)).toBe(false);
-    // …nor as a department member.
     const marketing = chart.divisions
       .flatMap((d) => d.departments)
       .find((d) => d.name === "Marketing");
@@ -280,7 +266,6 @@ describe("orgChart", () => {
 
   test("an Interim Director fills the Director slot when no Director exists", async () => {
     const t = await setup();
-    // Remove DAN's Director role and add an Interim Director.
     await t.run(async (ctx) => {
       const dan = await ctx.db
         .query("staffProfiles")
@@ -296,14 +281,11 @@ describe("orgChart", () => {
     const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
     expect(chart.director?.email).toBe("interim@sow.org.au");
     expect(chart.director?.role).toBe("Interim Director");
-    // The interim director is not duplicated into the staff group.
     expect(chart.staff.some((s) => s.email === "interim@sow.org.au")).toBe(false);
   });
 
   test("non-department, non-division, non-campus people surface as staff", async () => {
     const t = await setup();
-    // Two Staff roles with no department/division/university — otherwise
-    // invisible. Two of them also exercises the name-sort of the staff list.
     await t.run(async (ctx) => {
       await ctx.db.insert("staffProfiles", {
         email: "zoe@sow.org.au",
@@ -321,17 +303,13 @@ describe("orgChart", () => {
     const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
     expect(chart.staff.some((s) => s.email === "floater@sow.org.au")).toBe(true);
     expect(chart.staff.find((s) => s.email === "floater@sow.org.au")?.role).toBe("Staff");
-    // Sorted by name: Aaron (floater) before Zoe.
     const emails = chart.staff.map((s) => s.email);
     expect(emails.indexOf("floater@sow.org.au")).toBeLessThan(emails.indexOf("zoe@sow.org.au"));
-    // RACHEL is in the Marketing department, so she must NOT appear in staff.
     expect(chart.staff.some((s) => s.email === RACHEL)).toBe(false);
   });
 
   test("someone whose only role is a campus role does not surface as staff", async () => {
     const t = await setup();
-    // A President with no university assigned: a campus member missing their
-    // campus, NOT staff — so they must not appear in the Staff group.
     await t.run((ctx) =>
       ctx.db.insert("staffProfiles", {
         email: "prez@sow.org.au",
@@ -344,7 +322,7 @@ describe("orgChart", () => {
   });
 
   test('the "General" division is shown; in a year with real departments staff stay a top-level group', async () => {
-    const t = await setup(); // YEAR has Marketing/Finance departments
+    const t = await setup();
     await t.run(async (ctx) => {
       await ctx.db.insert("divisions", { year: YEAR, name: "General" });
       await ctx.db.insert("staffProfiles", {
@@ -354,9 +332,7 @@ describe("orgChart", () => {
       });
     });
     const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
-    // General is no longer hidden.
     expect(chart.divisions.some((d) => d.name === "General")).toBe(true);
-    // The year has real departments, so staff remain a top-level group.
     expect(chart.staff.some((s) => s.email === "general@sow.org.au")).toBe(true);
   });
 
@@ -365,8 +341,6 @@ describe("orgChart", () => {
     const OLD = 2015;
     await t.run(async (ctx) => {
       await ctx.db.insert("divisions", { year: OLD, name: "General" });
-      // A plain staff member with no department, and a campus role with a
-      // university (who must NOT land in the Staff department).
       await ctx.db.insert("staffProfiles", {
         email: "oldstaff@sow.org.au",
         year: OLD,
@@ -384,21 +358,16 @@ describe("orgChart", () => {
     const staffDept = general!.departments.find((d) => d.name === "Staff");
     expect(staffDept).toBeDefined();
     expect(staffDept!.members.some((m) => m.email === "oldstaff@sow.org.au")).toBe(true);
-    // The campus role is not in the Staff department…
     expect(staffDept!.members.some((m) => m.email === "oldprez@sow.org.au")).toBe(false);
-    // …and the top-level staff group is empty for this year.
     expect(chart.staff).toHaveLength(0);
   });
 
   test("only admins see and can view the next staff year", async () => {
     const t = await setup();
-    // Give the next staff year a structure so it would otherwise be offered.
     await t.run((ctx) =>
       ctx.db.insert("divisions", { year: YEAR + 1, name: "Engagement" })
     );
 
-    // Non-admin RACHEL: next year is hidden, unlabelled, and a direct request
-    // for it is clamped back to the current year.
     const rachel = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
     expect(rachel.availableYears).not.toContain(YEAR + 1);
     expect(rachel.nextYear).toBeNull();
@@ -407,7 +376,6 @@ describe("orgChart", () => {
     }))!;
     expect(rachelNext.year).toBe(YEAR);
 
-    // Admin: the next year is offered, labelled, and viewable.
     const admin = (await asUser(t, ADMIN).query(api.directory.orgChart, {}))!;
     expect(admin.availableYears).toContain(YEAR + 1);
     expect(admin.nextYear).toBe(YEAR + 1);

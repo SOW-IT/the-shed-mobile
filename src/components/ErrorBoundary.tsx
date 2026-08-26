@@ -3,10 +3,6 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useAppTheme } from "../theme";
 
-/**
- * Last line of defence: without this, any uncaught render/query error
- * unmounts the whole React tree and the user sees a blank screen.
- */
 export class ErrorBoundary extends Component<
   { children: ReactNode },
   { error: Error | null }
@@ -30,11 +26,6 @@ export class ErrorBoundary extends Component<
   }
 }
 
-/**
- * The fallback UI is a function component so it can read the theme — the class
- * boundary can't use hooks. Themed so the error screen matches the rest of the
- * app in dark mode instead of flashing a light cream panel.
- */
 function ErrorFallback({
   error,
   onRetry,

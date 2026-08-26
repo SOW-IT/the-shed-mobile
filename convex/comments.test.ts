@@ -10,10 +10,10 @@ const modules = import.meta.glob("./**/*.ts");
 const YEAR = staffYearForDate(new Date());
 
 const ADMIN = "admin@sow.org.au";
-const RACHEL = "rachel@sow.org.au"; // Marketing staff (requester)
-const HENRY = "henry@sow.org.au"; // Marketing HOD
-const BELLA = "bella@sow.org.au"; // Finance staff, Budget Manager
-const FIONA = "fiona@sow.org.au"; // Finance head
+const RACHEL = "rachel@sow.org.au";
+const HENRY = "henry@sow.org.au";
+const BELLA = "bella@sow.org.au";
+const FIONA = "fiona@sow.org.au";
 
 const asUser = (t: TestConvex<typeof schema>, email: string) =>
   t.withIdentity({ email, subject: email, issuer: "test" });
@@ -70,10 +70,10 @@ const owner = (t: TestConvex<typeof schema>, requestId: string) =>
 describe("actionOwnerEmail routing", () => {
   test("pending request → the approver of the current step", async () => {
     const t = await setup();
-    const id = await submit(t); // pending HOD (Henry)
+    const id = await submit(t);
     expect(await owner(t, id)).toBe(HENRY);
     await asUser(t, HENRY).mutation(api.requests.approve, { requestId: id, step: "hod" });
-    expect(await owner(t, id)).toBe(BELLA); // now Budget Manager
+    expect(await owner(t, id)).toBe(BELLA);
   });
 
   test("fully approved but no receipt → the requester", async () => {
@@ -101,8 +101,6 @@ describe("actionOwnerEmail routing", () => {
   });
 
   test("carried-over unpaid receipt → this year's Finance Head when last year's is gone", async () => {
-    // Seed at YEAR-1 time on a fresh instance so _creationTime lands in YEAR-1.
-    // No YEAR-1 Finance department exists, so routing falls back to Fiona.
     vi.setSystemTime(staffYearStartMs(YEAR - 1) + 1);
     const t = convexTest(schema, modules);
     const id = await t.run((ctx) =>
@@ -139,7 +137,6 @@ describe("actionOwnerEmail routing", () => {
       ],
     });
     await asUser(t, FIONA).mutation(api.requests.pay, { requestId: id, paidAmount: 100 });
-    // undefined, but t.run serializes undefined -> null over the wire.
     expect(await owner(t, id)).toBeNull();
 
     const declined = await submit(t);
@@ -167,7 +164,6 @@ describe("add", () => {
     ).rejects.toThrow(/too long/);
 
     await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "  hi  " });
-    // Give Rachel a profile name so the author name resolves from the profile.
     await t.run(async (ctx) => {
       const profile = await ctx.db
         .query("staffProfiles")
@@ -177,16 +173,15 @@ describe("add", () => {
     });
     const list = (await asUser(t, RACHEL).query(api.comments.list, { requestId: id }))!;
     expect(list).toHaveLength(1);
-    expect(list[0].body).toBe("hi"); // trimmed
+    expect(list[0].body).toBe("hi");
     expect(list[0].authorEmail).toBe(RACHEL);
-    expect(list[0].authorName).toBe("Rachel R"); // resolved from the profile
+    expect(list[0].authorName).toBe("Rachel R");
     expect(list[0].isMine).toBe(true);
   });
 
   test("comment notifications name the commenter rather than their email", async () => {
     const t = await setup();
-    const id = await submit(t); // pending Henry; Rachel comments -> Henry notified
-    // Give Rachel a display name; the notification should use it.
+    const id = await submit(t);
     await t.run(async (ctx) => {
       const profile = await ctx.db
         .query("staffProfiles")
@@ -225,9 +220,7 @@ describe("add", () => {
 
   test("a comment notifies previous approvers, not just the current owner", async () => {
     const t = await setup();
-    const id = await submit(t); // pending Henry (HOD)
-    // Henry approves -> he becomes a previous approver; Bella (budget manager)
-    // is now the current owner.
+    const id = await submit(t);
     await asUser(t, HENRY).mutation(api.requests.approve, { requestId: id, step: "hod" });
     await t.run((ctx) =>
       ctx.db.insert("pushTokens", { email: HENRY, token: "ExponentPushToken[henry]" })
@@ -259,7 +252,6 @@ describe("add", () => {
       vi.unstubAllGlobals();
     }
 
-    // Current owner (Bella) and the previous approver (Henry) both get pushed.
     expect(pushedTokens).toContain("ExponentPushToken[bella]");
     expect(pushedTokens).toContain("ExponentPushToken[henry]");
   });
@@ -275,13 +267,9 @@ describe("add", () => {
 
   test("notification routing covers all three branches without throwing", async () => {
     const t = await setup();
-    const id = await submit(t); // pending Henry
-    // Requester comments → owner (Henry) is notified.
+    const id = await submit(t);
     await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "any update?" });
-    // The action owner comments → falls back to the requester.
     await asUser(t, HENRY).mutation(api.comments.add, { requestId: id, body: "looking now" });
-    // Requester comments on a completed (paid) request → owner undefined,
-    // commenter is the requester → nobody notified (the undefined branch).
     const paid = await submit(t);
     await asUser(t, HENRY).mutation(api.requests.approve, { requestId: paid, step: "hod" });
     await asUser(t, BELLA).mutation(api.requests.approve, { requestId: paid, step: "budgetManager" });
@@ -313,20 +301,16 @@ describe("unreadCount + markRead", () => {
   test("counts others' new comments, excludes own, and resets on read", async () => {
     const t = await setup();
     const id = await submit(t);
-    // Henry has nothing unread yet.
     expect(await asUser(t, HENRY).query(api.comments.unreadCount, { requestId: id })).toBe(0);
 
     await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "one" });
     await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "two" });
-    // Two unread for Henry; zero for Rachel (they're her own).
     expect(await asUser(t, HENRY).query(api.comments.unreadCount, { requestId: id })).toBe(2);
     expect(await asUser(t, RACHEL).query(api.comments.unreadCount, { requestId: id })).toBe(0);
 
-    // Henry reads them → back to zero.
     await asUser(t, HENRY).mutation(api.comments.markRead, { requestId: id });
     expect(await asUser(t, HENRY).query(api.comments.unreadCount, { requestId: id })).toBe(0);
 
-    // A new comment after reading is unread again (re-reading patches the marker).
     await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "three" });
     expect(await asUser(t, HENRY).query(api.comments.unreadCount, { requestId: id })).toBe(1);
     await asUser(t, HENRY).mutation(api.comments.markRead, { requestId: id });
@@ -340,19 +324,16 @@ describe("unreadCount + markRead", () => {
     await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id1, body: "a" });
     await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id1, body: "b" });
     await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id2, body: "c" });
-    // Henry: 3 unread across the two requests (the duplicate id is ignored).
     expect(
       await asUser(t, HENRY).query(api.comments.unreadTotalForRequests, {
         requestIds: [id1, id2, id1],
       })
     ).toBe(3);
-    // Rachel authored them all, so none count for her.
     expect(
       await asUser(t, RACHEL).query(api.comments.unreadTotalForRequests, {
         requestIds: [id1, id2],
       })
     ).toBe(0);
-    // Unauthenticated -> 0.
     expect(
       await t.query(api.comments.unreadTotalForRequests, { requestIds: [id1] })
     ).toBe(0);
@@ -361,17 +342,15 @@ describe("unreadCount + markRead", () => {
   test("unreadCountsForRequests maps per-request counts, omitting zeros", async () => {
     const t = await setup();
     const id1 = await submit(t);
-    const id2 = await submit(t); // left with no comments
+    const id2 = await submit(t);
     await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id1, body: "a" });
     await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id1, body: "b" });
-    // Henry: id1 has 2 unread; id2 has none, so it's omitted (the > 0 filter).
     const counts = await asUser(t, HENRY).query(
       api.comments.unreadCountsForRequests,
       { requestIds: [id1, id2, id1] }
     );
     expect(counts[id1]).toBe(2);
     expect(counts[id2]).toBeUndefined();
-    // Unauthenticated -> empty map.
     expect(
       await t.query(api.comments.unreadCountsForRequests, { requestIds: [id1] })
     ).toEqual({});
@@ -379,22 +358,17 @@ describe("unreadCount + markRead", () => {
 
   test("myUnreadTotal counts unread comments on the caller's own requests", async () => {
     const t = await setup();
-    // Rachel has no requests yet — zero unread.
     expect(await asUser(t, RACHEL).query(api.comments.myUnreadTotal, {})).toBe(0);
-    // Unauthenticated → 0.
     expect(await t.query(api.comments.myUnreadTotal, {})).toBe(0);
 
     const id = await submit(t);
-    // Henry comments twice on Rachel's request.
     await asUser(t, HENRY).mutation(api.comments.add, { requestId: id, body: "a" });
     await asUser(t, HENRY).mutation(api.comments.add, { requestId: id, body: "b" });
     expect(await asUser(t, RACHEL).query(api.comments.myUnreadTotal, {})).toBe(2);
 
-    // Rachel reads the thread — unread drops to zero.
     await asUser(t, RACHEL).mutation(api.comments.markRead, { requestId: id });
     expect(await asUser(t, RACHEL).query(api.comments.myUnreadTotal, {})).toBe(0);
 
-    // Henry's own comments don't count as unread for him (he's not the requester here).
     expect(await asUser(t, HENRY).query(api.comments.myUnreadTotal, {})).toBe(0);
   });
 });
@@ -406,7 +380,6 @@ describe("toggleReaction + list grouping", () => {
     await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "hello" });
     const [comment] = (await asUser(t, RACHEL).query(api.comments.list, { requestId: id }))!;
 
-    // Rachel and Henry both 👍; Henry also ❤️.
     expect(
       await asUser(t, RACHEL).mutation(api.comments.toggleReaction, {
         commentId: comment.id,
@@ -419,13 +392,11 @@ describe("toggleReaction + list grouping", () => {
     let list = (await asUser(t, RACHEL).query(api.comments.list, { requestId: id }))!;
     const thumbs = list[0].reactions.find((r) => r.emoji === "👍")!;
     expect(thumbs.count).toBe(2);
-    expect(thumbs.mine).toBe(true); // Rachel reacted
+    expect(thumbs.mine).toBe(true);
     const heart = list[0].reactions.find((r) => r.emoji === "❤️")!;
-    expect(heart).toMatchObject({ count: 1, mine: false }); // only Henry
-    // Reactions are ordered by count desc.
+    expect(heart).toMatchObject({ count: 1, mine: false });
     expect(list[0].reactions[0].emoji).toBe("👍");
 
-    // Rachel toggles 👍 off.
     expect(
       await asUser(t, RACHEL).mutation(api.comments.toggleReaction, {
         commentId: comment.id,
@@ -451,7 +422,6 @@ describe("toggleReaction + list grouping", () => {
         emoji: "x".repeat(17),
       })
     ).rejects.toThrow(/single emoji/);
-    // Cancel the request (removes its comment) then react → not found.
     await asUser(t, RACHEL).mutation(api.requests.cancel, { requestId: id });
     await expect(
       asUser(t, RACHEL).mutation(api.comments.toggleReaction, { commentId: comment.id, emoji: "👍" })

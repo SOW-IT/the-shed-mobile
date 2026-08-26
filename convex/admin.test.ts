@@ -9,8 +9,8 @@ const modules = import.meta.glob("./**/*.ts");
 const YEAR = staffYearForDate(new Date());
 
 const ADMIN = "admin@sow.org.au";
-const FIONA = "fiona@sow.org.au"; // Finance head
-const BELLA = "bella@sow.org.au"; // Finance staff
+const FIONA = "fiona@sow.org.au";
+const BELLA = "bella@sow.org.au";
 
 const asUser = (t: TestConvex<typeof schema>, email: string) =>
   t.withIdentity({ email, subject: email, issuer: "test" });
@@ -78,9 +78,6 @@ describe("setStaffProfile validation", () => {
   test("legacy path: re-saving only the held head role needs no department", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Fiona heads Finance. Submitting just her (already-held) head role with no
-    // other role must succeed and not demand a department — scope validation
-    // ignores preserved head roles.
     await admin.mutation(api.admin.setStaffProfile, {
       email: FIONA,
       year: YEAR,
@@ -94,9 +91,6 @@ describe("setStaffProfile validation", () => {
   test("editing a head's staff profile preserves their structure-assigned head role", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Fiona heads Finance (a HEAD_OF_DEPARTMENT via the structure section).
-    // Re-saving her staff profile as Staff of Finance must keep the head role;
-    // Staff of the SAME department she heads is superseded, so she stays HOD.
     await admin.mutation(api.admin.setStaffProfile, {
       email: FIONA,
       year: YEAR,
@@ -116,7 +110,6 @@ describe("setStaffProfile validation", () => {
       name: "Marketing",
       division: "Engagement",
     });
-    // Fiona heads Finance; making her Staff of Marketing keeps both.
     await admin.mutation(api.admin.setStaffProfile, {
       email: FIONA,
       year: YEAR,
@@ -136,14 +129,12 @@ describe("setStaffProfile validation", () => {
   test("cannot remove roles from a user without a head role", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Bella is a plain Staff member (no head role).
     await admin.mutation(api.admin.setStaffProfile, {
       email: BELLA,
       year: YEAR,
       roles: ["Staff", "Director"],
       department: "Finance",
     });
-    // Reducing from ["Staff", "Director"] to ["Staff"] must be rejected.
     await expect(
       admin.mutation(api.admin.setStaffProfile, {
         email: BELLA,
@@ -157,14 +148,12 @@ describe("setStaffProfile validation", () => {
   test("can remove roles from a user who holds a head role", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Fiona is HEAD_OF_DEPARTMENT for Finance. Give her an extra role first.
     await admin.mutation(api.admin.setStaffProfile, {
       email: FIONA,
       year: YEAR,
       roles: ["Staff", "Director"],
       department: "Finance",
     });
-    // Now reduce to just Staff — allowed because she holds HEAD_OF_DEPARTMENT.
     await admin.mutation(api.admin.setStaffProfile, {
       email: FIONA,
       year: YEAR,
@@ -173,7 +162,6 @@ describe("setStaffProfile validation", () => {
     });
     const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
     const fiona = profiles.find((p) => p.email === FIONA)!;
-    // Director was removed; Head of Department preserved by structure.
     expect(fiona.roles).not.toContain("Director");
     expect(fiona.roles).toContain("Head of Department");
   });
@@ -195,7 +183,6 @@ describe("setStaffProfile validation", () => {
   test("only one Director per year; re-saving the same Director is fine", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Director has no required scope — no department needed.
     await admin.mutation(api.admin.setStaffProfile, {
       email: "first@sow.org.au",
       year: YEAR,
@@ -208,15 +195,12 @@ describe("setStaffProfile validation", () => {
         roles: ["Director"],
       })
     ).rejects.toThrow(/already the Director/);
-    // Re-saving the same Director (adding Staff for a department) must not throw.
     await admin.mutation(api.admin.setStaffProfile, {
       email: "first@sow.org.au",
       year: YEAR,
       roles: ["Director", "Staff"],
       department: "Finance",
     });
-    // Assigning the Director caches their email on yearSettings so getApprovers
-    // doesn't walk every profile.
     const settings = await t.run(async (ctx) =>
       ctx.db.query("yearSettings").withIndex("by_year", (q) => q.eq("year", YEAR)).first()
     );
@@ -238,22 +222,18 @@ describe("setStaffProfile validation", () => {
     const settings = await t.run(async (ctx) =>
       ctx.db.query("yearSettings").withIndex("by_year", (q) => q.eq("year", YEAR)).first()
     );
-    // "" = known absent — getApprovers must not re-scan the year.
     expect(settings?.directorEmail).toBe("");
   });
 
   test("getApprovers scans profiles when the Director cache is unset", async () => {
     const { getApprovers } = await import("./model");
     const t = await setup();
-    // Insert the Director directly — bypasses setStaffProfile's cache write —
-    // and leave yearSettings without a directorEmail field so the scan path runs.
     await t.run(async (ctx) => {
       await ctx.db.insert("staffProfiles", {
         email: "legacy-dir@sow.org.au",
         year: YEAR,
         assignments: [{ role: "Director" }],
       });
-      // Ensure any existing yearSettings row has no directorEmail field.
       const settings = await ctx.db
         .query("yearSettings")
         .withIndex("by_year", (q) => q.eq("year", YEAR))
@@ -303,7 +283,6 @@ describe("upsertUniversity", () => {
 describe("ensureUniversity", () => {
   test("is idempotent — seed already includes WSU; a novel name inserts once", async () => {
     const t = await setup();
-    // Seed's UNIVERSITIES list already includes Western Sydney University.
     const seeded = await t.mutation(internal.admin.ensureUniversity, {
       year: YEAR,
       name: "Western Sydney University",
@@ -365,7 +344,6 @@ describe("removeUniversity", () => {
     await admin.mutation(api.admin.removeUniversity, { year: YEAR, name: "ACU" });
     const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
     expect(structure.universities).not.toContain("ACU");
-    // Removing one that doesn't exist returns null, not an error.
     await expect(
       admin.mutation(api.admin.removeUniversity, { year: YEAR, name: "ACU" })
     ).resolves.toBeNull();
@@ -383,7 +361,6 @@ describe("updateUniversity", () => {
       assignments: [{ role: "Student Leader", university: "ACU" }],
     });
 
-    // Rename cascades to the staff profile.
     const renamedId = await admin.mutation(api.admin.updateUniversity, {
       year: YEAR, oldName: "ACU", newName: "Australian Catholic University",
     });
@@ -396,13 +373,11 @@ describe("updateUniversity", () => {
       { role: "Student Leader", university: "Australian Catholic University" },
     ]);
 
-    // Same name is a true no-op — returns the same id, touches nothing.
     const sameNameId = await admin.mutation(api.admin.updateUniversity, {
       year: YEAR, oldName: "Australian Catholic University", newName: "Australian Catholic University",
     });
     expect(sameNameId).toBe(renamedId);
 
-    // Duplicate name is rejected.
     await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name: "UTS" });
     await expect(
       admin.mutation(api.admin.updateUniversity, {
@@ -410,7 +385,6 @@ describe("updateUniversity", () => {
       })
     ).rejects.toThrow(/already exists/);
 
-    // Unknown old name is rejected.
     await expect(
       admin.mutation(api.admin.updateUniversity, {
         year: YEAR, oldName: "Nonexistent", newName: "Whatever",
@@ -424,28 +398,22 @@ describe("removeDivision", () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
 
-    // Use Engagement (Marketing, Alumni) — the admin is in Data and IT (Governance),
-    // so deleting Engagement won't strip the admin's own profile.
     await admin.mutation(api.admin.setStaffProfile, {
       email: "temp@sow.org.au",
       year: YEAR,
       assignments: [{ role: "Staff", department: "Marketing" }],
     });
 
-    // Engagement has Marketing + Alumni and a staff member -> cascade should succeed.
     await admin.mutation(api.admin.removeDivision, { year: YEAR, name: "Engagement" });
     const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
     expect(structure.divisions.map((d) => d.name)).not.toContain("Engagement");
-    // Child departments should also have been removed.
     expect(structure.departments.map((d) => d.name)).not.toContain("Marketing");
     expect(structure.departments.map((d) => d.name)).not.toContain("Alumni");
 
-    // Staff assignment to Marketing should have been stripped.
     const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
     const temp = profiles.find((p) => p.email === "temp@sow.org.au");
     expect(temp?.assignments ?? []).toHaveLength(0);
 
-    // Removing a missing division is a no-op.
     await expect(
       admin.mutation(api.admin.removeDivision, { year: YEAR, name: "Nope" })
     ).resolves.toBeNull();
@@ -454,7 +422,6 @@ describe("removeDivision", () => {
   test("blocks removal when a child department has an open request", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Insert an open request directly into Finance (a Governance child dept).
     await t.run((ctx) =>
       ctx.db.insert("requests", {
         requesterEmail: BELLA,
@@ -467,7 +434,6 @@ describe("removeDivision", () => {
         paid: false,
       })
     );
-    // Governance contains Finance which has that open request — deletion must be refused.
     await expect(
       admin.mutation(api.admin.removeDivision, { year: YEAR, name: "Governance" })
     ).rejects.toThrow(/open requests/);
@@ -476,8 +442,6 @@ describe("removeDivision", () => {
   test("clears the budget manager when a division containing Finance is deleted", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Move Finance to a dedicated division so we can delete it without touching Data and IT
-    // (the admin's department, also in Governance).
     await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "FinanceOnly" });
     await admin.mutation(api.admin.updateDepartment, {
       year: YEAR, oldName: "Finance", newName: "Finance",
@@ -518,7 +482,6 @@ describe("head role assignment supersedes only same-scope links", () => {
     });
     const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
     const pete = profiles.find((p) => p.email === email)!;
-    // Being Staff and Head of the same department collapses to just Head.
     expect(pete.roles).not.toContain("Staff");
     expect(pete.roles).toContain("Head of Department");
     expect(pete.assignments).toEqual([
@@ -530,14 +493,12 @@ describe("head role assignment supersedes only same-scope links", () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     const email = "paul@sow.org.au";
-    // Paul is Staff of Marketing…
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Marketing", division: "Engagement",
     });
     await admin.mutation(api.admin.setStaffProfile, {
       email, year: YEAR, roles: ["Staff"], department: "Marketing",
     });
-    // …then becomes Head of Finance (a different department).
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Finance", division: "Governance", headEmail: email,
     });
@@ -563,7 +524,6 @@ describe("head role assignment supersedes only same-scope links", () => {
     });
     const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
     const sue = profiles.find((p) => p.email === email)!;
-    // Campus role and division headship are different scopes — both are kept.
     expect(sue.roles.sort()).toEqual(["Head of Division", "Student Leader"]);
     expect(sue.assignments).toContainEqual({
       role: "Student Leader",
@@ -580,7 +540,6 @@ describe("updateDivision", () => {
   test("renames a division and cascades to departments and profiles", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Someone whose profile.division points at the division being renamed.
     await admin.mutation(api.admin.upsertDivision, {
       year: YEAR,
       name: "Engagement",
@@ -618,7 +577,7 @@ describe("updateDivision", () => {
       admin.mutation(api.admin.updateDivision, {
         year: YEAR,
         oldName: "Engagement",
-        newName: "Governance", // already exists from the seed
+        newName: "Governance",
       })
     ).rejects.toThrow(/already exists/);
   });
@@ -660,7 +619,6 @@ describe("updateDivision", () => {
     expect(profiles.find((p) => p.email === "new.head@sow.org.au")?.roles).toContain(
       "Head of Division"
     );
-    // The old head no longer heads any division -> role stripped, falls to Staff.
     expect(profiles.find((p) => p.email === "old.head@sow.org.au")?.roles).toEqual([
       "Staff",
     ]);
@@ -691,9 +649,7 @@ describe("updateDepartment", () => {
       roles: ["Staff"],
       department: "Marketing",
     });
-    // A Budget Manager must exist for a request to be submittable.
     await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
-    // A request filed under the old department name.
     await asUser(t, "rachel@sow.org.au").mutation(api.requests.submit, {
       description: "x",
       amount: 50,
@@ -758,7 +714,7 @@ describe("updateDepartment", () => {
       admin.mutation(api.admin.updateDepartment, {
         year: YEAR,
         oldName: "Marketing",
-        newName: "Alumni", // collision
+        newName: "Alumni",
         division: "Engagement",
       })
     ).rejects.toThrow(/already exists/);
@@ -777,7 +733,7 @@ describe("updateDepartment", () => {
     await admin.mutation(api.admin.updateDepartment, {
       year: YEAR,
       oldName: "Marketing",
-      newName: "Marketing", // same name -> the else branch
+      newName: "Marketing",
       division: "Engagement",
       headEmail: "second.head@sow.org.au",
     });
@@ -792,11 +748,9 @@ describe("updateDepartment", () => {
 
 });
 
-
 describe("setBudgetManager (Finance Head path)", () => {
   test("the Finance Head can set the Budget Manager; a stranger cannot", async () => {
     const t = await setup();
-    // Fiona is the Finance Head (heads the Finance department).
     await asUser(t, FIONA).mutation(api.admin.setBudgetManager, {
       year: YEAR,
       email: BELLA,
@@ -806,7 +760,6 @@ describe("setBudgetManager (Finance Head path)", () => {
     }))!;
     expect(structure.budgetManagerEmail).toBe(BELLA);
 
-    // Re-setting updates the existing yearSettings row (patch branch).
     await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
       email: "cara@sow.org.au",
       year: YEAR,
@@ -863,9 +816,7 @@ describe("financeMembers", () => {
     const viaAdmin = await asUser(t, ADMIN).query(api.admin.financeMembers, { year: YEAR });
     expect(viaAdmin?.map((m) => m.email)).toContain(BELLA);
 
-    // Unauthenticated -> null (auth still attaching).
     expect(await t.query(api.admin.financeMembers, { year: YEAR })).toBeNull();
-    // A signed-in non-Finance-Head, non-admin -> null.
     await asUser(t, ADMIN).mutation(api.admin.upsertDepartment, {
       year: YEAR,
       name: "Marketing",
@@ -880,7 +831,6 @@ describe("financeMembers", () => {
     expect(
       await asUser(t, "nick@sow.org.au").query(api.admin.financeMembers, { year: YEAR })
     ).toBeNull();
-    // Signed in but unprovisioned -> null.
     expect(
       await asUser(t, "ghost@sow.org.au").query(api.admin.financeMembers, { year: YEAR })
     ).toBeNull();
@@ -890,8 +840,6 @@ describe("financeMembers", () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     const nextYear = YEAR + 1;
-    // Seed next-year Finance so the picker has someone to return, and give ADMIN
-    // a plain (non-admin) next-year profile — the post-rollover case.
     await t.run(async (ctx) => {
       await ctx.db.insert("departments", {
         year: nextYear,
@@ -910,7 +858,6 @@ describe("financeMembers", () => {
         assignments: [{ role: "Staff", department: "Missions" }],
       });
     });
-    // Previously returned null because admin was judged on the viewed year.
     const members = await admin.query(api.admin.financeMembers, { year: nextYear });
     expect(members?.map((m) => m.email)).toContain(BELLA);
   });
@@ -920,7 +867,6 @@ describe("chaplain university assignment", () => {
   test("a chaplain can be assigned an optional university; Staff cannot", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Chaplain with university — allowed.
     await admin.mutation(api.admin.setStaffProfile, {
       email: "chap@sow.org.au",
       year: YEAR,
@@ -933,7 +879,6 @@ describe("chaplain university assignment", () => {
       profiles.find((p) => p.email === "chap@sow.org.au")?.assignments?.some((a) => a.university === "Macquarie University")
     ).toBe(true);
 
-    // Staff member — university must be cleared even if passed.
     await admin.mutation(api.admin.setStaffProfile, {
       email: "staff@sow.org.au",
       year: YEAR,
@@ -956,7 +901,6 @@ describe("copyYear", () => {
     });
     await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
 
-    // Pre-existing data in the destination year is kept (non-destructive merge).
     await admin.mutation(api.admin.upsertDivision, { year: YEAR + 1, name: "Kept Division" });
 
     const counts = await t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR + 1 });
@@ -967,13 +911,9 @@ describe("copyYear", () => {
 
     const next = (await admin.query(api.directory.yearStructure, { year: YEAR + 1 }))!;
     expect(next.divisions.map((d) => d.name)).toContain("Governance");
-    // The destination's own division survives the merge.
     expect(next.divisions.map((d) => d.name)).toContain("Kept Division");
     expect(next.budgetManagerEmail).toBe(BELLA);
 
-    // Copying again with force (destination yearSettings now exists) hits the
-    // patch branch and must not duplicate any copied division. Without force
-    // the completion guard would refuse a re-copy.
     const recounts = await t.mutation(internal.admin.copyYear, {
       from: YEAR,
       to: YEAR + 1,
@@ -994,7 +934,6 @@ describe("copyYear", () => {
       t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR })
     ).rejects.toThrow(/must differ/);
 
-    // Without force, a second copy of the same (from, to) is refused.
     await expect(
       t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR + 1 })
     ).rejects.toThrow(/already copied/);
@@ -1003,19 +942,15 @@ describe("copyYear", () => {
   test("merges the role catalog, keeping the destination's own roles and not duplicating overlaps", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Source year roles.
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Outsource" });
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Volunteer" });
-    // Destination has an overlapping role (Volunteer) and its own (Kept).
     await admin.mutation(api.admin.upsertRole, { year: YEAR + 1, name: "Volunteer" });
     await admin.mutation(api.admin.upsertRole, { year: YEAR + 1, name: "Kept" });
 
     await t.mutation(internal.admin.copyYear, { from: YEAR, to: YEAR + 1 });
 
     const next = (await admin.query(api.directory.yearStructure, { year: YEAR + 1 }))!;
-    // Source roles added, destination's own role kept (non-destructive).
     expect(next.roles.slice().sort()).toEqual(["Kept", "Outsource", "Volunteer"]);
-    // Volunteer exists exactly once (no duplicate from the overlap).
     const volunteerRows = await t.run((ctx) =>
       ctx.db
         .query("roles")
@@ -1030,7 +965,6 @@ describe("copyYear", () => {
   test("matches an existing person by importId across a changed email and updates in place", async () => {
     const t = await setup();
     await t.run(async (ctx) => {
-      // Source profile carries a durable importId.
       await ctx.db.insert("staffProfiles", {
         email: "old.name@sow.org.au",
         year: YEAR,
@@ -1038,8 +972,6 @@ describe("copyYear", () => {
         importId: "person-123",
         name: "Person",
       });
-      // The same person already exists in the destination year under a renamed
-      // email — the copy must match by importId and update in place.
       await ctx.db.insert("staffProfiles", {
         email: "new.name@sow.org.au",
         year: YEAR + 1,
@@ -1057,7 +989,6 @@ describe("copyYear", () => {
         .withIndex("by_importId", (q) => q.eq("importId", "person-123"))
         .collect()
     ).then((rows) => rows.filter((r) => r.year === YEAR + 1));
-    // Matched by importId — updated in place, not duplicated, email preserved.
     expect(destRows).toHaveLength(1);
     expect(destRows[0].email).toBe("new.name@sow.org.au");
     expect(destRows[0].assignments).toEqual([{ role: "Staff", department: "Finance" }]);
@@ -1066,7 +997,6 @@ describe("copyYear", () => {
   test("leaves the destination budget manager untouched when the source has none", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Destination has a budget manager; source year has none.
     await t.run((ctx) =>
       ctx.db.insert("yearSettings", { year: YEAR + 1, budgetManagerEmail: BELLA })
     );
@@ -1092,7 +1022,7 @@ describe("prefillNextStaffYear", () => {
 
   test("before the flip copies incoming → incoming+1, not current → next", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-09-30T11:00:00Z")); // 21:00 Sydney 30 Sep
+    vi.setSystemTime(new Date("2026-09-30T11:00:00Z"));
     const t = await setup();
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.upsertDivision, { year: 2027, name: "Governance" });
@@ -1121,12 +1051,6 @@ describe("prefillNextStaffYear", () => {
     atFlip();
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // The destination already holds a university and a role the SOURCE also
-    // has, so both copies skip their insert. The summary email is the only
-    // receipt anyone gets that the rollover ran — reporting 0 here would read
-    // as "the campus list did not carry over" when in fact it was already
-    // there. Counts therefore track source rows processed, matching what
-    // divisions/departments/profiles have always reported.
     const [sourceUni] = (await admin.query(api.directory.yearStructure, { year: FROM }))!
       .universities;
     await admin.mutation(api.admin.upsertUniversity, { year: TO, name: sourceUni });
@@ -1136,9 +1060,6 @@ describe("prefillNextStaffYear", () => {
     const source = (await admin.query(api.directory.yearStructure, { year: FROM }))!;
     const counts = await t.mutation(internal.admin.prefillNextStaffYear, {});
     expect(counts.skipped).toBe(false);
-    // Exact, not `> 0`: the overlapping rows are the whole point, and a
-    // count of "everything except the ones already there" would still be
-    // greater than zero while under-reporting the copy.
     expect(counts.universities).toBe(source.universities.length);
     expect(counts.roles).toBe(source.roles.length);
   });
@@ -1147,8 +1068,6 @@ describe("prefillNextStaffYear", () => {
     atFlip();
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Assign Director before upserting a custom role — once a roles catalog
-    // exists for the year, only catalogued names are assignable.
     await admin.mutation(api.admin.setStaffProfile, {
       email: "director@sow.org.au",
       year: FROM,
@@ -1156,8 +1075,6 @@ describe("prefillNextStaffYear", () => {
     });
     await admin.mutation(api.admin.upsertRole, { year: FROM, name: "Outsource" });
     await admin.mutation(api.admin.setBudgetManager, { year: FROM, email: BELLA });
-    // Data already in the next year is kept (non-destructive merge) — a
-    // division, a role and a university the source lacks must survive the copy.
     await admin.mutation(api.admin.upsertDivision, { year: TO, name: "Kept Division" });
     await admin.mutation(api.admin.upsertRole, { year: TO, name: "Kept Role" });
     await admin.mutation(api.admin.upsertUniversity, { year: TO, name: "Kept University" });
@@ -1176,7 +1093,6 @@ describe("prefillNextStaffYear", () => {
     expect(next.universities).toContain("Kept University");
     expect(next.budgetManagerEmail).toBe(BELLA);
 
-    // Rollover caches the copied Director on the destination yearSettings.
     const nextSettings = await t.run(async (ctx) =>
       ctx.db
         .query("yearSettings")
@@ -1185,14 +1101,10 @@ describe("prefillNextStaffYear", () => {
     );
     expect(nextSettings?.directorEmail).toBe("director@sow.org.au");
 
-    // A summary email is scheduled, plus a full Insights rebuild so the
-    // tab isn't blank until Thursday after the year flip.
     const scheduled = await t.run((ctx) =>
       ctx.db.system.query("_scheduled_functions").collect()
     );
     const emails = scheduled.filter((s) => s.name === "emails:send");
-    // One send per recipient — both Info and IT get the summary, and a bad
-    // address on one cannot suppress the other.
     expect(
       emails.map((e) => (e.args[0] as { to: string }).to).sort()
     ).toEqual(["info@sow.org.au", "it@sow.org.au"]);
@@ -1203,16 +1115,12 @@ describe("prefillNextStaffYear", () => {
     );
     const emailBody = (email!.args[0] as { body: string }).body;
     expect(emailBody).toContain("Deployment:");
-    // The summary is the only receipt anyone gets that the rollover ran, so it
-    // reports every table copied — universities included, because they drive
-    // the Campus field's locked options (see docs/adr/0002).
     expect(emailBody).toContain("Universities: 5");
     expect(emailBody).toContain("Roles:        1");
     expect(
       scheduled.some((s) => s.name === "attendanceMetrics:recomputeAll")
     ).toBe(true);
 
-    // A second run no-ops (idempotent) — does not re-email or overwrite.
     const emailsBefore = scheduled.filter((s) => s.name === "emails:send").length;
     const again = await t.mutation(internal.admin.prefillNextStaffYear, {});
     expect(again.skipped).toBe(true);
@@ -1252,8 +1160,6 @@ describe("prefillNextStaffYear", () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.setBudgetManager, { year: FROM, email: BELLA });
-    // Transient duplicates in the destination year (mid-import / mid-re-copy)
-    // used to make copyYearData's .unique() throw and abort the whole rollover.
     await t.run(async (ctx) => {
       for (let i = 0; i < 2; i++) {
         await ctx.db.insert("divisions", {
@@ -1270,8 +1176,6 @@ describe("prefillNextStaffYear", () => {
           year: TO,
           assignments: [{ role: "Staff", department: "Finance" }],
         });
-        // Duplicate yearSettings used to abort alreadyCopiedFrom / completion
-        // via getYearSettings().unique() — must survive with .first().
         await ctx.db.insert("yearSettings", {
           year: TO,
           budgetManagerEmail: BELLA,
@@ -1295,13 +1199,11 @@ describe("listStaffProfiles directory name fallback", () => {
         email: "provisioned@sow.org.au",
         year: YEAR,
         assignments: [{ role: "Staff", department: "Finance" }],
-        // name intentionally absent — provisioned before first sign-in
       });
       await ctx.db.insert("directoryUsers", {
         email: "provisioned@sow.org.au",
         name: "Provisioned Person",
       });
-      // A directory entry without a name exercises the u.name ?? null branch.
       await ctx.db.insert("directoryUsers", {
         email: "noname@sow.org.au",
       });
@@ -1321,7 +1223,6 @@ describe("listUnassignedUsers directory name fallback", () => {
         email: "noname@sow.org.au",
         name: "Directory Name",
       });
-      // A directory entry without a name exercises the u.name ?? null branch.
       await ctx.db.insert("directoryUsers", {
         email: "other@sow.org.au",
       });
@@ -1359,20 +1260,12 @@ describe("people org-only filtering", () => {
 
   test("survives a stray duplicate (email, year) profile instead of throwing", async () => {
     const t = await setup();
-    // A second row for the same person-year — as can transiently exist mid-import
-    // or mid-rollover. getProfile/getDepartment now use .first() (not .unique()),
-    // so neither the finance gate (which looks up the caller's own profile) nor
-    // the per-user lookups throw a bare "Server Error" that blanks the screen.
     await t.run(async (ctx) => {
-      // Duplicate the ADMIN's own profile — this is the reported admin:people
-      // path, where requireFinanceSettingsAccess looks up the caller.
       await ctx.db.insert("staffProfiles", {
         email: ADMIN,
         year: YEAR,
         assignments: [{ role: "Staff", department: "Data and IT" }],
       });
-      // Duplicate a non-admin user too — exercises the per-user getProfile in
-      // listUnassignedUsers.
       await ctx.db.insert("users", { email: "dupe@sow.org.au", name: "Dupe" });
       for (let i = 0; i < 2; i++) {
         await ctx.db.insert("staffProfiles", {
@@ -1383,12 +1276,9 @@ describe("people org-only filtering", () => {
       }
     });
     const admin = asUser(t, ADMIN);
-    // Awaiting these is the assertion: with .unique() they rejected with a bare
-    // "Server Error"; with .first() they resolve.
     const people = (await admin.query(api.admin.people, { year: YEAR }))!;
     const unassigned = await admin.query(api.admin.listUnassignedUsers, { year: YEAR });
     expect(people.some((p) => p.email === "dupe@sow.org.au")).toBe(true);
-    // A duplicated person holds a profile, so they are not "unassigned".
     expect((unassigned ?? []).some((u) => u.email === "dupe@sow.org.au")).toBe(false);
   });
 
@@ -1396,10 +1286,6 @@ describe("people org-only filtering", () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     const nextYear = YEAR + 1;
-    // ADMIN is an admin for the CURRENT year (seed), but their next-year profile
-    // is a plain, non-admin one — the real case after a rollover that didn't carry
-    // their division headship / Data-and-IT membership forward. Admin access must
-    // be judged on the current year (like requireAdmin), not the year being viewed.
     await t.run(async (ctx) => {
       await ctx.db.insert("staffProfiles", {
         email: ADMIN,
@@ -1407,7 +1293,6 @@ describe("people org-only filtering", () => {
         assignments: [{ role: "Staff", department: "Missions" }],
       });
     });
-    // Previously threw "Only admins or the Finance Head can view people".
     const people = await admin.query(api.admin.people, { year: nextYear });
     expect(Array.isArray(people)).toBe(true);
   });
@@ -1417,7 +1302,6 @@ describe("seed preserves existing heads", () => {
   test("re-seeding keeps department and division heads where names match", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Give Governance (division) and Finance (department) heads, then re-seed.
     await admin.mutation(api.admin.upsertDivision, {
       year: YEAR,
       name: "Governance",
@@ -1425,7 +1309,6 @@ describe("seed preserves existing heads", () => {
     });
     await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
     const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
-    // Finance's head (set in setup) survives the re-seed by name match.
     expect(structure.departments.find((d) => d.name === "Finance")?.headEmail).toBe(FIONA);
     expect(structure.divisions.find((d) => d.name === "Governance")?.headEmail).toBe(
       "gov.head@sow.org.au"
@@ -1441,7 +1324,6 @@ describe("roles", () => {
       year: YEAR,
       name: "Volunteer",
     });
-    // Idempotent: a second upsert returns the same id.
     const second = await admin.mutation(api.admin.upsertRole, {
       year: YEAR,
       name: "Volunteer",
@@ -1458,7 +1340,6 @@ describe("roles", () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Outsource" });
-    // A profile holding the custom role (Director needs no scope).
     await admin.mutation(api.admin.setStaffProfile, {
       email: "out@sow.org.au",
       year: YEAR,
@@ -1481,7 +1362,6 @@ describe("roles", () => {
       department: "Finance",
     });
 
-    // Unknown old name is rejected.
     await expect(
       admin.mutation(api.admin.updateRole, {
         year: YEAR,
@@ -1494,9 +1374,6 @@ describe("roles", () => {
   test("removeRole blocks while in use and succeeds once freed", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Seeding a catalog makes role validation data-driven, so the roles used
-    // below (Outsource for the initial assignment, Staff for the reassignment)
-    // must both be present in the year's catalog.
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Outsource" });
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Staff" });
     await admin.mutation(api.admin.setStaffProfile, {
@@ -1505,12 +1382,10 @@ describe("roles", () => {
       assignments: [{ role: "Outsource", department: "Finance" }],
     });
 
-    // Blocked: someone still holds the role.
     await expect(
       admin.mutation(api.admin.removeRole, { year: YEAR, name: "Outsource" })
     ).rejects.toThrow(/still assigned/);
 
-    // Reassign them off the role, then deletion succeeds.
     await admin.mutation(api.admin.setStaffProfile, {
       email: "out@sow.org.au",
       year: YEAR,
@@ -1520,7 +1395,6 @@ describe("roles", () => {
     const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
     expect(structure.roles).not.toContain("Outsource");
 
-    // Removing a missing role returns null, not an error.
     await expect(
       admin.mutation(api.admin.removeRole, { year: YEAR, name: "Outsource" })
     ).resolves.toBeNull();
@@ -1578,13 +1452,11 @@ describe("setStaffProfile with assignments path", () => {
   test("assignments path preserves existing head links", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Fiona is already HOD of Finance (set up in setup()).
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR,
       name: "Marketing",
       division: "Engagement",
     });
-    // Add a Staff-of-Marketing assignment via the new path.
     await admin.mutation(api.admin.setStaffProfile, {
       email: FIONA,
       year: YEAR,
@@ -1605,8 +1477,6 @@ describe("setStaffProfile with assignments path", () => {
       name: "Marketing",
       division: "Engagement",
     });
-    // The new UI round-trips Fiona's existing HOD assignment alongside the
-    // added Staff link — adding a role must not be rejected as "via Structure".
     await admin.mutation(api.admin.setStaffProfile, {
       email: FIONA,
       year: YEAR,
@@ -1736,7 +1606,6 @@ describe("setStaffProfile with assignments path", () => {
       division: "Governance",
     });
     await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
-    // Reassign BELLA away from Finance via assignments path.
     await admin.mutation(api.admin.setStaffProfile, {
       email: BELLA,
       year: YEAR,
@@ -1754,7 +1623,6 @@ describe("reserved system roles", () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
 
-    // Director is reserved — renaming or deleting it is blocked.
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Director" });
     await expect(
       admin.mutation(api.admin.updateRole, {
@@ -1766,7 +1634,6 @@ describe("reserved system roles", () => {
     await expect(
       admin.mutation(api.admin.removeRole, { year: YEAR, name: "Director" })
     ).rejects.toThrow(/managed by the app and can't be deleted/);
-    // Renaming a custom role TO a reserved name is also blocked.
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Helper" });
     await expect(
       admin.mutation(api.admin.updateRole, {
@@ -1776,7 +1643,6 @@ describe("reserved system roles", () => {
       })
     ).rejects.toThrow(/managed by the app and can't be renamed/);
 
-    // A non-reserved custom role can still be renamed and removed.
     await admin.mutation(api.admin.updateRole, {
       year: YEAR,
       oldName: "Helper",
@@ -1792,11 +1658,9 @@ describe("setStaffProfile catalog validation", () => {
   test("a custom catalog role assigns; an off-catalog role is rejected; both paths", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Seed a year catalog that includes a CUSTOM role plus the standard ones we use.
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Outsource" });
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "Staff" });
 
-    // Legacy path: the custom catalog role assigns successfully…
     await admin.mutation(api.admin.setStaffProfile, {
       email: "out1@sow.org.au",
       year: YEAR,
@@ -1806,7 +1670,6 @@ describe("setStaffProfile catalog validation", () => {
     const profilesA = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
     expect(profilesA.find((p) => p.email === "out1@sow.org.au")?.roles).toContain("Outsource");
 
-    // …and a role NOT in the catalog is rejected (Director isn't in this catalog).
     await expect(
       admin.mutation(api.admin.setStaffProfile, {
         email: "off1@sow.org.au",
@@ -1815,7 +1678,6 @@ describe("setStaffProfile catalog validation", () => {
       })
     ).rejects.toThrow(/roles available for/);
 
-    // Per-assignment path: the custom catalog role assigns…
     await admin.mutation(api.admin.setStaffProfile, {
       email: "out2@sow.org.au",
       year: YEAR,
@@ -1824,7 +1686,6 @@ describe("setStaffProfile catalog validation", () => {
     const profilesB = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
     expect(profilesB.find((p) => p.email === "out2@sow.org.au")?.roles).toContain("Outsource");
 
-    // …and an off-catalog role is rejected on the per-assignment path too.
     await expect(
       admin.mutation(api.admin.setStaffProfile, {
         email: "off2@sow.org.au",
@@ -1837,15 +1698,12 @@ describe("setStaffProfile catalog validation", () => {
   test("falls back to the built-in ROLES when the year has no catalog", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // No roles seeded for YEAR -> validation falls back to the hardcoded ROLES.
-    // Legacy path: a standard role succeeds.
     await admin.mutation(api.admin.setStaffProfile, {
       email: "fallback1@sow.org.au",
       year: YEAR,
       roles: ["Staff"],
       department: "Finance",
     });
-    // Per-assignment path: a standard role succeeds.
     await admin.mutation(api.admin.setStaffProfile, {
       email: "fallback2@sow.org.au",
       year: YEAR,
@@ -1861,7 +1719,6 @@ describe("role mutations fail fast on the 1000-profile cap", () => {
   test("updateRole and removeRole throw when a year has 1000 profiles", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // A custom role for the managed year, plus exactly 1000 profiles holding it.
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "X" });
     await t.run(async (ctx) => {
       for (let i = 0; i < 1000; i++) {
@@ -1883,13 +1740,11 @@ describe("role mutations fail fast on the 1000-profile cap", () => {
 });
 
 describe("not-serving (leavers) list", () => {
-  const NEWBIE = "newbie@sow.org.au"; // signed in, no profile
+  const NEWBIE = "newbie@sow.org.au";
 
   test("deleting a profile moves the person to the not-serving list", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // A directory entry lets her name resolve once she's a leaver (she never
-    // signed in, so there's no users row).
     await t.run((ctx) =>
       ctx.db.insert("directoryUsers", { email: BELLA, name: "Bella B" })
     );
@@ -1902,18 +1757,15 @@ describe("not-serving (leavers) list", () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     await t.run((ctx) => ctx.db.insert("users", { email: NEWBIE, name: "New Bie" }));
-    // Starts in the unassigned pool.
     let unassigned = (await admin.query(api.admin.listUnassignedUsers, { year: YEAR }))!;
     expect(unassigned.map((u) => u.email)).toContain(NEWBIE);
 
-    // Marked not-serving → out of unassigned, into the leavers list (name resolved).
     await admin.mutation(api.admin.markLeaving, { email: NEWBIE, year: YEAR });
     unassigned = (await admin.query(api.admin.listUnassignedUsers, { year: YEAR }))!;
     expect(unassigned.map((u) => u.email)).not.toContain(NEWBIE);
     const leavers = (await admin.query(api.admin.listLeavers, { year: YEAR }))!;
     expect(leavers.find((l) => l.email === NEWBIE)?.name).toBe("New Bie");
 
-    // Moved back → returns to unassigned, gone from leavers.
     await admin.mutation(api.admin.unmarkLeaving, { email: NEWBIE, year: YEAR });
     unassigned = (await admin.query(api.admin.listUnassignedUsers, { year: YEAR }))!;
     expect(unassigned.map((u) => u.email)).toContain(NEWBIE);
@@ -1923,7 +1775,6 @@ describe("not-serving (leavers) list", () => {
   test("assigning a profile clears the not-serving mark (both code paths)", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Legacy roles path.
     await admin.mutation(api.admin.markLeaving, { email: "leg@sow.org.au", year: YEAR });
     await admin.mutation(api.admin.setStaffProfile, {
       email: "leg@sow.org.au",
@@ -1931,7 +1782,6 @@ describe("not-serving (leavers) list", () => {
       roles: ["Staff"],
       department: "Finance",
     });
-    // Per-assignment path.
     await admin.mutation(api.admin.markLeaving, { email: "asg@sow.org.au", year: YEAR });
     await admin.mutation(api.admin.setStaffProfile, {
       email: "asg@sow.org.au",
@@ -1944,7 +1794,6 @@ describe("not-serving (leavers) list", () => {
   test("a leaver row for someone who holds a profile is hidden", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Bella still has a profile; a stray leaver row for her must not surface.
     await t.run((ctx) => ctx.db.insert("leavers", { year: YEAR, email: BELLA }));
     const leavers = (await admin.query(api.admin.listLeavers, { year: YEAR }))!;
     expect(leavers.map((l) => l.email)).not.toContain(BELLA);
@@ -1989,16 +1838,12 @@ describe("fillTagScopesWithAllGroups", () => {
       empty: await ctx.db.get(emptyId),
       scoped: await ctx.db.get(scopedId),
     }));
-    // Both unscoped tags get the same full group list for the year (SOW + every
-    // university), and it must include the one we added.
     expect(after.unscoped!.subgroups).toEqual(expect.arrayContaining(["SOW", "UTS"]));
     expect([...after.empty!.subgroups!].sort()).toEqual(
       [...after.unscoped!.subgroups!].sort()
     );
-    // An already-scoped tag is left untouched.
     expect(after.scoped!.subgroups).toEqual(["UTS"]);
 
-    // Re-running fills nothing more.
     const second = await t.mutation(internal.admin.fillTagScopesWithAllGroups, {});
     expect(second.filled).toBe(0);
   });
@@ -2009,24 +1854,20 @@ describe("nameStaffProfilesFromEmail", () => {
     const t = await setup();
 
     const ids = await t.run(async (ctx) => ({
-      // name missing -> derive
       blank: await ctx.db.insert("staffProfiles", {
         email: "jane.doe@sow.org.au",
         year: YEAR,
       }),
-      // name is the email -> derive
       emailName: await ctx.db.insert("staffProfiles", {
         email: "john.smith@sow.org.au",
         year: YEAR,
         name: "john.smith@sow.org.au",
       }),
-      // real name -> keep
       realName: await ctx.db.insert("staffProfiles", {
         email: "mq.leader@sow.org.au",
         year: YEAR,
         name: "Mary Quant",
       }),
-      // non-name-shaped email -> can't derive, leave as-is
       legacy: await ctx.db.insert("staffProfiles", {
         email: "u12345@legacy.invalid",
         year: YEAR,
@@ -2047,7 +1888,6 @@ describe("nameStaffProfilesFromEmail", () => {
     expect(after.realName!.name).toBe("Mary Quant");
     expect(after.legacy!.name).toBeUndefined();
 
-    // Re-running changes nothing.
     const second = await t.mutation(internal.admin.nameStaffProfilesFromEmail, {});
     expect(second.updated).toBe(0);
   });

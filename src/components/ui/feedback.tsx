@@ -1,7 +1,3 @@
-// Part of the ui design-system, split out of the former monolithic ui.tsx.
-// All symbols are re-exported from ./index so call sites still import from
-// "@/components/ui".
-
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
 import { Animated, Image, Text, View } from "react-native";
@@ -9,10 +5,6 @@ import { USE_NATIVE_DRIVER, typography, useAppTheme } from "@/theme";
 import { FadeInView, SowSpinner } from "./primitives";
 import { styles } from "./styles";
 
-/**
- * A short-lived confirmation bubble. Pass a fresh object each time
- * (`setToast({ text: "Saved" })`) so repeating the same message re-shows it.
- */
 export type ToastState = { text: string } | null;
 
 export const Toast = ({ toast }: { toast: ToastState }) => {
@@ -22,8 +14,6 @@ export const Toast = ({ toast }: { toast: ToastState }) => {
   const [shown, setShown] = useState<ToastState>(null);
   useEffect(() => {
     if (!toast) return;
-    // Capture the toast into state so it stays rendered through the fade-out
-    // after the prop clears; the run-once animation makes this stateful.
     // eslint-disable-next-line react-hooks/set-state-in-effect -- drives the show animation
     setShown(toast);
     opacity.setValue(0);
@@ -66,7 +56,6 @@ export const ErrorBanner = ({ message }: { message: string | null }) => {
   ) : null;
 };
 
-/** An amber advisory banner — for non-error notices the user should heed. */
 export const WarningBanner = ({ message }: { message: string | null }) => {
   const t = useAppTheme();
   return message ? (
@@ -77,7 +66,6 @@ export const WarningBanner = ({ message }: { message: string | null }) => {
   ) : null;
 };
 
-/** Friendly centred state for empty lists and loading screens. */
 export const EmptyState = ({
   icon,
   title,
@@ -107,14 +95,12 @@ export const EmptyState = ({
   );
 };
 
-/** Centred loading indicator for screens waiting on their first query. */
 export const LoadingState = () => (
   <View style={styles.loading}>
     <SowSpinner />
   </View>
 );
 
-/** Round profile photo with an initials fallback. */
 export const Avatar = ({
   photo,
   name,

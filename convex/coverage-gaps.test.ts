@@ -9,11 +9,11 @@ const modules = import.meta.glob("./**/*.ts");
 const YEAR = staffYearForDate(new Date());
 
 const ADMIN = "admin@sow.org.au";
-const RACHEL = "rachel@sow.org.au"; // Marketing staff
-const HENRY = "henry@sow.org.au"; // Marketing HOD
-const BELLA = "bella@sow.org.au"; // Finance staff, Budget Manager
-const FIONA = "fiona@sow.org.au"; // Finance head
-const DAN = "dan@sow.org.au"; // Director
+const RACHEL = "rachel@sow.org.au";
+const HENRY = "henry@sow.org.au";
+const BELLA = "bella@sow.org.au";
+const FIONA = "fiona@sow.org.au";
+const DAN = "dan@sow.org.au";
 
 const asUser = (t: TestConvex<typeof schema>, email: string) =>
   t.withIdentity({ email, subject: email, issuer: "test" });
@@ -25,7 +25,6 @@ const storedReceipt = async (t: TestConvex<typeof schema>) => ({
   name: "receipt.pdf",
 });
 
-/** Jumps the clock 8 days forward so open requests read as stale (>7 days). */
 const stale = () => {
   vi.useFakeTimers({ now: Date.now(), toFake: ["Date"] });
   vi.setSystemTime(Date.now() + 8 * 24 * 60 * 60 * 1000);
@@ -65,7 +64,6 @@ async function setup() {
 describe("submit deadlock guard: missing Finance Head", () => {
   test("is rejected when the Finance department has no head", async () => {
     const t = await setup();
-    // Vacate the Finance head — the financeHead step now has nobody.
     await asUser(t, ADMIN).mutation(api.admin.upsertDepartment, {
       year: YEAR,
       name: "Finance",
@@ -80,9 +78,6 @@ describe("submit deadlock guard: missing Finance Head", () => {
 describe("authorizeStep: reviewing your own request", () => {
   test("the requester cannot approve their own pending step", async () => {
     const t = await setup();
-    // Henry (Marketing HOD) submits for Marketing: his HOD step auto-approves,
-    // so budgetManager is pending. He is not the BM, but to hit the
-    // own-request guard we have the requester themselves attempt a step.
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
     const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
     await expect(
@@ -112,9 +107,6 @@ describe("toReview: finance head bucket", () => {
 describe("decline: the decliner is skipped in the chain notification", () => {
   test("an approver who also holds a later step doesn't notify themselves", async () => {
     const t = await setup();
-    // Henry heads BOTH Marketing and Finance, so he is the HOD *and* the
-    // Finance Head for a Marketing request. He approves HOD, then declines at
-    // the Finance Head step — the chain notification must skip him.
     await asUser(t, ADMIN).mutation(api.admin.upsertDepartment, {
       year: YEAR,
       name: "Finance",
@@ -128,8 +120,6 @@ describe("decline: the decliner is skipped in the chain notification", () => {
       requestId: request._id,
       step: "budgetManager",
     });
-    // Henry (now also Finance Head) declines — he is in the approved list (HOD)
-    // and is the caller, so the loop's `continue` branch fires.
     await asUser(t, HENRY).mutation(api.requests.decline, {
       requestId: request._id,
       step: "financeHead",
@@ -146,8 +136,6 @@ describe("stepActors: most-recent event wins when a step has several", () => {
     await asUser(t, RACHEL).mutation(api.requests.submit, { description: "x", amount: 100 });
     const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
     await asUser(t, HENRY).mutation(api.requests.approve, { requestId: request._id, step: "hod" });
-    // Inject a second approved event for the same step to force the sort
-    // comparator to run over more than one element.
     await t.run((ctx) =>
       ctx.db.insert("requestEvents", {
         requestId: request._id,
@@ -165,9 +153,6 @@ describe("stepActors: most-recent event wins when a step has several", () => {
 
 describe("receiptAttachments: current-year Finance Head on a carried-over request", () => {
   test("this year's Finance Head can view a previous year's receipt", async () => {
-    // Seed the carry-over request at YEAR-1 time on a fresh instance BEFORE
-    // setup() advances _lastCreationTime to real time. The receipt storage ID
-    // is patched in afterwards.
     vi.setSystemTime(staffYearStartMs(YEAR - 1) + 1);
     const t = convexTest(schema, modules);
     const requestId = await t.run((ctx) =>
@@ -183,7 +168,6 @@ describe("receiptAttachments: current-year Finance Head on a carried-over reques
       })
     );
     vi.useRealTimers();
-    // Now run setup (advances _lastCreationTime to real time) and store receipt.
     await runSetup(t);
     const storage = await storedReceipt(t);
     await t.run((ctx) =>
@@ -196,8 +180,6 @@ describe("receiptAttachments: current-year Finance Head on a carried-over reques
         },
       })
     );
-    // Fiona is THIS year's Finance Head, not last year's — the currentFinance
-    // branch authorises her.
     const files = await asUser(t, FIONA).query(api.requests.receiptAttachments, {
       requestId,
     });
@@ -267,7 +249,6 @@ describe("reminders: receipt and payment stages", () => {
   });
 
   test("a carried-over request reminds the current year's officeholder", async () => {
-    // Seed at YEAR-1 time on a fresh instance so _creationTime lands in YEAR-1.
     vi.setSystemTime(staffYearStartMs(YEAR - 1) + 1);
     const t = convexTest(schema, modules);
     await t.run((ctx) =>
@@ -302,8 +283,6 @@ describe("reminders: receipt and payment stages", () => {
 describe("userLink: re-keying a division head and budget manager on rename", () => {
   test("a renamed account carries its division headship and budget-manager role", async () => {
     const t = await setup();
-    // Make Henry head the Engagement division and be the budget manager, then
-    // rename his account — both references must follow the new email.
     await asUser(t, ADMIN).mutation(api.admin.upsertDivision, {
       year: YEAR,
       name: "Engagement",
@@ -336,8 +315,6 @@ describe("userLink: re-keying a division head and budget manager on rename", () 
 describe("userLink: re-keying approver delegations on rename", () => {
   test("a renamed account carries its delegations on both the from and to sides", async () => {
     const t = await setup();
-    // Henry is covered FOR Fiona (he's her delegate) and also delegates his own
-    // authority TO Bella — so his email appears on both ends.
     await asUser(t, ADMIN).mutation(api.admin.addDelegation, {
       year: YEAR,
       fromEmail: FIONA,
@@ -361,15 +338,12 @@ describe("userLink: re-keying approver delegations on rename", () => {
     expect(
       list.some((d) => d.fromEmail === "henry.new@sow.org.au" && d.toEmail === BELLA)
     ).toBe(true);
-    // No stale references to the old address survive.
     expect(list.some((d) => d.fromEmail === HENRY || d.toEmail === HENRY)).toBe(false);
   });
 
   test("a rename that would duplicate an existing delegation drops the old row", async () => {
     const t = await setup();
     const NEW = "henry.new@sow.org.au";
-    // A delegation already exists under Henry's FUTURE address (NEW → Bella),
-    // plus an unrelated one (Fiona → Bella) that the rename must leave untouched.
     await t.run((ctx) =>
       ctx.db.insert("approverDelegations", { year: YEAR, fromEmail: NEW, toEmail: BELLA })
     );
@@ -378,7 +352,6 @@ describe("userLink: re-keying approver delegations on rename", () => {
       fromEmail: FIONA,
       toEmail: BELLA,
     });
-    // Henry (old address) also delegates to Bella — after the rename this collides.
     await asUser(t, ADMIN).mutation(api.admin.addDelegation, {
       year: YEAR,
       fromEmail: HENRY,
@@ -390,8 +363,6 @@ describe("userLink: re-keying approver delegations on rename", () => {
     await t.run((ctx) => ctx.db.patch("users", userId, { email: NEW }));
     await t.mutation(internal.userLink.link, { userId });
 
-    // Exactly one NEW → Bella row survives (the colliding old row was dropped),
-    // the unrelated Fiona → Bella row is intact, and no stale HENRY row remains.
     const list = (await asUser(t, ADMIN).query(api.admin.listDelegations, { year: YEAR }))!;
     expect(list.filter((d) => d.fromEmail === NEW && d.toEmail === BELLA)).toHaveLength(1);
     expect(list.some((d) => d.fromEmail === FIONA && d.toEmail === BELLA)).toBe(true);
@@ -402,7 +373,6 @@ describe("userLink: re-keying approver delegations on rename", () => {
 describe("model.requireEmail", () => {
   test("generateReceiptUploadUrl surfaces the signed-in requirement when unauthenticated", async () => {
     const t = await setup();
-    // requireProfile -> requireEmail throws when there is no identity at all.
     await expect(
       t.mutation(api.requests.generateReceiptUploadUrl, {})
     ).rejects.toThrow(/signed in/);
@@ -431,9 +401,6 @@ describe("model.isAdminProfile via a Human Resources division headship", () => {
   test("heading the HR division grants admin even without an HR department", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    // Han heads Engagement first (so profile.division stays "Engagement"),
-    // then also heads Human Resources. Admin must be granted via the
-    // divisions-headed lookup, not the profile.division field.
     await admin.mutation(api.admin.upsertDivision, {
       year: YEAR,
       name: "Engagement",
@@ -444,7 +411,6 @@ describe("model.isAdminProfile via a Human Resources division headship", () => {
       name: "Human Resources",
       headEmail: "han@sow.org.au",
     });
-    // As an admin, Han can now provision someone else.
     await asUser(t, "han@sow.org.au").mutation(api.admin.setStaffProfile, {
       email: "newbie@sow.org.au",
       year: YEAR,
@@ -483,7 +449,6 @@ describe("reminders: director and finance-head stages", () => {
       requestId: request._id,
       step: "budgetManager",
     });
-    // Now pending on the financeHead step.
     stale();
     await t.mutation(internal.reminders.remindStale, {});
     const updated = await t.run((ctx) => ctx.db.get("requests", request._id));
@@ -491,16 +456,13 @@ describe("reminders: director and finance-head stages", () => {
   });
 
   test("a carried-over unpaid receipt reminds this year's Finance Head when last year's is gone", async () => {
-    // Seed at YEAR-1 time on a fresh instance so _creationTime lands in YEAR-1.
     vi.setSystemTime(staffYearStartMs(YEAR - 1) + 1);
     const t = convexTest(schema, modules);
-    // Last year had a different Finance Head who no longer holds the role.
     await t.run((ctx) =>
       ctx.db.insert("departments", {
         year: YEAR - 1,
         name: "Finance",
         division: "Governance",
-        // No headEmail -> last year's finance head is gone.
       })
     );
     const requestId = await t.run((ctx) =>
@@ -547,7 +509,6 @@ describe("push.removeToken: missing token is tolerated", () => {
     await expect(
       t.mutation(internal.push.removeToken, { token: "ExponentPushToken[never]" })
     ).resolves.toBeNull();
-    // And it deletes a registered one.
     await asUser(t, RACHEL).mutation(api.push.register, { token: "ExponentPushToken[real]" });
     await t.mutation(internal.push.removeToken, { token: "ExponentPushToken[real]" });
     expect(await t.run((ctx) => ctx.db.query("pushTokens").take(10))).toHaveLength(0);

@@ -39,15 +39,11 @@ import {
   VALUES,
 } from "./content";
 
-// External links / tel: / mailto: can reject when no handler exists (or the
-// scheme is blocked). Catch it so it doesn't become an unhandled rejection and
-// give the user a hint instead of silently doing nothing.
 const open = (url: string) =>
   void Linking.openURL(url).catch(() =>
     Alert.alert("Couldn't open this", "Please try again or use a different device.")
   );
 
-/** A tappable external-link row: name on the left, open-out glyph on the right. */
 const LinkRow = ({ name, url, sub }: { name: string; url: string; sub?: string }) => {
   const t = useAppTheme();
   return (
@@ -71,8 +67,6 @@ const LinkRow = ({ name, url, sub }: { name: string; url: string; sub?: string }
     </Pressable>
   );
 };
-
-/* ─────────────────────────────── Home ─────────────────────────────── */
 
 export const HomeMissionTab = () => {
   const t = useAppTheme();
@@ -177,8 +171,6 @@ export const HomeMissionTab = () => {
   );
 };
 
-/* ───────────────────────────── Resources ──────────────────────────── */
-
 export const ResourcesTab = () => {
   const t = useAppTheme();
   return (
@@ -237,8 +229,6 @@ export const ResourcesTab = () => {
   );
 };
 
-/* ───────────────────────────── Connect ───────────────────────────── */
-
 export const CampusesTab = () => {
   const t = useAppTheme();
   const [selected, setSelected] = useState<Campus | null>(null);
@@ -284,8 +274,6 @@ export const CampusesTab = () => {
         </FadeInView>
       ))}
 
-      {/* What a Weekly Meeting actually is — sits between the campuses and the
-          other programs since every campus runs one. */}
       <FadeInView delay={stagger(base + 1)}>
         <SectionTitle>Weekly Meeting</SectionTitle>
       </FadeInView>
@@ -295,8 +283,6 @@ export const CampusesTab = () => {
         </Card>
       </FadeInView>
 
-      {/* REAP runs at every campus, but each works through its own material, so
-          it sits on its own rather than under a single campus card. */}
       <FadeInView delay={stagger(base + 3)}>
         <SectionTitle>{REAP.name}</SectionTitle>
       </FadeInView>
@@ -306,7 +292,6 @@ export const CampusesTab = () => {
         </Card>
       </FadeInView>
 
-      {/* Seasons is the biblical training course hosted at WSU. */}
       <FadeInView delay={stagger(base + 5)}>
         <SectionTitle>{SEASONS.name}</SectionTitle>
       </FadeInView>
@@ -333,7 +318,6 @@ export const CampusesTab = () => {
         </Card>
       </FadeInView>
 
-      {/* Key events are run for the whole ministry, not per campus. */}
       <FadeInView delay={stagger(base + 7)}>
         <SectionTitle>Key events</SectionTitle>
       </FadeInView>
@@ -429,8 +413,6 @@ const CampusDetailModal = ({
   );
 };
 
-/* ────────────────────────────── Partner ───────────────────────────── */
-
 export const PartnerTab = () => {
   const t = useAppTheme();
   const ways: {
@@ -516,12 +498,6 @@ export const PartnerTab = () => {
   );
 };
 
-/**
- * "Contact us" form: emails {@link CONTACT_EMAIL} and sends the sender a
- * confirmation (see convex/contact.ts). Signed-in users send from their locked
- * account email; visitors type one in. On success we clear the message (and the
- * email, unless it's a signed-in account) and show a confirmation sheet.
- */
 const ContactCard = () => {
   const me = useQuery(api.directory.me);
   const submit = useMutation(api.contact.submit);

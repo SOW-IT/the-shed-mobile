@@ -28,7 +28,6 @@ type TagDraft = {
   subgroups?: string[];
 };
 
-/** Normalised tag shape for change detection (order-independent subgroups). */
 const normalizeTag = (tag: TagDraft) => ({
   id: tag.id,
   name: tag.name.trim(),
@@ -39,7 +38,6 @@ const normalizeTag = (tag: TagDraft) => ({
 const tagsEqual = (a: TagDraft[], b: TagDraft[]) =>
   JSON.stringify(a.map(normalizeTag)) === JSON.stringify(b.map(normalizeTag));
 
-/** Event tag colours and names. Tags are global — one shared set for all years. */
 export function SettingsTab({
   subgroups,
   onSaveStateChange,
@@ -101,8 +99,6 @@ export function SettingsTab({
     setError(null);
   };
 
-  // Report save state up so the screen can render the sliding footer button.
-  // Re-runs whenever the drafts change so the registered `save` is never stale.
   useEffect(() => {
     onSaveStateChange?.({
       dirty: tagsChanged,
@@ -116,8 +112,6 @@ export function SettingsTab({
   if (tags === undefined) return <LoadingState />;
 
   const addTag = () =>
-    // New tags apply to all groups by default (explicit, so a later group add
-    // doesn't silently change scope).
     setTagDrafts((prev) => [
       ...prev,
       { name: "", colour: "blue", subgroups: [...subgroups] },
@@ -199,8 +193,6 @@ export function SettingsTab({
             <Muted>Applies to</Muted>
             <SubgroupScopePicker
               subgroups={subgroups}
-              // An empty/undefined scope means "all groups", so default every
-              // group to selected; the user narrows by deselecting.
               isSelected={(subgroup) =>
                 tag.subgroups?.length ? tag.subgroups.includes(subgroup) : true
               }
@@ -208,14 +200,9 @@ export function SettingsTab({
                 setTagDrafts((prev) =>
                   prev.map((x, j) => {
                     if (j !== i) return x;
-                    // Materialise the effective set (all groups when unset) so
-                    // the stored scope is always explicit.
                     const set = new Set(x.subgroups?.length ? x.subgroups : subgroups);
                     if (set.has(subgroup)) set.delete(subgroup);
                     else set.add(subgroup);
-                    // Keep at least one group: an empty array persists as "all
-                    // groups", so deselecting the last one would paradoxically
-                    // re-scope the tag to everything.
                     if (set.size === 0) return x;
                     return { ...x, subgroups: [...set] };
                   })
@@ -256,8 +243,6 @@ export function SettingsTab({
       >
         <Muted>
           This removes the tag from all events that use it. Type{" "}
-          {/* Plain nested Text so it inherits the muted caption size/colour and
-              only the weight changes. */}
           <Text style={{ fontWeight: "800" }}>
             {deleteIndex !== null ? tagDrafts[deleteIndex]?.name?.trim() : ""}
           </Text>{" "}
