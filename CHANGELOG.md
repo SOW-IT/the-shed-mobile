@@ -6,6 +6,11 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.11.1] — 2026-08-26
+
+### Changed
+- **Comments that only restated the source are gone.** The app does the same things. Compiler and linter directives stay, as do the ADRs and glossaries that already record the decisions the comments used to repeat.
+
 ## [1.11.0] — 2026-08-26
 
 ### Changed
