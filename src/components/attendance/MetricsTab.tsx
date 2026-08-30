@@ -588,14 +588,14 @@ export function MetricsTab({
               </Text>
             </View>
             <Text style={[typography.caption, { color: t.muted }]}>
-              A gentle prompt — people whose recent attendance suggests a caring
+              A gentle prompt. People whose recent attendance suggests a caring
               check-in. No judgement implied.
             </Text>
             {data.followUps.length === 0 ? (
               <View style={styles.followEmpty}>
                 <Ionicons name="checkmark-circle-outline" size={22} color={t.success} />
                 <Text style={[typography.caption, { color: t.muted }]}>
-                  Nobody needs following up right now — lovely.
+                  Nobody needs following up right now. Lovely.
                 </Text>
               </View>
             ) : (

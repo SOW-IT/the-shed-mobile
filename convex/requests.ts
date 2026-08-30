@@ -291,7 +291,7 @@ export const submit = mutation({
     }
     if (args.amount > MAX_REQUEST_AMOUNT) {
       throw new ConvexError(
-        `Amounts above $${formatAmount(MAX_REQUEST_AMOUNT)} can't be submitted here — talk to Finance directly.`
+        `Amounts above $${formatAmount(MAX_REQUEST_AMOUNT)} can't be submitted here. Talk to Finance directly.`
       );
     }
     if (args.description.trim() === "") {
@@ -375,7 +375,7 @@ export const submit = mutation({
     }
     if (missing.length > 0) {
       throw new ConvexError(
-        `This request can't be submitted yet — ${year} has no ${missing.join(
+        `This request can't be submitted yet. ${year} has no ${missing.join(
           ", no "
         )}. Ask an admin to complete the organisation setup.`
       );
@@ -1491,7 +1491,7 @@ export const submitReceipt = mutation({
     const totalAmount = storedRecipients.reduce((sum, r) => sum + r.amount, 0);
     if (totalAmount > MAX_REQUEST_AMOUNT) {
       throw new ConvexError(
-        `Receipt totals above $${formatAmount(MAX_REQUEST_AMOUNT)} can't be submitted here — talk to Finance directly.`
+        `Receipt totals above $${formatAmount(MAX_REQUEST_AMOUNT)} can't be submitted here. Talk to Finance directly.`
       );
     }
     await ctx.db.patch("requests", args.requestId, {

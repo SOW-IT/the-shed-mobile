@@ -1407,7 +1407,7 @@ describe("deadlock prevention and validation fixes", () => {
           { accountName: "S", bsb: "0", accountNumber: "2", amount: 600_000, attachments: [file] },
         ],
       })
-    ).rejects.toThrow(/talk to Finance/);
+    ).rejects.toThrow(/Talk to Finance/);
 
     await attempt({
       accountName: "R",

@@ -71,7 +71,7 @@ export default function NewEventScreen() {
         placeholder="Pick one or more"
       />
       <Muted>
-        Pick two or more sub-groups to make this a collaborative event — it
+        Pick two or more sub-groups to make this a collaborative event. It
         appears in each sub-group&apos;s list and shares one attendance list drawn
         from SOW&apos;s staff for the year.
       </Muted>
