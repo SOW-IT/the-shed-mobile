@@ -12,3 +12,20 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # React and React DOM are pinned by the Expo SDK, which expects exactly
+      # 19.2.3 on SDK 57. Bumping react-dom alone breaks `npm ci` outright,
+      # because react-dom@19.2.8 peers on react ^19.2.8; bumping both together
+      # installs cleanly but puts the project out of step with the SDK, which
+      # `npx expo install --check` then reports. Either way it is the SDK
+      # upgrade that should move them, via `npx expo install --fix`.
+      - dependency-name: react
+      - dependency-name: react-dom
+      # eslint 10 cannot be used yet: eslint-config-expo pulls in
+      # eslint-plugin-react, whose latest release (7.37.5) peers on eslint
+      # ^9.7 and calls an API v10 removed, so `expo lint` dies with
+      # "contextOrFilename.getFilename is not a function" before linting a
+      # single file. Minor and patch bumps still come through.
+      - dependency-name: eslint
+        update-types:
+          - version-update:semver-major
