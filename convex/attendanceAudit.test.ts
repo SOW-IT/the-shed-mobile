@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { staffYearForDate } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
@@ -89,6 +89,144 @@ describe("attendance audit logging", () => {
     expect(signInLogs).toHaveLength(1);
     expect(signInLogs[0].summary).toContain("Sam Member");
     expect(signInLogs[0].eventId).toBe(eventId);
+  });
+
+  test("deleting a member records every attendance it removed, with event and time", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const { dateStart, dateEnd } = window();
+    const first = await staff.mutation(api.events.create, {
+      name: "Weekly Meeting",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    const second = await staff.mutation(api.events.create, {
+      name: "Camp",
+      dateStart: dateStart + 86_400_000,
+      dateEnd: dateEnd + 86_400_000,
+      subgroups: [USYD],
+    });
+    const memberId = await staff.mutation(api.attendanceMembers.create, {
+      name: "Sam Member",
+    });
+    await staff.mutation(api.attendance.signIn, { eventId: first, memberId });
+    await staff.mutation(api.attendance.signIn, { eventId: second, memberId });
+
+    await staff.mutation(api.attendanceMembers.remove, { memberId });
+
+    const deletion = (await allLogs(t)).find((l) => l.action === "member.delete");
+    expect(deletion).toBeDefined();
+    expect(deletion!.summary).toContain("Sam Member");
+    const detail = deletion!.detail ?? "";
+    expect(detail).toContain("Removed 2 attendance records:");
+    // Both events are named, so the record survives the rows being gone.
+    expect(detail).toContain("Weekly Meeting");
+    expect(detail).toContain("Camp");
+    // One line per removed record, each carrying a time next to its event.
+    const lines = detail.split("\n").slice(1);
+    expect(lines).toHaveLength(2);
+    for (const line of lines) expect(line).toMatch(/ · .+\d{4}/);
+  });
+
+  test("deleting a member with no attendance says so rather than listing nothing", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const memberId = await staff.mutation(api.attendanceMembers.create, {
+      name: "Never Attended",
+    });
+
+    await staff.mutation(api.attendanceMembers.remove, { memberId });
+
+    const deletion = (await allLogs(t)).find((l) => l.action === "member.delete");
+    expect(deletion!.detail).toBe("Removed no attendance records");
+  });
+
+  test("an event deleted before the member still leaves a named line", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const { dateStart, dateEnd } = window();
+    const eventId = await staff.mutation(api.events.create, {
+      name: "Gone",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    const memberId = await staff.mutation(api.attendanceMembers.create, {
+      name: "Sam Member",
+    });
+    await staff.mutation(api.attendance.signIn, { eventId, memberId });
+    // Drop the event row directly, leaving the attendance row orphaned.
+    await t.run((ctx) => ctx.db.delete(eventId));
+
+    await staff.mutation(api.attendanceMembers.remove, { memberId });
+
+    const deletion = (await allLogs(t)).find((l) => l.action === "member.delete");
+    expect(deletion!.detail).toContain("Deleted event");
+    expect(deletion!.detail).toContain("Removed 1 attendance record:");
+  });
+
+  test("a long history is capped at 100 lines but still counted in full", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const memberId = await staff.mutation(api.attendanceMembers.create, {
+      name: "Long Serving",
+    });
+    const base = window();
+    // 105 events, so the cap bites and the overflow line has to appear.
+    for (let i = 0; i < 105; i++) {
+      const eventId = await staff.mutation(api.events.create, {
+        name: `Event ${i}`,
+        dateStart: base.dateStart + i * 3_600_000,
+        dateEnd: base.dateEnd + i * 3_600_000,
+        subgroups: [USYD],
+      });
+      await staff.mutation(api.attendance.signIn, { eventId, memberId });
+    }
+
+    await staff.mutation(api.attendanceMembers.remove, { memberId });
+
+    const deletion = (await allLogs(t)).find((l) => l.action === "member.delete");
+    const lines = (deletion!.detail ?? "").split("\n");
+    expect(lines[0]).toBe("Removed 105 attendance records:");
+    expect(lines[lines.length - 1]).toBe("and 5 more");
+    // header + 100 listed + overflow
+    expect(lines).toHaveLength(102);
+  });
+
+  test("falls back to an ISO stamp where the runtime has no full ICU", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const { dateStart, dateEnd } = window();
+    const eventId = await staff.mutation(api.events.create, {
+      name: "No ICU",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    const memberId = await staff.mutation(api.attendanceMembers.create, {
+      name: "Sam Member",
+    });
+    await staff.mutation(api.attendance.signIn, { eventId, memberId });
+
+    const real = Intl.DateTimeFormat;
+    // Hermes without full ICU throws on a named time zone.
+    vi.spyOn(Intl, "DateTimeFormat").mockImplementation(((
+      ...args: ConstructorParameters<typeof Intl.DateTimeFormat>
+    ) => {
+      if (args[1]?.timeZone) throw new RangeError("Invalid time zone specified");
+      return new real(...args);
+    }) as unknown as typeof Intl.DateTimeFormat);
+    try {
+      await staff.mutation(api.attendanceMembers.remove, { memberId });
+    } finally {
+      vi.restoreAllMocks();
+    }
+
+    const deletion = (await allLogs(t)).find((l) => l.action === "member.delete");
+    expect(deletion!.detail).toContain("No ICU · ");
+    // Still sortable and unambiguous, just not localised.
+    expect(deletion!.detail).toMatch(/\d{4}-\d{2}-\d{2}T[\d:.]+Z/);
   });
 
   test("sign-out logs only when a record actually existed", async () => {

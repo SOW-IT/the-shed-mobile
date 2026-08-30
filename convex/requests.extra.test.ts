@@ -165,7 +165,7 @@ describe("submit validation", () => {
         description: "x",
         amount: 2_000_000,
       })
-    ).rejects.toThrow(/talk to Finance/);
+    ).rejects.toThrow(/Talk to Finance/);
   });
 
   test("a Head of Division with no resolvable department is asked to pick one", async () => {

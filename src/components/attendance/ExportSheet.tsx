@@ -279,8 +279,8 @@ export function ExportSheet({
         <Muted>Export this event&apos;s attendance to a CSV file.</Muted>
       ) : (
         <Muted>
-          Export attendance for {subgroupLabel(subgroup)} — including
-          collaborative events — to a CSV file.
+          Export attendance for {subgroupLabel(subgroup)}, including
+          collaborative events, to a CSV file.
         </Muted>
       )}
 

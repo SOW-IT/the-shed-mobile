@@ -6,6 +6,7 @@ import {
   rolesOfLike,
   staffYearForDate,
   sydneyCalendarYear,
+  SYDNEY_TIME_ZONE,
 } from "../shared/flow";
 import {
   CAMPUS_FIELD_KEY,
@@ -529,6 +530,28 @@ export const update = mutation({
   },
 });
 
+/** Deleting a member is permanent, so the audit entry has to carry enough to
+ *  reconstruct what went with them. Beyond this many lines the entry would
+ *  bloat the log without being readable; the count above it stays exact. */
+const MAX_AUDIT_ATTENDANCE_LINES = 100;
+
+const auditStamp = (ms: number): string => {
+  try {
+    return new Intl.DateTimeFormat("en-AU", {
+      timeZone: SYDNEY_TIME_ZONE,
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(new Date(ms));
+  } catch {
+    // Runtimes without full ICU still get something sortable and unambiguous.
+    return new Date(ms).toISOString();
+  }
+};
+
 export const remove = mutation({
   args: { memberId: v.id("attendanceMembers") },
   handler: async (ctx, { memberId }) => {
@@ -539,6 +562,31 @@ export const remove = mutation({
       .query("attendance")
       .withIndex("by_member", (q) => q.eq("memberId", memberId))
       .collect();
+
+    // Only the records that will actually be listed need a name, so the reads
+    // are bounded by the line cap rather than by how long the member has been
+    // around. Resolving every event first would spend one db.get per event
+    // against Convex's per-mutation index-range-read budget to produce names
+    // that get sliced off anyway.
+    const listed = signed
+      .slice()
+      .sort((a, b) => b.signInTime - a.signInTime)
+      .slice(0, MAX_AUDIT_ATTENDANCE_LINES);
+
+    // Named while their attendance rows still exist, once per distinct event.
+    const eventNames = new Map<string, string>();
+    for (const record of listed) {
+      if (eventNames.has(record.eventId)) continue;
+      const event = await ctx.db.get(record.eventId);
+      eventNames.set(record.eventId, event?.name ?? "Deleted event");
+    }
+
+    const shown = listed.map(
+      (record) =>
+        `${eventNames.get(record.eventId)} · ${auditStamp(record.signInTime)}`
+    );
+    const hidden = signed.length - shown.length;
+
     for (const s of signed) await ctx.db.delete(s._id);
     await ctx.db.delete(memberId);
     await logAttendanceAction(ctx, {
@@ -547,8 +595,15 @@ export const remove = mutation({
       action: "member.delete",
       summary: `Deleted member "${row.name}"`,
       subjectEmail: row.email,
-      detail:
-        signed.length > 0 ? `Removed ${signed.length} attendance record(s)` : undefined,
+      detail: signed.length
+        ? [
+            `Removed ${signed.length} attendance record${
+              signed.length === 1 ? "" : "s"
+            }:`,
+            ...shown,
+            ...(hidden > 0 ? [`and ${hidden} more`] : []),
+          ].join("\n")
+        : "Removed no attendance records",
     });
   },
 });

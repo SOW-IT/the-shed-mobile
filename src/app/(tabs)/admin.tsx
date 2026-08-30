@@ -754,7 +754,7 @@ export default function AdminScreen() {
         <>
           {editable && (unassigned ?? []).length > 0 && (
             <>
-              <SectionTitle>Signed in, no assignment — {selectedYear}</SectionTitle>
+              <SectionTitle>Signed in, no assignment · {selectedYear}</SectionTitle>
               <CardGrid>
                 {(unassigned ?? []).map((user) => renderUnassignedCard(user))}
               </CardGrid>
@@ -764,7 +764,7 @@ export default function AdminScreen() {
           {editable && directoryOnlyUnassigned.length > 0 && (
             <>
               <SectionTitle>
-                In directory, no assignment — {selectedYear} ({directoryOnlyUnassigned.length})
+                In directory, no assignment · {selectedYear} ({directoryOnlyUnassigned.length})
               </SectionTitle>
               <CardGrid>
                 {directoryOnlyUnassigned.map((user) => renderUnassignedCard(user))}
@@ -775,7 +775,7 @@ export default function AdminScreen() {
           {editable && (leavers ?? []).length > 0 && (
             <>
               <SectionTitle>
-                Leaving — {selectedYear} ({(leavers ?? []).length})
+                Leaving · {selectedYear} ({(leavers ?? []).length})
               </SectionTitle>
               <CardGrid>
                 {(leavers ?? []).map((user) => renderLeaverCard(user))}
@@ -785,7 +785,7 @@ export default function AdminScreen() {
 
           {director ? (
             <>
-              <SectionTitle>Director — {selectedYear}</SectionTitle>
+              <SectionTitle>Director · {selectedYear}</SectionTitle>
               <CardGrid>{renderProfileCard(director, t.primary)}</CardGrid>
             </>
           ) : null}
@@ -798,7 +798,7 @@ export default function AdminScreen() {
             if (!hasAny) return null;
             return (
               <View key={group.division} style={{ gap: spacing.md }}>
-                <SectionTitle>{group.division} — {selectedYear}</SectionTitle>
+                <SectionTitle>{group.division} · {selectedYear}</SectionTitle>
                 {group.head ? (
                   <CardGrid>{renderProfileCard(group.head, t.primary)}</CardGrid>
                 ) : null}
@@ -844,7 +844,7 @@ export default function AdminScreen() {
                 key={group.university}
                 style={accentContainerStyle(campusAccent)}
               >
-                <SectionTitle>{group.university} — {selectedYear}</SectionTitle>
+                <SectionTitle>{group.university} · {selectedYear}</SectionTitle>
                 <CardGrid>
                   {group.profiles.map((profile) =>
                     renderProfileCard(profile, campusAccent)
@@ -856,7 +856,7 @@ export default function AdminScreen() {
 
           {nonCampusOtherProfiles.length > 0 && (
             <>
-              <SectionTitle>Other — {selectedYear}</SectionTitle>
+              <SectionTitle>Other · {selectedYear}</SectionTitle>
               <CardGrid>
                 {nonCampusOtherProfiles.map((profile) => renderProfileCard(profile))}
               </CardGrid>
@@ -877,7 +877,7 @@ export default function AdminScreen() {
 
           {structureSubTab === "roles" && (
             <>
-          <SectionTitle>Roles — {selectedYear}</SectionTitle>
+          <SectionTitle>Roles · {selectedYear}</SectionTitle>
           <CardGrid>
           {editable && (
             <Card>
@@ -985,7 +985,7 @@ export default function AdminScreen() {
 
           {structureSubTab === "divisions" && (
             <>
-          <SectionTitle>Divisions — {selectedYear}</SectionTitle>
+          <SectionTitle>Divisions · {selectedYear}</SectionTitle>
           <CardGrid>
           {editable && (
             <Card>
@@ -1116,7 +1116,7 @@ export default function AdminScreen() {
 
           {structureSubTab === "universities" && (
             <>
-          <SectionTitle>Universities — {selectedYear}</SectionTitle>
+          <SectionTitle>Universities · {selectedYear}</SectionTitle>
           <CardGrid>
           {editable && (
             <Card>
@@ -1216,7 +1216,7 @@ export default function AdminScreen() {
 
           {structureSubTab === "departments" && (
             <>
-          <SectionTitle>Departments — {selectedYear}</SectionTitle>
+          <SectionTitle>Departments · {selectedYear}</SectionTitle>
           <CardGrid>
           {editable && (
             <Card>
@@ -1369,7 +1369,7 @@ export default function AdminScreen() {
       {key === "other" && (
         <CardGrid>
           <View style={{ gap: spacing.md }}>
-          <SectionTitle>Budget Manager — {selectedYear}</SectionTitle>
+          <SectionTitle>Budget Manager · {selectedYear}</SectionTitle>
           <Card>
             {editable ? (
               <>
@@ -1416,7 +1416,7 @@ export default function AdminScreen() {
           </View>
 
           <View style={{ gap: spacing.md }}>
-          <SectionTitle>Director Approval Threshold — {selectedYear}</SectionTitle>
+          <SectionTitle>Director Approval Threshold · {selectedYear}</SectionTitle>
           <Card>
             <Muted>
               Requests at or above this amount also need the Director&apos;s
@@ -1460,7 +1460,7 @@ export default function AdminScreen() {
 
           {hasAccess && (
             <View style={{ gap: spacing.md }}>
-              <SectionTitle>Approver Delegation — {selectedYear}</SectionTitle>
+              <SectionTitle>Approver Delegation · {selectedYear}</SectionTitle>
               <Card>
                 <Muted>
                   Cover an approver while they&apos;re away: their delegate can
@@ -1545,7 +1545,7 @@ export default function AdminScreen() {
                 {syncState?.syncedAt ? (
                   <Muted>
                     Last synced:{" "}
-                    {new Date(syncState.syncedAt).toLocaleString()} —{" "}
+                    {new Date(syncState.syncedAt).toLocaleString()} ·{" "}
                     {syncState.status}
                   </Muted>
                 ) : (

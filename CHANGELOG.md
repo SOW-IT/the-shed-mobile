@@ -6,6 +6,31 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.11.2] — 2026-08-30
+
+### Added
+- **Deleting a member now records what went with them.** The audit entry used to
+  say only how many attendance records were removed, so once the rows were gone
+  there was no way to tell which events they belonged to. It now lists each one
+  by event name and sign-in time, newest first, and an event that was itself
+  already deleted still leaves a line rather than disappearing. Long histories
+  are capped at 100 lines, with the exact count kept above the list.
+
+### Changed
+- **The delete-member confirmation says outright that it cannot be undone.** It
+  also mentions that the audit log keeps a record of what was removed, and the
+  button now reads "Delete permanently".
+- **Tidied the wording across the app and the README again.** The same pass as
+  1.10.16: sentences joined with a dash become plain sentences, and dashes used
+  purely to separate a label from a value become the interpunct the app already
+  uses. The no-value placeholder glyph is untouched.
+- **Dependencies moved to the versions Expo SDK 57 asks for.** `expo-file-system`
+  to 57.0.6, `expo-router` to 57.0.17 and `eslint-config-expo` to 57.0.2. The
+  open bumps for `react-native-gesture-handler` (a major, ahead of the native
+  module the SDK bundles), `react-dom` (which would need React bumped with it)
+  and `eslint` 10 (which breaks `expo lint` through `eslint-config-expo`) are
+  deliberately not taken.
+
 ## [1.11.1] — 2026-08-26
 
 ### Changed
