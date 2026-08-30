@@ -563,29 +563,32 @@ export const remove = mutation({
       .withIndex("by_member", (q) => q.eq("memberId", memberId))
       .collect();
 
-    // Name each event while its attendance rows still exist. Read once per
-    // event: a long-standing member can share an event with themselves many
-    // times over, and the log only needs the name.
+    // Only the records that will actually be listed need a name, so the reads
+    // are bounded by the line cap rather than by how long the member has been
+    // around. Resolving every event first would spend one db.get per event
+    // against Convex's per-mutation index-range-read budget to produce names
+    // that get sliced off anyway.
+    const listed = signed
+      .slice()
+      .sort((a, b) => b.signInTime - a.signInTime)
+      .slice(0, MAX_AUDIT_ATTENDANCE_LINES);
+
+    // Named while their attendance rows still exist, once per distinct event.
     const eventNames = new Map<string, string>();
-    for (const record of signed) {
+    for (const record of listed) {
       if (eventNames.has(record.eventId)) continue;
       const event = await ctx.db.get(record.eventId);
       eventNames.set(record.eventId, event?.name ?? "Deleted event");
     }
 
-    const lines = signed
-      .slice()
-      .sort((a, b) => b.signInTime - a.signInTime)
-      .map(
-        (record) =>
-          `${eventNames.get(record.eventId)} · ${auditStamp(record.signInTime)}`
-      );
+    const shown = listed.map(
+      (record) =>
+        `${eventNames.get(record.eventId)} · ${auditStamp(record.signInTime)}`
+    );
+    const hidden = signed.length - shown.length;
 
     for (const s of signed) await ctx.db.delete(s._id);
     await ctx.db.delete(memberId);
-
-    const shown = lines.slice(0, MAX_AUDIT_ATTENDANCE_LINES);
-    const hidden = lines.length - shown.length;
     await logAttendanceAction(ctx, {
       actorEmail,
       entityType: "member",
