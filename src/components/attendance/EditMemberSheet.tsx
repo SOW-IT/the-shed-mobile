@@ -309,7 +309,7 @@ export function EditMemberSheet({
             title="Delete member"
             footer={
               <Btn
-                title="Delete member"
+                title="Delete permanently"
                 variant="danger"
                 loading={submitting}
                 disabled={deleteText.trim() !== name.trim()}
@@ -318,8 +318,13 @@ export function EditMemberSheet({
             }
           >
             <Txt style={[typography.body, { color: t.text }]}>
-              This deletes the member and removes this member from every event they are
-              signed into. Type <Txt style={{ fontWeight: "800" }}>{name.trim()}</Txt> to confirm.
+              This deletes the member and their attendance at every event they
+              are signed into.{" "}
+              <Txt style={{ fontWeight: "800" }}>
+                This is permanent and cannot be undone.
+              </Txt>{" "}
+              The audit log keeps a record of what was removed. Type{" "}
+              <Txt style={{ fontWeight: "800" }}>{name.trim()}</Txt> to confirm.
             </Txt>
             <Field
               label="Member name"

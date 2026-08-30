@@ -91,6 +91,81 @@ describe("attendance audit logging", () => {
     expect(signInLogs[0].eventId).toBe(eventId);
   });
 
+  test("deleting a member records every attendance it removed, with event and time", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const { dateStart, dateEnd } = window();
+    const first = await staff.mutation(api.events.create, {
+      name: "Weekly Meeting",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    const second = await staff.mutation(api.events.create, {
+      name: "Camp",
+      dateStart: dateStart + 86_400_000,
+      dateEnd: dateEnd + 86_400_000,
+      subgroups: [USYD],
+    });
+    const memberId = await staff.mutation(api.attendanceMembers.create, {
+      name: "Sam Member",
+    });
+    await staff.mutation(api.attendance.signIn, { eventId: first, memberId });
+    await staff.mutation(api.attendance.signIn, { eventId: second, memberId });
+
+    await staff.mutation(api.attendanceMembers.remove, { memberId });
+
+    const deletion = (await allLogs(t)).find((l) => l.action === "member.delete");
+    expect(deletion).toBeDefined();
+    expect(deletion!.summary).toContain("Sam Member");
+    const detail = deletion!.detail ?? "";
+    expect(detail).toContain("Removed 2 attendance records:");
+    // Both events are named, so the record survives the rows being gone.
+    expect(detail).toContain("Weekly Meeting");
+    expect(detail).toContain("Camp");
+    // One line per removed record, each carrying a time next to its event.
+    const lines = detail.split("\n").slice(1);
+    expect(lines).toHaveLength(2);
+    for (const line of lines) expect(line).toMatch(/ · .+\d{4}/);
+  });
+
+  test("deleting a member with no attendance says so rather than listing nothing", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const memberId = await staff.mutation(api.attendanceMembers.create, {
+      name: "Never Attended",
+    });
+
+    await staff.mutation(api.attendanceMembers.remove, { memberId });
+
+    const deletion = (await allLogs(t)).find((l) => l.action === "member.delete");
+    expect(deletion!.detail).toBe("Removed no attendance records");
+  });
+
+  test("an event deleted before the member still leaves a named line", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const { dateStart, dateEnd } = window();
+    const eventId = await staff.mutation(api.events.create, {
+      name: "Gone",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    const memberId = await staff.mutation(api.attendanceMembers.create, {
+      name: "Sam Member",
+    });
+    await staff.mutation(api.attendance.signIn, { eventId, memberId });
+    // Drop the event row directly, leaving the attendance row orphaned.
+    await t.run((ctx) => ctx.db.delete(eventId));
+
+    await staff.mutation(api.attendanceMembers.remove, { memberId });
+
+    const deletion = (await allLogs(t)).find((l) => l.action === "member.delete");
+    expect(deletion!.detail).toContain("Deleted event");
+    expect(deletion!.detail).toContain("Removed 1 attendance record:");
+  });
+
   test("sign-out logs only when a record actually existed", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
