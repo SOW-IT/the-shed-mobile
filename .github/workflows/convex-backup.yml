@@ -1,13 +1,24 @@
-# Exports the production Convex database to Google Cloud Storage every day.
-# Convex file storage is intentionally excluded.
+# Exports the production Convex database to Google Cloud Storage every day,
+# then replaces the convex_production BigQuery dataset with that snapshot.
+# Convex file storage is intentionally excluded. Auth sessions, refresh tokens
+# and push tokens stay out of BigQuery.
 #
 # Required repository variables:
 #   GCP_WORKLOAD_IDENTITY_PROVIDER - full Workload Identity Provider resource name
 #   GCP_BACKUP_SERVICE_ACCOUNT     - service account email used by GitHub Actions
 #   GCS_BACKUP_BUCKET              - bucket name only (without gs://)
 #
+# Optional repository variables:
+#   BQ_DATASET                     - defaults to convex_production
+#   BQ_LOCATION                    - defaults to australia-southeast1
+#   GCP_PROJECT                    - defaults to theshedsow
+#
 # Required repository secret:
 #   CONVEX_DEPLOY_KEY              - production Convex deploy key
+#
+# The BigQuery job needs the backup service account to hold roles/bigquery.jobUser
+# on the project and roles/bigquery.dataEditor on the dataset. The zip backup
+# still succeeds if that job fails.
 name: Backup Convex to GCS
 
 on:
@@ -27,6 +38,9 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      path: ${{ steps.export.outputs.path }}
+      date: ${{ steps.export.outputs.date }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -78,3 +92,46 @@ jobs:
         env:
           UPLOADED: ${{ steps.upload.outputs.uploaded }}
         run: echo "Uploaded $UPLOADED"
+
+  bigquery:
+    needs: backup
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GCP_PROJECT: ${{ vars.GCP_PROJECT || 'theshedsow' }}
+      BQ_DATASET: ${{ vars.BQ_DATASET || 'convex_production' }}
+      BQ_LOCATION: ${{ vars.BQ_LOCATION || 'australia-southeast1' }}
+      GCS_BACKUP_BUCKET: ${{ vars.GCS_BACKUP_BUCKET }}
+      BACKUP_PATH: ${{ needs.backup.outputs.path }}
+      BACKUP_DATE: ${{ needs.backup.outputs.date }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_BACKUP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+        with:
+          project_id: ${{ env.GCP_PROJECT }}
+
+      - name: Load Convex snapshot into BigQuery
+        run: |
+          set -euo pipefail
+          gcloud storage cp "gs://${GCS_BACKUP_BUCKET}/convex/production/${BACKUP_DATE}/${BACKUP_PATH}" "$BACKUP_PATH"
+          node scripts/convex-export-to-bigquery.mjs \
+            --zip "$BACKUP_PATH" \
+            --out bq-ndjson \
+            --load \
+            --project "$GCP_PROJECT" \
+            --dataset "$BQ_DATASET" \
+            --location "$BQ_LOCATION"

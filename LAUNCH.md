@@ -38,6 +38,31 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       **Unlisted App Distribution** is the lighter option for a staff app.
       Android likewise needs the store listing, content rating and Data safety
       form to leave the internal track.
+- [ ] **BigQuery IAM for the nightly Convex load** — the backup service
+      account `the-shed-convex-backup@theshedsow.iam.gserviceaccount.com` can
+      write the zip to GCS today. For `convex_production` it also needs
+      `roles/bigquery.jobUser` on project `theshedsow` and
+      `roles/bigquery.dataEditor` on the dataset. Until that is granted the
+      zip backup still succeeds and the BigQuery job fails on its own.
+
+      ```bash
+      gcloud projects add-iam-policy-binding theshedsow \
+        --member=serviceAccount:the-shed-convex-backup@theshedsow.iam.gserviceaccount.com \
+        --role=roles/bigquery.jobUser
+
+      bq --location=australia-southeast1 mk --dataset \
+        --description="Daily Convex production snapshot for THE SHED" \
+        theshedsow:convex_production
+
+      gcloud bigquery datasets add-iam-policy-binding convex_production \
+        --member=serviceAccount:the-shed-convex-backup@theshedsow.iam.gserviceaccount.com \
+        --role=roles/bigquery.dataEditor \
+        --project=theshedsow
+      ```
+
+      Evidence it is done: the `bigquery` job on *Backup Convex to GCS* is
+      green, and `bq ls theshedsow:convex_production` lists attendance,
+      requests and the other business tables.
 
 ---
 
