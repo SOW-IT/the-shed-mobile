@@ -95,3 +95,41 @@ export const convertExportDir = (exportDir, outDir, loadedAt = new Date().toISOS
   writeFileSync(join(outDir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
   return manifest;
 };
+
+export const stagingDatasetId = (dataset, loadedAt) => {
+  const date = new Date(loadedAt);
+  const stamp = Number.isNaN(date.getTime())
+    ? "unknown"
+    : date
+        .toISOString()
+        .replace(/[-:]/g, "")
+        .replace(/\.\d+Z$/i, "z")
+        .toLowerCase();
+  return `${dataset}_load_${stamp}`;
+};
+
+export const extraTables = (existingTables, manifestTableNames) => {
+  const keep = new Set(manifestTableNames);
+  return existingTables.filter((name) => !keep.has(name)).sort();
+};
+
+export const isLoadDataset = (dataset, name) =>
+  typeof name === "string" && name.startsWith(`${dataset}_load_`);
+
+export const parseBqTableIds = (jsonText) => {
+  if (!jsonText || !jsonText.trim()) return [];
+  const parsed = JSON.parse(jsonText);
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .map((row) => row.tableId ?? row.id?.split(".").pop())
+    .filter((name) => typeof name === "string" && name.length > 0);
+};
+
+export const parseBqDatasetIds = (jsonText) => {
+  if (!jsonText || !jsonText.trim()) return [];
+  const parsed = JSON.parse(jsonText);
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .map((row) => row.datasetId ?? row.id?.split(".").pop() ?? row.id?.split(":")[1])
+    .filter((name) => typeof name === "string" && name.length > 0);
+};

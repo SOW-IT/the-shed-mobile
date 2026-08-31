@@ -11,8 +11,14 @@ import {
   convertExportDir,
   creationTimeToTimestamp,
   documentToRow,
+  extraTables,
+  isLoadDataset,
+  parseBqDatasetIds,
+  parseBqTableIds,
   shouldExportTable,
+  stagingDatasetId,
 } from "./convexExportToBigQuery.mjs";
+import { loadConvexSnapshot, makeRunner } from "./loadConvexSnapshot.mjs";
 
 const temps = [];
 const tempDir = () => {
@@ -193,5 +199,132 @@ describe("CLI", () => {
     });
     expect(result.status).toBe(1);
     expect(result.stderr).toMatch(/Usage:/);
+  });
+});
+
+describe("snapshot publish plan", () => {
+  test("names a run-specific staging dataset", () => {
+    expect(stagingDatasetId("convex_production", "2026-08-31T12:00:00.000Z")).toBe(
+      "convex_production_load_20260831t120000z"
+    );
+    expect(isLoadDataset("convex_production", "convex_production_load_20260831t120000z")).toBe(
+      true
+    );
+    expect(isLoadDataset("convex_production", "convex_production")).toBe(false);
+  });
+
+  test("drops destination tables that are not in the current export", () => {
+    expect(extraTables(["attendance", "scratch", "requests"], ["attendance", "requests"])).toEqual(
+      ["scratch"]
+    );
+    expect(extraTables(["attendance"], ["attendance", "requests"])).toEqual([]);
+  });
+
+  test("parses bq ls json", () => {
+    expect(parseBqTableIds('[{"tableId":"attendance"},{"tableId":"requests"}]')).toEqual([
+      "attendance",
+      "requests",
+    ]);
+    expect(parseBqTableIds("")).toEqual([]);
+    expect(parseBqDatasetIds('[{"datasetId":"convex_production_load_old"}]')).toEqual([
+      "convex_production_load_old",
+    ]);
+  });
+});
+
+const ok = (stdout = "") => ({ status: 0, stdout, stderr: "", error: null });
+const fail = (stderr) => ({ status: 1, stdout: "", stderr, error: null });
+const argLine = (args) => args.join(" ");
+
+const mockBq = (handler) => {
+  const calls = [];
+  const run = makeRunner((command, args) => {
+    calls.push([command, ...args]);
+    return handler(args) ?? ok("[]");
+  });
+  return { run, calls };
+};
+
+describe("loadConvexSnapshot", () => {
+  const loadedAt = "2026-08-31T12:00:00.000Z";
+  const staging = "convex_production_load_20260831t120000z";
+  const manifest = {
+    loadedAt,
+    tables: [
+      { table: "attendance", rows: 2, file: "attendance.jsonl" },
+      { table: "requests", rows: 0, file: "requests.jsonl" },
+    ],
+  };
+
+  test("loads staging first, then publishes, then drops tables missing from this export", () => {
+    const { run, calls } = mockBq((args) => {
+      const line = argLine(args);
+      if (line === "--project_id=theshedsow ls --format=json --max_results=1000") {
+        return ok(JSON.stringify([{ datasetId: "convex_production_load_old" }]));
+      }
+      if (line.includes(`ls --format=json --max_results=1000 convex_production`) &&
+          !line.includes(staging)) {
+        return ok(JSON.stringify([{ tableId: "attendance" }, { tableId: "scratch" }]));
+      }
+      if (line.includes("ls --max_results=1")) return ok();
+      return ok("[]");
+    });
+
+    loadConvexSnapshot({
+      project: "theshedsow",
+      dataset: "convex_production",
+      location: "australia-southeast1",
+      manifest,
+      run,
+    });
+
+    const lines = calls.map((call) => call.slice(1).join(" "));
+    const loadAt = lines.findIndex((line) => line.includes("load") && line.includes(`${staging}.attendance`));
+    const queryAt = lines.findIndex((line) => line.includes("CREATE OR REPLACE TABLE") && line.includes(`.${staging}.requests`));
+    const copyAttendance = lines.findIndex((line) =>
+      line.includes("cp") && line.includes(`${staging}.attendance`) && line.includes("convex_production.attendance")
+    );
+    const copyRequests = lines.findIndex((line) =>
+      line.includes("cp") && line.includes(`${staging}.requests`)
+    );
+    const dropScratch = lines.findIndex((line) => line.includes("rm") && line.includes(".scratch"));
+    const dropOld = lines.findIndex((line) => line.includes("convex_production_load_old"));
+    const dropStaging = lines.findLastIndex((line) => line.includes(`rm --recursive --force theshedsow:${staging}`));
+
+    expect(dropOld).toBeGreaterThanOrEqual(0);
+    expect(loadAt).toBeGreaterThan(dropOld);
+    expect(queryAt).toBeGreaterThan(loadAt);
+    expect(copyAttendance).toBeGreaterThan(queryAt);
+    expect(copyRequests).toBeGreaterThan(copyAttendance);
+    expect(dropScratch).toBeGreaterThan(copyRequests);
+    expect(dropStaging).toBeGreaterThan(dropScratch);
+    const loads = lines.filter((line) => line.includes(" load "));
+    expect(loads.length).toBeGreaterThan(0);
+    expect(loads.every((line) => line.includes(`:${staging}.`))).toBe(true);
+  });
+
+  test("does not copy into production if a staging load fails", () => {
+    const { run, calls } = mockBq((args) => {
+      const line = argLine(args);
+      if (line.includes("ls --max_results=1")) return ok();
+      if (line.includes("load") && line.includes("attendance")) return fail("quota");
+      return ok("[]");
+    });
+
+    expect(() =>
+      loadConvexSnapshot({
+        project: "theshedsow",
+        dataset: "convex_production",
+        location: "australia-southeast1",
+        manifest,
+        run,
+      })
+    ).toThrow(/quota/);
+
+    const lines = calls.map((call) => call.slice(1).join(" "));
+    expect(lines.some((line) => line.includes("cp --force"))).toBe(false);
+    expect(lines.some((line) => line.includes(`rm --recursive --force theshedsow:${staging}`))).toBe(
+      true
+    );
   });
 });

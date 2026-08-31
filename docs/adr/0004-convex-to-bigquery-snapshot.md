@@ -6,8 +6,10 @@ and the audit log, in one place, without paging through Convex.
 
 The daily production backup already writes a zip to Cloud Storage. From 1.11.3
 that zip is also loaded into BigQuery dataset `convex_production` in project
-`theshedsow`. Each table is replaced wholesale. The previous day's warehouse
-copy is gone; the zip on GCS is the history.
+`theshedsow`. The loader fills a run-specific staging dataset first, then
+copies those tables into `convex_production` and drops warehouse tables that
+are no longer in the export. A failed staging load leaves last night's
+snapshot in place. The zip on GCS is the history.
 
 ## Considered options
 
@@ -39,14 +41,23 @@ They are not analytics.
 
 ## Consequences
 
-The zip backup job must not depend on BigQuery succeeding. Warehouse IAM is a
-separate grant (`roles/bigquery.jobUser` on the project, `roles/bigquery.dataEditor`
-on the dataset). If that grant is missing, the zip still lands and the
-BigQuery job fails on its own.
+The zip backup job must not depend on BigQuery succeeding. The BigQuery job
+reads the zip, so the backup service account needs `storage.objects.get` on
+the backup bucket. It also needs `roles/bigquery.user` on the project (query
+jobs and `datasets.create` for the staging dataset) and
+`roles/bigquery.dataEditor` on `convex_production`. The destination dataset
+may be pre-created; if it is missing the loader will create it with that
+same `datasets.create` grant. If the grant is missing, the zip still lands
+and the BigQuery job fails on its own.
 
 This is a snapshot, not change-data-capture. A row deleted in Convex yesterday
-is gone from BigQuery after tonight's load. Point-in-time questions go to the
-zip, not the dataset.
+is gone from BigQuery after tonight's load. A Convex table that disappears
+from the zip is dropped from `convex_production` after the new tables copy
+across. Point-in-time questions go to the zip, not the dataset.
+
+A crash while copying staging tables into `convex_production` can still mix
+one generation. That window is a table copy, not a load, and last night stays
+intact if staging never finishes.
 
 The three bounded contexts do not gain a fourth. BigQuery is a copy, not a
 source of truth, and the app does not read it.

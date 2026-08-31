@@ -7,9 +7,9 @@ import {
   DEFAULT_DATASET,
   DEFAULT_LOCATION,
   DEFAULT_PROJECT,
-  TABLE_SCHEMA,
   convertExportDir,
 } from "./lib/convexExportToBigQuery.mjs";
+import { loadConvexSnapshot, makeRunner } from "./lib/loadConvexSnapshot.mjs";
 
 const usage = `Usage:
   node scripts/convex-export-to-bigquery.mjs --dir <export-dir> --out <ndjson-dir>
@@ -80,15 +80,7 @@ const parseArgs = (argv) => {
   return args;
 };
 
-const run = (command, commandArgs, { allowFailure = false } = {}) => {
-  const result = spawnSync(command, commandArgs, { encoding: "utf8" });
-  if (result.error) throw result.error;
-  if (result.status !== 0 && !allowFailure) {
-    const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
-    throw new Error(`${command} ${commandArgs.join(" ")} failed:\n${output}`);
-  }
-  return result;
-};
+const run = makeRunner(spawnSync);
 
 const unzipToTemp = (zipPath) => {
   const dest = mkdtempSync(join(tmpdir(), "convex-export-"));
@@ -99,60 +91,6 @@ const unzipToTemp = (zipPath) => {
     throw new Error(`unzip ${zipPath} failed:\n${output}`);
   }
   return dest;
-};
-
-const bqArgs = (project, location, rest) => [
-  `--project_id=${project}`,
-  `--location=${location}`,
-  ...rest,
-];
-
-const ensureDataset = (project, dataset, location) => {
-  const listed = run("bq", bqArgs(project, location, ["ls", "--max_results=1", dataset]), {
-    allowFailure: true,
-  });
-  if (listed.status === 0) return;
-  const created = run(
-    "bq",
-    bqArgs(project, location, [
-      "mk",
-      "--dataset",
-      `--description=Daily Convex production snapshot for THE SHED`,
-      `${project}:${dataset}`,
-    ]),
-    { allowFailure: true }
-  );
-  const output = `${created.stdout ?? ""}${created.stderr ?? ""}`;
-  if (created.status === 0 || /already exists/i.test(output)) return;
-  throw new Error(
-    `Could not create BigQuery dataset ${project}:${dataset}. Grant the backup service account roles/bigquery.jobUser on the project and roles/bigquery.dataEditor on the dataset.\n${output.trim()}`
-  );
-};
-
-const loadTable = (project, dataset, location, table, file, rows) => {
-  const qualified = `${project}:${dataset}.${table}`;
-  if (rows === 0) {
-    run(
-      "bq",
-      bqArgs(project, location, [
-        "query",
-        "--nouse_legacy_sql",
-        `CREATE OR REPLACE TABLE \`${project}.${dataset}.${table}\` (_id STRING, _creationTime TIMESTAMP, document JSON, _loadedAt TIMESTAMP)`,
-      ])
-    );
-    return;
-  }
-  run(
-    "bq",
-    bqArgs(project, location, [
-      "load",
-      "--replace",
-      "--source_format=NEWLINE_DELIMITED_JSON",
-      `--schema=${TABLE_SCHEMA}`,
-      qualified,
-      file,
-    ])
-  );
 };
 
 const main = () => {
@@ -185,18 +123,13 @@ const main = () => {
     }
     if (!args.load) return;
 
-    ensureDataset(args.project, args.dataset, args.location);
-    for (const table of manifest.tables) {
-      loadTable(
-        args.project,
-        args.dataset,
-        args.location,
-        table.table,
-        table.file,
-        table.rows
-      );
-      process.stdout.write(`Loaded ${table.table} (${table.rows} row(s))\n`);
-    }
+    loadConvexSnapshot({
+      project: args.project,
+      dataset: args.dataset,
+      location: args.location,
+      manifest,
+      run,
+    });
   } finally {
     cleanup?.();
   }

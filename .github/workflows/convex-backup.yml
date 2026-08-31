@@ -1,5 +1,5 @@
 # Exports the production Convex database to Google Cloud Storage every day,
-# then replaces the convex_production BigQuery dataset with that snapshot.
+# then replaces the business tables in convex_production with that snapshot.
 # Convex file storage is intentionally excluded. Auth sessions, refresh tokens
 # and push tokens stay out of BigQuery.
 #
@@ -16,8 +16,12 @@
 # Required repository secret:
 #   CONVEX_DEPLOY_KEY              - production Convex deploy key
 #
-# The BigQuery job needs the backup service account to hold roles/bigquery.jobUser
-# on the project and roles/bigquery.dataEditor on the dataset. The zip backup
+# The BigQuery job reads the zip with gcloud storage cp, so the backup service
+# account needs storage.objects.get on the backup bucket (in addition to the
+# write it already has). It also needs roles/bigquery.user on the project
+# (jobs plus datasets.create for a run-specific staging dataset) and
+# roles/bigquery.dataEditor on convex_production. Pre-creating the destination
+# dataset is fine; staging datasets are still created per run. The zip backup
 # still succeeds if that job fails.
 name: Backup Convex to GCS
 

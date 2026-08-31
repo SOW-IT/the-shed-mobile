@@ -40,15 +40,22 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       form to leave the internal track.
 - [ ] **BigQuery IAM for the nightly Convex load** — the backup service
       account `the-shed-convex-backup@theshedsow.iam.gserviceaccount.com` can
-      write the zip to GCS today. For `convex_production` it also needs
-      `roles/bigquery.jobUser` on project `theshedsow` and
-      `roles/bigquery.dataEditor` on the dataset. Until that is granted the
-      zip backup still succeeds and the BigQuery job fails on its own.
+      write the zip to GCS today. The BigQuery job also reads that zip, so it
+      needs `storage.objects.get` on `theshedsow-convex-backups`. For
+      `convex_production` it needs `roles/bigquery.user` on project
+      `theshedsow` (jobs and `datasets.create` for the staging dataset) and
+      `roles/bigquery.dataEditor` on the destination dataset. The destination
+      dataset may be pre-created. Until that is granted the zip backup still
+      succeeds and the BigQuery job fails on its own.
 
       ```bash
       gcloud projects add-iam-policy-binding theshedsow \
         --member=serviceAccount:the-shed-convex-backup@theshedsow.iam.gserviceaccount.com \
-        --role=roles/bigquery.jobUser
+        --role=roles/bigquery.user
+
+      gcloud storage buckets add-iam-policy-binding gs://theshedsow-convex-backups \
+        --member=serviceAccount:the-shed-convex-backup@theshedsow.iam.gserviceaccount.com \
+        --role=roles/storage.objectViewer
 
       bq --location=australia-southeast1 mk --dataset \
         --description="Daily Convex production snapshot for THE SHED" \
@@ -60,9 +67,9 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
         --project=theshedsow
       ```
 
-      Evidence it is done: the `bigquery` job on *Backup Convex to GCS* is
-      green, and `bq ls theshedsow:convex_production` lists attendance,
-      requests and the other business tables.
+      After granting the roles, verify that the `bigquery` job on *Backup
+      Convex to GCS* is green and that `bq ls theshedsow:convex_production`
+      lists attendance, requests and the other business tables.
 
 ---
 
