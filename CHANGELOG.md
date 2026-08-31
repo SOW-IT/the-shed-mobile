@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.11.3] — 2026-08-31
+
+### Added
+- **Production Convex is copied into BigQuery each night.** The daily backup
+  already wrote a zip to Cloud Storage. It now also replaces dataset
+  `convex_production` so attendance, requests and org tables can be queried
+  with SQL. Auth sessions, refresh tokens and push tokens stay out. The zip
+  still uploads if the warehouse load fails.
+
 ## [1.11.2] — 2026-08-30
 
 ### Added
