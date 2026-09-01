@@ -25,7 +25,10 @@ updates:
       # eslint-plugin-react, whose latest release (7.37.5) peers on eslint
       # ^9.7 and calls an API v10 removed, so `expo lint` dies with
       # "contextOrFilename.getFilename is not a function" before linting a
-      # single file. Minor and patch bumps still come through.
+      # single file. Minor and patch bumps still come through. versions
+      # blocks eslint 10 security updates too; update-types alone does not.
       - dependency-name: eslint
+        versions:
+          - "10.x"
         update-types:
           - version-update:semver-major
