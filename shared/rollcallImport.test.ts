@@ -7,6 +7,7 @@ import {
   previousStaffYearForEmail,
   resolveImportStaffEmail,
   staffEmailCandidates,
+  uniqueStaffByEmail,
 } from "./rollcallImport";
 
 describe("staffEmailCandidates", () => {
@@ -115,5 +116,32 @@ describe("previousStaffYearByEmailKey", () => {
     expect(previousStaffYearForEmail(map, "jane.doe@sowaustralia.com")).toBe(2025);
     expect(previousStaffYearForEmail(map, "other@sow.org.au")).toBe(2023);
     expect(previousStaffYearForEmail(map, "nobody@sow.org.au")).toBeUndefined();
+  });
+
+  it("ignores later years than the viewed year", () => {
+    const map = previousStaffYearByEmailKey(
+      [
+        { email: "jane.doe@sow.org.au", year: 2025 },
+        { email: "jane.doe@sow.org.au", year: 2027 },
+      ],
+      2026
+    );
+    expect(previousStaffYearForEmail(map, "jane.doe@sow.org.au")).toBe(2025);
+    expect(previousStaffYearForEmail(map, "jane.doe@sowaustralia.com")).toBe(2025);
+  });
+});
+
+describe("uniqueStaffByEmail", () => {
+  it("keeps one row for the two SOW spellings", () => {
+    expect(
+      uniqueStaffByEmail([
+        { email: "jane.doe@sow.org.au", name: "Jane" },
+        { email: "jane.doe@sowaustralia.com", name: "Jane AU" },
+        { email: "other@sow.org.au", name: "Other" },
+      ])
+    ).toEqual([
+      { email: "jane.doe@sow.org.au", name: "Jane" },
+      { email: "other@sow.org.au", name: "Other" },
+    ]);
   });
 });

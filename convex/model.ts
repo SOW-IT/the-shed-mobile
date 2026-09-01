@@ -253,10 +253,24 @@ export async function resolveStaffIdentity(
     }
   }
 
+  let userId = profiles.find((p) => p.userId !== undefined)?.userId;
+  if (!userId) {
+    for (const candidate of staffEmailCandidates(email)) {
+      const user = await ctx.db
+        .query("users")
+        .withIndex("email", (q) => q.eq("email", candidate))
+        .first();
+      if (user) {
+        userId = user._id;
+        break;
+      }
+    }
+  }
+
   return {
     importId,
     name,
-    userId: profiles.find((p) => p.userId !== undefined)?.userId,
+    userId,
   };
 }
 

@@ -2026,6 +2026,52 @@ describe("returning staff identity", () => {
     }))!;
     expect(unassigned.find((u) => u.email === RETURNER)?.previousYear).toBe(PAST);
   });
+
+  test("does not treat a later-year profile as previousYear", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", { email: RETURNER, name: "Returner" });
+      await ctx.db.insert("staffProfiles", {
+        email: RETURNER,
+        year: NEXT,
+        importId: "person-return-1",
+      });
+    });
+    const unassigned = (await admin.query(api.admin.listUnassignedUsers, {
+      year: YEAR,
+    }))!;
+    expect(unassigned.find((u) => u.email === RETURNER)?.previousYear).toBeNull();
+  });
+
+  test("attaches a signed-in userId even when the old profile already has importId", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const userId = await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: RETURNER,
+        year: PAST,
+        importId: "person-return-1",
+        assignments: [{ role: "Staff", department: "Finance" }],
+      });
+      return await ctx.db.insert("users", { email: RETURNER, name: "Returner" });
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: RETURNER,
+      year: YEAR,
+      assignments: [{ role: "Staff", department: "Finance" }],
+    });
+    const created = await t.run((ctx) =>
+      ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) =>
+          q.eq("email", RETURNER).eq("year", YEAR)
+        )
+        .unique()
+    );
+    expect(created?.importId).toBe("person-return-1");
+    expect(created?.userId).toBe(userId);
+  });
 });
 
 describe("fillTagScopesWithAllGroups", () => {

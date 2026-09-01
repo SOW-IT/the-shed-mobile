@@ -19,6 +19,10 @@ import {
   scopeKindFor,
   universityColour,
 } from "@shared/flow";
+import {
+  canonicalEmailKey,
+  uniqueStaffByEmail,
+} from "@shared/rollcallImport";
 import { api } from "@convex/_generated/api";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import {
@@ -77,17 +81,6 @@ const STRUCTURE_SUB_TABS = [
 const STAFF_EDITABLE_ROLES = ROLES.filter(
   (r) => r !== HEAD_OF_DEPARTMENT && r !== HEAD_OF_DIVISION && r !== MEMBER
 );
-
-const uniqueByEmail = <T extends { email: string }>(rows: T[]): T[] => {
-  const seen = new Set<string>();
-  const out: T[] = [];
-  for (const row of rows) {
-    if (seen.has(row.email)) continue;
-    seen.add(row.email);
-    out.push(row);
-  }
-  return out;
-};
 
 type AssignmentDraft = { role: string; department: string; university: string };
 const emptyDraft = (role = STAFF_EDITABLE_ROLES[0]): AssignmentDraft => ({
@@ -510,20 +503,23 @@ export default function AdminScreen() {
     { email: string; name?: string | null; previousYear?: number | null }
   >();
   for (const user of unassigned ?? []) {
-    if (user.previousYear != null) returningByEmail.set(user.email, user);
-  }
-  for (const user of directoryOnlyUnassigned) {
-    if (user.previousYear != null && !returningByEmail.has(user.email)) {
-      returningByEmail.set(user.email, user);
+    if (user.previousYear != null) {
+      returningByEmail.set(canonicalEmailKey(user.email) ?? user.email, user);
     }
   }
-  const signedInNeverStaff = uniqueByEmail(
+  for (const user of directoryOnlyUnassigned) {
+    const key = canonicalEmailKey(user.email) ?? user.email;
+    if (user.previousYear != null && !returningByEmail.has(key)) {
+      returningByEmail.set(key, user);
+    }
+  }
+  const signedInNeverStaff = uniqueStaffByEmail(
     (unassigned ?? []).filter((u) => u.previousYear == null)
   );
-  const directoryNeverStaff = uniqueByEmail(
+  const directoryNeverStaff = uniqueStaffByEmail(
     directoryOnlyUnassigned.filter((u) => u.previousYear == null)
   );
-  const returningStaff = uniqueByEmail([...returningByEmail.values()]);
+  const returningStaff = uniqueStaffByEmail([...returningByEmail.values()]);
 
   const saveAssign = (email: string) => {
     if (directorExists && assigningAssignments.some((a) => a.role === DIRECTOR)) {
