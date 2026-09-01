@@ -13,7 +13,7 @@ import {
   withinRolloverAuthGrace,
 } from "../shared/flow";
 import { staffEmailCandidates } from "../shared/rollcallImport";
-import { Doc } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx, QueryCtx } from "./_generated/server";
 
 type Ctx = QueryCtx | MutationCtx;
@@ -180,21 +180,98 @@ export async function requireAttendanceManager(ctx: Ctx): Promise<CallerContext>
   return caller;
 }
 
-export async function resolveImportId(
+export async function staffProfilesForEmail(
   ctx: Ctx,
   email: string
-): Promise<string | undefined> {
-  const profiles = await ctx.db
-    .query("staffProfiles")
-    .withIndex("by_email_and_year", (q) => q.eq("email", email))
-    .take(50);
-  const existing = profiles.find((p) => p.importId !== undefined);
-  if (existing) return existing.importId;
-  const user = await ctx.db
-    .query("users")
-    .withIndex("email", (q) => q.eq("email", email))
-    .first();
-  return user?._id;
+): Promise<Doc<"staffProfiles">[]> {
+  const byId = new Map<string, Doc<"staffProfiles">>();
+  for (const candidate of staffEmailCandidates(email)) {
+    const rows = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_email_and_year", (q) => q.eq("email", candidate))
+      .take(50);
+    for (const row of rows) byId.set(row._id, row);
+  }
+  return [...byId.values()].sort((a, b) => b.year - a.year);
+}
+
+export async function findProfileForYear(
+  ctx: Ctx,
+  email: string,
+  year: number
+): Promise<Doc<"staffProfiles"> | null> {
+  for (const candidate of staffEmailCandidates(email)) {
+    const profile = await getProfile(ctx, candidate, year);
+    if (profile) return profile;
+  }
+  return null;
+}
+
+export async function resolveStaffIdentity(
+  ctx: MutationCtx,
+  email: string
+): Promise<{
+  importId?: string;
+  name?: string;
+  userId?: Id<"users">;
+}> {
+  const profiles = await staffProfilesForEmail(ctx, email);
+  let importId = profiles.find((p) => p.importId !== undefined)?.importId;
+  if (!importId) {
+    for (const candidate of staffEmailCandidates(email)) {
+      const user = await ctx.db
+        .query("users")
+        .withIndex("email", (q) => q.eq("email", candidate))
+        .first();
+      if (user) {
+        importId = user._id;
+        break;
+      }
+    }
+  }
+  if (!importId && profiles[0]) importId = profiles[0]._id;
+
+  if (importId) {
+    for (const profile of profiles) {
+      if (profile.importId === undefined) {
+        await ctx.db.patch("staffProfiles", profile._id, { importId });
+      }
+    }
+  }
+
+  let name = profiles.find((p) => p.name)?.name;
+  if (!name) {
+    for (const candidate of staffEmailCandidates(email)) {
+      const dirUser = await ctx.db
+        .query("directoryUsers")
+        .withIndex("by_email", (q) => q.eq("email", candidate))
+        .unique();
+      if (dirUser?.name) {
+        name = dirUser.name;
+        break;
+      }
+    }
+  }
+
+  let userId = profiles.find((p) => p.userId !== undefined)?.userId;
+  if (!userId) {
+    for (const candidate of staffEmailCandidates(email)) {
+      const user = await ctx.db
+        .query("users")
+        .withIndex("email", (q) => q.eq("email", candidate))
+        .first();
+      if (user) {
+        userId = user._id;
+        break;
+      }
+    }
+  }
+
+  return {
+    importId,
+    name,
+    userId,
+  };
 }
 
 export async function getDepartment(

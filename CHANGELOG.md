@@ -6,6 +6,39 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.11.5] — 2026-09-01
+
+### Added
+- **Admin → Users now lists people who were staff in an earlier year.** After a
+  directory sync, they sit under "Previously staff" on the year you are editing,
+  with the last year they served. Assigning them creates this year's profile and
+  links it to the old one, so Insights treats them as the same person. The match
+  is by email, including the sow.org.au / sowaustralia.com pair.
+
+### Fixed
+- **Previously staff only counts earlier years.** Someone already assigned next
+  year no longer shows as returning staff on this year.
+- **Assigning a returner keeps their signed-in account** even when the old
+  profile already had an import id.
+- **The two SOW email spellings no longer appear twice** on Previously staff.
+
+## [1.11.4] — 2026-09-01
+
+### Fixed
+- **The nightly BigQuery load no longer dies on a `bq` warning.** GitHub's
+  `bq ls --format=json` prints a WARNING line before the JSON. The loader
+  treated that as the payload and crashed after converting the zip. It now
+  ignores that prefix.
+
+## [1.11.3] — 2026-08-31
+
+### Added
+- **Production Convex is copied into BigQuery each night.** The daily backup
+  already wrote a zip to Cloud Storage. It now also replaces the contents of
+  the business tables in dataset `convex_production` so attendance, requests
+  and org can be queried with SQL. Auth sessions, refresh tokens and push
+  tokens stay out. The zip still uploads if the warehouse load fails.
+
 ## [1.11.2] — 2026-08-30
 
 ### Added

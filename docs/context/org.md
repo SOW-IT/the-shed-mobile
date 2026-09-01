@@ -46,6 +46,13 @@ A person with a `staffProfile` for a given staff year. Someone can be staff in
 a year.
 _Avoid_: employee, worker, team member
 
+**Previously staff**:
+On Admin → Users, a person who has a `staffProfile` in an earlier year but not
+the year being edited, and who is in the Workspace directory or has signed in.
+Assigning them for the viewed year creates that year's profile and links it to
+the earlier one by email, including the sow.org.au / sowaustralia.com pair.
+_Avoid_: rehire, returning employee, alumni
+
 **Visitor**:
 A signed-in account that is not Staff — someone who signed in with a personal
 Google account rather than an `@sow.org.au` one. A visitor has an account and

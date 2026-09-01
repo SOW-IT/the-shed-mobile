@@ -19,6 +19,10 @@ import {
   scopeKindFor,
   universityColour,
 } from "@shared/flow";
+import {
+  canonicalEmailKey,
+  uniqueStaffByEmail,
+} from "@shared/rollcallImport";
 import { api } from "@convex/_generated/api";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import {
@@ -494,6 +498,28 @@ export default function AdminScreen() {
   const directoryOnlyUnassigned = (syncState?.users ?? []).filter(
     (u) => !u.hasProfile && !unassignedEmails.has(u.email) && !leaverEmails.has(u.email)
   );
+  const returningByEmail = new Map<
+    string,
+    { email: string; name?: string | null; previousYear?: number | null }
+  >();
+  for (const user of unassigned ?? []) {
+    if (user.previousYear != null) {
+      returningByEmail.set(canonicalEmailKey(user.email) ?? user.email, user);
+    }
+  }
+  for (const user of directoryOnlyUnassigned) {
+    const key = canonicalEmailKey(user.email) ?? user.email;
+    if (user.previousYear != null && !returningByEmail.has(key)) {
+      returningByEmail.set(key, user);
+    }
+  }
+  const signedInNeverStaff = uniqueStaffByEmail(
+    (unassigned ?? []).filter((u) => u.previousYear == null)
+  );
+  const directoryNeverStaff = uniqueStaffByEmail(
+    directoryOnlyUnassigned.filter((u) => u.previousYear == null)
+  );
+  const returningStaff = uniqueStaffByEmail([...returningByEmail.values()]);
 
   const saveAssign = (email: string) => {
     if (directorExists && assigningAssignments.some((a) => a.role === DIRECTOR)) {
@@ -521,7 +547,11 @@ export default function AdminScreen() {
       .finally(() => setSavingAssign(false));
   };
 
-  const renderUnassignedCard = (user: { email: string; name?: string | null }) => {
+  const renderUnassignedCard = (user: {
+    email: string;
+    name?: string | null;
+    previousYear?: number | null;
+  }) => {
     const isAssigning = assigningUserEmail === user.email;
     return (
       <Card key={user.email}>
@@ -529,6 +559,9 @@ export default function AdminScreen() {
           <>
             <Txt style={{ fontWeight: "600" }}>{user.name ?? user.email}</Txt>
             {user.name ? <Muted>{user.email}</Muted> : null}
+            {user.previousYear ? (
+              <Muted>Last on staff in {user.previousYear}</Muted>
+            ) : null}
             <AssignmentEditor
               assignments={assigningAssignments}
               onChange={setAssigningAssignments}
@@ -553,6 +586,9 @@ export default function AdminScreen() {
             <View style={{ flexGrow: 1 }}>
               <Txt style={{ fontWeight: "600" }}>{user.name ?? user.email}</Txt>
               {user.name ? <Muted>{user.email}</Muted> : null}
+              {user.previousYear ? (
+                <Muted>Last on staff in {user.previousYear}</Muted>
+              ) : null}
             </View>
             <IconButton
               name="log-out-outline"
@@ -752,22 +788,33 @@ export default function AdminScreen() {
 
       {key === "users" && (
         <>
-          {editable && (unassigned ?? []).length > 0 && (
+          {editable && returningStaff.length > 0 && (
             <>
-              <SectionTitle>Signed in, no assignment · {selectedYear}</SectionTitle>
+              <SectionTitle>
+                Previously staff · {selectedYear} ({returningStaff.length})
+              </SectionTitle>
               <CardGrid>
-                {(unassigned ?? []).map((user) => renderUnassignedCard(user))}
+                {returningStaff.map((user) => renderUnassignedCard(user))}
               </CardGrid>
             </>
           )}
 
-          {editable && directoryOnlyUnassigned.length > 0 && (
+          {editable && signedInNeverStaff.length > 0 && (
+            <>
+              <SectionTitle>Signed in, no assignment · {selectedYear}</SectionTitle>
+              <CardGrid>
+                {signedInNeverStaff.map((user) => renderUnassignedCard(user))}
+              </CardGrid>
+            </>
+          )}
+
+          {editable && directoryNeverStaff.length > 0 && (
             <>
               <SectionTitle>
-                In directory, no assignment · {selectedYear} ({directoryOnlyUnassigned.length})
+                In directory, no assignment · {selectedYear} ({directoryNeverStaff.length})
               </SectionTitle>
               <CardGrid>
-                {directoryOnlyUnassigned.map((user) => renderUnassignedCard(user))}
+                {directoryNeverStaff.map((user) => renderUnassignedCard(user))}
               </CardGrid>
             </>
           )}
