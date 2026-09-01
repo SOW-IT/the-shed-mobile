@@ -1811,6 +1811,223 @@ describe("not-serving (leavers) list", () => {
   });
 });
 
+describe("returning staff identity", () => {
+  const RETURNER = "returner@sow.org.au";
+  const PAST = YEAR - 1;
+  const NEXT = YEAR + 1;
+
+  test("assigning a previous-year email reuses importId and name", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email: RETURNER,
+        year: PAST,
+        name: "Returning Person",
+        importId: "person-return-1",
+        assignments: [{ role: "Staff", department: "Finance" }],
+      })
+    );
+    await admin.mutation(api.admin.upsertDivision, {
+      year: NEXT,
+      name: "Governance",
+    });
+    await admin.mutation(api.admin.upsertDepartment, {
+      year: NEXT,
+      name: "Finance",
+      division: "Governance",
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: RETURNER,
+      year: NEXT,
+      assignments: [{ role: "Staff", department: "Finance" }],
+    });
+    const rows = await t.run((ctx) =>
+      ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", RETURNER))
+        .take(10)
+    );
+    const created = rows.find((p) => p.year === NEXT);
+    const past = rows.find((p) => p.year === PAST);
+    expect(created?.importId).toBe("person-return-1");
+    expect(created?.name).toBe("Returning Person");
+    expect(past?.importId).toBe("person-return-1");
+  });
+
+  test("links a sowaustralia.com history row to a sow.org.au assign", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email: "jane.doe@sowaustralia.com",
+        year: PAST,
+        name: "Jane Doe",
+        importId: "person-jane",
+        assignments: [{ role: "Staff", department: "Finance" }],
+      })
+    );
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "jane.doe@sow.org.au",
+      year: YEAR,
+      assignments: [{ role: "Staff", department: "Finance" }],
+    });
+    const created = await t.run((ctx) =>
+      ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) =>
+          q.eq("email", "jane.doe@sow.org.au").eq("year", YEAR)
+        )
+        .unique()
+    );
+    expect(created?.importId).toBe("person-jane");
+    expect(created?.name).toBe("Jane Doe");
+  });
+
+  test("mints importId onto a previous profile that had none", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const pastId = await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email: RETURNER,
+        year: PAST,
+        assignments: [{ role: "Staff", department: "Finance" }],
+      })
+    );
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: RETURNER,
+      year: YEAR,
+      assignments: [{ role: "Staff", department: "Finance" }],
+    });
+    const rows = await t.run((ctx) =>
+      ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", RETURNER))
+        .take(10)
+    );
+    const past = rows.find((p) => p.year === PAST);
+    const current = rows.find((p) => p.year === YEAR);
+    expect(past?.importId).toBe(pastId);
+    expect(current?.importId).toBe(pastId);
+  });
+
+  test("copies a directory name when the previous profile has none", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: RETURNER,
+        year: PAST,
+        importId: "person-dir-1",
+        assignments: [{ role: "Staff", department: "Finance" }],
+      });
+      await ctx.db.insert("directoryUsers", {
+        email: RETURNER,
+        name: "Directory Returner",
+      });
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: RETURNER,
+      year: YEAR,
+      assignments: [{ role: "Staff", department: "Finance" }],
+    });
+    const created = await t.run((ctx) =>
+      ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) =>
+          q.eq("email", RETURNER).eq("year", YEAR)
+        )
+        .unique()
+    );
+    expect(created?.name).toBe("Directory Returner");
+    expect(created?.importId).toBe("person-dir-1");
+  });
+
+  test("links across two earlier years and copies userId", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const userId = await t.run((ctx) =>
+      ctx.db.insert("users", { email: RETURNER, name: "Returner" })
+    );
+    await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: RETURNER,
+        year: PAST - 1,
+        name: "Older Returner",
+        importId: "person-return-1",
+        userId,
+      });
+      await ctx.db.insert("staffProfiles", {
+        email: "returner@sowaustralia.com",
+        year: PAST,
+        importId: "person-return-1",
+      });
+    });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: RETURNER,
+      year: YEAR,
+      assignments: [{ role: "Staff", department: "Finance" }],
+    });
+    const created = await t.run((ctx) =>
+      ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) =>
+          q.eq("email", RETURNER).eq("year", YEAR)
+        )
+        .unique()
+    );
+    expect(created?.importId).toBe("person-return-1");
+    expect(created?.name).toBe("Older Returner");
+    expect(created?.userId).toBe(userId);
+  });
+
+  test("edits the existing year row when only the other SOW domain is present", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    const existingId = await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email: "pat.lee@sowaustralia.com",
+        year: YEAR,
+        name: "Pat Lee",
+        importId: "person-pat",
+        assignments: [{ role: "Staff", department: "Finance" }],
+      })
+    );
+    const saved = await admin.mutation(api.admin.setStaffProfile, {
+      email: "pat.lee@sow.org.au",
+      year: YEAR,
+      assignments: [{ role: "Staff", department: "Finance" }],
+    });
+    expect(saved).toBe(existingId);
+    const rows = await t.run((ctx) =>
+      ctx.db
+        .query("staffProfiles")
+        .withIndex("by_year", (q) => q.eq("year", YEAR))
+        .take(100)
+    );
+    const pats = rows.filter((p) => p.email.startsWith("pat.lee@"));
+    expect(pats).toHaveLength(1);
+    expect(pats[0]?.email).toBe("pat.lee@sowaustralia.com");
+  });
+
+  test("signed-in unassigned people include previousYear", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", { email: RETURNER, name: "Returner" });
+      await ctx.db.insert("staffProfiles", {
+        email: RETURNER,
+        year: PAST,
+        importId: "person-return-1",
+      });
+    });
+    const unassigned = (await admin.query(api.admin.listUnassignedUsers, {
+      year: YEAR,
+    }))!;
+    expect(unassigned.find((u) => u.email === RETURNER)?.previousYear).toBe(PAST);
+  });
+});
+
 describe("fillTagScopesWithAllGroups", () => {
   test("fills only unscoped tags with every group of their year, idempotently", async () => {
     const t = await setup();
