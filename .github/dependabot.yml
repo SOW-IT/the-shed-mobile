@@ -21,6 +21,11 @@ updates:
       # upgrade that should move them, via `npx expo install --fix`.
       - dependency-name: react
       - dependency-name: react-dom
+      # Expo SDK 57 pins these native packages. Bumping them independently
+      # fails npm ci / Vercel (`react-native-reanimated@4.5.3` peers on
+      # react-native 0.83-0.86; gesture-handler 3.x is ahead of the SDK).
+      - dependency-name: react-native
+      - dependency-name: react-native-gesture-handler
       # eslint 10 cannot be used yet: eslint-config-expo pulls in
       # eslint-plugin-react, whose latest release (7.37.5) peers on eslint
       # ^9.7 and calls an API v10 removed, so `expo lint` dies with
