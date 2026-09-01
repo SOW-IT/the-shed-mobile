@@ -13,7 +13,7 @@
 # Review/All segments).
 appId: ${APP_ID}
 tags:
-  - staff
+  - finance
   - smoke
 ---
 - runFlow:
