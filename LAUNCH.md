@@ -38,38 +38,6 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       **Unlisted App Distribution** is the lighter option for a staff app.
       Android likewise needs the store listing, content rating and Data safety
       form to leave the internal track.
-- [ ] **BigQuery IAM for the nightly Convex load** — the backup service
-      account `the-shed-convex-backup@theshedsow.iam.gserviceaccount.com` can
-      write the zip to GCS today. The BigQuery job also reads that zip, so it
-      needs `storage.objects.get` on `theshedsow-convex-backups`. For
-      `convex_production` it needs `roles/bigquery.user` on project
-      `theshedsow` (jobs and `datasets.create` for the staging dataset) and
-      `roles/bigquery.dataEditor` on the destination dataset. The destination
-      dataset may be pre-created. Until that is granted the zip backup still
-      succeeds and the BigQuery job fails on its own.
-
-      ```bash
-      gcloud projects add-iam-policy-binding theshedsow \
-        --member=serviceAccount:the-shed-convex-backup@theshedsow.iam.gserviceaccount.com \
-        --role=roles/bigquery.user
-
-      gcloud storage buckets add-iam-policy-binding gs://theshedsow-convex-backups \
-        --member=serviceAccount:the-shed-convex-backup@theshedsow.iam.gserviceaccount.com \
-        --role=roles/storage.objectViewer
-
-      bq --location=australia-southeast1 mk --dataset \
-        --description="Daily Convex production snapshot for THE SHED" \
-        theshedsow:convex_production
-
-      gcloud bigquery datasets add-iam-policy-binding convex_production \
-        --member=serviceAccount:the-shed-convex-backup@theshedsow.iam.gserviceaccount.com \
-        --role=roles/bigquery.dataEditor \
-        --project=theshedsow
-      ```
-
-      After granting the roles, verify that the `bigquery` job on *Backup
-      Convex to GCS* is green and that `bq ls theshedsow:convex_production`
-      lists attendance, requests and the other business tables.
 
 ---
 
@@ -90,6 +58,15 @@ backup's three repository *variables* (`GCP_WORKLOAD_IDENTITY_PROVIDER`,
 `theshedsow-convex-backups`. *Evidence: Convex Deploy, Deploy web (dev) and
 Backup Convex to GCS all succeeded on their latest runs; the backup has run
 daily and cleanly.*
+
+**Convex snapshot in BigQuery** — dataset `convex_production` exists in
+`australia-southeast1`. The backup SA has `roles/bigquery.user` on the
+project, `roles/storage.objectViewer` on the backup bucket, and WRITER on
+the dataset. A load of the 31 Aug production zip published 26 tables
+(attendance 11556, requests 345, staffProfiles 845, users 57). Auth sessions
+and push tokens are not in the dataset. *Evidence: `bq ls
+theshedsow:convex_production` and those row counts on 2026-09-01. The GitHub
+`bigquery` job still has to run once on `main` after 1.11.3 merges.*
 
 **Google OAuth** — `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` and
 `AUTH_ALLOWED_DOMAIN` are set on **both** deployments, covering the `google`
