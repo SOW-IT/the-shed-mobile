@@ -4,7 +4,7 @@
   "version": "1.11.5",
   "dependencies": {
     "@auth/core": "^0.41.3",
-    "@convex-dev/auth": "^0.0.94",
+    "@convex-dev/auth": "^0.0.95",
     "@expo/ui": "~57.0.6",
     "@expo/vector-icons": "^15.0.2",
     "convex": "^1.42.3",
