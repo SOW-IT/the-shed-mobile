@@ -37,6 +37,10 @@ const Person = ({
   return (
     <Pressable
       testID="org-person"
+      accessibilityRole="button"
+      accessibilityLabel={[person.name ?? person.email, tag ?? person.role]
+        .filter(Boolean)
+        .join(", ")}
       style={({ pressed }) => [styles.personRow, pressed && { opacity: 0.5 }]}
       onPress={() =>
         router.push({ pathname: "/person/[email]", params: { email: person.email } })

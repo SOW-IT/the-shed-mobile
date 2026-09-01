@@ -8,7 +8,12 @@ tags:
 
 - tapOn:
     text: ".*Insights, tab.*"
-- assertVisible: "Insights"
+# Visitor Insights has no "Insights" heading — iOS only exposes the tab label
+# ("Insights, tab, N of N") and chart a11y labels like "All staff — tap to expand".
+- extendedWaitUntil:
+    visible:
+      text: ".*All staff.*"
+    timeout: 15000
 
 # Logo → Home
 - tapOn:

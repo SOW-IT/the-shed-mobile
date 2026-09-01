@@ -147,7 +147,7 @@ text and are baked into the flows):
 |---|---|
 | Bottom tabs | `"<Name>, tab, N of N"` → match with regex, e.g. `.*Attendance, tab.*` |
 | Requests "Review" segment | carries its badge: `"Review, 2"` → use `.*Review.*` |
-| Test-env chip | its a11y label `"Test environment — what is this?"` (not "Test Environment") |
+| Test-env chip | its a11y label `"Test environment. What is this?"` (not "Test Environment") |
 | Notifications bell | `"Notifications, N unread"` → use `.*Notifications.*` |
 | Other a11y labels | exact: `"Open your profile"`, `"+ Make Request"`, `"Nudge approver"`, `"Comments"`, `"Delete or cancel request"`, `"Go to Home"` |
 

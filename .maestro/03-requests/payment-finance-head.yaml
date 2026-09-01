@@ -4,36 +4,36 @@ appId: ${APP_ID}
 tags:
   - finance
 ---
-- runFlow: ../common/launch-fresh.yaml
 - runFlow:
-    file: ../common/sign-in.yaml
+    file: ../common/sign-in-staff-to-requests.yaml
     env:
       EMAIL: ${FINANCE_EMAIL}
       PASSWORD: ${FINANCE_PASSWORD}
-- tapOn:
-    text: ".*Requests, tab.*"
 # "Ready to Pay" is part of the Review tab (the approver's queue), not All.
 # Segment carries an unread-count badge (e.g. "Review, 8, 15"); match by prefix.
 - tapOn:
     text: "Review.*"
 
-# "Ready to Pay" lives under Review (the finance approver's queue), below ALL
-# four pending-approval sections (hod/budgetManager/director/financeHead).
-# This deployment's Review tab mixes real, live dev data with the E2E
-# fixtures, and how much of it sits ahead of our fixture varies run to run (it
-# is NOT a fixed, isolated list) — timeout has to cover the slow case, not the
-# lucky one. 90s was empirically the value that held up across repeated runs;
-# smaller values (25s, 45s) intermittently failed on a slower/busier pass.
-- scrollUntilVisible:
-    element:
-      text: ".*Ready to Pay.*"
-    direction: DOWN
-    speed: 35
-    timeout: 90000
-    visibilityPercentage: 50
-    waitToSettleTimeoutMs: 1000
-- scroll
-- scroll
+# Shared-dev Review mixes live data with E2E fixtures. Ready-to-Pay sits
+# below every pending-approval card. Nested pager scrollUntilVisible does
+# not move this list — swipe it, then settle on the pay icon.
+- repeat:
+    times: 10
+    commands:
+      - swipe:
+          start: "50%,78%"
+          end: "50%,28%"
+          duration: 180
+- runFlow:
+    when:
+      notVisible: "Mark as paid"
+    commands:
+      - swipe:
+          start: "50%,35%"
+          end: "50%,70%"
+          duration: 180
+- assertVisible: "Mark as paid"
+
 # The card's icon trigger is labelled "Mark as paid" (lowercase p); the
 # PaySheet's confirm button is a distinct "Mark as Paid" (capital P) — no
 # index needed, the two never collide.
