@@ -43,7 +43,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   Resources (People and Culture, Training and Development), Operations
   (Events, Missions).
 - **Pre-provisioning by email**: assign a role/department to someone who has
-  never signed in; it links up on their first Google sign-in.
+  never signed in; it links up on their first Google sign-in. People who
+  were staff in an earlier year and are back in the Workspace directory
+  show as **Previously staff** on Admin → Users. Assigning them reuses the
+  old identity so they are not treated as a new person.
 - **Google sign-in** via Convex Auth, through two providers: `google` for
   `sow.org.au` staff accounts (`hd` hint + server-side domain check) and
   `googlePersonal` for personal accounts, which sign in as **visitors**, an
@@ -135,7 +138,8 @@ npx convex env set GOOGLE_ADMIN_IMPERSONATE <a-workspace-admin>@sow.org.au
 
 Until configured, the daily sync no-ops and the admin screen shows
 "not synced yet". Syncing only fills the picker. Assigning roles stays an
-explicit admin action.
+explicit admin action. A directory email that matches a previous staff year
+is listed under Previously staff rather than as a brand-new person.
 
 ## CI/CD
 
