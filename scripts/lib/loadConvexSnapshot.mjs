@@ -21,7 +21,7 @@ export const makeRunner = (spawn) => (command, commandArgs, { allowFailure = fal
 };
 
 const bq = (run, project, args, allowFailure = false) =>
-  run("bq", [`--project_id=${project}`, ...args], { allowFailure });
+  run("bq", ["--quiet", `--project_id=${project}`, ...args], { allowFailure });
 
 const ensureDataset = (run, project, dataset, location, description) => {
   const listed = bq(run, project, ["ls", "--max_results=1", dataset], true);

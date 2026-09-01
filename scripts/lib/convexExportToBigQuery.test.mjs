@@ -13,6 +13,7 @@ import {
   documentToRow,
   extraTables,
   isLoadDataset,
+  jsonPayload,
   parseBqDatasetIds,
   parseBqTableIds,
   shouldExportTable,
@@ -230,6 +231,16 @@ describe("snapshot publish plan", () => {
       "convex_production_load_old",
     ]);
   });
+
+  test("ignores bq warning text before the json payload", () => {
+    const warned =
+      'WARNING: `--format=json` with no dataset lists all datasets.\n[{"datasetId":"convex_production_load_old"}]\n';
+    expect(jsonPayload(warned)).toBe('[{"datasetId":"convex_production_load_old"}]');
+    expect(parseBqDatasetIds(warned)).toEqual(["convex_production_load_old"]);
+    expect(
+      parseBqTableIds('WARNING: "`format` is json"\n[{"tableId":"attendance"}]')
+    ).toEqual(["attendance"]);
+  });
 });
 
 const ok = (stdout = "") => ({ status: 0, stdout, stderr: "", error: null });
@@ -259,8 +270,11 @@ describe("loadConvexSnapshot", () => {
   test("loads staging first, then publishes, then drops tables missing from this export", () => {
     const { run, calls } = mockBq((args) => {
       const line = argLine(args);
-      if (line === "--project_id=theshedsow ls --format=json --max_results=1000") {
-        return ok(JSON.stringify([{ datasetId: "convex_production_load_old" }]));
+      if (line.includes("ls --format=json --max_results=1000") && !line.includes("convex_production")) {
+        return ok(
+          'WARNING: `--format=json` with no dataset lists all datasets.\n' +
+            JSON.stringify([{ datasetId: "convex_production_load_old" }])
+        );
       }
       if (line.includes(`ls --format=json --max_results=1000 convex_production`) &&
           !line.includes(staging)) {

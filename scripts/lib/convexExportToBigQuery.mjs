@@ -116,9 +116,19 @@ export const extraTables = (existingTables, manifestTableNames) => {
 export const isLoadDataset = (dataset, name) =>
   typeof name === "string" && name.startsWith(`${dataset}_load_`);
 
+export const jsonPayload = (text) => {
+  if (!text) return "";
+  const arrayStart = text.indexOf("[");
+  const objectStart = text.indexOf("{");
+  const starts = [arrayStart, objectStart].filter((index) => index >= 0);
+  if (!starts.length) return text.trim();
+  return text.slice(Math.min(...starts)).trim();
+};
+
 export const parseBqTableIds = (jsonText) => {
-  if (!jsonText || !jsonText.trim()) return [];
-  const parsed = JSON.parse(jsonText);
+  const payload = jsonPayload(jsonText);
+  if (!payload) return [];
+  const parsed = JSON.parse(payload);
   if (!Array.isArray(parsed)) return [];
   return parsed
     .map((row) => row.tableId ?? row.id?.split(".").pop())
@@ -126,8 +136,9 @@ export const parseBqTableIds = (jsonText) => {
 };
 
 export const parseBqDatasetIds = (jsonText) => {
-  if (!jsonText || !jsonText.trim()) return [];
-  const parsed = JSON.parse(jsonText);
+  const payload = jsonPayload(jsonText);
+  if (!payload) return [];
+  const parsed = JSON.parse(payload);
   if (!Array.isArray(parsed)) return [];
   return parsed
     .map((row) => row.datasetId ?? row.id?.split(".").pop() ?? row.id?.split(":")[1])

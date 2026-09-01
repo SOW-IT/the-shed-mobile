@@ -6,6 +6,14 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.11.4] — 2026-09-01
+
+### Fixed
+- **The nightly BigQuery load no longer dies on a `bq` warning.** GitHub's
+  `bq ls --format=json` prints a WARNING line before the JSON. The loader
+  treated that as the payload and crashed after converting the zip. It now
+  ignores that prefix.
+
 ## [1.11.3] — 2026-08-31
 
 ### Added
