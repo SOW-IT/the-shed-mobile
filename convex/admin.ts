@@ -26,12 +26,18 @@ import {
   STAFF_SIDE_ROLES,
 } from "../shared/flow";
 import { displayNameFromEmail, normalizeSubgroups, SOW_SUBGROUP } from "../shared/rollcall";
+import {
+  previousStaffYearByEmailKey,
+  previousStaffYearForEmail,
+  staffEmailCandidates,
+} from "../shared/rollcallImport";
 import { internal } from "./_generated/api";
-import { Doc } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, MutationCtx, mutation, query, QueryCtx } from "./_generated/server";
 import {
   currentStaffYear,
   DELEGATION_QUERY_LIMIT,
+  findProfileForYear,
   incomingStaffYear,
   getDepartment,
   getProfile,
@@ -42,7 +48,7 @@ import {
   optionalEmail,
   requireAdmin,
   requireEmail,
-  resolveImportId,
+  resolveStaffIdentity,
   rolesOf,
   setCachedDirectorEmail,
 } from "./model";
@@ -116,6 +122,27 @@ const patchFromAssignments = async (
   });
 };
 
+const writeStaffProfile = async (
+  ctx: MutationCtx,
+  existing: Doc<"staffProfiles"> | null,
+  email: string,
+  year: number,
+  assignments: Assignment[]
+): Promise<Id<"staffProfiles">> => {
+  const identity = await resolveStaffIdentity(ctx, email);
+  const fields = {
+    assignments,
+    importId: existing?.importId ?? identity.importId,
+    name: existing?.name ?? identity.name,
+    userId: existing?.userId ?? identity.userId,
+  };
+  if (existing) {
+    await ctx.db.patch("staffProfiles", existing._id, fields);
+    return existing._id;
+  }
+  return await ctx.db.insert("staffProfiles", { email, year, ...fields });
+};
+
 const grantHead = async (
   ctx: MutationCtx,
   year: number,
@@ -127,14 +154,9 @@ const grantHead = async (
     role === HEAD_OF_DEPARTMENT
       ? { role, department: scopeName }
       : { role, division: scopeName };
-  const profile = await getProfile(ctx, email, year);
+  const profile = await findProfileForYear(ctx, email, year);
   if (!profile) {
-    await ctx.db.insert("staffProfiles", {
-      email,
-      year,
-      assignments: [headAssignment],
-      importId: await resolveImportId(ctx, email),
-    });
+    await writeStaffProfile(ctx, null, email, year, [headAssignment]);
     return;
   }
   const kept = assignmentsOf(profile).filter((a) => {
@@ -206,7 +228,7 @@ export const setStaffProfile = mutation({
       const drafts = args.assignments;
       if (drafts.length === 0) throw new ConvexError("Add at least one assignment.");
 
-      const existing = await getProfile(ctx, email, args.year);
+      const existing = await findProfileForYear(ctx, email, args.year);
       const existingHeadRoles = existing ? rolesOf(existing).filter(isHeadRole) : [];
 
       const allowed = await allowedRolesForYear(ctx, args.year);
@@ -318,35 +340,21 @@ export const setStaffProfile = mutation({
       }
 
       await setLeaver(ctx, args.year, email, false);
-      if (existing) {
-        await ctx.db.patch("staffProfiles", existing._id, {
-          assignments,
-          importId: existing.importId ?? (await resolveImportId(ctx, email)),
-        });
-        await syncDirectorCacheAfterProfileChange(
-          ctx,
-          args.year,
-          email,
-          assignments.some((a) => a.role === DIRECTOR),
-          existing
-        );
-        return existing._id;
-      } else {
-        const id = await ctx.db.insert("staffProfiles", {
-          email,
-          year: args.year,
-          assignments,
-          importId: await resolveImportId(ctx, email),
-        });
-        await syncDirectorCacheAfterProfileChange(
-          ctx,
-          args.year,
-          email,
-          assignments.some((a) => a.role === DIRECTOR),
-          existing
-        );
-        return id;
-      }
+      const profileId = await writeStaffProfile(
+        ctx,
+        existing,
+        email,
+        args.year,
+        assignments
+      );
+      await syncDirectorCacheAfterProfileChange(
+        ctx,
+        args.year,
+        email,
+        assignments.some((a) => a.role === DIRECTOR),
+        existing
+      );
+      return profileId;
     }
 
     const roles = [...new Set(args.roles ?? [])];
@@ -358,7 +366,7 @@ export const setStaffProfile = mutation({
       }
     }
 
-    const existing = await getProfile(ctx, email, args.year);
+    const existing = await findProfileForYear(ctx, email, args.year);
     const existingHeadRoles = existing
       ? rolesOf(existing).filter(isHeadRole)
       : [];
@@ -471,21 +479,13 @@ export const setStaffProfile = mutation({
     }
 
     await setLeaver(ctx, args.year, email, false);
-    let profileId;
-    if (existing) {
-      await ctx.db.patch("staffProfiles", existing._id, {
-        assignments,
-        importId: existing.importId ?? (await resolveImportId(ctx, email)),
-      });
-      profileId = existing._id;
-    } else {
-      profileId = await ctx.db.insert("staffProfiles", {
-        email,
-        year: args.year,
-        assignments,
-        importId: await resolveImportId(ctx, email),
-      });
-    }
+    const profileId = await writeStaffProfile(
+      ctx,
+      existing,
+      email,
+      args.year,
+      assignments
+    );
     await syncDirectorCacheAfterProfileChange(
       ctx,
       args.year,
@@ -571,17 +571,28 @@ export const listUnassignedUsers = query({
       directoryUsers.map((u) => [u.email, u.name ?? null] as const)
     );
     const leaverEmails = await leaverEmailSet(ctx, args.year);
-    const unassigned: { email: string; name: string | null }[] = [];
+    const allProfiles = await ctx.db.query("staffProfiles").take(4000);
+    const currentKeys = new Set<string>();
+    for (const profile of allProfiles) {
+      if (profile.year !== args.year) continue;
+      for (const key of staffEmailCandidates(profile.email)) currentKeys.add(key);
+    }
+    const previousByEmail = previousStaffYearByEmailKey(allProfiles, args.year);
+    const unassigned: {
+      email: string;
+      name: string | null;
+      previousYear: number | null;
+    }[] = [];
     for (const user of users) {
       if (!user.email || leaverEmails.has(user.email)) continue;
       if (!isOrgEmail(user.email)) continue;
-      const profile = await getProfile(ctx, user.email, args.year);
-      if (!profile) {
-        unassigned.push({
-          email: user.email,
-          name: user.name ?? directoryNameByEmail.get(user.email) ?? null,
-        });
-      }
+      const keys = staffEmailCandidates(user.email);
+      if (keys.some((key) => currentKeys.has(key))) continue;
+      unassigned.push({
+        email: user.email,
+        name: user.name ?? directoryNameByEmail.get(user.email) ?? null,
+        previousYear: previousStaffYearForEmail(previousByEmail, user.email) ?? null,
+      });
     }
     return unassigned;
   },

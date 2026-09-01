@@ -6,6 +6,22 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.11.5] — 2026-09-01
+
+### Added
+- **Admin → Users now lists people who were staff in an earlier year.** After a
+  directory sync, they sit under "Previously staff" on the year you are editing,
+  with the last year they served. Assigning them creates this year's profile and
+  links it to the old one, so Insights treats them as the same person. The match
+  is by email, including the sow.org.au / sowaustralia.com pair.
+
+### Fixed
+- **Previously staff only counts earlier years.** Someone already assigned next
+  year no longer shows as returning staff on this year.
+- **Assigning a returner keeps their signed-in account** even when the old
+  profile already had an import id.
+- **The two SOW email spellings no longer appear twice** on Previously staff.
+
 ## [1.11.4] — 2026-09-01
 
 ### Fixed

@@ -9,7 +9,12 @@ import {
   MutationCtx,
   query,
 } from "./_generated/server";
-import { getProfile, optionalEmail, requireAdmin } from "./model";
+import {
+  previousStaffYearByEmailKey,
+  previousStaffYearForEmail,
+  staffEmailCandidates,
+} from "../shared/rollcallImport";
+import { optionalEmail, requireAdmin } from "./model";
 
 const SCOPE = "https://www.googleapis.com/auth/admin.directory.user.readonly";
 const DIRECTORY_LIMIT = 10000;
@@ -344,13 +349,21 @@ export const list = query({
       .withIndex("by_key", (q) => q.eq("key", "directory"))
       .unique();
     const users = await ctx.db.query("directoryUsers").take(DIRECTORY_LIMIT);
+    const profiles = await ctx.db.query("staffProfiles").take(DIRECTORY_LIMIT);
+    const currentKeys = new Set<string>();
+    for (const profile of profiles) {
+      if (profile.year !== args.year) continue;
+      for (const key of staffEmailCandidates(profile.email)) currentKeys.add(key);
+    }
+    const previousByEmail = previousStaffYearByEmailKey(profiles, args.year);
     const annotated = [];
     for (const user of users) {
-      const profile = await getProfile(ctx, user.email, args.year);
+      const keys = staffEmailCandidates(user.email);
       annotated.push({
         email: user.email,
         name: user.name ?? null,
-        hasProfile: profile !== null,
+        hasProfile: keys.some((key) => currentKeys.has(key)),
+        previousYear: previousStaffYearForEmail(previousByEmail, user.email) ?? null,
       });
     }
     return {

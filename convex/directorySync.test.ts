@@ -374,4 +374,31 @@ describe("directorySync.store + list", () => {
     const final = await t.run((ctx) => ctx.db.query("directoryUsers").take(100));
     expect(final.find((r) => r.email === "two@sow.org.au")).toBeUndefined();
   });
+
+  test("list marks a directory email that matches a previous staff year", async () => {
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+    await t.mutation(internal.directorySync.store, {
+      users: [
+        { email: "returner@sow.org.au", name: "Returner" },
+        { email: "newbie@sow.org.au", name: "Newbie" },
+      ],
+    });
+    await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email: "returner@sowaustralia.com",
+        year: YEAR - 1,
+        importId: "person-return-1",
+      })
+    );
+    const listed = await asUser(t, ADMIN).query(api.directorySync.list, {
+      year: YEAR,
+    });
+    const returning = listed?.users.find((u) => u.email === "returner@sow.org.au");
+    const newbie = listed?.users.find((u) => u.email === "newbie@sow.org.au");
+    expect(returning?.hasProfile).toBe(false);
+    expect(returning?.previousYear).toBe(YEAR - 1);
+    expect(newbie?.hasProfile).toBe(false);
+    expect(newbie?.previousYear).toBeNull();
+  });
 });
