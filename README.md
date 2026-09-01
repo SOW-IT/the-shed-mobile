@@ -146,7 +146,7 @@ Six workflows, in `.github/workflows/`:
 | Lint, Typecheck & Test | `ci.yml` | every PR and push to `main` (tests run with coverage thresholds) |
 | Convex Deploy | `convex-deploy.yml` | merges to `main` → deploys the **prod** backend. `workflow_dispatch` deploys prod **only when run from `main`**. From any other ref it deploys a *preview* named after the branch (`--preview-name`), not prod |
 | Deploy web (dev) | `deploy-web-dev.yml` | merges to `main` → publishes the dev web app to `the-shed-web-dev` |
-| Backup Convex to GCS | `convex-backup.yml` | daily at 15:17 UTC (01:17 AEST / 02:17 AEDT). Database-only export, file storage excluded |
+| Backup Convex to GCS | `convex-backup.yml` | daily at 15:17 UTC (01:17 AEST / 02:17 AEDT). Database-only export, file storage excluded. After the zip lands, business tables replace the previous snapshot in dataset `convex_production` |
 | EAS Staging | `eas-staging.yml` | **manual only**. Builds and submits the staging app |
 | EAS Production | `eas-production.yml` | **manual only**. Builds and submits the production app |
 
@@ -166,8 +166,17 @@ have no such guard and will **fail** the run, which is the right behaviour for
 a deploy but worth knowing before you add a workflow to a fork. The backup also
 needs the repository *variables*
 `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_BACKUP_SERVICE_ACCOUNT` and
-`GCS_BACKUP_BUCKET`. Manual fallbacks remain `npx convex deploy -y` and
-`npm run deploy:web`.
+`GCS_BACKUP_BUCKET`. The BigQuery load uses the same identity and defaults to
+dataset `convex_production` in `theshedsow` (`australia-southeast1`). Override
+with repository variables `BQ_DATASET`, `BQ_LOCATION` and `GCP_PROJECT` if
+needed. The BigQuery job reads the zip, so the backup service account needs
+`storage.objects.get` on the backup bucket, `roles/bigquery.user` on the
+project (jobs and `datasets.create` for a staging dataset), and
+`roles/bigquery.dataEditor` on `convex_production`. The destination dataset
+may be pre-created. Without those grants the zip still uploads and the
+BigQuery job fails on its own. A local zip converts
+with `node scripts/convex-export-to-bigquery.mjs --zip snapshot.zip --out bq-ndjson`.
+Manual fallbacks remain `npx convex deploy -y` and `npm run deploy:web`.
 
 One-time setup to activate it:
 

@@ -32,3 +32,7 @@ hold code for all three — so each context's glossary lives under
 - **The staff year is Org's**: both contexts key their data by it and both
   rebuild when it rolls over on October 1, but neither controls it. See
   [ADR 0003](./docs/adr/0003-october-1-staff-year-rollover.md).
+
+A nightly BigQuery copy of production Convex sits outside all three contexts.
+It is a snapshot for SQL, not a source of truth, and the app does not read it.
+See [ADR 0004](./docs/adr/0004-convex-to-bigquery-snapshot.md).

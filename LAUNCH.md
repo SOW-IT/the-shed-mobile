@@ -59,6 +59,15 @@ backup's three repository *variables* (`GCP_WORKLOAD_IDENTITY_PROVIDER`,
 Backup Convex to GCS all succeeded on their latest runs; the backup has run
 daily and cleanly.*
 
+**Convex snapshot in BigQuery** — dataset `convex_production` exists in
+`australia-southeast1`. The backup SA has `roles/bigquery.user` on the
+project, `roles/storage.objectViewer` on the backup bucket, and WRITER on
+the dataset. A load of the 31 Aug production zip published 26 tables
+(attendance 11556, requests 345, staffProfiles 845, users 57). Auth sessions
+and push tokens are not in the dataset. *Evidence: `bq ls
+theshedsow:convex_production` and those row counts on 2026-09-01. The GitHub
+`bigquery` job still has to run once on `main` after 1.11.3 merges.*
+
 **Google OAuth** — `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` and
 `AUTH_ALLOWED_DOMAIN` are set on **both** deployments, covering the `google`
 and `googlePersonal` providers.
