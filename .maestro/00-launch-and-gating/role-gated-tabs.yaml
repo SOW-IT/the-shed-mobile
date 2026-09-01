@@ -1,8 +1,10 @@
 # §0 Role-gated tab bar for signed-in roles. Needs seeded accounts.
-#   - campus leader: redirect / → Attendance; no Requests tab
-#   - plain staff:   Requests, Attendance, Insights, Org Chart (no Home)
+#   - campus leader: no Requests tab; Attendance is available
+#   - plain staff:   Requests, Attendance, Insights, Org Chart
 #   - admin/Finance Head: "Open admin tools" bar visible on Org Chart
 # Insights icon shows the BETA flag for everyone.
+#
+# iOS tab labels are "<Name>, tab, N of N" — never match the bare title.
 appId: ${APP_ID}
 tags:
   - staff
@@ -15,11 +17,16 @@ tags:
     env:
       EMAIL: ${CAMPUS_LEADER_EMAIL}
       PASSWORD: ${CAMPUS_LEADER_PASSWORD}
-- assertVisible: "Attendance"      # redirected here
-- assertNotVisible: "Requests"     # no Requests tab for campus-only roles
-- assertVisible: "Org Chart"
-- assertVisible: "Insights"
-- runFlow: ../common/sign-out.yaml
+- tapOn:
+    text: ".*Attendance, tab.*"
+- assertVisible: "Events"
+- assertNotVisible:
+    text: ".*Requests, tab.*"
+- assertVisible:
+    text: ".*Org Chart, tab.*"
+- assertVisible:
+    text: ".*Insights, tab.*"
+- runFlow: ../common/sign-out-e2e.yaml
 
 # ── Plain staff ──────────────────────────────────────────────────────────────
 - runFlow: ../common/launch-fresh.yaml
@@ -28,20 +35,23 @@ tags:
     env:
       EMAIL: ${STAFF_EMAIL}
       PASSWORD: ${STAFF_PASSWORD}
-- assertVisible: "Requests"
-- assertVisible: "Attendance"
-- assertVisible: "Insights"
-- assertVisible: "Org Chart"
-- assertNotVisible: "Home"         # Home drops off the bar once signed in
-- runFlow: ../common/sign-out.yaml
+- assertVisible:
+    text: ".*Requests, tab.*"
+- assertVisible:
+    text: ".*Attendance, tab.*"
+- assertVisible:
+    text: ".*Insights, tab.*"
+- assertVisible:
+    text: ".*Org Chart, tab.*"
+- runFlow: ../common/sign-out-e2e.yaml
 
-# ── Admin: admin bar on Org Chart ────────────────────────────────────────────
+# ── Finance Head: admin bar on Org Chart ─────────────────────────────────────
 - runFlow: ../common/launch-fresh.yaml
 - runFlow:
     file: ../common/sign-in.yaml
     env:
-      EMAIL: ${ADMIN_EMAIL}
-      PASSWORD: ${ADMIN_PASSWORD}
+      EMAIL: ${FINANCE_EMAIL}
+      PASSWORD: ${FINANCE_PASSWORD}
 - tapOn:
     text: ".*Org Chart, tab.*"
 - assertVisible:

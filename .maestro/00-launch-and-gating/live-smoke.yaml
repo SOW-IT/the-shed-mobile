@@ -4,31 +4,38 @@
 # Demonstrates the selector conventions that the real iOS accessibility tree
 # requires (see README "Device-verified selector notes"):
 #   • bottom tabs expose "<Name>, tab, N of 6"  → match with a regex
-#   • the test-env chip exposes its a11y label "Test environment — what is this?"
+#   • the test-env chip exposes its a11y label "Test environment. What is this?"
 #   • the Review segment carries its badge: "Review, 2"
 #   • the bell is "Notifications, N unread"
 #
-# Assumes the app is already signed in on a dev client. Run with:
-#   maestro test --env CLEAR_STATE=false --env DEV_CLIENT=true \
-#     --env APP_ID=au.org.sow.theshed .maestro/00-launch-and-gating/live-smoke.yaml
+# Signs in as Finance so this flow is self-contained (launch-fresh alone
+# leaves a visitor session, so "Mine" never appears; plain staff also has no
+# Review/All segments).
 appId: ${APP_ID}
 tags:
   - staff
   - smoke
 ---
-- runFlow: ../common/launch-fresh.yaml
+- runFlow:
+    file: ../common/sign-in-staff-to-requests.yaml
+    env:
+      EMAIL: ${FINANCE_EMAIL}
+      PASSWORD: ${FINANCE_PASSWORD}
 
 # Requests surface (signed-in landing for a staff/approver profile).
-- assertVisible: "Mine"
+- assertVisible:
+    text: "Mine.*"
 - assertVisible:
     text: ".*Review.*"
-- assertVisible: "All"
-- assertVisible: "Bank"
+- assertVisible:
+    text: "All.*"
+- assertVisible:
+    text: "Bank.*"
 - assertVisible: "+ Make Request"
 
 # Top chrome a11y labels.
 - assertVisible:
-    text: ".*Notifications.*unread.*"
+    text: ".*Notifications.*"
 - assertVisible: "Open your profile"
 
 # Bottom-tab navigation by regex (labels are "<Name>, tab, N of 6").

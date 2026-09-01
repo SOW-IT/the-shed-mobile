@@ -6,6 +6,18 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.11.6] — 2026-09-02
+
+### Fixed
+- **Org Chart people are named properly for VoiceOver.** Each person row now
+  reads as "Name, role" instead of a silent button, so a visitor can find the
+  Director card without seeing the screen.
+- **The Maestro suite matches the live iOS labels again.** Seven flows that
+  failed on latest main (logo, smoke, role tabs, test-env chip, finance pay,
+  public org chart) now follow the real tab labels, the test-environment
+  chip's period (not an em dash), and swipe past the mixed live Review queue
+  to Ready to Pay.
+
 ## [1.11.5] — 2026-09-01
 
 ### Added

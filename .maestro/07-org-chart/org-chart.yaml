@@ -4,12 +4,12 @@ tags:
   - public
 ---
 - runFlow: ../common/ensure-signed-out.yaml
-# The bottom tab's a11y label is "Org Chart, tab, N of N" (README's bottom-tab
-# convention), not the bare "Org Chart" text.
-- assertVisible:
-    text: ".*Org Chart.*"
+# The bottom tab's a11y label is "Org Chart, tab, N of N". Signed-out launch
+# lands on Home — open the tab before asserting chart copy.
+- tapOn:
+    text: ".*Org Chart, tab.*"
 
-# Director card at the top (or the empty copy).
+# Director card at the top (role caption or the empty copy).
 - assertVisible:
     text: ".*(Director|No Director assigned).*"
 
@@ -25,8 +25,8 @@ tags:
 
 # Tapping a person opens /person/[email] (read-only when signed out).
 - tapOn:
+    id: "org-person"
     index: 0
-    text: ".*"
     optional: true
 - assertNotVisible: "Sign out"        # read-only person view
 - assertNotVisible: "Local church"    # private field hidden signed-out

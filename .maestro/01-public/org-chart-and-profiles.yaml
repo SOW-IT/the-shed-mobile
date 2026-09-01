@@ -7,13 +7,13 @@ tags:
 ---
 - runFlow: ../common/ensure-signed-out.yaml
 # Bottom tabs carry a "<Name>, tab, N of N" accessibilityLabel that masks the
-# bare "Org Chart" text (README's bottom-tab convention).
-- assertVisible:
-    text: ".*Org Chart.*"
+# bare "Org Chart" text (README's bottom-tab convention). The signed-out
+# landing is Home, so actually open Org Chart before looking for people.
+- tapOn:
+    text: ".*Org Chart, tab.*"
 
 # Open the first person card in the chart (Director card sits at the top). The
-# card carries testID="org-person" (see src/app/(tabs)/org.tsx), so we tap a
-# real person row instead of any tappable element.
+# card carries testID="org-person" (see src/app/(tabs)/org.tsx).
 - tapOn:
     id: "org-person"
     index: 0
@@ -22,8 +22,6 @@ tags:
     when:
       notVisible: "Service History"
     commands:
-      # Fallback: scroll a person card into view, then actually tap it — so the
-      # profile assertions below can only pass when a profile really opened.
       - scrollUntilVisible:
           element:
             id: "org-person"

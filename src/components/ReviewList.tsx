@@ -294,7 +294,7 @@ export const ReviewList = ({
                 )
               )}
               {data.readyToPay.length > 0 && (
-                <View style={{ gap: spacing.md }}>
+                <View testID="review-ready-to-pay" style={{ gap: spacing.md }}>
                   <SectionTitle>Ready to Pay ({data.readyToPay.length})</SectionTitle>
                   {data.readyToPay.map((request, index) => (
                     <FadeInView key={request._id} delay={stagger(index)}>

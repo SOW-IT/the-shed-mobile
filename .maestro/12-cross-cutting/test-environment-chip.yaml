@@ -4,13 +4,13 @@ appId: ${APP_ID}
 tags:
   - public
 ---
-# On iOS the chip exposes its accessibilityLabel, not the visible "Test
-# Environment" text — match the label.
+# On iOS the chip's accessibilityLabel is "Test environment. What is this?"
+# (period, not an em dash) — match that, not the visible "Test Environment".
 - runFlow: ../common/ensure-signed-out.yaml
 - assertVisible:
-    text: "Test environment — what is this?"
+    text: "Test environment. What is this?"
 - tapOn:
-    text: "Test environment — what is this?"
+    text: "Test environment. What is this?"
 - assertVisible:
     text: ".*(test database|Test Environment|test).*"
 - tapOn:
