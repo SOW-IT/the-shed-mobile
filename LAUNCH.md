@@ -33,9 +33,10 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
       `au.org.sow.theshed.staging`, so staging builds omit `googleServicesFile`
       and staging push does not work. Production and preview are unaffected.
 - [ ] **Typed BigQuery warehouse views** — after 1.11.7/1.11.8 merges, the next
-      successful `bigquery` job should create dataset `convex_warehouse` with
-      typed tables plus flat `insights_*` / `staff_assignments` /
-      `attendance_signins` views for Looker Studio and Sheets. Confirm with
+      successful `bigquery` job should create dataset `convex_warehouse`. Each
+      Looker/Sheets view is published only if every table it needs was in that
+      zip (`insights_*` need `attendanceMetricsSnapshots`, `attendance_signins`
+      needs attendance + events + members). Confirm with
       `bq ls theshedsow:convex_warehouse`. If that dataset was pre-created, the
       backup SA needs `roles/bigquery.dataEditor` on it (same as
       `convex_production`).

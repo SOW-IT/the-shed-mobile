@@ -150,7 +150,7 @@ Six workflows, in `.github/workflows/`:
 | Lint, Typecheck & Test | `ci.yml` | every PR and push to `main` (tests run with coverage thresholds) |
 | Convex Deploy | `convex-deploy.yml` | merges to `main` → deploys the **prod** backend. `workflow_dispatch` deploys prod **only when run from `main`**. From any other ref it deploys a *preview* named after the branch (`--preview-name`), not prod |
 | Deploy web (dev) | `deploy-web-dev.yml` | merges to `main` → publishes the dev web app to `the-shed-web-dev` |
-| Backup Convex to GCS | `convex-backup.yml` | daily at 15:17 UTC (01:17 AEST / 02:17 AEDT). Database-only export, file storage excluded. After the zip lands, business tables replace the previous snapshot in dataset `convex_production`, then typed views and Looker/Sheets report views replace `convex_warehouse` |
+| Backup Convex to GCS | `convex-backup.yml` | daily at 15:17 UTC (01:17 AEST / 02:17 AEDT). Database-only export, file storage excluded. After the zip lands, business tables replace the previous snapshot in dataset `convex_production`, then eligible typed views and Looker/Sheets report views replace `convex_warehouse`. A report view is rebuilt only if every table it needs was in that zip; otherwise it is dropped |
 | EAS Staging | `eas-staging.yml` | **manual only**. Builds and submits the staging app |
 | EAS Production | `eas-production.yml` | **manual only**. Builds and submits the production app |
 

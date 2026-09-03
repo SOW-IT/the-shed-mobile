@@ -18,9 +18,10 @@ on top.
 **Ask analysts to unnest in Looker.** Rejected. Connected Sheets has no
 UNNEST, and the Insights payload is several nested arrays.
 
-**Materialized tables.** Rejected for now. Views stay in sync with tonight's
-snapshot without extra storage or slot time. If Sheets gets slow we can
-materialize the same SQL.
+**Materialized tables.** Rejected for now. Views add no extra stored copy of
+the snapshot. Each Looker/Sheets query still runs the view SQL and uses
+BigQuery compute (and may incur query-processing cost). If Sheets gets slow
+we can materialize the same SQL.
 
 ## Consequences
 
