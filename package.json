@@ -30,7 +30,7 @@
     "expo-status-bar": "~57.0.1",
     "expo-system-ui": "~57.0.1",
     "expo-web-browser": "~57.0.1",
-    "jose": "^6.2.3",
+    "jose": "^6.2.10",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.0",
