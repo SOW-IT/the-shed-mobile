@@ -6,9 +6,15 @@ import {
   parseBqTableIds,
   stagingDatasetId,
 } from "./convexExportToBigQuery.mjs";
+import {
+  DEFAULT_WAREHOUSE_DATASET,
+  staleWarehouseViews,
+  warehouseViewSql,
+  warehouseViewsToPublish,
+} from "./convexWarehouseViews.mjs";
 
 const IAM_HINT =
-  "Grant the backup service account roles/bigquery.user on the project (jobs and datasets.create), roles/bigquery.dataEditor on the destination dataset, and storage.objects.get on the backup bucket. Or pre-create the destination dataset and skip automatic dataset creation.";
+  "Grant the backup service account roles/bigquery.user on the project (jobs and datasets.create), roles/bigquery.dataEditor on the destination dataset and on the warehouse dataset, and storage.objects.get on the backup bucket. Or pre-create those datasets and skip automatic dataset creation.";
 
 export const makeRunner = (spawn) => (command, commandArgs, { allowFailure = false } = {}) => {
   const result = spawn(command, commandArgs, { encoding: "utf8" });
@@ -108,7 +114,42 @@ const dropTable = (run, project, dataset, table) => {
   bq(run, project, ["rm", "--force", "--table", `${project}:${dataset}.${table}`]);
 };
 
-export const loadConvexSnapshot = ({ project, dataset, location, manifest, run }) => {
+const publishWarehouseViews = ({
+  run,
+  project,
+  dataset,
+  warehouseDataset,
+  location,
+  loadedTables,
+}) => {
+  ensureDataset(
+    run,
+    project,
+    warehouseDataset,
+    location,
+    "Typed views over the daily Convex JSON snapshot"
+  );
+  const published = warehouseViewsToPublish(loadedTables);
+  for (const table of published) {
+    const sql = warehouseViewSql(project, dataset, warehouseDataset, table);
+    bq(run, project, ["query", `--location=${location}`, "--nouse_legacy_sql", sql]);
+    process.stdout.write(`View ${warehouseDataset}.${table}\n`);
+  }
+  const existing = listTables(run, project, warehouseDataset);
+  for (const extra of staleWarehouseViews(existing, loadedTables)) {
+    dropTable(run, project, warehouseDataset, extra);
+    process.stdout.write(`Dropped stale view ${extra}\n`);
+  }
+};
+
+export const loadConvexSnapshot = ({
+  project,
+  dataset,
+  location,
+  manifest,
+  run,
+  warehouseDataset = DEFAULT_WAREHOUSE_DATASET,
+}) => {
   const staging = stagingDatasetId(dataset, manifest.loadedAt);
   const tableNames = manifest.tables.map((table) => table.table);
   dropStaleLoadDatasets(run, project, dataset, staging);
@@ -142,6 +183,16 @@ export const loadConvexSnapshot = ({ project, dataset, location, manifest, run }
     for (const extra of extraTables(existing, tableNames)) {
       dropTable(run, project, dataset, extra);
       process.stdout.write(`Dropped stale ${extra}\n`);
+    }
+    if (warehouseDataset) {
+      publishWarehouseViews({
+        run,
+        project,
+        dataset,
+        warehouseDataset,
+        location,
+        loadedTables: tableNames,
+      });
     }
   } catch (error) {
     if (!stagingReady) {

@@ -6,6 +6,16 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.11.7] — 2026-09-03
+
+### Added
+- **The nightly Convex copy is now queryable as a warehouse.** The JSON
+  snapshot in `convex_production` is unchanged. After it loads, typed views
+  land in `convex_warehouse` so attendance, requests and org can be selected
+  as columns (`email`, `amount`, `signInTime`) instead of picking fields out
+  of `document`. Nested receipts and assignments stay JSON. Auth sessions
+  and push tokens stay out.
+
 ## [1.11.6] — 2026-09-02
 
 ### Fixed

@@ -9,6 +9,7 @@ import {
   DEFAULT_PROJECT,
   convertExportDir,
 } from "./lib/convexExportToBigQuery.mjs";
+import { DEFAULT_WAREHOUSE_DATASET } from "./lib/convexWarehouseViews.mjs";
 import { loadConvexSnapshot, makeRunner } from "./lib/loadConvexSnapshot.mjs";
 
 const usage = `Usage:
@@ -19,6 +20,7 @@ Options:
   --load                 Load the converted files into BigQuery (requires bq)
   --project <id>         GCP project (default ${DEFAULT_PROJECT})
   --dataset <id>         BigQuery dataset (default ${DEFAULT_DATASET})
+  --warehouse <id>       Typed-view dataset (default ${DEFAULT_WAREHOUSE_DATASET})
   --location <region>    Dataset location (default ${DEFAULT_LOCATION})
   --loaded-at <iso>      Override _loadedAt for tests
 `;
@@ -31,6 +33,7 @@ const parseArgs = (argv) => {
     load: false,
     project: DEFAULT_PROJECT,
     dataset: DEFAULT_DATASET,
+    warehouseDataset: DEFAULT_WAREHOUSE_DATASET,
     location: DEFAULT_LOCATION,
     loadedAt: new Date().toISOString(),
   };
@@ -56,6 +59,10 @@ const parseArgs = (argv) => {
         break;
       case "--dataset":
         args.dataset = next;
+        i++;
+        break;
+      case "--warehouse":
+        args.warehouseDataset = next;
         i++;
         break;
       case "--location":
@@ -126,6 +133,7 @@ const main = () => {
     loadConvexSnapshot({
       project: args.project,
       dataset: args.dataset,
+      warehouseDataset: args.warehouseDataset,
       location: args.location,
       manifest,
       run,
