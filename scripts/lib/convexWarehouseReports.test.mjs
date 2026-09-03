@@ -40,7 +40,8 @@ describe("report views", () => {
     );
     expect(sql).toContain("CREATE OR REPLACE VIEW `theshedsow.convex_warehouse.insights_weekly_trend`");
     expect(sql).toContain("JSON_QUERY_ARRAY(s.document, '$.data.weeklyTrend')");
-    expect(sql).toContain("AS value");
+    expect(sql).toContain("AS `at`");
+    expect(sql).toContain("AS `value`");
     expect(sql).not.toContain("AS `data`");
   });
 
