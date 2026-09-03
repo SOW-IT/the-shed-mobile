@@ -6,6 +6,11 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+### Fixed
+- **Nightly Looker/Sheets views no longer die on BigQuery reserved word `at`.**
+  Trend charts quote that column so `insights_weekly_trend` and the other
+  Insights series views can be created.
+
 ## [1.11.8] — 2026-09-03
 
 ### Added

@@ -25,9 +25,9 @@ const trendView = (path) => (project, source, warehouse, name) =>
     `
 SELECT
   ${snapshotDims("s").join(",\n  ")},
-  ${ts("JSON_VALUE(point, '$.at')")} AS at,
-  JSON_VALUE(point, '$.label') AS label,
-  SAFE_CAST(JSON_VALUE(point, '$.value') AS FLOAT64) AS value
+  ${ts("JSON_VALUE(point, '$.at')")} AS \`at\`,
+  JSON_VALUE(point, '$.label') AS \`label\`,
+  SAFE_CAST(JSON_VALUE(point, '$.value') AS FLOAT64) AS \`value\`
 FROM ${q(project, source, "attendanceMetricsSnapshots")} AS s
 CROSS JOIN UNNEST(IFNULL(JSON_QUERY_ARRAY(s.document, '${path}'), [])) AS point
 `.trim()
@@ -41,10 +41,10 @@ const compositionView = (path, left, right) => (project, source, warehouse, name
     `
 SELECT
   ${snapshotDims("s").join(",\n  ")},
-  ${ts("JSON_VALUE(point, '$.at')")} AS at,
-  JSON_VALUE(point, '$.label') AS label,
-  SAFE_CAST(JSON_VALUE(point, '$.${left}') AS FLOAT64) AS ${left},
-  SAFE_CAST(JSON_VALUE(point, '$.${right}') AS FLOAT64) AS ${right}
+  ${ts("JSON_VALUE(point, '$.at')")} AS \`at\`,
+  JSON_VALUE(point, '$.label') AS \`label\`,
+  SAFE_CAST(JSON_VALUE(point, '$.${left}') AS FLOAT64) AS \`${left}\`,
+  SAFE_CAST(JSON_VALUE(point, '$.${right}') AS FLOAT64) AS \`${right}\`
 FROM ${q(project, source, "attendanceMetricsSnapshots")} AS s
 CROSS JOIN UNNEST(IFNULL(JSON_QUERY_ARRAY(s.document, '${path}'), [])) AS point
 `.trim()
