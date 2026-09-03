@@ -14,7 +14,7 @@ import {
 } from "./convexWarehouseViews.mjs";
 
 const IAM_HINT =
-  "Grant the backup service account roles/bigquery.user on the project (jobs and datasets.create), roles/bigquery.dataEditor on the destination dataset, and storage.objects.get on the backup bucket. Or pre-create the destination dataset and skip automatic dataset creation.";
+  "Grant the backup service account roles/bigquery.user on the project (jobs and datasets.create), roles/bigquery.dataEditor on the destination dataset and on the warehouse dataset, and storage.objects.get on the backup bucket. Or pre-create those datasets and skip automatic dataset creation.";
 
 export const makeRunner = (spawn) => (command, commandArgs, { allowFailure = false } = {}) => {
   const result = spawn(command, commandArgs, { encoding: "utf8" });

@@ -177,9 +177,12 @@ and `GCP_PROJECT` if needed. After the JSON snapshot publishes, typed views
 are created in `convex_warehouse` (override with `BQ_WAREHOUSE_DATASET`). The
 BigQuery job reads the zip, so the backup service account needs
 `storage.objects.get` on the backup bucket, `roles/bigquery.user` on the
-project (jobs and `datasets.create` for a staging dataset), and
-`roles/bigquery.dataEditor` on `convex_production`. The destination dataset
-may be pre-created. Without those grants the zip still uploads and the
+project (jobs and `datasets.create` for staging and, if missing, the
+warehouse dataset), and `roles/bigquery.dataEditor` on `convex_production`
+**and** on the warehouse dataset (`convex_warehouse`, or whatever
+`BQ_WAREHOUSE_DATASET` is set to). A dataset the job itself creates is owned
+by the backup SA; a pre-created warehouse dataset still needs that
+`dataEditor` grant. Without those grants the zip still uploads and the
 BigQuery job fails on its own. A local zip converts
 with `node scripts/convex-export-to-bigquery.mjs --zip snapshot.zip --out bq-ndjson`.
 Manual fallbacks remain `npx convex deploy -y` and `npm run deploy:web`.
