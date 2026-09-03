@@ -1,7 +1,8 @@
 # Exports the production Convex database to Google Cloud Storage every day,
-# then replaces the business tables in convex_production with that snapshot.
-# Convex file storage is intentionally excluded. Auth sessions, refresh tokens
-# and push tokens stay out of BigQuery.
+# then replaces the business tables in convex_production with that snapshot
+# and rebuilds typed views in convex_warehouse. Convex file storage is
+# intentionally excluded. Auth sessions, refresh tokens and push tokens stay
+# out of BigQuery.
 #
 # Required repository variables:
 #   GCP_WORKLOAD_IDENTITY_PROVIDER - full Workload Identity Provider resource name
@@ -10,6 +11,7 @@
 #
 # Optional repository variables:
 #   BQ_DATASET                     - defaults to convex_production
+#   BQ_WAREHOUSE_DATASET           - defaults to convex_warehouse (typed views)
 #   BQ_LOCATION                    - defaults to australia-southeast1
 #   GCP_PROJECT                    - defaults to theshedsow
 #
@@ -104,6 +106,7 @@ jobs:
     env:
       GCP_PROJECT: ${{ vars.GCP_PROJECT || 'theshedsow' }}
       BQ_DATASET: ${{ vars.BQ_DATASET || 'convex_production' }}
+      BQ_WAREHOUSE_DATASET: ${{ vars.BQ_WAREHOUSE_DATASET || 'convex_warehouse' }}
       BQ_LOCATION: ${{ vars.BQ_LOCATION || 'australia-southeast1' }}
       GCS_BACKUP_BUCKET: ${{ vars.GCS_BACKUP_BUCKET }}
       BACKUP_PATH: ${{ needs.backup.outputs.path }}
@@ -138,4 +141,5 @@ jobs:
             --load \
             --project "$GCP_PROJECT" \
             --dataset "$BQ_DATASET" \
+            --warehouse "$BQ_WAREHOUSE_DATASET" \
             --location "$BQ_LOCATION"

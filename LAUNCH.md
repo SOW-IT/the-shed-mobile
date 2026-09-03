@@ -64,9 +64,10 @@ daily and cleanly.*
 project, `roles/storage.objectViewer` on the backup bucket, and WRITER on
 the dataset. A load of the 31 Aug production zip published 26 tables
 (attendance 11556, requests 345, staffProfiles 845, users 57). Auth sessions
-and push tokens are not in the dataset. *Evidence: `bq ls
-theshedsow:convex_production` and those row counts on 2026-09-01. The GitHub
-`bigquery` job still has to run once on `main` after 1.11.3 merges.*
+and push tokens are not in the dataset. Typed views in `convex_warehouse`
+are created by the same job from 1.11.7; they appear on the next successful
+`bigquery` run after this ships. *Evidence: `bq ls
+theshedsow:convex_production` and those row counts on 2026-09-01.*
 
 **Google OAuth** — `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` and
 `AUTH_ALLOWED_DOMAIN` are set on **both** deployments, covering the `google`
