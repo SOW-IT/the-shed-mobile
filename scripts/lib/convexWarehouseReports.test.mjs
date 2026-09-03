@@ -41,8 +41,19 @@ describe("report views", () => {
     expect(sql).toContain("CREATE OR REPLACE VIEW `theshedsow.convex_warehouse.insights_weekly_trend`");
     expect(sql).toContain("JSON_QUERY_ARRAY(s.document, '$.data.weeklyTrend')");
     expect(sql).toContain("AS `at`");
+    expect(sql).toContain("AS `label`");
     expect(sql).toContain("AS `value`");
     expect(sql).not.toContain("AS `data`");
+    const mix = reportViewSql(
+      "theshedsow",
+      "convex_production",
+      "convex_warehouse",
+      "insights_campus_mix"
+    );
+    expect(mix).toContain("AS `at`");
+    expect(mix).toContain("AS `label`");
+    expect(mix).toContain("AS `primary`");
+    expect(mix).toContain("AS `rest`");
   });
 
   test("staff assignments keep people with no assignment row", () => {
