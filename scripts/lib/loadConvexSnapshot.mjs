@@ -12,6 +12,7 @@ import {
   warehouseViewSql,
   warehouseViewsToPublish,
 } from "./convexWarehouseViews.mjs";
+import { reportViewSql, reportViewsToPublish } from "./convexWarehouseReports.mjs";
 
 const IAM_HINT =
   "Grant the backup service account roles/bigquery.user on the project (jobs and datasets.create), roles/bigquery.dataEditor on the destination dataset and on the warehouse dataset, and storage.objects.get on the backup bucket. Or pre-create those datasets and skip automatic dataset creation.";
@@ -134,6 +135,12 @@ const publishWarehouseViews = ({
     const sql = warehouseViewSql(project, dataset, warehouseDataset, table);
     bq(run, project, ["query", `--location=${location}`, "--nouse_legacy_sql", sql]);
     process.stdout.write(`View ${warehouseDataset}.${table}\n`);
+  }
+  const reports = reportViewsToPublish(loadedTables);
+  for (const name of reports) {
+    const sql = reportViewSql(project, dataset, warehouseDataset, name);
+    bq(run, project, ["query", `--location=${location}`, "--nouse_legacy_sql", sql]);
+    process.stdout.write(`View ${warehouseDataset}.${name}\n`);
   }
   const existing = listTables(run, project, warehouseDataset);
   for (const extra of staleWarehouseViews(existing, loadedTables)) {

@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.11.8] — 2026-09-03
+
+### Added
+- **Looker Studio and Sheets can use the warehouse like the Insights tab.**
+  After the nightly copy, `convex_warehouse` now has flat views with no JSON:
+  Insights summary, weekly trend, follow-ups, campus mix, staff assignments,
+  attendance with event names, and request status. Payment lines
+  (`request_recipients`) include bank details — treat them as finance data.
+
 ## [1.11.7] — 2026-09-03
 
 ### Added

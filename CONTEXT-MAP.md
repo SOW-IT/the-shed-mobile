@@ -35,6 +35,7 @@ hold code for all three — so each context's glossary lives under
 
 A nightly BigQuery copy of production Convex sits outside all three contexts.
 It is a snapshot for SQL, not a source of truth, and the app does not read it.
-JSON tables live in `convex_production`; typed views for analysts live in
-`convex_warehouse`. See [ADR 0004](./docs/adr/0004-convex-to-bigquery-snapshot.md)
-and [ADR 0005](./docs/adr/0005-typed-bigquery-warehouse-views.md).
+JSON tables live in `convex_production`; typed views and Looker/Sheets report
+views live in `convex_warehouse`. See [ADR 0004](./docs/adr/0004-convex-to-bigquery-snapshot.md),
+[ADR 0005](./docs/adr/0005-typed-bigquery-warehouse-views.md) and
+[ADR 0006](./docs/adr/0006-looker-sheets-report-views.md).
