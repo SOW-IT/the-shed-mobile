@@ -1,3 +1,5 @@
+import { reportViewsToPublish } from "./convexWarehouseReports.mjs";
+
 export const DEFAULT_WAREHOUSE_DATASET = "convex_warehouse";
 
 const s = (name) => ({ name, type: "STRING" });
@@ -147,6 +149,9 @@ export const warehouseViewsToPublish = (loadedTables) =>
   loadedTables.filter((name) => WAREHOUSE_TABLES[name]).sort();
 
 export const staleWarehouseViews = (existing, loadedTables) => {
-  const keep = new Set(warehouseViewsToPublish(loadedTables));
+  const keep = new Set([
+    ...warehouseViewsToPublish(loadedTables),
+    ...reportViewsToPublish(loadedTables),
+  ]);
   return existing.filter((name) => !keep.has(name)).sort();
 };

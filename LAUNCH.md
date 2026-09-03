@@ -32,11 +32,13 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 - [ ] **Staging Firebase app** — no Firebase Android app exists for
       `au.org.sow.theshed.staging`, so staging builds omit `googleServicesFile`
       and staging push does not work. Production and preview are unaffected.
-- [ ] **Typed BigQuery warehouse views** — after 1.11.7 merges, the next
-      successful `bigquery` job should create dataset `convex_warehouse`.
-      Confirm with `bq ls theshedsow:convex_warehouse`. If that dataset was
-      pre-created, the backup SA needs `roles/bigquery.dataEditor` on it
-      (same as `convex_production`).
+- [ ] **Typed BigQuery warehouse views** — after 1.11.7/1.11.8 merges, the next
+      successful `bigquery` job should create dataset `convex_warehouse` with
+      typed tables plus flat `insights_*` / `staff_assignments` /
+      `attendance_signins` views for Looker Studio and Sheets. Confirm with
+      `bq ls theshedsow:convex_warehouse`. If that dataset was pre-created, the
+      backup SA needs `roles/bigquery.dataEditor` on it (same as
+      `convex_production`).
 - [ ] **Public store listings** (only if you want them) — iOS is currently
       distributed through TestFlight. Going public needs screenshots,
       description, App Privacy labels and a demo account in the review notes;
