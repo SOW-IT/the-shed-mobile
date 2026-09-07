@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useRouter } from "expo-router";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
@@ -25,7 +25,10 @@ export default function NotificationsScreen() {
   const reopenCounter = useRef(0);
   const goBack = router.canGoBack() ? () => router.back() : undefined;
 
-  const hasUnread = (notifications ?? []).some((n) => !n.read);
+  useEffect(() => {
+    if (!notifications?.some((n) => !n.read)) return;
+    void markAllRead({});
+  }, [notifications, markAllRead]);
 
   const open = (id: Id<"notifications">, url: string | null) => {
     void markRead({ id });
@@ -36,24 +39,6 @@ export default function NotificationsScreen() {
       router.push(`${url}${separator}reopen=${reopen}` as never);
     }
   };
-
-  const headerRight = hasUnread ? (
-    <Pressable
-      onPress={() => void markAllRead({})}
-      hitSlop={8}
-      accessibilityRole="button"
-      accessibilityLabel="Mark all notifications read"
-      style={({ pressed }) => [
-        styles.markAll,
-        { backgroundColor: t.ghost },
-        pressed && { opacity: 0.6 },
-      ]}
-    >
-      <Text style={[typography.caption, { color: t.text, fontWeight: "700" }]}>
-        Mark all read
-      </Text>
-    </Pressable>
-  ) : undefined;
 
   if (notifications === undefined) {
     return (
@@ -99,7 +84,7 @@ export default function NotificationsScreen() {
   );
 
   return (
-    <Screen title="Notifications" onBack={goBack} headerRight={headerRight}>
+    <Screen title="Notifications" onBack={goBack}>
       {list.length === 0 ? (
         <EmptyState
           icon="notifications-outline"
@@ -138,11 +123,6 @@ export default function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  markAll: {
-    borderRadius: radius.full,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
   sectionLabel: { marginBottom: spacing.xs, marginLeft: 2 },
   sectionLabelSpaced: { marginTop: spacing.lg },
   row: {
