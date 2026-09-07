@@ -6,7 +6,11 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.11.9] — 2026-09-07
+
 ### Fixed
+- **Opening Notifications marks them all read.** The bell badge clears when
+  you view the list. You no longer have to tap each item (or Mark all read).
 - **Nightly Looker/Sheets views no longer die on BigQuery reserved word `at`.**
   Trend charts quote that column so `insights_weekly_trend` and the other
   Insights series views can be created.
