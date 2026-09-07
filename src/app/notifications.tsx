@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
-import { useRouter } from "expo-router";
-import { useEffect, useRef } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useRef } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
@@ -25,10 +25,14 @@ export default function NotificationsScreen() {
   const reopenCounter = useRef(0);
   const goBack = router.canGoBack() ? () => router.back() : undefined;
 
-  useEffect(() => {
-    if (!notifications?.some((n) => !n.read)) return;
-    void markAllRead({});
-  }, [notifications, markAllRead]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!notifications?.some((n) => !n.read)) return;
+      void markAllRead({}).catch((err: unknown) => {
+        console.warn("markAllRead failed", err);
+      });
+    }, [notifications, markAllRead])
+  );
 
   const open = (id: Id<"notifications">, url: string | null) => {
     void markRead({ id });
