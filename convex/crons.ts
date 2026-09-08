@@ -25,4 +25,11 @@ crons.cron(
   {}
 );
 
+crons.cron(
+  "attendance metrics backfill",
+  "0 16 * * *",
+  internal.attendanceMetrics.backfillMissingSnapshots,
+  {}
+);
+
 export default crons;

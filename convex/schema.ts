@@ -322,4 +322,11 @@ export default defineSchema({
     subgroup: v.string(),
     since: v.number(),
   }).index("by_subgroup", ["subgroup"]),
+
+  attendanceMetricsRuns: defineTable({
+    subgroup: v.string(),
+    staffYear: v.number(),
+    computedAt: v.number(),
+    variants: v.array(v.string()),
+  }).index("by_subgroup_and_year", ["subgroup", "staffYear"]),
 });
