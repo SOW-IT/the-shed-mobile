@@ -795,6 +795,61 @@ describe("recomputeDirty database I/O", () => {
   });
 });
 
+describe("runs-table migration (first deploy against existing prod data)", () => {
+  test("rebuilds once from snapshots-without-runs, then settles", async () => {
+    const { t } = await setup();
+    const subgroups = await expectedSubgroups(t);
+
+    // Prod today: a complete snapshot set, no runs rows yet.
+    await t.run(async (ctx) => {
+      for (const subgroup of subgroups) {
+        for (const rangeWeeks of [1, 4, 52]) {
+          for (const includeCollaborative of [true, false]) {
+            await ctx.db.insert("attendanceMetricsSnapshots", {
+              subgroup,
+              rangeWeeks,
+              includeCollaborative,
+              staffYear: YEAR,
+              computedAt: Date.now(),
+              data: EMPTY_DATA,
+            });
+          }
+        }
+      }
+    });
+
+    // First pass cannot see coverage, so it rebuilds every sub-group exactly once.
+    await t.mutation(internal.attendanceMetrics.recomputeDirty, {});
+    expect([...(await scheduledSubgroups(t))].sort()).toEqual([...subgroups].sort());
+
+    // Those rebuilds land, writing runs rows.
+    for (const subgroup of subgroups) {
+      await t.action(internal.attendanceMetrics.recomputeSubgroup, { subgroup });
+    }
+    const runs = await t.run((ctx) =>
+      ctx.db.query("attendanceMetricsRuns").collect()
+    );
+    expect(runs).toHaveLength(subgroups.length);
+    expect(runs.every((r) => r.variants.length === 6)).toBe(true);
+
+    // Steady state: nothing dirty, coverage known, so nothing is scheduled again.
+    const before = (await scheduledSubgroups(t)).length;
+    await t.mutation(internal.attendanceMetrics.recomputeDirty, {});
+    expect((await scheduledSubgroups(t)).length).toBe(before);
+  });
+
+  test("backfill reconciles a runs row that over-claims coverage", async () => {
+    const { t } = await setup();
+    await seedFullCoverage(t);
+    // No snapshots exist at all, so every claimed variant is unbacked.
+    await t.mutation(internal.attendanceMetrics.backfillMissingSnapshots, {});
+    const runs = await t.run((ctx) =>
+      ctx.db.query("attendanceMetricsRuns").collect()
+    );
+    expect(runs.every((r) => r.variants.length === 0)).toBe(true);
+  });
+});
+
 describe("purgeStaleSnapshotRanges", () => {
   test("deletes rows whose rangeWeeks is no longer served", async () => {
     const { t } = await setup();
