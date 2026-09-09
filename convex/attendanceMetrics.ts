@@ -53,7 +53,9 @@ import { metricsDataValidator } from "./metricsData";
 
 const LIVE_RANGE_MAX_MS = 2 * 365 * DAY_MS;
 
-const HISTORY_WEEKS = 110;
+const HISTORY_WEEKS = 52;
+const DIRTY_RANGES = [1] as const;
+const LONG_RANGES = [4, 52] as const;
 const MAX_EVENTS = 800;
 const MAX_EVENT_SCAN = 4000;
 const MAX_PERSONS = 1200;
@@ -88,6 +90,11 @@ const metricsPersonValidator = v.object({
 const ALL_RANGES = [...RANGE_WEEKS] as const;
 const COLLAB_VARIANTS = [true, false] as const;
 
+const requestedRanges = (raw?: number[]): number[] => {
+  const wanted = raw?.length ? raw : [...ALL_RANGES];
+  return ALL_RANGES.filter((rangeWeeks) => wanted.includes(rangeWeeks));
+};
+
 const STAFF_PREFIX = "staff:";
 const MEMBER_PREFIX = "member:";
 
@@ -100,7 +107,7 @@ export async function markSubgroupsDirty(
 ): Promise<void> {
   const now = Date.now();
   const seen = new Set<string>();
-  for (const raw of [...subgroups, SOW_SUBGROUP]) {
+  for (const raw of subgroups) {
     const subgroup = canonicalSubgroup(raw);
     if (seen.has(subgroup)) continue;
     seen.add(subgroup);
@@ -197,9 +204,13 @@ export const gatherPersons = internalQuery({
 });
 
 export const recomputeSubgroup = internalAction({
-  args: { subgroup: v.string(), staffYear: v.optional(v.number()) },
+  args: {
+    subgroup: v.string(),
+    staffYear: v.optional(v.number()),
+    ranges: v.optional(v.array(v.number())),
+  },
   returns: v.null(),
-  handler: async (ctx, { subgroup, staffYear }) => {
+  handler: async (ctx, { subgroup, staffYear, ranges: rawRanges }) => {
     const startedAt = Date.now();
     const canonical = canonicalSubgroup(subgroup);
     const year = staffYear ?? currentStaffYear();
@@ -232,7 +243,10 @@ export const recomputeSubgroup = internalAction({
       year,
     });
 
-    const snapshots = ALL_RANGES.flatMap((rangeWeeks) => {
+    const ranges = requestedRanges(rawRanges);
+    if (ranges.length === 0) return null;
+
+    const snapshots = ranges.flatMap((rangeWeeks) => {
       const rangeStartMs = rangeStartFor(now, rangeWeeks, staffYearStartMs(year));
       return COLLAB_VARIANTS.map((includeCollaborative) => ({
         rangeWeeks,
@@ -489,14 +503,15 @@ async function recordRun(
   variants: string[]
 ): Promise<void> {
   const existing = await runRow(ctx, subgroup, staffYear);
+  const merged = [...new Set([...(existing?.variants ?? []), ...variants])].sort();
   if (existing) {
-    await ctx.db.patch(existing._id, { computedAt, variants });
+    await ctx.db.patch(existing._id, { computedAt, variants: merged });
   } else {
     await ctx.db.insert("attendanceMetricsRuns", {
       subgroup: canonicalSubgroup(subgroup),
       staffYear,
       computedAt,
-      variants,
+      variants: merged,
     });
   }
 }
@@ -592,7 +607,7 @@ export const recomputeDirty = internalMutation({
         await ctx.scheduler.runAfter(
           0,
           internal.attendanceMetrics.recomputeSubgroup,
-          { subgroup, staffYear: year }
+          { subgroup, staffYear: year, ranges: [...DIRTY_RANGES] }
         );
       }
     }
@@ -628,12 +643,29 @@ export const backfillMissingSnapshots = internalMutation({
             yearReady.has(`${subgroup}\0${rangeWeeks}\0${includeCollaborative}`)
           )
         );
-        if (complete) continue;
-        await ctx.scheduler.runAfter(
-          0,
-          internal.attendanceMetrics.recomputeSubgroup,
-          { subgroup, staffYear: year }
-        );
+        if (!complete) {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.attendanceMetrics.recomputeSubgroup,
+            { subgroup, staffYear: year }
+          );
+          continue;
+        }
+        // Campuses no longer dirty SOW; refresh org-wide Insights daily.
+        // 4/52-week campus snapshots are not rebuilt on the 15-minute cron.
+        if (subgroup === SOW_SUBGROUP) {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.attendanceMetrics.recomputeSubgroup,
+            { subgroup, staffYear: year }
+          );
+        } else {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.attendanceMetrics.recomputeSubgroup,
+            { subgroup, staffYear: year, ranges: [...LONG_RANGES] }
+          );
+        }
       }
       // Drop run rows that claim coverage the snapshots table cannot back, so
       // the cheap check above cannot go stale against reality.
