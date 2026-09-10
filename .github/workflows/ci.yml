@@ -5,6 +5,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
@@ -22,6 +25,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # An Expo package that drifts ahead of the runtime pinned beside it
+      # compiles fine on Android (prebuilt AARs) and fails the iOS Xcode step
+      # — 17m into a manual release run. See 1.11.11.
+      - name: Expo dependency versions match the SDK
+        run: npx expo install --check
       - name: Lint
         run: npm run lint
       - name: Typecheck
