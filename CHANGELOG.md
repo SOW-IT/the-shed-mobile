@@ -6,6 +6,19 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.11.12] — 2026-09-10
+
+### Changed
+- **The app's building blocks now all come from the same Expo release.** 1.11.11
+  fixed one package that had drifted ahead of the others and broken the iOS
+  build; seventeen more were sitting at older versions than the release expects.
+  They are now in step, so the fixes and patches that shipped with those
+  versions are actually in the app.
+- **A mismatch like that now fails on the pull request, not in a release.** The
+  checks that run on every change include a dependency check, so a package that
+  falls out of step is caught in minutes instead of seventeen minutes into a
+  manual release build.
+
 ## [1.11.11] — 2026-09-10
 
 ### Fixed
