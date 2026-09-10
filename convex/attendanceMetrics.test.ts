@@ -904,9 +904,12 @@ describe("runs-table migration (first deploy against existing prod data)", () =>
     });
     await t.mutation(internal.attendanceMetrics.backfillMissingSnapshots, {});
     const jobs = await scheduledRecomputes(t);
-    const bySub = Object.fromEntries(jobs.map((j) => [j.subgroup, j.ranges]));
-    expect(bySub[SOW_SUBGROUP]).toBeUndefined();
-    expect(bySub[USYD]).toEqual([4, 52]);
+    const sowJobs = jobs.filter((j) => j.subgroup === SOW_SUBGROUP);
+    expect(sowJobs).toHaveLength(1);
+    expect(sowJobs[0].ranges).toBeUndefined();
+    const usydJobs = jobs.filter((j) => j.subgroup === USYD);
+    expect(usydJobs).toHaveLength(1);
+    expect(usydJobs[0].ranges).toEqual([4, 52]);
   });
 });
 
