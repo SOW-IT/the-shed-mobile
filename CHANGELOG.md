@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.11.11] — 2026-09-10
+
+### Fixed
+- **iOS releases build again.** The last production run shipped Android but
+  failed on iOS, so no new TestFlight build went out. The SwiftUI toolkit the
+  app uses had moved ahead of the Expo runtime pinned alongside it and called
+  into APIs that were not there yet. Both now come from the same Expo release,
+  and the iOS compile is clean.
+
 ## [1.11.10] — 2026-09-10
 
 ### Changed
