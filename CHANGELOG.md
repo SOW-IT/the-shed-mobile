@@ -6,6 +6,14 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.11.10] — 2026-09-10
+
+### Changed
+- **Signing in at a campus no longer rebuilds every Insights chart.** The
+  15-minute job only refreshes that campus's 1-week view. Org-wide Insights
+  and the 4-week / 52-week charts catch up on the nightly job. History
+  loaded for those rebuilds is 52 weeks (the longest chart), not 110.
+
 ## [1.11.9] — 2026-09-07
 
 ### Fixed

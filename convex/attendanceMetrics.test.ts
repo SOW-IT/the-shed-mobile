@@ -283,17 +283,15 @@ describe("attendanceMetrics", () => {
     const dirty = await t.run((ctx) =>
       ctx.db.query("attendanceMetricsDirty").collect()
     );
-    expect(new Set(dirty.map((r) => r.subgroup))).toEqual(
-      new Set([SOW_SUBGROUP, USYD])
-    );
+    expect(new Set(dirty.map((r) => r.subgroup))).toEqual(new Set([USYD]));
 
     await t.mutation(internal.attendanceMetrics.recomputeDirty, {});
     expect(
       await t.run((ctx) => ctx.db.query("attendanceMetricsDirty").collect())
-    ).toHaveLength(2);
-    for (const subgroup of [SOW_SUBGROUP, USYD]) {
-      await t.action(internal.attendanceMetrics.recomputeSubgroup, { subgroup });
-    }
+    ).toHaveLength(1);
+    await t.action(internal.attendanceMetrics.recomputeSubgroup, {
+      subgroup: USYD,
+    });
     expect(
       await t.run((ctx) => ctx.db.query("attendanceMetricsDirty").collect())
     ).toHaveLength(0);
@@ -682,6 +680,21 @@ const scheduledSubgroups = (t: TestConvex<typeof schema>) =>
       .map((j) => (j.args[0] as { subgroup: string }).subgroup);
   });
 
+const scheduledRecomputes = (t: TestConvex<typeof schema>) =>
+  t.run(async (ctx) => {
+    const jobs = await ctx.db.system.query("_scheduled_functions").collect();
+    return jobs
+      .filter((j) => j.name === "attendanceMetrics:recomputeSubgroup")
+      .map(
+        (j) =>
+          j.args[0] as {
+            subgroup: string;
+            staffYear?: number;
+            ranges?: number[];
+          }
+      );
+  });
+
 const ALL_VARIANTS = [1, 4, 52].flatMap((r) => [`${r}:true`, `${r}:false`]);
 
 const seedRun = (
@@ -761,6 +774,26 @@ describe("recomputeDirty database I/O", () => {
     );
     await t.mutation(internal.attendanceMetrics.recomputeDirty, {});
     expect(await scheduledSubgroups(t)).toContain(USYD);
+  });
+
+  test("dirty recompute only asks for the 1-week variants", async () => {
+    const { t } = await setup();
+    await seedFullCoverage(t, 31 * 60 * 1000);
+    await t.run((ctx) =>
+      ctx.db.insert("attendanceMetricsDirty", { subgroup: USYD, since: Date.now() })
+    );
+    await t.mutation(internal.attendanceMetrics.recomputeDirty, {});
+    const jobs = (await scheduledRecomputes(t)).filter((j) => j.subgroup === USYD);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].ranges).toEqual([1]);
+  });
+
+  test("missing coverage still schedules a full rebuild", async () => {
+    const { t } = await setup();
+    await t.mutation(internal.attendanceMetrics.recomputeDirty, {});
+    const jobs = await scheduledRecomputes(t);
+    expect(jobs.length).toBeGreaterThan(0);
+    expect(jobs.every((j) => j.ranges === undefined)).toBe(true);
   });
 
   test("rebuilds partial coverage even when the debounce is active", async () => {
@@ -847,6 +880,36 @@ describe("runs-table migration (first deploy against existing prod data)", () =>
       ctx.db.query("attendanceMetricsRuns").collect()
     );
     expect(runs.every((r) => r.variants.length === 0)).toBe(true);
+  });
+
+  test("daily backfill refreshes SOW in full and campuses at 4/52 when coverage is complete", async () => {
+    const { t } = await setup();
+    const subgroups = await expectedSubgroups(t);
+    await seedFullCoverage(t);
+    await t.run(async (ctx) => {
+      for (const subgroup of subgroups) {
+        for (const rangeWeeks of [1, 4, 52]) {
+          for (const includeCollaborative of [true, false]) {
+            await ctx.db.insert("attendanceMetricsSnapshots", {
+              subgroup,
+              rangeWeeks,
+              includeCollaborative,
+              staffYear: YEAR,
+              computedAt: Date.now(),
+              data: EMPTY_DATA,
+            });
+          }
+        }
+      }
+    });
+    await t.mutation(internal.attendanceMetrics.backfillMissingSnapshots, {});
+    const jobs = await scheduledRecomputes(t);
+    const sowJobs = jobs.filter((j) => j.subgroup === SOW_SUBGROUP);
+    expect(sowJobs).toHaveLength(1);
+    expect(sowJobs[0].ranges).toBeUndefined();
+    const usydJobs = jobs.filter((j) => j.subgroup === USYD);
+    expect(usydJobs).toHaveLength(1);
+    expect(usydJobs[0].ranges).toEqual([4, 52]);
   });
 });
 
