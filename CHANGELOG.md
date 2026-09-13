@@ -6,6 +6,85 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.11.14] — 2026-09-14
+
+### Fixed
+- **Cancelling a request now removes its receipt files and its notifications.**
+  A fully approved request whose receipt had been submitted could still be
+  cancelled, but its uploaded files stayed in storage forever and the approvers'
+  in-app notifications kept pointing at a request that no longer existed. Both
+  are now cleaned up, in small batches behind the scenes, along with the
+  comments, reactions and audit trail. Deleting a declined request uses the
+  same cleanup.
+- **Insights can be refreshed manually again.** The manual refresh was
+  throttled against the time of the last *automatic* rebuild, and since the
+  nightly rebuild always ran more recently than a week ago, the manual path was
+  permanently blocked. The cooldown now counts manual refreshes only.
+- **The annual receipt-file purge no longer tries to do everything in one go.**
+  It walks requests a page at a time and continues in the background, so it
+  finishes no matter how many requests have accumulated since 2021.
+- **Reminders and "who acted on this step" now look at the latest activity.**
+  Both read a request's audit trail oldest-first and stopped after 200 entries,
+  so a very busy request could show a stale approver and be reminded on the
+  wrong schedule. They now read newest-first.
+- **Admins keep their Finance settings during the October rollover.** Setting
+  the Budget Manager, the Director threshold and delegations checked the
+  current year's profile only, unlike the rest of the Admin tab, which honours
+  the grace period until January. They all use the same rule now.
+- **Someone configured as Director skips the Director step on their own
+  request**, exactly as the HOD, Budget Manager and Finance Head already do,
+  even if the role on their profile is momentarily out of step.
+- **Insights chart labels and month buckets use Sydney dates.** An event at
+  9am on the 1st of a month was labelled the last day of the previous month.
+- **Insights count one person once when the same staff member signed in under
+  their old and new email domain.** The legacy address is folded into the
+  current one when building the identity key.
+- **Charts in "Lines" mode no longer drop a series that is missing from the
+  first year.** Series are collected across every point.
+- **Money is compared and exported in cents.** A receipt total of 10.10 +
+  20.20 no longer reads as 30.299999999999997 in the CSV export, no longer
+  triggers a spurious "receipt exceeds request" warning, and a payment that
+  matches the request to the cent no longer emails the Budget Manager about a
+  change. A whitespace-only payment comment is treated as no comment.
+- **Imported roll-call members are stored with a lower-case email**, so they
+  are found by the same lookups as members created in the app, instead of being
+  duplicated on the next import. Imported student year levels are worked out
+  from the Sydney calendar date of the event, including during daylight saving.
+- **Renaming or removing a department, division, university or role now
+  updates every profile in the year**, not just the first thousand, and the
+  "still has open requests" guard on department removal checks every request
+  in the year rather than the oldest two hundred.
+- **A repeated `focus` link parameter no longer breaks deep-linking into a
+  request**, and the "Edit event" button tells screen readers when it is
+  disabled. Reaction buttons in comment threads are labelled for screen
+  readers.
+- **A deep-linked comment thread stays closed once you close it**, even if the
+  request completes in the meantime.
+- **Paying a reimbursement checks the amount before sending it.** An empty
+  paid amount shows a message instead of a round trip to the server.
+
+### Changed
+- **The app reads less to show the same thing.** "My requests", the unread
+  comment badge and the year picker now use index ranges instead of filtering
+  every request the person has ever made; unread counts read only the comments
+  newer than your last visit; the stale-request reminder resolves each year's
+  approvers once rather than once per request; the member-name lookup uses its
+  index; deleting several metadata fields reads the member list once; and
+  campus weekly attendance scans newest events first so a busy history never
+  drops the current year.
+- **Bank fields cap their length** at six digits for a BSB and ten for an
+  account number.
+- **Internal tidy-up with no visible change**: one shared helper each for
+  resolving a person's display name, the approver for a step, the campus pill
+  in attendance lists, paged lists (Members, Events, Audit and campus event
+  pages), the default Insights/Attendance campus, the once-a-minute "time ago"
+  ticker, the locked Campus/Role metadata rules and the metadata subtitle;
+  the two-branch staff profile editor shares its validation; several dead
+  exports (an unused seven-day auth grace constant, a stale weekly-meeting
+  timetable that disagreed with the Home tab, unused links) are gone; and the
+  Insights docs describe the nightly rebuild rather than the removed
+  15-minute one.
+
 ## [1.11.13] — 2026-09-13
 
 ### Fixed
