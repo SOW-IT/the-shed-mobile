@@ -54,13 +54,10 @@ import { metricsDataValidator } from "./metricsData";
 const LIVE_RANGE_MAX_MS = 2 * 365 * DAY_MS;
 
 const HISTORY_WEEKS = 52;
-const DIRTY_RANGES = [1] as const;
-const LONG_RANGES = [4, 52] as const;
 const MAX_EVENTS = 800;
 const MAX_EVENT_SCAN = 4000;
 const MAX_PERSONS = 1200;
 const ATTENDANCE_CHUNK = 100;
-const RECOMPUTE_MIN_INTERVAL_MS = 30 * 60 * 1000;
 
 const metricsEventValidator = v.object({
   id: v.string(),
@@ -100,28 +97,6 @@ const MEMBER_PREFIX = "member:";
 
 const sanitize = (data: SubgroupMetricsData): SubgroupMetricsData =>
   JSON.parse(JSON.stringify(data));
-
-export async function markSubgroupsDirty(
-  ctx: MutationCtx,
-  subgroups: string[]
-): Promise<void> {
-  const now = Date.now();
-  const seen = new Set<string>();
-  for (const raw of subgroups) {
-    const subgroup = canonicalSubgroup(raw);
-    if (seen.has(subgroup)) continue;
-    seen.add(subgroup);
-    const existing = await ctx.db
-      .query("attendanceMetricsDirty")
-      .withIndex("by_subgroup", (q) => q.eq("subgroup", subgroup))
-      .first();
-    if (existing) {
-      await ctx.db.patch(existing._id, { since: now });
-    } else {
-      await ctx.db.insert("attendanceMetricsDirty", { subgroup, since: now });
-    }
-  }
-}
 
 export const gatherEvents = internalQuery({
   args: {
@@ -271,10 +246,6 @@ export const recomputeSubgroup = internalAction({
       staffYear: year,
       computedAt: now,
       snapshots,
-    });
-    await ctx.runMutation(internal.attendanceMetrics.clearDirty, {
-      subgroup: canonical,
-      upTo: startedAt,
     });
     return null;
   },
@@ -475,17 +446,6 @@ export const writeSnapshots = internalMutation({
 const variantKey = (rangeWeeks: number, includeCollaborative: boolean): string =>
   `${rangeWeeks}:${includeCollaborative}`;
 
-const REQUIRED_VARIANTS = ALL_RANGES.flatMap((rangeWeeks) =>
-  COLLAB_VARIANTS.map((includeCollaborative) =>
-    variantKey(rangeWeeks, includeCollaborative)
-  )
-);
-
-const coversAllVariants = (variants: string[]): boolean => {
-  const have = new Set(variants);
-  return REQUIRED_VARIANTS.every((key) => have.has(key));
-};
-
 function runRow(ctx: MutationCtx, subgroup: string, staffYear: number) {
   return ctx.db
     .query("attendanceMetricsRuns")
@@ -534,150 +494,22 @@ function metricsYears(): number[] {
   return years;
 }
 
-export const clearDirty = internalMutation({
-  args: { subgroup: v.string(), upTo: v.number() },
-  returns: v.null(),
-  handler: async (ctx, { subgroup, upTo }) => {
-    const rows = await ctx.db
-      .query("attendanceMetricsDirty")
-      .withIndex("by_subgroup", (q) => q.eq("subgroup", subgroup))
-      .collect();
-    for (const row of rows) if (row.since <= upTo) await ctx.db.delete(row._id);
-    return null;
-  },
-});
-
 export const recomputeAll = internalMutation({
   args: { staffYear: v.optional(v.number()) },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const year = args.staffYear ?? currentStaffYear();
-    const universities = await ctx.db
-      .query("universities")
-      .withIndex("by_year_and_name", (q) => q.eq("year", year))
-      .collect();
-    const subgroups = [SOW_SUBGROUP, ...universities.map((u) => u.name)];
-    for (const subgroup of subgroups) {
-      await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeSubgroup, {
-        subgroup,
-        staffYear: year,
-      });
-    }
-    return null;
-  },
-});
-
-export const recomputeDirty = internalMutation({
-  args: {},
-  returns: v.null(),
-  handler: async (ctx) => {
-    const now = Date.now();
-    const years = metricsYears();
-    const dirty = new Set(
-      (await ctx.db.query("attendanceMetricsDirty").collect()).map((r) =>
-        canonicalSubgroup(r.subgroup)
-      )
-    );
-
+    const years = args.staffYear ? [args.staffYear] : metricsYears();
     for (const year of years) {
       const universities = await ctx.db
         .query("universities")
         .withIndex("by_year_and_name", (q) => q.eq("year", year))
         .collect();
-      const expected = [SOW_SUBGROUP, ...universities.map((u) => u.name)].map(
-        canonicalSubgroup
-      );
-
-      for (const subgroup of new Set([...dirty, ...expected])) {
-        const run = await runRow(ctx, subgroup, year);
-
-        // Missing or partial coverage: rebuild regardless of the debounce, so a
-        // year rollover or a new campus is served within one cron pass.
-        if (!run || !coversAllVariants(run.variants)) {
-          await ctx.scheduler.runAfter(
-            0,
-            internal.attendanceMetrics.recomputeSubgroup,
-            { subgroup, staffYear: year }
-          );
-          continue;
-        }
-
-        if (!dirty.has(subgroup)) continue;
-        if (now - run.computedAt < RECOMPUTE_MIN_INTERVAL_MS) continue;
-        await ctx.scheduler.runAfter(
-          0,
-          internal.attendanceMetrics.recomputeSubgroup,
-          { subgroup, staffYear: year, ranges: [...DIRTY_RANGES] }
-        );
-      }
-    }
-    return null;
-  },
-});
-
-export const backfillMissingSnapshots = internalMutation({
-  args: {},
-  returns: v.null(),
-  handler: async (ctx) => {
-    const years = metricsYears();
-    const snapshots = await ctx.db.query("attendanceMetricsSnapshots").collect();
-    for (const year of years) {
-      const universities = await ctx.db
-        .query("universities")
-        .withIndex("by_year_and_name", (q) => q.eq("year", year))
-        .collect();
-      const expected = [SOW_SUBGROUP, ...universities.map((u) => u.name)].map(
-        canonicalSubgroup
-      );
-      const yearReady = new Set<string>();
-      for (const row of snapshots) {
-        if (row.staffYear === year) {
-          yearReady.add(
-            `${row.subgroup}\0${row.rangeWeeks}\0${row.includeCollaborative}`
-          );
-        }
-      }
-      for (const subgroup of expected) {
-        const complete = ALL_RANGES.every((rangeWeeks) =>
-          COLLAB_VARIANTS.every((includeCollaborative) =>
-            yearReady.has(`${subgroup}\0${rangeWeeks}\0${includeCollaborative}`)
-          )
-        );
-        if (!complete) {
-          await ctx.scheduler.runAfter(
-            0,
-            internal.attendanceMetrics.recomputeSubgroup,
-            { subgroup, staffYear: year }
-          );
-          continue;
-        }
-        // Campuses no longer dirty SOW; refresh org-wide Insights daily.
-        // 4/52-week campus snapshots are not rebuilt on the 15-minute cron.
-        if (subgroup === SOW_SUBGROUP) {
-          await ctx.scheduler.runAfter(
-            0,
-            internal.attendanceMetrics.recomputeSubgroup,
-            { subgroup, staffYear: year }
-          );
-        } else {
-          await ctx.scheduler.runAfter(
-            0,
-            internal.attendanceMetrics.recomputeSubgroup,
-            { subgroup, staffYear: year, ranges: [...LONG_RANGES] }
-          );
-        }
-      }
-      // Drop run rows that claim coverage the snapshots table cannot back, so
-      // the cheap check above cannot go stale against reality.
-      for (const subgroup of expected) {
-        const run = await runRow(ctx, subgroup, year);
-        if (!run) continue;
-        const backed = run.variants.filter((key) =>
-          yearReady.has(`${subgroup}\0${key.replace(":", "\0")}`)
-        );
-        if (backed.length !== run.variants.length) {
-          await ctx.db.patch(run._id, { variants: backed });
-        }
+      const subgroups = [SOW_SUBGROUP, ...universities.map((u) => u.name)];
+      for (const subgroup of subgroups) {
+        await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeSubgroup, {
+          subgroup,
+          staffYear: year,
+        });
       }
     }
     return null;

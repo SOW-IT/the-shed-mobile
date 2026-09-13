@@ -11,25 +11,6 @@ crons.cron("staff year prefill", "0 11 30 9 *", internal.admin.prefillNextStaffY
 
 crons.cron("purge old receipt files", "0 15 30 9 *", internal.cleanup.purgeOldReceiptFiles, {});
 
-crons.cron(
-  "attendance metrics recompute",
-  "0 3 * * 4",
-  internal.attendanceMetrics.recomputeAll,
-  {}
-);
-
-crons.cron(
-  "attendance metrics dirty recompute",
-  "*/15 * * * *",
-  internal.attendanceMetrics.recomputeDirty,
-  {}
-);
-
-crons.cron(
-  "attendance metrics backfill",
-  "0 16 * * *",
-  internal.attendanceMetrics.backfillMissingSnapshots,
-  {}
-);
+crons.cron("attendance metrics daily rebuild", "0 16 * * *", internal.attendanceMetrics.recomputeAll, {});
 
 export default crons;
