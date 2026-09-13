@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
 import { GENERAL_RECENT_YEARS } from "../../../shared/attendanceMetrics";
 import { staffYearForDate, sydneyCalendarYear } from "../../../shared/flow";
-import { defaultAttendanceSubgroup } from "../../../shared/rollcall";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
@@ -22,6 +21,7 @@ import {
 import { MetricsTab } from "@/components/attendance/MetricsTab";
 import { EmptyState, LoadingState } from "@/components/ui";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
+import { useAttendanceSubgroup } from "@/hooks/useAttendanceSubgroup";
 
 export default function InsightsScreen() {
   const { tab } = useLocalSearchParams<{ tab?: string }>();
@@ -32,7 +32,10 @@ export default function InsightsScreen() {
   const metadata = useQuery(api.attendanceMetadata.list, {});
 
   const [active, setActive] = useState("general");
-  const [selectedSubgroup, setSelectedSubgroup] = useState<string | null>(null);
+  const [subgroup, setSelectedSubgroup] = useAttendanceSubgroup(
+    subgroups,
+    me?.profile?.assignments
+  );
   const [memberSheetOpen, setMemberSheetOpen] = useState(false);
   const [memberSheetId, setMemberSheetId] = useState<Id<"attendanceMembers"> | null>(
     null
@@ -52,16 +55,6 @@ export default function InsightsScreen() {
       setActive(tab);
     }
   }, [tab]);
-
-  useEffect(() => {
-    if (!subgroups?.length || selectedSubgroup !== null) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- default campus once subgroups load
-    setSelectedSubgroup(
-      defaultAttendanceSubgroup(subgroups, me?.profile?.assignments) ?? subgroups[0]
-    );
-  }, [subgroups, selectedSubgroup, me?.profile?.assignments]);
-
-  const subgroup = selectedSubgroup ?? subgroups?.[0] ?? null;
 
   const openEditMember = (memberId: Id<"attendanceMembers">) => {
     setMemberSheetId(memberId);

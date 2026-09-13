@@ -476,15 +476,6 @@ async function recordRun(
   }
 }
 
-async function lastComputedAt(
-  ctx: MutationCtx,
-  subgroup: string,
-  staffYear: number
-): Promise<number> {
-  const run = await runRow(ctx, subgroup, staffYear);
-  return run?.computedAt ?? 0;
-}
-
 function metricsYears(): number[] {
   const years = [currentStaffYear()];
   if (withinPrefillWindow()) {
@@ -709,18 +700,13 @@ export const recomputeNow = mutation({
     if (subgroup) {
       const canonical = canonicalSubgroup(subgroup);
       const year = currentStaffYear();
-      let latestComputedAt = await lastComputedAt(ctx, canonical, year);
-      if (latestComputedAt === 0) {
-        const rows = await ctx.db
-          .query("attendanceMetricsSnapshots")
-          .withIndex("by_subgroup_and_range", (q) => q.eq("subgroup", canonical))
-          .collect();
-        latestComputedAt = rows
-          .filter((r) => r.staffYear === year)
-          .reduce((max, r) => (r.computedAt > max ? r.computedAt : max), 0);
-      }
-      if (latestComputedAt > 0) {
-        const elapsed = Date.now() - latestComputedAt;
+      // The cooldown counts manual refreshes only. The nightly cron also
+      // stamps `computedAt`, so throttling on that would never let a manual
+      // refresh through at all.
+      const run = await runRow(ctx, canonical, year);
+      const lastManual = run?.lastManualRefreshAt ?? 0;
+      if (lastManual > 0) {
+        const elapsed = Date.now() - lastManual;
         if (elapsed < MANUAL_REFRESH_COOLDOWN_MS) {
           const days = Math.ceil((MANUAL_REFRESH_COOLDOWN_MS - elapsed) / DAY_MS);
           throw new ConvexError(
@@ -728,9 +714,20 @@ export const recomputeNow = mutation({
           );
         }
       }
+      if (run) {
+        await ctx.db.patch(run._id, { lastManualRefreshAt: Date.now() });
+      } else {
+        await ctx.db.insert("attendanceMetricsRuns", {
+          subgroup: canonical,
+          staffYear: year,
+          computedAt: 0,
+          lastManualRefreshAt: Date.now(),
+          variants: [],
+        });
+      }
       await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeSubgroup, {
         subgroup: canonical,
-        staffYear: currentStaffYear(),
+        staffYear: year,
       });
     } else {
       await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeAll, {});

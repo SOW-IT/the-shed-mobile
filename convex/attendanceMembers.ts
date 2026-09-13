@@ -11,8 +11,12 @@ import {
 import {
   CAMPUS_FIELD_KEY,
   formatMetadataFieldValue,
+  type MetadataFieldLike as MetadataField,
+  metadataSubtitle,
+  resolveUniversity,
   ROLE_FIELD_KEY,
   roleFilterMatches,
+  staffLockedMetadata,
   STUDENT_YEAR_FIELD_KEY,
   yearMetadataSortKey,
   yearOptionIdForStoredValue,
@@ -42,90 +46,12 @@ export type MemberRow = {
   photo?: string | null;
 };
 
-type MetadataField = {
-  _id: string;
-  key: string;
-  values?: Record<string, string>;
-};
-
 const allMetadataFields = async (
   ctx: Parameters<typeof getProfile>[0]
 ): Promise<MetadataField[]> =>
   (await ctx.db.query("attendanceMetadata").collect()).sort(
     (a, b) => a.order - b.order
   );
-
-const optionIdForLabel = (field: MetadataField, label: string): string => {
-  for (const [id, value] of Object.entries(field.values ?? {})) {
-    if (value === label) return id;
-  }
-  return label;
-};
-
-const staffLockedMetadata = (
-  fields: MetadataField[],
-  profile: Parameters<typeof assignmentsOf>[0],
-  metadata: Record<string, string> | undefined
-): Record<string, string> => {
-  const next = { ...(metadata ?? {}) };
-  const campusField = fields.find((f) => f.key === CAMPUS_FIELD_KEY);
-  const roleField = fields.find((f) => f.key === ROLE_FIELD_KEY);
-  const assignments = assignmentsOf(profile);
-  const campus = [
-    ...new Set(assignments.flatMap((a) => (a.university ? [a.university] : []))),
-  ][0];
-  const role = rolesOfLike(profile)[0];
-
-  if (campusField) {
-    if (campus) next[campusField._id] = optionIdForLabel(campusField, campus);
-    else delete next[campusField._id];
-  }
-  if (roleField) {
-    if (role) next[roleField._id] = optionIdForLabel(roleField, role);
-    else delete next[roleField._id];
-  }
-  return next;
-};
-
-const metadataLabel = (
-  fields: MetadataField[],
-  metadata: Record<string, string> | undefined,
-  viewingYear: number,
-  excludeKeys: string[] = []
-): string => {
-  if (!metadata) return "";
-  const excluded = new Set(excludeKeys);
-  return fields
-    .filter((f) => !excluded.has(f.key))
-    .map((f) => {
-      const raw = metadata[f._id];
-      if (!raw) return null;
-      return formatMetadataFieldValue(
-        f.key,
-        raw,
-        viewingYear,
-        f.values
-      );
-    })
-    .filter(Boolean)
-    .join(" · ");
-};
-
-const resolveUniversity = (
-  fields: MetadataField[],
-  metadata: Record<string, string> | undefined,
-  orgCampuses: string[] = []
-): string | undefined => {
-  const campusField = fields.find((f) => f.key === "Campus");
-  if (campusField && metadata) {
-    const raw = metadata[campusField._id];
-    if (raw) {
-      const label = campusField.values?.[raw] ?? raw;
-      if (label && label !== "Other") return label;
-    }
-  }
-  return orgCampuses[0];
-};
 
 const staffSubtitle = (roles: string[]): string | undefined =>
   roles.length > 0 ? roles.join(" · ") : undefined;
@@ -230,7 +156,7 @@ export const list = query({
       ];
       const user = p.userId ? await ctx.db.get(p.userId) : null;
       const orgSubtitle = staffSubtitle(roles);
-      const metaSubtitle = metadataLabel(
+      const metaSubtitle = metadataSubtitle(
         metadataFields,
         metadata,
         viewingYear,
@@ -265,7 +191,7 @@ export const list = query({
         email: m.email,
         memberId: m._id,
         roles: [],
-        subtitle: metadataLabel(metadataFields, m.metadata, viewingYear, ["Campus"]),
+        subtitle: metadataSubtitle(metadataFields, m.metadata, viewingYear, [CAMPUS_FIELD_KEY]),
         university,
         metadata: m.metadata ?? {},
       });
@@ -404,11 +330,22 @@ export const byName = query({
   args: { name: v.string() },
   handler: async (ctx, { name }) => {
     if (!(await optionalProfile(ctx))) return [];
-    const normalized = name.trim().toLowerCase();
-    if (!normalized) return [];
-    const members = await ctx.db.query("attendanceMembers").collect();
+    const trimmed = name.trim();
+    if (!trimmed) return [];
+    // Exact matches come straight off the index; the case-insensitive
+    // fallback only scans when nothing matched exactly.
+    const exact = await ctx.db
+      .query("attendanceMembers")
+      .withIndex("by_name", (q) => q.eq("name", trimmed))
+      .take(50);
+    const normalized = trimmed.toLowerCase();
+    const members =
+      exact.length > 0
+        ? exact
+        : (await ctx.db.query("attendanceMembers").collect()).filter(
+            (m) => m.name.trim().toLowerCase() === normalized
+          );
     return members
-      .filter((m) => m.name.trim().toLowerCase() === normalized)
       .map((m) => ({
         _id: m._id,
         name: m.name,

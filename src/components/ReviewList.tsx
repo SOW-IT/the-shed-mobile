@@ -121,6 +121,10 @@ const PaySheet = ({
 
   const handlePay = async () => {
     if (!request || paying) return;
+    if (!(Number(paidAmount) > 0)) {
+      setError("Enter the amount that was paid.");
+      return;
+    }
     setError(null);
     setPaying(true);
     try {

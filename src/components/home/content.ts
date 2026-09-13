@@ -28,11 +28,9 @@ export const LINKS = {
   students: "https://www.sow.org.au/students",
   volunteer: "https://www.sow.org.au/volunteer",
   pray: "https://www.sow.org.au/pray",
-  subscriptions: "https://www.sow.org.au/subscriptions",
   newsletterSignup:
     "https://sowaustralia.us1.list-manage.com/subscribe?id=e86a4d965e&u=2213560fe40053caf2afa63b6",
   donate: "https://donorbox.org/sow-support-us?default_interval=w",
-  scholarship: "https://donorbox.org/first-year-scholarship",
 } as const;
 
 export const SOCIALS: {
@@ -206,10 +204,6 @@ export const CAMPUS_MEETING_NOTE =
   "Each campus holds a Weekly Meeting where we come together to learn and " +
   "discuss from God’s word and have fellowship with one another. Throughout " +
   "the week, we also hold small groups and do life together!";
-
-export const CAMPUS_INTRO =
-  "Campus ministry is at the heart of SOW. Each campus offers these shared " +
-  "activities throughout the semester, with exact times set by campus leaders:";
 
 export const CAMPUS_PROGRAMS: { name: string; line: string }[] = [
   {

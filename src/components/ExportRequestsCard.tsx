@@ -2,7 +2,8 @@ import { useConvex } from "convex/react";
 import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { EARLIEST_REQUEST_YEAR } from "../../shared/flow";
-import { buildRequestsCsv, downloadCsv } from "@/lib/requestsCsv";
+import { downloadCsv } from "@/lib/csvDownload";
+import { buildRequestsCsv } from "@/lib/requestsCsv";
 import {
   Btn,
   Card,

@@ -1,11 +1,10 @@
 import { pad2 } from "./datetime";
-import { DISPLAY_ACRONYMS, UNIVERSITY_COLOURS, universityColour } from "./flow";
+import { acronym, UNIVERSITY_COLOURS, universityColour } from "./flow";
+import { canonicalEmailKey } from "./rollcallImport";
 
 export const SOW_SUBGROUP = "SOW";
 
 export const ALL_SUBGROUP = SOW_SUBGROUP;
-
-export const SOW_SUBGROUP_ALIASES = new Set(["ALL", SOW_SUBGROUP]);
 
 export const canonicalSubgroup = (subgroup: string): string =>
   subgroup === "ALL" ? SOW_SUBGROUP : subgroup;
@@ -25,45 +24,20 @@ export const subgroupMatches = (a: string, b: string): boolean =>
 export const eventIncludesSubgroup = (
   eventSubgroups: string[],
   subgroup: string
-): boolean =>
-  normalizeSubgroups(eventSubgroups).includes(canonicalSubgroup(subgroup));
+): boolean => eventSubgroups.some((s) => subgroupMatches(s, subgroup));
 
 export const isOrgWideSubgroup = (subgroup: string): boolean =>
   canonicalSubgroup(subgroup) === SOW_SUBGROUP;
 
 export const subgroupLabel = (subgroup: string): string =>
-  isOrgWideSubgroup(subgroup)
-    ? "SOW"
-    : (DISPLAY_ACRONYMS[subgroup] ?? subgroup);
+  isOrgWideSubgroup(subgroup) ? "SOW" : acronym(subgroup);
 
 export const subgroupColour = (subgroup: string): string =>
   isOrgWideSubgroup(subgroup)
     ? UNIVERSITY_COLOURS.SOW
     : (universityColour(subgroup) ?? "#64748b");
 
-export type WeeklyMeetingSlot = {
-  weekday: number;
-  startHour: number;
-  endHour: number;
-};
-
 export const WEEKLY_MEETING_TAG_NAME = "Weekly Meeting";
-
-const WEEKLY_MEETING_SLOTS: Record<string, WeeklyMeetingSlot> = {
-  MACQ: { weekday: 3, startHour: 16, endHour: 18 },
-  UNSW: { weekday: 3, startHour: 17, endHour: 19 },
-  UTS: { weekday: 2, startHour: 17, endHour: 19 },
-  USYD: { weekday: 2, startHour: 17, endHour: 19 },
-};
-
-export const weeklyMeetingSlot = (subgroup: string): WeeklyMeetingSlot | null =>
-  WEEKLY_MEETING_SLOTS[subgroupLabel(subgroup)] ?? null;
-
-export const nextDateForWeekday = (weekday: number, from = new Date()): Date => {
-  const d = new Date(from.getFullYear(), from.getMonth(), from.getDate());
-  d.setDate(d.getDate() + ((weekday - d.getDay() + 7) % 7));
-  return d;
-};
 
 export const contrastingText = (hex: string): string => {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -136,15 +110,19 @@ export const personDisplayName = (
   return trimmed ?? "";
 };
 
+/**
+ * Stable identity for an attendance row. Staff keys fold the legacy
+ * `@sowaustralia.com` spelling into `@sow.org.au` so one person signed in
+ * under either address is counted once.
+ */
 export const personKey = (row: {
   email?: string | null;
   memberId?: string | null;
-}): string =>
-  row.email
-    ? `staff:${row.email.toLowerCase()}`
-    : row.memberId
-      ? `member:${row.memberId}`
-      : "";
+}): string => {
+  const email = row.email ? canonicalEmailKey(row.email) : undefined;
+  if (email) return `staff:${email}`;
+  return row.memberId ? `member:${row.memberId}` : "";
+};
 
 export const eventHasEnded = (dateEnd: number, now = Date.now()): boolean => now > dateEnd;
 

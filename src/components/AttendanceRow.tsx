@@ -3,8 +3,7 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { memo, useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { roleNeedsUniversity, universityColour } from "../../shared/flow";
-import { contrastingText, subgroupLabel } from "../../shared/rollcall";
+import { campusPill } from "@/components/attendance/campusPill";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   Easing,
@@ -81,12 +80,7 @@ function AttendanceRowBase({
   const rowWidth = measuredWidth || Math.min(screenWidth, 720) - spacing.lg * 2;
   const commitDistance = rowWidth / 2;
   const primaryColor = mode === "suggested" ? t.success : t.danger;
-  const campusColour = university ? universityColour(university) : undefined;
-  const hasStaffRole = roles.some((role) => !roleNeedsUniversity(role));
-  const campusPillLabel =
-    university ? subgroupLabel(university) : hasStaffRole ? "STAFF" : "OTHER";
-  const campusPillBackground = campusColour ?? t.ghost;
-  const campusPillText = campusColour ? contrastingText(campusColour) : t.ghostText;
+  const pill = campusPill(university, roles, t);
   const primaryIcon =
     mode === "suggested" ? "arrow-forward" : "arrow-undo";
 
@@ -387,7 +381,7 @@ function AttendanceRowBase({
             styles.card,
             {
               backgroundColor: highlightSignedIn ? t.primarySoft : t.card,
-              borderColor: campusColour ?? t.separator,
+              borderColor: pill.colour ?? t.separator,
               zIndex: 2,
             },
             cardStyle,
@@ -408,7 +402,7 @@ function AttendanceRowBase({
             style={[
               styles.campusPill,
               {
-                backgroundColor: campusPillBackground,
+                backgroundColor: pill.background,
               },
             ]}
           >
@@ -416,11 +410,11 @@ function AttendanceRowBase({
               style={[
                 typography.caption,
                 styles.campusPillText,
-                { color: campusPillText },
+                { color: pill.text },
               ]}
               numberOfLines={1}
             >
-              {campusPillLabel}
+              {pill.label}
             </Text>
           </View>
         </Animated.View>

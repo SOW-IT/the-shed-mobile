@@ -15,6 +15,7 @@ export const Field = ({
   autoCapitalize = "none",
   multiline,
   disabled,
+  maxLength,
 }: {
   label: string;
   value: string;
@@ -24,6 +25,7 @@ export const Field = ({
   autoCapitalize?: "none" | "sentences" | "words" | "characters";
   multiline?: boolean;
   disabled?: boolean;
+  maxLength?: number;
 }) => {
   const t = useAppTheme();
   const [focused, setFocused] = useState(false);
@@ -52,6 +54,7 @@ export const Field = ({
           placeholderTextColor={t.faint}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
+          maxLength={maxLength}
           multiline={multiline}
           editable={!disabled}
           onFocus={() => setFocused(true)}

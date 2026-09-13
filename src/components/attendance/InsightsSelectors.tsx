@@ -6,6 +6,7 @@ import {
   rangeLabel,
   type RangeWeeks,
 } from "../../../shared/attendanceMetrics";
+import { parseDateInputValue, toDateInputValue } from "../../../shared/datetime";
 import { NativeDateInput } from "@/components/NativeDateTimeField";
 import { WebDateInput } from "@/components/WebDateTimeInput";
 import { Btn, Sheet } from "@/components/ui";
@@ -15,22 +16,14 @@ export type AttendanceRangeSelection =
   | { kind: "preset"; weeks: RangeWeeks }
   | { kind: "custom"; startMs: number; endMs: number };
 
-const pad = (n: number) => String(n).padStart(2, "0");
-const toDateInput = (ms: number): string => {
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-};
-const fromDateInputStart = (value: string): number | null => {
-  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return null;
-  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
-  return Number.isNaN(d.getTime()) ? null : d.getTime();
-};
+const toDateInput = (ms: number): string => toDateInputValue(new Date(ms));
+const fromDateInputStart = (value: string): number | null =>
+  parseDateInputValue(value)?.getTime() ?? null;
 const fromDateInputEnd = (value: string): number | null => {
-  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return null;
-  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 23, 59, 59, 999);
-  return Number.isNaN(d.getTime()) ? null : d.getTime();
+  const d = parseDateInputValue(value);
+  if (!d) return null;
+  d.setHours(23, 59, 59, 999);
+  return d.getTime();
 };
 
 const formatShort = (ms: number) =>

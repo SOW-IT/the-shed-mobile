@@ -5,6 +5,7 @@ import {
   rolesOfLike,
   staffYearForDate,
   staffYearStartMs,
+  sydneyCalendarYear,
 } from "../shared/flow";
 import {
   CAMPUS_FIELD_KEY,
@@ -12,7 +13,9 @@ import {
   canonicalizeGenderValues,
   GENDER_FIELD_KEY,
   GENDER_OPTION_IDS,
+  optionIdForLabel,
   ROLE_FIELD_KEY,
+  staffLockedMetadata,
   STUDENT_YEAR_FIELD_KEY,
   STUDENT_YEAR_VALUES,
   commencementYearFromLevel,
@@ -24,10 +27,12 @@ import {
   staffEmailCandidates,
 } from "../shared/rollcallImport";
 import { Id } from "./_generated/dataModel";
-import { MutationCtx, mutation } from "./_generated/server";
+import { MutationCtx, mutation, query, QueryCtx } from "./_generated/server";
+
+type Ctx = QueryCtx | MutationCtx;
 import { findMemberByEmail, getProfile, requireAdmin } from "./model";
 
-const eventsInStaffYear = (ctx: MutationCtx, year: number) =>
+const eventsInStaffYear = (ctx: Ctx, year: number) =>
   ctx.db
     .query("events")
     .withIndex("by_dateStart", (q) =>
@@ -82,55 +87,13 @@ const eventInput = v.object({
   members: v.array(eventMemberInput),
 });
 
-const optionIdForLabel = (
-  values: Record<string, string> | undefined,
-  label: string
-): string => {
-  for (const [id, value] of Object.entries(values ?? {})) {
-    if (value === label) return id;
-  }
-  return label;
-};
-
-function calendarYearOf(dateMs: number): number {
-  return new Date(dateMs + 10 * 60 * 60 * 1000).getUTCFullYear();
-}
-
-async function allMetadataFields(ctx: MutationCtx) {
+async function allMetadataFields(ctx: Ctx) {
   return await ctx.db.query("attendanceMetadata").collect();
 }
 
 const normalizedEmail = (email: string | undefined): string | undefined => {
   const lower = email?.trim().toLowerCase();
   return lower && lower.includes("@") ? lower : undefined;
-};
-
-const staffLockedMetadata = (
-  fields: Awaited<ReturnType<typeof allMetadataFields>>,
-  profile: NonNullable<Awaited<ReturnType<typeof getProfile>>>,
-  metadata: Record<string, string> | undefined
-): Record<string, string> => {
-  const next = { ...(metadata ?? {}) };
-  const campusField = fields.find((field) => field.key === CAMPUS_FIELD_KEY);
-  const roleField = fields.find((field) => field.key === ROLE_FIELD_KEY);
-  const campus = [
-    ...new Set(
-      assignmentsOf(profile).flatMap((assignment) =>
-        assignment.university ? [assignment.university] : []
-      )
-    ),
-  ][0];
-  const role = rolesOfLike(profile)[0];
-
-  if (campusField) {
-    if (campus) next[campusField._id] = optionIdForLabel(campusField.values, campus);
-    else delete next[campusField._id];
-  }
-  if (roleField) {
-    if (role) next[roleField._id] = optionIdForLabel(roleField.values, role);
-    else delete next[roleField._id];
-  }
-  return next;
 };
 
 const canonicalStaffEmailForLegacyMember = canonicalStaffEmailFromLegacy;
@@ -384,17 +347,8 @@ export const importEvents = mutation({
     let importedEvents = 0;
     let importedAttendance = 0;
     let skipped = 0;
-    const fieldsByYear = new Map<
-      number,
-      Awaited<ReturnType<typeof allMetadataFields>>
-    >();
-    const fieldsFor = async (cy: number) => {
-      const cached = fieldsByYear.get(cy);
-      if (cached) return cached;
-      const rows = await allMetadataFields(ctx);
-      fieldsByYear.set(cy, rows);
-      return rows;
-    };
+    // Metadata fields are not year-scoped, so one read serves every event.
+    const fields = await allMetadataFields(ctx);
 
     for (const event of events) {
       const subgroups = normalizeSubgroups([
@@ -423,10 +377,9 @@ export const importEvents = mutation({
       if (existing) await ctx.db.patch(existing._id, patch);
       importedEvents++;
 
-      const calendarYear = calendarYearOf(event.dateStart);
+      const calendarYear = sydneyCalendarYear(new Date(event.dateStart));
       const staffYear = eventStaffYear(event.dateStart);
       const fieldMap = fieldMapByYear[String(calendarYear)] ?? {};
-      const fields = await fieldsFor(calendarYear);
       const fieldsByKey = new Map(fields.map((field) => [field.key, field]));
       const fieldsById = new Map(fields.map((field) => [field._id, field]));
 
@@ -481,7 +434,9 @@ export const importEvents = mutation({
             : null;
           const memberPatch = {
             name: displayName,
-            email: row.email,
+            // Stored lower-cased like every other member write, so the
+            // `by_email` lookups (and `findMemberByEmail`) can find the row.
+            email: normalizedEmail(row.email),
             sourceImportId: row.source,
             metadata,
           };
@@ -517,7 +472,7 @@ export const importEvents = mutation({
   },
 });
 
-export const summary = mutation({
+export const summary = query({
   args: { year: v.number() },
   returns: v.object({
     metadata: v.number(),
@@ -577,11 +532,11 @@ export const resetYears = mutation({
             await ctx.db.delete(event._id);
             deleted++;
             progressed = true;
-          } else {
-            progressed = true;
           }
         }
-        if (!progressed) break;
+        // Every event in the batch still has >200 attendance rows to clear;
+        // the outer loop will pick them up again (bounded by `limit`).
+        if (!progressed && deleted >= limit) break;
       }
 
     }
@@ -805,7 +760,7 @@ export const repairGenderMetadata = mutation({
   },
 });
 
-export const auditAttendanceMapping = mutation({
+export const auditAttendanceMapping = query({
   args: { year: v.number() },
   handler: async (ctx, { year }) => {
     await requireAdmin(ctx);
@@ -817,7 +772,7 @@ export const auditAttendanceMapping = mutation({
     const memberShouldBeStaff: Record<string, unknown>[] = [];
     const noProfileEmail: Record<string, unknown>[] = [];
     const missingMember: Record<string, unknown>[] = [];
-    const noIdentifier = 0;
+    let noIdentifier = 0;
 
     for (const event of events) {
       const profileYear = staffYearForDate(new Date(event.dateStart));
@@ -855,6 +810,8 @@ export const auditAttendanceMapping = mutation({
           } else {
             plainMember++;
           }
+        } else {
+          noIdentifier++;
         }
       }
     }

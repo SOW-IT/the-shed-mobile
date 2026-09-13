@@ -111,7 +111,8 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
       const allowed = [process.env.SITE_URL, process.env.APP_URL].filter(
         (url): url is string => !!url
       );
-      if (redirectTo.startsWith("/")) {
+      // "//evil.example/x" is protocol-relative, not site-relative.
+      if (redirectTo.startsWith("/") && !redirectTo.startsWith("//")) {
         return `${process.env.SITE_URL ?? ""}${redirectTo}`;
       }
       if (

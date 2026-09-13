@@ -1,12 +1,5 @@
-import { useQuery } from "convex/react";
 import { useRouter } from "expo-router";
-import {
-  MutableRefObject,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { MutableRefObject, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -20,6 +13,7 @@ import {
 } from "../../../shared/rollcall";
 import { Ionicons } from "@expo/vector-icons";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
+import { usePagedQuery } from "@/hooks/usePagedQuery";
 import { CampusMark } from "@/components/CampusMark";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { ExportSheet } from "@/components/attendance/ExportSheet";
@@ -69,57 +63,17 @@ export function EventsTab({
   const router = useRouter();
   const subgroup = selectedSubgroup ?? subgroups[0] ?? null;
   const [now, setNow] = useState(() => Date.now());
-  const [pagination, setPagination] = useState<{
-    subgroup: string | null;
-    cursor: string | null;
-  }>({
-    subgroup,
-    cursor: null,
+  const {
+    rows: accumulated,
+    result: page,
+    hasMore,
+  } = usePagedQuery(api.events.listBySubgroup, {
+    scopeKey: subgroup ?? "",
+    args: (cursor) => (subgroup ? { subgroup, cursor } : "skip"),
+    rowsOf: (result) => result.events,
+    keyOf: (event) => event._id,
+    loadMoreRef,
   });
-  const [accumulated, setAccumulated] = useState<
-    NonNullable<ReturnType<typeof useQuery<typeof api.events.listBySubgroup>>>["events"]
-  >([]);
-  const cursor = pagination.subgroup === subgroup ? pagination.cursor : null;
-
-  const page = useQuery(
-    api.events.listBySubgroup,
-    subgroup ? { subgroup, cursor: cursor ?? null } : "skip"
-  );
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on subgroup change
-    setPagination({ subgroup, cursor: null });
-    setAccumulated([]);
-  }, [subgroup]);
-
-  useEffect(() => {
-    if (!page?.events) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- append paginated events
-    setAccumulated((prev) => {
-      if (!cursor) return page.events;
-      const seen = new Set(prev.map((e) => e._id));
-      return [...prev, ...page.events.filter((e) => !seen.has(e._id))];
-    });
-  }, [page, cursor]);
-
-  const hasMore = page != null && !page.isDone;
-  const continueCursor = page?.continueCursor;
-  const pending = useRef(false);
-  useEffect(() => {
-    pending.current = false;
-  }, [cursor, page?.isDone]);
-  const loadMore = useCallback(() => {
-    if (pending.current || !hasMore || continueCursor == null) return;
-    pending.current = true;
-    setPagination({ subgroup, cursor: continueCursor });
-  }, [hasMore, continueCursor, subgroup]);
-  useEffect(() => {
-    if (!loadMoreRef) return;
-    loadMoreRef.current = hasMore ? loadMore : null;
-    return () => {
-      loadMoreRef.current = null;
-    };
-  }, [loadMoreRef, hasMore, loadMore]);
 
   const [editingEventId, setEditingEventId] = useState<Id<"events"> | null>(null);
   const editingEvent = accumulated.find((event) => event._id === editingEventId);

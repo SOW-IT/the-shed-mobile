@@ -39,9 +39,14 @@ export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 
 export const digitsOnly = (text: string): string => text.replace(/[^0-9]/g, "");
 
+/** Australian BSBs are exactly six digits. */
+export const BSB_LENGTH = 6;
+/** Australian account numbers are at most ten digits. */
+export const ACCOUNT_NUMBER_MAX_LENGTH = 10;
+
 export const maskAccount = (accountNumber: string): string =>
   accountNumber.length > 4 ? `••${accountNumber.slice(-4)}` : accountNumber;
 
-export { currencyText, formatAmount } from "@shared/money";
+export { currencyText, formatAmount, sumAmounts, toCents } from "@shared/money";
 
 export const stagger = (index: number): number => Math.min(index, 8) * 24;

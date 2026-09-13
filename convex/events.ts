@@ -24,6 +24,7 @@ import { optionalProfile, requireProfile } from "./model";
 import { notify } from "./requests";
 import { logAttendanceAction } from "./attendanceAudit";
 import { paginator } from "convex-helpers/server/pagination";
+import { asPaginatorCursor } from "./pagination";
 import schema from "./schema";
 
 const EVENTS_PAGE_SIZE = 20;
@@ -40,14 +41,6 @@ type ListBySubgroupCursor = {
 const encodeListBySubgroupCursor = (cursor: ListBySubgroupCursor) =>
   `event-subgroup:${JSON.stringify(cursor)}`;
 
-const asPaginatorCursor = (value: unknown): string | null => {
-  if (typeof value !== "string") return null;
-  try {
-    return Array.isArray(JSON.parse(value)) ? value : null;
-  } catch {
-    return null;
-  }
-};
 
 const decodeListBySubgroupCursor = (
   cursor: string | null | undefined

@@ -2,16 +2,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import {
   MutableRefObject,
-  useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import { Animated, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { EmptyState, LoadingState, MultiSelect, SowSpinner } from "@/components/ui";
+import { usePagedQuery } from "@/hooks/usePagedQuery";
 import {
   PAGER_PAGE_BOTTOM_INSET,
   PAGER_PAGE_CONTENT,
@@ -60,18 +59,6 @@ const timeAgo = (ms: number): string => {
   });
 };
 
-type AuditRow = {
-  id: string;
-  at: number;
-  actorEmail: string;
-  actorName: string;
-  entityType: AuditEntityType;
-  action: string;
-  summary: string;
-  eventId: string | null;
-  detail: string | null;
-};
-
 export function AuditTab({
   scrollProps,
   loadMoreRef,
@@ -87,8 +74,6 @@ export function AuditTab({
   const [actorEmails, setActorEmails] = useState<string[]>([]);
   const [eventIds, setEventIds] = useState<Id<"events">[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [accumulated, setAccumulated] = useState<AuditRow[]>([]);
 
   const options = useQuery(api.attendanceAudit.filterOptions, {});
 
@@ -97,48 +82,23 @@ export function AuditTab({
     return () => clearTimeout(id);
   }, [search]);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset paging on filter change
-    setCursor(null);
-    setAccumulated([]);
-  }, [debouncedSearch, entityTypes, actorEmails, eventIds]);
-
-  const page = useQuery(api.attendanceAudit.list, {
-    search: debouncedSearch || undefined,
-    entityTypes: entityTypes.length ? entityTypes : undefined,
-    actorEmails: actorEmails.length ? actorEmails : undefined,
-    eventIds: eventIds.length ? eventIds : undefined,
-    paginationOpts: { numItems: PAGE_SIZE, cursor: cursor ?? null },
+  const {
+    rows: accumulated,
+    result: page,
+    hasMore,
+  } = usePagedQuery(api.attendanceAudit.list, {
+    scopeKey: JSON.stringify([debouncedSearch, entityTypes, actorEmails, eventIds]),
+    args: (cursor) => ({
+      search: debouncedSearch || undefined,
+      entityTypes: entityTypes.length ? entityTypes : undefined,
+      actorEmails: actorEmails.length ? actorEmails : undefined,
+      eventIds: eventIds.length ? eventIds : undefined,
+      paginationOpts: { numItems: PAGE_SIZE, cursor },
+    }),
+    rowsOf: (result) => result.page,
+    keyOf: (row) => row.id,
+    loadMoreRef,
   });
-
-  useEffect(() => {
-    if (!page?.page) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- append paginated rows
-    setAccumulated((prev) => {
-      if (!cursor) return page.page;
-      const seen = new Set(prev.map((r) => r.id));
-      return [...prev, ...page.page.filter((r) => !seen.has(r.id))];
-    });
-  }, [page, cursor]);
-
-  const hasMore = page != null && !page.isDone;
-  const continueCursor = page?.continueCursor;
-  const pending = useRef(false);
-  useEffect(() => {
-    pending.current = false;
-  }, [cursor, page?.isDone]);
-  const loadMore = useCallback(() => {
-    if (pending.current || !hasMore || continueCursor == null) return;
-    pending.current = true;
-    setCursor(continueCursor);
-  }, [hasMore, continueCursor]);
-  useEffect(() => {
-    if (!loadMoreRef) return;
-    loadMoreRef.current = hasMore ? loadMore : null;
-    return () => {
-      loadMoreRef.current = null;
-    };
-  }, [loadMoreRef, hasMore, loadMore]);
 
   const activeFilterCount =
     entityTypes.length + actorEmails.length + eventIds.length;

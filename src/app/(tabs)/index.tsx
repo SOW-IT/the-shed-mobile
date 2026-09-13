@@ -13,7 +13,7 @@ import { AdminBar } from "@/components/AdminBar";
 import { AllRequestsList } from "@/components/AllRequestsList";
 import { BankTab } from "@/components/BankTab";
 import { ChromeScreen } from "@/components/ChromeScreen";
-import { ExportRequestsCard } from "@/components/ExportRequestsCsv";
+import { ExportRequestsCard } from "@/components/ExportRequestsCard";
 import { GuideSheet, MyRequests } from "@/components/MyRequests";
 import { type RequestPrefill } from "@/components/MyRequests";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
@@ -131,6 +131,8 @@ export default function RequestsScreen() {
   }>();
   const focusThread = thread === "1";
   const focusReopenKey = typeof reopen === "string" ? reopen : undefined;
+  // A repeated query key arrives as an array; only a single id can be focused.
+  const focusId = typeof focus === "string" && focus ? focus : undefined;
   const [active, setActive] = useState("mine");
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- external param sync
@@ -138,10 +140,10 @@ export default function RequestsScreen() {
   }, [tab]);
   const markReadForRequest = useMutation(api.notifications.markReadForRequest);
   useEffect(() => {
-    if (typeof focus === "string" && focus) {
-      void markReadForRequest({ requestId: focus as Id<"requests"> }).catch(() => {});
+    if (focusId) {
+      void markReadForRequest({ requestId: focusId as Id<"requests"> }).catch(() => {});
     }
-  }, [focus, markReadForRequest]);
+  }, [focusId, markReadForRequest]);
   const activeSegment = segments.some((s) => s.key === active) ? active : "mine";
 
   const currentYear = me?.year;
@@ -230,7 +232,7 @@ export default function RequestsScreen() {
       <AllRequestsList
         year={queryYear}
         loadMoreRef={loadMoreRef}
-        focusId={focus}
+        focusId={focusId}
         focusThread={focusThread}
         focusReopenKey={focusReopenKey}
       />
@@ -242,7 +244,7 @@ export default function RequestsScreen() {
       case "review":
         return (
           <ReadableColumn>
-            <ReviewList focusId={focus} focusThread={focusThread} focusReopenKey={focusReopenKey} />
+            <ReviewList focusId={focusId} focusThread={focusThread} focusReopenKey={focusReopenKey} />
           </ReadableColumn>
         );
       case "all":
@@ -263,7 +265,7 @@ export default function RequestsScreen() {
             onResubmit={(p) => { setRequestPrefill(p); setNewRequestOpen(true); }}
             onNewClose={() => setNewRequestOpen(false)}
             directorThreshold={directorThreshold}
-            focusId={focus}
+            focusId={focusId}
             focusThread={focusThread}
             focusReopenKey={focusReopenKey}
           />

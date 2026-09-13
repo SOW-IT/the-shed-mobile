@@ -5,6 +5,7 @@ import { staffYearForDate } from "../shared/flow";
 import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx, query } from "./_generated/server";
 import { displayName, optionalProfile } from "./model";
+import { asPaginatorCursor } from "./pagination";
 import schema from "./schema";
 
 export type AuditEntityType =
@@ -40,14 +41,6 @@ export async function logAttendanceAction(
 
 const MAX_ROWS_SCANNED_PER_CALL = 2000;
 
-const asPaginatorCursor = (value: unknown): string | null => {
-  if (typeof value !== "string") return null;
-  try {
-    return Array.isArray(JSON.parse(value)) ? value : null;
-  } catch {
-    return null;
-  }
-};
 
 export const list = query({
   args: {

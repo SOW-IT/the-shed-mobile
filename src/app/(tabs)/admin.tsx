@@ -635,9 +635,7 @@ export default function AdminScreen() {
 
   const accentBorderWidth = 4;
   const cardHorizontalPadding = spacing.lg + 2;
-  const accentContainerStyle = (_accentColour: string) => ({
-    gap: spacing.md,
-  });
+  const accentContainerStyle = { gap: spacing.md };
   const accentCardStyle = (accentColour: string) => ({
     borderLeftWidth: accentBorderWidth,
     borderLeftColor: accentColour,
@@ -854,7 +852,7 @@ export default function AdminScreen() {
                   return (
                     <View
                       key={dept.name}
-                      style={accentContainerStyle(deptAccent)}
+                      style={accentContainerStyle}
                     >
                       <Text
                         style={[
@@ -889,7 +887,7 @@ export default function AdminScreen() {
             return (
               <View
                 key={group.university}
-                style={accentContainerStyle(campusAccent)}
+                style={accentContainerStyle}
               >
                 <SectionTitle>{group.university} · {selectedYear}</SectionTitle>
                 <CardGrid>

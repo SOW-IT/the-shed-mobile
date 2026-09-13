@@ -219,19 +219,19 @@ export const saveAll = mutation({
   handler: async (ctx, { fields, deleteIds }) => {
     const { email: actorEmail } = await requireAttendanceManager(ctx);
     const orgYear = currentStaffYear();
+    const members =
+      deleteIds.length > 0 ? await ctx.db.query("attendanceMembers").collect() : [];
     for (const id of deleteIds) {
       const row = await ctx.db.get(id);
       if (!row) continue;
       if (LOCKED_FIELD_KEYS.has(row.key)) {
         throw new ConvexError(`Cannot delete locked metadata field "${row.key}".`);
       }
-      const members = await ctx.db
-        .query("attendanceMembers")
-        .collect();
       for (const member of members) {
         if (!member.metadata?.[id]) continue;
         const metadata = { ...member.metadata };
         delete metadata[id];
+        member.metadata = metadata;
         await ctx.db.patch(member._id, { metadata });
       }
       await ctx.db.delete(id);

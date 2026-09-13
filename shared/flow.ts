@@ -155,16 +155,6 @@ export const divisionsOf = (p: ProfileLike): string[] => [
 export const isMemberOfDepartment = (p: ProfileLike, department: string): boolean =>
   assignmentsOf(p).some((a) => a.department === department);
 
-export const isHeadOfDivisionName = (p: ProfileLike, division: string): boolean =>
-  assignmentsOf(p).some(
-    (a) => a.role === HEAD_OF_DIVISION && a.division === division
-  );
-
-export const rolesForDepartment = (p: ProfileLike, department: string): string[] =>
-  assignmentsOf(p)
-    .filter((a) => a.department === department)
-    .map((a) => a.role);
-
 export const assignmentKey = (a: Assignment): string =>
   `${a.role} ${a.department ?? ""} ${a.division ?? ""} ${a.university ?? ""}`;
 
@@ -229,7 +219,8 @@ const sydneyYmdFixedOffset = (
   };
 };
 
-const sydneyYmd = (
+/** Calendar parts of `date` in Sydney time (month is 1-based). */
+export const sydneyYmd = (
   date: Date
 ): { year: number; month: number; day: number; hour: number } => {
   try {
@@ -288,8 +279,8 @@ export const staffYearStartMs = (year: number): number =>
 
 export const ROLLOVER_RATE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
 
-export const ROLLOVER_AUTH_GRACE_MS = ROLLOVER_RATE_GRACE_MS;
-
+// Auth grace is deliberately not a fixed duration: it lasts until the Sydney
+// calendar year catches up with the staff year (see ADR 0003).
 export const withinRolloverAuthGrace = (
   staffYear: number,
   now: Date = new Date()

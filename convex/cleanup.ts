@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { EARLIEST_REQUEST_YEAR, staffYearStartMs } from "../shared/flow";
+import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
 import { internalMutation, type MutationCtx } from "./_generated/server";
 import { currentStaffYear } from "./model";
@@ -34,33 +35,48 @@ const purgeRequestReceiptFiles = async (
   return { filesDeleted };
 };
 
+const PURGE_BATCH_SIZE = 100;
+
+/**
+ * Annual cron: delete receipt files for requests created before the previous
+ * staff year. Walks the requests table one page per transaction and
+ * reschedules itself, so the job finishes however many requests exist rather
+ * than failing once a single transaction would be too large.
+ */
 export const purgeOldReceiptFiles = internalMutation({
-  args: { beforeMs: v.optional(v.number()) },
+  args: {
+    beforeMs: v.optional(v.number()),
+    cursor: v.optional(v.union(v.string(), v.null())),
+    batch: v.optional(v.number()),
+  },
   handler: async (ctx, args) => {
-    const cutoff =
-      args.beforeMs ?? staffYearStartMs(currentStaffYear() - 1);
+    const cutoff = args.beforeMs ?? staffYearStartMs(currentStaffYear() - 1);
+    const batch = args.batch ?? PURGE_BATCH_SIZE;
+    const page = await ctx.db
+      .query("requests")
+      .withIndex("by_creation_time", (q) =>
+        q.gte("_creationTime", staffYearStartMs(EARLIEST_REQUEST_YEAR)).lt("_creationTime", cutoff)
+      )
+      .paginate({ numItems: batch, cursor: args.cursor ?? null });
+
     let filesDeleted = 0;
     let requestsTouched = 0;
-
-    for (let year = EARLIEST_REQUEST_YEAR; year <= currentStaffYear(); year++) {
-      const yearStart = staffYearStartMs(year);
-      const yearEnd = staffYearStartMs(year + 1);
-      if (yearStart >= cutoff) break;
-      const end = Math.min(yearEnd, cutoff);
-      for await (const request of ctx.db
-        .query("requests")
-        .withIndex("by_creation_time", (q) =>
-          q.gte("_creationTime", yearStart).lt("_creationTime", end)
-        )) {
-        const purged = await purgeRequestReceiptFiles(ctx, request);
-        filesDeleted += purged.filesDeleted;
-        if (purged.filesDeleted > 0) requestsTouched++;
-      }
+    for (const request of page.page) {
+      const purged = await purgeRequestReceiptFiles(ctx, request);
+      filesDeleted += purged.filesDeleted;
+      if (purged.filesDeleted > 0) requestsTouched++;
     }
 
     console.log(
-      `purgeOldReceiptFiles: deleted ${filesDeleted} file(s) across ${requestsTouched} request(s) created before ${new Date(cutoff).toISOString()}`
+      `purgeOldReceiptFiles: deleted ${filesDeleted} file(s) across ${requestsTouched} request(s) created before ${new Date(cutoff).toISOString()} (done=${page.isDone})`
     );
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(0, internal.cleanup.purgeOldReceiptFiles, {
+        beforeMs: cutoff,
+        cursor: page.continueCursor,
+        batch,
+      });
+    }
     return null;
   },
 });

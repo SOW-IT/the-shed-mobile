@@ -226,6 +226,8 @@ export const CommentsSheet = ({
                     {comment.reactions.map((reaction) => (
                       <Pressable
                         key={reaction.emoji}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${reaction.emoji} ${reaction.count}${reaction.mine ? ", you reacted" : ""}`}
                         onPress={() => void react(comment.id, reaction.emoji)}
                         style={[
                           styles.reactionChip,
@@ -263,6 +265,8 @@ export const CommentsSheet = ({
                         <Pressable
                           key={emoji}
                           hitSlop={4}
+                          accessibilityRole="button"
+                          accessibilityLabel={`React with ${emoji}`}
                           onPress={() => void react(comment.id, emoji)}
                           style={({ pressed }) => [styles.quickEmoji, pressed && { opacity: 0.5 }]}
                         >
@@ -301,6 +305,8 @@ export const CommentsSheet = ({
             <Pressable
               key={emoji}
               hitSlop={4}
+              accessibilityRole="button"
+              accessibilityLabel={`React with ${emoji}`}
               onPress={() => moreFor && void react(moreFor, emoji)}
               style={({ pressed }) => [styles.gridEmoji, pressed && { opacity: 0.5 }]}
             >

@@ -2,7 +2,6 @@ import { Redirect, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "convex/react";
 import { staffYearForDate, sydneyCalendarYear } from "../../../shared/flow";
-import { defaultAttendanceSubgroup } from "../../../shared/rollcall";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
@@ -14,6 +13,7 @@ import { MetadataTab, type SaveControls } from "@/components/attendance/Metadata
 import { SettingsTab } from "@/components/attendance/SettingsTab";
 import { ConfirmDialog, FooterAction, LoadingState } from "@/components/ui";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
+import { useAttendanceSubgroup } from "@/hooks/useAttendanceSubgroup";
 
 export default function AttendanceScreen() {
   const { tab } = useLocalSearchParams<{ tab?: string }>();
@@ -23,7 +23,10 @@ export default function AttendanceScreen() {
   const subgroups = useQuery(api.events.subgroups);
   const metadata = useQuery(api.attendanceMetadata.list, {});
   const [active, setActive] = useState("events");
-  const [selectedSubgroup, setSelectedSubgroup] = useState<string | null>(null);
+  const [subgroup, setSelectedSubgroup] = useAttendanceSubgroup(
+    subgroups,
+    me?.profile?.assignments
+  );
   const [createEventOpen, setCreateEventOpen] = useState(false);
   const [memberSheetOpen, setMemberSheetOpen] = useState(false);
   const [memberSheetId, setMemberSheetId] = useState<Id<"attendanceMembers"> | null>(
@@ -45,16 +48,6 @@ export default function AttendanceScreen() {
   const eventsLoadMoreRef = useRef<(() => void) | null>(null);
   const membersLoadMoreRef = useRef<(() => void) | null>(null);
   const auditLoadMoreRef = useRef<(() => void) | null>(null);
-
-  useEffect(() => {
-    if (!subgroups?.length || selectedSubgroup !== null) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- default campus once subgroups load
-    setSelectedSubgroup(
-      defaultAttendanceSubgroup(subgroups, me?.profile?.assignments) ?? subgroups[0]
-    );
-  }, [subgroups, selectedSubgroup, me?.profile?.assignments]);
-
-  const subgroup = selectedSubgroup ?? subgroups?.[0] ?? null;
 
   useEffect(() => {
     if (

@@ -1098,14 +1098,23 @@ export function MultiStackedBarChart({
   const labelFor = (i: number) =>
     tooltipLabel ? tooltipLabel(points[i]) : points[i].label;
   if (mode === "line") {
-    const keys = points[0].segments;
+    // Points may carry different segment sets (a series can be missing for
+    // some years), so collect every series and look values up by key.
+    const seriesByKey = new Map<string, { key: string; colour: string }>();
+    for (const p of points) {
+      for (const seg of p.segments) {
+        if (!seriesByKey.has(seg.key)) seriesByKey.set(seg.key, seg);
+      }
+    }
     return (
       <LineSeriesChart
         labels={points.map((p) => p.label)}
-        series={keys.map((seg, si) => ({
+        series={[...seriesByKey.values()].map((seg) => ({
           key: seg.key,
           colour: seg.colour,
-          values: points.map((p) => p.segments[si]?.value ?? 0),
+          values: points.map(
+            (p) => p.segments.find((s) => s.key === seg.key)?.value ?? 0
+          ),
         }))}
         max={axis.max}
         fullscreen={fullscreen}
