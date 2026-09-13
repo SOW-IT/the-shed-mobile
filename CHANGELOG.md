@@ -15,6 +15,9 @@ All notable changes to **The SHED** mobile app. This project follows
   the October prefill window. The weekly Thursday rebuild is folded into it.
 - **Sign-ins and event edits no longer write a "needs recompute" flag.** With
   nothing left to read it, the flag and its table are gone.
+- **Expo packages are back in step with the release.** Expo shipped patch
+  updates after 1.11.12, and the dependency check that runs on every change
+  caught the drift; twenty-one packages are bumped to the expected versions.
 
 ## [1.11.12] — 2026-09-10
 
