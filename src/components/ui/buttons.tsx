@@ -51,6 +51,9 @@ export const FooterAction = ({
     // lift is exact wherever the footer lives: a tab screen sits above the tab
     // bar, so lifting by the full keyboard height would leave a tab-bar-sized
     // gap. Fallback for an unmeasurable footer is the old height-based lift.
+    // Measurement is async; a hide (or unmount) in between must win, so each
+    // hide bumps the generation and a stale measurement is dropped.
+    let generation = 0;
     const liftFor = (
       keyboard: { screenY: number; height: number },
       apply: (toValue: number) => void
@@ -60,7 +63,9 @@ export const FooterAction = ({
         apply(Math.max(0, keyboard.height - bottomOffset));
         return;
       }
+      const measured = generation;
       node.measureInWindow((_x, y, _w, h) => {
+        if (measured !== generation) return;
         const restingBottom = y + h;
         const wanted = restingBottom + spacing.md - keyboard.screenY;
         apply(Math.min(keyboard.height, Math.max(0, wanted)));
@@ -82,6 +87,7 @@ export const FooterAction = ({
       );
     });
     const hide = Keyboard.addListener("keyboardWillHide", (e) => {
+      generation += 1;
       Animated.timing(lift, {
         toValue: 0,
         duration: liftDuration(e?.duration),
@@ -90,6 +96,8 @@ export const FooterAction = ({
       }).start();
     });
     return () => {
+      generation += 1;
+      syncRef.current = () => {};
       show.remove();
       hide.remove();
     };
