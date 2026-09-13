@@ -8,7 +8,8 @@ import {
 } from "../shared/flow";
 import {
   CAMPUS_FIELD_KEY,
-  formatMetadataFieldValue,
+  metadataSubtitle,
+  resolveUniversity,
   ROLE_FIELD_KEY,
 } from "../shared/attendanceMemberMeta";
 import { canReverseSignIn, compareAttendanceFrequency, memberMatchesEventCampus, normalizeSubgroups, personDisplayName, personKey, subgroupMatches } from "../shared/rollcall";
@@ -37,28 +38,6 @@ export type RosterEntry = {
   university?: string;
   subtitle?: string;
   photo?: string | null;
-};
-
-type MetadataField = {
-  _id: string;
-  key: string;
-  values?: Record<string, string>;
-};
-
-const resolveUniversity = (
-  fields: MetadataField[],
-  metadata: Record<string, string> | undefined,
-  orgCampuses: string[] = []
-): string | undefined => {
-  const campusField = fields.find((field) => field.key === CAMPUS_FIELD_KEY);
-  if (campusField && metadata) {
-    const raw = metadata[campusField._id];
-    if (raw) {
-      const label = campusField.values?.[raw] ?? raw;
-      if (label && label !== "Other") return label;
-    }
-  }
-  return orgCampuses[0];
 };
 
 export const roster = query({
@@ -109,19 +88,6 @@ export const roster = query({
       pureExtras.push(m);
     }
 
-    const metadataSubtitle = (
-      metadata: Record<string, string> | undefined,
-      excludeKeys: Set<string> = new Set()
-    ): string =>
-      metadataFields
-        .filter((f) => !excludeKeys.has(f.key))
-        .map((f) => {
-          const raw = metadata?.[f._id];
-          if (!raw) return null;
-          return formatMetadataFieldValue(f.key, raw, memberYear, f.values);
-        })
-        .filter(Boolean)
-        .join(" · ");
 
     const staffRows: RosterEntry[] = await Promise.all(profiles.map(async (p) => {
       const shadow = shadowByEmail.get(p.email.toLowerCase());
@@ -135,10 +101,7 @@ export const roster = query({
         ),
       ];
       const orgSubtitle = roles.length > 0 ? roles.join(" · ") : "";
-      const metaSubtitle = metadataSubtitle(
-        shadow?.metadata,
-        new Set([ROLE_FIELD_KEY, CAMPUS_FIELD_KEY])
-      );
+      const metaSubtitle = metadataSubtitle(metadataFields, shadow?.metadata, memberYear, [ROLE_FIELD_KEY, CAMPUS_FIELD_KEY]);
       const subtitle = [orgSubtitle, metaSubtitle].filter(Boolean).join(" · ");
       const user = p.userId ? await ctx.db.get(p.userId) : null;
       return {
@@ -163,7 +126,7 @@ export const roster = query({
       roles: [],
       campuses: [],
       university: resolveUniversity(metadataFields, m.metadata),
-      subtitle: metadataSubtitle(m.metadata, new Set([CAMPUS_FIELD_KEY])) || undefined,
+      subtitle: metadataSubtitle(metadataFields, m.metadata, memberYear, [CAMPUS_FIELD_KEY]) || undefined,
     }));
 
     const rows = [...staffRows, ...extraRows];
@@ -251,19 +214,6 @@ export const listByEvent = query({
           fieldSubgroups.some((sg) => subgroupMatches(field.subgroup!, sg))
       )
       .sort((a, b) => a.order - b.order);
-    const metadataSubtitle = (
-      metadata: Record<string, string> | undefined,
-      excludeKeys: Set<string> = new Set()
-    ): string =>
-      metadataFields
-        .filter((field) => !excludeKeys.has(field.key))
-        .map((field) => {
-          const raw = metadata?.[field._id];
-          if (!raw) return null;
-          return formatMetadataFieldValue(field.key, raw, calendarYear, field.values);
-        })
-        .filter(Boolean)
-        .join(" · ");
     const rows = await ctx.db
       .query("attendance")
       .withIndex("by_event", (q) => q.eq("eventId", eventId))
@@ -300,12 +250,13 @@ export const listByEvent = query({
           roles,
           campuses,
           university: campuses[0] ?? resolveUniversity(metadataFields, shadow?.metadata, campuses),
-          subtitle: metadataSubtitle(
-            shadow?.metadata,
-            profile
-              ? new Set([ROLE_FIELD_KEY, CAMPUS_FIELD_KEY])
-              : new Set([CAMPUS_FIELD_KEY])
-          ) || undefined,
+          subtitle:
+            metadataSubtitle(
+              metadataFields,
+              shadow?.metadata,
+              calendarYear,
+              profile ? [ROLE_FIELD_KEY, CAMPUS_FIELD_KEY] : [CAMPUS_FIELD_KEY]
+            ) || undefined,
           photo: user?.image ?? null,
         },
       };
@@ -329,7 +280,7 @@ export const listByEvent = query({
             roles: [],
             campuses: [],
             university: resolveUniversity(metadataFields, member?.metadata),
-            subtitle: metadataSubtitle(member?.metadata, new Set([CAMPUS_FIELD_KEY])) || undefined,
+            subtitle: metadataSubtitle(metadataFields, member?.metadata, calendarYear, [CAMPUS_FIELD_KEY]) || undefined,
             photo: null,
           };
         }

@@ -414,6 +414,9 @@ export const campusWeeklyAttendance = query({
       .withIndex("by_dateStart", (q) =>
         q.gte("dateStart", staffYearStartMs(CAMPUS_ATTENDANCE_START_YEAR))
       )
+      // Newest first: if the scan cap is ever hit it drops the oldest year,
+      // not the one currently being led.
+      .order("desc")
       .take(MAX_EVENTS_SCAN);
 
     const tagIds = new Set<Id<"attendanceTags">>();

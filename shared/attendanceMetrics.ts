@@ -1,4 +1,4 @@
-import { eventStaffYear } from "./flow";
+import { eventStaffYear, sydneyYmd } from "./flow";
 import {
   eventIncludesSubgroup,
   isOrgWideSubgroup,
@@ -155,19 +155,21 @@ const MONTHS = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
+// Chart labels and month buckets are calendar facts, so they follow the org's
+// day (Sydney) like the rest of the app, not the UTC day of the server.
 export const shortDate = (ms: number): string => {
-  const d = new Date(ms);
-  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
+  const { day, month } = sydneyYmd(new Date(ms));
+  return `${day} ${MONTHS[month - 1]}`;
 };
 
 const monthKey = (ms: number): string => {
-  const d = new Date(ms);
-  return `${d.getUTCFullYear()}-${d.getUTCMonth()}`;
+  const { year, month } = sydneyYmd(new Date(ms));
+  return `${year}-${month - 1}`;
 };
 
 const monthLabel = (ms: number): string => {
-  const d = new Date(ms);
-  return `${MONTHS[d.getUTCMonth()]} ${String(d.getUTCFullYear()).slice(-2)}`;
+  const { year, month } = sydneyYmd(new Date(ms));
+  return `${MONTHS[month - 1]} ${String(year).slice(-2)}`;
 };
 
 const daysBetween = (from: number, to: number): number =>
@@ -567,14 +569,6 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
     hasEnoughHistory: periodEvents.length >= T.minEventsForInsights,
   };
 }
-
-export const REASON_LABELS: Record<FollowUpReasonCode, string> = {
-  at_risk: "Follow-up suggested",
-  lapsed: "Been away a while",
-  declining: "Attending less lately",
-  newcomer_no_return: "New — hasn't returned",
-  reengaged: "Recently returned",
-};
 
 function setDefault<K, V>(map: Map<K, V>, key: K, value?: V): V {
   const v = value ?? ([] as unknown as V);

@@ -45,11 +45,12 @@ keyed by staff year. Current and incoming years may both have rows at once;
 Insights reads the current year only, never raw attendance.
 _Avoid_: aggregate, cache, rollup
 
-**Dirty**:
-A Sub-group whose Snapshot is known stale because a roll-call or event changed.
-A 15-minute cron rebuilds only these; a weekly cron rebuilds everything. In
-the hours before rollover, dirty rebuilds both the current year and the
-incoming year so the incoming Snapshot stays honest until the clock flips.
+**Nightly rebuild**:
+The one cron that keeps Snapshots fresh: every night it recomputes every
+Sub-group for the current staff year. A roll-call or event change is visible
+in Insights the next morning. The October 1 prefill job also rebuilds the year
+that has just ended so the incoming year's Snapshots start honest.
+_Avoid_: dirty, dirty recompute (the old 15-minute mechanism, removed in 1.11)
 
 **Needs follow-up**:
 The gentle, explainable list of Members whose attendance has dropped. A

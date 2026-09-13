@@ -9,6 +9,20 @@ import schema from "./schema";
 const modules = import.meta.glob("./**/*.ts");
 const YEAR = staffYearForDate(new Date());
 
+/** Runs `action`, then every scheduled follow-up it queued (e.g. the purge after a request deletion). */
+const withScheduled = async (
+  t: TestConvex<typeof schema>,
+  action: () => Promise<unknown>
+) => {
+  vi.useFakeTimers();
+  try {
+    await action();
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+  } finally {
+    vi.useRealTimers();
+  }
+};
+
 const ADMIN = "admin@sow.org.au";
 const RACHEL = "rachel@sow.org.au";
 const HENRY = "henry@sow.org.au";
@@ -422,7 +436,9 @@ describe("toggleReaction + list grouping", () => {
         emoji: "x".repeat(17),
       })
     ).rejects.toThrow(/single emoji/);
-    await asUser(t, RACHEL).mutation(api.requests.cancel, { requestId: id });
+    await withScheduled(t, () =>
+      asUser(t, RACHEL).mutation(api.requests.cancel, { requestId: id })
+    );
     await expect(
       asUser(t, RACHEL).mutation(api.comments.toggleReaction, { commentId: comment.id, emoji: "👍" })
     ).rejects.toThrow(/Comment not found/);
@@ -438,7 +454,105 @@ describe("cancel cleans up the comment thread", () => {
     await asUser(t, HENRY).mutation(api.comments.toggleReaction, { commentId: comment.id, emoji: "👍" });
     await asUser(t, HENRY).mutation(api.comments.markRead, { requestId: id });
 
-    await asUser(t, RACHEL).mutation(api.requests.cancel, { requestId: id });
+    const notificationsBefore = await t.run((ctx) =>
+      ctx.db
+        .query("notifications")
+        .withIndex("by_request", (q) => q.eq("requestId", id))
+        .collect()
+    );
+    expect(notificationsBefore.length).toBeGreaterThan(0);
+
+    await withScheduled(t, () =>
+      asUser(t, RACHEL).mutation(api.requests.cancel, { requestId: id })
+    );
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("requestComments").take(10)).toHaveLength(0);
+      expect(await ctx.db.query("commentReactions").take(10)).toHaveLength(0);
+      expect(await ctx.db.query("commentReads").take(10)).toHaveLength(0);
+      expect(
+        await ctx.db
+          .query("notifications")
+          .withIndex("by_request", (q) => q.eq("requestId", id))
+          .take(10)
+      ).toHaveLength(0);
+    });
+  });
+
+  test("reactions spread over many comments share one budget per pass", async () => {
+    const t = await setup();
+    const id = await submit(t);
+    // 3 comments × 100 reactions = 300 reactions: more than one pass's budget of 200.
+    await t.run(async (ctx) => {
+      for (let c = 0; c < 3; c++) {
+        const commentId = await ctx.db.insert("requestComments", {
+          requestId: id,
+          authorEmail: RACHEL,
+          body: `c${c}`,
+        });
+        for (let i = 0; i < 100; i++) {
+          await ctx.db.insert("commentReactions", {
+            commentId,
+            userEmail: `u${i}@sow.org.au`,
+            emoji: "👍",
+          });
+        }
+      }
+    });
+    vi.useFakeTimers();
+    try {
+      const more = await t.mutation(internal.requests.purgeDeletedRequestData, { requestId: id });
+      expect(more).toBe(true);
+      const leftAfterOnePass = await t.run((ctx) => ctx.db.query("commentReactions").collect());
+      expect(leftAfterOnePass).toHaveLength(100);
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("requestComments").take(10)).toHaveLength(0);
+      expect(await ctx.db.query("commentReactions").take(10)).toHaveLength(0);
+    });
+  });
+
+  test("a long thread is purged across several batched passes", async () => {
+    const t = await setup();
+    const id = await submit(t);
+    await asUser(t, RACHEL).mutation(api.comments.add, { requestId: id, body: "hello" });
+    const [comment] = (await asUser(t, RACHEL).query(api.comments.list, { requestId: id }))!;
+    // More reactions than one batch holds, all on one comment.
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 205; i++) {
+        await ctx.db.insert("commentReactions", {
+          commentId: comment.id,
+          userEmail: `u${i}@sow.org.au`,
+          emoji: "👍",
+        });
+      }
+      for (let i = 0; i < 201; i++) {
+        await ctx.db.insert("commentReads", {
+          requestId: id,
+          userEmail: `u${i}@sow.org.au`,
+          lastReadAt: Date.now(),
+        });
+      }
+    });
+
+    // One pass cannot clear 205 reactions + 201 read markers; it asks for another.
+    vi.useFakeTimers();
+    try {
+      const firstPassScheduledMore = await t.mutation(
+        internal.requests.purgeDeletedRequestData,
+        { requestId: id }
+      );
+      expect(firstPassScheduledMore).toBe(true);
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
+    await withScheduled(t, () =>
+      asUser(t, RACHEL).mutation(api.requests.cancel, { requestId: id })
+    );
 
     await t.run(async (ctx) => {
       expect(await ctx.db.query("requestComments").take(10)).toHaveLength(0);

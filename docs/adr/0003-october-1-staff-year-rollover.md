@@ -93,3 +93,11 @@ No dry-run procedure against restored production data exists. This was
 considered and deliberately deferred; the risk it leaves is that the copy is
 verified against test fixtures only, and the failures this codebase has actually
 had were in the snapshot and composition layers rather than in the copy itself.
+
+## Update (1.11.14)
+
+The 15-minute "dirty" Insights cron described above was replaced in 1.11.x by a
+single nightly `recomputeAll` (see `docs/attendance-metrics.md`). The prefill
+job still kicks a rebuild of the year that has just ended, so the incoming
+year's snapshots are honest by the morning of October 1 rather than within 15
+minutes of the flip.

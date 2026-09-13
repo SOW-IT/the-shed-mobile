@@ -1,18 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
-import {
-  MutableRefObject,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { MutableRefObject, useEffect, useMemo, useState } from "react";
 import { Animated, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { roleNeedsUniversity, universityColour } from "../../../shared/flow";
-import { contrastingText, subgroupLabel } from "../../../shared/rollcall";
+import { campusPill } from "@/components/attendance/campusPill";
+import { usePagedQuery } from "@/hooks/usePagedQuery";
 import {
   ROLE_FIELD_KEY,
   orderedRoleFilterOptions,
@@ -59,21 +52,6 @@ export function MembersTab({
   const [sortAsc, setSortAsc] = useState(true);
   const [filters, setFilters] = useState<Record<string, string[]>>({});
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [accumulated, setAccumulated] = useState<
-    {
-      key: string;
-      kind: "staff" | "member";
-      name: string;
-      email?: string;
-      memberId?: string;
-      roles: string[];
-      subtitle?: string;
-      university?: string;
-      photo?: string | null;
-    }[]
-  >([]);
-
   useEffect(() => {
     void ensureDefaults({}).catch(() => {});
   }, [ensureDefaults]);
@@ -83,49 +61,24 @@ export function MembersTab({
     return () => clearTimeout(id);
   }, [search]);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset paging on filter change
-    setCursor(null);
-    setAccumulated([]);
-  }, [debouncedSearch, sortKey, sortAsc, filters, year]);
-
-  const page = useQuery(api.attendanceMembers.list, {
-    year,
-    search: debouncedSearch || undefined,
-    sortKey,
-    sortAsc,
-    filters: Object.keys(filters).length ? filters : undefined,
-    paginationOpts: { numItems: PAGE_SIZE, cursor: cursor ?? null },
+  const {
+    rows: accumulated,
+    result: page,
+    hasMore,
+  } = usePagedQuery(api.attendanceMembers.list, {
+    scopeKey: JSON.stringify([year, debouncedSearch, sortKey, sortAsc, filters]),
+    args: (cursor) => ({
+      year,
+      search: debouncedSearch || undefined,
+      sortKey,
+      sortAsc,
+      filters: Object.keys(filters).length ? filters : undefined,
+      paginationOpts: { numItems: PAGE_SIZE, cursor },
+    }),
+    rowsOf: (result) => result.page,
+    keyOf: (row) => row.key,
+    loadMoreRef,
   });
-
-  useEffect(() => {
-    if (!page?.page) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- append paginated member rows
-    setAccumulated((prev) => {
-      if (!cursor) return page.page;
-      const seen = new Set(prev.map((r) => r.key));
-      return [...prev, ...page.page.filter((r) => !seen.has(r.key))];
-    });
-  }, [page, cursor]);
-
-  const hasMore = page != null && !page.isDone;
-  const continueCursor = page?.continueCursor;
-  const pending = useRef(false);
-  useEffect(() => {
-    pending.current = false;
-  }, [cursor, page?.isDone]);
-  const loadMore = useCallback(() => {
-    if (pending.current || !hasMore || continueCursor == null) return;
-    pending.current = true;
-    setCursor(continueCursor);
-  }, [hasMore, continueCursor]);
-  useEffect(() => {
-    if (!loadMoreRef) return;
-    loadMoreRef.current = hasMore ? loadMore : null;
-    return () => {
-      loadMoreRef.current = null;
-    };
-  }, [loadMoreRef, hasMore, loadMore]);
 
   const sortOptions = useMemo(
     () => [
@@ -291,19 +244,7 @@ export function MembersTab({
       ) : (
         <View>
           {accumulated.map((row) => {
-            const campusColour = row.university
-              ? universityColour(row.university)
-              : undefined;
-            const campusPillLabel =
-              row.university
-                ? subgroupLabel(row.university)
-                : row.roles.some((role) => !roleNeedsUniversity(role))
-                  ? "STAFF"
-                  : "OTHER";
-            const campusPillBackground = campusColour ?? t.ghost;
-            const campusPillText = campusColour
-              ? contrastingText(campusColour)
-              : t.ghostText;
+            const pill = campusPill(row.university, row.roles, t);
 
             return (
               <Pressable
@@ -312,7 +253,7 @@ export function MembersTab({
                   styles.memberRow,
                   {
                     backgroundColor: t.card,
-                    borderColor: campusColour ?? t.separator,
+                    borderColor: pill.colour ?? t.separator,
                   },
                   pressed && { opacity: 0.66 },
                 ]}
@@ -347,7 +288,7 @@ export function MembersTab({
                   style={[
                     styles.campusPill,
                     {
-                      backgroundColor: campusPillBackground,
+                      backgroundColor: pill.background,
                     },
                   ]}
                 >
@@ -355,11 +296,11 @@ export function MembersTab({
                     style={[
                       typography.caption,
                       styles.campusPillText,
-                      { color: campusPillText },
+                      { color: pill.text },
                     ]}
                     numberOfLines={1}
                   >
-                    {campusPillLabel}
+                    {pill.label}
                   </Text>
                 </View>
               </Pressable>

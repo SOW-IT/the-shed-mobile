@@ -94,20 +94,37 @@ export async function findMemberByEmail(
   return null;
 }
 
+/**
+ * Best-known display name for `email` in `year`: the staff profile's name,
+ * else the Google directory name, else null. Legacy-domain spellings of the
+ * same address are tried too.
+ */
+export async function resolveName(
+  ctx: Ctx,
+  email: string,
+  year: number
+): Promise<string | null> {
+  const candidates = staffEmailCandidates(email);
+  for (const candidate of candidates) {
+    const profile = await getProfile(ctx, candidate, year);
+    if (profile?.name) return profile.name;
+  }
+  for (const candidate of candidates.length > 0 ? candidates : [email]) {
+    const dirUser = await ctx.db
+      .query("directoryUsers")
+      .withIndex("by_email", (q) => q.eq("email", candidate))
+      .unique();
+    if (dirUser?.name) return dirUser.name;
+  }
+  return null;
+}
+
 export async function displayName(
   ctx: Ctx,
   email: string,
   year: number
 ): Promise<string> {
-  for (const candidate of staffEmailCandidates(email)) {
-    const profile = await getProfile(ctx, candidate, year);
-    if (profile?.name) return profile.name;
-  }
-  const dirUser = await ctx.db
-    .query("directoryUsers")
-    .withIndex("by_email", (q) => q.eq("email", email))
-    .unique();
-  return dirUser?.name ?? email;
+  return (await resolveName(ctx, email, year)) ?? email;
 }
 
 export interface CallerContext {
@@ -216,21 +233,22 @@ export async function resolveStaffIdentity(
   userId?: Id<"users">;
 }> {
   const profiles = await staffProfilesForEmail(ctx, email);
-  let importId = profiles.find((p) => p.importId !== undefined)?.importId;
-  if (!importId) {
-    for (const candidate of staffEmailCandidates(email)) {
-      const user = await ctx.db
-        .query("users")
-        .withIndex("email", (q) => q.eq("email", candidate))
-        .first();
-      if (user) {
-        importId = user._id;
-        break;
-      }
-    }
-  }
-  if (!importId && profiles[0]) importId = profiles[0]._id;
+  const candidates = staffEmailCandidates(email);
 
+  // One account lookup serves both the import key and the user link below.
+  let user: Doc<"users"> | null = null;
+  for (const candidate of candidates) {
+    user = await ctx.db
+      .query("users")
+      .withIndex("email", (q) => q.eq("email", candidate))
+      .first();
+    if (user) break;
+  }
+
+  const importId =
+    profiles.find((p) => p.importId !== undefined)?.importId ??
+    user?._id ??
+    profiles[0]?._id;
   if (importId) {
     for (const profile of profiles) {
       if (profile.importId === undefined) {
@@ -241,7 +259,7 @@ export async function resolveStaffIdentity(
 
   let name = profiles.find((p) => p.name)?.name;
   if (!name) {
-    for (const candidate of staffEmailCandidates(email)) {
+    for (const candidate of candidates) {
       const dirUser = await ctx.db
         .query("directoryUsers")
         .withIndex("by_email", (q) => q.eq("email", candidate))
@@ -253,25 +271,9 @@ export async function resolveStaffIdentity(
     }
   }
 
-  let userId = profiles.find((p) => p.userId !== undefined)?.userId;
-  if (!userId) {
-    for (const candidate of staffEmailCandidates(email)) {
-      const user = await ctx.db
-        .query("users")
-        .withIndex("email", (q) => q.eq("email", candidate))
-        .first();
-      if (user) {
-        userId = user._id;
-        break;
-      }
-    }
-  }
+  const userId = profiles.find((p) => p.userId !== undefined)?.userId ?? user?._id;
 
-  return {
-    importId,
-    name,
-    userId,
-  };
+  return { importId, name, userId };
 }
 
 export async function getDepartment(

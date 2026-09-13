@@ -859,6 +859,126 @@ describe("cleanup.purgeOldReceiptFiles", () => {
   });
 });
 
+describe("cancelling a request with a receipt", () => {
+  test("deletes its receipt files and purges its notifications", async () => {
+    const t = await setup();
+    const id = await approvedRequest(t);
+    const file = await storedReceipt(t);
+    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
+      requestId: id,
+      recipients: [
+        { accountName: "Rachel", bsb: "123456", accountNumber: "12345678", amount: 100, attachments: [file] },
+      ],
+    });
+    const before = await t.run((ctx) =>
+      ctx.db.query("notifications").withIndex("by_request", (q) => q.eq("requestId", id)).collect()
+    );
+    expect(before.length).toBeGreaterThan(0);
+
+    vi.useFakeTimers();
+    try {
+      await asUser(t, RACHEL).mutation(api.requests.cancel, { requestId: id });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(await t.run((ctx) => ctx.storage.getUrl(file.storageId))).toBeNull();
+    expect(await t.run((ctx) => ctx.db.get("requests", id))).toBeNull();
+    const after = await t.run((ctx) =>
+      ctx.db.query("notifications").withIndex("by_request", (q) => q.eq("requestId", id)).collect()
+    );
+    expect(after).toEqual([]);
+  });
+});
+
+describe("cleanup.purgeOldReceiptFiles paging", () => {
+  test("continues through a scheduled follow-up when a page is full", async () => {
+    const t = await setup();
+    const files = [];
+    for (let i = 0; i < 2; i++) {
+      const id = await approvedRequest(t);
+      const file = await storedReceipt(t);
+      await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
+        requestId: id,
+        recipients: [
+          { accountName: "Rachel", bsb: "123456", accountNumber: "12345678", amount: 100, attachments: [file] },
+        ],
+      });
+      files.push(file.storageId);
+    }
+    vi.useFakeTimers();
+    try {
+      await t.mutation(internal.cleanup.purgeOldReceiptFiles, {
+        beforeMs: Date.now() + 1,
+        batch: 1,
+      });
+      // First page purged one request; the rest arrives via the reschedule.
+      const purgedAfterFirstPage = (
+        await Promise.all(files.map((f) => t.run((ctx) => ctx.storage.getUrl(f))))
+      ).filter((url) => url === null).length;
+      expect(purgedAfterFirstPage).toBe(1);
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
+    for (const f of files) {
+      expect(await t.run((ctx) => ctx.storage.getUrl(f))).toBeNull();
+    }
+  });
+});
+
+describe("Director step auto-approval", () => {
+  test("the configured Director email skips the Director step even without the role", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      const settings = await ctx.db
+        .query("yearSettings")
+        .withIndex("by_year", (q) => q.eq("year", YEAR))
+        .unique();
+      if (settings) await ctx.db.patch("yearSettings", settings._id, { directorEmail: RACHEL });
+      else await ctx.db.insert("yearSettings", { year: YEAR, directorEmail: RACHEL });
+    });
+    await asUser(t, RACHEL).mutation(api.requests.submit, { description: "big", amount: 9000 });
+    const [request] = (await asUser(t, RACHEL).query(api.requests.myRequests, {}))!;
+    expect(request.approvedByDirector).toBe("APPROVED");
+  });
+});
+
+describe("pay", () => {
+  test("stores a trimmed comment and treats a whitespace-only comment as none", async () => {
+    const t = await setup();
+    const id = await approvedRequest(t);
+    const file = await storedReceipt(t);
+    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
+      requestId: id,
+      recipients: [
+        { accountName: "Rachel", bsb: "123456", accountNumber: "12345678", amount: 100, attachments: [file] },
+      ],
+    });
+    await asUser(t, FIONA).mutation(api.requests.pay, {
+      requestId: id,
+      paidAmount: 100,
+      comment: "   ",
+    });
+    const request = (await t.run((ctx) => ctx.db.get("requests", id)))!;
+    expect(request.payComment).toBeUndefined();
+    const paidNote = await t.run((ctx) =>
+      ctx.db
+        .query("notifications")
+        .withIndex("by_user", (q) => q.eq("userEmail", RACHEL))
+        .order("desc")
+        .first()
+    );
+    expect(paidNote?.title).toBe("Reimbursement paid");
+    // Paid exactly the requested amount: no "amount differs" nudge to the Budget Manager.
+    const bellaNotes = await t.run((ctx) =>
+      ctx.db.query("notifications").withIndex("by_user", (q) => q.eq("userEmail", BELLA)).collect()
+    );
+    expect(bellaNotes.some((n) => n.title === "Paid amount changed")).toBe(false);
+  });
+});
+
 describe("cleanup.purgeReceiptFilesCreatedBefore", () => {
   test("pages through requests created before the cutoff", async () => {
     const t = await setup();

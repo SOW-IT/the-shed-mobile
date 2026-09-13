@@ -22,7 +22,11 @@ import {
   Btn,
   ConfirmDialog,
   currencyText,
+  ACCOUNT_NUMBER_MAX_LENGTH,
+  BSB_LENGTH,
   digitsOnly,
+  sumAmounts,
+  toCents,
   EmptyState,
   ErrorBanner,
   errorMessage,
@@ -549,8 +553,8 @@ const ReceiptSheet = ({
       setError("Attach at least one receipt file.");
       return;
     }
-    const total = recipients.reduce((sum, r) => sum + Number(r.amount), 0);
-    if (total > request.amount) {
+    const total = sumAmounts(recipients.map((r) => Number(r.amount)));
+    if (toCents(total) > toCents(request.amount)) {
       setConfirmExceeds({ total });
       return;
     }
@@ -615,6 +619,7 @@ const ReceiptSheet = ({
             value={recipient.bsb}
             onChangeText={(bsb) => updateRecipient(index, { bsb: digitsOnly(bsb) })}
             keyboardType="numeric"
+            maxLength={BSB_LENGTH}
           />
           <Field
             label="Account number"
@@ -623,6 +628,7 @@ const ReceiptSheet = ({
               updateRecipient(index, { accountNumber: digitsOnly(accountNumber) })
             }
             keyboardType="numeric"
+            maxLength={ACCOUNT_NUMBER_MAX_LENGTH}
           />
           <Field
             label="Receipt amount ($)"

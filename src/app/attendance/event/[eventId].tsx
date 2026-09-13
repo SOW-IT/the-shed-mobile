@@ -716,6 +716,7 @@ export default function EventAttendanceScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Edit event"
+            accessibilityState={{ disabled: !canEdit }}
             disabled={!canEdit}
             onPress={() => {
               if (!canEdit) return;

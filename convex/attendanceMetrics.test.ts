@@ -429,18 +429,39 @@ describe("attendanceMetrics", () => {
     expect(role?.rows.map((r) => r.label)).toEqual(["Member"]);
   });
 
-  test("recomputeNow is throttled to once per week per sub-group", async () => {
+  test("recomputeNow is throttled to once per week per sub-group, not by the nightly rebuild", async () => {
     const { t, leader } = await setup();
+    // The nightly cron has just rebuilt this group.
     await t.run((ctx) =>
-      ctx.db.insert("attendanceMetricsSnapshots", {
+      ctx.db.insert("attendanceMetricsRuns", {
         subgroup: USYD,
-        rangeWeeks: 4,
-        includeCollaborative: true,
         staffYear: YEAR,
         computedAt: Date.now(),
-        data: EMPTY_DATA,
+        variants: ["4:true"],
       })
     );
+    // A manual refresh must still be allowed…
+    await expect(
+      leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: USYD })
+    ).resolves.toBeNull();
+    // …and only a second manual refresh within the week is throttled.
+    await expect(
+      leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: USYD })
+    ).rejects.toThrow(/refresh again in 7 days/i);
+  });
+
+  test("recomputeNow records the manual refresh even before any rebuild has run", async () => {
+    const { t, leader } = await setup();
+    await leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: USYD });
+    const run = await t.run((ctx) =>
+      ctx.db
+        .query("attendanceMetricsRuns")
+        .withIndex("by_subgroup_and_year", (q) =>
+          q.eq("subgroup", USYD).eq("staffYear", YEAR)
+        )
+        .unique()
+    );
+    expect(run?.lastManualRefreshAt).toBeGreaterThan(0);
     await expect(
       leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: USYD })
     ).rejects.toThrow(/refresh/i);

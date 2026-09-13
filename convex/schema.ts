@@ -201,7 +201,8 @@ export default defineSchema({
     payComment: v.optional(v.string()),
     paidTime: v.optional(v.number()),
   })
-    .index("by_requester", ["requesterEmail"]),
+    .index("by_requester", ["requesterEmail"])
+    .index("by_department", ["department"]),
 
   notifications: defineTable({
     userEmail: v.string(),
@@ -213,7 +214,8 @@ export default defineSchema({
   })
     .index("by_user", ["userEmail"])
     .index("by_user_and_read", ["userEmail", "read"])
-    .index("by_user_and_request_and_read", ["userEmail", "requestId", "read"]),
+    .index("by_user_and_request_and_read", ["userEmail", "requestId", "read"])
+    .index("by_request", ["requestId"]),
 
   requestNudges: defineTable({
     requestId: v.id("requests"),
@@ -322,6 +324,10 @@ export default defineSchema({
     subgroup: v.string(),
     staffYear: v.number(),
     computedAt: v.number(),
+    // Set only by a manual refresh (`recomputeNow`); the nightly cron never
+    // touches it, so the manual-refresh cooldown is measured against real
+    // manual refreshes rather than the last automatic rebuild.
+    lastManualRefreshAt: v.optional(v.number()),
     variants: v.array(v.string()),
   }).index("by_subgroup_and_year", ["subgroup", "staffYear"]),
 });

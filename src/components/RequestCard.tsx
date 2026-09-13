@@ -29,15 +29,8 @@ import {
   Txt,
 } from "./ui";
 import { CommentsSheet } from "./CommentsSheet";
+import { useMinuteTick } from "@/hooks/useMinuteTick";
 import { ReceiptRecipientList } from "./ReceiptRecipientList";
-
-const useMinuteTick = () => {
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setTick((n) => n + 1), 60_000);
-    return () => clearInterval(id);
-  }, []);
-};
 
 const timeAgo = (ms: number): string => {
   const secs = Math.floor((Date.now() - ms) / 1000);
@@ -397,8 +390,14 @@ export const RequestCard = ({
       setBodyMounted(true);
       setExpanded(true);
     }
+  }, [autoExpand, collapsible, deepLinkOpenKey]);
+  // Opens the thread only when a deep link asks for it. Kept separate from the
+  // expand effect so a later status change on the request (which flips
+  // `collapsible`) cannot re-open a thread the user has since closed.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- external deep-link focus sync
     if (autoOpenThread) setShowComments(true);
-  }, [autoExpand, autoOpenThread, collapsible, deepLinkOpenKey]);
+  }, [autoOpenThread, deepLinkOpenKey]);
 
   const collapse = () => {
     setExpanded(false);

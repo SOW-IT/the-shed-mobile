@@ -15,33 +15,31 @@ follow-up prompts for a sub-group and time range.
 
 ## How the data flows
 
-The dashboard never scans attendance history on the device. Snapshots are kept
-fresh by two crons, both fanning out one bounded recompute per sub-group:
+The dashboard never scans attendance history on the device. Snapshots are
+rebuilt by one cron, fanning out one bounded recompute per sub-group:
 
-- **Weekly full refresh** (`attendance metrics recompute`, **Thursdays 03:00 UTC
-  ≈ Thu ~1pm Sydney**) — recomputes every sub-group as a baseline.
-- **Dirty recompute** (`attendance metrics dirty recompute`, **every 15
-  minutes**) — recomputes the sub-groups flagged stale since the last run, so a
-  roll-call or event change shows up in Insights within minutes rather than
-  waiting for Thursday. It also rebuilds any current-year campus (or SOW) whose
-  snapshot is missing or still stamped with last staff year, so the tab recovers
-  within 15 minutes of the October 1 rollover (and the rollover cron itself
-  kicks a full `recomputeAll`). Roll-call sign-in / sign-out / sign-in-time
-  edits and genuine event changes call `markSubgroupsDirty`; the recompute
-  worker clears a sub-group's flag only **after** it succeeds, so a failed
-  recompute keeps its retry signal (see `recomputeDirty` / `clearDirty`).
-  While a current-year snapshot is missing, the Attendance tab falls back to
-  the same on-demand `liveSnapshot` used for custom ranges.
+- **Nightly rebuild** (`attendance metrics daily rebuild`, **16:00 UTC ≈
+  02:00–03:00 Sydney**) — `recomputeAll` recomputes every sub-group for the
+  current staff year. Roll-call and event changes therefore show up in
+  Insights the next morning, not within minutes; the trade-off is that the
+  backend no longer re-reads a megabyte of snapshots every 15 minutes.
+- **Rollover** — the October 1 prefill job (`prefillNextStaffYear`) kicks a
+  `recomputeAll` for the year that has just ended so the incoming year's
+  snapshots start honest. While a current-year snapshot is missing, the
+  Attendance tab falls back to the same on-demand `liveSnapshot` used for
+  custom ranges.
 
 Each recompute runs as an **action** (`recomputeSubgroup`) so it can page the
 large attendance read across several bounded query transactions instead of
 reading every event's attendance in one mutation. It:
 
 1. Loads that sub-group's events since the **earlier** of the staff-year start
-   or ~26 weeks ago (one bounded gather that serves every range: the look-back
-   feeds the absolute-time reasons — lapsed / re-engaged), scanning at most
-   `MAX_EVENT_SCAN` and keeping the sub-group's newest `MAX_EVENTS`
-   (`gatherEvents`).
+   or 52 weeks ago (`HISTORY_WEEKS`; one bounded gather that serves every
+   range — the look-back feeds the absolute-time reasons: lapsed /
+   re-engaged), scanning at most `MAX_EVENT_SCAN` and keeping the sub-group's
+   newest `MAX_EVENTS` (`gatherEvents`). Because the look-back equals the
+   longest preset range, the **Past year** tab has no earlier period to
+   compare against, so its "change vs previous period" is always blank.
 2. Marks events tagged **"Weekly Meeting"** as weekly meetings.
 3. Reads attendance in chunks of `ATTENDANCE_CHUNK` events per transaction
    (`gatherAttendanceChunk`), keyed by the shared `personKey`.
@@ -58,12 +56,15 @@ reading every event's attendance in one mutation. It:
 
 The tab reads a snapshot via `api.attendanceMetrics.snapshot`, which tolerates a
 stale prior-staff-year row (treated as "not ready") and a rare duplicate row
-(takes the newest). Because the dirty-recompute cron keeps snapshots current
+(takes the newest). Because the nightly cron keeps snapshots current
 automatically, **there is no manual refresh control in the UI**. A server-side
 recovery path still exists — `api.attendanceMetrics.recomputeNow` (gated by
 `requireAttendanceManager`, throttled to once per week per sub-group via
-`MANUAL_REFRESH_COOLDOWN_MS`, a group with no current-year snapshot always
-buildable) — but it is not wired to a button today.
+`MANUAL_REFRESH_COOLDOWN_MS`) — but it is not wired to a button today. The
+cooldown is measured from the last *manual* refresh
+(`attendanceMetricsRuns.lastManualRefreshAt`), never from the nightly rebuild's
+`computedAt`, otherwise the cron would keep the manual path permanently
+throttled.
 
 Authorization is server-side and identical to the rest of Attendance: any
 provisioned staff member of the current staff year can read; only campus leaders

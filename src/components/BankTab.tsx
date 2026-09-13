@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { ReactNode, useLayoutEffect, useState } from "react";
-import { Animated, Easing, Platform, Pressable, StyleSheet, View } from "react-native";
+import { Animated, Easing, Pressable, StyleSheet, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { spacing, USE_NATIVE_DRIVER, useAppTheme } from "../theme";
@@ -9,6 +9,8 @@ import {
   Btn,
   Card,
   ConfirmDialog,
+  ACCOUNT_NUMBER_MAX_LENGTH,
+  BSB_LENGTH,
   digitsOnly,
   ErrorBanner,
   errorMessage,
@@ -23,27 +25,11 @@ import {
   SectionTitle,
   stagger,
   Txt,
+  measureY,
+  type Measurable,
 } from "./ui";
 
 type Mode = "none" | "add" | "edit";
-
-type Measurable = {
-  measureInWindow?: (
-    callback: (x: number, y: number, width: number, height: number) => void
-  ) => void;
-  getBoundingClientRect?: () => { top: number };
-};
-
-const measureY = (node: Measurable, callback: (y: number | null) => void) => {
-  if (Platform.OS === "web") {
-    const rect = node.getBoundingClientRect?.();
-    callback(rect ? rect.top : null);
-  } else if (node.measureInWindow) {
-    node.measureInWindow((_x, y) => callback(y));
-  } else {
-    callback(null);
-  }
-};
 
 export const BankTab = () => {
   const t = useAppTheme();
@@ -268,6 +254,7 @@ export const BankTab = () => {
         onChangeText={(v) => setBsbDraft(digitsOnly(v))}
         placeholder="000-000"
         keyboardType="numeric"
+        maxLength={BSB_LENGTH}
       />
       <Field
         label="Account number"
@@ -275,6 +262,7 @@ export const BankTab = () => {
         onChangeText={(v) => setNumberDraft(digitsOnly(v))}
         placeholder="00000000"
         keyboardType="numeric"
+        maxLength={ACCOUNT_NUMBER_MAX_LENGTH}
       />
       {isAdd && (
         <OptionRow

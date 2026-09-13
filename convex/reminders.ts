@@ -8,12 +8,9 @@ import {
 import { formatAmount } from "../shared/money";
 import { Doc } from "./_generated/dataModel";
 import { internalMutation, MutationCtx } from "./_generated/server";
+import { currentStaffYear, withDelegatesForYear } from "./model";
 import {
-  currentStaffYear,
-  getApprovers,
-  withDelegatesForYear,
-} from "./model";
-import {
+  makeApproverResolver,
   nextApproverWithYear,
   notify,
   openRequestsAcrossYears,
@@ -63,17 +60,23 @@ export const remindStale = internalMutation({
     const year = currentStaffYear();
     const now = Date.now();
     const open = await openRequestsAcrossYears(ctx, year);
+    // Many open requests share a department, so resolve each year's
+    // approvers once rather than once per request.
+    const getApprovers = makeApproverResolver(ctx);
 
     for (const request of open) {
       if (requestCompleted(request)) continue;
 
-      const events = await ctx.db
+      // Newest event first: the most recent movement is the first row, so a
+      // long audit trail can never hide it behind the read bound.
+      const latestEvent = await ctx.db
         .query("requestEvents")
         .withIndex("by_request", (q) => q.eq("requestId", request._id))
-        .take(200);
+        .order("desc")
+        .first();
       const lastMovement = Math.max(
         request._creationTime,
-        ...events.map((event) => event._creationTime)
+        latestEvent?._creationTime ?? 0
       );
       const movedSinceReminder =
         request.lastReminderAt !== undefined && lastMovement > request.lastReminderAt;
@@ -87,11 +90,11 @@ export const remindStale = internalMutation({
       if (now - baseline < reminderDelayMs(count)) continue;
 
       const reqYear = eventStaffYear(request._creationTime);
-      const requestYearApprovers = await getApprovers(ctx, reqYear, request.department);
+      const requestYearApprovers = await getApprovers(reqYear, request.department);
       const thisYearApprovers =
         reqYear === year
           ? requestYearApprovers
-          : await getApprovers(ctx, year, request.department);
+          : await getApprovers(year, request.department);
 
       const step = currentStep(request);
       let recipients: string[] = [];
@@ -112,9 +115,9 @@ export const remindStale = internalMutation({
         waitingOn = "your receipt";
         url = "/?tab=mine";
       } else if (request.paid === false) {
-        const finance = await getApprovers(ctx, reqYear, FINANCE);
+        const finance = await getApprovers(reqYear, FINANCE);
         const financeNow =
-          reqYear === year ? finance : await getApprovers(ctx, year, FINANCE);
+          reqYear === year ? finance : await getApprovers(year, FINANCE);
         const head = preferRequestYear(
           finance.financeHeadEmail,
           financeNow.financeHeadEmail,

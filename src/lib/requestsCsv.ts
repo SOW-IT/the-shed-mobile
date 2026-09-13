@@ -1,9 +1,10 @@
 import { eventStaffYear, requestDisplayStatus } from "../../shared/flow";
+import { roundToCents } from "../../shared/money";
 import { Doc } from "../../convex/_generated/dataModel";
 import { buildCsv } from "./csv";
-import { downloadCsv } from "./csvDownload";
 
-export { downloadCsv };
+/** Dollars with two decimals, so float drift never lands in a spreadsheet. */
+const money = (amount: number): string => roundToCents(amount).toFixed(2);
 
 const COLUMNS: { header: string; value: (r: Doc<"requests">) => string }[] = [
   { header: "Staff Year", value: (r) => String(eventStaffYear(r._creationTime)) },
@@ -11,7 +12,7 @@ const COLUMNS: { header: string; value: (r: Doc<"requests">) => string }[] = [
   { header: "Requester Email", value: (r) => r.requesterEmail },
   { header: "Department", value: (r) => r.department },
   { header: "Description", value: (r) => r.description },
-  { header: "Amount", value: (r) => String(r.amount) },
+  { header: "Amount", value: (r) => money(r.amount) },
   { header: "Status", value: (r) => requestDisplayStatus(r) },
   { header: "HOD Approval", value: (r) => r.approvedByHOD },
   { header: "Budget Manager Approval", value: (r) => r.approvedByBudgetManager },
@@ -20,12 +21,12 @@ const COLUMNS: { header: string; value: (r: Doc<"requests">) => string }[] = [
   { header: "Decline Reason", value: (r) => r.declineReason ?? "" },
   {
     header: "Receipt Total",
-    value: (r) => (r.receipt ? String(r.receipt.totalAmount) : ""),
+    value: (r) => (r.receipt ? money(r.receipt.totalAmount) : ""),
   },
   { header: "Paid", value: (r) => (r.paid === true ? "Yes" : "No") },
   {
     header: "Paid Amount",
-    value: (r) => (r.paidAmount != null ? String(r.paidAmount) : ""),
+    value: (r) => (r.paidAmount != null ? money(r.paidAmount) : ""),
   },
   { header: "Paid At", value: (r) => (r.paidTime ? isoDate(r.paidTime) : "") },
   { header: "Pay Comment", value: (r) => r.payComment ?? "" },

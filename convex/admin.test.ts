@@ -1715,13 +1715,13 @@ describe("setStaffProfile catalog validation", () => {
   });
 });
 
-describe("role mutations fail fast on the 1000-profile cap", () => {
-  test("updateRole and removeRole throw when a year has 1000 profiles", async () => {
+describe("role mutations stream every profile in the year", () => {
+  test("updateRole renames the role on all 1000+ profiles; removeRole still refuses while in use", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.upsertRole, { year: YEAR, name: "X" });
     await t.run(async (ctx) => {
-      for (let i = 0; i < 1000; i++) {
+      for (let i = 0; i < 1001; i++) {
         await ctx.db.insert("staffProfiles", {
           email: `p${i}@x.test`,
           year: YEAR,
@@ -1730,12 +1730,20 @@ describe("role mutations fail fast on the 1000-profile cap", () => {
       }
     });
 
+    await admin.mutation(api.admin.updateRole, { year: YEAR, oldName: "X", newName: "Y" });
+    const stillOld = await t.run(async (ctx) => {
+      let n = 0;
+      for await (const p of ctx.db
+        .query("staffProfiles")
+        .withIndex("by_year", (q) => q.eq("year", YEAR))) {
+        if ((p.assignments ?? []).some((a) => a.role === "X")) n++;
+      }
+      return n;
+    });
+    expect(stillOld).toBe(0);
     await expect(
-      admin.mutation(api.admin.updateRole, { year: YEAR, oldName: "X", newName: "Y" })
-    ).rejects.toThrow(/Too many profiles to update in one go/);
-    await expect(
-      admin.mutation(api.admin.removeRole, { year: YEAR, name: "X" })
-    ).rejects.toThrow(/Too many profiles to update in one go/);
+      admin.mutation(api.admin.removeRole, { year: YEAR, name: "Y" })
+    ).rejects.toThrow(/still assigned to 1001 people/);
   });
 });
 

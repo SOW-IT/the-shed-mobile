@@ -1,6 +1,9 @@
 import {
+  assignmentsOf,
   MEMBER,
+  type ProfileLike,
   ROLES,
+  rolesOfLike,
   STAFF_ROLE,
   STUDENT_LEADER,
   UNIVERSITY_ROLES,
@@ -286,3 +289,84 @@ export const metadataFieldAllowsCustomOptions = (
   !fieldNameLocked ||
   fieldKey === CAMPUS_FIELD_KEY ||
   fieldKey === ROLE_FIELD_KEY;
+
+/** The subset of an `attendanceMetadata` row these helpers need. */
+export type MetadataFieldLike = {
+  _id: string;
+  key: string;
+  values?: Record<string, string>;
+};
+
+/** Option id whose label is `label`, or the label itself for free-text values. */
+export const optionIdForLabel = (
+  values: Record<string, string> | undefined,
+  label: string
+): string => {
+  for (const [id, value] of Object.entries(values ?? {})) {
+    if (value === label) return id;
+  }
+  return label;
+};
+
+/**
+ * Campus and Role are locked for staff: they mirror the org profile rather
+ * than whatever was typed into the member record.
+ */
+export const staffLockedMetadata = (
+  fields: readonly MetadataFieldLike[],
+  profile: ProfileLike,
+  metadata: Record<string, string> | undefined
+): Record<string, string> => {
+  const next = { ...(metadata ?? {}) };
+  const campusField = fields.find((f) => f.key === CAMPUS_FIELD_KEY);
+  const roleField = fields.find((f) => f.key === ROLE_FIELD_KEY);
+  const campus = assignmentsOf(profile).find((a) => a.university)?.university;
+  const role = rolesOfLike(profile)[0];
+
+  if (campusField) {
+    if (campus) next[campusField._id] = optionIdForLabel(campusField.values, campus);
+    else delete next[campusField._id];
+  }
+  if (roleField) {
+    if (role) next[roleField._id] = optionIdForLabel(roleField.values, role);
+    else delete next[roleField._id];
+  }
+  return next;
+};
+
+/** The member's campus from metadata, else their first org campus. */
+export const resolveUniversity = (
+  fields: readonly MetadataFieldLike[],
+  metadata: Record<string, string> | undefined,
+  orgCampuses: readonly string[] = []
+): string | undefined => {
+  const campusField = fields.find((f) => f.key === CAMPUS_FIELD_KEY);
+  if (campusField && metadata) {
+    const raw = metadata[campusField._id];
+    if (raw) {
+      const label = campusField.values?.[raw] ?? raw;
+      if (label && label !== "Other") return label;
+    }
+  }
+  return orgCampuses[0];
+};
+
+/** "Value · Value" summary of a member's metadata, in field order. */
+export const metadataSubtitle = (
+  fields: readonly MetadataFieldLike[],
+  metadata: Record<string, string> | undefined,
+  viewingYear: number,
+  excludeKeys: Iterable<string> = []
+): string => {
+  if (!metadata) return "";
+  const excluded = new Set(excludeKeys);
+  return fields
+    .filter((f) => !excluded.has(f.key))
+    .map((f) => {
+      const raw = metadata[f._id];
+      if (!raw) return null;
+      return formatMetadataFieldValue(f.key, raw, viewingYear, f.values);
+    })
+    .filter(Boolean)
+    .join(" · ");
+};

@@ -17,12 +17,10 @@ import {
   normalizeSubgroups,
   personDisplayName,
   personKey,
-  nextDateForWeekday,
   SOW_SUBGROUP,
   subgroupColour,
   subgroupLabel,
   subgroupMatches,
-  weeklyMeetingSlot,
 } from "./rollcall";
 
 describe("capitalizeMemberName", () => {
@@ -105,49 +103,15 @@ describe("personDisplayName", () => {
   });
 });
 
-describe("weeklyMeetingSlot", () => {
-  test("maps each campus to its weekly meeting slot", () => {
-    expect(weeklyMeetingSlot("Macquarie University")).toEqual({
-      weekday: 3,
-      startHour: 16,
-      endHour: 18,
-    });
-    expect(weeklyMeetingSlot("University of New South Wales")).toEqual({
-      weekday: 3,
-      startHour: 17,
-      endHour: 19,
-    });
-    expect(weeklyMeetingSlot("University of Technology, Sydney")).toEqual({
-      weekday: 2,
-      startHour: 17,
-      endHour: 19,
-    });
-    expect(weeklyMeetingSlot("University of Sydney")).toEqual({
-      weekday: 2,
-      startHour: 17,
-      endHour: 19,
-    });
-  });
-
-  test("returns null for sub-groups without a slot", () => {
-    expect(weeklyMeetingSlot(SOW_SUBGROUP)).toBeNull();
-    expect(weeklyMeetingSlot("Unknown University")).toBeNull();
-  });
-});
-
-describe("nextDateForWeekday", () => {
-  test("returns the same day when the weekday already matches", () => {
-    const wed = new Date(2026, 5, 24);
-    const next = nextDateForWeekday(3, wed);
-    expect(next.getFullYear()).toBe(2026);
-    expect(next.getMonth()).toBe(5);
-    expect(next.getDate()).toBe(24);
-  });
-
-  test("advances to the next matching weekday otherwise", () => {
-    const next = nextDateForWeekday(2, new Date(2026, 5, 24));
-    expect(next.getDate()).toBe(30);
-    expect(next.getDay()).toBe(2);
+describe("personKey", () => {
+  test("folds the legacy staff domain into one identity", () => {
+    expect(personKey({ email: "Jane.Doe@sowaustralia.com" })).toBe(
+      "staff:jane.doe@sow.org.au"
+    );
+    expect(personKey({ email: " jane.doe@sow.org.au " })).toBe(
+      "staff:jane.doe@sow.org.au"
+    );
+    expect(personKey({ email: "not-an-email", memberId: "m1" })).toBe("member:m1");
   });
 });
 

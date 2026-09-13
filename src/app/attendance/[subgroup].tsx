@@ -1,7 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import {
@@ -22,56 +20,23 @@ import {
   SowSpinner,
   stagger,
 } from "@/components/ui";
+import { usePagedQuery } from "@/hooks/usePagedQuery";
 import { spacing, typography, useAppTheme } from "@/theme";
 
 export default function SubgroupEventsScreen() {
   const t = useAppTheme();
   const router = useRouter();
   const { subgroup } = useLocalSearchParams<{ subgroup: string }>();
-  const [pagination, setPagination] = useState<{
-    subgroup: string;
-    cursor: string | null;
-  }>({
-    subgroup,
-    cursor: null,
-  });
-  const [events, setEvents] = useState<
-    NonNullable<ReturnType<typeof useQuery<typeof api.events.listBySubgroup>>>["events"]
-  >([]);
-  const cursor = pagination.subgroup === subgroup ? pagination.cursor : null;
-  const result = useQuery(api.events.listBySubgroup, {
-    subgroup,
-    cursor: cursor ?? null,
-  });
   const accent = subgroupColour(subgroup);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset pagination on route param change
-    setPagination({ subgroup, cursor: null });
-    setEvents([]);
-  }, [subgroup]);
-
-  useEffect(() => {
-    if (!result?.events) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- append the latest Convex page into local pagination state
-    setEvents((prev) => {
-      if (!cursor) return result.events;
-      const seen = new Set(prev.map((event) => event._id));
-      return [...prev, ...result.events.filter((event) => !seen.has(event._id))];
-    });
-  }, [result, cursor]);
-
-  const hasMore = result != null && !result.isDone;
-  const continueCursor = result?.continueCursor;
-  const pending = useRef(false);
-  useEffect(() => {
-    pending.current = false;
-  }, [cursor, result?.isDone]);
-  const loadMore = useCallback(() => {
-    if (pending.current || !hasMore || continueCursor == null) return;
-    pending.current = true;
-    setPagination({ subgroup, cursor: continueCursor });
-  }, [hasMore, continueCursor, subgroup]);
+  const { rows: events, result, hasMore, loadMore } = usePagedQuery(
+    api.events.listBySubgroup,
+    {
+      scopeKey: subgroup,
+      args: (cursor) => ({ subgroup, cursor }),
+      rowsOf: (page) => page.events,
+      keyOf: (event) => event._id,
+    }
+  );
 
   if (result === undefined && events.length === 0) return <LoadingState />;
 

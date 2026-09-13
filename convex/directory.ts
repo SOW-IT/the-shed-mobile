@@ -132,12 +132,11 @@ export const nameForEmail = query({
 export const availableYears = query({
   args: {},
   handler: async (ctx) => {
-    const email = await optionalEmail(ctx);
-    if (email === null) return null;
+    const caller = await optionalProfile(ctx);
+    if ((await optionalEmail(ctx)) === null) return null;
     const thisYear = currentStaffYear();
     const nextYear = nextStaffYear();
-    const profile = await getProfile(ctx, email, thisYear);
-    const canSeeNextYear = profile ? await isAdminProfile(ctx, profile) : false;
+    const canSeeNextYear = caller ? await isAdminProfile(ctx, caller.profile) : false;
     const divisions = await ctx.db.query("divisions").take(1000);
     return [...new Set([...divisions.map((d) => d.year), thisYear, nextYear])]
       .filter((y) => y <= thisYear || (canSeeNextYear && y === nextYear))
@@ -157,16 +156,11 @@ const campusRoleRank = (roles: string[]) => {
 export const orgChart = query({
   args: { year: v.optional(v.number()) },
   handler: async (ctx, args) => {
-    const callerEmail = await optionalEmail(ctx);
     const thisYear = currentStaffYear();
     const nextYear = nextStaffYear();
 
-    const callerProfile = callerEmail
-      ? await getProfile(ctx, callerEmail, thisYear)
-      : null;
-    const canSeeNextYear = callerProfile
-      ? await isAdminProfile(ctx, callerProfile)
-      : false;
+    const caller = await optionalProfile(ctx);
+    const canSeeNextYear = caller ? await isAdminProfile(ctx, caller.profile) : false;
 
     const requestedYear = args.year ?? thisYear;
     const year =

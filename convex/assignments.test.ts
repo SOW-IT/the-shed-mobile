@@ -6,9 +6,7 @@ import {
   assignmentsOf,
   CHAPLAINCY_DEPARTMENT,
   departmentsOf,
-  isHeadOfDivisionName,
   isMemberOfDepartment,
-  rolesForDepartment,
   staffYearForDate,
 } from "../shared/flow";
 import { api, internal } from "./_generated/api";
@@ -112,8 +110,8 @@ describe("heads of multiple scopes", () => {
     expect(p.assignments).toContainEqual({
       role: "Head of Department", department: "Alumni",
     });
-    expect(isHeadOfDivisionName(p, "Operations")).toBe(true);
-    expect(isHeadOfDivisionName(p, "Engagement")).toBe(true);
+    expect(p.assignments).toContainEqual({ role: "Head of Division", division: "Operations" });
+    expect(p.assignments).toContainEqual({ role: "Head of Division", division: "Engagement" });
   });
 
   test("the only-one-head rule still holds; moving a headship is per-scope", async () => {
@@ -167,9 +165,9 @@ describe("mixed person in the org chart", () => {
     });
 
     const p = await profileOf(t, email);
-    expect(rolesForDepartment(p, "Marketing")).toEqual(["Staff"]);
-    expect(rolesForDepartment(p, "Finance")).toEqual(["Head of Department"]);
-    expect(isHeadOfDivisionName(p, "Operations")).toBe(true);
+    expect(p.assignments).toContainEqual({ role: "Staff", department: "Marketing" });
+    expect(p.assignments).toContainEqual({ role: "Head of Department", department: "Finance" });
+    expect(p.assignments).toContainEqual({ role: "Head of Division", division: "Operations" });
 
     const chart = (await admin.query(api.directory.orgChart, { year: YEAR }))!;
     const allDepts = chart.divisions.flatMap((d) => d.departments);

@@ -1,5 +1,23 @@
 import { describe, expect, test } from "vitest";
-import { currencyText, formatAmount } from "./money";
+import { currencyText, formatAmount, roundToCents, sumAmounts, toCents } from "./money";
+
+describe("cents helpers", () => {
+  test("toCents rounds to whole cents", () => {
+    expect(toCents(30.299999999999997)).toBe(3030);
+    expect(toCents(0.1 + 0.2)).toBe(30);
+    expect(toCents(1.005)).toBe(101);
+    expect(toCents(2.675)).toBe(268);
+    expect(toCents(-1.005)).toBe(-100);
+    expect(toCents(Infinity)).toBe(Infinity);
+  });
+  test("roundToCents removes float drift", () => {
+    expect(roundToCents(0.1 + 0.2)).toBe(0.3);
+  });
+  test("sumAmounts adds in cents", () => {
+    expect(sumAmounts([10.1, 20.2])).toBe(30.3);
+    expect(sumAmounts([])).toBe(0);
+  });
+});
 
 describe("currencyText", () => {
   test.each([

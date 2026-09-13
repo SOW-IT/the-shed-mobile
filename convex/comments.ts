@@ -1,24 +1,23 @@
 import { ConvexError, v } from "convex/values";
-import { Doc, Id } from "./_generated/dataModel";
-import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
-import { getApprovers, getProfile, optionalProfile, requireProfile, currentStaffYear, withDelegatesForYear } from "./model";
-import { actionOwnerEmail, involvedApproverEmails, notify, requestUrl } from "./requests";
-import { ALLOWED_REACTIONS, APPROVED, eventStaffYear, staffYearStartMs } from "../shared/flow";
+import { Id } from "./_generated/dataModel";
+import { mutation, query, QueryCtx } from "./_generated/server";
+import {
+  currentStaffYear,
+  getApprovers,
+  optionalProfile,
+  requireProfile,
+  resolveName,
+  withDelegatesForYear,
+} from "./model";
+import {
+  actionOwnerEmail,
+  involvedApproverEmails,
+  notify,
+  requesterRequestsInYear,
+  requestUrl,
+} from "./requests";
+import { ALLOWED_REACTIONS, APPROVED, eventStaffYear } from "../shared/flow";
 import { formatAmount } from "../shared/money";
-
-async function resolveName(
-  ctx: QueryCtx | MutationCtx,
-  email: string,
-  year: number
-): Promise<string | null> {
-  const profile = await getProfile(ctx, email, year);
-  if (profile?.name) return profile.name;
-  const dirUser = await ctx.db
-    .query("directoryUsers")
-    .withIndex("by_email", (q) => q.eq("email", email))
-    .unique();
-  return dirUser?.name ?? null;
-}
 
 export const add = mutation({
   args: { requestId: v.id("requests"), body: v.string() },
@@ -143,13 +142,15 @@ async function unreadCountFor(
     )
     .unique();
   const lastReadAt = read?.lastReadAt ?? 0;
-  const comments: Doc<"requestComments">[] = await ctx.db
+  // `by_request` implicitly ends with `_creationTime`, so only the comments
+  // newer than the read marker are read at all.
+  const unread = await ctx.db
     .query("requestComments")
-    .withIndex("by_request", (q) => q.eq("requestId", requestId))
+    .withIndex("by_request", (q) =>
+      q.eq("requestId", requestId).gt("_creationTime", lastReadAt)
+    )
     .collect();
-  return comments.filter(
-    (c) => c.authorEmail !== email && c._creationTime > lastReadAt
-  ).length;
+  return unread.filter((c) => c.authorEmail !== email).length;
 }
 
 export const unreadCount = query({
@@ -196,17 +197,7 @@ export const myUnreadTotal = query({
     const caller = await optionalProfile(ctx);
     if (!caller) return 0;
     const { email, year } = caller;
-    const fetch = (y: number) =>
-      ctx.db
-        .query("requests")
-        .withIndex("by_requester", (q) => q.eq("requesterEmail", email))
-        .filter((q) =>
-          q.and(
-            q.gte(q.field("_creationTime"), staffYearStartMs(y)),
-            q.lt(q.field("_creationTime"), staffYearStartMs(y + 1))
-          )
-        )
-        .collect();
+    const fetch = (y: number) => requesterRequestsInYear(ctx, email, y).collect();
     const current = await fetch(year);
     const prev = await fetch(year - 1);
     let total = 0;
@@ -223,12 +214,12 @@ export const markRead = mutation({
     const { email } = await requireProfile(ctx);
     const request = await ctx.db.get("requests", args.requestId);
     if (!request) throw new ConvexError("Request not found.");
-    const comments = await ctx.db
+    const newest = await ctx.db
       .query("requestComments")
       .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
-      .collect();
-    const newest = comments.reduce((max, c) => Math.max(max, c._creationTime), 0);
-    const lastReadAt = Math.max(Date.now(), newest);
+      .order("desc")
+      .first();
+    const lastReadAt = Math.max(Date.now(), newest?._creationTime ?? 0);
     const existing = await ctx.db
       .query("commentReads")
       .withIndex("by_request_and_user", (q) =>
@@ -236,7 +227,7 @@ export const markRead = mutation({
       )
       .unique();
     if (existing) {
-      await ctx.db.patch(existing._id, { lastReadAt });
+      await ctx.db.patch("commentReads", existing._id, { lastReadAt });
     } else {
       await ctx.db.insert("commentReads", {
         requestId: args.requestId,
