@@ -51,15 +51,21 @@ describe("attendanceMetrics", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-09-30T11:00:00Z"));
     const { t } = await setup();
+    const admin = asUser(t, ADMIN);
+    for (const year of [2026, 2027]) {
+      await admin.mutation(api.admin.upsertUniversity, { year, name: USYD });
+    }
     await t.mutation(internal.attendanceMetrics.recomputeAll, {});
     const jobs = await t.run((ctx) =>
       ctx.db.system.query("_scheduled_functions").collect()
     );
-    const years = jobs
+    const scheduled = jobs
       .filter((j) => j.name === "attendanceMetrics:recomputeSubgroup")
-      .map((j) => (j.args[0] as { staffYear?: number }).staffYear);
-    expect(years).toContain(2026);
-    expect(years).toContain(2027);
+      .map((j) => j.args[0] as { subgroup: string; staffYear?: number });
+    for (const year of [2026, 2027]) {
+      expect(scheduled).toContainEqual({ subgroup: SOW_SUBGROUP, staffYear: year });
+      expect(scheduled).toContainEqual({ subgroup: USYD, staffYear: year });
+    }
   });
 
   test("snapshot returns null when not signed in", async () => {

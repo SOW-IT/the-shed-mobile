@@ -10,9 +10,10 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Attendance Insights now refresh once a night instead of being polled every
   15 minutes.** The poll ran 96 times a day on every backend, including the
   development one nobody was looking at, and was the largest single reader of
-  the database. One nightly rebuild at 02:00 Sydney covers every campus and the
-  org-wide view for the current staff year, and for the incoming year during
-  the October prefill window. The weekly Thursday rebuild is folded into it.
+  the database. One nightly rebuild at 16:00 UTC (02:00 Sydney, 03:00 during
+  daylight saving) covers every campus and the org-wide view for the current
+  staff year, and for the incoming year during the October prefill window. The
+  weekly Thursday rebuild is folded into it.
 - **Sign-ins and event edits no longer write a "needs recompute" flag.** With
   nothing left to read it, the flag and its table are gone.
 - **Expo packages are back in step with the release.** Expo shipped patch
