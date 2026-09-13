@@ -318,11 +318,6 @@ export default defineSchema({
       "staffYear",
     ]),
 
-  attendanceMetricsDirty: defineTable({
-    subgroup: v.string(),
-    since: v.number(),
-  }).index("by_subgroup", ["subgroup"]),
-
   attendanceMetricsRuns: defineTable({
     subgroup: v.string(),
     staffYear: v.number(),

@@ -23,7 +23,6 @@ import {
   requireProfile,
 } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
-import { markSubgroupsDirty } from "./attendanceMetrics";
 
 const ROSTER_HISTORY_EVENT_LIMIT = 60;
 
@@ -391,7 +390,6 @@ export const signIn = mutation({
         email: lower,
         signInTime: Date.now(),
       });
-      await markSubgroupsDirty(ctx, event.subgroups);
       const who = await displayName(ctx, lower, eventStaffYear(event.dateStart));
       await logAttendanceAction(ctx, {
         actorEmail,
@@ -420,7 +418,6 @@ export const signIn = mutation({
       memberId,
       signInTime: Date.now(),
     });
-    await markSubgroupsDirty(ctx, event.subgroups);
     await logAttendanceAction(ctx, {
       actorEmail,
       entityType: "attendance",
@@ -452,9 +449,6 @@ export const updateRecord = mutation({
     if (Object.keys(patch).length === 0) return;
     await ctx.db.patch(attendanceId, patch);
     const event = await ctx.db.get(row.eventId);
-    if (patch.signInTime !== undefined && event) {
-      await markSubgroupsDirty(ctx, event.subgroups);
-    }
     const who = row.memberId
       ? (await ctx.db.get(row.memberId))?.name ?? "A member"
       : row.email
@@ -508,7 +502,6 @@ export const signOut = mutation({
           );
         }
         await ctx.db.delete(existing._id);
-        if (event) await markSubgroupsDirty(ctx, event.subgroups);
         const who = await displayName(
           ctx,
           lower,
@@ -539,7 +532,6 @@ export const signOut = mutation({
           );
         }
         await ctx.db.delete(existing._id);
-        if (event) await markSubgroupsDirty(ctx, event.subgroups);
         const member = await ctx.db.get(memberId);
         await logAttendanceAction(ctx, {
           actorEmail,

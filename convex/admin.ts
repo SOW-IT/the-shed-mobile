@@ -31,7 +31,6 @@ import {
   previousStaffYearForEmail,
   staffEmailCandidates,
 } from "../shared/rollcallImport";
-import { markSubgroupsDirty } from "./attendanceMetrics";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, MutationCtx, mutation, query, QueryCtx } from "./_generated/server";
@@ -834,7 +833,6 @@ export const upsertUniversity = mutation({
       .unique();
     if (existing) return existing._id;
     const id = await ctx.db.insert("universities", { year: args.year, name });
-    if (args.year === currentStaffYear()) await markSubgroupsDirty(ctx, [name]);
     return id;
   },
 });
@@ -852,7 +850,6 @@ export const ensureUniversity = internalMutation({
       return { id: existing._id, created: false as const, year: args.year, name };
     }
     const id = await ctx.db.insert("universities", { year: args.year, name });
-    if (args.year === currentStaffYear()) await markSubgroupsDirty(ctx, [name]);
     return { id, created: true as const, year: args.year, name };
   },
 });

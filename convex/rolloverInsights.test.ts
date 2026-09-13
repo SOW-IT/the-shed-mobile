@@ -128,18 +128,14 @@ describe("October rollover → Attendance Insights", () => {
     ).toEqual([]);
   });
 
-  test("the 15-minute dirty cron rebuilds every current-year campus, including a new one", async () => {
+  test("the daily rebuild covers every current-year campus, including a new one", async () => {
     const { t, admin, leader } = await setupBeforeRollover();
     at(ROLLOVER + 60_000);
-
-    await t.run(async (ctx) => {
-      expect(await ctx.db.query("attendanceMetricsDirty").collect()).toEqual([]);
-    });
 
     const newCampus = "Western Sydney University";
     await admin.mutation(api.admin.upsertUniversity, { year: 2027, name: newCampus });
 
-    await t.mutation(internal.attendanceMetrics.recomputeDirty, {});
+    await t.mutation(internal.attendanceMetrics.recomputeAll, {});
     expect([...(await scheduledSubgroups(t))].sort()).toEqual(
       [SOW_SUBGROUP, USYD, UNSW, newCampus].sort()
     );

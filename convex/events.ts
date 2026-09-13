@@ -12,7 +12,6 @@ import {
   subgroupLabel,
 } from "../shared/rollcall";
 import { internal } from "./_generated/api";
-import { markSubgroupsDirty } from "./attendanceMetrics";
 import { Doc, Id } from "./_generated/dataModel";
 import {
   MutationCtx,
@@ -330,7 +329,6 @@ export const create = mutation({
       tagIds,
     });
     const eventId = await ctx.db.insert("events", eventFields);
-    await markSubgroupsDirty(ctx, eventFields.subgroups);
     await logAttendanceAction(ctx, {
       actorEmail: email,
       entityType: "event",
@@ -380,10 +378,6 @@ export const update = mutation({
     if ((existing.tagIds ?? []).join() !== (eventFields.tagIds ?? []).join())
       changes.push("tags");
     if (changes.length) {
-      await markSubgroupsDirty(ctx, [
-        ...existing.subgroups,
-        ...eventFields.subgroups,
-      ]);
       await logAttendanceAction(ctx, {
         actorEmail: email,
         entityType: "event",
@@ -410,7 +404,6 @@ export const remove = mutation({
       .collect();
     for (const row of rows) await ctx.db.delete(row._id);
     await ctx.db.delete(eventId);
-    await markSubgroupsDirty(ctx, event.subgroups);
     await logAttendanceAction(ctx, {
       actorEmail: email,
       entityType: "event",

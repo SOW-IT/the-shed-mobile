@@ -47,11 +47,11 @@ const window = (offsetDays = 0) => {
 describe("attendanceMetrics", () => {
   afterEach(() => vi.useRealTimers());
 
-  test("backfill in the prefill window schedules current and incoming years", async () => {
+  test("daily rebuild in the prefill window schedules current and incoming years", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-09-30T11:00:00Z"));
     const { t } = await setup();
-    await t.mutation(internal.attendanceMetrics.backfillMissingSnapshots, {});
+    await t.mutation(internal.attendanceMetrics.recomputeAll, {});
     const jobs = await t.run((ctx) =>
       ctx.db.system.query("_scheduled_functions").collect()
     );
@@ -258,49 +258,21 @@ describe("attendanceMetrics", () => {
     ).resolves.toBeNull();
   });
 
-  test("recomputeAll (cron entry) fans out without error", async () => {
+  test("recomputeAll (daily cron entry) schedules a full rebuild per sub-group", async () => {
     const { t } = await setup();
     await expect(
       t.mutation(internal.attendanceMetrics.recomputeAll, {})
     ).resolves.toBeNull();
-  });
-
-  test("flags sub-groups dirty on attendance/event changes; recomputeDirty drains", async () => {
-    const { t, leader } = await setup();
-    const e = await leader.mutation(api.events.create, {
-      name: "Meet",
-      ...window(2),
-      subgroups: [USYD],
+    const jobs = await t.run(async (ctx) => {
+      const all = await ctx.db.system.query("_scheduled_functions").collect();
+      return all
+        .filter((j) => j.name === "attendanceMetrics:recomputeSubgroup")
+        .map((j) => j.args[0] as { subgroup: string; ranges?: number[] });
     });
-    await leader.mutation(api.attendance.signIn, { eventId: e, email: LEADER });
-    await leader.mutation(api.attendance.signIn, { eventId: e, email: STAFF });
-    await leader.mutation(api.events.update, {
-      eventId: e,
-      name: "Meet+",
-      ...window(2),
-      subgroups: [USYD],
-    });
-    const dirty = await t.run((ctx) =>
-      ctx.db.query("attendanceMetricsDirty").collect()
-    );
-    expect(new Set(dirty.map((r) => r.subgroup))).toEqual(new Set([USYD]));
-
-    await t.mutation(internal.attendanceMetrics.recomputeDirty, {});
-    expect(
-      await t.run((ctx) => ctx.db.query("attendanceMetricsDirty").collect())
-    ).toHaveLength(1);
-    await t.action(internal.attendanceMetrics.recomputeSubgroup, {
-      subgroup: USYD,
-    });
-    expect(
-      await t.run((ctx) => ctx.db.query("attendanceMetricsDirty").collect())
-    ).toHaveLength(0);
-
-    await leader.mutation(api.events.remove, { eventId: e });
-    expect(
-      (await t.run((ctx) => ctx.db.query("attendanceMetricsDirty").collect()))
-        .length
-    ).toBeGreaterThan(0);
+    const subgroups = new Set(jobs.map((j) => j.subgroup));
+    expect(subgroups.has(SOW_SUBGROUP)).toBe(true);
+    expect(subgroups.has(USYD)).toBe(true);
+    expect(jobs.every((j) => j.ranges === undefined)).toBe(true);
   });
 
   test("resolves attendance-only members and their Role breakdown", async () => {
@@ -641,277 +613,6 @@ const EMPTY_DATA = {
   hasEnoughHistory: false,
   hasWeeklyMeetings: false,
 };
-
-describe("backfillMissingSnapshots snapshot completeness", () => {
-  test("rebuilds a group that has some current-year rows but is missing a range variant", async () => {
-    const { t } = await setup();
-    await t.run(async (ctx) => {
-      for (const rangeWeeks of [1, 4, 52]) {
-        for (const includeCollaborative of [true, false]) {
-          if (rangeWeeks === 52 && includeCollaborative === false) continue;
-          await ctx.db.insert("attendanceMetricsSnapshots", {
-            subgroup: USYD,
-            rangeWeeks,
-            includeCollaborative,
-            staffYear: YEAR,
-            computedAt: Date.now(),
-            data: EMPTY_DATA,
-          });
-        }
-      }
-    });
-
-    await t.mutation(internal.attendanceMetrics.backfillMissingSnapshots, {});
-    const scheduled = await t.run(async (ctx) => {
-      const jobs = await ctx.db.system.query("_scheduled_functions").collect();
-      return jobs
-        .filter((j) => j.name === "attendanceMetrics:recomputeSubgroup")
-        .map((j) => (j.args[0] as { subgroup: string }).subgroup);
-    });
-    expect(scheduled).toContain(USYD);
-  });
-});
-
-const scheduledSubgroups = (t: TestConvex<typeof schema>) =>
-  t.run(async (ctx) => {
-    const jobs = await ctx.db.system.query("_scheduled_functions").collect();
-    return jobs
-      .filter((j) => j.name === "attendanceMetrics:recomputeSubgroup")
-      .map((j) => (j.args[0] as { subgroup: string }).subgroup);
-  });
-
-const scheduledRecomputes = (t: TestConvex<typeof schema>) =>
-  t.run(async (ctx) => {
-    const jobs = await ctx.db.system.query("_scheduled_functions").collect();
-    return jobs
-      .filter((j) => j.name === "attendanceMetrics:recomputeSubgroup")
-      .map(
-        (j) =>
-          j.args[0] as {
-            subgroup: string;
-            staffYear?: number;
-            ranges?: number[];
-          }
-      );
-  });
-
-const ALL_VARIANTS = [1, 4, 52].flatMap((r) => [`${r}:true`, `${r}:false`]);
-
-const seedRun = (
-  t: TestConvex<typeof schema>,
-  subgroup: string,
-  ageMs: number,
-  variants: string[] = ALL_VARIANTS
-) =>
-  t.run((ctx) =>
-    ctx.db.insert("attendanceMetricsRuns", {
-      subgroup,
-      staffYear: YEAR,
-      computedAt: Date.now() - ageMs,
-      variants,
-    })
-  );
-
-// Every sub-group recomputeDirty expects to serve for the current staff year.
-const expectedSubgroups = (t: TestConvex<typeof schema>) =>
-  t.run(async (ctx) => {
-    const unis = await ctx.db
-      .query("universities")
-      .withIndex("by_year_and_name", (q) => q.eq("year", YEAR))
-      .collect();
-    return [SOW_SUBGROUP, ...unis.map((u) => u.name)];
-  });
-
-const seedFullCoverage = async (
-  t: TestConvex<typeof schema>,
-  ageMs = 0,
-  skip: string[] = []
-) => {
-  for (const subgroup of await expectedSubgroups(t)) {
-    if (skip.includes(subgroup)) continue;
-    await seedRun(t, subgroup, ageMs);
-  }
-};
-
-describe("recomputeDirty database I/O", () => {
-  test("schedules nothing when coverage is complete and nothing is dirty", async () => {
-    const { t } = await setup();
-    await seedFullCoverage(t);
-    await t.mutation(internal.attendanceMetrics.recomputeDirty, {});
-    expect(await scheduledSubgroups(t)).toEqual([]);
-  });
-
-  test("schedules a dirty sub-group that has never been computed", async () => {
-    const { t } = await setup();
-    await t.run((ctx) =>
-      ctx.db.insert("attendanceMetricsDirty", { subgroup: USYD, since: Date.now() })
-    );
-    await t.mutation(internal.attendanceMetrics.recomputeDirty, {});
-    expect(await scheduledSubgroups(t)).toContain(USYD);
-  });
-
-  test("debounces a dirty sub-group computed within the interval", async () => {
-    const { t } = await setup();
-    await seedFullCoverage(t, 60_000);
-    await t.run((ctx) =>
-      ctx.db.insert("attendanceMetricsDirty", { subgroup: USYD, since: Date.now() })
-    );
-    await t.mutation(internal.attendanceMetrics.recomputeDirty, {});
-    expect(await scheduledSubgroups(t)).not.toContain(USYD);
-
-    // The dirty marker survives so the next cron pass still picks it up.
-    const dirty = await t.run((ctx) =>
-      ctx.db.query("attendanceMetricsDirty").collect()
-    );
-    expect(dirty).toHaveLength(1);
-  });
-
-  test("schedules again once the debounce interval has passed", async () => {
-    const { t } = await setup();
-    await seedFullCoverage(t, 31 * 60 * 1000);
-    await t.run((ctx) =>
-      ctx.db.insert("attendanceMetricsDirty", { subgroup: USYD, since: Date.now() })
-    );
-    await t.mutation(internal.attendanceMetrics.recomputeDirty, {});
-    expect(await scheduledSubgroups(t)).toContain(USYD);
-  });
-
-  test("dirty recompute only asks for the 1-week variants", async () => {
-    const { t } = await setup();
-    await seedFullCoverage(t, 31 * 60 * 1000);
-    await t.run((ctx) =>
-      ctx.db.insert("attendanceMetricsDirty", { subgroup: USYD, since: Date.now() })
-    );
-    await t.mutation(internal.attendanceMetrics.recomputeDirty, {});
-    const jobs = (await scheduledRecomputes(t)).filter((j) => j.subgroup === USYD);
-    expect(jobs).toHaveLength(1);
-    expect(jobs[0].ranges).toEqual([1]);
-  });
-
-  test("missing coverage still schedules a full rebuild", async () => {
-    const { t } = await setup();
-    await t.mutation(internal.attendanceMetrics.recomputeDirty, {});
-    const jobs = await scheduledRecomputes(t);
-    expect(jobs.length).toBeGreaterThan(0);
-    expect(jobs.every((j) => j.ranges === undefined)).toBe(true);
-  });
-
-  test("rebuilds partial coverage even when the debounce is active", async () => {
-    const { t } = await setup();
-    await seedFullCoverage(t, 0, [USYD]);
-    await seedRun(t, USYD, 60_000, ["1:true", "1:false"]);
-    await t.mutation(internal.attendanceMetrics.recomputeDirty, {});
-    expect(await scheduledSubgroups(t)).toEqual([USYD]);
-  });
-
-  test("does not read the snapshots table", async () => {
-    const { t } = await setup();
-    await seedFullCoverage(t);
-    await t.run(async (ctx) => {
-      for (const rangeWeeks of [1, 4, 52]) {
-        for (const includeCollaborative of [true, false]) {
-          await ctx.db.insert("attendanceMetricsSnapshots", {
-            subgroup: USYD,
-            rangeWeeks,
-            includeCollaborative,
-            staffYear: YEAR,
-            computedAt: Date.now(),
-            data: EMPTY_DATA,
-          });
-        }
-      }
-    });
-    // Coverage is decided entirely from the runs table, so a complete snapshot
-    // set changes nothing about what gets scheduled.
-    await t.mutation(internal.attendanceMetrics.recomputeDirty, {});
-    expect(await scheduledSubgroups(t)).toEqual([]);
-  });
-});
-
-describe("runs-table migration (first deploy against existing prod data)", () => {
-  test("rebuilds once from snapshots-without-runs, then settles", async () => {
-    const { t } = await setup();
-    const subgroups = await expectedSubgroups(t);
-
-    // Prod today: a complete snapshot set, no runs rows yet.
-    await t.run(async (ctx) => {
-      for (const subgroup of subgroups) {
-        for (const rangeWeeks of [1, 4, 52]) {
-          for (const includeCollaborative of [true, false]) {
-            await ctx.db.insert("attendanceMetricsSnapshots", {
-              subgroup,
-              rangeWeeks,
-              includeCollaborative,
-              staffYear: YEAR,
-              computedAt: Date.now(),
-              data: EMPTY_DATA,
-            });
-          }
-        }
-      }
-    });
-
-    // First pass cannot see coverage, so it rebuilds every sub-group exactly once.
-    await t.mutation(internal.attendanceMetrics.recomputeDirty, {});
-    expect([...(await scheduledSubgroups(t))].sort()).toEqual([...subgroups].sort());
-
-    // Those rebuilds land, writing runs rows.
-    for (const subgroup of subgroups) {
-      await t.action(internal.attendanceMetrics.recomputeSubgroup, { subgroup });
-    }
-    const runs = await t.run((ctx) =>
-      ctx.db.query("attendanceMetricsRuns").collect()
-    );
-    expect(runs).toHaveLength(subgroups.length);
-    expect(runs.every((r) => r.variants.length === 6)).toBe(true);
-
-    // Steady state: nothing dirty, coverage known, so nothing is scheduled again.
-    const before = (await scheduledSubgroups(t)).length;
-    await t.mutation(internal.attendanceMetrics.recomputeDirty, {});
-    expect((await scheduledSubgroups(t)).length).toBe(before);
-  });
-
-  test("backfill reconciles a runs row that over-claims coverage", async () => {
-    const { t } = await setup();
-    await seedFullCoverage(t);
-    // No snapshots exist at all, so every claimed variant is unbacked.
-    await t.mutation(internal.attendanceMetrics.backfillMissingSnapshots, {});
-    const runs = await t.run((ctx) =>
-      ctx.db.query("attendanceMetricsRuns").collect()
-    );
-    expect(runs.every((r) => r.variants.length === 0)).toBe(true);
-  });
-
-  test("daily backfill refreshes SOW in full and campuses at 4/52 when coverage is complete", async () => {
-    const { t } = await setup();
-    const subgroups = await expectedSubgroups(t);
-    await seedFullCoverage(t);
-    await t.run(async (ctx) => {
-      for (const subgroup of subgroups) {
-        for (const rangeWeeks of [1, 4, 52]) {
-          for (const includeCollaborative of [true, false]) {
-            await ctx.db.insert("attendanceMetricsSnapshots", {
-              subgroup,
-              rangeWeeks,
-              includeCollaborative,
-              staffYear: YEAR,
-              computedAt: Date.now(),
-              data: EMPTY_DATA,
-            });
-          }
-        }
-      }
-    });
-    await t.mutation(internal.attendanceMetrics.backfillMissingSnapshots, {});
-    const jobs = await scheduledRecomputes(t);
-    const sowJobs = jobs.filter((j) => j.subgroup === SOW_SUBGROUP);
-    expect(sowJobs).toHaveLength(1);
-    expect(sowJobs[0].ranges).toBeUndefined();
-    const usydJobs = jobs.filter((j) => j.subgroup === USYD);
-    expect(usydJobs).toHaveLength(1);
-    expect(usydJobs[0].ranges).toEqual([4, 52]);
-  });
-});
 
 describe("purgeStaleSnapshotRanges", () => {
   test("deletes rows whose rangeWeeks is no longer served", async () => {
