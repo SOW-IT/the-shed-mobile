@@ -5,8 +5,15 @@ export const currencyText = (text: string): string => {
   return `${whole}.${cents}`;
 };
 
-/** Whole cents for `amount`, so two dollar values can be compared exactly. */
-export const toCents = (amount: number): number => Math.round(amount * 100);
+/**
+ * Whole cents for `amount`, so two dollar values can be compared exactly.
+ * The product is trimmed to 15 significant digits first so binary float noise
+ * (1.005 * 100 = 100.49999999999999) rounds the way the decimal input reads.
+ */
+export const toCents = (amount: number): number =>
+  Number.isFinite(amount)
+    ? Math.round(Number((amount * 100).toPrecision(15)))
+    : Math.round(amount * 100);
 
 /** `amount` rounded to the nearest cent (removes float drift from sums). */
 export const roundToCents = (amount: number): number => toCents(amount) / 100;

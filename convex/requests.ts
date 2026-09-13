@@ -498,12 +498,18 @@ const memoAsync = <K, V>(load: (key: K) => Promise<V>) => {
 
 /** `getApprovers` memoised per (year, department) for the life of one handler. */
 export const makeApproverResolver = (ctx: Ctx) => {
-  const byKey = memoAsync<string, Approvers>((key) => {
-    const [year, department] = key.split(":", 2);
-    return getApprovers(ctx, Number(year), department);
-  });
-  return (year: number, department: string): Promise<Approvers> =>
-    byKey(`${year}:${department}`);
+  // Department names are free text, so the cache key is a JSON tuple rather
+  // than a delimited string that a ":" in the name could split.
+  const cache = new Map<string, Promise<Approvers>>();
+  return (year: number, department: string): Promise<Approvers> => {
+    const key = JSON.stringify([year, department]);
+    let cached = cache.get(key);
+    if (!cached) {
+      cached = getApprovers(ctx, year, department);
+      cache.set(key, cached);
+    }
+    return cached;
+  };
 };
 
 /** `actAsEmails` for one caller memoised per year. */
@@ -956,19 +962,23 @@ export const purgeDeletedRequestData = internalMutation({
       .query("requestComments")
       .withIndex("by_request", (q) => q.eq("requestId", requestId))
       .take(batch);
+    // One reaction budget for the whole pass, so many comments with many
+    // reactions each cannot multiply into one oversized transaction.
+    let reactionBudget = batch;
     for (const comment of comments) {
       const reactions = await ctx.db
         .query("commentReactions")
         .withIndex("by_comment", (q) => q.eq("commentId", comment._id))
-        .take(batch);
+        .take(reactionBudget);
       for (const reaction of reactions) {
         await ctx.db.delete("commentReactions", reaction._id);
       }
-      if (reactions.length === batch) {
-        // Leave the comment for the next pass so its remaining reactions
-        // are still reachable through it.
+      reactionBudget -= reactions.length;
+      if (reactionBudget === 0) {
+        // The budget ran out on this comment; it may still have reactions,
+        // so leave it for the next pass where they stay reachable through it.
         full = true;
-        continue;
+        break;
       }
       await ctx.db.delete("requestComments", comment._id);
     }

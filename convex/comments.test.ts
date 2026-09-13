@@ -479,6 +479,42 @@ describe("cancel cleans up the comment thread", () => {
     });
   });
 
+  test("reactions spread over many comments share one budget per pass", async () => {
+    const t = await setup();
+    const id = await submit(t);
+    // 3 comments × 100 reactions = 300 reactions: more than one pass's budget of 200.
+    await t.run(async (ctx) => {
+      for (let c = 0; c < 3; c++) {
+        const commentId = await ctx.db.insert("requestComments", {
+          requestId: id,
+          authorEmail: RACHEL,
+          body: `c${c}`,
+        });
+        for (let i = 0; i < 100; i++) {
+          await ctx.db.insert("commentReactions", {
+            commentId,
+            userEmail: `u${i}@sow.org.au`,
+            emoji: "👍",
+          });
+        }
+      }
+    });
+    vi.useFakeTimers();
+    try {
+      const more = await t.mutation(internal.requests.purgeDeletedRequestData, { requestId: id });
+      expect(more).toBe(true);
+      const leftAfterOnePass = await t.run((ctx) => ctx.db.query("commentReactions").collect());
+      expect(leftAfterOnePass).toHaveLength(100);
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("requestComments").take(10)).toHaveLength(0);
+      expect(await ctx.db.query("commentReactions").take(10)).toHaveLength(0);
+    });
+  });
+
   test("a long thread is purged across several batched passes", async () => {
     const t = await setup();
     const id = await submit(t);

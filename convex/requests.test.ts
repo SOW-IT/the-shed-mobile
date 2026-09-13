@@ -3,7 +3,12 @@ import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
-import { involvedApproverEmails, nextApproverEmail, nextApproverWithYear } from "./requests";
+import {
+  involvedApproverEmails,
+  makeApproverResolver,
+  nextApproverEmail,
+  nextApproverWithYear,
+} from "./requests";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -1985,5 +1990,25 @@ describe("deadlock prevention and validation fixes", () => {
         year: YEAR, name: "SomeDept", division: "Nope",
       })
     ).rejects.toThrow(/division/i);
+  });
+});
+
+describe("makeApproverResolver", () => {
+  test("keys the cache by (year, department) even when the name contains a colon", async () => {
+    const t = await setup();
+    await asUser(t, ADMIN).mutation(api.admin.upsertDepartment, {
+      year: YEAR,
+      name: "Ops: North",
+      division: "Engagement",
+      headEmail: HENRY,
+    });
+    const hods = await t.run(async (ctx) => {
+      const resolve = makeApproverResolver(ctx);
+      const first = await resolve(YEAR, "Ops: North");
+      const again = await resolve(YEAR, "Ops: North");
+      const other = await resolve(YEAR, "Marketing");
+      return { first: first.hodEmail, again: again.hodEmail, other: other.hodEmail };
+    });
+    expect(hods).toEqual({ first: HENRY, again: HENRY, other: HENRY });
   });
 });
