@@ -75,6 +75,8 @@ export const Screen = ({
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
         stickyHeaderIndices={resolvedStickyIndices}
+        automaticallyAdjustKeyboardInsets
+        keyboardShouldPersistTaps="handled"
         style={{ backgroundColor: t.background }}
         contentContainerStyle={[
           styles.scroll,

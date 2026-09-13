@@ -27,6 +27,8 @@ export const ChromeScreen = ({
     <View style={[styles.screen, { backgroundColor: t.background }]}>
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
+        automaticallyAdjustKeyboardInsets
+        keyboardShouldPersistTaps="handled"
         style={[styles.body, { backgroundColor: t.background }]}
         contentContainerStyle={[
           styles.scroll,
