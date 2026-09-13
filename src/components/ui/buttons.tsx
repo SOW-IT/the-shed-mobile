@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Keyboard, Platform, Pressable, Text, View } from "react-native";
 import { USE_NATIVE_DRIVER, radius, spacing, typography, useAppTheme } from "@/theme";
 import { usePressScale } from "./format";
@@ -38,26 +38,56 @@ export const FooterAction = ({
   const [lift] = useState(() => new Animated.Value(0));
   const modalOpen = useAnyModalOpen();
   const shouldAvoid = avoidKeyboard && !modalOpen;
+  const wrapRef = useRef<View>(null);
+  const syncRef = useRef<() => void>(() => {});
   useEffect(() => {
-    const keyboardLift = (height: number) => Math.max(0, height - bottomOffset);
     if (!shouldAvoid) {
       lift.setValue(0);
+      syncRef.current = () => {};
       return;
     }
     if (Platform.OS !== "ios") return;
-    if (Keyboard.isVisible()) {
-      const metrics = Keyboard.metrics();
-      if (metrics) lift.setValue(keyboardLift(metrics.height));
-    }
+    // The footer's resting position is measured in window coordinates so the
+    // lift is exact wherever the footer lives: a tab screen sits above the tab
+    // bar, so lifting by the full keyboard height would leave a tab-bar-sized
+    // gap. Fallback for an unmeasurable footer is the old height-based lift.
+    // Measurement is async; a hide (or unmount) in between must win, so each
+    // hide bumps the generation and a stale measurement is dropped.
+    let generation = 0;
+    const liftFor = (
+      keyboard: { screenY: number; height: number },
+      apply: (toValue: number) => void
+    ) => {
+      const node = wrapRef.current;
+      if (!node) {
+        apply(Math.max(0, keyboard.height - bottomOffset));
+        return;
+      }
+      const measured = generation;
+      node.measureInWindow((_x, y, _w, h) => {
+        if (measured !== generation) return;
+        const restingBottom = y + h;
+        const wanted = restingBottom + spacing.md - keyboard.screenY;
+        apply(Math.min(keyboard.height, Math.max(0, wanted)));
+      });
+    };
+    syncRef.current = () => {
+      const metrics = Keyboard.isVisible() ? Keyboard.metrics() : undefined;
+      if (metrics) liftFor(metrics, (v) => lift.setValue(v));
+    };
+    syncRef.current();
     const show = Keyboard.addListener("keyboardWillShow", (e) => {
-      Animated.timing(lift, {
-        toValue: keyboardLift(e.endCoordinates.height),
-        duration: liftDuration(e.duration),
-        easing: KEYBOARD_EASING,
-        useNativeDriver: true,
-      }).start();
+      liftFor(e.endCoordinates, (toValue) =>
+        Animated.timing(lift, {
+          toValue,
+          duration: liftDuration(e.duration),
+          easing: KEYBOARD_EASING,
+          useNativeDriver: true,
+        }).start()
+      );
     });
     const hide = Keyboard.addListener("keyboardWillHide", (e) => {
+      generation += 1;
       Animated.timing(lift, {
         toValue: 0,
         duration: liftDuration(e?.duration),
@@ -66,85 +96,93 @@ export const FooterAction = ({
       }).start();
     });
     return () => {
+      generation += 1;
+      syncRef.current = () => {};
       show.remove();
       hide.remove();
     };
   }, [shouldAvoid, bottomOffset, lift]);
   return (
-    <Animated.View
+    <View
+      ref={wrapRef}
       pointerEvents="box-none"
+      onLayout={() => syncRef.current()}
       style={[
         styles.footerWrap,
         bottomOffset ? { bottom: spacing.md + bottomOffset } : null,
-        { transform: [{ translateY: Animated.multiply(lift, -1) }] },
       ]}
     >
-      {note ? (
-        <View style={styles.footerNote} pointerEvents="none">
-          <Ionicons name="warning-outline" size={14} color={t.warning} />
-          <Text style={[typography.caption, { color: t.warning, fontWeight: "700" }]}>
-            {note}
-          </Text>
-        </View>
-      ) : null}
-      <View style={styles.footerRow}>
-        {onInfo && (
-          <Pressable
-            onPress={onInfo}
-            accessibilityRole="button"
-            accessibilityLabel="How it works"
-            style={[styles.footerInfoBtn, { backgroundColor: t.card }, t.shadowFloat]}
-          >
-            <Ionicons name="information-circle-outline" size={22} color={t.primary} />
-          </Pressable>
-        )}
-        {cancel ? (
-          <View
+      <Animated.View
+        pointerEvents="box-none"
+        style={{ transform: [{ translateY: Animated.multiply(lift, -1) }] }}
+      >
+        {note ? (
+          <View style={styles.footerNote} pointerEvents="none">
+            <Ionicons name="warning-outline" size={14} color={t.warning} />
+            <Text style={[typography.caption, { color: t.warning, fontWeight: "700" }]}>
+              {note}
+            </Text>
+          </View>
+        ) : null}
+        <View style={styles.footerRow}>
+          {onInfo && (
+            <Pressable
+              onPress={onInfo}
+              accessibilityRole="button"
+              accessibilityLabel="How it works"
+              style={[styles.footerInfoBtn, { backgroundColor: t.card }, t.shadowFloat]}
+            >
+              <Ionicons name="information-circle-outline" size={22} color={t.primary} />
+            </Pressable>
+          )}
+          {cancel ? (
+            <View
+              style={[
+                { flex: 1, borderRadius: radius.lg - 2 },
+                t.shadowFloat,
+              ]}
+            >
+              <Pressable
+                onPress={cancel.onPress}
+                disabled={cancel.disabled}
+                style={({ pressed }) => [
+                  styles.footerAction,
+                  { backgroundColor: t.card, borderWidth: 1.5, borderColor: t.border },
+                  pressed && !cancel.disabled && { opacity: 0.7 },
+                ]}
+              >
+                <Text style={[styles.footerActionText, { color: t.text }]}>
+                  {cancel.title ?? "Cancel"}
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+          <Animated.View
             style={[
-              { flex: 1, borderRadius: radius.lg - 2 },
+              { flex: 1, borderRadius: radius.lg - 2, transform: [{ scale }] },
               t.shadowFloat,
             ]}
           >
             <Pressable
-              onPress={cancel.onPress}
-              disabled={cancel.disabled}
-              style={({ pressed }) => [
+              onPress={onPress}
+              onPressIn={() =>
+                Animated.spring(scale, { toValue: 0.97, useNativeDriver: USE_NATIVE_DRIVER, speed: 50, bounciness: 0 }).start()
+              }
+              onPressOut={() =>
+                Animated.spring(scale, { toValue: 1, useNativeDriver: USE_NATIVE_DRIVER, speed: 20, bounciness: 6 }).start()
+              }
+              disabled={disabled}
+              style={[
                 styles.footerAction,
-                { backgroundColor: t.card, borderWidth: 1.5, borderColor: t.border },
-                pressed && !cancel.disabled && { opacity: 0.7 },
+                { backgroundColor: t.primary },
               ]}
             >
-              <Text style={[styles.footerActionText, { color: t.text }]}>
-                {cancel.title ?? "Cancel"}
-              </Text>
+              <Text style={[styles.footerActionText, { color: t.onPrimary }]}>{title}</Text>
             </Pressable>
-          </View>
-        ) : null}
-        <Animated.View
-          style={[
-            { flex: 1, borderRadius: radius.lg - 2, transform: [{ scale }] },
-            t.shadowFloat,
-          ]}
-        >
-          <Pressable
-            onPress={onPress}
-            onPressIn={() =>
-              Animated.spring(scale, { toValue: 0.97, useNativeDriver: USE_NATIVE_DRIVER, speed: 50, bounciness: 0 }).start()
-            }
-            onPressOut={() =>
-              Animated.spring(scale, { toValue: 1, useNativeDriver: USE_NATIVE_DRIVER, speed: 20, bounciness: 6 }).start()
-            }
-            disabled={disabled}
-            style={[
-              styles.footerAction,
-              { backgroundColor: t.primary },
-            ]}
-          >
-            <Text style={[styles.footerActionText, { color: t.onPrimary }]}>{title}</Text>
-          </Pressable>
-        </Animated.View>
-      </View>
-    </Animated.View>
+          </Animated.View>
+        </View>
+      </Animated.View>
+    </View>
   );
 };
 

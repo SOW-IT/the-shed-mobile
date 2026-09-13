@@ -242,6 +242,8 @@ export const PagerScreen = ({
       ) : (
         <Animated.ScrollView
           showsVerticalScrollIndicator={false}
+          automaticallyAdjustKeyboardInsets
+          keyboardShouldPersistTaps="handled"
           style={{ backgroundColor: t.background }}
           contentContainerStyle={[
             styles.page,

@@ -6,6 +6,22 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.11.13] — 2026-09-13
+
+### Fixed
+- **The bottom button no longer floats too high when the keyboard is up.** On
+  tab screens such as Members, the "+ Create member" button used to rise by
+  the full keyboard height even though the tab bar already sat between it and
+  the bottom of the screen, leaving a tab-bar-sized gap above the keyboard.
+  The button now measures where it actually sits on screen and rests a normal
+  margin above the keyboard everywhere, including the event roll-call page.
+- **Fields near the bottom of a page are no longer hidden behind the
+  keyboard.** Admin, Members, Audit and the other page-level scroll views now
+  make room for the keyboard on iOS: the focused field scrolls into view, and
+  the page can scroll all the way to its last element while the keyboard stays
+  open. Tapping a button while the keyboard is up now works on the first tap
+  instead of only dismissing the keyboard.
+
 ### Changed
 - **Attendance Insights now refresh once a night instead of being polled every
   15 minutes.** The poll ran 96 times a day on every backend, including the

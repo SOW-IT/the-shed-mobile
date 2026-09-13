@@ -151,6 +151,8 @@ export function MembersTab({
     <Animated.ScrollView
       showsVerticalScrollIndicator={false}
       stickyHeaderIndices={[0]}
+      automaticallyAdjustKeyboardInsets
+      keyboardShouldPersistTaps="handled"
       style={{ backgroundColor: t.background }}
       contentContainerStyle={[
         PAGER_PAGE_CONTENT,
