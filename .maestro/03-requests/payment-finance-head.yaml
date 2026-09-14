@@ -49,7 +49,8 @@ tags:
 - inputText: "0"
 - tapOn:
     text: "Mark as Paid"
-- assertVisible: "The paid amount must be a positive number."
+# The PaySheet rejects a non-positive amount before calling the server.
+- assertVisible: "Enter the amount that was paid."
 
 # Positive amount → PAID.
 - tapOn:

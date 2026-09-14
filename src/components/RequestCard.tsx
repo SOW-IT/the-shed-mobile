@@ -347,6 +347,7 @@ export const RequestCard = ({
   autoExpand = false,
   autoOpenThread = false,
   deepLinkOpenKey,
+  onAutoOpenThread,
   children,
 }: {
   request: Doc<"requests">;
@@ -356,6 +357,7 @@ export const RequestCard = ({
   autoExpand?: boolean;
   autoOpenThread?: boolean;
   deepLinkOpenKey?: string;
+  onAutoOpenThread?: () => void;
   collapsible?: boolean;
   children?: ReactNode;
 }) => {
@@ -393,11 +395,15 @@ export const RequestCard = ({
   }, [autoExpand, collapsible, deepLinkOpenKey]);
   // Opens the thread only when a deep link asks for it. Kept separate from the
   // expand effect so a later status change on the request (which flips
-  // `collapsible`) cannot re-open a thread the user has since closed.
+  // `collapsible`) cannot re-open a thread the user has since closed. The
+  // parent is told once it has opened, so a card re-created for the same link
+  // (e.g. moved to another Review section) does not open it again.
   useEffect(() => {
+    if (!autoOpenThread) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- external deep-link focus sync
-    if (autoOpenThread) setShowComments(true);
-  }, [autoOpenThread, deepLinkOpenKey]);
+    setShowComments(true);
+    onAutoOpenThread?.();
+  }, [autoOpenThread, deepLinkOpenKey, onAutoOpenThread]);
 
   const collapse = () => {
     setExpanded(false);

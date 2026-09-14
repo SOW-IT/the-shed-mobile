@@ -751,6 +751,7 @@ export const MyRequests = ({
   focusId,
   focusThread = false,
   focusReopenKey,
+  onFocusThreadOpened,
 }: {
   departments: string[];
   defaultDepartment: string;
@@ -763,6 +764,7 @@ export const MyRequests = ({
   focusId?: string;
   focusThread?: boolean;
   focusReopenKey?: string;
+  onFocusThreadOpened?: () => void;
   directorThreshold?: number;
 }) => {
   const t = useAppTheme();
@@ -861,6 +863,7 @@ export const MyRequests = ({
                   autoExpand={request._id === focusId}
                   autoOpenThread={request._id === focusId && focusThread}
                   deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}
+                  onAutoOpenThread={request._id === focusId ? onFocusThreadOpened : undefined}
                   onCancel={
                     readOnly
                       ? undefined

@@ -185,10 +185,12 @@ export const ReviewList = ({
   focusId,
   focusThread = false,
   focusReopenKey,
+  onFocusThreadOpened,
 }: {
   focusId?: string;
   focusThread?: boolean;
   focusReopenKey?: string;
+  onFocusThreadOpened?: () => void;
 } = {}) => {
   const t = useAppTheme();
   const data = useQuery(api.requests.toReview, {});
@@ -274,6 +276,7 @@ export const ReviewList = ({
                           autoExpand={request._id === focusId}
                           autoOpenThread={request._id === focusId && focusThread}
                           deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}
+                          onAutoOpenThread={request._id === focusId ? onFocusThreadOpened : undefined}
                         >
                           <IconButton
                             name="checkmark"
@@ -309,6 +312,7 @@ export const ReviewList = ({
                         autoExpand={request._id === focusId}
                         autoOpenThread={request._id === focusId && focusThread}
                         deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}
+                        onAutoOpenThread={request._id === focusId ? onFocusThreadOpened : undefined}
                       >
                         <IconButton
                           name="cash-outline"
@@ -337,6 +341,7 @@ export const ReviewList = ({
                     autoExpand={request._id === focusId}
                     autoOpenThread={request._id === focusId && focusThread}
                     deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}
+                    onAutoOpenThread={request._id === focusId ? onFocusThreadOpened : undefined}
                   />
                 </FadeInView>
               ))}

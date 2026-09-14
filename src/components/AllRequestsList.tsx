@@ -47,11 +47,13 @@ export const AllRequestsList = ({
   focusId,
   focusThread = false,
   focusReopenKey,
+  onFocusThreadOpened,
 }: {
   year?: number;
   focusId?: string;
   focusThread?: boolean;
   focusReopenKey?: string;
+  onFocusThreadOpened?: () => void;
   loadMoreRef?: MutableRefObject<(() => void) | null>;
 }) => {
   const requests = useQuery(
@@ -141,6 +143,7 @@ export const AllRequestsList = ({
                 autoExpand={request._id === focusId}
                 autoOpenThread={request._id === focusId && focusThread}
                 deepLinkOpenKey={request._id === focusId ? focusReopenKey : undefined}
+                onAutoOpenThread={request._id === focusId ? onFocusThreadOpened : undefined}
               />
             );
             return index < PAGE_SIZE ? (

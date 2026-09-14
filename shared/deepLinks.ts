@@ -15,6 +15,15 @@ export const isAllowedDeepLink = (url: string): boolean =>
     return next === undefined || next === "/" || next === "?" || next === "#";
   });
 
+// Identifies one "open this request's thread" deep link. The same link opens
+// the thread once; a notification tap adds a fresh `reopen` token, which makes
+// a new key so the thread opens again.
+export const threadDeepLinkKey = (
+  focusId: string | undefined,
+  thread: unknown,
+  reopen: string | undefined
+): string | null => (focusId && thread === "1" ? `${focusId}|${reopen ?? ""}` : null);
+
 export const consumeNotificationDeepLink = (
   response: {
     notification: {
