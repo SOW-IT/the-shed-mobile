@@ -6,6 +6,22 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.11.15] — 2026-09-14
+
+### Fixed
+- **A thread opened from a link stays closed once you close it, even after you
+  approve the request.** 1.11.14 stopped a deep-linked comment thread from
+  re-opening when a request's status changed, but only while the card stayed in
+  the same place. In Review, approving or declining moves the card into
+  Reviewed, which built a fresh card that read the link again and popped the
+  thread back open. The link now opens its thread once per tap; tapping the
+  notification again still opens it.
+- **The end-to-end test suite signs in as the right person.** The test sign-in
+  helper closed the app before the new session was saved, so flows sometimes
+  ran as the previous account or signed out and failed at random. It now waits
+  for the sign-in to finish. The payment flow also checks the Pay sheet's
+  current "Enter the amount that was paid." message.
+
 ## [1.11.14] — 2026-09-14
 
 ### Fixed
