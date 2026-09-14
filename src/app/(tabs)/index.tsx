@@ -1,7 +1,7 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
 import { Redirect, useLocalSearchParams } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import {
@@ -9,6 +9,7 @@ import {
   HEAD_OF_DEPARTMENT,
   requestFullyApproved,
 } from "../../../shared/flow";
+import { threadDeepLinkKey } from "../../../shared/deepLinks";
 import { AdminBar } from "@/components/AdminBar";
 import { AllRequestsList } from "@/components/AllRequestsList";
 import { BankTab } from "@/components/BankTab";
@@ -129,10 +130,18 @@ export default function RequestsScreen() {
     thread?: string;
     reopen?: string;
   }>();
-  const focusThread = thread === "1";
   const focusReopenKey = typeof reopen === "string" ? reopen : undefined;
   // A repeated query key arrives as an array; only a single id can be focused.
   const focusId = typeof focus === "string" && focus ? focus : undefined;
+  // A thread link opens its thread once. After that, a card re-mounted for the
+  // same link (e.g. approving moves it to Reviewed) must not open it again.
+  const threadLinkKey = threadDeepLinkKey(focusId, thread, focusReopenKey);
+  const [openedThreadLink, setOpenedThreadLink] = useState<string | null>(null);
+  const focusThread = threadLinkKey !== null && threadLinkKey !== openedThreadLink;
+  const onFocusThreadOpened = useCallback(
+    () => setOpenedThreadLink(threadLinkKey),
+    [threadLinkKey]
+  );
   const [active, setActive] = useState("mine");
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- external param sync
@@ -235,6 +244,7 @@ export default function RequestsScreen() {
         focusId={focusId}
         focusThread={focusThread}
         focusReopenKey={focusReopenKey}
+        onFocusThreadOpened={onFocusThreadOpened}
       />
     </>
   );
@@ -244,7 +254,12 @@ export default function RequestsScreen() {
       case "review":
         return (
           <ReadableColumn>
-            <ReviewList focusId={focusId} focusThread={focusThread} focusReopenKey={focusReopenKey} />
+            <ReviewList
+              focusId={focusId}
+              focusThread={focusThread}
+              focusReopenKey={focusReopenKey}
+              onFocusThreadOpened={onFocusThreadOpened}
+            />
           </ReadableColumn>
         );
       case "all":
@@ -268,6 +283,7 @@ export default function RequestsScreen() {
             focusId={focusId}
             focusThread={focusThread}
             focusReopenKey={focusReopenKey}
+            onFocusThreadOpened={onFocusThreadOpened}
           />
         );
     }

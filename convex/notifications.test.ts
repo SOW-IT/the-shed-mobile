@@ -1,7 +1,11 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { consumeNotificationDeepLink, isAllowedDeepLink } from "../shared/deepLinks";
+import {
+  consumeNotificationDeepLink,
+  isAllowedDeepLink,
+  threadDeepLinkKey,
+} from "../shared/deepLinks";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { requestUrl } from "./requests";
@@ -306,6 +310,30 @@ describe("notification deep-links are followable by the push-tap handler", () =>
     expect(isAllowedDeepLink("/reviewevil")).toBe(false);
     expect(isAllowedDeepLink("https://evil.example.com")).toBe(false);
     expect(isAllowedDeepLink("/admin")).toBe(false);
+  });
+});
+
+describe("threadDeepLinkKey (a thread link opens its thread once)", () => {
+  test("is null unless a single request is focused with thread=1", () => {
+    expect(threadDeepLinkKey(undefined, "1", undefined)).toBeNull();
+    expect(threadDeepLinkKey("", "1", undefined)).toBeNull();
+    expect(threadDeepLinkKey("req1", undefined, undefined)).toBeNull();
+    expect(threadDeepLinkKey("req1", ["1", "1"], undefined)).toBeNull();
+  });
+
+  test("is stable for the same link so a re-mounted card does not reopen it", () => {
+    expect(threadDeepLinkKey("req1", "1", undefined)).toBe(
+      threadDeepLinkKey("req1", "1", undefined)
+    );
+  });
+
+  test("changes with the reopen token so a new notification tap opens it again", () => {
+    expect(threadDeepLinkKey("req1", "1", "n1:1")).not.toBe(
+      threadDeepLinkKey("req1", "1", "n1:2")
+    );
+    expect(threadDeepLinkKey("req1", "1", "n1:1")).not.toBe(
+      threadDeepLinkKey("req2", "1", "n1:1")
+    );
   });
 });
 

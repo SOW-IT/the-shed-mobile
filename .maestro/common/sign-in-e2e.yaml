@@ -12,6 +12,14 @@
 appId: ${APP_ID}
 ---
 - openLink: "${SCHEME}://e2e-auth?email=${EMAIL}&secret=${E2E_SECRET}"
+# e2e-auth signs out, awaits signIn() and only then redirects to "/". Stopping
+# the app before that redirect races the token write: the relaunched client
+# comes back as the previous account (or signed out) and the flow runs as the
+# wrong user. Wait for the redirect's tab bar first, as sign-out-e2e.yaml does.
+- extendedWaitUntil:
+    visible:
+      text: ".*Org Chart.*"
+    timeout: 20000
 # The bypass signs out any current session and signs in the requested account,
 # persisting the token to secure storage. The running client doesn't hot-swap
 # the session, so relaunch to adopt it (the fresh process reads the new token).
