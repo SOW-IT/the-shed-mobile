@@ -37,7 +37,7 @@ import {
   IconButton,
   LoadingState,
   maskAccount,
-  MAX_UPLOAD_BYTES,
+  MAX_RECEIPT_UPLOAD_BYTES,
   Muted,
   Row,
   Select,
@@ -408,8 +408,8 @@ const ReceiptSheet = ({
     try {
       for (const asset of assets) {
         const size = await getLocalFileSizeBytes(asset.uri);
-        if (size > MAX_UPLOAD_BYTES) {
-          const maxMb = Math.round(MAX_UPLOAD_BYTES / (1024 * 1024));
+        if (size > MAX_RECEIPT_UPLOAD_BYTES) {
+          const maxMb = Math.round(MAX_RECEIPT_UPLOAD_BYTES / (1024 * 1024));
           throw new Error(
             `${asset.name} is too large. Each receipt must be ${maxMb}MB or less.`
           );

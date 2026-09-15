@@ -36,6 +36,7 @@ export const errorMessage = (e: unknown): string =>
       : "Something went wrong";
 
 export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
+export const MAX_RECEIPT_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 export const digitsOnly = (text: string): string => text.replace(/[^0-9]/g, "");
 
