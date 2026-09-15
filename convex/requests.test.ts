@@ -1486,7 +1486,7 @@ describe("deadlock prevention and validation fixes", () => {
     const bigFile = {
       storageId: await t.run((ctx) =>
         ctx.storage.store(
-          new Blob(["x".repeat(2 * 1024 * 1024 + 1)], {
+          new Blob(["x".repeat(5 * 1024 * 1024 + 1)], {
             type: "application/pdf",
           })
         )
@@ -1503,7 +1503,7 @@ describe("deadlock prevention and validation fixes", () => {
           attachments: [bigFile],
         },
       ])
-    ).rejects.toThrow(/2MB or smaller/i);
+    ).rejects.toThrow(/5MB or smaller/i);
 
     await expect(
       attempt(

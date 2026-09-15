@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.12.0] — 2026-09-15
+
+### Changed
+- **Receipt files can now be up to 5MB each.** The old 2MB limit turned away
+  ordinary phone photos and multi-page scanned PDFs, so people had to shrink
+  them before uploading. The app and the server now both accept receipt files
+  up to 5MB. The other receipt limits are unchanged (10 files per recipient, 50
+  per receipt), and profile photos stay at 2MB.
+
 ## [1.11.15] — 2026-09-14
 
 ### Fixed

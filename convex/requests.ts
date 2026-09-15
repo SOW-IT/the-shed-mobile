@@ -1087,7 +1087,7 @@ const MAX_RECEIPT_RECIPIENTS = 20;
 const MAX_ATTACHMENTS_PER_RECIPIENT = 10;
 const MAX_RECEIPT_ATTACHMENTS = 50;
 const MAX_ATTACHMENT_NAME_LENGTH = 200;
-const MAX_RECEIPT_FILE_BYTES = 2 * 1024 * 1024;
+const MAX_RECEIPT_FILE_BYTES = 5 * 1024 * 1024;
 
 async function nudgeParticipantEmails(
   ctx: QueryCtx | MutationCtx,
@@ -1439,7 +1439,7 @@ export const submitReceipt = mutation({
         const metadata = await ctx.db.system.get("_storage", attachment.storageId);
         if (!metadata) throw new ConvexError("One or more receipt files were not uploaded.");
         if (metadata.size > MAX_RECEIPT_FILE_BYTES) {
-          throw new ConvexError("Receipt files must be 2MB or smaller.");
+          throw new ConvexError(`Receipt files must be ${MAX_RECEIPT_FILE_BYTES / (1024 * 1024)}MB or smaller.`);
         }
         if (metadata._creationTime < receiptUploadReadyAt) {
           throw new ConvexError("Receipt files must be uploaded after the request is approved.");
