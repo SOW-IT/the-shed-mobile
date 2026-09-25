@@ -19,8 +19,10 @@ All notable changes to **The SHED** mobile app. This project follows
   sign-in time and both sets of notes. A member can be merged into another
   member or into a staff person; a staff person is always the one kept (their
   name, email, campus and role stay as their profile says), and two staff can
-  never be merged. Each side shows how many events they attended and when they
-  last came, and the screen suggests swapping when the person being removed has
+  never be merged. Details stored two ways that read the same (a Year saved in
+  the old format, say) aren't offered as a choice, and the audit log lists which
+  details came from the removed person. Each side shows how many events they
+  attended and when they last came, and the screen suggests swapping when the person being removed has
   been used more. You type the removed person's name to confirm, a message
   confirms the merge, and it is recorded in the attendance audit log.
 

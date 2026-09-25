@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, test } from "vitest";
-import { staffYearForDate } from "../shared/flow";
+import { staffYearForDate, sydneyCalendarYear } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import schema from "./schema";
@@ -462,5 +462,162 @@ describe("a staff email on a member points to Merge", () => {
     expect(
       await s.t.query(api.attendanceMembers.staffForEmail, { email: LEADER })
     ).toBeNull();
+  });
+});
+
+describe("choosing which metadata stays", () => {
+  const NOW = sydneyCalendarYear(new Date());
+
+  async function withFields() {
+    const s = await setup();
+    // setup()'s plain "Year" input would clash with the real Year select below.
+    await s.t.run((ctx) => ctx.db.patch(s.yearField, { key: "Notes" }));
+    const f = await s.t.run(async (ctx) => ({
+      studentYear: await ctx.db.insert("attendanceMetadata", {
+        key: "Year",
+        type: "select",
+        order: 10,
+        values: { y1: "1", y2: "2", y3: "3" },
+      }),
+      gender: await ctx.db.insert("attendanceMetadata", {
+        key: "Gender",
+        type: "select",
+        order: 11,
+        values: { m: "Male", f: "Female" },
+      }),
+      diet: await ctx.db.insert("attendanceMetadata", {
+        key: "Dietary",
+        type: "input",
+        order: 12,
+      }),
+    }));
+    return { ...s, f };
+  }
+
+  test("values stored differently but shown the same aren't offered as a choice", async () => {
+    const s = await withFields();
+    // "y2" is a legacy option id; NOW-1 is the commencement year. Both read "2".
+    const keep = await s.member("Jeremy Lim", { [s.f.studentYear]: "y2", [s.f.gender]: "m" });
+    const dup = await s.member("Jeremy Lim", {
+      [s.f.studentYear]: String(NOW - 1),
+      [s.f.gender]: "Male",
+    });
+    const preview = await s.leader.query(api.attendanceMembers.mergePreview, {
+      removeId: dup,
+      keep: { memberId: keep },
+    });
+    if (!preview || "blocked" in preview) throw new Error("expected a preview");
+    expect(preview.conflicts).toEqual([]);
+    await s.leader.mutation(api.attendanceMembers.merge, {
+      removeId: dup,
+      keep: { memberId: keep },
+      // Even a stray "remove" can't swap an equivalent value.
+      resolutions: { [s.f.studentYear]: "remove", [s.f.gender]: "remove" },
+    });
+    expect((await s.t.run((ctx) => ctx.db.get(keep)))?.metadata).toEqual({
+      [s.f.studentYear]: "y2",
+      [s.f.gender]: "m",
+    });
+  });
+
+  test("each conflicting field keeps whichever side the leader picked", async () => {
+    const s = await withFields();
+    const keep = await s.member(
+      "Jeremy Lim",
+      {
+        [s.f.studentYear]: String(NOW - 1),
+        [s.f.gender]: "m",
+        [s.f.diet]: "none",
+        [s.campusField]: "usyd",
+      },
+      "jeremy@uni.edu"
+    );
+    const dup = await s.member(
+      "Jez Lim",
+      {
+        [s.f.studentYear]: String(NOW - 2),
+        [s.f.gender]: "f",
+        [s.f.diet]: "vegan",
+        [s.campusField]: "unsw",
+        [s.yearField]: "note from dup",
+      },
+      "jez@gmail.com"
+    );
+    const preview = await s.leader.query(api.attendanceMembers.mergePreview, {
+      removeId: dup,
+      keep: { memberId: keep },
+    });
+    if (!preview || "blocked" in preview) throw new Error("expected a preview");
+    expect(preview.conflicts.map((c) => c.label)).toEqual([
+      "Name",
+      "Email",
+      "Campus",
+      "Year",
+      "Gender",
+      "Dietary",
+    ]);
+
+    await s.leader.mutation(api.attendanceMembers.merge, {
+      removeId: dup,
+      keep: { memberId: keep },
+      resolutions: {
+        name: "keep",
+        email: "remove",
+        [s.f.studentYear]: "remove",
+        [s.f.gender]: "keep",
+        [s.f.diet]: "remove",
+        // campus left out: defaults to the kept person's value
+      },
+    });
+
+    expect(await s.t.run((ctx) => ctx.db.get(keep))).toMatchObject({
+      name: "Jeremy Lim",
+      email: "jez@gmail.com",
+      metadata: {
+        [s.f.studentYear]: String(NOW - 2),
+        [s.f.gender]: "m",
+        [s.f.diet]: "vegan",
+        [s.campusField]: "usyd",
+        // A blank on the kept side is filled without asking.
+        [s.yearField]: "note from dup",
+      },
+    });
+    const log = (await s.audit()).find((r) => r.action === "member.merge")!;
+    expect(log.detail).toContain('Took from "Jez Lim": Email, Notes, Year, Dietary');
+  });
+
+  test("merging into staff offers only the fields staff can change", async () => {
+    const s = await withFields();
+    const shadow = await s.leader.mutation(api.attendanceMembers.ensureForStaff, {
+      staffEmail: LEADER,
+    });
+    await s.t.run((ctx) =>
+      ctx.db.patch(shadow, {
+        metadata: { [s.f.diet]: "none", [s.f.gender]: "m", [s.campusField]: "usyd" },
+      })
+    );
+    const dup = await s.member("Leader Nickname", {
+      [s.f.diet]: "halal",
+      [s.f.gender]: "f",
+      [s.campusField]: "unsw",
+    });
+    const preview = await s.leader.query(api.attendanceMembers.mergePreview, {
+      removeId: dup,
+      keep: { memberId: shadow },
+    });
+    if (!preview || "blocked" in preview) throw new Error("expected a preview");
+    // Name, email and campus come from the staff profile, so aren't offered.
+    expect(preview.conflicts.map((c) => c.label)).toEqual(["Gender", "Dietary"]);
+
+    await s.leader.mutation(api.attendanceMembers.merge, {
+      removeId: dup,
+      keep: { memberId: shadow },
+      resolutions: { [s.f.diet]: "remove", [s.campusField]: "remove", name: "remove" },
+    });
+    const row = await s.t.run((ctx) => ctx.db.get(shadow));
+    expect(row?.metadata?.[s.f.diet]).toBe("halal");
+    expect(row?.metadata?.[s.f.gender]).toBe("m");
+    expect(row?.metadata?.[s.campusField]).toBe("usyd");
+    expect(row?.email).toBe(LEADER);
   });
 });

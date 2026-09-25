@@ -26,6 +26,7 @@ import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImpor
 import {
   buildMergedFields,
   detectMergeConflicts,
+  fieldsTakenFromRemoved,
   type MergeConflict,
   type MergeSide,
   mergeNotes,
@@ -741,16 +742,32 @@ const removeSide = (row: Doc<"attendanceMembers">): MergeSide => ({
 });
 
 /** A staff person's name and email come from their profile, and their campus
- *  and role from their assignments, so those can't be overwritten by a merge. */
-const lockedFor = (keep: MergeKeep, fields: MetadataField[]) =>
-  keep.kind === "staff"
-    ? {
-        identityLocked: true,
-        lockedFieldIds: fields
-          .filter((f) => f.key === CAMPUS_FIELD_KEY || f.key === ROLE_FIELD_KEY)
-          .map((f) => f._id as string),
-      }
-    : {};
+ *  and role from their assignments, so those can't be overwritten by a merge.
+ *  Two stored values that read the same (a Year stored two ways, a select
+ *  option stored by id or label) aren't a conflict. */
+const mergeOptionsFor = (keep: MergeKeep, fields: MetadataField[]) => {
+  const viewingYear = sydneyCalendarYear(new Date());
+  const shown = (fieldId: string, value: string) => {
+    const field = fields.find((f) => f._id === fieldId)!;
+    return (
+      formatMetadataFieldValue(field.key, value, viewingYear, field.values) ?? value
+    )
+      .trim()
+      .toLowerCase();
+  };
+  return {
+    sameValue: (fieldId: string, a: string, b: string) =>
+      a === b || shown(fieldId, a) === shown(fieldId, b),
+    ...(keep.kind === "staff"
+      ? {
+          identityLocked: true,
+          lockedFieldIds: fields
+            .filter((f) => f.key === CAMPUS_FIELD_KEY || f.key === ROLE_FIELD_KEY)
+            .map((f) => f._id as string),
+        }
+      : {}),
+  };
+};
 
 /** The kept person's attendance row at `eventId`, if they already have one. */
 const keptRecordAt = async (
@@ -834,7 +851,7 @@ export const mergePreview = query({
       kept,
       removed,
       fields,
-      lockedFor(keep, fields)
+      mergeOptionsFor(keep, fields)
     );
     const records = await ctx.db
       .query("attendance")
@@ -885,7 +902,7 @@ export const merge = mutation({
       removeSide(remove),
       fields,
       resolutions,
-      lockedFor(keep, fields)
+      mergeOptionsFor(keep, fields)
     );
 
     let keptMemberId: Id<"attendanceMembers"> | undefined;
@@ -946,6 +963,7 @@ export const merge = mutation({
     await ctx.db.delete(remove._id);
 
     const keptName = keep.kind === "member" ? merged.name : kept.name;
+    const taken = fieldsTakenFromRemoved(kept, merged, fields);
     await logAttendanceAction(ctx, {
       actorEmail,
       entityType: "member",
@@ -958,6 +976,7 @@ export const merge = mutation({
           (combined
             ? `; combined ${combined} event${combined === 1 ? "" : "s"} both were signed in to`
             : ""),
+        ...(taken.length ? [`Took from "${remove.name}": ${taken.join(", ")}`] : []),
         `Removed member "${remove.name}" (${remove._id})`,
       ].join("\n"),
     });

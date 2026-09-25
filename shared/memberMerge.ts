@@ -29,6 +29,19 @@ export type MergeConflict = {
 /** Which side's value wins, keyed by `MergeConflict.field`. Missing = keep. */
 export type MergeResolutions = Record<string, "keep" | "remove">;
 
+export type MergeOptions = {
+  /** A staff person's name and email come from their profile. */
+  identityLocked?: boolean;
+  /** Metadata fields that can't change (a staff person's campus and role). */
+  lockedFieldIds?: readonly string[];
+  /** Whether two stored values mean the same thing — e.g. the Year field,
+   *  where a legacy option id and a commencement year can both read "Year 2".
+   *  Defaults to exact equality. */
+  sameValue?: (fieldId: string, a: string, b: string) => boolean;
+};
+
+const exactly = (_fieldId: string, a: string, b: string): boolean => a === b;
+
 const sameName = (a: string, b: string): boolean =>
   a.trim().replace(/\s+/g, " ").toLowerCase() ===
   b.trim().replace(/\s+/g, " ").toLowerCase();
@@ -45,10 +58,11 @@ export function detectMergeConflicts(
   keep: MergeSide,
   remove: MergeSide,
   fields: readonly MergeFieldLike[],
-  opts: { identityLocked?: boolean; lockedFieldIds?: readonly string[] } = {}
+  opts: MergeOptions = {}
 ): MergeConflict[] {
   const conflicts: MergeConflict[] = [];
   const locked = new Set(opts.lockedFieldIds ?? []);
+  const same = opts.sameValue ?? exactly;
 
   if (!opts.identityLocked) {
     if (keep.name.trim() && remove.name.trim() && !sameName(keep.name, remove.name)) {
@@ -73,7 +87,7 @@ export function detectMergeConflicts(
     if (locked.has(field._id)) continue;
     const keepValue = keep.metadata[field._id]?.trim();
     const removeValue = remove.metadata[field._id]?.trim();
-    if (keepValue && removeValue && keepValue !== removeValue) {
+    if (keepValue && removeValue && !same(field._id, keepValue, removeValue)) {
       conflicts.push({
         field: field._id,
         label: field.key,
@@ -95,9 +109,10 @@ export function buildMergedFields(
   remove: MergeSide,
   fields: readonly MergeFieldLike[],
   resolutions: MergeResolutions,
-  opts: { identityLocked?: boolean; lockedFieldIds?: readonly string[] } = {}
+  opts: MergeOptions = {}
 ): MergeSide {
   const locked = new Set(opts.lockedFieldIds ?? []);
+  const same = opts.sameValue ?? exactly;
   const pick = (field: string, keepValue: string, removeValue: string) =>
     resolutions[field] === "remove" ? removeValue : keepValue;
 
@@ -120,9 +135,11 @@ export function buildMergedFields(
     const keepValue = keep.metadata[field._id]?.trim();
     const removeValue = remove.metadata[field._id]?.trim();
     if (!removeValue) continue;
-    metadata[field._id] = keepValue
-      ? pick(field._id, keepValue, removeValue)
-      : removeValue;
+    if (!keepValue) {
+      metadata[field._id] = removeValue;
+    } else if (!same(field._id, keepValue, removeValue)) {
+      metadata[field._id] = pick(field._id, keepValue, removeValue);
+    }
   }
 
   return {
@@ -130,6 +147,24 @@ export function buildMergedFields(
     email: email ? email.toLowerCase() : undefined,
     metadata,
   };
+}
+
+/** Labels of the details the kept person takes from the one removed, for the
+ *  audit log: conflicts resolved the other way, and blanks that were filled. */
+export function fieldsTakenFromRemoved(
+  keep: MergeSide,
+  merged: MergeSide,
+  fields: readonly MergeFieldLike[]
+): string[] {
+  const taken: string[] = [];
+  if (merged.name !== keep.name.trim()) taken.push("Name");
+  if ((merged.email ?? "") !== (keep.email?.trim().toLowerCase() ?? "")) taken.push("Email");
+  for (const field of fields) {
+    if ((merged.metadata[field._id] ?? "") !== (keep.metadata[field._id] ?? "")) {
+      taken.push(field.key);
+    }
+  }
+  return taken;
 }
 
 /** Combines two attendance notes without repeating one already contained. */

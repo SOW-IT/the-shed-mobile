@@ -15,7 +15,7 @@ Flows tagged `manual` are excluded from automation by design — see
 ├── 02-auth/               # sign-out, deep-link-while-out, (manual) grace window
 ├── 03-requests/           # reimbursement lifecycle
 ├── 04-bank/               # bank accounts
-├── 05-attendance/         # events, roll-call, members, tags, metadata, audit, export
+├── 05-attendance/         # events, roll-call, members, merge, tags, metadata, audit, export
 ├── 06-insights/           # General + Attendance dashboards
 ├── 07-org-chart/          # public org chart
 ├── 08-profile/            # own profile / person
