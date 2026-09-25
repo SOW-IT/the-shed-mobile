@@ -16,6 +16,17 @@ All notable changes to **The SHED** mobile app. This project follows
   Signed in with no assignment now shows its count like the other lists.
 - **"Move to unassigned" on the Leaving list is now "Retain".** It still keeps
   the person on for the year and moves them back to the unassigned lists.
+- **Nine Expo packages are back in step with the Expo release.** Expo shipped
+  new SDK 57 patch releases, so the dependency check started failing on every
+  pull request. `expo`, `expo-router`, `expo-notifications`, `expo-image-picker`,
+  `expo-sharing`, `expo-auth-session`, `expo-linking` and `@expo/ui` are now on
+  the expected patch versions.
+
+### Fixed
+- **Two reminder tests no longer fail in the last week of September.** They
+  moved the clock eight days past today, which near 1 October lands in the next
+  staff year, where nobody is assigned yet. They now run at a fixed point inside
+  the current staff year, so they pass on any date.
 
 ## [1.12.0] — 2026-09-15
 
