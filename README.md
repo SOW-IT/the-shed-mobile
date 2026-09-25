@@ -72,9 +72,14 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
 - **Tags & metadata**: per-year event tags (including the **"Weekly Meeting"**
   tag that drives the weekly-meeting analytics) and configurable member metadata
   fields (Year, Gender, Campus, Role, …).
+- **Merge duplicates**: fold a duplicate member into another member or into a
+  staff person, moving every attendance record across (shared events collapse
+  to one record). Only members can be merged away — staff are always kept and
+  two staff can never merge. Deleting a member instead lists every event whose
+  attendance goes with them and points to merging.
 - **Audit log**: an immutable trail of every attendance-area action (event /
-  member / tag / metadata edits and each sign-in/edit/sign-out), read by the
-  Attendance → Audit tab.
+  member / tag / metadata edits, merges and deletes, and each
+  sign-in/edit/sign-out), read by the Attendance → Audit tab.
 - **CSV import/export**: bulk-import historical roll-call data and export
   attendance.
 - **Insights** (a dedicated bottom tab): a leader-facing metrics dashboard of

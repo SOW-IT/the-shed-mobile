@@ -29,6 +29,14 @@ _Avoid_: member campus, university
 **Collaborative event**:
 An event tagged with more than one Sub-group. It appears under each of them.
 
+**Merge**:
+Folding a duplicate Member into the one who is kept: every attendance record
+moves across, and an event both were signed in to becomes one record (earlier
+sign-in time, both notes). Only a Member without a staff profile can be merged
+away; a staff person is always the one kept and keeps their Org-owned name,
+email, campus and role. Two staff can never be merged.
+_Avoid_: combine, dedupe, delete (deleting throws the attendance away)
+
 **Roll-call**:
 Signing Members in and out of an event. Sign-ins made during an event cannot be
 reversed; post-event sign-ins can.

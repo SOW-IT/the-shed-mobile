@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
-import { Pressable, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Doc, Id } from "../../../convex/_generated/dataModel";
 import {
@@ -14,8 +14,10 @@ import {
   yearOptionIdForStoredValue,
 } from "../../../shared/attendanceMemberMeta";
 import { capitalizeMemberName } from "../../../shared/rollcall";
+import { MergeMemberSheet } from "@/components/attendance/MergeMemberSheet";
 import {
   Btn,
+  dismissKeyboard,
   errorMessage,
   Field,
   LoadingState,
@@ -23,7 +25,19 @@ import {
   Sheet,
   Txt,
 } from "@/components/ui";
-import { spacing, typography, useAppTheme } from "@/theme";
+import { durations, radius, spacing, typography, useAppTheme } from "@/theme";
+
+const sameTypedName = (typed: string, name: string) =>
+  Boolean(name.trim()) &&
+  typed.trim().replace(/\s+/g, " ").toLowerCase() ===
+    name.trim().replace(/\s+/g, " ").toLowerCase();
+
+const eventDate = (ms: number) =>
+  new Date(ms).toLocaleDateString("en-AU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 
 export function EditMemberSheet({
   visible,
@@ -70,6 +84,12 @@ export function EditMemberSheet({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteText, setDeleteText] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeFromDelete, setMergeFromDelete] = useState(false);
+  const deleteImpact = useQuery(
+    api.attendanceMembers.deletePreview,
+    visible && deleteOpen && memberId ? { memberId } : "skip"
+  );
 
   const duplicates = useQuery(
     api.attendanceMembers.byName,
@@ -101,6 +121,7 @@ export function EditMemberSheet({
     setDeleteOpen(false);
     setDeleteText("");
     setConfirmOpen(false);
+    setMergeOpen(false);
   }, [visible, memberId, row, eventAttendance?.attendanceId, eventAttendance?.notes, prefillName]);
 
   const handleSave = () => {
@@ -148,6 +169,7 @@ export function EditMemberSheet({
     setSubmitting(true);
     try {
       await remove({ memberId });
+      await dismissKeyboard();
       onClose();
     } catch (e) {
       setError(errorMessage(e));
@@ -164,26 +186,40 @@ export function EditMemberSheet({
       onClose={onClose}
       title={memberId ? "Edit member" : "New member"}
       headerRight={
-        memberId && !isStaffOverlay && !loading ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Delete member"
-            hitSlop={8}
-            onPress={() => setDeleteOpen(true)}
-            style={({ pressed }) => [
-              {
-                width: 34,
-                height: 34,
-                borderRadius: 17,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: t.dangerSoft,
-              },
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Ionicons name="trash-outline" size={18} color={t.danger} />
-          </Pressable>
+        memberId && !loading ? (
+          <View style={styles.headerActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Merge duplicate"
+              hitSlop={8}
+              onPress={() => {
+                setMergeFromDelete(false);
+                setMergeOpen(true);
+              }}
+              style={({ pressed }) => [
+                styles.headerButton,
+                { backgroundColor: t.ghost },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Ionicons name="git-merge-outline" size={18} color={t.ghostText} />
+            </Pressable>
+            {!isStaffOverlay ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Delete member"
+                hitSlop={8}
+                onPress={() => setDeleteOpen(true)}
+                style={({ pressed }) => [
+                  styles.headerButton,
+                  { backgroundColor: t.dangerSoft },
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Ionicons name="trash-outline" size={18} color={t.danger} />
+              </Pressable>
+            ) : null}
+          </View>
         ) : null
       }
       footer={
@@ -308,31 +344,151 @@ export function EditMemberSheet({
             onClose={() => setDeleteOpen(false)}
             title="Delete member"
             footer={
-              <Btn
-                title="Delete permanently"
-                variant="danger"
-                loading={submitting}
-                disabled={deleteText.trim() !== name.trim()}
-                onPress={() => void onDelete()}
-              />
+              <View style={{ gap: spacing.sm }}>
+                <Btn
+                  title={
+                    deleteImpact && deleteImpact.total > 0
+                      ? `Delete member and ${deleteImpact.total} attendance record${
+                          deleteImpact.total === 1 ? "" : "s"
+                        }`
+                      : "Delete permanently"
+                  }
+                  variant="danger"
+                  loading={submitting}
+                  disabled={
+                    deleteImpact === undefined ||
+                    !sameTypedName(deleteText, name)
+                  }
+                  onPress={() => void onDelete()}
+                />
+                <Btn
+                  title="It's a duplicate — merge instead"
+                  icon="git-merge-outline"
+                  variant="tonal"
+                  onPress={() => {
+                    setDeleteOpen(false);
+                    setMergeFromDelete(true);
+                    // iOS can't present a modal while another is still
+                    // dismissing, so wait for the delete sheet to fade out.
+                    setTimeout(() => setMergeOpen(true), durations.overlayOut + 80);
+                  }}
+                />
+              </View>
             }
           >
-            <Txt style={[typography.body, { color: t.text }]}>
-              This deletes the member and their attendance at every event they
-              are signed into.{" "}
-              <Txt style={{ fontWeight: "800" }}>
-                This is permanent and cannot be undone.
-              </Txt>{" "}
-              The audit log keeps a record of what was removed. Type{" "}
-              <Txt style={{ fontWeight: "800" }}>{name.trim()}</Txt> to confirm.
-            </Txt>
-            <Field
-              label="Member name"
-              value={deleteText}
-              onChangeText={setDeleteText}
-              placeholder={name}
-            />
+            {deleteImpact === undefined ? (
+              <LoadingState />
+            ) : (
+              <>
+                <View
+                  style={[
+                    styles.deleteWarning,
+                    { backgroundColor: t.dangerSoft, borderColor: t.danger },
+                  ]}
+                >
+                  <View style={styles.deleteWarningTitle}>
+                    <Ionicons name="warning" size={20} color={t.danger} />
+                    <Txt
+                      style={[typography.headline, { color: t.danger, flex: 1 }]}
+                    >
+                      {deleteImpact && deleteImpact.total > 0
+                        ? `${name.trim()} will be removed from ${
+                            deleteImpact.total === 1
+                              ? "1 event"
+                              : deleteImpact.total === 2
+                                ? "both events"
+                                : `all ${deleteImpact.total} events`
+                          } they attended`
+                        : `${name.trim()} isn't signed in to any events`}
+                    </Txt>
+                  </View>
+                  <Txt style={[typography.body, { color: t.text }]}>
+                    {deleteImpact && deleteImpact.total > 0
+                      ? "Deleting a member also deletes every attendance record they have, at every event, in every year. Their attendance disappears from rolls, exports and Insights. "
+                      : "The member will be deleted. "}
+                    <Txt style={{ fontWeight: "800" }}>
+                      This is permanent and cannot be undone.
+                    </Txt>
+                  </Txt>
+                </View>
+                {deleteImpact && deleteImpact.total > 0 ? (
+                  <>
+                    <Txt
+                      style={[
+                        typography.label,
+                        { color: t.muted, marginTop: spacing.sm },
+                      ]}
+                    >
+                      ATTENDANCE THAT WILL BE DELETED
+                    </Txt>
+                    <View
+                      style={[
+                        styles.deleteList,
+                        { borderColor: t.separator, backgroundColor: t.card },
+                      ]}
+                    >
+                      {deleteImpact.events.map((e) => (
+                        <View key={e.attendanceId} style={styles.deleteListRow}>
+                          <Ionicons
+                            name="close-circle"
+                            size={14}
+                            color={t.danger}
+                          />
+                          <Txt
+                            style={[typography.body, { color: t.text, flex: 1 }]}
+                            numberOfLines={1}
+                          >
+                            {e.name}
+                          </Txt>
+                          <Txt style={[typography.caption, { color: t.muted }]}>
+                            {eventDate(e.dateStart)}
+                          </Txt>
+                        </View>
+                      ))}
+                      {deleteImpact.total > deleteImpact.events.length ? (
+                        <Txt style={[typography.caption, { color: t.muted }]}>
+                          and {deleteImpact.total - deleteImpact.events.length}{" "}
+                          more
+                        </Txt>
+                      ) : null}
+                    </View>
+                  </>
+                ) : null}
+                <Txt style={[typography.body, { color: t.text, marginTop: spacing.sm }]}>
+                  {eventAttendance
+                    ? "Only want them off this event? Close this and remove their sign-in instead. "
+                    : ""}
+                  If this is a duplicate of someone else, merge them instead so
+                  their attendance is kept.
+                </Txt>
+                <Txt style={[typography.body, { color: t.text, marginTop: spacing.sm }]}>
+                  To delete anyway, type{" "}
+                  <Txt style={{ fontWeight: "800" }}>{name.trim()}</Txt> to
+                  confirm.
+                </Txt>
+                <Field
+                  label="Member name"
+                  value={deleteText}
+                  onChangeText={setDeleteText}
+                  placeholder={name}
+                />
+              </>
+            )}
           </Sheet>
+          {memberId ? (
+            <MergeMemberSheet
+              visible={mergeOpen}
+              onClose={() => setMergeOpen(false)}
+              onMerged={onClose}
+              memberId={memberId}
+              memberEmail={row?.email}
+              isStaff={isStaffOverlay}
+              year={year}
+              staffYear={staffYear}
+              metadataFields={metadataFields}
+              removeViewedByDefault={mergeFromDelete}
+            />
+          ) : null}
           <Sheet
             visible={confirmOpen}
             onClose={() => setConfirmOpen(false)}
@@ -394,3 +550,32 @@ export function EditMemberSheet({
     </Sheet>
   );
 }
+
+const styles = StyleSheet.create({
+  headerActions: { flexDirection: "row", gap: spacing.sm },
+  headerButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  deleteWarning: {
+    borderWidth: 1.5,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  deleteWarningTitle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  deleteList: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: 6,
+  },
+  deleteListRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+});

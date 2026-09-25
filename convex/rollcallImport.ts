@@ -31,6 +31,7 @@ import { MutationCtx, mutation, query, QueryCtx } from "./_generated/server";
 
 type Ctx = QueryCtx | MutationCtx;
 import { findMemberByEmail, getProfile, requireAdmin } from "./model";
+import { mergeNotes } from "../shared/memberMerge";
 
 const eventsInStaffYear = (ctx: Ctx, year: number) =>
   ctx.db
@@ -97,19 +98,6 @@ const normalizedEmail = (email: string | undefined): string | undefined => {
 };
 
 const canonicalStaffEmailForLegacyMember = canonicalStaffEmailFromLegacy;
-
-const mergeNotes = (
-  existing: string | undefined,
-  incoming: string | undefined
-): string | undefined => {
-  const existingTrimmed = existing?.trim();
-  const incomingTrimmed = incoming?.trim();
-  if (!existingTrimmed) return incomingTrimmed || undefined;
-  if (!incomingTrimmed || existingTrimmed.includes(incomingTrimmed)) {
-    return existingTrimmed;
-  }
-  return `${existingTrimmed}\n${incomingTrimmed}`;
-};
 
 async function metadataForMember(
   ctx: MutationCtx,

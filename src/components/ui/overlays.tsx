@@ -19,6 +19,25 @@ import { useRegisterModal } from "./modalPresence";
 import { FastModal, Muted, Row, Txt } from "./primitives";
 import { styles } from "./styles";
 
+/**
+ * Dismiss the keyboard and resolve once it's gone. Closing a sheet while its
+ * keyboard is still up leaves the screen's footer button lifted, because the
+ * hide event lands while the sheet still counts as open.
+ */
+export const dismissKeyboard = (): Promise<void> => {
+  if (!Keyboard.isVisible()) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => {
+      sub.remove();
+      clearTimeout(timer);
+      resolve();
+    };
+    const sub = Keyboard.addListener("keyboardDidHide", done);
+    const timer = setTimeout(done, 500);
+    Keyboard.dismiss();
+  });
+};
+
 export const ConfirmDialog = ({
   visible,
   title,
