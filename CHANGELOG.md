@@ -25,6 +25,14 @@ All notable changes to **The SHED** mobile app. This project follows
   confirms the merge, and it is recorded in the attendance audit log.
 
 ### Changed
+- **Typing a staff email onto a member now points to Merge instead.** Before,
+  saving a staff email on a member relabelled them as that staff person but
+  left their attendance on the old record, so Insights counted the person
+  twice, and if the staff person already had a record the new one vanished
+  from the list with its attendance still attached. The Email field now shows
+  who the email belongs to and a "Merge into …" button, and saving is blocked
+  until you merge; adding a new member with a staff email who is already listed
+  is blocked too.
 - **Deleting a member now spells out exactly what is lost.** The delete screen
   says how many events the member will be removed from and lists each one with
   its date, warns that this removes them from rolls, exports and Insights and
@@ -36,6 +44,13 @@ All notable changes to **The SHED** mobile app. This project follows
   extra spaces.**
 - **The audit log records which member was deleted**, not just their name, so a
   deleted member can be traced even when two people share a name.
+
+### Fixed
+- **A one-off repair for staff whose attendance was split.** Records made before
+  this release by typing a staff email onto a member can be repaired with an
+  admin command (dry run first, one person or all), which moves those sign-ins
+  onto the staff person and folds hidden duplicate records together, following
+  the same rules as a merge.
 
 ## [1.12.1] — 2026-09-25
 

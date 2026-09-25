@@ -60,6 +60,7 @@ export function MergeMemberSheet({
   staffYear,
   metadataFields,
   removeViewedByDefault = false,
+  initialStaff,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -73,6 +74,8 @@ export function MergeMemberSheet({
   metadataFields: Doc<"attendanceMetadata">[];
   /** Opened from "delete": the member being viewed is the one to get rid of. */
   removeViewedByDefault?: boolean;
+  /** Opened from the Email field: go straight to merging into this staff person. */
+  initialStaff?: { email: string; name: string } | null;
 }) {
   const t = useAppTheme();
   const merge = useMutation(api.attendanceMembers.merge);
@@ -100,6 +103,17 @@ export function MergeMemberSheet({
     setConfirmText("");
     setError(null);
   }, [visible, removeViewedByDefault]);
+
+  useEffect(() => {
+    if (!visible || !initialStaff) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- preselect when opened for a staff email
+    setPicked({
+      key: `staff:${initialStaff.email}`,
+      name: initialStaff.name,
+      isStaff: true,
+      email: initialStaff.email,
+    });
+  }, [visible, initialStaff]);
 
   useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(search.trim()), 300);

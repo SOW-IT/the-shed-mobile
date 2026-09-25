@@ -406,3 +406,61 @@ describe("deletePreview", () => {
     expect(log?.memberId).toBe(m);
   });
 });
+
+describe("a staff email on a member points to Merge", () => {
+  test("update refuses to relabel a plain member as staff", async () => {
+    const s = await setup();
+    const m = await s.member("Leader Nickname");
+    await expect(
+      s.leader.mutation(api.attendanceMembers.update, {
+        memberId: m,
+        name: "Leader Nickname",
+        email: LEADER.toUpperCase(),
+      })
+    ).rejects.toThrow(/belongs to staff .*Use Merge/);
+    // Other emails, and staff rows keeping their own email, still save.
+    await s.leader.mutation(api.attendanceMembers.update, {
+      memberId: m,
+      name: "Leader Nickname",
+      email: "personal@gmail.com",
+    });
+    const shadow = await s.leader.mutation(api.attendanceMembers.ensureForStaff, {
+      staffEmail: LEADER,
+    });
+    await s.leader.mutation(api.attendanceMembers.update, {
+      memberId: shadow,
+      name: "ignored",
+      email: LEADER,
+    });
+  });
+
+  test("create refuses a second row for a staff person who already has one", async () => {
+    const s = await setup();
+    await s.leader.mutation(api.attendanceMembers.ensureForStaff, { staffEmail: LEADER });
+    await expect(
+      s.leader.mutation(api.attendanceMembers.create, { name: "Leader", email: LEADER })
+    ).rejects.toThrow(/is staff and already in the members list/);
+    // A non-staff email that happens to be on another member is fine.
+    await s.member("Someone", {}, "shared@gmail.com");
+    await s.leader.mutation(api.attendanceMembers.create, {
+      name: "Someone Else",
+      email: "shared@gmail.com",
+    });
+  });
+
+  test("staffForEmail names the staff person an email belongs to", async () => {
+    const s = await setup();
+    expect(
+      await s.leader.query(api.attendanceMembers.staffForEmail, { email: LEADER })
+    ).toMatchObject({ email: LEADER });
+    expect(
+      await s.leader.query(api.attendanceMembers.staffForEmail, { email: "x@gmail.com" })
+    ).toBeNull();
+    expect(
+      await s.leader.query(api.attendanceMembers.staffForEmail, { email: "not an email" })
+    ).toBeNull();
+    expect(
+      await s.t.query(api.attendanceMembers.staffForEmail, { email: LEADER })
+    ).toBeNull();
+  });
+});

@@ -75,8 +75,10 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
 - **Merge duplicates**: fold a duplicate member into another member or into a
   staff person, moving every attendance record across (shared events collapse
   to one record). Only members can be merged away — staff are always kept and
-  two staff can never merge. Deleting a member instead lists every event whose
-  attendance goes with them and points to merging.
+  two staff can never merge. Typing a staff email onto a member points to
+  merging too, instead of relabelling the record and splitting their history.
+  Deleting a member instead lists every event whose attendance goes with them
+  and points to merging.
 - **Audit log**: an immutable trail of every attendance-area action (event /
   member / tag / metadata edits, merges and deletes, and each
   sign-in/edit/sign-out), read by the Attendance → Audit tab.

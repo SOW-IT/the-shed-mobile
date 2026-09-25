@@ -26,6 +26,7 @@ import {
   Toast,
   type ToastState,
   Txt,
+  WarningBanner,
 } from "@/components/ui";
 import { durations, radius, spacing, typography, useAppTheme } from "@/theme";
 
@@ -88,6 +89,9 @@ export function EditMemberSheet({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeFromDelete, setMergeFromDelete] = useState(false);
+  const [mergeStaff, setMergeStaff] = useState<{ email: string; name: string } | null>(
+    null
+  );
   // Lives outside the sheet so it can confirm a merge or delete after closing.
   const [toast, setToast] = useState<ToastState>(null);
   const deleteImpact = useQuery(
@@ -100,6 +104,20 @@ export function EditMemberSheet({
     visible && !memberId && name.trim() ? { name: name.trim() } : "skip"
   );
   const hasDuplicate = !memberId && (duplicates?.length ?? 0) > 0;
+
+  // A plain member given a staff email would only be relabelled, leaving their
+  // attendance split from the staff person's. Point to Merge instead.
+  const typedEmail = email.trim().toLowerCase();
+  const emailChanged =
+    Boolean(memberId) &&
+    !isStaffOverlay &&
+    typedEmail.includes("@") &&
+    typedEmail !== (row?.email ?? "").toLowerCase();
+  const staffForEmail = useQuery(
+    api.attendanceMembers.staffForEmail,
+    visible && emailChanged ? { email: typedEmail, staffYear } : "skip"
+  );
+  const staffEmailOwner = emailChanged ? (staffForEmail ?? null) : null;
 
   const metadataSummary = (meta: Record<string, string>) =>
     metadataFields
@@ -199,6 +217,7 @@ export function EditMemberSheet({
               hitSlop={8}
               onPress={() => {
                 setMergeFromDelete(false);
+                setMergeStaff(null);
                 setMergeOpen(true);
               }}
               style={({ pressed }) => [
@@ -234,7 +253,7 @@ export function EditMemberSheet({
               title="Save"
               onPress={handleSave}
               loading={submitting}
-              disabled={!isStaffOverlay && !name.trim()}
+              disabled={(!isStaffOverlay && !name.trim()) || Boolean(staffEmailOwner)}
             />
           </View>
         )
@@ -270,6 +289,23 @@ export function EditMemberSheet({
             keyboardType="email-address"
             disabled={isStaffOverlay}
           />
+          {staffEmailOwner ? (
+            <View style={{ gap: spacing.sm }}>
+              <WarningBanner
+                message={`This email belongs to staff "${staffEmailOwner.name}". Merge this member into them instead, so their attendance moves across.`}
+              />
+              <Btn
+                title={`Merge into ${staffEmailOwner.name}`}
+                icon="git-merge-outline"
+                variant="tonal"
+                onPress={() => {
+                  setMergeFromDelete(false);
+                  setMergeStaff(staffEmailOwner);
+                  setMergeOpen(true);
+                }}
+              />
+            </View>
+          ) : null}
           {metadataFields.map((field) => {
             const lockedForStaff =
               isStaffOverlay &&
@@ -373,6 +409,7 @@ export function EditMemberSheet({
                   onPress={() => {
                     setDeleteOpen(false);
                     setMergeFromDelete(true);
+                    setMergeStaff(null);
                     // iOS can't present a modal while another is still
                     // dismissing, so wait for the delete sheet to fade out.
                     setTimeout(() => setMergeOpen(true), durations.overlayOut + 80);
@@ -495,6 +532,7 @@ export function EditMemberSheet({
               staffYear={staffYear}
               metadataFields={metadataFields}
               removeViewedByDefault={mergeFromDelete}
+              initialStaff={mergeStaff}
             />
           ) : null}
           <Sheet

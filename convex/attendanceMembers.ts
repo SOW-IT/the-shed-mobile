@@ -397,6 +397,35 @@ export const ensureForStaff = mutation({
   },
 });
 
+/** Typing a staff email onto a plain member used to relabel the row as that
+ *  staff person without moving its attendance, splitting their history (and
+ *  leaving a hidden duplicate if they already had a row). Merge does it
+ *  properly, so the Email field points there instead. */
+const staffEmailMessage = (profile: Doc<"staffProfiles">) =>
+  `${profile.email} belongs to staff "${personDisplayName(profile.name, profile.email)}". ` +
+  "Use Merge to combine this member with them so their attendance moves across.";
+
+/** The staff person an email belongs to, if any — lets the edit sheet offer
+ *  Merge before the save is refused. */
+export const staffForEmail = query({
+  args: { email: v.string(), staffYear: v.optional(v.number()) },
+  handler: async (ctx, { email, staffYear }) => {
+    if (!(await optionalProfile(ctx))) return null;
+    if (!canonicalEmailKey(email)) return null;
+    const profile = await staffProfileForEmail(
+      ctx,
+      email,
+      staffYear ?? staffYearForDate(new Date())
+    );
+    return profile
+      ? {
+          email: profile.email.toLowerCase(),
+          name: personDisplayName(profile.name, profile.email),
+        }
+      : null;
+  },
+});
+
 export const create = mutation({
   args: {
     name: v.string(),
@@ -407,6 +436,14 @@ export const create = mutation({
     const { email: actorEmail } = await requireProfile(ctx);
     const trimmed = capitalizeMemberName(name.trim());
     if (!trimmed) throw new ConvexError("Name is required.");
+    if (canonicalEmailKey(email) && (await findMemberByEmail(ctx, email))) {
+      const staff = await staffProfileForEmail(ctx, email!, staffYearForDate(new Date()));
+      if (staff) {
+        throw new ConvexError(
+          `${personDisplayName(staff.name, staff.email)} is staff and already in the members list.`
+        );
+      }
+    }
     const memberId = await ctx.db.insert("attendanceMembers", {
       name: trimmed,
       email: email?.trim().toLowerCase() || undefined,
@@ -436,6 +473,15 @@ export const update = mutation({
     const row = await ctx.db.get(memberId);
     if (!row) throw new ConvexError("Member not found.");
     const profileYear = staffYear ?? staffYearForDate(new Date());
+    const newKey = canonicalEmailKey(email);
+    if (
+      newKey &&
+      newKey !== canonicalEmailKey(row.email) &&
+      !(await staffProfileForRow(ctx, row, profileYear))
+    ) {
+      const staff = await staffProfileForEmail(ctx, email!, profileYear);
+      if (staff) throw new ConvexError(staffEmailMessage(staff));
+    }
     const profile = await staffOverlayProfile(ctx, row, profileYear, email);
     if (profile) {
       const fields = await allMetadataFields(ctx);
