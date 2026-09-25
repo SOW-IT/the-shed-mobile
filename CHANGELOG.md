@@ -6,6 +6,35 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.13.0] — 2026-09-25
+
+### Added
+- **Duplicate members can now be merged instead of deleted.** Open a member and
+  tap the merge button, or choose "It's a duplicate — merge instead" on the
+  delete screen, then search for the other record. The review screen shows who
+  is kept and who is removed, how many attendance records move across, and lets
+  you pick which name, email or other detail to keep where the two differ.
+  Nothing is lost: every attendance record moves to the person kept, and where
+  both were signed in to the same event they become one record with the earlier
+  sign-in time and both sets of notes. A member can be merged into another
+  member or into a staff person; a staff person is always the one kept (their
+  name, email, campus and role stay as their profile says), and two staff can
+  never be merged. You type the removed person's name to confirm, and the merge
+  is recorded in the attendance audit log.
+
+### Changed
+- **Deleting a member now spells out exactly what is lost.** The delete screen
+  says how many events the member will be removed from and lists each one with
+  its date, warns that this removes them from rolls, exports and Insights and
+  can't be undone, and points to merging when the member is a duplicate. The
+  button reads "Delete member and N attendance records". Staff deleted
+  duplicates in August and September this way and took real attendance with
+  them without realising.
+- **Typing a name to confirm a delete or merge ignores capital letters and
+  extra spaces.**
+- **The audit log records which member was deleted**, not just their name, so a
+  deleted member can be traced even when two people share a name.
+
 ## [1.12.1] — 2026-09-25
 
 ### Changed
