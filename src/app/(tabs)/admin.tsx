@@ -57,8 +57,16 @@ type DeleteConfirm = { name: string; message: string; onConfirm: () => void };
 
 const ADMIN_CARD_WIDTH = 360;
 
-const CardGrid = ({ children }: { children: ReactNode }) => (
-  <Grid fixedWidth={ADMIN_CARD_WIDTH} align="start">
+const UNASSIGNED_VISIBLE_USERS = 3;
+
+const CardGrid = ({
+  children,
+  maxVisible,
+}: {
+  children: ReactNode;
+  maxVisible?: number;
+}) => (
+  <Grid fixedWidth={ADMIN_CARD_WIDTH} align="start" maxVisible={maxVisible}>
     {children}
   </Grid>
 );
@@ -621,7 +629,7 @@ export default function AdminScreen() {
           {user.name ? <Muted>{user.email}</Muted> : null}
         </View>
         <Btn
-          title="Move to unassigned"
+          title="Retain"
           variant="ghost"
           onPress={() =>
             void run(() =>
@@ -791,7 +799,7 @@ export default function AdminScreen() {
               <SectionTitle>
                 Previously staff · {selectedYear} ({returningStaff.length})
               </SectionTitle>
-              <CardGrid>
+              <CardGrid maxVisible={UNASSIGNED_VISIBLE_USERS}>
                 {returningStaff.map((user) => renderUnassignedCard(user))}
               </CardGrid>
             </>
@@ -799,8 +807,10 @@ export default function AdminScreen() {
 
           {editable && signedInNeverStaff.length > 0 && (
             <>
-              <SectionTitle>Signed in, no assignment · {selectedYear}</SectionTitle>
-              <CardGrid>
+              <SectionTitle>
+                Signed in, no assignment · {selectedYear} ({signedInNeverStaff.length})
+              </SectionTitle>
+              <CardGrid maxVisible={UNASSIGNED_VISIBLE_USERS}>
                 {signedInNeverStaff.map((user) => renderUnassignedCard(user))}
               </CardGrid>
             </>
@@ -811,7 +821,7 @@ export default function AdminScreen() {
               <SectionTitle>
                 In directory, no assignment · {selectedYear} ({directoryNeverStaff.length})
               </SectionTitle>
-              <CardGrid>
+              <CardGrid maxVisible={UNASSIGNED_VISIBLE_USERS}>
                 {directoryNeverStaff.map((user) => renderUnassignedCard(user))}
               </CardGrid>
             </>
@@ -822,7 +832,7 @@ export default function AdminScreen() {
               <SectionTitle>
                 Leaving · {selectedYear} ({(leavers ?? []).length})
               </SectionTitle>
-              <CardGrid>
+              <CardGrid maxVisible={UNASSIGNED_VISIBLE_USERS}>
                 {(leavers ?? []).map((user) => renderLeaverCard(user))}
               </CardGrid>
             </>

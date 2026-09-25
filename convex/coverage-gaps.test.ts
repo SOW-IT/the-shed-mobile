@@ -270,7 +270,7 @@ describe("reminders: receipt and payment stages", () => {
         approvedByFinanceHead: "PENDING",
       })
     );
-    vi.useRealTimers();
+    vi.setSystemTime(staffYearStartMs(YEAR) + 30 * 24 * 60 * 60 * 1000);
     await runSetup(t);
 
     stale();
@@ -483,7 +483,7 @@ describe("reminders: director and finance-head stages", () => {
         paid: false,
       })
     );
-    vi.useRealTimers();
+    vi.setSystemTime(staffYearStartMs(YEAR) + 30 * 24 * 60 * 60 * 1000);
     await runSetup(t);
     stale();
     await t.mutation(internal.reminders.remindStale, {});
