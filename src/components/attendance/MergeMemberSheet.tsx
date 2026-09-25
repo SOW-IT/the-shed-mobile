@@ -16,6 +16,7 @@ import {
   OptionRow,
   Sheet,
   Txt,
+  WarningBanner,
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
@@ -28,6 +29,16 @@ type Picked = {
 };
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+type History = { events: number; lastAttended: number | null };
+
+const historyLine = (h: History) =>
+  h.events === 0
+    ? "Not signed in to any events"
+    : `${plural(h.events, "event")} · last ${new Date(h.lastAttended!).toLocaleDateString(
+        "en-AU",
+        { day: "numeric", month: "short", year: "numeric" }
+      )}`;
 
 const sameTypedName = (typed: string, name: string) =>
   typed.trim().replace(/\s+/g, " ").toLowerCase() ===
@@ -52,7 +63,8 @@ export function MergeMemberSheet({
 }: {
   visible: boolean;
   onClose: () => void;
-  onMerged: () => void;
+  /** Called with a one-line summary once the merge has succeeded. */
+  onMerged: (summary: string) => void;
   memberId: Id<"attendanceMembers">;
   memberEmail?: string;
   isStaff: boolean;
@@ -72,6 +84,9 @@ export function MergeMemberSheet({
   const [confirmText, setConfirmText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Once merged, the removed person is gone and a live preview would flash
+  // "no longer exists" while the sheet closes.
+  const [merged, setMerged] = useState(false);
 
   useEffect(() => {
     if (visible) return;
@@ -79,6 +94,7 @@ export function MergeMemberSheet({
     setSearch("");
     setDebouncedSearch("");
     setPicked(null);
+    setMerged(false);
     setRemoveViewed(removeViewedByDefault);
     setResolutions({});
     setConfirmText("");
@@ -123,7 +139,7 @@ export function MergeMemberSheet({
     : null;
   const preview = useQuery(
     api.attendanceMembers.mergePreview,
-    visible && mergeArgs ? mergeArgs : "skip"
+    visible && mergeArgs && !merged ? mergeArgs : "skip"
   );
   const ready = preview && !("blocked" in preview) ? preview : null;
   const blocked = preview && "blocked" in preview ? preview.blocked : null;
@@ -148,9 +164,10 @@ export function MergeMemberSheet({
     setError(null);
     try {
       await merge({ ...mergeArgs, resolutions });
+      setMerged(true);
       await dismissKeyboard();
       onClose();
-      onMerged();
+      onMerged(`Merged ${ready.remove.name} into ${ready.keep.name}`);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -160,7 +177,7 @@ export function MergeMemberSheet({
 
   const personCard = (
     label: string,
-    side: MergeSide,
+    side: MergeSide & { history: History },
     tone: "keep" | "remove",
     staff: boolean
   ) => {
@@ -193,6 +210,12 @@ export function MergeMemberSheet({
         {detail ? (
           <Txt style={[typography.caption, { color: t.muted }]}>{detail}</Txt>
         ) : null}
+        <View style={styles.historyRow}>
+          <Ionicons name="calendar-outline" size={14} color={t.text} />
+          <Txt style={[typography.caption, { color: t.text, fontWeight: "700" }]}>
+            {historyLine(side.history)}
+          </Txt>
+        </View>
       </View>
     );
   };
@@ -318,6 +341,14 @@ export function MergeMemberSheet({
             <Ionicons name="arrow-up" size={20} color={t.muted} />
           </View>
           {personCard("MERGING IN, THEN REMOVING", ready.remove, "remove", false)}
+          {canSwap && ready.remove.history.events > ready.keep.history.events ? (
+            <WarningBanner
+              message={`${ready.remove.name} has been used more (${plural(
+                ready.remove.history.events,
+                "event"
+              )} vs ${ready.keep.history.events}). Consider swapping to keep them.`}
+            />
+          ) : null}
           {canSwap ? (
             <Btn
               title="Swap which one is kept"
@@ -424,6 +455,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   personNameRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  historyRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
   staffChip: {
     borderRadius: radius.full,
     paddingHorizontal: 8,

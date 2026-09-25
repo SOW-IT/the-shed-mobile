@@ -23,6 +23,8 @@ import {
   LoadingState,
   Select,
   Sheet,
+  Toast,
+  type ToastState,
   Txt,
 } from "@/components/ui";
 import { durations, radius, spacing, typography, useAppTheme } from "@/theme";
@@ -86,6 +88,8 @@ export function EditMemberSheet({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeFromDelete, setMergeFromDelete] = useState(false);
+  // Lives outside the sheet so it can confirm a merge or delete after closing.
+  const [toast, setToast] = useState<ToastState>(null);
   const deleteImpact = useQuery(
     api.attendanceMembers.deletePreview,
     visible && deleteOpen && memberId ? { memberId } : "skip"
@@ -170,6 +174,7 @@ export function EditMemberSheet({
     try {
       await remove({ memberId });
       await dismissKeyboard();
+      setToast({ text: `Deleted ${name.trim()}` });
       onClose();
     } catch (e) {
       setError(errorMessage(e));
@@ -180,7 +185,7 @@ export function EditMemberSheet({
 
   const loading = Boolean(memberId && row === undefined);
 
-  return (
+  const sheet = (
     <Sheet
       visible={visible}
       onClose={onClose}
@@ -479,7 +484,10 @@ export function EditMemberSheet({
             <MergeMemberSheet
               visible={mergeOpen}
               onClose={() => setMergeOpen(false)}
-              onMerged={onClose}
+              onMerged={(summary) => {
+                setToast({ text: summary });
+                onClose();
+              }}
               memberId={memberId}
               memberEmail={row?.email}
               isStaff={isStaffOverlay}
@@ -548,6 +556,13 @@ export function EditMemberSheet({
         </>
       )}
     </Sheet>
+  );
+
+  return (
+    <>
+      {sheet}
+      <Toast toast={toast} />
+    </>
   );
 }
 

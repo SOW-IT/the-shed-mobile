@@ -730,6 +730,41 @@ const keptRecordAt = async (
     .unique();
 };
 
+/** How much each side was used: distinct events attended and the latest one,
+ *  so the leader can see which record is the "real" one before merging. */
+type History = { events: number; lastAttended: number | null };
+
+const historyOf = (rows: Doc<"attendance">[]): History => {
+  const events = new Set(rows.map((r) => r.eventId));
+  const last = rows.reduce<number | null>(
+    (max, r) => (max === null || r.signInTime > max ? r.signInTime : max),
+    null
+  );
+  return { events: events.size, lastAttended: last };
+};
+
+const keptHistory = async (ctx: Ctx, keep: MergeKeep): Promise<History> => {
+  const rows: Doc<"attendance">[] = [];
+  if (keep.kind === "staff") {
+    rows.push(
+      ...(await ctx.db
+        .query("attendance")
+        .withIndex("by_email", (q) => q.eq("email", keep.email))
+        .collect())
+    );
+  }
+  const memberId = keep.kind === "member" ? keep.row._id : keep.shadow?._id;
+  if (memberId) {
+    rows.push(
+      ...(await ctx.db
+        .query("attendance")
+        .withIndex("by_member", (q) => q.eq("memberId", memberId))
+        .collect())
+    );
+  }
+  return historyOf(rows);
+};
+
 export const mergePreview = query({
   args: {
     removeId: v.id("attendanceMembers"),
@@ -764,8 +799,8 @@ export const mergePreview = query({
       if (await keptRecordAt(ctx, keep, record.eventId)) shared++;
     }
     return {
-      keep: { kind: keep.kind, ...kept },
-      remove: removed,
+      keep: { kind: keep.kind, ...kept, history: await keptHistory(ctx, keep) },
+      remove: { ...removed, history: historyOf(records) },
       conflicts,
       attendance: {
         total: records.length,
@@ -821,9 +856,10 @@ export const merge = mutation({
       if (keep.shadow) {
         await ctx.db.patch(keep.shadow._id, { name, email: keep.email, metadata });
         keptMemberId = keep.shadow._id;
-      } else if (Object.keys(remove.metadata ?? {}).length > 0) {
-        // Carry the member's details over on a new staff overlay row, the same
-        // row `ensureForStaff` would create when the staff person is edited.
+      } else {
+        // The staff person needs an overlay row even when the member had no
+        // details to carry: in years before they were staff, their moved
+        // attendance is named from this row, not from a staff profile.
         keptMemberId = await ctx.db.insert("attendanceMembers", {
           name,
           email: keep.email,

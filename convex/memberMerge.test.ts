@@ -100,6 +100,9 @@ describe("merging a member into another member", () => {
     expect(preview.keep.kind).toBe("member");
     expect(preview.attendance).toEqual({ total: 2, shared: 1, moved: 1 });
     expect(preview.conflicts.map((c) => c.field)).toEqual(["name", s.yearField]);
+    // Each side's own history, so the leader can see which record was used more.
+    expect(preview.keep.history).toEqual({ events: 2, lastAttended: 3_100 });
+    expect(preview.remove.history).toEqual({ events: 2, lastAttended: 2_100 });
 
     const result = await s.leader.mutation(api.attendanceMembers.merge, {
       removeId: dup,
@@ -208,6 +211,8 @@ describe("merging a member into staff", () => {
     // Name, email and campus are locked to the staff profile.
     expect(preview.conflicts).toEqual([]);
     expect(preview.attendance).toEqual({ total: 2, shared: 1, moved: 1 });
+    expect(preview.keep.history).toEqual({ events: 1, lastAttended: 2_200 });
+    expect(preview.remove.history).toEqual({ events: 2, lastAttended: 2_100 });
 
     await s.leader.mutation(api.attendanceMembers.merge, {
       removeId: dup,
@@ -264,17 +269,40 @@ describe("merging a member into staff", () => {
     });
   });
 
-  test("doesn't create an overlay row when the member had no details to carry", async () => {
+  test("always leaves the staff person an overlay row, so older events keep a name", async () => {
     const s = await setup();
     const dup = await s.member("Leader Nickname");
+    const before = await s.event("Before they were staff", 1_000);
+    await s.signIn(before, { memberId: dup }, 1_100);
     await s.leader.mutation(api.attendanceMembers.merge, {
       removeId: dup,
       keep: { staffEmail: LEADER },
       resolutions: {},
     });
-    expect(
-      await s.t.run((ctx) => ctx.db.query("attendanceMembers").collect())
-    ).toEqual([]);
+    const members = await s.t.run((ctx) => ctx.db.query("attendanceMembers").collect());
+    expect(members).toHaveLength(1);
+    expect(members[0]).toMatchObject({ email: LEADER });
+    const log = (await s.audit()).find((r) => r.action === "member.merge")!;
+    expect(log.memberId).toBe(members[0]._id);
+  });
+
+  test("counts the staff person's history from both email and overlay sign-ins", async () => {
+    const s = await setup();
+    const shadow = await s.leader.mutation(api.attendanceMembers.ensureForStaff, {
+      staffEmail: LEADER,
+    });
+    const dup = await s.member("Leader Nickname");
+    const a = await s.event("A", 1_000);
+    const b = await s.event("B", 2_000);
+    await s.signIn(a, { email: LEADER }, 1_100);
+    await s.signIn(b, { memberId: shadow }, 2_100);
+    const preview = await s.leader.query(api.attendanceMembers.mergePreview, {
+      removeId: dup,
+      keep: { memberId: shadow },
+    });
+    if (!preview || "blocked" in preview) throw new Error("expected a preview");
+    expect(preview.keep.history).toEqual({ events: 2, lastAttended: 2_100 });
+    expect(preview.remove.history).toEqual({ events: 0, lastAttended: null });
   });
 
   test("an unknown staff email is blocked", async () => {
