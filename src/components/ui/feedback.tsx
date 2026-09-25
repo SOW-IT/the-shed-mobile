@@ -34,6 +34,9 @@ export const Toast = ({ toast }: { toast: ToastState }) => {
   if (!shown) return null;
   return (
     <Animated.View
+      // Often the only feedback once a sheet closes, so screen readers announce it.
+      accessibilityRole="alert"
+      accessibilityLiveRegion="assertive"
       style={[
         styles.toast,
         t.shadowFloat,

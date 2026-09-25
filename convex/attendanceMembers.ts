@@ -545,10 +545,12 @@ const auditStamp = (ms: number): string => {
 
 export const remove = mutation({
   args: { memberId: v.id("attendanceMembers") },
-  handler: async (ctx, { memberId }) => {
+  handler: async (ctx, { memberId }): Promise<boolean> => {
     const { email: actorEmail } = await requireProfile(ctx);
     const row = await ctx.db.get(memberId);
-    if (!row) return;
+    // Someone else may have deleted or merged them first; say so rather than
+    // letting the caller report a deletion that didn't happen here.
+    if (!row) return false;
     const signed = await ctx.db
       .query("attendance")
       .withIndex("by_member", (q) => q.eq("memberId", memberId))
@@ -597,6 +599,7 @@ export const remove = mutation({
           ].join("\n")
         : "Removed no attendance records",
     });
+    return true;
   },
 });
 

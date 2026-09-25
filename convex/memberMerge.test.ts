@@ -401,9 +401,11 @@ describe("deletePreview", () => {
   test("the delete audit entry records which member was removed", async () => {
     const s = await setup();
     const m = await s.member("Jeremy Lim");
-    await s.leader.mutation(api.attendanceMembers.remove, { memberId: m });
+    expect(await s.leader.mutation(api.attendanceMembers.remove, { memberId: m })).toBe(true);
     const log = (await s.audit()).find((r) => r.action === "member.delete");
     expect(log?.memberId).toBe(m);
+    // Deleting again (someone else got there first) reports nothing was removed.
+    expect(await s.leader.mutation(api.attendanceMembers.remove, { memberId: m })).toBe(false);
   });
 });
 

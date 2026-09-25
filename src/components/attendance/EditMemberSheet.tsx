@@ -13,6 +13,7 @@ import {
   STUDENT_YEAR_FIELD_KEY,
   yearOptionIdForStoredValue,
 } from "../../../shared/attendanceMemberMeta";
+import { SYDNEY_TIME_ZONE } from "../../../shared/flow";
 import { capitalizeMemberName } from "../../../shared/rollcall";
 import { MergeMemberSheet } from "@/components/attendance/MergeMemberSheet";
 import {
@@ -37,6 +38,7 @@ const sameTypedName = (typed: string, name: string) =>
 
 const eventDate = (ms: number) =>
   new Date(ms).toLocaleDateString("en-AU", {
+    timeZone: SYDNEY_TIME_ZONE,
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -190,9 +192,13 @@ export function EditMemberSheet({
     if (!memberId || isStaffOverlay) return;
     setSubmitting(true);
     try {
-      await remove({ memberId });
+      const deleted = await remove({ memberId });
       await dismissKeyboard();
-      setToast({ text: `Deleted ${name.trim()}` });
+      setToast({
+        text: deleted
+          ? `Deleted ${name.trim()}`
+          : `${name.trim()} had already been removed`,
+      });
       onClose();
     } catch (e) {
       setError(errorMessage(e));

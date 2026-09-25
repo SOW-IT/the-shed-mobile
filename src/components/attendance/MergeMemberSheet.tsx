@@ -5,6 +5,7 @@ import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from "react-na
 import { api } from "../../../convex/_generated/api";
 import { Doc, Id } from "../../../convex/_generated/dataModel";
 import { formatMetadataFieldValue } from "../../../shared/attendanceMemberMeta";
+import { SYDNEY_TIME_ZONE } from "../../../shared/flow";
 import type { MergeResolutions, MergeSide } from "../../../shared/memberMerge";
 import {
   Btn,
@@ -37,7 +38,7 @@ const historyLine = (h: History) =>
     ? "Not signed in to any events"
     : `${plural(h.events, "event")} · last ${new Date(h.lastAttended!).toLocaleDateString(
         "en-AU",
-        { day: "numeric", month: "short", year: "numeric" }
+        { timeZone: SYDNEY_TIME_ZONE, day: "numeric", month: "short", year: "numeric" }
       )}`;
 
 const sameTypedName = (typed: string, name: string) =>
