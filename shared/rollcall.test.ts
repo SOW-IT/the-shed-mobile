@@ -9,6 +9,9 @@ import {
   capitalizeMemberName,
   displayNameFromEmail,
   eventHasEnded,
+  canReverseSignIn,
+  reversibleOnlyByGrace,
+  SIGN_IN_UNDO_GRACE_MS,
   eventIncludesSubgroup,
   formatEventDate,
   formatEventRange,
@@ -348,5 +351,25 @@ describe("formatters", () => {
     expect(label).toMatch(/^24\.06\.26, /);
     expect(label).toContain(" - ");
     expect(label).toBe(label.toLowerCase());
+  });
+});
+
+describe("undo grace", () => {
+  const event = { dateEnd: 10_000_000 };
+  test("during the event anything can be undone", () => {
+    expect(canReverseSignIn(event, 1, 9_000_000)).toBe(true);
+    expect(reversibleOnlyByGrace(event, 1, 9_000_000)).toBe(false);
+  });
+  test("after it ends, sign-ins made during it can be undone for 10 minutes", () => {
+    const signIn = event.dateEnd - 60_000;
+    const withinGrace = signIn + SIGN_IN_UNDO_GRACE_MS;
+    expect(canReverseSignIn(event, signIn, withinGrace)).toBe(true);
+    expect(reversibleOnlyByGrace(event, signIn, withinGrace)).toBe(true);
+    expect(canReverseSignIn(event, signIn, withinGrace + 1)).toBe(false);
+  });
+  test("retroactive sign-ins after the end stay undoable and aren't a grace case", () => {
+    const signIn = event.dateEnd + 1;
+    expect(canReverseSignIn(event, signIn, signIn + 3 * SIGN_IN_UNDO_GRACE_MS)).toBe(true);
+    expect(reversibleOnlyByGrace(event, signIn, signIn + 1)).toBe(false);
   });
 });

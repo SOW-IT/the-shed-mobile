@@ -86,6 +86,8 @@ export function MergeMemberSheet({
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [picked, setPicked] = useState<Picked | null>(null);
   const [removeViewed, setRemoveViewed] = useState(removeViewedByDefault);
+  // Which pick has had its default direction settled (see the effect below).
+  const [orientedFor, setOrientedFor] = useState<string | null>(null);
   const [resolutions, setResolutions] = useState<MergeResolutions>({});
   const [confirmText, setConfirmText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -102,6 +104,7 @@ export function MergeMemberSheet({
     setPicked(null);
     setMerged(false);
     setRemoveViewed(removeViewedByDefault);
+    setOrientedFor(null);
     setResolutions({});
     setConfirmText("");
     setError(null);
@@ -158,7 +161,19 @@ export function MergeMemberSheet({
     api.attendanceMembers.mergePreview,
     visible && mergeArgs && !merged ? mergeArgs : "skip"
   );
-  const ready = preview && !("blocked" in preview) ? preview : null;
+  const previewReady = preview && !("blocked" in preview) ? preview : null;
+  // Between two members, keep whoever has more history by default, whichever
+  // way the sheet was opened. Staff are always kept, so there's nothing to pick.
+  const orienting = Boolean(canSwap && picked && orientedFor !== picked.key);
+  useEffect(() => {
+    if (!orienting || !previewReady || !picked) return;
+    if (previewReady.remove.history.events > previewReady.keep.history.events) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- settle the default side once per pick
+      setRemoveViewed((v) => !v);
+    }
+    setOrientedFor(picked.key);
+  }, [orienting, previewReady, picked]);
+  const ready = orienting ? null : previewReady;
   const blocked = preview && "blocked" in preview ? preview.blocked : null;
 
   const displayValue = (fieldId: string | undefined, value: string) => {
@@ -259,6 +274,8 @@ export function MergeMemberSheet({
               variant="ghost"
               onPress={() => {
                 setPicked(null);
+                setRemoveViewed(removeViewedByDefault);
+                setOrientedFor(null);
                 setResolutions({});
                 setConfirmText("");
                 setError(null);
@@ -266,7 +283,15 @@ export function MergeMemberSheet({
             />
           </View>
         ) : picked ? (
-          <Btn title="Choose someone else" variant="ghost" onPress={() => setPicked(null)} />
+          <Btn
+            title="Choose someone else"
+            variant="ghost"
+            onPress={() => {
+              setPicked(null);
+              setRemoveViewed(removeViewedByDefault);
+              setOrientedFor(null);
+            }}
+          />
         ) : null
       }
     >

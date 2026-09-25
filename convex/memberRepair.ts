@@ -1,5 +1,6 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mergeNotes } from "../shared/memberMerge";
+import { SYDNEY_TIME_ZONE } from "../shared/flow";
 import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
 import { Doc } from "./_generated/dataModel";
 import { internalMutation } from "./_generated/server";
@@ -7,6 +8,8 @@ import { logAttendanceAction } from "./attendanceAudit";
 import { findMemberByEmail } from "./model";
 
 const REPAIR_ACTOR = "system:staff-attendance-repair";
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 const detailValidator = v.object({
   email: v.string(),
@@ -58,6 +61,9 @@ export const repairStaffAttendance = internalMutation({
     details: v.array(detailValidator),
   }),
   handler: async (ctx, { dryRun = true, after, limit = 25, email: only }) => {
+    if (!Number.isInteger(limit) || limit < 1) {
+      throw new ConvexError("limit must be a positive whole number.");
+    }
     const onlyKey = only === undefined ? undefined : canonicalEmailKey(only);
     // Latest staff profile per person decides the email attendance is keyed by.
     const latest = new Map<string, Doc<"staffProfiles">>();
@@ -146,9 +152,11 @@ export const repairStaffAttendance = internalMutation({
         summary: `Repaired staff attendance for ${email}`,
         memberId: kept._id,
         subjectEmail: email,
-        detail:
-          `Moved ${detail.recordsMoved} member sign-in(s) to the staff email; ` +
-          `combined ${detail.recordsCombined}; folded ${detail.rowsFolded} duplicate row(s)`,
+        detail: [
+          `Moved ${plural(detail.recordsMoved, "sign-in")} to the staff email`,
+          `combined ${plural(detail.recordsCombined, "shared event")}`,
+          `folded ${plural(detail.rowsFolded, "duplicate record")}`,
+        ].join("; "),
       });
     }
 
@@ -163,5 +171,119 @@ export const repairStaffAttendance = internalMutation({
       next: keys.length > batch.length ? batch[batch.length - 1] : null,
       details,
     };
+  },
+});
+
+const RESTORE_ACTOR = "system:attendance-restore";
+
+const restoreRecord = v.object({
+  eventId: v.id("events"),
+  memberId: v.optional(v.id("attendanceMembers")),
+  email: v.optional(v.string()),
+  signInTime: v.number(),
+  notes: v.optional(v.string()),
+  /** Why this record is coming back, e.g. which audit entry it came from. */
+  reason: v.string(),
+});
+
+const restoreStatus = v.union(
+  v.literal("restored"),
+  v.literal("already there"),
+  v.literal("event missing"),
+  v.literal("member missing"),
+  v.literal("needs one of memberId or email")
+);
+
+const stamp = (ms: number): string =>
+  new Intl.DateTimeFormat("en-AU", {
+    timeZone: SYDNEY_TIME_ZONE,
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(ms));
+
+/**
+ * Puts back attendance records that were deleted by mistake, e.g. with a
+ * member who was deleted instead of merged. Each record names its event, the
+ * person (a member id, or a staff email), and the original sign-in time taken
+ * from the audit log or a backup.
+ *
+ * Dry run by default. Idempotent: a person already signed in to that event is
+ * left alone, so it is safe to run twice. Every restored record is written to
+ * the attendance audit log with its reason.
+ *
+ *   npx convex run --prod memberRepair:restoreAttendance "$(cat plan.json)"
+ */
+export const restoreAttendance = internalMutation({
+  args: { records: v.array(restoreRecord), dryRun: v.optional(v.boolean()) },
+  returns: v.object({
+    dryRun: v.boolean(),
+    restored: v.number(),
+    results: v.array(
+      v.object({ eventId: v.id("events"), who: v.string(), status: restoreStatus })
+    ),
+  }),
+  handler: async (ctx, { records, dryRun = true }) => {
+    const results = [];
+    let restored = 0;
+    for (const record of records) {
+      const email = record.email?.trim().toLowerCase() || undefined;
+      const who = email ?? record.memberId ?? "?";
+      if (!!email === !!record.memberId) {
+        results.push({ eventId: record.eventId, who, status: "needs one of memberId or email" as const });
+        continue;
+      }
+      const event = await ctx.db.get(record.eventId);
+      if (!event) {
+        results.push({ eventId: record.eventId, who, status: "event missing" as const });
+        continue;
+      }
+      const member = record.memberId ? await ctx.db.get(record.memberId) : null;
+      if (record.memberId && !member) {
+        results.push({ eventId: record.eventId, who, status: "member missing" as const });
+        continue;
+      }
+      const existing = email
+        ? await ctx.db
+            .query("attendance")
+            .withIndex("by_event_and_email", (q) =>
+              q.eq("eventId", record.eventId).eq("email", email)
+            )
+            .first()
+        : await ctx.db
+            .query("attendance")
+            .withIndex("by_event_and_member", (q) =>
+              q.eq("eventId", record.eventId).eq("memberId", record.memberId!)
+            )
+            .first();
+      const name = member?.name ?? email!;
+      if (existing) {
+        results.push({ eventId: record.eventId, who: name, status: "already there" as const });
+        continue;
+      }
+      results.push({ eventId: record.eventId, who: name, status: "restored" as const });
+      restored++;
+      if (dryRun) continue;
+      await ctx.db.insert("attendance", {
+        eventId: record.eventId,
+        ...(email ? { email } : { memberId: record.memberId }),
+        signInTime: record.signInTime,
+        notes: record.notes,
+      });
+      await logAttendanceAction(ctx, {
+        actorEmail: RESTORE_ACTOR,
+        entityType: "attendance",
+        action: "attendance.restore",
+        summary: `${name} restored to "${event.name}"`,
+        eventId: record.eventId,
+        memberId: record.memberId,
+        subjectEmail: email,
+        detail: `${record.reason}\nOriginal sign-in: ${stamp(record.signInTime)}`,
+      });
+    }
+    return { dryRun, restored, results };
   },
 });

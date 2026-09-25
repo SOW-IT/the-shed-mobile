@@ -36,6 +36,7 @@ import {
   findMemberByEmail,
   getProfile,
   optionalProfile,
+  requireAdmin,
   requireProfile,
 } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
@@ -436,11 +437,13 @@ export const create = mutation({
     const { email: actorEmail } = await requireProfile(ctx);
     const trimmed = capitalizeMemberName(name.trim());
     if (!trimmed) throw new ConvexError("Name is required.");
-    if (canonicalEmailKey(email) && (await findMemberByEmail(ctx, email))) {
-      const staff = await staffProfileForEmail(ctx, email!, staffYearForDate(new Date()));
+    // A member can't carry a staff email: that person is already listed as
+    // staff, and their attendance is keyed by that email.
+    if (canonicalEmailKey(email)) {
+      const staff = await latestStaffProfile(ctx, email);
       if (staff) {
         throw new ConvexError(
-          `${personDisplayName(staff.name, staff.email)} is staff and already in the members list.`
+          `${staff.email} is ${personDisplayName(staff.name, staff.email)}'s staff email. They're already in the list as staff.`
         );
       }
     }
@@ -545,7 +548,9 @@ const auditStamp = (ms: number): string => {
 export const remove = mutation({
   args: { memberId: v.id("attendanceMembers") },
   handler: async (ctx, { memberId }): Promise<boolean> => {
-    const { email: actorEmail } = await requireProfile(ctx);
+    // Deleting throws attendance away for good; leaders merge duplicates
+    // instead, and only admins (Data and IT, HR, the Director) can delete.
+    const { email: actorEmail } = await requireAdmin(ctx);
     const row = await ctx.db.get(memberId);
     // Someone else may have deleted or merged them first; say so rather than
     // letting the caller report a deletion that didn't happen here.
@@ -658,18 +663,25 @@ const staffYearsToCheck = (profileYear: number): number[] => {
   return [...new Set([profileYear, now, now + 1])];
 };
 
-const staffProfileForRow = async (
+/** Someone's most recent staff profile in any year. Former staff are still
+ *  staff here: their attendance is keyed by their org email. */
+const latestStaffProfile = async (
   ctx: Ctx,
-  row: Doc<"attendanceMembers">,
-  profileYear: number
+  email: string | undefined
 ): Promise<Doc<"staffProfiles"> | null> => {
-  for (const year of staffYearsToCheck(profileYear)) {
-    const profile = await staffOverlayProfile(ctx, row, year);
+  for (const candidate of staffEmailCandidates(email)) {
+    const profile = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_email_and_year", (q) => q.eq("email", candidate))
+      .order("desc")
+      .first();
     if (profile) return profile;
   }
   return null;
 };
 
+/** The staff profile to use for this email: the one for the year being viewed
+ *  (or this / next staff year) when there is one, else their latest. */
 const staffProfileForEmail = async (
   ctx: Ctx,
   email: string,
@@ -681,8 +693,15 @@ const staffProfileForEmail = async (
       if (profile) return profile;
     }
   }
-  return null;
+  return await latestStaffProfile(ctx, email);
 };
+
+const staffProfileForRow = async (
+  ctx: Ctx,
+  row: Doc<"attendanceMembers">,
+  profileYear: number
+): Promise<Doc<"staffProfiles"> | null> =>
+  row.email ? await staffProfileForEmail(ctx, row.email, profileYear) : null;
 
 const resolveMergePair = async (
   ctx: Ctx,

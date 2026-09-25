@@ -125,7 +125,10 @@ export const list = query({
     const year = staffYearForDate(new Date());
     const nameByActor: Record<string, string> = {};
     for (const email of new Set(rows.map((r) => r.actorEmail))) {
-      nameByActor[email] = await displayName(ctx, email, year);
+      // One-off admin commands log as "system:<job>" rather than a person.
+      nameByActor[email] = email.startsWith("system:")
+        ? `System (${email.slice("system:".length).replace(/-/g, " ")})`
+        : await displayName(ctx, email, year);
     }
     const page = rows.map((row) => ({
       id: row._id,

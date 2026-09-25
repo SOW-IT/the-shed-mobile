@@ -670,10 +670,10 @@ describe("attendance members", () => {
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const fields = await leader.query(api.attendanceMetadata.list, { });
     const yearField = fields.find((f) => f.key === "Year")!;
-    const memberId = await leader.mutation(api.attendanceMembers.create, {
-      name: "Future Leader",
-      email: LEADER,
-    });
+    // A legacy row: members created before 1.13.0 could carry a staff email.
+    const memberId = await t.run((ctx) =>
+      ctx.db.insert("attendanceMembers", { name: "Future Leader", email: LEADER })
+    );
 
     const thisYear = await leader.query(api.attendanceMembers.list, {
       year: YEAR,
@@ -736,10 +736,10 @@ describe("attendance members", () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
-    const memberId = await leader.mutation(api.attendanceMembers.create, {
-      name: "Staff Person",
-      email: STAFF,
-    });
+    // A legacy row: members created before 1.13.0 could carry a staff email.
+    const memberId = await t.run((ctx) =>
+      ctx.db.insert("attendanceMembers", { name: "Staff Person", email: STAFF })
+    );
     const ensured = await leader.mutation(api.attendanceMembers.ensureForStaff, {
       staffEmail: STAFF,
     });
@@ -754,10 +754,10 @@ describe("attendance members", () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
-    const memberId = await leader.mutation(api.attendanceMembers.create, {
-      name: "Cased Staff",
-      email: "  STAFF@SOW.ORG.AU  ",
-    });
+    // A legacy row: members created before 1.13.0 could carry a staff email.
+    const memberId = await t.run((ctx) =>
+      ctx.db.insert("attendanceMembers", { name: "Cased Staff", email: STAFF })
+    );
     const ensured = await leader.mutation(api.attendanceMembers.ensureForStaff, {
       staffEmail: STAFF,
     });
@@ -1124,7 +1124,7 @@ describe("attendance members", () => {
       subgroups: [USYD],
     });
     await leader.mutation(api.attendance.signIn, { eventId, memberId: guestId });
-    await leader.mutation(api.attendanceMembers.remove, { memberId: guestId });
+    await asUser(t, ADMIN).mutation(api.attendanceMembers.remove, { memberId: guestId });
     expect(await leader.query(api.attendanceMembers.get, { memberId: guestId })).toBeNull();
     expect(await leader.query(api.attendance.listByEvent, { eventId })).toEqual([]);
 

@@ -87,6 +87,13 @@ describe("repairStaffAttendance", () => {
     const log = await t.run((ctx) => ctx.db.query("attendanceAuditLog").collect());
     expect(log).toHaveLength(1);
     expect(log[0]).toMatchObject({ action: "member.repair", memberId: ids.kept });
+    expect(log[0].detail).toBe(
+      "Moved 2 sign-ins to the staff email; combined 2 shared events; folded 1 duplicate record"
+    );
+    const shown = await t
+      .withIdentity({ email: ADMIN, subject: ADMIN, issuer: "test" })
+      .query(api.attendanceAudit.list, { paginationOpts: { numItems: 5, cursor: null } });
+    expect(shown.page[0].actorName).toBe("System (staff attendance repair)");
 
     // Running it again finds nothing left to do.
     const again = await t.mutation(internal.memberRepair.repairStaffAttendance, {
@@ -132,5 +139,90 @@ describe("repairStaffAttendance", () => {
       email: OTHER.toUpperCase(),
     });
     expect(one.details.map((d) => d.email)).toEqual([OTHER]);
+  });
+});
+
+describe("repairStaffAttendance limits", () => {
+  test("rejects a limit that isn't a positive whole number", async () => {
+    const t = await setup();
+    for (const limit of [0, -1, 1.5]) {
+      await expect(
+        t.mutation(internal.memberRepair.repairStaffAttendance, { limit })
+      ).rejects.toThrow(/positive whole number/);
+    }
+  });
+});
+
+describe("restoreAttendance", () => {
+  test("dry run reports, a real run restores with an audit entry, and a rerun changes nothing", async () => {
+    const t = await setup();
+    const { e1, e2, member, gone } = await t.run(async (ctx) => {
+      const ev = (name: string, at: number) =>
+        ctx.db.insert("events", { name, dateStart: at, dateEnd: at + 1, subgroups: [] });
+      const e1 = await ev("S2W1", 1_000);
+      const e2 = await ev("S2W2", 2_000);
+      const member = await ctx.db.insert("attendanceMembers", { name: "Jeremy Lim" });
+      const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
+      await ctx.db.delete(gone);
+      // Already signed in to e2: must be left alone.
+      await ctx.db.insert("attendance", { eventId: e2, memberId: member, signInTime: 2_050 });
+      return { e1, e2, member, gone };
+    });
+    const deletedEvent = await t.run(async (ctx) => {
+      const id = await ctx.db.insert("events", { name: "x", dateStart: 1, dateEnd: 2, subgroups: [] });
+      await ctx.db.delete(id);
+      return id;
+    });
+    const reason = 'Deleted with member "Jeremy Lim" on 27 Aug 2026';
+    const records = [
+      { eventId: e1, memberId: member, signInTime: 1_100, reason },
+      { eventId: e2, memberId: member, signInTime: 2_100, reason },
+      { eventId: e1, email: LEADER.toUpperCase(), signInTime: 1_200, notes: "late", reason },
+      { eventId: deletedEvent, memberId: member, signInTime: 1, reason },
+      { eventId: e1, memberId: gone, signInTime: 1, reason },
+      { eventId: e1, signInTime: 1, reason },
+    ];
+
+    const dry = await t.mutation(internal.memberRepair.restoreAttendance, { records });
+    expect(dry.dryRun).toBe(true);
+    expect(dry.restored).toBe(2);
+    expect(dry.results.map((r) => r.status)).toEqual([
+      "restored",
+      "already there",
+      "restored",
+      "event missing",
+      "member missing",
+      "needs one of memberId or email",
+    ]);
+    expect(await t.run((ctx) => ctx.db.query("attendance").collect())).toHaveLength(1);
+
+    const real = await t.mutation(internal.memberRepair.restoreAttendance, {
+      records,
+      dryRun: false,
+    });
+    expect(real.restored).toBe(2);
+    const rows = await t.run((ctx) => ctx.db.query("attendance").collect());
+    expect(rows).toHaveLength(3);
+    expect(rows.find((r) => r.eventId === e1 && r.memberId === member)?.signInTime).toBe(1_100);
+    expect(rows.find((r) => r.email === LEADER)).toMatchObject({ eventId: e1, notes: "late" });
+
+    const logs = (await t.run((ctx) => ctx.db.query("attendanceAuditLog").collect())).filter(
+      (l) => l.action === "attendance.restore"
+    );
+    expect(logs).toHaveLength(2);
+    expect(logs[0]).toMatchObject({
+      actorEmail: "system:attendance-restore",
+      summary: 'Jeremy Lim restored to "S2W1"',
+      memberId: member,
+    });
+    expect(logs[0].detail).toContain(reason);
+    expect(logs[0].detail).toContain("Original sign-in:");
+
+    const again = await t.mutation(internal.memberRepair.restoreAttendance, {
+      records,
+      dryRun: false,
+    });
+    expect(again.restored).toBe(0);
+    expect(await t.run((ctx) => ctx.db.query("attendance").collect())).toHaveLength(3);
   });
 });

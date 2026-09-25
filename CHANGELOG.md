@@ -15,14 +15,22 @@ All notable changes to **The SHED** mobile app. This project follows
   visit, and lets you pick which name, email or detail to keep where they
   differ. All attendance moves across; an event both attended becomes one
   record. Details from every group (a USYD Instagram, a UNSW zID) are kept.
-  Members can merge into members or into staff; staff are always kept and two
-  staff can't merge. A bold red line warns it can't be undone.
+  Between two members, whoever has attended more is kept by default (Swap to
+  change it). A member can merge into staff; staff are always kept, can't be
+  swapped out, and two staff can't merge. A bold red line warns it can't be
+  undone.
+- **A sign-in can be undone for 10 minutes after it's made**, even once the
+  event has ended, so a wrong tap can be fixed straight away. The audit log
+  notes when this happens.
 
 ### Changed
-- **Deleting a member lists what is lost.** The count and every event, a bold
-  red "This can't be undone.", and a pointer to Merge.
-- **A staff email on a member points to Merge.** Saving it used to split the
-  person's attendance in two; now the Email field offers "Merge into …".
+- **Only admins (Data and IT, Human Resources and the Director) can delete a
+  member.** Everyone else merges duplicates instead. Deleting lists what is
+  lost: the count and every event, a bold red "This can't be undone.", and a
+  pointer to Merge.
+- **A member can't have a staff email.** Saving one used to split the person's
+  attendance in two. Now an existing member is offered "Merge into …", and a new
+  member can't be added under a staff email (former staff included).
 - **If someone else deletes or merges a member you have open**, the sheet says
   so instead of letting you edit a record that no longer exists.
 - **Confirming a name ignores capitals and extra spaces.**
@@ -30,9 +38,12 @@ All notable changes to **The SHED** mobile app. This project follows
   from the removed person.**
 
 ### Fixed
-- **Split staff attendance can be repaired.** An admin command (dry run first,
-  one person or all) moves sign-ins made the old way onto the staff person and
-  folds hidden duplicates together.
+- **Split staff attendance can be repaired, and lost attendance restored.** Two
+  admin commands (dry run first): one moves sign-ins made the old way onto the
+  staff person and folds hidden duplicates together; the other puts back
+  attendance deleted by mistake, skipping anything already there. Both are
+  recorded in the audit log, which now names these as "System" rather than a
+  raw id.
 
 ## [1.12.1] — 2026-09-25
 

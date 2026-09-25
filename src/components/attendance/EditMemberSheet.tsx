@@ -80,6 +80,10 @@ export function EditMemberSheet({
   const updateAttendance = useMutation(api.attendance.updateRecord);
 
   const isStaffOverlay = Boolean(row?.isStaffOverlay);
+  // Deleting throws attendance away, so only admins (Data and IT, HR, the
+  // Director) get the button; everyone else merges duplicates instead.
+  const me = useQuery(api.directory.me, visible ? {} : "skip");
+  const canDelete = Boolean(me?.isAdmin);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -112,7 +116,6 @@ export function EditMemberSheet({
   // attendance split from the staff person's. Point to Merge instead.
   const typedEmail = email.trim().toLowerCase();
   const emailChanged =
-    Boolean(memberId) &&
     !isStaffOverlay &&
     typedEmail.includes("@") &&
     typedEmail !== (row?.email ?? "").toLowerCase();
@@ -237,7 +240,7 @@ export function EditMemberSheet({
             >
               <Ionicons name="git-merge-outline" size={18} color={t.ghostText} />
             </Pressable>
-            {!isStaffOverlay ? (
+            {!isStaffOverlay && canDelete ? (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Delete member"
@@ -305,7 +308,11 @@ export function EditMemberSheet({
             keyboardType="email-address"
             disabled={isStaffOverlay}
           />
-          {staffEmailOwner ? (
+          {staffEmailOwner && !memberId ? (
+            <WarningBanner
+              message={`This is ${staffEmailOwner.name}'s staff email. They're already in the list as staff.`}
+            />
+          ) : staffEmailOwner ? (
             <View style={{ gap: spacing.sm }}>
               <WarningBanner
                 message={`This is ${staffEmailOwner.name}'s staff email. Merge into them instead.`}

@@ -70,6 +70,7 @@ tags:
 - tapOn:
     text: ".*Search members.*"
 - inputText: "Merge Keep"
+- pressKey: Enter   # a tap with the keyboard up only dismisses it
 - tapOn: ".*\\[E2E\\] Merge Keep.*"
 - tapOn: "Merge duplicate"
 - inputText: "Merge Dup"
@@ -109,6 +110,7 @@ tags:
 - tapOn:
     text: ".*Search members.*"
 - inputText: "[E2E] Merge"
+- pressKey: Enter   # a tap with the keyboard up only dismisses it
 # The search matches both names, so the kept row showing and the duplicate not
 # showing means the duplicate is really gone.
 - assertVisible: ".*\\[E2E\\] Merge Keep.*"

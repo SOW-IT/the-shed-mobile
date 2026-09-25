@@ -401,11 +401,11 @@ describe("deletePreview", () => {
   test("the delete audit entry records which member was removed", async () => {
     const s = await setup();
     const m = await s.member("Jeremy Lim");
-    expect(await s.leader.mutation(api.attendanceMembers.remove, { memberId: m })).toBe(true);
+    expect(await asUser(s.t, ADMIN).mutation(api.attendanceMembers.remove, { memberId: m })).toBe(true);
     const log = (await s.audit()).find((r) => r.action === "member.delete");
     expect(log?.memberId).toBe(m);
     // Deleting again (someone else got there first) reports nothing was removed.
-    expect(await s.leader.mutation(api.attendanceMembers.remove, { memberId: m })).toBe(false);
+    expect(await asUser(s.t, ADMIN).mutation(api.attendanceMembers.remove, { memberId: m })).toBe(false);
   });
 });
 
@@ -436,18 +436,72 @@ describe("a staff email on a member points to Merge", () => {
     });
   });
 
-  test("create refuses a second row for a staff person who already has one", async () => {
+  test("a new member can't take a staff email, even a former staff member's", async () => {
     const s = await setup();
-    await s.leader.mutation(api.attendanceMembers.ensureForStaff, { staffEmail: LEADER });
     await expect(
       s.leader.mutation(api.attendanceMembers.create, { name: "Leader", email: LEADER })
-    ).rejects.toThrow(/is staff and already in the members list/);
-    // A non-staff email that happens to be on another member is fine.
+    ).rejects.toThrow(/staff email\. They're already in the list as staff/);
+    // Staff in an old year only are still staff: their attendance uses that email.
+    await s.t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email: "former@sow.org.au",
+        year: YEAR - 4,
+        name: "Former Staff",
+        assignments: [],
+      })
+    );
+    await expect(
+      s.leader.mutation(api.attendanceMembers.create, {
+        name: "Former",
+        email: "FORMER@sowaustralia.com",
+      })
+    ).rejects.toThrow(/Former Staff's staff email/);
+    // Any other email, even one another member has, is fine.
     await s.member("Someone", {}, "shared@gmail.com");
     await s.leader.mutation(api.attendanceMembers.create, {
       name: "Someone Else",
       email: "shared@gmail.com",
     });
+  });
+
+  test("a member can be merged into former staff, and former staff can't be merged away", async () => {
+    const s = await setup();
+    await s.t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email: "former@sow.org.au",
+        year: YEAR - 4,
+        name: "Former Staff",
+        assignments: [],
+      })
+    );
+    const dup = await s.member("Former Nickname");
+    const preview = await s.leader.query(api.attendanceMembers.mergePreview, {
+      removeId: dup,
+      keep: { staffEmail: "former@sow.org.au" },
+    });
+    expect(preview).toMatchObject({ keep: { kind: "staff", name: "Former Staff" } });
+    const overlay = await s.t.run((ctx) =>
+      ctx.db.insert("attendanceMembers", { name: "Former Staff", email: "former@sow.org.au" })
+    );
+    const plain = await s.member("Plain");
+    expect(
+      await s.leader.query(api.attendanceMembers.mergePreview, {
+        removeId: overlay,
+        keep: { memberId: plain },
+      })
+    ).toMatchObject({ blocked: expect.stringContaining("is staff") });
+  });
+
+  test("only admins can delete a member", async () => {
+    const s = await setup();
+    const m = await s.member("Jeremy Lim");
+    await expect(
+      s.leader.mutation(api.attendanceMembers.remove, { memberId: m })
+    ).rejects.toThrow(/Only admins/);
+    expect(await s.t.run((ctx) => ctx.db.get(m))).not.toBeNull();
+    expect(
+      await asUser(s.t, ADMIN).mutation(api.attendanceMembers.remove, { memberId: m })
+    ).toBe(true);
   });
 
   test("staffForEmail names the staff person an email belongs to", async () => {
