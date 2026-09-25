@@ -19,8 +19,8 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Nine Expo packages are back in step with the Expo release.** Expo shipped
   new SDK 57 patch releases, so the dependency check started failing on every
   pull request. `expo`, `expo-router`, `expo-notifications`, `expo-image-picker`,
-  `expo-sharing`, `expo-auth-session`, `expo-linking` and `@expo/ui` are now on
-  the expected patch versions.
+  `expo-sharing`, `expo-auth-session`, `expo-linking`, `expo-constants` and
+  `@expo/ui` are now on the expected patch versions.
 
 ### Fixed
 - **Two reminder tests no longer fail in the last week of September.** They
