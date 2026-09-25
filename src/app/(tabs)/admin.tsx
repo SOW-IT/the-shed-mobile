@@ -57,7 +57,7 @@ type DeleteConfirm = { name: string; message: string; onConfirm: () => void };
 
 const ADMIN_CARD_WIDTH = 360;
 
-const UNASSIGNED_VISIBLE_USERS = 5;
+const UNASSIGNED_VISIBLE_USERS = 3;
 
 const CardGrid = ({
   children,

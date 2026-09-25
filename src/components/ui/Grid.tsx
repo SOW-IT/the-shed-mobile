@@ -56,12 +56,13 @@ export const Grid = ({
           key={isValidElement(child) ? child.key ?? i : i}
           style={perChild}
           onLayout={
-            i === capIndex
-              ? (e) => {
+            capIndex == null
+              ? undefined
+              : (e) => {
+                  if (i !== capIndex) return;
                   const { y, height } = e.nativeEvent.layout;
                   setCappedHeight(y + height);
                 }
-              : undefined
           }
         >
           {child}
