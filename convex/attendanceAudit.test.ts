@@ -571,6 +571,29 @@ describe("audit logging across attendance mutations", () => {
     );
   });
 
+  test("a corrupt sign-in time can't block an event delete, and can't be saved", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const { dateStart, dateEnd } = window();
+    const eventId = await staff.mutation(api.events.create, {
+      name: "Corrupt",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    const memberId = await staff.mutation(api.attendanceMembers.create, { name: "Sam" });
+    const attendanceId = await staff.mutation(api.attendance.signIn, { eventId, memberId });
+    for (const bad of [Number.NaN, 8.64e15 + 1]) {
+      await expect(
+        staff.mutation(api.attendance.updateRecord, { attendanceId, signInTime: bad })
+      ).rejects.toThrow(/valid date/);
+    }
+    await t.run((ctx) => ctx.db.patch(attendanceId, { signInTime: Number.NaN }));
+    await staff.mutation(api.events.remove, { eventId });
+    const del = (await allLogs(t)).find((l) => l.action === "event.delete");
+    expect(del?.detail).toBe("Removed 1 attendance record:\nSam · unknown time");
+  });
+
   test("event deletePreview names everyone who would lose attendance", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);

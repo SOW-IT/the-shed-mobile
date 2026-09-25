@@ -527,7 +527,9 @@ export function CreateEventSheet({
                   <Ionicons name="warning" size={20} color={t.danger} />
                   <Txt style={[typography.headline, { color: t.danger, flex: 1 }]}>
                     {deleteImpact && deleteImpact.total > 0
-                      ? `Removes ${deleteImpact.total === 1 ? "1 person's" : `${deleteImpact.total} people's`} attendance`
+                      ? `Removes ${deleteImpact.total} attendance record${
+                          deleteImpact.total === 1 ? "" : "s"
+                        }`
                       : "No one is signed in to this event"}
                   </Txt>
                 </View>

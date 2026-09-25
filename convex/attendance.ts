@@ -391,6 +391,12 @@ export const updateRecord = mutation({
     const { email: actorEmail } = await requireProfile(ctx);
     const row = await ctx.db.get(attendanceId);
     if (!row) throw new ConvexError("Attendance record not found.");
+    if (
+      signInTime !== undefined &&
+      (!Number.isFinite(signInTime) || Number.isNaN(new Date(signInTime).getTime()))
+    ) {
+      throw new ConvexError("That sign-in time isn't a valid date.");
+    }
     const patch: { notes?: string; signInTime?: number } = {};
     if (notes !== undefined) {
       const trimmed = notes.trim();

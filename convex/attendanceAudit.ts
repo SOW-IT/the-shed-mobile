@@ -45,6 +45,10 @@ export const MAX_AUDIT_ATTENDANCE_LINES = 100;
 
 /** A sign-in time as it reads in the audit log, in Sydney time. */
 export const auditStamp = (ms: number): string => {
+  // A corrupt time must never stop a delete from being logged.
+  if (!Number.isFinite(ms) || Number.isNaN(new Date(ms).getTime())) {
+    return "unknown time";
+  }
   try {
     return new Intl.DateTimeFormat("en-AU", {
       timeZone: SYDNEY_TIME_ZONE,
