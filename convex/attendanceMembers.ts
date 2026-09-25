@@ -403,8 +403,7 @@ export const ensureForStaff = mutation({
  *  leaving a hidden duplicate if they already had a row). Merge does it
  *  properly, so the Email field points there instead. */
 const staffEmailMessage = (profile: Doc<"staffProfiles">) =>
-  `${profile.email} belongs to staff "${personDisplayName(profile.name, profile.email)}". ` +
-  "Use Merge to combine this member with them so their attendance moves across.";
+  `${profile.email} is ${personDisplayName(profile.name, profile.email)}'s staff email. Use Merge instead.`;
 
 /** The staff person an email belongs to, if any — lets the edit sheet offer
  *  Merge before the save is refused. */
@@ -695,7 +694,7 @@ const resolveMergePair = async (
   if (!remove) return { blocked: "That member no longer exists." };
   if (await staffProfileForRow(ctx, remove, profileYear)) {
     return {
-      blocked: `${remove.name} is staff. Staff can't be merged into someone else — merge the member into the staff person instead.`,
+      blocked: `${remove.name} is staff, so can't be merged away. Merge the member into them instead.`,
     };
   }
 

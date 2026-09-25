@@ -334,7 +334,7 @@ describe("staff can't be merged away", () => {
         keep: { staffEmail: LEADER },
         resolutions: {},
       })
-    ).rejects.toThrow("Staff can't be merged into someone else");
+    ).rejects.toThrow("can't be merged away");
   });
 
   test("staff into a member is blocked", async () => {
@@ -419,7 +419,7 @@ describe("a staff email on a member points to Merge", () => {
         name: "Leader Nickname",
         email: LEADER.toUpperCase(),
       })
-    ).rejects.toThrow(/belongs to staff .*Use Merge/);
+    ).rejects.toThrow(/staff email\. Use Merge instead/);
     // Other emails, and staff rows keeping their own email, still save.
     await s.leader.mutation(api.attendanceMembers.update, {
       memberId: m,

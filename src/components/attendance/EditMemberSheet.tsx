@@ -18,6 +18,7 @@ import { capitalizeMemberName } from "../../../shared/rollcall";
 import { MergeMemberSheet } from "@/components/attendance/MergeMemberSheet";
 import {
   Btn,
+  CannotUndo,
   dismissKeyboard,
   errorMessage,
   Field,
@@ -208,6 +209,8 @@ export function EditMemberSheet({
   };
 
   const loading = Boolean(memberId && row === undefined);
+  // Deleted or merged away by someone else while this sheet was open.
+  const gone = Boolean(memberId) && row === null;
 
   const sheet = (
     <Sheet
@@ -215,7 +218,7 @@ export function EditMemberSheet({
       onClose={onClose}
       title={memberId ? "Edit member" : "New member"}
       headerRight={
-        memberId && !loading ? (
+        memberId && !loading && !gone ? (
           <View style={styles.headerActions}>
             <Pressable
               accessibilityRole="button"
@@ -253,7 +256,9 @@ export function EditMemberSheet({
         ) : null
       }
       footer={
-        loading ? null : (
+        loading ? null : gone ? (
+          <Btn title="Close" variant="ghost" onPress={onClose} />
+        ) : (
           <View style={{ gap: spacing.sm }}>
             <Btn
               title="Save"
@@ -267,6 +272,10 @@ export function EditMemberSheet({
     >
       {loading ? (
         <LoadingState />
+      ) : gone ? (
+        <WarningBanner
+          message={`${name.trim() || "This member"} was just deleted or merged by someone else.`}
+        />
       ) : (
         <>
           <Field
@@ -290,6 +299,7 @@ export function EditMemberSheet({
           ) : null}
           <Field
             label="Email (optional)"
+            testID="member-email"
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -298,7 +308,7 @@ export function EditMemberSheet({
           {staffEmailOwner ? (
             <View style={{ gap: spacing.sm }}>
               <WarningBanner
-                message={`This email belongs to staff "${staffEmailOwner.name}". Merge this member into them instead, so their attendance moves across.`}
+                message={`This is ${staffEmailOwner.name}'s staff email. Merge into them instead.`}
               />
               <Btn
                 title={`Merge into ${staffEmailOwner.name}`}
@@ -395,7 +405,7 @@ export function EditMemberSheet({
                 <Btn
                   title={
                     deleteImpact && deleteImpact.total > 0
-                      ? `Delete member and ${deleteImpact.total} attendance record${
+                      ? `Delete member and ${deleteImpact.total} record${
                           deleteImpact.total === 1 ? "" : "s"
                         }`
                       : "Delete permanently"
@@ -409,7 +419,7 @@ export function EditMemberSheet({
                   onPress={() => void onDelete()}
                 />
                 <Btn
-                  title="It's a duplicate — merge instead"
+                  title="Merge instead"
                   icon="git-merge-outline"
                   variant="tonal"
                   onPress={() => {
@@ -440,24 +450,18 @@ export function EditMemberSheet({
                       style={[typography.headline, { color: t.danger, flex: 1 }]}
                     >
                       {deleteImpact && deleteImpact.total > 0
-                        ? `${name.trim()} will be removed from ${
-                            deleteImpact.total === 1
-                              ? "1 event"
-                              : deleteImpact.total === 2
-                                ? "both events"
-                                : `all ${deleteImpact.total} events`
-                          } they attended`
-                        : `${name.trim()} isn't signed in to any events`}
+                        ? `Removes ${name.trim()} from ${
+                            deleteImpact.total === 1 ? "1 event" : `${deleteImpact.total} events`
+                          }`
+                        : `${name.trim()} has no attendance`}
                     </Txt>
                   </View>
-                  <Txt style={[typography.body, { color: t.text }]}>
-                    {deleteImpact && deleteImpact.total > 0
-                      ? "Deleting a member also deletes every attendance record they have, at every event, in every year. Their attendance disappears from rolls, exports and Insights. "
-                      : "The member will be deleted. "}
-                    <Txt style={{ fontWeight: "800" }}>
-                      This is permanent and cannot be undone.
+                  {deleteImpact && deleteImpact.total > 0 ? (
+                    <Txt style={[typography.body, { color: t.text }]}>
+                      Their attendance is deleted from rolls, exports and Insights.
                     </Txt>
-                  </Txt>
+                  ) : null}
+                  <CannotUndo />
                 </View>
                 {deleteImpact && deleteImpact.total > 0 ? (
                   <>
@@ -467,7 +471,7 @@ export function EditMemberSheet({
                         { color: t.muted, marginTop: spacing.sm },
                       ]}
                     >
-                      ATTENDANCE THAT WILL BE DELETED
+                      ATTENDANCE DELETED
                     </Txt>
                     <View
                       style={[
@@ -503,19 +507,16 @@ export function EditMemberSheet({
                   </>
                 ) : null}
                 <Txt style={[typography.body, { color: t.text, marginTop: spacing.sm }]}>
-                  {eventAttendance
-                    ? "Only want them off this event? Close this and remove their sign-in instead. "
-                    : ""}
-                  If this is a duplicate of someone else, merge them instead so
-                  their attendance is kept.
+                  {eventAttendance ? "Just this event? Remove their sign-in instead. " : ""}
+                  Duplicate? Merge instead to keep their attendance.
                 </Txt>
                 <Txt style={[typography.body, { color: t.text, marginTop: spacing.sm }]}>
-                  To delete anyway, type{" "}
-                  <Txt style={{ fontWeight: "800" }}>{name.trim()}</Txt> to
-                  confirm.
+                  Type <Txt style={{ fontWeight: "800" }}>{name.trim()}</Txt> to
+                  delete.
                 </Txt>
                 <Field
                   label="Member name"
+                  testID="delete-confirm-name"
                   value={deleteText}
                   onChangeText={setDeleteText}
                   placeholder={name}
@@ -536,7 +537,6 @@ export function EditMemberSheet({
               isStaff={isStaffOverlay}
               year={year}
               staffYear={staffYear}
-              metadataFields={metadataFields}
               removeViewedByDefault={mergeFromDelete}
               initialStaff={mergeStaff}
             />

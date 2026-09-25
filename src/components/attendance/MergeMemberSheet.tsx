@@ -3,12 +3,13 @@ import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
 import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
-import { Doc, Id } from "../../../convex/_generated/dataModel";
+import { Id } from "../../../convex/_generated/dataModel";
 import { formatMetadataFieldValue } from "../../../shared/attendanceMemberMeta";
 import { SYDNEY_TIME_ZONE } from "../../../shared/flow";
 import type { MergeResolutions, MergeSide } from "../../../shared/memberMerge";
 import {
   Btn,
+  CannotUndo,
   dismissKeyboard,
   ErrorBanner,
   errorMessage,
@@ -59,7 +60,6 @@ export function MergeMemberSheet({
   isStaff,
   year,
   staffYear,
-  metadataFields,
   removeViewedByDefault = false,
   initialStaff,
 }: {
@@ -72,7 +72,6 @@ export function MergeMemberSheet({
   isStaff: boolean;
   year: number;
   staffYear: number;
-  metadataFields: Doc<"attendanceMetadata">[];
   /** Opened from "delete": the member being viewed is the one to get rid of. */
   removeViewedByDefault?: boolean;
   /** Opened from the Email field: go straight to merging into this staff person. */
@@ -80,6 +79,9 @@ export function MergeMemberSheet({
 }) {
   const t = useAppTheme();
   const merge = useMutation(api.attendanceMembers.merge);
+  // Every field, not just the event's groups: a merge carries them all, and a
+  // conflict on another group's select field should still show its labels.
+  const metadataFields = useQuery(api.attendanceMetadata.list, visible ? {} : "skip") ?? [];
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [picked, setPicked] = useState<Picked | null>(null);
@@ -271,11 +273,10 @@ export function MergeMemberSheet({
       {!picked ? (
         <>
           <Txt style={[typography.body, { color: t.text }]}>
-            Find the duplicate record for this person. Their attendance moves
-            across, so nothing is lost.{" "}
+            Search for the duplicate. Their attendance moves across.{" "}
             {isStaff
-              ? "Only members can be merged into a staff person."
-              : "If you pick a staff person, this member is merged into them."}
+              ? "Only members can be merged into staff."
+              : "Picking staff merges this member into them."}
           </Txt>
           <View style={[styles.search, { backgroundColor: t.inputBackground }]}>
             <Ionicons name="search-outline" size={18} color={t.faint} />
@@ -358,10 +359,7 @@ export function MergeMemberSheet({
           {personCard("MERGING IN, THEN REMOVING", ready.remove, "remove", false)}
           {canSwap && ready.remove.history.events > ready.keep.history.events ? (
             <WarningBanner
-              message={`${ready.remove.name} has been used more (${plural(
-                ready.remove.history.events,
-                "event"
-              )} vs ${ready.keep.history.events}). Consider swapping to keep them.`}
+              message={`${ready.remove.name} has more history (${ready.remove.history.events} vs ${ready.keep.history.events} events). Swap to keep them?`}
             />
           ) : null}
           {canSwap ? (
@@ -378,28 +376,28 @@ export function MergeMemberSheet({
           ) : null}
           <Txt style={[typography.body, { color: t.text }]}>
             {ready.attendance.total === 0
-              ? `${ready.remove.name} isn't signed in to any events. `
-              : ""}
-            {ready.attendance.moved > 0
-              ? `${plural(ready.attendance.moved, "attendance record")} move${
-                  ready.attendance.moved === 1 ? "s" : ""
-                } to ${ready.keep.name}. `
-              : ""}
-            {ready.attendance.shared > 0
-              ? `${plural(ready.attendance.shared, "event")} they were both signed in to ${
-                  ready.attendance.shared === 1 ? "is" : "are"
-                } combined into one record, keeping the earlier sign-in time and both sets of notes. `
-              : ""}
-            <Txt style={{ fontWeight: "800" }}>
-              {ready.remove.name} is then removed. This can&apos;t be undone.
-            </Txt>
+              ? "No attendance to move."
+              : [
+                  ready.attendance.moved > 0
+                    ? `${plural(ready.attendance.moved, "record")} ${
+                        ready.attendance.moved === 1 ? "moves" : "move"
+                      } to ${ready.keep.name}.`
+                    : "",
+                  ready.attendance.shared > 0
+                    ? `${plural(ready.attendance.shared, "shared event")} become${
+                        ready.attendance.shared === 1 ? "s" : ""
+                      } one record.`
+                    : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
           </Txt>
           {ready.keep.kind === "staff" ? (
             <Txt style={[typography.caption, { color: t.muted }]}>
-              {ready.keep.name}&apos;s name, email, campus and role stay as they are in
-              their staff profile.
+              Name, email, campus and role stay from the staff profile.
             </Txt>
           ) : null}
+          <CannotUndo text={`${ready.remove.name} will be removed. This can't be undone.`} />
           {ready.conflicts.length > 0 ? (
             <>
               <Text style={[typography.label, { color: t.muted, marginTop: spacing.sm }]}>
@@ -432,7 +430,8 @@ export function MergeMemberSheet({
             Type <Txt style={{ fontWeight: "800" }}>{removeName}</Txt> to confirm.
           </Txt>
           <Field
-            label="Name of the person being removed"
+            label="Confirm name"
+            testID="merge-confirm-name"
             value={confirmText}
             onChangeText={setConfirmText}
             placeholder={removeName}

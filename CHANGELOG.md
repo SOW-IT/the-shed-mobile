@@ -9,50 +9,30 @@ All notable changes to **The SHED** mobile app. This project follows
 ## [1.13.0] — 2026-09-25
 
 ### Added
-- **Duplicate members can now be merged instead of deleted.** Open a member and
-  tap the merge button, or choose "It's a duplicate — merge instead" on the
-  delete screen, then search for the other record. The review screen shows who
-  is kept and who is removed, how many attendance records move across, and lets
-  you pick which name, email or other detail to keep where the two differ.
-  Nothing is lost: every attendance record moves to the person kept, and where
-  both were signed in to the same event they become one record with the earlier
-  sign-in time and both sets of notes. A member can be merged into another
-  member or into a staff person; a staff person is always the one kept (their
-  name, email, campus and role stay as their profile says), and two staff can
-  never be merged. Details stored two ways that read the same (a Year saved in
-  the old format, say) aren't offered as a choice, and the audit log lists which
-  details came from the removed person. Each side shows how many events they
-  attended and when they last came, and the screen suggests swapping when the person being removed has
-  been used more. You type the removed person's name to confirm, a message
-  confirms the merge, and it is recorded in the attendance audit log.
+- **Merge duplicate members instead of deleting them.** Open a member, tap
+  merge (or "Merge instead" when deleting) and search for the duplicate. The
+  review shows who is kept, who is removed, each side's event count and last
+  visit, and lets you pick which name, email or detail to keep where they
+  differ. All attendance moves across; an event both attended becomes one
+  record. Details from every group (a USYD Instagram, a UNSW zID) are kept.
+  Members can merge into members or into staff; staff are always kept and two
+  staff can't merge. A bold red line warns it can't be undone.
 
 ### Changed
-- **Typing a staff email onto a member now points to Merge instead.** Before,
-  saving a staff email on a member relabelled them as that staff person but
-  left their attendance on the old record, so Insights counted the person
-  twice, and if the staff person already had a record the new one vanished
-  from the list with its attendance still attached. The Email field now shows
-  who the email belongs to and a "Merge into …" button, and saving is blocked
-  until you merge; adding a new member with a staff email who is already listed
-  is blocked too.
-- **Deleting a member now spells out exactly what is lost.** The delete screen
-  says how many events the member will be removed from and lists each one with
-  its date, warns that this removes them from rolls, exports and Insights and
-  can't be undone, and points to merging when the member is a duplicate. The
-  button reads "Delete member and N attendance records". Staff deleted
-  duplicates in August and September this way and took real attendance with
-  them without realising.
-- **Typing a name to confirm a delete or merge ignores capital letters and
-  extra spaces.**
-- **The audit log records which member was deleted**, not just their name, so a
-  deleted member can be traced even when two people share a name.
+- **Deleting a member lists what is lost.** The count and every event, a bold
+  red "This can't be undone.", and a pointer to Merge.
+- **A staff email on a member points to Merge.** Saving it used to split the
+  person's attendance in two; now the Email field offers "Merge into …".
+- **If someone else deletes or merges a member you have open**, the sheet says
+  so instead of letting you edit a record that no longer exists.
+- **Confirming a name ignores capitals and extra spaces.**
+- **The audit log names the deleted member and, for merges, which details came
+  from the removed person.**
 
 ### Fixed
-- **A one-off repair for staff whose attendance was split.** Records made before
-  this release by typing a staff email onto a member can be repaired with an
-  admin command (dry run first, one person or all), which moves those sign-ins
-  onto the staff person and folds hidden duplicate records together, following
-  the same rules as a merge.
+- **Split staff attendance can be repaired.** An admin command (dry run first,
+  one person or all) moves sign-ins made the old way onto the staff person and
+  folds hidden duplicates together.
 
 ## [1.12.1] — 2026-09-25
 

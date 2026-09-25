@@ -88,11 +88,13 @@ tags:
 - assertVisible: "Vegetarian,.*"
 
 - scrollUntilVisible:
-    element: "NAME OF THE PERSON BEING REMOVED"
+    element:
+      id: "merge-confirm-name"
     direction: DOWN
+    # Centre it: at the bottom edge it sits under the sheet's footer buttons.
+    centerElement: true
 - tapOn:
-    below: "NAME OF THE PERSON BEING REMOVED"
-    index: 0
+    id: "merge-confirm-name"
 - inputText: "[e2e] merge dup"
 - tapOn: ".*, Merge"
 - assertVisible: "Merged \\[E2E\\] Merge Dup into \\[E2E\\] Merge Keep"
@@ -123,8 +125,7 @@ tags:
 # ── Clean up ────────────────────────────────────────────────────────────────
 - tapOn: "Delete member"
 - tapOn:
-    below: "MEMBER NAME"
-    index: 0
+    id: "delete-confirm-name"
 - inputText: "[E2E] Merge Keep"
 - tapOn: "Delete permanently"
 - assertVisible: "Deleted \\[E2E\\] Merge Keep"

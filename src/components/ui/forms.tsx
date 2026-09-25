@@ -16,6 +16,7 @@ export const Field = ({
   multiline,
   disabled,
   maxLength,
+  testID,
 }: {
   label: string;
   value: string;
@@ -26,6 +27,8 @@ export const Field = ({
   multiline?: boolean;
   disabled?: boolean;
   maxLength?: number;
+  /** Stable handle for end-to-end tests. */
+  testID?: string;
 }) => {
   const t = useAppTheme();
   const [focused, setFocused] = useState(false);
@@ -55,6 +58,7 @@ export const Field = ({
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
           maxLength={maxLength}
+          testID={testID}
           multiline={multiline}
           editable={!disabled}
           onFocus={() => setFocused(true)}

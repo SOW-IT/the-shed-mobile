@@ -327,6 +327,7 @@ export const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
     gap: spacing.sm,
   },
+  cannotUndo: { flexDirection: "row", alignItems: "center", gap: 8 },
   toast: {
     position: "absolute",
     bottom: 28,
