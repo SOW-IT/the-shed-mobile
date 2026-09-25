@@ -6,6 +6,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.12.1] — 2026-09-25
+
+### Changed
+- **Admin → Users keeps long unassigned lists short.** Previously staff, Signed
+  in with no assignment, In directory with no assignment, and Leaving each show
+  up to 5 people and scroll inside their own box, like Not signed in on an
+  event, so the assigned staff below are no longer pushed far down the page.
+  Signed in with no assignment now shows its count like the other lists.
+- **"Move to unassigned" on the Leaving list is now "Retain".** It still keeps
+  the person on for the year and moves them back to the unassigned lists.
+
 ## [1.12.0] — 2026-09-15
 
 ### Changed
