@@ -39,7 +39,11 @@ import {
   requireAdmin,
   requireProfile,
 } from "./model";
-import { logAttendanceAction } from "./attendanceAudit";
+import {
+  auditStamp,
+  logAttendanceAction,
+  MAX_AUDIT_ATTENDANCE_LINES,
+} from "./attendanceAudit";
 import { Doc, Id } from "./_generated/dataModel";
 
 export type MemberRow = {
@@ -523,27 +527,7 @@ export const update = mutation({
   },
 });
 
-/** Deleting a member is permanent, so the audit entry has to carry enough to
- *  reconstruct what went with them. Beyond this many lines the entry would
- *  bloat the log without being readable; the count above it stays exact. */
-const MAX_AUDIT_ATTENDANCE_LINES = 100;
 
-const auditStamp = (ms: number): string => {
-  try {
-    return new Intl.DateTimeFormat("en-AU", {
-      timeZone: SYDNEY_TIME_ZONE,
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    }).format(new Date(ms));
-  } catch {
-    // Runtimes without full ICU still get something sortable and unambiguous.
-    return new Date(ms).toISOString();
-  }
-};
 
 export const remove = mutation({
   args: { memberId: v.id("attendanceMembers") },
@@ -954,6 +938,35 @@ export const merge = mutation({
       }
     }
 
+    // A staff person's own sign-ins made through their overlay row (the old
+    // "staff email on a member" path) go onto their email first, so no event
+    // is left with two of their records once the duplicate's are added.
+    let tidied = 0;
+    if (keep.kind === "staff" && keep.shadow) {
+      const own = await ctx.db
+        .query("attendance")
+        .withIndex("by_member", (q) => q.eq("memberId", keep.shadow!._id))
+        .collect();
+      for (const record of own) {
+        const byEmail = await ctx.db
+          .query("attendance")
+          .withIndex("by_event_and_email", (q) =>
+            q.eq("eventId", record.eventId).eq("email", keep.email)
+          )
+          .unique();
+        if (byEmail) {
+          await ctx.db.patch(byEmail._id, {
+            signInTime: Math.min(byEmail.signInTime, record.signInTime),
+            notes: mergeNotes(byEmail.notes, record.notes),
+          });
+          await ctx.db.delete(record._id);
+        } else {
+          await ctx.db.patch(record._id, { email: keep.email, memberId: undefined });
+        }
+        tidied++;
+      }
+    }
+
     const records = await ctx.db
       .query("attendance")
       .withIndex("by_member", (q) => q.eq("memberId", remove._id))
@@ -998,6 +1011,9 @@ export const merge = mutation({
             ? `; combined ${combined} event${combined === 1 ? "" : "s"} both were signed in to`
             : ""),
         ...(taken.length ? [`Took from "${remove.name}": ${taken.join(", ")}`] : []),
+        ...(tidied
+          ? [`Also moved ${tidied} of ${keptName}'s own member sign-in${tidied === 1 ? "" : "s"} onto their staff email`]
+          : []),
         `Removed member "${remove.name}" (${remove._id})`,
       ].join("\n"),
     });

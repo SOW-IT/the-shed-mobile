@@ -20,9 +20,13 @@ import {
   mutation,
   query,
 } from "./_generated/server";
-import { optionalProfile, requireProfile } from "./model";
+import { displayName, optionalProfile, requireProfile } from "./model";
 import { notify } from "./requests";
-import { logAttendanceAction } from "./attendanceAudit";
+import {
+  auditStamp,
+  logAttendanceAction,
+  MAX_AUDIT_ATTENDANCE_LINES,
+} from "./attendanceAudit";
 import { paginator } from "convex-helpers/server/pagination";
 import { asPaginatorCursor } from "./pagination";
 import schema from "./schema";
@@ -384,6 +388,46 @@ export const update = mutation({
   },
 });
 
+/** Who is signed in to an event, newest first, named, for the delete sheet
+ *  and the audit entry. Only the listed rows are named, so reads stay bounded
+ *  by the line cap however big the event. */
+const attendeesToList = async (
+  ctx: QueryCtx | MutationCtx,
+  event: Doc<"events">,
+  rows: Doc<"attendance">[]
+) => {
+  const year = eventStaffYear(event.dateStart);
+  const listed = rows
+    .slice()
+    .sort((a, b) => b.signInTime - a.signInTime)
+    .slice(0, MAX_AUDIT_ATTENDANCE_LINES);
+  const people = [];
+  for (const row of listed) {
+    const member = row.memberId ? await ctx.db.get(row.memberId) : null;
+    const name = row.email
+      ? await displayName(ctx, row.email, year)
+      : (member?.name ?? "Deleted member");
+    people.push({ attendanceId: row._id, name, signInTime: row.signInTime });
+  }
+  return people;
+};
+
+/** What deleting an event takes with it, so the confirm sheet names every
+ *  person whose attendance goes. */
+export const deletePreview = query({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    if (!(await optionalProfile(ctx))) return null;
+    const event = await ctx.db.get(eventId);
+    if (!event) return null;
+    const rows = await ctx.db
+      .query("attendance")
+      .withIndex("by_event", (q) => q.eq("eventId", eventId))
+      .collect();
+    return { total: rows.length, people: await attendeesToList(ctx, event, rows) };
+  },
+});
+
 export const remove = mutation({
   args: { eventId: v.id("events") },
   returns: v.null(),
@@ -395,15 +439,25 @@ export const remove = mutation({
       .query("attendance")
       .withIndex("by_event", (q) => q.eq("eventId", eventId))
       .collect();
+    // Named before the rows go, so the audit entry can say whose attendance
+    // was lost and when they signed in.
+    const people = await attendeesToList(ctx, event, rows);
     for (const row of rows) await ctx.db.delete(row._id);
     await ctx.db.delete(eventId);
+    const hidden = rows.length - people.length;
     await logAttendanceAction(ctx, {
       actorEmail: email,
       entityType: "event",
       action: "event.delete",
       summary: `Deleted event "${event.name}"`,
-      detail:
-        rows.length > 0 ? `Removed ${rows.length} attendance record(s)` : undefined,
+      eventId,
+      detail: rows.length
+        ? [
+            `Removed ${rows.length} attendance record${rows.length === 1 ? "" : "s"}:`,
+            ...people.map((p) => `${p.name} · ${auditStamp(p.signInTime)}`),
+            ...(hidden > 0 ? [`and ${hidden} more`] : []),
+          ].join("\n")
+        : "Removed no attendance records",
     });
     return null;
   },

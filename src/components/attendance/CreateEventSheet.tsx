@@ -6,19 +6,23 @@ import {
 } from "@/components/NativeDateTimeField";
 import {
   Btn,
+  CannotUndo,
   ConfirmDialog,
+  dismissKeyboard,
   errorMessage,
   Field,
+  LoadingState,
   Sheet,
   Txt,
 } from "@/components/ui";
 import { WebDateInput, WebTimeInput } from "@/components/WebDateTimeInput";
-import { spacing, typography, useAppTheme } from "@/theme";
+import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Platform, Pressable, View } from "react-native";
+import { Platform, Pressable, StyleSheet, View } from "react-native";
+import { SYDNEY_TIME_ZONE } from "../../../shared/flow";
 import { api } from "../../../convex/_generated/api";
 import { Doc, Id } from "../../../convex/_generated/dataModel";
 import {
@@ -81,6 +85,10 @@ export function CreateEventSheet({
   const [submitting, setSubmitting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteText, setDeleteText] = useState("");
+  const deleteImpact = useQuery(
+    api.events.deletePreview,
+    deleteOpen && event ? { eventId: event._id } : "skip"
+  );
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [initial, setInitial] = useState({
     name: "",
@@ -226,6 +234,7 @@ export function CreateEventSheet({
     setError(null);
     try {
       await removeEvent({ eventId: event._id });
+      await dismissKeyboard();
       setDeleteOpen(false);
       onClose();
       onDeleted?.();
@@ -486,25 +495,102 @@ export function CreateEventSheet({
           title="Delete event"
           footer={
             <Btn
-              title="Delete event"
+              title={
+                deleteImpact && deleteImpact.total > 0
+                  ? `Delete event and ${deleteImpact.total} record${
+                      deleteImpact.total === 1 ? "" : "s"
+                    }`
+                  : "Delete event"
+              }
               variant="danger"
               loading={submitting}
-              disabled={deleteText.trim() !== eventName.trim()}
+              disabled={
+                deleteImpact === undefined ||
+                deleteText.trim().replace(/\s+/g, " ").toLowerCase() !==
+                  eventName.trim().replace(/\s+/g, " ").toLowerCase()
+              }
               onPress={() => void onDelete()}
             />
           }
         >
-          <Txt style={[typography.body, { color: t.text }]}>
-            This permanently deletes the event and all attendance records for
-            it. Type <Txt style={{ fontWeight: "800" }}>{eventName.trim()}</Txt>{" "}
-            to confirm.
-          </Txt>
-          <Field
-            label="Event name"
-            value={deleteText}
-            onChangeText={setDeleteText}
-            placeholder={eventName}
-          />
+          {deleteImpact === undefined ? (
+            <LoadingState />
+          ) : (
+            <>
+              <View
+                style={[
+                  styles.deleteWarning,
+                  { backgroundColor: t.dangerSoft, borderColor: t.danger },
+                ]}
+              >
+                <View style={styles.row}>
+                  <Ionicons name="warning" size={20} color={t.danger} />
+                  <Txt style={[typography.headline, { color: t.danger, flex: 1 }]}>
+                    {deleteImpact && deleteImpact.total > 0
+                      ? `Removes ${deleteImpact.total === 1 ? "1 person's" : `${deleteImpact.total} people's`} attendance`
+                      : "No one is signed in to this event"}
+                  </Txt>
+                </View>
+                {deleteImpact && deleteImpact.total > 0 ? (
+                  <Txt style={[typography.body, { color: t.text }]}>
+                    It&apos;s deleted from rolls, exports and Insights.
+                  </Txt>
+                ) : null}
+                <CannotUndo />
+              </View>
+              {deleteImpact && deleteImpact.total > 0 ? (
+                <>
+                  <Txt style={[typography.label, { color: t.muted, marginTop: spacing.sm }]}>
+                    ATTENDANCE DELETED
+                  </Txt>
+                  <View
+                    style={[
+                      styles.deleteList,
+                      { borderColor: t.separator, backgroundColor: t.card },
+                    ]}
+                  >
+                    {deleteImpact.people.map((p) => (
+                      <View key={p.attendanceId} style={styles.row}>
+                        <Ionicons name="close-circle" size={14} color={t.danger} />
+                        <Txt
+                          style={[typography.body, { color: t.text, flex: 1 }]}
+                          numberOfLines={1}
+                        >
+                          {p.name}
+                        </Txt>
+                        <Txt style={[typography.caption, { color: t.muted }]}>
+                          {new Date(p.signInTime).toLocaleTimeString("en-AU", {
+                            timeZone: SYDNEY_TIME_ZONE,
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                        </Txt>
+                      </View>
+                    ))}
+                    {deleteImpact.total > deleteImpact.people.length ? (
+                      <Txt style={[typography.caption, { color: t.muted }]}>
+                        and {deleteImpact.total - deleteImpact.people.length} more
+                      </Txt>
+                    ) : null}
+                  </View>
+                  <Txt style={[typography.body, { color: t.text, marginTop: spacing.sm }]}>
+                    Duplicate event? Sign these people in to the right one first.
+                  </Txt>
+                </>
+              ) : null}
+              <Txt style={[typography.body, { color: t.text, marginTop: spacing.sm }]}>
+                Type <Txt style={{ fontWeight: "800" }}>{eventName.trim()}</Txt> to
+                delete.
+              </Txt>
+              <Field
+                label="Event name"
+                testID="delete-event-confirm-name"
+                value={deleteText}
+                onChangeText={setDeleteText}
+                placeholder={eventName}
+              />
+            </>
+          )}
         </Sheet>
       ) : null}
 
@@ -521,3 +607,19 @@ export function CreateEventSheet({
     </Sheet>
   );
 }
+
+const styles = StyleSheet.create({
+  row: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  deleteWarning: {
+    borderWidth: 1.5,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  deleteList: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: 6,
+  },
+});

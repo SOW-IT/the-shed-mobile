@@ -259,14 +259,44 @@ describe("merging a member into staff", () => {
 
     const rows = await s.attendance();
     expect(rows).toHaveLength(2);
-    expect(rows.find((r) => r.eventId === ev)).toMatchObject({
-      memberId: shadow,
-      signInTime: 1_100,
-    });
+    // The overlay's own sign-in is folded onto the staff email too.
+    const folded = rows.find((r) => r.eventId === ev)!;
+    expect(folded).toMatchObject({ email: LEADER, signInTime: 1_100 });
+    expect(folded.memberId).toBeUndefined();
     expect(rows.find((r) => r.eventId === other)).toMatchObject({ email: LEADER });
     expect(await s.t.run((ctx) => ctx.db.get(shadow))).toMatchObject({
       metadata: expect.objectContaining({ [s.yearField]: "3" }),
     });
+  });
+
+  test("a staff merge leaves one record per event even if the staff person was already split", async () => {
+    const s = await setup();
+    const shadow = await s.leader.mutation(api.attendanceMembers.ensureForStaff, {
+      staffEmail: LEADER,
+    });
+    const dup = await s.member("Leader Nickname");
+    const both = await s.event("Split already", 1_000);
+    const shadowOnly = await s.event("Overlay only", 2_000);
+    await s.signIn(both, { email: LEADER }, 1_300, "by email");
+    await s.signIn(both, { memberId: shadow }, 1_200, "by overlay");
+    await s.signIn(both, { memberId: dup }, 1_100);
+    await s.signIn(shadowOnly, { memberId: shadow }, 2_100);
+
+    await s.leader.mutation(api.attendanceMembers.merge, {
+      removeId: dup,
+      keep: { memberId: shadow },
+      resolutions: {},
+    });
+
+    const rows = await s.attendance();
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.email === LEADER && r.memberId === undefined)).toBe(true);
+    expect(rows.find((r) => r.eventId === both)).toMatchObject({
+      signInTime: 1_100,
+      notes: "by email\nby overlay",
+    });
+    const log = (await s.audit()).find((r) => r.action === "member.merge")!;
+    expect(log.detail).toContain("Also moved 2 of");
   });
 
   test("always leaves the staff person an overlay row, so older events keep a name", async () => {

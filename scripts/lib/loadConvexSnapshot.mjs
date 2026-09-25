@@ -17,15 +17,32 @@ import { reportViewSql, reportViewsToPublish } from "./convexWarehouseReports.mj
 const IAM_HINT =
   "Grant the backup service account roles/bigquery.user on the project (jobs and datasets.create), roles/bigquery.dataEditor on the destination dataset and on the warehouse dataset, and storage.objects.get on the backup bucket. Or pre-create those datasets and skip automatic dataset creation.";
 
-export const makeRunner = (spawn) => (command, commandArgs, { allowFailure = false } = {}) => {
-  const result = spawn(command, commandArgs, { encoding: "utf8" });
-  if (result.error) throw result.error;
-  if (result.status !== 0 && !allowFailure) {
-    const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
-    throw new Error(`${command} ${commandArgs.join(" ")} failed:\n${output}`);
-  }
-  return result;
-};
+/** Failures worth trying again: the runner's short-lived Google credentials
+ *  (Workload Identity) or the network blipping, not a real bq error. On
+ *  25 Sep 2026 one "upstream request timeout" fetching the identity token
+ *  failed the whole nightly load. */
+export const TRANSIENT_FAILURE =
+  /problem refreshing your\s+current auth tokens|Identity Pool subject token|upstream request timeout|timed? ?out|ECONNRESET|ETIMEDOUT|Connection reset|backendError|rateLimitExceeded|\b50[023]\b/i;
+
+const sleepSync = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+export const makeRunner =
+  (spawn, { attempts = 3, backoffMs = 5_000, sleep = sleepSync, warn = console.warn } = {}) =>
+  (command, commandArgs, { allowFailure = false } = {}) => {
+    for (let attempt = 1; ; attempt++) {
+      const result = spawn(command, commandArgs, { encoding: "utf8" });
+      if (result.error) throw result.error;
+      if (result.status === 0) return result;
+      const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
+      if (attempt < attempts && TRANSIENT_FAILURE.test(output)) {
+        warn(`${command} ${commandArgs[1] ?? ""} hit a transient error (attempt ${attempt}/${attempts}); retrying`);
+        sleep(backoffMs * attempt);
+        continue;
+      }
+      if (allowFailure) return result;
+      throw new Error(`${command} ${commandArgs.join(" ")} failed:\n${output}`);
+    }
+  };
 
 const bq = (run, project, args, allowFailure = false) =>
   run("bq", ["--quiet", `--project_id=${project}`, ...args], { allowFailure });

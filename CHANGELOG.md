@@ -28,6 +28,10 @@ All notable changes to **The SHED** mobile app. This project follows
   member.** Everyone else merges duplicates instead. Deleting lists what is
   lost: the count and every event, a bold red "This can't be undone.", and a
   pointer to Merge.
+- **Deleting an event warns the same way.** It names everyone whose attendance
+  goes with it, shows a bold red "This can't be undone.", suggests signing them
+  in to the right event first if it's a duplicate, and the audit entry lists
+  who was removed.
 - **A member can't have a staff email.** Saving one used to split the person's
   attendance in two. Now an existing member is offered "Merge into …", and a new
   member can't be added under a staff email (former staff included).
@@ -41,9 +45,11 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Split staff attendance can be repaired, and lost attendance restored.** Two
   admin commands (dry run first): one moves sign-ins made the old way onto the
   staff person and folds hidden duplicates together; the other puts back
-  attendance deleted by mistake, skipping anything already there. Both are
-  recorded in the audit log, which now names these as "System" rather than a
-  raw id.
+  attendance deleted by mistake, skipping anything already there. Dry runs
+  change and record nothing; applied changes are recorded in the audit log,
+  which now names these as "System" rather than a raw id.
+- **The nightly BigQuery load retries a brief sign-in or network hiccup**
+  instead of failing the whole night, as it did on 25 September.
 
 ## [1.12.1] — 2026-09-25
 

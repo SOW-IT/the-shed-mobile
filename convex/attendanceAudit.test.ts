@@ -562,10 +562,42 @@ describe("audit logging across attendance mutations", () => {
 
     const deletes = (await allLogs(t)).filter((l) => l.action === "event.delete");
     expect(deletes).toHaveLength(2);
-    expect(deletes.some((l) => l.detail?.includes("attendance record"))).toBe(
-      true
+    const busy = deletes.find((l) => l.summary.includes("Busy"))!;
+    // Names whose attendance went, with the event id kept for tracing.
+    expect(busy.eventId).toBe(withPeople);
+    expect(busy.detail).toMatch(/^Removed 1 attendance record:\nSam · /);
+    expect(deletes.find((l) => l.summary.includes("Empty"))?.detail).toBe(
+      "Removed no attendance records"
     );
-    expect(deletes.some((l) => !l.detail)).toBe(true);
+  });
+
+  test("event deletePreview names everyone who would lose attendance", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const { dateStart, dateEnd } = window();
+    const eventId = await staff.mutation(api.events.create, {
+      name: "Busy",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    const memberId = await staff.mutation(api.attendanceMembers.create, { name: "Sam" });
+    await staff.mutation(api.attendance.signIn, { eventId, memberId });
+    await staff.mutation(api.attendance.signIn, { eventId, email: OTHER });
+    // A record whose member was since deleted still gets a line.
+    await t.run(async (ctx) => {
+      const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
+      await ctx.db.insert("attendance", { eventId, memberId: gone, signInTime: 1 });
+      await ctx.db.delete(gone);
+    });
+    const preview = await staff.query(api.events.deletePreview, { eventId });
+    expect(preview?.total).toBe(3);
+    expect(preview?.people.map((p) => p.name).sort()).toEqual(
+      ["Deleted member", OTHER, "Sam"].sort()
+    );
+    expect(await t.query(api.events.deletePreview, { eventId })).toBeNull();
+    await staff.mutation(api.events.remove, { eventId });
+    expect(await staff.query(api.events.deletePreview, { eventId })).toBeNull();
   });
 
   test("member update and delete log for both plain and staff rows", async () => {
