@@ -12,7 +12,7 @@ import {
   resolveUniversity,
   ROLE_FIELD_KEY,
 } from "../shared/attendanceMemberMeta";
-import { canReverseSignIn, compareAttendanceFrequency, memberMatchesEventCampus, normalizeSubgroups, personDisplayName, personKey, subgroupMatches } from "../shared/rollcall";
+import { canReverseSignIn, reversibleOnlyByGrace, compareAttendanceFrequency, memberMatchesEventCampus, normalizeSubgroups, personDisplayName, personKey, subgroupMatches } from "../shared/rollcall";
 import { staffEmailCandidates } from "../shared/rollcallImport";
 import { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
@@ -391,6 +391,12 @@ export const updateRecord = mutation({
     const { email: actorEmail } = await requireProfile(ctx);
     const row = await ctx.db.get(attendanceId);
     if (!row) throw new ConvexError("Attendance record not found.");
+    if (
+      signInTime !== undefined &&
+      (!Number.isFinite(signInTime) || Number.isNaN(new Date(signInTime).getTime()))
+    ) {
+      throw new ConvexError("That sign-in time isn't a valid date.");
+    }
     const patch: { notes?: string; signInTime?: number } = {};
     if (notes !== undefined) {
       const trimmed = notes.trim();
@@ -426,6 +432,15 @@ export const updateRecord = mutation({
   },
 });
 
+/** Audit note for a sign-in undone only because of the 10-minute grace. */
+const undoDetail = (
+  event: { dateEnd: number } | null,
+  signInTime: number
+): string | undefined =>
+  event && reversibleOnlyByGrace(event, signInTime)
+    ? "Undone within 10 minutes of signing in, after the event ended"
+    : undefined;
+
 export const signOut = mutation({
   args: {
     eventId: v.id("events"),
@@ -449,7 +464,7 @@ export const signOut = mutation({
       if (existing) {
         if (event && !canReverseSignIn(event, existing.signInTime)) {
           throw new ConvexError(
-            "This attendee was signed in during the event and can't be removed. Only sign-ins added after the event ended can be reversed."
+            "This sign-in can't be undone. After an event ends, only sign-ins from the last 10 minutes or added after it ended can be removed."
           );
         }
         await ctx.db.delete(existing._id);
@@ -465,6 +480,7 @@ export const signOut = mutation({
           summary: `${who} signed out of "${event?.name ?? "an event"}"`,
           eventId,
           subjectEmail: lower,
+          detail: undoDetail(event, existing.signInTime),
         });
       }
       return;
@@ -479,7 +495,7 @@ export const signOut = mutation({
       if (existing) {
         if (event && !canReverseSignIn(event, existing.signInTime)) {
           throw new ConvexError(
-            "This attendee was signed in during the event and can't be removed. Only sign-ins added after the event ended can be reversed."
+            "This sign-in can't be undone. After an event ends, only sign-ins from the last 10 minutes or added after it ended can be removed."
           );
         }
         await ctx.db.delete(existing._id);
@@ -491,6 +507,7 @@ export const signOut = mutation({
           summary: `${member?.name ?? "A member"} signed out of "${event?.name ?? "an event"}"`,
           eventId,
           memberId,
+          detail: undoDetail(event, existing.signInTime),
         });
       }
     }

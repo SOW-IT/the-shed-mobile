@@ -23,15 +23,28 @@ import {
 } from "../shared/attendanceMemberMeta";
 import { capitalizeMemberName, personDisplayName } from "../shared/rollcall";
 import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
-import { mutation, query } from "./_generated/server";
+import {
+  buildMergedFields,
+  detectMergeConflicts,
+  fieldsTakenFromRemoved,
+  type MergeConflict,
+  type MergeSide,
+  mergeNotes,
+} from "../shared/memberMerge";
+import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import {
   findMemberByEmail,
   getProfile,
   optionalProfile,
+  requireAdmin,
   requireProfile,
 } from "./model";
-import { logAttendanceAction } from "./attendanceAudit";
-import { Doc } from "./_generated/dataModel";
+import {
+  auditStamp,
+  logAttendanceAction,
+  MAX_AUDIT_ATTENDANCE_LINES,
+} from "./attendanceAudit";
+import { Doc, Id } from "./_generated/dataModel";
 
 export type MemberRow = {
   key: string;
@@ -390,6 +403,34 @@ export const ensureForStaff = mutation({
   },
 });
 
+/** Typing a staff email onto a plain member used to relabel the row as that
+ *  staff person without moving its attendance, splitting their history (and
+ *  leaving a hidden duplicate if they already had a row). Merge does it
+ *  properly, so the Email field points there instead. */
+const staffEmailMessage = (profile: Doc<"staffProfiles">) =>
+  `${profile.email} is ${personDisplayName(profile.name, profile.email)}'s staff email. Use Merge instead.`;
+
+/** The staff person an email belongs to, if any — lets the edit sheet offer
+ *  Merge before the save is refused. */
+export const staffForEmail = query({
+  args: { email: v.string(), staffYear: v.optional(v.number()) },
+  handler: async (ctx, { email, staffYear }) => {
+    if (!(await optionalProfile(ctx))) return null;
+    if (!canonicalEmailKey(email)) return null;
+    const profile = await staffProfileForEmail(
+      ctx,
+      email,
+      staffYear ?? staffYearForDate(new Date())
+    );
+    return profile
+      ? {
+          email: profile.email.toLowerCase(),
+          name: personDisplayName(profile.name, profile.email),
+        }
+      : null;
+  },
+});
+
 export const create = mutation({
   args: {
     name: v.string(),
@@ -400,6 +441,16 @@ export const create = mutation({
     const { email: actorEmail } = await requireProfile(ctx);
     const trimmed = capitalizeMemberName(name.trim());
     if (!trimmed) throw new ConvexError("Name is required.");
+    // A member can't carry a staff email: that person is already listed as
+    // staff, and their attendance is keyed by that email.
+    if (canonicalEmailKey(email)) {
+      const staff = await latestStaffProfile(ctx, email);
+      if (staff) {
+        throw new ConvexError(
+          `${staff.email} is ${personDisplayName(staff.name, staff.email)}'s staff email. They're already in the list as staff.`
+        );
+      }
+    }
     const memberId = await ctx.db.insert("attendanceMembers", {
       name: trimmed,
       email: email?.trim().toLowerCase() || undefined,
@@ -429,6 +480,15 @@ export const update = mutation({
     const row = await ctx.db.get(memberId);
     if (!row) throw new ConvexError("Member not found.");
     const profileYear = staffYear ?? staffYearForDate(new Date());
+    const newKey = canonicalEmailKey(email);
+    if (
+      newKey &&
+      newKey !== canonicalEmailKey(row.email) &&
+      !(await staffProfileForRow(ctx, row, profileYear))
+    ) {
+      const staff = await staffProfileForEmail(ctx, email!, profileYear);
+      if (staff) throw new ConvexError(staffEmailMessage(staff));
+    }
     const profile = await staffOverlayProfile(ctx, row, profileYear, email);
     if (profile) {
       const fields = await allMetadataFields(ctx);
@@ -467,34 +527,18 @@ export const update = mutation({
   },
 });
 
-/** Deleting a member is permanent, so the audit entry has to carry enough to
- *  reconstruct what went with them. Beyond this many lines the entry would
- *  bloat the log without being readable; the count above it stays exact. */
-const MAX_AUDIT_ATTENDANCE_LINES = 100;
 
-const auditStamp = (ms: number): string => {
-  try {
-    return new Intl.DateTimeFormat("en-AU", {
-      timeZone: SYDNEY_TIME_ZONE,
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    }).format(new Date(ms));
-  } catch {
-    // Runtimes without full ICU still get something sortable and unambiguous.
-    return new Date(ms).toISOString();
-  }
-};
 
 export const remove = mutation({
   args: { memberId: v.id("attendanceMembers") },
-  handler: async (ctx, { memberId }) => {
-    const { email: actorEmail } = await requireProfile(ctx);
+  handler: async (ctx, { memberId }): Promise<boolean> => {
+    // Deleting throws attendance away for good; leaders merge duplicates
+    // instead, and only admins (Data and IT, HR, the Director) can delete.
+    const { email: actorEmail } = await requireAdmin(ctx);
     const row = await ctx.db.get(memberId);
-    if (!row) return;
+    // Someone else may have deleted or merged them first; say so rather than
+    // letting the caller report a deletion that didn't happen here.
+    if (!row) return false;
     const signed = await ctx.db
       .query("attendance")
       .withIndex("by_member", (q) => q.eq("memberId", memberId))
@@ -531,6 +575,7 @@ export const remove = mutation({
       entityType: "member",
       action: "member.delete",
       summary: `Deleted member "${row.name}"`,
+      memberId,
       subjectEmail: row.email,
       detail: signed.length
         ? [
@@ -542,5 +587,436 @@ export const remove = mutation({
           ].join("\n")
         : "Removed no attendance records",
     });
+    return true;
+  },
+});
+
+/** What deleting a member takes with them, so the confirm sheet can name every
+ *  event instead of a vague "their attendance". */
+export const deletePreview = query({
+  args: { memberId: v.id("attendanceMembers") },
+  handler: async (ctx, { memberId }) => {
+    if (!(await optionalProfile(ctx))) return null;
+    const row = await ctx.db.get(memberId);
+    if (!row) return null;
+    const signed = await ctx.db
+      .query("attendance")
+      .withIndex("by_member", (q) => q.eq("memberId", memberId))
+      .collect();
+    const listed = signed
+      .slice()
+      .sort((a, b) => b.signInTime - a.signInTime)
+      .slice(0, MAX_AUDIT_ATTENDANCE_LINES);
+    const events = [];
+    for (const record of listed) {
+      const event = await ctx.db.get(record.eventId);
+      events.push({
+        attendanceId: record._id,
+        name: event?.name ?? "Deleted event",
+        dateStart: event?.dateStart ?? record.signInTime,
+      });
+    }
+    return { total: signed.length, events };
+  },
+});
+
+type Ctx = QueryCtx | MutationCtx;
+
+const mergeKeepValidator = v.union(
+  v.object({ memberId: v.id("attendanceMembers") }),
+  v.object({ staffEmail: v.string() })
+);
+
+type MergeKeep =
+  | { kind: "member"; row: Doc<"attendanceMembers"> }
+  | {
+      kind: "staff";
+      profile: Doc<"staffProfiles">;
+      email: string;
+      shadow: Doc<"attendanceMembers"> | null;
+    };
+
+type MergePair =
+  | { blocked: string }
+  | { remove: Doc<"attendanceMembers">; keep: MergeKeep };
+
+/** Staff are recognised the same way as the overlay checks above: a profile in
+ *  the year being viewed, this staff year, or next staff year. */
+const staffYearsToCheck = (profileYear: number): number[] => {
+  const now = staffYearForDate(new Date());
+  return [...new Set([profileYear, now, now + 1])];
+};
+
+/** Someone's most recent staff profile in any year. Former staff are still
+ *  staff here: their attendance is keyed by their org email. */
+const latestStaffProfile = async (
+  ctx: Ctx,
+  email: string | undefined
+): Promise<Doc<"staffProfiles"> | null> => {
+  for (const candidate of staffEmailCandidates(email)) {
+    const profile = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_email_and_year", (q) => q.eq("email", candidate))
+      .order("desc")
+      .first();
+    if (profile) return profile;
+  }
+  return null;
+};
+
+/** The staff profile to use for this email: the one for the year being viewed
+ *  (or this / next staff year) when there is one, else their latest. */
+const staffProfileForEmail = async (
+  ctx: Ctx,
+  email: string,
+  profileYear: number
+): Promise<Doc<"staffProfiles"> | null> => {
+  for (const year of staffYearsToCheck(profileYear)) {
+    for (const candidate of staffEmailCandidates(email)) {
+      const profile = await getProfile(ctx, candidate, year);
+      if (profile) return profile;
+    }
+  }
+  return await latestStaffProfile(ctx, email);
+};
+
+const staffProfileForRow = async (
+  ctx: Ctx,
+  row: Doc<"attendanceMembers">,
+  profileYear: number
+): Promise<Doc<"staffProfiles"> | null> =>
+  row.email ? await staffProfileForEmail(ctx, row.email, profileYear) : null;
+
+const resolveMergePair = async (
+  ctx: Ctx,
+  removeId: Id<"attendanceMembers">,
+  keepArg: { memberId: Id<"attendanceMembers"> } | { staffEmail: string },
+  profileYear: number
+): Promise<MergePair> => {
+  const remove = await ctx.db.get(removeId);
+  if (!remove) return { blocked: "That member no longer exists." };
+  if (await staffProfileForRow(ctx, remove, profileYear)) {
+    return {
+      blocked: `${remove.name} is staff, so can't be merged away. Merge the member into them instead.`,
+    };
+  }
+
+  let profile: Doc<"staffProfiles"> | null;
+  let keepRow: Doc<"attendanceMembers"> | null = null;
+  if ("memberId" in keepArg) {
+    keepRow = await ctx.db.get(keepArg.memberId);
+    if (!keepRow) return { blocked: "The person to keep no longer exists." };
+    if (keepRow._id === remove._id) {
+      return { blocked: "Pick two different people to merge." };
+    }
+    profile = await staffProfileForRow(ctx, keepRow, profileYear);
+  } else {
+    profile = await staffProfileForEmail(ctx, keepArg.staffEmail, profileYear);
+    if (!profile) return { blocked: "Staff profile not found." };
+  }
+
+  if (!profile) return { remove, keep: { kind: "member", row: keepRow! } };
+  const email = profile.email.toLowerCase();
+  // `remove` can't be this overlay: carrying the staff email would have made
+  // it staff, which is blocked above.
+  const shadow = keepRow ?? (await findMemberByEmail(ctx, email));
+  return { remove, keep: { kind: "staff", profile, email, shadow } };
+};
+
+const keepSide = async (
+  ctx: Ctx,
+  keep: MergeKeep,
+  fields: MetadataField[]
+): Promise<MergeSide> =>
+  keep.kind === "member"
+    ? {
+        name: keep.row.name,
+        email: keep.row.email,
+        metadata: keep.row.metadata ?? {},
+      }
+    : {
+        name: personDisplayName(keep.profile.name, keep.email),
+        email: keep.email,
+        metadata: staffLockedMetadata(fields, keep.profile, keep.shadow?.metadata),
+      };
+
+const removeSide = (row: Doc<"attendanceMembers">): MergeSide => ({
+  name: row.name,
+  email: row.email,
+  metadata: row.metadata ?? {},
+});
+
+/** A staff person's name and email come from their profile, and their campus
+ *  and role from their assignments, so those can't be overwritten by a merge.
+ *  Two stored values that read the same (a Year stored two ways, a select
+ *  option stored by id or label) aren't a conflict. */
+const mergeOptionsFor = (keep: MergeKeep, fields: MetadataField[]) => {
+  const viewingYear = sydneyCalendarYear(new Date());
+  const shown = (fieldId: string, value: string) => {
+    const field = fields.find((f) => f._id === fieldId)!;
+    return (
+      formatMetadataFieldValue(field.key, value, viewingYear, field.values) ?? value
+    )
+      .trim()
+      .toLowerCase();
+  };
+  return {
+    sameValue: (fieldId: string, a: string, b: string) =>
+      a === b || shown(fieldId, a) === shown(fieldId, b),
+    ...(keep.kind === "staff"
+      ? {
+          identityLocked: true,
+          lockedFieldIds: fields
+            .filter((f) => f.key === CAMPUS_FIELD_KEY || f.key === ROLE_FIELD_KEY)
+            .map((f) => f._id as string),
+        }
+      : {}),
+  };
+};
+
+/** The kept person's attendance row at `eventId`, if they already have one. */
+const keptRecordAt = async (
+  ctx: Ctx,
+  keep: MergeKeep,
+  eventId: Id<"events">
+): Promise<Doc<"attendance"> | null> => {
+  if (keep.kind === "staff") {
+    const byEmail = await ctx.db
+      .query("attendance")
+      .withIndex("by_event_and_email", (q) =>
+        q.eq("eventId", eventId).eq("email", keep.email)
+      )
+      .unique();
+    if (byEmail || !keep.shadow) return byEmail;
+  }
+  const keepMemberId = keep.kind === "member" ? keep.row._id : keep.shadow!._id;
+  return await ctx.db
+    .query("attendance")
+    .withIndex("by_event_and_member", (q) =>
+      q.eq("eventId", eventId).eq("memberId", keepMemberId)
+    )
+    .unique();
+};
+
+/** How much each side was used: distinct events attended and the latest one,
+ *  so the leader can see which record is the "real" one before merging. */
+type History = { events: number; lastAttended: number | null };
+
+const historyOf = (rows: Doc<"attendance">[]): History => {
+  const events = new Set(rows.map((r) => r.eventId));
+  const last = rows.reduce<number | null>(
+    (max, r) => (max === null || r.signInTime > max ? r.signInTime : max),
+    null
+  );
+  return { events: events.size, lastAttended: last };
+};
+
+const keptHistory = async (ctx: Ctx, keep: MergeKeep): Promise<History> => {
+  const rows: Doc<"attendance">[] = [];
+  if (keep.kind === "staff") {
+    rows.push(
+      ...(await ctx.db
+        .query("attendance")
+        .withIndex("by_email", (q) => q.eq("email", keep.email))
+        .collect())
+    );
+  }
+  const memberId = keep.kind === "member" ? keep.row._id : keep.shadow?._id;
+  if (memberId) {
+    rows.push(
+      ...(await ctx.db
+        .query("attendance")
+        .withIndex("by_member", (q) => q.eq("memberId", memberId))
+        .collect())
+    );
+  }
+  return historyOf(rows);
+};
+
+export const mergePreview = query({
+  args: {
+    removeId: v.id("attendanceMembers"),
+    keep: mergeKeepValidator,
+    staffYear: v.optional(v.number()),
+  },
+  handler: async (ctx, { removeId, keep: keepArg, staffYear }) => {
+    if (!(await optionalProfile(ctx))) return null;
+    const pair = await resolveMergePair(
+      ctx,
+      removeId,
+      keepArg,
+      staffYear ?? staffYearForDate(new Date())
+    );
+    if ("blocked" in pair) return { blocked: pair.blocked } as const;
+    const { remove, keep } = pair;
+    const fields = await allMetadataFields(ctx);
+    const kept = await keepSide(ctx, keep, fields);
+    const removed = removeSide(remove);
+    const conflicts: MergeConflict[] = detectMergeConflicts(
+      kept,
+      removed,
+      fields,
+      mergeOptionsFor(keep, fields)
+    );
+    const records = await ctx.db
+      .query("attendance")
+      .withIndex("by_member", (q) => q.eq("memberId", remove._id))
+      .collect();
+    let shared = 0;
+    for (const record of records) {
+      if (await keptRecordAt(ctx, keep, record.eventId)) shared++;
+    }
+    return {
+      keep: { kind: keep.kind, ...kept, history: await keptHistory(ctx, keep) },
+      remove: { ...removed, history: historyOf(records) },
+      conflicts,
+      attendance: {
+        total: records.length,
+        shared,
+        moved: records.length - shared,
+      },
+    };
+  },
+});
+
+export const merge = mutation({
+  args: {
+    removeId: v.id("attendanceMembers"),
+    keep: mergeKeepValidator,
+    resolutions: v.record(
+      v.string(),
+      v.union(v.literal("keep"), v.literal("remove"))
+    ),
+    staffYear: v.optional(v.number()),
+  },
+  handler: async (ctx, { removeId, keep: keepArg, resolutions, staffYear }) => {
+    const { email: actorEmail } = await requireProfile(ctx);
+    const pair = await resolveMergePair(
+      ctx,
+      removeId,
+      keepArg,
+      staffYear ?? staffYearForDate(new Date())
+    );
+    if ("blocked" in pair) throw new ConvexError(pair.blocked);
+    const { remove } = pair;
+    let keep = pair.keep;
+    const fields = await allMetadataFields(ctx);
+    const kept = await keepSide(ctx, keep, fields);
+    const merged = buildMergedFields(
+      kept,
+      removeSide(remove),
+      fields,
+      resolutions,
+      mergeOptionsFor(keep, fields)
+    );
+
+    let keptMemberId: Id<"attendanceMembers"> | undefined;
+    if (keep.kind === "member") {
+      await ctx.db.patch(keep.row._id, {
+        name: merged.name,
+        email: merged.email,
+        metadata: merged.metadata,
+      });
+      keptMemberId = keep.row._id;
+    } else {
+      const metadata = staffLockedMetadata(fields, keep.profile, merged.metadata);
+      const name = keep.profile.name ?? keep.shadow?.name ?? keep.email;
+      if (keep.shadow) {
+        await ctx.db.patch(keep.shadow._id, { name, email: keep.email, metadata });
+        keptMemberId = keep.shadow._id;
+      } else {
+        // The staff person needs an overlay row even when the member had no
+        // details to carry: in years before they were staff, their moved
+        // attendance is named from this row, not from a staff profile.
+        keptMemberId = await ctx.db.insert("attendanceMembers", {
+          name,
+          email: keep.email,
+          metadata,
+        });
+        const shadow = await ctx.db.get(keptMemberId);
+        keep = { ...keep, shadow };
+      }
+    }
+
+    // A staff person's own sign-ins made through their overlay row (the old
+    // "staff email on a member" path) go onto their email first, so no event
+    // is left with two of their records once the duplicate's are added.
+    let tidied = 0;
+    if (keep.kind === "staff" && keep.shadow) {
+      const own = await ctx.db
+        .query("attendance")
+        .withIndex("by_member", (q) => q.eq("memberId", keep.shadow!._id))
+        .collect();
+      for (const record of own) {
+        const byEmail = await ctx.db
+          .query("attendance")
+          .withIndex("by_event_and_email", (q) =>
+            q.eq("eventId", record.eventId).eq("email", keep.email)
+          )
+          .unique();
+        if (byEmail) {
+          await ctx.db.patch(byEmail._id, {
+            signInTime: Math.min(byEmail.signInTime, record.signInTime),
+            notes: mergeNotes(byEmail.notes, record.notes),
+          });
+          await ctx.db.delete(record._id);
+        } else {
+          await ctx.db.patch(record._id, { email: keep.email, memberId: undefined });
+        }
+        tidied++;
+      }
+    }
+
+    const records = await ctx.db
+      .query("attendance")
+      .withIndex("by_member", (q) => q.eq("memberId", remove._id))
+      .collect();
+    let moved = 0;
+    let combined = 0;
+    for (const record of records) {
+      const existing = await keptRecordAt(ctx, keep, record.eventId);
+      if (existing) {
+        // Both were signed in to this event: keep one record, with the
+        // earlier sign-in time and both sets of notes.
+        await ctx.db.patch(existing._id, {
+          signInTime: Math.min(existing.signInTime, record.signInTime),
+          notes: mergeNotes(existing.notes, record.notes),
+        });
+        await ctx.db.delete(record._id);
+        combined++;
+      } else if (keep.kind === "staff") {
+        // Staff attendance is keyed by email, like a staff sign-in.
+        await ctx.db.patch(record._id, { email: keep.email, memberId: undefined });
+        moved++;
+      } else {
+        await ctx.db.patch(record._id, { memberId: keep.row._id });
+        moved++;
+      }
+    }
+
+    await ctx.db.delete(remove._id);
+
+    const keptName = keep.kind === "member" ? merged.name : kept.name;
+    const taken = fieldsTakenFromRemoved(kept, merged, fields);
+    await logAttendanceAction(ctx, {
+      actorEmail,
+      entityType: "member",
+      action: "member.merge",
+      summary: `Merged "${remove.name}" into ${keep.kind === "staff" ? "staff " : ""}"${keptName}"`,
+      memberId: keptMemberId,
+      subjectEmail: keep.kind === "staff" ? keep.email : merged.email,
+      detail: [
+        `Moved ${moved} attendance record${moved === 1 ? "" : "s"}` +
+          (combined
+            ? `; combined ${combined} event${combined === 1 ? "" : "s"} both were signed in to`
+            : ""),
+        ...(taken.length ? [`Took from "${remove.name}": ${taken.join(", ")}`] : []),
+        ...(tidied
+          ? [`Also moved ${tidied} of ${keptName}'s own member sign-in${tidied === 1 ? "" : "s"} onto their staff email`]
+          : []),
+        `Removed member "${remove.name}" (${remove._id})`,
+      ].join("\n"),
+    });
+    return { moved, combined };
   },
 });

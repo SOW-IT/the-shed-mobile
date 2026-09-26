@@ -6,6 +6,51 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.13.0] — 2026-09-25
+
+### Added
+- **Merge duplicate members instead of deleting them.** Open a member, tap
+  merge (or "Merge instead" when deleting) and search for the duplicate. The
+  review shows who is kept, who is removed, each side's event count and last
+  visit, and lets you pick which name, email or detail to keep where they
+  differ. All attendance moves across; an event both attended becomes one
+  record. Details from every group (a USYD Instagram, a UNSW zID) are kept.
+  Between two members, whoever has attended more is kept by default (Swap to
+  change it). A member can merge into staff; staff are always kept, can't be
+  swapped out, and two staff can't merge. A bold red line warns it can't be
+  undone.
+- **A sign-in can be undone for 10 minutes after it's made**, even once the
+  event has ended, so a wrong tap can be fixed straight away. The audit log
+  notes when this happens.
+
+### Changed
+- **Only admins (Data and IT, Human Resources and the Director) can delete a
+  member.** Everyone else merges duplicates instead. Deleting lists what is
+  lost: the count and every event, a bold red "This can't be undone.", and a
+  pointer to Merge.
+- **Deleting an event warns the same way.** It names everyone whose attendance
+  goes with it, shows a bold red "This can't be undone.", suggests signing them
+  in to the right event first if it's a duplicate, and the audit entry lists
+  who was removed.
+- **A member can't have a staff email.** Saving one used to split the person's
+  attendance in two. Now an existing member is offered "Merge into …", and a new
+  member can't be added under a staff email (former staff included).
+- **If someone else deletes or merges a member you have open**, the sheet says
+  so instead of letting you edit a record that no longer exists.
+- **Confirming a name ignores capitals and extra spaces.**
+- **The audit log names the deleted member and, for merges, which details came
+  from the removed person.**
+
+### Fixed
+- **Split staff attendance can be repaired, and lost attendance restored.** Two
+  admin commands (dry run first): one moves sign-ins made the old way onto the
+  staff person and folds hidden duplicates together; the other puts back
+  attendance deleted by mistake, skipping anything already there. Dry runs
+  change and record nothing; applied changes are recorded in the audit log,
+  which now names these as "System" rather than a raw id.
+- **The nightly BigQuery load retries a brief sign-in or network hiccup**
+  instead of failing the whole night, as it did on 25 September.
+
 ## [1.12.1] — 2026-09-25
 
 ### Changed

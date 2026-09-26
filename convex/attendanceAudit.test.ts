@@ -113,7 +113,7 @@ describe("attendance audit logging", () => {
     await staff.mutation(api.attendance.signIn, { eventId: first, memberId });
     await staff.mutation(api.attendance.signIn, { eventId: second, memberId });
 
-    await staff.mutation(api.attendanceMembers.remove, { memberId });
+    await asUser(t, ADMIN).mutation(api.attendanceMembers.remove, { memberId });
 
     const deletion = (await allLogs(t)).find((l) => l.action === "member.delete");
     expect(deletion).toBeDefined();
@@ -136,7 +136,7 @@ describe("attendance audit logging", () => {
       name: "Never Attended",
     });
 
-    await staff.mutation(api.attendanceMembers.remove, { memberId });
+    await asUser(t, ADMIN).mutation(api.attendanceMembers.remove, { memberId });
 
     const deletion = (await allLogs(t)).find((l) => l.action === "member.delete");
     expect(deletion!.detail).toBe("Removed no attendance records");
@@ -159,7 +159,7 @@ describe("attendance audit logging", () => {
     // Drop the event row directly, leaving the attendance row orphaned.
     await t.run((ctx) => ctx.db.delete(eventId));
 
-    await staff.mutation(api.attendanceMembers.remove, { memberId });
+    await asUser(t, ADMIN).mutation(api.attendanceMembers.remove, { memberId });
 
     const deletion = (await allLogs(t)).find((l) => l.action === "member.delete");
     expect(deletion!.detail).toContain("Deleted event");
@@ -184,7 +184,7 @@ describe("attendance audit logging", () => {
       await staff.mutation(api.attendance.signIn, { eventId, memberId });
     }
 
-    await staff.mutation(api.attendanceMembers.remove, { memberId });
+    await asUser(t, ADMIN).mutation(api.attendanceMembers.remove, { memberId });
 
     const deletion = (await allLogs(t)).find((l) => l.action === "member.delete");
     const lines = (deletion!.detail ?? "").split("\n");
@@ -218,7 +218,7 @@ describe("attendance audit logging", () => {
       return new real(...args);
     }) as unknown as typeof Intl.DateTimeFormat);
     try {
-      await staff.mutation(api.attendanceMembers.remove, { memberId });
+      await asUser(t, ADMIN).mutation(api.attendanceMembers.remove, { memberId });
     } finally {
       vi.restoreAllMocks();
     }
@@ -562,10 +562,65 @@ describe("audit logging across attendance mutations", () => {
 
     const deletes = (await allLogs(t)).filter((l) => l.action === "event.delete");
     expect(deletes).toHaveLength(2);
-    expect(deletes.some((l) => l.detail?.includes("attendance record"))).toBe(
-      true
+    const busy = deletes.find((l) => l.summary.includes("Busy"))!;
+    // Names whose attendance went, with the event id kept for tracing.
+    expect(busy.eventId).toBe(withPeople);
+    expect(busy.detail).toMatch(/^Removed 1 attendance record:\nSam · /);
+    expect(deletes.find((l) => l.summary.includes("Empty"))?.detail).toBe(
+      "Removed no attendance records"
     );
-    expect(deletes.some((l) => !l.detail)).toBe(true);
+  });
+
+  test("a corrupt sign-in time can't block an event delete, and can't be saved", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const { dateStart, dateEnd } = window();
+    const eventId = await staff.mutation(api.events.create, {
+      name: "Corrupt",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    const memberId = await staff.mutation(api.attendanceMembers.create, { name: "Sam" });
+    const attendanceId = await staff.mutation(api.attendance.signIn, { eventId, memberId });
+    for (const bad of [Number.NaN, 8.64e15 + 1]) {
+      await expect(
+        staff.mutation(api.attendance.updateRecord, { attendanceId, signInTime: bad })
+      ).rejects.toThrow(/valid date/);
+    }
+    await t.run((ctx) => ctx.db.patch(attendanceId, { signInTime: Number.NaN }));
+    await staff.mutation(api.events.remove, { eventId });
+    const del = (await allLogs(t)).find((l) => l.action === "event.delete");
+    expect(del?.detail).toBe("Removed 1 attendance record:\nSam · unknown time");
+  });
+
+  test("event deletePreview names everyone who would lose attendance", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const { dateStart, dateEnd } = window();
+    const eventId = await staff.mutation(api.events.create, {
+      name: "Busy",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    const memberId = await staff.mutation(api.attendanceMembers.create, { name: "Sam" });
+    await staff.mutation(api.attendance.signIn, { eventId, memberId });
+    await staff.mutation(api.attendance.signIn, { eventId, email: OTHER });
+    // A record whose member was since deleted still gets a line.
+    await t.run(async (ctx) => {
+      const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
+      await ctx.db.insert("attendance", { eventId, memberId: gone, signInTime: 1 });
+      await ctx.db.delete(gone);
+    });
+    const preview = await staff.query(api.events.deletePreview, { eventId });
+    expect(preview?.total).toBe(3);
+    expect(preview?.people.map((p) => p.name).sort()).toEqual(
+      ["Deleted member", OTHER, "Sam"].sort()
+    );
+    expect(await t.query(api.events.deletePreview, { eventId })).toBeNull();
+    await staff.mutation(api.events.remove, { eventId });
+    expect(await staff.query(api.events.deletePreview, { eventId })).toBeNull();
   });
 
   test("member update and delete log for both plain and staff rows", async () => {
@@ -598,7 +653,7 @@ describe("audit logging across attendance mutations", () => {
       subgroups: [USYD],
     });
     await staff.mutation(api.attendance.signIn, { eventId, memberId: plain });
-    await staff.mutation(api.attendanceMembers.remove, { memberId: plain });
+    await asUser(t, ADMIN).mutation(api.attendanceMembers.remove, { memberId: plain });
 
     const actions = await actionsFor(t);
     expect(actions.filter((a) => a === "member.update")).toHaveLength(2);
@@ -612,10 +667,10 @@ describe("audit logging across attendance mutations", () => {
   test("ensureForStaff reuses an existing member row without a duplicate log", async () => {
     const t = await setup();
     const staff = asUser(t, STAFF);
-    const preexisting = await staff.mutation(api.attendanceMembers.create, {
-      name: "Pre Existing",
-      email: STAFF,
-    });
+    // A legacy row: members created before 1.13.0 could carry a staff email.
+    const preexisting = await t.run((ctx) =>
+      ctx.db.insert("attendanceMembers", { name: "Pre Existing", email: STAFF })
+    );
     const reused = await staff.mutation(api.attendanceMembers.ensureForStaff, {
       staffEmail: STAFF,
       staffYear: YEAR,
@@ -623,9 +678,10 @@ describe("audit logging across attendance mutations", () => {
     expect(reused).toBe(preexisting);
 
     const logs = await allLogs(t);
+    // Reusing the row writes no create log of its own.
     expect(
       logs.filter((l) => l.action === "member.create" && l.memberId === preexisting)
-    ).toHaveLength(1);
+    ).toHaveLength(0);
     expect(logs.some((l) => l.summary.includes("Linked"))).toBe(false);
   });
 

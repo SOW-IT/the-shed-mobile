@@ -122,16 +122,16 @@ describe("attendanceExport", () => {
   });
 
   test("a member whose email is a staff profile is exported as that staff member", async () => {
-    const { leader } = await setup();
+    const { t, leader } = await setup();
     const eventId = await leader.mutation(api.events.create, {
       name: "Mixed",
       ...window(),
       subgroups: [USYD],
     });
-    const memberId = await leader.mutation(api.attendanceMembers.create, {
-      name: "Shadow Of Staff",
-      email: STAFF,
-    });
+    // A legacy row: members created before 1.13.0 could carry a staff email.
+    const memberId = await t.run((ctx) =>
+      ctx.db.insert("attendanceMembers", { name: "Shadow Of Staff", email: STAFF })
+    );
     await leader.mutation(api.attendance.signIn, { eventId, memberId });
 
     const data = await leader.query(api.attendanceExport.eventsForExport, {

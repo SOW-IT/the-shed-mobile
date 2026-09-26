@@ -126,11 +126,29 @@ export const personKey = (row: {
 
 export const eventHasEnded = (dateEnd: number, now = Date.now()): boolean => now > dateEnd;
 
+/** How long after a sign-in it can still be undone once the event has ended,
+ *  so a leader who taps the wrong person can fix it straight away. */
+export const SIGN_IN_UNDO_GRACE_MS = 10 * 60 * 1000;
+
+/** Whether a sign-in may be reversed only because it is still within the
+ *  undo grace — i.e. the event has ended and it was made during the event. */
+export const reversibleOnlyByGrace = (
+  event: { dateEnd: number },
+  signInTime: number,
+  now = Date.now()
+): boolean =>
+  eventHasEnded(event.dateEnd, now) &&
+  signInTime <= event.dateEnd &&
+  now - signInTime <= SIGN_IN_UNDO_GRACE_MS;
+
 export const canReverseSignIn = (
   event: { dateEnd: number },
   signInTime: number,
   now = Date.now()
-): boolean => !eventHasEnded(event.dateEnd, now) || signInTime > event.dateEnd;
+): boolean =>
+  !eventHasEnded(event.dateEnd, now) ||
+  signInTime > event.dateEnd ||
+  now - signInTime <= SIGN_IN_UNDO_GRACE_MS;
 
 export type AttendanceFrequencyScore = {
   tagMatches: number;

@@ -178,7 +178,14 @@ export default function EventAttendanceScreen() {
     setEditUnlocked(false);
   }, [event?._id]);
 
-  const pastEvent = event != null && eventHasEnded(event.dateEnd);
+  // A ticking clock, so the screen notices the event ending while it's open
+  // and turns Sign out off once a sign-in's 10-minute undo grace runs out.
+  const [clock, setClock] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setClock(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  const pastEvent = event != null && eventHasEnded(event.dateEnd, clock);
   const canEdit = !pastEvent || editUnlocked;
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const twoColumn = windowWidth >= TWO_COLUMN_MIN_WIDTH;
@@ -669,9 +676,9 @@ export default function EventAttendanceScreen() {
             roles={a.roles}
             mode="signedIn"
             disabled={
-              !canReverseSignIn(event, a.signInTime) || !canEdit || isAnimating
+              !canReverseSignIn(event, a.signInTime, clock) || !canEdit || isAnimating
             }
-            dimmed={!canReverseSignIn(event, a.signInTime) || !canEdit}
+            dimmed={!canReverseSignIn(event, a.signInTime, clock) || !canEdit}
             entering={isEntering}
             exiting={isExiting}
             revealTrigger={revealTriggers.get(aKey) ?? 0}
@@ -771,7 +778,7 @@ export default function EventAttendanceScreen() {
             note={
               editUnlocked
                 ? null
-                : "This event has ended. Tap Enable editing below to sign in a missed attendee or fix details. People who attended cannot be signed out."
+                : "This event has ended. Tap Enable editing below to sign in a missed attendee or fix details. Sign-ins made during the event can only be undone within 10 minutes."
             }
             onPress={() => {
               hapticSelect();

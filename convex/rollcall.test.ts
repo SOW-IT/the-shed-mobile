@@ -79,10 +79,10 @@ describe("legacy import matching", () => {
       department: "Missions",
     });
     await admin.mutation(api.attendanceMetadata.ensureDefaults, { });
-    const memberId = await admin.mutation(api.attendanceMembers.create, {
-      name: "Old Jane",
-      email: "jane.doe@sowaustralia.com",
-    });
+    // A legacy row: members created before 1.13.0 could carry a staff email.
+    const memberId = await t.run((ctx) =>
+      ctx.db.insert("attendanceMembers", { name: "Old Jane", email: "jane.doe@sowaustralia.com" })
+    );
 
     const roster = await leader.query(api.attendance.roster, { year: YEAR });
     expect(roster.filter((m) => m.email === "jane.doe@sow.org.au")).toHaveLength(1);
@@ -675,12 +675,38 @@ describe("events + roll-call", () => {
     });
     await expect(
       leader.mutation(api.attendance.signOut, { eventId, email: STAFF })
-    ).rejects.toThrow(/can't be removed/i);
+    ).rejects.toThrow(/can't be undone/i);
     await expect(
       leader.mutation(api.attendance.signOut, { eventId, memberId })
-    ).rejects.toThrow(/can't be removed/i);
+    ).rejects.toThrow(/can't be undone/i);
     const rows = await leader.query(api.attendance.listByEvent, { eventId });
     expect(rows).toHaveLength(2);
+  });
+
+  test("past event: a sign-in from the last 10 minutes can still be undone, and the audit says so", async () => {
+    const leader = asUser(t, LEADER);
+    const now = Date.now();
+    const { eventId, memberId } = await t.run(async (ctx) => {
+      // Ended 2 minutes ago; the guest was signed in by mistake 5 minutes ago.
+      const eventId = await ctx.db.insert("events", {
+        name: "Just ended",
+        dateStart: now - 3600_000,
+        dateEnd: now - 120_000,
+        subgroups: [USYD],
+      });
+      const memberId = await ctx.db.insert("attendanceMembers", { name: "Guest" });
+      await ctx.db.insert("attendance", { eventId, memberId, signInTime: now - 300_000 });
+      await ctx.db.insert("attendance", { eventId, email: STAFF, signInTime: now - 11 * 60_000 });
+      return { eventId, memberId };
+    });
+    await leader.mutation(api.attendance.signOut, { eventId, memberId });
+    // 11 minutes ago is outside the grace.
+    await expect(
+      leader.mutation(api.attendance.signOut, { eventId, email: STAFF })
+    ).rejects.toThrow(/can't be undone/i);
+    const logs = await t.run((ctx) => ctx.db.query("attendanceAuditLog").collect());
+    const undo = logs.find((l) => l.action === "attendance.signOut");
+    expect(undo?.detail).toBe("Undone within 10 minutes of signing in, after the event ended");
   });
 
   test("past event: a retroactive (post-event) sign-in can still be signed out", async () => {

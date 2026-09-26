@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
-import { Pressable, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Doc, Id } from "../../../convex/_generated/dataModel";
 import {
@@ -13,17 +13,37 @@ import {
   STUDENT_YEAR_FIELD_KEY,
   yearOptionIdForStoredValue,
 } from "../../../shared/attendanceMemberMeta";
+import { SYDNEY_TIME_ZONE } from "../../../shared/flow";
 import { capitalizeMemberName } from "../../../shared/rollcall";
+import { MergeMemberSheet } from "@/components/attendance/MergeMemberSheet";
 import {
   Btn,
+  CannotUndo,
+  dismissKeyboard,
   errorMessage,
   Field,
   LoadingState,
   Select,
   Sheet,
+  Toast,
+  type ToastState,
   Txt,
+  WarningBanner,
 } from "@/components/ui";
-import { spacing, typography, useAppTheme } from "@/theme";
+import { durations, radius, spacing, typography, useAppTheme } from "@/theme";
+
+const sameTypedName = (typed: string, name: string) =>
+  Boolean(name.trim()) &&
+  typed.trim().replace(/\s+/g, " ").toLowerCase() ===
+    name.trim().replace(/\s+/g, " ").toLowerCase();
+
+const eventDate = (ms: number) =>
+  new Date(ms).toLocaleDateString("en-AU", {
+    timeZone: SYDNEY_TIME_ZONE,
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 
 export function EditMemberSheet({
   visible,
@@ -60,6 +80,10 @@ export function EditMemberSheet({
   const updateAttendance = useMutation(api.attendance.updateRecord);
 
   const isStaffOverlay = Boolean(row?.isStaffOverlay);
+  // Deleting throws attendance away, so only admins (Data and IT, HR, the
+  // Director) get the button; everyone else merges duplicates instead.
+  const me = useQuery(api.directory.me, visible ? {} : "skip");
+  const canDelete = Boolean(me?.isAdmin);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -70,12 +94,36 @@ export function EditMemberSheet({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteText, setDeleteText] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeFromDelete, setMergeFromDelete] = useState(false);
+  const [mergeStaff, setMergeStaff] = useState<{ email: string; name: string } | null>(
+    null
+  );
+  // Lives outside the sheet so it can confirm a merge or delete after closing.
+  const [toast, setToast] = useState<ToastState>(null);
+  const deleteImpact = useQuery(
+    api.attendanceMembers.deletePreview,
+    visible && deleteOpen && memberId ? { memberId } : "skip"
+  );
 
   const duplicates = useQuery(
     api.attendanceMembers.byName,
     visible && !memberId && name.trim() ? { name: name.trim() } : "skip"
   );
   const hasDuplicate = !memberId && (duplicates?.length ?? 0) > 0;
+
+  // A plain member given a staff email would only be relabelled, leaving their
+  // attendance split from the staff person's. Point to Merge instead.
+  const typedEmail = email.trim().toLowerCase();
+  const emailChanged =
+    !isStaffOverlay &&
+    typedEmail.includes("@") &&
+    typedEmail !== (row?.email ?? "").toLowerCase();
+  const staffForEmail = useQuery(
+    api.attendanceMembers.staffForEmail,
+    visible && emailChanged ? { email: typedEmail, staffYear } : "skip"
+  );
+  const staffEmailOwner = emailChanged ? (staffForEmail ?? null) : null;
 
   const metadataSummary = (meta: Record<string, string>) =>
     metadataFields
@@ -101,6 +149,7 @@ export function EditMemberSheet({
     setDeleteOpen(false);
     setDeleteText("");
     setConfirmOpen(false);
+    setMergeOpen(false);
   }, [visible, memberId, row, eventAttendance?.attendanceId, eventAttendance?.notes, prefillName]);
 
   const handleSave = () => {
@@ -147,7 +196,13 @@ export function EditMemberSheet({
     if (!memberId || isStaffOverlay) return;
     setSubmitting(true);
     try {
-      await remove({ memberId });
+      const deleted = await remove({ memberId });
+      await dismissKeyboard();
+      setToast({
+        text: deleted
+          ? `Deleted ${name.trim()}`
+          : `${name.trim()} had already been removed`,
+      });
       onClose();
     } catch (e) {
       setError(errorMessage(e));
@@ -157,43 +212,62 @@ export function EditMemberSheet({
   };
 
   const loading = Boolean(memberId && row === undefined);
+  // Deleted or merged away by someone else while this sheet was open.
+  const gone = Boolean(memberId) && row === null;
 
-  return (
+  const sheet = (
     <Sheet
       visible={visible}
       onClose={onClose}
       title={memberId ? "Edit member" : "New member"}
       headerRight={
-        memberId && !isStaffOverlay && !loading ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Delete member"
-            hitSlop={8}
-            onPress={() => setDeleteOpen(true)}
-            style={({ pressed }) => [
-              {
-                width: 34,
-                height: 34,
-                borderRadius: 17,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: t.dangerSoft,
-              },
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Ionicons name="trash-outline" size={18} color={t.danger} />
-          </Pressable>
+        memberId && !loading && !gone ? (
+          <View style={styles.headerActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Merge duplicate"
+              hitSlop={8}
+              onPress={() => {
+                setMergeFromDelete(false);
+                setMergeStaff(null);
+                setMergeOpen(true);
+              }}
+              style={({ pressed }) => [
+                styles.headerButton,
+                { backgroundColor: t.ghost },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Ionicons name="git-merge-outline" size={18} color={t.ghostText} />
+            </Pressable>
+            {!isStaffOverlay && canDelete ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Delete member"
+                hitSlop={8}
+                onPress={() => setDeleteOpen(true)}
+                style={({ pressed }) => [
+                  styles.headerButton,
+                  { backgroundColor: t.dangerSoft },
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Ionicons name="trash-outline" size={18} color={t.danger} />
+              </Pressable>
+            ) : null}
+          </View>
         ) : null
       }
       footer={
-        loading ? null : (
+        loading ? null : gone ? (
+          <Btn title="Close" variant="ghost" onPress={onClose} />
+        ) : (
           <View style={{ gap: spacing.sm }}>
             <Btn
               title="Save"
               onPress={handleSave}
               loading={submitting}
-              disabled={!isStaffOverlay && !name.trim()}
+              disabled={(!isStaffOverlay && !name.trim()) || Boolean(staffEmailOwner)}
             />
           </View>
         )
@@ -201,6 +275,10 @@ export function EditMemberSheet({
     >
       {loading ? (
         <LoadingState />
+      ) : gone ? (
+        <WarningBanner
+          message={`${name.trim() || "This member"} was just deleted or merged by someone else.`}
+        />
       ) : (
         <>
           <Field
@@ -224,11 +302,33 @@ export function EditMemberSheet({
           ) : null}
           <Field
             label="Email (optional)"
+            testID="member-email"
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
             disabled={isStaffOverlay}
           />
+          {staffEmailOwner && !memberId ? (
+            <WarningBanner
+              message={`This is ${staffEmailOwner.name}'s staff email. They're already in the list as staff.`}
+            />
+          ) : staffEmailOwner ? (
+            <View style={{ gap: spacing.sm }}>
+              <WarningBanner
+                message={`This is ${staffEmailOwner.name}'s staff email. Merge into them instead.`}
+              />
+              <Btn
+                title={`Merge into ${staffEmailOwner.name}`}
+                icon="git-merge-outline"
+                variant="tonal"
+                onPress={() => {
+                  setMergeFromDelete(false);
+                  setMergeStaff(staffEmailOwner);
+                  setMergeOpen(true);
+                }}
+              />
+            </View>
+          ) : null}
           {metadataFields.map((field) => {
             const lockedForStaff =
               isStaffOverlay &&
@@ -308,31 +408,146 @@ export function EditMemberSheet({
             onClose={() => setDeleteOpen(false)}
             title="Delete member"
             footer={
-              <Btn
-                title="Delete permanently"
-                variant="danger"
-                loading={submitting}
-                disabled={deleteText.trim() !== name.trim()}
-                onPress={() => void onDelete()}
-              />
+              <View style={{ gap: spacing.sm }}>
+                <Btn
+                  title={
+                    deleteImpact && deleteImpact.total > 0
+                      ? `Delete member and ${deleteImpact.total} record${
+                          deleteImpact.total === 1 ? "" : "s"
+                        }`
+                      : "Delete permanently"
+                  }
+                  variant="danger"
+                  loading={submitting}
+                  disabled={
+                    deleteImpact === undefined ||
+                    !sameTypedName(deleteText, name)
+                  }
+                  onPress={() => void onDelete()}
+                />
+                <Btn
+                  title="Merge instead"
+                  icon="git-merge-outline"
+                  variant="tonal"
+                  onPress={() => {
+                    setDeleteOpen(false);
+                    setMergeFromDelete(true);
+                    setMergeStaff(null);
+                    // iOS can't present a modal while another is still
+                    // dismissing, so wait for the delete sheet to fade out.
+                    setTimeout(() => setMergeOpen(true), durations.overlayOut + 80);
+                  }}
+                />
+              </View>
             }
           >
-            <Txt style={[typography.body, { color: t.text }]}>
-              This deletes the member and their attendance at every event they
-              are signed into.{" "}
-              <Txt style={{ fontWeight: "800" }}>
-                This is permanent and cannot be undone.
-              </Txt>{" "}
-              The audit log keeps a record of what was removed. Type{" "}
-              <Txt style={{ fontWeight: "800" }}>{name.trim()}</Txt> to confirm.
-            </Txt>
-            <Field
-              label="Member name"
-              value={deleteText}
-              onChangeText={setDeleteText}
-              placeholder={name}
-            />
+            {deleteImpact === undefined ? (
+              <LoadingState />
+            ) : (
+              <>
+                <View
+                  style={[
+                    styles.deleteWarning,
+                    { backgroundColor: t.dangerSoft, borderColor: t.danger },
+                  ]}
+                >
+                  <View style={styles.deleteWarningTitle}>
+                    <Ionicons name="warning" size={20} color={t.danger} />
+                    <Txt
+                      style={[typography.headline, { color: t.danger, flex: 1 }]}
+                    >
+                      {deleteImpact && deleteImpact.total > 0
+                        ? `Removes ${name.trim()} from ${
+                            deleteImpact.total === 1 ? "1 event" : `${deleteImpact.total} events`
+                          }`
+                        : `${name.trim()} has no attendance`}
+                    </Txt>
+                  </View>
+                  {deleteImpact && deleteImpact.total > 0 ? (
+                    <Txt style={[typography.body, { color: t.text }]}>
+                      Their attendance is deleted from rolls, exports and Insights.
+                    </Txt>
+                  ) : null}
+                  <CannotUndo />
+                </View>
+                {deleteImpact && deleteImpact.total > 0 ? (
+                  <>
+                    <Txt
+                      style={[
+                        typography.label,
+                        { color: t.muted, marginTop: spacing.sm },
+                      ]}
+                    >
+                      ATTENDANCE DELETED
+                    </Txt>
+                    <View
+                      style={[
+                        styles.deleteList,
+                        { borderColor: t.separator, backgroundColor: t.card },
+                      ]}
+                    >
+                      {deleteImpact.events.map((e) => (
+                        <View key={e.attendanceId} style={styles.deleteListRow}>
+                          <Ionicons
+                            name="close-circle"
+                            size={14}
+                            color={t.danger}
+                          />
+                          <Txt
+                            style={[typography.body, { color: t.text, flex: 1 }]}
+                            numberOfLines={1}
+                          >
+                            {e.name}
+                          </Txt>
+                          <Txt style={[typography.caption, { color: t.muted }]}>
+                            {eventDate(e.dateStart)}
+                          </Txt>
+                        </View>
+                      ))}
+                      {deleteImpact.total > deleteImpact.events.length ? (
+                        <Txt style={[typography.caption, { color: t.muted }]}>
+                          and {deleteImpact.total - deleteImpact.events.length}{" "}
+                          more
+                        </Txt>
+                      ) : null}
+                    </View>
+                  </>
+                ) : null}
+                <Txt style={[typography.body, { color: t.text, marginTop: spacing.sm }]}>
+                  {eventAttendance ? "Just this event? Remove their sign-in instead. " : ""}
+                  Duplicate? Merge instead to keep their attendance.
+                </Txt>
+                <Txt style={[typography.body, { color: t.text, marginTop: spacing.sm }]}>
+                  Type <Txt style={{ fontWeight: "800" }}>{name.trim()}</Txt> to
+                  delete.
+                </Txt>
+                <Field
+                  label="Member name"
+                  testID="delete-confirm-name"
+                  value={deleteText}
+                  onChangeText={setDeleteText}
+                  placeholder={name}
+                />
+              </>
+            )}
           </Sheet>
+          {memberId ? (
+            <MergeMemberSheet
+              visible={mergeOpen}
+              onClose={() => setMergeOpen(false)}
+              onMerged={(summary) => {
+                setToast({ text: summary });
+                onClose();
+              }}
+              memberId={memberId}
+              memberEmail={row?.email}
+              isStaff={isStaffOverlay}
+              year={year}
+              staffYear={staffYear}
+              removeViewedByDefault={mergeFromDelete}
+              initialStaff={mergeStaff}
+            />
+          ) : null}
           <Sheet
             visible={confirmOpen}
             onClose={() => setConfirmOpen(false)}
@@ -393,4 +608,40 @@ export function EditMemberSheet({
       )}
     </Sheet>
   );
+
+  return (
+    <>
+      {sheet}
+      <Toast toast={toast} />
+    </>
+  );
 }
+
+const styles = StyleSheet.create({
+  headerActions: { flexDirection: "row", gap: spacing.sm },
+  headerButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  deleteWarning: {
+    borderWidth: 1.5,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  deleteWarningTitle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  deleteList: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: 6,
+  },
+  deleteListRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+});

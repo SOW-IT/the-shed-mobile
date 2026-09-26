@@ -34,6 +34,9 @@ export const Toast = ({ toast }: { toast: ToastState }) => {
   if (!shown) return null;
   return (
     <Animated.View
+      // Often the only feedback once a sheet closes, so screen readers announce it.
+      accessibilityRole="alert"
+      accessibilityLiveRegion="assertive"
       style={[
         styles.toast,
         t.shadowFloat,
@@ -64,6 +67,19 @@ export const WarningBanner = ({ message }: { message: string | null }) => {
       <Text style={[typography.caption, { color: t.warning, flex: 1 }]}>{message}</Text>
     </View>
   ) : null;
+};
+
+/** Bold red line with a warning icon for actions that can't be reversed. */
+export const CannotUndo = ({ text = "This can't be undone." }: { text?: string }) => {
+  const t = useAppTheme();
+  return (
+    <View style={styles.cannotUndo} accessibilityRole="alert">
+      <Ionicons name="warning" size={18} color={t.danger} />
+      <Text style={[typography.body, { color: t.danger, fontWeight: "800", flex: 1 }]}>
+        {text}
+      </Text>
+    </View>
+  );
 };
 
 export const EmptyState = ({
