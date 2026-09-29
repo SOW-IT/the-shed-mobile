@@ -81,6 +81,16 @@ staff years are left alone. Not 365 days after `paidTime`. The job must run
 *after* midnight so `currentStaffYear()` is already the new year. Attachment
 records stay, flagged deleted. All files in those old years, paid or not.
 
+**Leavers become alumni members at 01:30 Sydney 1 Oct** (`30 15 30 9 *`,
+cron `staff to alumni`, function `convertOutgoingStaffOnRollover`). Everyone with
+a profile in the year just ended and none in the new year or later has their
+staff-email sign-ins moved onto their member row, the staff email replaced by
+their personal email (possibly empty), and Role set to Alumni. It runs after the
+flip so `currentStaffYear()` already names the new year, works in batches that
+schedule the next, and is idempotent: a converted person has nothing left under
+the staff email. It never runs early — converting someone while they are still
+this year's staff would split them from their staff row.
+
 ## Consequences
 
 Testing anything seasonal means holding data still and moving only the clock —

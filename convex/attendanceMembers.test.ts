@@ -213,4 +213,17 @@ describe("attendanceMembers.create — name capitalization", () => {
     const row = await leader.query(api.attendanceMembers.get, { memberId });
     expect(row?.name).toBe("Jane Doe");
   });
+
+  test("capitalizes the first letter of each word on edit, keeping other capitals", async () => {
+    const { leader } = await setup();
+    const memberId = await leader.mutation(api.attendanceMembers.create, {
+      name: "Jane Doe",
+    });
+    await leader.mutation(api.attendanceMembers.update, {
+      memberId,
+      name: " jane mcDonald ",
+    });
+    const row = await leader.query(api.attendanceMembers.get, { memberId });
+    expect(row?.name).toBe("Jane McDonald");
+  });
 });

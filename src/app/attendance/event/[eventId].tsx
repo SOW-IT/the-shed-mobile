@@ -7,7 +7,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -41,6 +40,7 @@ import {
   LoadingState,
   Muted,
   Screen,
+  SearchField,
   SowSpinner,
   type ToastState,
 } from "@/components/ui";
@@ -822,27 +822,12 @@ export default function EventAttendanceScreen() {
       </View>
 
       <View style={{ backgroundColor: t.background, paddingTop: spacing.sm }}>
-        <View style={[styles.search, { backgroundColor: t.inputBackground }]}>
-          <Ionicons name="search" size={16} color={t.faint} />
-          <TextInput
-            style={[styles.searchInput, { color: t.text }]}
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search members…"
-            placeholderTextColor={t.faint}
-            autoCapitalize="none"
-          />
-          {search.length > 0 ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Clear search"
-              hitSlop={8}
-              onPress={() => setSearch("")}
-            >
-              <Ionicons name="close-circle" size={18} color={t.faint} />
-            </Pressable>
-          ) : null}
-        </View>
+        <SearchField
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search members…"
+          style={styles.search}
+        />
       </View>
 
       {twoColumn ? (
@@ -1016,16 +1001,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 0.2,
   },
-  search: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    borderRadius: radius.md,
-    paddingHorizontal: 12,
-    height: 44,
-    marginBottom: spacing.sm,
-  },
-  searchInput: { flex: 1, fontSize: 15 },
+  search: { marginBottom: spacing.sm },
   section: { marginTop: spacing.md, marginBottom: spacing.sm },
   unsignedScroll: { height: UNSIGNED_LIST_HEIGHT, flexGrow: 0, flexShrink: 0 },
   columns: { flexDirection: "row", gap: spacing.md },

@@ -173,12 +173,13 @@ describe("attendance audit logging", () => {
       name: "Long Serving",
     });
     const base = window();
-    // 105 events, so the cap bites and the overflow line has to appear.
+    // 105 events, so the cap bites and the overflow line has to appear. A
+    // minute apart, so they stay in one staff year even near the 1 Oct rollover.
     for (let i = 0; i < 105; i++) {
       const eventId = await staff.mutation(api.events.create, {
         name: `Event ${i}`,
-        dateStart: base.dateStart + i * 3_600_000,
-        dateEnd: base.dateEnd + i * 3_600_000,
+        dateStart: base.dateStart + i * 60_000,
+        dateEnd: base.dateEnd + i * 60_000,
         subgroups: [USYD],
       });
       await staff.mutation(api.attendance.signIn, { eventId, memberId });

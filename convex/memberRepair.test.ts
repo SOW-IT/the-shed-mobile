@@ -226,3 +226,99 @@ describe("restoreAttendance", () => {
     expect(await t.run((ctx) => ctx.db.query("attendance").collect())).toHaveLength(3);
   });
 });
+
+describe("capitalizeMemberNames", () => {
+  const names = ["jane doe", "Aaron byeun", "McDonald", "JANE DOE", "  sam lee ", "Already Fine"];
+  const nameLog = async (t: Awaited<ReturnType<typeof setup>>) =>
+    (await t.run((ctx) => ctx.db.query("attendanceAuditLog").collect())).filter(
+      (l) => l.actorEmail === "system:member-name-capitalize"
+    );
+
+  test("capitalises each word, leaves existing capitals alone, dry run first", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      for (const name of names) await ctx.db.insert("attendanceMembers", { name });
+    });
+    const stored = async () =>
+      (await t.run((ctx) => ctx.db.query("attendanceMembers").collect())).map((m) => m.name);
+
+    const dry = await t.mutation(internal.memberRepair.capitalizeMemberNames, {});
+    expect(dry).toMatchObject({ dryRun: true, scanned: 6, renamed: 3, next: null });
+    expect(dry.changes.map((c) => [c.from, c.to])).toEqual([
+      ["jane doe", "Jane Doe"],
+      ["Aaron byeun", "Aaron Byeun"],
+      ["  sam lee ", "Sam Lee"],
+    ]);
+    expect(await stored()).toEqual(names);
+    expect(await nameLog(t)).toHaveLength(0);
+
+    const real = await t.mutation(internal.memberRepair.capitalizeMemberNames, {
+      dryRun: false,
+    });
+    expect(real.renamed).toBe(3);
+    expect(await stored()).toEqual([
+      "Jane Doe",
+      "Aaron Byeun",
+      "McDonald",
+      "JANE DOE",
+      "Sam Lee",
+      "Already Fine",
+    ]);
+    const logs = await nameLog(t);
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({ summary: "Capitalised 3 member names", entityType: "member" });
+    expect(logs[0].detail).toContain('"jane doe" → "Jane Doe"');
+
+    const again = await t.mutation(internal.memberRepair.capitalizeMemberNames, {
+      dryRun: false,
+    });
+    expect(again.renamed).toBe(0);
+    expect(await nameLog(t)).toHaveLength(1);
+  });
+
+  test("pages through members with the returned cursor", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      for (const name of ["a one", "b two", "c three"]) {
+        await ctx.db.insert("attendanceMembers", { name });
+      }
+    });
+    const first = await t.mutation(internal.memberRepair.capitalizeMemberNames, {
+      dryRun: false,
+      limit: 2,
+    });
+    expect(first).toMatchObject({ scanned: 2, renamed: 2 });
+    expect(first.next).not.toBeNull();
+    const second = await t.mutation(internal.memberRepair.capitalizeMemberNames, {
+      dryRun: false,
+      limit: 2,
+      cursor: first.next!,
+    });
+    expect(second).toMatchObject({ scanned: 1, renamed: 1, next: null });
+    const logs = await nameLog(t);
+    expect(logs.map((l) => l.summary)).toEqual([
+      "Capitalised 2 member names",
+      "Capitalised 1 member name",
+    ]);
+  });
+
+  test("lists at most the audit line cap, with a count of the rest", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 102; i++) {
+        await ctx.db.insert("attendanceMembers", { name: `member ${i}` });
+      }
+    });
+    await t.mutation(internal.memberRepair.capitalizeMemberNames, { dryRun: false });
+    const [log] = await nameLog(t);
+    expect(log.detail?.split("\n")).toHaveLength(101);
+    expect(log.detail).toContain("and 2 more");
+  });
+
+  test("rejects a limit that isn't a positive whole number", async () => {
+    const t = await setup();
+    await expect(
+      t.mutation(internal.memberRepair.capitalizeMemberNames, { limit: 0 })
+    ).rejects.toThrow("limit must be a positive whole number.");
+  });
+});

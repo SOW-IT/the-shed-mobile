@@ -11,6 +11,15 @@ crons.cron("staff year prefill", "0 11 30 9 *", internal.admin.prefillNextStaffY
 
 crons.cron("purge old receipt files", "0 15 30 9 *", internal.cleanup.purgeOldReceiptFiles, {});
 
+// 01:30 Sydney on 1 Oct, after the flip: last year's staff who aren't staff
+// this year become alumni members.
+crons.cron(
+  "staff to alumni",
+  "30 15 30 9 *",
+  internal.alumni.convertOutgoingStaffOnRollover,
+  {}
+);
+
 crons.cron("attendance metrics daily rebuild", "0 16 * * *", internal.attendanceMetrics.recomputeAll, {});
 
 export default crons;

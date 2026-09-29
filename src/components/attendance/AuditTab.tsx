@@ -4,12 +4,20 @@ import {
   MutableRefObject,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
-import { Animated, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { EmptyState, LoadingState, MultiSelect, SowSpinner } from "@/components/ui";
+import {
+  EmptyState,
+  LoadingState,
+  MultiSelect,
+  SearchField,
+  SowSpinner,
+} from "@/components/ui";
+import { useListTopOnChange } from "@/hooks/useListTopOnChange";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
 import {
   PAGER_PAGE_BOTTOM_INSET,
@@ -82,12 +90,16 @@ export function AuditTab({
     return () => clearTimeout(id);
   }, [search]);
 
+  const scopeKey = JSON.stringify([debouncedSearch, entityTypes, actorEmails, eventIds]);
+  const listRef = useRef<ScrollView>(null);
+  const onListScrollEnd = useListTopOnChange(listRef, scopeKey);
   const {
     rows: accumulated,
     result: page,
     hasMore,
+    refreshing,
   } = usePagedQuery(api.attendanceAudit.list, {
-    scopeKey: JSON.stringify([debouncedSearch, entityTypes, actorEmails, eventIds]),
+    scopeKey,
     args: (cursor) => ({
       search: debouncedSearch || undefined,
       entityTypes: entityTypes.length ? entityTypes : undefined,
@@ -98,6 +110,7 @@ export function AuditTab({
     rowsOf: (result) => result.page,
     keyOf: (row) => row.id,
     loadMoreRef,
+    keepRowsWhileLoading: true,
   });
 
   const activeFilterCount =
@@ -132,6 +145,9 @@ export function AuditTab({
 
   return (
     <Animated.ScrollView
+      ref={listRef}
+      onScrollEndDrag={onListScrollEnd}
+      onMomentumScrollEnd={onListScrollEnd}
       showsVerticalScrollIndicator={false}
       stickyHeaderIndices={[0]}
       automaticallyAdjustKeyboardInsets
@@ -223,30 +239,14 @@ export function AuditTab({
         </View>
       ) : null}
 
-      <View style={[styles.search, { backgroundColor: t.inputBackground }]}>
-        <Ionicons name="search-outline" size={18} color={t.faint} />
-        <TextInput
-          style={[styles.searchInput, { color: t.text }]}
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Search the audit trail…"
-          placeholderTextColor={t.faint}
-        />
-        {search ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Clear audit search"
-            onPress={() => setSearch("")}
-            style={({ pressed }) => [
-              styles.searchClear,
-              { backgroundColor: t.ghost },
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Ionicons name="close" size={16} color={t.ghostText} />
-          </Pressable>
-        ) : null}
-      </View>
+      <SearchField
+        value={search}
+        onChangeText={setSearch}
+        placeholder="Search the audit trail…"
+        clearLabel="Clear audit search"
+        loading={search !== debouncedSearch || refreshing}
+        style={styles.search}
+      />
       </View>
 
       <View style={[styles.sectionHeader, { borderBottomColor: t.separator }]}>
@@ -336,24 +336,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     marginBottom: spacing.sm,
   },
-  search: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    borderRadius: radius.md,
-    paddingHorizontal: 12,
-    height: 44,
-    marginTop: spacing.xs,
-    marginBottom: spacing.sm,
-  },
-  searchInput: { flex: 1, fontSize: 15 },
-  searchClear: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  search: { marginTop: spacing.xs, marginBottom: spacing.sm },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",

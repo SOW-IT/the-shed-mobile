@@ -207,7 +207,11 @@ describe("merging a member into staff", () => {
       staffYear: YEAR,
     });
     if (!preview || "blocked" in preview) throw new Error("expected a preview");
-    expect(preview.keep).toMatchObject({ kind: "staff", email: LEADER });
+    expect(preview.keep).toMatchObject({
+      kind: "staff",
+      email: LEADER,
+      personalEmail: "personal@gmail.com",
+    });
     // Name, email and campus are locked to the staff profile.
     expect(preview.conflicts).toEqual([]);
     expect(preview.attendance).toEqual({ total: 2, shared: 1, moved: 1 });
@@ -231,6 +235,8 @@ describe("merging a member into staff", () => {
     expect(members).toHaveLength(1);
     expect(members[0]).toMatchObject({
       email: LEADER,
+      // The member's own email is kept as the staff person's personal one.
+      personalEmail: "personal@gmail.com",
       metadata: { [s.yearField]: "3", [s.campusField]: "usyd" },
     });
     const log = (await s.audit()).find((r) => r.action === "member.merge")!;

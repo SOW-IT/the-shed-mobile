@@ -3,7 +3,8 @@ import { ReactNode, useEffect, useRef, useState } from "react";
 import { Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from "react-native";
 import { USE_NATIVE_DRIVER, spacing, typography, useAppTheme } from "@/theme";
 import { useRegisterModal } from "./modalPresence";
-import { FastModal, Txt } from "./primitives";
+import { FastModal, SowSpinner, Txt } from "./primitives";
+import { useRevealFocusedInput } from "./revealFocus";
 import { styles } from "./styles";
 
 export const Field = ({
@@ -32,6 +33,7 @@ export const Field = ({
 }) => {
   const t = useAppTheme();
   const [focused, setFocused] = useState(false);
+  const reveal = useRevealFocusedInput();
   return (
     <View style={styles.field}>
       <Text style={[typography.label, { color: t.muted }]}>{label}</Text>
@@ -61,13 +63,74 @@ export const Field = ({
           testID={testID}
           multiline={multiline}
           editable={!disabled}
-          onFocus={() => setFocused(true)}
+          onFocus={() => {
+            setFocused(true);
+            reveal();
+          }}
           onBlur={() => setFocused(false)}
         />
         {disabled ? (
           <Ionicons name="lock-closed-outline" size={16} color={t.faint} />
         ) : null}
       </View>
+    </View>
+  );
+};
+
+/**
+ * The search box above a list. Shows the spinner while results for the typed
+ * text are on their way, and a clear button once there's text.
+ */
+export const SearchField = ({
+  value,
+  onChangeText,
+  placeholder,
+  loading,
+  autoFocus,
+  clearLabel = "Clear search",
+  style,
+}: {
+  value: string;
+  onChangeText: (text: string) => void;
+  placeholder: string;
+  loading?: boolean;
+  autoFocus?: boolean;
+  clearLabel?: string;
+  style?: StyleProp<ViewStyle>;
+}) => {
+  const t = useAppTheme();
+  const reveal = useRevealFocusedInput();
+  return (
+    <View style={[styles.search, { backgroundColor: t.inputBackground }, style]}>
+      <Ionicons name="search-outline" size={18} color={t.faint} />
+      <TextInput
+        style={[styles.searchInput, { color: t.text }]}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={t.faint}
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoFocus={autoFocus}
+        returnKeyType="search"
+        onFocus={reveal}
+      />
+      {loading ? <SowSpinner size={20} /> : null}
+      {value ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={clearLabel}
+          hitSlop={8}
+          onPress={() => onChangeText("")}
+          style={({ pressed }) => [
+            styles.searchClear,
+            { backgroundColor: t.ghost },
+            pressed && { opacity: 0.7 },
+          ]}
+        >
+          <Ionicons name="close" size={16} color={t.ghostText} />
+        </Pressable>
+      ) : null}
     </View>
   );
 };
