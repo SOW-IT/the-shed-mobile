@@ -1,10 +1,11 @@
 import { ConvexError, v } from "convex/values";
 import { mergeNotes } from "../shared/memberMerge";
 import { SYDNEY_TIME_ZONE } from "../shared/flow";
+import { capitalizeMemberName } from "../shared/rollcall";
 import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
 import { Doc } from "./_generated/dataModel";
 import { internalMutation } from "./_generated/server";
-import { logAttendanceAction } from "./attendanceAudit";
+import { logAttendanceAction, MAX_AUDIT_ATTENDANCE_LINES } from "./attendanceAudit";
 import { findMemberByEmail } from "./model";
 
 const REPAIR_ACTOR = "system:staff-attendance-repair";
@@ -285,5 +286,73 @@ export const restoreAttendance = internalMutation({
       });
     }
     return { dryRun, restored, results };
+  },
+});
+
+const NAME_ACTOR = "system:member-name-capitalize";
+
+/**
+ * One-off backfill for names saved before members were capitalised on edit:
+ * the first letter of each word becomes a capital ("jane doe" → "Jane Doe"),
+ * the same rule the app now applies on every save. Letters that are already
+ * capitals are left alone, so "McDonald" and "JANE DOE" stay as they are.
+ *
+ * Dry run by default. Processes `limit` members per call; pass the returned
+ * `next` as `cursor` until it comes back null. Idempotent. Each batch that
+ * renames anyone writes one audit entry listing the changes.
+ *
+ *   npx convex run --prod memberRepair:capitalizeMemberNames '{}'
+ *   npx convex run --prod memberRepair:capitalizeMemberNames '{"dryRun":false}'
+ */
+export const capitalizeMemberNames = internalMutation({
+  args: {
+    dryRun: v.optional(v.boolean()),
+    cursor: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  returns: v.object({
+    dryRun: v.boolean(),
+    scanned: v.number(),
+    renamed: v.number(),
+    next: v.union(v.string(), v.null()),
+    changes: v.array(
+      v.object({ memberId: v.id("attendanceMembers"), from: v.string(), to: v.string() })
+    ),
+  }),
+  handler: async (ctx, { dryRun = true, cursor, limit = 500 }) => {
+    if (!Number.isInteger(limit) || limit < 1) {
+      throw new ConvexError("limit must be a positive whole number.");
+    }
+    const page = await ctx.db
+      .query("attendanceMembers")
+      .paginate({ numItems: limit, cursor: cursor ?? null });
+    const changes = [];
+    for (const row of page.page) {
+      const to = capitalizeMemberName(row.name.trim());
+      if (!to || to === row.name) continue;
+      changes.push({ memberId: row._id, from: row.name, to });
+      if (!dryRun) await ctx.db.patch(row._id, { name: to });
+    }
+    if (!dryRun && changes.length > 0) {
+      const listed = changes.slice(0, MAX_AUDIT_ATTENDANCE_LINES);
+      const more = changes.length - listed.length;
+      await logAttendanceAction(ctx, {
+        actorEmail: NAME_ACTOR,
+        entityType: "member",
+        action: "member.update",
+        summary: `Capitalised ${plural(changes.length, "member name")}`,
+        detail: [
+          ...listed.map((c) => `"${c.from}" → "${c.to}"`),
+          ...(more > 0 ? [`and ${more} more`] : []),
+        ].join("\n"),
+      });
+    }
+    return {
+      dryRun,
+      scanned: page.page.length,
+      renamed: changes.length,
+      next: page.isDone ? null : page.continueCursor,
+      changes,
+    };
   },
 });

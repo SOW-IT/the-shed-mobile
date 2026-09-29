@@ -34,6 +34,8 @@ export function usePagedQuery<Query extends PagedQueryRef, Row>(
     keyOf: (row: Row) => string;
     /** Lets a parent pager trigger `loadMore` when its scroll reaches the end. */
     loadMoreRef?: MutableRefObject<(() => void) | null>;
+    /** Keep the previous scope's rows on screen while the new one loads. */
+    keepRowsWhileLoading?: boolean;
   }
 ): {
   rows: Row[];
@@ -41,6 +43,8 @@ export function usePagedQuery<Query extends PagedQueryRef, Row>(
   hasMore: boolean;
   loadMore: () => void;
   loadingFirstPage: boolean;
+  /** Rows shown are the previous scope's, held while the new one loads. */
+  refreshing: boolean;
 } {
   const { scopeKey, loadMoreRef } = opts;
   // Callbacks are read from a ref inside effects so that inline `rowsOf` /
@@ -80,7 +84,11 @@ export function usePagedQuery<Query extends PagedQueryRef, Row>(
     });
   }, [result, cursor, scopeKey]);
 
-  const rows = acc.scopeKey === scopeKey ? acc.rows : (EMPTY as Row[]);
+  const stale = acc.scopeKey !== scopeKey;
+  // Until the new scope's first page lands, optionally keep showing the old
+  // rows so a search-as-you-type list doesn't flash to a spinner.
+  const holding = stale && Boolean(opts.keepRowsWhileLoading) && result !== null;
+  const rows = !stale || holding ? acc.rows : (EMPTY as Row[]);
   const hasMore = result != null && !result.isDone;
   const continueCursor = result?.continueCursor ?? null;
 
@@ -108,5 +116,6 @@ export function usePagedQuery<Query extends PagedQueryRef, Row>(
     hasMore,
     loadMore,
     loadingFirstPage: result === undefined && rows.length === 0,
+    refreshing: holding,
   };
 }

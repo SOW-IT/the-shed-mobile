@@ -20,6 +20,7 @@ import {
   Btn,
   CannotUndo,
   dismissKeyboard,
+  ErrorBanner,
   errorMessage,
   Field,
   LoadingState,
@@ -87,6 +88,7 @@ export function EditMemberSheet({
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [personalEmail, setPersonalEmail] = useState("");
   const [metadata, setMetadata] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -113,12 +115,12 @@ export function EditMemberSheet({
   const hasDuplicate = !memberId && (duplicates?.length ?? 0) > 0;
 
   // A plain member given a staff email would only be relabelled, leaving their
-  // attendance split from the staff person's. Point to Merge instead.
-  const typedEmail = email.trim().toLowerCase();
+  // attendance split from the staff person's. Point to Merge instead. A staff
+  // person's own email field is checked the same way: it's for a personal one.
+  const typedEmail = (isStaffOverlay ? personalEmail : email).trim().toLowerCase();
+  const savedEmail = (isStaffOverlay ? row?.personalEmail : row?.email) ?? "";
   const emailChanged =
-    !isStaffOverlay &&
-    typedEmail.includes("@") &&
-    typedEmail !== (row?.email ?? "").toLowerCase();
+    typedEmail.includes("@") && typedEmail !== savedEmail.toLowerCase();
   const staffForEmail = useQuery(
     api.attendanceMembers.staffForEmail,
     visible && emailChanged ? { email: typedEmail, staffYear } : "skip"
@@ -138,10 +140,12 @@ export function EditMemberSheet({
       // eslint-disable-next-line react-hooks/set-state-in-effect -- reset form when sheet opens
       setName(row.name);
       setEmail(row.email ?? "");
+      setPersonalEmail(row.personalEmail ?? "");
       setMetadata(row.metadata ?? {});
     } else if (!memberId) {
       setName(capitalizeMemberName(prefillName ?? ""));
       setEmail("");
+      setPersonalEmail("");
       setMetadata({});
     }
     setNotes(eventAttendance?.notes ?? "");
@@ -171,6 +175,7 @@ export function EditMemberSheet({
           memberId,
           name,
           email: email || undefined,
+          personalEmail: isStaffOverlay ? personalEmail : undefined,
           metadata,
           staffYear,
         });
@@ -195,6 +200,7 @@ export function EditMemberSheet({
   const onDelete = async () => {
     if (!memberId || isStaffOverlay) return;
     setSubmitting(true);
+    setError(null);
     try {
       const deleted = await remove({ memberId });
       await dismissKeyboard();
@@ -262,14 +268,12 @@ export function EditMemberSheet({
         loading ? null : gone ? (
           <Btn title="Close" variant="ghost" onPress={onClose} />
         ) : (
-          <View style={{ gap: spacing.sm }}>
-            <Btn
-              title="Save"
-              onPress={handleSave}
-              loading={submitting}
-              disabled={(!isStaffOverlay && !name.trim()) || Boolean(staffEmailOwner)}
-            />
-          </View>
+          <Btn
+            title="Save"
+            onPress={handleSave}
+            loading={submitting}
+            disabled={(!isStaffOverlay && !name.trim()) || Boolean(staffEmailOwner)}
+          />
         )
       }
     >
@@ -284,13 +288,9 @@ export function EditMemberSheet({
           <Field
             label="Name"
             value={name}
-            onChangeText={
-              memberId
-                ? setName
-                : (text) => setName(capitalizeMemberName(text))
-            }
+            onChangeText={(text) => setName(capitalizeMemberName(text))}
             placeholder="Full name"
-            autoCapitalize={memberId ? "none" : "words"}
+            autoCapitalize="words"
             disabled={isStaffOverlay}
           />
           {hasDuplicate ? (
@@ -300,15 +300,29 @@ export function EditMemberSheet({
               A member with this name already exists.
             </Txt>
           ) : null}
+          {isStaffOverlay ? (
+            <Field
+              label="Staff email"
+              testID="member-staff-email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              disabled
+            />
+          ) : null}
           <Field
             label="Email (optional)"
             testID="member-email"
-            value={email}
-            onChangeText={setEmail}
+            value={isStaffOverlay ? personalEmail : email}
+            onChangeText={isStaffOverlay ? setPersonalEmail : setEmail}
+            placeholder={isStaffOverlay ? "Their personal email" : undefined}
             keyboardType="email-address"
-            disabled={isStaffOverlay}
           />
-          {staffEmailOwner && !memberId ? (
+          {staffEmailOwner && isStaffOverlay ? (
+            <WarningBanner
+              message={`This is ${staffEmailOwner.name}'s staff email. Add a personal email here instead.`}
+            />
+          ) : staffEmailOwner && !memberId ? (
             <WarningBanner
               message={`This is ${staffEmailOwner.name}'s staff email. They're already in the list as staff.`}
             />
@@ -400,9 +414,7 @@ export function EditMemberSheet({
               multiline
             />
           ) : null}
-          {error ? (
-            <Txt style={[typography.caption, { color: t.danger }]}>{error}</Txt>
-          ) : null}
+          <ErrorBanner message={error} />
           <Sheet
             visible={deleteOpen}
             onClose={() => setDeleteOpen(false)}
@@ -528,6 +540,7 @@ export function EditMemberSheet({
                   onChangeText={setDeleteText}
                   placeholder={name}
                 />
+                <ErrorBanner message={error} />
               </>
             )}
           </Sheet>

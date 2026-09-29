@@ -195,6 +195,22 @@ export const styles = StyleSheet.create({
     paddingVertical: 11,
   },
   inputMultiline: { minHeight: 88, textAlignVertical: "top" },
+  search: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    borderRadius: radius.md,
+    paddingHorizontal: 12,
+    height: 44,
+  },
+  searchInput: { flex: 1, fontSize: 15 },
+  searchClear: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   selectFace: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   optionSheetHeader: {
     flexDirection: "row",

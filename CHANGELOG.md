@@ -6,6 +6,52 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.13.1] — 2026-09-29
+
+### Added
+- **Staff who leave become alumni on October 1.** At 01:30 on 1 October, after
+  the staff year turns over, everyone who was staff last year but isn't this
+  year becomes an ordinary member with the Role Alumni. All their sign-ins,
+  including past years', move onto that one member record, so they're one
+  person from then on (their past events now show them as a member rather than
+  staff). Their staff email comes off and their personal email shows instead,
+  or nothing if none was recorded. Each person gets an audit entry. Someone
+  taken off staff later in the year can be converted with the same admin
+  command (dry run first).
+- **Staff have a personal email beside their staff email.** Opening a staff
+  member shows their staff email (read-only) and an Email field for their own
+  address; everyone else just has Email. A staff email can't go in the personal
+  field. Merging a member into staff now keeps the member's email as the staff
+  person's personal one instead of dropping it, and searching Members finds
+  staff by their personal email too.
+
+### Changed
+- **Member names are capitalised when created or edited.** The first letter of
+  each word becomes a capital as you type ("jane doe" → "Jane Doe"); letters
+  already capitalised stay as they are, so "McDonald" and "JANE DOE" are kept.
+  An admin command capitalises names saved before this (dry run first).
+- **Merging looks and loads like the Members list.** People in the merge
+  search show the same avatar, campus colour and pill as Members. Results stay
+  on screen while a new search loads, with a spinner in the search box, instead
+  of the list flashing to a big spinner on every keystroke. "Swap which one is
+  kept" updates the review in place, and "Choose someone else" goes straight
+  back to the results.
+- **Search boxes in Attendance all work the same way.** Members, Audit, an
+  event's roll-call and Merge share one search box with a clear button, no
+  auto-capitals or autocorrect, and a spinner while results load. Members and
+  Audit keep their list up while a new search loads.
+
+### Fixed
+- **Sheets make room for the keyboard.** With the keyboard up, a sheet like
+  Edit member uses all the space above it instead of shrinking and floating
+  with a gap, and the field you tap scrolls fully into view, including the last
+  one (Notes) and when moving between fields.
+- **Searching Members or Audit from far down the list shows the results.**
+  Previously the list could stay scrolled past the shorter results and look
+  empty until you pulled down.
+- **A failed member delete shows its error** in the delete sheet rather than
+  hidden behind it.
+
 ## [1.13.0] — 2026-09-25
 
 ### Added

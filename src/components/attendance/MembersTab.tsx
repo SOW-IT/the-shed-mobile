@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
-import { MutableRefObject, useEffect, useMemo, useState } from "react";
-import { Animated, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { MutableRefObject, useEffect, useMemo, useRef, useState } from "react";
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { campusPill } from "@/components/attendance/campusPill";
+import { MemberRow } from "@/components/attendance/MemberRow";
+import { useHeldValue } from "@/hooks/useHeldValue";
+import { useListTopOnChange } from "@/hooks/useListTopOnChange";
 import { usePagedQuery } from "@/hooks/usePagedQuery";
 import {
   ROLE_FIELD_KEY,
@@ -12,11 +14,11 @@ import {
   orderedSelectOptions,
 } from "../../../shared/attendanceMemberMeta";
 import {
-  Avatar,
   Btn,
   EmptyState,
   LoadingState,
   MultiSelect,
+  SearchField,
   Select,
   SowSpinner,
 } from "@/components/ui";
@@ -61,12 +63,16 @@ export function MembersTab({
     return () => clearTimeout(id);
   }, [search]);
 
+  const scopeKey = JSON.stringify([year, debouncedSearch, sortKey, sortAsc, filters]);
+  const listRef = useRef<ScrollView>(null);
+  const onListScrollEnd = useListTopOnChange(listRef, scopeKey);
   const {
     rows: accumulated,
     result: page,
     hasMore,
+    refreshing,
   } = usePagedQuery(api.attendanceMembers.list, {
-    scopeKey: JSON.stringify([year, debouncedSearch, sortKey, sortAsc, filters]),
+    scopeKey,
     args: (cursor) => ({
       year,
       search: debouncedSearch || undefined,
@@ -78,6 +84,7 @@ export function MembersTab({
     rowsOf: (result) => result.page,
     keyOf: (row) => row.key,
     loadMoreRef,
+    keepRowsWhileLoading: true,
   });
 
   const sortOptions = useMemo(
@@ -96,12 +103,16 @@ export function MembersTab({
     (count, values) => count + values.length,
     0
   );
-  const total = page?.total ?? accumulated.length;
+  // Held too, so the count doesn't blink while a new search loads.
+  const total = useHeldValue(page?.total, "total").value ?? accumulated.length;
 
   if (metadata === undefined) return <LoadingState />;
 
   return (
     <Animated.ScrollView
+      ref={listRef}
+      onScrollEndDrag={onListScrollEnd}
+      onMomentumScrollEnd={onListScrollEnd}
       showsVerticalScrollIndicator={false}
       stickyHeaderIndices={[0]}
       automaticallyAdjustKeyboardInsets
@@ -202,30 +213,14 @@ export function MembersTab({
         </View>
       ) : null}
 
-        <View style={[styles.search, { backgroundColor: t.inputBackground }]}>
-          <Ionicons name="search-outline" size={18} color={t.faint} />
-          <TextInput
-            style={[styles.searchInput, { color: t.text }]}
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search members…"
-            placeholderTextColor={t.faint}
-          />
-          {search ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Clear member search"
-              onPress={() => setSearch("")}
-              style={({ pressed }) => [
-                styles.searchClear,
-                { backgroundColor: t.ghost },
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <Ionicons name="close" size={16} color={t.ghostText} />
-            </Pressable>
-          ) : null}
-        </View>
+        <SearchField
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search members…"
+          clearLabel="Clear member search"
+          loading={search !== debouncedSearch || refreshing}
+          style={styles.search}
+        />
       </View>
 
       <View style={[styles.sectionHeader, { borderBottomColor: t.separator }]}>
@@ -243,69 +238,25 @@ export function MembersTab({
         <EmptyState icon="people-outline" title="No members match" />
       ) : (
         <View>
-          {accumulated.map((row) => {
-            const pill = campusPill(row.university, row.roles, t);
-
-            return (
-              <Pressable
-                key={row.key}
-                style={({ pressed }) => [
-                  styles.memberRow,
-                  {
-                    backgroundColor: t.card,
-                    borderColor: pill.colour ?? t.separator,
-                  },
-                  pressed && { opacity: 0.66 },
-                ]}
-                onPress={() => {
-                  if (row.memberId) {
-                    onEditMember(row.memberId as Id<"attendanceMembers">);
-                  } else if (row.email) {
-                    void ensureForStaff({ staffEmail: row.email, staffYear: year })
-                      .then(onEditMember)
-                      .catch((e) => console.error("ensureForStaff failed", e));
-                  }
-                }}
-              >
-                <Avatar photo={row.photo ?? null} name={row.name} size={38} />
-                <View style={styles.memberText}>
-                  <Text
-                    style={[typography.headline, styles.memberName, { color: t.text }]}
-                    numberOfLines={1}
-                  >
-                    {row.name}
-                  </Text>
-                  {row.subtitle ? (
-                    <Text
-                      style={[typography.caption, { color: t.muted }]}
-                      numberOfLines={1}
-                    >
-                      {row.subtitle}
-                    </Text>
-                  ) : null}
-                </View>
-                <View
-                  style={[
-                    styles.campusPill,
-                    {
-                      backgroundColor: pill.background,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      typography.caption,
-                      styles.campusPillText,
-                      { color: pill.text },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {pill.label}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })}
+          {accumulated.map((row) => (
+            <MemberRow
+              key={row.key}
+              name={row.name}
+              subtitle={row.subtitle}
+              photo={row.photo}
+              university={row.university}
+              roles={row.roles}
+              onPress={() => {
+                if (row.memberId) {
+                  onEditMember(row.memberId as Id<"attendanceMembers">);
+                } else if (row.email) {
+                  void ensureForStaff({ staffEmail: row.email, staffYear: year })
+                    .then(onEditMember)
+                    .catch((e) => console.error("ensureForStaff failed", e));
+                }
+              }}
+            />
+          ))}
           {hasMore ? (
             <View style={{ alignItems: "center", paddingVertical: spacing.md }}>
               <SowSpinner size={36} />
@@ -353,24 +304,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   sortSelect: { flex: 1 },
-  search: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    borderRadius: radius.md,
-    paddingHorizontal: 12,
-    height: 44,
-    marginTop: spacing.xs,
-    marginBottom: spacing.sm,
-  },
-  searchInput: { flex: 1, fontSize: 15 },
-  searchClear: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  search: { marginTop: spacing.xs, marginBottom: spacing.sm },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -385,27 +319,4 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   totalPillText: { fontSize: 10.5, fontWeight: "800", letterSpacing: 0.2 },
-  memberRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    borderWidth: 1.5,
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  memberText: { flex: 1, minWidth: 0 },
-  memberName: { marginBottom: 2 },
-  campusPill: {
-    maxWidth: 92,
-    borderRadius: radius.full,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-  },
-  campusPillText: {
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.1,
-  },
 });

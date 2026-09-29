@@ -272,7 +272,12 @@ export default defineSchema({
 
   attendanceMembers: defineTable({
     name: v.string(),
+    // A plain member's own email. On a staff person's row it is their staff
+    // email, which links the row to their staff profile.
     email: v.optional(v.string()),
+    // A staff person's own email, kept apart from the staff one. It becomes
+    // `email` when they leave staff and turn into alumni.
+    personalEmail: v.optional(v.string()),
     sourceImportId: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.string())),
   })

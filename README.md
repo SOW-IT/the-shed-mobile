@@ -80,6 +80,11 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   merging too, instead of relabelling the record and splitting their history.
   Only admins (Data and IT, HR, the Director) can delete a member; the sheet
   lists every event whose attendance goes with them and points to merging.
+- **Staff and alumni**: a staff person's member record is linked by their
+  staff email and also holds their personal email. On October 1, anyone who was
+  staff last year but isn't this year becomes an alumni member: their sign-ins
+  move onto that one record and their personal email replaces the staff one.
+  Member names are capitalised as they're typed.
 - **Audit log**: an immutable trail of every attendance-area action (event /
   member / tag / metadata edits, merges and deletes, and each
   sign-in/edit/sign-out), read by the Attendance → Audit tab.
@@ -88,10 +93,9 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
 - **Insights** (a dedicated bottom tab): a leader-facing metrics dashboard of
   summary cards, native trend charts, and a gentle, explainable "Needs
   follow-up" list for the selected sub-group and trailing range (1/2/4/8/12
-  weeks). Aggregates are pre-computed server-side (a weekly cron plus a
-  15-minute *dirty* recompute that rebuilds only sub-groups changed by a
-  roll-call/event edit), so the tab reads one small snapshot and stays fresh
-  within minutes. See [docs/attendance-metrics.md](docs/attendance-metrics.md).
+  weeks). Aggregates are pre-computed server-side by a nightly rebuild, so the
+  tab reads one small snapshot and shows roll-call changes the next morning.
+  See [docs/attendance-metrics.md](docs/attendance-metrics.md).
 
 ## Getting started
 

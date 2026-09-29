@@ -1,25 +1,29 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
-import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Keyboard, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { formatMetadataFieldValue } from "../../../shared/attendanceMemberMeta";
 import { SYDNEY_TIME_ZONE } from "../../../shared/flow";
 import type { MergeResolutions, MergeSide } from "../../../shared/memberMerge";
+import { MemberRow } from "@/components/attendance/MemberRow";
 import {
   Btn,
   CannotUndo,
   dismissKeyboard,
+  EmptyState,
   ErrorBanner,
   errorMessage,
   Field,
   LoadingState,
   OptionRow,
+  SearchField,
   Sheet,
   Txt,
   WarningBanner,
 } from "@/components/ui";
+import { useHeldValue } from "@/hooks/useHeldValue";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 type Picked = {
@@ -126,16 +130,26 @@ export function MergeMemberSheet({
     return () => clearTimeout(id);
   }, [search]);
 
-  const results = useQuery(
-    api.attendanceMembers.list,
-    visible && !picked && debouncedSearch
-      ? {
-          year: staffYear,
-          search: debouncedSearch,
-          paginationOpts: { numItems: 25, cursor: null },
-        }
-      : "skip"
+  // Stays subscribed while a pick is reviewed, so "Choose someone else" goes
+  // straight back to the list, and holds the last results while a new search
+  // loads so the list doesn't flash to a spinner on every keystroke.
+  const typed = search.trim();
+  const searching = visible && Boolean(debouncedSearch) && Boolean(typed);
+  const { value: results, stale: resultsStale } = useHeldValue(
+    useQuery(
+      api.attendanceMembers.list,
+      searching
+        ? {
+            year: staffYear,
+            search: debouncedSearch,
+            paginationOpts: { numItems: 25, cursor: null },
+          }
+        : "skip"
+    ),
+    searching ? "search" : "idle"
   );
+  const searchLoading =
+    Boolean(typed) && (typed !== debouncedSearch || !results || resultsStale);
   const candidates = (results?.page ?? []).filter((row) => {
     if (row.memberId === memberId) return false;
     if (memberEmail && row.email?.toLowerCase() === memberEmail.toLowerCase()) {
@@ -157,22 +171,30 @@ export function MergeMemberSheet({
           : { removeId: picked.memberId, keep: { memberId }, staffYear }
         : null
     : null;
-  const preview = useQuery(
+  const livePreview = useQuery(
     api.attendanceMembers.mergePreview,
     visible && mergeArgs && !merged ? mergeArgs : "skip"
   );
-  const previewReady = preview && !("blocked" in preview) ? preview : null;
+  const livePreviewReady =
+    livePreview && !("blocked" in livePreview) ? livePreview : null;
   // Between two members, keep whoever has more history by default, whichever
   // way the sheet was opened. Staff are always kept, so there's nothing to pick.
   const orienting = Boolean(canSwap && picked && orientedFor !== picked.key);
   useEffect(() => {
-    if (!orienting || !previewReady || !picked) return;
-    if (previewReady.remove.history.events > previewReady.keep.history.events) {
+    if (!orienting || !livePreviewReady || !picked) return;
+    if (livePreviewReady.remove.history.events > livePreviewReady.keep.history.events) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- settle the default side once per pick
       setRemoveViewed((v) => !v);
     }
     setOrientedFor(picked.key);
-  }, [orienting, previewReady, picked]);
+  }, [orienting, livePreviewReady, picked]);
+  // Swapping keeps the current review up (Merge off) until the swapped one
+  // loads, instead of collapsing the sheet to a spinner and back.
+  const { value: preview, stale: previewStale } = useHeldValue(
+    livePreview,
+    picked ? `${picked.key}|${orientedFor ?? ""}` : "none"
+  );
+  const previewReady = preview && !("blocked" in preview) ? preview : null;
   const ready = orienting ? null : previewReady;
   const blocked = preview && "blocked" in preview ? preview.blocked : null;
 
@@ -191,7 +213,7 @@ export function MergeMemberSheet({
       .join(" · ");
 
   const onMerge = async () => {
-    if (!mergeArgs || !ready || submitting) return;
+    if (!mergeArgs || !ready || previewStale || submitting) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -266,7 +288,9 @@ export function MergeMemberSheet({
               title="Merge"
               icon="git-merge-outline"
               loading={submitting}
-              disabled={!removeName || !sameTypedName(confirmText, removeName)}
+              disabled={
+                previewStale || !removeName || !sameTypedName(confirmText, removeName)
+              }
               onPress={() => void onMerge()}
             />
             <Btn
@@ -303,72 +327,48 @@ export function MergeMemberSheet({
               ? "Only members can be merged into staff."
               : "Picking staff merges this member into them."}
           </Txt>
-          <View style={[styles.search, { backgroundColor: t.inputBackground }]}>
-            <Ionicons name="search-outline" size={18} color={t.faint} />
-            <TextInput
-              style={[styles.searchInput, { color: t.text }]}
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search by name or email…"
-              placeholderTextColor={t.faint}
-              autoFocus
+          <SearchField
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search by name or email…"
+            loading={searchLoading}
+            autoFocus
+          />
+          {results && !resultsStale && candidates.length === 0 ? (
+            <EmptyState
+              icon="search-outline"
+              title="No one else matches"
+              message="Try another spelling, or search by email."
             />
-          </View>
-          {debouncedSearch && results === undefined ? (
-            <LoadingState />
-          ) : debouncedSearch && candidates.length === 0 ? (
-            <Txt style={[typography.caption, { color: t.muted }]}>
-              No one else matches “{debouncedSearch}”.
-            </Txt>
           ) : (
-            candidates.map((row) => {
-              const rowIsStaff = row.key.startsWith("staff:");
-              return (
-                <Pressable
-                  key={row.key}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Merge with ${row.name}`}
-                  onPress={() => {
-                    // Start the review at the top, not scrolled for the keyboard.
-                    Keyboard.dismiss();
-                    setPicked({
-                      key: row.key,
-                      name: row.name,
-                      isStaff: rowIsStaff,
-                      email: row.email,
-                      memberId: row.memberId as Id<"attendanceMembers"> | undefined,
-                    });
-                  }}
-                  style={({ pressed }) => [
-                    styles.candidate,
-                    { backgroundColor: t.card, borderColor: t.separator },
-                    pressed && { opacity: 0.66 },
-                  ]}
-                >
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Txt style={[typography.headline, { color: t.text }]} numberOfLines={1}>
-                      {row.name}
-                    </Txt>
-                    {row.subtitle || row.email ? (
-                      <Txt
-                        style={[typography.caption, { color: t.muted }]}
-                        numberOfLines={1}
-                      >
-                        {row.subtitle || row.email}
-                      </Txt>
-                    ) : null}
-                  </View>
-                  {rowIsStaff ? (
-                    <View style={[styles.staffChip, { backgroundColor: t.ghost }]}>
-                      <Text style={[styles.staffChipText, { color: t.ghostText }]}>
-                        STAFF
-                      </Text>
-                    </View>
-                  ) : null}
-                  <Ionicons name="chevron-forward" size={18} color={t.faint} />
-                </Pressable>
-              );
-            })
+            <View>
+              {candidates.map((row) => {
+                const rowIsStaff = row.key.startsWith("staff:");
+                return (
+                  <MemberRow
+                    key={row.key}
+                    name={row.name}
+                    subtitle={row.subtitle || row.email}
+                    photo={row.photo}
+                    university={row.university}
+                    roles={row.roles}
+                    tag={rowIsStaff ? "STAFF" : undefined}
+                    accessibilityLabel={`Merge with ${row.name}`}
+                    onPress={() => {
+                      // Start the review at the top, not scrolled for the keyboard.
+                      Keyboard.dismiss();
+                      setPicked({
+                        key: row.key,
+                        name: row.name,
+                        isStaff: rowIsStaff,
+                        email: row.email,
+                        memberId: row.memberId as Id<"attendanceMembers"> | undefined,
+                      });
+                    }}
+                  />
+                );
+              })}
+            </View>
           )}
         </>
       ) : blocked ? (
@@ -392,6 +392,7 @@ export function MergeMemberSheet({
               title="Swap which one is kept"
               icon="swap-vertical"
               variant="ghost"
+              loading={previewStale}
               onPress={() => {
                 setRemoveViewed((v) => !v);
                 setResolutions({});
@@ -419,7 +420,10 @@ export function MergeMemberSheet({
           </Txt>
           {ready.keep.kind === "staff" ? (
             <Txt style={[typography.caption, { color: t.muted }]}>
-              Name, email, campus and role stay from the staff profile.
+              Name, staff email, campus and role stay from the staff profile.
+              {ready.keep.personalEmail
+                ? ` Personal email: ${ready.keep.personalEmail}.`
+                : ""}
             </Txt>
           ) : null}
           <CannotUndo text={`${ready.remove.name} will be removed. This can't be undone.`} />
@@ -469,24 +473,6 @@ export function MergeMemberSheet({
 }
 
 const styles = StyleSheet.create({
-  search: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    borderRadius: radius.md,
-    paddingHorizontal: 12,
-    height: 44,
-  },
-  searchInput: { flex: 1, fontSize: 15 },
-  candidate: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
   personCard: {
     borderWidth: 1.5,
     borderRadius: radius.md,

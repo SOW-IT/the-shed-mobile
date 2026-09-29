@@ -12,6 +12,24 @@ all — attendance-only members are the common case. Staff who attend events are
 Members too, resolved by email.
 _Avoid_: attendee, participant, person
 
+**Staff email** / **Personal email**:
+A staff person's member row carries their staff email, which links it to their
+`staffProfile` and keys their sign-ins; their own email is kept beside it as a
+personal email. The edit sheet shows the staff email (read-only) only for
+someone who is staff in the year being viewed, and an editable Email for
+everyone — for staff, that is the personal one. Merging a member into staff
+keeps the member's email as the personal one.
+_Avoid_: work email, org email (for the personal one)
+
+**Alumni**:
+Someone who was staff last staff year and isn't this year. At 01:30 Sydney on
+October 1 (after the flip) each one becomes a plain Member: every sign-in under
+their staff email moves onto their member row, the staff email comes off for
+their personal email (empty if none was recorded), and Role becomes Alumni.
+Their past events then show them as a Member, not staff. Someone taken off
+staff later in the year is converted by hand (`alumni:convertOutgoingStaff`).
+_Avoid_: former staff (in UI copy), ex-staff
+
 **Sub-group**:
 The partition Attendance slices by: that staff year's Universities, plus the
 synthetic org-wide `"SOW"`. `"SOW"` is never the name of a real `universities`

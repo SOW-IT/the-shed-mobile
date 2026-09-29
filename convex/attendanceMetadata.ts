@@ -42,7 +42,7 @@ const lockedValuePresent = (
 const nextNumericKey = (values: Record<string, string>): number =>
   Math.max(0, ...Object.keys(values).map(Number).filter(Number.isFinite)) + 1;
 
-const mergeSelectValues = (
+export const mergeSelectValues = (
   values: Record<string, string>,
   labels: string[]
 ): Record<string, string> => {
