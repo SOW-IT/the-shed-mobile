@@ -1,12 +1,23 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
-import { describe, expect, test, vi } from "vitest";
-import { staffYearForDate } from "../shared/flow";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
-const YEAR = staffYearForDate(new Date());
+// The clock is pinned mid staff year (still ticking, so sign-in times differ):
+// events here are "now" plus up to a few days, which on the last days of
+// September would cross the 1 October rollover into a year with no sub-groups.
+const NOW = staffYearStartMs(staffYearForDate(new Date())) + 120 * 86_400_000;
+const YEAR = staffYearForDate(new Date(NOW));
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+  vi.setSystemTime(NOW);
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 const ADMIN = "admin@sow.org.au";
 const STAFF = "staff@sow.org.au";
