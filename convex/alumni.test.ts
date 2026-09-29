@@ -214,6 +214,38 @@ describe("convertOutgoingStaff", () => {
     expect(records.some((r) => r.email)).toBe(false);
   });
 
+  test("never gives an alumni row someone's staff email", async () => {
+    const s = await setup();
+    await s.profile(LEAVER, LAST);
+    await s.profile(STAYER, YEAR);
+    const second = "sec.ond@sow.org.au";
+    await s.profile(second, LAST);
+    const [lee, dup, sec] = await s.t.run(async (ctx) => [
+      // A personal email that has since become a staff email is passed over
+      // for the next row's.
+      await ctx.db.insert("attendanceMembers", {
+        name: "Lee",
+        email: LEAVER,
+        personalEmail: STAYER,
+      }),
+      await ctx.db.insert("attendanceMembers", {
+        name: "Lee",
+        email: LEAVER,
+        personalEmail: "lee@gmail.com",
+      }),
+      await ctx.db.insert("attendanceMembers", {
+        name: "Sec",
+        email: second,
+        personalEmail: STAYER,
+      }),
+    ]);
+    await s.convert({ dryRun: false });
+    const rows = await s.members();
+    expect(rows.find((m) => m._id === dup)).toBeUndefined();
+    expect(rows.find((m) => m._id === lee)?.email).toBe("lee@gmail.com");
+    expect(rows.find((m) => m._id === sec)?.email).toBeUndefined();
+  });
+
   test("leaves out anyone staff again in a later year, and people with nothing to move", async () => {
     const s = await setup();
     const back = "back.later@sow.org.au";

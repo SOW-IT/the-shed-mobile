@@ -9,6 +9,7 @@ import { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, type MutationCtx } from "./_generated/server";
 import { logAttendanceAction } from "./attendanceAudit";
 import { mergeSelectValues } from "./attendanceMetadata";
+import { latestStaffProfile } from "./attendanceMembers";
 import { findMemberByEmail } from "./model";
 
 const ALUMNI_ACTOR = "system:staff-to-alumni";
@@ -138,10 +139,16 @@ async function convertPerson(
   const name = capitalizeMemberName(
     personDisplayName(profile.name ?? primary?.name, staffEmail).trim()
   );
-  const personalEmail =
-    [primary, ...duplicates]
-      .map((row) => row?.personalEmail?.trim().toLowerCase())
-      .find(Boolean) ?? null;
+  // The first personal email that isn't someone's staff email: putting one
+  // of those on the row would make it read as that staff person.
+  let personalEmail: string | null = null;
+  for (const row of [primary, ...duplicates]) {
+    const email = row?.personalEmail?.trim().toLowerCase();
+    if (email && !(await latestStaffProfile(ctx, email))) {
+      personalEmail = email;
+      break;
+    }
+  }
   const detail: Detail = {
     staffEmail,
     name,

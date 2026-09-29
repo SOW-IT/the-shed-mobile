@@ -662,7 +662,7 @@ const staffYearsToCheck = (profileYear: number): number[] => {
 
 /** Someone's most recent staff profile in any year. Former staff are still
  *  staff here: their attendance is keyed by their org email. */
-const latestStaffProfile = async (
+export const latestStaffProfile = async (
   ctx: Ctx,
   email: string | undefined
 ): Promise<Doc<"staffProfiles"> | null> => {
@@ -788,12 +788,19 @@ const mergeOptionsFor = (keep: MergeKeep, fields: MetadataField[]) => {
 };
 
 /** A staff person's personal email after a merge: the one they had, else the
- *  merged-away member's own email. */
-const keptPersonalEmail = (
+ *  merged-away member's own email. One that is (or has since become) someone's
+ *  staff email is skipped, or the row would read as that person's. */
+const keptPersonalEmail = async (
+  ctx: Ctx,
   keep: Extract<MergeKeep, { kind: "staff" }>,
   remove: Doc<"attendanceMembers">
-): string | undefined =>
-  keep.shadow?.personalEmail || remove.email?.trim().toLowerCase() || undefined;
+): Promise<string | undefined> => {
+  for (const candidate of [keep.shadow?.personalEmail, remove.email]) {
+    const email = candidate?.trim().toLowerCase();
+    if (email && !(await latestStaffProfile(ctx, email))) return email;
+  }
+  return undefined;
+};
 
 /** The kept person's attendance row at `eventId`, if they already have one. */
 const keptRecordAt = async (
@@ -891,7 +898,8 @@ export const mergePreview = query({
       keep: {
         kind: keep.kind,
         ...kept,
-        personalEmail: keep.kind === "staff" ? keptPersonalEmail(keep, remove) : undefined,
+        personalEmail:
+          keep.kind === "staff" ? await keptPersonalEmail(ctx, keep, remove) : undefined,
         history: await keptHistory(ctx, keep),
       },
       remove: { ...removed, history: historyOf(records) },
@@ -949,7 +957,7 @@ export const merge = mutation({
       const name = keep.profile.name ?? keep.shadow?.name ?? keep.email;
       // The staff email stays; the member's own email is kept as the staff
       // person's personal one, for when they leave staff.
-      const personalEmail = keptPersonalEmail(keep, remove);
+      const personalEmail = await keptPersonalEmail(ctx, keep, remove);
       if (keep.shadow) {
         await ctx.db.patch(keep.shadow._id, {
           name,

@@ -275,6 +275,33 @@ describe("merging a member into staff", () => {
     });
   });
 
+  test("a personal email that has become someone's staff email isn't kept", async () => {
+    const s = await setup();
+    const shadow = await s.leader.mutation(api.attendanceMembers.ensureForStaff, {
+      staffEmail: LEADER,
+    });
+    // Saved as personal, then that address was given a staff profile.
+    await s.t.run((ctx) => ctx.db.patch(shadow, { personalEmail: OTHER_LEADER }));
+    const dup = await s.member("Leader Nickname", {}, "personal@gmail.com");
+
+    const preview = await s.leader.query(api.attendanceMembers.mergePreview, {
+      removeId: dup,
+      keep: { memberId: shadow },
+      staffYear: YEAR,
+    });
+    if (!preview || "blocked" in preview) throw new Error("expected a preview");
+    expect(preview.keep.personalEmail).toBe("personal@gmail.com");
+
+    await s.leader.mutation(api.attendanceMembers.merge, {
+      removeId: dup,
+      keep: { memberId: shadow },
+      resolutions: {},
+    });
+    expect((await s.t.run((ctx) => ctx.db.get(shadow)))?.personalEmail).toBe(
+      "personal@gmail.com"
+    );
+  });
+
   test("a staff merge leaves one record per event even if the staff person was already split", async () => {
     const s = await setup();
     const shadow = await s.leader.mutation(api.attendanceMembers.ensureForStaff, {
