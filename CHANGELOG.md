@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.13.2] — 2026-09-30
+
+### Changed
+- **Expo packages are on the latest SDK 57 patch releases** (expo 57.0.26,
+  expo-router 57.0.24, @expo/ui 57.0.21, expo-constants 57.0.20,
+  expo-document-picker 57.0.3). Expo shipped these after 1.13.1 was reviewed,
+  so the CI check that keeps packages in line with the SDK started failing on
+  main. No change to how the app behaves.
+
 ## [1.13.1] — 2026-09-29
 
 ### Added
