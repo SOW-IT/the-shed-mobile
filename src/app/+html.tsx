@@ -51,11 +51,24 @@ export default function Root({ children }: { children: React.ReactNode }) {
                     if (store) window.location = store;
                   }, handback ? 2500 : 2000);
                   var cancel = function () { clearTimeout(fallback); };
-                  document.addEventListener("visibilitychange", function () {
-                    if (document.hidden) cancel();
-                  });
-                  window.addEventListener("pagehide", cancel);
-                  if (!handback) {
+                  if (handback) {
+                    // Hidden mid-handback means an app came forward with the
+                    // code: stop waiting, and don't let the page spend it too.
+                    var taken = function () {
+                      if (!window.__shedCodeToApp) return;
+                      cancel();
+                      window.__shedCodeToApp = false;
+                      window.dispatchEvent(new Event("shed-code-taken"));
+                    };
+                    document.addEventListener("visibilitychange", function () {
+                      if (document.hidden) taken();
+                    });
+                    window.addEventListener("pagehide", taken);
+                  } else {
+                    document.addEventListener("visibilitychange", function () {
+                      if (document.hidden) cancel();
+                    });
+                    window.addEventListener("pagehide", cancel);
                     window.addEventListener("blur", cancel);
                     window.addEventListener("pointerdown", cancel, { once: true });
                     window.addEventListener("touchstart", cancel, { once: true });

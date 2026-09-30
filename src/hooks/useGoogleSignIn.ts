@@ -65,10 +65,21 @@ export const useWebAuthCodeExchange = () => {
         .finally(() => setBusy(false));
     };
     // The page is handing this code to the app that started the sign-in (see
-    // +html.tsx); a code only works once, so wait until no app has taken it.
+    // +html.tsx); a code only works once, so wait: use it if no app took it,
+    // or drop it if one did. The flag is cleared before either event fires, so
+    // a listener added after that just sees it cleared.
     if ((window as { __shedCodeToApp?: boolean }).__shedCodeToApp) {
+      const dropped = () => {
+        window.history.replaceState({}, "", window.location.pathname);
+        window.sessionStorage.removeItem(PENDING_PROVIDER_KEY);
+        setBusy(false);
+      };
       window.addEventListener("shed-code-fallback", exchange, { once: true });
-      return () => window.removeEventListener("shed-code-fallback", exchange);
+      window.addEventListener("shed-code-taken", dropped, { once: true });
+      return () => {
+        window.removeEventListener("shed-code-fallback", exchange);
+        window.removeEventListener("shed-code-taken", dropped);
+      };
     }
     exchange();
   }, [signIn]);
