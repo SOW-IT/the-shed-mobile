@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import {
@@ -12,8 +12,18 @@ import {
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
+// Pinned mid staff year (still ticking) so dates a few weeks either side of
+// "now" never straddle the 1 October rollover (see ADR 0003).
+const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * 86_400_000;
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+  vi.setSystemTime(PINNED_NOW);
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 
-const YEAR = staffYearForDate(new Date());
+const YEAR = staffYearForDate(new Date(PINNED_NOW));
 
 const ADMIN = "admin@sow.org.au";
 const RACHEL = "rachel@sow.org.au";
@@ -1519,7 +1529,7 @@ describe("deadlock prevention and validation fixes", () => {
   });
 
   test("receipt files must be uploaded after the request is approved", async () => {
-    vi.useFakeTimers({ now: new Date("2026-06-01T00:00:00Z"), toFake: ["Date"] });
+    vi.useFakeTimers({ now: new Date(Date.UTC(YEAR, 5, 1)), toFake: ["Date"] });
     try {
       const t = await setup();
       const rachel = asUser(t, RACHEL);
@@ -1527,7 +1537,7 @@ describe("deadlock prevention and validation fixes", () => {
       const [request] = (await rachel.query(api.requests.myRequests, {}))!;
       const staleFile = await storedReceipt(t);
 
-      vi.setSystemTime(new Date("2026-06-01T00:01:00Z"));
+      vi.setSystemTime(new Date(Date.UTC(YEAR, 5, 1, 0, 1)));
       await asUser(t, HENRY).mutation(api.requests.approve, { requestId: request._id, step: "hod" });
       await asUser(t, BELLA).mutation(api.requests.approve, {
         requestId: request._id,

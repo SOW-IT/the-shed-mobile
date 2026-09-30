@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { staffYearForDate } from "../shared/flow";
+import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api } from "./_generated/api";
 import {
   avgTenureYears,
@@ -16,7 +16,17 @@ import {
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
-const YEAR = staffYearForDate(new Date());
+// Pinned mid staff year (still ticking) so dates a few weeks either side of
+// "now" never straddle the 1 October rollover (see ADR 0003).
+const PINNED_NOW = staffYearStartMs(staffYearForDate(new Date())) + 150 * 86_400_000;
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+  vi.setSystemTime(PINNED_NOW);
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
+const YEAR = staffYearForDate(new Date(PINNED_NOW));
 const PREV = YEAR - 1;
 const NEXT = YEAR + 1;
 
