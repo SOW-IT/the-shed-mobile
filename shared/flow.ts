@@ -2,6 +2,8 @@ export const FINANCE = "Finance";
 
 export const ADMIN_DEPARTMENTS = ["Data and IT"];
 export const ADMIN_DIVISIONS = ["Human Resources"];
+/** Divisions whose head (only) is an admin; their other staff are not. */
+export const ADMIN_HEADED_DIVISIONS = ["Governance"];
 
 export const ROLES = [
   "Staff",

@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.13.4] — 2026-10-01
+
+### Changed
+- **The head of the Governance division is an admin.** Alongside Data and IT,
+  Human Resources and the Director, whoever heads Governance for the year now
+  has admin permissions: the Admin tab, assigning roles, managing structure and
+  deleting members. Other staff in Governance departments (Finance, Compliance)
+  are not admins because of it.
+
 ## [1.13.3] — 2026-09-30
 
 ### Changed

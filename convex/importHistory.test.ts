@@ -1,14 +1,25 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
-import { describe, expect, test } from "vitest";
-import { staffYearForDate } from "../shared/flow";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import { IMPORT_DATA } from "./importData";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
+// Pinned mid staff year (still ticking) so dates a few weeks either side of
+// "now" never straddle the 1 October rollover (see ADR 0003).
+// The imported history ends at 2026, so this file runs in staff year 2026.
+const PINNED_NOW = staffYearStartMs(2026) + 150 * 86_400_000;
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+  vi.setSystemTime(PINNED_NOW);
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 
-const YEAR = staffYearForDate(new Date());
+const YEAR = staffYearForDate(new Date(PINNED_NOW));
 const ADMIN = "admin@sow.org.au";
 
 const asUser = (t: TestConvex<typeof schema>, email: string) =>
