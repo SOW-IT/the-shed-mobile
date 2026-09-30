@@ -32,6 +32,7 @@ import {
   currencyText,
   formatAmount,
   ErrorBanner,
+  InfoBanner,
   errorMessage,
   Field,
   FloatingYearPicker,
@@ -791,6 +792,13 @@ export default function AdminScreen() {
   const renderTabContent = (key: AdminTab) => (
     <>
       <ErrorBanner message={error} />
+      <InfoBanner
+        message={
+          selectedYear === currentYear + 1
+            ? `You're editing ${selectedYear}, the next staff year. It takes over from ${currentYear} when the staff year rolls over on 1 October ${currentYear}.`
+            : null
+        }
+      />
 
       {key === "users" && (
         <>
