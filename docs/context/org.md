@@ -101,6 +101,8 @@ Department above them.
 Approves requests at or above the director threshold. At most one per year.
 
 **Admin**:
-Not a role — a derived permission. The Data and IT department plus every
-department in the Human Resources division. Only admins assign roles and manage
+Not a role — a derived permission. The Data and IT department, every
+department in the Human Resources division, the head of the Human Resources
+division, the head of the Governance division (not its other staff), and the
+Director. Only admins assign roles and manage
 structure, and nobody can change their own role.

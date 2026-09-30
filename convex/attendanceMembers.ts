@@ -546,7 +546,8 @@ export const remove = mutation({
   args: { memberId: v.id("attendanceMembers") },
   handler: async (ctx, { memberId }): Promise<boolean> => {
     // Deleting throws attendance away for good; leaders merge duplicates
-    // instead, and only admins (Data and IT, HR, the Director) can delete.
+    // instead, and only admins (Data and IT, HR, the Governance head, the
+    // Director) can delete.
     const { email: actorEmail } = await requireAdmin(ctx);
     const row = await ctx.db.get(memberId);
     // Someone else may have deleted or merged them first; say so rather than

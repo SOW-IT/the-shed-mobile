@@ -82,7 +82,8 @@ export function EditMemberSheet({
 
   const isStaffOverlay = Boolean(row?.isStaffOverlay);
   // Deleting throws attendance away, so only admins (Data and IT, HR, the
-  // Director) get the button; everyone else merges duplicates instead.
+  // Governance head, the Director) get the button; everyone else merges
+  // duplicates instead.
   const me = useQuery(api.directory.me, visible ? {} : "skip");
   const canDelete = Boolean(me?.isAdmin);
 
