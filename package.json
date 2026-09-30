@@ -1,10 +1,10 @@
 {
   "name": "theshed",
   "main": "expo-router/entry",
-  "version": "1.13.4",
+  "version": "1.13.5",
   "dependencies": {
     "@auth/core": "^0.41.3",
-    "@convex-dev/auth": "^0.0.94",
+    "@convex-dev/auth": "^0.0.95",
     "@expo/ui": "~57.0.21",
     "@expo/vector-icons": "^15.0.2",
     "convex": "^1.42.3",
@@ -30,7 +30,7 @@
     "expo-status-bar": "~57.0.1",
     "expo-system-ui": "~57.0.4",
     "expo-web-browser": "~57.0.3",
-    "jose": "^6.2.3",
+    "jose": "^6.2.12",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
@@ -45,12 +45,12 @@
   "devDependencies": {
     "@edge-runtime/vm": "^5.0.0",
     "@types/react": "~19.2.2",
-    "@vitest/coverage-v8": "^4.1.9",
-    "convex-test": "^0.0.54",
+    "@vitest/coverage-v8": "^5.0.3",
+    "convex-test": "^0.0.56",
     "eslint": "^9.39.4",
     "eslint-config-expo": "~57.0.2",
     "typescript": "~6.0.3",
-    "vitest": "^4.1.8"
+    "vitest": "^5.0.3"
   },
   "scripts": {
     "start": "expo start",
