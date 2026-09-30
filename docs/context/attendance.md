@@ -21,14 +21,16 @@ everyone — for staff, that is the personal one. Merging a member into staff
 keeps the member's email as the personal one.
 _Avoid_: work email, org email (for the personal one)
 
-**Alumni**:
+**Staff leaver**:
 Someone who was staff last staff year and isn't this year. At 01:30 Sydney on
 October 1 (after the flip) each one becomes a plain Member: every sign-in under
 their staff email moves onto their member row, the staff email comes off for
-their personal email (empty if none was recorded), and Role becomes Alumni.
-Their past events then show them as a Member, not staff. Someone taken off
-staff later in the year is converted by hand (`alumni:convertOutgoingStaff`).
-_Avoid_: former staff (in UI copy), ex-staff
+their personal email (empty if none was recorded), and a staff Role becomes
+Member (a non-staff Role a leader set, such as Alumni, is kept). Their past
+events then show them as a Member, not staff. Someone taken off staff later in
+the year is converted by hand (`staffLeavers:convertOutgoingStaff`).
+_Avoid_: alumni (leaving staff isn't graduating; leaders set the Alumni role
+when someone graduates), ex-staff
 
 **Sub-group**:
 The partition Attendance slices by: that staff year's Universities, plus the

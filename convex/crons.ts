@@ -12,11 +12,11 @@ crons.cron("staff year prefill", "0 11 30 9 *", internal.admin.prefillNextStaffY
 crons.cron("purge old receipt files", "0 15 30 9 *", internal.cleanup.purgeOldReceiptFiles, {});
 
 // 01:30 Sydney on 1 Oct, after the flip: last year's staff who aren't staff
-// this year become alumni members.
+// this year go back to being plain members.
 crons.cron(
-  "staff to alumni",
+  "staff leavers to members",
   "30 15 30 9 *",
-  internal.alumni.convertOutgoingStaffOnRollover,
+  internal.staffLeavers.convertOutgoingStaffOnRollover,
   {}
 );
 

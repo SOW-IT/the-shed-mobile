@@ -6,6 +6,16 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.13.3] — 2026-09-30
+
+### Changed
+- **Staff who leave become members, not alumni.** On 1 October, someone who
+  was staff last year but isn't this year still has all their sign-ins moved
+  onto their member record and their personal email shown instead of the staff
+  one, but their Role becomes Member rather than Alumni. Leaving staff isn't
+  graduating, so leaders set Alumni by hand when someone actually graduates. A
+  non-staff role already set on the member (Alumni, Newcomer, …) is kept.
+
 ## [1.13.2] — 2026-09-30
 
 ### Changed
