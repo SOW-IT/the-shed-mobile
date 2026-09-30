@@ -58,17 +58,17 @@ async function setup() {
   ) => t.run((ctx) => ctx.db.insert("attendance", { eventId, ...who, signInTime, notes }));
   const members = () => t.run((ctx) => ctx.db.query("attendanceMembers").collect());
   const attendance = () => t.run((ctx) => ctx.db.query("attendance").collect());
-  const alumniLogs = async () =>
+  const leaverLogs = async () =>
     (await t.run((ctx) => ctx.db.query("attendanceAuditLog").collect())).filter(
-      (l) => l.action === "member.alumni"
+      (l) => l.action === "member.leftStaff"
     );
   const convert = (args: { dryRun?: boolean; after?: string; limit?: number; email?: string } = {}) =>
-    t.mutation(internal.alumni.convertOutgoingStaff, { year: YEAR, ...args });
-  return { t, fields, profile, event, signIn, members, attendance, alumniLogs, convert };
+    t.mutation(internal.staffLeavers.convertOutgoingStaff, { year: YEAR, ...args });
+  return { t, fields, profile, event, signIn, members, attendance, leaverLogs, convert };
 }
 
 describe("convertOutgoingStaff", () => {
-  test("moves a leaver's sign-ins onto their member record and makes them alumni", async () => {
+  test("moves a leaver's sign-ins onto their member record and makes them a member", async () => {
     const s = await setup();
     await s.profile(LEAVER, LAST, "Lee Aver");
     await s.profile(STAYER, LAST, "Stay Er");
@@ -110,19 +110,18 @@ describe("convertOutgoingStaff", () => {
       email: "lee@gmail.com",
     });
     expect((await s.members()).find((m) => m._id === row)?.email).toBe(LEAVER);
-    expect(await s.alumniLogs()).toHaveLength(0);
+    expect(await s.leaverLogs()).toHaveLength(0);
 
     await s.convert({ dryRun: false });
 
     const converted = (await s.members()).find((m) => m._id === row)!;
     expect(converted.email).toBe("lee@gmail.com");
     expect(converted.personalEmail).toBeUndefined();
-    const roleField = await s.t.run((ctx) => ctx.db.get(s.fields.role));
-    const alumniId = Object.entries(roleField!.values!).find(([, l]) => l === "Alumni")![0];
+    // Their staff role becomes Member; leaving staff doesn't make them Alumni.
     expect(converted.metadata).toEqual({
       [s.fields.year]: "2024",
       [s.fields.campus]: "usyd",
-      [s.fields.role]: alumniId,
+      [s.fields.role]: "3",
     });
 
     const records = await s.attendance();
@@ -137,9 +136,9 @@ describe("convertOutgoingStaff", () => {
     expect(records.find((r) => r.email === STAYER)).toBeDefined();
     expect((await s.members()).find((m) => m._id === stayerRow)?.email).toBe(STAYER);
 
-    const [log] = await s.alumniLogs();
+    const [log] = await s.leaverLogs();
     expect(log).toMatchObject({
-      summary: 'Moved "Lee Aver" to alumni',
+      summary: '"Lee Aver" left staff and is now a member',
       memberId: row,
       subjectEmail: LEAVER,
     });
@@ -148,7 +147,7 @@ describe("convertOutgoingStaff", () => {
 
     const again = await s.convert({ dryRun: false });
     expect(again.people).toBe(0);
-    expect(await s.alumniLogs()).toHaveLength(1);
+    expect(await s.leaverLogs()).toHaveLength(1);
   });
 
   test("the app shows them as a plain member with their own email", async () => {
@@ -171,7 +170,7 @@ describe("convertOutgoingStaff", () => {
       paginationOpts: { numItems: 10, cursor: null },
     });
     expect(list.page).toEqual([
-      expect.objectContaining({ key: `member:${row}`, kind: "member", subtitle: "Alumni" }),
+      expect.objectContaining({ key: `member:${row}`, kind: "member", subtitle: "Member" }),
     ]);
     expect(list.page[0].email).toBeUndefined();
   });
@@ -214,7 +213,7 @@ describe("convertOutgoingStaff", () => {
     expect(records.some((r) => r.email)).toBe(false);
   });
 
-  test("never gives an alumni row someone's staff email", async () => {
+  test("never gives a leaver's row someone's staff email", async () => {
     const s = await setup();
     await s.profile(LEAVER, LAST);
     await s.profile(STAYER, YEAR);
@@ -282,20 +281,51 @@ describe("convertOutgoingStaff", () => {
     expect(converted).toEqual(["a.one@sow.org.au", "b.two@sow.org.au", "c.three@sow.org.au"]);
   });
 
-  test("uses an existing Alumni option rather than adding another", async () => {
+  test("keeps a non-staff role a leader gave them, such as Alumni", async () => {
     const s = await setup();
     await s.t.run((ctx) =>
-      ctx.db.patch(s.fields.role, { values: { "1": "Staff", "8": "alumni" } })
+      ctx.db.patch(s.fields.role, {
+        values: { "1": "Staff", "2": "Student Leader", "3": "Member", "8": "Alumni" },
+      })
     );
     await s.profile(LEAVER, LAST);
     const row = await s.t.run((ctx) =>
-      ctx.db.insert("attendanceMembers", { name: "Lee", email: LEAVER })
+      ctx.db.insert("attendanceMembers", {
+        name: "Lee",
+        email: LEAVER,
+        metadata: { [s.fields.role]: "8" },
+      })
     );
     await s.convert({ dryRun: false });
-    const roleField = await s.t.run((ctx) => ctx.db.get(s.fields.role));
-    expect(Object.keys(roleField!.values!)).toEqual(["1", "8"]);
     expect((await s.members()).find((m) => m._id === row)?.metadata).toMatchObject({
       [s.fields.role]: "8",
+    });
+  });
+
+  test("turns a staff role into Member, adding the option if it's missing", async () => {
+    const s = await setup();
+    await s.t.run((ctx) =>
+      ctx.db.patch(s.fields.role, { values: { "1": "Staff", "2": "Student Leader" } })
+    );
+    await s.profile(LEAVER, LAST);
+    const row = await s.t.run((ctx) =>
+      ctx.db.insert("attendanceMembers", {
+        name: "Lee",
+        email: LEAVER,
+        metadata: { [s.fields.role]: "2" },
+      })
+    );
+    // A dry run leaves the Role field alone.
+    await s.convert();
+    expect((await s.t.run((ctx) => ctx.db.get(s.fields.role)))!.values).toEqual({
+      "1": "Staff",
+      "2": "Student Leader",
+    });
+    await s.convert({ dryRun: false });
+    const roleField = await s.t.run((ctx) => ctx.db.get(s.fields.role));
+    expect(roleField!.values).toEqual({ "1": "Staff", "2": "Student Leader", "3": "Member" });
+    expect((await s.members()).find((m) => m._id === row)?.metadata).toMatchObject({
+      [s.fields.role]: "3",
     });
   });
 
@@ -326,14 +356,14 @@ describe("convertOutgoingStaffOnRollover", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(staffYearStartMs(YEAR) + 90 * 60_000));
     try {
-      await s.t.mutation(internal.alumni.convertOutgoingStaffOnRollover, {});
+      await s.t.mutation(internal.staffLeavers.convertOutgoingStaffOnRollover, {});
       await s.t.finishAllScheduledFunctions(vi.runAllTimers);
     } finally {
       vi.useRealTimers();
     }
     const rows = await s.members();
     expect(rows.every((m) => m.email === undefined)).toBe(true);
-    expect(await s.alumniLogs()).toHaveLength(12);
+    expect(await s.leaverLogs()).toHaveLength(12);
   });
 });
 

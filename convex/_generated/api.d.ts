@@ -9,7 +9,6 @@
  */
 
 import type * as admin from "../admin.js";
-import type * as alumni from "../alumni.js";
 import type * as appleIdentity from "../appleIdentity.js";
 import type * as attendance from "../attendance.js";
 import type * as attendanceAudit from "../attendanceAudit.js";
@@ -42,6 +41,7 @@ import type * as push from "../push.js";
 import type * as reminders from "../reminders.js";
 import type * as requests from "../requests.js";
 import type * as rollcallImport from "../rollcallImport.js";
+import type * as staffLeavers from "../staffLeavers.js";
 import type * as userLink from "../userLink.js";
 
 import type {
@@ -52,7 +52,6 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
-  alumni: typeof alumni;
   appleIdentity: typeof appleIdentity;
   attendance: typeof attendance;
   attendanceAudit: typeof attendanceAudit;
@@ -85,6 +84,7 @@ declare const fullApi: ApiFromModules<{
   reminders: typeof reminders;
   requests: typeof requests;
   rollcallImport: typeof rollcallImport;
+  staffLeavers: typeof staffLeavers;
   userLink: typeof userLink;
 }>;
 

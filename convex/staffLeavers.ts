@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { ROLE_FIELD_KEY, staffLockedMetadata } from "../shared/attendanceMemberMeta";
-import { staffYearForDate } from "../shared/flow";
+import { MEMBER, ROLES, staffYearForDate } from "../shared/flow";
 import { mergeNotes } from "../shared/memberMerge";
 import { capitalizeMemberName, personDisplayName } from "../shared/rollcall";
 import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
@@ -12,8 +12,10 @@ import { mergeSelectValues } from "./attendanceMetadata";
 import { latestStaffProfile } from "./attendanceMembers";
 import { findMemberByEmail } from "./model";
 
-const ALUMNI_ACTOR = "system:staff-to-alumni";
-export const ALUMNI_ROLE = "Alumni";
+const LEAVERS_ACTOR = "system:staff-leavers";
+
+/** Role labels that only staff hold; a leaver keeps any other role. */
+const STAFF_ROLE_LABELS = new Set<string>(ROLES.filter((role) => role !== MEMBER));
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
@@ -77,40 +79,42 @@ async function outgoingStaff(
   return out.sort((a, b) => a.key.localeCompare(b.key));
 }
 
-/** The Role field and its Alumni option, adding the option if an admin never
- *  did (only when not a dry run). */
-async function alumniRole(
-  ctx: MutationCtx,
-  dryRun: boolean
-): Promise<{ fieldId: Id<"attendanceMetadata">; optionId: string } | null> {
-  const roleField = (await ctx.db.query("attendanceMetadata").collect()).find(
+type RoleField = {
+  fieldId: Id<"attendanceMetadata">;
+  values: Record<string, string>;
+  memberOptionId: string;
+};
+
+/** The Role field and its Member option, adding the option if it's missing
+ *  (only when not a dry run). */
+async function roleField(ctx: MutationCtx, dryRun: boolean): Promise<RoleField | null> {
+  const field = (await ctx.db.query("attendanceMetadata").collect()).find(
     (f) => f.key === ROLE_FIELD_KEY
   );
-  if (!roleField) return null;
-  const values = roleField.values ?? {};
-  const found = Object.entries(values).find(
-    ([, label]) => label.trim().toLowerCase() === ALUMNI_ROLE.toLowerCase()
-  );
-  if (found) return { fieldId: roleField._id, optionId: found[0] };
-  const next = mergeSelectValues(values, [ALUMNI_ROLE]);
-  const optionId = Object.keys(next).find((id) => next[id] === ALUMNI_ROLE)!;
-  if (!dryRun) await ctx.db.patch(roleField._id, { values: next });
-  return { fieldId: roleField._id, optionId };
+  if (!field) return null;
+  const values = mergeSelectValues(field.values ?? {}, [MEMBER]);
+  if (!dryRun && Object.keys(values).length !== Object.keys(field.values ?? {}).length) {
+    await ctx.db.patch(field._id, { values });
+  }
+  const memberOptionId = Object.keys(values).find((id) => values[id] === MEMBER)!;
+  return { fieldId: field._id, values, memberOptionId };
 }
 
 /**
- * Turns one former staff person into an alumni member: every sign-in under
+ * Turns one former staff person back into a plain member: every sign-in under
  * their staff email moves onto their member record (an event they were
  * signed in to both ways becomes one record: earlier time, both notes), any
  * duplicate rows carrying the staff email fold into it, and the row drops the
- * staff email for their personal one (which may be empty) with Role Alumni.
+ * staff email for their personal one (which may be empty). A staff role
+ * becomes Member; leaving staff doesn't make someone Alumni — leaders set that
+ * when they graduate — so a non-staff role a leader gave them is kept.
  */
 async function convertPerson(
   ctx: MutationCtx,
   profile: Doc<"staffProfiles">,
   year: number,
   fields: Doc<"attendanceMetadata">[],
-  alumni: { fieldId: Id<"attendanceMetadata">; optionId: string } | null,
+  role: RoleField | null,
   dryRun: boolean
 ): Promise<Detail | null> {
   const staffEmail = profile.email.toLowerCase();
@@ -160,12 +164,18 @@ async function convertPerson(
 
   // Their member row wins; duplicates only fill its blanks. Campus stays as
   // their last staff assignment had it.
-  const metadata = staffLockedMetadata(
-    fields,
-    profile,
-    Object.assign({}, ...duplicates.map((d) => d.metadata ?? {}), primary?.metadata ?? {})
+  const stored: Record<string, string> = Object.assign(
+    {},
+    ...duplicates.map((d) => d.metadata ?? {}),
+    primary?.metadata ?? {}
   );
-  if (alumni) metadata[alumni.fieldId] = alumni.optionId;
+  const metadata = staffLockedMetadata(fields, profile, stored);
+  if (role) {
+    const storedRole = stored[role.fieldId];
+    const label = storedRole ? (role.values[storedRole] ?? storedRole) : "";
+    metadata[role.fieldId] =
+      label && !STAFF_ROLE_LABELS.has(label) ? storedRole : role.memberOptionId;
+  }
   const target: Id<"attendanceMembers"> | null = dryRun
     ? (primary?._id ?? null)
     : primary
@@ -221,10 +231,10 @@ async function convertPerson(
     metadata,
   });
   await logAttendanceAction(ctx, {
-    actorEmail: ALUMNI_ACTOR,
+    actorEmail: LEAVERS_ACTOR,
     entityType: "member",
-    action: "member.alumni",
-    summary: `Moved "${name}" to alumni`,
+    action: "member.leftStaff",
+    summary: `"${name}" left staff and is now a member`,
     memberId: target!,
     subjectEmail: staffEmail,
     detail: [
@@ -257,10 +267,10 @@ async function convertBatch(
   const fields = (await ctx.db.query("attendanceMetadata").collect()).sort(
     (a, b) => a.order - b.order
   );
-  const alumni = batch.length > 0 ? await alumniRole(ctx, opts.dryRun) : null;
+  const role = batch.length > 0 ? await roleField(ctx, opts.dryRun) : null;
   const details: Detail[] = [];
   for (const { profile } of batch) {
-    const detail = await convertPerson(ctx, profile, opts.year, fields, alumni, opts.dryRun);
+    const detail = await convertPerson(ctx, profile, opts.year, fields, role, opts.dryRun);
     if (detail) details.push(detail);
   }
   const sum = (field: "recordsMoved" | "recordsCombined" | "rowsFolded") =>
@@ -279,7 +289,7 @@ async function convertBatch(
 
 /**
  * Turns everyone who was staff last staff year but isn't this year (or any
- * later year) into alumni members. See `convertPerson` for what changes.
+ * later year) back into plain members. See `convertPerson` for what changes.
  * Runs itself on October 1; this is the manual handle, e.g. for someone taken
  * off this year's staff after the rollover, or for an earlier year's leavers.
  *
@@ -288,9 +298,9 @@ async function convertBatch(
  * returned `next` as `after` until it comes back null. `email` limits it to
  * one person. Idempotent: someone already converted has nothing left to move.
  *
- *   npx convex run --prod alumni:convertOutgoingStaff '{}'
- *   npx convex run --prod alumni:convertOutgoingStaff '{"dryRun":false}'
- *   npx convex run --prod alumni:convertOutgoingStaff '{"year":2026}'
+ *   npx convex run --prod staffLeavers:convertOutgoingStaff '{}'
+ *   npx convex run --prod staffLeavers:convertOutgoingStaff '{"dryRun":false}'
+ *   npx convex run --prod staffLeavers:convertOutgoingStaff '{"year":2026}'
  */
 export const convertOutgoingStaff = internalMutation({
   args: {
@@ -320,7 +330,7 @@ export const convertOutgoingStaffOnRollover = internalMutation({
     const staffYear = year ?? staffYearForDate(new Date());
     const result = await convertBatch(ctx, { dryRun: false, year: staffYear, after, limit: 10 });
     if (result.next) {
-      await ctx.scheduler.runAfter(0, internal.alumni.convertOutgoingStaffOnRollover, {
+      await ctx.scheduler.runAfter(0, internal.staffLeavers.convertOutgoingStaffOnRollover, {
         year: staffYear,
         after: result.next,
       });
