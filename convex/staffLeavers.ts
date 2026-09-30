@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { ROLE_FIELD_KEY, staffLockedMetadata } from "../shared/attendanceMemberMeta";
-import { MEMBER, ROLES, staffYearForDate } from "../shared/flow";
+import { MEMBER, ROLES, rolesOfLike, staffYearForDate } from "../shared/flow";
 import { mergeNotes } from "../shared/memberMerge";
 import { capitalizeMemberName, personDisplayName } from "../shared/rollcall";
 import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
@@ -14,8 +14,17 @@ import { findMemberByEmail } from "./model";
 
 const LEAVERS_ACTOR = "system:staff-leavers";
 
-/** Role labels that only staff hold; a leaver keeps any other role. */
-const STAFF_ROLE_LABELS = new Set<string>(ROLES.filter((role) => role !== MEMBER));
+/** Role labels that only staff hold in the year they left: the built-in ones
+ *  plus that year's own role catalog. A leaver keeps any other role. */
+async function staffRoleLabels(ctx: MutationCtx, leftYear: number): Promise<Set<string>> {
+  const custom = await ctx.db
+    .query("roles")
+    .withIndex("by_year_and_name", (q) => q.eq("year", leftYear))
+    .collect();
+  const labels = new Set<string>([...ROLES, ...custom.map((r) => r.name)]);
+  labels.delete(MEMBER);
+  return labels;
+}
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
@@ -115,6 +124,7 @@ async function convertPerson(
   year: number,
   fields: Doc<"attendanceMetadata">[],
   role: RoleField | null,
+  staffRoles: Set<string>,
   dryRun: boolean
 ): Promise<Detail | null> {
   const staffEmail = profile.email.toLowerCase();
@@ -173,8 +183,9 @@ async function convertPerson(
   if (role) {
     const storedRole = stored[role.fieldId];
     const label = storedRole ? (role.values[storedRole] ?? storedRole) : "";
-    metadata[role.fieldId] =
-      label && !STAFF_ROLE_LABELS.has(label) ? storedRole : role.memberOptionId;
+    // Their own profile's roles count too, in case one was since renamed.
+    const isStaffRole = staffRoles.has(label) || rolesOfLike(profile).includes(label);
+    metadata[role.fieldId] = label && !isStaffRole ? storedRole : role.memberOptionId;
   }
   const target: Id<"attendanceMembers"> | null = dryRun
     ? (primary?._id ?? null)
@@ -268,9 +279,18 @@ async function convertBatch(
     (a, b) => a.order - b.order
   );
   const role = batch.length > 0 ? await roleField(ctx, opts.dryRun) : null;
+  const staffRoles = await staffRoleLabels(ctx, opts.year - 1);
   const details: Detail[] = [];
   for (const { profile } of batch) {
-    const detail = await convertPerson(ctx, profile, opts.year, fields, role, opts.dryRun);
+    const detail = await convertPerson(
+      ctx,
+      profile,
+      opts.year,
+      fields,
+      role,
+      staffRoles,
+      opts.dryRun
+    );
     if (detail) details.push(detail);
   }
   const sum = (field: "recordsMoved" | "recordsCombined" | "rowsFolded") =>

@@ -302,6 +302,39 @@ describe("convertOutgoingStaff", () => {
     });
   });
 
+  test("a custom staff role from that year's catalog also becomes Member", async () => {
+    const s = await setup();
+    await s.t.run(async (ctx) => {
+      await ctx.db.insert("roles", { year: LAST, name: "Worship Lead" });
+      await ctx.db.patch(s.fields.role, {
+        values: { "3": "Member", "5": "Worship Lead", "6": "Coordinator" },
+      });
+      // Held on their profile but not in the catalog any more.
+      await ctx.db.insert("staffProfiles", {
+        email: STAYER,
+        year: LAST,
+        assignments: [{ role: "Coordinator" }],
+      });
+    });
+    await s.profile(LEAVER, LAST);
+    const [lee, stay] = await s.t.run(async (ctx) => [
+      await ctx.db.insert("attendanceMembers", {
+        name: "Lee",
+        email: LEAVER,
+        metadata: { [s.fields.role]: "5" },
+      }),
+      await ctx.db.insert("attendanceMembers", {
+        name: "Stay",
+        email: STAYER,
+        metadata: { [s.fields.role]: "6" },
+      }),
+    ]);
+    await s.convert({ dryRun: false });
+    const rows = await s.members();
+    expect(rows.find((m) => m._id === lee)?.metadata?.[s.fields.role]).toBe("3");
+    expect(rows.find((m) => m._id === stay)?.metadata?.[s.fields.role]).toBe("3");
+  });
+
   test("turns a staff role into Member, adding the option if it's missing", async () => {
     const s = await setup();
     await s.t.run((ctx) =>
