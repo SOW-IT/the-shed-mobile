@@ -69,6 +69,17 @@ export const WarningBanner = ({ message }: { message: string | null }) => {
   ) : null;
 };
 
+/** A neutral heads-up: something worth knowing, nothing wrong. */
+export const InfoBanner = ({ message }: { message: string | null }) => {
+  const t = useAppTheme();
+  return message ? (
+    <View style={[styles.error, { backgroundColor: t.ghost }]} accessibilityRole="text">
+      <Ionicons name="information-circle-outline" size={16} color={t.ghostText} />
+      <Text style={[typography.caption, { color: t.ghostText, flex: 1 }]}>{message}</Text>
+    </View>
+  ) : null;
+};
+
 /** Bold red line with a warning icon for actions that can't be reversed. */
 export const CannotUndo = ({ text = "This can't be undone." }: { text?: string }) => {
   const t = useAppTheme();

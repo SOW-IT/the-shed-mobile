@@ -6,6 +6,28 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.13.5] — 2026-10-01
+
+### Added
+- **Admin shows a notice when you're editing next staff year.** Picking next
+  year in Admin (for example 2028 during 2027) shows a neutral note on every
+  tab that it takes over from the current year when the staff year rolls over
+  on 1 October.
+
+### Fixed
+- **Signing in to The SHED Staging with a SOW account comes back to the app.**
+  Sometimes (most often the first sign-in on a phone) Google's sign-in ended on
+  the website inside the sign-in window, which then offered to open the main
+  app instead of returning to Staging. The website now hands the sign-in back
+  to the app it belongs to (the test website to Staging, the live website to
+  The SHED), and waits for the app before using the sign-in itself, so it only
+  signs the website in when no app picked it up.
+
+### Changed
+- **Dependency updates** from Dependabot: convex-test 0.0.56, @convex-dev/auth
+  0.0.95, jose 6.2.12, and vitest with its coverage tool on 5.0.3.
+  react-native-pager-view stays on 8.0.2, the version Expo SDK 57 requires.
+
 ## [1.13.4] — 2026-10-01
 
 ### Changed

@@ -27,7 +27,9 @@ const run = (command, options = {}) =>
 
 rmSync("dist", { recursive: true, force: true });
 run("npx expo export --platform web -c", {
-  env: { EXPO_PUBLIC_CONVEX_URL: DEV_CONVEX_URL },
+  // The dev web pairs with The SHED Staging app, so phones (and Google
+  // sign-in codes that land here) are handed to its scheme, not production's.
+  env: { EXPO_PUBLIC_CONVEX_URL: DEV_CONVEX_URL, EXPO_PUBLIC_APP_VARIANT: "staging" },
 });
 cpSync("web", "dist", { recursive: true });
 cpSync("web-dev", "dist", { recursive: true });
