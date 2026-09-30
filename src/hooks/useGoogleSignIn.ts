@@ -55,13 +55,22 @@ export const useWebAuthCodeExchange = () => {
       }
       return;
     }
-    window.history.replaceState({}, "", window.location.pathname);
-    const provider = pending || "google";
-    window.sessionStorage.removeItem(PENDING_PROVIDER_KEY);
-    setBusy(true);
-    void signIn(provider, { code })
-      .catch((e: unknown) => setError(errorText(e)))
-      .finally(() => setBusy(false));
+    const exchange = () => {
+      window.history.replaceState({}, "", window.location.pathname);
+      const provider = pending || "google";
+      window.sessionStorage.removeItem(PENDING_PROVIDER_KEY);
+      setBusy(true);
+      void signIn(provider, { code })
+        .catch((e: unknown) => setError(errorText(e)))
+        .finally(() => setBusy(false));
+    };
+    // The page is handing this code to the app that started the sign-in (see
+    // +html.tsx); a code only works once, so wait until no app has taken it.
+    if ((window as { __shedCodeToApp?: boolean }).__shedCodeToApp) {
+      window.addEventListener("shed-code-fallback", exchange, { once: true });
+      return () => window.removeEventListener("shed-code-fallback", exchange);
+    }
+    exchange();
   }, [signIn]);
 
   const clearError = useCallback(() => setError(null), []);
