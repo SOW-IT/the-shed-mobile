@@ -6,6 +6,16 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.13.7] — 2026-10-01
+
+### Fixed
+- **Tapping anywhere on an event in Attendance opens it.** Only the title
+  block and the "ATTENDANCE" text opened the event, so taps in the space
+  between them, beside or below the attendance count, or along the card's
+  edges did nothing. The whole event card now opens the event; the Edit button
+  still opens the edit sheet. With VoiceOver or TalkBack, Edit is available as
+  an action on the event.
+
 ## [1.13.6] — 2026-10-01
 
 ### Changed
