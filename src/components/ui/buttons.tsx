@@ -4,6 +4,7 @@ import { Animated, Easing, Keyboard, Platform, Pressable, Text, View } from "rea
 import { USE_NATIVE_DRIVER, radius, spacing, typography, useAppTheme } from "@/theme";
 import { usePressScale } from "./format";
 import { useAnyModalOpen } from "./modalPresence";
+import { footerReach } from "@/lib/footerClearance";
 import { SowSpinner } from "./primitives";
 import { styles } from "./styles";
 
@@ -48,6 +49,14 @@ export const FooterAction = ({
   const syncRef = useRef<() => void>(() => {});
   const reportFooterHeight = useContext(FooterHeightContext);
   useEffect(() => () => reportFooterHeight(0), [reportFooterHeight]);
+  // onLayout only fires on size changes on web, so a new bottomOffset (which
+  // moves the footer without resizing it) is re-reported from here.
+  const layoutHeight = useRef<number | null>(null);
+  useEffect(() => {
+    if (layoutHeight.current != null) {
+      reportFooterHeight(footerReach(layoutHeight.current, bottomOffset));
+    }
+  }, [bottomOffset, reportFooterHeight]);
   useEffect(() => {
     if (!shouldAvoid) {
       lift.setValue(0);
@@ -116,7 +125,8 @@ export const FooterAction = ({
       pointerEvents="box-none"
       onLayout={(e) => {
         syncRef.current();
-        reportFooterHeight(e.nativeEvent.layout.height + spacing.md + bottomOffset);
+        layoutHeight.current = e.nativeEvent.layout.height;
+        reportFooterHeight(footerReach(e.nativeEvent.layout.height, bottomOffset));
       }}
       style={[
         styles.footerWrap,
@@ -134,7 +144,6 @@ export const FooterAction = ({
               { backgroundColor: t.card, borderColor: t.warning },
               t.shadowFloat,
             ]}
-            pointerEvents="none"
           >
             <Ionicons name="warning-outline" size={16} color={t.warning} />
             <Text

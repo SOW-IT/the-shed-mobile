@@ -25,6 +25,7 @@ import {
   useAppleSignInAvailable,
 } from "@/hooks/useAppleSignIn";
 import { TOP_BAR_HEIGHT } from "@/components/useTopBarCollapse";
+import { footerClearance } from "@/lib/footerClearance";
 import { FooterHeightContext } from "./buttons";
 import { Avatar, Toast, ToastState } from "./feedback";
 import { usePressScale } from "./format";
@@ -95,7 +96,7 @@ export const Screen = ({
           styles.scroll,
           maxWidth != null && { maxWidth },
           footer != null && {
-            paddingBottom: Math.max(96, footerHeight + spacing.md),
+            paddingBottom: footerClearance(footerHeight),
           },
         ]}
         scrollEventThrottle={onEndReached ? 16 : undefined}

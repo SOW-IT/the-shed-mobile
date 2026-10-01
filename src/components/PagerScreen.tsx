@@ -22,7 +22,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
 import { spacing, useAppTheme, WIDE_SCREEN_MIN_WIDTH } from "@/theme";
 import { PagerCarousel } from "@/components/PagerCarousel";
-import { TabBar, TopBar } from "@/components/ui";
+import { FooterHeightContext, TabBar, TopBar } from "@/components/ui";
+import { footerClearance } from "@/lib/footerClearance";
 import { ScrollByContext } from "@/components/ui/scrollAnchor";
 import {
   TOP_BAR_HEIGHT,
@@ -236,6 +237,22 @@ export const PagerScreen = ({
     [makeScrollHandler]
   );
 
+  // Measured height of each tab's footer (button plus any note), so its page
+  // pads just enough for the last content to scroll clear of it.
+  const [footerHeights, setFooterHeights] = useState<Record<string, number>>({});
+  const footerHeightSetters = useRef<Record<string, (height: number) => void>>({});
+  const footerHeightSetterFor = (tabKey: string) => {
+    if (!footerHeightSetters.current[tabKey]) {
+      footerHeightSetters.current[tabKey] = (height) =>
+        setFooterHeights((prev) =>
+          prev[tabKey] === height ? prev : { ...prev, [tabKey]: height }
+        );
+    }
+    return footerHeightSetters.current[tabKey];
+  };
+  const footerHeightForPage = (tabKey: string) =>
+    footerHeights[footerPinned ? footerItems[0]?.tabKey ?? tabKey : tabKey] ?? 0;
+
   const pageScrollRefs = useRef<Record<string, ScrollView | null>>({});
   const scrollByForTab = useRef<Record<string, (dy: number) => void>>({});
   const scrollByFor = (tabKey: string) => {
@@ -267,7 +284,9 @@ export const PagerScreen = ({
             styles.page,
             fullWidth && wide && { maxWidth: "100%" as const },
             {
-              paddingBottom: footerTabKeys.has(tab.key) ? 96 : 48,
+              paddingBottom: footerTabKeys.has(tab.key)
+                ? footerClearance(footerHeightForPage(tab.key))
+                : 48,
             },
           ]}
           {...tabScrollProps}
@@ -321,7 +340,9 @@ export const PagerScreen = ({
               { transform: [{ translateY: anim }] },
             ]}
           >
-            {item.node}
+            <FooterHeightContext.Provider value={footerHeightSetterFor(item.tabKey)}>
+              {item.node}
+            </FooterHeightContext.Provider>
           </Animated.View>
         );
       })}
