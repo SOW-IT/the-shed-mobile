@@ -17,6 +17,12 @@ All notable changes to **The SHED** mobile app. This project follows
   card now catches the tap instead of passing it to a hidden row.
 - **The bottom room stays right on web when the button's position changes**
   (for example after a window resize changes the safe area).
+- **A bottom button with a tall note hides fully when you switch tabs.** It
+  used to slide down a fixed distance, so a tall note could still peek over the
+  next tab's content.
+- **The events list's Edit button is valid on the web.** It sat inside the
+  event's own button, which browsers don't allow; it now sits beside it in the
+  same spot, and screen readers reach it directly.
 
 ## [1.13.9] — 2026-10-01
 

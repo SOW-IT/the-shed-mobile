@@ -1,4 +1,5 @@
 import { StyleSheet } from "react-native";
+import { FOOTER_GAP } from "@/lib/footerClearance";
 import { radius, spacing } from "@/theme";
 
 export const styles = StyleSheet.create({
@@ -358,7 +359,7 @@ export const styles = StyleSheet.create({
   toastText: { fontWeight: "700", fontSize: 13 },
   footerWrap: {
     position: "absolute",
-    bottom: spacing.md,
+    bottom: FOOTER_GAP,
     paddingHorizontal: spacing.lg,
     maxWidth: 720,
     width: "100%",

@@ -4,7 +4,7 @@ import { Animated, Easing, Keyboard, Platform, Pressable, Text, View } from "rea
 import { USE_NATIVE_DRIVER, radius, spacing, typography, useAppTheme } from "@/theme";
 import { usePressScale } from "./format";
 import { useAnyModalOpen } from "./modalPresence";
-import { footerReach } from "@/lib/footerClearance";
+import { FOOTER_GAP, footerReach } from "@/lib/footerClearance";
 import { SowSpinner } from "./primitives";
 import { styles } from "./styles";
 
@@ -49,14 +49,14 @@ export const FooterAction = ({
   const syncRef = useRef<() => void>(() => {});
   const reportFooterHeight = useContext(FooterHeightContext);
   useEffect(() => () => reportFooterHeight(0), [reportFooterHeight]);
-  // onLayout only fires on size changes on web, so a new bottomOffset (which
-  // moves the footer without resizing it) is re-reported from here.
-  const layoutHeight = useRef<number | null>(null);
+  // Reported from an effect on both inputs, since onLayout only fires on size
+  // changes on web and a new bottomOffset moves the footer without resizing it.
+  const [layoutHeight, setLayoutHeight] = useState<number | null>(null);
   useEffect(() => {
-    if (layoutHeight.current != null) {
-      reportFooterHeight(footerReach(layoutHeight.current, bottomOffset));
+    if (layoutHeight != null) {
+      reportFooterHeight(footerReach(layoutHeight, bottomOffset));
     }
-  }, [bottomOffset, reportFooterHeight]);
+  }, [layoutHeight, bottomOffset, reportFooterHeight]);
   useEffect(() => {
     if (!shouldAvoid) {
       lift.setValue(0);
@@ -125,12 +125,11 @@ export const FooterAction = ({
       pointerEvents="box-none"
       onLayout={(e) => {
         syncRef.current();
-        layoutHeight.current = e.nativeEvent.layout.height;
-        reportFooterHeight(footerReach(e.nativeEvent.layout.height, bottomOffset));
+        setLayoutHeight(e.nativeEvent.layout.height);
       }}
       style={[
         styles.footerWrap,
-        bottomOffset ? { bottom: spacing.md + bottomOffset } : null,
+        bottomOffset ? { bottom: FOOTER_GAP + bottomOffset } : null,
       ]}
     >
       <Animated.View

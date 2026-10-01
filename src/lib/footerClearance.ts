@@ -4,7 +4,10 @@
 /** Content padding when a footer is present but not yet measured. */
 export const FOOTER_MIN_CLEARANCE = 96;
 
-/** Gap kept between a footer and the screen bottom, and between content and the footer (spacing.md). */
+/**
+ * Gap kept between a footer and the bottom of its host (FooterAction's own
+ * `bottom`), and between the last content and the footer.
+ */
 export const FOOTER_GAP = 12;
 
 /** How far a footer reaches up from the bottom of its host: its own height, its lift, and the gap below it. */
