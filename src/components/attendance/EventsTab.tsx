@@ -240,7 +240,7 @@ export function EventsTab({
                       </View>
 
                       <View style={styles.badgeRow}>
-                        <View style={styles.badgeGroup}>
+                        <View style={[styles.badgeGroup, styles.tagGroup]}>
                           {event.tags?.map((tag) => (
                             <AttendanceTagPill
                               key={tag._id}
@@ -428,6 +428,12 @@ const styles = StyleSheet.create({
   },
   badgeGroupRight: {
     justifyContent: "flex-end",
+  },
+  // Tags keep their natural width (up to half the row) so subgroup pills wrap
+  // first instead of squeezing a short tag name onto two lines.
+  tagGroup: {
+    flexShrink: 0,
+    maxWidth: "50%",
   },
   subgroupPill: {
     borderRadius: radius.full,

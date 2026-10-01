@@ -15,6 +15,13 @@ All notable changes to **The SHED** mobile app. This project follows
   edges did nothing. The whole event card now opens the event; the Edit button
   still opens the edit sheet. With VoiceOver or TalkBack, Edit is available as
   an action on the event.
+- **Short tag names stay on one line next to many universities.** On an event
+  with lots of university pills, a tag like "PPN" was squeezed into "PP" over
+  "N". Tags now keep their width (up to half the row) and the university pills
+  wrap instead, on the event screen and in the events list.
+- **Not signed in fills in first when you open an event.** Its rows used to
+  wait for the Signed in list below them to fade in, so the box sat empty under
+  its count for a moment. Not signed in now fades in first, then Signed in.
 
 ## [1.13.6] — 2026-10-01
 
