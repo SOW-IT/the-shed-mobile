@@ -6,6 +6,16 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.13.8] — 2026-10-01
+
+### Fixed
+- **The "This event has ended" note is readable and no longer covers people.**
+  On an ended event the warning above Enable editing was bare text drawn over
+  the Signed in list, so the two overlapped. It now sits on its own card, and
+  the page leaves room for the note and button so the last person in the list
+  scrolls clear of them (and, on wide screens, the two columns stop above
+  them). Any screen with a bottom button gets the same room for it.
+
 ## [1.13.7] — 2026-10-01
 
 ### Fixed

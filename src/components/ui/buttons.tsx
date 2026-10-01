@@ -1,11 +1,17 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Animated, Easing, Keyboard, Platform, Pressable, Text, View } from "react-native";
 import { USE_NATIVE_DRIVER, radius, spacing, typography, useAppTheme } from "@/theme";
 import { usePressScale } from "./format";
 import { useAnyModalOpen } from "./modalPresence";
 import { SowSpinner } from "./primitives";
 import { styles } from "./styles";
+
+/**
+ * Provided by a Screen: a FooterAction reports how far it reaches up from the
+ * bottom (note, button and offset), so the content can scroll clear of it.
+ */
+export const FooterHeightContext = createContext<(height: number) => void>(() => {});
 
 const KEYBOARD_EASING = Easing.bezier(0.38, 0.7, 0.125, 1);
 
@@ -40,6 +46,8 @@ export const FooterAction = ({
   const shouldAvoid = avoidKeyboard && !modalOpen;
   const wrapRef = useRef<View>(null);
   const syncRef = useRef<() => void>(() => {});
+  const reportFooterHeight = useContext(FooterHeightContext);
+  useEffect(() => () => reportFooterHeight(0), [reportFooterHeight]);
   useEffect(() => {
     if (!shouldAvoid) {
       lift.setValue(0);
@@ -106,7 +114,10 @@ export const FooterAction = ({
     <View
       ref={wrapRef}
       pointerEvents="box-none"
-      onLayout={() => syncRef.current()}
+      onLayout={(e) => {
+        syncRef.current();
+        reportFooterHeight(e.nativeEvent.layout.height + spacing.md + bottomOffset);
+      }}
       style={[
         styles.footerWrap,
         bottomOffset ? { bottom: spacing.md + bottomOffset } : null,
@@ -117,9 +128,22 @@ export const FooterAction = ({
         style={{ transform: [{ translateY: Animated.multiply(lift, -1) }] }}
       >
         {note ? (
-          <View style={styles.footerNote} pointerEvents="none">
-            <Ionicons name="warning-outline" size={14} color={t.warning} />
-            <Text style={[typography.caption, { color: t.warning, fontWeight: "700" }]}>
+          <View
+            style={[
+              styles.footerNote,
+              { backgroundColor: t.card, borderColor: t.warning },
+              t.shadowFloat,
+            ]}
+            pointerEvents="none"
+          >
+            <Ionicons name="warning-outline" size={16} color={t.warning} />
+            <Text
+              style={[
+                typography.caption,
+                styles.footerNoteText,
+                { color: t.warning },
+              ]}
+            >
               {note}
             </Text>
           </View>
