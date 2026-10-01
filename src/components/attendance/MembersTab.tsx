@@ -32,6 +32,10 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 const PAGE_SIZE = 30;
 
+/**
+ * Attendance → Members: the searchable, filterable member list for a year.
+ * Pads its bottom to clear the tab's Create member footer.
+ */
 export function MembersTab({
   year,
   onEditMember,

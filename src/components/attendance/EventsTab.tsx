@@ -46,6 +46,10 @@ const statusTone = (status: EventStatus, t: ReturnType<typeof useAppTheme>) => {
   return { bg: t.ghost, fg: t.ghostText };
 };
 
+/**
+ * Attendance → Events: a subgroup's events, newest first. Tapping anywhere on
+ * an event opens it; Edit opens the edit sheet.
+ */
 export function EventsTab({
   year,
   subgroups,

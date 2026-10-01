@@ -108,6 +108,10 @@ function CountChip({
   );
 }
 
+/**
+ * One event's roll call: Not signed in and Signed in lists, with a footer to
+ * create a member while searching or to enable editing once the event ends.
+ */
 export default function EventAttendanceScreen() {
   const t = useAppTheme();
   const router = useRouter();
