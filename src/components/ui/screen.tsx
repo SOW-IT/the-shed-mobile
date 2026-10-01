@@ -25,6 +25,7 @@ import {
   useAppleSignInAvailable,
 } from "@/hooks/useAppleSignIn";
 import { TOP_BAR_HEIGHT } from "@/components/useTopBarCollapse";
+import { FOOTER_MIN_CLEARANCE, footerClearance } from "@/lib/footerClearance";
 import { FooterHeightContext } from "./buttons";
 import { Avatar, Toast, ToastState } from "./feedback";
 import { usePressScale } from "./format";
@@ -35,6 +36,10 @@ import { styles } from "./styles";
 
 const NEAR_BOTTOM = 600;
 
+/**
+ * A scrolling stack screen with an optional back/title header and footer. The
+ * content pads its bottom to clear the footer once it has been measured.
+ */
 export const Screen = ({
   children,
   toast,
@@ -73,6 +78,7 @@ export const Screen = ({
   useEffect(() => {
     onEndReachedRef.current = onEndReached;
   }, [onEndReached]);
+  const insets = useSafeAreaInsets();
   const [footerHeight, setFooterHeight] = useState(0);
   const onFooterHeightChangeRef = useRef(onFooterHeightChange);
   useEffect(() => {
@@ -95,7 +101,10 @@ export const Screen = ({
           styles.scroll,
           maxWidth != null && { maxWidth },
           footer != null && {
-            paddingBottom: Math.max(96, footerHeight + spacing.md),
+            paddingBottom: footerClearance(
+              footerHeight,
+              insets.bottom + FOOTER_MIN_CLEARANCE
+            ),
           },
         ]}
         scrollEventThrottle={onEndReached ? 16 : undefined}

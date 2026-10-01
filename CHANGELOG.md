@@ -6,6 +6,24 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.13.10] — 2026-10-01
+
+### Fixed
+- **Attendance Tags and Metadata leave room for the "unsaved changes" note.**
+  Since the note became a card in 1.13.8, it could hide the last tag or field
+  behind it. The tabs now measure their bottom buttons and note and pad to
+  match, like the event screen.
+- **Tapping the warning note no longer taps whatever is behind it.** The note
+  card now catches the tap instead of passing it to a hidden row.
+- **The bottom room stays right on web when the button's position changes**
+  (for example after a window resize changes the safe area).
+- **A bottom button with a tall note hides fully when you switch tabs.** It
+  used to slide down a fixed distance, so a tall note could still peek over the
+  next tab's content.
+- **The events list's Edit button is valid on the web.** It sat inside the
+  event's own button, which browsers don't allow; it now sits beside it in the
+  same spot, and screen readers reach it directly.
+
 ## [1.13.9] — 2026-10-01
 
 ### Fixed
@@ -21,7 +39,7 @@ All notable changes to **The SHED** mobile app. This project follows
   the Signed in list, so the two overlapped. It now sits on its own card, and
   the page leaves room for the note and button so the last person in the list
   scrolls clear of them (and, on wide screens, the two columns stop above
-  them). Any screen with a bottom button gets the same room for it.
+  them).
 
 ## [1.13.7] — 2026-10-01
 

@@ -26,6 +26,7 @@ import {
 } from "@shared/rollcall";
 import { eventStaffYear, sydneyCalendarYear } from "@shared/flow";
 import { AttendanceRow, ATTENDANCE_ROW_ENTER_MS } from "@/components/AttendanceRow";
+import { FOOTER_MIN_CLEARANCE, footerClearance } from "@/lib/footerClearance";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
@@ -84,6 +85,7 @@ const signedInSubtitle = (member: {
     .join(" · ");
 };
 
+/** The people-icon count pill beside the Not signed in and Signed in headers. */
 function CountChip({
   count,
   accessibilityLabel,
@@ -107,6 +109,10 @@ function CountChip({
   );
 }
 
+/**
+ * One event's roll call: Not signed in and Signed in lists, with a footer to
+ * create a member while searching or to enable editing once the event ends.
+ */
 export default function EventAttendanceScreen() {
   const t = useAppTheme();
   const router = useRouter();
@@ -280,10 +286,12 @@ export default function EventAttendanceScreen() {
   const hasFooter = (isSearching && canEdit) || pastEvent;
   const measureColumns = useCallback(() => {
     columnsRef.current?.measureInWindow((_x, y) => {
-      // Clear the footer (button plus any note) once it has been measured.
-      const gap = hasFooter
-        ? Math.max(insets.bottom + 96, footerHeight + spacing.md)
-        : insets.bottom + spacing.md;
+      // Clear the footer (button plus any note) once it has been measured;
+      // footerHeight drops back to 0 when the footer goes away.
+      const gap = footerClearance(
+        footerHeight,
+        insets.bottom + (hasFooter ? FOOTER_MIN_CLEARANCE : spacing.md)
+      );
       const h = windowHeight - y - gap;
       setColumnsHeight(h > 120 ? h : undefined);
     });

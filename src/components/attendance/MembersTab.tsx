@@ -23,15 +23,19 @@ import {
   SowSpinner,
 } from "@/components/ui";
 import {
-  PAGER_PAGE_BOTTOM_INSET_WITH_FOOTER,
   PAGER_PAGE_CONTENT,
   PAGER_TOP_BAR_INSET,
   TopBarScrollProps,
+  usePagerFooterClearance,
 } from "@/components/PagerScreen";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 const PAGE_SIZE = 30;
 
+/**
+ * Attendance → Members: the searchable, filterable member list for a year.
+ * Pads its bottom to clear the tab's Create member footer.
+ */
 export function MembersTab({
   year,
   onEditMember,
@@ -44,6 +48,7 @@ export function MembersTab({
   loadMoreRef?: MutableRefObject<(() => void) | null>;
 }) {
   const t = useAppTheme();
+  const footerClearancePadding = usePagerFooterClearance();
   const ensureDefaults = useMutation(api.attendanceMetadata.ensureDefaults);
   const ensureForStaff = useMutation(api.attendanceMembers.ensureForStaff);
   const metadata = useQuery(api.attendanceMetadata.list, {});
@@ -121,7 +126,7 @@ export function MembersTab({
       contentContainerStyle={[
         PAGER_PAGE_CONTENT,
         styles.selfScrollingPage,
-        { paddingBottom: PAGER_PAGE_BOTTOM_INSET_WITH_FOOTER },
+        { paddingBottom: footerClearancePadding },
       ]}
       {...scrollProps}
     >

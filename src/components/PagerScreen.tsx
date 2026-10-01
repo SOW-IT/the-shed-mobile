@@ -1,7 +1,9 @@
 import { useQuery } from "convex/react";
 import {
+  createContext,
   ReactNode,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -22,7 +24,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
 import { spacing, useAppTheme, WIDE_SCREEN_MIN_WIDTH } from "@/theme";
 import { PagerCarousel } from "@/components/PagerCarousel";
-import { TabBar, TopBar } from "@/components/ui";
+import { FooterHeightContext, TabBar, TopBar } from "@/components/ui";
+import { FOOTER_MIN_CLEARANCE, footerClearance } from "@/lib/footerClearance";
 import { ScrollByContext } from "@/components/ui/scrollAnchor";
 import {
   TOP_BAR_HEIGHT,
@@ -54,16 +57,32 @@ export type PagerTabFooter = {
   node: ReactNode;
 };
 
+/**
+ * How far down to slide a tab's footer for a pager position: 0 on its own tab,
+ * `hiddenOffset` (fully off-screen) a page or more away, in between mid-swipe.
+ */
 const footerYForPosition = (
   pos: number,
   homeIndex: number,
-  hasTabFooters: boolean
+  hasTabFooters: boolean,
+  hiddenOffset: number
 ) => {
   if (!hasTabFooters) return 0;
   const dist = Math.abs(pos - homeIndex);
-  return Math.min(dist, 1) * FOOTER_HIDDEN_OFFSET;
+  return Math.min(dist, 1) * hiddenOffset;
 };
 
+/**
+ * Bottom padding for a self-scrolling tab's own ScrollView, so its last
+ * content clears that tab's footer (button plus any note) once measured.
+ */
+const PagerFooterClearanceContext = createContext(FOOTER_MIN_CLEARANCE);
+export const usePagerFooterClearance = () => useContext(PagerFooterClearanceContext);
+
+/**
+ * A tab screen whose sub-tabs swipe sideways under a collapsing top bar. Each
+ * tab can have its own bottom FooterAction; pages pad to clear it.
+ */
 export const PagerScreen = ({
   tabs,
   activeKey,
@@ -128,14 +147,37 @@ export const PagerScreen = ({
     [tabs]
   );
 
+  // Measured height of each tab's footer (button plus any note), so its page
+  // pads just enough for the last content to scroll clear of it.
+  const [footerHeights, setFooterHeights] = useState<Record<string, number>>({});
+  const footerHeightSetters = useRef<Record<string, (height: number) => void>>({});
+  const footerHeightSetterFor = (tabKey: string) => {
+    if (!footerHeightSetters.current[tabKey]) {
+      footerHeightSetters.current[tabKey] = (height) =>
+        setFooterHeights((prev) =>
+          prev[tabKey] === height ? prev : { ...prev, [tabKey]: height }
+        );
+    }
+    return footerHeightSetters.current[tabKey];
+  };
+  const footerHeightForPage = (tabKey: string) =>
+    footerHeights[footerPinned ? footerItems[0]?.tabKey ?? tabKey : tabKey] ?? 0;
+  // Slide a tab's footer far enough down to hide it completely when another
+  // tab is showing, however tall it has grown.
+  const footerHiddenOffset = Math.max(
+    FOOTER_HIDDEN_OFFSET,
+    ...Object.values(footerHeights).map((height) => height + spacing.sm)
+  );
+
   const yForFooter = useCallback(
     (pos: number, tabKey: string) =>
       footerYForPosition(
         pos,
         homeIndexFor(tabKey),
-        footerItems.length > 0 && !footerPinned
+        footerItems.length > 0 && !footerPinned,
+        footerHiddenOffset
       ),
-    [footerItems.length, footerPinned, homeIndexFor]
+    [footerItems.length, footerPinned, homeIndexFor, footerHiddenOffset]
   );
 
   const ensureFooterAnim = useCallback(
@@ -253,7 +295,15 @@ export const PagerScreen = ({
     const tabScrollProps = scrollPropsForTab(tab.key);
     return (
       tab.selfScrolling ? (
-        tab.render(tabScrollProps)
+        <PagerFooterClearanceContext.Provider
+          value={
+            footerTabKeys.has(tab.key)
+              ? footerClearance(footerHeightForPage(tab.key))
+              : FOOTER_MIN_CLEARANCE
+          }
+        >
+          {tab.render(tabScrollProps)}
+        </PagerFooterClearanceContext.Provider>
       ) : (
         <Animated.ScrollView
           ref={(el: ScrollView | null) => {
@@ -267,7 +317,9 @@ export const PagerScreen = ({
             styles.page,
             fullWidth && wide && { maxWidth: "100%" as const },
             {
-              paddingBottom: footerTabKeys.has(tab.key) ? 96 : 48,
+              paddingBottom: footerTabKeys.has(tab.key)
+                ? footerClearance(footerHeightForPage(tab.key))
+                : 48,
             },
           ]}
           {...tabScrollProps}
@@ -321,7 +373,9 @@ export const PagerScreen = ({
               { transform: [{ translateY: anim }] },
             ]}
           >
-            {item.node}
+            <FooterHeightContext.Provider value={footerHeightSetterFor(item.tabKey)}>
+              {item.node}
+            </FooterHeightContext.Provider>
           </Animated.View>
         );
       })}
@@ -358,4 +412,3 @@ const styles = StyleSheet.create({
 export const PAGER_PAGE_CONTENT = styles.page;
 export const PAGER_TOP_BAR_INSET = TOP_BAR_HEIGHT;
 export const PAGER_PAGE_BOTTOM_INSET = 48;
-export const PAGER_PAGE_BOTTOM_INSET_WITH_FOOTER = 96;

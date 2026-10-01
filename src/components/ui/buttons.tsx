@@ -4,6 +4,7 @@ import { Animated, Easing, Keyboard, Platform, Pressable, Text, View } from "rea
 import { USE_NATIVE_DRIVER, radius, spacing, typography, useAppTheme } from "@/theme";
 import { usePressScale } from "./format";
 import { useAnyModalOpen } from "./modalPresence";
+import { FOOTER_GAP, footerReach } from "@/lib/footerClearance";
 import { SowSpinner } from "./primitives";
 import { styles } from "./styles";
 
@@ -20,6 +21,11 @@ const KEYBOARD_LIFT_DURATION_SCALE = 0.6;
 const liftDuration = (keyboardDuration: number | undefined) =>
   Math.round((keyboardDuration ?? 250) * KEYBOARD_LIFT_DURATION_SCALE);
 
+/**
+ * The full-width button pinned to the bottom of a screen, with an optional
+ * warning note above it and an optional Cancel. Lifts above the keyboard on
+ * iOS and reports its height so the screen can pad its content to clear it.
+ */
 export const FooterAction = ({
   title,
   onPress,
@@ -48,6 +54,14 @@ export const FooterAction = ({
   const syncRef = useRef<() => void>(() => {});
   const reportFooterHeight = useContext(FooterHeightContext);
   useEffect(() => () => reportFooterHeight(0), [reportFooterHeight]);
+  // Reported from an effect on both inputs, since onLayout only fires on size
+  // changes on web and a new bottomOffset moves the footer without resizing it.
+  const [layoutHeight, setLayoutHeight] = useState<number | null>(null);
+  useEffect(() => {
+    if (layoutHeight != null) {
+      reportFooterHeight(footerReach(layoutHeight, bottomOffset));
+    }
+  }, [layoutHeight, bottomOffset, reportFooterHeight]);
   useEffect(() => {
     if (!shouldAvoid) {
       lift.setValue(0);
@@ -116,11 +130,11 @@ export const FooterAction = ({
       pointerEvents="box-none"
       onLayout={(e) => {
         syncRef.current();
-        reportFooterHeight(e.nativeEvent.layout.height + spacing.md + bottomOffset);
+        setLayoutHeight(e.nativeEvent.layout.height);
       }}
       style={[
         styles.footerWrap,
-        bottomOffset ? { bottom: spacing.md + bottomOffset } : null,
+        bottomOffset ? { bottom: FOOTER_GAP + bottomOffset } : null,
       ]}
     >
       <Animated.View
@@ -134,7 +148,6 @@ export const FooterAction = ({
               { backgroundColor: t.card, borderColor: t.warning },
               t.shadowFloat,
             ]}
-            pointerEvents="none"
           >
             <Ionicons name="warning-outline" size={16} color={t.warning} />
             <Text
