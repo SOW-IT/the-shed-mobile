@@ -57,6 +57,10 @@ export type PagerTabFooter = {
   node: ReactNode;
 };
 
+/**
+ * How far down to slide a tab's footer for a pager position: 0 on its own tab,
+ * `hiddenOffset` (fully off-screen) a page or more away, in between mid-swipe.
+ */
 const footerYForPosition = (
   pos: number,
   homeIndex: number,
