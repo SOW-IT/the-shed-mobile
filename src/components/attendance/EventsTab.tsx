@@ -164,6 +164,17 @@ export function EventsTab({
               const ownerColour = subgroupColour(ownerSubgroup);
               const isExternalEvent =
                 subgroup != null && !subgroupMatches(ownerSubgroup, subgroup);
+              const status = eventStatus(event.dateStart, event.dateEnd, now);
+              const tagNames = (event.tags ?? []).map((tag) => tag.name).join(", ");
+              const rowLabel = [
+                event.name,
+                formatEventRange(event.dateStart, event.dateEnd),
+                status,
+                tagNames,
+                `attendance ${event.attendanceCount}`,
+              ]
+                .filter(Boolean)
+                .join(", ");
               const openEvent = () =>
                 router.push({
                   pathname: "/attendance/event/[eventId]",
@@ -174,7 +185,8 @@ export function EventsTab({
                 <FadeInView key={event._id} delay={stagger(i)}>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Open ${event.name}`}
+                    accessibilityLabel={rowLabel}
+                    accessibilityHint="Opens the event"
                     accessibilityActions={[
                       { name: "activate" },
                       { name: "edit", label: `Edit ${event.name}` },
@@ -221,11 +233,6 @@ export function EventsTab({
                           {formatEventRange(event.dateStart, event.dateEnd)}
                         </Text>
                         {(() => {
-                          const status = eventStatus(
-                            event.dateStart,
-                            event.dateEnd,
-                            now
-                          );
                           const tone = statusTone(status, t);
                           return (
                             <View
