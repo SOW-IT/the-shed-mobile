@@ -166,11 +166,15 @@ export function EventsTab({
                 subgroup != null && !subgroupMatches(ownerSubgroup, subgroup);
               const status = eventStatus(event.dateStart, event.dateEnd, now);
               const tagNames = (event.tags ?? []).map((tag) => tag.name).join(", ");
+              const shownSubgroups = event.subgroups.filter(
+                (s) => subgroup == null || !subgroupMatches(s, subgroup)
+              );
               const rowLabel = [
                 event.name,
                 formatEventRange(event.dateStart, event.dateEnd),
                 status,
                 tagNames,
+                shownSubgroups.map((s) => subgroupLabel(s)).join(", "),
                 `attendance ${event.attendanceCount}`,
               ]
                 .filter(Boolean)
@@ -258,32 +262,30 @@ export function EventsTab({
                           ))}
                         </View>
                         <View style={[styles.badgeGroup, styles.badgeGroupRight]}>
-                          {event.subgroups
-                            .filter((s) => subgroup == null || !subgroupMatches(s, subgroup))
-                            .map((s) => {
-                              const colour = subgroupColour(s);
-                              return (
-                                <View
-                                  key={s}
+                          {shownSubgroups.map((s) => {
+                            const colour = subgroupColour(s);
+                            return (
+                              <View
+                                key={s}
+                                style={[
+                                  styles.subgroupPill,
+                                  {
+                                    backgroundColor: colour,
+                                  },
+                                ]}
+                              >
+                                <Text
                                   style={[
-                                    styles.subgroupPill,
-                                    {
-                                      backgroundColor: colour,
-                                    },
+                                    typography.caption,
+                                    styles.subgroupPillText,
+                                    { color: contrastingText(colour) },
                                   ]}
                                 >
-                                  <Text
-                                    style={[
-                                      typography.caption,
-                                      styles.subgroupPillText,
-                                      { color: contrastingText(colour) },
-                                    ]}
-                                  >
-                                    {subgroupLabel(s)}
-                                  </Text>
-                                </View>
-                              );
-                            })}
+                                  {subgroupLabel(s)}
+                                </Text>
+                              </View>
+                            );
+                          })}
                         </View>
                       </View>
 
