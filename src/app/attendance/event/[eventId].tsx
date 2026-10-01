@@ -49,7 +49,8 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 const ROSTER_PAGE_SIZE = 30;
 const UNSIGNED_PAGE_SIZE = 10;
 const UNSIGNED_ROW_HEIGHT = 72 + spacing.sm;
-const UNSIGNED_LIST_HEIGHT = UNSIGNED_ROW_HEIGHT * 3;
+const UNSIGNED_VISIBLE_ROWS = 3;
+const UNSIGNED_LIST_HEIGHT = UNSIGNED_ROW_HEIGHT * UNSIGNED_VISIBLE_ROWS;
 
 const TWO_COLUMN_MIN_WIDTH = 700;
 
@@ -622,7 +623,8 @@ export default function EventAttendanceScreen() {
         const isExiting = remoteSignedIn.has(m.key);
         const isAnimating = isEntering || isExiting;
         const isSuppressed = suppressUnsignedFadeIn.has(m.key);
-        const staggerIndex = visibleSignedIn.length + index;
+        // Not signed in sits above (or left of) Signed in, so it fades in first.
+        const staggerIndex = index;
         const nextKey = visibleUnsigned[index + 1]?.key;
         const row = (
           <AttendanceRow
@@ -656,6 +658,9 @@ export default function EventAttendanceScreen() {
       ) : null}
     </>
   );
+
+  // Signed in follows the rows visible in the Not signed in box.
+  const signedInStaggerOffset = Math.min(visibleUnsigned.length, UNSIGNED_VISIBLE_ROWS);
 
   const signedInRows = (
     <>
@@ -691,7 +696,7 @@ export default function EventAttendanceScreen() {
         return isAnimating || isSuppressed ? (
           <View key={rowKey}>{row}</View>
         ) : (
-          <FadeInView key={rowKey} delay={Math.min(index, 12) * 35}>{row}</FadeInView>
+          <FadeInView key={rowKey} delay={Math.min(signedInStaggerOffset + index, 12) * 35}>{row}</FadeInView>
         );
       })}
       {visibleSignedIn.length < filteredSignedInList.length ? (
@@ -811,7 +816,7 @@ export default function EventAttendanceScreen() {
           })}
         </View>
         {event.tags && event.tags.length > 0 ? (
-          <View style={[styles.badgeGroup, styles.badgeGroupRight]}>
+          <View style={[styles.badgeGroup, styles.badgeGroupRight, styles.tagGroup]}>
             {event.tags.map((tag) => (
               <AttendanceTagPill key={tag._id} name={tag.name} colour={tag.colour} small />
             ))}
@@ -990,6 +995,12 @@ const styles = StyleSheet.create({
   },
   badgeGroupRight: {
     justifyContent: "flex-end",
+  },
+  // Tags keep their natural width (up to half the row) so subgroup pills wrap
+  // first instead of squeezing a short tag name onto two lines.
+  tagGroup: {
+    flexShrink: 0,
+    maxWidth: "50%",
   },
   subgroupPill: {
     borderRadius: radius.full,
