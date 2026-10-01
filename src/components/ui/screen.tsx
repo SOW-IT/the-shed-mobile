@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "@convex/_generated/api";
 import { useConvexAuth, useQuery } from "convex/react";
-import { ReactNode, Ref, useEffect, useRef, useState } from "react";
+import { ReactNode, Ref, useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
@@ -25,6 +25,7 @@ import {
   useAppleSignInAvailable,
 } from "@/hooks/useAppleSignIn";
 import { TOP_BAR_HEIGHT } from "@/components/useTopBarCollapse";
+import { FooterHeightContext } from "./buttons";
 import { Avatar, Toast, ToastState } from "./feedback";
 import { usePressScale } from "./format";
 import { Segment } from "./forms";
@@ -46,6 +47,7 @@ export const Screen = ({
   onEndReached,
   stickyHeaderIndices,
   maxWidth,
+  onFooterHeightChange,
 }: {
   children?: ReactNode;
   toast?: ToastState;
@@ -58,6 +60,8 @@ export const Screen = ({
   onEndReached?: () => void;
   stickyHeaderIndices?: number[];
   maxWidth?: number;
+  /** How far the footer reaches up from the bottom of the screen, once measured. */
+  onFooterHeightChange?: (height: number) => void;
 }) => {
   const t = useAppTheme();
   const headerShown = !!(title || headerRight || onBack);
@@ -69,6 +73,15 @@ export const Screen = ({
   useEffect(() => {
     onEndReachedRef.current = onEndReached;
   }, [onEndReached]);
+  const [footerHeight, setFooterHeight] = useState(0);
+  const onFooterHeightChangeRef = useRef(onFooterHeightChange);
+  useEffect(() => {
+    onFooterHeightChangeRef.current = onFooterHeightChange;
+  }, [onFooterHeightChange]);
+  const reportFooterHeight = useCallback((height: number) => {
+    setFooterHeight(height);
+    onFooterHeightChangeRef.current?.(height);
+  }, []);
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: t.background }]} edges={["top"]}>
       <ScrollView
@@ -81,7 +94,9 @@ export const Screen = ({
         contentContainerStyle={[
           styles.scroll,
           maxWidth != null && { maxWidth },
-          footer != null && { paddingBottom: 96 },
+          footer != null && {
+            paddingBottom: Math.max(96, footerHeight + spacing.md),
+          },
         ]}
         scrollEventThrottle={onEndReached ? 16 : undefined}
         onScroll={
@@ -134,7 +149,9 @@ export const Screen = ({
         )}
         {children}
       </ScrollView>
-      {footer}
+      <FooterHeightContext.Provider value={reportFooterHeight}>
+        {footer}
+      </FooterHeightContext.Provider>
       <Toast toast={toast ?? null} />
     </SafeAreaView>
   );

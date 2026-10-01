@@ -276,14 +276,18 @@ export default function EventAttendanceScreen() {
 
   const columnsRef = useRef<View>(null);
   const [columnsHeight, setColumnsHeight] = useState<number>();
+  const [footerHeight, setFooterHeight] = useState(0);
   const hasFooter = (isSearching && canEdit) || pastEvent;
   const measureColumns = useCallback(() => {
     columnsRef.current?.measureInWindow((_x, y) => {
-      const gap = insets.bottom + (hasFooter ? 96 : spacing.md);
+      // Clear the footer (button plus any note) once it has been measured.
+      const gap = hasFooter
+        ? Math.max(insets.bottom + 96, footerHeight + spacing.md)
+        : insets.bottom + spacing.md;
       const h = windowHeight - y - gap;
       setColumnsHeight(h > 120 ? h : undefined);
     });
-  }, [windowHeight, insets.bottom, hasFooter]);
+  }, [windowHeight, insets.bottom, hasFooter, footerHeight]);
   useEffect(() => {
     measureColumns();
   }, [measureColumns, twoColumn]);
@@ -766,6 +770,7 @@ export default function EventAttendanceScreen() {
           </Text>
         </View>
       }
+      onFooterHeightChange={setFooterHeight}
       footer={
         isSearching && canEdit ? (
           <FooterAction

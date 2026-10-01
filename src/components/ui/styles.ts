@@ -371,11 +371,15 @@ export const styles = StyleSheet.create({
   },
   footerNote: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
+    alignItems: "flex-start",
+    gap: spacing.sm,
     marginBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.lg - 2,
+    borderWidth: 1,
   },
+  footerNoteText: { flex: 1, fontWeight: "700" },
   footerInfoBtn: {
     width: 50,
     height: 50,
