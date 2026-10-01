@@ -6,6 +6,13 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.13.9] — 2026-10-01
+
+### Fixed
+- **Screen readers hear an event's universities too.** In the Attendance
+  events list, VoiceOver and TalkBack now read the university badges shown on
+  an event along with its name, date, status, tags and attendance count.
+
 ## [1.13.8] — 2026-10-01
 
 ### Fixed
