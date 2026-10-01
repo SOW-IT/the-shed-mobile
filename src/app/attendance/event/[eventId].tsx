@@ -85,6 +85,7 @@ const signedInSubtitle = (member: {
     .join(" · ");
 };
 
+/** The people-icon count pill beside the Not signed in and Signed in headers. */
 function CountChip({
   count,
   accessibilityLabel,
