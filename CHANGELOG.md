@@ -6,6 +6,19 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.13.6] — 2026-10-01
+
+### Changed
+- **Admin Users lists show 5 people, with a Show all button instead of a
+  scroll box.** Previously staff and both no-assignment lists now show 5
+  people (Leaving still shows 3), followed by "Show all" to open the full
+  list in place and "Show fewer" to fold it back. The small scroll boxes from
+  1.12.1 are gone: on a phone a list filled most of the screen and swipes got
+  stuck inside it, so the page could only be scrolled by dragging a section
+  title. The assign form also no longer gets cut off at the bottom of a list.
+  On wide screens the cap rounds up to full rows of cards, "Show fewer" keeps
+  the button where your finger is, and newly shown people fade in.
+
 ## [1.13.5] — 2026-10-01
 
 ### Added

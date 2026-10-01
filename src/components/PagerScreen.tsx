@@ -13,6 +13,7 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
+  ScrollView,
   StyleSheet,
   useWindowDimensions,
   View,
@@ -22,6 +23,7 @@ import { api } from "../../convex/_generated/api";
 import { spacing, useAppTheme, WIDE_SCREEN_MIN_WIDTH } from "@/theme";
 import { PagerCarousel } from "@/components/PagerCarousel";
 import { TabBar, TopBar } from "@/components/ui";
+import { ScrollByContext } from "@/components/ui/scrollAnchor";
 import {
   TOP_BAR_HEIGHT,
   TopBarScrollProps,
@@ -234,6 +236,19 @@ export const PagerScreen = ({
     [makeScrollHandler]
   );
 
+  const pageScrollRefs = useRef<Record<string, ScrollView | null>>({});
+  const scrollByForTab = useRef<Record<string, (dy: number) => void>>({});
+  const scrollByFor = (tabKey: string) => {
+    if (!scrollByForTab.current[tabKey]) {
+      scrollByForTab.current[tabKey] = (dy) =>
+        pageScrollRefs.current[tabKey]?.scrollTo({
+          y: Math.max(0, (lastScrollYByTab.current[tabKey] ?? 0) + dy),
+          animated: false,
+        });
+    }
+    return scrollByForTab.current[tabKey];
+  };
+
   const renderPage = (tab: PagerTab) => {
     const tabScrollProps = scrollPropsForTab(tab.key);
     return (
@@ -241,6 +256,9 @@ export const PagerScreen = ({
         tab.render(tabScrollProps)
       ) : (
         <Animated.ScrollView
+          ref={(el: ScrollView | null) => {
+            pageScrollRefs.current[tab.key] = el;
+          }}
           showsVerticalScrollIndicator={false}
           automaticallyAdjustKeyboardInsets
           keyboardShouldPersistTaps="handled"
@@ -254,7 +272,9 @@ export const PagerScreen = ({
           ]}
           {...tabScrollProps}
         >
-          {tab.render(tabScrollProps)}
+          <ScrollByContext.Provider value={scrollByFor(tab.key)}>
+            {tab.render(tabScrollProps)}
+          </ScrollByContext.Provider>
         </Animated.ScrollView>
       )
     );
