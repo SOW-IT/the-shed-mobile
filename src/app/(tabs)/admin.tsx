@@ -58,7 +58,8 @@ type DeleteConfirm = { name: string; message: string; onConfirm: () => void };
 
 const ADMIN_CARD_WIDTH = 360;
 
-const UNASSIGNED_VISIBLE_USERS = 3;
+const UNASSIGNED_VISIBLE_USERS = 5;
+const LEAVING_VISIBLE_USERS = 3;
 
 const CardGrid = ({
   children,
@@ -840,7 +841,7 @@ export default function AdminScreen() {
               <SectionTitle>
                 Leaving · {selectedYear} ({(leavers ?? []).length})
               </SectionTitle>
-              <CardGrid maxVisible={UNASSIGNED_VISIBLE_USERS}>
+              <CardGrid maxVisible={LEAVING_VISIBLE_USERS}>
                 {(leavers ?? []).map((user) => renderLeaverCard(user))}
               </CardGrid>
             </>
