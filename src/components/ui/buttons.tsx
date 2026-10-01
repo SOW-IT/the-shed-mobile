@@ -21,6 +21,11 @@ const KEYBOARD_LIFT_DURATION_SCALE = 0.6;
 const liftDuration = (keyboardDuration: number | undefined) =>
   Math.round((keyboardDuration ?? 250) * KEYBOARD_LIFT_DURATION_SCALE);
 
+/**
+ * The full-width button pinned to the bottom of a screen, with an optional
+ * warning note above it and an optional Cancel. Lifts above the keyboard on
+ * iOS and reports its height so the screen can pad its content to clear it.
+ */
 export const FooterAction = ({
   title,
   onPress,

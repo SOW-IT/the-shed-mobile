@@ -79,6 +79,10 @@ const footerYForPosition = (
 const PagerFooterClearanceContext = createContext(FOOTER_MIN_CLEARANCE);
 export const usePagerFooterClearance = () => useContext(PagerFooterClearanceContext);
 
+/**
+ * A tab screen whose sub-tabs swipe sideways under a collapsing top bar. Each
+ * tab can have its own bottom FooterAction; pages pad to clear it.
+ */
 export const PagerScreen = ({
   tabs,
   activeKey,

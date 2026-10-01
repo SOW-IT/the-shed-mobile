@@ -36,6 +36,10 @@ import { styles } from "./styles";
 
 const NEAR_BOTTOM = 600;
 
+/**
+ * A scrolling stack screen with an optional back/title header and footer. The
+ * content pads its bottom to clear the footer once it has been measured.
+ */
 export const Screen = ({
   children,
   toast,
