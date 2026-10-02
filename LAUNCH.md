@@ -1,7 +1,7 @@
 # LAUNCH.md — what is still unconfigured
 
 THE SHED is live. The web app serves from <https://theshed.sow.org.au>, the
-prod Convex backend (`outgoing-stoat-395`) auto-deploys on every merge, and
+prod Convex backend (`giant-bloodhound-191`) auto-deploys on every merge, and
 both stores have received production builds. This file tracks the launch
 configuration only: what is still outstanding, and — under "Already done" — the
 items checked against the live deployments. It is not a statement about the
@@ -10,7 +10,7 @@ covered by [ADR 0003](docs/adr/0003-october-1-staff-year-rollover.md), which
 records its own unverified gaps.
 
 Deployments: Convex dev `successful-lynx-56`, Convex prod
-`outgoing-stoat-395`, web `https://theshed.sow.org.au` (Vercel `the-shed-web`),
+`giant-bloodhound-191`, web `https://theshed.sow.org.au` (Vercel `the-shed-web`),
 dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 ---

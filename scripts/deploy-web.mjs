@@ -1,7 +1,7 @@
 import { execSync } from "node:child_process";
 import { cpSync } from "node:fs";
 
-const PROD_CONVEX_URL = "https://outgoing-stoat-395.convex.cloud";
+const PROD_CONVEX_URL = "https://giant-bloodhound-191.ap-southeast-2.convex.cloud";
 
 const run = (command, options = {}) =>
   execSync(command, {
