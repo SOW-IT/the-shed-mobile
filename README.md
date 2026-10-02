@@ -282,7 +282,8 @@ The same app runs in the browser via react-native-web, hosted at
 **<https://theshed.sow.org.au>** (Vercel project `the-shed-web`, served on the
 custom domain `theshed.sow.org.au` in the `sow.org.au` DNS zone),
 **pointed at the prod deployment**. Mobile production builds (eas.json) use
-prod too; only local dev uses the dev deployment. Redeploy the site with:
+prod too; local dev, the staging and preview app builds and the dev web
+app use the dev deployment. Redeploy the site with:
 
 ```bash
 npm run deploy:web
