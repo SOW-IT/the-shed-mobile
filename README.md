@@ -235,7 +235,7 @@ install side-by-side, so testers can keep production while testing staging:
 | Profile      | App name           | Bundle id / package          | Convex backend                  |
 | ------------ | ------------------ | ---------------------------- | ------------------------------- |
 | `staging`    | The SHED Staging   | `au.org.sow.theshed.staging` | dev (`successful-lynx-56`)      |
-| `production` | The SHED           | `au.org.sow.theshed`         | prod (`outgoing-stoat-395`)     |
+| `production` | The SHED           | `au.org.sow.theshed`         | prod (`giant-bloodhound-191`)   |
 
 **Ship staging first, then production:**
 
@@ -258,15 +258,15 @@ install side-by-side, so testers can keep production while testing staging:
 
 ## Production backend + web hosting
 
-Dev runs in **Sydney** (`aws-ap-southeast-2`; its URLs carry the region, e.g.
-`https://successful-lynx-56.ap-southeast-2.convex.cloud`). It replaced the US
-dev deployment `industrious-robin-425`. Prod is still in US East until it is
-migrated the same way. A deployment's region can't change, so moving one means
-a new deployment plus a data export/import; usage outside the US is billed at
-1.3x.
+Both deployments run in **Sydney** (`aws-ap-southeast-2`); their URLs carry the
+region, e.g. `https://giant-bloodhound-191.ap-southeast-2.convex.cloud`. They
+replaced the US deployments `industrious-robin-425` (dev) and
+`outgoing-stoat-395` (prod) in 2.0.0. A deployment's region can't change, so
+moving one means a new deployment plus a data export/import; usage outside the
+US is billed at 1.3x.
 
 Convex has two deployments: **dev** (`successful-lynx-56`, used by local
-dev and the `convex dev` watcher) and **prod** (`outgoing-stoat-395`). Push
+dev and the `convex dev` watcher) and **prod** (`giant-bloodhound-191`). Push
 backend code to prod with:
 
 ```bash

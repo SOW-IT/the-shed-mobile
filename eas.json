@@ -28,7 +28,7 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_CONVEX_URL": "https://outgoing-stoat-395.convex.cloud"
+        "EXPO_PUBLIC_CONVEX_URL": "https://giant-bloodhound-191.ap-southeast-2.convex.cloud"
       }
     }
   },
