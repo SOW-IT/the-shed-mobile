@@ -6,6 +6,19 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.0.0] — 2026-10-02
+
+### Changed
+- **The SHED now runs in Sydney.** The backend moved from the US to Sydney, so
+  the app and website respond faster in Australia. All requests, attendance,
+  people and uploaded receipts were copied across. The test environment (The
+  SHED Staging, the dev website and local development) moved first, to
+  `successful-lynx-56`; the live app and website move to `giant-bloodhound-191`
+  in a short overnight switch.
+- **Update the app to keep using it.** Versions before 2.0.0 point at the old
+  US backend, which is switched off after the move, so they stop loading until
+  you install 2.0.0. Everyone signs in once more after updating.
+
 ## [1.13.10] — 2026-10-01
 
 ### Fixed
