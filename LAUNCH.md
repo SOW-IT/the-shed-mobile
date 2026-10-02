@@ -9,7 +9,7 @@ app's runtime behaviour; seasonal work such as the October 1 rollover is
 covered by [ADR 0003](docs/adr/0003-october-1-staff-year-rollover.md), which
 records its own unverified gaps.
 
-Deployments: Convex dev `industrious-robin-425`, Convex prod
+Deployments: Convex dev `successful-lynx-56`, Convex prod
 `outgoing-stoat-395`, web `https://theshed.sow.org.au` (Vercel `the-shed-web`),
 dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 

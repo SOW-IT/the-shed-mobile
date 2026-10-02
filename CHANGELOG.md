@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [1.13.11] — 2026-10-02
+
+### Changed
+- **The test environment now runs in Sydney.** The dev Convex backend (used by
+  The SHED Staging, the dev website and local development) moved from the US to
+  Sydney (`successful-lynx-56`), so it responds faster from Australia. Its
+  data and uploaded files were copied across. The live app is unchanged and
+  will move in a separate, planned switch.
+
 ## [1.13.10] — 2026-10-01
 
 ### Fixed

@@ -234,7 +234,7 @@ install side-by-side, so testers can keep production while testing staging:
 
 | Profile      | App name           | Bundle id / package          | Convex backend                  |
 | ------------ | ------------------ | ---------------------------- | ------------------------------- |
-| `staging`    | The SHED Staging   | `au.org.sow.theshed.staging` | dev (`industrious-robin-425`)   |
+| `staging`    | The SHED Staging   | `au.org.sow.theshed.staging` | dev (`successful-lynx-56`)      |
 | `production` | The SHED           | `au.org.sow.theshed`         | prod (`outgoing-stoat-395`)     |
 
 **Ship staging first, then production:**
@@ -252,13 +252,20 @@ install side-by-side, so testers can keep production while testing staging:
 > **First staging release only**, otherwise Google sign-in fails in the staging
 > app: run `npx eas credentials` for `au.org.sow.theshed.staging`; add the
 > staging Convex callback
-> `https://industrious-robin-425.convex.site/api/auth/callback/google` to the
+> `https://successful-lynx-56.ap-southeast-2.convex.site/api/auth/callback/google` to the
 > Google OAuth web client; and set the Google auth env vars on the dev/staging
 > Convex deployment (`npx convex env set ...`).
 
 ## Production backend + web hosting
 
-Convex has two deployments: **dev** (`industrious-robin-425`, used by local
+Dev runs in **Sydney** (`aws-ap-southeast-2`; its URLs carry the region, e.g.
+`https://successful-lynx-56.ap-southeast-2.convex.cloud`). It replaced the US
+dev deployment `industrious-robin-425`. Prod is still in US East until it is
+migrated the same way. A deployment's region can't change, so moving one means
+a new deployment plus a data export/import; usage outside the US is billed at
+1.3x.
+
+Convex has two deployments: **dev** (`successful-lynx-56`, used by local
 dev and the `convex dev` watcher) and **prod** (`outgoing-stoat-395`). Push
 backend code to prod with:
 
@@ -291,7 +298,7 @@ npx convex env set SITE_URL https://theshed.sow.org.au
 
 A parallel **dev web** runs at **<https://the-shed-web-dev.vercel.app>** (a
 separate Vercel project `the-shed-web-dev`), built against the **dev** Convex
-deployment (`industrious-robin-425`). Because the Convex URL is inlined at
+deployment (`successful-lynx-56`). Because the Convex URL is inlined at
 build time, the dev site is its own build/project rather than a re-pointed
 domain. It auto-deploys on every merge to `main` via the
 `Deploy web (dev)` GitHub Action, which needs two repo secrets: `VERCEL_TOKEN`

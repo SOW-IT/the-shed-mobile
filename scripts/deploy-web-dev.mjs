@@ -1,7 +1,7 @@
 import { execSync } from "node:child_process";
 import { cpSync, rmSync } from "node:fs";
 
-const DEV_CONVEX_URL = "https://industrious-robin-425.convex.cloud";
+const DEV_CONVEX_URL = "https://successful-lynx-56.ap-southeast-2.convex.cloud";
 
 const VERCEL_PROJECT_ID = process.env.VERCEL_PROJECT_ID_DEV;
 if (!VERCEL_PROJECT_ID) {

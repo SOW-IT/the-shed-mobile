@@ -26,7 +26,7 @@ commands live in `README.md` and `package.json` scripts. Node 22, npm (only
 - **Convex backend** (required): start with `CONVEX_AGENT_MODE=anonymous npx convex dev`.
   Agent mode spins up an isolated *local* backend (`http://127.0.0.1:3210`) and
   writes `.env.local` (`EXPO_PUBLIC_CONVEX_URL`, etc.). Without agent mode it
-  targets the shared cloud `industrious-robin-425` deployment, which needs an
+  targets the shared cloud `successful-lynx-56` deployment, which needs an
   interactive Convex login — so always use agent mode here. Any `npx convex env
   set` / `npx convex run` command must also be prefixed with
   `CONVEX_AGENT_MODE=anonymous`.
@@ -61,7 +61,7 @@ runs these three (tests with coverage thresholds).
 ## Local Mac (this machine) — feature creation
 
 Same app as Cloud, but this Mac is already bootstrapped against the shared
-Convex **dev** deployment (`.env.local` → `industrious-robin-425`). Do **not**
+Convex **dev** deployment (`.env.local` → `successful-lynx-56`). Do **not**
 default to `CONVEX_AGENT_MODE=anonymous` here — that would replace `.env.local`
 with a throwaway local backend. Use anonymous agent mode only when the user
 explicitly wants an isolated empty backend.
