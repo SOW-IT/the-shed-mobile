@@ -49,7 +49,7 @@ export default function InsightsScreen() {
   const [includeCollaborative, setIncludeCollaborative] = useState(true);
   const [generalScope, setGeneralScope] = useState<GeneralScope>(null);
   const [chartMode, setChartMode] = useState<ChartMode>("bar");
-  const staffTrends = useQuery(api.generalMetrics.staffTrends, {});
+  const generalView = useQuery(api.generalMetrics.view, { scope: generalScope });
 
   useEffect(() => {
     if (tab === "attendance" || tab === "general") {
@@ -82,7 +82,7 @@ export default function InsightsScreen() {
     label: "General",
     render: () => (
       <>
-        <GeneralMetricsTab scope={generalScope} publicPreview={!isSignedIn} />
+        <GeneralMetricsTab view={generalView} />
         {signInPrompt}
       </>
     ),
@@ -116,7 +116,7 @@ export default function InsightsScreen() {
         />
       ) : isSignedIn ? (
         <GeneralScopeFab
-          years={staffTrends?.years ?? []}
+          years={generalView?.years ?? []}
           value={generalScope}
           onChange={setGeneralScope}
           recentYears={GENERAL_RECENT_YEARS}

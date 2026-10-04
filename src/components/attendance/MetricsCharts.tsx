@@ -306,7 +306,7 @@ function useBarFit(
     gap,
     showValues,
     labelStep,
-    justify: count > 1 ? ("space-between" as const) : ("center" as const),
+    justify: "space-around" as const,
     chartHeight,
   };
 }

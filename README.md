@@ -95,9 +95,9 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
 - **Insights** (a dedicated bottom tab): for a campus, three headline numbers,
   one weekly-meeting chart and a gentle, explainable "Needs follow-up" list;
   for SOW, each campus's weekly-meeting average. Ranges are past week / month /
-  year. The Attendance tab's layout and wording come from the backend
-  (`attendanceMetrics.view`), so they change with a Convex deploy rather than
-  an app release. Aggregates are pre-computed by a nightly rebuild, so roll-call
+  year. Both tabs' layout, charts and wording come from the backend
+  (`generalMetrics.view`, `attendanceMetrics.view`), so they change with a
+  Convex deploy rather than an app release. Aggregates are pre-computed by a nightly rebuild, so roll-call
   changes show the next morning. See
   [docs/attendance-metrics.md](docs/attendance-metrics.md).
 

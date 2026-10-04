@@ -2,6 +2,7 @@ import {
   RANGE_LABELS,
   RANGE_WEEKS,
   type FollowUpPerson,
+  type SplitPoint,
   type SubgroupMetricsData,
   type TrendPoint,
 } from "./attendanceMetrics";
@@ -13,6 +14,18 @@ import {
 // release only to become visible.
 
 export type ViewColour = "primary" | "success" | "accent";
+
+// A theme token (`text`, `primary`, `accent`, `success`) or a hex colour such
+// as a campus colour.
+export type ViewPaint = string;
+
+export type ViewLegendItem = { key: string; colour: ViewPaint; label: string };
+
+export type ViewSegmentPoint = {
+  at: number;
+  label: string;
+  segments: { key: string; value: number; colour: ViewPaint }[];
+};
 
 export type ViewCard = {
   label: string;
@@ -26,7 +39,27 @@ export type ViewCard = {
 export type ViewBlock =
   | { type: "updated"; computedAt: number }
   | { type: "label"; text: string }
-  | { type: "cards"; cards: ViewCard[] }
+  | { type: "heading"; text: string }
+  | { type: "caption"; text: string }
+  | { type: "cards"; cards: ViewCard[]; layout?: "row" | "grid" }
+  | {
+      type: "stacked";
+      title: string;
+      subtitle?: string;
+      legend: ViewLegendItem[];
+      labels: { fresh: string; returning: string };
+      points: SplitPoint[];
+    }
+  | {
+      type: "multiBars";
+      title: string;
+      subtitle?: string;
+      legend: ViewLegendItem[];
+      points: ViewSegmentPoint[];
+      stacked: boolean;
+      axisMax?: number;
+      keepZeros?: boolean;
+    }
   | { type: "bars"; title: string; colour: ViewColour; points: TrendPoint[] }
   | { type: "breakdown"; title: string; rows: { label: string; value: number }[] }
   | {

@@ -429,3 +429,25 @@ describe("campusWeeklyAttendance", () => {
     expect(res.campuses).toEqual([{ campus: "USYD", averages: [5] }]);
   });
 });
+
+describe("view", () => {
+  test("lays out General with the year list for the scope picker", async () => {
+    const t = convexTest(schema, modules);
+    await seed(t);
+    const signedIn = await asUser(t, CALLER).query(api.generalMetrics.view, { scope: null });
+    expect(signedIn.years).toContain(YEAR);
+    expect(signedIn.blocks[0]).toEqual({ type: "heading", text: "Tenure (staff profiles)" });
+    expect(signedIn.blocks.some((b) => b.type === "stacked")).toBe(true);
+
+    const year = await asUser(t, CALLER).query(api.generalMetrics.view, { scope: YEAR });
+    expect(year.blocks[0]).toMatchObject({ type: "caption", text: expect.stringContaining(`Staff year ${YEAR}`) });
+  });
+
+  test("signed-out viewers get the public charts only", async () => {
+    const t = convexTest(schema, modules);
+    await seed(t);
+    const anon = await t.query(api.generalMetrics.view, { scope: YEAR });
+    expect(anon.blocks[0].type).toBe("stacked");
+    expect(anon.blocks.some((b) => b.type === "heading")).toBe(false);
+  });
+});

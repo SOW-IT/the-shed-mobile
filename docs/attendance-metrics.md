@@ -11,6 +11,13 @@ follow-up prompts for a sub-group and time range.
   order change with a **Convex deploy**, not an app release. The range presets
   come from `api.attendanceMetrics.rangeOptions` the same way. A brand-new
   block type still needs an app release before it appears.
+- **Insights → General** works the same way: `api.generalMetrics.view({ scope })`
+  returns blocks built by `shared/generalMetricsView.ts` (headcount, tenure and
+  retention cards, stacked and multi-series charts) plus the year list for the
+  scope picker. Both tabs draw through
+  `src/components/attendance/InsightsBlocks.tsx`. Colours travel as theme
+  tokens (`text`, `primary`, `accent`, `success`) or campus hex colours.
+  `staffTrends` and `campusWeeklyAttendance` stay for apps older than 2.0.1.
 - **Logic (pure, shared, tested):** `shared/attendanceMetrics.ts`
   (`shared/attendanceMetrics.test.ts`).
 - **Backend precompute + read API:** `convex/attendanceMetrics.ts`

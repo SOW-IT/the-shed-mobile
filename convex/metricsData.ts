@@ -6,7 +6,7 @@ export const trendPoint = v.object({
   value: v.number(),
 });
 
-const splitPoint = v.object({
+export const splitPoint = v.object({
   at: v.number(),
   label: v.string(),
   fresh: v.number(),
@@ -88,10 +88,42 @@ const viewCard = v.object({
   info: v.optional(v.object({ title: v.string(), body: v.string() })),
 });
 
+const legendItem = v.object({ key: v.string(), colour: v.string(), label: v.string() });
+
+const segmentPoint = v.object({
+  at: v.number(),
+  label: v.string(),
+  segments: v.array(v.object({ key: v.string(), value: v.number(), colour: v.string() })),
+});
+
 export const viewBlockValidator = v.union(
   v.object({ type: v.literal("updated"), computedAt: v.number() }),
   v.object({ type: v.literal("label"), text: v.string() }),
-  v.object({ type: v.literal("cards"), cards: v.array(viewCard) }),
+  v.object({ type: v.literal("heading"), text: v.string() }),
+  v.object({ type: v.literal("caption"), text: v.string() }),
+  v.object({
+    type: v.literal("cards"),
+    cards: v.array(viewCard),
+    layout: v.optional(v.union(v.literal("row"), v.literal("grid"))),
+  }),
+  v.object({
+    type: v.literal("stacked"),
+    title: v.string(),
+    subtitle: v.optional(v.string()),
+    legend: v.array(legendItem),
+    labels: v.object({ fresh: v.string(), returning: v.string() }),
+    points: v.array(splitPoint),
+  }),
+  v.object({
+    type: v.literal("multiBars"),
+    title: v.string(),
+    subtitle: v.optional(v.string()),
+    legend: v.array(legendItem),
+    points: v.array(segmentPoint),
+    stacked: v.boolean(),
+    axisMax: v.optional(v.number()),
+    keepZeros: v.optional(v.boolean()),
+  }),
   v.object({
     type: v.literal("bars"),
     title: v.string(),
