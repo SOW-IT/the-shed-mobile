@@ -3,6 +3,8 @@ import { type FollowUpPerson, type SubgroupMetricsData } from "./attendanceMetri
 import {
   ATTENDANCE_RANGE_OPTIONS,
   buildAttendanceView,
+  DEFAULT_RANGE_WEEKS,
+  resolveRangeWeeks,
   FOLLOW_UP_MAX,
   FOLLOW_UP_PREVIEW,
   summaryCards,
@@ -180,10 +182,30 @@ describe("buildAttendanceView", () => {
   });
 });
 
-it("offers the precomputed ranges", () => {
+it("offers the precomputed ranges, past month by default", () => {
   expect(ATTENDANCE_RANGE_OPTIONS).toEqual([
-    { weeks: 1, label: "Past week" },
-    { weeks: 4, label: "Past month" },
-    { weeks: 52, label: "Past year" },
+    { weeks: 1, label: "Past week", isDefault: false },
+    { weeks: 4, label: "Past month", isDefault: true },
+    { weeks: 52, label: "Past year", isDefault: false },
   ]);
+});
+
+describe("resolveRangeWeeks", () => {
+  const options = [
+    { weeks: 2, label: "2 weeks" },
+    { weeks: 8, label: "8 weeks", isDefault: true },
+  ];
+  it("keeps the picked range while the server offers it", () => {
+    expect(resolveRangeWeeks(2, options)).toBe(2);
+  });
+  it("falls back to the server default when the pick is gone", () => {
+    expect(resolveRangeWeeks(DEFAULT_RANGE_WEEKS, options)).toBe(8);
+  });
+  it("falls back to the first option without a default", () => {
+    expect(resolveRangeWeeks(4, [{ weeks: 12 }, { weeks: 26 }])).toBe(12);
+  });
+  it("keeps the pick until the options load", () => {
+    expect(resolveRangeWeeks(4, undefined)).toBe(4);
+    expect(resolveRangeWeeks(4, [])).toBe(4);
+  });
 });

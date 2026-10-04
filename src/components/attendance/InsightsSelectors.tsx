@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Btn, Sheet } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
-export type AttendanceRangeOption = { weeks: number; label: string };
+export type AttendanceRangeOption = { weeks: number; label: string; isDefault?: boolean };
 
 function SelectorFab({
   label,

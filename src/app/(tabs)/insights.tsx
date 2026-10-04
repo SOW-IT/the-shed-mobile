@@ -2,6 +2,10 @@ import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
 import { GENERAL_RECENT_YEARS } from "../../../shared/attendanceMetrics";
+import {
+  DEFAULT_RANGE_WEEKS,
+  resolveRangeWeeks,
+} from "../../../shared/attendanceMetricsView";
 import { staffYearForDate, sydneyCalendarYear } from "../../../shared/flow";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -39,8 +43,9 @@ export default function InsightsScreen() {
   const [memberSheetId, setMemberSheetId] = useState<Id<"attendanceMembers"> | null>(
     null
   );
-  const [attendanceWeeks, setAttendanceWeeks] = useState(4);
+  const [pickedWeeks, setAttendanceWeeks] = useState(DEFAULT_RANGE_WEEKS);
   const rangeOptions = useQuery(api.attendanceMetrics.rangeOptions, {});
+  const attendanceWeeks = resolveRangeWeeks(pickedWeeks, rangeOptions);
   const [includeCollaborative, setIncludeCollaborative] = useState(true);
   const [generalScope, setGeneralScope] = useState<GeneralScope>(null);
   const [chartMode, setChartMode] = useState<ChartMode>("bar");

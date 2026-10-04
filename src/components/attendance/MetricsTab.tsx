@@ -252,7 +252,11 @@ function MetricsBlocks({
         return (
           <EmptyState
             key={i}
-            icon={block.icon as keyof typeof Ionicons.glyphMap}
+            icon={
+              block.icon in Ionicons.glyphMap
+                ? (block.icon as keyof typeof Ionicons.glyphMap)
+                : "information-circle-outline"
+            }
             title={block.title}
             message={block.message}
           />

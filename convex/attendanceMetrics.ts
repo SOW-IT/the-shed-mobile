@@ -801,7 +801,9 @@ export const view = query({
 
 export const rangeOptions = query({
   args: {},
-  returns: v.array(v.object({ weeks: v.number(), label: v.string() })),
+  returns: v.array(
+    v.object({ weeks: v.number(), label: v.string(), isDefault: v.optional(v.boolean()) })
+  ),
   handler: async () => ATTENDANCE_RANGE_OPTIONS.map((o) => ({ ...o })),
 });
 

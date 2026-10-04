@@ -42,10 +42,23 @@ export type ViewBlock =
 export const FOLLOW_UP_PREVIEW = 5;
 export const FOLLOW_UP_MAX = 25;
 
+export const DEFAULT_RANGE_WEEKS = 4;
+
 export const ATTENDANCE_RANGE_OPTIONS = RANGE_WEEKS.map((weeks) => ({
   weeks,
   label: RANGE_LABELS[weeks],
+  isDefault: weeks === DEFAULT_RANGE_WEEKS,
 }));
+
+// The picked range if the server still offers it, else the server's default.
+export const resolveRangeWeeks = (
+  picked: number,
+  options: { weeks: number; isDefault?: boolean }[] | undefined
+): number => {
+  if (!options || options.length === 0) return picked;
+  if (options.some((o) => o.weeks === picked)) return picked;
+  return (options.find((o) => o.isDefault) ?? options[0]).weeks;
+};
 
 const deltaFor = (pct: number | null): ViewCard["delta"] =>
   pct === null
