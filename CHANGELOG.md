@@ -17,6 +17,8 @@ All notable changes to **The SHED** mobile app. This project follows
   that said the same thing twice are gone.
 - **The Attendance tab's layout now comes from the server.** What it shows,
   its wording and its order can change without a new app release.
+- **Bar charts use the full width.** Bars spread evenly across the chart
+  instead of bunching in the middle.
 - **Time ranges are past week, month or year.** Custom date ranges are gone:
   each one re-read every attendance record behind the scenes.
 
