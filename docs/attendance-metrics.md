@@ -13,10 +13,15 @@ follow-up prompts for a sub-group and time range.
   block type still needs an app release before it appears.
 - **Insights → General** works the same way: `api.generalMetrics.view({ scope })`
   returns blocks built by `shared/generalMetricsView.ts` plus the year list for
-  the scope picker. All years: staff and student-leader counts, retention
-  cards, then staff & student leaders, student leaders by campus, retention and
-  weekly average by campus. One year: headcount, retention and weekly-average
-  cards. Both tabs draw through
+  the scope picker. All years: staff and student-leader counts, retention and
+  average years served (overall / staff / student leaders) for the newest
+  year, labelled once ("2027 vs 2026"), then charts of staff & student
+  leaders, student leaders by campus, retention, average years served, served
+  2+ years, and weekly average by campus. One year: the same cards for that
+  year plus calendar-year weekly averages. Retention has no post-rollover
+  grace: the newest year's rate shows from 1 October and reflects the copied
+  roster until leavers are marked. Campus weekly averages are bucketed by
+  Sydney calendar year. Both tabs draw through
   `src/components/attendance/InsightsBlocks.tsx`. Colours travel as theme
   tokens (`text`, `primary`, `accent`, `success`) or campus hex colours.
   `staffTrends` and `campusWeeklyAttendance` stay for apps older than 2.0.1.

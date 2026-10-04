@@ -4,11 +4,7 @@ import { Doc, Id } from "./_generated/dataModel";
 import { currentStaffYear } from "./model";
 import { viewBlockValidator } from "./metricsData";
 import { buildGeneralView } from "../shared/generalMetricsView";
-import {
-  eventStaffYear,
-  staffYearStartMs,
-  withinRolloverRateGrace,
-} from "../shared/flow";
+import { staffYearStartMs, sydneyCalendarYear } from "../shared/flow";
 import {
   isOrgWideSubgroup,
   normalizeSubgroups,
@@ -189,9 +185,7 @@ export const staffTrends = query({
 export async function computeStaffTrends(ctx: QueryCtx): Promise<StaffTrends> {
 
   const currentYear = currentStaffYear();
-  const latestCompleteYear = withinRolloverRateGrace(currentYear)
-    ? currentYear - 1
-    : currentYear;
+  const latestCompleteYear = currentYear;
   const profiles = (await ctx.db.query("staffProfiles").collect()).filter(
     (p) => p.year <= currentYear
   );
@@ -462,10 +456,13 @@ export const recomputeCampusWeeklyAttendance = internalMutation({
   },
 });
 
+// Bucketed by Sydney calendar year (Jan–Dec), not staff year: weekly meetings
+// follow the uni calendar.
 async function computeCampusWeeklyAttendance(
   ctx: QueryCtx
 ): Promise<CampusWeeklyAttendance> {
-  const currentYear = currentStaffYear();
+  const currentYear = sydneyCalendarYear(new Date());
+  const calendarYear = (ms: number) => sydneyCalendarYear(new Date(ms));
   const years: number[] = [];
   for (let y = CAMPUS_ATTENDANCE_START_YEAR; y <= currentYear; y++) {
     years.push(y);
@@ -495,13 +492,14 @@ async function computeCampusWeeklyAttendance(
   const weeklyMeetings = events.filter(
     (e) =>
       (e.tagIds ?? []).some((id) => weeklyTagIds.has(id)) &&
-      eventStaffYear(e.dateStart) <= currentYear
+      calendarYear(e.dateStart) >= CAMPUS_ATTENDANCE_START_YEAR &&
+      calendarYear(e.dateStart) <= currentYear
   );
 
   const meetings = weeklyMeetings
     .map((e) => ({
       id: e._id,
-      year: eventStaffYear(e.dateStart),
+      year: calendarYear(e.dateStart),
       campuses: normalizeSubgroups(e.subgroups).filter(
         (s) => !isOrgWideSubgroup(s)
       ),

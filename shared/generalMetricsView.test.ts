@@ -6,6 +6,7 @@ import {
   fmtAvg,
   ppDelta,
   type StaffTrendsData,
+  yearsDelta,
   yoyDelta,
 } from "./generalMetricsView";
 
@@ -25,8 +26,8 @@ const trends = (over: Partial<StaffTrendsData> = {}): StaffTrendsData => ({
     { campus: "University of Sydney", counts: [4, 5, 5] },
     { campus: "E2E Test Campus", counts: [1, 1, 1] },
   ],
-  turnover: series([null, 20, null], [null, 10, null], [null, 25, null]),
-  retention: series([null, 80, null], [null, 90, null], [null, 75, null]),
+  turnover: series([null, 20, 15], [null, 10, 5], [null, 25, 30]),
+  retention: series([null, 80, 85], [null, 90, 95], [null, 75, 70]),
   tenure2Plus: series([10, 30, 30], [20, 40, 40], [null, 20, 20]),
   avgTenureYears: series([1, 1.5, 1.6], [1.2, 1.8, 1.9], [null, 1.1, 1.2]),
   lifetimeTenure2Plus: { overall: 25, staff: 30, studentLeaders: 15 },
@@ -52,27 +53,45 @@ const chart = (blocks: ViewBlock[], title: string) =>
   );
 
 describe("buildGeneralView: all years", () => {
-  it("leads with headcount and retention, then four charts with titles only", () => {
+  it("labels the comparison once, then headcount, retention and avg years, then six charts", () => {
     const blocks = buildGeneralView({ trends: trends(), campusAttendance, scope: null, signedIn: true });
-    expect(types(blocks)).toEqual(["cards", "label", "cards", "stacked", "multiBars", "multiBars", "multiBars"]);
-    const [headcount, retention] = cardsBlocks(blocks);
+    expect(types(blocks)).toEqual([
+      "label", "cards", "label", "cards", "label", "cards",
+      "stacked", "multiBars", "multiBars", "multiBars", "multiBars", "multiBars",
+    ]);
+    expect(blocks[0]).toEqual({ type: "label", text: "2027 vs 2026" });
+    const [headcount, retention, avgYears] = cardsBlocks(blocks);
     expect(headcount.cards).toEqual([
-      expect.objectContaining({ label: "Staff", value: "8", hint: "2027 vs 2026", delta: { text: "+14%", direction: "up" } }),
-      expect.objectContaining({ label: "Student leaders", value: "5", tone: "positive" }),
+      { label: "Staff", value: "8", delta: { text: "+14%", direction: "up" } },
+      { label: "Student leaders", value: "5", delta: { text: "0%", direction: "flat" }, tone: "positive" },
     ]);
-    expect(blocks[1]).toEqual({ type: "label", text: "Retention" });
-    expect(retention.cards.map((c) => [c.label, c.value, c.hint])).toEqual([
-      ["Overall", "80%", "2026 vs 2025"],
-      ["Staff", "90%", "2026 vs 2025"],
-      ["Student leaders", "75%", "2026 vs 2025"],
+    expect(retention.cards.map((c) => [c.label, c.value])).toEqual([
+      ["Overall", "85%"],
+      ["Staff", "95%"],
+      ["Student leaders", "70%"],
     ]);
+    expect(retention.cards[0].delta).toEqual({ text: "+5pp", direction: "up" });
+    expect(avgYears.cards.map((c) => [c.label, c.value, c.delta?.text])).toEqual([
+      ["Overall", "1.6", "+0.1y"],
+      ["Staff", "1.9", "+0.1y"],
+      ["Student leaders", "1.2", "+0.1y"],
+    ]);
+    expect(blocks.some((b) => b.type === "cards" && b.cards.some((c) => c.hint))).toBe(false);
     expect(blocks.some((b) => "subtitle" in b && b.subtitle)).toBe(false);
-    expect(blocks.some((b) => b.type === "caption" || b.type === "heading")).toBe(false);
+    expect(
+      blocks.filter((b) => b.type === "multiBars" || b.type === "stacked").map((b) => "title" in b && b.title)
+    ).toEqual([
+      "Staff & student leaders",
+      "Student leaders by campus",
+      "Retention",
+      "Avg years served",
+      "Served 2+ years",
+      "Weekly avg by campus",
+    ]);
   });
 
   it("is the same for signed-out viewers, and ignores a picked year for them", () => {
     const blocks = buildGeneralView({ trends: trends(), campusAttendance, scope: 2026, signedIn: false });
-    expect(types(blocks)[0]).toBe("cards");
     expect(chart(blocks, "Staff & student leaders")).toBeDefined();
   });
 
@@ -81,37 +100,23 @@ describe("buildGeneralView: all years", () => {
     const byCampus = chart(blocks, "Student leaders by campus");
     expect(byCampus?.legend.map((l) => l.label)).toEqual(["USYD"]);
     expect(byCampus?.type === "multiBars" && byCampus.points[0].segments[0].colour).toMatch(/^#/);
+    expect(chart(blocks, "Weekly avg by campus")?.legend.map((l) => l.key)).toEqual(["USYD"]);
   });
 
-  it("charts retention and weekly attendance only where there's data", () => {
-    const blocks = buildGeneralView({ trends: trends(), campusAttendance, scope: null, signedIn: false });
-    const retention = chart(blocks, "Retention");
-    expect(retention?.type === "multiBars" && retention.points.map((p) => p.at)).toEqual([2026]);
-    const weekly = chart(blocks, "Weekly avg by campus");
-    expect(weekly?.legend.map((l) => l.key)).toEqual(["USYD"]);
-  });
-
-  it("leaves out retention and weekly attendance when there's none", () => {
+  it("leaves out rate cards and charts with no data", () => {
+    const none = series([null], [null], [null]);
     const blocks = buildGeneralView({
-      trends: trends({ years: [2025], staff: [3], studentLeaders: [1], studentLeadersByCampus: [], campuses: [], retention: series([null], [null], [null]) }),
+      trends: trends({
+        years: [2025], staff: [3], studentLeaders: [1], studentLeadersByCampus: [], campuses: [],
+        retention: none, avgTenureYears: none, tenure2Plus: none,
+      }),
       campusAttendance: { years: [2025], campuses: [{ campus: "Macquarie University", averages: [0] }] },
       scope: null,
       signedIn: true,
     });
-    expect(types(blocks)).toEqual(["cards", "stacked", "multiBars"]);
-    expect(cardsBlocks(blocks)[0].cards[0]).toMatchObject({ hint: "2025", delta: undefined });
-  });
-
-  it("shows a first-year retention without a comparison", () => {
-    const blocks = buildGeneralView({
-      trends: trends({ retention: series([70, null, null], [null, null, null], [null, null, null]) }),
-      campusAttendance: null,
-      scope: null,
-      signedIn: true,
-    });
-    expect(cardsBlocks(blocks)[1].cards).toEqual([
-      expect.objectContaining({ label: "Overall", value: "70%", hint: "2025", delta: undefined }),
-    ]);
+    expect(types(blocks)).toEqual(["label", "cards", "stacked", "multiBars"]);
+    expect(blocks[0]).toEqual({ type: "label", text: "2025" });
+    expect(cardsBlocks(blocks)[0].cards[0].delta).toBeUndefined();
   });
 
   it("shows the last five years by default and every year for All history", () => {
@@ -126,15 +131,15 @@ describe("buildGeneralView: all years", () => {
       studentLeadersByCampus: [],
       campuses: [],
       retention: series(none, none, none),
+      avgTenureYears: series(none, none, none),
+      tenure2Plus: series(none, none, none),
     });
-    const recent = buildGeneralView({ trends: t, campusAttendance: null, scope: null, signedIn: false });
-    const all = buildGeneralView({ trends: t, campusAttendance: null, scope: "all", signedIn: false });
     const points = (b: ViewBlock[]) => {
       const c = chart(b, "Staff & student leaders");
       return c?.type === "stacked" ? c.points.length : 0;
     };
-    expect(points(recent)).toBe(5);
-    expect(points(all)).toBe(7);
+    expect(points(buildGeneralView({ trends: t, campusAttendance: null, scope: null, signedIn: false }))).toBe(5);
+    expect(points(buildGeneralView({ trends: t, campusAttendance: null, scope: "all", signedIn: false }))).toBe(7);
   });
 
   it("says there's no history yet without any staff year", () => {
@@ -144,35 +149,41 @@ describe("buildGeneralView: all years", () => {
 });
 
 describe("buildGeneralView: one staff year", () => {
-  it("shows headcount, retention and weekly averages for that year", () => {
+  it("shows that year's headcount, retention, avg years and calendar-year weekly averages", () => {
     const blocks = buildGeneralView({ trends: trends(), campusAttendance, scope: 2026, signedIn: true });
-    expect(types(blocks)).toEqual(["cards", "label", "cards", "label", "cards"]);
-    const [headcount, retention, weekly] = cardsBlocks(blocks);
+    expect(types(blocks)).toEqual(["label", "cards", "label", "cards", "label", "cards", "label", "cards"]);
+    expect(blocks[0]).toEqual({ type: "label", text: "2026 vs 2025" });
+    const [headcount, retention, avgYears, weekly] = cardsBlocks(blocks);
     expect(headcount.layout).toBe("grid");
     expect(headcount.cards.map((c) => c.label)).toEqual(["Staff", "Student leaders", "USYD"]);
-    expect(headcount.cards[0]).toMatchObject({ value: "7", hint: "vs 2025", delta: { text: "+17%", direction: "up" } });
     expect(retention.cards.map((c) => c.label)).toEqual(["Overall", "Staff", "Student leaders"]);
+    expect(avgYears.cards[0]).toMatchObject({ value: "1.5", delta: { text: "+0.5y", direction: "up" } });
+    expect(blocks[6]).toEqual({ type: "label", text: "Weekly avg · Jan–Dec 2026" });
     expect(weekly.cards).toEqual([
-      expect.objectContaining({ label: "USYD", value: "44", delta: { text: "+10%", direction: "up" } }),
+      { label: "USYD", value: "44", delta: { text: "+10%", direction: "up" } },
     ]);
-    expect(blocks[3]).toEqual({ type: "label", text: "Weekly avg" });
   });
 
   it("has no comparison in the first year", () => {
     const blocks = buildGeneralView({ trends: trends(), campusAttendance, scope: 2025, signedIn: true });
-    expect(types(blocks)).toEqual(["cards", "label", "cards"]);
-    expect(cardsBlocks(blocks)[0].cards[0]).toMatchObject({ hint: undefined, delta: undefined });
-    expect(cardsBlocks(blocks)[1].cards[0]).toMatchObject({ label: "USYD", value: "40" });
+    expect(blocks[0]).toEqual({ type: "label", text: "2025" });
+    expect(cardsBlocks(blocks)[0].cards[0].delta).toBeUndefined();
+    expect(cardsBlocks(blocks).at(-1)?.cards[0]).toMatchObject({ label: "USYD", value: "40", delta: undefined });
   });
 
-  it("leaves out weekly averages for a year without attendance data", () => {
-    const blocks = buildGeneralView({ trends: trends(), campusAttendance: null, scope: 2027, signedIn: true });
-    expect(types(blocks)).toEqual(["cards"]);
+  it("leaves out sections with no data for that year", () => {
+    const none = series([null, null, null], [null, null, null], [null, null, null]);
+    const blocks = buildGeneralView({
+      trends: trends({ retention: none, avgTenureYears: none }),
+      campusAttendance: null,
+      scope: 2027,
+      signedIn: true,
+    });
+    expect(types(blocks)).toEqual(["label", "cards"]);
   });
 
   it("falls back to all years for a year with no data", () => {
     const blocks = buildGeneralView({ trends: trends(), campusAttendance, scope: 2031, signedIn: true });
-    expect(types(blocks).slice(0, 2)).toEqual(["cards", "label"]);
     expect(chart(blocks, "Retention")).toBeDefined();
   });
 });
@@ -188,6 +199,8 @@ describe("formatting helpers", () => {
     expect(ppDelta(60, 50)).toEqual({ text: "+10pp", direction: "up" });
     expect(ppDelta(null, 50)).toBeUndefined();
     expect(ppDelta(50, null)).toBeUndefined();
+    expect(yearsDelta(2, 2)).toEqual({ text: "0y", direction: "flat" });
+    expect(yearsDelta(1.5, 2)).toEqual({ text: "-0.5y", direction: "down" });
     expect(fmtAvg(2)).toBe("2");
     expect(fmtAvg(2.25)).toBe("2.3");
     expect(campusAcronym("Somewhere New")).toBe("Somewhere New");

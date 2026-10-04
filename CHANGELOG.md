@@ -16,10 +16,19 @@ All notable changes to **The SHED** mobile app. This project follows
   SOW events' numbers. Long explanations, repeated subtitles and the charts
   that said the same thing twice are gone.
 - **Insights → General is shorter too.** It shows staff and student-leader
-  numbers and retention (where tenure used to be), then four charts: staff &
-  student leaders, student leaders by campus, retention, and weekly average by
-  campus. Picking a year shows that year's headcount, retention and weekly
-  averages. The long explanations and chart subtitles are gone.
+  numbers, retention and average years served (overall, staff and student
+  leaders), then six charts: staff & student leaders, student leaders by
+  campus, retention, average years served, the share who've served 2+ years,
+  and weekly average by campus. The comparison ("2027 vs 2026") is shown once
+  instead of on every card. Picking a year shows that year's headcount,
+  retention, average years and weekly averages. The long explanations and
+  chart subtitles are gone.
+- **Retention covers the newest year straight away.** It used to stay blank
+  for the first week after the 1 October rollover; now it matches the headcount
+  year. Until leavers are marked, the new year's rates reflect the roster
+  copied over at rollover.
+- **Weekly averages on General follow the calendar year** (January to
+  December), the way weekly meetings run.
 - **Weekly averages only count weeks a meeting happened.** A Weekly Meeting
   nobody signed in to (a cancelled or holiday week) no longer drags the
   average or the weekly chart down.

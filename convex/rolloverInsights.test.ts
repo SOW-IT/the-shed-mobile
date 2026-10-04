@@ -235,15 +235,11 @@ describe("October rollover → General Insights", () => {
     expect(after!.years).toContain(2026);
     expect(before!.staff.at(-1)).toBe(2);
     expect(after!.staff.at(-1)).toBe(0);
-    expect(after!.retention.staff.at(-1)).toBeNull();
-    expect(after!.turnover.staff.at(-1)).toBeNull();
-    expect(after!.tenure2Plus.staff.at(-1)).toBeNull();
-    expect(after!.avgTenureYears.staff.at(-1)).toBeNull();
   });
 
-  test("rate series start using the new year after the first-week grace", async () => {
+  test("rate series use the new year the instant the clock flips (no grace)", async () => {
     const { leader } = await setupBeforeRollover();
-    at(ROLLOVER + 7 * DAY);
+    at(ROLLOVER + 60_000);
     const after = await leader.query(api.generalMetrics.staffTrends, {});
     expect(after!.years.at(-1)).toBe(2027);
     expect(after!.turnover.staff.at(-1)).toBe(100);

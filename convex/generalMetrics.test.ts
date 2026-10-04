@@ -444,11 +444,12 @@ describe("view", () => {
     await seed(t);
     const all = await asUser(t, CALLER).query(api.generalMetrics.view, { scope: null });
     expect(all.years).toContain(YEAR);
-    expect(all.blocks[0]).toMatchObject({ type: "cards" });
+    expect(all.blocks[0]).toMatchObject({ type: "label" });
+    expect(all.blocks[1]).toMatchObject({ type: "cards" });
     expect(all.blocks.some((b) => b.type === "stacked")).toBe(true);
 
     const year = await asUser(t, CALLER).query(api.generalMetrics.view, { scope: YEAR });
-    expect(year.blocks[0]).toMatchObject({ type: "cards", layout: "grid" });
+    expect(year.blocks[1]).toMatchObject({ type: "cards", layout: "grid" });
     expect(year.blocks.some((b) => b.type === "stacked")).toBe(false);
   });
 
