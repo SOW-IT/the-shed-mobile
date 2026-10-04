@@ -40,6 +40,7 @@ const campusAttendance = {
   campuses: [
     { campus: "University of Sydney", averages: [40, 44] },
     { campus: "Macquarie University", averages: [0, 0] },
+    { campus: "E2E Test Campus", averages: [5, 6] },
   ],
 };
 
