@@ -1,42 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { ReactNode, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import {
-  RANGE_WEEKS,
-  rangeLabel,
-  type RangeWeeks,
-} from "../../../shared/attendanceMetrics";
-import { parseDateInputValue, toDateInputValue } from "../../../shared/datetime";
-import { NativeDateInput } from "@/components/NativeDateTimeField";
-import { WebDateInput } from "@/components/WebDateTimeInput";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Btn, Sheet } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
-export type AttendanceRangeSelection =
-  | { kind: "preset"; weeks: RangeWeeks }
-  | { kind: "custom"; startMs: number; endMs: number };
-
-const toDateInput = (ms: number): string => toDateInputValue(new Date(ms));
-const fromDateInputStart = (value: string): number | null =>
-  parseDateInputValue(value)?.getTime() ?? null;
-const fromDateInputEnd = (value: string): number | null => {
-  const d = parseDateInputValue(value);
-  if (!d) return null;
-  d.setHours(23, 59, 59, 999);
-  return d.getTime();
-};
-
-const formatShort = (ms: number) =>
-  new Date(ms).toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "2-digit",
-  });
-
-export const attendanceRangeFabLabel = (range: AttendanceRangeSelection): string => {
-  if (range.kind === "preset") return rangeLabel(range.weeks);
-  return `${formatShort(range.startMs)} – ${formatShort(range.endMs)}`;
-};
+export type AttendanceRangeOption = { weeks: number; label: string };
 
 function SelectorFab({
   label,
@@ -112,102 +80,32 @@ function OptionRow({
 }
 
 export function AttendanceRangeFab({
-  range,
-  onRangeChange,
+  options,
+  weeks,
+  onWeeksChange,
   includeCollaborative,
   onCollaborativeChange,
 }: {
-  range: AttendanceRangeSelection;
-  onRangeChange: (range: AttendanceRangeSelection) => void;
+  options: AttendanceRangeOption[];
+  weeks: number;
+  onWeeksChange: (weeks: number) => void;
   includeCollaborative: boolean;
   onCollaborativeChange: (value: boolean) => void;
 }) {
   const t = useAppTheme();
-  const [today] = useState(() => toDateInput(Date.now()));
-  const [customStart, setCustomStart] = useState(() =>
-    range.kind === "custom"
-      ? toDateInput(range.startMs)
-      : toDateInput(Date.now() - 30 * 24 * 60 * 60 * 1000)
-  );
-  const [customEnd, setCustomEnd] = useState(() =>
-    range.kind === "custom" ? toDateInput(range.endMs) : toDateInput(Date.now())
-  );
-  const [pickingCustom, setPickingCustom] = useState(false);
-  const customSelected = range.kind === "custom" || pickingCustom;
-  const draftStartMs = fromDateInputStart(customStart);
-  const draftEndMs = fromDateInputEnd(customEnd);
-  const customValid =
-    draftStartMs !== null &&
-    draftEndMs !== null &&
-    draftStartMs < draftEndMs;
-
-  const DateField = Platform.OS === "web" ? WebDateInput : NativeDateInput;
-
+  const label = options.find((o) => o.weeks === weeks)?.label ?? "Range";
   return (
-    <SelectorFab
-      icon="calendar-outline"
-      label={attendanceRangeFabLabel(range)}
-      sheetTitle="Time range"
-      onClosed={() => setPickingCustom(false)}
-    >
+    <SelectorFab icon="calendar-outline" label={label} sheetTitle="Time range">
       {(close) => (
         <View style={{ gap: spacing.sm }}>
-          {RANGE_WEEKS.map((weeks) => (
+          {options.map((option) => (
             <OptionRow
-              key={weeks}
-              label={rangeLabel(weeks)}
-              selected={
-                !pickingCustom &&
-                range.kind === "preset" &&
-                range.weeks === weeks
-              }
-              onPress={() => {
-                setPickingCustom(false);
-                onRangeChange({ kind: "preset", weeks });
-              }}
+              key={option.weeks}
+              label={option.label}
+              selected={option.weeks === weeks}
+              onPress={() => onWeeksChange(option.weeks)}
             />
           ))}
-          <OptionRow
-            label="Custom"
-            selected={customSelected}
-            onPress={() => {
-              setPickingCustom(true);
-            }}
-          />
-          <View style={styles.customBlock}>
-            <Text style={[typography.caption, { color: t.muted }]}>
-              Custom range
-            </Text>
-            <View style={styles.customDates}>
-              <DateField
-                label="From"
-                value={customStart}
-                max={customEnd || today}
-                onChange={setCustomStart}
-              />
-              <DateField
-                label="To"
-                value={customEnd}
-                min={customStart}
-                max={today}
-                onChange={setCustomEnd}
-              />
-            </View>
-            <Btn
-              title="Apply custom range"
-              variant="tonal"
-              disabled={!customValid}
-              onPress={() => {
-                if (!draftStartMs || !draftEndMs) return;
-                onRangeChange({
-                  kind: "custom",
-                  startMs: draftStartMs,
-                  endMs: draftEndMs,
-                });
-                close();
-              }}
-            />
-          </View>
           <Pressable
             accessibilityRole="switch"
             accessibilityState={{ checked: includeCollaborative }}
@@ -354,14 +252,5 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 2,
     marginTop: spacing.xs,
-  },
-  customBlock: {
-    gap: spacing.sm,
-    paddingHorizontal: 2,
-    paddingTop: spacing.xs,
-  },
-  customDates: {
-    flexDirection: "row",
-    gap: spacing.sm,
   },
 });

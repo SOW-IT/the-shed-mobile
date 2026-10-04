@@ -6,6 +6,26 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.0.1] — 2026-10-04
+
+### Changed
+- **Insights → Attendance is shorter and clearer.** A campus now shows three
+  numbers (weekly-meeting average, people, new people), one weekly-meeting
+  chart and the Needs follow-up list, which shows the top 5 with a "Show all".
+  SOW shows each campus's weekly-meeting average, with full campus names, and
+  SOW events' numbers. Long explanations, repeated subtitles and the charts
+  that said the same thing twice are gone.
+- **The Attendance tab's layout now comes from the server.** What it shows,
+  its wording and its order can change without a new app release.
+- **Time ranges are past week, month or year.** Custom date ranges are gone:
+  each one re-read every attendance record behind the scenes.
+
+### Fixed
+- **Insights → General no longer re-reads all attendance each time it opens.**
+  The campus weekly-attendance chart is rebuilt overnight with the rest of
+  Insights, so opening the tab reads one small record instead of about 2 MB.
+  The SOW campus comparison on the Attendance tab is cheaper too.
+
 ## [2.0.0] — 2026-10-02
 
 ### Changed

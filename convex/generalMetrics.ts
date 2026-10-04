@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query } from "./_generated/server";
+import { internalMutation, query, type QueryCtx } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { currentStaffYear } from "./model";
 import {
@@ -394,103 +394,138 @@ export const CAMPUS_ATTENDANCE_START_YEAR = 2025;
 
 const MAX_EVENTS_SCAN = 4000;
 
+const campusWeeklyAttendanceValidator = v.object({
+  years: v.array(v.number()),
+  campuses: v.array(
+    v.object({ campus: v.string(), averages: v.array(v.number()) })
+  ),
+});
+
+type CampusWeeklyAttendance = {
+  years: number[];
+  campuses: { campus: string; averages: number[] }[];
+};
+
+// Reads the snapshot the nightly Insights rebuild writes. Computing it here
+// meant reading every weekly meeting's attendance on each open of the tab;
+// the live path is only a fallback until the first rebuild has run.
 export const campusWeeklyAttendance = query({
   args: {},
-  returns: v.object({
-    years: v.array(v.number()),
-    campuses: v.array(
-      v.object({ campus: v.string(), averages: v.array(v.number()) })
-    ),
-  }),
+  returns: campusWeeklyAttendanceValidator,
   handler: async (ctx) => {
-    const currentYear = currentStaffYear();
-    const years: number[] = [];
-    for (let y = CAMPUS_ATTENDANCE_START_YEAR; y <= currentYear; y++) {
-      years.push(y);
-    }
-
-    const events = await ctx.db
-      .query("events")
-      .withIndex("by_dateStart", (q) =>
-        q.gte("dateStart", staffYearStartMs(CAMPUS_ATTENDANCE_START_YEAR))
-      )
-      // Newest first: if the scan cap is ever hit it drops the oldest year,
-      // not the one currently being led.
-      .order("desc")
-      .take(MAX_EVENTS_SCAN);
-
-    const tagIds = new Set<Id<"attendanceTags">>();
-    for (const e of events) for (const id of e.tagIds ?? []) tagIds.add(id);
-    const tagDocs = await Promise.all([...tagIds].map((id) => ctx.db.get(id)));
-    const weeklyTagIds = new Set(
-      tagDocs
-        .filter(
-          (t): t is Doc<"attendanceTags"> =>
-            !!t && t.name === WEEKLY_MEETING_TAG_NAME
-        )
-        .map((t) => t._id)
-    );
-    const weeklyMeetings = events.filter(
-      (e) =>
-        (e.tagIds ?? []).some((id) => weeklyTagIds.has(id)) &&
-        eventStaffYear(e.dateStart) <= currentYear
-    );
-
-    const meetings = weeklyMeetings
-      .map((e) => ({
-        id: e._id,
-        year: eventStaffYear(e.dateStart),
-        campuses: normalizeSubgroups(e.subgroups).filter(
-          (s) => !isOrgWideSubgroup(s)
-        ),
-      }))
-      .filter((m) => m.campuses.length > 0);
-
-    const turnouts = await Promise.all(
-      meetings.map((m) =>
-        ctx.db
-          .query("attendance")
-          .withIndex("by_event", (q) => q.eq("eventId", m.id))
-          .collect()
-          .then((rows) => rows.length)
-      )
-    );
-
-    type Bucket = { total: number; meetings: number };
-    const buckets = new Map<string, Bucket>();
-    const campusSet = new Set<string>();
-    const key = (campus: string, year: number) => `${campus}|${year}`;
-
-    meetings.forEach((m, i) => {
-      for (const campus of m.campuses) {
-        campusSet.add(campus);
-        const b = buckets.get(key(campus, m.year)) ?? { total: 0, meetings: 0 };
-        b.total += turnouts[i];
-        b.meetings += 1;
-        buckets.set(key(campus, m.year), b);
-      }
-    });
-
-    const campuses = [...campusSet]
-      .sort((a, b) => a.localeCompare(b))
-      .map((campus) => ({
-        campus,
-        averages: years.map((year) => {
-          const b = buckets.get(key(campus, year));
-          if (!b || b.meetings === 0) return 0;
-          return Math.round((b.total / b.meetings) * 10) / 10;
-        }),
-      }));
-
-    if (years.length > 0 && years[years.length - 1] === currentYear) {
-      const last = years.length - 1;
-      const empty = campuses.length === 0 || campuses.every((c) => c.averages[last] === 0);
-      if (empty) {
-        years.pop();
-        for (const campus of campuses) campus.averages.pop();
-      }
-    }
-
-    return { years, campuses };
+    const snapshot = await ctx.db.query("campusAttendanceSnapshots").first();
+    if (snapshot) return { years: snapshot.years, campuses: snapshot.campuses };
+    return computeCampusWeeklyAttendance(ctx);
   },
 });
+
+export const recomputeCampusWeeklyAttendance = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const result = await computeCampusWeeklyAttendance(ctx);
+    const doc = { computedAt: Date.now(), ...result };
+    const existing = await ctx.db.query("campusAttendanceSnapshots").take(10);
+    if (existing.length === 0) {
+      await ctx.db.insert("campusAttendanceSnapshots", doc);
+    } else {
+      await ctx.db.replace(existing[0]._id, doc);
+      for (const extra of existing.slice(1)) await ctx.db.delete(extra._id);
+    }
+    return null;
+  },
+});
+
+async function computeCampusWeeklyAttendance(
+  ctx: QueryCtx
+): Promise<CampusWeeklyAttendance> {
+  const currentYear = currentStaffYear();
+  const years: number[] = [];
+  for (let y = CAMPUS_ATTENDANCE_START_YEAR; y <= currentYear; y++) {
+    years.push(y);
+  }
+
+  const events = await ctx.db
+    .query("events")
+    .withIndex("by_dateStart", (q) =>
+      q.gte("dateStart", staffYearStartMs(CAMPUS_ATTENDANCE_START_YEAR))
+    )
+    // Newest first: if the scan cap is ever hit it drops the oldest year,
+    // not the one currently being led.
+    .order("desc")
+    .take(MAX_EVENTS_SCAN);
+
+  const tagIds = new Set<Id<"attendanceTags">>();
+  for (const e of events) for (const id of e.tagIds ?? []) tagIds.add(id);
+  const tagDocs = await Promise.all([...tagIds].map((id) => ctx.db.get(id)));
+  const weeklyTagIds = new Set(
+    tagDocs
+      .filter(
+        (t): t is Doc<"attendanceTags"> =>
+          !!t && t.name === WEEKLY_MEETING_TAG_NAME
+      )
+      .map((t) => t._id)
+  );
+  const weeklyMeetings = events.filter(
+    (e) =>
+      (e.tagIds ?? []).some((id) => weeklyTagIds.has(id)) &&
+      eventStaffYear(e.dateStart) <= currentYear
+  );
+
+  const meetings = weeklyMeetings
+    .map((e) => ({
+      id: e._id,
+      year: eventStaffYear(e.dateStart),
+      campuses: normalizeSubgroups(e.subgroups).filter(
+        (s) => !isOrgWideSubgroup(s)
+      ),
+    }))
+    .filter((m) => m.campuses.length > 0);
+
+  const turnouts = await Promise.all(
+    meetings.map((m) =>
+      ctx.db
+        .query("attendance")
+        .withIndex("by_event", (q) => q.eq("eventId", m.id))
+        .collect()
+        .then((rows) => rows.length)
+    )
+  );
+
+  type Bucket = { total: number; meetings: number };
+  const buckets = new Map<string, Bucket>();
+  const campusSet = new Set<string>();
+  const key = (campus: string, year: number) => `${campus}|${year}`;
+
+  meetings.forEach((m, i) => {
+    for (const campus of m.campuses) {
+      campusSet.add(campus);
+      const b = buckets.get(key(campus, m.year)) ?? { total: 0, meetings: 0 };
+      b.total += turnouts[i];
+      b.meetings += 1;
+      buckets.set(key(campus, m.year), b);
+    }
+  });
+
+  const campuses = [...campusSet]
+    .sort((a, b) => a.localeCompare(b))
+    .map((campus) => ({
+      campus,
+      averages: years.map((year) => {
+        const b = buckets.get(key(campus, year));
+        if (!b || b.meetings === 0) return 0;
+        return Math.round((b.total / b.meetings) * 10) / 10;
+      }),
+    }));
+
+  if (years.length > 0 && years[years.length - 1] === currentYear) {
+    const last = years.length - 1;
+    const empty = campuses.length === 0 || campuses.every((c) => c.averages[last] === 0);
+    if (empty) {
+      years.pop();
+      for (const campus of campuses) campus.averages.pop();
+    }
+  }
+
+  return { years, campuses };
+}

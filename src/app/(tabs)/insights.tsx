@@ -9,7 +9,6 @@ import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
 import { GeneralMetricsTab } from "@/components/attendance/GeneralMetricsTab";
 import {
   AttendanceRangeFab,
-  type AttendanceRangeSelection,
   ChartModeFab,
   type GeneralScope,
   GeneralScopeFab,
@@ -40,10 +39,8 @@ export default function InsightsScreen() {
   const [memberSheetId, setMemberSheetId] = useState<Id<"attendanceMembers"> | null>(
     null
   );
-  const [attendanceRange, setAttendanceRange] = useState<AttendanceRangeSelection>({
-    kind: "preset",
-    weeks: 4,
-  });
+  const [attendanceWeeks, setAttendanceWeeks] = useState(4);
+  const rangeOptions = useQuery(api.attendanceMetrics.rangeOptions, {});
   const [includeCollaborative, setIncludeCollaborative] = useState(true);
   const [generalScope, setGeneralScope] = useState<GeneralScope>(null);
   const [chartMode, setChartMode] = useState<ChartMode>("bar");
@@ -94,7 +91,7 @@ export default function InsightsScreen() {
         selectedSubgroup={subgroup}
         onSelectedSubgroupChange={setSelectedSubgroup}
         onOpenMember={openEditMember}
-        range={attendanceRange}
+        rangeWeeks={attendanceWeeks}
         includeCollaborative={includeCollaborative}
       />
     ),
@@ -106,8 +103,9 @@ export default function InsightsScreen() {
     <>
       {activeKey === "attendance" && isStaff ? (
         <AttendanceRangeFab
-          range={attendanceRange}
-          onRangeChange={setAttendanceRange}
+          options={rangeOptions ?? []}
+          weeks={attendanceWeeks}
+          onWeeksChange={setAttendanceWeeks}
           includeCollaborative={includeCollaborative}
           onCollaborativeChange={setIncludeCollaborative}
         />

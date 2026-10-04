@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 
-const trendPoint = v.object({
+export const trendPoint = v.object({
   at: v.number(),
   label: v.string(),
   value: v.number(),
@@ -20,7 +20,7 @@ const compositionPoint = v.object({
   rest: v.number(),
 });
 
-const followUp = v.object({
+export const followUp = v.object({
   key: v.string(),
   name: v.string(),
   kind: v.union(v.literal("staff"), v.literal("member")),
@@ -73,3 +73,48 @@ export const metricsDataValidator = v.object({
   hasEnoughHistory: v.boolean(),
   hasWeeklyMeetings: v.boolean(),
 });
+
+const viewCard = v.object({
+  label: v.string(),
+  value: v.string(),
+  delta: v.optional(
+    v.object({
+      text: v.string(),
+      direction: v.union(v.literal("up"), v.literal("down"), v.literal("flat")),
+    })
+  ),
+  hint: v.optional(v.string()),
+  tone: v.optional(v.union(v.literal("default"), v.literal("positive"))),
+  info: v.optional(v.object({ title: v.string(), body: v.string() })),
+});
+
+export const viewBlockValidator = v.union(
+  v.object({ type: v.literal("updated"), computedAt: v.number() }),
+  v.object({ type: v.literal("label"), text: v.string() }),
+  v.object({ type: v.literal("cards"), cards: v.array(viewCard) }),
+  v.object({
+    type: v.literal("bars"),
+    title: v.string(),
+    colour: v.union(v.literal("primary"), v.literal("success"), v.literal("accent")),
+    points: v.array(trendPoint),
+  }),
+  v.object({
+    type: v.literal("breakdown"),
+    title: v.string(),
+    rows: v.array(v.object({ label: v.string(), value: v.number() })),
+  }),
+  v.object({
+    type: v.literal("followUps"),
+    title: v.string(),
+    people: v.array(followUp),
+    total: v.number(),
+    preview: v.number(),
+    emptyText: v.string(),
+  }),
+  v.object({
+    type: v.literal("empty"),
+    icon: v.string(),
+    title: v.string(),
+    message: v.string(),
+  })
+);

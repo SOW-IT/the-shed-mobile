@@ -92,12 +92,14 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   sign-in/edit/sign-out), read by the Attendance → Audit tab.
 - **CSV import/export**: bulk-import historical roll-call data and export
   attendance.
-- **Insights** (a dedicated bottom tab): a leader-facing metrics dashboard of
-  summary cards, native trend charts, and a gentle, explainable "Needs
-  follow-up" list for the selected sub-group and trailing range (1/2/4/8/12
-  weeks). Aggregates are pre-computed server-side by a nightly rebuild, so the
-  tab reads one small snapshot and shows roll-call changes the next morning.
-  See [docs/attendance-metrics.md](docs/attendance-metrics.md).
+- **Insights** (a dedicated bottom tab): for a campus, three headline numbers,
+  one weekly-meeting chart and a gentle, explainable "Needs follow-up" list;
+  for SOW, each campus's weekly-meeting average. Ranges are past week / month /
+  year. The Attendance tab's layout and wording come from the backend
+  (`attendanceMetrics.view`), so they change with a Convex deploy rather than
+  an app release. Aggregates are pre-computed by a nightly rebuild, so roll-call
+  changes show the next morning. See
+  [docs/attendance-metrics.md](docs/attendance-metrics.md).
 
 ## Getting started
 
@@ -349,4 +351,4 @@ the Insights metrics precompute.
 - Past-year request archives.
 - The whole-**staff-year** Insights range: supported by the shared logic
   (`STAFF_YEAR_RANGE`) but not currently precomputed or offered in the UI (the
-  presets are the trailing 1/2/4/8/12-week windows).
+  presets are past week / month / year).

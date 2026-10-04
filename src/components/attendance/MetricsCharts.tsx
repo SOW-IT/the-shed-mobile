@@ -405,6 +405,7 @@ export function MetricCard({
   tone = "default",
   width,
   onPress,
+  labelLines = 1,
 }: {
   label: string;
   value: string;
@@ -413,6 +414,7 @@ export function MetricCard({
   tone?: "default" | "positive" | "attention";
   width: number;
   onPress?: () => void;
+  labelLines?: number;
 }) {
   const t = useAppTheme();
   const accent =
@@ -429,7 +431,7 @@ export function MetricCard({
       <View style={styles.metricLabelRow}>
         <Text
           style={[typography.label, { color: t.muted, flex: 1 }]}
-          numberOfLines={1}
+          numberOfLines={labelLines}
         >
           {label}
         </Text>
@@ -489,13 +491,13 @@ export function MetricCard({
         accessibilityRole="button"
         accessibilityLabel={`${label}: ${value}. Tap for details`}
         onPress={onPress}
-        style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+        style={({ pressed }) => [styles.metricFill, pressed && { opacity: 0.7 }]}
       >
-        <Card style={[styles.metricCard, { width }]}>{body}</Card>
+        <Card style={[styles.metricCard, styles.metricFill, { width }]}>{body}</Card>
       </Pressable>
     );
   }
-  return <Card style={[styles.metricCard, { width }]}>{body}</Card>;
+  return <Card style={[styles.metricCard, styles.metricFill, { width }]}>{body}</Card>;
 }
 
 function Legend({
@@ -1294,8 +1296,10 @@ export function LegendDot({
 
 export function BreakdownBars({
   rows,
+  wideLabels = false,
 }: {
   rows: { label: string; value: number }[];
+  wideLabels?: boolean;
 }) {
   const t = useAppTheme();
   if (rows.length === 0) return <EmptyChart />;
@@ -1307,10 +1311,10 @@ export function BreakdownBars({
           <Text
             style={[
               typography.caption,
-              styles.breakdownLabel,
+              wideLabels ? styles.breakdownLabelWide : styles.breakdownLabel,
               { color: t.text },
             ]}
-            numberOfLines={1}
+            numberOfLines={wideLabels ? 2 : 1}
           >
             {r.label}
           </Text>
@@ -1434,6 +1438,7 @@ function withAlpha(colour: string, alpha: number): string {
 }
 
 const styles = StyleSheet.create({
+  metricFill: { flexGrow: 1 },
   metricCard: {
     padding: spacing.md,
     gap: 4,
@@ -1539,6 +1544,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   breakdownLabel: { width: 96 },
+  breakdownLabelWide: { width: "42%" },
   breakdownTrack: {
     flex: 1,
     height: 10,

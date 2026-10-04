@@ -291,6 +291,17 @@ describe("attendanceMetrics", () => {
     expect(jobs.every((j) => j.ranges === undefined)).toBe(true);
   });
 
+  test("recomputeAll also rebuilds the General tab's campus chart once", async () => {
+    const { t } = await setup();
+    await t.mutation(internal.attendanceMetrics.recomputeAll, {});
+    const names = await t.run(async (ctx) =>
+      (await ctx.db.system.query("_scheduled_functions").collect()).map((j) => j.name)
+    );
+    expect(
+      names.filter((n) => n === "generalMetrics:recomputeCampusWeeklyAttendance")
+    ).toHaveLength(1);
+  });
+
   test("resolves attendance-only members and their Role breakdown", async () => {
     const { t, leader } = await setup();
     const memberId = await t.run((ctx) =>
@@ -725,5 +736,138 @@ describe("campusWeeklyAverages", () => {
       { campus: UNSW, avgWeekly: 20 },
       { campus: USYD, avgWeekly: 12 },
     ]);
+  });
+
+  test("reads the small weekly-average row the rebuild writes, not the Snapshot", async () => {
+    const { t, leader } = await setup();
+    const write = (avgWeekly: number) =>
+      t.mutation(internal.attendanceMetrics.writeSnapshots, {
+        subgroup: USYD,
+        staffYear: YEAR,
+        computedAt: Date.now(),
+        snapshots: [{ rangeWeeks: 4, includeCollaborative: true, data: snap(avgWeekly) }],
+      });
+    await write(30);
+    await t.run(async (ctx) => {
+      const row = (await ctx.db.query("attendanceMetricsSnapshots").collect())[0];
+      await ctx.db.patch(row._id, { data: snap(99) });
+    });
+    expect(
+      await leader.query(api.attendanceMetrics.campusWeeklyAverages, { rangeWeeks: 4 })
+    ).toEqual([{ campus: USYD, avgWeekly: 30 }]);
+
+    await t.run((ctx) =>
+      ctx.db.insert("attendanceMetricsWeeklyAverages", {
+        subgroup: USYD,
+        rangeWeeks: 4,
+        includeCollaborative: true,
+        staffYear: YEAR,
+        computedAt: 0,
+        avgWeekly: 1,
+      })
+    );
+    expect(
+      await leader.query(api.attendanceMetrics.campusWeeklyAverages, { rangeWeeks: 4 })
+    ).toEqual([{ campus: USYD, avgWeekly: 30 }]);
+
+    await write(31);
+    const rows = await t.run((ctx) =>
+      ctx.db.query("attendanceMetricsWeeklyAverages").collect()
+    );
+    expect(rows.map((r) => [r.subgroup, r.rangeWeeks, r.avgWeekly])).toEqual([
+      [USYD, 4, 31],
+    ]);
+  });
+
+  test("a campus whose weekly average is null is left out", async () => {
+    const { t, leader } = await setup();
+    await t.mutation(internal.attendanceMetrics.writeSnapshots, {
+      subgroup: USYD,
+      staffYear: YEAR,
+      computedAt: Date.now(),
+      snapshots: [{ rangeWeeks: 4, includeCollaborative: true, data: snap(null) }],
+    });
+    expect(
+      await leader.query(api.attendanceMetrics.campusWeeklyAverages, { rangeWeeks: 4 })
+    ).toEqual([]);
+  });
+});
+
+describe("view", () => {
+  const snap = (avgWeeklyAttendance: number | null = 9) => ({
+    ...EMPTY_DATA,
+    hasEnoughHistory: true,
+    summary: { ...EMPTY_DATA.summary, uniqueAttendees: 7, avgWeeklyAttendance },
+  });
+
+  test("returns null when not signed in", async () => {
+    const { t } = await setup();
+    expect(
+      await t.query(api.attendanceMetrics.view, { subgroup: USYD, rangeWeeks: 4 })
+    ).toBeNull();
+  });
+
+  test("tells a leader it's not ready before the first rebuild", async () => {
+    const { leader } = await setup();
+    const view = await leader.query(api.attendanceMetrics.view, {
+      subgroup: USYD,
+      rangeWeeks: 4,
+    });
+    expect(view?.blocks).toEqual([
+      expect.objectContaining({ type: "empty", title: "Not ready yet" }),
+    ]);
+  });
+
+  test("lays out a campus from its Snapshot", async () => {
+    const { t, leader } = await setup();
+    await t.mutation(internal.attendanceMetrics.writeSnapshots, {
+      subgroup: USYD,
+      staffYear: YEAR,
+      computedAt: 1234,
+      snapshots: [{ rangeWeeks: 4, includeCollaborative: true, data: snap() }],
+    });
+    const view = await leader.query(api.attendanceMetrics.view, {
+      subgroup: USYD,
+      rangeWeeks: 4,
+    });
+    expect(view?.blocks.map((b) => b.type)).toEqual([
+      "updated",
+      "cards",
+      "bars",
+      "followUps",
+    ]);
+    expect(view?.blocks[0]).toEqual({ type: "updated", computedAt: 1234 });
+  });
+
+  test("SOW leads with each campus's weekly average", async () => {
+    const { t, leader } = await setup();
+    for (const [subgroup, data] of [
+      [SOW_SUBGROUP, snap()],
+      [USYD, snap(42)],
+    ] as const) {
+      await t.mutation(internal.attendanceMetrics.writeSnapshots, {
+        subgroup,
+        staffYear: YEAR,
+        computedAt: Date.now(),
+        snapshots: [{ rangeWeeks: 4, includeCollaborative: false, data }],
+      });
+    }
+    const view = await leader.query(api.attendanceMetrics.view, {
+      subgroup: SOW_SUBGROUP,
+      rangeWeeks: 4,
+      includeCollaborative: false,
+    });
+    expect(view?.blocks[1]).toEqual({
+      type: "breakdown",
+      title: "Weekly avg by campus",
+      rows: [{ label: USYD, value: 42 }],
+    });
+  });
+
+  test("rangeOptions lists the precomputed ranges", async () => {
+    const { t } = await setup();
+    expect(
+      (await t.query(api.attendanceMetrics.rangeOptions, {})).map((o) => o.weeks)
+    ).toEqual([1, 4, 52]);
   });
 });
