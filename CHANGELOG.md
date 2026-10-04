@@ -10,11 +10,12 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ### Changed
 - **On phones, Admin Users lists are back in a scroll box, with Show all
-  underneath.** Previously staff, both no-assignment lists and Leaving each
-  show 4 people in a box you scroll inside, like Not signed in on an event. A
-  soft shadow on the top or bottom edge shows there's more that way. "Show
-  all" below the box opens the whole list on the page, and "Show fewer" puts
-  the box back without moving the button from under your finger.
+  underneath.** The "Previously staff", "Signed in, no assignment", "In
+  directory, no assignment" and "Leaving" lists each show 4 people in a box
+  you scroll inside, like "Not signed in" on an event. A soft shadow on the
+  top or bottom edge shows there's more that way. "Show all" below the box
+  opens the whole list on the page, and "Show fewer" puts the box back without
+  moving the button from under your finger.
 - **On the web and on wide screens such as iPads, Admin Users lists show
   everyone.** There's room for the full list, so there's no box or button.
 
