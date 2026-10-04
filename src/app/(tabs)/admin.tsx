@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams } from "expo-router";
 import { ReactNode, useEffect, useState } from "react";
-import { Text, View } from "react-native";
+import { Platform, Text, useWindowDimensions, View } from "react-native";
 import {
   type Assignment,
   DIRECTOR,
@@ -24,7 +24,13 @@ import {
   uniqueStaffByEmail,
 } from "@shared/rollcallImport";
 import { api } from "@convex/_generated/api";
-import { radius, spacing, typography, useAppTheme } from "@/theme";
+import {
+  radius,
+  spacing,
+  typography,
+  useAppTheme,
+  WIDE_SCREEN_MIN_WIDTH,
+} from "@/theme";
 import {
   Btn,
   Card,
@@ -58,8 +64,7 @@ type DeleteConfirm = { name: string; message: string; onConfirm: () => void };
 
 const ADMIN_CARD_WIDTH = 360;
 
-const UNASSIGNED_VISIBLE_USERS = 5;
-const LEAVING_VISIBLE_USERS = 3;
+const VISIBLE_USERS = 4;
 
 const CardGrid = ({
   children,
@@ -67,11 +72,19 @@ const CardGrid = ({
 }: {
   children: ReactNode;
   maxVisible?: number;
-}) => (
-  <Grid fixedWidth={ADMIN_CARD_WIDTH} align="start" maxVisible={maxVisible}>
-    {children}
-  </Grid>
-);
+}) => {
+  const { width } = useWindowDimensions();
+  const showAll = Platform.OS === "web" || width >= WIDE_SCREEN_MIN_WIDTH;
+  return (
+    <Grid
+      fixedWidth={ADMIN_CARD_WIDTH}
+      align="start"
+      maxVisible={showAll ? undefined : maxVisible}
+    >
+      {children}
+    </Grid>
+  );
+};
 
 type AdminTab = "users" | "structure" | "other";
 const ADMIN_TABS = [
@@ -808,7 +821,7 @@ export default function AdminScreen() {
               <SectionTitle>
                 Previously staff · {selectedYear} ({returningStaff.length})
               </SectionTitle>
-              <CardGrid maxVisible={UNASSIGNED_VISIBLE_USERS}>
+              <CardGrid maxVisible={VISIBLE_USERS}>
                 {returningStaff.map((user) => renderUnassignedCard(user))}
               </CardGrid>
             </>
@@ -819,7 +832,7 @@ export default function AdminScreen() {
               <SectionTitle>
                 Signed in, no assignment · {selectedYear} ({signedInNeverStaff.length})
               </SectionTitle>
-              <CardGrid maxVisible={UNASSIGNED_VISIBLE_USERS}>
+              <CardGrid maxVisible={VISIBLE_USERS}>
                 {signedInNeverStaff.map((user) => renderUnassignedCard(user))}
               </CardGrid>
             </>
@@ -830,7 +843,7 @@ export default function AdminScreen() {
               <SectionTitle>
                 In directory, no assignment · {selectedYear} ({directoryNeverStaff.length})
               </SectionTitle>
-              <CardGrid maxVisible={UNASSIGNED_VISIBLE_USERS}>
+              <CardGrid maxVisible={VISIBLE_USERS}>
                 {directoryNeverStaff.map((user) => renderUnassignedCard(user))}
               </CardGrid>
             </>
@@ -841,7 +854,7 @@ export default function AdminScreen() {
               <SectionTitle>
                 Leaving · {selectedYear} ({(leavers ?? []).length})
               </SectionTitle>
-              <CardGrid maxVisible={LEAVING_VISIBLE_USERS}>
+              <CardGrid maxVisible={VISIBLE_USERS}>
                 {(leavers ?? []).map((user) => renderLeaverCard(user))}
               </CardGrid>
             </>
