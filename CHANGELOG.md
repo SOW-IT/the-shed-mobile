@@ -15,6 +15,14 @@ All notable changes to **The SHED** mobile app. This project follows
   SOW shows each campus's weekly-meeting average, with full campus names, and
   SOW events' numbers. Long explanations, repeated subtitles and the charts
   that said the same thing twice are gone.
+- **Insights → General is shorter too.** It shows staff and student-leader
+  numbers and retention (where tenure used to be), then four charts: staff &
+  student leaders, student leaders by campus, retention, and weekly average by
+  campus. Picking a year shows that year's headcount, retention and weekly
+  averages. The long explanations and chart subtitles are gone.
+- **Weekly averages only count weeks a meeting happened.** A Weekly Meeting
+  nobody signed in to (a cancelled or holiday week) no longer drags the
+  average or the weekly chart down.
 - **Both Insights tabs are now laid out by the server.** What General and
   Attendance show, their wording, charts and order can change without a new
   app release.

@@ -386,6 +386,14 @@ describe("campusWeeklyAttendance", () => {
     expect(res.campuses).toEqual([{ campus: "USYD", averages: [9] }]);
   });
 
+  test("a weekly meeting nobody signed in to isn't averaged in", async () => {
+    const t = convexTest(schema, modules);
+    await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2025, count: 20 });
+    await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2025, count: 0 });
+    const res = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
+    expect(res.campuses).toEqual([{ campus: "USYD", averages: [20] }]);
+  });
+
   test("serves the nightly snapshot until the next rebuild", async () => {
     const t = convexTest(schema, modules);
     await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2026, count: 10 });
@@ -434,20 +442,20 @@ describe("view", () => {
   test("lays out General with the year list for the scope picker", async () => {
     const t = convexTest(schema, modules);
     await seed(t);
-    const signedIn = await asUser(t, CALLER).query(api.generalMetrics.view, { scope: null });
-    expect(signedIn.years).toContain(YEAR);
-    expect(signedIn.blocks[0]).toEqual({ type: "heading", text: "Tenure (staff profiles)" });
-    expect(signedIn.blocks.some((b) => b.type === "stacked")).toBe(true);
+    const all = await asUser(t, CALLER).query(api.generalMetrics.view, { scope: null });
+    expect(all.years).toContain(YEAR);
+    expect(all.blocks[0]).toMatchObject({ type: "cards" });
+    expect(all.blocks.some((b) => b.type === "stacked")).toBe(true);
 
     const year = await asUser(t, CALLER).query(api.generalMetrics.view, { scope: YEAR });
-    expect(year.blocks[0]).toMatchObject({ type: "caption", text: expect.stringContaining(`Staff year ${YEAR}`) });
+    expect(year.blocks[0]).toMatchObject({ type: "cards", layout: "grid" });
+    expect(year.blocks.some((b) => b.type === "stacked")).toBe(false);
   });
 
-  test("signed-out viewers get the public charts only", async () => {
+  test("signed-out viewers always get the all-years view", async () => {
     const t = convexTest(schema, modules);
     await seed(t);
     const anon = await t.query(api.generalMetrics.view, { scope: YEAR });
-    expect(anon.blocks[0].type).toBe("stacked");
-    expect(anon.blocks.some((b) => b.type === "heading")).toBe(false);
+    expect(anon.blocks.some((b) => b.type === "stacked")).toBe(true);
   });
 });

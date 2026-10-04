@@ -12,9 +12,11 @@ follow-up prompts for a sub-group and time range.
   come from `api.attendanceMetrics.rangeOptions` the same way. A brand-new
   block type still needs an app release before it appears.
 - **Insights → General** works the same way: `api.generalMetrics.view({ scope })`
-  returns blocks built by `shared/generalMetricsView.ts` (headcount, tenure and
-  retention cards, stacked and multi-series charts) plus the year list for the
-  scope picker. Both tabs draw through
+  returns blocks built by `shared/generalMetricsView.ts` plus the year list for
+  the scope picker. All years: staff and student-leader counts, retention
+  cards, then staff & student leaders, student leaders by campus, retention and
+  weekly average by campus. One year: headcount, retention and weekly-average
+  cards. Both tabs draw through
   `src/components/attendance/InsightsBlocks.tsx`. Colours travel as theme
   tokens (`text`, `primary`, `accent`, `success`) or campus hex colours.
   `staffTrends` and `campusWeeklyAttendance` stay for apps older than 2.0.1.
@@ -101,6 +103,7 @@ they can be tuned in one place. Current values:
 | **Newcomer** | First-ever attendance within the **more recent** of the period start and the last 30 days — so a short range uses the period, and a long range (e.g. staff year) still only counts people new in the last 30 days (counted in the summary) | `newcomerDays` |
 | **Newcomer needs follow-up** | First attended once, a relevant weekly meeting has since occurred, and they haven't returned → *"Newcomer: first attended N ago, hasn't returned"* | `newcomerDays` |
 | **Re-engaged** | Attended within the last 30 days after a prior gap of ≥ 30 days → *"Returned after N away"* | `reengagedGapDays` |
+| **Weekly average** | Mean sign-ins per Weekly Meeting **that happened**: a Weekly Meeting with no sign-ins (cancelled or holiday week) is left out of the average and the weekly chart; the General/SOW per-campus averages use the same rule | — |
 | **Declining** | Fewer attendances in the recent half of the **selected range** than in the half before it → *"Attending less than before"* | — (splits the range in half) |
 
 A person appears in **Needs follow-up** at most once, using the most pressing

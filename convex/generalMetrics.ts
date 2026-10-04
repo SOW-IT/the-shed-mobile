@@ -524,6 +524,8 @@ async function computeCampusWeeklyAttendance(
   const key = (campus: string, year: number) => `${campus}|${year}`;
 
   meetings.forEach((m, i) => {
+    // Nobody signed in: the meeting didn't happen, so it isn't averaged in.
+    if (turnouts[i] === 0) return;
     for (const campus of m.campuses) {
       campusSet.add(campus);
       const b = buckets.get(key(campus, m.year)) ?? { total: 0, meetings: 0 };

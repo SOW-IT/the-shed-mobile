@@ -71,21 +71,19 @@ export const yoyDelta = (cur: number, prev: number | undefined): Delta => {
   };
 };
 
-const stepDelta = (unit: string) => (
+export const ppDelta = (
   cur: number | null | undefined,
   prev: number | null | undefined
 ): Delta => {
   if (cur === null || cur === undefined) return undefined;
   if (prev === null || prev === undefined) return undefined;
   const diff = Math.round((cur - prev) * 10) / 10;
-  if (diff === 0) return { text: `0${unit}`, direction: "flat" };
+  if (diff === 0) return { text: "0pp", direction: "flat" };
   return {
-    text: `${diff > 0 ? "+" : ""}${fmtAvg(diff)}${unit}`,
+    text: `${diff > 0 ? "+" : ""}${fmtAvg(diff)}pp`,
     direction: diff > 0 ? "up" : "down",
   };
 };
-export const ppDelta = stepDelta("pp");
-export const yearsDelta = stepDelta("y");
 
 const RATE_LEGEND: ViewLegendItem[] = [
   { key: "Overall", colour: "text", label: "Overall" },
@@ -93,11 +91,65 @@ const RATE_LEGEND: ViewLegendItem[] = [
   { key: "SLs", colour: "accent", label: "Student leaders" },
 ];
 
+const RATE_GROUPS = [
+  { key: "overall", label: "Overall" },
+  { key: "staff", label: "Staff" },
+  { key: "studentLeaders", label: "Student leaders" },
+] as const;
+
+function headlineBlocks(trends: StaffTrendsData): ViewBlock[] {
+  const i = trends.years.length - 1;
+  const year = trends.years[i];
+  const prev = i > 0 ? trends.years[i - 1] : undefined;
+  const hint = prev !== undefined ? `${year} vs ${prev}` : String(year);
+  const blocks: ViewBlock[] = [
+    {
+      type: "cards",
+      cards: [
+        {
+          label: "Staff",
+          value: String(trends.staff[i]),
+          delta: yoyDelta(trends.staff[i], i > 0 ? trends.staff[i - 1] : undefined),
+          hint,
+        },
+        {
+          label: "Student leaders",
+          value: String(trends.studentLeaders[i]),
+          delta: yoyDelta(trends.studentLeaders[i], i > 0 ? trends.studentLeaders[i - 1] : undefined),
+          hint,
+          tone: "positive",
+        },
+      ],
+    },
+  ];
+  // The newest year's retention is blank until that year is complete, so show
+  // the latest year that has one.
+  const r = trends.retention.overall;
+  let j = r.length - 1;
+  while (j >= 0 && r[j] === null) j -= 1;
+  if (j >= 0) {
+    const retentionHint = j > 0 ? `${trends.years[j]} vs ${trends.years[j - 1]}` : String(trends.years[j]);
+    blocks.push(
+      { type: "label", text: "Retention" },
+      {
+        type: "cards",
+        cards: RATE_GROUPS.filter((g) => trends.retention[g.key][j] !== null).map((g) => ({
+          label: g.label,
+          value: fmtPct(trends.retention[g.key][j]),
+          delta: ppDelta(trends.retention[g.key][j], j > 0 ? trends.retention[g.key][j - 1] : undefined),
+          hint: retentionHint,
+          tone: "positive",
+        })),
+      }
+    );
+  }
+  return blocks;
+}
+
 function allYearsView(
   trends: StaffTrendsData,
   campusAttendance: CampusAttendanceData | null,
-  scope: GeneralScope,
-  signedIn: boolean
+  scope: GeneralScope
 ): ViewBlock[] {
   const trendYearCount = scope === "all" ? Number.POSITIVE_INFINITY : GENERAL_RECENT_YEARS;
   const start =
@@ -121,60 +173,23 @@ function allYearsView(
       colour: subgroupColour(c.campus),
     })),
   }));
+  const retention: ViewSegmentPoint[] = years
+    .map((y, i) => ({
+      at: y,
+      label: yearLabel(y),
+      segments: RATE_GROUPS.map((g, k) => ({
+        key: RATE_LEGEND[k].key,
+        value: trends.retention[g.key][idx(i)],
+        colour: RATE_LEGEND[k].colour,
+      })).filter((s): s is { key: string; value: number; colour: string } => s.value !== null),
+    }))
+    .filter((p) => p.segments.length > 0);
 
-  const rateByYear = (series: Series): ViewSegmentPoint[] =>
-    years
-      .map((y, i) => {
-        const j = idx(i);
-        const segments = [
-          { key: "Overall", value: series.overall[j], colour: "text" },
-          { key: "Staff", value: series.staff[j], colour: "primary" },
-          { key: "SLs", value: series.studentLeaders[j], colour: "accent" },
-        ].filter((s): s is { key: string; value: number; colour: string } => s.value !== null && s.value !== undefined);
-        return { at: y, label: yearLabel(y), segments };
-      })
-      .filter((p) => p.segments.length > 0);
-
-  const blocks: ViewBlock[] = [];
-
-  const everOverall = trends.allStaff.some((n) => n > 0);
-  const everStaff = trends.staff.some((n) => n > 0);
-  const everLeaders = trends.studentLeaders.some((n) => n > 0);
-  const life2 = trends.lifetimeTenure2Plus;
-  const lifeAvg = trends.lifetimeAvgTenureYears;
-  const lifetime = (
-    show: boolean,
-    label: string,
-    value: string,
-    hint: string
-  ): ViewCard | null => (show ? { label, value, hint, tone: "positive" } : null);
-  const lifetimeCards = [
-    lifetime(everOverall, "Overall ≥2 years", fmtPct(life2.overall), "ever served · so far"),
-    lifetime(everStaff, "Staff ≥2 years", fmtPct(life2.staff), "years in this role"),
-    lifetime(everLeaders, "Student leaders ≥2 years", fmtPct(life2.studentLeaders), "years in this role"),
-    lifetime(everOverall, "Overall avg years", fmtAvg(lifeAvg.overall), "years served so far"),
-    lifetime(everStaff, "Staff avg years", fmtAvg(lifeAvg.staff), "years in this role so far"),
-    lifetime(everLeaders, "Student leader avg years", fmtAvg(lifeAvg.studentLeaders), "years in this role so far"),
-  ].filter((c): c is ViewCard => c !== null);
-  if (signedIn && lifetimeCards.length > 0) {
-    blocks.push(
-      { type: "heading", text: "Tenure (staff profiles)" },
-      {
-        type: "caption",
-        text: "Of everyone who has ever held a staff profile in each group: share with two or more years, and mean years served so far. Staff and student-leader cards count years in that role (not total time at The Shed).",
-      },
-      { type: "cards", layout: "grid", cards: lifetimeCards }
-    );
-  }
-
-  blocks.push(
+  const blocks: ViewBlock[] = [
+    ...headlineBlocks(trends),
     {
       type: "stacked",
-      title: "All staff",
-      subtitle:
-        years.length > 0
-          ? `Staff + student leaders · ${years[0]}–${years[years.length - 1]}`
-          : "Staff + student leaders per year",
+      title: "Staff & student leaders",
       legend: [
         { key: "returning", colour: "primary", label: "Staff" },
         { key: "fresh", colour: "accent", label: "Student leaders" },
@@ -185,41 +200,29 @@ function allYearsView(
     {
       type: "multiBars",
       title: "Student leaders by campus",
-      subtitle: "Per staff year",
       legend: trends.campuses
         .filter((c) => !isNoiseCampus(c))
         .map((c) => ({ key: campusAcronym(c), colour: subgroupColour(c), label: campusAcronym(c) })),
       points: leadersByCampus,
       stacked: true,
-    }
-  );
-
-  const rateCharts: [string, string, Series, number | undefined][] = [
-    ["Retention rate", "% of prior year's roster who stayed (axis 0–100)", trends.retention, 100],
-    ["Serve at least 2 years", "% of people present with ≥2 years so far (axis 0–100)", trends.tenure2Plus, 100],
-    ["Average years served so far", "Mean years so far among people present (staff/SL = in role)", trends.avgTenureYears, undefined],
+    },
   ];
-  for (const [title, subtitle, series, axisMax] of rateCharts) {
-    const points = rateByYear(series);
-    if (points.length === 0) continue;
+  if (retention.length > 0) {
     blocks.push({
       type: "multiBars",
-      title,
-      subtitle,
+      title: "Retention",
       legend: RATE_LEGEND,
-      points,
+      points: retention,
       stacked: false,
-      axisMax,
+      axisMax: 100,
       keepZeros: true,
     });
   }
-
   const campusWeekly = campusWeeklyPoints(campusAttendance, trendYearCount);
   if (campusWeekly) {
     blocks.push({
       type: "multiBars",
-      title: "Weekly meeting attendance",
-      subtitle: "Average per staff year (from 2025)",
+      title: "Weekly avg by campus",
       legend: (campusWeekly[0]?.segments ?? []).map((s) => ({ key: s.key, colour: s.colour, label: s.key })),
       points: campusWeekly,
       stacked: false,
@@ -258,16 +261,15 @@ function yearView(
 ): ViewBlock[] {
   const prevYear = i > 0 ? trends.years[i - 1] : undefined;
   const at = <T,>(arr: T[]): T | undefined => (i > 0 ? arr[i - 1] : undefined);
-  const baseline = prevYear !== undefined ? `vs ${prevYear}` : "no baseline";
+  const hint = prevYear !== undefined ? `vs ${prevYear}` : undefined;
 
   const headcount: ViewCard[] = [
-    { label: "All staff", value: String(trends.allStaff[i]), delta: yoyDelta(trends.allStaff[i], at(trends.allStaff)), hint: baseline },
-    { label: "Staff", value: String(trends.staff[i]), delta: yoyDelta(trends.staff[i], at(trends.staff)), hint: baseline },
+    { label: "Staff", value: String(trends.staff[i]), delta: yoyDelta(trends.staff[i], at(trends.staff)), hint },
     {
       label: "Student leaders",
       value: String(trends.studentLeaders[i]),
       delta: yoyDelta(trends.studentLeaders[i], at(trends.studentLeaders)),
-      hint: baseline,
+      hint,
       tone: "positive",
     },
     ...trends.studentLeadersByCampus
@@ -276,107 +278,39 @@ function yearView(
         label: campusAcronym(c.campus),
         value: String(c.counts[i]),
         delta: yoyDelta(c.counts[i], at(c.counts)),
-        hint: baseline,
+        hint,
       })),
   ];
 
-  const retentionHint = (left: number | null | undefined, priorN: number | undefined) => {
-    if (prevYear === undefined) return "needs a prior year";
-    const parts: string[] = [`vs ${prevYear}`];
-    if (priorN !== undefined) parts.push(`n=${priorN}`);
-    if (left !== null && left !== undefined) parts.push(`${fmtAvg(left)}% left`);
-    return parts.join(" · ");
-  };
-  const groups = [
-    { key: "overall", name: "Overall", n: trends.allStaff },
-    { key: "staff", name: "Staff", n: trends.staff },
-    { key: "studentLeaders", name: "Student leader", n: trends.studentLeaders },
-  ] as const;
-
-  const retention: ViewCard[] = groups
-    .filter((g) => trends.retention[g.key][i] !== null)
-    .map((g) => ({
-      label: `${g.name} retention`,
+  const retention: ViewCard[] = RATE_GROUPS.filter((g) => trends.retention[g.key][i] !== null).map(
+    (g) => ({
+      label: g.label,
       value: fmtPct(trends.retention[g.key][i]),
       delta: ppDelta(trends.retention[g.key][i], at(trends.retention[g.key])),
-      hint: retentionHint(trends.turnover[g.key][i], at(g.n)),
+      hint,
       tone: "positive",
-    }));
-
-  const tenureLabel = { overall: "Overall ≥2 years", staff: "Staff ≥2 years", studentLeaders: "Student leaders ≥2 years" };
-  const tenure: ViewCard[] = groups
-    .filter((g) => trends.tenure2Plus[g.key][i] !== null)
-    .map((g) => ({
-      label: tenureLabel[g.key],
-      value: fmtPct(trends.tenure2Plus[g.key][i]),
-      delta: ppDelta(trends.tenure2Plus[g.key][i], at(trends.tenure2Plus[g.key])),
-      hint: `${g.key === "overall" ? "of people this year" : "years in this role"} · n=${g.n[i]}`,
-      tone: "positive",
-    }));
-
-  const avgLabel = { overall: "Overall avg years", staff: "Staff avg years", studentLeaders: "Student leader avg years" };
-  const avgYears: ViewCard[] = groups
-    .filter((g) => trends.avgTenureYears[g.key][i] !== null)
-    .map((g) => ({
-      label: avgLabel[g.key],
-      value: fmtAvg(trends.avgTenureYears[g.key][i] as number),
-      delta: yearsDelta(trends.avgTenureYears[g.key][i], at(trends.avgTenureYears[g.key])),
-      hint: `${g.key === "overall" ? "years served so far" : "years in this role so far"} · n=${g.n[i]}`,
-    }));
+    })
+  );
 
   const caIndex = campusAttendance ? campusAttendance.years.indexOf(year) : -1;
   const attendance: ViewCard[] =
     campusAttendance && caIndex >= 0
       ? campusAttendance.campuses
-          .filter((c) => c.averages[caIndex] > 0)
+          .filter((c) => c.averages[caIndex] > 0 && !isNoiseCampus(c.campus))
           .map((c) => ({
             label: campusAcronym(c.campus),
             value: fmtAvg(c.averages[caIndex]),
             delta: yoyDelta(c.averages[caIndex], caIndex > 0 ? c.averages[caIndex - 1] : undefined),
-            hint: baseline,
+            hint,
           }))
       : [];
 
-  const blocks: ViewBlock[] = [
-    {
-      type: "caption",
-      text:
-        prevYear !== undefined
-          ? `Staff year ${year}, change vs ${prevYear}. Staff profiles only.`
-          : `Staff year ${year}. No earlier year to compare against. Staff profiles only.`,
-    },
-    { type: "cards", layout: "grid", cards: headcount },
-  ];
+  const blocks: ViewBlock[] = [{ type: "cards", layout: "grid", cards: headcount }];
   if (retention.length > 0) {
-    blocks.push(
-      { type: "heading", text: "Retention" },
-      { type: "caption", text: "Share of last year's roster still serving this year. The % who left is the complement." },
-      { type: "cards", layout: "grid", cards: retention }
-    );
+    blocks.push({ type: "label", text: "Retention" }, { type: "cards", layout: "grid", cards: retention });
   }
-  if (tenure.length > 0) {
-    blocks.push(
-      { type: "heading", text: "Serve at least 2 years" },
-      {
-        type: "caption",
-        text: "Of people present this year, the share with two or more years so far. Staff and student-leader cards count years in that role.",
-      },
-      { type: "cards", layout: "grid", cards: tenure }
-    );
-  }
-  blocks.push(
-    { type: "heading", text: "Average years served so far" },
-    {
-      type: "caption",
-      text: "Mean distinct years so far among people present this year. Staff and student-leader cards count years in that role only.",
-    },
-    { type: "cards", layout: "grid", cards: avgYears }
-  );
   if (attendance.length > 0) {
-    blocks.push(
-      { type: "heading", text: "Avg weekly meeting attendance" },
-      { type: "cards", layout: "grid", cards: attendance }
-    );
+    blocks.push({ type: "label", text: "Weekly avg" }, { type: "cards", layout: "grid", cards: attendance });
   }
   return blocks;
 }
@@ -402,5 +336,5 @@ export function buildGeneralView(input: {
   if (signedIn && typeof scope === "number" && yearIndex >= 0) {
     return yearView(trends, campusAttendance, scope, yearIndex);
   }
-  return allYearsView(trends, campusAttendance, scope, signedIn);
+  return allYearsView(trends, campusAttendance, scope);
 }
