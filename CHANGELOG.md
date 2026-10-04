@@ -18,6 +18,46 @@ All notable changes to **The SHED** mobile app. This project follows
 - **On the web and on wide screens such as iPads, Admin Users lists show
   everyone.** There's room for the full list, so there's no box or button.
 
+## [2.0.1] — 2026-10-04
+
+### Changed
+- **Insights → Attendance is shorter and clearer.** A campus now shows three
+  numbers (weekly-meeting average, people, new people), one weekly-meeting
+  chart and the Needs follow-up list, which shows the top 5 with a "Show all".
+  SOW shows each campus's weekly-meeting average, with full campus names, and
+  SOW events' numbers. Long explanations, repeated subtitles and the charts
+  that said the same thing twice are gone.
+- **Insights → General is shorter too.** It shows staff and student-leader
+  numbers, retention and average years served (overall, staff and student
+  leaders), then six charts: staff & student leaders, student leaders by
+  campus, retention, average years served, the share who've served 2+ years,
+  and weekly average by campus. The comparison ("2027 vs 2026") is shown once
+  instead of on every card. Picking a year shows that year's headcount,
+  retention, average years and weekly averages. The long explanations and
+  chart subtitles are gone.
+- **Retention covers the newest year straight away.** It used to stay blank
+  for the first week after the 1 October rollover; now it matches the headcount
+  year. Until leavers are marked, the new year's rates reflect the roster
+  copied over at rollover.
+- **Weekly averages on General follow the calendar year** (January to
+  December), the way weekly meetings run.
+- **Weekly averages only count weeks a meeting happened.** A Weekly Meeting
+  nobody signed in to (a cancelled or holiday week) no longer drags the
+  average or the weekly chart down.
+- **Both Insights tabs are now laid out by the server.** What General and
+  Attendance show, their wording, charts and order can change without a new
+  app release.
+- **Bar charts use the full width.** Bars are spaced evenly across the chart
+  instead of bunching in the middle.
+- **Time ranges are past week, month or year.** Custom date ranges are gone:
+  each one re-read every attendance record behind the scenes.
+
+### Fixed
+- **Insights → General no longer re-reads all attendance each time it opens.**
+  The campus weekly-attendance chart is rebuilt overnight with the rest of
+  Insights, so opening the tab reads one small record instead of about 2 MB.
+  The SOW campus comparison on the Attendance tab is cheaper too.
+
 ## [2.0.0] — 2026-10-02
 
 ### Changed

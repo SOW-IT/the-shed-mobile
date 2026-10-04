@@ -335,4 +335,31 @@ export default defineSchema({
     lastManualRefreshAt: v.optional(v.number()),
     variants: v.array(v.string()),
   }).index("by_subgroup_and_year", ["subgroup", "staffYear"]),
+
+  // The one number the SOW campus comparison needs from each Snapshot, written
+  // alongside it so the comparison doesn't read every campus's full Snapshot.
+  attendanceMetricsWeeklyAverages: defineTable({
+    subgroup: v.string(),
+    rangeWeeks: v.number(),
+    includeCollaborative: v.boolean(),
+    staffYear: v.number(),
+    computedAt: v.number(),
+    avgWeekly: v.union(v.number(), v.null()),
+  }).index("by_year_range_collab_subgroup", [
+    "staffYear",
+    "rangeWeeks",
+    "includeCollaborative",
+    "subgroup",
+  ]),
+
+  // One row: the Insights → General campus weekly-attendance chart, rebuilt by
+  // the nightly Insights rebuild so opening the tab reads this instead of
+  // every weekly meeting's attendance.
+  campusAttendanceSnapshots: defineTable({
+    computedAt: v.number(),
+    years: v.array(v.number()),
+    campuses: v.array(
+      v.object({ campus: v.string(), averages: v.array(v.number()) })
+    ),
+  }),
 });

@@ -3,10 +3,28 @@
 A leader-facing dashboard that turns raw sign-in data into trends and gentle
 follow-up prompts for a sub-group and time range.
 
-- **UI:** `src/components/attendance/MetricsTab.tsx` (+ `MetricsCharts.tsx`),
-  hosted in its own **Insights** bottom tab (`src/app/(tabs)/insights.tsx`) under
-  the **Attendance** top-bar segment. A second **General** segment is scaffolded
-  for future cross-cutting insights.
+- **UI (server-driven):** `api.attendanceMetrics.view` returns the tab as a
+  list of typed blocks (`cards`, `bars`, `breakdown`, `followUps`, `label`,
+  `updated`, `empty`), laid out by `shared/attendanceMetricsView.ts`.
+  `src/components/attendance/MetricsTab.tsx` only draws each block type and
+  skips types it doesn't know, so what the tab shows, its wording and its
+  order change with a **Convex deploy**, not an app release. The range presets
+  come from `api.attendanceMetrics.rangeOptions` the same way. A brand-new
+  block type still needs an app release before it appears.
+- **Insights → General** works the same way: `api.generalMetrics.view({ scope })`
+  returns blocks built by `shared/generalMetricsView.ts` plus the year list for
+  the scope picker. All years: staff and student-leader counts, retention and
+  average years served (overall / staff / student leaders) for the newest
+  year, labelled once ("2027 vs 2026"), then charts of staff & student
+  leaders, student leaders by campus, retention, average years served, served
+  2+ years, and weekly average by campus. One year: the same cards for that
+  year plus calendar-year weekly averages. Retention has no post-rollover
+  grace: the newest year's rate shows from 1 October and reflects the copied
+  roster until leavers are marked. Campus weekly averages are bucketed by
+  Sydney calendar year. Both tabs draw through
+  `src/components/attendance/InsightsBlocks.tsx`. Colours travel as theme
+  tokens (`text`, `primary`, `accent`, `success`) or campus hex colours.
+  `staffTrends` and `campusWeeklyAttendance` stay for apps older than 2.0.1.
 - **Logic (pure, shared, tested):** `shared/attendanceMetrics.ts`
   (`shared/attendanceMetrics.test.ts`).
 - **Backend precompute + read API:** `convex/attendanceMetrics.ts`
@@ -26,8 +44,12 @@ rebuilt by one cron, fanning out one bounded recompute per sub-group:
 - **Rollover** — the October 1 prefill job (`prefillNextStaffYear`) kicks a
   `recomputeAll` for the year that has just ended so the incoming year's
   snapshots start honest. While a current-year snapshot is missing, the
-  Attendance tab falls back to the same on-demand `liveSnapshot` used for
-  custom ranges.
+  Attendance tab shows "Not ready yet". Apps older than 2.0.1 still fall back
+  to the on-demand `liveSnapshot`.
+- **General tab campus chart** — the same nightly `recomputeAll` also rebuilds
+  `campusAttendanceSnapshots` (`generalMetrics.recomputeCampusWeeklyAttendance`),
+  so Insights → General reads one small row instead of every weekly meeting's
+  attendance.
 
 Each recompute runs as an **action** (`recomputeSubgroup`) so it can page the
 large attendance read across several bounded query transactions instead of
@@ -49,12 +71,15 @@ reading every event's attendance in one mutation. It:
    year** — `RANGE_WEEKS` = 1 / 4 / 52) × collaborative-included/excluded, and
    upserts one `attendanceMetricsSnapshots` row per combination
    (`writeSnapshots`, resilient to duplicate rows so racing recomputes can't
-   wedge later reads). **Custom** date ranges are computed on demand via
-   `liveSnapshot` (not stored). The whole-**staff-year** range is supported by
+   wedge later reads). Alongside each snapshot it writes one tiny
+   `attendanceMetricsWeeklyAverages` row (the weekly-meeting average), so the
+   SOW campus comparison reads those instead of every campus's full snapshot.
+   **Custom** date ranges were removed in 2.0.1: they recomputed everything
+   from raw attendance on each view. `liveSnapshot` stays only for older apps. The whole-**staff-year** range is supported by
    the pure logic (`STAFF_YEAR_RANGE`) but is **not** currently precomputed
    (`ALL_RANGES = [...RANGE_WEEKS]`).
 
-The tab reads a snapshot via `api.attendanceMetrics.snapshot`, which tolerates a
+The view reads the snapshot (the same lookup as `api.attendanceMetrics.snapshot`, still served for older apps), which tolerates a
 stale prior-staff-year row (treated as "not ready") and a rare duplicate row
 (takes the newest). Because the nightly cron keeps snapshots current
 automatically, **there is no manual refresh control in the UI**. A server-side
@@ -83,25 +108,25 @@ they can be tuned in one place. Current values:
 | **Newcomer** | First-ever attendance within the **more recent** of the period start and the last 30 days — so a short range uses the period, and a long range (e.g. staff year) still only counts people new in the last 30 days (counted in the summary) | `newcomerDays` |
 | **Newcomer needs follow-up** | First attended once, a relevant weekly meeting has since occurred, and they haven't returned → *"Newcomer: first attended N ago, hasn't returned"* | `newcomerDays` |
 | **Re-engaged** | Attended within the last 30 days after a prior gap of ≥ 30 days → *"Returned after N away"* | `reengagedGapDays` |
+| **Weekly average** | Mean sign-ins per Weekly Meeting **that happened**: a Weekly Meeting with no sign-ins (cancelled or holiday week) is left out of the average and the weekly chart; the General/SOW per-campus averages use the same rule | — |
 | **Declining** | Fewer attendances in the recent half of the **selected range** than in the half before it → *"Attending less than before"* | — (splits the range in half) |
 
 A person appears in **Needs follow-up** at most once, using the most pressing
 reason (at risk → lapsed → declining → newcomer-no-return → re-engaged).
 
-### Summary cards
+### What the tab shows
 
-- **Avg / event** — mean unique attendees per event in the period, with the
-  **change vs the previous comparable period** shown as a delta.
-- **Events held**, **Unique attendees**, **Newcomers**, **Follow-up suggested**.
-- **Weekly consistency** — steadiness of weekly-meeting turnout: mean attendance
-  ÷ peak attendance across the period's weekly meetings (1.0 = rock steady).
+- **A campus:** three numbers (weekly-meeting average with its change vs the
+  previous period, or average per event when there are no weekly meetings;
+  people; new people), one chart (weekly meetings, or every event), then
+  **Needs follow-up** (top 5, "Show all" up to 25, with the real total).
+- **SOW:** the weekly-meeting average for each campus, then SOW events' three
+  numbers. There's no follow-up list at org level.
 
-### Trends
-
-Attendance over time (per event), rolling average (`rollingAvgWindow` events),
-weekly-meeting trend, unique attendees by month, new vs returning per event, and
-optional Campus/Role breakdowns of the period's unique attendees. Charts are
-plain React Native `View`s (no charting dependency).
+Charts are plain React Native `View`s (no charting dependency). The pure
+module still computes the older series (rolling average, unique by month, new
+vs returning, breakdowns) because apps older than 2.0.1 read them from the
+snapshot; drop them once nobody is on those versions.
 
 ## Language
 

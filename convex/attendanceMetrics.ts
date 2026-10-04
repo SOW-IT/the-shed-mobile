@@ -9,6 +9,7 @@ import {
 import {
   canonicalSubgroup,
   eventIncludesSubgroup,
+  isOrgWideSubgroup,
   normalizeSubgroups,
   personDisplayName,
   personKey,
@@ -49,7 +50,11 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { currentStaffYear, optionalProfile, requireAttendanceManager } from "./model";
-import { metricsDataValidator } from "./metricsData";
+import { metricsDataValidator, viewBlockValidator } from "./metricsData";
+import {
+  ATTENDANCE_RANGE_OPTIONS,
+  buildAttendanceView,
+} from "../shared/attendanceMetricsView";
 
 const LIVE_RANGE_MAX_MS = 2 * 365 * DAY_MS;
 
@@ -58,6 +63,7 @@ const MAX_EVENTS = 800;
 const MAX_EVENT_SCAN = 4000;
 const MAX_PERSONS = 1200;
 const ATTENDANCE_CHUNK = 100;
+const MAX_WEEKLY_AVERAGE_ROWS = 200;
 
 const metricsEventValidator = v.object({
   id: v.string(),
@@ -431,6 +437,14 @@ export const writeSnapshots = internalMutation({
         await ctx.db.patch(matches[0]._id, doc);
         for (const extra of matches.slice(1)) await ctx.db.delete(extra._id);
       }
+      await writeWeeklyAverage(ctx, {
+        subgroup,
+        rangeWeeks: snap.rangeWeeks,
+        includeCollaborative: snap.includeCollaborative,
+        staffYear,
+        computedAt,
+        avgWeekly: snap.data.summary.avgWeeklyAttendance,
+      });
     }
     await recordRun(
       ctx,
@@ -442,6 +456,28 @@ export const writeSnapshots = internalMutation({
     return null;
   },
 });
+
+async function writeWeeklyAverage(
+  ctx: MutationCtx,
+  row: Omit<Doc<"attendanceMetricsWeeklyAverages">, "_id" | "_creationTime">
+): Promise<void> {
+  const existing = await ctx.db
+    .query("attendanceMetricsWeeklyAverages")
+    .withIndex("by_year_range_collab_subgroup", (q) =>
+      q
+        .eq("staffYear", row.staffYear)
+        .eq("rangeWeeks", row.rangeWeeks)
+        .eq("includeCollaborative", row.includeCollaborative)
+        .eq("subgroup", row.subgroup)
+    )
+    .take(10);
+  if (existing.length === 0) {
+    await ctx.db.insert("attendanceMetricsWeeklyAverages", row);
+  } else {
+    await ctx.db.replace(existing[0]._id, row);
+    for (const extra of existing.slice(1)) await ctx.db.delete(extra._id);
+  }
+}
 
 const variantKey = (rangeWeeks: number, includeCollaborative: boolean): string =>
   `${rangeWeeks}:${includeCollaborative}`;
@@ -503,6 +539,11 @@ export const recomputeAll = internalMutation({
         });
       }
     }
+    await ctx.scheduler.runAfter(
+      0,
+      internal.generalMetrics.recomputeCampusWeeklyAttendance,
+      {}
+    );
     return null;
   },
 });
@@ -542,19 +583,14 @@ export const snapshot = query({
   ),
   handler: async (ctx, { subgroup, rangeWeeks, includeCollaborative = true }) => {
     if (!(await optionalProfile(ctx))) return null;
-    const year = currentStaffYear();
-    const rows = await ctx.db
-      .query("attendanceMetricsSnapshots")
-      .withIndex("by_subgroup_range_year", (q) =>
-        q
-          .eq("subgroup", canonicalSubgroup(subgroup))
-          .eq("rangeWeeks", rangeWeeks)
-          .eq("includeCollaborative", includeCollaborative)
-          .eq("staffYear", year)
-      )
-      .collect();
-    if (rows.length === 0) return null;
-    const row = rows.reduce((a, b) => (b.computedAt > a.computedAt ? b : a));
+    const row = await newestSnapshot(
+      ctx,
+      subgroup,
+      rangeWeeks,
+      includeCollaborative,
+      currentStaffYear()
+    );
+    if (!row) return null;
     return {
       subgroup: row.subgroup,
       rangeWeeks: row.rangeWeeks,
@@ -565,6 +601,27 @@ export const snapshot = query({
     };
   },
 });
+
+async function newestSnapshot(
+  ctx: QueryCtx,
+  subgroup: string,
+  rangeWeeks: number,
+  includeCollaborative: boolean,
+  staffYear: number
+): Promise<Doc<"attendanceMetricsSnapshots"> | null> {
+  const rows = await ctx.db
+    .query("attendanceMetricsSnapshots")
+    .withIndex("by_subgroup_range_year", (q) =>
+      q
+        .eq("subgroup", canonicalSubgroup(subgroup))
+        .eq("rangeWeeks", rangeWeeks)
+        .eq("includeCollaborative", includeCollaborative)
+        .eq("staffYear", staffYear)
+    )
+    .collect();
+  if (rows.length === 0) return null;
+  return rows.reduce((a, b) => (b.computedAt > a.computedAt ? b : a));
+}
 
 export const canReadMetrics = internalQuery({
   args: {},
@@ -662,34 +719,92 @@ export const campusWeeklyAverages = query({
   handler: async (ctx, { rangeWeeks, includeCollaborative = true }) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
-    const { year } = caller;
-    const universities = await ctx.db
-      .query("universities")
-      .withIndex("by_year_and_name", (q) => q.eq("year", year))
-      .collect();
-
-    const perCampus = await Promise.all(
-      universities.map(async (uni) => {
-        const rows = await ctx.db
-          .query("attendanceMetricsSnapshots")
-          .withIndex("by_subgroup_range_year", (q) =>
-            q
-              .eq("subgroup", canonicalSubgroup(uni.name))
-              .eq("rangeWeeks", rangeWeeks)
-              .eq("includeCollaborative", includeCollaborative)
-              .eq("staffYear", year)
-          )
-          .collect();
-        if (rows.length === 0) return null;
-        const row = rows.reduce((a, b) => (b.computedAt > a.computedAt ? b : a));
-        const avg = row.data.summary.avgWeeklyAttendance;
-        return avg === null ? null : { campus: uni.name, avgWeekly: avg };
-      })
-    );
-    return perCampus
-      .filter((c): c is { campus: string; avgWeekly: number } => c !== null)
-      .sort((a, b) => b.avgWeekly - a.avgWeekly);
+    return readCampusWeeklyAverages(ctx, caller.year, rangeWeeks, includeCollaborative);
   },
+});
+
+async function readCampusWeeklyAverages(
+  ctx: QueryCtx,
+  year: number,
+  rangeWeeks: number,
+  includeCollaborative: boolean
+): Promise<{ campus: string; avgWeekly: number }[]> {
+  const universities = await ctx.db
+    .query("universities")
+    .withIndex("by_year_and_name", (q) => q.eq("year", year))
+    .collect();
+
+  const averages = await ctx.db
+    .query("attendanceMetricsWeeklyAverages")
+    .withIndex("by_year_range_collab_subgroup", (q) =>
+      q
+        .eq("staffYear", year)
+        .eq("rangeWeeks", rangeWeeks)
+        .eq("includeCollaborative", includeCollaborative)
+    )
+    .take(MAX_WEEKLY_AVERAGE_ROWS);
+  const newestAverage = new Map<string, Doc<"attendanceMetricsWeeklyAverages">>();
+  for (const row of averages) {
+    const seen = newestAverage.get(row.subgroup);
+    if (!seen || row.computedAt > seen.computedAt) newestAverage.set(row.subgroup, row);
+  }
+
+  const perCampus = await Promise.all(
+    universities.map(async (uni) => {
+      const summary = newestAverage.get(canonicalSubgroup(uni.name));
+      if (summary) {
+        return summary.avgWeekly === null
+          ? null
+          : { campus: uni.name, avgWeekly: summary.avgWeekly };
+      }
+      const rows = await ctx.db
+        .query("attendanceMetricsSnapshots")
+        .withIndex("by_subgroup_range_year", (q) =>
+          q
+            .eq("subgroup", canonicalSubgroup(uni.name))
+            .eq("rangeWeeks", rangeWeeks)
+            .eq("includeCollaborative", includeCollaborative)
+            .eq("staffYear", year)
+        )
+        .collect();
+      if (rows.length === 0) return null;
+      const row = rows.reduce((a, b) => (b.computedAt > a.computedAt ? b : a));
+      const avg = row.data.summary.avgWeeklyAttendance;
+      return avg === null ? null : { campus: uni.name, avgWeekly: avg };
+    })
+  );
+  return perCampus
+    .filter((c): c is { campus: string; avgWeekly: number } => c !== null)
+    .sort((a, b) => b.avgWeekly - a.avgWeekly);
+}
+
+export const view = query({
+  args: {
+    subgroup: v.string(),
+    rangeWeeks: v.number(),
+    includeCollaborative: v.optional(v.boolean()),
+  },
+  returns: v.union(v.null(), v.object({ blocks: v.array(viewBlockValidator) })),
+  handler: async (ctx, { subgroup, rangeWeeks, includeCollaborative = true }) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    const orgWide = isOrgWideSubgroup(subgroup);
+    const [snapshot, campusWeekly] = await Promise.all([
+      newestSnapshot(ctx, subgroup, rangeWeeks, includeCollaborative, currentStaffYear()),
+      orgWide
+        ? readCampusWeeklyAverages(ctx, caller.year, rangeWeeks, includeCollaborative)
+        : Promise.resolve([]),
+    ]);
+    return { blocks: buildAttendanceView({ snapshot, orgWide, campusWeekly }) };
+  },
+});
+
+export const rangeOptions = query({
+  args: {},
+  returns: v.array(
+    v.object({ weeks: v.number(), label: v.string(), isDefault: v.optional(v.boolean()) })
+  ),
+  handler: async () => ATTENDANCE_RANGE_OPTIONS.map((o) => ({ ...o })),
 });
 
 export const recomputeNow = mutation({

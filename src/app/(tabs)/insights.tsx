@@ -2,6 +2,10 @@ import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
 import { GENERAL_RECENT_YEARS } from "../../../shared/attendanceMetrics";
+import {
+  DEFAULT_RANGE_WEEKS,
+  resolveRangeWeeks,
+} from "../../../shared/attendanceMetricsView";
 import { staffYearForDate, sydneyCalendarYear } from "../../../shared/flow";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -9,7 +13,6 @@ import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
 import { GeneralMetricsTab } from "@/components/attendance/GeneralMetricsTab";
 import {
   AttendanceRangeFab,
-  type AttendanceRangeSelection,
   ChartModeFab,
   type GeneralScope,
   GeneralScopeFab,
@@ -40,14 +43,13 @@ export default function InsightsScreen() {
   const [memberSheetId, setMemberSheetId] = useState<Id<"attendanceMembers"> | null>(
     null
   );
-  const [attendanceRange, setAttendanceRange] = useState<AttendanceRangeSelection>({
-    kind: "preset",
-    weeks: 4,
-  });
+  const [pickedWeeks, setAttendanceWeeks] = useState(DEFAULT_RANGE_WEEKS);
+  const rangeOptions = useQuery(api.attendanceMetrics.rangeOptions, {});
+  const attendanceWeeks = resolveRangeWeeks(pickedWeeks, rangeOptions);
   const [includeCollaborative, setIncludeCollaborative] = useState(true);
   const [generalScope, setGeneralScope] = useState<GeneralScope>(null);
   const [chartMode, setChartMode] = useState<ChartMode>("bar");
-  const staffTrends = useQuery(api.generalMetrics.staffTrends, {});
+  const generalView = useQuery(api.generalMetrics.view, { scope: generalScope });
 
   useEffect(() => {
     if (tab === "attendance" || tab === "general") {
@@ -80,7 +82,7 @@ export default function InsightsScreen() {
     label: "General",
     render: () => (
       <>
-        <GeneralMetricsTab scope={generalScope} publicPreview={!isSignedIn} />
+        <GeneralMetricsTab view={generalView} />
         {signInPrompt}
       </>
     ),
@@ -94,7 +96,7 @@ export default function InsightsScreen() {
         selectedSubgroup={subgroup}
         onSelectedSubgroupChange={setSelectedSubgroup}
         onOpenMember={openEditMember}
-        range={attendanceRange}
+        rangeWeeks={attendanceWeeks}
         includeCollaborative={includeCollaborative}
       />
     ),
@@ -106,14 +108,15 @@ export default function InsightsScreen() {
     <>
       {activeKey === "attendance" && isStaff ? (
         <AttendanceRangeFab
-          range={attendanceRange}
-          onRangeChange={setAttendanceRange}
+          options={rangeOptions ?? []}
+          weeks={attendanceWeeks}
+          onWeeksChange={setAttendanceWeeks}
           includeCollaborative={includeCollaborative}
           onCollaborativeChange={setIncludeCollaborative}
         />
       ) : isSignedIn ? (
         <GeneralScopeFab
-          years={staffTrends?.years ?? []}
+          years={generalView?.years ?? []}
           value={generalScope}
           onChange={setGeneralScope}
           recentYears={GENERAL_RECENT_YEARS}

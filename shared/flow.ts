@@ -279,8 +279,6 @@ export const eventStaffYear = (dateStart: number): number =>
 export const staffYearStartMs = (year: number): number =>
   Date.UTC(year - 1, 8, 30, 14, 0, 0, 0);
 
-export const ROLLOVER_RATE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
-
 // Auth grace is deliberately not a fixed duration: it lasts until the Sydney
 // calendar year catches up with the staff year (see ADR 0003).
 export const withinRolloverAuthGrace = (
@@ -289,15 +287,6 @@ export const withinRolloverAuthGrace = (
 ): boolean => {
   if (now.getTime() < staffYearStartMs(staffYear)) return false;
   return sydneyCalendarYear(now) < staffYear;
-};
-
-export const withinRolloverRateGrace = (
-  staffYear: number,
-  now: Date = new Date()
-): boolean => {
-  const start = staffYearStartMs(staffYear);
-  const t = now.getTime();
-  return t >= start && t < start + ROLLOVER_RATE_GRACE_MS;
 };
 
 export const sydneyCalendarYear = (date: Date): number => sydneyYmd(date).year;
