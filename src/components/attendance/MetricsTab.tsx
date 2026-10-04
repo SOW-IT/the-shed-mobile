@@ -1,292 +1,50 @@
-import { useAction, useQuery } from "convex/react";
-import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "convex/react";
+import { useState } from "react";
 import {
   LayoutChangeEvent,
   Pressable,
   StyleSheet,
-  Text,
   useWindowDimensions,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import {
-  rangeLabel,
-  rangeStartFor,
-  type FollowUpPerson,
-  type SubgroupMetricsData,
-} from "../../../shared/attendanceMetrics";
-import { staffYearForDate, staffYearStartMs } from "../../../shared/flow";
 import { isOrgWideSubgroup, subgroupColour } from "../../../shared/rollcall";
 import { CampusMark } from "@/components/CampusMark";
-import {
-  type AttendanceRangeSelection,
-  attendanceRangeFabLabel,
-} from "@/components/attendance/InsightsSelectors";
-import {
-  BarChart,
-  BreakdownBars,
-  ChartCard,
-  FollowUpRow,
-  MetricCard,
-  StackedBarChart,
-} from "@/components/attendance/MetricsCharts";
-import {
-  EmptyState,
-  FadeInView,
-  LoadingState,
-  ReadableColumn,
-  Sheet,
-  stagger,
-} from "@/components/ui";
-import { radius, spacing, typography, useAppTheme } from "@/theme";
+import { InsightsBlocks } from "@/components/attendance/InsightsBlocks";
+import { FadeInView, LoadingState, stagger } from "@/components/ui";
+import { spacing, useAppTheme } from "@/theme";
 
 const CAMPUS_MARK = 40;
-const FOLLOW_UP_SHOWN = 25;
 
-const timeAgo = (ms: number): string => {
-  const diff = Date.now() - ms;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-};
-
-type TileDetail = { title: string; body: string };
-
-type SummaryCard = {
-  label: string;
-  value: string;
-  delta?: { text: string; direction: "up" | "down" | "flat" } | null;
-  hint?: string;
-  tone?: "default" | "positive" | "attention";
-  detail: TileDetail;
-};
-
+// The layout comes from `attendanceMetrics.view` (see InsightsBlocks).
 export function MetricsTab({
   subgroups,
   selectedSubgroup,
   onSelectedSubgroupChange,
   onOpenMember,
-  range,
+  rangeWeeks,
   includeCollaborative,
 }: {
   subgroups: string[];
   selectedSubgroup: string | null;
   onSelectedSubgroupChange: (subgroup: string) => void;
   onOpenMember: (memberId: Id<"attendanceMembers">) => void;
-  range: AttendanceRangeSelection;
+  rangeWeeks: number;
   includeCollaborative: boolean;
 }) {
   const t = useAppTheme();
-  const router = useRouter();
   const { width: windowWidth } = useWindowDimensions();
   const subgroup = selectedSubgroup ?? subgroups[0] ?? null;
-
   const [containerWidth, setContainerWidth] = useState(windowWidth);
-  const [detail, setDetail] = useState<TileDetail | null>(null);
 
-  const presetWeeks = range.kind === "preset" ? range.weeks : null;
-  const snapshot = useQuery(
-    api.attendanceMetrics.snapshot,
-    subgroup && presetWeeks !== null
-      ? { subgroup, rangeWeeks: presetWeeks, includeCollaborative }
-      : "skip"
+  const view = useQuery(
+    api.attendanceMetrics.view,
+    subgroup ? { subgroup, rangeWeeks, includeCollaborative } : "skip"
   );
 
-  const liveSnapshot = useAction(api.attendanceMetrics.liveSnapshot);
-  const [live, setLive] = useState<{
-    computedAt: number;
-    data: SubgroupMetricsData;
-  } | null>(null);
-  const [liveLoading, setLiveLoading] = useState(false);
-  const [liveError, setLiveError] = useState<string | null>(null);
-
-  const presetNeedsLive = range.kind === "preset" && snapshot === null;
-  useEffect(() => {
-    const useLive =
-      !!subgroup && (range.kind === "custom" || presetNeedsLive);
-    if (!useLive) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear when snapshot is enough
-      setLive(null);
-      setLiveError(null);
-      setLiveLoading(false);
-      return;
-    }
-    const now = Date.now();
-    const rangeStartMs =
-      range.kind === "custom"
-        ? range.startMs
-        : rangeStartFor(
-            now,
-            range.weeks,
-            staffYearStartMs(staffYearForDate(new Date(now)))
-          );
-    const rangeEndMs = range.kind === "custom" ? range.endMs : now;
-    let cancelled = false;
-    setLiveLoading(true);
-    setLiveError(null);
-    liveSnapshot({
-      subgroup,
-      rangeStartMs,
-      rangeEndMs,
-      includeCollaborative,
-    })
-      .then((result) => {
-        if (cancelled) return;
-        setLive(result);
-        setLiveLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setLive(null);
-        setLiveLoading(false);
-        setLiveError(
-          err instanceof Error
-            ? err.message
-            : range.kind === "custom"
-              ? "Couldn't load this custom range."
-              : "Couldn't load attendance insights."
-        );
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [range, subgroup, includeCollaborative, liveSnapshot, presetNeedsLive]);
-
-  const orgWide = subgroup ? isOrgWideSubgroup(subgroup) : false;
-  const campusWeekly = useQuery(
-    api.attendanceMetrics.campusWeeklyAverages,
-    orgWide && presetWeeks !== null
-      ? { rangeWeeks: presetWeeks, includeCollaborative }
-      : "skip"
-  );
-
-  const wide = containerWidth >= 640;
   const onLayout = (e: LayoutChangeEvent) =>
     setContainerWidth(e.nativeEvent.layout.width);
-  const rangeText =
-    range.kind === "preset"
-      ? rangeLabel(range.weeks)
-      : attendanceRangeFabLabel(range);
-
-  const cardCols = wide ? 3 : 2;
-  const cardWidth =
-    (containerWidth - spacing.sm * (cardCols - 1)) / cardCols;
-  const chartCols = wide ? 2 : 1;
-  const chartWidth =
-    (containerWidth - spacing.sm * (chartCols - 1)) / chartCols;
-
-  const openPerson = (person: FollowUpPerson) => {
-    if (person.key.startsWith("member:")) {
-      const raw = person.key.slice("member:".length);
-      onOpenMember(raw as Id<"attendanceMembers">);
-    } else if (person.key.startsWith("staff:")) {
-      router.push({
-        pathname: "/person/[email]",
-        params: { email: person.key.slice("staff:".length) },
-      });
-    }
-  };
-
-  const usingLive = range.kind === "custom" || presetNeedsLive;
-  const loading = usingLive ? liveLoading : snapshot === undefined;
-  const notReady = usingLive
-    ? !liveLoading && live === null && !liveError
-    : snapshot === null;
-  const data = usingLive ? live?.data : snapshot?.data;
-  const computedAt = usingLive ? live?.computedAt : snapshot?.computedAt;
-  const summaryCards = useMemo<SummaryCard[]>(() => {
-    if (!data) return [];
-    const s = data.summary;
-    const deltaFor = (pct: number | null) =>
-      pct === null
-        ? null
-        : {
-            text: `${pct > 0 ? "+" : ""}${pct}%`,
-            direction:
-              pct > 0 ? ("up" as const) : pct < 0 ? ("down" as const) : ("flat" as const),
-          };
-
-    const weeklyCard: SummaryCard = {
-      label: "Avg / weekly mtg",
-      value: s.avgWeeklyAttendance === null ? "—" : `${s.avgWeeklyAttendance}`,
-      delta: deltaFor(s.weeklyChangePct),
-      hint:
-        s.avgWeeklyAttendancePrev !== null
-          ? `vs ${s.avgWeeklyAttendancePrev} prev`
-          : "no baseline yet",
-      detail: {
-        title: "Average weekly meeting attendance",
-        body: "The average number of people at each weekly meeting in the selected range, counting only events tagged “Weekly Meeting”, so make-up or one-off events don't dilute it. The arrow compares this to the previous period of the same length. This is the headline for groups that gather weekly; “—” means no weekly meetings fell in the range.",
-      },
-    };
-    const eventCard: SummaryCard = {
-      label: "Avg / event",
-      value: `${s.avgAttendance}`,
-      delta: deltaFor(s.changePct),
-      hint:
-        s.avgAttendancePrev !== null ? `vs ${s.avgAttendancePrev} prev` : "no baseline yet",
-      detail: {
-        title: "Average attendance per event",
-        body: "The average turnout across every event in the range (weekly meetings plus any other gatherings), compared to the previous period of the same length. Include or exclude multi-campus (collaborative) events with the toggle above.",
-      },
-    };
-
-    return [
-      ...(data.hasWeeklyMeetings ? [weeklyCard] : []),
-      eventCard,
-      {
-        label: "Events held",
-        value: `${s.eventsHeld}`,
-        detail: {
-          title: "Events held",
-          body: "How many events this sub-group held within the selected range. Collaborative (multi-campus) events are included only when the toggle above is on.",
-        },
-      },
-      {
-        label: "Unique attendees",
-        value: `${s.uniqueAttendees}`,
-        detail: {
-          title: "Unique attendees",
-          body: "The number of distinct people who attended at least one event in the range. Someone who came to five events counts once.",
-        },
-      },
-      {
-        label: "Newcomers",
-        value: `${s.newcomers}`,
-        tone: "positive" as const,
-        detail: {
-          title: "Newcomers",
-          body: "People attending for the first time ever. Their first recorded attendance (across all loaded history) falls within roughly the last 30 days, or the selected range if it is shorter. Deliberately anchored to “recently new” rather than the whole range, so a long range doesn't count everyone who joined months ago.",
-        },
-      },
-      {
-        label: "Follow-up suggested",
-        value: `${s.followUpCount}`,
-        tone: "attention" as const,
-        detail: {
-          title: "Follow-up suggested",
-          body: "People whose recent attendance suggests a gentle check-in: at-risk regulars, those who've lapsed, people attending less than before, newcomers who haven't returned, and the recently re-engaged. “Recent” follows the range you pick, so this number moves with the 4/8/12-week and staff-year selector. The full breakdown is in the “Needs follow-up” list below.",
-        },
-      },
-      {
-        label: "Weekly consistency",
-        value:
-          s.weeklyConsistency === null
-            ? "—"
-            : `${Math.round(s.weeklyConsistency * 100)}%`,
-        detail: {
-          title: "Weekly consistency",
-          body: "How steady weekly-meeting turnout is over the range. Average weekly attendance divided by the best week. 100% means every week matched the peak; a lower figure means turnout swings more. “—” when there were no weekly meetings in the range.",
-        },
-      },
-    ];
-  }, [data]);
 
   return (
     <View onLayout={onLayout} style={{ gap: spacing.md }}>
@@ -300,6 +58,7 @@ export function MetricsTab({
               <FadeInView key={sg} delay={stagger(i)}>
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityLabel={sg}
                   accessibilityState={{ selected: active }}
                   onPress={() => onSelectedSubgroupChange(sg)}
                   style={({ pressed }) => [styles.campusSlot, pressed && { opacity: 0.7 }]}
@@ -316,309 +75,17 @@ export function MetricsTab({
         </View>
       ) : null}
 
-      <View style={styles.metaRow}>
-        <Text style={[typography.caption, { color: t.muted }]}>
-          {`${rangeText}${includeCollaborative ? " · incl. collaborative" : ""}`}
-        </Text>
-        {computedAt ? (
-          <View style={styles.refresh}>
-            <Ionicons name="time-outline" size={14} color={t.faint} />
-            <Text style={[typography.caption, { color: t.faint }]}>
-              {`Updated ${timeAgo(computedAt)}`}
-            </Text>
-          </View>
-        ) : null}
-      </View>
-
-      {subgroup && loading ? (
+      {subgroup && view === undefined ? (
         <LoadingState />
-      ) : liveError ? (
-        <EmptyState
-          icon="alert-circle-outline"
-          title={
-            range.kind === "custom"
-              ? "Couldn't load custom range"
-              : "Couldn't load insights"
-          }
-          message={liveError}
+      ) : view ? (
+        <InsightsBlocks
+          key={`${subgroup}-${rangeWeeks}-${includeCollaborative}`}
+          blocks={view.blocks}
+          width={containerWidth}
+          onOpenMember={onOpenMember}
         />
-      ) : notReady ? (
-        <EmptyState
-          icon="sparkles-outline"
-          title="Insights aren't ready yet"
-          message="Attendance insights are prepared automatically and refresh within minutes of roll-call changes. Check back shortly."
-        />
-      ) : data && !data.hasEnoughHistory ? (
-        <EmptyState
-          icon="calendar-outline"
-          title="No events in this range"
-          message="Nothing recorded for this group in this range yet. Try a longer range, or include collaborative events to widen the view."
-        />
-      ) : data ? (
-        <>
-          <View style={styles.cardGrid}>
-            {summaryCards.map((card, i) => (
-              <FadeInView key={card.label} delay={stagger(i)}>
-                <MetricCard
-                  label={card.label}
-                  value={card.value}
-                  delta={card.delta}
-                  hint={card.hint}
-                  tone={card.tone ?? "default"}
-                  width={cardWidth}
-                  onPress={() => setDetail(card.detail)}
-                />
-              </FadeInView>
-            ))}
-          </View>
-
-          <View style={styles.chartGrid}>
-            {(() => {
-              const weekly = data.hasWeeklyMeetings;
-              const weeklyTrendChart =
-                data.weeklyTrend.length > 0 ? (
-                  <ChartCard
-                    key="weeklyTrend"
-                    title="Weekly meeting trend"
-                    subtitle="Turnout at weekly meetings"
-                    width={chartWidth}
-                    fullscreenContent={<BarChart points={data.weeklyTrend} colour={t.success} fullscreen />}
-                  >
-                    <BarChart points={data.weeklyTrend} colour={t.success} />
-                  </ChartCard>
-                ) : null;
-              const newVsReturningChart = !orgWide ? (
-                <ChartCard
-                  key="newVsReturning"
-                  title="New vs returning"
-                  subtitle={weekly ? "At weekly meetings" : undefined}
-                  width={chartWidth}
-                  legendItems={[
-                    { key: "fresh", colour: t.accent, label: "New" },
-                    { key: "returning", colour: t.primary, label: "Returning" },
-                  ]}
-                  fullscreenContent={<StackedBarChart points={data.newVsReturning} fullscreen />}
-                >
-                  <StackedBarChart points={data.newVsReturning} />
-                </ChartCard>
-              ) : null;
-              const basis = weekly ? "At weekly meetings" : undefined;
-              const shareSubtitle = (
-                share: number | null | undefined,
-                noun: string
-              ): string | undefined => {
-                if (share === null || share === undefined) return basis;
-                const pct = `${Math.round(share * 100)}% ${noun}`;
-                const round1 = (n: number) => Math.round(n * 10) / 10;
-                const ratio =
-                  share > 0 && share < 1
-                    ? share >= 0.5
-                      ? ` (≈${round1(share / (1 - share))}:1)`
-                      : ` (≈1:${round1((1 - share) / share)})`
-                    : "";
-                return [basis, `${pct}${ratio}`].filter(Boolean).join(" · ");
-              };
-              const asSplit = (points: { at: number; label: string; primary: number; rest: number }[]) =>
-                points.map((p) => ({
-                  at: p.at,
-                  label: p.label,
-                  fresh: p.primary,
-                  returning: p.rest,
-                }));
-              const leadersVsOthersChart =
-                !orgWide && data.leadersVsOthers && data.leadersVsOthers.length > 0 ? (
-                  <ChartCard
-                    key="leadersVsOthers"
-                    title="Student leaders vs everyone else"
-                    subtitle={shareSubtitle(data.summary.leaderShare, "student leaders")}
-                    width={chartWidth}
-                    legendItems={[
-                      { key: "fresh", colour: t.accent, label: "Student leaders" },
-                      { key: "returning", colour: t.primary, label: "Everyone else" },
-                    ]}
-                    fullscreenContent={
-                      <StackedBarChart
-                        points={asSplit(data.leadersVsOthers)}
-                        labels={{ fresh: "Student leaders", returning: "Everyone else" }}
-                        fullscreen
-                      />
-                    }
-                  >
-                    <StackedBarChart
-                      points={asSplit(data.leadersVsOthers)}
-                      labels={{ fresh: "Student leaders", returning: "Everyone else" }}
-                    />
-                  </ChartCard>
-                ) : null;
-              const campusMixChart =
-                data.campusMix &&
-                data.campusMix.some((p) => p.primary + p.rest > 0) ? (
-                  <ChartCard
-                    key="campusMix"
-                    title="This campus vs visitors"
-                    subtitle={shareSubtitle(data.summary.homeCampusShare, "from this campus")}
-                    width={chartWidth}
-                    legendItems={[
-                      { key: "fresh", colour: t.accent, label: "This campus" },
-                      { key: "returning", colour: t.primary, label: "Other campuses" },
-                    ]}
-                    legendNote="Only people with a known campus"
-                    fullscreenContent={
-                      <StackedBarChart
-                        points={asSplit(data.campusMix)}
-                        labels={{ fresh: "This campus", returning: "Other campuses" }}
-                        fullscreen
-                      />
-                    }
-                  >
-                    <StackedBarChart
-                      points={asSplit(data.campusMix)}
-                      labels={{ fresh: "This campus", returning: "Other campuses" }}
-                    />
-                  </ChartCard>
-                ) : null;
-              const attendanceChart = (
-                <ChartCard
-                  key="attendance"
-                  title="Attendance over time"
-                  subtitle="Per event"
-                  width={chartWidth}
-                  fullscreenContent={<BarChart points={data.attendanceByEvent} colour={t.primary} fullscreen />}
-                >
-                  <BarChart points={data.attendanceByEvent} colour={t.primary} />
-                </ChartCard>
-              );
-              const rollingChart = (
-                <ChartCard
-                  key="rolling"
-                  title="Rolling average"
-                  subtitle="Smoothed across recent events"
-                  width={chartWidth}
-                  fullscreenContent={<BarChart points={data.rollingAverage} colour={t.accent} fullscreen />}
-                >
-                  <BarChart points={data.rollingAverage} colour={t.accent} />
-                </ChartCard>
-              );
-              const monthChart = (
-                <ChartCard
-                  key="month"
-                  title="Unique attendees by month"
-                  width={chartWidth}
-                  fullscreenContent={<BarChart points={data.uniqueByMonth} colour={t.primary} fullscreen />}
-                >
-                  <BarChart points={data.uniqueByMonth} colour={t.primary} />
-                </ChartCard>
-              );
-              const breakdownCharts = data.breakdowns.map((b) => (
-                <ChartCard key={`bd-${b.field}`} title={`By ${b.field}`} width={chartWidth}>
-                  <BreakdownBars rows={b.rows} />
-                </ChartCard>
-              ));
-              const campusWeeklyChart = !orgWide
-                ? null
-                : range.kind === "custom"
-                  ? (
-                      <ChartCard
-                        key="campusWeekly"
-                        title="Avg weekly attendance by campus"
-                        subtitle="Not available for custom ranges. Pick a preset."
-                        width={chartWidth}
-                      >
-                        <Text style={[typography.caption, { color: t.muted }]}>
-                          Per-campus averages use precomputed campus snapshots,
-                          which only cover Past week / month / year. Switch to a
-                          preset to see this breakdown.
-                        </Text>
-                      </ChartCard>
-                    )
-                  : campusWeekly && campusWeekly.length > 0
-                    ? (
-                        <ChartCard
-                          key="campusWeekly"
-                          title="Avg weekly attendance by campus"
-                          subtitle="Each campus's weekly meetings"
-                          width={chartWidth}
-                        >
-                          <BreakdownBars
-                            rows={campusWeekly.map((c) => ({
-                              label: c.campus,
-                              value: c.avgWeekly,
-                            }))}
-                          />
-                        </ChartCard>
-                      )
-                    : null;
-              const ordered = weekly
-                ? [
-                    campusWeeklyChart,
-                    weeklyTrendChart,
-                    newVsReturningChart,
-                    leadersVsOthersChart,
-                    campusMixChart,
-                    attendanceChart,
-                    rollingChart,
-                    monthChart,
-                    ...breakdownCharts,
-                  ]
-                : [
-                    campusWeeklyChart,
-                    attendanceChart,
-                    rollingChart,
-                    weeklyTrendChart,
-                    monthChart,
-                    newVsReturningChart,
-                    leadersVsOthersChart,
-                    campusMixChart,
-                    ...breakdownCharts,
-                  ];
-              return ordered.filter(Boolean);
-            })()}
-          </View>
-
-          {orgWide ? null : (
-          <ReadableColumn maxWidth={560}>
-          <View style={[styles.followCard, { backgroundColor: t.card }, t.shadowCard]}>
-            <View style={styles.followHeader}>
-              <Ionicons name="heart-outline" size={18} color={t.primary} />
-              <Text style={[typography.headline, { color: t.text, flex: 1 }]}>
-                Needs follow-up
-              </Text>
-              <Text style={[typography.caption, { color: t.muted }]}>
-                {data.followUps.length}
-              </Text>
-            </View>
-            <Text style={[typography.caption, { color: t.muted }]}>
-              A gentle prompt. People whose recent attendance suggests a caring
-              check-in. No judgement implied.
-            </Text>
-            {data.followUps.length === 0 ? (
-              <View style={styles.followEmpty}>
-                <Ionicons name="checkmark-circle-outline" size={22} color={t.success} />
-                <Text style={[typography.caption, { color: t.muted }]}>
-                  Nobody needs following up right now. Lovely.
-                </Text>
-              </View>
-            ) : (
-              data.followUps.slice(0, FOLLOW_UP_SHOWN).map((person) => (
-                <FollowUpRow key={person.key} person={person} onOpen={openPerson} />
-              ))
-            )}
-            {data.followUps.length > FOLLOW_UP_SHOWN ? (
-              <Text style={[typography.caption, styles.followMore, { color: t.faint }]}>
-                Showing the {FOLLOW_UP_SHOWN} most pressing of {data.followUps.length}.
-              </Text>
-            ) : null}
-          </View>
-          </ReadableColumn>
-          )}
-
-          <View style={{ height: 96 }} />
-        </>
       ) : null}
-
-      <Sheet visible={detail !== null} onClose={() => setDetail(null)} title={detail?.title}>
-        <Text style={[typography.body, { color: t.text }]}>{detail?.body}</Text>
-      </Sheet>
+      <View style={{ height: 96 }} />
     </View>
   );
 }
@@ -637,38 +104,4 @@ const styles = StyleSheet.create({
     borderWidth: 2.5,
     borderColor: "transparent",
   },
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.sm,
-  },
-  refresh: { flexDirection: "row", alignItems: "center", gap: 5 },
-  cardGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  chartGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  followCard: {
-    borderRadius: radius.md,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  followHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  followEmpty: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingVertical: spacing.md,
-  },
-  followMore: { textAlign: "center", marginTop: spacing.sm },
 });

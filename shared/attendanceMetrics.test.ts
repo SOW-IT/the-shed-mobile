@@ -396,6 +396,21 @@ describe("computeSubgroupMetrics — weekly-meeting lens", () => {
     expect(data.summary.avgAttendance).toBeGreaterThan(2);
   });
 
+  it("leaves out a weekly meeting nobody signed in to (it didn't happen)", () => {
+    const w1 = weekly(weeksAgo(3));
+    const w2 = weekly(weeksAgo(2));
+    const empty = weekly(weeksAgo(1));
+    const data = computeSubgroupMetrics(
+      build(
+        [w1, w2, empty],
+        [attend(w1, "a"), attend(w1, "b"), attend(w2, "a"), attend(w2, "b")],
+        [person("a"), person("b")]
+      )
+    );
+    expect(data.summary.avgWeeklyAttendance).toBe(2);
+    expect(data.weeklyTrend.map((p) => p.value)).toEqual([2, 2]);
+  });
+
   it("reports no weekly average for a group that runs no weekly meetings", () => {
     const e1 = oneOff(weeksAgo(2));
     const e2 = oneOff(weeksAgo(1));

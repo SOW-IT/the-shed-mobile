@@ -1,12 +1,10 @@
-import { v } from "convex/values";
-import { query } from "./_generated/server";
+import { type Infer, v } from "convex/values";
+import { internalMutation, query, type QueryCtx } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { currentStaffYear } from "./model";
-import {
-  eventStaffYear,
-  staffYearStartMs,
-  withinRolloverRateGrace,
-} from "../shared/flow";
+import { viewBlockValidator } from "./metricsData";
+import { buildGeneralView } from "../shared/generalMetricsView";
+import { staffYearStartMs, sydneyCalendarYear } from "../shared/flow";
 import {
   isOrgWideSubgroup,
   normalizeSubgroups,
@@ -158,231 +156,232 @@ const lifetimeAvgYears = v.object({
   studentLeaders: v.number(),
 });
 
+export const staffTrendsValidator = v.object({
+  computedAt: v.number(),
+  years: v.array(v.number()),
+  allStaff: v.array(v.number()),
+  staff: v.array(v.number()),
+  studentLeaders: v.array(v.number()),
+  campuses: v.array(v.string()),
+  studentLeadersByCampus: v.array(
+    v.object({ campus: v.string(), counts: v.array(v.number()) })
+  ),
+  turnover: rateSeries,
+  retention: rateSeries,
+  tenure2Plus: pctSeries,
+  avgTenureYears: avgYearsSeries,
+  lifetimeTenure2Plus: lifetimePct,
+  lifetimeAvgTenureYears: lifetimeAvgYears,
+});
+
+export type StaffTrends = Infer<typeof staffTrendsValidator>;
+
 export const staffTrends = query({
   args: {},
-  returns: v.union(
-    v.null(),
-    v.object({
-      computedAt: v.number(),
-      years: v.array(v.number()),
-      allStaff: v.array(v.number()),
-      staff: v.array(v.number()),
-      studentLeaders: v.array(v.number()),
-      campuses: v.array(v.string()),
-      studentLeadersByCampus: v.array(
-        v.object({ campus: v.string(), counts: v.array(v.number()) })
-      ),
-      turnover: rateSeries,
-      retention: rateSeries,
-      tenure2Plus: pctSeries,
-      avgTenureYears: avgYearsSeries,
-      lifetimeTenure2Plus: lifetimePct,
-      lifetimeAvgTenureYears: lifetimeAvgYears,
-    })
-  ),
-  handler: async (ctx) => {
+  returns: v.union(v.null(), staffTrendsValidator),
+  handler: (ctx) => computeStaffTrends(ctx),
+});
 
-    const currentYear = currentStaffYear();
-    const latestCompleteYear = withinRolloverRateGrace(currentYear)
-      ? currentYear - 1
-      : currentYear;
-    const profiles = (await ctx.db.query("staffProfiles").collect()).filter(
-      (p) => p.year <= currentYear
+export async function computeStaffTrends(ctx: QueryCtx): Promise<StaffTrends> {
+
+  const currentYear = currentStaffYear();
+  const latestCompleteYear = currentYear;
+  const profiles = (await ctx.db.query("staffProfiles").collect()).filter(
+    (p) => p.year <= currentYear
+  );
+
+  const totals = new Map<
+    number,
+    { all: number; staff: number; studentLeaders: number }
+  >();
+  const campusByYear = new Map<number, Map<string, Set<string>>>();
+  const campusSet = new Set<string>();
+
+  const emailToImportId = buildEmailToImportId(profiles);
+  const peopleByYear = new Map<
+    number,
+    ReturnType<typeof emptyPersonSets>
+  >();
+  const yearsAll = new Map<string, Set<number>>();
+  const yearsStaff = new Map<string, Set<number>>();
+  const yearsStudentLeaders = new Map<string, Set<number>>();
+
+  const addYear = (
+    map: Map<string, Set<number>>,
+    key: string,
+    year: number
+  ) => {
+    const set = map.get(key) ?? new Set<number>();
+    set.add(year);
+    map.set(key, set);
+  };
+
+  for (const profile of profiles) {
+    const roles = (profile.assignments ?? []).map((a) => a.role);
+    const tally =
+      totals.get(profile.year) ?? { all: 0, staff: 0, studentLeaders: 0 };
+    tally.all += 1;
+    const isStaff = roleFilterMatches(STAFF_ROLE_FILTER_LABEL, roles);
+    if (isStaff) tally.staff += 1;
+    const isStudentLeader = roleFilterMatches(
+      STUDENT_LEADER_ROLE_FILTER_LABEL,
+      roles
     );
+    if (isStudentLeader) tally.studentLeaders += 1;
+    totals.set(profile.year, tally);
 
-    const totals = new Map<
-      number,
-      { all: number; staff: number; studentLeaders: number }
-    >();
-    const campusByYear = new Map<number, Map<string, Set<string>>>();
-    const campusSet = new Set<string>();
+    if (profile.year <= latestCompleteYear) {
+      const key = profilePersonKey(profile, emailToImportId);
+      const sets = peopleByYear.get(profile.year) ?? emptyPersonSets();
+      sets.all.add(key);
+      if (isStaff) sets.staff.add(key);
+      if (isStudentLeader) sets.studentLeaders.add(key);
+      peopleByYear.set(profile.year, sets);
 
-    const emailToImportId = buildEmailToImportId(profiles);
-    const peopleByYear = new Map<
-      number,
-      ReturnType<typeof emptyPersonSets>
-    >();
-    const yearsAll = new Map<string, Set<number>>();
-    const yearsStaff = new Map<string, Set<number>>();
-    const yearsStudentLeaders = new Map<string, Set<number>>();
-
-    const addYear = (
-      map: Map<string, Set<number>>,
-      key: string,
-      year: number
-    ) => {
-      const set = map.get(key) ?? new Set<number>();
-      set.add(year);
-      map.set(key, set);
-    };
-
-    for (const profile of profiles) {
-      const roles = (profile.assignments ?? []).map((a) => a.role);
-      const tally =
-        totals.get(profile.year) ?? { all: 0, staff: 0, studentLeaders: 0 };
-      tally.all += 1;
-      const isStaff = roleFilterMatches(STAFF_ROLE_FILTER_LABEL, roles);
-      if (isStaff) tally.staff += 1;
-      const isStudentLeader = roleFilterMatches(
-        STUDENT_LEADER_ROLE_FILTER_LABEL,
-        roles
-      );
-      if (isStudentLeader) tally.studentLeaders += 1;
-      totals.set(profile.year, tally);
-
-      if (profile.year <= latestCompleteYear) {
-        const key = profilePersonKey(profile, emailToImportId);
-        const sets = peopleByYear.get(profile.year) ?? emptyPersonSets();
-        sets.all.add(key);
-        if (isStaff) sets.staff.add(key);
-        if (isStudentLeader) sets.studentLeaders.add(key);
-        peopleByYear.set(profile.year, sets);
-
-        addYear(yearsAll, key, profile.year);
-        if (isStaff) addYear(yearsStaff, key, profile.year);
-        if (isStudentLeader) addYear(yearsStudentLeaders, key, profile.year);
-      }
-
-      if (isStudentLeader) {
-        const campuses = new Set(
-          (profile.assignments ?? [])
-            .filter(
-              (a) =>
-                a.university &&
-                STUDENT_LEADER_ROLE_FILTER_ROLES.includes(
-                  a.role as (typeof STUDENT_LEADER_ROLE_FILTER_ROLES)[number]
-                )
-            )
-            .map((a) => a.university as string)
-        );
-        let perCampus = campusByYear.get(profile.year);
-        if (!perCampus) campusByYear.set(profile.year, (perCampus = new Map()));
-        for (const campus of campuses) {
-          campusSet.add(campus);
-          (perCampus.get(campus) ?? setDefault(perCampus, campus)).add(
-            profile.email
-          );
-        }
-      }
+      addYear(yearsAll, key, profile.year);
+      if (isStaff) addYear(yearsStaff, key, profile.year);
+      if (isStudentLeader) addYear(yearsStudentLeaders, key, profile.year);
     }
 
-    const years = [...totals.keys()].sort((a, b) => a - b);
-    const campuses = [...campusSet].sort((a, b) => a.localeCompare(b));
-    const studentLeadersByCampus = campuses.map((campus) => ({
-      campus,
-      counts: years.map(
-        (year) => campusByYear.get(year)?.get(campus)?.size ?? 0
-      ),
-    }));
-
-    const empty = emptyPersonSets();
-
-    const yoyRate = (
-      rateFn: typeof turnoverRate,
-      lens: keyof ReturnType<typeof emptyPersonSets>
-    ) =>
-      years.map((year, i) => {
-        if (i === 0 || year > latestCompleteYear) return null;
-        return rateFn(
-          peopleByYear.get(years[i - 1])?.[lens] ?? empty[lens],
-          peopleByYear.get(year)?.[lens] ?? empty[lens]
+    if (isStudentLeader) {
+      const campuses = new Set(
+        (profile.assignments ?? [])
+          .filter(
+            (a) =>
+              a.university &&
+              STUDENT_LEADER_ROLE_FILTER_ROLES.includes(
+                a.role as (typeof STUDENT_LEADER_ROLE_FILTER_ROLES)[number]
+              )
+          )
+          .map((a) => a.university as string)
+      );
+      let perCampus = campusByYear.get(profile.year);
+      if (!perCampus) campusByYear.set(profile.year, (perCampus = new Map()));
+      for (const campus of campuses) {
+        campusSet.add(campus);
+        (perCampus.get(campus) ?? setDefault(perCampus, campus)).add(
+          profile.email
         );
-      });
-    const rateForYear = (year: number, compute: () => number | null) =>
-      year > latestCompleteYear ? null : compute();
+      }
+    }
+  }
 
-    const turnover = {
-      overall: yoyRate(turnoverRate, "all"),
-      staff: yoyRate(turnoverRate, "staff"),
-      studentLeaders: yoyRate(turnoverRate, "studentLeaders"),
-    };
-    const retention = {
-      overall: yoyRate(retentionRate, "all"),
-      staff: yoyRate(retentionRate, "staff"),
-      studentLeaders: yoyRate(retentionRate, "studentLeaders"),
-    };
+  const years = [...totals.keys()].sort((a, b) => a - b);
+  const campuses = [...campusSet].sort((a, b) => a.localeCompare(b));
+  const studentLeadersByCampus = campuses.map((campus) => ({
+    campus,
+    counts: years.map(
+      (year) => campusByYear.get(year)?.get(campus)?.size ?? 0
+    ),
+  }));
 
-    const tenure2Plus = {
-      overall: years.map((year) =>
-        rateForYear(year, () =>
-          tenureAtLeastPct(
-            peopleByYear.get(year)?.all ?? empty.all,
-            yearsAll,
-            year
-          )
-        )
-      ),
-      staff: years.map((year) =>
-        rateForYear(year, () =>
-          tenureAtLeastPct(
-            peopleByYear.get(year)?.staff ?? empty.staff,
-            yearsStaff,
-            year
-          )
-        )
-      ),
-      studentLeaders: years.map((year) =>
-        rateForYear(year, () =>
-          tenureAtLeastPct(
-            peopleByYear.get(year)?.studentLeaders ?? empty.studentLeaders,
-            yearsStudentLeaders,
-            year
-          )
-        )
-      ),
-    };
+  const empty = emptyPersonSets();
 
-    const avgTenureYearsSeries = {
-      overall: years.map((year) =>
-        rateForYear(year, () =>
-          avgTenureYears(peopleByYear.get(year)?.all ?? empty.all, yearsAll, year)
-        )
-      ),
-      staff: years.map((year) =>
-        rateForYear(year, () =>
-          avgTenureYears(
-            peopleByYear.get(year)?.staff ?? empty.staff,
-            yearsStaff,
-            year
-          )
-        )
-      ),
-      studentLeaders: years.map((year) =>
-        rateForYear(year, () =>
-          avgTenureYears(
-            peopleByYear.get(year)?.studentLeaders ?? empty.studentLeaders,
-            yearsStudentLeaders,
-            year
-          )
-        )
-      ),
-    };
+  const yoyRate = (
+    rateFn: typeof turnoverRate,
+    lens: keyof ReturnType<typeof emptyPersonSets>
+  ) =>
+    years.map((year, i) => {
+      if (i === 0 || year > latestCompleteYear) return null;
+      return rateFn(
+        peopleByYear.get(years[i - 1])?.[lens] ?? empty[lens],
+        peopleByYear.get(year)?.[lens] ?? empty[lens]
+      );
+    });
+  const rateForYear = (year: number, compute: () => number | null) =>
+    year > latestCompleteYear ? null : compute();
 
-    return {
-      computedAt: Date.now(),
-      years,
-      allStaff: years.map((y) => totals.get(y)!.all),
-      staff: years.map((y) => totals.get(y)!.staff),
-      studentLeaders: years.map((y) => totals.get(y)!.studentLeaders),
-      campuses,
-      studentLeadersByCampus,
-      turnover,
-      retention,
-      tenure2Plus,
-      avgTenureYears: avgTenureYearsSeries,
-      lifetimeTenure2Plus: {
-        overall: lifetimeTenureAtLeastPct(yearsAll),
-        staff: lifetimeTenureAtLeastPct(yearsStaff),
-        studentLeaders: lifetimeTenureAtLeastPct(yearsStudentLeaders),
-      },
-      lifetimeAvgTenureYears: {
-        overall: lifetimeAvgTenureYears(yearsAll),
-        staff: lifetimeAvgTenureYears(yearsStaff),
-        studentLeaders: lifetimeAvgTenureYears(yearsStudentLeaders),
-      },
-    };
-  },
-});
+  const turnover = {
+    overall: yoyRate(turnoverRate, "all"),
+    staff: yoyRate(turnoverRate, "staff"),
+    studentLeaders: yoyRate(turnoverRate, "studentLeaders"),
+  };
+  const retention = {
+    overall: yoyRate(retentionRate, "all"),
+    staff: yoyRate(retentionRate, "staff"),
+    studentLeaders: yoyRate(retentionRate, "studentLeaders"),
+  };
+
+  const tenure2Plus = {
+    overall: years.map((year) =>
+      rateForYear(year, () =>
+        tenureAtLeastPct(
+          peopleByYear.get(year)?.all ?? empty.all,
+          yearsAll,
+          year
+        )
+      )
+    ),
+    staff: years.map((year) =>
+      rateForYear(year, () =>
+        tenureAtLeastPct(
+          peopleByYear.get(year)?.staff ?? empty.staff,
+          yearsStaff,
+          year
+        )
+      )
+    ),
+    studentLeaders: years.map((year) =>
+      rateForYear(year, () =>
+        tenureAtLeastPct(
+          peopleByYear.get(year)?.studentLeaders ?? empty.studentLeaders,
+          yearsStudentLeaders,
+          year
+        )
+      )
+    ),
+  };
+
+  const avgTenureYearsSeries = {
+    overall: years.map((year) =>
+      rateForYear(year, () =>
+        avgTenureYears(peopleByYear.get(year)?.all ?? empty.all, yearsAll, year)
+      )
+    ),
+    staff: years.map((year) =>
+      rateForYear(year, () =>
+        avgTenureYears(
+          peopleByYear.get(year)?.staff ?? empty.staff,
+          yearsStaff,
+          year
+        )
+      )
+    ),
+    studentLeaders: years.map((year) =>
+      rateForYear(year, () =>
+        avgTenureYears(
+          peopleByYear.get(year)?.studentLeaders ?? empty.studentLeaders,
+          yearsStudentLeaders,
+          year
+        )
+      )
+    ),
+  };
+
+  return {
+    computedAt: Date.now(),
+    years,
+    allStaff: years.map((y) => totals.get(y)!.all),
+    staff: years.map((y) => totals.get(y)!.staff),
+    studentLeaders: years.map((y) => totals.get(y)!.studentLeaders),
+    campuses,
+    studentLeadersByCampus,
+    turnover,
+    retention,
+    tenure2Plus,
+    avgTenureYears: avgTenureYearsSeries,
+    lifetimeTenure2Plus: {
+      overall: lifetimeTenureAtLeastPct(yearsAll),
+      staff: lifetimeTenureAtLeastPct(yearsStaff),
+      studentLeaders: lifetimeTenureAtLeastPct(yearsStudentLeaders),
+    },
+    lifetimeAvgTenureYears: {
+      overall: lifetimeAvgTenureYears(yearsAll),
+      staff: lifetimeAvgTenureYears(yearsStaff),
+      studentLeaders: lifetimeAvgTenureYears(yearsStudentLeaders),
+    },
+  };
+}
 
 function setDefault<K>(map: Map<K, Set<string>>, key: K): Set<string> {
   const set = new Set<string>();
@@ -394,103 +393,165 @@ export const CAMPUS_ATTENDANCE_START_YEAR = 2025;
 
 const MAX_EVENTS_SCAN = 4000;
 
+const campusWeeklyAttendanceValidator = v.object({
+  years: v.array(v.number()),
+  campuses: v.array(
+    v.object({ campus: v.string(), averages: v.array(v.number()) })
+  ),
+});
+
+type CampusWeeklyAttendance = {
+  years: number[];
+  campuses: { campus: string; averages: number[] }[];
+};
+
+// Reads the snapshot the nightly Insights rebuild writes. Computing it here
+// meant reading every weekly meeting's attendance on each open of the tab;
+// the live path is only a fallback until the first rebuild has run.
 export const campusWeeklyAttendance = query({
   args: {},
+  returns: campusWeeklyAttendanceValidator,
+  handler: (ctx) => readCampusWeeklyAttendance(ctx),
+});
+
+export const view = query({
+  args: { scope: v.union(v.number(), v.literal("all"), v.null()) },
   returns: v.object({
     years: v.array(v.number()),
-    campuses: v.array(
-      v.object({ campus: v.string(), averages: v.array(v.number()) })
-    ),
+    blocks: v.array(viewBlockValidator),
   }),
-  handler: async (ctx) => {
-    const currentYear = currentStaffYear();
-    const years: number[] = [];
-    for (let y = CAMPUS_ATTENDANCE_START_YEAR; y <= currentYear; y++) {
-      years.push(y);
-    }
-
-    const events = await ctx.db
-      .query("events")
-      .withIndex("by_dateStart", (q) =>
-        q.gte("dateStart", staffYearStartMs(CAMPUS_ATTENDANCE_START_YEAR))
-      )
-      // Newest first: if the scan cap is ever hit it drops the oldest year,
-      // not the one currently being led.
-      .order("desc")
-      .take(MAX_EVENTS_SCAN);
-
-    const tagIds = new Set<Id<"attendanceTags">>();
-    for (const e of events) for (const id of e.tagIds ?? []) tagIds.add(id);
-    const tagDocs = await Promise.all([...tagIds].map((id) => ctx.db.get(id)));
-    const weeklyTagIds = new Set(
-      tagDocs
-        .filter(
-          (t): t is Doc<"attendanceTags"> =>
-            !!t && t.name === WEEKLY_MEETING_TAG_NAME
-        )
-        .map((t) => t._id)
-    );
-    const weeklyMeetings = events.filter(
-      (e) =>
-        (e.tagIds ?? []).some((id) => weeklyTagIds.has(id)) &&
-        eventStaffYear(e.dateStart) <= currentYear
-    );
-
-    const meetings = weeklyMeetings
-      .map((e) => ({
-        id: e._id,
-        year: eventStaffYear(e.dateStart),
-        campuses: normalizeSubgroups(e.subgroups).filter(
-          (s) => !isOrgWideSubgroup(s)
-        ),
-      }))
-      .filter((m) => m.campuses.length > 0);
-
-    const turnouts = await Promise.all(
-      meetings.map((m) =>
-        ctx.db
-          .query("attendance")
-          .withIndex("by_event", (q) => q.eq("eventId", m.id))
-          .collect()
-          .then((rows) => rows.length)
-      )
-    );
-
-    type Bucket = { total: number; meetings: number };
-    const buckets = new Map<string, Bucket>();
-    const campusSet = new Set<string>();
-    const key = (campus: string, year: number) => `${campus}|${year}`;
-
-    meetings.forEach((m, i) => {
-      for (const campus of m.campuses) {
-        campusSet.add(campus);
-        const b = buckets.get(key(campus, m.year)) ?? { total: 0, meetings: 0 };
-        b.total += turnouts[i];
-        b.meetings += 1;
-        buckets.set(key(campus, m.year), b);
-      }
-    });
-
-    const campuses = [...campusSet]
-      .sort((a, b) => a.localeCompare(b))
-      .map((campus) => ({
-        campus,
-        averages: years.map((year) => {
-          const b = buckets.get(key(campus, year));
-          if (!b || b.meetings === 0) return 0;
-          return Math.round((b.total / b.meetings) * 10) / 10;
-        }),
-      }));
-
-    if (years.length > 0 && years[years.length - 1] === currentYear) {
-      const last = years.length - 1;
-      const empty = campuses.length === 0 || campuses.every((c) => c.averages[last] === 0);
-      if (empty) {
-        years.pop();
-        for (const campus of campuses) campus.averages.pop();
-      }
-    }
-
-    return { years, campuses };
+  handler: async (ctx, { scope }) => {
+    const [trends, campusAttendance, identity] = await Promise.all([
+      computeStaffTrends(ctx),
+      readCampusWeeklyAttendance(ctx),
+      ctx.auth.getUserIdentity(),
+    ]);
+    return {
+      years: trends.years,
+      blocks: buildGeneralView({ trends, campusAttendance, scope, signedIn: identity !== null }),
+    };
   },
 });
+
+async function readCampusWeeklyAttendance(ctx: QueryCtx): Promise<CampusWeeklyAttendance> {
+  const snapshot = await ctx.db.query("campusAttendanceSnapshots").first();
+  if (snapshot) return { years: snapshot.years, campuses: snapshot.campuses };
+  return computeCampusWeeklyAttendance(ctx);
+}
+
+export const recomputeCampusWeeklyAttendance = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const result = await computeCampusWeeklyAttendance(ctx);
+    const doc = { computedAt: Date.now(), ...result };
+    const existing = await ctx.db.query("campusAttendanceSnapshots").take(10);
+    if (existing.length === 0) {
+      await ctx.db.insert("campusAttendanceSnapshots", doc);
+    } else {
+      await ctx.db.replace(existing[0]._id, doc);
+      for (const extra of existing.slice(1)) await ctx.db.delete(extra._id);
+    }
+    return null;
+  },
+});
+
+// Bucketed by Sydney calendar year (Jan–Dec), not staff year: weekly meetings
+// follow the uni calendar.
+async function computeCampusWeeklyAttendance(
+  ctx: QueryCtx
+): Promise<CampusWeeklyAttendance> {
+  const currentYear = sydneyCalendarYear(new Date());
+  const calendarYear = (ms: number) => sydneyCalendarYear(new Date(ms));
+  const years: number[] = [];
+  for (let y = CAMPUS_ATTENDANCE_START_YEAR; y <= currentYear; y++) {
+    years.push(y);
+  }
+
+  const events = await ctx.db
+    .query("events")
+    .withIndex("by_dateStart", (q) =>
+      q.gte("dateStart", staffYearStartMs(CAMPUS_ATTENDANCE_START_YEAR))
+    )
+    // Newest first: if the scan cap is ever hit it drops the oldest year,
+    // not the one currently being led.
+    .order("desc")
+    .take(MAX_EVENTS_SCAN);
+
+  const tagIds = new Set<Id<"attendanceTags">>();
+  for (const e of events) for (const id of e.tagIds ?? []) tagIds.add(id);
+  const tagDocs = await Promise.all([...tagIds].map((id) => ctx.db.get(id)));
+  const weeklyTagIds = new Set(
+    tagDocs
+      .filter(
+        (t): t is Doc<"attendanceTags"> =>
+          !!t && t.name === WEEKLY_MEETING_TAG_NAME
+      )
+      .map((t) => t._id)
+  );
+  const weeklyMeetings = events.filter(
+    (e) =>
+      (e.tagIds ?? []).some((id) => weeklyTagIds.has(id)) &&
+      calendarYear(e.dateStart) >= CAMPUS_ATTENDANCE_START_YEAR &&
+      calendarYear(e.dateStart) <= currentYear
+  );
+
+  const meetings = weeklyMeetings
+    .map((e) => ({
+      id: e._id,
+      year: calendarYear(e.dateStart),
+      campuses: normalizeSubgroups(e.subgroups).filter(
+        (s) => !isOrgWideSubgroup(s)
+      ),
+    }))
+    .filter((m) => m.campuses.length > 0);
+
+  const turnouts = await Promise.all(
+    meetings.map((m) =>
+      ctx.db
+        .query("attendance")
+        .withIndex("by_event", (q) => q.eq("eventId", m.id))
+        .collect()
+        .then((rows) => rows.length)
+    )
+  );
+
+  type Bucket = { total: number; meetings: number };
+  const buckets = new Map<string, Bucket>();
+  const campusSet = new Set<string>();
+  const key = (campus: string, year: number) => `${campus}|${year}`;
+
+  meetings.forEach((m, i) => {
+    // Nobody signed in: the meeting didn't happen, so it isn't averaged in.
+    if (turnouts[i] === 0) return;
+    for (const campus of m.campuses) {
+      campusSet.add(campus);
+      const b = buckets.get(key(campus, m.year)) ?? { total: 0, meetings: 0 };
+      b.total += turnouts[i];
+      b.meetings += 1;
+      buckets.set(key(campus, m.year), b);
+    }
+  });
+
+  const campuses = [...campusSet]
+    .sort((a, b) => a.localeCompare(b))
+    .map((campus) => ({
+      campus,
+      averages: years.map((year) => {
+        const b = buckets.get(key(campus, year));
+        if (!b || b.meetings === 0) return 0;
+        return Math.round((b.total / b.meetings) * 10) / 10;
+      }),
+    }));
+
+  if (years.length > 0 && years[years.length - 1] === currentYear) {
+    const last = years.length - 1;
+    const empty = campuses.length === 0 || campuses.every((c) => c.averages[last] === 0);
+    if (empty) {
+      years.pop();
+      for (const campus of campuses) campus.averages.pop();
+    }
+  }
+
+  return { years, campuses };
+}

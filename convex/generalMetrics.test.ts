@@ -2,7 +2,7 @@
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import {
   avgTenureYears,
   buildEmailToImportId,
@@ -384,5 +384,79 @@ describe("campusWeeklyAttendance", () => {
     const res = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
     expect(res.years).toEqual([2025]);
     expect(res.campuses).toEqual([{ campus: "USYD", averages: [9] }]);
+  });
+
+  test("a weekly meeting nobody signed in to isn't averaged in", async () => {
+    const t = convexTest(schema, modules);
+    await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2025, count: 20 });
+    await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2025, count: 0 });
+    const res = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
+    expect(res.campuses).toEqual([{ campus: "USYD", averages: [20] }]);
+  });
+
+  test("serves the nightly snapshot until the next rebuild", async () => {
+    const t = convexTest(schema, modules);
+    await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2026, count: 10 });
+    await t.mutation(internal.generalMetrics.recomputeCampusWeeklyAttendance, {});
+
+    await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2026, count: 30 });
+    const cached = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
+    expect(cached.campuses).toEqual([{ campus: "USYD", averages: [0, 10] }]);
+
+    await t.mutation(internal.generalMetrics.recomputeCampusWeeklyAttendance, {});
+    const rebuilt = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
+    expect(rebuilt.years).toEqual([2025, 2026]);
+    expect(rebuilt.campuses).toEqual([{ campus: "USYD", averages: [0, 20] }]);
+  });
+
+  test("a rebuild leaves exactly one snapshot row", async () => {
+    const t = convexTest(schema, modules);
+    await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2025, count: 5 });
+    await t.run((ctx) =>
+      ctx.db.insert("campusAttendanceSnapshots", {
+        computedAt: 0,
+        years: [2025],
+        campuses: [{ campus: "STALE", averages: [99] }],
+      })
+    );
+    await t.run((ctx) =>
+      ctx.db.insert("campusAttendanceSnapshots", {
+        computedAt: 1,
+        years: [2025],
+        campuses: [{ campus: "STALE", averages: [98] }],
+      })
+    );
+    await t.mutation(internal.generalMetrics.recomputeCampusWeeklyAttendance, {});
+
+    const rows = await t.run((ctx) =>
+      ctx.db.query("campusAttendanceSnapshots").collect()
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].campuses).toEqual([{ campus: "USYD", averages: [5] }]);
+    const res = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
+    expect(res.campuses).toEqual([{ campus: "USYD", averages: [5] }]);
+  });
+});
+
+describe("view", () => {
+  test("lays out General with the year list for the scope picker", async () => {
+    const t = convexTest(schema, modules);
+    await seed(t);
+    const all = await asUser(t, CALLER).query(api.generalMetrics.view, { scope: null });
+    expect(all.years).toContain(YEAR);
+    expect(all.blocks[0]).toMatchObject({ type: "label" });
+    expect(all.blocks[1]).toMatchObject({ type: "cards" });
+    expect(all.blocks.some((b) => b.type === "stacked")).toBe(true);
+
+    const year = await asUser(t, CALLER).query(api.generalMetrics.view, { scope: YEAR });
+    expect(year.blocks[1]).toMatchObject({ type: "cards", layout: "grid" });
+    expect(year.blocks.some((b) => b.type === "stacked")).toBe(false);
+  });
+
+  test("signed-out viewers always get the all-years view", async () => {
+    const t = convexTest(schema, modules);
+    await seed(t);
+    const anon = await t.query(api.generalMetrics.view, { scope: YEAR });
+    expect(anon.blocks.some((b) => b.type === "stacked")).toBe(true);
   });
 });

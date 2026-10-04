@@ -28,7 +28,6 @@ import {
   stepsForRequest,
   universityColour,
   withinRolloverAuthGrace,
-  withinRolloverRateGrace,
 } from "./flow";
 
 describe("formatAssignment", () => {
@@ -206,19 +205,6 @@ describe("withinRolloverAuthGrace", () => {
     expect(withinRolloverAuthGrace(2027, new Date("2026-12-31T12:59:00Z"))).toBe(true);
     expect(withinRolloverAuthGrace(2027, new Date("2026-12-31T13:00:00Z"))).toBe(false);
     expect(withinRolloverAuthGrace(2027, new Date(start - 1))).toBe(false);
-  });
-});
-
-describe("withinRolloverRateGrace", () => {
-  test("is true for the first week after Sydney midnight Oct 1", () => {
-    const start = staffYearStartMs(2027);
-    expect(withinRolloverRateGrace(2027, new Date(start))).toBe(true);
-    expect(withinRolloverRateGrace(2027, new Date(start + 3 * 24 * 60 * 60 * 1000))).toBe(
-      true
-    );
-    expect(withinRolloverRateGrace(2027, new Date(start + 7 * 24 * 60 * 60 * 1000))).toBe(
-      false
-    );
   });
 });
 

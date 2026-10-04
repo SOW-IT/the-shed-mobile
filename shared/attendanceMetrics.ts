@@ -264,8 +264,11 @@ export function computeSubgroupMetrics(input: ComputeInput): SubgroupMetricsData
       ? Math.round(((avgAttendance - avgAttendancePrev) / avgAttendancePrev) * 100)
       : null;
 
-  const periodWeeklies = periodEvents.filter((e) => e.isWeeklyMeeting);
-  const prevWeeklies = prevEvents.filter((e) => e.isWeeklyMeeting);
+  // A weekly meeting nobody signed in to didn't happen (a cancelled or holiday
+  // week), so it doesn't count towards the weekly average or its trend.
+  const heldWeekly = (e: MetricsEvent) => e.isWeeklyMeeting && countFor(e.id) > 0;
+  const periodWeeklies = periodEvents.filter(heldWeekly);
+  const prevWeeklies = prevEvents.filter(heldWeekly);
   const avgWeeklyAttendance = periodWeeklies.length ? avg(periodWeeklies) : null;
   const avgWeeklyAttendancePrev = prevWeeklies.length ? avg(prevWeeklies) : null;
   const weeklyChangePct =
