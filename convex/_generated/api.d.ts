@@ -28,6 +28,8 @@ import type * as directorySync from "../directorySync.js";
 import type * as emails from "../emails.js";
 import type * as events from "../events.js";
 import type * as generalMetrics from "../generalMetrics.js";
+import type * as homeContent from "../homeContent.js";
+import type * as homeData from "../homeData.js";
 import type * as http from "../http.js";
 import type * as importData from "../importData.js";
 import type * as importHistory from "../importHistory.js";
@@ -71,6 +73,8 @@ declare const fullApi: ApiFromModules<{
   emails: typeof emails;
   events: typeof events;
   generalMetrics: typeof generalMetrics;
+  homeContent: typeof homeContent;
+  homeData: typeof homeData;
   http: typeof http;
   importData: typeof importData;
   importHistory: typeof importHistory;

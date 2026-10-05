@@ -106,3 +106,8 @@ department in the Human Resources division, the head of the Human Resources
 division, the head of the Governance division (not its other staff), and the
 Director. Only admins assign roles and manage
 structure, and nobody can change their own role.
+
+**Home editor**:
+Not a role — a derived permission. Admins, anyone in the Marketing
+department, and the head of the Engagement division (not its other staff,
+e.g. Alumni). Home editors change the public Home tab's content.

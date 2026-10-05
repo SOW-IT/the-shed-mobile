@@ -2,6 +2,7 @@ import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { metricsDataValidator } from "./metricsData";
+import { homeBlockValidator } from "./homeData";
 
 export const approvalStatus = v.union(
   v.literal("PENDING"),
@@ -362,4 +363,16 @@ export default defineSchema({
       v.object({ campus: v.string(), averages: v.array(v.number()) })
     ),
   }),
+
+  // One row per edited Home sub-tab (home, resources, connect, partner). A tab
+  // with no row, or null blocks (restored), shows the default content in
+  // shared/homeContent.ts. `revision` goes up on every save or restore, so a
+  // save from an out-of-date copy is refused.
+  homeTabs: defineTable({
+    key: v.string(),
+    blocks: v.union(v.array(homeBlockValidator), v.null()),
+    revision: v.number(),
+    updatedAt: v.number(),
+    updatedBy: v.string(),
+  }).index("by_key", ["key"]),
 });
