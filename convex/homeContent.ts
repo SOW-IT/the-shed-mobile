@@ -9,6 +9,7 @@ import {
   HomeContentError,
   isHomeTabKey,
   sanitizeHomeBlocks,
+  type HomeBlock,
   type HomeTabKey,
 } from "../shared/homeContent";
 
@@ -16,6 +17,7 @@ const tabViewValidator = v.object({
   key: v.string(),
   label: v.string(),
   blocks: v.array(homeBlockValidator),
+  revision: v.number(),
   edited: v.union(
     v.object({ at: v.number(), by: v.string() }),
     v.null()
@@ -63,8 +65,9 @@ export const view = query({
           key,
           label,
           blocks: doc?.blocks ?? DEFAULT_HOME_BLOCKS[key],
+          revision: doc?.revision ?? 0,
           edited:
-            editor && doc
+            editor && doc?.blocks
               ? { at: doc.updatedAt, by: await displayName(ctx, doc.updatedBy, caller!.year) }
               : null,
         };
@@ -75,15 +78,14 @@ export const view = query({
 });
 
 /**
- * Replaces one tab's blocks. `baseUpdatedAt` is when the editor's copy was last
- * saved (null for the defaults), so two people editing at once can't silently
- * overwrite each other.
+ * Replaces one tab's blocks. `baseRevision` is the revision the editor's copy
+ * came from, so two people editing at once can't silently overwrite each other.
  */
 export const save = mutation({
   args: {
     tab: v.string(),
     blocks: v.array(homeBlockValidator),
-    baseUpdatedAt: v.union(v.number(), v.null()),
+    baseRevision: v.number(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -96,26 +98,45 @@ export const save = mutation({
       throw e instanceof HomeContentError ? new ConvexError(e.message) : e;
     }
     const existing = await tabDoc(ctx, key);
-    if ((existing?.updatedAt ?? null) !== args.baseUpdatedAt) {
+    if ((existing?.revision ?? 0) !== args.baseRevision) {
       throw new ConvexError(
         "Someone else saved this tab while you were editing. Close the editor and open it again to see their changes."
       );
     }
-    const row = { key, blocks, updatedAt: Date.now(), updatedBy: caller.email };
-    if (existing) await ctx.db.replace("homeTabs", existing._id, row);
-    else await ctx.db.insert("homeTabs", row);
+    await writeTab(ctx, key, blocks, caller.email);
     return null;
   },
 });
 
-/** Puts a tab back to the default content. */
+/**
+ * Puts a tab back to the default content. The row stays (with null blocks) so
+ * its revision keeps counting up and older copies stay out of date.
+ */
 export const reset = mutation({
   args: { tab: v.string() },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requireHomeEditor(ctx);
-    const existing = await tabDoc(ctx, parseTab(args.tab));
-    if (existing) await ctx.db.delete("homeTabs", existing._id);
+    const caller = await requireHomeEditor(ctx);
+    const key = parseTab(args.tab);
+    if (await tabDoc(ctx, key)) await writeTab(ctx, key, null, caller.email);
     return null;
   },
 });
+
+async function writeTab(
+  ctx: MutationCtx,
+  key: HomeTabKey,
+  blocks: HomeBlock[] | null,
+  email: string
+) {
+  const existing = await tabDoc(ctx, key);
+  const row = {
+    key,
+    blocks,
+    revision: (existing?.revision ?? 0) + 1,
+    updatedAt: Date.now(),
+    updatedBy: email,
+  };
+  if (existing) await ctx.db.replace("homeTabs", existing._id, row);
+  else await ctx.db.insert("homeTabs", row);
+}

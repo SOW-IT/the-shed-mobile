@@ -365,10 +365,13 @@ export default defineSchema({
   }),
 
   // One row per edited Home sub-tab (home, resources, connect, partner). A tab
-  // with no row shows the default content in shared/homeContent.ts.
+  // with no row, or null blocks (restored), shows the default content in
+  // shared/homeContent.ts. `revision` goes up on every save or restore, so a
+  // save from an out-of-date copy is refused.
   homeTabs: defineTable({
     key: v.string(),
-    blocks: v.array(homeBlockValidator),
+    blocks: v.union(v.array(homeBlockValidator), v.null()),
+    revision: v.number(),
     updatedAt: v.number(),
     updatedBy: v.string(),
   }).index("by_key", ["key"]),

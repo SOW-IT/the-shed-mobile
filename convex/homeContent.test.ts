@@ -55,7 +55,7 @@ describe("homeContent", () => {
     expect((await asUser(t, MARKETER).query(api.homeContent.view, {})).canEdit).toBe(true);
     expect((await asUser(t, FINANCE).query(api.homeContent.view, {})).canEdit).toBe(false);
     await expect(
-      asUser(t, FINANCE).mutation(api.homeContent.save, { tab: "home", blocks, baseUpdatedAt: null })
+      asUser(t, FINANCE).mutation(api.homeContent.save, { tab: "home", blocks, baseRevision: 0 })
     ).rejects.toThrow(/Only admins and Marketing staff/);
     await expect(
       t.mutation(api.homeContent.reset, { tab: "home" })
@@ -64,7 +64,7 @@ describe("homeContent", () => {
 
   test("a save cleans the blocks, shows to everyone and records who saved", async () => {
     const t = await setup();
-    await asUser(t, MARKETER).mutation(api.homeContent.save, { tab: "partner", blocks, baseUpdatedAt: null });
+    await asUser(t, MARKETER).mutation(api.homeContent.save, { tab: "partner", blocks, baseRevision: 0 });
 
     const publicView = await t.query(api.homeContent.view, {});
     const partner = publicView.tabs.find((tab) => tab.key === "partner")!;
@@ -76,25 +76,26 @@ describe("homeContent", () => {
     expect(publicView.tabs.find((tab) => tab.key === "home")!.blocks).toEqual(DEFAULT_HOME_BLOCKS.home);
 
     const editorView = await asUser(t, ADMIN).query(api.homeContent.view, {});
-    const edited = editorView.tabs.find((tab) => tab.key === "partner")!.edited;
-    expect(edited?.by).toBe("Rachel");
+    const edited = editorView.tabs.find((tab) => tab.key === "partner")!;
+    expect(edited.edited?.by).toBe("Rachel");
+    expect(edited.revision).toBe(1);
 
     // A second save based on the latest copy replaces the row in place.
     await asUser(t, ADMIN).mutation(api.homeContent.save, {
       tab: "partner",
       blocks: [{ type: "text", text: "Hi" }],
-      baseUpdatedAt: edited!.at,
+      baseRevision: edited.revision,
     });
     const rows = await t.run((ctx) => ctx.db.query("homeTabs").collect());
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ key: "partner", updatedBy: ADMIN, blocks: [{ type: "text", text: "Hi" }] });
+    expect(rows[0]).toMatchObject({ key: "partner", revision: 2, updatedBy: ADMIN, blocks: [{ type: "text", text: "Hi" }] });
   });
 
   test("a save from a stale copy is refused", async () => {
     const t = await setup();
-    await asUser(t, ADMIN).mutation(api.homeContent.save, { tab: "home", blocks, baseUpdatedAt: null });
+    await asUser(t, ADMIN).mutation(api.homeContent.save, { tab: "home", blocks, baseRevision: 0 });
     await expect(
-      asUser(t, MARKETER).mutation(api.homeContent.save, { tab: "home", blocks, baseUpdatedAt: null })
+      asUser(t, MARKETER).mutation(api.homeContent.save, { tab: "home", blocks, baseRevision: 0 })
     ).rejects.toThrow(/Someone else saved this tab/);
   });
 
@@ -102,13 +103,13 @@ describe("homeContent", () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     await expect(
-      admin.mutation(api.homeContent.save, { tab: "nope", blocks, baseUpdatedAt: null })
+      admin.mutation(api.homeContent.save, { tab: "nope", blocks, baseRevision: 0 })
     ).rejects.toThrow(/Unknown Home tab/);
     await expect(
       admin.mutation(api.homeContent.save, {
         tab: "resources",
         blocks: [{ type: "links", links: [{ name: "Bad", url: "javascript:alert(1)" }] }],
-        baseUpdatedAt: null,
+        baseRevision: 0,
       })
     ).rejects.toThrow(/needs a web address/);
     await expect(
@@ -116,13 +117,27 @@ describe("homeContent", () => {
     ).rejects.toThrow(/Unknown Home tab/);
   });
 
-  test("reset puts a tab back to the built-in content", async () => {
+  test("reset puts a tab back to the built-in content and keeps counting revisions", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
-    await admin.mutation(api.homeContent.save, { tab: "connect", blocks, baseUpdatedAt: null });
+    // Resetting a tab nobody has edited is a no-op.
     await admin.mutation(api.homeContent.reset, { tab: "connect" });
+    expect(await t.run((ctx) => ctx.db.query("homeTabs").collect())).toHaveLength(0);
+
+    await admin.mutation(api.homeContent.save, { tab: "connect", blocks, baseRevision: 0 });
     await admin.mutation(api.homeContent.reset, { tab: "connect" });
-    const view = await t.query(api.homeContent.view, {});
-    expect(view.tabs.find((tab) => tab.key === "connect")!.blocks).toEqual(DEFAULT_HOME_BLOCKS.connect);
+    const view = await admin.query(api.homeContent.view, {});
+    const connect = view.tabs.find((tab) => tab.key === "connect")!;
+    expect(connect.blocks).toEqual(DEFAULT_HOME_BLOCKS.connect);
+    expect(connect.edited).toBeNull();
+    expect(connect.revision).toBe(2);
+
+    // A copy opened before the restore (or before the first save) is out of date.
+    for (const baseRevision of [0, 1]) {
+      await expect(
+        asUser(t, MARKETER).mutation(api.homeContent.save, { tab: "connect", blocks, baseRevision })
+      ).rejects.toThrow(/Someone else saved this tab/);
+    }
+    await admin.mutation(api.homeContent.save, { tab: "connect", blocks, baseRevision: 2 });
   });
 });

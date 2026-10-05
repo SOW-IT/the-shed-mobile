@@ -68,6 +68,7 @@ export default function EditHomeScreen() {
       label={current.label}
       initial={current.blocks}
       edited={current.edited}
+      revision={current.revision}
       onDone={back}
     />
   );
@@ -78,12 +79,14 @@ function Editor({
   label,
   initial,
   edited,
+  revision,
   onDone,
 }: {
   tabKey: string;
   label: string;
   initial: HomeBlock[];
   edited: { at: number; by: string } | null;
+  revision: number;
   onDone: () => void;
 }) {
   const save = useMutation(api.homeContent.save);
@@ -97,7 +100,7 @@ function Editor({
   const [adding, setAdding] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
-  const [baseUpdatedAt] = useState(edited?.at ?? null);
+  const [baseRevision] = useState(revision);
 
   const change = (next: Keyed[]) => {
     setItems(next);
@@ -122,7 +125,7 @@ function Editor({
     setError(null);
     setSaving(true);
     try {
-      await save({ tab: tabKey, blocks: items.map((item) => item.block), baseUpdatedAt });
+      await save({ tab: tabKey, blocks: items.map((item) => item.block), baseRevision });
       onDone();
     } catch (e) {
       setError(errorMessage(e));
@@ -432,30 +435,47 @@ function ItemList<T>({
   render: (item: T, set: (item: T) => void) => ReactNode;
 }) {
   const t = useAppTheme();
+  // Stable keys that follow each item as it moves, so a row's text fields
+  // never show (or keep focus on) another item's data.
+  const [ids, setIds] = useState(() => items.map((_, i) => i));
+  const [nextId, setNextId] = useState(items.length);
   const set = (index: number, item: T) => onChange(items.map((it, i) => (i === index ? item : it)));
   const move = (index: number, by: number) => {
     const to = index + by;
     if (to < 0 || to >= items.length) return;
-    const next = [...items];
-    [next[index], next[to]] = [next[to], next[index]];
-    onChange(next);
+    const swap = <U,>(list: U[]) => {
+      const next = [...list];
+      [next[index], next[to]] = [next[to], next[index]];
+      return next;
+    };
+    setIds(swap(ids));
+    onChange(swap(items));
+  };
+  const remove = (index: number) => {
+    setIds(ids.filter((_, i) => i !== index));
+    onChange(items.filter((_, i) => i !== index));
+  };
+  const add = () => {
+    setIds([...ids, nextId]);
+    setNextId(nextId + 1);
+    onChange([...items, empty()]);
   };
   return (
     <View style={{ gap: spacing.sm }}>
       {items.map((item, index) => (
-        <View key={index} style={[styles.item, { borderColor: t.border }]}>
+        <View key={ids[index] ?? `new-${index}`} style={[styles.item, { borderColor: t.border }]}>
           <View style={styles.blockHeader}>
             <Text style={[typography.caption, { color: t.muted, flex: 1, fontWeight: "700" }]}>
               {noun[0].toUpperCase() + noun.slice(1)} {index + 1}
             </Text>
             <SmallIcon name="arrow-up" label={`Move ${noun} up`} disabled={index === 0} onPress={() => move(index, -1)} />
             <SmallIcon name="arrow-down" label={`Move ${noun} down`} disabled={index === items.length - 1} onPress={() => move(index, 1)} />
-            <SmallIcon name="close" label={`Remove ${noun}`} danger onPress={() => onChange(items.filter((_, i) => i !== index))} />
+            <SmallIcon name="close" label={`Remove ${noun}`} danger onPress={() => remove(index)} />
           </View>
           {render(item, (next) => set(index, next))}
         </View>
       ))}
-      <Btn title={`Add ${noun}`} variant="ghost" icon="add" onPress={() => onChange([...items, empty()])} />
+      <Btn title={`Add ${noun}`} variant="ghost" icon="add" onPress={add} />
     </View>
   );
 }
