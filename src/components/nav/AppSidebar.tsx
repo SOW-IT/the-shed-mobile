@@ -18,13 +18,15 @@ export const AppSidebar = () => {
         {
           backgroundColor: t.background,
           borderRightColor: t.separator,
-          paddingTop: insets.top + spacing.lg,
-          paddingBottom: insets.bottom + spacing.lg,
           paddingLeft: insets.left,
         },
       ]}
     >
-      <NavMenu variant="sidebar" />
+      <NavMenu
+        variant="sidebar"
+        paddingTop={insets.top + spacing.lg}
+        paddingBottom={insets.bottom + spacing.lg}
+      />
     </View>
   );
 };

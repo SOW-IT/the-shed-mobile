@@ -3,7 +3,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { useConvexAuth, useQuery } from "convex/react";
 import { type Href, usePathname, useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
 import { Avatar, ConfirmDialog } from "@/components/ui";
@@ -50,14 +50,20 @@ export type NavMenuVariant = "drawer" | "sidebar";
 /**
  * The side menu's contents, shared by the phone drawer and the wide-screen
  * sidebar: who you are, the links you can use, and Sign out. `onNavigate` runs
- * before any link is followed (the drawer closes itself with it).
+ * before any link is followed (the drawer closes itself with it). It scrolls
+ * when it's taller than the screen (a short window, large text), so the
+ * caller passes the safe-area gaps to keep clear of at either end.
  */
 export const NavMenu = ({
   variant,
   onNavigate,
+  paddingTop,
+  paddingBottom,
 }: {
   variant: NavMenuVariant;
   onNavigate?: () => void;
+  paddingTop: number;
+  paddingBottom: number;
 }) => {
   const t = useAppTheme();
   const router = useRouter();
@@ -179,7 +185,11 @@ export const NavMenu = ({
   );
 
   return (
-    <View style={styles.menu}>
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={[styles.menu, { paddingTop, paddingBottom }]}
+      showsVerticalScrollIndicator={false}
+    >
       {header}
       {sidebar ? (
         // Wide screens have no top bar, so the dev chip lives here instead.
@@ -253,18 +263,27 @@ export const NavMenu = ({
             confirmLabel="Sign out"
             onConfirm={() => {
               onNavigate?.();
-              void signOut().then(() => router.replace("/home"));
+              void signOut()
+                .then(() => router.replace("/home"))
+                .catch(() => {
+                  Alert.alert(
+                    "Sign-out failed",
+                    "Something went wrong signing you out. Please try again.",
+                    [{ text: "OK" }]
+                  );
+                });
             }}
             onClose={() => setConfirmingSignOut(false)}
           />
         </>
       ) : null}
-    </View>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  menu: { flex: 1, paddingHorizontal: spacing.lg },
+  scroll: { flex: 1 },
+  menu: { paddingHorizontal: spacing.lg },
   header: {
     gap: spacing.xs,
     paddingHorizontal: spacing.sm,

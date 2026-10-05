@@ -220,16 +220,16 @@ const DrawerOverlay = () => {
             accessibilityViewIsModal
             style={[
               styles.panel,
-              {
-                width,
-                backgroundColor: t.background,
-                paddingTop: insets.top + spacing.lg,
-                paddingBottom: insets.bottom + spacing.lg,
-              },
+              { width, backgroundColor: t.background },
               panelStyle,
             ]}
           >
-            <NavMenu variant="drawer" onNavigate={close} />
+            <NavMenu
+              variant="drawer"
+              onNavigate={close}
+              paddingTop={insets.top + spacing.lg}
+              paddingBottom={insets.bottom + spacing.lg}
+            />
           </Animated.View>
         </View>
       </GestureDetector>
