@@ -61,8 +61,16 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   approval" to the next approver at every step, declines (with reason),
   receipt-ready-to-pay to the Finance Head, paid confirmation, and a Budget
   Manager alert when the paid amount differs from the requested amount.
-- **Tabs**: My Requests (submit / cancel / receipt), To Review (approve /
-  decline / pay, shown to approvers), All Requests (Finance staff), Admin.
+- **Reimbursements** (opened from the side menu, at `/`): Mine (submit /
+  cancel / receipt), Review (approve / decline / pay, shown to approvers),
+  All (Finance staff), Bank.
+- **Navigation**: bottom tabs Home, Attendance (staff), Insights and Org
+  Chart. On phones the top-left avatar, or a swipe from the left edge, opens
+  a side menu with Profile, Reimbursements (staff other than campus leaders),
+  Admin (admins and the Finance Head) and Sign out. Screens 700pt and wider
+  (iPad, desktop web) swap the top bar, bottom tabs and drawer for one
+  permanent sidebar holding all of them (`src/components/nav/`,
+  rules in `src/lib/navMenu.ts`).
 
 ### Attendance
 

@@ -6,6 +6,36 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.1.0] — 2026-10-06
+
+### Added
+- **A side menu, like X's.** On phones, tap your avatar (now top-left, where
+  THE SHED logo was) or swipe in from the very left edge of a tab screen. It
+  shows your photo, name and role, then Profile, Reimbursements and, for
+  admins and the Finance Head, Admin, with a smaller Sign out at the bottom.
+  Tap beside it, swipe it back to the left or press Android back to close it.
+  The orange count that was on the Requests tab is now on your avatar and on
+  Reimbursements in the menu.
+- **iPad and desktop web get a permanent sidebar instead.** On screens 700
+  points wide or more, the sidebar replaces the top bar and the bottom tabs:
+  your avatar with the bell beside it, your name and role, then Home,
+  Reimbursements, Attendance, Insights, Org Chart, Profile and Admin, and Sign
+  out. It stays beside every screen, including requests and profiles opened on
+  top. Signed out, it shows a blank avatar to sign in from, then Home, Insights
+  and Org Chart. On the test app, the Test Environment chip sits in the
+  sidebar.
+
+### Changed
+- **Requests is now Reimbursements, and it lives in the side menu instead of
+  the bottom bar.** The bottom bar is Home, Attendance, Insights and Org
+  Chart. Staff still open the app on Reimbursements, and links in
+  notifications and reminder emails still land in the right place.
+- **Signed out, Sign in moves to the top-left.** The bell stays top-right for
+  staff. THE SHED logo is no longer in the top bar.
+- **Admin and Sign out moved into the side menu.** The Admin button on
+  Reimbursements' All tab and on Org Chart is gone, and Profile no longer has
+  its own Sign out button.
+
 ## [2.0.3] — 2026-10-05
 
 ### Added
