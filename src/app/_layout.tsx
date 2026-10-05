@@ -8,6 +8,9 @@ import { useEffect } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { AppSidebar } from "@/components/nav/AppSidebar";
+import { AppDrawer, NavDrawerProvider } from "@/components/nav/NavDrawer";
+import { useWideLayout } from "@/components/nav/layout";
 import { useWebAuthCodeExchange } from "@/hooks/useGoogleSignIn";
 import { LoadingState } from "@/components/ui";
 import { durations, useAppTheme } from "@/theme";
@@ -76,29 +79,50 @@ const AuthGate = () => {
   return isLoading || busy ? <LoadingState /> : <RootStack />;
 };
 
-const RootStack = () => (
-  <Stack
-    screenOptions={{
-      headerShown: false,
-      animation: "slide_from_right",
-      animationDuration: durations.screen,
-      gestureEnabled: true,
-    }}
-  >
-    <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
-    <Stack.Screen name="profile" />
-    <Stack.Screen name="notifications" />
-    <Stack.Screen name="person/[email]" />
-    <Stack.Screen name="request/[id]" />
-    <Stack.Screen name="attendance/[subgroup]" />
-    <Stack.Screen name="attendance/event/new" />
-    <Stack.Screen name="attendance/event/[eventId]" />
-    <Stack.Screen name="review" />
-    <Stack.Screen name="edit-home" />
-    <Stack.Screen name="all" />
-    <Stack.Screen name="e2e-auth" />
-  </Stack>
-);
+/**
+ * Every screen, plus the side menu: a permanent sidebar beside them on wide
+ * screens, a drawer over them on phones (signed in only).
+ */
+const RootStack = () => {
+  const wide = useWideLayout();
+  const { isAuthenticated } = useConvexAuth();
+  return (
+    <NavDrawerProvider>
+      <View style={rootStackStyles.row}>
+        {wide ? <AppSidebar /> : null}
+        <View style={rootStackStyles.screens}>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              animation: "slide_from_right",
+              animationDuration: durations.screen,
+              gestureEnabled: true,
+            }}
+          >
+            <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
+            <Stack.Screen name="profile" />
+            <Stack.Screen name="notifications" />
+            <Stack.Screen name="person/[email]" />
+            <Stack.Screen name="request/[id]" />
+            <Stack.Screen name="attendance/[subgroup]" />
+            <Stack.Screen name="attendance/event/new" />
+            <Stack.Screen name="attendance/event/[eventId]" />
+            <Stack.Screen name="review" />
+            <Stack.Screen name="edit-home" />
+            <Stack.Screen name="all" />
+            <Stack.Screen name="e2e-auth" />
+          </Stack>
+        </View>
+      </View>
+      {!wide && isAuthenticated ? <AppDrawer /> : null}
+    </NavDrawerProvider>
+  );
+};
+
+const rootStackStyles = StyleSheet.create({
+  row: { flex: 1, flexDirection: "row" },
+  screens: { flex: 1 },
+});
 
 export default function RootLayout() {
   useEffect(() => {

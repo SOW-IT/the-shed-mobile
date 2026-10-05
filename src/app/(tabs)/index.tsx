@@ -10,7 +10,6 @@ import {
   requestFullyApproved,
 } from "../../../shared/flow";
 import { threadDeepLinkKey } from "../../../shared/deepLinks";
-import { AdminBar } from "@/components/AdminBar";
 import { AllRequestsList } from "@/components/AllRequestsList";
 import { BankTab } from "@/components/BankTab";
 import { ChromeScreen } from "@/components/ChromeScreen";
@@ -222,7 +221,6 @@ export default function RequestsScreen() {
 
   const renderAll = () => (
     <>
-      {(me.isAdmin || me.isFinanceHead) && <AdminBar tab="other" />}
       {isPreviousYear && (
         <FadeInView delay={40}>
           <WarningBanner

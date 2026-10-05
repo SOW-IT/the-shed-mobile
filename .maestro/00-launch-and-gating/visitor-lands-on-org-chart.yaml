@@ -1,7 +1,7 @@
 # §0 App launch & tab gating — visitor
 # - Cold launch as a visitor lands on the public Org Chart
-# - Visitor tab bar shows exactly Home, Insights, Org Chart (no Requests/Attendance)
-# - No notifications bell for visitors
+# - Visitor tab bar shows exactly Home, Insights, Org Chart (no Attendance)
+# - No notifications bell and no side menu for visitors — "Sign in" sits top-left
 appId: ${APP_ID}
 tags:
   - public
@@ -28,3 +28,8 @@ tags:
 # No bell for visitors (§10.1)
 - assertNotVisible:
     text: ".*Notifications.*"
+
+# No avatar / side menu for visitors; the top-left control is Sign in.
+- assertNotVisible:
+    text: "Open menu.*"
+- assertVisible: "Sign in"

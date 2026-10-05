@@ -1,4 +1,4 @@
-# Signs in via the top-right avatar → "Sign in with Google" (checklist §1.4, §2).
+# Signs in via the top-left "Sign in" button → "Sign in with Google" (checklist §1.4, §2).
 #
 # Params:
 #   EMAIL, PASSWORD – the Google/sow.org.au account to use.
@@ -16,13 +16,13 @@
 # tagged optional so a missing element degrades instead of hard-failing.
 appId: ${APP_ID}
 ---
-# The visitor (signed-out) top-right control is "Sign in" — a wide
+# The visitor (signed-out) top-left control is "Sign in" — a wide
 # call-to-action button, not the avatar — which opens the sign-in menu
-# directly. "Open your profile" is the signed-IN avatar's label and only
-# exists after auth (src/components/ui/screen.tsx), so it never applies here.
+# directly. "Open menu" is the signed-IN avatar's label and only exists after
+# auth (src/components/nav/TopBar.tsx), so it never applies here.
 - tapOn:
     text: "Sign in"
-# The dropdown is an animated Modal (screen.tsx) — wait for it to settle
+# The dropdown is an animated Modal (nav/SignInMenu.tsx) — wait for it to settle
 # rather than tapping blind immediately after it starts opening.
 - extendedWaitUntil:
     visible:
@@ -79,7 +79,7 @@ appId: ${APP_ID}
 # best-effort so an incomplete sign-in degrades instead of hard-failing.
 - extendedWaitUntil:
     visible:
-      text: "Open admin tools"
+      text: "Open menu.*"
     timeout: 30000
     optional: true
 - extendedWaitUntil:

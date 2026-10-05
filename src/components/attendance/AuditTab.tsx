@@ -22,8 +22,8 @@ import { usePagedQuery } from "@/hooks/usePagedQuery";
 import {
   PAGER_PAGE_BOTTOM_INSET,
   PAGER_PAGE_CONTENT,
-  PAGER_TOP_BAR_INSET,
   TopBarScrollProps,
+  usePagerTopBarInset,
 } from "@/components/PagerScreen";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
@@ -93,6 +93,7 @@ export function AuditTab({
   const scopeKey = JSON.stringify([debouncedSearch, entityTypes, actorEmails, eventIds]);
   const listRef = useRef<ScrollView>(null);
   const onListScrollEnd = useListTopOnChange(listRef, scopeKey);
+  const topBarInset = usePagerTopBarInset();
   const {
     rows: accumulated,
     result: page,
@@ -155,8 +156,7 @@ export function AuditTab({
       style={{ backgroundColor: t.background }}
       contentContainerStyle={[
         PAGER_PAGE_CONTENT,
-        styles.selfScrollingPage,
-        { paddingBottom: PAGER_PAGE_BOTTOM_INSET },
+        { paddingTop: topBarInset, paddingBottom: PAGER_PAGE_BOTTOM_INSET },
       ]}
       {...scrollProps}
     >
@@ -307,7 +307,6 @@ export function AuditTab({
 }
 
 const styles = StyleSheet.create({
-  selfScrollingPage: { paddingTop: PAGER_TOP_BAR_INSET },
   stickyControls: { gap: spacing.sm, paddingTop: spacing.sm },
   filterSummary: {
     flexDirection: "row",

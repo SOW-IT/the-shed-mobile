@@ -3,7 +3,8 @@
 #
 # Demonstrates the selector conventions that the real iOS accessibility tree
 # requires (see README "Device-verified selector notes"):
-#   • bottom tabs expose "<Name>, tab, N of 6"  → match with a regex
+#   • bottom tabs expose "<Name>, tab, N of N"  → match with a regex
+#   • the top-left avatar is "Open menu" (", N to action" with a count)
 #   • the test-env chip exposes its a11y label "Test environment. What is this?"
 #   • the Review segment carries its badge: "Review, 2"
 #   • the bell is "Notifications, N unread"
@@ -22,7 +23,7 @@ tags:
       EMAIL: ${FINANCE_EMAIL}
       PASSWORD: ${FINANCE_PASSWORD}
 
-# Requests surface (signed-in landing for a staff/approver profile).
+# Reimbursements (opened from the side menu by sign-in-staff-to-requests).
 - assertVisible:
     text: "Mine.*"
 - assertVisible:
@@ -36,15 +37,18 @@ tags:
 # Top chrome a11y labels.
 - assertVisible:
     text: ".*Notifications.*"
-- assertVisible: "Open your profile"
+- assertVisible:
+    text: "Open menu.*"
 
-# Bottom-tab navigation by regex (labels are "<Name>, tab, N of 6").
+# Bottom-tab navigation by regex (labels are "<Name>, tab, N of N").
 - tapOn:
     text: ".*Attendance, tab.*"
 - assertVisible: "Events"
 - assertVisible: "Members"
 - tapOn:
     text: ".*Org Chart, tab.*"
-- tapOn:
-    text: ".*Requests, tab.*"
+# Reimbursements is no longer a tab — it opens from the side menu.
+- assertNotVisible:
+    text: ".*(Requests|Reimbursements), tab.*"
+- runFlow: ../common/open-reimbursements.yaml
 - assertVisible: "+ Make Request"

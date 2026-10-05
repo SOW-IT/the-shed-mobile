@@ -1,0 +1,10 @@
+# Opens the side menu from the top-left avatar (phones). The avatar's label is
+# "Open menu", plus ", N to action" when Reimbursements has a count — match by
+# prefix. The menu is open once its Sign out item shows.
+appId: ${APP_ID}
+---
+- tapOn:
+    text: "Open menu.*"
+- extendedWaitUntil:
+    visible: "Sign out"
+    timeout: 5000

@@ -10,7 +10,7 @@ Flows tagged `manual` are excluded from automation by design — see
 ├── config.yaml            # suite config, tags, exclude `manual`
 ├── .env.example           # copy → .env, fill accounts (git-ignored)
 ├── common/                # reusable subflows (launch, sign-in, sign-out, deep link)
-├── 00-launch-and-gating/  # tab gating, logo→Home
+├── 00-launch-and-gating/  # tab gating, side menu
 ├── 01-public/             # signed-out Home/Insights/Org/contact/sign-in
 ├── 02-auth/               # sign-out, deep-link-while-out, (manual) grace window
 ├── 03-requests/           # reimbursement lifecycle
@@ -149,7 +149,7 @@ text and are baked into the flows):
 | Requests "Review" segment | carries its badge: `"Review, 2"` → use `.*Review.*` |
 | Test-env chip | its a11y label `"Test environment. What is this?"` (not "Test Environment") |
 | Notifications bell | `"Notifications, N unread"` → use `.*Notifications.*` |
-| Other a11y labels | exact: `"Open your profile"`, `"+ Make Request"`, `"Nudge approver"`, `"Comments"`, `"Delete or cancel request"`, `"Go to Home"` |
+| Other a11y labels | exact: `"Open menu"` (top-left avatar; `"Open menu, N to action"` with a count — match `"Open menu.*"`), `"Open your profile"` (menu header), `"Reimbursements.*"`, `"+ Make Request"`, `"Nudge approver"`, `"Comments"`, `"Delete or cancel request"` |
 
 On iOS a container's `accessibilityLabel` **masks** its child `Text`, so match the
 label, not the inner words. Maestro's `text:` selector matches iOS a11y labels
@@ -311,7 +311,7 @@ Seed the test backend so these are true for the accounts in `.env`:
 ## Targeting notes
 
 The app has almost no `testID`s, so flows target **visible text** and the
-~40 `accessibilityLabel`s (e.g. `"Open admin tools"`, `"Submit receipt"`,
+~40 `accessibilityLabel`s (e.g. `"Open menu"`, `"Submit receipt"`,
 `"Nudge approver"`). Where a flow is flaky, the highest-leverage fix is to add a
 `testID` in the component and switch the step to `id:`. Regex text matchers
 (`.*…`) are used where copy is dynamic; exact strings are used where the copy is

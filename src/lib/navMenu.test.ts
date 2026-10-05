@@ -1,0 +1,214 @@
+import { describe, expect, test } from "vitest";
+import {
+  activeNavKey,
+  badgeText,
+  drawerItems,
+  NAV_HREFS,
+  NAV_LABELS,
+  navViewer,
+  roleLine,
+  showsReimbursements,
+  sidebarItems,
+} from "./navMenu";
+
+const staffProfile = { roles: ["Staff"], assignments: [] };
+
+const signedOut = navViewer(false, undefined);
+const guest = navViewer(true, { profile: null });
+const staff = navViewer(true, { profile: staffProfile });
+const campusLeader = navViewer(true, { profile: staffProfile, isCampusLeader: true });
+const admin = navViewer(true, { profile: staffProfile, isAdmin: true });
+const financeHead = navViewer(true, { profile: staffProfile, isFinanceHead: true });
+const campusLeaderAdmin = navViewer(true, {
+  profile: staffProfile,
+  isCampusLeader: true,
+  isAdmin: true,
+});
+
+describe("navViewer", () => {
+  test("signed out is never staff, a campus leader or an admin", () => {
+    expect(signedOut).toEqual({
+      signedIn: false,
+      isStaff: false,
+      isCampusLeader: false,
+      canAdmin: false,
+    });
+    // Even if a stale `me` is still around while signing out.
+    expect(
+      navViewer(false, { profile: staffProfile, isCampusLeader: true, isAdmin: true })
+    ).toEqual(signedOut);
+  });
+
+  test("a guest is signed in but not staff", () => {
+    expect(guest).toEqual({
+      signedIn: true,
+      isStaff: false,
+      isCampusLeader: false,
+      canAdmin: false,
+    });
+  });
+
+  test("staff still loading their profile are not treated as staff yet", () => {
+    expect(navViewer(true, undefined).isStaff).toBe(false);
+    expect(navViewer(true, null).isStaff).toBe(false);
+  });
+
+  test("admins and the Finance Head can open Admin", () => {
+    expect(admin.canAdmin).toBe(true);
+    expect(financeHead.canAdmin).toBe(true);
+    expect(staff.canAdmin).toBe(false);
+  });
+
+  test("the campus-leader flag only counts for staff", () => {
+    expect(campusLeader.isCampusLeader).toBe(true);
+    expect(navViewer(true, { profile: null, isCampusLeader: true }).isCampusLeader).toBe(
+      false
+    );
+  });
+});
+
+describe("showsReimbursements", () => {
+  test("is staff only, minus campus leaders (the old Requests tab rule)", () => {
+    expect(showsReimbursements(staff)).toBe(true);
+    expect(showsReimbursements(admin)).toBe(true);
+    expect(showsReimbursements(campusLeader)).toBe(false);
+    expect(showsReimbursements(guest)).toBe(false);
+    expect(showsReimbursements(signedOut)).toBe(false);
+  });
+});
+
+describe("drawerItems", () => {
+  test("signed-out visitors have no drawer", () => {
+    expect(drawerItems(signedOut)).toEqual([]);
+  });
+
+  test("guests get Profile only", () => {
+    expect(drawerItems(guest)).toEqual(["profile"]);
+  });
+
+  test("staff get Profile then Reimbursements", () => {
+    expect(drawerItems(staff)).toEqual(["profile", "reimbursements"]);
+  });
+
+  test("admins and the Finance Head also get Admin, last", () => {
+    expect(drawerItems(admin)).toEqual(["profile", "reimbursements", "admin"]);
+    expect(drawerItems(financeHead)).toEqual(["profile", "reimbursements", "admin"]);
+  });
+
+  test("campus leaders don't get Reimbursements, but keep Admin if they have it", () => {
+    expect(drawerItems(campusLeader)).toEqual(["profile"]);
+    expect(drawerItems(campusLeaderAdmin)).toEqual(["profile", "admin"]);
+  });
+});
+
+describe("sidebarItems", () => {
+  test("signed-out visitors see the public pages", () => {
+    expect(sidebarItems(signedOut)).toEqual(["home", "insights", "org"]);
+  });
+
+  test("guests add Profile", () => {
+    expect(sidebarItems(guest)).toEqual(["home", "insights", "org", "profile"]);
+  });
+
+  test("staff see everything but Admin, in tab order", () => {
+    expect(sidebarItems(staff)).toEqual([
+      "home",
+      "reimbursements",
+      "attendance",
+      "insights",
+      "org",
+      "profile",
+    ]);
+  });
+
+  test("admins see everything", () => {
+    expect(sidebarItems(admin)).toEqual([
+      "home",
+      "reimbursements",
+      "attendance",
+      "insights",
+      "org",
+      "profile",
+      "admin",
+    ]);
+  });
+
+  test("campus leaders keep Attendance but not Reimbursements", () => {
+    expect(sidebarItems(campusLeader)).toEqual([
+      "home",
+      "attendance",
+      "insights",
+      "org",
+      "profile",
+    ]);
+  });
+});
+
+describe("activeNavKey", () => {
+  test("each menu link's own route highlights it", () => {
+    for (const key of Object.keys(NAV_HREFS) as (keyof typeof NAV_HREFS)[]) {
+      expect(activeNavKey(NAV_HREFS[key])).toBe(key);
+    }
+  });
+
+  test("screens opened from a section highlight that section", () => {
+    expect(activeNavKey("/request/abc123")).toBe("reimbursements");
+    expect(activeNavKey("/review")).toBe("reimbursements");
+    expect(activeNavKey("/all")).toBe("reimbursements");
+    expect(activeNavKey("/attendance/usyd")).toBe("attendance");
+    expect(activeNavKey("/attendance/event/new")).toBe("attendance");
+    expect(activeNavKey("/edit-home")).toBe("home");
+  });
+
+  test("screens outside any section highlight nothing", () => {
+    expect(activeNavKey("/notifications")).toBeNull();
+    expect(activeNavKey("/person/someone@sow.org.au")).toBeNull();
+    expect(activeNavKey("/e2e-auth")).toBeNull();
+    expect(activeNavKey("/attendancex")).toBeNull();
+  });
+});
+
+describe("roleLine", () => {
+  test("shows this year's assignments like the Profile page, without the year", () => {
+    expect(
+      roleLine({
+        roles: ["Head of Department"],
+        assignments: [{ role: "Head of Department", department: "Finance" }],
+      })
+    ).toBe("HOD → Finance");
+    expect(
+      roleLine({
+        roles: ["Head of Department", "Staff"],
+        assignments: [
+          { role: "Head of Department", department: "Finance" },
+          { role: "Staff", department: "Data and IT" },
+        ],
+      })
+    ).toBe("HOD → Finance  ·  Staff → Data and IT");
+  });
+
+  test("falls back to roles when there are no assignments", () => {
+    expect(roleLine({ roles: ["Director"], assignments: [] })).toBe("Director");
+    expect(roleLine({ roles: ["Head of Department", "Staff"] })).toBe("HOD, Staff");
+  });
+
+  test("is empty for guests and for staff with nothing assigned", () => {
+    expect(roleLine(null)).toBeNull();
+    expect(roleLine(undefined)).toBeNull();
+    expect(roleLine({ roles: [], assignments: [] })).toBeNull();
+  });
+});
+
+describe("badgeText", () => {
+  test("caps at 99+", () => {
+    expect(badgeText(1)).toBe("1");
+    expect(badgeText(99)).toBe("99");
+    expect(badgeText(100)).toBe("99+");
+  });
+});
+
+describe("NAV_LABELS", () => {
+  test("Requests is now called Reimbursements", () => {
+    expect(NAV_LABELS.reimbursements).toBe("Reimbursements");
+  });
+});

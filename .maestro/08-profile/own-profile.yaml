@@ -1,5 +1,5 @@
 # §8 Profile & person — own profile fields, Local church edit dirty-gating,
-# service history, sign-out flow.
+# service history. (Sign out lives in the side menu now — see 02-auth.)
 appId: ${APP_ID}
 tags:
   - staff
@@ -10,8 +10,7 @@ tags:
     env:
       EMAIL: ${STAFF_EMAIL}
       PASSWORD: ${STAFF_PASSWORD}
-- tapOn:
-    text: "Open your profile"
+- runFlow: ../common/open-profile.yaml
 
 # Own profile: name, email, current assignment, current staff year.
 - assertVisible: ${STAFF_EMAIL}
@@ -36,7 +35,5 @@ tags:
     direction: DOWN
     optional: true
 
-# Camera action opens the picker (picker itself is OS-level — not driven here).
-- assertVisible:
-    text: "Open your profile"
-    optional: true
+# Sign out is no longer on the Profile page.
+- assertNotVisible: "Sign out"

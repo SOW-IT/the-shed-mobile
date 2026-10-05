@@ -1,0 +1,55 @@
+# §0 The side menu (phones): the top-left avatar opens it, so does a swipe that
+# starts at the very left edge; tapping outside or swiping it left closes it.
+# Its links open Profile and Reimbursements.
+appId: ${APP_ID}
+tags:
+  - staff
+---
+- runFlow: ../common/launch-fresh.yaml
+- runFlow:
+    file: ../common/sign-in.yaml
+    env:
+      EMAIL: ${STAFF_EMAIL}
+      PASSWORD: ${STAFF_PASSWORD}
+
+# Avatar → menu with the header (your profile) and its links.
+- runFlow: ../common/open-menu.yaml
+- assertVisible: "Open your profile"
+- assertVisible: "Profile"
+- assertVisible:
+    text: "Reimbursements.*"
+
+# Tapping the dimmed app beside the menu closes it (the menu covers the
+# left ~80%, so tap the strip on the right).
+- tapOn:
+    point: "92%,50%"
+- assertNotVisible: "Sign out"
+
+# A swipe from the very left edge pulls it back out…
+- swipe:
+    start: "1%,50%"
+    end: "75%,50%"
+    duration: 400
+- extendedWaitUntil:
+    visible: "Sign out"
+    timeout: 5000
+
+# …and swiping it left puts it away.
+- swipe:
+    start: "60%,50%"
+    end: "5%,50%"
+    duration: 300
+- assertNotVisible: "Sign out"
+
+# A swipe that starts mid-screen is the page's own (no menu).
+- swipe:
+    start: "50%,50%"
+    end: "90%,50%"
+    duration: 300
+- assertNotVisible: "Sign out"
+
+# Links: Profile opens your profile; Reimbursements opens Mine.
+- runFlow: ../common/open-profile.yaml
+- assertVisible: ${STAFF_EMAIL}
+- tapOn: "Go back"
+- runFlow: ../common/open-reimbursements.yaml

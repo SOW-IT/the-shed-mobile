@@ -5,7 +5,6 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { universityColour } from "../../../shared/flow";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
-import { AdminBar } from "@/components/AdminBar";
 import { ChromeScreen } from "@/components/ChromeScreen";
 import {
   Avatar,
@@ -64,8 +63,6 @@ export default function OrgChartScreen() {
     api.directory.orgChart,
     selectedYear === null ? {} : { year: selectedYear }
   );
-  const me = useQuery(api.directory.me);
-  const showAdmin = !!(me?.isAdmin || me?.isFinanceHead);
 
   if (!chart) {
     return (
@@ -91,8 +88,6 @@ export default function OrgChartScreen() {
         ) : undefined
       }
     >
-      {showAdmin ? <AdminBar /> : null}
-
       {chart.director ? (
         <FadeInView delay={40}>
           <ReadableColumn maxWidth={ORG_CARD_WIDTH}>

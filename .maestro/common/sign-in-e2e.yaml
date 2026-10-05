@@ -46,5 +46,6 @@ appId: ${APP_ID}
           point: "90%,47%"
 # Signed-in chrome should now be present.
 - extendedWaitUntil:
-    visible: "Open your profile"
+    visible:
+      text: "Open menu.*"
     timeout: 30000
