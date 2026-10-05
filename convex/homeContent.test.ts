@@ -63,13 +63,13 @@ describe("homeContent", () => {
     expect((await asUser(t, FINANCE).query(api.homeContent.view, {})).canEdit).toBe(false);
     await asUser(t, ENGAGEMENT_HEAD).mutation(api.homeContent.save, { tab: "home", blocks, baseRevision: 0 });
     await expect(
-      asUser(t, ALUMNI).mutation(api.homeContent.reset, { tab: "home" })
+      asUser(t, ALUMNI).mutation(api.homeContent.reset, { tab: "home", baseRevision: 0 })
     ).rejects.toThrow(/head of Engagement/);
     await expect(
       asUser(t, FINANCE).mutation(api.homeContent.save, { tab: "home", blocks, baseRevision: 0 })
     ).rejects.toThrow(/Only admins, Marketing staff and the head of Engagement/);
     await expect(
-      t.mutation(api.homeContent.reset, { tab: "home" })
+      t.mutation(api.homeContent.reset, { tab: "home", baseRevision: 0 })
     ).rejects.toThrow(/Only admins, Marketing staff and the head of Engagement/);
   });
 
@@ -124,7 +124,7 @@ describe("homeContent", () => {
       })
     ).rejects.toThrow(/needs a web address/);
     await expect(
-      admin.mutation(api.homeContent.reset, { tab: "nope" })
+      admin.mutation(api.homeContent.reset, { tab: "nope", baseRevision: 0 })
     ).rejects.toThrow(/Unknown Home tab/);
   });
 
@@ -132,11 +132,15 @@ describe("homeContent", () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     // Resetting a tab nobody has edited is a no-op.
-    await admin.mutation(api.homeContent.reset, { tab: "connect" });
+    await admin.mutation(api.homeContent.reset, { tab: "connect", baseRevision: 0 });
     expect(await t.run((ctx) => ctx.db.query("homeTabs").collect())).toHaveLength(0);
 
     await admin.mutation(api.homeContent.save, { tab: "connect", blocks, baseRevision: 0 });
-    await admin.mutation(api.homeContent.reset, { tab: "connect" });
+    // A restore from a copy opened before that save is refused.
+    await expect(
+      asUser(t, MARKETER).mutation(api.homeContent.reset, { tab: "connect", baseRevision: 0 })
+    ).rejects.toThrow(/Someone else saved this tab/);
+    await admin.mutation(api.homeContent.reset, { tab: "connect", baseRevision: 1 });
     const view = await admin.query(api.homeContent.view, {});
     const connect = view.tabs.find((tab) => tab.key === "connect")!;
     expect(connect.blocks).toEqual(DEFAULT_HOME_BLOCKS.connect);

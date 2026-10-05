@@ -101,39 +101,44 @@ export const save = mutation({
     } catch (e) {
       throw e instanceof HomeContentError ? new ConvexError(e.message) : e;
     }
-    const existing = await tabDoc(ctx, key);
-    if ((existing?.revision ?? 0) !== args.baseRevision) {
-      throw new ConvexError(
-        "Someone else saved this tab while you were editing. Close the editor and open it again to see their changes."
-      );
-    }
-    await writeTab(ctx, key, blocks, caller.email);
+    await writeTab(ctx, key, blocks, caller.email, args.baseRevision);
     return null;
   },
 });
 
 /**
  * Puts a tab back to the default content. The row stays (with null blocks) so
- * its revision keeps counting up and older copies stay out of date.
+ * its revision keeps counting up and older copies stay out of date. Like a
+ * save, it's refused if the tab changed since the editor opened it.
  */
 export const reset = mutation({
-  args: { tab: v.string() },
+  args: { tab: v.string(), baseRevision: v.number() },
   returns: v.null(),
   handler: async (ctx, args) => {
     const caller = await requireHomeEditor(ctx);
-    const key = parseTab(args.tab);
-    if (await tabDoc(ctx, key)) await writeTab(ctx, key, null, caller.email);
+    await writeTab(ctx, parseTab(args.tab), null, caller.email, args.baseRevision);
     return null;
   },
 });
 
+/**
+ * Writes a tab's blocks (null = built-in content) if nobody has changed it
+ * since `baseRevision`. Restoring a tab that was never edited writes nothing.
+ */
 async function writeTab(
   ctx: MutationCtx,
   key: HomeTabKey,
   blocks: HomeBlock[] | null,
-  email: string
+  email: string,
+  baseRevision: number
 ) {
   const existing = await tabDoc(ctx, key);
+  if ((existing?.revision ?? 0) !== baseRevision) {
+    throw new ConvexError(
+      "Someone else saved this tab while you were editing. Close the editor and open it again to see their changes."
+    );
+  }
+  if (!existing && blocks === null) return;
   const row = {
     key,
     blocks,

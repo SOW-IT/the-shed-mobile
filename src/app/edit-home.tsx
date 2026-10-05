@@ -138,7 +138,7 @@ function Editor({
     setConfirmReset(false);
     setError(null);
     try {
-      await reset({ tab: tabKey });
+      await reset({ tab: tabKey, baseRevision });
       onDone();
     } catch (e) {
       setError(errorMessage(e));
