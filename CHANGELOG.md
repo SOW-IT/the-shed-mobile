@@ -6,6 +6,22 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.0.3] — 2026-10-05
+
+### Added
+- **Admins and Marketing staff can edit the Home tab in the app.** An Edit
+  button on Home, Resources, Connect and Partner opens that tab's sections as
+  a form: change any text, link or phone number, reorder or remove sections,
+  add new ones (headings, cards with buttons, link lists, social buttons,
+  campuses, the contact form) and preview before saving. Saved changes show
+  for everyone straight away, with no app update. "Restore built-in content"
+  puts a tab back to how it shipped, and if two people edit the same tab at
+  once, the second save is stopped instead of overwriting the first.
+
+### Changed
+- **The Home tab now comes from the server, like Insights.** It looks the
+  same as before until someone edits it.
+
 ## [2.0.2] — 2026-10-04
 
 ### Changed

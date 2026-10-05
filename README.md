@@ -47,6 +47,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   were staff in an earlier year and are back in the Workspace directory
   show as **Previously staff** on Admin → Users. Assigning them reuses the
   old identity so they are not treated as a new person.
+- **Editable Home tab**: Home, Resources, Connect and Partner are typed
+  blocks served by `homeContent.view` (one `homeTabs` row per edited tab,
+  else the built-in content in `shared/homeContent.ts`). Admins and anyone
+  in the **Marketing** department edit them in the app via the Edit button.
 - **Google sign-in** via Convex Auth, through two providers: `google` for
   `sow.org.au` staff accounts (`hd` hint + server-side domain check) and
   `googlePersonal` for personal accounts, which sign in as **visitors**, an
