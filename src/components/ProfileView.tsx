@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
 import Constants from "expo-constants";
 import * as ImagePicker from "expo-image-picker";
@@ -17,7 +16,6 @@ import {
   Avatar,
   Btn,
   Card,
-  ConfirmDialog,
   ErrorBanner,
   errorMessage,
   FadeInView,
@@ -33,7 +31,6 @@ import {
 
 export const ProfileView = ({ email }: { email?: string }) => {
   const t = useAppTheme();
-  const { signOut } = useAuthActions();
   const profile = useQuery(api.profile.get, email ? { email } : {});
   const updateChurch = useMutation(api.profile.updateChurch);
   const generateAvatarUploadUrl = useMutation(api.profile.generateAvatarUploadUrl);
@@ -42,7 +39,6 @@ export const ProfileView = ({ email }: { email?: string }) => {
   const [churchDraft, setChurchDraft] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
 
   const router = useRouter();
   const goBack = router.canGoBack() ? () => router.back() : undefined;
@@ -214,27 +210,10 @@ export const ProfileView = ({ email }: { email?: string }) => {
         ))
       )}
       {profile.isMe && (
-        <>
-          <Btn
-            title="Sign out"
-            variant="danger"
-            onPress={() => setConfirmingSignOut(true)}
-          />
-          <Text
-            style={[typography.caption, { color: t.muted, textAlign: "center" }]}
-          >
-            Version {Constants.expoConfig?.version ?? "—"}
-          </Text>
-        </>
+        <Text style={[typography.caption, { color: t.muted, textAlign: "center" }]}>
+          Version {Constants.expoConfig?.version ?? "—"}
+        </Text>
       )}
-
-      <ConfirmDialog
-        visible={confirmingSignOut}
-        title="Sign out of The Shed?"
-        confirmLabel="Sign out"
-        onConfirm={() => void signOut().then(() => router.replace("/home"))}
-        onClose={() => setConfirmingSignOut(false)}
-      />
     </Screen>
   );
 };

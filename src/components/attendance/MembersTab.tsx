@@ -24,9 +24,9 @@ import {
 } from "@/components/ui";
 import {
   PAGER_PAGE_CONTENT,
-  PAGER_TOP_BAR_INSET,
   TopBarScrollProps,
   usePagerFooterClearance,
+  usePagerTopBarInset,
 } from "@/components/PagerScreen";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
@@ -71,6 +71,7 @@ export function MembersTab({
   const scopeKey = JSON.stringify([year, debouncedSearch, sortKey, sortAsc, filters]);
   const listRef = useRef<ScrollView>(null);
   const onListScrollEnd = useListTopOnChange(listRef, scopeKey);
+  const topBarInset = usePagerTopBarInset();
   const {
     rows: accumulated,
     result: page,
@@ -125,8 +126,7 @@ export function MembersTab({
       style={{ backgroundColor: t.background }}
       contentContainerStyle={[
         PAGER_PAGE_CONTENT,
-        styles.selfScrollingPage,
-        { paddingBottom: footerClearancePadding },
+        { paddingTop: topBarInset, paddingBottom: footerClearancePadding },
       ]}
       {...scrollProps}
     >
@@ -274,7 +274,6 @@ export function MembersTab({
 }
 
 const styles = StyleSheet.create({
-  selfScrollingPage: { paddingTop: PAGER_TOP_BAR_INSET },
   stickyControls: { gap: spacing.sm, paddingTop: spacing.sm },
   filterSummary: {
     flexDirection: "row",

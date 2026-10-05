@@ -1,4 +1,4 @@
-# §12.3 Top chrome (logo/avatar row) collapses on scroll down, reappears on
+# §12.3 Top chrome (avatar/bell row) collapses on scroll down, reappears on
 # scroll up. Exercised on a long list (Members).
 appId: ${APP_ID}
 tags:
@@ -13,13 +13,13 @@ tags:
 
 # Chrome visible initially.
 - assertVisible:
-    text: "Open your profile"
+    text: "Open menu.*"
 
 # Scroll down → chrome collapses.
 - scroll
 - scroll
 - assertNotVisible:
-    text: "Open your profile"
+    text: "Open menu.*"
 
 # Scroll back up → chrome returns.
 - swipe:
@@ -27,4 +27,4 @@ tags:
 - swipe:
     direction: DOWN
 - assertVisible:
-    text: "Open your profile"
+    text: "Open menu.*"

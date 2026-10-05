@@ -10,8 +10,7 @@ tags:
     env:
       EMAIL: ${FINANCE_EMAIL}
       PASSWORD: ${FINANCE_PASSWORD}
-- tapOn:
-    text: ".*Requests, tab.*"
+- runFlow: ../common/open-reimbursements.yaml
 # Wait for the segment strip to finish loading before tapping (segments carry
 # badges, e.g. "All, 19", so match by prefix).
 - extendedWaitUntil:
@@ -51,8 +50,8 @@ tags:
 # Finance Head is budget-manager-only (see admin.tsx), so the Users/Structure/
 # Other tab strip itself is elided — assert its content (Budget Manager
 # section) instead of a tab label that never renders for this role.
-- tapOn:
-    text: "Open admin tools"
+- runFlow:
+    file: ../common/open-admin.yaml
     optional: true
 - assertVisible:
     text: ".*Budget Manager.*"

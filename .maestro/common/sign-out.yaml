@@ -1,8 +1,7 @@
-# Signs out via Profile → Sign out, confirming the dialog (checklist §2, §8).
+# Signs out via the side menu → Sign out, confirming the dialog (checklist §2, §8).
 appId: ${APP_ID}
 ---
-- tapOn:
-    text: "Open your profile"
+- runFlow: ./open-menu.yaml
 - tapOn: "Sign out"
 - assertVisible:
     text: ".*(Sign out|Are you sure).*" # confirmation dialog

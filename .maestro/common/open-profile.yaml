@@ -1,0 +1,5 @@
+# Opens your own Profile: avatar → side menu → Profile.
+appId: ${APP_ID}
+---
+- runFlow: ./open-menu.yaml
+- tapOn: "Profile"

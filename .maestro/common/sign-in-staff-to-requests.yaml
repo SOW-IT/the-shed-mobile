@@ -1,4 +1,4 @@
-# Signs in as plain staff and lands on the Requests tab, Mine segment.
+# Signs in as plain staff and opens Reimbursements (side menu), Mine segment.
 # Param: EMAIL, PASSWORD (default to STAFF_* if you pass them).
 appId: ${APP_ID}
 ---
@@ -8,7 +8,5 @@ appId: ${APP_ID}
     env:
       EMAIL: ${EMAIL}
       PASSWORD: ${PASSWORD}
-- tapOn:
-    text: ".*Requests, tab.*"
 # Segment carries unread/action-count badges (e.g. "Mine, 1, 1"); match by prefix.
-- assertVisible: "Mine.*"
+- runFlow: ./open-reimbursements.yaml

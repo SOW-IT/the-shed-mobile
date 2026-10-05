@@ -6,7 +6,7 @@ tags:
 ---
 - runFlow: ../common/ensure-signed-out.yaml
 - tapOn:
-    text: "Go to Home"
+    text: ".*Home, tab.*"
 
 # Home page: mission & values
 - assertVisible: "Student Outreach to the World"

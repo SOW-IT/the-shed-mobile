@@ -11,8 +11,6 @@ tags:
       EMAIL: ${STAFF_EMAIL}
       PASSWORD: ${STAFF_PASSWORD}
 
-# Plain staff have no Admin bar on Org Chart.
-- tapOn:
-    text: ".*Org Chart, tab.*"
-- assertNotVisible:
-    text: "Open admin tools"
+# Plain staff have no Admin item in the side menu.
+- runFlow: ../common/open-menu.yaml
+- assertNotVisible: "Admin"

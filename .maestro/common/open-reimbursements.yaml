@@ -1,0 +1,9 @@
+# Opens Reimbursements (formerly the Requests tab): avatar → side menu →
+# Reimbursements. The item carries the action count ("Reimbursements, 2 to
+# action"), so match by prefix. Lands on the Mine segment.
+appId: ${APP_ID}
+---
+- runFlow: ./open-menu.yaml
+- tapOn:
+    text: "Reimbursements.*"
+- assertVisible: "Mine.*"

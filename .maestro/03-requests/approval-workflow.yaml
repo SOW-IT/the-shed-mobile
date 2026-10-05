@@ -10,8 +10,7 @@ tags:
     env:
       EMAIL: ${APPROVER_EMAIL}
       PASSWORD: ${APPROVER_PASSWORD}
-- tapOn:
-    text: ".*Requests, tab.*"
+- runFlow: ../common/open-reimbursements.yaml
 # Segment carries an unread-count badge (e.g. "Review, 1"); match by prefix.
 - tapOn:
     text: "Review.*"

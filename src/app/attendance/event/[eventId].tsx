@@ -31,6 +31,7 @@ import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
 import { ExportSheet } from "@/components/attendance/ExportSheet";
+import { useContentWidth } from "@/components/nav/layout";
 import {
   ConfirmDialog,
   EmptyState,
@@ -194,8 +195,9 @@ export default function EventAttendanceScreen() {
   }, []);
   const pastEvent = event != null && eventHasEnded(event.dateEnd, clock);
   const canEdit = !pastEvent || editUnlocked;
-  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const twoColumn = windowWidth >= TWO_COLUMN_MIN_WIDTH;
+  const { height: windowHeight } = useWindowDimensions();
+  // Measured beside the wide-screen sidebar, not across the whole window.
+  const twoColumn = useContentWidth() >= TWO_COLUMN_MIN_WIDTH;
 
   const closeEdit = () => {
     setEditOpen(false);

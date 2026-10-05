@@ -1,4 +1,4 @@
-# §1.4 Sign-in — avatar → Sign in with Google → staff tools appear in place.
+# §1.4 Sign-in — top-left Sign in → Sign in with Google → staff tools appear in place.
 appId: ${APP_ID}
 tags:
   - auth
@@ -26,7 +26,10 @@ tags:
 
 # Profile photo / name load from the directory after sign-in.
 - tapOn:
-    text: "Open your profile"
+    text: "Open menu.*"
+    optional: true
+- tapOn:
+    text: "Profile"
     optional: true
 - assertVisible:
     text: ${STAFF_EMAIL}

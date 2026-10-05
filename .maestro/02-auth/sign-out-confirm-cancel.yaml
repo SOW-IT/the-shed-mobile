@@ -11,23 +11,24 @@ tags:
       EMAIL: ${STAFF_EMAIL}
       PASSWORD: ${STAFF_PASSWORD}
 
-# Open the confirmation, then CANCEL — session should persist.
-- tapOn:
-    text: "Open your profile"
+# Open the confirmation from the side menu, then CANCEL — session should persist.
+- runFlow: ../common/open-menu.yaml
 - tapOn: "Sign out"
 - assertVisible:
     text: ".*(Are you sure|Sign out).*"
 - tapOn: "Cancel"
-- assertVisible: ${STAFF_EMAIL}      # still signed in
+- assertVisible: "Open your profile" # menu header — still signed in
 
-# Now CONFIRM — back to the public app. The page's own footer "Sign out"
-# button sits behind the confirm dialog and isn't accessibility-reachable
-# while it's open, so a single "Sign out" tap uniquely hits the dialog's
-# confirm button (no index needed).
+# Now CONFIRM — back to the public app. The menu's own "Sign out" item sits
+# behind the confirm dialog and isn't accessibility-reachable while it's open,
+# so a single "Sign out" tap uniquely hits the dialog's confirm button (no
+# index needed).
 - tapOn: "Sign out"
 - tapOn: "Sign out"
 # Bottom tabs carry a "<Name>, tab, N of N" accessibilityLabel that masks the
 # bare "Org Chart" text (README's bottom-tab convention).
 - assertVisible:
     text: ".*Org Chart.*"
-- assertNotVisible: "Requests"
+- assertNotVisible:
+    text: "Open menu.*"
+- assertVisible: "Sign in"

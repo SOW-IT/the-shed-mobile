@@ -17,14 +17,16 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
-  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
-import { spacing, useAppTheme, WIDE_SCREEN_MIN_WIDTH } from "@/theme";
+import { spacing, useAppTheme } from "@/theme";
 import { PagerCarousel } from "@/components/PagerCarousel";
-import { FooterHeightContext, TabBar, TopBar } from "@/components/ui";
+import { DrawerEdgeSwipe } from "@/components/nav/NavDrawer";
+import { useWideLayout } from "@/components/nav/layout";
+import { TopBar } from "@/components/nav/TopBar";
+import { FooterHeightContext, TabBar } from "@/components/ui";
 import { FOOTER_MIN_CLEARANCE, footerClearance } from "@/lib/footerClearance";
 import { ScrollByContext } from "@/components/ui/scrollAnchor";
 import {
@@ -80,6 +82,14 @@ const PagerFooterClearanceContext = createContext(FOOTER_MIN_CLEARANCE);
 export const usePagerFooterClearance = () => useContext(PagerFooterClearanceContext);
 
 /**
+ * How much of a page's top the top bar covers until it collapses: its height
+ * on phones, nothing on wide screens (they have the sidebar instead).
+ * Self-scrolling tabs pad their lists' tops by it.
+ */
+const PagerTopBarInsetContext = createContext(TOP_BAR_HEIGHT);
+export const usePagerTopBarInset = () => useContext(PagerTopBarInsetContext);
+
+/**
  * A tab screen whose sub-tabs swipe sideways under a collapsing top bar. Each
  * tab can have its own bottom FooterAction; pages pad to clear it.
  */
@@ -105,7 +115,8 @@ export const PagerScreen = ({
   fullWidth?: boolean;
 }) => {
   const t = useAppTheme();
-  const wide = useWindowDimensions().width >= WIDE_SCREEN_MIN_WIDTH;
+  const wide = useWideLayout();
+  const topBarInset = wide ? 0 : TOP_BAR_HEIGHT;
   const me = useQuery(api.directory.me);
   const insets = useSafeAreaInsets();
   const initialIndex = Math.max(
@@ -315,6 +326,7 @@ export const PagerScreen = ({
           style={{ backgroundColor: t.background }}
           contentContainerStyle={[
             styles.page,
+            { paddingTop: spacing.md + topBarInset },
             fullWidth && wide && { maxWidth: "100%" as const },
             {
               paddingBottom: footerTabKeys.has(tab.key)
@@ -333,55 +345,64 @@ export const PagerScreen = ({
   };
 
   return (
-    <View style={[styles.screen, { backgroundColor: t.background }]}>
-      <View style={{ height: insets.top + tabBarHeight }} />
-      <PagerCarousel
-        tabs={tabs}
-        activeKey={activeKey}
-        onActiveKeyChange={onActiveKeyChange}
-        renderPage={renderPage}
-        position={pagerPosition}
-        onScrollStateChange={onPagerScrollStateChange}
-      />
-      <View style={[styles.chrome, { top: insets.top }]} pointerEvents="box-none">
-        <Animated.View
-          style={[styles.chromeGroup, { backgroundColor: t.background }, collapseStyle]}
-          pointerEvents="box-none"
-        >
-          <Animated.View style={[styles.topBarWrap, barOpacityStyle]}>
-            <TopBar photo={me?.photo ?? null} name={me?.name ?? null} />
-          </Animated.View>
-          <View onLayout={(e) => setTabBarHeight(e.nativeEvent.layout.height)}>
-            <TabBar
-              segments={tabs}
-              active={activeKey}
-              onChange={onActiveKeyChange}
-              position={pagerPosition}
-            />
-          </View>
-        </Animated.View>
-      </View>
-      {/* eslint-disable react-hooks/refs -- lazy Animated.Value cache (BankTab pattern) */}
-      {footerItems.map((item) => {
-        const anim = ensureFooterAnim(item.tabKey, yForFooter(activeIndex, item.tabKey));
-        return (
+    <PagerTopBarInsetContext.Provider value={topBarInset}>
+      <View style={[styles.screen, { backgroundColor: t.background }]}>
+        <View style={{ height: insets.top + tabBarHeight }} />
+        <PagerCarousel
+          tabs={tabs}
+          activeKey={activeKey}
+          onActiveKeyChange={onActiveKeyChange}
+          renderPage={renderPage}
+          position={pagerPosition}
+          onScrollStateChange={onPagerScrollStateChange}
+        />
+        <View style={[styles.chrome, { top: insets.top }]} pointerEvents="box-none">
           <Animated.View
-            key={item.tabKey}
-            pointerEvents="box-none"
             style={[
-              StyleSheet.absoluteFill,
-              { transform: [{ translateY: anim }] },
+              styles.chromeGroup,
+              { backgroundColor: t.background },
+              !wide && collapseStyle,
             ]}
+            pointerEvents="box-none"
           >
-            <FooterHeightContext.Provider value={footerHeightSetterFor(item.tabKey)}>
-              {item.node}
-            </FooterHeightContext.Provider>
+            {wide ? null : (
+              <Animated.View style={[styles.topBarWrap, barOpacityStyle]}>
+                <TopBar photo={me?.photo ?? null} name={me?.name ?? null} />
+              </Animated.View>
+            )}
+            <View onLayout={(e) => setTabBarHeight(e.nativeEvent.layout.height)}>
+              <TabBar
+                segments={tabs}
+                active={activeKey}
+                onChange={onActiveKeyChange}
+                position={pagerPosition}
+              />
+            </View>
           </Animated.View>
-        );
-      })}
-      {/* eslint-enable react-hooks/refs */}
-      {floating}
-    </View>
+        </View>
+        {/* eslint-disable react-hooks/refs -- lazy Animated.Value cache (BankTab pattern) */}
+        {footerItems.map((item) => {
+          const anim = ensureFooterAnim(item.tabKey, yForFooter(activeIndex, item.tabKey));
+          return (
+            <Animated.View
+              key={item.tabKey}
+              pointerEvents="box-none"
+              style={[
+                StyleSheet.absoluteFill,
+                { transform: [{ translateY: anim }] },
+              ]}
+            >
+              <FooterHeightContext.Provider value={footerHeightSetterFor(item.tabKey)}>
+                {item.node}
+              </FooterHeightContext.Provider>
+            </Animated.View>
+          );
+        })}
+        {/* eslint-enable react-hooks/refs */}
+        <DrawerEdgeSwipe top={insets.top + TOP_BAR_HEIGHT} />
+        {floating}
+      </View>
+    </PagerTopBarInsetContext.Provider>
   );
 };
 
@@ -410,5 +431,4 @@ const styles = StyleSheet.create({
 });
 
 export const PAGER_PAGE_CONTENT = styles.page;
-export const PAGER_TOP_BAR_INSET = TOP_BAR_HEIGHT;
 export const PAGER_PAGE_BOTTOM_INSET = 48;

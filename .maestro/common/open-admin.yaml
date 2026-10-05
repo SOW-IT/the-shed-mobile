@@ -1,0 +1,5 @@
+# Opens Admin (admins and the Finance Head): avatar → side menu → Admin.
+appId: ${APP_ID}
+---
+- runFlow: ./open-menu.yaml
+- tapOn: "Admin"

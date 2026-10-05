@@ -15,10 +15,7 @@ tags:
     env:
       EMAIL: ${DIRECTOR_EMAIL}
       PASSWORD: ${DIRECTOR_PASSWORD}
-- tapOn:
-    text: ".*Org Chart, tab.*"
-- tapOn:
-    text: "Open admin tools"
+- runFlow: ../common/open-admin.yaml
 
 # ── Structure — Roles: system roles show the lock ────────────────────────────
 - tapOn: "Structure"

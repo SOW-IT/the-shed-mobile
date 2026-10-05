@@ -6,7 +6,7 @@ tags:
 ---
 - runFlow: ../common/ensure-signed-out.yaml
 - tapOn:
-    text: "Go to Home"
+    text: ".*Home, tab.*"
 # Navigate to Partner page (4th page)
 - swipe:
     direction: LEFT
@@ -69,7 +69,7 @@ tags:
 # retry a failed contact submission.
 - runFlow: ../common/launch-fresh.yaml
 - tapOn:
-    text: "Go to Home"
+    text: ".*Home, tab.*"
 - swipe:
     direction: LEFT
 - swipe:

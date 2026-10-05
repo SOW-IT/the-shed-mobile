@@ -17,10 +17,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
+import { useWideLayout } from "@/components/nav/layout";
 import { hapticSelect, LoadingState, usePressScale } from "@/components/ui";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { BOTTOM_TAB_HEIGHT, shadowStyle, useAppTheme } from "@/theme";
-import { requestFullyApproved } from "../../../shared/flow";
 
 const tabIcon =
   (outline: keyof typeof Ionicons.glyphMap, filled: keyof typeof Ionicons.glyphMap) => {
@@ -29,43 +29,6 @@ const tabIcon =
     );
     return TabBarIcon;
   };
-
-const RequestsTabIcon = ({
-  color,
-  focused,
-  total,
-}: {
-  color: ColorValue;
-  focused: boolean;
-  total: number;
-}) => {
-  const t = useAppTheme();
-  return (
-    <View style={{ position: "relative" }}>
-      <Ionicons name={focused ? "receipt" : "receipt-outline"} size={23} color={color} />
-      {total > 0 && (
-        <View
-          style={{
-            position: "absolute",
-            top: -6,
-            right: -10,
-            minWidth: 16,
-            height: 16,
-            borderRadius: 8,
-            backgroundColor: t.warning,
-            alignItems: "center",
-            justifyContent: "center",
-            paddingHorizontal: 3,
-          }}
-        >
-          <Text style={{ color: "#ffffff", fontSize: 10, fontWeight: "800" }}>
-            {total > 99 ? "99+" : total}
-          </Text>
-        </View>
-      )}
-    </View>
-  );
-};
 
 const InsightsTabIcon = ({
   color,
@@ -183,40 +146,8 @@ export default function TabsLayout() {
   const isCampusLeader = me?.isCampusLeader ?? false;
   const isStaff = !!me?.profile;
 
-  const myRequests = useQuery(api.requests.myRequests, me?.profile ? {} : "skip");
-  const mineActionCount = (myRequests ?? []).filter(
-    (r) => requestFullyApproved(r) && !r.receipt
-  ).length;
-  const mineUnread =
-    useQuery(api.comments.myUnreadTotal, me?.profile ? {} : "skip") ?? 0;
-
-  const review = useQuery(
-    api.requests.toReview,
-    me?.profile && me.isApprover ? {} : "skip"
-  );
-  const reviewActionCount = review
-    ? review.hod.length +
-      review.budgetManager.length +
-      review.director.length +
-      review.financeHead.length +
-      review.readyToPay.length
-    : 0;
-  const reviewRequestIds = review
-    ? [
-        ...review.hod.map((r) => r._id),
-        ...review.budgetManager.map((r) => r._id),
-        ...review.director.map((r) => r._id),
-        ...review.financeHead.map((r) => r._id),
-        ...review.readyToPay.map((r) => r._id),
-      ]
-    : [];
-  const reviewUnread =
-    useQuery(
-      api.comments.unreadTotalForRequests,
-      me?.profile && me.isApprover && review ? { requestIds: reviewRequestIds } : "skip"
-    ) ?? 0;
-
-  const tabTotal = mineActionCount + mineUnread + reviewActionCount + reviewUnread;
+  // Wide screens navigate from the sidebar; keep only the home-indicator gap.
+  const wide = useWideLayout();
 
   if (waitingForRole) {
     return <LoadingState />;
@@ -234,6 +165,7 @@ export default function TabsLayout() {
               : "index"
       }
       backBehavior="history"
+      tabBar={wide ? () => <View style={{ height: insets.bottom }} /> : undefined}
       screenListeners={{ tabPress: () => hapticSelect() }}
       screenOptions={{
         headerShown: false,
@@ -264,14 +196,13 @@ export default function TabsLayout() {
           tabBarIcon: tabIcon("home-outline", "home"),
         }}
       />
+      {/* Reimbursements opens from the side menu, not the tab bar. It stays a
+          tab at "/" so notification links like "/?tab=review" keep working. */}
       <Tabs.Screen
         name="index"
         options={{
-          title: "Requests",
-          ...(!isStaff || isCampusLeader ? { href: null } : {}),
-          tabBarIcon: ({ color, focused }) => (
-            <RequestsTabIcon color={color} focused={focused} total={tabTotal} />
-          ),
+          title: "Reimbursements",
+          href: null,
         }}
       />
       <Tabs.Screen
