@@ -176,6 +176,33 @@ describe("email changes: the person stays the same", () => {
     expect(profile.serviceHistory.map((h) => h.year)).toEqual([YEAR, YEAR - 1]);
   });
 
+  test("a personal account with a matching local part does NOT claim legacy-domain profiles", async () => {
+    const t = await setup();
+    const { userId, legacyProfileId } = await t.run(async (ctx) => {
+      const legacyProfileId = await ctx.db.insert("staffProfiles", {
+        email: "mia.cho@sowaustralia.com",
+        year: YEAR,
+        assignments: [{ role: "Staff", department: "Marketing" }],
+      });
+      const userId = await ctx.db.insert("users", { email: "mia.cho@gmail.com" });
+      return { userId, legacyProfileId };
+    });
+
+    await t.mutation(internal.userLink.link, { userId });
+
+    await t.run(async (ctx) => {
+      const legacy = (await ctx.db.get(legacyProfileId))!;
+      expect(legacy.email).toBe("mia.cho@sowaustralia.com");
+      expect(legacy.userId).toBeUndefined();
+      const bound = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_userId", (q) => q.eq("userId", userId))
+        .take(10);
+      expect(bound).toHaveLength(0);
+    });
+    expect((await asUser(t, "mia.cho@gmail.com").query(api.homeContent.view, {})).canEdit).toBe(false);
+  });
+
   test("a legacy profile already bound to another user is NOT claimed by a matching local part", async () => {
     const t = await setup();
     const { newUserId, legacyProfileId, oldUserId } = await t.run(async (ctx) => {

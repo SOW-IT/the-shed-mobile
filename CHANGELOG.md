@@ -23,6 +23,13 @@ All notable changes to **The SHED** mobile app. This project follows
 - **The Home tab now comes from the server, like Insights.** It looks the
   same as before until someone edits it.
 
+### Fixed
+- **A personal Google account can no longer take over an old staff
+  profile.** On first sign-in, profiles left on the old sowaustralia.com
+  addresses were matched by the part before the @, so a personal account
+  with the same name could claim them. Only sow.org.au accounts can claim
+  them now.
+
 ## [2.0.2] — 2026-10-04
 
 ### Changed
