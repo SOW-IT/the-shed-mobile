@@ -56,7 +56,7 @@ export default function EditHomeScreen() {
         <EmptyState
           icon="lock-closed-outline"
           title="You can't edit Home"
-          message="Only admins and Marketing staff can edit the Home tab."
+          message="Only admins, Marketing staff and the head of Engagement can edit the Home tab."
         />
       </Screen>
     );

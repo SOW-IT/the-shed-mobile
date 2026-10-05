@@ -12,6 +12,8 @@ const YEAR = staffYearForDate(new Date());
 const ADMIN = "admin@sow.org.au";
 const MARKETER = "rachel@sow.org.au";
 const FINANCE = "bella@sow.org.au";
+const ALUMNI = "alice@sow.org.au";
+const ENGAGEMENT_HEAD = "erin@sow.org.au";
 
 const asUser = (t: TestConvex<typeof schema>, email: string) =>
   t.withIdentity({ email, subject: email, issuer: "test" });
@@ -24,6 +26,9 @@ async function setup() {
   await admin.mutation(api.admin.upsertDepartment, { year: YEAR, name: "Finance", division: "Governance" });
   await admin.mutation(api.admin.setStaffProfile, { year: YEAR, email: MARKETER, roles: ["Staff"], department: "Marketing" });
   await admin.mutation(api.admin.setStaffProfile, { year: YEAR, email: FINANCE, roles: ["Staff"], department: "Finance" });
+  await admin.mutation(api.admin.upsertDepartment, { year: YEAR, name: "Alumni", division: "Engagement" });
+  await admin.mutation(api.admin.setStaffProfile, { year: YEAR, email: ALUMNI, roles: ["Staff"], department: "Alumni" });
+  await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "Engagement", headEmail: ENGAGEMENT_HEAD });
   await t.run(async (ctx) => {
     const profile = await ctx.db
       .query("staffProfiles")
@@ -49,17 +54,23 @@ describe("homeContent", () => {
     expect(view.tabs.every((tab) => tab.edited === null)).toBe(true);
   });
 
-  test("admins and Marketing staff can edit; other staff can't", async () => {
+  test("admins, Marketing staff and the Engagement head can edit; other staff can't", async () => {
     const t = await setup();
     expect((await asUser(t, ADMIN).query(api.homeContent.view, {})).canEdit).toBe(true);
     expect((await asUser(t, MARKETER).query(api.homeContent.view, {})).canEdit).toBe(true);
+    expect((await asUser(t, ENGAGEMENT_HEAD).query(api.homeContent.view, {})).canEdit).toBe(true);
+    expect((await asUser(t, ALUMNI).query(api.homeContent.view, {})).canEdit).toBe(false);
     expect((await asUser(t, FINANCE).query(api.homeContent.view, {})).canEdit).toBe(false);
+    await asUser(t, ENGAGEMENT_HEAD).mutation(api.homeContent.save, { tab: "home", blocks, baseRevision: 0 });
+    await expect(
+      asUser(t, ALUMNI).mutation(api.homeContent.reset, { tab: "home" })
+    ).rejects.toThrow(/head of Engagement/);
     await expect(
       asUser(t, FINANCE).mutation(api.homeContent.save, { tab: "home", blocks, baseRevision: 0 })
-    ).rejects.toThrow(/Only admins and Marketing staff/);
+    ).rejects.toThrow(/Only admins, Marketing staff and the head of Engagement/);
     await expect(
       t.mutation(api.homeContent.reset, { tab: "home" })
-    ).rejects.toThrow(/Only admins and Marketing staff/);
+    ).rejects.toThrow(/Only admins, Marketing staff and the head of Engagement/);
   });
 
   test("a save cleans the blocks, shows to everyone and records who saved", async () => {

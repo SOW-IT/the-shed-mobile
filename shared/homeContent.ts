@@ -6,6 +6,7 @@ import { departmentsOf, type ProfileLike } from "./flow";
 // edited shows the defaults below.
 
 export const MARKETING_DEPARTMENT = "Marketing";
+export const ENGAGEMENT_DIVISION = "Engagement";
 
 export const HOME_TABS = [
   { key: "home", label: "Home" },
@@ -390,9 +391,18 @@ export const emptyHomeBlock = (type: HomeBlockType): HomeBlock => {
   }
 };
 
-/** Admins and anyone in the Marketing department may edit the Home tab. */
-export const canEditHomeProfile = (profile: ProfileLike, isAdmin: boolean): boolean =>
-  isAdmin || departmentsOf(profile).includes(MARKETING_DEPARTMENT);
+/**
+ * Admins, anyone in the Marketing department and the head of the Engagement
+ * division may edit the Home tab. Other Engagement staff (e.g. Alumni) may not.
+ */
+export const canEditHomeProfile = (
+  profile: ProfileLike,
+  isAdmin: boolean,
+  headedDivisions: readonly string[]
+): boolean =>
+  isAdmin ||
+  departmentsOf(profile).includes(MARKETING_DEPARTMENT) ||
+  headedDivisions.includes(ENGAGEMENT_DIVISION);
 
 export const MAX_HOME_BLOCKS = 60;
 export const MAX_HOME_ITEMS = 40;

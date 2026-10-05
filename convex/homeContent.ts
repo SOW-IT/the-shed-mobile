@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { homeBlockValidator } from "./homeData";
-import { displayName, isAdminProfile, optionalProfile, type CallerContext } from "./model";
+import { displayName, divisionsHeadedBy, isAdminProfile, optionalProfile, type CallerContext } from "./model";
 import {
   canEditHomeProfile,
   DEFAULT_HOME_BLOCKS,
@@ -26,13 +26,17 @@ const tabViewValidator = v.object({
 
 async function canEdit(ctx: QueryCtx | MutationCtx, caller: CallerContext | null) {
   if (!caller) return false;
-  return canEditHomeProfile(caller.profile, await isAdminProfile(ctx, caller.profile));
+  const { profile, year, email } = caller;
+  const headed = (await divisionsHeadedBy(ctx, year, email)).map((d) => d.name);
+  return canEditHomeProfile(profile, await isAdminProfile(ctx, profile), headed);
 }
 
 async function requireHomeEditor(ctx: MutationCtx): Promise<CallerContext> {
   const caller = await optionalProfile(ctx);
   if (!(await canEdit(ctx, caller))) {
-    throw new ConvexError("Only admins and Marketing staff can edit the Home tab.");
+    throw new ConvexError(
+      "Only admins, Marketing staff and the head of Engagement can edit the Home tab."
+    );
   }
   return caller!;
 }

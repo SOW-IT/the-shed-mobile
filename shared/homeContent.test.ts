@@ -36,12 +36,17 @@ describe("homeContent defaults", () => {
 });
 
 describe("canEditHomeProfile", () => {
-  test("admins and Marketing staff", () => {
+  test("admins, Marketing staff and the Engagement head", () => {
     const marketing = { assignments: [{ role: "Staff", department: "Marketing" }] };
     const finance = { assignments: [{ role: "Staff", department: "Finance" }] };
-    expect(canEditHomeProfile(marketing, false)).toBe(true);
-    expect(canEditHomeProfile(finance, false)).toBe(false);
-    expect(canEditHomeProfile(finance, true)).toBe(true);
+    const alumni = { assignments: [{ role: "Staff", department: "Alumni" }] };
+    const divisionHead = { assignments: [{ role: "Head of Division", division: "Engagement" }] };
+    expect(canEditHomeProfile(marketing, false, [])).toBe(true);
+    expect(canEditHomeProfile(finance, false, [])).toBe(false);
+    expect(canEditHomeProfile(finance, true, [])).toBe(true);
+    expect(canEditHomeProfile(alumni, false, [])).toBe(false);
+    expect(canEditHomeProfile(divisionHead, false, ["Engagement"])).toBe(true);
+    expect(canEditHomeProfile(divisionHead, false, ["Operations"])).toBe(false);
   });
 });
 
