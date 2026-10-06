@@ -9,6 +9,7 @@ import {
 } from "../shared/designRequests";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
+import { CLOSED_ON_IMPORT_NOTE } from "./designRequestImport";
 import { headRecipients } from "./designRequests";
 import schema from "./schema";
 
@@ -239,6 +240,18 @@ describe("who sees what", () => {
         legacy({ id: "2", completed: true, completedTime: Date.UTC(YEAR - 3, 11, 2) }),
       ],
     });
+    // A request still open from an earlier year, as one is when the staff
+    // year rolls over before it's finished.
+    await t.run(async (ctx) => {
+      const row = await ctx.db
+        .query("designRequests")
+        .withIndex("by_legacyKey", (q) => q.eq("legacyKey", `${YEAR - 2}/1`))
+        .unique();
+      await ctx.db.patch("designRequests", row!._id, {
+        status: "PENDING",
+        completionNote: undefined,
+      });
+    });
     const mine = await submit(t, RACHEL);
     await submit(t, MARY);
     const rachel = asUser(t, RACHEL);
@@ -455,7 +468,9 @@ describe("editing and cancelling", () => {
 
   test("an unchanged past due date can stay; a new one can't be in the past", async () => {
     const t = await setup();
-    await t.mutation(internal.designRequestImport.importLegacy, { requests: [legacy()] });
+    await t.mutation(internal.designRequestImport.importLegacy, {
+      requests: [legacy({ year: YEAR })],
+    });
     const [old] = (await asUser(t, RACHEL).query(api.designRequests.mine, {}))!;
     const keep = answers({ dueDate: old.dueDate, keyMessage: "Updated" });
     await asUser(t, RACHEL).mutation(api.designRequests.update, { id: old._id, answers: keep });
@@ -515,7 +530,9 @@ describe("editing and cancelling", () => {
       division: "Engagement",
     });
     expect(await t.run((ctx) => headRecipients(ctx, YEAR - 2))).toEqual([]);
-    await t.mutation(internal.designRequestImport.importLegacy, { requests: [legacy()] });
+    await t.mutation(internal.designRequestImport.importLegacy, {
+      requests: [legacy({ year: YEAR })],
+    });
     const [old] = (await asUser(t, RACHEL).query(api.designRequests.mine, {}))!;
     await asUser(t, RACHEL).mutation(api.designRequests.cancel, { id: old._id });
     expect((await getRequest(t, old._id)).status).toBe("CANCELLED");
@@ -636,11 +653,12 @@ describe("importing from the old web app", () => {
       legacy({ id: "3", userEmail: "outsider@example.com", completed: true }),
       legacy({ id: "4", userID: "uid-henry", userEmail: undefined }),
       legacy({ id: "5", userID: "uid-gone", userEmail: "Gone@sowaustralia.com" }),
+      legacy({ id: "6", year: YEAR, approvedByHOD: "APPROVED", approvedTime: 1 }),
     ];
     const first = await t.mutation(internal.designRequestImport.importLegacy, {
       requests: batch,
     });
-    expect(first).toEqual({ inserted: 5, updated: 0, skipped: 0, comments: 1 });
+    expect(first).toEqual({ inserted: 6, updated: 0, skipped: 0, comments: 1 });
 
     const rows = await t.run((ctx) => ctx.db.query("designRequests").collect());
     const byNumber = Object.fromEntries(rows.map((r) => [r.number, r]));
@@ -649,9 +667,16 @@ describe("importing from the old web app", () => {
       requesterEmail: RACHEL,
       department: "Events",
       title: "Other: Banner",
-      status: "APPROVED",
+      // Approved but never finished, in an earlier staff year: closed on import.
+      status: "COMPLETED",
+      completionNote: CLOSED_ON_IMPORT_NOTE,
       legacyKey: `${YEAR - 2}/1`,
     });
+    expect(byNumber[1].completedAt).toBeUndefined();
+    expect(byNumber[4]).toMatchObject({ status: "COMPLETED", completionNote: CLOSED_ON_IMPORT_NOTE });
+    // This year's open requests come in as they were.
+    expect(byNumber[6]).toMatchObject({ year: YEAR, status: "APPROVED", decidedAt: 1 });
+    expect(byNumber[6].completionNote).toBeUndefined();
     expect(byNumber[1].answers).toEqual({
       department: "Events",
       types: ["other"],
@@ -697,11 +722,11 @@ describe("importing from the old web app", () => {
     ).toEqual({});
 
     // Acting on one in THE SHED protects it from being overwritten.
-    await asUser(t, RACHEL).mutation(api.designRequests.cancel, { id: byNumber[1]._id });
+    await asUser(t, RACHEL).mutation(api.designRequests.cancel, { id: byNumber[6]._id });
     const again = await t.mutation(internal.designRequestImport.importLegacy, {
       requests: batch,
     });
-    expect(again).toEqual({ inserted: 0, updated: 4, skipped: 1, comments: 0 });
-    expect((await getRequest(t, byNumber[1]._id)).status).toBe("CANCELLED");
+    expect(again).toEqual({ inserted: 0, updated: 5, skipped: 1, comments: 0 });
+    expect((await getRequest(t, byNumber[6]._id)).status).toBe("CANCELLED");
   });
 });

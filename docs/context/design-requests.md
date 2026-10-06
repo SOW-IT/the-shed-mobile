@@ -56,5 +56,8 @@ until they close. Nothing is ever deleted.
 **Legacy request**:
 A request imported from the old web app's Firestore, keyed by its old year and
 id so the import can be re-run. It keeps its old number and dates; questions
-the old form didn't ask (Bible passage, budget) are empty. Once anyone acts on
-it in THE SHED, a re-run leaves it alone.
+the old form didn't ask (Bible passage, budget) are empty, and it is filed
+under the requester's current address. One from an earlier staff year that was
+never finished comes in Complete with the note "Closed when imported from the
+old SHED", so it doesn't sit in the Marketing queue for good. Once anyone acts
+on it in THE SHED, a re-run leaves it alone.

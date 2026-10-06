@@ -10,7 +10,10 @@ import {
   type DesignRequestStatus,
 } from "../shared/designRequests";
 import { DESIGN_REQUEST_FIELDS } from "./designRequestForm";
-import { staffProfilesForEmail } from "./model";
+import { currentStaffYear, staffProfilesForEmail } from "./model";
+
+/** The note on old requests the import closes; see `legacyStatus`. */
+export const CLOSED_ON_IMPORT_NOTE = "Closed when imported from the old SHED";
 
 /**
  * One design request from the old web app's Firestore
@@ -100,11 +103,19 @@ const sydneyDate = (ms: number) => {
   return `${year}-${pad2(month)}-${pad2(day)}`;
 };
 
-const legacyStatus = (r: Legacy): DesignRequestStatus => {
-  if (truthy(r.completed)) return "COMPLETED";
-  if (r.approvedByHOD === "DECLINED") return "DECLINED";
-  if (r.approvedByHOD === "APPROVED") return "APPROVED";
-  return "PENDING";
+/**
+ * The request's status in the old app, except that one from an earlier staff
+ * year that was never finished comes in closed, so years-old requests don't sit
+ * in the Marketing queue for good.
+ */
+const legacyStatus = (r: Legacy): { status: DesignRequestStatus; closedOnImport: boolean } => {
+  if (truthy(r.completed)) return { status: "COMPLETED", closedOnImport: false };
+  if (r.approvedByHOD === "DECLINED") return { status: "DECLINED", closedOnImport: false };
+  if (r.year < currentStaffYear()) return { status: "COMPLETED", closedOnImport: true };
+  return {
+    status: r.approvedByHOD === "APPROVED" ? "APPROVED" : "PENDING",
+    closedOnImport: false,
+  };
 };
 
 const OLD_DOMAIN = "@sowaustralia.com";
@@ -157,7 +168,7 @@ export const importLegacy = internalMutation({
         otherInfo: r.extraInformation ?? "",
       };
       const answers = normalizeDesignAnswers(DESIGN_REQUEST_FIELDS, raw);
-      const status = legacyStatus(r);
+      const { status, closedOnImport } = legacyStatus(r);
       const fields = {
         year: r.year,
         number: Number.parseInt(r.id, 10) || 0,
@@ -168,7 +179,8 @@ export const importLegacy = internalMutation({
         status,
         decidedAt: status === "PENDING" ? undefined : (r.approvedTime ?? r.declinedTime),
         declineReason: status === "DECLINED" ? text(r.reason) : undefined,
-        completedAt: status === "COMPLETED" ? r.completedTime : undefined,
+        completedAt: closedOnImport ? undefined : r.completedTime,
+        completionNote: closedOnImport ? CLOSED_ON_IMPORT_NOTE : undefined,
         legacyKey,
       };
 

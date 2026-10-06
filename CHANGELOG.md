@@ -44,7 +44,8 @@ All notable changes to **The SHED** mobile app. This project follows
   to print or keep. On phones it opens the share sheet (Save to Files, Print,
   Mail…); on the web it downloads.
 - **Old design requests come across from the web app**, with their numbers,
-  dates, statuses and comments.
+  dates, statuses and comments. Ones from earlier years that were never
+  finished come in closed, marked "Closed when imported from the old SHED".
 
 ### Changed
 - **Profile is its own page from the side menu**, with the top bar and the
