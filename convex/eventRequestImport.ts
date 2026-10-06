@@ -340,6 +340,19 @@ export const importLegacy = internalMutation({
         .withIndex("by_legacyKey", (q) => q.eq("legacyKey", legacyKey))
         .unique();
       if (!existing) {
+        // Keep the old number unless an event made in THE SHED already has it.
+        const clash = await ctx.db
+          .query("eventRequests")
+          .withIndex("by_year_and_number", (q) => q.eq("year", r.year).eq("number", r.number))
+          .first();
+        if (clash) {
+          const last = await ctx.db
+            .query("eventRequests")
+            .withIndex("by_year_and_number", (q) => q.eq("year", r.year))
+            .order("desc")
+            .first();
+          fields.number = (last?.number ?? 0) + 1;
+        }
         const id = await ctx.db.insert("eventRequests", fields);
         for (const kind of ["marketing", "risk", "finance"] as const) {
           await ctx.db.insert("eventSubForms", { eventRequestId: id, kind, ...formFields(kind) });
@@ -360,7 +373,7 @@ export const importLegacy = internalMutation({
         counts.skipped++;
         continue;
       }
-      await ctx.db.replace("eventRequests", existing._id, fields);
+      await ctx.db.replace("eventRequests", existing._id, { ...fields, number: existing.number });
       const forms = await ctx.db
         .query("eventSubForms")
         .withIndex("by_eventRequest_and_kind", (q) => q.eq("eventRequestId", existing._id))

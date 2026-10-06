@@ -42,6 +42,7 @@ import {
   viewerScope,
   type EventRequest,
   type SubForm,
+  type ViewerScope,
 } from "./eventRequestAccess";
 import { displayName, getDepartment, getYearSettings, resolveName, type CallerContext } from "./model";
 
@@ -77,33 +78,44 @@ async function withRows(ctx: Ctx, events: EventRequest[]) {
 
 const dedupe = (events: EventRequest[]) => [...new Map(events.map((e) => [e._id, e])).values()];
 
-/** Pending forms the caller reviews, and which of them are waiting on the caller. */
+/**
+ * Pending forms the caller reviews, and which of them are waiting on the
+ * caller. Walks the events still in progress, so forms left pending on
+ * cancelled events never crowd out live ones.
+ */
 async function reviewForms(ctx: Ctx, caller: CallerContext) {
   const scope = await viewerScope(ctx, caller);
-  const pending: SubForm[] = [];
-  for (const kind of SUB_FORM_KINDS) {
-    if (!scope.teams[kind] && !(kind === "finance" && scope.director)) continue;
-    pending.push(
-      ...(await ctx.db
-        .query("eventSubForms")
-        .withIndex("by_kind_and_status", (q) => q.eq("kind", kind).eq("status", "PENDING"))
-        .take(LIST_LIMIT))
-    );
-  }
+  if (!SUB_FORM_KINDS.some((k) => scope.teams[k]) && !scope.director) return [];
+  const scopes = new Map<number, Promise<ViewerScope>>();
+  const scopeFor = (event: EventRequest) => {
+    let found = scopes.get(event.year);
+    if (!found) {
+      found = viewerScope(ctx, caller, event);
+      scopes.set(event.year, found);
+    }
+    return found;
+  };
+  const events = await ctx.db
+    .query("eventRequests")
+    .withIndex("by_status", (q) => q.eq("status", "IN_PROGRESS"))
+    .take(LIST_LIMIT);
   const forms: { form: SubForm; event: EventRequest; mine: boolean }[] = [];
-  for (const form of pending) {
-    const event = await ctx.db.get("eventRequests", form.eventRequestId);
-    if (!event || event.status !== "IN_PROGRESS") continue;
-    const approver = await stepApprover(ctx, event, form.kind, form.step);
-    const mine = form.submittedBy !== caller.email && (await actsAs(ctx, caller, approver));
-    // A team member sees their team's forms; the Director only the ones at their step.
-    const scopeHere = await viewerScope(ctx, caller, event);
-    const relevant =
-      mine ||
-      (form.kind === "finance" && form.step === "director"
-        ? scopeHere.director || scopeHere.teams.finance
-        : scopeHere.teams[form.kind]);
-    if (relevant) forms.push({ form, event, mine });
+  for (const event of events) {
+    const all = await subFormsOf(ctx, event._id);
+    for (const kind of SUB_FORM_KINDS) {
+      const form = all[kind];
+      if (form.status !== "PENDING") continue;
+      const approver = await stepApprover(ctx, event, kind, form.step);
+      const mine = form.submittedBy !== caller.email && (await actsAs(ctx, caller, approver));
+      // A team member sees their team's forms; the Director only the ones at their step.
+      const here = await scopeFor(event);
+      const relevant =
+        mine ||
+        (kind === "finance" && form.step === "director"
+          ? here.director || here.teams.finance
+          : here.teams[kind]);
+      if (relevant) forms.push({ form, event, mine });
+    }
   }
   return forms;
 }
@@ -313,7 +325,7 @@ export const get = query({
         },
       };
     }
-    const settings = await getYearSettings(ctx, caller.year);
+    const settings = await getYearSettings(ctx, event.year);
     return {
       event,
       requesterName: await nameOf(event.requesterEmail),

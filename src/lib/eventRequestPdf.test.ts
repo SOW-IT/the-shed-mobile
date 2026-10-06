@@ -103,6 +103,28 @@ describe("event request PDF", () => {
     expect((await PDFDocument.load(bytes)).getPageCount()).toBe(2);
   });
 
+  test("a risk longer than a page carries on over the next page", async () => {
+    const base = input();
+    const long = "Crowd crush near the stage. ".repeat(140); // ~4000 characters
+    const bytes = await buildEventRequestPdf({
+      ...base,
+      data: {
+        ...base.data,
+        forms: {
+          ...base.data.forms,
+          risk: {
+            ...facts(),
+            risk: { noRisks: false, risks: [{ description: long, mitigation: long }] },
+          },
+        },
+      },
+    });
+    const short = await buildEventRequestPdf(base);
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBeGreaterThan(
+      (await PDFDocument.load(short)).getPageCount()
+    );
+  });
+
   test("names the file after the event", () => {
     expect(eventRequestPdfFilename({ year: 2027, number: 3, name: "SAF27: The Big One!" })).toBe(
       "event-request-2027-3-saf27-the-big-one.pdf"

@@ -930,6 +930,20 @@ describe("importing from the old web app", () => {
     });
   });
 
+  test("an old number already used by an event made in THE SHED moves to the end", async () => {
+    const t = await setup();
+    await create(t); // #1 this year
+    await importOne(t, legacy({ year: YEAR, eventStartTime: ms(30) }));
+    const imported = (await t.run((ctx) => ctx.db.query("eventRequests").collect())).find(
+      (e) => e.legacyKey
+    )!;
+    expect(imported.number).toBe(2);
+    // A re-run keeps the number it was given.
+    await importOne(t, legacy({ year: YEAR, eventStartTime: ms(30), name: "Renamed" }));
+    const again = await t.run((ctx) => ctx.db.get("eventRequests", imported._id));
+    expect(again).toMatchObject({ number: 2, name: "Renamed" });
+  });
+
   test("re-running updates untouched events and leaves ones acted on", async () => {
     const t = await setup();
     await importOne(t, legacy({ eventStartTime: ms(30), finance: { status: "Submitted" } }));

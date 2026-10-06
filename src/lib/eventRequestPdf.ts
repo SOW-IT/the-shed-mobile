@@ -188,40 +188,52 @@ class Writer {
     });
   }
 
-  /** Rows of cells with borders; `widths` are fractions of the page width. */
+  /**
+   * Rows of cells with borders; `widths` are fractions of the page width. A
+   * row that fits on a page is kept together; one taller than a page (a long
+   * risk description) carries on over the next page.
+   */
   table(widths: number[], rows: Cell[][], size = 9) {
     const pad = 4;
     const lineHeight = size * 1.3;
+    const linesThatFit = () => Math.floor((this.y - MARGIN - 2 * pad) / lineHeight);
     for (const row of rows) {
-      const wrapped = row.map((cell, i) =>
+      let pending = row.map((cell, i) =>
         this.wrap(cell.text, cell.bold ? this.bold : this.regular, size, widths[i] * WIDTH - 2 * pad)
       );
-      const height = Math.max(...wrapped.map((lines) => lines.length)) * lineHeight + 2 * pad;
-      if (this.y - height < MARGIN) this.newPage();
-      let x = MARGIN;
-      row.forEach((cell, i) => {
-        const w = widths[i] * WIDTH;
-        this.page.drawRectangle({
-          x,
-          y: this.y - height,
-          width: w,
-          height,
-          color: cell.fill,
-          borderColor: TEXT,
-          borderWidth: 0.6,
-        });
-        wrapped[i].forEach((line, n) => {
-          this.page.drawText(line, {
-            x: x + pad,
-            y: this.y - pad - (n + 1) * lineHeight + 3,
-            size,
-            font: cell.bold ? this.bold : this.regular,
-            color: cell.color ?? TEXT,
+      const fullHeight = Math.max(...pending.map((lines) => lines.length)) * lineHeight + 2 * pad;
+      if (this.y - fullHeight < MARGIN && fullHeight <= PAGE.height - 2 * MARGIN) this.newPage();
+      while (pending.some((lines) => lines.length > 0)) {
+        if (linesThatFit() < 1) this.newPage();
+        const fit = linesThatFit();
+        const chunk = pending.map((lines) => lines.slice(0, fit));
+        pending = pending.map((lines) => lines.slice(fit));
+        const height = Math.max(1, ...chunk.map((lines) => lines.length)) * lineHeight + 2 * pad;
+        let x = MARGIN;
+        row.forEach((cell, i) => {
+          const w = widths[i] * WIDTH;
+          this.page.drawRectangle({
+            x,
+            y: this.y - height,
+            width: w,
+            height,
+            color: cell.fill,
+            borderColor: TEXT,
+            borderWidth: 0.6,
           });
+          chunk[i].forEach((line, n) => {
+            this.page.drawText(line, {
+              x: x + pad,
+              y: this.y - pad - (n + 1) * lineHeight + 3,
+              size,
+              font: cell.bold ? this.bold : this.regular,
+              color: cell.color ?? TEXT,
+            });
+          });
+          x += w;
         });
-        x += w;
-      });
-      this.y -= height;
+        this.y -= height;
+      }
     }
   }
 }

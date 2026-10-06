@@ -805,6 +805,7 @@ export default function AdminScreen() {
     setYear(y);
     setError(null);
     setThresholdInput(null);
+    setEventThresholdInput(null);
     setBudgetManagerEmail(null);
     setEditingUserEmail(null);
     setAssigningUserEmail(null);
