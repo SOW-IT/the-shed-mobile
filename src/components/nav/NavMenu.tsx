@@ -9,6 +9,7 @@ import { api } from "../../../convex/_generated/api";
 import { Avatar, ConfirmDialog } from "@/components/ui";
 import { SignInMenu } from "@/components/nav/SignInMenu";
 import { TestEnvironmentChip } from "@/components/nav/TestEnvironmentChip";
+import { useDesignRequestsBadge } from "@/hooks/useDesignRequestsBadge";
 import { useReimbursementsBadge } from "@/hooks/useReimbursementsBadge";
 import {
   activeNavKey,
@@ -28,6 +29,7 @@ type IconName = keyof typeof Ionicons.glyphMap;
 const NAV_ICONS: Record<NavKey, { outline: IconName; filled: IconName }> = {
   home: { outline: "home-outline", filled: "home" },
   reimbursements: { outline: "receipt-outline", filled: "receipt" },
+  designRequests: { outline: "color-palette-outline", filled: "color-palette" },
   attendance: { outline: "checkbox-outline", filled: "checkbox" },
   insights: { outline: "stats-chart-outline", filled: "stats-chart" },
   org: { outline: "people-outline", filled: "people" },
@@ -39,6 +41,8 @@ const NAV_ICONS: Record<NavKey, { outline: IconName; filled: IconName }> = {
 const TAB_KEYS: ReadonlySet<NavKey> = new Set<NavKey>([
   "home",
   "reimbursements",
+  "designRequests",
+  "profile",
   "attendance",
   "insights",
   "org",
@@ -74,6 +78,7 @@ export const NavMenu = ({
   const me = useQuery(api.directory.me);
   const viewer = navViewer(isAuthenticated, me);
   const reimbursementsBadge = useReimbursementsBadge();
+  const designRequestsBadge = useDesignRequestsBadge();
   const unread =
     useQuery(api.notifications.unreadCount, viewer.isStaff ? {} : "skip") ?? 0;
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
@@ -200,7 +205,12 @@ export const NavMenu = ({
       <View style={styles.items}>
         {items.map((key) => {
           const selected = key === active;
-          const badge = key === "reimbursements" ? reimbursementsBadge : 0;
+          const badge =
+            key === "reimbursements"
+              ? reimbursementsBadge
+              : key === "designRequests"
+                ? designRequestsBadge
+                : 0;
           const label = NAV_LABELS[key];
           return (
             <Pressable

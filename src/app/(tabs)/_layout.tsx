@@ -205,6 +205,12 @@ export default function TabsLayout() {
           href: null,
         }}
       />
+      {/* Design Requests and Profile also open from the side menu only. */}
+      <Tabs.Screen
+        name="design-requests"
+        options={{ title: "Design Requests", href: null }}
+      />
+      <Tabs.Screen name="profile" options={{ title: "Profile", href: null }} />
       <Tabs.Screen
         name="attendance"
         options={{

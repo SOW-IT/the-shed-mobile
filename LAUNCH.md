@@ -17,6 +17,13 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 ## Still outstanding
 
+- [ ] **Copy the old web app's design requests into production** once 2.2.0's
+      backend is deployed: `gcloud auth login` (an account with access to
+      `theshedsow`), then `node scripts/import-design-requests.mjs --dry-run`
+      and `node scripts/import-design-requests.mjs --prod`. It can be re-run
+      after anyone submits more on the old site; requests already acted on in
+      THE SHED are left alone.
+
 - [ ] **Privacy policy URL** — required by both stores. Adapt SOW's existing
       policy to cover: Google sign-in (name/email), profile photos, receipt
       files including bank account details, and push tokens.

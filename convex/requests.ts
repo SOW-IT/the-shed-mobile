@@ -142,10 +142,21 @@ export const notify = async (
     body: string;
     url?: string;
     requestId?: Id<"requests">;
+    designRequestId?: Id<"designRequests">;
     email?: boolean;
   }
 ) => {
-  const { to, actor, subject, pushTitle, body, url, requestId, email = true } = opts;
+  const {
+    to,
+    actor,
+    subject,
+    pushTitle,
+    body,
+    url,
+    requestId,
+    designRequestId,
+    email = true,
+  } = opts;
   if (!to) return;
   if (email) {
     await ctx.scheduler.runAfter(0, internal.emails.send, {
@@ -163,6 +174,7 @@ export const notify = async (
     body: lead,
     url,
     ...(requestId ? { requestId } : {}),
+    ...(designRequestId ? { designRequestId } : {}),
     read: false,
   });
   await ctx.scheduler.runAfter(0, internal.push.send, {

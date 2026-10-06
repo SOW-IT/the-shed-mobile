@@ -9,6 +9,7 @@ import { useNavDrawer } from "@/components/nav/NavDrawer";
 import { SignInMenu } from "@/components/nav/SignInMenu";
 import { TestEnvironmentChip } from "@/components/nav/TestEnvironmentChip";
 import { TOP_BAR_HEIGHT } from "@/components/useTopBarCollapse";
+import { useDesignRequestsBadge } from "@/hooks/useDesignRequestsBadge";
 import { useReimbursementsBadge } from "@/hooks/useReimbursementsBadge";
 import { badgeText } from "@/lib/navMenu";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
@@ -35,7 +36,7 @@ export const TopBar = ({
   const isStaff = !!me?.profile;
   const unread =
     useQuery(api.notifications.unreadCount, isStaff ? {} : "skip") ?? 0;
-  const badge = useReimbursementsBadge();
+  const badge = useReimbursementsBadge() + useDesignRequestsBadge();
   return (
     <View style={styles.topBar}>
       <View style={styles.center} pointerEvents="box-none">

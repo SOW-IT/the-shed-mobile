@@ -3,10 +3,11 @@ import { useMutation, useQuery } from "convex/react";
 import Constants from "expo-constants";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { ReactNode, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { acronym, formatAssignment, staffYearForDate } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
+import { ChromeScreen } from "./ChromeScreen";
 import { radius, spacing, typography, useAppTheme } from "../theme";
 import {
   getLocalFileSizeBytes,
@@ -29,7 +30,29 @@ import {
   Txt,
 } from "./ui";
 
-export const ProfileView = ({ email }: { email?: string }) => {
+const ProfileFrame = ({
+  asTab,
+  onBack,
+  children,
+}: {
+  asTab: boolean;
+  onBack?: () => void;
+  children: ReactNode;
+}) =>
+  asTab ? (
+    <ChromeScreen>{children}</ChromeScreen>
+  ) : (
+    <Screen title="Profile" onBack={onBack}>
+      {children}
+    </Screen>
+  );
+
+/**
+ * A person's profile. Your own (`asTab`) is a root screen from the side menu,
+ * with the top bar; anyone else's opens on top of the screen you came from,
+ * with a back button.
+ */
+export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: boolean }) => {
   const t = useAppTheme();
   const profile = useQuery(api.profile.get, email ? { email } : {});
   const updateChurch = useMutation(api.profile.updateChurch);
@@ -45,9 +68,9 @@ export const ProfileView = ({ email }: { email?: string }) => {
 
   if (!profile) {
     return (
-      <Screen title="Profile" onBack={goBack}>
+      <ProfileFrame asTab={asTab} onBack={goBack}>
         <LoadingState />
-      </Screen>
+      </ProfileFrame>
     );
   }
 
@@ -95,7 +118,7 @@ export const ProfileView = ({ email }: { email?: string }) => {
   };
 
   return (
-    <Screen title="Profile" onBack={goBack}>
+    <ProfileFrame asTab={asTab} onBack={goBack}>
       <FadeInView delay={40}>
         <Card style={styles.hero}>
           <View>
@@ -214,7 +237,7 @@ export const ProfileView = ({ email }: { email?: string }) => {
           Version {Constants.expoConfig?.version ?? "—"}
         </Text>
       )}
-    </Screen>
+    </ProfileFrame>
   );
 };
 

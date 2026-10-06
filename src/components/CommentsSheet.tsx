@@ -1,40 +1,16 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Doc, Id } from "../../convex/_generated/dataModel";
-import { radius, spacing, typography, useAppTheme } from "../theme";
-import { compactAgo } from "@shared/datetime";
-import { QUICK_REACTION_EMOJIS, REACTION_EMOJIS } from "@shared/flow";
-import {
-  Avatar,
-  errorMessage,
-  ErrorBanner,
-  IconButton,
-  Muted,
-  Sheet,
-  SowSpinner,
-} from "./ui";
+import { CommentThreadSheet } from "./CommentThreadSheet";
 
 const CLOSE_ANIMATION_MS = 300;
 
-const QUICK_EMOJIS = QUICK_REACTION_EMOJIS;
-const MORE_EMOJIS = REACTION_EMOJIS;
-
-const isOptimisticId = (id: Id<"requestComments">) =>
-  String(id).startsWith("optimistic-");
-
-export const CommentsSheet = ({
-  request,
-  visible,
-  onClose,
-}: {
-  request: Doc<"requests">;
-  visible: boolean;
-  onClose: () => void;
-}) => {
-  const t = useAppTheme();
+/**
+ * Whether a thread's query should be live: from opening its sheet until the
+ * sheet has finished animating closed.
+ */
+export const useThreadActive = (visible: boolean): boolean => {
   const [active, setActive] = useState(visible);
   useEffect(() => {
     if (visible) {
@@ -45,16 +21,35 @@ export const CommentsSheet = ({
     const id = setTimeout(() => setActive(false), CLOSE_ANIMATION_MS);
     return () => clearTimeout(id);
   }, [visible]);
+  return active;
+};
 
+/** The last loaded value, so a reopened sheet doesn't flash a spinner. */
+export const useRetained = <T,>(current: T | undefined): T | undefined => {
+  const [loaded, setLoaded] = useState<T | undefined>(current);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- retain last loaded thread
+    if (current !== undefined) setLoaded(current);
+  }, [current]);
+  return loaded;
+};
+
+/** A reimbursement request's comment thread. */
+export const CommentsSheet = ({
+  request,
+  visible,
+  onClose,
+}: {
+  request: Doc<"requests">;
+  visible: boolean;
+  onClose: () => void;
+}) => {
+  const active = useThreadActive(visible);
   const comments = useQuery(
     api.comments.list,
     active ? { requestId: request._id } : "skip"
   );
-  const [loaded, setLoaded] = useState<typeof comments>(comments);
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- retain last loaded thread
-    if (comments !== undefined) setLoaded(comments);
-  }, [comments]);
+  const loaded = useRetained(comments);
   const add = useMutation(api.comments.add).withOptimisticUpdate(
     (localStore, { requestId, body }) => {
       const current = localStore.getQuery(api.comments.list, { requestId });
@@ -105,14 +100,6 @@ export const CommentsSheet = ({
     }
   );
 
-  const [draft, setDraft] = useState("");
-  const [focused, setFocused] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
-  const canSend = !sending && draft.trim() !== "";
-  const [reactingTo, setReactingTo] = useState<Id<"requestComments"> | null>(null);
-  const [moreFor, setMoreFor] = useState<Id<"requestComments"> | null>(null);
-
   useEffect(() => {
     if (visible && comments) {
       void markRead({ requestId: request._id });
@@ -120,259 +107,15 @@ export const CommentsSheet = ({
     }
   }, [visible, comments, markRead, markNotificationsRead, request._id]);
 
-  useEffect(() => {
-    if (!visible) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- dismiss pickers on close
-      setReactingTo(null);
-      setMoreFor(null);
-    }
-  }, [visible]);
-
-  const send = async () => {
-    const body = draft.trim();
-    if (!body || sending) return;
-    setSending(true);
-    setDraft("");
-    setError(null);
-    try {
-      await add({ requestId: request._id, body });
-    } catch (e) {
-      setError(errorMessage(e));
-      setDraft(body);
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const react = async (commentId: Id<"requestComments">, emoji: string) => {
-    setReactingTo(null);
-    setMoreFor(null);
-    if (isOptimisticId(commentId)) return;
-    try {
-      await toggleReaction({ commentId, emoji });
-    } catch (e) {
-      setError(errorMessage(e));
-    }
-  };
-
   return (
-    <>
-      <Sheet
-        visible={visible}
-        onClose={onClose}
-        title="Comments"
-        keyboardAnchor="bottom"
-        stickToBottom
-        footer={
-          <>
-            <ErrorBanner message={error} />
-            <View style={styles.composer}>
-              <TextInput
-                value={draft}
-                onChangeText={setDraft}
-                onFocus={() => setFocused(true)}
-                onBlur={() => setFocused(false)}
-                placeholder="Write a comment…"
-                placeholderTextColor={t.faint}
-                multiline
-                style={[
-                  styles.composerInput,
-                  {
-                    backgroundColor: t.inputBackground,
-                    color: t.text,
-                    borderColor: focused ? t.primary : t.border,
-                  },
-                ]}
-              />
-              <IconButton
-                name="arrow-up"
-                bg={canSend ? t.primary : t.ghost}
-                color={canSend ? t.onPrimary : t.faint}
-                size={40}
-                accessibilityLabel="Send comment"
-                disabled={!canSend}
-                onPress={() => void send()}
-              />
-            </View>
-          </>
-        }
-      >
-        {loaded === undefined ? (
-          <View style={styles.loading}>
-            <SowSpinner size={18} />
-          </View>
-        ) : loaded === null || loaded.length === 0 ? (
-          <Muted>No comments yet.</Muted>
-        ) : (
-          <View style={{ gap: spacing.md }}>
-            {loaded.map((comment) => (
-              <View key={comment.id} style={styles.commentRow}>
-                <Avatar photo={null} name={comment.authorName ?? comment.authorEmail} size={32} />
-                <View style={{ flex: 1, gap: 3 }}>
-                  <View style={styles.commentHead}>
-                    <Text
-                      numberOfLines={1}
-                      style={[typography.caption, { color: t.text, fontWeight: "700", flexShrink: 1 }]}
-                    >
-                      {comment.isMine ? "You" : comment.authorName ?? comment.authorEmail}
-                    </Text>
-                    <Text style={[typography.caption, { color: t.faint }]}>
-                      {compactAgo(comment.at)}
-                    </Text>
-                  </View>
-                  <Text style={[typography.body, { color: t.text }]}>{comment.body}</Text>
-
-                  <View style={styles.reactionRow}>
-                    {comment.reactions.map((reaction) => (
-                      <Pressable
-                        key={reaction.emoji}
-                        accessibilityRole="button"
-                        accessibilityLabel={`${reaction.emoji} ${reaction.count}${reaction.mine ? ", you reacted" : ""}`}
-                        onPress={() => void react(comment.id, reaction.emoji)}
-                        style={[
-                          styles.reactionChip,
-                          {
-                            backgroundColor: reaction.mine ? t.primarySoft : t.inputBackground,
-                            borderColor: reaction.mine ? t.primary : "transparent",
-                          },
-                        ]}
-                      >
-                        <Text style={{ fontSize: 13 }}>{reaction.emoji}</Text>
-                        <Text style={[typography.caption, { color: t.muted, fontWeight: "700" }]}>
-                          {reaction.count}
-                        </Text>
-                      </Pressable>
-                    ))}
-                    {!isOptimisticId(comment.id) && (
-                      <Pressable
-                        hitSlop={6}
-                        accessibilityRole="button"
-                        accessibilityLabel="Add a reaction"
-                        onPress={() =>
-                          setReactingTo((current) => (current === comment.id ? null : comment.id))
-                        }
-                        style={[styles.reactionAdd, { borderColor: t.border }]}
-                      >
-                        <Ionicons name="happy-outline" size={15} color={t.muted} />
-                        <Ionicons name="add" size={12} color={t.muted} />
-                      </Pressable>
-                    )}
-                  </View>
-
-                  {reactingTo === comment.id ? (
-                    <View style={[styles.quickPicker, { backgroundColor: t.inputBackground }]}>
-                      {QUICK_EMOJIS.map((emoji) => (
-                        <Pressable
-                          key={emoji}
-                          hitSlop={4}
-                          accessibilityRole="button"
-                          accessibilityLabel={`React with ${emoji}`}
-                          onPress={() => void react(comment.id, emoji)}
-                          style={({ pressed }) => [styles.quickEmoji, pressed && { opacity: 0.5 }]}
-                        >
-                          <Text style={{ fontSize: 20 }}>{emoji}</Text>
-                        </Pressable>
-                      ))}
-                      <Pressable
-                        hitSlop={4}
-                        accessibilityRole="button"
-                        accessibilityLabel="More reactions"
-                        onPress={() => {
-                          setReactingTo(null);
-                          setMoreFor(comment.id);
-                        }}
-                        style={({ pressed }) => [styles.quickMore, pressed && { opacity: 0.5 }]}
-                      >
-                        <Ionicons name="ellipsis-horizontal" size={18} color={t.muted} />
-                      </Pressable>
-                    </View>
-                  ) : null}
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-      </Sheet>
-
-      <Sheet
-        visible={visible && moreFor !== null}
-        onClose={() => setMoreFor(null)}
-        scrollable={false}
-        title="Pick a reaction"
-      >
-        <View style={styles.emojiGrid}>
-          {MORE_EMOJIS.map((emoji) => (
-            <Pressable
-              key={emoji}
-              hitSlop={4}
-              accessibilityRole="button"
-              accessibilityLabel={`React with ${emoji}`}
-              onPress={() => moreFor && void react(moreFor, emoji)}
-              style={({ pressed }) => [styles.gridEmoji, pressed && { opacity: 0.5 }]}
-            >
-              <Text style={{ fontSize: 26 }}>{emoji}</Text>
-            </Pressable>
-          ))}
-        </View>
-      </Sheet>
-    </>
+    <CommentThreadSheet
+      visible={visible}
+      onClose={onClose}
+      comments={loaded}
+      onSend={(body) => add({ requestId: request._id, body })}
+      onReact={(commentId, emoji) =>
+        toggleReaction({ commentId: commentId as Id<"requestComments">, emoji })
+      }
+    />
   );
 };
-
-const styles = StyleSheet.create({
-  loading: { alignSelf: "flex-start", paddingVertical: 2 },
-  commentRow: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" },
-  commentHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  reactionRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 2 },
-  reactionChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  reactionAdd: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: radius.full,
-    borderWidth: 1,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-  },
-  quickPicker: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    borderRadius: radius.full,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginTop: 4,
-    alignSelf: "flex-start",
-    flexWrap: "wrap",
-  },
-  quickEmoji: { paddingHorizontal: 2 },
-  quickMore: { paddingHorizontal: 4, paddingVertical: 2 },
-  composer: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm },
-  composerInput: {
-    flex: 1,
-    minHeight: 40,
-    maxHeight: 120,
-    borderRadius: radius.lg,
-    borderWidth: 1.5,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 10,
-    fontSize: 15,
-    lineHeight: 20,
-  },
-  emojiGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: spacing.sm },
-  gridEmoji: {
-    width: 48,
-    height: 48,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: radius.md,
-  },
-});

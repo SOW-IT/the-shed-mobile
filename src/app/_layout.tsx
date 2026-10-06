@@ -100,10 +100,11 @@ const RootStack = () => {
             }}
           >
             <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
-            <Stack.Screen name="profile" />
             <Stack.Screen name="notifications" />
             <Stack.Screen name="person/[email]" />
             <Stack.Screen name="request/[id]" />
+            <Stack.Screen name="design-requests/new" />
+            <Stack.Screen name="design-requests/[id]" />
             <Stack.Screen name="attendance/[subgroup]" />
             <Stack.Screen name="attendance/event/new" />
             <Stack.Screen name="attendance/event/[eventId]" />

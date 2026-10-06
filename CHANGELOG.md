@@ -6,6 +6,56 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.2.0] — 2026-10-06
+
+### Added
+- **Design Requests: ask the Marketing team to design something, from the
+  side menu.** Staff (not campus leaders) fill in the design request form
+  from the old SHED web app, with this year's changes: "What would you like
+  us to design?" adds Short Form Video (Reel), Long Form Video and Instagram
+  Posts; the theme and examples questions are now one required question
+  ("Please provide examples of the theme/colour palette/visual style you'd
+  like us to work with"); event requests are asked for the key Bible passage;
+  and every request gives a budget for promotional materials, with a reminder
+  to be in contact with Finance. The questions come from the server, so they
+  can be reworded or added to without an app update.
+- **The Marketing Head approves or declines, and Marketing marks requests
+  complete.** Declining needs a reason the requester sees. Marketing staff
+  can add a note or a link to the final files when they mark a request
+  complete. The Marketing Head's own requests are approved straight away,
+  and anyone covering for them can approve too. Requests can't be submitted
+  until the year has a Marketing Head.
+- **Requesters can edit or cancel until a request closes.** An edited
+  request shows when it was edited, its history lists what changed, and the
+  Marketing team is told. Cancelled requests stay in the list as cancelled.
+- **Comments, notifications and email for every step.** The requester and
+  the Marketing team can comment on a request. Submissions, approvals,
+  declines, edits, completions, cancellations and comments notify the people
+  involved in the app and by push; the Marketing team's emails go to
+  marketing@sow.org.au instead of each person. The side menu (and your avatar
+  on phones) counts requests waiting on you.
+- **Mine, Marketing and All.** Everyone sees their own requests; the
+  Marketing team and admins also get the Marketing tab (requests to approve
+  or finish, from any year) and All, every request from a staff year, with a
+  year picker, like Reimbursements' All tab. Open requests from earlier years
+  stay in this year's lists until they close.
+- **Download a design request as a PDF.** The request page has a Download
+  PDF button: the status, every answer, its history and its comments on A4,
+  to print or keep. On phones it opens the share sheet (Save to Files, Print,
+  Mail…); on the web it downloads.
+- **Old design requests come across from the web app**, with their numbers,
+  dates, statuses and comments.
+
+### Changed
+- **Profile is its own page from the side menu**, with the top bar and the
+  bottom tabs, like Reimbursements and Attendance, instead of opening on top
+  with a back button. Other people's profiles still open on top.
+
+### Fixed
+- **Typing in a form no longer hides the field behind the bottom button**
+  on the design request form: the button stays below the keyboard while you
+  type.
+
 ## [2.1.0] — 2026-10-06
 
 ### Added

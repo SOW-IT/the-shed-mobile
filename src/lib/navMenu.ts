@@ -4,6 +4,7 @@ import { acronym, type Assignment, formatAssignment } from "../../shared/flow";
 export type NavKey =
   | "home"
   | "reimbursements"
+  | "designRequests"
   | "attendance"
   | "insights"
   | "org"
@@ -13,6 +14,7 @@ export type NavKey =
 export const NAV_HREFS = {
   home: "/home",
   reimbursements: "/",
+  designRequests: "/design-requests",
   attendance: "/attendance",
   insights: "/insights",
   org: "/org",
@@ -23,6 +25,7 @@ export const NAV_HREFS = {
 export const NAV_LABELS: Record<NavKey, string> = {
   home: "Home",
   reimbursements: "Reimbursements",
+  designRequests: "Design Requests",
   attendance: "Attendance",
   insights: "Insights",
   org: "Org Chart",
@@ -64,6 +67,9 @@ export const navViewer = (signedIn: boolean, me: MeForNav): NavViewer => {
 export const showsReimbursements = (viewer: NavViewer) =>
   viewer.isStaff && !viewer.isCampusLeader;
 
+/** Design Requests go to the same people as Reimbursements. */
+export const showsDesignRequests = showsReimbursements;
+
 /**
  * The phone drawer's links. The bottom tabs already cover Home, Attendance,
  * Insights and Org Chart, so it only holds what isn't down there. Signed-out
@@ -73,6 +79,7 @@ export const drawerItems = (viewer: NavViewer): NavKey[] => {
   if (!viewer.signedIn) return [];
   const items: NavKey[] = ["profile"];
   if (showsReimbursements(viewer)) items.push("reimbursements");
+  if (showsDesignRequests(viewer)) items.push("designRequests");
   if (viewer.canAdmin) items.push("admin");
   return items;
 };
@@ -81,6 +88,7 @@ export const drawerItems = (viewer: NavViewer): NavKey[] => {
 export const sidebarItems = (viewer: NavViewer): NavKey[] => {
   const items: NavKey[] = ["home"];
   if (showsReimbursements(viewer)) items.push("reimbursements");
+  if (showsDesignRequests(viewer)) items.push("designRequests");
   if (viewer.isStaff) items.push("attendance");
   items.push("insights", "org");
   if (viewer.signedIn) items.push("profile");
@@ -94,6 +102,9 @@ export const activeNavKey = (pathname: string): NavKey | null => {
     return "reimbursements";
   }
   if (pathname.startsWith("/request/")) return "reimbursements";
+  if (pathname === "/design-requests" || pathname.startsWith("/design-requests/")) {
+    return "designRequests";
+  }
   if (pathname === "/home" || pathname === "/edit-home") return "home";
   if (pathname === "/attendance" || pathname.startsWith("/attendance/")) {
     return "attendance";
