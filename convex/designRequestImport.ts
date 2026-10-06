@@ -127,7 +127,11 @@ const CURRENT_DOMAIN = "@sow.org.au";
  * the email on their old user doc), else that email moved off the old
  * sowaustralia.com domain, else a clearly fake placeholder address.
  */
-async function legacyEmail(ctx: MutationCtx, uid: string, email: string | undefined) {
+export async function legacyEmail(
+  ctx: MutationCtx,
+  uid: string,
+  email: string | undefined
+) {
   const byImportId = await ctx.db
     .query("staffProfiles")
     .withIndex("by_importId", (q) => q.eq("importId", uid))

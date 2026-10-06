@@ -104,6 +104,30 @@ export const markReadForDesignRequest = mutation({
   },
 });
 
+export const markReadForEventRequest = mutation({
+  args: { eventRequestId: v.id("eventRequests") },
+  handler: async (ctx, args) => {
+    const caller = await optionalProfile(ctx);
+    if (!caller) return null;
+    for (;;) {
+      const unread = await ctx.db
+        .query("notifications")
+        .withIndex("by_user_and_eventRequest_and_read", (q) =>
+          q
+            .eq("userEmail", caller.email)
+            .eq("eventRequestId", args.eventRequestId)
+            .eq("read", false)
+        )
+        .take(200);
+      if (unread.length === 0) break;
+      for (const notification of unread) {
+        await ctx.db.patch("notifications", notification._id, { read: true });
+      }
+    }
+    return null;
+  },
+});
+
 export const markAllRead = mutation({
   args: {},
   handler: async (ctx) => {
