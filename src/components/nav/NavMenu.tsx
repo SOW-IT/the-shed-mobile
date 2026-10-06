@@ -10,6 +10,7 @@ import { Avatar, ConfirmDialog } from "@/components/ui";
 import { SignInMenu } from "@/components/nav/SignInMenu";
 import { TestEnvironmentChip } from "@/components/nav/TestEnvironmentChip";
 import { useDesignRequestsBadge } from "@/hooks/useDesignRequestsBadge";
+import { useEventRequestsBadge } from "@/hooks/useEventRequestsBadge";
 import { useReimbursementsBadge } from "@/hooks/useReimbursementsBadge";
 import {
   activeNavKey,
@@ -30,6 +31,7 @@ const NAV_ICONS: Record<NavKey, { outline: IconName; filled: IconName }> = {
   home: { outline: "home-outline", filled: "home" },
   reimbursements: { outline: "receipt-outline", filled: "receipt" },
   designRequests: { outline: "color-palette-outline", filled: "color-palette" },
+  eventRequests: { outline: "calendar-outline", filled: "calendar" },
   attendance: { outline: "checkbox-outline", filled: "checkbox" },
   insights: { outline: "stats-chart-outline", filled: "stats-chart" },
   org: { outline: "people-outline", filled: "people" },
@@ -42,6 +44,7 @@ const TAB_KEYS: ReadonlySet<NavKey> = new Set<NavKey>([
   "home",
   "reimbursements",
   "designRequests",
+  "eventRequests",
   "profile",
   "attendance",
   "insights",
@@ -79,6 +82,7 @@ export const NavMenu = ({
   const viewer = navViewer(isAuthenticated, me);
   const reimbursementsBadge = useReimbursementsBadge();
   const designRequestsBadge = useDesignRequestsBadge();
+  const eventRequestsBadge = useEventRequestsBadge();
   const unread =
     useQuery(api.notifications.unreadCount, viewer.isStaff ? {} : "skip") ?? 0;
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
@@ -210,7 +214,9 @@ export const NavMenu = ({
               ? reimbursementsBadge
               : key === "designRequests"
                 ? designRequestsBadge
-                : 0;
+                : key === "eventRequests"
+                  ? eventRequestsBadge
+                  : 0;
           const label = NAV_LABELS[key];
           return (
             <Pressable

@@ -8,6 +8,7 @@ import {
   navViewer,
   roleLine,
   showsDesignRequests,
+  showsEventRequests,
   showsReimbursements,
   sidebarItems,
 } from "./navMenu";
@@ -86,6 +87,14 @@ describe("showsDesignRequests", () => {
   });
 });
 
+describe("showsEventRequests", () => {
+  test("matches Reimbursements: staff above campus leaders", () => {
+    expect(showsEventRequests(staff)).toBe(true);
+    expect(showsEventRequests(campusLeader)).toBe(false);
+    expect(showsEventRequests(guest)).toBe(false);
+  });
+});
+
 describe("drawerItems", () => {
   test("signed-out visitors have no drawer", () => {
     expect(drawerItems(signedOut)).toEqual([]);
@@ -95,16 +104,22 @@ describe("drawerItems", () => {
     expect(drawerItems(guest)).toEqual(["profile"]);
   });
 
-  test("staff get Profile, Reimbursements and Design Requests", () => {
-    expect(drawerItems(staff)).toEqual(["profile", "reimbursements", "designRequests"]);
+  test("staff get Profile, Reimbursements, Event Requests and Design Requests", () => {
+    expect(drawerItems(staff)).toEqual([
+      "profile",
+      "reimbursements",
+      "eventRequests",
+      "designRequests",
+    ]);
   });
 
   test("admins and the Finance Head also get Admin, last", () => {
-    expect(drawerItems(admin)).toEqual(["profile", "reimbursements", "designRequests", "admin"]);
-    expect(drawerItems(financeHead)).toEqual(["profile", "reimbursements", "designRequests", "admin"]);
+    const withAdmin = ["profile", "reimbursements", "eventRequests", "designRequests", "admin"];
+    expect(drawerItems(admin)).toEqual(withAdmin);
+    expect(drawerItems(financeHead)).toEqual(withAdmin);
   });
 
-  test("campus leaders don't get Reimbursements or Design Requests, but keep Admin", () => {
+  test("campus leaders don't get Reimbursements, Event or Design Requests, but keep Admin", () => {
     expect(drawerItems(campusLeader)).toEqual(["profile"]);
     expect(drawerItems(campusLeaderAdmin)).toEqual(["profile", "admin"]);
   });
@@ -123,6 +138,7 @@ describe("sidebarItems", () => {
     expect(sidebarItems(staff)).toEqual([
       "home",
       "reimbursements",
+      "eventRequests",
       "designRequests",
       "attendance",
       "insights",
@@ -135,6 +151,7 @@ describe("sidebarItems", () => {
     expect(sidebarItems(admin)).toEqual([
       "home",
       "reimbursements",
+      "eventRequests",
       "designRequests",
       "attendance",
       "insights",
@@ -168,6 +185,8 @@ describe("activeNavKey", () => {
     expect(activeNavKey("/all")).toBe("reimbursements");
     expect(activeNavKey("/design-requests/abc123")).toBe("designRequests");
     expect(activeNavKey("/design-requests/new")).toBe("designRequests");
+    expect(activeNavKey("/event-requests/abc123/risk")).toBe("eventRequests");
+    expect(activeNavKey("/event-requests/new")).toBe("eventRequests");
     expect(activeNavKey("/attendance/usyd")).toBe("attendance");
     expect(activeNavKey("/attendance/event/new")).toBe("attendance");
     expect(activeNavKey("/edit-home")).toBe("home");

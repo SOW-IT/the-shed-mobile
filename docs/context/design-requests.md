@@ -1,6 +1,8 @@
 # Design Requests
 
 Staff ask the Marketing team to design something: a poster, a reel, merch.
+Not for events: an event's design and promotion is the Marketing form of its
+[event request](./event-requests.md).
 This context owns the request, its review by Marketing and its conversation.
 Like [Reimbursements](./reimbursements.md) it owns no org structure: who
 approves and who does the work comes from [Org](./org.md).
@@ -22,10 +24,11 @@ _Avoid_: schema, template
 
 **Answers**:
 What the requester filled in, stored by question key and checked against the
-form on the server: today that's department, request type, event/project
-details, what to design, visual style examples, the key Bible passage (event
-requests only), key message, promotional materials budget, due date, drafts and
-run-by preferences, and other information. The requester can edit them until
+form on the server: today that's department, request type, project details,
+what to design, visual style examples, key message, promotional materials
+budget, due date, drafts and run-by preferences, and other information. The
+"Event-related" request type is **retired**: older requests keep it (and their
+key Bible passage), but a new request can't pick it. The requester can edit them until
 the request closes; every edit records which answers changed and tells
 Marketing.
 

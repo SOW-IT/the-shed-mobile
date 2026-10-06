@@ -20,6 +20,7 @@ export const useAdminMutations = () => ({
   removeRole: useMutation(api.admin.removeRole),
   setBudgetManager: useMutation(api.admin.setBudgetManager),
   setDirectorThreshold: useMutation(api.admin.setDirectorThreshold),
+  setEventDirectorThreshold: useMutation(api.admin.setEventDirectorThreshold),
   addDelegation: useMutation(api.admin.addDelegation),
   removeDelegation: useMutation(api.admin.removeDelegation),
 });

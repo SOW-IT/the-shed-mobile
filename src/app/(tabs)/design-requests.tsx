@@ -193,7 +193,7 @@ export default function DesignRequestsScreen() {
             title: "No design requests",
             message:
               mineYear === null
-                ? "Ask the Marketing team to design something for your event or project."
+                ? "Ask the Marketing team to design something for a project. For an event, make an Event Request instead."
                 : `You made no design requests in ${mineYear}.`,
           }}
         />

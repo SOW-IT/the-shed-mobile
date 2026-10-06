@@ -236,11 +236,14 @@ export const OptionRow = ({
   selected,
   onPress,
   multi,
+  badge,
 }: {
   label: string;
   selected: boolean;
   onPress: () => void;
   multi?: boolean;
+  /** A short tag after the label, e.g. "Recommended". */
+  badge?: string;
 }) => {
   const t = useAppTheme();
   return (
@@ -251,17 +254,34 @@ export const OptionRow = ({
         pressed && { opacity: 0.7 },
       ]}
       onPress={onPress}
+      accessibilityRole={multi ? "checkbox" : "radio"}
+      accessibilityState={{ checked: selected }}
+      accessibilityLabel={badge ? `${label}, ${badge.toLowerCase()}` : label}
     >
-      <Text
-        numberOfLines={1}
-        style={[
-          typography.body,
-          { color: t.text, flex: 1 },
-          selected && { fontWeight: "700" },
-        ]}
-      >
-        {label}
-      </Text>
+      <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+        <Text
+          numberOfLines={1}
+          style={[
+            typography.body,
+            { color: t.text, flexShrink: 1 },
+            selected && { fontWeight: "700" },
+          ]}
+        >
+          {label}
+        </Text>
+        {badge ? (
+          <View
+            style={{
+              backgroundColor: t.accentSoft,
+              borderRadius: 999,
+              paddingHorizontal: 8,
+              paddingVertical: 2,
+            }}
+          >
+            <Text style={{ color: t.accent, fontSize: 11, fontWeight: "700" }}>{badge}</Text>
+          </View>
+        ) : null}
+      </View>
       <Ionicons
         name={
           selected

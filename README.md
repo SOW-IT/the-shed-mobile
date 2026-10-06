@@ -58,7 +58,23 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   Mine, the Marketing queue (open requests) and an All archive by staff
   year. Any request can be downloaded as a PDF (built on the device with
   pdf-lib). Old requests from the web app are copied in with
-  `scripts/import-design-requests.mjs` (safe to re-run).
+  `scripts/import-design-requests.mjs` (safe to re-run). Design requests
+  aren't for events: those go through Event Requests.
+- **Event requests**, from the side menu (staff who aren't campus leaders).
+  The event itself (`convex/eventRequestForm.ts`), then three forms, each
+  reviewed by its team: **Marketing** (design and promotion; the Marketing
+  Head approves), **Risk** (risks rated with SOW's Risk Management Standard;
+  the Compliance Head approves, or not required when there are no notable
+  risks) and **Finance** (income and expense lines; the Finance Head
+  approves, after the Director when expenses are over the event threshold set
+  in Admin → Other, or not required at $0). The event is approved once all
+  three are approved or not required. The requester's department fills the
+  forms in; reviewers can ask for changes; each form has its own comment
+  thread. The Events department, the three teams, the Director and admins can
+  see every event. Team emails go to marketing@, compliance@ and
+  finance@sow.org.au. Any event downloads as a PDF whose Risk and Finance
+  pages follow the Governance Review Form. Old event forms are copied in with
+  `scripts/import-event-requests.mjs` (safe to re-run).
 - **Editable Home tab**: Home, Resources, Connect and Partner are typed
   blocks served by `homeContent.view` (one `homeTabs` row per edited tab,
   else the built-in content in `shared/homeContent.ts`). Admins, anyone in
