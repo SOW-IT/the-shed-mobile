@@ -18,7 +18,7 @@ const EARLIEST_YEAR = 2022;
 const BATCH_SIZE = 20;
 // Each batch is passed to `convex run` as one command-line argument, which the
 // OS caps (128 KiB per argument on Linux), so a batch also flushes early when
-// its JSON would pass this size.
+// its JSON would pass this many UTF-8 bytes.
 const MAX_BATCH_BYTES = 100_000;
 
 const args = process.argv.slice(2);
@@ -226,6 +226,8 @@ if (dryRun) {
   console.log("Dry run: nothing written. Example:", JSON.stringify(all[0] ?? null, null, 2));
 } else {
   const totals = { inserted: 0, updated: 0, skipped: 0, comments: 0 };
+  const bytes = (requests) => Buffer.byteLength(JSON.stringify({ requests }), "utf8");
+  const tooLarge = [];
   let batch = [];
   const flush = () => {
     if (batch.length === 0) return;
@@ -234,10 +236,20 @@ if (dryRun) {
     batch = [];
   };
   for (const request of all) {
-    const tooBig = JSON.stringify({ requests: [...batch, request] }).length > MAX_BATCH_BYTES;
-    if (batch.length >= BATCH_SIZE || tooBig) flush();
+    // A request that can't fit even on its own is reported, not sent.
+    if (bytes([request]) > MAX_BATCH_BYTES) {
+      tooLarge.push(`${request.year}/${request.id}`);
+      continue;
+    }
+    if (batch.length >= BATCH_SIZE || bytes([...batch, request]) > MAX_BATCH_BYTES) flush();
     batch.push(request);
   }
   flush();
+  if (tooLarge.length > 0) {
+    console.error(
+      `Not imported, too large to send in one go: ${tooLarge.join(", ")}. Raise MAX_BATCH_BYTES or import them separately.`
+    );
+    process.exitCode = 1;
+  }
   console.log(`Imported into ${prod ? "production" : "dev"}:`, totals);
 }
