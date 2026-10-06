@@ -3,7 +3,11 @@ import type { DesignField } from "../shared/designRequests";
 import { optionalProfile } from "./model";
 
 /**
- * The design request form, as the app shows it. The app renders whatever this
+ * The design request form, as the app shows it. Design requests are for
+ * anything that isn't an event: an event's design and promotion go on its
+ * event request's Marketing form (convex/eventRequestForm.ts).
+ *
+ * The app renders whatever this
  * sends, so changing a question, a hint or a choice is a backend deploy, not an
  * app release. Answers are stored by `key`: reword freely, but give a question
  * that asks something new a new key, and keep the keys with a `role` (the
@@ -27,7 +31,8 @@ export const DESIGN_REQUEST_FIELDS: DesignField[] = [
     placeholder: "What kind of request is it?",
     required: true,
     options: [
-      { value: "event", label: "Event-related" },
+      // Events now have their own requests; kept so older requests still read right.
+      { value: "event", label: "Event-related", retired: true },
       { value: "promotion", label: "Promotional product (e.g. merch)" },
       { value: "pr", label: "PR-related (e.g. booklet)" },
       { value: "other", label: "Other" },
@@ -37,9 +42,9 @@ export const DESIGN_REQUEST_FIELDS: DesignField[] = [
   {
     key: "details",
     kind: "longText",
-    label: "If tied to an event/project, please provide details",
-    shortLabel: "Event/project details",
-    hint: "Event/project name, date, time, venue, target audience, theme, aim/purpose",
+    label: "Please provide details of the project",
+    shortLabel: "Project details",
+    hint: "Project name, dates, target audience, theme, aim/purpose",
     required: true,
   },
   {

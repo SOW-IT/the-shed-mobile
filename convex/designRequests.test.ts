@@ -43,11 +43,10 @@ const asUser = (t: T, email: string) =>
 
 const answers = (over: DesignAnswers = {}): DesignAnswers => ({
   department: "Events",
-  types: ["event"],
-  details: "SOW Camp, Sydney",
+  types: ["promotion"],
+  details: "SOW hoodies for the new year",
   items: ["poster", "shortFormVideo"],
   visualStyle: "Earthy greens",
-  biblePassage: "Isaiah 6:8",
   keyMessage: "Here I am, send me",
   promoBudget: 250,
   dueDate: DUE,
@@ -146,6 +145,13 @@ describe("submitting", () => {
     await expect(
       submit(t, RACHEL, { dueDate: sydneyToday(new Date(PINNED_NOW - 2 * DAY)) })
     ).rejects.toThrow(/past/);
+  });
+
+  test("events aren't design requests any more", async () => {
+    const t = await setup();
+    await expect(submit(t, RACHEL, { types: ["event"], biblePassage: "Isaiah 6:8" })).rejects.toThrow(
+      '"Event-related" is no longer an option for "Request type".'
+    );
   });
 
   test("numbers requests within the year and waits on the Marketing Head", async () => {

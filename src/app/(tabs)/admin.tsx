@@ -23,6 +23,7 @@ import {
   canonicalEmailKey,
   uniqueStaffByEmail,
 } from "@shared/rollcallImport";
+import { EVENT_DIRECTOR_APPROVAL_THRESHOLD } from "@shared/eventRequests";
 import { api } from "@convex/_generated/api";
 import {
   radius,
@@ -376,6 +377,7 @@ export default function AdminScreen() {
     removeRole,
     setBudgetManager,
     setDirectorThreshold,
+    setEventDirectorThreshold,
     addDelegation,
     removeDelegation,
   } = useAdminMutations();
@@ -421,6 +423,15 @@ export default function AdminScreen() {
   const thresholdNumber = Number(thresholdValue);
   const thresholdUnchanged =
     thresholdNumber === configuredThreshold || thresholdValue.trim() === "";
+  const [eventThresholdInput, setEventThresholdInput] = useState<string | null>(null);
+  const configuredEventThreshold = structure?.eventDirectorApprovalThreshold ?? null;
+  const eventThresholdValue =
+    eventThresholdInput ??
+    String(configuredEventThreshold ?? EVENT_DIRECTOR_APPROVAL_THRESHOLD);
+  const eventThresholdNumber = Number(eventThresholdValue);
+  const eventThresholdUnchanged =
+    eventThresholdNumber === (configuredEventThreshold ?? EVENT_DIRECTOR_APPROVAL_THRESHOLD) ||
+    eventThresholdValue.trim() === "";
   const [delegationFrom, setDelegationFrom] = useState("");
   const [delegationTo, setDelegationTo] = useState("");
 
@@ -794,6 +805,7 @@ export default function AdminScreen() {
     setYear(y);
     setError(null);
     setThresholdInput(null);
+    setEventThresholdInput(null);
     setBudgetManagerEmail(null);
     setEditingUserEmail(null);
     setAssigningUserEmail(null);
@@ -1529,6 +1541,50 @@ export default function AdminScreen() {
                 Threshold: $
                 {(
                   configuredThreshold ?? DIRECTOR_APPROVAL_THRESHOLD
+                ).toLocaleString()}
+              </Muted>
+            )}
+          </Card>
+          </View>
+
+          <View style={{ gap: spacing.md }}>
+          <SectionTitle>Event Director Approval Threshold · {selectedYear}</SectionTitle>
+          <Card>
+            <Muted>
+              Event requests whose Finance form has total expenses over this amount
+              also need the Director&apos;s approval, before the Finance Head&apos;s.
+              Separate from the reimbursement threshold.
+              {configuredEventThreshold == null
+                ? ` Using the standard default of $${formatAmount(EVENT_DIRECTOR_APPROVAL_THRESHOLD)}.`
+                : ""}{" "}
+              Only affects Finance forms submitted from now on.
+            </Muted>
+            {editable ? (
+              <>
+                <Field
+                  label="Threshold ($)"
+                  value={eventThresholdValue}
+                  onChangeText={(text) => setEventThresholdInput(currencyText(text))}
+                  keyboardType="decimal-pad"
+                />
+                <Btn
+                  title="Set Event Threshold"
+                  disabled={!(eventThresholdNumber > 0) || eventThresholdUnchanged}
+                  onPress={() =>
+                    void run(() =>
+                      setEventDirectorThreshold({
+                        year: selectedYear,
+                        amount: eventThresholdNumber,
+                      })
+                    ).then((ok) => ok && setEventThresholdInput(null))
+                  }
+                />
+              </>
+            ) : (
+              <Muted>
+                Threshold: $
+                {(
+                  configuredEventThreshold ?? EVENT_DIRECTOR_APPROVAL_THRESHOLD
                 ).toLocaleString()}
               </Muted>
             )}

@@ -1289,6 +1289,33 @@ export const setDirectorThreshold = mutation({
   },
 });
 
+/** The Director's threshold for event requests: separate from reimbursements'. */
+export const setEventDirectorThreshold = mutation({
+  args: { year: v.number(), amount: v.number() },
+  handler: async (ctx, args) => {
+    await requireFinanceSettingsAccess(
+      ctx,
+      args.year,
+      "change the event Director approval threshold"
+    );
+    assertManagedYear(args.year);
+    if (!(args.amount > 0)) {
+      throw new ConvexError("The threshold must be a positive amount.");
+    }
+    const settings = await getYearSettings(ctx, args.year);
+    if (settings) {
+      await ctx.db.patch("yearSettings", settings._id, {
+        eventDirectorApprovalThreshold: args.amount,
+      });
+      return settings._id;
+    }
+    return await ctx.db.insert("yearSettings", {
+      year: args.year,
+      eventDirectorApprovalThreshold: args.amount,
+    });
+  },
+});
+
 export const backfillDirectorThresholds = internalMutation({
   args: {},
   handler: async (ctx) => {
@@ -1541,12 +1568,20 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
   }
 
   const fromSettings = await getYearSettings(ctx, from);
-  if (fromSettings?.budgetManagerEmail || fromSettings?.directorApprovalThreshold !== undefined) {
+  if (
+    fromSettings?.budgetManagerEmail ||
+    fromSettings?.directorApprovalThreshold !== undefined ||
+    fromSettings?.eventDirectorApprovalThreshold !== undefined
+  ) {
     const toSettings = await getYearSettings(ctx, to);
     const patch: {
       budgetManagerEmail?: string;
       directorApprovalThreshold?: number;
+      eventDirectorApprovalThreshold?: number;
     } = {};
+    if (fromSettings.eventDirectorApprovalThreshold !== undefined) {
+      patch.eventDirectorApprovalThreshold = fromSettings.eventDirectorApprovalThreshold;
+    }
     if (fromSettings.budgetManagerEmail) {
       patch.budgetManagerEmail = fromSettings.budgetManagerEmail;
       counts.budgetManagers++;

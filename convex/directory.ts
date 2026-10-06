@@ -376,6 +376,7 @@ export const yearStructure = query({
       roles: roles.map((r) => r.name),
       budgetManagerEmail: settings?.budgetManagerEmail ?? null,
       directorApprovalThreshold: settings?.directorApprovalThreshold ?? null,
+      eventDirectorApprovalThreshold: settings?.eventDirectorApprovalThreshold ?? null,
     };
   },
 });

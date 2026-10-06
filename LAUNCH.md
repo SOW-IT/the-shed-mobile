@@ -17,6 +17,14 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 ## Still outstanding
 
+- [ ] **Copy the old web app's event forms into production** once 2.3.0's
+      backend is deployed: `gcloud auth login` (an account with access to
+      `theshedsow`), then `node scripts/import-event-requests.mjs --dry-run`
+      and `node scripts/import-event-requests.mjs --prod`. Safe to re-run;
+      events already acted on in THE SHED are left alone. Then merge the
+      `theshed` change that sends the old Event Forms pages to
+      `/event-requests`, so nobody keeps using them.
+
 - [ ] **Copy the old web app's design requests into production** once 2.2.0's
       backend is deployed: `gcloud auth login` (an account with access to
       `theshedsow`), then `node scripts/import-design-requests.mjs --dry-run`

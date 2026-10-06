@@ -16,17 +16,24 @@ import {
   emptyDraft,
   type DesignRequestDraft,
 } from "@/components/design/DesignRequestForm";
+import { Text, View } from "react-native";
 import {
+  Btn,
+  Card,
   EmptyState,
   errorMessage,
   FooterAction,
   LoadingState,
+  Muted,
   ReadableColumn,
+  Row,
   Screen,
 } from "@/components/ui";
+import { spacing, typography, useAppTheme } from "@/theme";
 
 /** New design request, or with `?edit=<id>`, the requester editing theirs. */
 export default function DesignRequestFormScreen() {
+  const t = useAppTheme();
   const router = useRouter();
   const { edit } = useLocalSearchParams<{ edit?: string }>();
   const editId = typeof edit === "string" && edit ? edit : null;
@@ -133,6 +140,24 @@ export default function DesignRequestFormScreen() {
       }
     >
       <ReadableColumn>
+        {existing ? null : (
+          <Card>
+            <Text style={[typography.headline, { color: t.text }]}>Is this for an event?</Text>
+            <Muted>
+              Design requests aren&apos;t for events. For an event, make an Event Request instead:
+              its Marketing form covers the event&apos;s design and promotion.
+            </Muted>
+            <Row>
+              <Btn
+                title="Make an Event Request"
+                variant="tonal"
+                icon="calendar-outline"
+                onPress={() => router.replace("/event-requests/new")}
+              />
+            </Row>
+          </Card>
+        )}
+        <View style={{ height: spacing.md }} />
         <DesignRequestForm
           fields={fields}
           draft={draft}

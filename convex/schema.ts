@@ -4,6 +4,14 @@ import { v } from "convex/values";
 import { metricsDataValidator } from "./metricsData";
 import { homeBlockValidator } from "./homeData";
 import { designAnswersValidator, designStatusValidator } from "./designRequestData";
+import {
+  eventStatusValidator,
+  financeDataValidator,
+  financeStepValidator,
+  riskDataValidator,
+  subFormKindValidator,
+  subFormStatusValidator,
+} from "./eventRequestData";
 
 export const approvalStatus = v.union(
   v.literal("PENDING"),
@@ -97,6 +105,9 @@ export default defineSchema({
     budgetManagerEmail: v.optional(v.string()),
     directorEmail: v.optional(v.string()),
     directorApprovalThreshold: v.optional(v.number()),
+    // Event requests with expenses over this also need the Director (see
+    // shared/eventRequests.ts); separate from the reimbursement threshold.
+    eventDirectorApprovalThreshold: v.optional(v.number()),
     rolloverCopiedFrom: v.optional(v.number()),
     rolloverCompletedAt: v.optional(v.number()),
   }).index("by_year", ["year"]),
@@ -213,6 +224,7 @@ export default defineSchema({
     url: v.optional(v.string()),
     requestId: v.optional(v.id("requests")),
     designRequestId: v.optional(v.id("designRequests")),
+    eventRequestId: v.optional(v.id("eventRequests")),
     read: v.boolean(),
   })
     .index("by_user", ["userEmail"])
@@ -223,6 +235,7 @@ export default defineSchema({
       "designRequestId",
       "read",
     ])
+    .index("by_user_and_eventRequest_and_read", ["userEmail", "eventRequestId", "read"])
     .index("by_request", ["requestId"]),
 
   // A design request to the Marketing team. `year` is the staff year it was
@@ -281,6 +294,89 @@ export default defineSchema({
     userEmail: v.string(),
     lastReadAt: v.number(),
   }).index("by_designRequest_and_user", ["designRequestId", "userEmail"]),
+
+  // An event request: the event itself (answers to the server-defined form in
+  // convex/eventRequestForm.ts), filed under its lead `department`. It goes
+  // ahead (APPROVED) once its Marketing, Risk and Finance forms
+  // (eventSubForms) are each approved or not required. `name`, `startsAt`,
+  // `endsAt` and `location` are copied out of the answers for lists and emails;
+  // the dates are Sydney wall-clock "2026-01-12T13:00". `legacyKey`
+  // ("<year>/<firestore id>") makes the import from the old web app re-runnable.
+  eventRequests: defineTable({
+    year: v.number(),
+    number: v.number(),
+    requesterEmail: v.string(),
+    department: v.string(),
+    submittedAt: v.number(),
+    answers: designAnswersValidator,
+    name: v.string(),
+    startsAt: v.string(),
+    endsAt: v.string(),
+    location: v.string(),
+    status: eventStatusValidator,
+    editedAt: v.optional(v.number()),
+    approvedAt: v.optional(v.number()),
+    cancelledAt: v.optional(v.number()),
+    cancelledBy: v.optional(v.string()),
+    cancelNote: v.optional(v.string()),
+    legacyKey: v.optional(v.string()),
+  })
+    .index("by_year_and_number", ["year", "number"])
+    .index("by_requester_and_year", ["requesterEmail", "year"])
+    .index("by_requester_and_status", ["requesterEmail", "status"])
+    .index("by_department_and_year", ["department", "year"])
+    .index("by_department_and_status", ["department", "status"])
+    .index("by_status", ["status"])
+    .index("by_legacyKey", ["legacyKey"]),
+
+  // One of an event's three forms. Marketing keeps `answers` (the form in
+  // convex/eventRequestForm.ts), Risk keeps `risk` and Finance keeps
+  // `finance`. A pending Finance form waits on `step`: the Director (big
+  // budgets only) then the Finance Head.
+  eventSubForms: defineTable({
+    eventRequestId: v.id("eventRequests"),
+    kind: subFormKindValidator,
+    status: subFormStatusValidator,
+    step: v.optional(financeStepValidator),
+    answers: v.optional(designAnswersValidator),
+    risk: v.optional(riskDataValidator),
+    finance: v.optional(financeDataValidator),
+    updatedAt: v.optional(v.number()),
+    submittedAt: v.optional(v.number()),
+    submittedBy: v.optional(v.string()),
+    directorApprovedAt: v.optional(v.number()),
+    directorApprovedBy: v.optional(v.string()),
+    decidedAt: v.optional(v.number()),
+    decidedBy: v.optional(v.string()),
+    changesReason: v.optional(v.string()),
+  })
+    .index("by_eventRequest_and_kind", ["eventRequestId", "kind"])
+    .index("by_kind_and_status", ["kind", "status"]),
+
+  eventRequestEvents: defineTable({
+    eventRequestId: v.id("eventRequests"),
+    form: v.optional(subFormKindValidator),
+    action: v.string(),
+    actorEmail: v.string(),
+    detail: v.optional(v.string()),
+  }).index("by_eventRequest", ["eventRequestId"]),
+
+  // Each form has its own thread, between the requester's side and the team
+  // that reviews it.
+  eventRequestComments: defineTable({
+    eventRequestId: v.id("eventRequests"),
+    form: subFormKindValidator,
+    authorEmail: v.string(),
+    body: v.string(),
+    postedAt: v.number(),
+  }).index("by_eventRequest_and_form_and_postedAt", ["eventRequestId", "form", "postedAt"]),
+
+  eventRequestCommentReads: defineTable({
+    eventRequestId: v.id("eventRequests"),
+    form: subFormKindValidator,
+    userEmail: v.string(),
+    lastReadAt: v.number(),
+  }).index("by_eventRequest_and_form_and_user", ["eventRequestId", "form", "userEmail"]),
 
   requestNudges: defineTable({
     requestId: v.id("requests"),

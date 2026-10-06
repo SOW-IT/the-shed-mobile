@@ -6,6 +6,62 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.3.0] — 2026-10-07
+
+### Added
+- **Event Requests: plan an event and get it signed off, from the side
+  menu.** Staff (not campus leaders) start with the event itself, the old
+  SHED web app's event form (name, purpose, goals, theme, location,
+  registration goal, audience, dates and notes), and are warned if it's less
+  than 4 weeks away. Then the event's three forms are filled in by the
+  requester or anyone in their department: **Marketing**, **Risk** and
+  **Finance**. The event is approved, and can go ahead, once all three are
+  approved or not required. Drafts can be saved and finished later.
+- **The Marketing form covers the event's design and promotion.** It's the
+  old web app's form with this year's design options (Reels, long form
+  video, Instagram posts), the key Bible passage and multiple drafts. Choices
+  that usually suit an event of its size are marked "Recommended". The
+  Marketing Head approves, and the Marketing team hears about it.
+- **The Risk form uses SOW's Risk Management Standard.** For each risk, pick
+  what kind it is and how bad and how likely it is, in the Standard's own
+  words, and the app works out its score and rating from the Standard's
+  matrix. Anything above Low needs a plan to reduce it. A "How to rate a
+  risk" guide and links to view or download the Standard sit on the form.
+  The Compliance Head approves. Ticking "This event has no notable risks"
+  means it doesn't need approving, but Compliance is still told.
+- **The Finance form is a simple rundown of income and expenses.** Add lines,
+  see the totals and net, and optionally link a fuller spreadsheet. The
+  Finance Head approves. When total expenses are over the event Director
+  threshold ($5,000 to start), the Director approves first. An event with no
+  money in or out doesn't need Finance's approval, but Finance is told.
+- **Reviewers can approve or ask for changes.** Asking for changes sends the
+  reason to the requester, who fixes the form and submits it again (a Finance
+  form starts again from the Director). Each form has its own comment thread.
+  An approved form can be reopened to change it; the event goes back to in
+  progress until it's approved again. Events can be cancelled and stay in
+  the list as cancelled.
+- **To review and All.** The Marketing, Compliance and Finance teams and the
+  Director see the forms waiting on them, with a badge on the menu. They, the
+  Events department and admins can see every event by staff year.
+- **Team emails go to marketing@, compliance@ and finance@sow.org.au** for
+  their own form, as well as to whoever approves it.
+- **Download any event as a PDF.** Its Risk and Finance pages are laid out
+  like the Governance Review Form.
+- **Admin → Other sets the event Director threshold**, separately from the
+  reimbursement one.
+- **The old web app's event forms are copied in**, with their Marketing and
+  Finance forms (the old budget tables become lines). Finished events come
+  in approved; SAF26 and SOW Camp 2027 come in still in progress, with Risk
+  forms to fill in.
+
+### Changed
+- **Design requests aren't for events any more.** The "Event-related" type is
+  gone from new requests (older ones keep it), the details question asks
+  about the project, and the form points events to Event Requests instead.
+- **Expo packages are on the latest SDK 57 patch releases** (expo, expo-router,
+  expo-notifications, expo-linking, expo-auth-session, expo-constants and
+  @expo/ui), so they stay in step with the SDK.
+
 ## [2.2.0] — 2026-10-06
 
 ### Added
