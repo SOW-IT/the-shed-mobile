@@ -107,22 +107,27 @@ const legacyStatus = (r: Legacy): DesignRequestStatus => {
   return "PENDING";
 };
 
+const OLD_DOMAIN = "@sowaustralia.com";
+const CURRENT_DOMAIN = "@sow.org.au";
+
 /**
- * The person behind an old-app user id: the staff profile the org import
- * gave that id, else the profile (or bare address) of the email on their old
- * user doc, else a clearly fake placeholder address.
+ * The person behind an old-app user id, as the address they sign in with now:
+ * their latest staff profile (found through the id the org import kept, else
+ * the email on their old user doc), else that email moved off the old
+ * sowaustralia.com domain, else a clearly fake placeholder address.
  */
 async function legacyEmail(ctx: MutationCtx, uid: string, email: string | undefined) {
   const byImportId = await ctx.db
     .query("staffProfiles")
     .withIndex("by_importId", (q) => q.eq("importId", uid))
     .first();
-  if (byImportId) return byImportId.email;
-  if (email) {
-    const [profile] = await staffProfilesForEmail(ctx, email.toLowerCase());
-    return profile?.email ?? email.toLowerCase();
-  }
-  return `${uid.toLowerCase()}@legacy.invalid`;
+  const known = byImportId?.email ?? email?.toLowerCase();
+  if (!known) return `${uid.toLowerCase()}@legacy.invalid`;
+  const [latest] = await staffProfilesForEmail(ctx, known);
+  const address = latest?.email ?? known;
+  return address.endsWith(OLD_DOMAIN)
+    ? address.slice(0, -OLD_DOMAIN.length) + CURRENT_DOMAIN
+    : address;
 }
 
 /**

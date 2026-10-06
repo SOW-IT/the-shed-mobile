@@ -591,6 +591,13 @@ describe("importing from the old web app", () => {
         .withIndex("by_email_and_year", (q) => q.eq("email", MARY).eq("year", YEAR))
         .unique();
       await ctx.db.patch("staffProfiles", profile!._id, { importId: "uid-mary" });
+      // Henry's id was kept on an old-year profile under the old domain; his
+      // requests should still land on the address he signs in with now.
+      await ctx.db.insert("staffProfiles", {
+        email: "henry@sowaustralia.com",
+        year: YEAR - 3,
+        importId: "uid-henry",
+      });
     });
     const batch = [
       legacy({
@@ -627,11 +634,13 @@ describe("importing from the old web app", () => {
         reason: "No budget",
       }),
       legacy({ id: "3", userEmail: "outsider@example.com", completed: true }),
+      legacy({ id: "4", userID: "uid-henry", userEmail: undefined }),
+      legacy({ id: "5", userID: "uid-gone", userEmail: "Gone@sowaustralia.com" }),
     ];
     const first = await t.mutation(internal.designRequestImport.importLegacy, {
       requests: batch,
     });
-    expect(first).toEqual({ inserted: 3, updated: 0, skipped: 0, comments: 1 });
+    expect(first).toEqual({ inserted: 5, updated: 0, skipped: 0, comments: 1 });
 
     const rows = await t.run((ctx) => ctx.db.query("designRequests").collect());
     const byNumber = Object.fromEntries(rows.map((r) => [r.number, r]));
@@ -671,6 +680,8 @@ describe("importing from the old web app", () => {
       runByYou: true,
     });
     expect(byNumber[2].dueDate).toBe(sydneyToday(new Date(byNumber[2].submittedAt)));
+    expect(byNumber[4].requesterEmail).toBe(HENRY);
+    expect(byNumber[5].requesterEmail).toBe("gone@sow.org.au");
     expect(byNumber[3]).toMatchObject({
       requesterEmail: "outsider@example.com",
       status: "COMPLETED",
@@ -690,7 +701,7 @@ describe("importing from the old web app", () => {
     const again = await t.mutation(internal.designRequestImport.importLegacy, {
       requests: batch,
     });
-    expect(again).toEqual({ inserted: 0, updated: 2, skipped: 1, comments: 0 });
+    expect(again).toEqual({ inserted: 0, updated: 4, skipped: 1, comments: 0 });
     expect((await getRequest(t, byNumber[1]._id)).status).toBe("CANCELLED");
   });
 });
