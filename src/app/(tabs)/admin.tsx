@@ -430,7 +430,8 @@ export default function AdminScreen() {
     String(configuredEventThreshold ?? EVENT_DIRECTOR_APPROVAL_THRESHOLD);
   const eventThresholdNumber = Number(eventThresholdValue);
   const eventThresholdUnchanged =
-    eventThresholdNumber === configuredEventThreshold || eventThresholdValue.trim() === "";
+    eventThresholdNumber === (configuredEventThreshold ?? EVENT_DIRECTOR_APPROVAL_THRESHOLD) ||
+    eventThresholdValue.trim() === "";
   const [delegationFrom, setDelegationFrom] = useState("");
   const [delegationTo, setDelegationTo] = useState("");
 

@@ -47,8 +47,9 @@ const RATING_TONES: Record<RiskRating, Tone> = {
   Extreme: "problem",
 };
 
-/** The colour a status dot uses, for compact step markers. */
-export const toneColour = (t: AppTheme, tone: Tone) => toneColours(t, tone).fg;
+/** The colour a status dot uses, for compact step markers (waiting is always amber). */
+export const toneColour = (t: AppTheme, tone: Tone) =>
+  tone === "waiting" ? t.warning : toneColours(t, tone).fg;
 
 export const Pill = ({ label, tone }: { label: string; tone: Tone }) => {
   const t = useAppTheme();

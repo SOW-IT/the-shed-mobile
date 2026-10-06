@@ -62,6 +62,7 @@ import {
   Row,
   Screen,
   Sheet,
+  type ToastState,
 } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
 
@@ -120,7 +121,7 @@ export default function EventSubFormScreen() {
   const [confirmReopen, setConfirmReopen] = useState(false);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [toast, setToast] = useState<ToastState>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -192,14 +193,13 @@ export default function EventSubFormScreen() {
 
   /** Saves the form; with `submit`, checks it first and sends it for approval. */
   const save = (submit: boolean) => {
-    setSaved(false);
     if (kind === "marketing" && drafts.marketing) {
       const answers = normalizeAnswers(forms.marketing, answersFromDraft(forms.marketing, drafts.marketing));
       const problem = submit ? answersProblem(forms.marketing, answers, sydneyToday(), current.answers) : null;
       if (problem) return setError(problem);
       return void run(
         () => saveMarketing({ id: event._id, answers, submit }),
-        submit ? goBack : () => setSaved(true)
+        submit ? goBack : () => setToast({ text: "Draft saved" })
       );
     }
     if (kind === "risk" && drafts.risk) {
@@ -208,7 +208,7 @@ export default function EventSubFormScreen() {
       if (problem) return setError(problem);
       return void run(
         () => saveRisk({ id: event._id, risk, submit }),
-        submit ? goBack : () => setSaved(true)
+        submit ? goBack : () => setToast({ text: "Draft saved" })
       );
     }
     if (kind === "finance" && drafts.finance) {
@@ -217,14 +217,13 @@ export default function EventSubFormScreen() {
       if (problem) return setError(problem);
       return void run(
         () => saveFinance({ id: event._id, finance, submit }),
-        submit ? goBack : () => setSaved(true)
+        submit ? goBack : () => setToast({ text: "Draft saved" })
       );
     }
   };
 
   const change = (next: Drafts) => {
     setDrafts((d) => ({ ...d, ...next }));
-    setSaved(false);
     if (error) setError(null);
   };
 
@@ -277,12 +276,13 @@ export default function EventSubFormScreen() {
         title={`${label} form`}
         subtitle={event.name}
         onBack={goBack}
+        toast={toast}
         footer={
           canFill ? (
             <FooterAction
               title={busy ? "Saving…" : "Submit for Approval"}
               disabled={busy}
-              note={error ?? (saved ? "Draft saved." : null)}
+              note={error}
               onPress={() => save(true)}
               cancel={{ title: "Save Draft", onPress: () => save(false), disabled: busy }}
               avoidKeyboard={false}
@@ -295,12 +295,13 @@ export default function EventSubFormScreen() {
             <FadeInView>
               <Card>
                 <SubFormStatusPill status={current.status} />
-                <Muted>{statusLine}</Muted>
-                {current.status === "CHANGES_REQUESTED" && current.changesReason ? (
+                {current.status === "CHANGES_REQUESTED" ? (
                   <Text selectable style={[typography.body, { color: t.danger }]}>
-                    What to change: {current.changesReason}
+                    {statusLine}
                   </Text>
-                ) : null}
+                ) : (
+                  <Muted>{statusLine}</Muted>
+                )}
                 {canFill ? (
                   <Muted>
                     {`Fill it in, then submit it for the ${SUB_FORM_TEAMS[kind]} Head to approve. You can save a draft and come back to it.`}
