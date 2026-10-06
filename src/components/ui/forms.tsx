@@ -18,8 +18,10 @@ export const Field = ({
   disabled,
   maxLength,
   testID,
+  accessibilityLabel,
 }: {
-  label: string;
+  /** Shown above the box; leave out when a question heading already names it. */
+  label?: string;
   value: string;
   onChangeText: (text: string) => void;
   placeholder?: string;
@@ -30,13 +32,16 @@ export const Field = ({
   maxLength?: number;
   /** Stable handle for end-to-end tests. */
   testID?: string;
+  accessibilityLabel?: string;
 }) => {
   const t = useAppTheme();
   const [focused, setFocused] = useState(false);
   const reveal = useRevealFocusedInput();
   return (
     <View style={styles.field}>
-      <Text style={[typography.label, { color: t.muted }]}>{label}</Text>
+      {label ? (
+        <Text style={[typography.label, { color: t.muted }]}>{label}</Text>
+      ) : null}
       <View
         style={[
           styles.inputRow,
@@ -61,6 +66,7 @@ export const Field = ({
           autoCapitalize={autoCapitalize}
           maxLength={maxLength}
           testID={testID}
+          accessibilityLabel={accessibilityLabel ?? label}
           multiline={multiline}
           editable={!disabled}
           onFocus={() => {

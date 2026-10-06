@@ -3,6 +3,7 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { metricsDataValidator } from "./metricsData";
 import { homeBlockValidator } from "./homeData";
+import { designAnswersValidator, designStatusValidator } from "./designRequestData";
 
 export const approvalStatus = v.union(
   v.literal("PENDING"),
@@ -211,12 +212,75 @@ export default defineSchema({
     body: v.string(),
     url: v.optional(v.string()),
     requestId: v.optional(v.id("requests")),
+    designRequestId: v.optional(v.id("designRequests")),
     read: v.boolean(),
   })
     .index("by_user", ["userEmail"])
     .index("by_user_and_read", ["userEmail", "read"])
     .index("by_user_and_request_and_read", ["userEmail", "requestId", "read"])
+    .index("by_user_and_designRequest_and_read", [
+      "userEmail",
+      "designRequestId",
+      "read",
+    ])
     .index("by_request", ["requestId"]),
+
+  // A design request to the Marketing team. `year` is the staff year it was
+  // submitted in and `number` counts up within that year (#1, #2…); both are
+  // stored rather than derived because imported requests from the old web app
+  // keep their original year, number and submission time. `answers` follow the
+  // server-defined form (convex/designRequestForm.ts); `department`, `dueDate`
+  // and `title` are copied out of them so lists and emails don't need the form.
+  // `legacyKey` ("<year>/<firestore id>") makes the import safe to re-run.
+  designRequests: defineTable({
+    year: v.number(),
+    number: v.number(),
+    requesterEmail: v.string(),
+    submittedAt: v.number(),
+    answers: designAnswersValidator,
+    department: v.string(),
+    dueDate: v.string(),
+    title: v.string(),
+    status: designStatusValidator,
+    editedAt: v.optional(v.number()),
+    decidedAt: v.optional(v.number()),
+    decidedBy: v.optional(v.string()),
+    declineReason: v.optional(v.string()),
+    completedAt: v.optional(v.number()),
+    completedBy: v.optional(v.string()),
+    completionNote: v.optional(v.string()),
+    cancelledAt: v.optional(v.number()),
+    legacyKey: v.optional(v.string()),
+  })
+    .index("by_year_and_number", ["year", "number"])
+    .index("by_requester_and_year", ["requesterEmail", "year"])
+    .index("by_requester_and_status", ["requesterEmail", "status"])
+    .index("by_status", ["status"])
+    .index("by_legacyKey", ["legacyKey"]),
+
+  designRequestEvents: defineTable({
+    designRequestId: v.id("designRequests"),
+    action: v.string(),
+    actorEmail: v.string(),
+    detail: v.optional(v.string()),
+  }).index("by_designRequest", ["designRequestId"]),
+
+  designRequestComments: defineTable({
+    designRequestId: v.id("designRequests"),
+    authorEmail: v.string(),
+    body: v.string(),
+    // When the comment was written; differs from _creationTime for imports.
+    postedAt: v.number(),
+    legacyKey: v.optional(v.string()),
+  })
+    .index("by_designRequest_and_postedAt", ["designRequestId", "postedAt"])
+    .index("by_legacyKey", ["legacyKey"]),
+
+  designRequestCommentReads: defineTable({
+    designRequestId: v.id("designRequests"),
+    userEmail: v.string(),
+    lastReadAt: v.number(),
+  }).index("by_designRequest_and_user", ["designRequestId", "userEmail"]),
 
   requestNudges: defineTable({
     requestId: v.id("requests"),

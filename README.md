@@ -47,6 +47,18 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   were staff in an earlier year and are back in the Workspace directory
   show as **Previously staff** on Admin → Users. Assigning them reuses the
   old identity so they are not treated as a new person.
+- **Design requests** to the Marketing team, from the side menu (staff who
+  aren't campus leaders). The questions are defined on the server
+  (`convex/designRequestForm.ts`) and rendered by the app as sent; answers
+  are checked against them server-side. Only the **Marketing Head** (or
+  their delegate) approves or declines; anyone in Marketing marks approved
+  requests complete. Requesters can edit or cancel until a request closes,
+  and everyone on it can comment. Marketing staff get in-app/push
+  notifications and the team's emails go to marketing@sow.org.au. Lists:
+  Mine, the Marketing queue (open requests) and an All archive by staff
+  year. Any request can be downloaded as a PDF (built on the device with
+  pdf-lib). Old requests from the web app are copied in with
+  `scripts/import-design-requests.mjs` (safe to re-run).
 - **Editable Home tab**: Home, Resources, Connect and Partner are typed
   blocks served by `homeContent.view` (one `homeTabs` row per edited tab,
   else the built-in content in `shared/homeContent.ts`). Admins, anyone in

@@ -8,6 +8,7 @@ import {
 } from "../shared/deepLinks";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { designRequestUrl } from "./designRequests";
 import { requestUrl } from "./requests";
 import schema from "./schema";
 
@@ -304,6 +305,12 @@ describe("notification deep-links are followable by the push-tap handler", () =>
   test("static review and attendance-event URLs are allowed", () => {
     expect(isAllowedDeepLink("/?tab=review")).toBe(true);
     expect(isAllowedDeepLink("/attendance/event/evt123")).toBe(true);
+  });
+
+  test("design request URLs, including the thread link, are allowed", () => {
+    const request = { _id: "dr123" as Id<"designRequests"> };
+    expect(isAllowedDeepLink(designRequestUrl(request))).toBe(true);
+    expect(isAllowedDeepLink(designRequestUrl(request, { thread: true }))).toBe(true);
   });
 
   test("rejects payloads outside the known route families", () => {
