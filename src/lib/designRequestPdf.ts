@@ -15,7 +15,7 @@ import {
   type DesignField,
   type DesignRequestStatus,
 } from "../../shared/designRequests";
-import { SYDNEY_TIME_ZONE } from "../../shared/flow";
+import { sydneyDateTime } from "./sydneyTime";
 
 export type DesignRequestPdfInput = {
   request: {
@@ -47,19 +47,7 @@ export const designRequestPdfFilename = (r: { year: number; number: number }) =>
   `design-request-${r.year}-${r.number}.pdf`;
 
 /** "6 Oct 2026, 8:49 pm", always in Sydney time so every copy reads the same. */
-export const pdfTime = (ms: number) =>
-  new Date(ms)
-    .toLocaleString("en-AU", {
-      timeZone: SYDNEY_TIME_ZONE,
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    })
-    // Newer Intl puts a narrow no-break space before "pm", which the PDF's
-    // built-in fonts can't draw.
-    .replace(/[\u202f\u00a0]/g, " ");
+export const pdfTime = sydneyDateTime;
 
 /** What happened to the request, one line each, as the request page shows it. */
 export const pdfStatusLines = (input: DesignRequestPdfInput): string[] => {
@@ -101,6 +89,7 @@ class Writer {
   pages: PDFPage[] = [];
   private page!: PDFPage;
   private y = 0;
+  private charsets = new Map<PDFFont, Set<number>>();
 
   constructor(private doc: PDFDocument) {
     this.newPage();
@@ -113,7 +102,11 @@ class Writer {
   }
 
   private clean(font: PDFFont, text: string) {
-    const supported = new Set(font.getCharacterSet());
+    let supported = this.charsets.get(font);
+    if (!supported) {
+      supported = new Set(font.getCharacterSet());
+      this.charsets.set(font, supported);
+    }
     return [...text.replace(/\t/g, "  ")]
       .map((ch) => (supported.has(ch.codePointAt(0) as number) ? ch : "?"))
       .join("");

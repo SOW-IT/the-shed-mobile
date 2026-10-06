@@ -12,6 +12,7 @@ import {
 } from "@shared/designRequests";
 import { DesignCommentsSheet } from "@/components/design/DesignCommentsSheet";
 import { downloadFile } from "@/lib/csvDownload";
+import { sydneyDateTime } from "@/lib/sydneyTime";
 import { DesignStatusPill } from "@/components/design/DesignStatusPill";
 import {
   Btn,
@@ -32,14 +33,8 @@ import {
 } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
 
-const when = (ms: number) =>
-  new Date(ms).toLocaleString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+/** Sydney time, so the page and its PDF read the same wherever you are. */
+const when = sydneyDateTime;
 
 const EVENT_LABELS: Record<string, string> = {
   submitted: "Submitted",

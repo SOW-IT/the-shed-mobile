@@ -28,13 +28,13 @@ All notable changes to **The SHED** mobile app. This project follows
 - **Requesters can edit or cancel until a request closes.** An edited
   request shows when it was edited, its history lists what changed, and the
   Marketing team is told. Cancelled requests stay in the list as cancelled.
-- **Comments, notifications and email for every step.** The requester and
+- **Everyone on a request hears about every step.** The requester and
   the Marketing team can comment on a request. Submissions, approvals,
   declines, edits, completions, cancellations and comments notify the people
   involved in the app and by push; the Marketing team's emails go to
   marketing@sow.org.au instead of each person. The side menu (and your avatar
   on phones) counts requests waiting on you.
-- **Mine, Marketing and All.** Everyone sees their own requests; the
+- **Find requests under Mine, Marketing and All.** Everyone sees their own requests; the
   Marketing team and admins also get the Marketing tab (requests to approve
   or finish, from any year) and All, every request from a staff year, with a
   year picker, like Reimbursements' All tab. Open requests from earlier years

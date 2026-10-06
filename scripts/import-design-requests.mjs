@@ -16,6 +16,10 @@ import path from "node:path";
 const PROJECT_ID = process.env.FIRESTORE_PROJECT_ID ?? "theshedsow";
 const EARLIEST_YEAR = 2022;
 const BATCH_SIZE = 20;
+// Each batch is passed to `convex run` as one command-line argument, which the
+// OS caps (128 KiB per argument on Linux), so a batch also flushes early when
+// its JSON would pass this size.
+const MAX_BATCH_BYTES = 100_000;
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
@@ -222,9 +226,18 @@ if (dryRun) {
   console.log("Dry run: nothing written. Example:", JSON.stringify(all[0] ?? null, null, 2));
 } else {
   const totals = { inserted: 0, updated: 0, skipped: 0, comments: 0 };
-  for (let i = 0; i < all.length; i += BATCH_SIZE) {
-    const counts = runImport(all.slice(i, i + BATCH_SIZE));
+  let batch = [];
+  const flush = () => {
+    if (batch.length === 0) return;
+    const counts = runImport(batch);
     for (const key of Object.keys(totals)) totals[key] += counts[key];
+    batch = [];
+  };
+  for (const request of all) {
+    const tooBig = JSON.stringify({ requests: [...batch, request] }).length > MAX_BATCH_BYTES;
+    if (batch.length >= BATCH_SIZE || tooBig) flush();
+    batch.push(request);
   }
+  flush();
   console.log(`Imported into ${prod ? "production" : "dev"}:`, totals);
 }

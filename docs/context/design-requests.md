@@ -31,8 +31,9 @@ Marketing.
 
 **Marketing Head**:
 The Head of the Marketing department for the year, plus anyone they've
-delegated to. The only person who approves or declines. Their own requests are
-approved automatically. Without one assigned, submission is refused.
+delegated to. The only person who approves or declines, never on their own
+request. The Head's own requests are approved automatically; a delegate's own
+request waits for the Head. Without a Head assigned, submission is refused.
 _Avoid_: design lead, approver
 
 **Marketing team**:
