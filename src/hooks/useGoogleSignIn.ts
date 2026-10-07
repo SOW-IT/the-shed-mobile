@@ -104,7 +104,10 @@ export const useGoogleSignIn = (provider: GoogleProvider = "google") => {
     try {
       if (Platform.OS === "web") {
         window.sessionStorage.setItem(PENDING_PROVIDER_KEY, provider);
-        await signIn(provider, { redirectTo: window.location.origin });
+        // Back to this page afterwards, so an emailed link still lands where it pointed.
+        await signIn(provider, {
+          redirectTo: `${window.location.origin}${window.location.pathname}`,
+        });
         return "cancelled";
       }
       const scheme = Constants.expoConfig?.scheme ?? "theshedmobile";

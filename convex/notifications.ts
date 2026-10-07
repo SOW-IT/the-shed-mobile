@@ -1,13 +1,19 @@
 import { ConvexError, v } from "convex/values";
+import { appCanOpen } from "../shared/appLinks";
 import { mutation, query } from "./_generated/server";
 import { optionalProfile, requireProfile } from "./model";
 
 const FEED_LIMIT = 50;
 const UNREAD_PROBE = 100;
 
+/**
+ * The bell's feed. Apps from 2.3.1 send their version; an older app sends
+ * none, and gets no link for pages it can't open (it would show "Unmatched
+ * Route"), so tapping one just marks it read.
+ */
 export const list = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { appVersion: v.optional(v.string()) },
+  handler: async (ctx, args) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return null;
     const rows = await ctx.db
@@ -19,7 +25,7 @@ export const list = query({
       id: n._id,
       title: n.title,
       body: n.body,
-      url: n.url ?? null,
+      url: n.url && appCanOpen(n.url, args.appVersion) ? n.url : null,
       read: n.read,
       at: n._creationTime,
     }));

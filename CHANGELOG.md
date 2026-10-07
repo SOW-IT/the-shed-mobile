@@ -6,6 +6,24 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.3.1] — 2026-10-07
+
+### Fixed
+- **Event request links no longer show "Unmatched Route" on phones with an
+  older app.** On a phone, the website hands pages to the installed app, and
+  apps older than 2.3.0 don't have Event Requests. Links to event requests now
+  open in the app only for people whose app can show them. Everyone else stays
+  on the website, which always has the latest pages. An older app's
+  notification bell no longer links to pages it can't open.
+- **Signing in from a link on the website brings you back to that page**, and
+  event request pages ask you to sign in instead of saying they can't be found.
+
+### Added
+- **A friendly page for links this version of the app doesn't have yet**, with
+  "Open on the Web" and "Update THE SHED", instead of "Unmatched Route".
+- **The app tells THE SHED which version it is**, so emailed links can open in
+  the app once you've updated.
+
 ## [2.3.0] — 2026-10-07
 
 ### Added

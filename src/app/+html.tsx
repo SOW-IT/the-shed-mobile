@@ -1,5 +1,5 @@
 import { ScrollViewStyleReset } from "expo-router/html";
-import { appLinkFor } from "../../shared/appLinks";
+import { APP_LINK_MARKER, appLinkFor, NEWER_PAGES } from "../../shared/appLinks";
 
 // Rendered at build time: the dev web build sets EXPO_PUBLIC_APP_VARIANT=staging
 // so phones are handed to The SHED Staging rather than the production app.
@@ -29,6 +29,17 @@ export default function Root({ children }: { children: React.ReactNode }) {
                   if (sessionStorage.getItem("shedAppBounce")) return;
                   sessionStorage.setItem("shedAppBounce", "1");
                 } catch (e) {}
+                // Pages newer than some installed apps stay here unless the link
+                // says this person's app can open them (an older app shows
+                // "Unmatched Route"). The flag above is still set, so a sign-in
+                // on this page isn't handed to the app either.
+                var newer = ${JSON.stringify(NEWER_PAGES.map((p) => p.prefix))};
+                if (location.hash !== ${JSON.stringify(APP_LINK_MARKER)}) {
+                  for (var i = 0; i < newer.length; i++) {
+                    var p = newer[i];
+                    if (location.pathname === p || location.pathname.indexOf(p + "/") === 0) return;
+                  }
+                }
                 // A Google sign-in code arriving on a fresh page is usually the
                 // app's sign-in sheet landing here: it goes to this deployment's
                 // app, and the page holds off using it (a code works once).
