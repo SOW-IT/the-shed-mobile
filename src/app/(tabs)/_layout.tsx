@@ -20,6 +20,7 @@ import { api } from "../../../convex/_generated/api";
 import { useWideLayout } from "@/components/nav/layout";
 import { hapticSelect, LoadingState, usePressScale } from "@/components/ui";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
+import { useReportAppVersion } from "@/hooks/useReportAppVersion";
 import { BOTTOM_TAB_HEIGHT, shadowStyle, useAppTheme } from "@/theme";
 
 const tabIcon =
@@ -142,6 +143,7 @@ export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const waitingForRole = isAuthenticated && me === undefined;
   usePushRegistration({ navigationReady: !waitingForRole });
+  useReportAppVersion();
 
   const isCampusLeader = me?.isCampusLeader ?? false;
   const isStaff = !!me?.profile;

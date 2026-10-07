@@ -22,6 +22,7 @@ import {
   type ApprovalStatus,
 } from "../shared/flow";
 import { internal } from "./_generated/api";
+import { emailLinkFor } from "./appInstalls";
 import { Doc, Id } from "./_generated/dataModel";
 import { rememberBankAccount } from "./bankAccounts";
 import {
@@ -161,10 +162,11 @@ export const notify = async (
   } = opts;
   if (!to) return;
   if (email) {
+    const link = url ? await emailLinkFor(ctx, to, url) : url;
     await ctx.scheduler.runAfter(0, internal.emails.send, {
       to,
       subject,
-      body: `${body}\n\nOpen in THE SHED: ${appUrl(url)}`,
+      body: `${body}\n\nOpen in THE SHED: ${appUrl(link)}`,
     });
   }
   if (actor && to === actor) return;

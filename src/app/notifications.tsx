@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useFocusEffect, useRouter } from "expo-router";
+import { appVersion } from "@/hooks/useReportAppVersion";
 import { useCallback, useRef } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
@@ -19,7 +20,7 @@ import {
 export default function NotificationsScreen() {
   const t = useAppTheme();
   const router = useRouter();
-  const notifications = useQuery(api.notifications.list, {});
+  const notifications = useQuery(api.notifications.list, { appVersion: appVersion() });
   const markRead = useMutation(api.notifications.markRead);
   const markAllRead = useMutation(api.notifications.markAllRead);
   const reopenCounter = useRef(0);

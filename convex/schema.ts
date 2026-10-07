@@ -80,6 +80,16 @@ export default defineSchema({
     name: v.string(),
   }).index("by_year_and_name", ["year", "name"]),
 
+  // The app version each person last opened on each kind of phone, reported
+  // by the app (2.3.1 on). Links to pages an older app can't open stay on the
+  // web for people without a new enough app (shared/appLinks.ts).
+  appInstalls: defineTable({
+    email: v.string(),
+    platform: v.union(v.literal("ios"), v.literal("android")),
+    version: v.string(),
+    seenAt: v.number(),
+  }).index("by_email_and_platform", ["email", "platform"]),
+
   pushTokens: defineTable({
     email: v.string(),
     token: v.string(),

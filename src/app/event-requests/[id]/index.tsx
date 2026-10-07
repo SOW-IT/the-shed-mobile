@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useConvex, useMutation, useQuery } from "convex/react";
+import { useConvex, useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -13,6 +13,7 @@ import {
   type SubFormKind,
 } from "@shared/eventRequests";
 import { EventStatusPill, SubFormStatusPill } from "@/components/events/EventPills";
+import { SignInPrompt } from "@/components/SignInPrompt";
 import { downloadFile } from "@/lib/csvDownload";
 import { eventHistoryLabel, subFormStatusLine } from "@/lib/eventRequestText";
 import { sydneyDateTime } from "@/lib/sydneyTime";
@@ -118,6 +119,7 @@ const Timeline = ({ id }: { id: Id<"eventRequests"> }) => {
 export default function EventRequestScreen() {
   const t = useAppTheme();
   const router = useRouter();
+  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
   const data = useEventRequest(id);
   const forms = useQuery(api.eventRequestForm.fields, {});
@@ -138,6 +140,13 @@ export default function EventRequestScreen() {
 
   const goBack = () => (router.canGoBack() ? router.back() : router.replace("/event-requests"));
 
+  if (!authLoading && !isAuthenticated) {
+    return (
+      <Screen title="Event request" onBack={goBack}>
+        <SignInPrompt what="event request" />
+      </Screen>
+    );
+  }
   if (data === undefined) {
     return (
       <Screen title="Event request" onBack={goBack}>

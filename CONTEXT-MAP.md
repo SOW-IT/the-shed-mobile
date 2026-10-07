@@ -47,6 +47,10 @@ hold code for all five — so each context's glossary lives under
   rebuild when it rolls over on October 1, but none controls it. See
   [ADR 0003](./docs/adr/0003-october-1-staff-year-rollover.md).
 
+Links between the web and the phone app sit outside the contexts too: pages
+added after people may have installed the app open in it only for those whose
+app reported a new enough version. See [ADR 0007](./docs/adr/0007-links-to-pages-older-apps-lack.md).
+
 A nightly BigQuery copy of production Convex sits outside all five contexts.
 It is a snapshot for SQL, not a source of truth, and the app does not read it.
 JSON tables live in `convex_production`; typed views and Looker/Sheets report

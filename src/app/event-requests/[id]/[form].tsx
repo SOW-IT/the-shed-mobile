@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ReactNode, useEffect, useState } from "react";
 import { Text, View } from "react-native";
@@ -45,6 +45,7 @@ import {
   RiskView,
   type RiskDraft,
 } from "@/components/events/RiskForm";
+import { SignInPrompt } from "@/components/SignInPrompt";
 import { subFormStatusLine } from "@/lib/eventRequestText";
 import {
   Btn,
@@ -94,6 +95,7 @@ const MarketingAnswers = ({
 export default function EventSubFormScreen() {
   const t = useAppTheme();
   const router = useRouter();
+  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const { id, form: formParam, thread, reopen: reopenToken } = useLocalSearchParams<{
     id: string;
     form: string;
@@ -156,6 +158,13 @@ export default function EventSubFormScreen() {
   const goBack = () =>
     router.canGoBack() ? router.back() : router.replace(id ? `/event-requests/${id}` : "/event-requests");
 
+  if (!authLoading && !isAuthenticated) {
+    return (
+      <Screen title="Event form" onBack={goBack}>
+        <SignInPrompt what="event form" />
+      </Screen>
+    );
+  }
   if (!kind || data === null) {
     return (
       <Screen title="Event form" onBack={goBack}>
