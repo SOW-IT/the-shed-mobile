@@ -1,6 +1,7 @@
 import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { announcementStatusValidator, audienceValidator } from "./announcementData";
 import { metricsDataValidator } from "./metricsData";
 import { homeBlockValidator } from "./homeData";
 import { designAnswersValidator, designStatusValidator } from "./designRequestData";
@@ -235,6 +236,7 @@ export default defineSchema({
     requestId: v.optional(v.id("requests")),
     designRequestId: v.optional(v.id("designRequests")),
     eventRequestId: v.optional(v.id("eventRequests")),
+    announcementId: v.optional(v.id("announcements")),
     read: v.boolean(),
   })
     .index("by_user", ["userEmail"])
@@ -246,7 +248,34 @@ export default defineSchema({
       "read",
     ])
     .index("by_user_and_eventRequest_and_read", ["userEmail", "eventRequestId", "read"])
+    .index("by_user_and_announcement_and_read", ["userEmail", "announcementId", "read"])
     .index("by_request", ["requestId"]),
+
+  // A message an admin sends to everyone, or to chosen campuses, divisions,
+  // departments and roles (shared/announcements.ts) of staff `year`, the one
+  // the sender saw (missing on the first few dev rows). It goes out at `sendAt`
+  // (straight away, or a time they picked) as a push, a notification in the
+  // bell and, if `sendEmail`, an email. `jobId` is the scheduled send, so
+  // cancelling a scheduled one stops it. The counts are filled in when it goes.
+  announcements: defineTable({
+    senderEmail: v.string(),
+    year: v.optional(v.number()),
+    title: v.string(),
+    message: v.string(),
+    audience: audienceValidator,
+    sendEmail: v.boolean(),
+    status: announcementStatusValidator,
+    sendAt: v.number(),
+    jobId: v.optional(v.id("_scheduled_functions")),
+    sentAt: v.optional(v.number()),
+    cancelledAt: v.optional(v.number()),
+    cancelledBy: v.optional(v.string()),
+    recipientCount: v.optional(v.number()),
+    pushCount: v.optional(v.number()),
+    emailCount: v.optional(v.number()),
+  })
+    .index("by_sender_and_status", ["senderEmail", "status"])
+    .index("by_status_and_sendAt", ["status", "sendAt"]),
 
   // A design request to the Marketing team. `year` is the staff year it was
   // submitted in and `number` counts up within that year (#1, #2…); both are

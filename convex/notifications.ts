@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { appCanOpen } from "../shared/appLinks";
 import { mutation, query } from "./_generated/server";
-import { optionalProfile, requireProfile } from "./model";
+import { optionalEmail, optionalProfile, requireProfile } from "./model";
 
 const FEED_LIMIT = 50;
 const UNREAD_PROBE = 100;
@@ -129,6 +129,27 @@ export const markReadForEventRequest = mutation({
       for (const notification of unread) {
         await ctx.db.patch("notifications", notification._id, { read: true });
       }
+    }
+    return null;
+  },
+});
+
+export const markReadForAnnouncement = mutation({
+  args: { announcementId: v.id("announcements") },
+  handler: async (ctx, args) => {
+    const email = await optionalEmail(ctx);
+    if (!email) return null;
+    const unread = await ctx.db
+      .query("notifications")
+      .withIndex("by_user_and_announcement_and_read", (q) =>
+        q
+          .eq("userEmail", email)
+          .eq("announcementId", args.announcementId)
+          .eq("read", false)
+      )
+      .take(20);
+    for (const notification of unread) {
+      await ctx.db.patch("notifications", notification._id, { read: true });
     }
     return null;
   },

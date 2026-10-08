@@ -9,6 +9,8 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as announcementData from "../announcementData.js";
+import type * as announcements from "../announcements.js";
 import type * as appInstalls from "../appInstalls.js";
 import type * as appleIdentity from "../appleIdentity.js";
 import type * as attendance from "../attendance.js";
@@ -67,6 +69,8 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  announcementData: typeof announcementData;
+  announcements: typeof announcements;
   appInstalls: typeof appInstalls;
   appleIdentity: typeof appleIdentity;
   attendance: typeof attendance;

@@ -10,6 +10,7 @@ export type NavKey =
   | "insights"
   | "org"
   | "profile"
+  | "announcements"
   | "admin";
 
 export const NAV_HREFS = {
@@ -21,6 +22,7 @@ export const NAV_HREFS = {
   insights: "/insights",
   org: "/org",
   profile: "/profile",
+  announcements: "/announcements",
   admin: "/admin",
 } as const satisfies Record<NavKey, string>;
 
@@ -33,6 +35,7 @@ export const NAV_LABELS: Record<NavKey, string> = {
   insights: "Insights",
   org: "Org Chart",
   profile: "Profile",
+  announcements: "Announcements",
   admin: "Admin",
 };
 
@@ -44,6 +47,8 @@ export type NavViewer = {
   isCampusLeader: boolean;
   /** Admins, plus the Finance Head (who only gets Admin's "Other" tab). */
   canAdmin: boolean;
+  /** Admins (the HR division among them) can send announcements. */
+  canAnnounce: boolean;
 };
 
 type MeForNav =
@@ -63,6 +68,7 @@ export const navViewer = (signedIn: boolean, me: MeForNav): NavViewer => {
     isStaff,
     isCampusLeader: isStaff && !!me?.isCampusLeader,
     canAdmin: signedIn && !!(me?.isAdmin || me?.isFinanceHead),
+    canAnnounce: isStaff && !!me?.isAdmin,
   };
 };
 
@@ -87,6 +93,7 @@ export const drawerItems = (viewer: NavViewer): NavKey[] => {
   if (showsReimbursements(viewer)) items.push("reimbursements");
   if (showsEventRequests(viewer)) items.push("eventRequests");
   if (showsDesignRequests(viewer)) items.push("designRequests");
+  if (viewer.canAnnounce) items.push("announcements");
   if (viewer.canAdmin) items.push("admin");
   return items;
 };
@@ -100,6 +107,7 @@ export const sidebarItems = (viewer: NavViewer): NavKey[] => {
   if (viewer.isStaff) items.push("attendance");
   items.push("insights", "org");
   if (viewer.signedIn) items.push("profile");
+  if (viewer.canAnnounce) items.push("announcements");
   if (viewer.canAdmin) items.push("admin");
   return items;
 };
@@ -123,6 +131,9 @@ export const activeNavKey = (pathname: string): NavKey | null => {
   if (pathname === "/insights") return "insights";
   if (pathname === "/org") return "org";
   if (pathname === "/profile") return "profile";
+  if (pathname === "/announcements" || pathname.startsWith("/announcements/")) {
+    return "announcements";
+  }
   if (pathname === "/admin") return "admin";
   return null;
 };
