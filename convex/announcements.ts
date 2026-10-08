@@ -88,12 +88,16 @@ async function hasApp(ctx: Ctx, email: string): Promise<boolean> {
  * many are still waiting to go out.
  */
 async function senderActivity(ctx: Ctx, email: string, now: number) {
-  const recent = await ctx.db
-    .query("announcements")
-    .withIndex("by_sender", (q) =>
-      q.eq("senderEmail", email).gt("_creationTime", now - DAY_MS)
-    )
-    .take(100);
+  // By status, so cancelled ones (which anyone can make plenty of) can't crowd
+  // the rest out of the bound.
+  const madeToday = (status: "scheduled" | "sent") =>
+    ctx.db
+      .query("announcements")
+      .withIndex("by_sender_and_status", (q) =>
+        q.eq("senderEmail", email).eq("status", status).gt("_creationTime", now - DAY_MS)
+      )
+      .take(100);
+  const recent = [...(await madeToday("scheduled")), ...(await madeToday("sent"))];
   const pending = await ctx.db
     .query("announcements")
     .withIndex("by_sender_and_status", (q) =>
@@ -101,12 +105,21 @@ async function senderActivity(ctx: Ctx, email: string, now: number) {
     )
     .take(100);
   return {
-    recent: recent
-      .filter((a) => a.status !== "cancelled")
-      .map((a) => ({ createdAt: a._creationTime, title: a.title, message: a.message })),
+    recent: recent.map((a) => ({
+      createdAt: a._creationTime,
+      title: a.title,
+      message: a.message,
+    })),
     pending: pending.length,
   };
 }
+
+/**
+ * The staff year an announcement was written for: the one its sender saw when
+ * choosing the audience, even if it goes out after the 1 October rollover.
+ */
+const yearOf = (announcement: Doc<"announcements">) =>
+  announcement.year ?? currentStaffYear();
 
 /** The caller when they're an admin (which takes in the HR division), else null. */
 async function optionalAdmin(ctx: Ctx) {
@@ -200,6 +213,7 @@ export const send = mutation({
     const sendAt = args.sendAt ?? now;
     const id = await ctx.db.insert("announcements", {
       senderEmail: caller.email,
+      year: caller.year,
       title: draft.title,
       message: draft.message,
       audience,
@@ -316,8 +330,7 @@ export const get = query({
         .first();
       if (!received) return null;
     }
-    const year = currentStaffYear();
-    const view = await row(ctx, announcement, new Map(), year);
+    const view = await row(ctx, announcement, new Map(), yearOf(announcement));
     return {
       id: view.id,
       title: view.title,
@@ -349,7 +362,7 @@ export const deliver = internalMutation({
   handler: async (ctx, args) => {
     const announcement = await ctx.db.get("announcements", args.id);
     if (!announcement || announcement.status !== "scheduled") return null;
-    const year = currentStaffYear();
+    const year = yearOf(announcement);
     const recipients = await audienceEmails(ctx, announcement.audience, year);
     const url = announcementPath(announcement._id);
     const { title, message } = announcement;

@@ -171,6 +171,52 @@ describe("push.sendMany (one push to many people)", () => {
     });
   });
 
+  test("a batch that fails doesn't stop the next one or its receipt check", async () => {
+    vi.useFakeTimers();
+    try {
+      const t = convexTest(schema, modules);
+      const emails: string[] = [];
+      await t.run(async (ctx) => {
+        for (let i = 0; i < 101; i++) {
+          const email = `p${i}@sow.org.au`;
+          emails.push(email);
+          await ctx.db.insert("pushTokens", { email, token: `ExponentPushToken[${i}]` });
+        }
+      });
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      const fetchMock = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("network down"))
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ data: [{ status: "ok", id: "r-1" }] }),
+        })
+        .mockResolvedValue({ ok: true, json: () => Promise.resolve({ data: {} }) });
+      vi.stubGlobal("fetch", fetchMock);
+      await t.action(internal.push.sendMany, { to: emails, title: "T", body: "B" });
+      expect(error).toHaveBeenCalledWith("Expo push failed", expect.any(Error));
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const scheduled = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+      expect(scheduled.map((job) => job.args[0])).toEqual([
+        { receipts: [{ id: "r-1", token: "ExponentPushToken[100]" }] },
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("an unreadable push response is logged and skipped", async () => {
+    const t = convexTest(schema, modules);
+    await t.run((ctx) => ctx.db.insert("pushTokens", { email: "a@sow.org.au", token: "ExponentPushToken[1]" }));
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: () => Promise.reject(new SyntaxError("bad json")) })
+    );
+    await t.action(internal.push.sendMany, { to: ["a@sow.org.au"], title: "T", body: "B" });
+    expect(error).toHaveBeenCalledWith("Expo push failed", expect.any(SyntaxError));
+  });
+
   test("splits more than 100 devices across requests, and sends nothing for nobody", async () => {
     const t = convexTest(schema, modules);
     const emails: string[] = [];

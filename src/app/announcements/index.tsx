@@ -182,6 +182,8 @@ export default function AnnouncementsScreen() {
     title.trim().length > 0 &&
     message.trim().length > 0 &&
     !!count &&
+    // The limits can't be checked until the sender's own sends have loaded.
+    !!history &&
     !nothingPicked &&
     !problem.schedule &&
     !problem.limit &&
@@ -378,7 +380,7 @@ export default function AnnouncementsScreen() {
           title={buttonTitle}
           icon={when === "now" ? "paper-plane-outline" : "time-outline"}
           disabled={!ready}
-          loading={sending}
+          loading={sending || history === undefined}
           onPress={() => {
             setError(null);
             setConfirming(true);

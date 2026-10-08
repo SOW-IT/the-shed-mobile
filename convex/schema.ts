@@ -252,12 +252,14 @@ export default defineSchema({
     .index("by_request", ["requestId"]),
 
   // A message an admin sends to everyone, or to chosen campuses, divisions,
-  // departments and roles (shared/announcements.ts). It goes out at `sendAt`
+  // departments and roles (shared/announcements.ts) of staff `year`, the one
+  // the sender saw (missing on the first few dev rows). It goes out at `sendAt`
   // (straight away, or a time they picked) as a push, a notification in the
   // bell and, if `sendEmail`, an email. `jobId` is the scheduled send, so
   // cancelling a scheduled one stops it. The counts are filled in when it goes.
   announcements: defineTable({
     senderEmail: v.string(),
+    year: v.optional(v.number()),
     title: v.string(),
     message: v.string(),
     audience: audienceValidator,
@@ -272,7 +274,6 @@ export default defineSchema({
     pushCount: v.optional(v.number()),
     emailCount: v.optional(v.number()),
   })
-    .index("by_sender", ["senderEmail"])
     .index("by_sender_and_status", ["senderEmail", "status"])
     .index("by_status_and_sendAt", ["status", "sendAt"]),
 

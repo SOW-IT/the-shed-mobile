@@ -66,26 +66,34 @@ async function pushToTokens(
   const receipts: { id: string; token: string }[] = [];
   for (let start = 0; start < tokens.length; start += EXPO_BATCH) {
     const batch = tokens.slice(start, start + EXPO_BATCH);
-    const response = await fetch("https://exp.host/--/api/v2/push/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(
-        batch.map((token) => ({
-          to: token,
-          sound: "default",
-          title: message.title,
-          body: message.body,
-          data: message.url ? { url: message.url } : {},
-        }))
-      ),
-    });
-    if (!response.ok) {
-      console.error("Expo push error", response.status, await response.text());
-      continue;
-    }
-    const result = (await response.json()) as {
+    let result: {
       data?: { status: string; id?: string; details?: { error?: string } }[];
     };
+    // One failed batch mustn't stop the rest, or the receipt check for the
+    // batches already sent.
+    try {
+      const response = await fetch("https://exp.host/--/api/v2/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          batch.map((token) => ({
+            to: token,
+            sound: "default",
+            title: message.title,
+            body: message.body,
+            data: message.url ? { url: message.url } : {},
+          }))
+        ),
+      });
+      if (!response.ok) {
+        console.error("Expo push error", response.status, await response.text());
+        continue;
+      }
+      result = (await response.json()) as typeof result;
+    } catch (error) {
+      console.error("Expo push failed", error);
+      continue;
+    }
     for (let i = 0; i < (result.data ?? []).length; i++) {
       const ticket = result.data![i];
       if (ticket.status === "error" && ticket.details?.error === "DeviceNotRegistered") {

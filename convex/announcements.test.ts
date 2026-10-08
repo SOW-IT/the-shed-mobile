@@ -348,6 +348,26 @@ describe("scheduling", () => {
     await expect(admin.mutation(api.announcements.cancel, { id })).rejects.toThrow(/not found/);
   });
 
+  test("one scheduled across the 1 October rollover goes to the year its sender chose from", async () => {
+    vi.setSystemTime(staffYearStartMs(YEAR + 1) - 10 * DAY);
+    const t = await setup();
+    await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email: "next@sow.org.au",
+        year: YEAR + 1,
+        assignments: [{ role: "Staff", department: "Finance" }],
+      })
+    );
+    const { id } = await asUser(t, ADMIN).mutation(
+      api.announcements.send,
+      draft({ sendAt: staffYearStartMs(YEAR + 1) + 5 * DAY })
+    );
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(await announcement(t, id)).toMatchObject({ status: "sent", year: YEAR, recipientCount: 6 });
+    expect(await notificationsFor(t, FIN)).toHaveLength(1);
+    expect(await notificationsFor(t, "next@sow.org.au")).toEqual([]);
+  });
+
   test("delivering a cancelled, sent or missing announcement does nothing", async () => {
     const t = await setup();
     const id = await t.run((ctx) =>
@@ -425,6 +445,30 @@ describe("checks before sending", () => {
     await asUser(t, HR).mutation(api.announcements.send, draft({ title: "Five" }));
     vi.setSystemTime(PINNED_NOW + HOUR + MINUTE);
     await admin.mutation(api.announcements.send, draft({ title: "Five" }));
+  });
+
+  test("cancelled ones can't crowd real sends out of the count", async () => {
+    const t = await setup();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 120; i++) {
+        await ctx.db.insert("announcements", {
+          senderEmail: ADMIN,
+          title: `Cancelled ${i}`,
+          message: "M",
+          audience: EVERYONE,
+          sendEmail: false,
+          status: "cancelled",
+          sendAt: PINNED_NOW + DAY,
+        });
+      }
+    });
+    const admin = asUser(t, ADMIN);
+    for (const title of ["One", "Two", "Three"]) {
+      await admin.mutation(api.announcements.send, draft({ title }));
+    }
+    await expect(admin.mutation(api.announcements.send, draft({ title: "Four" }))).rejects.toThrow(
+      /3 announcements an hour/
+    );
   });
 
   test("ten a day per person", async () => {

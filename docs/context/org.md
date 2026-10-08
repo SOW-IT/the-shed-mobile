@@ -132,5 +132,6 @@ Who an announcement goes to. Chosen campuses, divisions and departments add
 up (anyone in any of them); chosen roles narrow that down. A role and its
 group must be on the same assignment, so "Staff at UNSW" doesn't reach a
 Student Leader at UNSW who is Staff in Events. Worked out again when it goes
-out, so a scheduled announcement reaches whoever is in the audience then.
+out, from the staff year the sender chose it in, so a scheduled announcement
+reaches whoever is in the audience then, even after the 1 October rollover.
 
