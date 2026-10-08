@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -11,6 +11,8 @@ import {
   EVERYONE,
   isEveryone,
   MESSAGE_MAX,
+  rateLimitError,
+  scheduleError,
   TITLE_MAX,
 } from "@shared/announcements";
 import { parseDateTimeInputValues, toDateInputValue, toTimeInputValue } from "@shared/datetime";
@@ -34,6 +36,7 @@ import {
   Segmented,
   type ToastState,
   Txt,
+  WarningBanner,
 } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
@@ -59,6 +62,19 @@ const defaultSendAt = () => {
 };
 
 const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
+
+/** The time right now, for event handlers (render uses `useNow`). */
+const currentTime = () => Date.now();
+
+/** The current time, refreshed every 15 seconds so time limits stay true while the page is open. */
+const useNow = () => {
+  const [now, setNow] = useState(currentTime);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(currentTime()), 15_000);
+    return () => clearInterval(timer);
+  }, []);
+  return now;
+};
 
 const Counter = ({ value, max }: { value: string; max: number }) => {
   const t = useAppTheme();
@@ -140,6 +156,7 @@ export default function AnnouncementsScreen() {
   const nothingPicked = reach === "groups" && isEveryone(groups);
   const size = useQuery(api.announcements.audienceSize, isAdmin ? { audience } : "skip");
   const back = () => (router.canGoBack() ? router.back() : router.replace("/home"));
+  const now = useNow();
 
   if (me === undefined) return <LoadingState />;
   if (!isAdmin) {
@@ -155,13 +172,28 @@ export default function AnnouncementsScreen() {
   }
 
   const sendAt = when === "later" ? parseDateTimeInputValues(date, time) : null;
+  // Checked here first, so the button explains itself rather than the server
+  // refusing the send; the server checks the same rules again.
+  const problemAt = (at: number) => {
+    if (when === "later") {
+      const late = sendAt === null ? "Pick a date and time." : scheduleError(sendAt, at);
+      if (late) return { schedule: late, limit: null };
+    }
+    const limit =
+      history && title.trim() && message.trim()
+        ? rateLimitError({ ...history.mine, draft: { title, message }, now: at })
+        : null;
+    return { schedule: null, limit };
+  };
+  const problem = problemAt(now);
   const count = nothingPicked ? null : (size?.people ?? null);
   const ready =
     title.trim().length > 0 &&
     message.trim().length > 0 &&
     !!count &&
     !nothingPicked &&
-    (when === "now" || sendAt !== null) &&
+    !problem.schedule &&
+    !problem.limit &&
     !sending;
   const action = when === "now" ? "Send" : "Schedule";
   const buttonTitle = !count
@@ -176,6 +208,12 @@ export default function AnnouncementsScreen() {
 
   const submit = async () => {
     if (sending) return;
+    // Time may have moved on while the confirmation was open.
+    const late = problemAt(currentTime());
+    if (late.schedule || late.limit) {
+      setError(late.schedule ?? late.limit);
+      return;
+    }
     setSending(true);
     setError(null);
     try {
@@ -348,6 +386,7 @@ export default function AnnouncementsScreen() {
               )}
             </View>
           ) : null}
+          <WarningBanner message={problem.schedule} />
         </Card>
 
         <SectionTitle>Preview</SectionTitle>
@@ -357,6 +396,7 @@ export default function AnnouncementsScreen() {
           notifications (the bell).
         </Muted>
 
+        <WarningBanner message={problem.limit} />
         <ErrorBanner message={error} />
         <Btn
           title={buttonTitle}

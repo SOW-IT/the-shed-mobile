@@ -113,7 +113,7 @@ export const PENDING_LIMIT = 10;
 /** The same title and message again within this long is a double send. */
 export const DUPLICATE_WINDOW = 10 * MINUTE;
 /** A scheduled time has to be at least this far off; sooner is "Send now". */
-export const MIN_SCHEDULE_LEAD = MINUTE;
+export const MIN_SCHEDULE_LEAD = 5 * MINUTE;
 /** …and no further off than this. */
 export const MAX_SCHEDULE_AHEAD = 90 * DAY;
 
@@ -157,7 +157,7 @@ export const rateLimitError = (opts: {
 /** Why `sendAt` can't be a scheduled time, or null when it can. */
 export const scheduleError = (sendAt: number, now: number): string | null => {
   if (!Number.isFinite(sendAt) || sendAt < now + MIN_SCHEDULE_LEAD) {
-    return "Pick a time at least a minute from now, or choose Send now.";
+    return "Pick a time at least 5 minutes from now, or choose Send now.";
   }
   if (sendAt > now + MAX_SCHEDULE_AHEAD) {
     return "Pick a time within the next 90 days.";

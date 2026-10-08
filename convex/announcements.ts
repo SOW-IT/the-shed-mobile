@@ -82,6 +82,32 @@ async function hasApp(ctx: Ctx, email: string): Promise<boolean> {
   return token !== null;
 }
 
+/**
+ * What the rate limits look at for one sender: what they sent or scheduled in
+ * the last day that wasn't cancelled (a cancelled one reached no one), and how
+ * many are still waiting to go out.
+ */
+async function senderActivity(ctx: Ctx, email: string, now: number) {
+  const recent = await ctx.db
+    .query("announcements")
+    .withIndex("by_sender", (q) =>
+      q.eq("senderEmail", email).gt("_creationTime", now - DAY_MS)
+    )
+    .take(100);
+  const pending = await ctx.db
+    .query("announcements")
+    .withIndex("by_sender_and_status", (q) =>
+      q.eq("senderEmail", email).eq("status", "scheduled")
+    )
+    .take(100);
+  return {
+    recent: recent
+      .filter((a) => a.status !== "cancelled")
+      .map((a) => ({ createdAt: a._creationTime, title: a.title, message: a.message })),
+    pending: pending.length,
+  };
+}
+
 /** The caller when they're an admin (which takes in the HR division), else null. */
 async function optionalAdmin(ctx: Ctx) {
   const caller = await optionalProfile(ctx);
@@ -164,23 +190,8 @@ export const send = mutation({
       throw new ConvexError("No one matches who you chose.");
     }
 
-    const recent = await ctx.db
-      .query("announcements")
-      .withIndex("by_sender", (q) =>
-        q.eq("senderEmail", caller.email).gt("_creationTime", now - DAY_MS)
-      )
-      .take(100);
-    const pending = await ctx.db
-      .query("announcements")
-      .withIndex("by_sender_and_status", (q) =>
-        q.eq("senderEmail", caller.email).eq("status", "scheduled")
-      )
-      .take(100);
     const limited = rateLimitError({
-      recent: recent
-        .filter((a) => a.status !== "cancelled")
-        .map((a) => ({ createdAt: a._creationTime, title: a.title, message: a.message })),
-      pending: pending.length,
+      ...(await senderActivity(ctx, caller.email, now)),
       draft,
       now,
     });
@@ -253,7 +264,11 @@ async function row(
   };
 }
 
-/** For admins: what's waiting to go out (soonest first) and what went out lately. */
+/**
+ * For admins: what's waiting to go out (soonest first), what went out lately,
+ * and the caller's own recent sends, so the page can say a send would be
+ * refused (shared/announcements.ts) before trying it.
+ */
 export const list = query({
   args: {},
   handler: async (ctx) => {
@@ -271,6 +286,7 @@ export const list = query({
       .take(20);
     const names = new Map<string, string>();
     return {
+      mine: await senderActivity(ctx, caller.email, Date.now()),
       scheduled: await Promise.all(scheduled.map((a) => row(ctx, a, names, caller.year))),
       sent: await Promise.all(sent.map((a) => row(ctx, a, names, caller.year))),
     };

@@ -106,8 +106,9 @@ describe("rateLimitError", () => {
 });
 
 test("scheduleError", () => {
-  expect(scheduleError(NOW + 2 * MINUTE, NOW)).toBeNull();
-  expect(scheduleError(Number.NaN, NOW)).toMatch(/at least a minute/);
+  expect(scheduleError(NOW + 5 * MINUTE, NOW)).toBeNull();
+  expect(scheduleError(NOW + 4 * MINUTE, NOW)).toMatch(/at least 5 minutes/);
+  expect(scheduleError(Number.NaN, NOW)).toMatch(/at least 5 minutes/);
   expect(scheduleError(NOW + 91 * 24 * 60 * MINUTE, NOW)).toMatch(/90 days/);
 });
 

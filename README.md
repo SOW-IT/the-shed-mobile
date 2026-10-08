@@ -84,7 +84,8 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   confirmation with that count. Each recipient gets it in the bell, a push if
   they have the app, and an email with a link into the app when "Also send as
   an email" is ticked (Resend batch, replies to the sender). It can go now or
-  at a chosen time; any admin can cancel a scheduled one. Rate limits per
+  at a chosen time at least 5 minutes away; any admin can cancel a scheduled
+  one. Rate limits per
   sender: 3 an hour, 10 a day, 10 waiting, and the same words twice within 10
   minutes is refused. Tapping it opens `/announcements/[id]` (app 2.4.0 on).
 - **Editable Home tab**: Home, Resources, Connect and Partner are typed

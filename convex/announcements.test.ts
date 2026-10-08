@@ -286,6 +286,21 @@ describe("scheduling", () => {
       }),
     ]);
     expect(waiting?.sent).toEqual([]);
+    // The page gets the sender's own activity, to check the limits first.
+    expect(waiting?.mine).toEqual({
+      recent: [
+        {
+          createdAt: expect.any(Number),
+          title: "Staff meeting moved",
+          message: "This week's staff meeting is on Thursday at 7pm.",
+        },
+      ],
+      pending: 1,
+    });
+    expect((await asUser(t, HR).query(api.announcements.list, {}))?.mine).toEqual({
+      recent: [],
+      pending: 0,
+    });
     expect(await notificationsFor(t, FIN)).toEqual([]);
 
     await t.finishAllScheduledFunctions(vi.runAllTimers);
@@ -353,12 +368,13 @@ describe("scheduling", () => {
     expect(await notificationsFor(t, FIN)).toEqual([]);
   });
 
-  test("a scheduled time has to be at least a minute away and within 90 days", async () => {
+  test("a scheduled time has to be at least 5 minutes away and within 90 days", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     await expect(
-      admin.mutation(api.announcements.send, draft({ sendAt: PINNED_NOW + 30_000 }))
-    ).rejects.toThrow(/at least a minute/);
+      admin.mutation(api.announcements.send, draft({ sendAt: PINNED_NOW + 4 * MINUTE }))
+    ).rejects.toThrow(/at least 5 minutes/);
+    await admin.mutation(api.announcements.send, draft({ sendAt: PINNED_NOW + 5 * MINUTE }));
     await expect(
       admin.mutation(api.announcements.send, draft({ sendAt: PINNED_NOW + 91 * DAY }))
     ).rejects.toThrow(/90 days/);

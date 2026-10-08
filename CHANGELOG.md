@@ -20,13 +20,15 @@ All notable changes to **The SHED** mobile app. This project follows
   tapping either opens the full announcement in the app. Tick **Also send as
   an email** to email it as well, with a link to open it in The SHED; replies
   go to the sender.
-- **Announcements can be scheduled.** Choose a date and time instead of Send
-  now, and it goes out then. Scheduled announcements are listed on the page
+- **Announcements can be scheduled.** Choose a date and time (at least 5
+  minutes from now) instead of Send now, and it goes out then. Scheduled announcements are listed on the page
   until they go, and any admin can cancel one. Recently sent ones are listed
   too, with how many people each reached.
 - **Announcements can't be sent by mistake or flooded.** The same
   announcement twice in ten minutes is refused as a double send, and each
   person can send three an hour, ten a day and have ten scheduled at once.
+  The page checks these, and the scheduled time, before sending: the button
+  stays off and says why, rather than the send failing.
 
 ## [2.3.2] — 2026-10-08
 
