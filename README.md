@@ -75,6 +75,18 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   finance@sow.org.au. Any event downloads as a PDF whose Risk and Finance
   pages follow the Governance Review Form. Old event forms are copied in with
   `scripts/import-event-requests.mjs` (safe to re-run).
+- **Announcements** (`convex/announcements.ts`, rules in
+  `shared/announcements.ts`), from the side menu for admins (the Human
+  Resources division among them). A title and message go to **all leaders**
+  (everyone with a staff profile this year) or to chosen campuses, divisions
+  and departments, narrowed by role. The screen shows a lock-screen preview
+  and how many people it reaches (and how many have the app), and asks for
+  confirmation with that count. Each recipient gets it in the bell, a push if
+  they have the app, and an email with a link into the app when "Also send as
+  an email" is ticked (Resend batch, replies to the sender). It can go now or
+  at a chosen time; any admin can cancel a scheduled one. Rate limits per
+  sender: 3 an hour, 10 a day, 10 waiting, and the same words twice within 10
+  minutes is refused. Tapping it opens `/announcements/[id]` (app 2.4.0 on).
 - **Editable Home tab**: Home, Resources, Connect and Partner are typed
   blocks served by `homeContent.view` (one `homeTabs` row per edited tab,
   else the built-in content in `shared/homeContent.ts`). Admins, anyone in

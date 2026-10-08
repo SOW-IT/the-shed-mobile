@@ -70,7 +70,11 @@ export default function NotificationsScreen() {
         ]}
       >
         <View style={[styles.iconWrap, { backgroundColor: n.read ? t.ghost : t.card }]}>
-          <Ionicons name="notifications" size={18} color={n.read ? t.faint : t.primary} />
+          <Ionicons
+            name={n.url?.startsWith("/announcements/") ? "megaphone" : "notifications"}
+            size={18}
+            color={n.read ? t.faint : t.primary}
+          />
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <Txt style={{ fontWeight: n.read ? "600" : "800" }}>{n.title}</Txt>
@@ -94,7 +98,7 @@ export default function NotificationsScreen() {
         <EmptyState
           icon="notifications-outline"
           title="No notifications"
-          message="Updates about your requests and approvals will show up here."
+          message="Updates about your requests and approvals, and announcements, will show up here."
         />
       ) : (
         <>

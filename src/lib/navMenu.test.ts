@@ -34,6 +34,7 @@ describe("navViewer", () => {
       isStaff: false,
       isCampusLeader: false,
       canAdmin: false,
+      canAnnounce: false,
     });
     // Even if a stale `me` is still around while signing out.
     expect(
@@ -47,6 +48,7 @@ describe("navViewer", () => {
       isStaff: false,
       isCampusLeader: false,
       canAdmin: false,
+      canAnnounce: false,
     });
   });
 
@@ -59,6 +61,13 @@ describe("navViewer", () => {
     expect(admin.canAdmin).toBe(true);
     expect(financeHead.canAdmin).toBe(true);
     expect(staff.canAdmin).toBe(false);
+  });
+
+  test("only admins send announcements, not the Finance Head", () => {
+    expect(admin.canAnnounce).toBe(true);
+    expect(financeHead.canAnnounce).toBe(false);
+    expect(staff.canAnnounce).toBe(false);
+    expect(navViewer(true, { profile: null, isAdmin: true }).canAnnounce).toBe(false);
   });
 
   test("the campus-leader flag only counts for staff", () => {
@@ -113,15 +122,22 @@ describe("drawerItems", () => {
     ]);
   });
 
-  test("admins and the Finance Head also get Admin, last", () => {
+  test("admins and the Finance Head also get Admin, last; admins get Announcements before it", () => {
     const withAdmin = ["profile", "reimbursements", "eventRequests", "designRequests", "admin"];
-    expect(drawerItems(admin)).toEqual(withAdmin);
+    expect(drawerItems(admin)).toEqual([
+      "profile",
+      "reimbursements",
+      "eventRequests",
+      "designRequests",
+      "announcements",
+      "admin",
+    ]);
     expect(drawerItems(financeHead)).toEqual(withAdmin);
   });
 
   test("campus leaders don't get Reimbursements, Event or Design Requests, but keep Admin", () => {
     expect(drawerItems(campusLeader)).toEqual(["profile"]);
-    expect(drawerItems(campusLeaderAdmin)).toEqual(["profile", "admin"]);
+    expect(drawerItems(campusLeaderAdmin)).toEqual(["profile", "announcements", "admin"]);
   });
 });
 
@@ -157,6 +173,7 @@ describe("sidebarItems", () => {
       "insights",
       "org",
       "profile",
+      "announcements",
       "admin",
     ]);
   });
@@ -190,6 +207,7 @@ describe("activeNavKey", () => {
     expect(activeNavKey("/attendance/usyd")).toBe("attendance");
     expect(activeNavKey("/attendance/event/new")).toBe("attendance");
     expect(activeNavKey("/edit-home")).toBe("home");
+    expect(activeNavKey("/announcements/abc123")).toBe("announcements");
   });
 
   test("screens outside any section highlight nothing", () => {

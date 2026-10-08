@@ -48,6 +48,7 @@ export const appLinkForScheme = (scheme: string | undefined): AppLink =>
  */
 export const NEWER_PAGES: readonly { prefix: string; since: string }[] = [
   { prefix: "/event-requests", since: "2.3.0" },
+  { prefix: "/announcements", since: "2.4.0" },
 ];
 
 /** The marker on a link whose recipient's app can open it. */

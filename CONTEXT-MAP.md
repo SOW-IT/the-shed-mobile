@@ -37,6 +37,10 @@ hold code for all five — so each context's glossary lives under
 - **Org → Event Requests**: the Marketing, Compliance and Finance Heads, the
   Director and the event's lead department all come from Org, as do the
   event Director threshold (in `yearSettings`) and who can see every event.
+- **Announcements belong to Org**: an admin's message to all leaders or to
+  chosen campuses, divisions, departments and roles. Its audience is worked
+  out from that year's Org, and it shares the notification feed with the
+  other contexts but no other table. Its terms are in the Org glossary.
 - **Design Requests ↔ Event Requests**: an event's design and promotion is
   its Marketing form, never a design request. They share the server-driven
   form engine (`shared/forms.ts`) and the notification feed, but no table and

@@ -111,3 +111,26 @@ structure, and nobody can change their own role.
 Not a role — a derived permission. Admins, anyone in the Marketing
 department, and the head of the Engagement division (not its other staff,
 e.g. Alumni). Home editors change the public Home tab's content.
+
+## Announcements
+
+**Announcement**:
+A message an admin sends to leaders: a short title and a message, delivered
+to the bell, as a push to anyone with the app and, if ticked, by email. It is
+**scheduled** until it goes out, then **sent**; a scheduled one can be
+**cancelled** and then never reaches anyone.
+_Avoid_: broadcast, blast, notice (in code)
+
+**All leaders**:
+Everyone with a `staffProfile` in the current staff year, whatever their role.
+An announcement with no campus, division, department or role chosen goes to
+all leaders.
+_Avoid_: everyone (in the UI), all staff
+
+**Audience**:
+Who an announcement goes to. Chosen campuses, divisions and departments add
+up (anyone in any of them); chosen roles narrow that down. A role and its
+group must be on the same assignment, so "Staff at UNSW" doesn't reach a
+Student Leader at UNSW who is Staff in Events. Worked out again when it goes
+out, so a scheduled announcement reaches whoever is in the audience then.
+

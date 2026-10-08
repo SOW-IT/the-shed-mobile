@@ -86,6 +86,114 @@ describe("emails.send (Resend action)", () => {
   });
 });
 
+describe("emails.sendBatch (Resend batch action)", () => {
+  const messages = [
+    { to: "a@sow.org.au", subject: "S", body: "B1" },
+    { to: "b@sow.org.au", subject: "S", body: "B2" },
+  ];
+
+  test("no-ops without API credentials", async () => {
+    const t = convexTest(schema, modules);
+    vi.stubEnv("RESEND_API_KEY", "");
+    vi.stubEnv("RESEND_FROM_EMAIL", "");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await t.action(internal.emails.sendBatch, { messages });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      "RESEND_API_KEY/RESEND_FROM_EMAIL not set; skipping",
+      2,
+      "emails"
+    );
+  });
+
+  test("POSTs every email in one request, with the reply-to when given", async () => {
+    const t = convexTest(schema, modules);
+    vi.stubEnv("RESEND_API_KEY", "re_test");
+    vi.stubEnv("RESEND_FROM_EMAIL", "noreply@sow.org.au");
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await t.action(internal.emails.sendBatch, { messages, replyTo: "ada@sow.org.au" });
+    await t.action(internal.emails.sendBatch, { messages: messages.slice(0, 1) });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://api.resend.com/emails/batch");
+    expect(JSON.parse(init.body)).toEqual([
+      { from: "noreply@sow.org.au", to: ["a@sow.org.au"], subject: "S", text: "B1", reply_to: "ada@sow.org.au" },
+      { from: "noreply@sow.org.au", to: ["b@sow.org.au"], subject: "S", text: "B2", reply_to: "ada@sow.org.au" },
+    ]);
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)[0]).not.toHaveProperty("reply_to");
+  });
+
+  test("throws on a non-ok Resend response", async () => {
+    const t = convexTest(schema, modules);
+    vi.stubEnv("RESEND_API_KEY", "re_test");
+    vi.stubEnv("RESEND_FROM_EMAIL", "noreply@sow.org.au");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 429, text: () => Promise.resolve("slow down") })
+    );
+    await expect(t.action(internal.emails.sendBatch, { messages })).rejects.toThrow(
+      /Resend error 429: slow down/
+    );
+  });
+});
+
+describe("push.sendMany (one push to many people)", () => {
+  test("pushes to every device of everyone listed, 100 messages a request", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("pushTokens", { email: "a@sow.org.au", token: "ExponentPushToken[a1]" });
+      await ctx.db.insert("pushTokens", { email: "a@sow.org.au", token: "ExponentPushToken[a2]" });
+      for (let i = 0; i < 100; i++) {
+        await ctx.db.insert("pushTokens", { email: "b@sow.org.au", token: `ExponentPushToken[b${i}]` });
+      }
+    });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ data: [{ status: "ok" }] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await t.action(internal.push.sendMany, {
+      to: ["a@sow.org.au", "b@sow.org.au", "nobody@sow.org.au"],
+      title: "Notice",
+      body: "Body",
+      url: "/announcements/x",
+    });
+    // b has 20 devices at most on record; a's two plus b's 20 fit in one request.
+    const sizes = fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body).length);
+    expect(sizes).toEqual([22]);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)[0]).toMatchObject({
+      to: "ExponentPushToken[a1]",
+      title: "Notice",
+      data: { url: "/announcements/x" },
+    });
+  });
+
+  test("splits more than 100 devices across requests, and sends nothing for nobody", async () => {
+    const t = convexTest(schema, modules);
+    const emails: string[] = [];
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 101; i++) {
+        const email = `p${i}@sow.org.au`;
+        emails.push(email);
+        await ctx.db.insert("pushTokens", { email, token: `ExponentPushToken[${i}]` });
+      }
+    });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ data: [] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await t.action(internal.push.sendMany, { to: emails, title: "T", body: "B" });
+    expect(fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body).length)).toEqual([100, 1]);
+    fetchMock.mockClear();
+    await t.action(internal.push.sendMany, { to: [], title: "T", body: "B" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("push.send (Expo push action)", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
