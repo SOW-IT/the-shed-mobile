@@ -6,6 +6,23 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.3.3] — 2026-10-08
+
+### Fixed
+- **Insights → General's retention, average years served and "served 2+
+  years" no longer count the new staff year before its roster is filled in.**
+  Since 1 October they had been measuring 2027 on a roster that was still
+  mostly the people carried over from 2026, with almost none of the year's
+  new leaders yet. That showed 97% of people as having served 2+ years,
+  student-leader retention up 37 points and average years served well above
+  any other year. These numbers now count a new staff year from 1 January,
+  the date everyone staying on is expected to have their new-year profile.
+  Until then the Retention and Avg years served cards show the last complete
+  year, labelled with that year (for example "Retention · 2026 vs 2025"), and
+  a line says when the new year will count. Staff and student-leader counts
+  still switch to the new year on 1 October. This is a server change, so it
+  works on every app version without an update.
+
 ## [2.3.2] — 2026-10-08
 
 ### Changed
