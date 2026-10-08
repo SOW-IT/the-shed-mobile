@@ -115,9 +115,39 @@ describe("buildGeneralView: all years", () => {
       scope: null,
       signedIn: true,
     });
-    expect(types(blocks)).toEqual(["label", "cards", "stacked", "multiBars"]);
+    expect(types(blocks)).toEqual(["label", "cards", "caption", "stacked", "multiBars"]);
     expect(blocks[0]).toEqual({ type: "label", text: "2025" });
     expect(cardsBlocks(blocks)[0].cards[0].delta).toBeUndefined();
+  });
+
+  it("shows the last counted year's rates while the newest roster is filled in", () => {
+    const blocks = buildGeneralView({
+      trends: trends({
+        retention: series([null, 80, null], [null, 90, null], [null, 75, null]),
+        tenure2Plus: series([10, 30, null], [20, 40, null], [null, 20, null]),
+        avgTenureYears: series([1, 1.5, null], [1.2, 1.8, null], [null, 1.1, null]),
+      }),
+      campusAttendance,
+      scope: null,
+      signedIn: true,
+    });
+    expect(blocks.slice(0, 7)).toEqual([
+      { type: "label", text: "2027 vs 2026" },
+      expect.objectContaining({ type: "cards" }),
+      {
+        type: "caption",
+        text: "2027's retention and years served are counted from 1 January, once its roster is filled in.",
+      },
+      { type: "label", text: "Retention · 2026 vs 2025" },
+      expect.objectContaining({ type: "cards" }),
+      { type: "label", text: "Avg years served · 2026 vs 2025" },
+      expect.objectContaining({ type: "cards" }),
+    ]);
+    const [, retention, avgYears] = cardsBlocks(blocks);
+    expect(retention.cards.map((c) => c.value)).toEqual(["80%", "90%", "75%"]);
+    expect(avgYears.cards[0]).toMatchObject({ value: "1.5", delta: { text: "+0.5y", direction: "up" } });
+    expect(chart(blocks, "Retention")!.points.map((p) => p.at)).toEqual([2026]);
+    expect(chart(blocks, "Served 2+ years")!.points.map((p) => p.at)).toEqual([2025, 2026]);
   });
 
   it("shows the last five years by default and every year for All history", () => {
@@ -172,7 +202,7 @@ describe("buildGeneralView: one staff year", () => {
     expect(cardsBlocks(blocks).at(-1)?.cards[0]).toMatchObject({ label: "USYD", value: "40", delta: undefined });
   });
 
-  it("leaves out sections with no data for that year", () => {
+  it("says when a year still being filled in gets its rates", () => {
     const none = series([null, null, null], [null, null, null], [null, null, null]);
     const blocks = buildGeneralView({
       trends: trends({ retention: none, avgTenureYears: none }),
@@ -180,7 +210,11 @@ describe("buildGeneralView: one staff year", () => {
       scope: 2027,
       signedIn: true,
     });
-    expect(types(blocks)).toEqual(["label", "cards"]);
+    expect(types(blocks)).toEqual(["label", "cards", "caption"]);
+    expect(blocks[2]).toEqual({
+      type: "caption",
+      text: "2027's retention and years served are counted from 1 January, once its roster is filled in.",
+    });
   });
 
   it("falls back to all years for a year with no data", () => {

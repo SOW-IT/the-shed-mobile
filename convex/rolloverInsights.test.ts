@@ -237,14 +237,46 @@ describe("October rollover → General Insights", () => {
     expect(after!.staff.at(-1)).toBe(0);
   });
 
-  test("rate series use the new year the instant the clock flips (no grace)", async () => {
+  test("rate series wait for the new roster until 1 January (Sydney)", async () => {
+    const { leader } = await setupBeforeRollover();
+    // Midnight 1 Jan 2027 in Sydney (AEDT, UTC+11).
+    const newYear = Date.UTC(2026, 11, 31, 13);
+
+    for (const now of [ROLLOVER + 60_000, newYear - 60_000]) {
+      at(now);
+      const filling = await leader.query(api.generalMetrics.staffTrends, {});
+      expect(filling!.years.at(-1)).toBe(2027);
+      expect(filling!.staff.at(-1)).toBe(0);
+      for (const series of [
+        filling!.retention,
+        filling!.turnover,
+        filling!.tenure2Plus,
+        filling!.avgTenureYears,
+      ]) {
+        expect(series.overall.at(-1)).toBeNull();
+        expect(series.staff.at(-1)).toBeNull();
+        expect(series.studentLeaders.at(-1)).toBeNull();
+      }
+      expect(filling!.avgTenureYears.overall.at(-2)).toBe(1);
+    }
+
+    at(newYear);
+    const counted = await leader.query(api.generalMetrics.staffTrends, {});
+    expect(counted!.turnover.staff.at(-1)).toBe(100);
+    expect(counted!.retention.staff.at(-1)).toBe(0);
+    expect(counted!.retention.studentLeaders.at(-1)).toBe(100);
+    expect(counted!.turnover.studentLeaders.at(-1)).toBe(0);
+    expect(counted!.avgTenureYears.studentLeaders.at(-1)).toBe(2);
+  });
+
+  test("General says the new year's rates are counted from 1 January", async () => {
     const { leader } = await setupBeforeRollover();
     at(ROLLOVER + 60_000);
-    const after = await leader.query(api.generalMetrics.staffTrends, {});
-    expect(after!.years.at(-1)).toBe(2027);
-    expect(after!.turnover.staff.at(-1)).toBe(100);
-    expect(after!.retention.staff.at(-1)).toBe(0);
-    expect(after!.retention.studentLeaders.at(-1)).toBe(100);
-    expect(after!.turnover.studentLeaders.at(-1)).toBe(0);
+    const { blocks } = await leader.query(api.generalMetrics.view, { scope: null });
+    expect(blocks).toContainEqual({
+      type: "caption",
+      text: "2027's retention and years served are counted from 1 January, once its roster is filled in.",
+    });
+    expect(blocks).toContainEqual({ type: "label", text: "Avg years served · 2026" });
   });
 });

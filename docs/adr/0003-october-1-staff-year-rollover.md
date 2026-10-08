@@ -113,3 +113,12 @@ single nightly `recomputeAll` (see `docs/attendance-metrics.md`). The prefill
 job still kicks a rebuild of the year that has just ended, so the incoming
 year's snapshots are honest by the morning of October 1 rather than within 15
 minutes of the flip.
+
+## Update (2.3.3)
+
+Insights → General's rates (retention, turnover, average years served and
+served 2+ years) follow auth grace: a new staff year is counted from 1 January,
+not 1 October. 2.0.1 had counted it from the flip, which on 1 Oct 2026 showed
+2027 as 97% "served 2+ years" because the roster was still only the people
+carried over (2 first-year people against 19–26 in a full year). Headcounts
+still switch on 1 October.

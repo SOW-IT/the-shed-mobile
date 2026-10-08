@@ -4,7 +4,11 @@ import { Doc, Id } from "./_generated/dataModel";
 import { currentStaffYear } from "./model";
 import { viewBlockValidator } from "./metricsData";
 import { buildGeneralView } from "../shared/generalMetricsView";
-import { staffYearStartMs, sydneyCalendarYear } from "../shared/flow";
+import {
+  staffYearStartMs,
+  sydneyCalendarYear,
+  withinRolloverAuthGrace,
+} from "../shared/flow";
 import {
   isOrgWideSubgroup,
   normalizeSubgroups,
@@ -185,7 +189,13 @@ export const staffTrends = query({
 export async function computeStaffTrends(ctx: QueryCtx): Promise<StaffTrends> {
 
   const currentYear = currentStaffYear();
-  const latestCompleteYear = currentYear;
+  // A new staff year's roster is filled in after 1 Oct: at first it's mostly
+  // the people carried over, so it reads as near-total retention and long
+  // service. Rates wait for it until 1 Jan, when anyone not yet added stops
+  // acting on last year's profile (ADR 0003).
+  const latestCompleteYear = withinRolloverAuthGrace(currentYear)
+    ? currentYear - 1
+    : currentYear;
   const profiles = (await ctx.db.query("staffProfiles").collect()).filter(
     (p) => p.year <= currentYear
   );

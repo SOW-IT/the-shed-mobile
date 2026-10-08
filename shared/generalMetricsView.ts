@@ -99,9 +99,22 @@ const RATE_GROUPS = [
   { key: "studentLeaders", label: "Student leaders" },
 ] as const;
 
+const comparisonText = (years: number[], i: number) =>
+  i > 0 ? `${years[i]} vs ${years[i - 1]}` : String(years[i]);
+
 const comparisonLabel = (years: number[], i: number): ViewBlock => ({
   type: "label",
-  text: i > 0 ? `${years[i]} vs ${years[i - 1]}` : String(years[i]),
+  text: comparisonText(years, i),
+});
+
+// A new staff year has no rates until its roster is complete (from 1 January,
+// see computeStaffTrends): every one of its rate series is null until then.
+const ratesCounted = (trends: StaffTrendsData, i: number) =>
+  trends.avgTenureYears.overall[i] !== null;
+
+const ratesPendingCaption = (year: number): ViewBlock => ({
+  type: "caption",
+  text: `${year}'s retention and years served are counted from 1 January, once its roster is filled in.`,
 });
 
 // The per-group cards for one staff year: retention and average years served,
@@ -177,13 +190,21 @@ function allYearsView(
       ],
     },
   ];
-  const retention = rateCards(trends.retention, last, fmtPct, ppDelta);
+  let rated = last;
+  while (rated >= 0 && !ratesCounted(trends, rated)) rated -= 1;
+  if (rated < last) blocks.push(ratesPendingCaption(trends.years[last]));
+  const rateLabel = (name: string) =>
+    rated === last ? name : `${name} · ${comparisonText(trends.years, rated)}`;
+  const retention = rated >= 0 ? rateCards(trends.retention, rated, fmtPct, ppDelta) : [];
   if (retention.length > 0) {
-    blocks.push({ type: "label", text: "Retention" }, { type: "cards", cards: retention });
+    blocks.push({ type: "label", text: rateLabel("Retention") }, { type: "cards", cards: retention });
   }
-  const avgYears = rateCards(trends.avgTenureYears, last, fmtAvg, yearsDelta);
+  const avgYears = rated >= 0 ? rateCards(trends.avgTenureYears, rated, fmtAvg, yearsDelta) : [];
   if (avgYears.length > 0) {
-    blocks.push({ type: "label", text: "Avg years served" }, { type: "cards", cards: avgYears });
+    blocks.push(
+      { type: "label", text: rateLabel("Avg years served") },
+      { type: "cards", cards: avgYears }
+    );
   }
 
   const campusSeries = trends.studentLeadersByCampus.filter((c) => !isNoiseCampus(c.campus));
@@ -290,6 +311,7 @@ function yearView(
     comparisonLabel(trends.years, i),
     { type: "cards", layout: "grid", cards: headcount },
   ];
+  if (!ratesCounted(trends, i)) blocks.push(ratesPendingCaption(year));
   const retention = rateCards(trends.retention, i, fmtPct, ppDelta);
   if (retention.length > 0) {
     blocks.push({ type: "label", text: "Retention" }, { type: "cards", layout: "grid", cards: retention });

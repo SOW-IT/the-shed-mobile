@@ -18,10 +18,13 @@ follow-up prompts for a sub-group and time range.
   year, labelled once ("2027 vs 2026"), then charts of staff & student
   leaders, student leaders by campus, retention, average years served, served
   2+ years, and weekly average by campus. One year: the same cards for that
-  year plus calendar-year weekly averages. Retention has no post-rollover
-  grace: the newest year's rate shows from 1 October and reflects the copied
-  roster until leavers are marked. Campus weekly averages are bucketed by
-  Sydney calendar year. Both tabs draw through
+  year plus calendar-year weekly averages. Headcounts pick up the new staff
+  year on 1 October, but its retention, years served and served 2+ years wait
+  until 1 January (the same date auth grace ends, ADR 0003): until then its
+  roster is mostly the people carried over, so it read as near-total retention
+  and long service. Meanwhile the rate cards show the last complete year,
+  labelled with its years, under a caption saying when the new year counts.
+  Campus weekly averages are bucketed by Sydney calendar year. Both tabs draw through
   `src/components/attendance/InsightsBlocks.tsx`. Colours travel as theme
   tokens (`text`, `primary`, `accent`, `success`) or campus hex colours.
   `staffTrends` and `campusWeeklyAttendance` stay for apps older than 2.0.1.
