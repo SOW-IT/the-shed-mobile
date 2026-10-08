@@ -6,6 +6,28 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.4.0] — 2026-10-09
+
+### Added
+- **Admins and Human Resources can send announcements to leaders.** A new
+  Announcements page in the side menu lets them write a title and message and
+  send it to all leaders, or pick campuses, divisions and departments and
+  narrow it by role (for example only Student Leaders at UNSW). It shows how
+  many people it will reach and how many have the app, with a preview of the
+  notification as it lands on a phone, and asks "Send this announcement?"
+  with that number before anything goes out. Everyone it reaches gets it in
+  their notifications (the bell), people with the app get a push, and
+  tapping either opens the full announcement in the app. Tick **Also send as
+  an email** to email it as well, with a link to open it in The SHED; replies
+  go to the sender.
+- **Announcements can be scheduled.** Choose a date and time instead of Send
+  now, and it goes out then. Scheduled announcements are listed on the page
+  until they go, and any admin can cancel one. Recently sent ones are listed
+  too, with how many people each reached.
+- **Announcements can't be sent by mistake or flooded.** The same
+  announcement twice in ten minutes is refused as a double send, and each
+  person can send three an hour, ten a day and have ten scheduled at once.
+
 ## [2.3.2] — 2026-10-08
 
 ### Changed
