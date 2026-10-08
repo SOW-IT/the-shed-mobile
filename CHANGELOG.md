@@ -6,6 +6,18 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.3.2] — 2026-10-08
+
+### Changed
+- **An event's Marketing form now needs a promotion start date and the
+  information to include in posts.** Marketing can't plan promotion without
+  them, so "When would you like promotion to start?" and "Please give all the
+  important information you want us to include in posts" are now required
+  before the form can be submitted. Drafts can still be saved without them.
+  The promotion start date can't be in the past, though a form that's edited
+  later can keep the date it already had. The questions come from the server,
+  so this works on every app version without an update.
+
 ## [2.3.1] — 2026-10-07
 
 ### Fixed
