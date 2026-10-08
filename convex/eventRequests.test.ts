@@ -103,6 +103,8 @@ const marketingAnswers = (over: FormAnswers = {}): FormAnswers => ({
   printed_posters: "20 A3 posters",
   multipleDrafts: false,
   runByYou: true,
+  promoStart: at(10).slice(0, 10),
+  postInfo: "Register by Friday",
   ...over,
 });
 
@@ -325,6 +327,15 @@ describe("the Marketing form", () => {
     await expect(submitMarketing(t, id, EVA, { visualStyle: "" })).rejects.toThrow(
       'Answer "Theme / visual style".'
     );
+    await expect(submitMarketing(t, id, EVA, { promoStart: "" })).rejects.toThrow(
+      'Pick a date for "Promotion starts".'
+    );
+    await expect(submitMarketing(t, id, EVA, { postInfo: " " })).rejects.toThrow(
+      'Answer "Information for posts".'
+    );
+    await expect(
+      submitMarketing(t, id, EVA, { promoStart: at(-1).slice(0, 10) })
+    ).rejects.toThrow('"Promotion starts" can\'t be in the past.');
     await expect(submitMarketing(t, id, OLLIE)).rejects.toThrow(/Only the requester/);
     await submitMarketing(t, id);
     const form = (await get(t, id)).forms.marketing;
@@ -354,6 +365,23 @@ describe("the Marketing form", () => {
     expect((await notificationsFor(t, MARY)).map((n) => n.title)).toContain("Form approved");
     await expect(approve(t, id, "marketing", MIKE)).rejects.toThrow(/isn't waiting/);
     await expect(submitMarketing(t, id)).rejects.toThrow(/done. Reopen it/);
+  });
+
+  test("a promotion start saved earlier can stay once it's passed", async () => {
+    const t = await setup();
+    const id = await create(t);
+    const saved = at(2).slice(0, 10);
+    await asUser(t, EVA).mutation(api.eventSubForms.saveMarketing, {
+      id,
+      answers: marketingAnswers({ promoStart: saved }),
+      submit: false,
+    });
+    vi.setSystemTime(PINNED_NOW + 5 * DAY);
+    await expect(
+      submitMarketing(t, id, EVA, { promoStart: at(3).slice(0, 10) })
+    ).rejects.toThrow(/can't be in the past/);
+    await submitMarketing(t, id, EVA, { promoStart: saved });
+    expect((await get(t, id)).forms.marketing.status).toBe("PENDING");
   });
 
   test("the Marketing Head's own form is approved straight away", async () => {

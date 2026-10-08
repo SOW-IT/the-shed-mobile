@@ -304,7 +304,8 @@ export const MARKETING_FIELDS: FormField[] = [
     kind: "date",
     label: "When would you like promotion to start?",
     shortLabel: "Promotion starts",
-    required: false,
+    required: true,
+    notInPast: true,
   },
   {
     key: "postInfo",
@@ -312,7 +313,7 @@ export const MARKETING_FIELDS: FormField[] = [
     label: "Please give all the important information you want us to include in posts",
     shortLabel: "Information for posts",
     hint: "For visual posts (what text to show on the post) or captions.",
-    required: false,
+    required: true,
   },
   {
     key: "otherInfo",
