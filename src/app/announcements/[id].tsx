@@ -37,11 +37,7 @@ export default function AnnouncementScreen() {
   if (announcement === null) {
     return (
       <Screen title="Announcement" onBack={back}>
-        <EmptyState
-          icon="megaphone-outline"
-          title="Announcement not found"
-          message="It may not have been sent to you."
-        />
+        <EmptyState icon="megaphone-outline" title="Announcement not found" />
       </Screen>
     );
   }

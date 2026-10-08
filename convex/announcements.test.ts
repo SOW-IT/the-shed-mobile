@@ -280,7 +280,7 @@ describe("scheduling", () => {
         id,
         status: "scheduled",
         sendAt,
-        audience: "Everyone",
+        audience: "All leaders",
         senderName: "Ada Admin",
         people: null,
       }),

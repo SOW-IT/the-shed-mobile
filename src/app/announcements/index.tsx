@@ -95,12 +95,10 @@ const Checkbox = ({
   checked,
   onToggle,
   label,
-  detail,
 }: {
   checked: boolean;
   onToggle: () => void;
   label: string;
-  detail: string;
 }) => {
   const t = useAppTheme();
   return (
@@ -116,10 +114,7 @@ const Checkbox = ({
         size={24}
         color={checked ? t.primary : t.faint}
       />
-      <View style={{ flex: 1, gap: 2 }}>
-        <Txt style={{ fontWeight: "600" }}>{label}</Txt>
-        <Muted>{detail}</Muted>
-      </View>
+      <Txt style={{ flex: 1, fontWeight: "600" }}>{label}</Txt>
     </Pressable>
   );
 };
@@ -162,11 +157,7 @@ export default function AnnouncementsScreen() {
   if (!isAdmin) {
     return (
       <Screen title="Announcements" onBack={back}>
-        <EmptyState
-          icon="lock-closed-outline"
-          title="Only admins can send announcements"
-          message="Admins and Human Resources staff can send announcements to leaders."
-        />
+        <EmptyState icon="lock-closed-outline" title="Only admins can send announcements" />
       </Screen>
     );
   }
@@ -243,12 +234,8 @@ export default function AnnouncementsScreen() {
   const confirmMessage = () => {
     if (!size) return undefined;
     const whenPart = when === "now" ? "now" : sendAt ? `on ${whenText(sendAt)}` : "";
-    const push =
-      size.withApp === size.people
-        ? "All of them have the app and get a push."
-        : `${size.withApp} of them ${size.withApp === 1 ? "has" : "have"} the app and ${size.withApp === 1 ? "gets" : "get"} a push; everyone sees it in their notifications.`;
-    const email = sendEmail ? " Everyone also gets it by email." : "";
-    return `"${title.trim()}" goes to ${people(size.people)} (${audienceSummary(audience)}) ${whenPart}. ${push}${email}`;
+    const email = sendEmail ? "; all get an email" : "";
+    return `"${title.trim()}" goes to ${people(size.people)} (${audienceSummary(audience)}) ${whenPart}. ${size.withApp} by push${email}.`;
   };
 
   return (
@@ -295,10 +282,6 @@ export default function AnnouncementsScreen() {
           />
           {reach === "groups" ? (
             <>
-              <Muted>
-                Goes to people in any campus, division or department you pick. Pick roles to
-                narrow it down, e.g. only Student Leaders.
-              </Muted>
               <MultiSelect
                 label="Campuses"
                 values={groups.campuses}
@@ -328,9 +311,7 @@ export default function AnnouncementsScreen() {
                 placeholder="Any role"
               />
             </>
-          ) : (
-            <Muted>Everyone with a role in The SHED this year.</Muted>
-          )}
+          ) : null}
           <View style={[styles.reach, { backgroundColor: t.primarySoft }]}>
             <Ionicons name="people" size={18} color={t.dark ? t.text : t.primary} />
             <Text style={[typography.body, { color: t.text, flex: 1 }]} testID="announcement-count">
@@ -347,7 +328,6 @@ export default function AnnouncementsScreen() {
             checked={sendEmail}
             onToggle={() => setSendEmail((v) => !v)}
             label="Also send as an email"
-            detail="Emails everyone the message with a link to open it in The SHED."
           />
         </Card>
 
@@ -391,10 +371,6 @@ export default function AnnouncementsScreen() {
 
         <SectionTitle>Preview</SectionTitle>
         <PushPreview title={title} message={message} />
-        <Muted>
-          Tapping it opens the announcement in The SHED. It also shows in everyone&apos;s
-          notifications (the bell).
-        </Muted>
 
         <WarningBanner message={problem.limit} />
         <ErrorBanner message={error} />
@@ -505,7 +481,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm + 2,
   },
-  checkRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
+  checkRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   dateRow: { flexDirection: "row", gap: spacing.sm },
   rowTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   sentRow: {

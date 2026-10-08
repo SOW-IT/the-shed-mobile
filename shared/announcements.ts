@@ -60,14 +60,14 @@ export const inAudience = (
   isEveryone(audience) ||
   assignments.some((assignment) => assignmentInAudience(assignment, audience, divisionOf));
 
-/** "Everyone", "UNSW, Finance", "Everyone · Student Leader", "UNSW · President, Vice President". */
+/** "All leaders", "UNSW, Finance", "All leaders · Student Leader", "UNSW · President, Vice President". */
 export const audienceSummary = (audience: Audience): string => {
   const groups = [
     ...audience.campuses.map(acronym),
     ...audience.divisions,
     ...audience.departments,
   ];
-  const where = groups.length > 0 ? groups.join(", ") : "Everyone";
+  const where = groups.length > 0 ? groups.join(", ") : "All leaders";
   return audience.roles.length > 0
     ? `${where} · ${audience.roles.map(acronym).join(", ")}`
     : where;

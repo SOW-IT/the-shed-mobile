@@ -46,7 +46,7 @@ describe("inAudience", () => {
 });
 
 test("audienceSummary names the groups, then the roles", () => {
-  expect(audienceSummary(EVERYONE)).toBe("Everyone");
+  expect(audienceSummary(EVERYONE)).toBe("All leaders");
   expect(
     audienceSummary({
       campuses: ["University of New South Wales"],
@@ -56,7 +56,7 @@ test("audienceSummary names the groups, then the roles", () => {
     })
   ).toBe("UNSW, Governance, Events");
   expect(audienceSummary({ ...EVERYONE, roles: ["Head of Department", "Staff"] })).toBe(
-    "Everyone · HOD, Staff"
+    "All leaders · HOD, Staff"
   );
 });
 
