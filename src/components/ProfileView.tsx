@@ -5,10 +5,12 @@ import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { ReactNode, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { timeAgo } from "../../shared/datetime";
 import { acronym, formatAssignment, staffYearForDate } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { ChromeScreen } from "./ChromeScreen";
 import { radius, spacing, typography, useAppTheme } from "../theme";
+import { useMinuteTick } from "@/hooks/useMinuteTick";
 import {
   getLocalFileSizeBytes,
   uploadLocalFileToUrl,
@@ -55,6 +57,8 @@ const ProfileFrame = ({
 export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: boolean }) => {
   const t = useAppTheme();
   const profile = useQuery(api.profile.get, email ? { email } : {});
+  // Keeps "Last online 5m ago" current while the profile is open.
+  useMinuteTick();
   const updateChurch = useMutation(api.profile.updateChurch);
   const generateAvatarUploadUrl = useMutation(api.profile.generateAvatarUploadUrl);
   const setAvatar = useMutation(api.profile.setAvatar);
@@ -142,6 +146,15 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
             {profile.name ?? profile.email}
           </Text>
           <Text style={[typography.caption, { color: t.muted }]}>{profile.email}</Text>
+          {profile.isMe ? null : profile.lastOnlineAt ? (
+            <Text style={[typography.caption, { color: t.muted }]}>
+              Last online {timeAgo(profile.lastOnlineAt)}
+            </Text>
+          ) : profile.hasSignedIn === false ? (
+            <Text style={[typography.caption, { color: t.muted }]}>
+              Hasn&apos;t signed in to The SHED yet
+            </Text>
+          ) : null}
           {current ? (
             <View style={[styles.assignmentPill, { backgroundColor: t.primarySoft }]}>
               <Text

@@ -21,6 +21,7 @@ import { useWideLayout } from "@/components/nav/layout";
 import { hapticSelect, LoadingState, usePressScale } from "@/components/ui";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import { useReportAppVersion } from "@/hooks/useReportAppVersion";
+import { useReportSeen } from "@/hooks/useReportSeen";
 import { BOTTOM_TAB_HEIGHT, shadowStyle, useAppTheme } from "@/theme";
 
 const tabIcon =
@@ -144,6 +145,7 @@ export default function TabsLayout() {
   const waitingForRole = isAuthenticated && me === undefined;
   usePushRegistration({ navigationReady: !waitingForRole });
   useReportAppVersion();
+  useReportSeen();
 
   const isCampusLeader = me?.isCampusLeader ?? false;
   const isStaff = !!me?.profile;

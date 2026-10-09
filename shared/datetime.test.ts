@@ -7,6 +7,7 @@ import {
   parseDateTimeInputValues,
   parseTimeInputValue,
   toDateInputValue,
+  timeAgo,
   toTimeInputValue,
 } from "./datetime";
 
@@ -157,5 +158,26 @@ describe("addDaysToDateInputValue", () => {
 
   it("returns null for a value it can't read", () => {
     expect(addDaysToDateInputValue("", 1)).toBeNull();
+  });
+});
+
+describe("timeAgo", () => {
+  const now = new Date(2026, 9, 9, 12, 0).getTime();
+  const agoBy = (ms: number) => timeAgo(now - ms, now);
+  const MIN = 60_000;
+  const DAY = 24 * 60 * MIN;
+
+  it("counts up from just now to years", () => {
+    expect(agoBy(0)).toBe("just now");
+    expect(agoBy(59_000)).toBe("just now");
+    expect(agoBy(MIN)).toBe("1m ago");
+    expect(agoBy(59 * MIN)).toBe("59m ago");
+    expect(agoBy(60 * MIN)).toBe("1h ago");
+    expect(agoBy(DAY)).toBe("1d ago");
+    expect(agoBy(7 * DAY)).toBe("1w ago");
+    expect(agoBy(34 * DAY)).toBe("4w ago");
+    expect(agoBy(35 * DAY)).toBe("1mo ago");
+    expect(agoBy(359 * DAY)).toBe("11mo ago");
+    expect(agoBy(360 * DAY)).toBe("1y ago");
   });
 });

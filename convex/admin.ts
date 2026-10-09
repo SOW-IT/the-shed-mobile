@@ -27,6 +27,7 @@ import {
 } from "../shared/flow";
 import { displayNameFromEmail, normalizeSubgroups, SOW_SUBGROUP } from "../shared/rollcall";
 import {
+  canonicalEmailKey,
   previousStaffYearByEmailKey,
   previousStaffYearForEmail,
   staffEmailCandidates,
@@ -599,11 +600,18 @@ export const listStaffProfiles = query({
       .withIndex("by_year", (q) => q.eq("year", args.year))
       .take(1000);
     const directoryNameByEmail = await directoryNamesByEmail(ctx);
+    // Anyone with a SHED account has signed in at least once.
+    const signedInKeys = new Set(
+      (await ctx.db.query("users").take(4000)).flatMap((u) =>
+        u.email ? [canonicalEmailKey(u.email)] : []
+      )
+    );
     return profiles.map((profile) => ({
       ...profile,
       roles: rolesOf(profile),
       assignments: assignmentsOf(profile),
       name: profile.name ?? directoryNameByEmail.get(profile.email) ?? null,
+      signedIn: signedInKeys.has(canonicalEmailKey(profile.email)),
     }));
   },
 });

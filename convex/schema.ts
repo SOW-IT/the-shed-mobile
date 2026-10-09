@@ -91,6 +91,13 @@ export default defineSchema({
     seenAt: v.number(),
   }).index("by_email_and_platform", ["email", "platform"]),
 
+  // When someone last had The SHED open, on the web or in the app. Written
+  // at most every few minutes; see presence.ts.
+  lastSeen: defineTable({
+    email: v.string(),
+    at: v.number(),
+  }).index("by_email", ["email"]),
+
   pushTokens: defineTable({
     email: v.string(),
     token: v.string(),

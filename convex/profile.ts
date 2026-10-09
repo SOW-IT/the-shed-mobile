@@ -4,6 +4,7 @@ import { mutation, MutationCtx, query } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
 import { assignmentsOf, departmentsOf, divisionsOf } from "../shared/flow";
 import { currentStaffYear, optionalEmail, rolesOf } from "./model";
+import { hasSignedIn, lastOnlineAt } from "./presence";
 
 export const get = query({
   args: { email: v.optional(v.string()) },
@@ -60,6 +61,9 @@ export const get = query({
       name: user?.name ?? dirUser?.name ?? anyProfile?.name ?? null,
       photo: avatarUrl ?? user?.image ?? dirPhoto,
       localChurch: callerEmail ? (user?.localChurch ?? null) : null,
+      // Like the church, only for signed-in staff.
+      lastOnlineAt: callerEmail ? await lastOnlineAt(ctx, email) : null,
+      hasSignedIn: callerEmail ? await hasSignedIn(ctx, email) : null,
       serviceHistory: serviceHistory.map((h) => ({
         year: h.year,
         roles: rolesOf(h),
