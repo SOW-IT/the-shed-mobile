@@ -121,6 +121,19 @@ describe("Last online on a profile", () => {
   });
 });
 
+describe("Your own profile", () => {
+  test("is yours under either staff email spelling", async () => {
+    const { t } = await setup();
+    const hana = asUser(t, HANA);
+    for (const email of [HANA, "hana.doe@sowaustralia.com"]) {
+      expect((await hana.query(api.profile.get, { email }))?.isMe).toBe(true);
+    }
+    expect((await hana.query(api.profile.get, { email: "mia.doe@sow.org.au" }))?.isMe).toBe(
+      false
+    );
+  });
+});
+
 describe("Admin → Users", () => {
   test("marks staff who have never signed in", async () => {
     const { t, admin } = await setup();

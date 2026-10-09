@@ -5,6 +5,7 @@ import { Doc } from "./_generated/dataModel";
 import { assignmentsOf, departmentsOf, divisionsOf } from "../shared/flow";
 import { currentStaffYear, optionalEmail, rolesOf } from "./model";
 import { hasSignedIn, lastOnlineAt } from "./presence";
+import { canonicalEmailKey } from "../shared/rollcallImport";
 
 export const get = query({
   args: { email: v.optional(v.string()) },
@@ -57,7 +58,8 @@ export const get = query({
       : null;
     return {
       email,
-      isMe: email === callerEmail,
+      // Either staff email spelling is the same person.
+      isMe: callerEmail !== null && canonicalEmailKey(email) === canonicalEmailKey(callerEmail),
       name: user?.name ?? dirUser?.name ?? anyProfile?.name ?? null,
       photo: avatarUrl ?? user?.image ?? dirPhoto,
       localChurch: callerEmail ? (user?.localChurch ?? null) : null,

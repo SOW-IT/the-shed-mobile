@@ -27,7 +27,6 @@ import {
 } from "../shared/flow";
 import { displayNameFromEmail, normalizeSubgroups, SOW_SUBGROUP } from "../shared/rollcall";
 import {
-  canonicalEmailKey,
   previousStaffYearByEmailKey,
   previousStaffYearForEmail,
   staffEmailCandidates,
@@ -54,6 +53,7 @@ import {
   rolesOf,
   setCachedDirectorEmail,
 } from "./model";
+import { hasSignedIn } from "./presence";
 
 const syncDirectorCacheAfterProfileChange = async (
   ctx: MutationCtx,
@@ -600,19 +600,19 @@ export const listStaffProfiles = query({
       .withIndex("by_year", (q) => q.eq("year", args.year))
       .take(1000);
     const directoryNameByEmail = await directoryNamesByEmail(ctx);
-    // Anyone with a SHED account has signed in at least once.
-    const signedInKeys = new Set(
-      (await ctx.db.query("users").take(4000)).flatMap((u) =>
-        u.email ? [canonicalEmailKey(u.email)] : []
-      )
-    );
-    return profiles.map((profile) => ({
-      ...profile,
-      roles: rolesOf(profile),
-      assignments: assignmentsOf(profile),
-      name: profile.name ?? directoryNameByEmail.get(profile.email) ?? null,
-      signedIn: signedInKeys.has(canonicalEmailKey(profile.email)),
-    }));
+    // Looked up per person (both email spellings) rather than by scanning
+    // every account, so it stays exact however many accounts there are.
+    const rows = [];
+    for (const profile of profiles) {
+      rows.push({
+        ...profile,
+        roles: rolesOf(profile),
+        assignments: assignmentsOf(profile),
+        name: profile.name ?? directoryNameByEmail.get(profile.email) ?? null,
+        signedIn: await hasSignedIn(ctx, profile.email),
+      });
+    }
+    return rows;
   },
 });
 

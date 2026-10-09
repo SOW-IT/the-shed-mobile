@@ -387,7 +387,9 @@ export default function AdminScreen() {
   // Staff who have never signed in to The SHED, and a filter to see just them.
   const [onlyNotSignedIn, setOnlyNotSignedIn] = useState(false);
   const notSignedInCount = (profiles ?? []).filter((p) => !p.signedIn).length;
-  const showingNotSignedIn = onlyNotSignedIn && notSignedInCount > 0;
+  // Stays on even once everyone has signed in, so the list doesn't swap
+  // under the admin; the summary line keeps its Show everyone button.
+  const showingNotSignedIn = onlyNotSignedIn;
   const { director, groupedProfiles, campusByUniversity, nonCampusOtherProfiles } =
     useGroupedProfiles(
       structure,
@@ -878,11 +880,14 @@ export default function AdminScreen() {
 
       {key === "users" && (
         <>
-          {notSignedInCount > 0 && (
+          {(notSignedInCount > 0 || showingNotSignedIn) && (
             <View style={styles.signedInSummary}>
               <Muted>
-                {notSignedInCount} of {(profiles ?? []).length} staff in {selectedYear}{" "}
-                {notSignedInCount === 1 ? "hasn't" : "haven't"} signed in to The SHED yet.
+                {notSignedInCount === 0
+                  ? `Everyone on staff in ${selectedYear} has signed in to The SHED.`
+                  : `${notSignedInCount} of ${(profiles ?? []).length} staff in ${selectedYear} ${
+                      notSignedInCount === 1 ? "hasn't" : "haven't"
+                    } signed in to The SHED yet.`}
               </Muted>
               <Btn
                 title={showingNotSignedIn ? "Show everyone" : "Show only them"}
