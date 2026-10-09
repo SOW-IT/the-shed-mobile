@@ -11,6 +11,7 @@ import Animated, {
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
   withTiming,
 } from "react-native-reanimated";
 
@@ -22,7 +23,29 @@ const VELOCITY_COMMIT = 1200;
 
 const SLIDE_MS = 280;
 
-export const ATTENDANCE_ROW_ENTER_MS = 200;
+// One motion for a member moving between the lists: the card slides and
+// fades out, then the gap it leaves closes, while the card arriving in the
+// other list opens its space and fades in on the same curve.
+const SETTLE = Easing.bezier(0.2, 0, 0, 1);
+const RESIZE = Easing.bezier(0.4, 0, 0.2, 1);
+const ROW_HEIGHT = 72;
+const LEAVE_MS = 200;
+const COLLAPSE_DELAY_MS = 60;
+const COLLAPSE_MS = 260;
+const ENTER_FADE_DELAY_MS = 80;
+export const ATTENDANCE_ROW_ENTER_MS = 280;
+/** How long a leaving row takes until its space has fully closed. */
+export const ATTENDANCE_ROW_LEAVE_MS = COLLAPSE_DELAY_MS + COLLAPSE_MS;
+
+/** The gap a leaving row leaves, closing just after the card starts to go. */
+const closeLater = (done?: (finished?: boolean) => void) => {
+  "worklet";
+  return withDelay(
+    COLLAPSE_DELAY_MS,
+    withTiming(0, { duration: COLLAPSE_MS, easing: RESIZE }, done)
+  );
+};
+
 const slideTo = (toValue: number) => {
   "worklet";
   return withTiming(toValue, {
@@ -52,7 +75,6 @@ export interface AttendanceRowProps {
   entering?: boolean;
   exiting?: boolean;
   onExited?: () => void;
-  revealTrigger?: number;
 }
 
 function AttendanceRowBase({
@@ -72,7 +94,6 @@ function AttendanceRowBase({
   entering = false,
   exiting = false,
   onExited,
-  revealTrigger = 0,
 }: AttendanceRowProps) {
   const t = useAppTheme();
   const { width: screenWidth } = useWindowDimensions();
@@ -86,7 +107,7 @@ function AttendanceRowBase({
 
   const translateX = useSharedValue(0);
   const startX = useSharedValue(0);
-  const itemHeight = useSharedValue(entering ? 0 : 72);
+  const itemHeight = useSharedValue(entering ? 0 : ROW_HEIGHT);
   const opacity = useSharedValue(entering ? 0 : 1);
   const marginBottomValue = useSharedValue(entering ? 0 : spacing.sm);
   const editSnapped = useSharedValue(false);
@@ -99,29 +120,28 @@ function AttendanceRowBase({
      React Compiler immutability rule doesn't model Reanimated's mutable refs. */
   useEffect(() => {
     if (!entering) return;
-    const enter = { duration: ATTENDANCE_ROW_ENTER_MS, easing: Easing.out(Easing.cubic) };
-    itemHeight.value = withTiming(72, enter);
-    marginBottomValue.value = withTiming(spacing.sm, enter);
-    opacity.value = withTiming(1, enter);
+    const open = { duration: ATTENDANCE_ROW_ENTER_MS, easing: RESIZE };
+    itemHeight.value = withTiming(ROW_HEIGHT, open);
+    marginBottomValue.value = withTiming(spacing.sm, open);
+    opacity.value = withDelay(
+      ENTER_FADE_DELAY_MS,
+      withTiming(1, {
+        duration: ATTENDANCE_ROW_ENTER_MS - ENTER_FADE_DELAY_MS,
+        easing: SETTLE,
+      })
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally runs once on mount
   }, []);
 
   useEffect(() => {
     if (!exiting) return;
-    opacity.value = withTiming(0, { duration: 180 });
-    itemHeight.value = withTiming(0, { duration: 200 }, (done) => {
+    opacity.value = withTiming(0, { duration: LEAVE_MS, easing: SETTLE });
+    itemHeight.value = closeLater((done) => {
       if (done && onExited) runOnJS(onExited)();
     });
-    marginBottomValue.value = withTiming(0, { duration: 200 });
+    marginBottomValue.value = closeLater();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when exiting flips true
   }, [exiting]);
-
-  useEffect(() => {
-    if (revealTrigger === 0) return;
-    opacity.value = 0;
-    opacity.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.cubic) });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when trigger increments
-  }, [revealTrigger]);
 
   const setSnapClosed = useCallback(() => setSnapVisual("closed"), []);
   const setSnapPrimary = useCallback(() => setSnapVisual("primary"), []);
@@ -132,12 +152,12 @@ function AttendanceRowBase({
     editSnapped.value = false;
     primarySnapped.value = false;
     runOnJS(setSnapClosed)();
+    translateX.value = withTiming(-rowWidth, { duration: LEAVE_MS, easing: SETTLE });
+    opacity.value = withTiming(0, { duration: LEAVE_MS, easing: SETTLE });
+    itemHeight.value = closeLater();
+    marginBottomValue.value = closeLater();
     if (onActionStart) runOnJS(onActionStart)();
     runOnJS(onAction)();
-    translateX.value = withTiming(-rowWidth, { duration: 180 });
-    opacity.value = withTiming(0, { duration: 180 });
-    marginBottomValue.value = withTiming(0, { duration: 200 });
-    itemHeight.value = withTiming(0, { duration: 200 });
   };
   /* eslint-enable react-hooks/immutability */
 
@@ -445,7 +465,7 @@ const styles = StyleSheet.create({
   actionHit: {
     position: "absolute",
     top: 0,
-    height: 72,
+    height: ROW_HEIGHT,
     zIndex: 1,
     borderRadius: radius.lg,
   },
@@ -455,7 +475,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
-    minHeight: 72,
+    minHeight: ROW_HEIGHT,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     borderRadius: radius.lg,
