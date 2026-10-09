@@ -13,7 +13,7 @@ All notable changes to **The SHED** mobile app. This project follows
   New leaders have usually been signed in as members for a year or more
   before they join staff, so they end up as two people: their staff record
   and their old member record, and Insights counts them twice. The new tab
-  pairs each staff person in the year you're viewing with members who look
+  pairs each staff person in the current staff year with members who look
   like them — the same name (however it was spaced or ordered), an added
   middle name, or a shortened first name like "Sam" for "Samuel" — and
   leaves out anyone on a different campus. Each pair shows the member's
@@ -24,8 +24,8 @@ All notable changes to **The SHED** mobile app. This project follows
   suggested again and is noted in the attendance audit log.
 - **The tab only appears while there's something to sort out.** It shows a
   count beside its name, and disappears once every pair has been merged or
-  marked as not the same. Only admins see it, and only for this staff year
-  and next.
+  marked as not the same. Only admins see it, and only on the current staff
+  year: next year's staff are left until their year starts.
 
 ## [2.4.2] — 2026-10-09
 

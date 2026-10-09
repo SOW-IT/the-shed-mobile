@@ -14,7 +14,7 @@ import { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { logAttendanceAction } from "./attendanceAudit";
 import { latestStaffProfile } from "./attendanceMembers";
-import { optionalEmail, requireAdmin, rolesOf } from "./model";
+import { currentStaffYear, optionalEmail, requireAdmin, rolesOf } from "./model";
 
 export type MergeCandidate = {
   memberId: Id<"attendanceMembers">;
@@ -36,16 +36,18 @@ export type MergeSuggestion = {
 };
 
 /**
- * Staff in `year` who look like someone still in attendance as a plain
- * member: a similar name, and the same campus when both have one. Merging
+ * Staff in the current staff year who look like someone still in attendance
+ * as a plain member: a similar name, and the same campus when both have one. Merging
  * (the existing member → staff merge) or "Not the same" clears a pair, so an
- * empty list means the year is reconciled.
+ * empty list means the year is reconciled. Next year's staff aren't
+ * suggested: they're merged once their year starts.
  */
 export const list = query({
-  args: { year: v.number() },
-  handler: async (ctx, { year }): Promise<MergeSuggestion[] | null> => {
+  args: {},
+  handler: async (ctx): Promise<MergeSuggestion[] | null> => {
     if ((await optionalEmail(ctx)) === null) return null;
     await requireAdmin(ctx);
+    const year = currentStaffYear();
 
     const fields = await ctx.db.query("attendanceMetadata").collect();
     const roleField = fields.find((f) => f.key === ROLE_FIELD_KEY);
@@ -62,6 +64,30 @@ export const list = query({
       )
     );
 
+    // One member can match several staff (two staff with the same name), so
+    // each member's sign-ins are read once.
+    const histories = new Map<
+      Id<"attendanceMembers">,
+      { signIns: number; lastSignIn: number | null }
+    >();
+    const historyOf = async (memberId: Id<"attendanceMembers">) => {
+      let history = histories.get(memberId);
+      if (!history) {
+        const records = await ctx.db
+          .query("attendance")
+          .withIndex("by_member", (q) => q.eq("memberId", memberId))
+          .collect();
+        history = {
+          signIns: records.length,
+          lastSignIn: records.length
+            ? Math.max(...records.map((r) => r.signInTime))
+            : null,
+        };
+        histories.set(memberId, history);
+      }
+      return history;
+    };
+
     const suggestions: MergeSuggestion[] = [];
     for (const profile of allProfiles) {
       if (profile.year !== year) continue;
@@ -76,10 +102,6 @@ export const list = query({
         if (!match || dismissed.has(`${staffKey}|${row._id}`)) continue;
         const campus = resolveUniversity(fields, row.metadata);
         if (!campusCompatible(universities, campus)) continue;
-        const records = await ctx.db
-          .query("attendance")
-          .withIndex("by_member", (q) => q.eq("memberId", row._id))
-          .collect();
         const rawRole = roleField ? row.metadata?.[roleField._id] : undefined;
         candidates.push({
           memberId: row._id,
@@ -88,10 +110,7 @@ export const list = query({
           campus,
           role: rawRole ? (roleField?.values?.[rawRole] ?? rawRole) : undefined,
           match,
-          signIns: records.length,
-          lastSignIn: records.length
-            ? Math.max(...records.map((r) => r.signInTime))
-            : null,
+          ...(await historyOf(row._id)),
         });
       }
       if (candidates.length === 0) continue;

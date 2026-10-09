@@ -327,17 +327,19 @@ export default function AdminScreen() {
       setTab(tabParam);
     }
   }, [tabParam]);
-  // Staff who look like someone still in attendance as a member. The Merges
-  // tab only shows while there are any, so it goes once the year is reconciled.
+  // This staff year's staff who look like someone still in attendance as a
+  // member. The Merges tab only shows on this year and while there are any,
+  // so it goes once the year is reconciled.
+  const viewingCurrentYear = selectedYear === currentYear;
   const mergeSuggestions = useQuery(
     api.mergeSuggestions.list,
-    isAdmin && editable ? { year: selectedYear } : "skip"
+    isAdmin && viewingCurrentYear ? {} : "skip"
   );
   const mergeCount = (mergeSuggestions ?? []).reduce(
     (n, s) => n + s.candidates.length,
     0
   );
-  const showMerges = isAdmin && editable && mergeCount > 0;
+  const showMerges = isAdmin && viewingCurrentYear && mergeCount > 0;
   useEffect(() => {
     if (tab === "merges" && mergeSuggestions && !showMerges) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- leave the tab once it empties
@@ -984,7 +986,7 @@ export default function AdminScreen() {
       {key === "merges" && mergeSuggestions && (
         <SuggestedMerges
           suggestions={mergeSuggestions}
-          staffYear={selectedYear}
+          staffYear={currentYear}
           run={run}
           onMerged={(summary) => setToast({ text: summary })}
         />

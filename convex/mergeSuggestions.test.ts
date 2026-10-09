@@ -38,6 +38,10 @@ async function setup() {
     await staff("hana.doe2@sowaustralia.com", "Hana Doe", YEAR - 1, [
       { role: "Student Leader", university: USYD },
     ]);
+    // Staff from next year only: not suggested until their year starts.
+    await staff("mia.doe@sow.org.au", "Mia Doe", YEAR + 1, [
+      { role: "Student Leader", university: USYD },
+    ]);
     return {
       campusField: await ctx.db.insert("attendanceMetadata", {
         key: "Campus",
@@ -90,13 +94,14 @@ describe("suggested merges", () => {
     await s.member("Hana Doerr", { [s.campusField]: "usyd" }); // another name
     await s.member("Hana Doe", {}, HANA); // their own staff row
     await s.member("Hana Doe", {}, "hana.doe2@sow.org.au"); // last year's staff
+    await s.member("Mia Doe", { [s.campusField]: "usyd" }); // next year's staff
     const alex = await s.member("Alex Morgan", {
       [s.campusField]: "usyd",
       [s.roleField]: "member",
     });
     const alexTyped = await s.member("Alexander Morgan", { [s.roleField]: "Leader" });
 
-    const suggestions = await s.admin.query(api.mergeSuggestions.list, { year: YEAR });
+    const suggestions = await s.admin.query(api.mergeSuggestions.list, {});
 
     expect(suggestions).toEqual([
       {
@@ -143,12 +148,29 @@ describe("suggested merges", () => {
         ],
       },
     ]);
-    // Other years' staff are only suggested when that year is viewed.
-    expect(
-      (await s.admin.query(api.mergeSuggestions.list, { year: YEAR - 1 }))?.map(
-        (x) => x.staffEmail
-      )
-    ).toEqual(["hana.doe2@sowaustralia.com"]);
+  });
+
+  test("one member can be suggested for two staff with the same name", async () => {
+    const s = await setup();
+    await s.t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email: "hana.doe3@sow.org.au",
+        name: "Hana Doe3",
+        year: YEAR,
+        assignments: [{ role: "Student Leader", university: USYD }],
+      })
+    );
+    const hana = await s.member("Hana Doe", { [s.campusField]: "usyd" });
+    await s.signIn(hana, 5_000);
+
+    const suggestions = await s.admin.query(api.mergeSuggestions.list, {});
+
+    expect(suggestions?.map((x) => [x.staffEmail, x.candidates])).toEqual(
+      [HANA, "hana.doe3@sow.org.au"].map((email) => [
+        email,
+        [expect.objectContaining({ memberId: hana, signIns: 1, lastSignIn: 5_000 })],
+      ])
+    );
   });
 
   test("a merged or dismissed pair stops being suggested", async () => {
@@ -170,7 +192,7 @@ describe("suggested merges", () => {
     // Saying it twice is harmless.
     await s.admin.mutation(api.mergeSuggestions.dismiss, { staffEmail: ALEX, memberId: alex });
 
-    expect(await s.admin.query(api.mergeSuggestions.list, { year: YEAR })).toEqual([]);
+    expect(await s.admin.query(api.mergeSuggestions.list, {})).toEqual([]);
     const { dismissals, audit } = await s.t.run(async (ctx) => ({
       dismissals: await ctx.db.query("mergeSuggestionDismissals").collect(),
       audit: await ctx.db
@@ -194,8 +216,8 @@ describe("suggested merges", () => {
   test("only admins see or dismiss suggestions", async () => {
     const s = await setup();
     const alex = await s.member("Alex Morgan");
-    expect(await s.t.query(api.mergeSuggestions.list, { year: YEAR })).toBeNull();
-    await expect(s.leader.query(api.mergeSuggestions.list, { year: YEAR })).rejects.toThrow(
+    expect(await s.t.query(api.mergeSuggestions.list, {})).toBeNull();
+    await expect(s.leader.query(api.mergeSuggestions.list, {})).rejects.toThrow(
       /Only admins/
     );
     await expect(
@@ -219,7 +241,7 @@ describe("suggested merges", () => {
     const s = await setup();
     await s.t.run((ctx) => ctx.db.delete(s.roleField));
     await s.member("Alex Morgan", { [s.roleField]: "member" });
-    const suggestions = await s.admin.query(api.mergeSuggestions.list, { year: YEAR });
+    const suggestions = await s.admin.query(api.mergeSuggestions.list, {});
     expect(suggestions?.[0].candidates[0].role).toBeUndefined();
   });
 });
