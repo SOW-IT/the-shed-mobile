@@ -55,7 +55,9 @@ export const draftFromAnswers = (
   return draft;
 };
 
-/** The draft as answers to submit: typed amounts become numbers, half-picked date-times drop. */
+/** The draft as answers to submit: typed amounts become numbers, and cleared
+ *  dates and half-picked date-times drop, so an optional date left empty isn't
+ *  sent as "" (which reads as an invalid date). */
 export const answersFromDraft = (fields: readonly FormField[], draft: FormDraft): FormAnswers => {
   const answers: FormAnswers = { ...draft };
   for (const field of fields) {
@@ -65,6 +67,7 @@ export const answersFromDraft = (fields: readonly FormField[], draft: FormDraft)
       if (value.trim() === "") delete answers[field.key];
       else answers[field.key] = Number(value);
     }
+    if (field.kind === "date" && value === "") delete answers[field.key];
     if (field.kind === "dateTime" && (value === "T" || value === "")) delete answers[field.key];
   }
   return answers;
@@ -115,7 +118,13 @@ const DateTimeInput = ({
     <View style={{ flexDirection: "row", gap: spacing.sm }}>
       {Platform.OS === "web" ? (
         <>
-          <WebDateInput label="Date" value={date} min={min} onChange={(d) => set(d, time)} />
+          <WebDateInput
+            label="Date"
+            value={date}
+            min={min}
+            onChange={(d) => set(d, time)}
+            onClear={field.required ? undefined : () => onChange("")}
+          />
           <WebTimeInput label="Time" value={time} onChange={(tm) => set(date, tm)} />
         </>
       ) : (
@@ -240,6 +249,7 @@ const FieldInput = ({
           value={text}
           min={field.notInPast ? minDate : undefined}
           onChange={(v) => set(field.key, v)}
+          onClear={field.required ? undefined : () => set(field.key, "")}
         />
       ) : (
         <NativeDateInput
