@@ -23,6 +23,7 @@ import { WebDateInput, WebTimeInput } from "@/components/WebDateTimeInput";
 import {
   Btn,
   Card,
+  Checkbox,
   ConfirmDialog,
   EmptyState,
   ErrorBanner,
@@ -88,34 +89,6 @@ const Counter = ({ value, max }: { value: string; max: number }) => {
     >
       {value.length}/{max}
     </Text>
-  );
-};
-
-const Checkbox = ({
-  checked,
-  onToggle,
-  label,
-}: {
-  checked: boolean;
-  onToggle: () => void;
-  label: string;
-}) => {
-  const t = useAppTheme();
-  return (
-    <Pressable
-      onPress={onToggle}
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked }}
-      accessibilityLabel={label}
-      style={({ pressed }) => [styles.checkRow, pressed && { opacity: 0.7 }]}
-    >
-      <Ionicons
-        name={checked ? "checkbox" : "square-outline"}
-        size={24}
-        color={checked ? t.primary : t.faint}
-      />
-      <Txt style={{ flex: 1, fontWeight: "600" }}>{label}</Txt>
-    </Pressable>
   );
 };
 
@@ -483,7 +456,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm + 2,
   },
-  checkRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   dateRow: { flexDirection: "row", gap: spacing.sm },
   rowTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   sentRow: {

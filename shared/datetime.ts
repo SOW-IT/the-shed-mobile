@@ -27,6 +27,18 @@ export const parseDateInputValue = (value: string): Date | null => {
   return date;
 };
 
+/** A YYYY-MM-DD value moved by whole calendar days, or null when it can't
+ *  be read. Steps the calendar, not 24-hour blocks, so DST can't skip a day. */
+export const addDaysToDateInputValue = (
+  value: string,
+  days: number
+): string | null => {
+  const date = parseDateInputValue(value);
+  if (!date) return null;
+  date.setDate(date.getDate() + days);
+  return toDateInputValue(date);
+};
+
 export const parseTimeInputValue = (
   value: string
 ): { hours: number; minutes: number } | null => {

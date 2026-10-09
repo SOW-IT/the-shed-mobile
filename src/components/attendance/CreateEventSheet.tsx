@@ -7,6 +7,7 @@ import {
 import {
   Btn,
   CannotUndo,
+  Checkbox,
   ConfirmDialog,
   dismissKeyboard,
   errorMessage,
@@ -26,12 +27,15 @@ import { SYDNEY_TIME_ZONE } from "../../../shared/flow";
 import { api } from "../../../convex/_generated/api";
 import { Doc, Id } from "../../../convex/_generated/dataModel";
 import {
+  addDaysToDateInputValue,
   pad2,
-  parseDateTimeInputValues,
   toDateInputValue,
   toTimeInputValue,
 } from "../../../shared/datetime";
 import {
+  endDateAfterStartChange,
+  eventWindowFromInputs,
+  isMultiDayEvent,
   subgroupLabel,
   subgroupMatches,
 } from "../../../shared/rollcall";
@@ -79,6 +83,8 @@ export function CreateEventSheet({
   const [selectedTags, setSelectedTags] = useState<Id<"attendanceTags">[]>([]);
   const [collaborators, setCollaborators] = useState<string[]>([subgroup]);
   const [dateStr, setDateStr] = useState(defaultDate());
+  const [endDateStr, setEndDateStr] = useState(defaultDate());
+  const [multiDay, setMultiDay] = useState(false);
   const [startTime, setStartTime] = useState(defaultTime(17));
   const [endTime, setEndTime] = useState(defaultTime(19));
   const [error, setError] = useState<string | null>(null);
@@ -95,6 +101,7 @@ export function CreateEventSheet({
     tags: [] as Id<"attendanceTags">[],
     collaborators: [subgroup],
     dateStr: defaultDate(),
+    endDateStr: defaultDate(),
     startTime: defaultTime(17),
     endTime: defaultTime(19),
   });
@@ -118,6 +125,7 @@ export function CreateEventSheet({
       tags: event?.tagIds ?? [],
       collaborators: event?.subgroups ?? [ownerGroup],
       dateStr: event ? dateInputFromMs(event.dateStart) : defaultDate(),
+      endDateStr: event ? dateInputFromMs(event.dateEnd) : defaultDate(),
       startTime: event ? timeInputFromMs(event.dateStart) : defaultTime(17),
       endTime: event ? timeInputFromMs(event.dateEnd) : defaultTime(19),
     };
@@ -127,6 +135,8 @@ export function CreateEventSheet({
     setSelectedTags(snapshot.tags);
     setCollaborators(snapshot.collaborators);
     setDateStr(snapshot.dateStr);
+    setEndDateStr(snapshot.endDateStr);
+    setMultiDay(snapshot.dateStr !== snapshot.endDateStr);
     setStartTime(snapshot.startTime);
     setEndTime(snapshot.endTime);
     setError(null);
@@ -143,6 +153,8 @@ export function CreateEventSheet({
     setSelectedTags([]);
     setCollaborators([subgroup]);
     setDateStr(defaultDate());
+    setEndDateStr(defaultDate());
+    setMultiDay(false);
     setStartTime(defaultTime(17));
     setEndTime(defaultTime(19));
     setError(null);
@@ -152,6 +164,7 @@ export function CreateEventSheet({
       tags: [],
       collaborators: [subgroup],
       dateStr: defaultDate(),
+      endDateStr: defaultDate(),
       startTime: defaultTime(17),
       endTime: defaultTime(19),
     });
@@ -190,18 +203,39 @@ export function CreateEventSheet({
     });
   };
 
+  const changeStartDate = (next: string) => {
+    setEndDateStr((end) => endDateAfterStartChange(dateStr, next, end));
+    setDateStr(next);
+  };
+
+  // A one-day event ends on its start date; ticking multi-day starts the end
+  // on the next day.
+  const toggleMultiDay = () => {
+    if (multiDay) {
+      setMultiDay(false);
+      setEndDateStr(dateStr);
+      return;
+    }
+    setMultiDay(true);
+    setEndDateStr(addDaysToDateInputValue(dateStr, 1) ?? dateStr);
+  };
+
   const submit = async () => {
     if (submitting) return;
     setSubmitting(true);
     setError(null);
-    const dateStart = parseDateTimeInputValues(dateStr, startTime);
-    let dateEnd = parseDateTimeInputValues(dateStr, endTime);
-    if (dateStart === null || dateEnd === null) {
-      setError("Enter a valid date (YYYY-MM-DD) and times (HH:MM).");
+    const schedule = eventWindowFromInputs({
+      startDate: dateStr,
+      startTime,
+      endDate: multiDay ? endDateStr : dateStr,
+      endTime,
+    });
+    if ("error" in schedule) {
+      setError(schedule.error);
       setSubmitting(false);
       return;
     }
-    if (dateEnd <= dateStart) dateEnd = dateStart + 2 * 60 * 60 * 1000;
+    const { dateStart, dateEnd } = schedule;
     try {
       const payload = {
         name,
@@ -252,6 +286,7 @@ export function CreateEventSheet({
     !sameMembers(selectedTags, initial.tags) ||
     !sameMembers(collaborators, initial.collaborators) ||
     dateStr !== initial.dateStr ||
+    endDateStr !== initial.endDateStr ||
     startTime !== initial.startTime ||
     endTime !== initial.endTime;
 
@@ -436,10 +471,23 @@ export function CreateEventSheet({
           {Platform.OS === "web" ? (
             <>
               <WebDateInput
-                label="Date"
+                label={multiDay ? "Start date" : "Date"}
                 value={dateStr}
-                onChange={setDateStr}
+                onChange={changeStartDate}
               />
+              <Checkbox
+                checked={multiDay}
+                onToggle={toggleMultiDay}
+                label="Multi-day event"
+              />
+              {multiDay ? (
+                <WebDateInput
+                  label="End date"
+                  value={endDateStr}
+                  min={addDaysToDateInputValue(dateStr, 1) ?? dateStr}
+                  onChange={setEndDateStr}
+                />
+              ) : null}
               <View style={{ flexDirection: "row", gap: spacing.sm }}>
                 <WebTimeInput
                   label="Start time"
@@ -456,10 +504,23 @@ export function CreateEventSheet({
           ) : (
             <>
               <NativeDateInput
-                label="Date"
+                label={multiDay ? "Start date" : "Date"}
                 value={dateStr}
-                onChange={setDateStr}
+                onChange={changeStartDate}
               />
+              <Checkbox
+                checked={multiDay}
+                onToggle={toggleMultiDay}
+                label="Multi-day event"
+              />
+              {multiDay ? (
+                <NativeDateInput
+                  label="End date"
+                  value={endDateStr}
+                  min={addDaysToDateInputValue(dateStr, 1) ?? dateStr}
+                  onChange={setEndDateStr}
+                />
+              ) : null}
               <View style={{ flexDirection: "row", gap: spacing.sm }}>
                 <NativeTimeInput
                   label="Start time"
@@ -561,8 +622,12 @@ export function CreateEventSheet({
                           {p.name}
                         </Txt>
                         <Txt style={[typography.caption, { color: t.muted }]}>
-                          {new Date(p.signInTime).toLocaleTimeString("en-AU", {
+                          {new Date(p.signInTime).toLocaleString("en-AU", {
                             timeZone: SYDNEY_TIME_ZONE,
+                            ...(event &&
+                            isMultiDayEvent(event.dateStart, event.dateEnd)
+                              ? { weekday: "short", day: "numeric", month: "short" }
+                              : {}),
                             hour: "numeric",
                             minute: "2-digit",
                           })}

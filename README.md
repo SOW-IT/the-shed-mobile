@@ -122,6 +122,8 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
 - **Events & roll-call**: create events tagged with one or more sub-groups
   (multi-sub-group = a *collaborative* event that appears under each), then sign
   people in/out. Attendees are staff (by email) or attendance-only **members**.
+  An event can run over several days (a camp or conference); each person
+  signs in once for the whole event.
   Post-event sign-ins can be reversed; sign-ins made during an event can't,
   except within 10 minutes of being made.
 - **Tags & metadata**: per-year event tags (including the **"Weekly Meeting"**

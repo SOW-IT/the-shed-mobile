@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  addDaysToDateInputValue,
   compactAgo,
   pad2,
   parseDateInputValue,
@@ -139,5 +140,22 @@ describe("compactAgo", () => {
 
   it("defaults `now` to the current time", () => {
     expect(compactAgo(Date.now())).toBe("now");
+  });
+});
+
+describe("addDaysToDateInputValue", () => {
+  it("moves by calendar days across month and year ends", () => {
+    expect(addDaysToDateInputValue("2026-10-31", 1)).toBe("2026-11-01");
+    expect(addDaysToDateInputValue("2026-12-31", 1)).toBe("2027-01-01");
+    expect(addDaysToDateInputValue("2026-10-12", -2)).toBe("2026-10-10");
+  });
+
+  it("crosses the October daylight-saving change without skipping a day", () => {
+    expect(addDaysToDateInputValue("2026-10-03", 1)).toBe("2026-10-04");
+    expect(addDaysToDateInputValue("2026-10-04", 1)).toBe("2026-10-05");
+  });
+
+  it("returns null for a value it can't read", () => {
+    expect(addDaysToDateInputValue("", 1)).toBeNull();
   });
 });

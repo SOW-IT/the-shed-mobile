@@ -6,6 +6,8 @@ import {
   contrastingText,
   defaultAttendanceSubgroup,
   defaultEventWindow,
+  endDateAfterStartChange,
+  eventWindowFromInputs,
   capitalizeMemberName,
   displayNameFromEmail,
   eventHasEnded,
@@ -16,6 +18,7 @@ import {
   formatEventDate,
   formatEventRange,
   formatSignInTime,
+  isMultiDayEvent,
   memberMatchesEventCampus,
   normalizeSubgroups,
   personDisplayName,
@@ -343,6 +346,28 @@ describe("formatters", () => {
     expect(label).toMatch(/\d/);
   });
 
+  test("formatSignInTime puts the day in front for a multi-day event", () => {
+    const ms = new Date(2026, 5, 24, 17, 3).getTime();
+    const label = formatSignInTime(ms, true);
+    expect(label).toMatch(/24/);
+    expect(label.endsWith(formatSignInTime(ms))).toBe(true);
+  });
+
+  test("isMultiDayEvent compares calendar days, not hours", () => {
+    expect(
+      isMultiDayEvent(
+        new Date(2026, 5, 24, 9, 0).getTime(),
+        new Date(2026, 5, 24, 23, 0).getTime()
+      )
+    ).toBe(false);
+    expect(
+      isMultiDayEvent(
+        new Date(2026, 5, 24, 22, 0).getTime(),
+        new Date(2026, 5, 25, 1, 0).getTime()
+      )
+    ).toBe(true);
+  });
+
   test("formatEventRange shows a dotted start date then a lowercased time span", () => {
     const label = formatEventRange(
       new Date(2026, 5, 24, 17, 0).getTime(),
@@ -350,7 +375,107 @@ describe("formatters", () => {
     );
     expect(label).toMatch(/^24\.06\.26, /);
     expect(label).toContain(" - ");
+    expect(label).not.toContain("26.06.26");
     expect(label).toBe(label.toLowerCase());
+  });
+
+  test("formatEventRange names the end date when the event runs over several days", () => {
+    const label = formatEventRange(
+      new Date(2026, 5, 24, 17, 0).getTime(),
+      new Date(2026, 5, 26, 12, 0).getTime()
+    );
+    expect(label).toMatch(/^24\.06\.26, .+ - 26\.06\.26, /);
+  });
+});
+
+describe("multi-day schedule", () => {
+  test("builds a window that ends on a later day", () => {
+    expect(
+      eventWindowFromInputs({
+        startDate: "2026-10-10",
+        startTime: "17:00",
+        endDate: "2026-10-12",
+        endTime: "12:00",
+      })
+    ).toEqual({
+      dateStart: new Date(2026, 9, 10, 17, 0).getTime(),
+      dateEnd: new Date(2026, 9, 12, 12, 0).getTime(),
+    });
+  });
+
+  test("an overnight event ends the next morning", () => {
+    const window = eventWindowFromInputs({
+      startDate: "2026-10-10",
+      startTime: "20:00",
+      endDate: "2026-10-11",
+      endTime: "01:00",
+    });
+    expect(window).toEqual({
+      dateStart: new Date(2026, 9, 10, 20, 0).getTime(),
+      dateEnd: new Date(2026, 9, 11, 1, 0).getTime(),
+    });
+  });
+
+  test("rejects an end that isn't after the start", () => {
+    expect(
+      eventWindowFromInputs({
+        startDate: "2026-10-12",
+        startTime: "17:00",
+        endDate: "2026-10-10",
+        endTime: "19:00",
+      })
+    ).toEqual({ error: "The event has to end after it starts." });
+    expect(
+      eventWindowFromInputs({
+        startDate: "2026-10-10",
+        startTime: "17:00",
+        endDate: "2026-10-10",
+        endTime: "17:00",
+      })
+    ).toEqual({ error: "The event has to end after it starts." });
+  });
+
+  test("rejects dates or times it can't read", () => {
+    expect(
+      eventWindowFromInputs({
+        startDate: "2026-10-10",
+        startTime: "17:00",
+        endDate: "",
+        endTime: "19:00",
+      })
+    ).toEqual({ error: "Enter valid dates (YYYY-MM-DD) and times (HH:MM)." });
+  });
+
+  test("moving the start keeps a one-day event on one day", () => {
+    expect(endDateAfterStartChange("2026-10-10", "2026-10-17", "2026-10-10")).toBe(
+      "2026-10-17"
+    );
+  });
+
+  test("moving the start keeps a multi-day event the same length", () => {
+    expect(endDateAfterStartChange("2026-10-10", "2026-10-30", "2026-10-12")).toBe(
+      "2026-11-01"
+    );
+    expect(endDateAfterStartChange("2026-10-10", "2026-10-08", "2026-10-12")).toBe(
+      "2026-10-10"
+    );
+  });
+
+  test("an end already before the start snaps to the new start unless it now fits", () => {
+    expect(endDateAfterStartChange("2026-10-10", "2026-10-12", "2026-10-09")).toBe(
+      "2026-10-12"
+    );
+    expect(endDateAfterStartChange("2026-10-10", "2026-10-05", "2026-10-09")).toBe(
+      "2026-10-09"
+    );
+    expect(endDateAfterStartChange("bad", "2026-10-05", "2026-10-09")).toBe(
+      "2026-10-09"
+    );
+    expect(endDateAfterStartChange("2026-10-10", "2026-10-12", "")).toBe("2026-10-12");
+  });
+
+  test("an unreadable new start leaves the end alone", () => {
+    expect(endDateAfterStartChange("2026-10-10", "", "2026-10-12")).toBe("2026-10-12");
   });
 });
 

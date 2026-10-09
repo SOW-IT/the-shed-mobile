@@ -49,6 +49,13 @@ _Avoid_: member campus, university
 **Collaborative event**:
 An event tagged with more than one Sub-group. It appears under each of them.
 
+**Multi-day event**:
+An event whose end falls on a later calendar day than its start, such as a
+camp or conference. It is still one event with one attendance list: each
+Member signs in once, and its sign-ins show the day as well as the time.
+Insights and the staff year go by the day it starts.
+_Avoid_: per-day attendance (there isn't any), series
+
 **Merge**:
 Folding a duplicate Member into the one who is kept: every attendance record
 moves across, and an event both were signed in to becomes one record (earlier

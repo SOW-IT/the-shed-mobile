@@ -6,6 +6,29 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.4.1] — 2026-10-09
+
+### Added
+- **Attendance events can run over several days.** On the Schedule step when
+  creating or editing an event, tick **Multi-day event** and an End date
+  appears under the date, so a camp, conference or retreat can be one event
+  from its first day to its last, and an evening event can run past midnight.
+  The End date starts on the day after and can't be set any earlier.
+  Moving the Start date carries the End date along with it, so a three-day
+  camp stays three days long. Untick it and the event is back to one day.
+  Everyone still signs in once for the whole event.
+- **A multi-day event shows both dates.** The events list and the event page
+  show the full range (for example "10.10.26, 5:00 pm - 12.10.26, 12:00 pm"),
+  and the event stays LIVE until it finishes on its last day. Each sign-in
+  shows the day as well as the time, so Saturday's sign-ins read apart from
+  Friday's.
+
+### Changed
+- **An end time before the start time now says so** ("The event has to end
+  after it starts.") instead of quietly moving the end to two hours after the
+  start. For an event that finishes after midnight, tick Multi-day event and
+  set the End date to the next day.
+
 ## [2.4.0] — 2026-10-09
 
 ### Added
