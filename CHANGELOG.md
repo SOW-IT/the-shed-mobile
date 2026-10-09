@@ -6,6 +6,21 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.4.4] — 2026-10-09
+
+### Fixed
+- **Signing people in and out of an event moves smoothly.** Swiping a member
+  now slides their card away and closes the gap in one motion, while their
+  card opens its space in the other list and fades in on the same curve, so
+  it reads as the person moving across rather than a jump. The card under the
+  one you swiped no longer flickers, the arriving card shows its full details
+  straight away instead of filling in a moment later, and a swiped card
+  stays put until its space has closed even when the server answers quickly.
+  The screen also does far less work per swipe, so there's no stutter on big
+  events, and scrolling down the Not signed in list no longer jumps back
+  after each sign-in. If a sign-in or sign-out fails, the card comes back
+  instead of staying hidden.
+
 ## [2.4.3] — 2026-10-09
 
 ### Added
