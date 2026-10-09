@@ -6,6 +6,21 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.4.5] — 2026-10-09
+
+### Added
+- **Profiles show when someone was last online.** Under their email it says
+  "Last online 5m ago" (or 3h, 2d, 3w ago…), so you can tell whether a
+  message or approval is likely to be seen soon. People who have never
+  signed in to The SHED say so instead. Only signed-in staff see it, and it
+  isn't shown on your own profile. The app and website note that you have
+  them open, at most every 5 minutes; for the time before this, your last
+  sign-in activity is used.
+- **Admin → Users marks staff who haven't signed in.** Their cards carry a
+  NOT SIGNED IN badge, and the top of the list says how many of this year's
+  staff haven't signed in yet, with **Show only them** to list just those
+  people (and Show everyone to go back).
+
 ## [2.4.4] — 2026-10-09
 
 ### Fixed
