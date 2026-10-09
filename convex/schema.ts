@@ -485,6 +485,15 @@ export default defineSchema({
     .index("by_source_import_id", ["sourceImportId"])
     .index("by_name", ["name"]),
 
+  // An admin said this member isn't this staff person, so Admin → Merges
+  // stops suggesting the pair. `staffEmail` is the canonical email key.
+  mergeSuggestionDismissals: defineTable({
+    staffEmail: v.string(),
+    memberId: v.id("attendanceMembers"),
+    dismissedBy: v.string(),
+    dismissedAt: v.number(),
+  }).index("by_staff_and_member", ["staffEmail", "memberId"]),
+
   attendance: defineTable({
     eventId: v.id("events"),
     email: v.optional(v.string()),

@@ -65,6 +65,14 @@ keeps their Org-owned name, email, campus and role. Two staff can never be
 merged, and a Member can't carry a staff email.
 _Avoid_: combine, dedupe, delete (deleting throws the attendance away)
 
+**Suggested merge**:
+A staff person in the year an admin is viewing who looks like a Member still
+in attendance: a similar name (same, spaced or ordered differently, an added
+middle name, or a shortened first name) and no different campus. Admin →
+Merges lists them while there are any; Merge opens the usual merge review, and
+"Not the same" stops that pair being suggested. Once every pair is merged or
+marked, the tab disappears.
+
 **Roll-call**:
 Signing Members in and out of an event. Once an event has ended, sign-ins made
 during it can only be reversed within 10 minutes of being made (the undo
