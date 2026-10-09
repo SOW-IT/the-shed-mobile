@@ -6,28 +6,14 @@ import { Btn, Sheet, Txt } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
 import {
   parseDateInputValue,
-  parseTimeInputValue,
   toDateInputValue,
   toTimeInputValue,
 } from "@shared/datetime";
-
-const inputToTime = (value: string): Date | null => {
-  const parts = parseTimeInputValue(value);
-  if (!parts) return null;
-  const d = new Date();
-  d.setHours(parts.hours, parts.minutes, 0, 0);
-  return d;
-};
-
-const formatDateDisplay = (d: Date): string =>
-  d.toLocaleDateString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-const formatTimeDisplay = (d: Date): string =>
-  d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+import {
+  formatDateDisplay,
+  formatTimeDisplay,
+  inputToTime,
+} from "./dateTimeDisplay";
 
 const clampDate = (d: Date, min?: Date, max?: Date): Date => {
   let ms = d.getTime();

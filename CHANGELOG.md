@@ -6,6 +6,19 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.4.2] — 2026-10-09
+
+### Fixed
+- **Date and time fields on the website now look like the app's.** They show
+  the day and date ("Wed, 7 Oct 2026") and the time ("5:00 pm") with a
+  calendar or clock icon in the app's font, instead of the browser's plain
+  "07/10/2026" in a different font, which Safari also pushed to the top of
+  the box. Clicking anywhere on the field opens the browser's date or time
+  picker. This covers the attendance Schedule step (including the Multi-day
+  event End date), the attendance export, scheduled announcements and Event
+  Request forms. Optional dates can be cleared with the × like in the app,
+  and the export's empty dates read "Any".
+
 ## [2.4.1] — 2026-10-09
 
 ### Added

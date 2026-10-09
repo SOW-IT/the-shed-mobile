@@ -317,14 +317,18 @@ export function ExportSheet({
                   value={fromMs ? toInputDate(fromMs) : ""}
                   min={toInputDate(MIN_DATE.getTime())}
                   max={toInputDate(toMs ?? nowMs)}
+                  placeholder="Any"
                   onChange={(s) => setFromMs(fromInputDate(s))}
+                  onClear={() => setFromMs(undefined)}
                 />
                 <WebDateInput
                   label="To"
                   value={toMs ? toInputDate(toMs) : ""}
                   min={toInputDate(fromMs ?? MIN_DATE.getTime())}
                   max={toInputDate(nowMs)}
+                  placeholder="Any"
                   onChange={(s) => setToMs(fromInputDate(s))}
+                  onClear={() => setToMs(undefined)}
                 />
               </>
             ) : (

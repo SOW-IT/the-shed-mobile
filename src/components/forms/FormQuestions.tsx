@@ -115,7 +115,13 @@ const DateTimeInput = ({
     <View style={{ flexDirection: "row", gap: spacing.sm }}>
       {Platform.OS === "web" ? (
         <>
-          <WebDateInput label="Date" value={date} min={min} onChange={(d) => set(d, time)} />
+          <WebDateInput
+            label="Date"
+            value={date}
+            min={min}
+            onChange={(d) => set(d, time)}
+            onClear={field.required ? undefined : () => onChange("")}
+          />
           <WebTimeInput label="Time" value={time} onChange={(tm) => set(date, tm)} />
         </>
       ) : (
@@ -240,6 +246,7 @@ const FieldInput = ({
           value={text}
           min={field.notInPast ? minDate : undefined}
           onChange={(v) => set(field.key, v)}
+          onClear={field.required ? undefined : () => set(field.key, "")}
         />
       ) : (
         <NativeDateInput
