@@ -6,6 +6,19 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.4.6] — 2026-10-09
+
+### Fixed
+- **Phones get notifications as soon as you sign in.** The app only signed a
+  phone up for notifications when it first opened, and only if you were
+  already signed in by then. So anyone who opened the app and then signed in
+  (everyone, the first time) got no notifications until they fully closed
+  and reopened it. Now the phone signs up the moment you sign in, including
+  when a saved sign-in loads on launch or you sign in as someone else (the
+  phone then notifies them instead). If notifications were off, turning them
+  on in Settings works the next time you come back to the app, without
+  asking again in between.
+
 ## [2.4.5] — 2026-10-09
 
 ### Added
