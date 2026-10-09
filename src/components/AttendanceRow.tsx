@@ -136,7 +136,10 @@ function AttendanceRowBase({
   useEffect(() => {
     if (!exiting) return;
     opacity.value = withTiming(0, { duration: LEAVE_MS, easing: SETTLE });
+    // Passed through closeLater, so the plugin can't see it's an animation
+    // callback: it has to be marked to run on the UI thread.
     itemHeight.value = closeLater((done) => {
+      "worklet";
       if (done && onExited) runOnJS(onExited)();
     });
     marginBottomValue.value = closeLater();

@@ -248,6 +248,44 @@ export default function EventAttendanceScreen() {
     return map;
   }, [attendance]);
 
+  // One pending cleanup per row transition: a retry replaces the timer of the
+  // attempt before it, and a failure cancels it.
+  const transitionTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  useEffect(() => {
+    const timers = transitionTimers.current;
+    return () => {
+      for (const timer of timers.values()) clearTimeout(timer);
+    };
+  }, []);
+  const afterTransition = (id: string, done: () => void) => {
+    const timers = transitionTimers.current;
+    clearTimeout(timers.get(id));
+    timers.set(
+      id,
+      setTimeout(() => {
+        timers.delete(id);
+        done();
+      }, ATTENDANCE_ROW_LEAVE_MS + LEAVE_SETTLE_MS)
+    );
+  };
+  const cancelTransition = (id: string) => {
+    clearTimeout(transitionTimers.current.get(id));
+    transitionTimers.current.delete(id);
+  };
+
+  // A change made on another device: once its row has left one list, the
+  // other list shows the real row in place, without fading it in again.
+  const settleRemoteSignedIn = (key: string) => {
+    cancelTransition(`remoteIn:${key}`);
+    setRemoteSignedIn((s) => withoutKey(s, key));
+    setSuppressFadeIn((s) => (s.has(key) ? s : new Set(s).add(key)));
+  };
+  const settleRemoteSignedOut = (key: string) => {
+    cancelTransition(`remoteOut:${key}`);
+    setRemoteSignedOut((s) => withoutKey(s, key));
+    setSuppressUnsignedFadeIn((s) => (s.has(key) ? s : new Set(s).add(key)));
+  };
+
   const prevSignedInKeysRef = useRef<Set<string>>(new Set());
   const prevAttendanceByKeyRef = useRef<
     Map<string, NonNullable<typeof attendance>[number]>
@@ -295,9 +333,15 @@ export default function EventAttendanceScreen() {
       setOptimisticSignedOut((o) => { const n = new Set(o); for (const k of confirmedSignedOut) n.delete(k); return n.size < o.size ? n : o; });
       setSuppressUnsignedFadeIn((s) => { const n = new Set(s); for (const k of confirmedSignedOut) n.add(k); return n; });
     }
-    if (genuinelyRemoteSignedIn.length > 0)
+    // The leaving row may be off the visible page (or filtered out by a
+    // search) and never report that it has finished, so these also expire.
+    if (genuinelyRemoteSignedIn.length > 0) {
       setRemoteSignedIn((r) => { const n = new Set(r); for (const k of genuinelyRemoteSignedIn) n.add(k); return n; });
-    if (genuinelyRemoteSignedOut.length > 0)
+      for (const k of genuinelyRemoteSignedIn) {
+        afterTransition(`remoteIn:${k}`, () => settleRemoteSignedIn(k));
+      }
+    }
+    if (genuinelyRemoteSignedOut.length > 0) {
       setRemoteSignedOut((r) => {
         const n = new Map(r);
         for (const k of genuinelyRemoteSignedOut) {
@@ -306,6 +350,10 @@ export default function EventAttendanceScreen() {
         }
         return n;
       });
+      for (const k of genuinelyRemoteSignedOut) {
+        afterTransition(`remoteOut:${k}`, () => settleRemoteSignedOut(k));
+      }
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- optimisticSignedIn/Out + attendance read as snapshot; only re-run when query fires
   }, [signedInKeys]);
 
@@ -536,9 +584,8 @@ export default function EventAttendanceScreen() {
   const onSignInStart = (m: NonNullable<typeof roster>[number]) => {
     setOptimisticSignedIn((prev) => new Map(prev).set(m.key, m));
     setLeavingUnsigned((prev) => new Set(prev).add(m.key));
-    setTimeout(
-      () => setLeavingUnsigned((prev) => withoutKey(prev, m.key)),
-      ATTENDANCE_ROW_LEAVE_MS + LEAVE_SETTLE_MS
+    afterTransition(`signIn:${m.key}`, () =>
+      setLeavingUnsigned((prev) => withoutKey(prev, m.key))
     );
     setSignedOutOrder((order) =>
       order.includes(m.key) ? order.filter((k) => k !== m.key) : order
@@ -553,6 +600,7 @@ export default function EventAttendanceScreen() {
         next.delete(m.key);
         return next;
       });
+      cancelTransition(`signIn:${m.key}`);
       setLeavingUnsigned((prev) => withoutKey(prev, m.key));
       retryRow(m.key);
       setToast({ text: errorMessage(e) });
@@ -570,9 +618,8 @@ export default function EventAttendanceScreen() {
     if (!key) return;
     setOptimisticSignedOut((prev) => new Set(prev).add(key));
     setLeavingSignedIn((prev) => new Map(prev).set(key, a));
-    setTimeout(
-      () => setLeavingSignedIn((prev) => withoutKey(prev, key)),
-      ATTENDANCE_ROW_LEAVE_MS + LEAVE_SETTLE_MS
+    afterTransition(`signOut:${key}`, () =>
+      setLeavingSignedIn((prev) => withoutKey(prev, key))
     );
     setSignedOutOrder((order) => [key, ...order.filter((k) => k !== key)]);
   };
@@ -587,6 +634,7 @@ export default function EventAttendanceScreen() {
           next.delete(key);
           return next;
         });
+        cancelTransition(`signOut:${key}`);
         setLeavingSignedIn((prev) => withoutKey(prev, key));
         retryRow(key);
       }
@@ -685,8 +733,8 @@ export default function EventAttendanceScreen() {
       }
     },
     exited: (mode, key) => {
-      if (mode === "suggested") setRemoteSignedIn((s) => withoutKey(s, key));
-      else setRemoteSignedOut((s) => withoutKey(s, key));
+      if (mode === "suggested") settleRemoteSignedIn(key);
+      else settleRemoteSignedOut(key);
     },
   };
   const rollCallImplRef = useRef(rollCallImpl);
