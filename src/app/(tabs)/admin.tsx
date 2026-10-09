@@ -58,6 +58,7 @@ import {
   Txt,
 } from "@/components/ui";
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
+import { SuggestedMerges } from "@/components/admin/SuggestedMerges";
 import { useAdminMutations } from "@/hooks/useAdminMutations";
 import { useGroupedProfiles } from "@/hooks/useGroupedProfiles";
 
@@ -87,7 +88,7 @@ const CardGrid = ({
   );
 };
 
-type AdminTab = "users" | "structure" | "other";
+type AdminTab = "users" | "structure" | "other" | "merges";
 const ADMIN_TABS = [
   { key: "users", label: "Users" },
   { key: "structure", label: "Structure" },
@@ -316,12 +317,40 @@ export default function AdminScreen() {
   const [tab, setTab] = useState<AdminTab>("users");
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   useEffect(() => {
-    if (tabParam === "users" || tabParam === "structure" || tabParam === "other") {
+    if (
+      tabParam === "users" ||
+      tabParam === "structure" ||
+      tabParam === "other" ||
+      tabParam === "merges"
+    ) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- deep-link tab param
       setTab(tabParam);
     }
   }, [tabParam]);
-  const activeTab: AdminTab = budgetManagerOnly ? "other" : tab;
+  // This staff year's staff who look like someone still in attendance as a
+  // member. The Merges tab only shows on this year and while there are any,
+  // so it goes once the year is reconciled.
+  const viewingCurrentYear = selectedYear === currentYear;
+  const mergeSuggestions = useQuery(
+    api.mergeSuggestions.list,
+    isAdmin && viewingCurrentYear ? {} : "skip"
+  );
+  const mergeCount = (mergeSuggestions ?? []).reduce(
+    (n, s) => n + s.candidates.length,
+    0
+  );
+  const showMerges = isAdmin && viewingCurrentYear && mergeCount > 0;
+  useEffect(() => {
+    if (tab === "merges" && mergeSuggestions && !showMerges) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- leave the tab once it empties
+      setTab("users");
+    }
+  }, [tab, mergeSuggestions, showMerges]);
+  const activeTab: AdminTab = budgetManagerOnly
+    ? "other"
+    : tab === "merges" && !showMerges
+      ? "users"
+      : tab;
   const [structureSubTab, setStructureSubTab] = useState<StructureSubTab>("roles");
 
   const structure = useQuery(
@@ -952,6 +981,15 @@ export default function AdminScreen() {
             </>
           )}
         </>
+      )}
+
+      {key === "merges" && mergeSuggestions && (
+        <SuggestedMerges
+          suggestions={mergeSuggestions}
+          staffYear={currentYear}
+          run={run}
+          onMerged={(summary) => setToast({ text: summary })}
+        />
       )}
 
       {key === "structure" && (
@@ -1699,11 +1737,23 @@ export default function AdminScreen() {
 
   const adminTabs: PagerTab[] = budgetManagerOnly
     ? [{ key: "other", label: "Other", render: () => renderTabContent("other") }]
-    : ADMIN_TABS.map((tabDef) => ({
-        key: tabDef.key,
-        label: tabDef.label,
-        render: () => renderTabContent(tabDef.key as AdminTab),
-      }));
+    : [
+        ...ADMIN_TABS.map((tabDef) => ({
+          key: tabDef.key,
+          label: tabDef.label,
+          render: () => renderTabContent(tabDef.key as AdminTab),
+        })),
+        ...(showMerges
+          ? [
+              {
+                key: "merges",
+                label: "Merges",
+                badge: mergeCount,
+                render: () => renderTabContent("merges"),
+              },
+            ]
+          : []),
+      ];
 
   return (
     <>

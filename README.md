@@ -134,6 +134,10 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   to one record). Only members can be merged away — staff are always kept and
   two staff can never merge. Typing a staff email onto a member points to
   merging too, instead of relabelling the record and splitting their history.
+  **Admin → Merges** (current staff year only, shown only while there are
+  any) lists staff who look like someone still in attendance as a member — a similar name on the same
+  campus, typically new leaders who signed in as members before joining
+  staff — with Merge (the usual review) or "Not the same" for each.
   Only admins (Data and IT, HR, the Governance head, the Director) can delete
   a member; the sheet
   lists every event whose attendance goes with them and points to merging.
