@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams } from "expo-router";
 import { ReactNode, useEffect, useState } from "react";
-import { Platform, Text, useWindowDimensions, View } from "react-native";
+import { Platform, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import {
   type Assignment,
   DIRECTOR,
@@ -384,8 +384,17 @@ export default function AdminScreen() {
   const nameByEmail = new Map((people ?? []).map((p) => [p.email, p.name]));
   const unassignedEmails = new Set((unassigned ?? []).map((u) => u.email));
 
+  // Staff who have never signed in to The SHED, and a filter to see just them.
+  const [onlyNotSignedIn, setOnlyNotSignedIn] = useState(false);
+  const notSignedInCount = (profiles ?? []).filter((p) => !p.signedIn).length;
+  // Stays on even once everyone has signed in, so the list doesn't swap
+  // under the admin; the summary line keeps its Show everyone button.
+  const showingNotSignedIn = onlyNotSignedIn;
   const { director, groupedProfiles, campusByUniversity, nonCampusOtherProfiles } =
-    useGroupedProfiles(structure, profiles);
+    useGroupedProfiles(
+      structure,
+      showingNotSignedIn ? profiles?.filter((p) => !p.signedIn) : profiles
+    );
 
   const {
     setStaffProfile,
@@ -796,8 +805,22 @@ export default function AdminScreen() {
           </>
         ) : (
           <Row>
-            <View style={{ flexGrow: 1 }}>
-              <Txt style={{ fontWeight: "600" }}>{profile.name ?? profile.email}</Txt>
+            <View style={{ flexGrow: 1, flexShrink: 1 }}>
+              <View style={styles.nameRow}>
+                <Txt style={{ fontWeight: "600", flexShrink: 1 }}>
+                  {profile.name ?? profile.email}
+                </Txt>
+                {profile.signedIn ? null : (
+                  <View
+                    accessibilityLabel="Hasn't signed in yet"
+                    style={[styles.notSignedInPill, { backgroundColor: t.warningSoft }]}
+                  >
+                    <Text style={[styles.notSignedInText, { color: t.warning }]}>
+                      NOT SIGNED IN
+                    </Text>
+                  </View>
+                )}
+              </View>
               {profile.name ? <Muted>{profile.email}</Muted> : null}
               {(profile.assignments ?? []).length > 0 ? (
                 <View style={{ marginTop: 2 }}>
@@ -857,7 +880,24 @@ export default function AdminScreen() {
 
       {key === "users" && (
         <>
-          {editable && returningStaff.length > 0 && (
+          {(notSignedInCount > 0 || showingNotSignedIn) && (
+            <View style={styles.signedInSummary}>
+              <Muted>
+                {notSignedInCount === 0
+                  ? `Everyone on staff in ${selectedYear} has signed in to The SHED.`
+                  : `${notSignedInCount} of ${(profiles ?? []).length} staff in ${selectedYear} ${
+                      notSignedInCount === 1 ? "hasn't" : "haven't"
+                    } signed in to The SHED yet.`}
+              </Muted>
+              <Btn
+                title={showingNotSignedIn ? "Show everyone" : "Show only them"}
+                variant="ghost"
+                onPress={() => setOnlyNotSignedIn((on) => !on)}
+              />
+            </View>
+          )}
+
+          {!showingNotSignedIn && editable && returningStaff.length > 0 && (
             <>
               <SectionTitle>
                 Previously staff · {selectedYear} ({returningStaff.length})
@@ -868,7 +908,7 @@ export default function AdminScreen() {
             </>
           )}
 
-          {editable && signedInNeverStaff.length > 0 && (
+          {!showingNotSignedIn && editable && signedInNeverStaff.length > 0 && (
             <>
               <SectionTitle>
                 Signed in, no assignment · {selectedYear} ({signedInNeverStaff.length})
@@ -879,7 +919,7 @@ export default function AdminScreen() {
             </>
           )}
 
-          {editable && directoryNeverStaff.length > 0 && (
+          {!showingNotSignedIn && editable && directoryNeverStaff.length > 0 && (
             <>
               <SectionTitle>
                 In directory, no assignment · {selectedYear} ({directoryNeverStaff.length})
@@ -890,7 +930,7 @@ export default function AdminScreen() {
             </>
           )}
 
-          {editable && (leavers ?? []).length > 0 && (
+          {!showingNotSignedIn && editable && (leavers ?? []).length > 0 && (
             <>
               <SectionTitle>
                 Leaving · {selectedYear} ({(leavers ?? []).length})
@@ -1833,3 +1873,29 @@ export default function AdminScreen() {
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  notSignedInPill: {
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  notSignedInText: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.4,
+  },
+  signedInSummary: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+});

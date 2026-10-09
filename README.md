@@ -47,6 +47,13 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   were staff in an earlier year and are back in the Workspace directory
   show as **Previously staff** on Admin → Users. Assigning them reuses the
   old identity so they are not treated as a new person.
+  Admin → Users marks staff who have **never signed in** to The SHED, with a
+  count and a filter to list only them.
+- **Last online**: someone else's profile shows when they last had The SHED
+  open (signed-in viewers only), or that they haven't signed in yet. The app
+  and website report it while open, at most every 5 minutes
+  (`convex/presence.ts`); before that, sign-in session refreshes and the
+  phone app's version check stand in.
 - **Design requests** to the Marketing team, from the side menu (staff who
   aren't campus leaders). The questions are defined on the server
   (`convex/designRequestForm.ts`) and rendered by the app as sent; answers
