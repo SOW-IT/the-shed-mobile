@@ -143,7 +143,7 @@ export default function TabsLayout() {
   const t = useAppTheme();
   const insets = useSafeAreaInsets();
   const waitingForRole = isAuthenticated && me === undefined;
-  usePushRegistration({ navigationReady: !waitingForRole });
+  usePushRegistration({ navigationReady: !waitingForRole, signedInAs: me?.email ?? null });
   useReportAppVersion();
   useReportSeen();
 
