@@ -16,8 +16,11 @@ All notable changes to **The SHED** mobile app. This project follows
   the box. Clicking anywhere on the field opens the browser's date or time
   picker. This covers the attendance Schedule step (including the Multi-day
   event End date), the attendance export, scheduled announcements and Event
-  Request forms. Optional dates can be cleared with the × like in the app,
-  and the export's empty dates read "Any".
+  Request forms. Optional dates can be cleared with the × like in the app.
+  Typing a date or time from the keyboard shows what you're typing.
+- **The attendance export's From date can no longer be cleared**, since an
+  export needs a start date. An empty To date now reads "Today", which is
+  what the export uses.
 
 ## [2.4.1] — 2026-10-09
 

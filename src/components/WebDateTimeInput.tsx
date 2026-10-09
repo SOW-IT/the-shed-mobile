@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { type CSSProperties, useState } from "react";
 import { Pressable, View } from "react-native";
 import { Txt } from "@/components/ui";
-import { typography, useAppTheme } from "@/theme";
+import { type AppTheme, typography, useAppTheme } from "@/theme";
 import { parseDateInputValue } from "@shared/datetime";
 import {
   formatDateDisplay,
@@ -30,6 +30,23 @@ const hiddenInputStyle: CSSProperties = {
   WebkitAppearance: "none",
   appearance: "none",
 };
+
+// While someone types into the field from the keyboard, the browser's input is
+// shown over the field so they can see the day, month or hour they're on.
+const typingInputStyle = (t: AppTheme): CSSProperties => ({
+  ...hiddenInputStyle,
+  opacity: 1,
+  cursor: "text",
+  padding: "0 12px",
+  borderRadius: 8,
+  backgroundColor: t.inputBackground,
+  color: t.text,
+  fontFamily:
+    '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+  accentColor: t.primary,
+});
+
+const NOT_TYPING_KEYS = new Set(["Tab", "Shift", "Control", "Alt", "Meta", "Escape", "Enter", " "]);
 
 /** Opens the picker on a click, not only on the browser's own picker icon. */
 const openPicker = (input: HTMLInputElement) => {
@@ -65,6 +82,7 @@ const WebPickerField = ({
 }) => {
   const t = useAppTheme();
   const [focused, setFocused] = useState(false);
+  const [typing, setTyping] = useState(false);
   return (
     <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
       <Txt style={[typography.label, { color: t.muted }]}>{label}</Txt>
@@ -97,8 +115,14 @@ const WebPickerField = ({
           onChange={(e) => onChange(e.target.value)}
           onClick={(e) => openPicker(e.currentTarget)}
           onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          style={hiddenInputStyle}
+          onKeyDown={(e) => {
+            if (!NOT_TYPING_KEYS.has(e.key)) setTyping(true);
+          }}
+          onBlur={() => {
+            setFocused(false);
+            setTyping(false);
+          }}
+          style={typing ? typingInputStyle(t) : hiddenInputStyle}
         />
         {display && onClear ? (
           // After the input and raised, so it takes the tap instead of the picker.

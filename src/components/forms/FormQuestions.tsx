@@ -55,7 +55,9 @@ export const draftFromAnswers = (
   return draft;
 };
 
-/** The draft as answers to submit: typed amounts become numbers, half-picked date-times drop. */
+/** The draft as answers to submit: typed amounts become numbers, and cleared
+ *  dates and half-picked date-times drop, so an optional date left empty isn't
+ *  sent as "" (which reads as an invalid date). */
 export const answersFromDraft = (fields: readonly FormField[], draft: FormDraft): FormAnswers => {
   const answers: FormAnswers = { ...draft };
   for (const field of fields) {
@@ -65,6 +67,7 @@ export const answersFromDraft = (fields: readonly FormField[], draft: FormDraft)
       if (value.trim() === "") delete answers[field.key];
       else answers[field.key] = Number(value);
     }
+    if (field.kind === "date" && value === "") delete answers[field.key];
     if (field.kind === "dateTime" && (value === "T" || value === "")) delete answers[field.key];
   }
   return answers;
