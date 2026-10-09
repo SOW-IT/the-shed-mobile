@@ -1,4 +1,9 @@
-import { pad2 } from "./datetime";
+import {
+  pad2,
+  parseDateInputValue,
+  parseDateTimeInputValues,
+  toDateInputValue,
+} from "./datetime";
 import { acronym, UNIVERSITY_COLOURS, universityColour } from "./flow";
 import { canonicalEmailKey } from "./rollcallImport";
 
@@ -52,6 +57,45 @@ export const defaultEventWindow = (): { dateStart: number; dateEnd: number } => 
   return { dateStart, dateEnd: dateStart + 2 * 60 * 60 * 1000 };
 };
 
+/** The event window from the Schedule step's fields. An event can run over
+ *  several days, so the end has its own date. */
+export const eventWindowFromInputs = (fields: {
+  startDate: string;
+  startTime: string;
+  endDate: string;
+  endTime: string;
+}): { dateStart: number; dateEnd: number } | { error: string } => {
+  const dateStart = parseDateTimeInputValues(fields.startDate, fields.startTime);
+  const dateEnd = parseDateTimeInputValues(fields.endDate, fields.endTime);
+  if (dateStart === null || dateEnd === null) {
+    return { error: "Enter valid dates (YYYY-MM-DD) and times (HH:MM)." };
+  }
+  if (dateEnd <= dateStart) {
+    return { error: "The event has to end after it starts." };
+  }
+  return { dateStart, dateEnd };
+};
+
+/** Where the end date goes when the start date moves: it keeps the same
+ *  number of days after the start, so a one-day event stays one day and a
+ *  three-day camp stays three days. */
+export const endDateAfterStartChange = (
+  prevStart: string,
+  nextStart: string,
+  endDate: string
+): string => {
+  const prev = parseDateInputValue(prevStart);
+  const next = parseDateInputValue(nextStart);
+  const end = parseDateInputValue(endDate);
+  if (!next) return endDate;
+  if (!prev || !end || end < prev) {
+    return end && end >= next ? endDate : nextStart;
+  }
+  const days = Math.round((end.getTime() - prev.getTime()) / (24 * 60 * 60 * 1000));
+  next.setDate(next.getDate() + days);
+  return toDateInputValue(next);
+};
+
 export const formatEventDate = (dateStart: number): string => {
   const d = new Date(dateStart);
   const date = d.toLocaleDateString(undefined, {
@@ -69,21 +113,39 @@ export const formatEventDate = (dateStart: number): string => {
 export const formatEventRange = (startMs: number, endMs: number): string => {
   const start = new Date(startMs);
   const end = new Date(endMs);
-  const date = `${pad2(start.getDate())}.${pad2(
-    start.getMonth() + 1
-  )}.${String(start.getFullYear()).slice(-2)}`;
+  const date = (dateValue: Date) =>
+    `${pad2(dateValue.getDate())}.${pad2(dateValue.getMonth() + 1)}.${String(
+      dateValue.getFullYear()
+    ).slice(-2)}`;
   const time = (dateValue: Date) =>
     dateValue
       .toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
       .toLowerCase();
-  return `${date}, ${time(start)} - ${time(end)}`;
+  if (date(start) === date(end)) {
+    return `${date(start)}, ${time(start)} - ${time(end)}`;
+  }
+  return `${date(start)}, ${time(start)} - ${date(end)}, ${time(end)}`;
 };
 
-export const formatSignInTime = (ms: number): string =>
-  new Date(ms).toLocaleTimeString(undefined, {
+/** Whether the event ends on a later calendar day than it starts. */
+export const isMultiDayEvent = (startMs: number, endMs: number): boolean =>
+  toDateInputValue(new Date(startMs)) !== toDateInputValue(new Date(endMs));
+
+/** A sign-in's clock time, with the day in front for a multi-day event so
+ *  Saturday's sign-ins read apart from Friday's. */
+export const formatSignInTime = (ms: number, withDay = false): string => {
+  const time = new Date(ms).toLocaleTimeString(undefined, {
     hour: "numeric",
     minute: "2-digit",
   });
+  if (!withDay) return time;
+  const day = new Date(ms).toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+  return `${day}, ${time}`;
+};
 
 export const capitalizeMemberName = (value: string): string =>
   value.replace(/(^|\s)\S/g, (ch) => ch.toUpperCase());

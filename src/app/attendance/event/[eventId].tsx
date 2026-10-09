@@ -19,6 +19,7 @@ import {
   eventHasEnded,
   formatEventRange,
   formatSignInTime,
+  isMultiDayEvent,
   personKey,
   SOW_SUBGROUP,
   subgroupColour,
@@ -67,12 +68,15 @@ const memberSubtitle = (member: {
   return undefined;
 };
 
-const signedInSubtitle = (member: {
-  signInTime: number;
-  notes?: string;
-  roles: string[];
-  subtitle?: string;
-}): string => {
+const signedInSubtitle = (
+  member: {
+    signInTime: number;
+    notes?: string;
+    roles: string[];
+    subtitle?: string;
+  },
+  multiDay: boolean
+): string => {
   const org = member.roles.length > 0 ? member.roles.join(" · ") : "";
   const info = [org, member.subtitle].filter(Boolean).join(" · ");
   const trimmed = member.notes?.trim();
@@ -81,7 +85,7 @@ const signedInSubtitle = (member: {
       ? `${trimmed.slice(0, 36)}…`
       : trimmed
     : "";
-  return [formatSignInTime(member.signInTime), info, notePreview]
+  return [formatSignInTime(member.signInTime, multiDay), info, notePreview]
     .filter(Boolean)
     .join(" · ");
 };
@@ -689,7 +693,10 @@ export default function EventAttendanceScreen() {
         const row = (
           <AttendanceRow
             name={a.name}
-            subtitle={signedInSubtitle(a)}
+            subtitle={signedInSubtitle(
+              a,
+              isMultiDayEvent(event.dateStart, event.dateEnd)
+            )}
             photo={a.photo ?? null}
             university={a.university}
             roles={a.roles}
