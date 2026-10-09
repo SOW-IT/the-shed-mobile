@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Pressable,
   ScrollView,
@@ -26,7 +26,11 @@ import {
   subgroupLabel,
 } from "@shared/rollcall";
 import { eventStaffYear, sydneyCalendarYear } from "@shared/flow";
-import { AttendanceRow, ATTENDANCE_ROW_ENTER_MS } from "@/components/AttendanceRow";
+import {
+  ATTENDANCE_ROW_ENTER_MS,
+  ATTENDANCE_ROW_LEAVE_MS,
+} from "@/components/AttendanceRow";
+import { RollCallRow, type RollCallHandlers } from "@/components/attendance/RollCallRow";
 import { FOOTER_MIN_CLEARANCE, footerClearance } from "@/lib/footerClearance";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import { CreateEventSheet } from "@/components/attendance/CreateEventSheet";
@@ -58,6 +62,20 @@ const UNSIGNED_LIST_HEIGHT = UNSIGNED_ROW_HEIGHT * UNSIGNED_VISIBLE_ROWS;
 const TWO_COLUMN_MIN_WIDTH = 700;
 
 const NEWLY_ADDED_CLEAR_MS = ATTENDANCE_ROW_ENTER_MS + 40;
+
+// A little longer than a leaving row's animation, so its space has closed
+// before the row is dropped from the list.
+const LEAVE_SETTLE_MS = 80;
+
+const withoutKey = <T extends Set<string> | Map<string, unknown>>(
+  collection: T,
+  key: string
+): T => {
+  if (!collection.has(key)) return collection;
+  const next = (collection instanceof Set ? new Set(collection) : new Map(collection)) as T;
+  next.delete(key);
+  return next;
+};
 
 const memberSubtitle = (member: {
   roles: string[];
@@ -155,9 +173,17 @@ export default function EventAttendanceScreen() {
     Map<string, NonNullable<typeof attendance>[number]>
   >(new Map());
 
-  const [revealTriggers, setRevealTriggers] = useState<Map<string, number>>(new Map());
-  const triggerReveal = (key: string) =>
-    setRevealTriggers((prev) => new Map(prev).set(key, (prev.get(key) ?? 0) + 1));
+  // Rows swiped away stay in their list until their space has closed, so a
+  // quick server reply can't pull them out mid-animation.
+  const [leavingUnsigned, setLeavingUnsigned] = useState<Set<string>>(new Set());
+  const [leavingSignedIn, setLeavingSignedIn] = useState<
+    Map<string, NonNullable<typeof attendance>[number]>
+  >(new Map());
+  // Bumped when a sign-in or sign-out fails, so the swiped-away row comes back
+  // as a fresh row instead of staying collapsed.
+  const [rowRetries, setRowRetries] = useState<Map<string, number>>(new Map());
+  const retryRow = (key: string) =>
+    setRowRetries((prev) => new Map(prev).set(key, (prev.get(key) ?? 0) + 1));
 
   const [suppressFadeIn, setSuppressFadeIn] = useState<Set<string>>(new Set());
   const [suppressUnsignedFadeIn, setSuppressUnsignedFadeIn] = useState<Set<string>>(
@@ -222,6 +248,44 @@ export default function EventAttendanceScreen() {
     return map;
   }, [attendance]);
 
+  // One pending cleanup per row transition: a retry replaces the timer of the
+  // attempt before it, and a failure cancels it.
+  const transitionTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  useEffect(() => {
+    const timers = transitionTimers.current;
+    return () => {
+      for (const timer of timers.values()) clearTimeout(timer);
+    };
+  }, []);
+  const afterTransition = (id: string, done: () => void) => {
+    const timers = transitionTimers.current;
+    clearTimeout(timers.get(id));
+    timers.set(
+      id,
+      setTimeout(() => {
+        timers.delete(id);
+        done();
+      }, ATTENDANCE_ROW_LEAVE_MS + LEAVE_SETTLE_MS)
+    );
+  };
+  const cancelTransition = (id: string) => {
+    clearTimeout(transitionTimers.current.get(id));
+    transitionTimers.current.delete(id);
+  };
+
+  // A change made on another device: once its row has left one list, the
+  // other list shows the real row in place, without fading it in again.
+  const settleRemoteSignedIn = (key: string) => {
+    cancelTransition(`remoteIn:${key}`);
+    setRemoteSignedIn((s) => withoutKey(s, key));
+    setSuppressFadeIn((s) => (s.has(key) ? s : new Set(s).add(key)));
+  };
+  const settleRemoteSignedOut = (key: string) => {
+    cancelTransition(`remoteOut:${key}`);
+    setRemoteSignedOut((s) => withoutKey(s, key));
+    setSuppressUnsignedFadeIn((s) => (s.has(key) ? s : new Set(s).add(key)));
+  };
+
   const prevSignedInKeysRef = useRef<Set<string>>(new Set());
   const prevAttendanceByKeyRef = useRef<
     Map<string, NonNullable<typeof attendance>[number]>
@@ -269,9 +333,15 @@ export default function EventAttendanceScreen() {
       setOptimisticSignedOut((o) => { const n = new Set(o); for (const k of confirmedSignedOut) n.delete(k); return n.size < o.size ? n : o; });
       setSuppressUnsignedFadeIn((s) => { const n = new Set(s); for (const k of confirmedSignedOut) n.add(k); return n; });
     }
-    if (genuinelyRemoteSignedIn.length > 0)
+    // The leaving row may be off the visible page (or filtered out by a
+    // search) and never report that it has finished, so these also expire.
+    if (genuinelyRemoteSignedIn.length > 0) {
       setRemoteSignedIn((r) => { const n = new Set(r); for (const k of genuinelyRemoteSignedIn) n.add(k); return n; });
-    if (genuinelyRemoteSignedOut.length > 0)
+      for (const k of genuinelyRemoteSignedIn) {
+        afterTransition(`remoteIn:${k}`, () => settleRemoteSignedIn(k));
+      }
+    }
+    if (genuinelyRemoteSignedOut.length > 0) {
       setRemoteSignedOut((r) => {
         const n = new Map(r);
         for (const k of genuinelyRemoteSignedOut) {
@@ -280,6 +350,10 @@ export default function EventAttendanceScreen() {
         }
         return n;
       });
+      for (const k of genuinelyRemoteSignedOut) {
+        afterTransition(`remoteOut:${k}`, () => settleRemoteSignedOut(k));
+      }
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- optimisticSignedIn/Out + attendance read as snapshot; only re-run when query fires
   }, [signedInKeys]);
 
@@ -312,7 +386,7 @@ export default function EventAttendanceScreen() {
     setSignedInLimit(ROSTER_PAGE_SIZE);
     lastUnsignedEndHeight.current = -1;
     lastSignedInEndHeight.current = -1;
-  }, [search, signedInKeys, event?._id]);
+  }, [search, event?._id]);
 
   const rosterByKey = useMemo(() => {
     const map = new Map<string, NonNullable<typeof roster>[number]>();
@@ -323,8 +397,17 @@ export default function EventAttendanceScreen() {
   const signedInList = useMemo(() => {
     const enteringKeys = new Set([...optimisticSignedIn.keys(), ...remoteSignedIn]);
     const real = (attendance ?? []).filter((a) => !enteringKeys.has(personKey(a)));
-    const exitingRows = [...remoteSignedOut.values()];
-    const withExiting = exitingRows.length > 0 ? [...exitingRows, ...real] : real;
+    // Rows on their way out keep their place (newest sign-in first, like the
+    // query) until their space has closed.
+    const realKeys = new Set(real.map((a) => personKey(a)));
+    const leaving = new Map<string, NonNullable<typeof attendance>[number]>();
+    for (const [key, row] of [...leavingSignedIn, ...remoteSignedOut]) {
+      if (!realKeys.has(key) && !enteringKeys.has(key)) leaving.set(key, row);
+    }
+    const withExiting =
+      leaving.size > 0
+        ? [...real, ...leaving.values()].sort((a, b) => b.signInTime - a.signInTime)
+        : real;
     if (enteringKeys.size === 0) return withExiting;
     // eslint-disable-next-line react-hooks/purity -- optimistic placeholder timestamp, replaced on confirm
     const now = Date.now();
@@ -336,6 +419,7 @@ export default function EventAttendanceScreen() {
         _creationTime: now,
         eventId: evId,
         name: m.name,
+        subtitle: m.subtitle,
         photo: m.photo ?? null,
         university: m.university,
         email: m.email ?? null,
@@ -347,21 +431,26 @@ export default function EventAttendanceScreen() {
         key: m.key,
       })) as unknown as NonNullable<typeof attendance>;
     return [...pending, ...withExiting];
-  }, [attendance, optimisticSignedIn, remoteSignedIn, remoteSignedOut, rosterByKey, evId]);
+  }, [attendance, optimisticSignedIn, remoteSignedIn, remoteSignedOut, leavingSignedIn, rosterByKey, evId]);
+
+  const signedInByKey = useMemo(
+    () => new Map(signedInList.map((a) => [personKey(a), a])),
+    [signedInList]
+  );
 
   const unsignedList = useMemo(() => {
     const enteringKeys = new Set([...optimisticSignedOut, ...remoteSignedOut.keys()]);
+    // Someone just signed in (here or elsewhere) stays in place until their
+    // row has finished leaving.
     const real = (roster ?? []).filter(
-      (m) => !signedInKeys.has(m.key) && !enteringKeys.has(m.key)
+      (m) =>
+        !enteringKeys.has(m.key) &&
+        (!signedInKeys.has(m.key) || remoteSignedIn.has(m.key) || leavingUnsigned.has(m.key))
     );
-    const exitingRows = [...remoteSignedIn]
-      .map((key) => rosterByKey.get(key))
-      .filter((m): m is NonNullable<typeof roster>[number] => m != null);
-    const withExiting = exitingRows.length > 0 ? [...exitingRows, ...real] : real;
     const pending = [...enteringKeys]
       .map((key) => rosterByKey.get(key))
       .filter((m): m is NonNullable<typeof roster>[number] => m != null);
-    const combined = enteringKeys.size === 0 ? withExiting : [...pending, ...withExiting];
+    const combined = enteringKeys.size === 0 ? real : [...pending, ...real];
 
     if (signedOutOrder.length === 0) return combined;
     const rank = new Map(signedOutOrder.map((k, i) => [k, i]));
@@ -370,7 +459,7 @@ export default function EventAttendanceScreen() {
     for (const m of combined) (rank.has(m.key) ? pinned : rest).push(m);
     pinned.sort((a, b) => rank.get(a.key)! - rank.get(b.key)!);
     return [...pinned, ...rest];
-  }, [roster, signedInKeys, optimisticSignedOut, remoteSignedIn, remoteSignedOut, rosterByKey, signedOutOrder]);
+  }, [roster, signedInKeys, optimisticSignedOut, remoteSignedIn, remoteSignedOut, leavingUnsigned, rosterByKey, signedOutOrder]);
 
   const unsignedKeySig = useMemo(
     () => unsignedList.map((m) => m.key).join(" "),
@@ -492,20 +581,12 @@ export default function EventAttendanceScreen() {
     setSignedInLimit((limit) => limit + ROSTER_PAGE_SIZE);
   }, [hasMoreSignedIn]);
 
-  if (event === undefined || attendance === undefined || subgroups === undefined) {
-    return <LoadingState />;
-  }
-  if (event === null) {
-    return (
-      <Screen title="Event" onBack={() => router.back()}>
-        <EmptyState icon="lock-closed-outline" title="Event not found" />
-      </Screen>
-    );
-  }
-  if (roster === undefined) return <LoadingState />;
-
   const onSignInStart = (m: NonNullable<typeof roster>[number]) => {
     setOptimisticSignedIn((prev) => new Map(prev).set(m.key, m));
+    setLeavingUnsigned((prev) => new Set(prev).add(m.key));
+    afterTransition(`signIn:${m.key}`, () =>
+      setLeavingUnsigned((prev) => withoutKey(prev, m.key))
+    );
     setSignedOutOrder((order) =>
       order.includes(m.key) ? order.filter((k) => k !== m.key) : order
     );
@@ -519,6 +600,9 @@ export default function EventAttendanceScreen() {
         next.delete(m.key);
         return next;
       });
+      cancelTransition(`signIn:${m.key}`);
+      setLeavingUnsigned((prev) => withoutKey(prev, m.key));
+      retryRow(m.key);
       setToast({ text: errorMessage(e) });
     };
     if (m.kind === "staff" && m.email) {
@@ -533,6 +617,10 @@ export default function EventAttendanceScreen() {
     const key = personKey(a);
     if (!key) return;
     setOptimisticSignedOut((prev) => new Set(prev).add(key));
+    setLeavingSignedIn((prev) => new Map(prev).set(key, a));
+    afterTransition(`signOut:${key}`, () =>
+      setLeavingSignedIn((prev) => withoutKey(prev, key))
+    );
     setSignedOutOrder((order) => [key, ...order.filter((k) => k !== key)]);
   };
   const onSignOut = (a: NonNullable<typeof attendance>[number]) => {
@@ -546,6 +634,9 @@ export default function EventAttendanceScreen() {
           next.delete(key);
           return next;
         });
+        cancelTransition(`signOut:${key}`);
+        setLeavingSignedIn((prev) => withoutKey(prev, key));
+        retryRow(key);
       }
       setToast({ text: errorMessage(e) });
     };
@@ -611,6 +702,67 @@ export default function EventAttendanceScreen() {
     else if (a.email) void openEdit({ staffEmail: a.email, attendance: attendanceCtx });
   };
 
+  // Rows call back by key through one stable object, so a sign-in only
+  // re-renders the rows it changes (see RollCallRow).
+  const rollCallImpl: RollCallHandlers = {
+    actionStart: (mode, key) => {
+      if (mode === "suggested") {
+        const m = rosterByKey.get(key);
+        if (m) onSignInStart(m);
+      } else {
+        const a = signedInByKey.get(key);
+        if (a) onSignOutStart(a);
+      }
+    },
+    action: (mode, key) => {
+      if (mode === "suggested") {
+        const m = rosterByKey.get(key);
+        if (m) onSignIn(m);
+      } else {
+        const a = signedInByKey.get(key);
+        if (a) onSignOut(a);
+      }
+    },
+    edit: (mode, key) => {
+      if (mode === "suggested") {
+        const m = rosterByKey.get(key);
+        if (m) editRosterEntry(m);
+      } else {
+        const a = signedInByKey.get(key);
+        if (a) editSignedIn(a);
+      }
+    },
+    exited: (mode, key) => {
+      if (mode === "suggested") settleRemoteSignedIn(key);
+      else settleRemoteSignedOut(key);
+    },
+  };
+  const rollCallImplRef = useRef(rollCallImpl);
+  useLayoutEffect(() => {
+    rollCallImplRef.current = rollCallImpl;
+  });
+  const rollCallHandlers = useMemo<RollCallHandlers>(
+    () => ({
+      actionStart: (mode, key) => rollCallImplRef.current.actionStart(mode, key),
+      action: (mode, key) => rollCallImplRef.current.action(mode, key),
+      edit: (mode, key) => rollCallImplRef.current.edit(mode, key),
+      exited: (mode, key) => rollCallImplRef.current.exited(mode, key),
+    }),
+    []
+  );
+
+  if (event === undefined || attendance === undefined || subgroups === undefined) {
+    return <LoadingState />;
+  }
+  if (event === null) {
+    return (
+      <Screen title="Event" onBack={() => router.back()}>
+        <EmptyState icon="lock-closed-outline" title="Event not found" />
+      </Screen>
+    );
+  }
+  if (roster === undefined) return <LoadingState />;
+
   const notSignedInHeader = (
     <View style={[styles.section, styles.sectionHeader]}>
       <Text style={[typography.label, { color: t.muted }]}>Not signed in</Text>
@@ -640,33 +792,32 @@ export default function EventAttendanceScreen() {
           newlyAddedUnsigned.has(m.key);
         const isExiting = remoteSignedIn.has(m.key);
         const isAnimating = isEntering || isExiting;
+        const busy = isAnimating || leavingUnsigned.has(m.key);
         const isSuppressed = suppressUnsignedFadeIn.has(m.key);
-        // Not signed in sits above (or left of) Signed in, so it fades in first.
-        const staggerIndex = index;
-        const nextKey = visibleUnsigned[index + 1]?.key;
+        const rowKey = `${m.key}#${rowRetries.get(m.key) ?? 0}`;
         const row = (
-          <AttendanceRow
+          <RollCallRow
+            rowKey={m.key}
+            mode="suggested"
             name={m.name}
             subtitle={memberSubtitle(m)}
             photo={m.photo ?? null}
             university={m.university}
             roles={m.roles}
-            mode="suggested"
-            disabled={isAnimating || !canEdit}
+            disabled={busy || !canEdit}
             dimmed={!canEdit}
             entering={isEntering}
             exiting={isExiting}
-            revealTrigger={revealTriggers.get(m.key) ?? 0}
-            onExited={isExiting ? () => setRemoteSignedIn((s) => { const n = new Set(s); n.delete(m.key); return n; }) : undefined}
-            onActionStart={isAnimating || !canEdit ? undefined : () => { onSignInStart(m); if (nextKey) triggerReveal(nextKey); }}
-            onAction={() => { if (!isAnimating && canEdit) onSignIn(m); }}
-            onEdit={!isAnimating && canEdit ? () => editRosterEntry(m) : undefined}
+            actionable={!busy && canEdit}
+            editable={!busy && canEdit}
+            handlers={rollCallHandlers}
           />
         );
+        // Not signed in sits above (or left of) Signed in, so it fades in first.
         return isAnimating || isSuppressed ? (
-          <View key={m.key}>{row}</View>
+          <View key={rowKey}>{row}</View>
         ) : (
-          <FadeInView key={m.key} delay={Math.min(staggerIndex, 12) * 35}>{row}</FadeInView>
+          <FadeInView key={rowKey} delay={Math.min(index, 12) * 35}>{row}</FadeInView>
         );
       })}
       {visibleUnsigned.length < filteredUnsignedList.length ? (
@@ -679,45 +830,43 @@ export default function EventAttendanceScreen() {
 
   // Signed in follows the rows visible in the Not signed in box.
   const signedInStaggerOffset = Math.min(visibleUnsigned.length, UNSIGNED_VISIBLE_ROWS);
+  const multiDay = isMultiDayEvent(event.dateStart, event.dateEnd);
 
   const signedInRows = (
     <>
       {visibleSignedIn.map((a, index) => {
-        const isEntering = (a._id as string).startsWith("optimistic:");
-        const isExiting = remoteSignedOut.has(personKey(a));
-        const isAnimating = isEntering || isExiting;
         const aKey = personKey(a);
+        const isEntering = (a._id as string).startsWith("optimistic:");
+        const isExiting = remoteSignedOut.has(aKey);
+        const isAnimating = isEntering || isExiting;
+        const busy = isAnimating || leavingSignedIn.has(aKey);
         const isSuppressed = suppressFadeIn.has(aKey);
-        const nextKey = personKey(visibleSignedIn[index + 1] ?? {});
-        const rowKey = aKey || (a._id as string);
+        const locked = !canReverseSignIn(event, a.signInTime, clock) || !canEdit;
+        const rowKey = `${aKey || (a._id as string)}#${rowRetries.get(aKey) ?? 0}`;
         const row = (
-          <AttendanceRow
+          <RollCallRow
+            rowKey={aKey}
+            mode="signedIn"
             name={a.name}
-            subtitle={signedInSubtitle(
-              a,
-              isMultiDayEvent(event.dateStart, event.dateEnd)
-            )}
+            subtitle={signedInSubtitle(a, multiDay)}
             photo={a.photo ?? null}
             university={a.university}
             roles={a.roles}
-            mode="signedIn"
-            disabled={
-              !canReverseSignIn(event, a.signInTime, clock) || !canEdit || isAnimating
-            }
-            dimmed={!canReverseSignIn(event, a.signInTime, clock) || !canEdit}
+            disabled={locked || busy}
+            dimmed={locked}
             entering={isEntering}
             exiting={isExiting}
-            revealTrigger={revealTriggers.get(aKey) ?? 0}
-            onExited={isExiting ? () => setRemoteSignedOut((s) => { const n = new Map(s); n.delete(aKey); return n; }) : undefined}
-            onActionStart={isAnimating ? undefined : () => { onSignOutStart(a); if (nextKey) triggerReveal(nextKey); }}
-            onAction={() => { if (!isAnimating) onSignOut(a); }}
-            onEdit={canEdit && !isAnimating ? () => editSignedIn(a) : undefined}
+            actionable={!busy}
+            editable={canEdit && !busy}
+            handlers={rollCallHandlers}
           />
         );
         return isAnimating || isSuppressed ? (
           <View key={rowKey}>{row}</View>
         ) : (
-          <FadeInView key={rowKey} delay={Math.min(signedInStaggerOffset + index, 12) * 35}>{row}</FadeInView>
+          <FadeInView key={rowKey} delay={Math.min(signedInStaggerOffset + index, 12) * 35}>
+            {row}
+          </FadeInView>
         );
       })}
       {visibleSignedIn.length < filteredSignedInList.length ? (
