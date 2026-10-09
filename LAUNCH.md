@@ -17,13 +17,6 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 ## Still outstanding
 
-- [ ] **Copy the old web app's event forms into production** once 2.3.0's
-      backend is deployed: `gcloud auth login` (an account with access to
-      `theshedsow`), then `node scripts/import-event-requests.mjs --dry-run`
-      and `node scripts/import-event-requests.mjs --prod`. Safe to re-run;
-      events already acted on in THE SHED are left alone. Then merge the
-      `theshed` change that sends the old Event Forms pages to
-      `/event-requests`, so nobody keeps using them.
 
 - [ ] **Copy the old web app's design requests into production** once 2.2.0's
       backend is deployed: `gcloud auth login` (an account with access to
@@ -68,6 +61,15 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 Recorded so nobody re-does them. Each was confirmed against the live
 deployments, not assumed.
+
+**Old event forms copied in, and the old pages redirect** — 2.3.0's import
+ran against production after the Convex deploy, and the old web app's Event
+Forms pages now send people to `/event-requests` (SOW-IT/theshed#3).
+*Evidence (2026-10-07): `import-event-requests.mjs --prod` inserted 20 events
+(13 approved, 5 cancelled, SAF26 and SOW Camp 2027 in progress) with 60 forms;
+`theshedsow.web.app/event-form` and an old `/event-sub-form/…` link both land
+on theshed.sow.org.au. Re-running the import is still safe if anyone used the
+old pages before the redirect.*
 
 **Accounts and signing** — Apple Developer (Team ID `4FH642K7X2`), Google Play
 and Expo accounts all exist; EAS holds the iOS credentials and the Android
