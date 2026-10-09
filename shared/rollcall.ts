@@ -1,4 +1,5 @@
 import {
+  addDaysToDateInputValue,
   pad2,
   parseDateInputValue,
   parseDateTimeInputValues,
@@ -92,8 +93,7 @@ export const endDateAfterStartChange = (
     return end && end >= next ? endDate : nextStart;
   }
   const days = Math.round((end.getTime() - prev.getTime()) / (24 * 60 * 60 * 1000));
-  next.setDate(next.getDate() + days);
-  return toDateInputValue(next);
+  return addDaysToDateInputValue(nextStart, days) ?? nextStart;
 };
 
 export const formatEventDate = (dateStart: number): string => {

@@ -7,6 +7,7 @@ import {
 import {
   Btn,
   CannotUndo,
+  Checkbox,
   ConfirmDialog,
   dismissKeyboard,
   errorMessage,
@@ -26,6 +27,7 @@ import { SYDNEY_TIME_ZONE } from "../../../shared/flow";
 import { api } from "../../../convex/_generated/api";
 import { Doc, Id } from "../../../convex/_generated/dataModel";
 import {
+  addDaysToDateInputValue,
   pad2,
   toDateInputValue,
   toTimeInputValue,
@@ -82,6 +84,7 @@ export function CreateEventSheet({
   const [collaborators, setCollaborators] = useState<string[]>([subgroup]);
   const [dateStr, setDateStr] = useState(defaultDate());
   const [endDateStr, setEndDateStr] = useState(defaultDate());
+  const [multiDay, setMultiDay] = useState(false);
   const [startTime, setStartTime] = useState(defaultTime(17));
   const [endTime, setEndTime] = useState(defaultTime(19));
   const [error, setError] = useState<string | null>(null);
@@ -133,6 +136,7 @@ export function CreateEventSheet({
     setCollaborators(snapshot.collaborators);
     setDateStr(snapshot.dateStr);
     setEndDateStr(snapshot.endDateStr);
+    setMultiDay(snapshot.dateStr !== snapshot.endDateStr);
     setStartTime(snapshot.startTime);
     setEndTime(snapshot.endTime);
     setError(null);
@@ -150,6 +154,7 @@ export function CreateEventSheet({
     setCollaborators([subgroup]);
     setDateStr(defaultDate());
     setEndDateStr(defaultDate());
+    setMultiDay(false);
     setStartTime(defaultTime(17));
     setEndTime(defaultTime(19));
     setError(null);
@@ -203,6 +208,18 @@ export function CreateEventSheet({
     setDateStr(next);
   };
 
+  // A one-day event ends on its start date; ticking multi-day starts the end
+  // on the next day.
+  const toggleMultiDay = () => {
+    if (multiDay) {
+      setMultiDay(false);
+      setEndDateStr(dateStr);
+      return;
+    }
+    setMultiDay(true);
+    setEndDateStr(addDaysToDateInputValue(dateStr, 1) ?? dateStr);
+  };
+
   const submit = async () => {
     if (submitting) return;
     setSubmitting(true);
@@ -210,7 +227,7 @@ export function CreateEventSheet({
     const schedule = eventWindowFromInputs({
       startDate: dateStr,
       startTime,
-      endDate: endDateStr,
+      endDate: multiDay ? endDateStr : dateStr,
       endTime,
     });
     if ("error" in schedule) {
@@ -454,16 +471,23 @@ export function CreateEventSheet({
           {Platform.OS === "web" ? (
             <>
               <WebDateInput
-                label="Start date"
+                label={multiDay ? "Start date" : "Date"}
                 value={dateStr}
                 onChange={changeStartDate}
               />
-              <WebDateInput
-                label="End date"
-                value={endDateStr}
-                min={dateStr}
-                onChange={setEndDateStr}
+              <Checkbox
+                checked={multiDay}
+                onToggle={toggleMultiDay}
+                label="Multi-day event"
               />
+              {multiDay ? (
+                <WebDateInput
+                  label="End date"
+                  value={endDateStr}
+                  min={addDaysToDateInputValue(dateStr, 1) ?? dateStr}
+                  onChange={setEndDateStr}
+                />
+              ) : null}
               <View style={{ flexDirection: "row", gap: spacing.sm }}>
                 <WebTimeInput
                   label="Start time"
@@ -480,16 +504,23 @@ export function CreateEventSheet({
           ) : (
             <>
               <NativeDateInput
-                label="Start date"
+                label={multiDay ? "Start date" : "Date"}
                 value={dateStr}
                 onChange={changeStartDate}
               />
-              <NativeDateInput
-                label="End date"
-                value={endDateStr}
-                min={dateStr}
-                onChange={setEndDateStr}
+              <Checkbox
+                checked={multiDay}
+                onToggle={toggleMultiDay}
+                label="Multi-day event"
               />
+              {multiDay ? (
+                <NativeDateInput
+                  label="End date"
+                  value={endDateStr}
+                  min={addDaysToDateInputValue(dateStr, 1) ?? dateStr}
+                  onChange={setEndDateStr}
+                />
+              ) : null}
               <View style={{ flexDirection: "row", gap: spacing.sm }}>
                 <NativeTimeInput
                   label="Start time"
@@ -504,10 +535,6 @@ export function CreateEventSheet({
               </View>
             </>
           )}
-          <Txt style={[typography.caption, { color: t.muted }]}>
-            For a camp or conference, set the end date to the last day.
-            Everyone signs in once for the whole event.
-          </Txt>
         </View>
       ) : null}
 

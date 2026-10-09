@@ -299,6 +299,38 @@ export const OptionRow = ({
   );
 };
 
+/** A tick box with its label beside it; the whole row toggles. */
+export const Checkbox = ({
+  checked,
+  onToggle,
+  label,
+}: {
+  checked: boolean;
+  onToggle: () => void;
+  label: string;
+}) => {
+  const t = useAppTheme();
+  return (
+    <Pressable
+      onPress={onToggle}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked }}
+      accessibilityLabel={label}
+      style={({ pressed }) => [
+        { flexDirection: "row", alignItems: "center", gap: spacing.md },
+        pressed && { opacity: 0.7 },
+      ]}
+    >
+      <Ionicons
+        name={checked ? "checkbox" : "square-outline"}
+        size={24}
+        color={checked ? t.primary : t.faint}
+      />
+      <Txt style={{ flex: 1, fontWeight: "600" }}>{label}</Txt>
+    </Pressable>
+  );
+};
+
 export const YearPill = ({
   year,
   years,
