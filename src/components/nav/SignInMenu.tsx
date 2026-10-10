@@ -6,17 +6,13 @@ import {
   useAppleSignIn,
   useAppleSignInAvailable,
 } from "@/hooks/useAppleSignIn";
-import {
-  type GoogleProvider,
-  type SignInOutcome,
-  useGoogleSignIn,
-} from "@/hooks/useGoogleSignIn";
+import { type SignInOutcome, useGoogleSignIn } from "@/hooks/useGoogleSignIn";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 export type SignInMenuAnchor = { top: number; left: number };
 
 /**
- * The sign-in choices (SOW account, personal Google, Apple) as a small menu
+ * The sign-in choices (SOW account, Apple) as a small menu
  * dropping from wherever `anchor` puts it. `children` renders the button that
  * opens it.
  */
@@ -29,15 +25,13 @@ export const SignInMenu = ({
 }) => {
   const t = useAppTheme();
   const [visible, setVisible] = useState(false);
-  const sow = useGoogleSignIn("google");
-  const personal = useGoogleSignIn("googlePersonal");
+  const sow = useGoogleSignIn();
   const apple = useAppleSignIn();
   const appleAvailable = useAppleSignInAvailable();
-  const busy = sow.busy || personal.busy || apple.busy;
-  const error = sow.error ?? personal.error ?? apple.error;
+  const busy = sow.busy || apple.busy;
+  const error = sow.error ?? apple.error;
   const clearError = () => {
     sow.clearError();
-    personal.clearError();
     apple.clearError();
   };
   const open = () => {
@@ -51,13 +45,13 @@ export const SignInMenu = ({
   };
   const signInAndClose = async (
     signIn: () => Promise<SignInOutcome>,
-    kind: GoogleProvider | "apple"
+    kind: "sow" | "apple"
   ) => {
     setVisible(false);
     clearError();
     const outcome = await signIn();
     if (outcome === "rejected") {
-      if (kind === "googlePersonal" || kind === "apple") {
+      if (kind === "apple") {
         Alert.alert(
           "Use your SOW account",
           "That looks like a SOW organisation account. Please tap “Sign in with your SOW account” to sign in with it.",
@@ -66,7 +60,9 @@ export const SignInMenu = ({
       } else {
         Alert.alert(
           "SOW account required",
-          "Only SOW organisation accounts can sign in here. To browse as a guest, tap “Sign in with Google” instead.",
+          appleAvailable
+            ? "Only SOW organisation accounts can sign in here. To browse as a guest, tap “Sign in with Apple” instead."
+            : "Only SOW organisation accounts can sign in here.",
           [{ text: "OK" }]
         );
       }
@@ -102,7 +98,7 @@ export const SignInMenu = ({
           >
             <Pressable
               disabled={busy}
-              onPress={() => void signInAndClose(sow.signInWithGoogle, "google")}
+              onPress={() => void signInAndClose(sow.signInWithGoogle, "sow")}
               accessibilityRole="button"
               accessibilityLabel="Sign in with your SOW account"
               style={({ pressed }) => [styles.item, pressed && { opacity: 0.6 }]}
@@ -114,25 +110,6 @@ export const SignInMenu = ({
               )}
               <Text style={[typography.headline, { color: t.text }]}>
                 Sign in with your SOW account
-              </Text>
-            </Pressable>
-            <View style={[styles.divider, { backgroundColor: t.separator }]} />
-            <Pressable
-              disabled={busy}
-              onPress={() =>
-                void signInAndClose(personal.signInWithGoogle, "googlePersonal")
-              }
-              accessibilityRole="button"
-              accessibilityLabel="Sign in with a personal Google account"
-              style={({ pressed }) => [styles.item, pressed && { opacity: 0.6 }]}
-            >
-              {personal.busy ? (
-                <SowSpinner size={18} onDark={t.dark} />
-              ) : (
-                <Ionicons name="logo-google" size={18} color={t.text} />
-              )}
-              <Text style={[typography.headline, { color: t.text }]}>
-                Sign in with Google
               </Text>
             </Pressable>
             {appleAvailable ? (

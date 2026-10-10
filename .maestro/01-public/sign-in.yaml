@@ -1,4 +1,4 @@
-# §1.4 Sign-in — top-left Sign in → Sign in with Google → staff tools appear in place.
+# §1.4 Sign-in — top-left Sign in → Sign in with your SOW account → staff tools appear in place.
 appId: ${APP_ID}
 tags:
   - auth

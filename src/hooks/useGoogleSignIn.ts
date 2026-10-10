@@ -10,9 +10,10 @@ maybeCompleteAuthSession();
 
 const REDIRECT_GRACE_MS = 2500;
 
-export type GoogleProvider = "google" | "googlePersonal";
-
 export type SignInOutcome = "signed-in" | "cancelled" | "rejected" | "error";
+
+// The SOW (sow.org.au) Google provider in convex/auth.ts.
+const PROVIDER = "google";
 
 const PENDING_PROVIDER_KEY = "pendingGoogleAuthProvider";
 
@@ -29,9 +30,7 @@ const codeFromUrl = (url: string): string | null => {
 export const useWebAuthCodeExchange = () => {
   const { signIn } = useAuthActions();
   const [error, setError] = useState<string | null>(null);
-  const [rejectedProvider, setRejectedProvider] = useState<GoogleProvider | null>(
-    null
-  );
+  const [rejected, setRejected] = useState(false);
   const [busy, setBusy] = useState(
     () =>
       Platform.OS === "web" &&
@@ -43,24 +42,21 @@ export const useWebAuthCodeExchange = () => {
     if (Platform.OS !== "web") return;
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
-    const pending = window.sessionStorage.getItem(
-      PENDING_PROVIDER_KEY
-    ) as GoogleProvider | null;
+    const pending = window.sessionStorage.getItem(PENDING_PROVIDER_KEY);
     if (!code) {
       if (pending) {
         window.sessionStorage.removeItem(PENDING_PROVIDER_KEY);
         window.history.replaceState({}, "", window.location.pathname);
         // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot on load
-        setRejectedProvider(pending);
+        setRejected(true);
       }
       return;
     }
     const exchange = () => {
       window.history.replaceState({}, "", window.location.pathname);
-      const provider = pending || "google";
       window.sessionStorage.removeItem(PENDING_PROVIDER_KEY);
       setBusy(true);
-      void signIn(provider, { code })
+      void signIn(PROVIDER, { code })
         .catch((e: unknown) => setError(errorText(e)))
         .finally(() => setBusy(false));
     };
@@ -85,15 +81,15 @@ export const useWebAuthCodeExchange = () => {
   }, [signIn]);
 
   const clearError = useCallback(() => setError(null), []);
-  const clearRejected = useCallback(() => setRejectedProvider(null), []);
+  const clearRejected = useCallback(() => setRejected(false), []);
 
-  return { busy, error, rejectedProvider, clearError, clearRejected };
+  return { busy, error, rejected, clearError, clearRejected };
 };
 
 const errorText = (e: unknown): string =>
   e instanceof Error ? e.message : String(e);
 
-export const useGoogleSignIn = (provider: GoogleProvider = "google") => {
+export const useGoogleSignIn = () => {
   const { signIn } = useAuthActions();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -103,9 +99,9 @@ export const useGoogleSignIn = (provider: GoogleProvider = "google") => {
     setBusy(true);
     try {
       if (Platform.OS === "web") {
-        window.sessionStorage.setItem(PENDING_PROVIDER_KEY, provider);
+        window.sessionStorage.setItem(PENDING_PROVIDER_KEY, PROVIDER);
         // Back to this page afterwards, so an emailed link still lands where it pointed.
-        await signIn(provider, {
+        await signIn(PROVIDER, {
           redirectTo: `${window.location.origin}${window.location.pathname}`,
         });
         return "cancelled";
@@ -114,7 +110,7 @@ export const useGoogleSignIn = (provider: GoogleProvider = "google") => {
       const redirectTo = makeRedirectUri({
         scheme: Array.isArray(scheme) ? scheme[0] : scheme,
       });
-      const { redirect } = await signIn(provider, { redirectTo });
+      const { redirect } = await signIn(PROVIDER, { redirectTo });
       if (!redirect) {
         setBusy(false);
         return "cancelled";
@@ -167,7 +163,7 @@ export const useGoogleSignIn = (provider: GoogleProvider = "google") => {
       );
       const code = outcome.url ? codeFromUrl(outcome.url) : null;
       if (code) {
-        await signIn(provider, { code });
+        await signIn(PROVIDER, { code });
         setBusy(false);
         return "signed-in";
       }

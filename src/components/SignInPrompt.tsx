@@ -8,7 +8,7 @@ import { spacing } from "@/theme";
  * say): sign in with a SOW account and come back to this page.
  */
 export const SignInPrompt = ({ what }: { what: string }) => {
-  const sow = useGoogleSignIn("google");
+  const sow = useGoogleSignIn();
   return (
     <ReadableColumn>
       <EmptyState
@@ -18,7 +18,7 @@ export const SignInPrompt = ({ what }: { what: string }) => {
       />
       <View style={{ gap: spacing.sm, alignItems: "center" }}>
         <Btn
-          title="Sign in with Google"
+          title="Sign in with your SOW account"
           icon="logo-google"
           loading={sow.busy}
           onPress={() => void sow.signInWithGoogle()}

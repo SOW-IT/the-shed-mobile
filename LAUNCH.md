@@ -93,8 +93,9 @@ and push tokens are not in the dataset. *Evidence: `bq ls
 theshedsow:convex_production` and those row counts on 2026-09-01.*
 
 **Google OAuth** — `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` and
-`AUTH_ALLOWED_DOMAIN` are set on **both** deployments, covering the `google`
-and `googlePersonal` providers.
+`AUTH_ALLOWED_DOMAIN` are set on **both** deployments, for the `google`
+provider (SOW accounts only; the `googlePersonal` provider was removed in
+2.4.7).
 
 **Workspace directory sync** — `GOOGLE_SA_CLIENT_EMAIL`,
 `GOOGLE_SA_PRIVATE_KEY` and `GOOGLE_ADMIN_IMPERSONATE` are set on **both**
