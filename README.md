@@ -104,8 +104,8 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   `google` provider, for `sow.org.au` staff accounts only (`hd` hint +
   server-side domain check). Personal Google accounts can't sign in (the
   `googlePersonal` provider was removed in 2.4.7); **visitors** (accounts with
-  no staff profile) sign in with Apple. Name/email sync from the Google
-  profile on each sign-in.
+  no staff profile) can sign in with Apple, which is offered on iOS only.
+  Name/email sync from the Google profile on each sign-in.
 - **Email notifications** via Resend: submitter confirmation, "needs your
   approval" to the next approver at every step, declines (with reason),
   receipt-ready-to-pay to the Finance Head, paid confirmation, and a Budget
