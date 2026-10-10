@@ -151,26 +151,6 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         };
       },
     }),
-    Google({
-      id: "googlePersonal",
-      clientId: process.env.AUTH_GOOGLE_ID,
-      clientSecret: process.env.AUTH_GOOGLE_SECRET,
-      authorization: { params: { prompt: "select_account" } },
-      profile(profile) {
-        const email = (profile.email ?? "").toLowerCase();
-        if (email.endsWith(`@${allowedDomain}`)) {
-          throw new Error(
-            `Use "Sign in with your SOW account" for your @${allowedDomain} account.`
-          );
-        }
-        return {
-          id: profile.sub,
-          name: profile.name,
-          email,
-          image: profile.picture,
-        };
-      },
-    }),
     AppleLogin,
     ...(e2eAuthEnabled ? [E2eLogin] : []),
   ],
