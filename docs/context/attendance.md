@@ -86,18 +86,58 @@ options below the locked set but not remove the locked ones. See
 [ADR 0002](../adr/0002-campus-is-a-superset-of-university.md).
 
 **Snapshot**:
-A pre-computed metrics aggregate for one Sub-group and one trailing range,
-keyed by staff year. Current and incoming years may both have rows at once;
-Insights reads the current year only, never raw attendance.
+A pre-computed metrics aggregate for the SOW Sub-group and one trailing
+range, keyed by staff year. Current and incoming years may both have rows at
+once; Insights reads the current year only, never raw attendance. Campuses
+have no Snapshots since 2.5.0: their view comes from their Weeklies.
 _Avoid_: aggregate, cache, rollup
 
 **Nightly rebuild**:
-The one cron that keeps Snapshots fresh: every night it recomputes every
-Sub-group for the current staff year. A roll-call or event change is visible
-in Insights the next morning. The October 1 prefill job also rebuilds the year
-that has just ended so the incoming year's Snapshots start honest.
+The crons that keep Insights fresh. SOW's Snapshots are recomputed every
+night; each campus's weeklies view redoes only what the attendance change
+log says changed since the night before (often nothing). A roll-call or event
+change is visible in Insights the next morning. The October 1 prefill job also
+rebuilds the year that has just ended so the incoming year's Snapshots start
+honest.
 _Avoid_: dirty, dirty recompute (the old 15-minute mechanism, removed in 1.11)
 
+**Weekly** (held weekly):
+A campus's weekly meeting: an event tagged *Weekly Meeting*. It counts as
+held only if someone signed in to it, so a cancelled week isn't a missed
+week. A weekly tagged with several campuses counts for each.
+_Avoid_: meeting, event (for this)
+
+**Term**:
+A run of a campus's held Weeklies, worked out from the dates rather than
+entered: a gap of 18 days or more ends a run, and the run is named by the
+month it starts in (UNSW: T1 Jan–May, T2 Jun–Aug, T3 Sep–Dec; other
+campuses run **Semesters**, Sem 1 Jan–Jun and Sem 2 Jul–Dec). Runs with the
+same name are one term. Years here are calendar years, not staff years.
+_Avoid_: semester (for UNSW), staff year (for this)
+
+**Regular** / **Irregular**:
+For one Term: a Regular came to half or more of its held Weeklies (counting
+last term's too until four have been held); an Irregular is anyone else
+listed. The half is a setting.
+_Avoid_: member (Member means anyone in the attendance pool), active,
+inactive
+
+**Newcomer**:
+Someone whose first-ever Weekly at this campus was this Term. They stay a
+newcomer for the term unless they've come four or more times at the Regular
+share, when they count as Regular.
+_Avoid_: new member, first-timer
+
+**Visitor**:
+Someone whose Home campus is another campus and who has come to fewer than
+two of this campus's Weeklies this Term. With more, they're judged as
+Regular, Irregular or Newcomer like anyone else, but listed under other
+campuses.
+_Avoid_: guest (that's a non-student, see [Org](./org.md)), other campus
+(for the person)
+
 **Needs follow-up**:
-The gentle, explainable list of Members whose attendance has dropped. A
-prompt for a leader, never a judgement.
+The gentle, explainable list for the current Term: people who were coming
+(Regular, judged on the Weeklies before) but missed the last two, then
+Newcomers who missed the last one while their visit is recent. Visitors have
+their own list. A prompt for a leader, never a judgement.

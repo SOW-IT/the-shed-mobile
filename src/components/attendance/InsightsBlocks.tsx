@@ -9,6 +9,7 @@ import {
   type ViewLegendItem,
   type ViewPaint,
 } from "../../../shared/attendanceMetricsView";
+import { type WeeklyBlock } from "../../../shared/weeklyInsightsView";
 import {
   BarChart,
   BreakdownBars,
@@ -18,6 +19,7 @@ import {
   MultiStackedBarChart,
   StackedBarChart,
 } from "@/components/attendance/MetricsCharts";
+import { renderWeeklyBlock } from "@/components/attendance/WeeklyBlocks";
 import { EmptyState, FadeInView, ReadableColumn, Sheet, stagger } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
@@ -41,10 +43,15 @@ export function InsightsBlocks({
   blocks,
   width,
   onOpenMember,
+  onOpenPerson,
+  onEditMember,
 }: {
-  blocks: ViewBlock[];
+  blocks: (ViewBlock | WeeklyBlock)[];
   width: number;
   onOpenMember?: (memberId: Id<"attendanceMembers">) => void;
+  /** Campus weeklies rows open the person's page by their key. */
+  onOpenPerson?: (personKey: string) => void;
+  onEditMember?: (memberId: string) => void;
 }) {
   const t = useAppTheme();
   const router = useRouter();
@@ -71,7 +78,7 @@ export function InsightsBlocks({
     }
   };
 
-  const renderChart = (block: ViewBlock, key: string, chartWidth: number): ReactNode => {
+  const renderChart = (block: ViewBlock | WeeklyBlock, key: string, chartWidth: number): ReactNode => {
     switch (block.type) {
       case "bars": {
         const colour = paint(block.colour);
@@ -139,7 +146,7 @@ export function InsightsBlocks({
     }
   };
 
-  const renderBlock = (block: ViewBlock, key: string): ReactNode => {
+  const renderBlock = (block: ViewBlock | WeeklyBlock, key: string): ReactNode => {
     switch (block.type) {
       case "updated":
         return (
@@ -246,7 +253,7 @@ export function InsightsBlocks({
           />
         );
       default:
-        return null;
+        return renderWeeklyBlock(block, key, { onOpenPerson, onEditMember, colours: t });
     }
   };
 

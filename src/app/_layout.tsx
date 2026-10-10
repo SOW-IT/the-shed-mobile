@@ -109,6 +109,7 @@ const RootStack = () => {
             <Stack.Screen name="attendance/[subgroup]" />
             <Stack.Screen name="attendance/event/new" />
             <Stack.Screen name="attendance/event/[eventId]" />
+            <Stack.Screen name="attendance/member/[key]" />
             <Stack.Screen name="review" />
             <Stack.Screen name="edit-home" />
             <Stack.Screen name="announcements/index" />

@@ -85,7 +85,7 @@ export const showsEventRequests = showsReimbursements;
 /**
  * The phone drawer's links. The bottom tabs already cover Home, Attendance,
  * Insights and Org Chart, so it only holds what isn't down there. Signed-out
- * visitors have no drawer.
+ * people have no drawer.
  */
 export const drawerItems = (viewer: NavViewer): NavKey[] => {
   if (!viewer.signedIn) return [];

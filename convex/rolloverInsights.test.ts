@@ -128,7 +128,7 @@ describe("October rollover → Attendance Insights", () => {
     ).toEqual([]);
   });
 
-  test("the daily rebuild covers every current-year campus, including a new one", async () => {
+  test("the daily rebuilds cover SOW and every current-year campus, including a new one", async () => {
     const { t, admin, leader } = await setupBeforeRollover();
     at(ROLLOVER + 60_000);
 
@@ -136,11 +136,17 @@ describe("October rollover → Attendance Insights", () => {
     await admin.mutation(api.admin.upsertUniversity, { year: 2027, name: newCampus });
 
     await t.mutation(internal.attendanceMetrics.recomputeAll, {});
-    expect([...(await scheduledSubgroups(t))].sort()).toEqual(
-      [SOW_SUBGROUP, USYD, UNSW, newCampus].sort()
+    expect(await scheduledSubgroups(t)).toEqual([SOW_SUBGROUP]);
+    await t.mutation(internal.weeklyInsights.rebuildAll, {});
+    const campuses = await t.run(async (ctx) =>
+      (await ctx.db.system.query("_scheduled_functions").collect())
+        .filter((j) => j.name === "weeklyInsights:rebuild")
+        .map((j) => (j.args[0] as { subgroup: string }).subgroup)
     );
+    expect(campuses.sort()).toEqual([USYD, UNSW, newCampus].sort());
 
-    for (const subgroup of await scheduledSubgroups(t)) {
+    // Snapshots can still be built for any group on demand, and use 2027.
+    for (const subgroup of [USYD, newCampus]) {
       await leader.action(internal.attendanceMetrics.recomputeSubgroup, { subgroup });
     }
     const after = await snap(leader);

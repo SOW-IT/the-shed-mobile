@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { SOW_SUBGROUP } from "../shared/rollcall";
 import { api, internal } from "./_generated/api";
+import type { MutationCtx } from "./_generated/server";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -49,6 +50,25 @@ async function setup() {
   return { t, leader };
 }
 
+// A campus's weeklies index row, as weeklyInsights.rebuild writes it.
+const weeklyIndex = (
+  ctx: MutationCtx,
+  subgroup: string,
+  weeklies: { at: number; count: number; joint: boolean }[]
+) =>
+  ctx.db.insert("weeklyInsightIndex", {
+    subgroup,
+    computedAt: Date.now(),
+    periods: [],
+    currentKey: null,
+    weeklies,
+    settingsVersion: 0,
+    viewVersion: 1,
+    auditSeen: 0,
+    eventsSeen: 0,
+    nextCompareAt: Number.MAX_SAFE_INTEGER,
+  });
+
 const window = (offsetDays = 0) => {
   const dateStart = Date.now() - offsetDays * DAY;
   return { dateStart, dateEnd: dateStart + 2 * 60 * 60 * 1000 };
@@ -57,7 +77,7 @@ const window = (offsetDays = 0) => {
 describe("attendanceMetrics", () => {
   afterEach(() => vi.useRealTimers());
 
-  test("daily rebuild in the prefill window schedules current and incoming years", async () => {
+  test("daily rebuild in the prefill window schedules SOW for current and incoming years", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-09-30T11:00:00Z"));
     const { t } = await setup();
@@ -74,8 +94,9 @@ describe("attendanceMetrics", () => {
       .map((j) => j.args[0] as { subgroup: string; staffYear?: number });
     for (const year of [2026, 2027]) {
       expect(scheduled).toContainEqual({ subgroup: SOW_SUBGROUP, staffYear: year });
-      expect(scheduled).toContainEqual({ subgroup: USYD, staffYear: year });
     }
+    // Campuses are built from their weeklies by weeklyInsights.rebuildAll.
+    expect(scheduled.some((j) => j.subgroup === USYD)).toBe(false);
   });
 
   test("snapshot returns null when not signed in", async () => {
@@ -274,7 +295,7 @@ describe("attendanceMetrics", () => {
     ).resolves.toBeNull();
   });
 
-  test("recomputeAll (daily cron entry) schedules a full rebuild per sub-group", async () => {
+  test("recomputeAll (daily cron entry) schedules a full SOW rebuild only", async () => {
     const { t } = await setup();
     await expect(
       t.mutation(internal.attendanceMetrics.recomputeAll, {})
@@ -287,7 +308,7 @@ describe("attendanceMetrics", () => {
     });
     const subgroups = new Set(jobs.map((j) => j.subgroup));
     expect(subgroups.has(SOW_SUBGROUP)).toBe(true);
-    expect(subgroups.has(USYD)).toBe(true);
+    expect(subgroups.has(USYD)).toBe(false);
     expect(jobs.every((j) => j.ranges === undefined)).toBe(true);
   });
 
@@ -450,12 +471,12 @@ describe("attendanceMetrics", () => {
     expect(role?.rows.map((r) => r.label)).toEqual(["Member"]);
   });
 
-  test("recomputeNow is throttled to once per week per sub-group, not by the nightly rebuild", async () => {
+  test("recomputeNow for SOW is throttled to once per week, not by the nightly rebuild", async () => {
     const { t, leader } = await setup();
     // The nightly cron has just rebuilt this group.
     await t.run((ctx) =>
       ctx.db.insert("attendanceMetricsRuns", {
-        subgroup: USYD,
+        subgroup: SOW_SUBGROUP,
         staffYear: YEAR,
         computedAt: Date.now(),
         variants: ["4:true"],
@@ -463,28 +484,40 @@ describe("attendanceMetrics", () => {
     );
     // A manual refresh must still be allowed…
     await expect(
-      leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: USYD })
+      leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: SOW_SUBGROUP })
     ).resolves.toBeNull();
     // …and only a second manual refresh within the week is throttled.
     await expect(
-      leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: USYD })
+      leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: SOW_SUBGROUP })
     ).rejects.toThrow(/refresh again in 7 days/i);
+  });
+
+  test("recomputeNow for a campus schedules its weeklies rebuild, with no cooldown", async () => {
+    const { t, leader } = await setup();
+    await leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: USYD });
+    await leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: USYD });
+    const jobs = await t.run(async (ctx) =>
+      (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+        (j) => j.name === "weeklyInsights:rebuild"
+      )
+    );
+    expect(jobs.map((j) => j.args[0])).toEqual([{ subgroup: USYD }, { subgroup: USYD }]);
   });
 
   test("recomputeNow records the manual refresh even before any rebuild has run", async () => {
     const { t, leader } = await setup();
-    await leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: USYD });
+    await leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: SOW_SUBGROUP });
     const run = await t.run((ctx) =>
       ctx.db
         .query("attendanceMetricsRuns")
         .withIndex("by_subgroup_and_year", (q) =>
-          q.eq("subgroup", USYD).eq("staffYear", YEAR)
+          q.eq("subgroup", SOW_SUBGROUP).eq("staffYear", YEAR)
         )
         .unique()
     );
     expect(run?.lastManualRefreshAt).toBeGreaterThan(0);
     await expect(
-      leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: USYD })
+      leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: SOW_SUBGROUP })
     ).rejects.toThrow(/refresh/i);
   });
 
@@ -702,91 +735,63 @@ describe("campusWeeklyAverages", () => {
     ).toBeNull();
   });
 
-  test("returns each campus's newest current-year weekly avg, sorted desc; omits missing/stale/null", async () => {
+  test("averages each campus's weeklies in the range from its weeklies index, highest first", async () => {
     const { t, leader } = await setup();
     const admin = asUser(t, ADMIN);
     const UNSW = "UNSW";
-    for (const name of [UNSW, "Macquarie", "NoSnap Uni", "Stale Uni"]) {
+    for (const name of [UNSW, "Macquarie", "No Index Uni"]) {
       await admin.mutation(api.admin.upsertUniversity, { year: YEAR, name });
     }
+    const now = Date.now();
     await t.run(async (ctx) => {
-      const mk = (
-        subgroup: string,
-        avgWeekly: number | null,
-        opts?: { staffYear?: number; computedAt?: number }
-      ) =>
-        ctx.db.insert("attendanceMetricsSnapshots", {
-          subgroup,
-          rangeWeeks: 8,
-          includeCollaborative: true,
-          staffYear: opts?.staffYear ?? YEAR,
-          computedAt: opts?.computedAt ?? Date.now(),
-          data: snap(avgWeekly),
-        });
-      await mk(USYD, 5, { computedAt: 1000 });
-      await mk(USYD, 12, { computedAt: 2000 });
-      await mk(UNSW, 20);
-      await mk("Macquarie", null);
-      await mk("Stale Uni", 99, { staffYear: YEAR - 1 });
+      await weeklyIndex(ctx, USYD, [
+        { at: now - 2 * DAY, count: 10, joint: false },
+        { at: now - 9 * DAY, count: 15, joint: false },
+        // Joint, and outside the 4-week range respectively.
+        { at: now - 16 * DAY, count: 100, joint: true },
+        { at: now - 60 * DAY, count: 99, joint: false },
+      ]);
+      await weeklyIndex(ctx, UNSW, [{ at: now - 3 * DAY, count: 40, joint: false }]);
+      await weeklyIndex(ctx, "Macquarie", [{ at: now - 90 * DAY, count: 5, joint: false }]);
     });
-
     expect(
-      await leader.query(api.attendanceMetrics.campusWeeklyAverages, { rangeWeeks: 8 })
+      await leader.query(api.attendanceMetrics.campusWeeklyAverages, {
+        rangeWeeks: 4,
+        includeCollaborative: false,
+      })
     ).toEqual([
-      { campus: UNSW, avgWeekly: 20 },
-      { campus: USYD, avgWeekly: 12 },
+      { campus: UNSW, avgWeekly: 40 },
+      { campus: USYD, avgWeekly: 12.5 },
+    ]);
+    expect(
+      await leader.query(api.attendanceMetrics.campusWeeklyAverages, { rangeWeeks: 4 })
+    ).toEqual([
+      { campus: USYD, avgWeekly: 41.7 },
+      { campus: UNSW, avgWeekly: 40 },
     ]);
   });
 
-  test("reads the small weekly-average row the rebuild writes, not the Snapshot", async () => {
-    const { t, leader } = await setup();
+  test("the SOW rebuild still writes its small weekly-average row", async () => {
+    const { t } = await setup();
     const write = (avgWeekly: number) =>
       t.mutation(internal.attendanceMetrics.writeSnapshots, {
-        subgroup: USYD,
+        subgroup: SOW_SUBGROUP,
         staffYear: YEAR,
         computedAt: Date.now(),
         snapshots: [{ rangeWeeks: 4, includeCollaborative: true, data: snap(avgWeekly) }],
       });
     await write(30);
-    await t.run(async (ctx) => {
-      const row = (await ctx.db.query("attendanceMetricsSnapshots").collect())[0];
-      await ctx.db.patch(row._id, { data: snap(99) });
-    });
-    expect(
-      await leader.query(api.attendanceMetrics.campusWeeklyAverages, { rangeWeeks: 4 })
-    ).toEqual([{ campus: USYD, avgWeekly: 30 }]);
-
-    await t.run((ctx) =>
-      ctx.db.insert("attendanceMetricsWeeklyAverages", {
-        subgroup: USYD,
-        rangeWeeks: 4,
-        includeCollaborative: true,
-        staffYear: YEAR,
-        computedAt: 0,
-        avgWeekly: 1,
-      })
-    );
-    expect(
-      await leader.query(api.attendanceMetrics.campusWeeklyAverages, { rangeWeeks: 4 })
-    ).toEqual([{ campus: USYD, avgWeekly: 30 }]);
-
     await write(31);
     const rows = await t.run((ctx) =>
       ctx.db.query("attendanceMetricsWeeklyAverages").collect()
     );
     expect(rows.map((r) => [r.subgroup, r.rangeWeeks, r.avgWeekly])).toEqual([
-      [USYD, 4, 31],
+      [SOW_SUBGROUP, 4, 31],
     ]);
   });
 
-  test("a campus whose weekly average is null is left out", async () => {
-    const { t, leader } = await setup();
-    await t.mutation(internal.attendanceMetrics.writeSnapshots, {
-      subgroup: USYD,
-      staffYear: YEAR,
-      computedAt: Date.now(),
-      snapshots: [{ rangeWeeks: 4, includeCollaborative: true, data: snap(null) }],
-    });
+  test("a campus with no weeklies index is left out", async () => {
+    const { leader } = await setup();
     expect(
       await leader.query(api.attendanceMetrics.campusWeeklyAverages, { rangeWeeks: 4 })
     ).toEqual([]);
@@ -841,17 +846,15 @@ describe("view", () => {
 
   test("SOW leads with each campus's weekly average", async () => {
     const { t, leader } = await setup();
-    for (const [subgroup, data] of [
-      [SOW_SUBGROUP, snap()],
-      [USYD, snap(42)],
-    ] as const) {
-      await t.mutation(internal.attendanceMetrics.writeSnapshots, {
-        subgroup,
-        staffYear: YEAR,
-        computedAt: Date.now(),
-        snapshots: [{ rangeWeeks: 4, includeCollaborative: false, data }],
-      });
-    }
+    await t.mutation(internal.attendanceMetrics.writeSnapshots, {
+      subgroup: SOW_SUBGROUP,
+      staffYear: YEAR,
+      computedAt: Date.now(),
+      snapshots: [{ rangeWeeks: 4, includeCollaborative: false, data: snap() }],
+    });
+    await t.run((ctx) =>
+      weeklyIndex(ctx, USYD, [{ at: Date.now() - DAY, count: 42, joint: false }])
+    );
     const view = await leader.query(api.attendanceMetrics.view, {
       subgroup: SOW_SUBGROUP,
       rangeWeeks: 4,

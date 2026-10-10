@@ -1,6 +1,6 @@
-# Entry point for PUBLIC (signed-out) flows: guarantees a visitor state.
+# Entry point for PUBLIC (signed-out) flows: guarantees a signed-out state.
 #   • Seeded E2E build (E2E_SECRET set): a prior flow may have signed in, so use
-#     the bypass to sign out (sign-out-e2e relaunches into the visitor app).
+#     the bypass to sign out (sign-out-e2e relaunches into the signed-out app).
 #   • Otherwise (clean install / standalone with CLEAR_STATE): just launch — a
 #     fresh app is already signed out.
 appId: ${APP_ID}

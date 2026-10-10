@@ -105,7 +105,7 @@ describe("showsEventRequests", () => {
 });
 
 describe("drawerItems", () => {
-  test("signed-out visitors have no drawer", () => {
+  test("signed-out people have no drawer", () => {
     expect(drawerItems(signedOut)).toEqual([]);
   });
 
@@ -142,7 +142,7 @@ describe("drawerItems", () => {
 });
 
 describe("sidebarItems", () => {
-  test("signed-out visitors see the public pages", () => {
+  test("signed-out people see the public pages", () => {
     expect(sidebarItems(signedOut)).toEqual(["home", "insights", "org"]);
   });
 

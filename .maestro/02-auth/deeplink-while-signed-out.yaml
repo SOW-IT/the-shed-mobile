@@ -1,16 +1,16 @@
 # §2 Deep link while signed out → authenticate first, then land on the intended
-# screen. Also §0/§11: a visitor deep-linking into a staff-only tab is sent to
+# screen. Also §0/§11: someone signed out deep-linking into a staff-only tab is sent to
 # the Org Chart.
 appId: ${APP_ID}
 tags:
   - auth
 ---
 # Plain launch-fresh keeps whatever session a PRIOR flow left behind
-# (Keychain token survives) — use ensure-signed-out to guarantee a visitor
+# (Keychain token survives) — use ensure-signed-out to guarantee a signed-out user
 # start, matching 07-org-chart/org-chart.yaml's convention.
 - runFlow: ../common/ensure-signed-out.yaml
 
-# Visitor opens a staff-only deep link → bounced to Org Chart (no crash).
+# Someone signed out opens a staff-only deep link → bounced to Org Chart (no crash).
 # Bottom tabs carry a "<Name>, tab, N of N" accessibilityLabel that masks the
 # bare "Org Chart" text (README's bottom-tab convention).
 - runFlow:

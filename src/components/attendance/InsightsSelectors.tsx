@@ -126,6 +126,38 @@ export function AttendanceRangeFab({
   );
 }
 
+/** Picks a campus's term or whole year; the server lists the choices. */
+export function PeriodFab({
+  periods,
+  value,
+  onChange,
+}: {
+  periods: { key: string; label: string }[];
+  value: string | null;
+  onChange: (key: string) => void;
+}) {
+  const label = periods.find((p) => p.key === value)?.label ?? "Term";
+  return (
+    <SelectorFab icon="calendar-outline" label={label} sheetTitle="Term or year">
+      {(close) => (
+        <View style={{ gap: spacing.sm }}>
+          {periods.map((period) => (
+            <OptionRow
+              key={period.key}
+              label={period.label}
+              selected={period.key === value}
+              onPress={() => {
+                onChange(period.key);
+                close();
+              }}
+            />
+          ))}
+        </View>
+      )}
+    </SelectorFab>
+  );
+}
+
 export function ChartModeFab({
   mode,
   onChange,

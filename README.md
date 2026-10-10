@@ -103,7 +103,7 @@ changing anything seasonal, the October 1 staff-year rollover in particular
 - **Google sign-in** via Convex Auth: "Sign in with your SOW account" is the
   `google` provider, for `sow.org.au` staff accounts only (`hd` hint +
   server-side domain check). Personal Google accounts can't sign in (the
-  `googlePersonal` provider was removed in 2.4.7); **visitors** (accounts with
+  `googlePersonal` provider was removed in 2.4.7); **guests** (accounts with
   no staff profile) can sign in with Apple, which is offered on iOS only.
   Name/email sync from the Google profile on each sign-in.
 - **Email notifications** via Resend: submitter confirmation, "needs your
@@ -160,13 +160,18 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   sign-in/edit/sign-out), read by the Attendance → Audit tab.
 - **CSV import/export**: bulk-import historical roll-call data and export
   attendance.
-- **Insights** (a dedicated bottom tab): for a campus, three headline numbers,
-  one weekly-meeting chart and a gentle, explainable "Needs follow-up" list;
-  for SOW, each campus's weekly-meeting average. Ranges are past week / month /
-  year. Both tabs' layout, charts and wording come from the backend
-  (`generalMetrics.view`, `attendanceMetrics.view`), so they change with a
-  Convex deploy rather than an app release. Aggregates are pre-computed by a nightly rebuild, so roll-call
-  changes show the next morning. See
+- **Insights** (a dedicated bottom tab): for a campus, its **weekly meetings**
+  by term (T1–T3 / Sem 1–2) or calendar year: cards against last year, a
+  follow-up list (people who were coming but stopped, newcomers who haven't
+  come back) and a visitors list, charts, and everyone's attendance % and
+  category (Regular, Irregular, Newcomer, Visitor, Leader, Staff/alumni/guests)
+  with filters, sorting and search; tapping someone opens their attendance
+  page. For SOW, each campus's weekly average with past week / month / year
+  ranges. Layout, charts and wording come from the backend
+  (`weeklyInsights.view`, `generalMetrics.view`, `attendanceMetrics.view`), so
+  they change with a Convex deploy rather than an app release. A nightly build
+  redoes only what changed since the night before, so roll-call changes show
+  the next morning. See [docs/weekly-insights.md](docs/weekly-insights.md) and
   [docs/attendance-metrics.md](docs/attendance-metrics.md).
 
 ## Getting started
@@ -417,6 +422,6 @@ the Insights metrics precompute.
 ## Not yet implemented
 
 - Past-year request archives.
-- The whole-**staff-year** Insights range: supported by the shared logic
-  (`STAFF_YEAR_RANGE`) but not currently precomputed or offered in the UI (the
-  presets are past week / month / year).
+- The whole-**staff-year** range for the SOW Insights view: supported by the
+  shared logic (`STAFF_YEAR_RANGE`) but not precomputed or offered (campuses
+  get whole calendar years from their weeklies instead).

@@ -6,6 +6,39 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.5.0] — 2026-10-11
+
+### Added
+- **Campus Insights are now about weekly meetings, by term.** Pick a campus in
+  Insights → Attendance and you see its weeklies for the current term (T1–T3
+  at UNSW, Sem 1–2 elsewhere), any past term, or a whole year, each compared
+  with last year: weekly average, people, regulars, newcomers, how many
+  newcomers came back, and how much of the room is from this campus. Charts
+  show each week against the same week last year, and who came each week.
+  Terms are worked out from when weeklies happen, so there's nothing to set
+  up; a weekly only counts if it's tagged Weekly Meeting.
+- **Everyone's attendance, with a category.** A list of everyone who came this
+  term or last shows their share of the weeklies ("6/8 · 75%"), when they last
+  came and a category: Irregular, Newcomer, Regular, Visitor (from another
+  campus), Leader or Staff, alumni & guests. Irregulars and newcomers come
+  first, leaders and staff last. Filter by category or "No campus set", sort
+  by percentage, name or last came, and search by name.
+- **A follow-up list that finds people who are slipping.** "Needs follow-up"
+  lists people who were coming regularly but have missed the last 2 weeklies,
+  then newcomers who didn't come back last week. Visitors get their own list.
+  Tested on past attendance, people it flags were half as likely to come back
+  as everyone else, and it caught 59 of 64 people who later stopped coming.
+- **A page for each person.** Tap anyone to see their category and share for
+  every term, which weeks they came this term, every event they've signed in
+  to, and their details, with Edit member to fix their campus or role.
+
+### Changed
+- **The Role option "Visitor" is now "Guest"**, for non-students such as
+  parents or church guests. Everyone tagged keeps the tag; "Visitor" now means
+  someone visiting from another campus.
+- **Insights rebuild only what changed overnight**, instead of recalculating
+  every campus from scratch, so most nights do little or nothing.
+
 ## [2.4.7] — 2026-10-10
 
 ### Changed

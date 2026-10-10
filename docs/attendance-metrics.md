@@ -1,5 +1,9 @@
 # Insights → Attendance (metrics dashboard)
 
+> From 2.5.0 a **campus**'s view is built from its weekly meetings instead:
+> see [weekly-insights.md](weekly-insights.md). What follows now describes the
+> org-wide **SOW** view, whose Snapshots are the only ones still built.
+
 A leader-facing dashboard that turns raw sign-in data into trends and gentle
 follow-up prompts for a sub-group and time range.
 
