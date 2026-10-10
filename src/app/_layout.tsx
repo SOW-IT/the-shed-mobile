@@ -59,7 +59,7 @@ const configErrorStyles = StyleSheet.create({
 
 const AuthGate = () => {
   const { isLoading } = useConvexAuth();
-  const { busy, error, rejectedProvider, clearError, clearRejected } =
+  const { busy, error, rejected, clearError, clearRejected } =
     useWebAuthCodeExchange();
   useEffect(() => {
     if (error && typeof window !== "undefined") {
@@ -68,14 +68,12 @@ const AuthGate = () => {
     }
   }, [error, clearError]);
   useEffect(() => {
-    if (!rejectedProvider || typeof window === "undefined") return;
+    if (!rejected || typeof window === "undefined") return;
     window.alert(
-      rejectedProvider === "googlePersonal"
-        ? "Use your SOW account\n\nThat looks like a SOW organisation account. Please use “Sign in with your SOW account” to sign in with it."
-        : "SOW account required\n\nOnly SOW organisation accounts can sign in here. To browse as a guest, use “Sign in with Google” instead."
+      "SOW account required\n\nOnly SOW organisation accounts can sign in here."
     );
     clearRejected();
-  }, [rejectedProvider, clearRejected]);
+  }, [rejected, clearRejected]);
   return isLoading || busy ? <LoadingState /> : <RootStack />;
 };
 

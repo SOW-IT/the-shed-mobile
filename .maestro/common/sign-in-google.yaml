@@ -1,4 +1,4 @@
-# Signs in via the top-left "Sign in" button → "Sign in with Google" (checklist §1.4, §2).
+# Signs in via the top-left "Sign in" button → "Sign in with your SOW account" (checklist §1.4, §2).
 #
 # Params:
 #   EMAIL, PASSWORD – the Google/sow.org.au account to use.

@@ -100,11 +100,13 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   else the built-in content in `shared/homeContent.ts`). Admins, anyone in
   the **Marketing** department and the **Engagement** division head edit
   them in the app via the Edit button.
-- **Google sign-in** via Convex Auth, through two providers: `google` for
-  `sow.org.au` staff accounts (`hd` hint + server-side domain check) and
-  `googlePersonal` for personal accounts, which sign in as **visitors**, an
-  account with no staff profile. Each provider refuses the other's emails.
-  Name/email sync from the Google profile on each sign-in.
+- **Google sign-in** via Convex Auth: the app offers only "Sign in with your
+  SOW account" (the `google` provider, for `sow.org.au` staff accounts: `hd`
+  hint + server-side domain check). The backend still has `googlePersonal`
+  for personal accounts, which sign in as **visitors** (an account with no
+  staff profile), so app builds from before 2.4.7 keep working; the app no
+  longer shows it. Each provider refuses the other's emails. Name/email sync
+  from the Google profile on each sign-in.
 - **Email notifications** via Resend: submitter confirmation, "needs your
   approval" to the next approver at every step, declines (with reason),
   receipt-ready-to-pay to the Finance Head, paid confirmation, and a Budget

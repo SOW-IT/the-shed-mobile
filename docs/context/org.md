@@ -54,9 +54,10 @@ the earlier one by email, including the sow.org.au / sowaustralia.com pair.
 _Avoid_: rehire, returning employee, alumni
 
 **Visitor**:
-A signed-in account that is not Staff — someone who signed in with a personal
-Google account rather than an `@sow.org.au` one. A visitor has an account and
-no profile.
+A signed-in account that is not Staff — someone who signed in with Apple, or
+with a personal Google account rather than an `@sow.org.au` one (the app
+stopped offering personal Google in 2.4.7; the backend still accepts it from
+older builds). A visitor has an account and no profile.
 _Avoid_: guest, public user, non-staff
 
 **Assignment**:

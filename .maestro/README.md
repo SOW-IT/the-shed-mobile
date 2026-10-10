@@ -100,7 +100,7 @@ maestro test \
   state (the Keychain auth token survives, but you land on the launcher and must
   reload the bundle). CI / standalone builds pass `CLEAR_STATE=true` to isolate.
 - OAuth sign-in flows can't run against an already-signed-in dev client (there's
-  no "Sign in with Google" button when a session exists). Use the signed-in
+  no "Sign in with your SOW account" button when a session exists). Use the signed-in
   flows that match the loaded account, or a standalone build with an auth bypass.
 
 **Device-verified** (ran green, twice consecutively, on iPhone 17e / iOS 26.5

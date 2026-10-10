@@ -6,6 +6,17 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.4.7] — 2026-10-10
+
+### Changed
+- **Sign-in only offers your SOW account.** The Sign in menu no longer has
+  "Sign in with Google" for personal Google accounts; it shows "Sign in with
+  your SOW account", plus "Sign in with Apple" on iPhone. The page you see
+  when you open an emailed link while signed out now says "Sign in with your
+  SOW account" too, which is what that button always did. If a non-SOW
+  Google account is picked, the message no longer suggests signing in with
+  Google as a guest (on iPhone it points to Sign in with Apple instead).
+
 ## [2.4.6] — 2026-10-09
 
 ### Fixed
