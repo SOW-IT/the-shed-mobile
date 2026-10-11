@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { CAMPUS_FIELD_KEY, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
 import { DAY_MS, rangeStartFor, WEEK_MS } from "../shared/attendanceMetrics";
@@ -64,6 +65,7 @@ import {
 // nothing at all. See docs/adr/0008-weekly-insights.md.
 
 const MAX_EVENTS = 5000;
+const EVENTS_PAGE = 1000;
 const MAX_AUDIT_ROWS = 5000;
 const MAX_TERMS = 200;
 const MAX_PROFILES_PER_YEAR = 3000;
@@ -219,37 +221,49 @@ export const checkChanges = internalQuery({
 
 const weeklyEventValidator = v.object({ eventId: v.id("events"), at: v.number(), joint: v.boolean() });
 
-/** This campus's weekly meetings so far, and its stored term facts. */
-export const loadBuildData = internalQuery({
-  args: { subgroup: v.string(), now: v.number() },
+/** One page of this campus's weekly meetings so far, newest first. Every
+ *  page is read, so no old term looks deleted because of a cap. */
+export const weeklyEventsPage = internalQuery({
+  args: { subgroup: v.string(), now: v.number(), paginationOpts: paginationOptsValidator },
   returns: v.object({
-    weeklyEvents: v.array(weeklyEventValidator),
-    facts: v.array(v.object({ _id: v.id("weeklyTermFacts"), _creationTime: v.number(), ...termFactsFields })),
+    page: v.array(weeklyEventValidator),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
   }),
-  handler: async (ctx, { subgroup, now }) => {
+  handler: async (ctx, { subgroup, now, paginationOpts }) => {
     const weekly = await weeklyTagIds(ctx);
-    const events = await ctx.db
+    const result = await ctx.db
       .query("events")
       .withIndex("by_dateStart", (q) => q.lte("dateStart", now))
       .order("desc")
-      .take(MAX_EVENTS);
-    const weeklyEvents = events
-      .filter(
-        (e) =>
-          eventIncludesSubgroup(e.subgroups, subgroup) &&
-          (e.tagIds ?? []).some((id) => weekly.has(id))
-      )
-      .map((e) => ({
-        eventId: e._id,
-        at: e.dateStart,
-        joint: normalizeSubgroups(e.subgroups).length > 1,
-      }));
-    const facts = await ctx.db
+      .paginate(paginationOpts);
+    return {
+      page: result.page
+        .filter(
+          (e) =>
+            eventIncludesSubgroup(e.subgroups, subgroup) &&
+            (e.tagIds ?? []).some((id) => weekly.has(id))
+        )
+        .map((e) => ({
+          eventId: e._id,
+          at: e.dateStart,
+          joint: normalizeSubgroups(e.subgroups).length > 1,
+        })),
+      isDone: result.isDone,
+      continueCursor: result.continueCursor,
+    };
+  },
+});
+
+/** This campus's stored term facts. */
+export const loadFactsDocs = internalQuery({
+  args: { subgroup: v.string() },
+  returns: v.array(v.object({ _id: v.id("weeklyTermFacts"), _creationTime: v.number(), ...termFactsFields })),
+  handler: (ctx, { subgroup }) =>
+    ctx.db
       .query("weeklyTermFacts")
       .withIndex("by_subgroup_and_termKey", (q) => q.eq("subgroup", subgroup))
-      .take(MAX_TERMS);
-    return { weeklyEvents, facts };
-  },
+      .take(MAX_TERMS),
 });
 
 /** Who signed in to each event, as person keys. */
@@ -492,7 +506,22 @@ async function buildSubgroup(
   force: boolean
 ): Promise<void> {
   const { settings } = check;
-  const data = await ctx.runQuery(internal.weeklyInsights.loadBuildData, { subgroup, now });
+  const weeklyEvents: { eventId: Id<"events">; at: number; joint: boolean }[] = [];
+  for (let cursor: string | null = null, done = false; !done; ) {
+    const page: { page: typeof weeklyEvents; isDone: boolean; continueCursor: string } =
+      await ctx.runQuery(internal.weeklyInsights.weeklyEventsPage, {
+        subgroup,
+        now,
+        paginationOpts: { numItems: EVENTS_PAGE, cursor },
+      });
+    weeklyEvents.push(...page.page);
+    done = page.isDone;
+    cursor = page.continueCursor;
+  }
+  const data = {
+    weeklyEvents,
+    facts: await ctx.runQuery(internal.weeklyInsights.loadFactsDocs, { subgroup }),
+  };
   const stored = new Map(data.facts.map((f) => [f.termKey, f]));
 
   // Who came to each weekly, from the stored facts where they're still good.
@@ -547,6 +576,9 @@ async function buildSubgroup(
   const edited = new Set(check.memberKeys);
   const touches = (f: TermFacts | undefined) => !!f && Object.keys(f.attendance).some((k) => edited.has(k));
   if (latest >= 0 && (touches(facts[latest]) || touches(facts[latest - 1]))) recompute.add(latest);
+  // A due date passed: last year's comparison moved on, or the latest term
+  // stopped running (no more "so far", no follow-ups once it's over).
+  if (latest >= 0 && check.compareDue) recompute.add(latest);
 
   const thisYear = sydneyCalendarYear(new Date(now));
   const years = new Set<number>([...recompute].map((i) => facts[i].year));
@@ -642,8 +674,13 @@ async function buildSubgroup(
     });
   }
 
+  const runningUntil =
+    latest >= 0
+      ? facts[latest].weeklies[facts[latest].weeklies.length - 1].at + settings.termGapDays * DAY_MS
+      : 0;
   const nextCompareAt = Math.min(
     NEVER,
+    ...(runningUntil > now ? [runningUntil] : []),
     ...facts
       .filter((f) => f.year === thisYear - 1)
       .flatMap((f) => f.weeklies.map((w) => yearAfter(w.at)))

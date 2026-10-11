@@ -504,6 +504,17 @@ describe("attendanceMetrics", () => {
     expect(jobs.map((j) => j.args[0])).toEqual([{ subgroup: USYD }, { subgroup: USYD }]);
   });
 
+  test("recomputeNow with no sub-group rebuilds SOW and every campus", async () => {
+    const { t, leader } = await setup();
+    await leader.mutation(api.attendanceMetrics.recomputeNow, {});
+    const names = await t.run(async (ctx) =>
+      (await ctx.db.system.query("_scheduled_functions").collect()).map((j) => j.name)
+    );
+    expect(names).toEqual(
+      expect.arrayContaining(["attendanceMetrics:recomputeAll", "weeklyInsights:rebuildAll"])
+    );
+  });
+
   test("recomputeNow records the manual refresh even before any rebuild has run", async () => {
     const { t, leader } = await setup();
     await leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: SOW_SUBGROUP });

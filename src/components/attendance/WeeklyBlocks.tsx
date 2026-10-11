@@ -142,8 +142,14 @@ function PeopleList({ block, onOpen }: { block: Block<"people">; onOpen?: (key: 
 
   const total = sections.reduce((n, s) => n + s.rows.length, 0);
   let shown = 0;
-  const toggle = (key: string) =>
+  const toggle = (key: string) => {
     setChips((current) => (current.includes(key) ? current.filter((c) => c !== key) : [...current, key]));
+    setLimit(PAGE);
+  };
+  const searchFor = (text: string) => {
+    setSearch(text);
+    setLimit(PAGE);
+  };
 
   return (
     <Panel
@@ -152,7 +158,7 @@ function PeopleList({ block, onOpen }: { block: Block<"people">; onOpen?: (key: 
       trailing={<Text style={[typography.caption, { color: t.muted }]}>{total}</Text>}
     >
       {block.subtitle ? <Text style={[typography.caption, { color: t.muted }]}>{block.subtitle}</Text> : null}
-      <SearchField value={search} onChangeText={setSearch} placeholder="Search by name" />
+      <SearchField value={search} onChangeText={searchFor} placeholder="Search by name" />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
         {block.filters.map((f) => {
           const on = chips.includes(f.key);

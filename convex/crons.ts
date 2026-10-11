@@ -22,8 +22,8 @@ crons.cron(
 
 crons.cron("attendance metrics daily rebuild", "0 16 * * *", internal.attendanceMetrics.recomputeAll, {});
 
-// 03:30 Sydney (AEST): each campus's weeklies Insights, redoing only what
-// changed since the night before.
+// 16:30 UTC (02:30 Sydney in winter, 03:30 in daylight saving): each
+// campus's weeklies Insights, redoing only what changed since the night before.
 crons.cron("weekly insights nightly build", "30 16 * * *", internal.weeklyInsights.rebuildAll, {});
 
 export default crons;

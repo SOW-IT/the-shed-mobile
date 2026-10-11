@@ -330,11 +330,12 @@ describe("nightly builds only redo what changed", () => {
     expect(t2.weeklies.map((w) => w.at)).toEqual([T2_2025[1], T2_2025[2], wed(2025, 6, 25)]);
   });
 
-  test("the year view is redone when last year's comparison date passes", async () => {
+  test("the year and latest term are redone when a due date passes", async () => {
     const { t } = await setup();
     await rebuild(t);
     const views = await viewDocs(t);
-    expect((await indexDoc(t))!.nextCompareAt).toBe(Number.MAX_SAFE_INTEGER);
+    // The current term stops running 18 days after its last weekly.
+    expect((await indexDoc(t))!.nextCompareAt).toBe(T2_2026[6] + 18 * DAY);
     await t.run(async (ctx) => {
       const index = (await ctx.db.query("weeklyInsightIndex").collect())[0];
       await ctx.db.patch(index._id, { nextCompareAt: NOW });
@@ -343,7 +344,21 @@ describe("nightly builds only redo what changed", () => {
     await rebuild(t);
     const after = await viewDocs(t);
     expect(after[`${UNSW}|2026`].computedAt).toBeGreaterThan(views[`${UNSW}|2026`].computedAt);
-    expect(after[`${UNSW}|2026-T2`].computedAt).toBe(views[`${UNSW}|2026-T2`].computedAt);
+    expect(after[`${UNSW}|2026-T2`].computedAt).toBeGreaterThan(views[`${UNSW}|2026-T2`].computedAt);
+    expect(after[`${UNSW}|2026-T1`].computedAt).toBe(views[`${UNSW}|2026-T1`].computedAt);
+  });
+
+  test("once the term stops running it loses \"so far\" and its follow-ups", async () => {
+    const { t, leader } = await setup();
+    await rebuild(t);
+    // The setup's 5 Aug weekly has happened by then; the term ends after it.
+    vi.setSystemTime(wed(2026, 8, 5) + 19 * DAY);
+    await rebuild(t);
+    const now = (await leader.query(api.weeklyInsights.view, { subgroup: UNSW }))!;
+    expect((now.blocks[1] as { text: string }).text).toBe(
+      "T2 2026 · 8 weeklies. Compared with T2 2025."
+    );
+    expect((await indexDoc(t))!.nextCompareAt).toBe(Number.MAX_SAFE_INTEGER);
   });
 
   test("next year's comparison date is remembered", async () => {

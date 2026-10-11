@@ -789,6 +789,7 @@ export const recomputeNow = mutation({
       });
     } else {
       await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeAll, {});
+      await ctx.scheduler.runAfter(0, internal.weeklyInsights.rebuildAll, {});
     }
     return null;
   },
