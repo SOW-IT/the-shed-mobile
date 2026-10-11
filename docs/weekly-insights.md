@@ -21,8 +21,9 @@ Year).
   since the term before's own page shows its whole term. A year is compared
   with last year; the year in progress up to the same term and week ("vs
   66.3 in 2025 up to T3 W4"), and so is its weekly avg by term chart. Each
-  card's (i) says what it's compared with, and Weekly avg and People say that
-  Mega and combined weeklies aren't counted.
+  card's (i) says what it's compared with, and Weekly avg and People say
+  whether Mega and combined weeklies are counted (not by default; see
+  `jointWeeklies` under Settings).
 - **Charts**, near the top: week by week against the term before (its bars
   in grey), and who
   came each week by category. The year view has one "who came each week"

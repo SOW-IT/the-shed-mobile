@@ -711,6 +711,7 @@ async function buildSubgroup(
     if (i === latest) categories = categoryEntries(result.rows);
     const blocks = buildTermBlocks({
       computedAt: now,
+      jointCounted: settings.jointWeeklies,
       result,
       before: termBefore(facts, i, running, c),
       running,
@@ -738,6 +739,7 @@ async function buildSubgroup(
         .filter((r) => r !== null);
     const blocks = buildYearBlocks({
       computedAt: now,
+      jointCounted: settings.jointWeeklies,
       result,
       lastYear: computeYear(facts, year - 1, c, cut),
       cut: cut ? `${cut.name} week ${cut.week}` : null,

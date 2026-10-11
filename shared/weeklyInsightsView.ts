@@ -266,7 +266,9 @@ export function summaryCards(
   s: PeriodSummary,
   last: PeriodSummary | null,
   lastLabel: string | null,
-  compareNote?: string
+  compareNote?: string,
+  /** The jointWeeklies setting: Mega and combined weeklies are counted too. */
+  jointCounted = false
 ): ViewCard[] {
   // The label stays on one line ("T2 2026 up to W4"); a narrow card wraps before it.
   const keep = (label: string) => label.replace(/ /g, "\u00a0").replace(/–/g, "–\u2060");
@@ -285,7 +287,9 @@ export function summaryCards(
       hint: last?.weeklyAvg != null ? vs(String(last.weeklyAvg)) : undefined,
       info: info(
         "Weekly avg",
-        "The average head count at this campus's own weeklies. Mega and combined weeklies with other campuses aren't counted, and neither is a weekly nobody signed in to."
+        jointCounted
+          ? "The average head count at this campus's weeklies, Mega and combined ones with other campuses included. A weekly nobody signed in to isn't counted."
+          : "The average head count at this campus's own weeklies. Mega and combined weeklies with other campuses aren't counted, and neither is a weekly nobody signed in to."
       ),
     },
     {
@@ -295,7 +299,9 @@ export function summaryCards(
       hint: last ? vs(String(last.people)) : undefined,
       info: info(
         "People",
-        "How many different people came to at least one of this campus's own weeklies. Mega and combined weeklies aren't counted."
+        jointCounted
+          ? "How many different people came to at least one of this campus's weeklies, Mega and combined ones included."
+          : "How many different people came to at least one of this campus's own weeklies. Mega and combined weeklies aren't counted."
       ),
     },
     {
@@ -382,6 +388,8 @@ export function buildTermBlocks(input: {
   before: TermResult | null;
   running: boolean;
   followUps: WeeklyFollowUp[] | null;
+  /** The jointWeeklies setting, for the cards' (i). */
+  jointCounted?: boolean;
 }): WeeklyBlock[] {
   const { result, before, running } = input;
   const { term } = result;
@@ -404,7 +412,11 @@ export function buildTermBlocks(input: {
         ? `${term.label}: ${count}, compared with ${point}.`
         : `${term.label}: ${count}. There's no earlier term to compare with.`,
     },
-    { type: "cards", layout: "grid", cards: summaryCards(result.summary, before?.summary ?? null, beforeLabel, compareNote) },
+    {
+      type: "cards",
+      layout: "grid",
+      cards: summaryCards(result.summary, before?.summary ?? null, beforeLabel, compareNote, input.jointCounted),
+    },
   ];
   // The week-by-week charts sit near the top, above the follow-up lists.
   // Points line up by label, so a second weekly in one week keeps its own bar.
@@ -466,6 +478,8 @@ export function buildYearBlocks(input: {
   cut: string | null;
   terms: TermResult[];
   lastYearTerms: TermResult[];
+  /** The jointWeeklies setting, for the cards' (i). */
+  jointCounted?: boolean;
 }): WeeklyBlock[] {
   const { result, lastYear } = input;
   const { cut } = input;
@@ -488,7 +502,11 @@ export function buildYearBlocks(input: {
         ? `${result.year}: ${count}, compared with ${point}.`
         : `${result.year}: ${count}. There's no earlier year to compare with.`,
     },
-    { type: "cards", layout: "grid", cards: summaryCards(result.summary, lastYear?.summary ?? null, lastLabel, compareNote) },
+    {
+      type: "cards",
+      layout: "grid",
+      cards: summaryCards(result.summary, lastYear?.summary ?? null, lastLabel, compareNote, input.jointCounted),
+    },
   ];
   if (lastYear) {
     const slots = [...new Set([...input.terms, ...input.lastYearTerms].map((t) => t.term.slot))].sort();

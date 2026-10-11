@@ -139,6 +139,14 @@ describe("cards", () => {
     expect(byLabel["Campus share"]).toMatchObject({ value: "80%", delta: { text: "-5 pts", direction: "down" } });
   });
 
+  test("the (i) follows the jointWeeklies setting", () => {
+    const off = summaryCards(s, null, null);
+    const on = summaryCards(s, null, null, undefined, true);
+    expect(off[0].info!.body).toMatch(/Mega and combined weeklies with other campuses aren't counted/);
+    expect(on[0].info!.body).toMatch(/Mega and combined ones with other campuses included/);
+    expect(on[1].info!.body).toMatch(/Mega and combined ones included/);
+  });
+
   test("with nothing to compare, or nothing yet", () => {
     const empty: PeriodSummary = { weeklies: 0, weeklyAvg: null, people: 0, regulars: 0, newcomers: 0, newcomersStayed: 0, campusShare: null };
     const cards = summaryCards(empty, null, null);
