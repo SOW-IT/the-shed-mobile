@@ -1,17 +1,12 @@
 import { Btn, Field, Row, Sheet } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
 import { Alert, Image, StyleSheet, Text, View } from "react-native";
-import { api } from "../../../convex/_generated/api";
-import type { Doc } from "../../../convex/_generated/dataModel";
+import { api } from "../../../convex/\_generated/api";
+import type { Doc } from "../../../convex/\_generated/dataModel";
 export type MusicRequest = Doc<"musicRequests">;
-type SpotifyMetadata = {
-  title: string;
-  thumbnail_url?: string;
-  provider_name?: string;
-};
 const spotifyTrackUrl = (value: string): string | null => {
   try {
     const url = new URL(value.trim());
@@ -28,7 +23,6 @@ const spotifyTrackUrl = (value: string): string | null => {
     return null;
   }
 };
-
 export const NewMusicRequestSheet = ({
   visible,
   onClose,
@@ -57,7 +51,7 @@ export const NewMusicRequestSheet = ({
   );
   const duplicateBlocked =
     duplicate?.status === "APPROVED" || duplicate?.status === "PENDING";
-
+  const getSpotifyTrack = useAction(api.spotify.getTrack);
   const submit = useMutation(api.musicRequests.submit);
   const [submitting, setSubmitting] = useState(false);
   useEffect(() => {
@@ -69,7 +63,7 @@ export const NewMusicRequestSheet = ({
     setSpotifyLink("");
     setAlbumArtUrl(null);
     setSpotifyError(null);
-  }, [visible, prefill]);
+  }, [visible, prefill?._id]);
   const autofillSpotify = async () => {
     const cleanUrl = spotifyTrackUrl(spotifyLink);
     if (!cleanUrl) {
@@ -79,20 +73,13 @@ export const NewMusicRequestSheet = ({
     setFetchingSpotify(true);
     setSpotifyError(null);
     try {
-      const endpoint = `https://open.spotify.com/oembed?url=${encodeURIComponent(cleanUrl)}`;
-      const response = await fetch(endpoint);
-      if (!response.ok) {
-        throw new Error("Spotify could not find this track.");
-      }
-      const metadata: SpotifyMetadata = await response.json();
-      if (!metadata.title) {
-        throw new Error("Spotify did not return a song title.");
-      }
-      setTitle(metadata.title);
-      setLink(cleanUrl);
-      setAlbumArtUrl(metadata.thumbnail_url ?? null);
-      // Spotify oEmbed does not reliably provide a separate artist.
-      // Keep the existing artist field editable.
+      const track = await getSpotifyTrack({
+        link: cleanUrl,
+      });
+      setTitle(track.title);
+      setArtist(track.artist);
+      setLink(track.link);
+      setAlbumArtUrl(track.albumArtUrl);
     } catch (error) {
       setSpotifyError(
         error instanceof Error
@@ -124,7 +111,6 @@ export const NewMusicRequestSheet = ({
       );
       return;
     }
-
     setSubmitting(true);
     try {
       await submit({
@@ -192,8 +178,8 @@ export const NewMusicRequestSheet = ({
           </Text>
         </View>
         <Text style={[typography.caption, { color: t.muted }]}>
-          Paste a Spotify song link to automatically fill in the song title and
-          link, and preview the album artwork.
+          Paste a Spotify song link to automatically fill in the title, artist,
+          link and album artwork.
         </Text>
         <Field
           label="Spotify Track URL"
@@ -201,6 +187,10 @@ export const NewMusicRequestSheet = ({
           onChangeText={(value) => {
             setSpotifyLink(value);
             setSpotifyError(null);
+            setTitle("");
+            setArtist("");
+            setLink("");
+            setAlbumArtUrl(null);
           }}
           placeholder="https://open.spotify.com/track/..."
           autoCapitalize="none"
@@ -223,14 +213,6 @@ export const NewMusicRequestSheet = ({
               style={styles.albumCover}
               resizeMode="cover"
             />
-            <View style={styles.previewText}>
-              <Text
-                style={[typography.body, { color: t.text, fontWeight: "700" }]}
-                numberOfLines={2}
-              >
-                {title}
-              </Text>
-            </View>
           </View>
         ) : null}
         {duplicate ? (
