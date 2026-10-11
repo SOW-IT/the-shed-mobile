@@ -24,7 +24,7 @@ import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImpor
 import {
   CATEGORY_META,
   computeTerm,
-  cutAt,
+  cutToPoint,
   computeYear,
   DEFAULT_WEEKLY_SETTINGS,
   deriveTerms,
@@ -43,6 +43,8 @@ import {
   type WeeklyMark,
   type WeeklyPerson,
   type WeeklySettings,
+  type YearCut,
+  yearCutOf,
 } from "../shared/weeklyInsights";
 import {
   buildMemberBlocks,
@@ -451,10 +453,19 @@ export const saveView = internalMutation({
   },
 });
 
+const periodValidator = v.object({
+  key: v.string(),
+  label: v.string(),
+  group: v.optional(v.string()),
+  short: v.optional(v.string()),
+  kind: v.optional(v.union(v.literal("term"), v.literal("year"))),
+  slot: v.optional(v.number()),
+});
+
 const indexFields = {
   subgroup: v.string(),
   computedAt: v.number(),
-  periods: v.array(v.object({ key: v.string(), label: v.string() })),
+  periods: v.array(periodValidator),
   currentKey: v.union(v.string(), v.null()),
   weeklies: v.array(v.object({ at: v.number(), count: v.number(), joint: v.boolean() })),
   settingsVersion: v.number(),
@@ -518,19 +529,6 @@ const sameFacts = (a: TermFacts, b: FactsDoc | undefined): boolean => {
     weekly(a.weeklies) === weekly(b.weeklies) &&
     people(Object.entries(a.attendance)) === people(b.attendance.map((x) => [x.key, x.indexes]))
   );
-};
-
-/** The same day a year earlier, for year-to-date comparisons. */
-export const yearBefore = (ms: number): number => {
-  const d = new Date(ms);
-  d.setUTCFullYear(d.getUTCFullYear() - 1);
-  return d.getTime();
-};
-
-const yearAfter = (ms: number): number => {
-  const d = new Date(ms);
-  d.setUTCFullYear(d.getUTCFullYear() + 1);
-  return d.getTime();
 };
 
 const termYears = (facts: TermFacts[]) => [
@@ -640,9 +638,8 @@ async function buildSubgroup(
   const edited = new Set(check.memberKeys);
   const touches = (f: TermFacts | undefined) => !!f && Object.keys(f.attendance).some((k) => edited.has(k));
   if (latest >= 0 && (touches(facts[latest]) || touches(facts[latest - 1]))) recompute.add(latest);
-  // A due date passed: the year's "vs last year to date" moved on (the year
-  // is redone below), or the latest term stopped running (no more "so far",
-  // no follow-ups once it's over).
+  // The latest term stopped running: no more "so far", and its year's
+  // comparison point is settled.
   if (latest >= 0 && check.compareDue) recompute.add(latest);
   // A term that's gone (say all its weeklies were deleted) changes what the
   // term after it compares with, and can leave another term as the latest:
@@ -727,24 +724,25 @@ async function buildSubgroup(
     });
   }
   for (const year of [...years].sort()) {
-    const upTo = year === thisYear ? yearBefore(now) : undefined;
+    // The year in progress is compared with last year up to the same term
+    // and week; so are last year's terms in the by-term chart.
+    const cut = year === thisYear ? (yearCutOf(facts, year) ?? undefined) : undefined;
     const result = computeYear(facts, year, c)!;
-    // Last year's terms are cut to the same date, like the cards above them.
-    const inYear = (y: number, cutDate?: number) =>
+    const inYear = (y: number, to?: YearCut) =>
       facts
         .map((f, i) => {
           if (f.year !== y) return null;
-          const cut = cutDate === undefined ? f : cutAt(f, cutDate);
-          return cut ? computeTerm([...facts.slice(0, i), cut], i, c) : null;
+          const kept = to === undefined ? f : cutToPoint(f, to);
+          return kept ? computeTerm([...facts.slice(0, i), kept], i, c) : null;
         })
         .filter((r) => r !== null);
     const blocks = buildYearBlocks({
       computedAt: now,
       result,
-      lastYear: computeYear(facts, year - 1, c, upTo),
-      upTo: upTo ?? null,
+      lastYear: computeYear(facts, year - 1, c, cut),
+      cut: cut ? `${cut.name} week ${cut.week}` : null,
       terms: inYear(year),
-      lastYearTerms: inYear(year - 1, upTo),
+      lastYearTerms: inYear(year - 1, cut),
     });
     await ctx.runMutation(internal.weeklyInsights.saveView, {
       subgroup,
@@ -758,14 +756,9 @@ async function buildSubgroup(
     latest >= 0
       ? facts[latest].weeklies[facts[latest].weeklies.length - 1].at + settings.termGapDays * DAY_MS
       : 0;
-  const nextCompareAt = Math.min(
-    NEVER,
-    ...(runningUntil > now ? [runningUntil] : []),
-    ...facts
-      .filter((f) => f.year === thisYear - 1)
-      .flatMap((f) => f.weeklies.map((w) => yearAfter(w.at)))
-      .filter((at) => at > now)
-  );
+  // The year's comparison moves with its weeklies, so the only date to wait
+  // for is the latest term stopping running.
+  const nextCompareAt = runningUntil > now ? runningUntil : NEVER;
   const recentFrom = now - INDEX_WEEKLIES_WEEKS * WEEK_MS;
   const joint = new Map(data.weeklyEvents.map((e) => [e.eventId, e.joint]));
   await ctx.runMutation(internal.weeklyInsights.saveIndex, {
@@ -1004,17 +997,16 @@ const NOT_READY: ViewBlock = {
   type: "empty",
   icon: "sparkles-outline",
   title: "Not ready yet",
-  message: "Insights rebuild overnight.",
+  message: "Insights update overnight. Check back tomorrow.",
 };
 
 const NO_WEEKLIES: ViewBlock = {
   type: "empty",
   icon: "calendar-outline",
   title: "No weekly meetings yet",
-  message: "Tag a campus's weekly meetings with Weekly Meeting to see them here.",
+  message: "Create this campus's weeklies as Weekly events and they'll show here the next day.",
 };
 
-const periodValidator = v.object({ key: v.string(), label: v.string() });
 
 /** A campus's Insights view for a term or year (its current term by default). */
 export const view = query({

@@ -149,7 +149,7 @@ const NOT_READY: ViewBlock = {
   type: "empty",
   icon: "sparkles-outline",
   title: "Not ready yet",
-  message: "Insights rebuild overnight.",
+  message: "Insights update overnight. Check back tomorrow.",
 };
 
 const NO_EVENTS: ViewBlock = {

@@ -166,9 +166,9 @@ describe("first build and the view", () => {
     expect(index.periods.map((p) => p.label)).toEqual([
       "2026 T2",
       "2026 T1",
-      "2026 · whole year",
+      "2026",
       "2025 T2",
-      "2025 · whole year",
+      "2025",
     ]);
     expect(index.currentKey).toBe("2026-T2");
     // Recent held weeklies for the SOW comparison; the shared Mega weeklies
@@ -205,7 +205,7 @@ describe("first build and the view", () => {
     expect(past.period).toBe("2025-T2");
     expect((past.blocks as Block[]).some((b) => b.type === "followUpGroups")).toBe(false);
     const year = (await leader.query(api.weeklyInsights.view, { subgroup: UNSW, period: "2026" }))!;
-    expect((year.blocks[1] as { text: string }).text).toMatch(/^2026 · T1, T2 · 11 weeklies\. Compared with 2025 up to /);
+    expect((year.blocks[1] as { text: string }).text).toMatch(/^2026: 11 weeklies in T1 and T2, compared with 2025 up to T2 week \d+\.$/);
     expect((await leader.query(api.weeklyInsights.view, { subgroup: UNSW, period: "nope" }))!.period).toBe("2026-T2");
     expect(await t.query(api.weeklyInsights.view, { subgroup: UNSW })).toBeNull();
   });
@@ -361,16 +361,19 @@ describe("nightly builds only redo what changed", () => {
     await rebuild(t);
     const now = (await leader.query(api.weeklyInsights.view, { subgroup: UNSW }))!;
     expect((now.blocks[1] as { text: string }).text).toBe(
-      "T2 2026 · 8 weeklies. Compared with T1 2026."
+      "T2 2026: 8 weeklies, compared with T1 2026."
     );
     expect((await indexDoc(t))!.nextCompareAt).toBe(Number.MAX_SAFE_INTEGER);
   });
 
-  test("next year's comparison date is remembered", async () => {
+  test("the only date it waits for is the running term's end", async () => {
     const { t } = await setup();
+    await rebuild(t);
+    expect((await indexDoc(t))!.nextCompareAt).toBe(T2_2026[6] + 18 * DAY);
+    // A year on, nothing is running: no date to wait for.
     vi.setSystemTime(wed(2027, 6, 1));
     await rebuild(t);
-    expect((await indexDoc(t))!.nextCompareAt).toBe(Date.UTC(2027, 5, 3, 7));
+    expect((await indexDoc(t))!.nextCompareAt).toBe(Number.MAX_SAFE_INTEGER);
   });
 
   test("a deploy that changes what views show redoes them all", async () => {
@@ -485,7 +488,7 @@ describe("Role option Visitor → Guest", () => {
 });
 
 describe("year so far", () => {
-  test("the by-term chart cuts last year's terms to the same date, like the cards", async () => {
+  test("compared with last year up to the same term and week, chart included", async () => {
     const { t, leader, ids } = await setup();
     // T2 2025's third weekly (18 Jun) gets a third person: 2, 2, 3.
     await t.run((ctx) => ctx.db.insert("attendance", { eventId: ids.weeklies[2], memberId: ids.cy, signInTime: 0 }));
@@ -493,10 +496,10 @@ describe("year so far", () => {
     await rebuild(t);
     const blocks = (await leader.query(api.weeklyInsights.view, { subgroup: UNSW, period: "2026" }))!.blocks as Block[];
     const chart = block(blocks, "multiBars", "Weekly avg by term");
-    expect(chart.subtitle).toBe("2026 vs 2025 to 12 Jun");
-    // Up to 12 Jun 2025 only T2's first two weeklies had happened.
+    expect(chart.subtitle).toBe("Against 2025 up to T2 week 2");
+    // T2 2026 has had 2 weeklies, so T2 2025 counts its first two weeks.
     expect(chart.points.find((p) => p.label === "T2")!.segments[1].value).toBe(2);
-    expect(block(blocks, "cards").cards[0].hint).toMatch(/ in 2025\u00a0to\u00a012\u00a0Jun$/);
+    expect(block(blocks, "cards").cards[0].hint).toMatch(/ in 2025\u00a0up\u00a0to\u00a0T2\u00a0W2$/);
     // T2 2025's own page still shows the whole term.
     const t2 = (await leader.query(api.weeklyInsights.view, { subgroup: UNSW, period: "2025-T2" }))!.blocks as Block[];
     expect(block(t2, "cards").cards[0].value).toBe("2.3");
@@ -509,7 +512,7 @@ describe("a term that's gone", () => {
     await rebuild(t);
     const caption = async (period: string) =>
       ((await leader.query(api.weeklyInsights.view, { subgroup: UNSW, period }))!.blocks[1] as { text: string }).text;
-    expect(await caption("2026-T1")).toMatch(/Compared with T2 2025\.$/);
+    expect(await caption("2026-T1")).toBe("T1 2026: 4 weeklies, compared with T2 2025.");
     vi.setSystemTime(NOW + DAY);
     await t.run(async (ctx) => {
       for (const eventId of ids.weeklies.slice(0, T2_2025.length)) {
@@ -521,7 +524,7 @@ describe("a term that's gone", () => {
     });
     await rebuild(t);
     expect(Object.keys(await factDocs(t)).sort()).toEqual([`${UNSW}|2026-T1`, `${UNSW}|2026-T2`]);
-    expect(await caption("2026-T1")).toMatch(/Nothing to compare with from the term before\.$/);
+    expect(await caption("2026-T1")).toBe("T1 2026: 4 weeklies. There's no earlier term to compare with.");
   });
 });
 
