@@ -68,7 +68,8 @@ npx convex run weeklyInsights:setSettings '{"regularShare": 0.4}'
 
 `regularShare`, `termGapDays`, `carryOverWeeklies`, `followUpMisses`,
 `newcomerMisses`, `freshWeeklies`, `newcomerPromoteWeeklies`,
-`visitorMinWeeklies`, `termCampuses`, `staffRoles`, `leaderRoles`.
+`visitorMinWeeklies`, `termCampuses`, `jointWeeklies`, `staffRoles`,
+`leaderRoles`.
 
 ## Creating a weekly
 

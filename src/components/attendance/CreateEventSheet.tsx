@@ -145,10 +145,8 @@ export function CreateEventSheet({
       startTime: event ? timeInputFromMs(event.dateStart) : defaultTime(17),
       endTime: event ? timeInputFromMs(event.dateEnd) : defaultTime(19),
     };
-    const weeklyTagged = (event?.tagIds ?? []).some(
-      (id) => tags?.find((tag) => tag._id === id)?.name === "Weekly Meeting"
-    );
-    const savedKind: Kind = event?.weekly || weeklyTagged ? "weekly" : "event";
+    // Every weekly has its term and week (backfilled); tags may still be loading.
+    const savedKind: Kind = event?.weekly ? "weekly" : "event";
     // eslint-disable-next-line react-hooks/set-state-in-effect -- load the event's saved fields on the open transition (edit mode)
     setStep(0);
     setName(snapshot.name);
@@ -171,7 +169,7 @@ export function CreateEventSheet({
     setDeleteText("");
     setConfirmCancel(false);
     setInitial(snapshot);
-  }, [visible, ownerGroup, event, isEditing, tags]);
+  }, [visible, ownerGroup, event, isEditing]);
 
   const resetForm = () => {
     setStep(0);
