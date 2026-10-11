@@ -643,6 +643,10 @@ async function buildSubgroup(
   // is redone below), or the latest term stopped running (no more "so far",
   // no follow-ups once it's over).
   if (latest >= 0 && check.compareDue) recompute.add(latest);
+  // A term that's gone (say every weekly in the latest one was deleted) can
+  // leave another term as the latest: redo it, so its view and the sign-in
+  // categories follow.
+  if (latest >= 0 && removed.length) recompute.add(latest);
 
   const thisYear = sydneyCalendarYear(new Date(now));
   const years = new Set<number>([...recompute].map((i) => facts[i].year));

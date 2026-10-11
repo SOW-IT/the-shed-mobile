@@ -509,6 +509,27 @@ describe("sign-in tags", () => {
     await t.run((ctx) => ctx.db.delete(ids.social));
     expect(await leader.query(api.weeklyInsights.signInTags, { eventId: ids.social })).toEqual([]);
 
+    // The latest term loses all its weeklies: the term before becomes the
+    // latest, and its categories replace the old ones.
+    vi.setSystemTime(NOW + DAY);
+    await t.run(async (ctx) => {
+      for (const eventId of ids.weeklies.slice(T2_2025.length + T1_2026.length)) {
+        for (const row of await ctx.db.query("attendance").withIndex("by_event", (q) => q.eq("eventId", eventId)).collect()) {
+          await ctx.db.delete(row._id);
+        }
+        await ctx.db.insert("attendanceAuditLog", { actorEmail: ADMIN, entityType: "attendance", action: "delete", summary: "x", eventId });
+      }
+    });
+    const before = (await viewDocs(t))[`${UNSW}|2026-T1`].computedAt;
+    await rebuild(t);
+    expect((await indexDoc(t))!.currentKey).toBe("2026-T1");
+    expect((await viewDocs(t))[`${UNSW}|2026-T1`].computedAt).toBeGreaterThan(before);
+    const after = (await t.run((ctx) => ctx.db.query("weeklyCategories").collect()))[0];
+    expect(after.termKey).toBe("2026-T1");
+    expect(await leader.query(api.weeklyInsights.signInTags, { eventId: ids.weeklies[0] })).toEqual([
+      { key: `member:${ids.cy}`, label: "Visitor", colour: "#3B82F6" },
+    ]);
+
     // A campus left with no weeklies drops its tags.
     const { _id, _creationTime, ...index } = (await indexDoc(t))!;
     await t.mutation(internal.weeklyInsights.saveIndex, {

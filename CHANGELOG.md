@@ -13,7 +13,7 @@ All notable changes to **The SHED** mobile app. This project follows
   event is on, its sign-in screen shows a Newcomer or Visitor tag beside
   those people (from last night's Insights), so leaders know who to welcome.
   An event shared by several campuses only tags newcomers, and a finished
-  event shows no tags.
+  event shows no tags. Screen readers read the tag with the name.
 
 ### Changed
 - **A term is compared with the term before, not last year's.** T3 is

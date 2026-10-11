@@ -398,7 +398,7 @@ function AttendanceRowBase({
       <GestureDetector gesture={composed} touchAction={scrollLocked ? "none" : "pan-y"}>
         <Animated.View
           accessibilityRole="button"
-          accessibilityLabel={name}
+          accessibilityLabel={tag ? `${name}, ${tag.label}` : name}
           onLayout={(e) => {
             const w = e.nativeEvent.layout.width;
             if (w > 0 && w !== measuredWidth) setMeasuredWidth(w);
