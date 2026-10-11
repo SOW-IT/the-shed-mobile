@@ -1,3 +1,10 @@
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { AppSidebar } from "@/components/nav/AppSidebar";
+import { AppDrawer, NavDrawerProvider } from "@/components/nav/NavDrawer";
+import { useWideLayout } from "@/components/nav/layout";
+import { LoadingState } from "@/components/ui";
+import { useWebAuthCodeExchange } from "@/hooks/useGoogleSignIn";
+import { durations, useAppTheme } from "@/theme";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient, useConvexAuth } from "convex/react";
 import { requireOptionalNativeModule } from "expo";
@@ -7,13 +14,6 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { AppSidebar } from "@/components/nav/AppSidebar";
-import { AppDrawer, NavDrawerProvider } from "@/components/nav/NavDrawer";
-import { useWideLayout } from "@/components/nav/layout";
-import { useWebAuthCodeExchange } from "@/hooks/useGoogleSignIn";
-import { LoadingState } from "@/components/ui";
-import { durations, useAppTheme } from "@/theme";
 
 const DevMenuPreferences = requireOptionalNativeModule("DevMenuPreferences");
 
@@ -70,7 +70,7 @@ const AuthGate = () => {
   useEffect(() => {
     if (!rejected || typeof window === "undefined") return;
     window.alert(
-      "SOW account required\n\nOnly SOW organisation accounts can sign in here."
+      "SOW account required\n\nOnly SOW organisation accounts can sign in here.",
     );
     clearRejected();
   }, [rejected, clearRejected]);
@@ -131,7 +131,9 @@ const rootStackStyles = StyleSheet.create({
 
 export default function RootLayout() {
   useEffect(() => {
-    void DevMenuPreferences?.setPreferencesAsync({ showFloatingActionButton: false });
+    void DevMenuPreferences?.setPreferencesAsync({
+      showFloatingActionButton: false,
+    });
   }, []);
   const t = useAppTheme();
   const baseTheme = t.dark ? DarkTheme : DefaultTheme;

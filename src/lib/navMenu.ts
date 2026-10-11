@@ -3,6 +3,7 @@ import { acronym, type Assignment, formatAssignment } from "../../shared/flow";
 /** Every place the side menu (phone drawer or wide sidebar) can link to. */
 export type NavKey =
   | "home"
+  | "music"
   | "reimbursements"
   | "designRequests"
   | "eventRequests"
@@ -15,6 +16,7 @@ export type NavKey =
 
 export const NAV_HREFS = {
   home: "/home",
+  music: "/music",
   reimbursements: "/",
   designRequests: "/design-requests",
   eventRequests: "/event-requests",
@@ -31,6 +33,7 @@ export const NAV_LABELS: Record<NavKey, string> = {
   reimbursements: "Reimbursements",
   designRequests: "Design Requests",
   eventRequests: "Event Requests",
+  music: "Praise List",
   attendance: "Attendance",
   insights: "Insights",
   org: "Org Chart",
@@ -89,7 +92,7 @@ export const showsEventRequests = showsReimbursements;
  */
 export const drawerItems = (viewer: NavViewer): NavKey[] => {
   if (!viewer.signedIn) return [];
-  const items: NavKey[] = ["profile"];
+  const items: NavKey[] = ["profile", "music"];
   if (showsReimbursements(viewer)) items.push("reimbursements");
   if (showsEventRequests(viewer)) items.push("eventRequests");
   if (showsDesignRequests(viewer)) items.push("designRequests");
@@ -101,6 +104,7 @@ export const drawerItems = (viewer: NavViewer): NavKey[] => {
 /** The wide-screen sidebar's links: the bottom tabs and the drawer's links in one list. */
 export const sidebarItems = (viewer: NavViewer): NavKey[] => {
   const items: NavKey[] = ["home"];
+  if (viewer.signedIn) items.push("music");
   if (showsReimbursements(viewer)) items.push("reimbursements");
   if (showsEventRequests(viewer)) items.push("eventRequests");
   if (showsDesignRequests(viewer)) items.push("designRequests");
@@ -118,10 +122,16 @@ export const activeNavKey = (pathname: string): NavKey | null => {
     return "reimbursements";
   }
   if (pathname.startsWith("/request/")) return "reimbursements";
-  if (pathname === "/design-requests" || pathname.startsWith("/design-requests/")) {
+  if (
+    pathname === "/design-requests" ||
+    pathname.startsWith("/design-requests/")
+  ) {
     return "designRequests";
   }
-  if (pathname === "/event-requests" || pathname.startsWith("/event-requests/")) {
+  if (
+    pathname === "/event-requests" ||
+    pathname.startsWith("/event-requests/")
+  ) {
     return "eventRequests";
   }
   if (pathname === "/home" || pathname === "/edit-home") return "home";
@@ -135,6 +145,9 @@ export const activeNavKey = (pathname: string): NavKey | null => {
     return "announcements";
   }
   if (pathname === "/admin") return "admin";
+  if (pathname === "/music" || pathname.startsWith("/music/")) {
+    return "music";
+  }
   return null;
 };
 
@@ -144,7 +157,10 @@ export const activeNavKey = (pathname: string): NavKey | null => {
  * there's nothing to show, e.g. for guests.
  */
 export const roleLine = (
-  profile: { roles: readonly string[]; assignments?: readonly Assignment[] } | null | undefined
+  profile:
+    | { roles: readonly string[]; assignments?: readonly Assignment[] }
+    | null
+    | undefined,
 ): string | null => {
   if (!profile) return null;
   const assignments = profile.assignments ?? [];
@@ -156,4 +172,5 @@ export const roleLine = (
 };
 
 /** A count badge's text, capped like the other badges in the app. */
-export const badgeText = (count: number) => (count > 99 ? "99+" : String(count));
+export const badgeText = (count: number) =>
+  count > 99 ? "99+" : String(count);

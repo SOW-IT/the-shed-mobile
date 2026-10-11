@@ -1,3 +1,9 @@
+import { useWideLayout } from "@/components/nav/layout";
+import { hapticSelect, LoadingState, usePressScale } from "@/components/ui";
+import { usePushRegistration } from "@/hooks/usePushRegistration";
+import { useReportAppVersion } from "@/hooks/useReportAppVersion";
+import { useReportSeen } from "@/hooks/useReportSeen";
+import { BOTTOM_TAB_HEIGHT, shadowStyle, useAppTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useConvexAuth, useQuery } from "convex/react";
 import { Tabs } from "expo-router";
@@ -17,20 +23,20 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../../convex/_generated/api";
-import { useWideLayout } from "@/components/nav/layout";
-import { hapticSelect, LoadingState, usePressScale } from "@/components/ui";
-import { usePushRegistration } from "@/hooks/usePushRegistration";
-import { useReportAppVersion } from "@/hooks/useReportAppVersion";
-import { useReportSeen } from "@/hooks/useReportSeen";
-import { BOTTOM_TAB_HEIGHT, shadowStyle, useAppTheme } from "@/theme";
 
-const tabIcon =
-  (outline: keyof typeof Ionicons.glyphMap, filled: keyof typeof Ionicons.glyphMap) => {
-    const TabBarIcon = ({ color, focused }: { color: ColorValue; focused: boolean }) => (
-      <Ionicons name={focused ? filled : outline} size={23} color={color} />
-    );
-    return TabBarIcon;
-  };
+const tabIcon = (
+  outline: keyof typeof Ionicons.glyphMap,
+  filled: keyof typeof Ionicons.glyphMap,
+) => {
+  const TabBarIcon = ({
+    color,
+    focused,
+  }: {
+    color: ColorValue;
+    focused: boolean;
+  }) => <Ionicons name={focused ? filled : outline} size={23} color={color} />;
+  return TabBarIcon;
+};
 
 const InsightsTabIcon = ({
   color,
@@ -58,7 +64,14 @@ const InsightsTabIcon = ({
           paddingVertical: 0,
         }}
       >
-        <Text style={{ color: "#ffffff", fontSize: 6, fontWeight: "800", letterSpacing: 0.2 }}>
+        <Text
+          style={{
+            color: "#ffffff",
+            fontSize: 6,
+            fontWeight: "800",
+            letterSpacing: 0.2,
+          }}
+        >
           BETA
         </Text>
       </View>
@@ -68,8 +81,7 @@ const InsightsTabIcon = ({
 
 type TabBarButtonProps = {
   children?:
-    | React.ReactNode
-    | ((state: PressableStateCallbackType) => React.ReactNode);
+    React.ReactNode | ((state: PressableStateCallbackType) => React.ReactNode);
   style?: StyleProp<ViewStyle>;
   href?: string | null;
   onPress?: ((e: GestureResponderEvent) => void) | null;
@@ -82,7 +94,11 @@ type TabBarButtonProps = {
   disabled?: boolean | null;
 };
 
-const inactivePressableState = { pressed: false, hovered: false, focused: false };
+const inactivePressableState = {
+  pressed: false,
+  hovered: false,
+  focused: false,
+};
 
 const AnimatedTabBarButton = ({
   children,
@@ -103,8 +119,7 @@ const AnimatedTabBarButton = ({
         shiftKey?: boolean;
         button?: number | null;
       };
-      const hasModifier =
-        we.metaKey || we.altKey || we.ctrlKey || we.shiftKey;
+      const hasModifier = we.metaKey || we.altKey || we.ctrlKey || we.shiftKey;
       const isLeftClick = we.button == null || we.button === 0;
       if (!hasModifier && isLeftClick) {
         we.preventDefault?.();
@@ -128,7 +143,9 @@ const AnimatedTabBarButton = ({
         onPressOut?.(e);
       }}
     >
-      <Animated.View style={[styles.tabButtonInner, { transform: [{ scale }] }]}>
+      <Animated.View
+        style={[styles.tabButtonInner, { transform: [{ scale }] }]}
+      >
         {typeof children === "function"
           ? children(inactivePressableState)
           : children}
@@ -143,7 +160,10 @@ export default function TabsLayout() {
   const t = useAppTheme();
   const insets = useSafeAreaInsets();
   const waitingForRole = isAuthenticated && me === undefined;
-  usePushRegistration({ navigationReady: !waitingForRole, signedInAs: me?.email ?? null });
+  usePushRegistration({
+    navigationReady: !waitingForRole,
+    signedInAs: me?.email ?? null,
+  });
   useReportAppVersion();
   useReportSeen();
 
@@ -169,7 +189,9 @@ export default function TabsLayout() {
               : "index"
       }
       backBehavior="history"
-      tabBar={wide ? () => <View style={{ height: insets.bottom }} /> : undefined}
+      tabBar={
+        wide ? () => <View style={{ height: insets.bottom }} /> : undefined
+      }
       screenListeners={{ tabPress: () => hapticSelect() }}
       screenOptions={{
         headerShown: false,
@@ -189,7 +211,13 @@ export default function TabsLayout() {
           height: BOTTOM_TAB_HEIGHT + insets.bottom,
           paddingBottom: insets.bottom,
           paddingTop: 0,
-          ...shadowStyle(t.dark ? "#000000" : "#0F2523", t.dark ? 0.35 : 0.08, 16, -4, 12),
+          ...shadowStyle(
+            t.dark ? "#000000" : "#0F2523",
+            t.dark ? 0.35 : 0.08,
+            16,
+            -4,
+            12,
+          ),
         },
       }}
     >
@@ -225,6 +253,13 @@ export default function TabsLayout() {
           title: "Attendance",
           ...(isStaff ? {} : { href: null }),
           tabBarIcon: tabIcon("checkbox-outline", "checkbox"),
+        }}
+      />
+      <Tabs.Screen
+        name="music"
+        options={{
+          title: "Praise Music",
+          href: null,
         }}
       />
       <Tabs.Screen

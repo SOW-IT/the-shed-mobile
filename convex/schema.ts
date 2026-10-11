@@ -1,16 +1,14 @@
 import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import { announcementStatusValidator, audienceValidator } from "./announcementData";
-import { metricsDataValidator } from "./metricsData";
 import {
-  termFactsFields,
-  weeklyBlockValidator,
-  weeklyMarkValidator,
-  weeklySettingsFields,
-} from "./weeklyInsightsData";
-import { homeBlockValidator } from "./homeData";
-import { designAnswersValidator, designStatusValidator } from "./designRequestData";
+  announcementStatusValidator,
+  audienceValidator,
+} from "./announcementData";
+import {
+  designAnswersValidator,
+  designStatusValidator,
+} from "./designRequestData";
 import {
   eventStatusValidator,
   financeDataValidator,
@@ -19,11 +17,19 @@ import {
   subFormKindValidator,
   subFormStatusValidator,
 } from "./eventRequestData";
+import { homeBlockValidator } from "./homeData";
+import { metricsDataValidator } from "./metricsData";
+import {
+  termFactsFields,
+  weeklyBlockValidator,
+  weeklyMarkValidator,
+  weeklySettingsFields,
+} from "./weeklyInsightsData";
 
 export const approvalStatus = v.union(
   v.literal("PENDING"),
   v.literal("APPROVED"),
-  v.literal("DECLINED")
+  v.literal("DECLINED"),
 );
 
 export default defineSchema({
@@ -51,8 +57,8 @@ export default defineSchema({
           department: v.optional(v.string()),
           division: v.optional(v.string()),
           university: v.optional(v.string()),
-        })
-      )
+        }),
+      ),
     ),
     name: v.optional(v.string()),
     userId: v.optional(v.id("users")),
@@ -226,12 +232,12 @@ export default defineSchema({
                   storageId: v.id("_storage"),
                   name: v.string(),
                   deleted: v.optional(v.boolean()),
-                })
-              )
+                }),
+              ),
             ),
-          })
+          }),
         ),
-      })
+      }),
     ),
     paid: v.optional(v.boolean()),
     paidAmount: v.optional(v.number()),
@@ -260,8 +266,16 @@ export default defineSchema({
       "designRequestId",
       "read",
     ])
-    .index("by_user_and_eventRequest_and_read", ["userEmail", "eventRequestId", "read"])
-    .index("by_user_and_announcement_and_read", ["userEmail", "announcementId", "read"])
+    .index("by_user_and_eventRequest_and_read", [
+      "userEmail",
+      "eventRequestId",
+      "read",
+    ])
+    .index("by_user_and_announcement_and_read", [
+      "userEmail",
+      "announcementId",
+      "read",
+    ])
     .index("by_request", ["requestId"]),
 
   // A message an admin sends to everyone, or to chosen campuses, divisions,
@@ -421,14 +435,22 @@ export default defineSchema({
     authorEmail: v.string(),
     body: v.string(),
     postedAt: v.number(),
-  }).index("by_eventRequest_and_form_and_postedAt", ["eventRequestId", "form", "postedAt"]),
+  }).index("by_eventRequest_and_form_and_postedAt", [
+    "eventRequestId",
+    "form",
+    "postedAt",
+  ]),
 
   eventRequestCommentReads: defineTable({
     eventRequestId: v.id("eventRequests"),
     form: subFormKindValidator,
     userEmail: v.string(),
     lastReadAt: v.number(),
-  }).index("by_eventRequest_and_form_and_user", ["eventRequestId", "form", "userEmail"]),
+  }).index("by_eventRequest_and_form_and_user", [
+    "eventRequestId",
+    "form",
+    "userEmail",
+  ]),
 
   requestNudges: defineTable({
     requestId: v.id("requests"),
@@ -459,7 +481,7 @@ export default defineSchema({
       v.literal("member"),
       v.literal("tag"),
       v.literal("metadata"),
-      v.literal("attendance")
+      v.literal("attendance"),
     ),
     action: v.string(),
     summary: v.string(),
@@ -584,7 +606,7 @@ export default defineSchema({
     computedAt: v.number(),
     years: v.array(v.number()),
     campuses: v.array(
-      v.object({ campus: v.string(), averages: v.array(v.number()) })
+      v.object({ campus: v.string(), averages: v.array(v.number()) }),
     ),
   }),
 
@@ -598,10 +620,10 @@ export default defineSchema({
 
   // Who came to which weekly, one row per campus and term. A finished term's
   // row is only rewritten when one of its weeklies changes.
-  weeklyTermFacts: defineTable(termFactsFields).index("by_subgroup_and_termKey", [
-    "subgroup",
-    "termKey",
-  ]),
+  weeklyTermFacts: defineTable(termFactsFields).index(
+    "by_subgroup_and_termKey",
+    ["subgroup", "termKey"],
+  ),
 
   // The finished blocks for one campus and one term ("2026-T1") or year
   // ("2026"), so opening Insights reads one row.
@@ -620,7 +642,9 @@ export default defineSchema({
     computedAt: v.number(),
     periods: v.array(v.object({ key: v.string(), label: v.string() })),
     currentKey: v.union(v.string(), v.null()),
-    weeklies: v.array(v.object({ at: v.number(), count: v.number(), joint: v.boolean() })),
+    weeklies: v.array(
+      v.object({ at: v.number(), count: v.number(), joint: v.boolean() }),
+    ),
     settingsVersion: v.number(),
     // Missing on rows written before views had a version: redone next build.
     viewVersion: v.optional(v.number()),
@@ -642,4 +666,21 @@ export default defineSchema({
     updatedAt: v.number(),
     updatedBy: v.string(),
   }).index("by_key", ["key"]),
+
+  // A song request from any signed-in staff member. Single-step approval by a
+  // Chaplain (Senior/Junior/Intern) — unlike `requests`, there is no multi-step
+  // approval chain: one Chaplin action (approve/decline) closes it out.
+  musicRequests: defineTable({
+    requesterEmail: v.string(),
+    title: v.string(),
+    artist: v.string(),
+    link: v.string(),
+    status: approvalStatus,
+    reviewedByEmail: v.optional(v.string()),
+    reviewedTime: v.optional(v.number()),
+    requestComment: v.optional(v.string()),
+    declineComment: v.optional(v.string()),
+  })
+    .index("by_requester", ["requesterEmail"])
+    .index("by_status", ["status"]),
 });
