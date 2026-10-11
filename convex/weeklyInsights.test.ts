@@ -496,7 +496,7 @@ describe("year so far", () => {
     expect(chart.subtitle).toBe("2026 vs 2025 to 12 Jun");
     // Up to 12 Jun 2025 only T2's first two weeklies had happened.
     expect(chart.points.find((p) => p.label === "T2")!.segments[1].value).toBe(2);
-    expect(block(blocks, "cards").cards[0].hint).toMatch(/ in 2025 to 12 Jun$/);
+    expect(block(blocks, "cards").cards[0].hint).toMatch(/ in 2025\u00a0to\u00a012\u00a0Jun$/);
     // T2 2025's own page still shows the whole term.
     const t2 = (await leader.query(api.weeklyInsights.view, { subgroup: UNSW, period: "2025-T2" }))!.blocks as Block[];
     expect(block(t2, "cards").cards[0].value).toBe("2.3");

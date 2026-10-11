@@ -476,7 +476,7 @@ export function MetricCard({
           {hint ? (
             <Text
               style={[typography.caption, { color: t.faint }]}
-              numberOfLines={1}
+              numberOfLines={2}
             >
               {hint}
             </Text>
@@ -1454,7 +1454,9 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   deltaSlot: { height: 17, justifyContent: "center" },
-  hintSlot: { height: 15, justifyContent: "center" },
+  // Room for a second line, so a comparison like "vs 22 in T2 2026 W1–5"
+  // wraps instead of being cut off on a phone.
+  hintSlot: { minHeight: 15, justifyContent: "center" },
   deltaRow: {
     flexDirection: "row",
     alignItems: "center",

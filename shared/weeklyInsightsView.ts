@@ -251,7 +251,9 @@ export function summaryCards(
   lastLabel: string | null,
   compareNote?: string
 ): ViewCard[] {
-  const vs = (v: string) => (last && lastLabel ? `vs ${v} in ${lastLabel}` : undefined);
+  // The label stays on one line ("T2 2026 W1–5"); a narrow card wraps before it.
+  const keep = (label: string) => label.replace(/ /g, "\u00a0").replace(/–/g, "–\u2060");
+  const vs = (v: string) => (last && lastLabel ? `vs ${v} in ${keep(lastLabel)}` : undefined);
   const info = (title: string, body: string) => ({
     title,
     body: compareNote && last ? `${body} ${compareNote}` : body,
