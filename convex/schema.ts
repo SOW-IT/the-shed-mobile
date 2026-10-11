@@ -470,7 +470,10 @@ export default defineSchema({
     detail: v.optional(v.string()),
   })
     .index("by_event", ["eventId"])
-    .index("by_actor", ["actorEmail"]),
+    .index("by_actor", ["actorEmail"])
+    // Finds the staff email a former leader or staff member had, from the
+    // "member.leftStaff" entry their conversion wrote.
+    .index("by_member_and_action", ["memberId", "action"]),
 
   attendanceTags: defineTable({
     name: v.string(),

@@ -19,6 +19,16 @@ All notable changes to **The SHED** mobile app. This project follows
   member this way, the next Insights build re-reads their weeklies, so they
   show up as a member (with Edit member) instead of under their old staff
   email.
+- **They're still a leader in the terms they served.** Insights used to
+  re-label a converted leader's past terms as Regular or Irregular. It now
+  finds the staff email they had and keeps them as a Leader (or staff) for
+  those terms, and a member from the year they stopped.
+- **A personal email can't be a staff email.** A staff person's personal
+  email, and a plain member's email, can no longer be an SOW address
+  (@sow.org.au or @sowaustralia.com) or anyone's staff email from any year.
+  The form says so as you type and won't save; merging and the leavers
+  conversion skip such an address too. For staff, the second email box is
+  now labelled "Personal email".
 
 ## [2.5.3] — 2026-10-12
 

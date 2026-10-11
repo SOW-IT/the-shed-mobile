@@ -530,7 +530,7 @@ describe("a term that's gone", () => {
 
 describe("someone who left staff", () => {
   test("their weeklies are re-read, so they show up as a member", async () => {
-    const { t } = await setup();
+    const { t, leader } = await setup();
     await rebuild(t);
     const keysIn = async () => {
       const facts = Object.values(await factDocs(t));
@@ -552,6 +552,12 @@ describe("someone who left staff", () => {
     const keys = await keysIn();
     expect(keys.has(`staff:${LEADER}`)).toBe(false);
     expect(keys.has(`member:${lee._id}`)).toBe(true);
+    // Still a leader in the terms they served (T2 2026, staff year 2026).
+    const t2 = (await leader.query(api.weeklyInsights.view, { subgroup: UNSW, period: "2026-T2" }))!.blocks as Block[];
+    expect(block(t2, "people").rows.find((r) => r.key === `member:${lee._id}`)).toMatchObject({
+      name: "Lee Leader",
+      category: { label: "Leader" },
+    });
   });
 });
 

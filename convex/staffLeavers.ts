@@ -9,7 +9,7 @@ import { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, type MutationCtx } from "./_generated/server";
 import { logAttendanceAction } from "./attendanceAudit";
 import { mergeSelectValues } from "./attendanceMetadata";
-import { latestStaffProfile } from "./attendanceMembers";
+import { isStaffAddress } from "./attendanceMembers";
 import { findMemberByEmail } from "./model";
 
 const LEAVERS_ACTOR = "system:staff-leavers";
@@ -162,7 +162,7 @@ async function convertPerson(
   let personalEmail: string | null = null;
   for (const row of [primary, ...duplicates]) {
     const email = row?.personalEmail?.trim().toLowerCase();
-    if (email && !(await latestStaffProfile(ctx, email))) {
+    if (email && !(await isStaffAddress(ctx, email))) {
       personalEmail = email;
       break;
     }

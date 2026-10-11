@@ -118,10 +118,10 @@ describe("legacy import matching", () => {
     const admin = asUser(t, ADMIN);
     const leader = asUser(t, LEADER);
     await admin.mutation(api.attendanceMetadata.ensureDefaults, { });
-    const memberId = await admin.mutation(api.attendanceMembers.create, {
-      name: "Ghost Person",
-      email: "ghost.person@sowaustralia.com",
-    });
+    // Imported rows can carry an old SOW address; the app won't take one.
+    const memberId = await t.run((ctx) =>
+      ctx.db.insert("attendanceMembers", { name: "Ghost Person", email: "ghost.person@sowaustralia.com" })
+    );
     const roster = await leader.query(api.attendance.roster, { year: YEAR });
     expect(roster.some((m) => m.name === "Ghost Person")).toBe(true);
     const { dateStart, dateEnd } = window();

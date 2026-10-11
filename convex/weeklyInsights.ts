@@ -368,11 +368,22 @@ async function resolvePeople(ctx: QueryCtx, keys: string[], years: number[]): Pr
   for (const key of keys) {
     let member: Doc<"attendanceMembers"> | null;
     let email: string | undefined;
+    // Someone who left staff: the staff email they had, for the years they
+    // served (they're still a leader in those terms, a member after).
+    let formerStaffEmail: string | undefined;
     if (key.startsWith("member:")) {
       const id = ctx.db.normalizeId("attendanceMembers", key.slice("member:".length));
       member = id ? await ctx.db.get("attendanceMembers", id) : null;
       // Staff signed in through their member row still have a staff profile.
       email = member?.email ? canonicalEmailKey(member.email) : undefined;
+      if (id) {
+        const left = await ctx.db
+          .query("attendanceAuditLog")
+          .withIndex("by_member_and_action", (q) => q.eq("memberId", id).eq("action", "member.leftStaff"))
+          .order("desc")
+          .first();
+        formerStaffEmail = canonicalEmailKey(left?.subjectEmail);
+      }
     } else {
       email = key.slice("staff:".length);
       const staffEmail = email;
@@ -384,9 +395,11 @@ async function resolvePeople(ctx: QueryCtx, keys: string[], years: number[]): Pr
     const fallback = memberInfo(member);
     const infoByYear: WeeklyPerson["infoByYear"] = {};
     let latest: Doc<"staffProfiles"> | undefined;
-    for (const year of email ? years : []) {
+    const emails = [email, formerStaffEmail].filter((e): e is string => Boolean(e));
+    for (const year of emails.length ? years : []) {
       const byEmail = profilesByYear.get(year)!;
-      const profile = staffEmailCandidates(email!)
+      const profile = emails
+        .flatMap((e) => staffEmailCandidates(e))
         .map((candidate) => byEmail.get(candidate))
         .find((p) => p);
       if (!profile) continue;

@@ -14,6 +14,7 @@ import {
   yearOptionIdForStoredValue,
 } from "../../../shared/attendanceMemberMeta";
 import { SYDNEY_TIME_ZONE } from "../../../shared/flow";
+import { isSowStaffAddress } from "../../../shared/rollcallImport";
 import { capitalizeMemberName } from "../../../shared/rollcall";
 import { MergeMemberSheet } from "@/components/attendance/MergeMemberSheet";
 import {
@@ -127,6 +128,8 @@ export function EditMemberSheet({
     visible && emailChanged ? { email: typedEmail, staffYear } : "skip"
   );
   const staffEmailOwner = emailChanged ? (staffForEmail ?? null) : null;
+  // Any other SOW address is still a staff one, never a personal email.
+  const sowAddress = emailChanged && !staffEmailOwner && isSowStaffAddress(typedEmail);
 
   const metadataSummary = (meta: Record<string, string>) =>
     metadataFields
@@ -273,7 +276,7 @@ export function EditMemberSheet({
             title="Save"
             onPress={handleSave}
             loading={submitting}
-            disabled={(!isStaffOverlay && !name.trim()) || Boolean(staffEmailOwner)}
+            disabled={(!isStaffOverlay && !name.trim()) || Boolean(staffEmailOwner) || sowAddress}
           />
         )
       }
@@ -312,13 +315,16 @@ export function EditMemberSheet({
             />
           ) : null}
           <Field
-            label="Email (optional)"
+            label={isStaffOverlay ? "Personal email (optional)" : "Email (optional)"}
             testID="member-email"
             value={isStaffOverlay ? personalEmail : email}
             onChangeText={isStaffOverlay ? setPersonalEmail : setEmail}
             placeholder={isStaffOverlay ? "Their personal email" : undefined}
             keyboardType="email-address"
           />
+          {sowAddress ? (
+            <WarningBanner message="That's an SOW staff address. Add their personal email instead." />
+          ) : null}
           {staffEmailOwner && isStaffOverlay ? (
             <WarningBanner
               message={`This is ${staffEmailOwner.name}'s staff email. Add a personal email here instead.`}

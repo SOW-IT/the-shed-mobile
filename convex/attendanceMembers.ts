@@ -22,7 +22,7 @@ import {
   yearOptionIdForStoredValue,
 } from "../shared/attendanceMemberMeta";
 import { capitalizeMemberName, personDisplayName } from "../shared/rollcall";
-import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
+import { canonicalEmailKey, isSowStaffAddress, staffEmailCandidates } from "../shared/rollcallImport";
 import {
   buildMergedFields,
   detectMergeConflicts,
@@ -454,6 +454,7 @@ export const create = mutation({
           `${staff.email} is ${personDisplayName(staff.name, staff.email)}'s staff email. They're already in the list as staff.`
         );
       }
+      if (isSowStaffAddress(email)) throw new ConvexError(NOT_PERSONAL(email!.trim().toLowerCase()));
     }
     const memberId = await ctx.db.insert("attendanceMembers", {
       name: trimmed,
@@ -498,10 +499,8 @@ export const update = mutation({
     const profile = await staffOverlayProfile(ctx, row, profileYear, email);
     if (profile) {
       const personal = personalEmail?.trim().toLowerCase() || undefined;
-      if (personal && (await latestStaffProfile(ctx, personal))) {
-        throw new ConvexError(
-          `${personal} is a staff email. Add their personal email instead.`
-        );
+      if (personal && (await isStaffAddress(ctx, personal))) {
+        throw new ConvexError(NOT_PERSONAL(personal));
       }
       const fields = await allMetadataFields(ctx);
       await ctx.db.patch(memberId, {
@@ -525,9 +524,15 @@ export const update = mutation({
     }
     const trimmed = capitalizeMemberName(name.trim());
     if (!trimmed) throw new ConvexError("Name is required.");
+    const ownEmail = email?.trim().toLowerCase() || undefined;
+    // A plain member's email is their own; a staff one (say a former
+    // leader's old SOW address) would make them read as staff.
+    if (ownEmail && ownEmail !== row.email?.toLowerCase() && (await isStaffAddress(ctx, ownEmail))) {
+      throw new ConvexError(NOT_PERSONAL(ownEmail));
+    }
     await ctx.db.patch(memberId, {
       name: trimmed,
-      email: email?.trim().toLowerCase() || undefined,
+      email: ownEmail,
       metadata,
     });
     await logAttendanceAction(ctx, {
@@ -663,6 +668,15 @@ const staffYearsToCheck = (profileYear: number): number[] => {
 
 /** Someone's most recent staff profile in any year. Former staff are still
  *  staff here: their attendance is keyed by their org email. */
+/** A staff email rather than a personal one: an SOW address, or anyone's
+ *  staff email in any year. Personal emails (a staff person's own, a plain
+ *  member's) can't be one. */
+export const isStaffAddress = async (ctx: Ctx, email: string | undefined): Promise<boolean> =>
+  isSowStaffAddress(email) || Boolean(await latestStaffProfile(ctx, email));
+
+const NOT_PERSONAL = (email: string) =>
+  `${email} is a staff email, not a personal one. Add their personal email instead.`;
+
 export const latestStaffProfile = async (
   ctx: Ctx,
   email: string | undefined
@@ -798,7 +812,7 @@ const keptPersonalEmail = async (
 ): Promise<string | undefined> => {
   for (const candidate of [keep.shadow?.personalEmail, remove.email]) {
     const email = candidate?.trim().toLowerCase();
-    if (email && !(await latestStaffProfile(ctx, email))) return email;
+    if (email && !(await isStaffAddress(ctx, email))) return email;
   }
   return undefined;
 };
