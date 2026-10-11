@@ -1,4 +1,4 @@
-# Returns the app to a signed-out (visitor) state via the dev/test-only bypass
+# Returns the app to a signed-out state via the dev/test-only bypass
 # route (theshedmobile://e2e-auth?signout=1). Used by public flows so they start
 # clean even if a previous flow left a session. Needs the E2E build (SCHEME from
 # env). No-op-safe if already signed out.
@@ -9,7 +9,7 @@ appId: ${APP_ID}
 # right after opening the link races that redirect. If the process dies
 # before the sign-out call has actually persisted, the relaunched client can
 # still carry the old auth token into its first request; the Contact form hit
-# this concretely (a visitor submission failed server-side with "Please enter
+# this concretely (a signed-out submission failed server-side with "Please enter
 # a valid email address" — the server had resolved a stale authed identity
 # instead of the typed one). Wait for the redirect's on-screen evidence first.
 - extendedWaitUntil:

@@ -10,7 +10,7 @@
 #   • the bell is "Notifications, N unread"
 #
 # Signs in as Finance so this flow is self-contained (launch-fresh alone
-# leaves a visitor session, so "Mine" never appears; plain staff also has no
+# leaves a signed-out session, so "Mine" never appears; plain staff also has no
 # Review/All segments).
 appId: ${APP_ID}
 tags:

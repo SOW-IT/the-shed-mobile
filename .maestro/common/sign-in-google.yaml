@@ -16,7 +16,7 @@
 # tagged optional so a missing element degrades instead of hard-failing.
 appId: ${APP_ID}
 ---
-# The visitor (signed-out) top-left control is "Sign in" — a wide
+# The signed-out top-left control is "Sign in" — a wide
 # call-to-action button, not the avatar — which opens the sign-in menu
 # directly. "Open menu" is the signed-IN avatar's label and only exists after
 # auth (src/components/nav/TopBar.tsx), so it never applies here.

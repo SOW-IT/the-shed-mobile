@@ -3,6 +3,11 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { announcementStatusValidator, audienceValidator } from "./announcementData";
 import { metricsDataValidator } from "./metricsData";
+import {
+  termFactsFields,
+  weeklyBlockValidator,
+  weeklySettingsFields,
+} from "./weeklyInsightsData";
 import { homeBlockValidator } from "./homeData";
 import { designAnswersValidator, designStatusValidator } from "./designRequestData";
 import {
@@ -578,6 +583,49 @@ export default defineSchema({
       v.object({ campus: v.string(), averages: v.array(v.number()) })
     ),
   }),
+
+  // Insights → Attendance for each campus, built around its weekly meetings
+  // (convex/weeklyInsights.ts). One settings row; the numbers can be changed
+  // at any time and take effect at the next build.
+  weeklyInsightsSettings: defineTable({
+    ...weeklySettingsFields,
+    version: v.number(),
+  }),
+
+  // Who came to which weekly, one row per campus and term. A finished term's
+  // row is only rewritten when one of its weeklies changes.
+  weeklyTermFacts: defineTable(termFactsFields).index("by_subgroup_and_termKey", [
+    "subgroup",
+    "termKey",
+  ]),
+
+  // The finished blocks for one campus and one term ("2026-T1") or year
+  // ("2026"), so opening Insights reads one row.
+  weeklyInsightViews: defineTable({
+    subgroup: v.string(),
+    periodKey: v.string(),
+    computedAt: v.number(),
+    blocks: v.array(weeklyBlockValidator),
+  }).index("by_subgroup_and_periodKey", ["subgroup", "periodKey"]),
+
+  // One row per campus: the periods it has, where the last build got to in
+  // the attendance change log, and its recent weeklies' head counts (which the
+  // SOW view's campus comparison reads).
+  weeklyInsightIndex: defineTable({
+    subgroup: v.string(),
+    computedAt: v.number(),
+    periods: v.array(v.object({ key: v.string(), label: v.string() })),
+    currentKey: v.union(v.string(), v.null()),
+    weeklies: v.array(v.object({ at: v.number(), count: v.number(), joint: v.boolean() })),
+    settingsVersion: v.number(),
+    // Missing on rows written before views had a version: redone next build.
+    viewVersion: v.optional(v.number()),
+    auditSeen: v.number(),
+    eventsSeen: v.number(),
+    // When the current year's "vs last year up to today" next changes, so
+    // the year view is redone then even if no attendance has changed.
+    nextCompareAt: v.number(),
+  }).index("by_subgroup", ["subgroup"]),
 
   // One row per edited Home sub-tab (home, resources, connect, partner). A tab
   // with no row, or null blocks (restored), shows the default content in

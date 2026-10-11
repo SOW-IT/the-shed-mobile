@@ -53,12 +53,15 @@ Assigning them for the viewed year creates that year's profile and links it to
 the earlier one by email, including the sow.org.au / sowaustralia.com pair.
 _Avoid_: rehire, returning employee, alumni
 
-**Visitor**:
+**Guest**:
 A signed-in account that is not Staff — someone who signed in with Apple
 rather than an `@sow.org.au` Google account (personal Google sign-in was
-removed in 2.4.7; visitors who used it before keep their account but can't
-sign in with it again). A visitor has an account and no profile.
-_Avoid_: guest, public user, non-staff
+removed in 2.4.7; guests who used it before keep their account but can't
+sign in with it again). A guest has an account and no profile. The Role
+option of the same name (it was called Visitor until 2.5.0) marks a
+non-student at events, such as a parent or a church guest.
+_Avoid_: visitor (in Attendance that's someone from another campus), public
+user, non-staff
 
 **Assignment**:
 A staff member's role plus its scope for one year — a department, a division or

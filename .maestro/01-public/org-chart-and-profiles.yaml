@@ -1,5 +1,5 @@
 # §1.2 Public Org Chart & profiles.
-# - Visitor can browse the chart and open a person profile / service history
+# - Someone signed out can browse the chart and open a person profile / service history
 # - Signed-out person view hides the Local church field (private)
 appId: ${APP_ID}
 tags:

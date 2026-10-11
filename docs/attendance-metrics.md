@@ -1,5 +1,9 @@
 # Insights → Attendance (metrics dashboard)
 
+> From 2.5.0 a **campus**'s view is built from its weekly meetings instead:
+> see [weekly-insights.md](weekly-insights.md). What follows now describes the
+> org-wide **SOW** view, whose Snapshots are the only ones still built.
+
 A leader-facing dashboard that turns raw sign-in data into trends and gentle
 follow-up prompts for a sub-group and time range.
 
@@ -37,8 +41,9 @@ The dashboard never scans attendance history on the device. Snapshots are
 rebuilt by one cron, fanning out one bounded recompute per sub-group:
 
 - **Nightly rebuild** (`attendance metrics daily rebuild`, **16:00 UTC ≈
-  02:00–03:00 Sydney**) — `recomputeAll` recomputes every sub-group for the
-  current staff year. Roll-call and event changes therefore show up in
+  02:00–03:00 Sydney**) — `recomputeAll` recomputes the **SOW** sub-group for
+  the current staff year (campuses are built from their weeklies since 2.5.0;
+  see [weekly-insights.md](weekly-insights.md)). Roll-call and event changes therefore show up in
   Insights the next morning, not within minutes; the trade-off is that the
   backend no longer re-reads a megabyte of snapshots every 15 minutes.
 - **Rollover** — the October 1 prefill job (`prefillNextStaffYear`) kicks a
@@ -72,8 +77,9 @@ reading every event's attendance in one mutation. It:
    upserts one `attendanceMetricsSnapshots` row per combination
    (`writeSnapshots`, resilient to duplicate rows so racing recomputes can't
    wedge later reads). Alongside each snapshot it writes one tiny
-   `attendanceMetricsWeeklyAverages` row (the weekly-meeting average), so the
-   SOW campus comparison reads those instead of every campus's full snapshot.
+   `attendanceMetricsWeeklyAverages` row (the weekly-meeting average). Since
+   2.5.0 the SOW campus comparison reads each campus's recent weekly head
+   counts from its `weeklyInsightIndex` row instead.
    **Custom** date ranges were removed in 2.0.1: they recomputed everything
    from raw attendance on each view. `liveSnapshot` stays only for older apps. The whole-**staff-year** range is supported by
    the pure logic (`STAFF_YEAR_RANGE`) but is **not** currently precomputed
@@ -84,8 +90,10 @@ stale prior-staff-year row (treated as "not ready") and a rare duplicate row
 (takes the newest). Because the nightly cron keeps snapshots current
 automatically, **there is no manual refresh control in the UI**. A server-side
 recovery path still exists — `api.attendanceMetrics.recomputeNow` (gated by
-`requireAttendanceManager`, throttled to once per week per sub-group via
-`MANUAL_REFRESH_COOLDOWN_MS`) — but it is not wired to a button today. The
+`requireAttendanceManager`) — but it is not wired to a button today. For SOW
+it's throttled to once per week via `MANUAL_REFRESH_COOLDOWN_MS`; for a campus
+it runs that campus's weeklies rebuild with no cooldown; with no sub-group it
+does both for everything. The
 cooldown is measured from the last *manual* refresh
 (`attendanceMetricsRuns.lastManualRefreshAt`), never from the nightly rebuild's
 `computedAt`, otherwise the cron would keep the manual path permanently
@@ -116,12 +124,12 @@ reason (at risk → lapsed → declining → newcomer-no-return → re-engaged).
 
 ### What the tab shows
 
-- **A campus:** three numbers (weekly-meeting average with its change vs the
-  previous period, or average per event when there are no weekly meetings;
-  people; new people), one chart (weekly meetings, or every event), then
-  **Needs follow-up** (top 5, "Show all" up to 25, with the real total).
-- **SOW:** the weekly-meeting average for each campus, then SOW events' three
-  numbers. There's no follow-up list at org level.
+- **SOW:** the weekly-meeting average for each campus over the chosen range
+  (from each campus's recent weeklies), then SOW events' three numbers.
+  There's no follow-up list at org level.
+- **A campus (before 2.5.0, historical):** three numbers, one chart and Needs
+  follow-up, from these Snapshots. A campus is now its weeklies view; see
+  [weekly-insights.md](weekly-insights.md).
 
 Charts are plain React Native `View`s (no charting dependency). The pure
 module still computes the older series (rolling average, unique by month, new

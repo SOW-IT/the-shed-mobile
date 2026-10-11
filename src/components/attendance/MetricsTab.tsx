@@ -10,6 +10,7 @@ import {
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { isOrgWideSubgroup, subgroupColour } from "../../../shared/rollcall";
+import { type WeeklyBlock } from "../../../shared/weeklyInsightsView";
 import { CampusMark } from "@/components/CampusMark";
 import { InsightsBlocks } from "@/components/attendance/InsightsBlocks";
 import { FadeInView, LoadingState, stagger } from "@/components/ui";
@@ -17,31 +18,38 @@ import { spacing, useAppTheme } from "@/theme";
 
 const CAMPUS_MARK = 40;
 
-// The layout comes from `attendanceMetrics.view` (see InsightsBlocks).
+// The layout comes from the server (see InsightsBlocks): `weeklyInsights.view`
+// for a campus, passed in as `weeklyView`, and `attendanceMetrics.view` for SOW.
 export function MetricsTab({
   subgroups,
   selectedSubgroup,
   onSelectedSubgroupChange,
   onOpenMember,
+  onOpenPerson,
   rangeWeeks,
   includeCollaborative,
+  weeklyView,
 }: {
   subgroups: string[];
   selectedSubgroup: string | null;
   onSelectedSubgroupChange: (subgroup: string) => void;
   onOpenMember: (memberId: Id<"attendanceMembers">) => void;
+  onOpenPerson: (personKey: string) => void;
   rangeWeeks: number;
   includeCollaborative: boolean;
+  weeklyView: { period: string | null; blocks: WeeklyBlock[] } | null | undefined;
 }) {
   const t = useAppTheme();
   const { width: windowWidth } = useWindowDimensions();
   const subgroup = selectedSubgroup ?? subgroups[0] ?? null;
   const [containerWidth, setContainerWidth] = useState(windowWidth);
 
-  const view = useQuery(
+  const orgWide = !!subgroup && isOrgWideSubgroup(subgroup);
+  const sowView = useQuery(
     api.attendanceMetrics.view,
-    subgroup ? { subgroup, rangeWeeks, includeCollaborative } : "skip"
+    subgroup && orgWide ? { subgroup, rangeWeeks, includeCollaborative } : "skip"
   );
+  const view = orgWide ? sowView : weeklyView;
 
   const onLayout = (e: LayoutChangeEvent) =>
     setContainerWidth(e.nativeEvent.layout.width);
@@ -79,10 +87,11 @@ export function MetricsTab({
         <LoadingState />
       ) : view ? (
         <InsightsBlocks
-          key={`${subgroup}-${rangeWeeks}-${includeCollaborative}`}
+          key={orgWide ? `${subgroup}-${rangeWeeks}-${includeCollaborative}` : `${subgroup}-${weeklyView?.period}`}
           blocks={view.blocks}
           width={containerWidth}
           onOpenMember={onOpenMember}
+          onOpenPerson={onOpenPerson}
         />
       ) : null}
       <View style={{ height: 96 }} />

@@ -51,6 +51,7 @@ import {
 } from "./_generated/server";
 import { currentStaffYear, optionalProfile, requireAttendanceManager } from "./model";
 import { metricsDataValidator, viewBlockValidator } from "./metricsData";
+import { readCampusWeeklyAverages } from "./weeklyInsights";
 import {
   ATTENDANCE_RANGE_OPTIONS,
   buildAttendanceView,
@@ -63,7 +64,6 @@ const MAX_EVENTS = 800;
 const MAX_EVENT_SCAN = 4000;
 const MAX_PERSONS = 1200;
 const ATTENDANCE_CHUNK = 100;
-const MAX_WEEKLY_AVERAGE_ROWS = 200;
 
 const metricsEventValidator = v.object({
   id: v.string(),
@@ -525,19 +525,14 @@ export const recomputeAll = internalMutation({
   args: { staffYear: v.optional(v.number()) },
   returns: v.null(),
   handler: async (ctx, args) => {
+    // Only the org-wide SOW view uses these Snapshots now; each campus's view
+    // is built from its weekly meetings by weeklyInsights.rebuildAll.
     const years = args.staffYear ? [args.staffYear] : metricsYears();
     for (const year of years) {
-      const universities = await ctx.db
-        .query("universities")
-        .withIndex("by_year_and_name", (q) => q.eq("year", year))
-        .collect();
-      const subgroups = [SOW_SUBGROUP, ...universities.map((u) => u.name)];
-      for (const subgroup of subgroups) {
-        await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeSubgroup, {
-          subgroup,
-          staffYear: year,
-        });
-      }
+      await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeSubgroup, {
+        subgroup: SOW_SUBGROUP,
+        staffYear: year,
+      });
     }
     await ctx.scheduler.runAfter(
       0,
@@ -723,61 +718,6 @@ export const campusWeeklyAverages = query({
   },
 });
 
-async function readCampusWeeklyAverages(
-  ctx: QueryCtx,
-  year: number,
-  rangeWeeks: number,
-  includeCollaborative: boolean
-): Promise<{ campus: string; avgWeekly: number }[]> {
-  const universities = await ctx.db
-    .query("universities")
-    .withIndex("by_year_and_name", (q) => q.eq("year", year))
-    .collect();
-
-  const averages = await ctx.db
-    .query("attendanceMetricsWeeklyAverages")
-    .withIndex("by_year_range_collab_subgroup", (q) =>
-      q
-        .eq("staffYear", year)
-        .eq("rangeWeeks", rangeWeeks)
-        .eq("includeCollaborative", includeCollaborative)
-    )
-    .take(MAX_WEEKLY_AVERAGE_ROWS);
-  const newestAverage = new Map<string, Doc<"attendanceMetricsWeeklyAverages">>();
-  for (const row of averages) {
-    const seen = newestAverage.get(row.subgroup);
-    if (!seen || row.computedAt > seen.computedAt) newestAverage.set(row.subgroup, row);
-  }
-
-  const perCampus = await Promise.all(
-    universities.map(async (uni) => {
-      const summary = newestAverage.get(canonicalSubgroup(uni.name));
-      if (summary) {
-        return summary.avgWeekly === null
-          ? null
-          : { campus: uni.name, avgWeekly: summary.avgWeekly };
-      }
-      const rows = await ctx.db
-        .query("attendanceMetricsSnapshots")
-        .withIndex("by_subgroup_range_year", (q) =>
-          q
-            .eq("subgroup", canonicalSubgroup(uni.name))
-            .eq("rangeWeeks", rangeWeeks)
-            .eq("includeCollaborative", includeCollaborative)
-            .eq("staffYear", year)
-        )
-        .collect();
-      if (rows.length === 0) return null;
-      const row = rows.reduce((a, b) => (b.computedAt > a.computedAt ? b : a));
-      const avg = row.data.summary.avgWeeklyAttendance;
-      return avg === null ? null : { campus: uni.name, avgWeekly: avg };
-    })
-  );
-  return perCampus
-    .filter((c): c is { campus: string; avgWeekly: number } => c !== null)
-    .sort((a, b) => b.avgWeekly - a.avgWeekly);
-}
-
 export const view = query({
   args: {
     subgroup: v.string(),
@@ -812,7 +752,10 @@ export const recomputeNow = mutation({
   returns: v.null(),
   handler: async (ctx, { subgroup }) => {
     await requireAttendanceManager(ctx);
-    if (subgroup) {
+    if (subgroup && !isOrgWideSubgroup(subgroup)) {
+      // A campus rebuild only redoes what changed, so it needs no cooldown.
+      await ctx.scheduler.runAfter(0, internal.weeklyInsights.rebuild, { subgroup });
+    } else if (subgroup) {
       const canonical = canonicalSubgroup(subgroup);
       const year = currentStaffYear();
       // The cooldown counts manual refreshes only. The nightly cron also
@@ -846,6 +789,7 @@ export const recomputeNow = mutation({
       });
     } else {
       await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeAll, {});
+      await ctx.scheduler.runAfter(0, internal.weeklyInsights.rebuildAll, {});
     }
     return null;
   },

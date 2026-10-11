@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
 import { GENERAL_RECENT_YEARS } from "../../../shared/attendanceMetrics";
@@ -7,6 +7,7 @@ import {
   resolveRangeWeeks,
 } from "../../../shared/attendanceMetricsView";
 import { staffYearForDate, sydneyCalendarYear } from "../../../shared/flow";
+import { isOrgWideSubgroup } from "../../../shared/rollcall";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { EditMemberSheet } from "@/components/attendance/EditMemberSheet";
@@ -16,6 +17,7 @@ import {
   ChartModeFab,
   type GeneralScope,
   GeneralScopeFab,
+  PeriodFab,
 } from "@/components/attendance/InsightsSelectors";
 import {
   type ChartMode,
@@ -50,6 +52,20 @@ export default function InsightsScreen() {
   const [generalScope, setGeneralScope] = useState<GeneralScope>(null);
   const [chartMode, setChartMode] = useState<ChartMode>("bar");
   const generalView = useQuery(api.generalMetrics.view, { scope: generalScope });
+  const router = useRouter();
+  // A campus shows its weeklies by term or year; SOW keeps the range picker.
+  const campus = subgroup ?? subgroups?.[0] ?? null;
+  const campusSelected = !!campus && !isOrgWideSubgroup(campus);
+  const [periodByCampus, setPeriodByCampus] = useState<Record<string, string>>({});
+  const weeklyView = useQuery(
+    api.weeklyInsights.view,
+    campusSelected && me?.profile ? { subgroup: campus, period: periodByCampus[campus] } : "skip"
+  );
+  const openPerson = (personKey: string) =>
+    router.push({
+      pathname: "/attendance/member/[key]",
+      params: { key: personKey, ...(campus ? { subgroup: campus } : {}) },
+    });
 
   useEffect(() => {
     if (tab === "attendance" || tab === "general") {
@@ -96,8 +112,10 @@ export default function InsightsScreen() {
         selectedSubgroup={subgroup}
         onSelectedSubgroupChange={setSelectedSubgroup}
         onOpenMember={openEditMember}
+        onOpenPerson={openPerson}
         rangeWeeks={attendanceWeeks}
         includeCollaborative={includeCollaborative}
+        weeklyView={weeklyView}
       />
     ),
   };
@@ -106,7 +124,15 @@ export default function InsightsScreen() {
 
   const floating = (
     <>
-      {activeKey === "attendance" && isStaff ? (
+      {activeKey === "attendance" && isStaff && campusSelected ? (
+        weeklyView?.periods.length ? (
+          <PeriodFab
+            periods={weeklyView.periods}
+            value={weeklyView.period}
+            onChange={(key) => setPeriodByCampus((current) => ({ ...current, [campus!]: key }))}
+          />
+        ) : null
+      ) : activeKey === "attendance" && isStaff ? (
         <AttendanceRangeFab
           options={rangeOptions ?? []}
           weeks={attendanceWeeks}
