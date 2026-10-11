@@ -252,8 +252,16 @@ export function deriveTerms(
 }
 
 /** "Weeklies T3W5" at a term campus, "Weeklies S2W5" elsewhere. */
+/** A weekly's short name: "T3W5" (UNSW terms) or "S2W5" (semesters). */
+export const weekCode = (system: TermSystem, slot: number, week: number): string =>
+  `${system === "terms" ? "T" : "S"}${slot}W${week}`;
+
 export const weeklyName = (system: TermSystem, slot: number, week: number): string =>
-  `Weeklies ${system === "terms" ? "T" : "S"}${slot}W${week}`;
+  `Weeklies ${weekCode(system, slot, week)}`;
+
+/** "T2W5 (3 Jun)", or just the date when the weekly isn't known. */
+export const weeklyWhen = (at: number, code?: string | null): string =>
+  code ? `${code} (${dayLabel(at)})` : dayLabel(at);
 
 /** The terms a weekly on this date could be in: that year's, plus the last
  *  of the year before (for a weekly in early January). */
@@ -300,8 +308,11 @@ export type TermRow = {
   weeks: number[];
   /** Last weekly here, up to the end of this term. */
   lastAt: number | null;
+  /** That weekly's short name ("T2W5"). */
+  lastWeekly?: string | null;
   /** First-ever weekly here. */
   firstAt: number | null;
+  firstWeekly?: string | null;
   /** While last term still counts (early in a term), the weeklies their
    *  category was judged on. */
   window?: { attended: number; held: number };
@@ -339,14 +350,16 @@ export function termRows(terms: TermFacts[], index: number, c: Classify): TermRo
   const { settings } = c;
   const lastWeeklyAt = term.weeklies[term.weeklies.length - 1].at;
 
-  const firstAt = new Map<string, number>();
-  const lastAt = new Map<string, number>();
+  type Seen = { at: number; code: string };
+  const firstAt = new Map<string, Seen>();
+  const lastAt = new Map<string, Seen>();
   for (const facts of terms.slice(0, index + 1)) {
     for (const [key, indexes] of Object.entries(facts.attendance)) {
       for (const i of indexes) {
-        const at = facts.weeklies[i].at;
-        if (!firstAt.has(key) || at < firstAt.get(key)!) firstAt.set(key, at);
-        if (!lastAt.has(key) || at > lastAt.get(key)!) lastAt.set(key, at);
+        const w = facts.weeklies[i];
+        const seen = { at: w.at, code: weekCode(facts.system, facts.slot, w.week) };
+        if (!firstAt.has(key) || w.at < firstAt.get(key)!.at) firstAt.set(key, seen);
+        if (!lastAt.has(key) || w.at > lastAt.get(key)!.at) lastAt.set(key, seen);
       }
     }
   }
@@ -369,7 +382,7 @@ export function termRows(terms: TermFacts[], index: number, c: Classify): TermRo
     const otherCampus = !!info.campus && !subgroupMatches(info.campus, c.subgroup);
     const staff = info.roles.some((r) => settings.staffRoles.includes(r));
     const leader = !otherCampus && info.roles.some((r) => settings.leaderRoles.includes(r));
-    const first = firstAt.get(key) ?? null;
+    const first = firstAt.get(key)?.at ?? null;
     const windowAttended = countIn(regularWindow, key);
     const share = regularWindow.length ? windowAttended / regularWindow.length : 0;
     const regular = share >= settings.regularShare;
@@ -404,8 +417,10 @@ export function termRows(terms: TermFacts[], index: number, c: Classify): TermRo
       held: term.weeklies.length,
       pct: term.weeklies.length ? attended / term.weeklies.length : 0,
       weeks: [...here].sort((a, b) => a - b).map((i) => term.weeklies[i].week),
-      lastAt: lastAt.get(key) ?? null,
+      lastAt: lastAt.get(key)?.at ?? null,
+      lastWeekly: lastAt.get(key)?.code ?? null,
       firstAt: first,
+      firstWeekly: firstAt.get(key)?.code ?? null,
       ...(regularWindow.length > term.weeklies.length
         ? { window: { attended: windowAttended, held: regularWindow.length } }
         : {}),
@@ -439,6 +454,7 @@ export type WeeklyFollowUp = {
   needsFollowUp: boolean;
   reason: string;
   lastAt: number | null;
+  lastWeekly?: string | null;
   share: number;
 };
 
@@ -468,8 +484,8 @@ export function followUps(
 
   const missN = settings.followUpMisses;
   const before = all.slice(0, Math.max(0, all.length - missN));
-  const termBefore = before.filter(({ facts }) => facts === term);
-  const comingWindow = termBefore.length < settings.carryOverWeeklies ? before : termBefore;
+  const thisTerm = before.filter(({ facts }) => facts === term);
+  const comingWindow = thisTerm.length < settings.carryOverWeeklies ? before : thisTerm;
 
   const out: WeeklyFollowUp[] = [];
   for (const row of rows) {
@@ -481,12 +497,13 @@ export function followUps(
       memberId: row.memberId,
       category: row.category,
       lastAt: row.lastAt,
+      lastWeekly: row.lastWeekly,
     };
     const fresh = (row.lastAt ?? 0) >= freshFrom;
     if (row.category === "visitor") {
       if (row.attended === 0 || !fresh) continue;
       const missed = missedLast(row.key, missN);
-      const when = dayLabel(row.lastAt!);
+      const when = weeklyWhen(row.lastAt!, row.lastWeekly);
       out.push({
         ...base,
         campus: row.campus,
@@ -516,7 +533,7 @@ export function followUps(
         ...base,
         group: "newcomer",
         needsFollowUp: true,
-        reason: `New on ${dayLabel(row.firstAt!)} · came ${plural(row.attended, "time")}, ${missedText(settings.newcomerMisses)}`,
+        reason: `New on ${weeklyWhen(row.firstAt!, row.firstWeekly)} · came ${plural(row.attended, "time")}, ${missedText(settings.newcomerMisses)}`,
         share,
       });
     }
@@ -633,24 +650,20 @@ export function computeTerm(terms: TermFacts[], index: number, c: Classify): Ter
   };
 }
 
-/** Last year's same term, cut to the same week when this one is still running. */
-export function sameTermLastYear(
+/** The term before, cut to the same week when this one is still running. */
+export function termBefore(
   terms: TermFacts[],
   index: number,
   running: boolean,
   c: Classify
 ): TermResult | null {
-  const term = terms[index];
-  const lastIndex = terms.findIndex(
-    (t) => t.year === term.year - 1 && t.slot === term.slot && t.system === term.system
-  );
-  if (lastIndex < 0) return null;
-  if (!running) return computeTerm(terms, lastIndex, c);
-  const maxWeek = term.weeklies[term.weeklies.length - 1].week;
-  const cut = truncateTerm(terms[lastIndex], maxWeek);
+  if (index < 1) return null;
+  const before = index - 1;
+  if (!running) return computeTerm(terms, before, c);
+  const maxWeek = terms[index].weeklies[terms[index].weeklies.length - 1].week;
+  const cut = truncateTerm(terms[before], maxWeek);
   if (!cut) return null;
-  const cutTerms = [...terms.slice(0, lastIndex), cut];
-  return computeTerm(cutTerms, lastIndex, c);
+  return computeTerm([...terms.slice(0, before), cut], before, c);
 }
 
 export type YearRow = TermRow & { termKey: string };

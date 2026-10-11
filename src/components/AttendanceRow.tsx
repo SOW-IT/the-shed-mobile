@@ -64,6 +64,8 @@ export interface AttendanceRowProps {
   photo?: string | null;
   university?: string;
   roles?: string[];
+  /** A Newcomer or Visitor tag from Insights, beside the name. */
+  tag?: { label: string; colour: string };
   mode: AttendanceRowMode;
   disabled?: boolean;
   dimmed?: boolean;
@@ -83,6 +85,7 @@ function AttendanceRowBase({
   photo,
   university,
   roles = [],
+  tag,
   mode,
   disabled = false,
   dimmed = false,
@@ -412,9 +415,18 @@ function AttendanceRowBase({
         >
           <Avatar photo={photo ?? null} name={name} size={40} />
           <View style={styles.text}>
-            <Text style={[typography.headline, { color: t.text }]} numberOfLines={1}>
-              {name}
-            </Text>
+            <View style={styles.nameLine}>
+              <Text style={[typography.headline, { color: t.text, flexShrink: 1 }]} numberOfLines={1}>
+                {name}
+              </Text>
+              {tag ? (
+                <View style={[styles.tag, { backgroundColor: `${tag.colour}22` }]}>
+                  <Text style={[styles.tagText, { color: tag.colour }]} numberOfLines={1}>
+                    {tag.label}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
             {subtitle ? (
               <Text style={[typography.caption, { color: t.muted }]} numberOfLines={1}>
                 {subtitle}
@@ -485,6 +497,9 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   text: { flex: 1, gap: 2 },
+  nameLine: { flexDirection: "row", alignItems: "center", gap: 6 },
+  tag: { borderRadius: radius.full, paddingHorizontal: 7, paddingVertical: 2, flexShrink: 0 },
+  tagText: { fontSize: 11, fontWeight: "800" },
   campusPill: {
     maxWidth: 92,
     borderRadius: radius.full,

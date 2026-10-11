@@ -18,6 +18,7 @@ type RollCallRowProps = {
   photo?: string | null;
   university?: string;
   roles: string[];
+  tag?: { label: string; colour: string };
   disabled: boolean;
   dimmed: boolean;
   entering: boolean;
@@ -53,12 +54,17 @@ function RollCallRowBase({
 const sameRoles = (a: string[], b: string[]) =>
   a.length === b.length && a.every((role, i) => role === b[i]);
 
-/** Query results come back as new objects every time, so roles are compared
- *  by value; everything else is a primitive or the stable handlers. */
+/** Query results come back as new objects every time, so roles and the tag
+ *  are compared by value; everything else is a primitive or the stable
+ *  handlers. */
 export const RollCallRow = memo(
   RollCallRowBase,
   (prev, next) =>
     (Object.keys(next) as (keyof RollCallRowProps)[]).every((k) =>
-      k === "roles" ? sameRoles(prev.roles, next.roles) : prev[k] === next[k]
+      k === "roles"
+        ? sameRoles(prev.roles, next.roles)
+        : k === "tag"
+          ? prev.tag?.label === next.tag?.label && prev.tag?.colour === next.tag?.colour
+          : prev[k] === next[k]
     )
 );

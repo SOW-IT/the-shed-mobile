@@ -13,6 +13,7 @@ import {
   type TermRow,
   type WeeklyCategory,
   type WeeklyFollowUp,
+  type WeeklyTerm,
   type YearResult,
 } from "./weeklyInsights";
 
@@ -97,6 +98,19 @@ export type WeeklyBlock =
 
 export type WeeklyPeriod = { key: string; label: string };
 
+/** The term picker, newest first: each year's terms, then that whole year
+ *  ("2026 T3, 2026 T2, 2026 T1, 2026 · whole year, 2025 T3, …"). */
+export function periodOptions(terms: WeeklyTerm[]): WeeklyPeriod[] {
+  const years = [...new Set(terms.map((t) => t.year))].sort((a, b) => b - a);
+  return years.flatMap((year) => [
+    ...terms
+      .filter((t) => t.year === year)
+      .reverse()
+      .map((t) => ({ key: t.key, label: `${year} ${t.label.split(" ").slice(0, -1).join(" ")}` })),
+    { key: String(year), label: `${year} · whole year` },
+  ]);
+}
+
 export const FOLLOW_UP_PREVIEW = 5;
 
 export const pill = (category: WeeklyCategory): Pill => ({
@@ -112,8 +126,12 @@ export const dateText = (ms: number, year: number): string => {
   return y === year ? dayLabel(ms) : `${dayLabel(ms)} ${y}`;
 };
 
-const lastCame = (row: { lastAt: number | null }, year: number) =>
-  row.lastAt ? `Last came ${dateText(row.lastAt, year)}` : "Hasn't come yet";
+/** "Last came T2W5 (3 Jun)": the weekly's term and week, then its date. */
+const lastCame = (row: { lastAt: number | null; lastWeekly?: string | null }, year: number) => {
+  if (!row.lastAt) return "Hasn't come yet";
+  const date = dateText(row.lastAt, year);
+  return `Last came ${row.lastWeekly ? `${row.lastWeekly} (${date})` : date}`;
+};
 
 export function peopleRows(
   rows: (TermRow & { termKey?: string })[],
@@ -282,8 +300,8 @@ const LAST_COLOUR = "accent";
 
 type CategoryPoint = { at: number; label: string; counts: TermResult["byCategory"][number]["counts"] };
 
-const termPoints = (t: TermResult, prefix = ""): CategoryPoint[] =>
-  t.byCategory.map((p) => ({ at: p.at, label: `${prefix}W${p.week}`, counts: p.counts }));
+const termPoints = (t: TermResult): CategoryPoint[] =>
+  t.byCategory.map((p) => ({ at: p.at, label: `W${p.week}`, counts: p.counts }));
 
 function byCategoryChart(points: CategoryPoint[], title: string): WeeklyBlock {
   const used = CATEGORY_ORDER.filter((c) => points.some((p) => (p.counts[c] ?? 0) > 0));
@@ -303,40 +321,41 @@ function byCategoryChart(points: CategoryPoint[], title: string): WeeklyBlock {
 export function buildTermBlocks(input: {
   computedAt: number;
   result: TermResult;
-  lastYear: TermResult | null;
+  /** The term before, to compare with. */
+  before: TermResult | null;
   running: boolean;
   followUps: WeeklyFollowUp[] | null;
 }): WeeklyBlock[] {
-  const { result, lastYear, running } = input;
+  const { result, before, running } = input;
   const { term } = result;
   const lastWeek = term.weeklies[term.weeklies.length - 1].week;
-  const compare = lastYear
-    ? `Compared with ${lastYear.term.label}${running ? ` up to week ${lastWeek}` : ""}.`
-    : "Nothing to compare with from last year.";
+  const compare = before
+    ? `Compared with ${before.term.label}${running ? ` up to week ${lastWeek}` : ""}.`
+    : "Nothing to compare with from the term before.";
   const blocks: WeeklyBlock[] = [
     { type: "updated", computedAt: input.computedAt },
     {
       type: "caption",
       text: `${term.label} · ${term.weeklies.length} weekl${term.weeklies.length === 1 ? "y" : "ies"}${running ? " so far" : ""}. ${compare}`,
     },
-    { type: "cards", layout: "grid", cards: summaryCards(result.summary, lastYear?.summary ?? null, lastYear?.term.label ?? null) },
+    { type: "cards", layout: "grid", cards: summaryCards(result.summary, before?.summary ?? null, before?.term.label ?? null) },
   ];
-  if (input.followUps) blocks.push(...followUpBlocks(input.followUps, term.year));
+  // The week-by-week charts sit near the top, above the follow-up lists.
   const weeks = new Map<number, { at: number; now: number; then: number }>();
   for (const w of term.weeklies) weeks.set(w.week, { at: w.at, now: w.count, then: 0 });
-  for (const w of lastYear?.term.weeklies ?? []) {
+  for (const w of before?.term.weeklies ?? []) {
     const slot = weeks.get(w.week) ?? { at: w.at, now: 0, then: 0 };
     slot.then = w.count;
     weeks.set(w.week, slot);
   }
-  if (lastYear) {
+  if (before) {
     blocks.push({
       type: "multiBars",
       title: "Week by week",
-      subtitle: `${term.label} vs ${lastYear.term.label}`,
+      subtitle: `${term.label} vs ${before.term.label}`,
       legend: [
         { key: "now", colour: THIS_COLOUR, label: term.label },
-        { key: "then", colour: LAST_COLOUR, label: lastYear.term.label },
+        { key: "then", colour: LAST_COLOUR, label: before.term.label },
       ],
       points: [...weeks.entries()]
         .sort((a, b) => a[0] - b[0])
@@ -353,6 +372,7 @@ export function buildTermBlocks(input: {
     });
   }
   blocks.push(byCategoryChart(termPoints(result), "Who came each week"));
+  if (input.followUps) blocks.push(...followUpBlocks(input.followUps, term.year));
   blocks.push(
     peopleBlock(
       "Everyone",
@@ -362,6 +382,9 @@ export function buildTermBlocks(input: {
   );
   return blocks;
 }
+
+/** "T1" or "Sem 1": a term's label without its year. */
+const termName = (t: TermResult) => t.term.label.split(" ").slice(0, -1).join(" ");
 
 export function buildYearBlocks(input: {
   computedAt: number;
@@ -385,7 +408,6 @@ export function buildYearBlocks(input: {
     { type: "cards", layout: "grid", cards: summaryCards(result.summary, lastYear?.summary ?? null, lastLabel) },
   ];
   if (lastYear) {
-    const name = (t: TermResult) => t.term.label.split(" ").slice(0, -1).join(" ");
     const slots = [...new Set([...input.terms, ...input.lastYearTerms].map((t) => t.term.slot))].sort();
     blocks.push({
       type: "multiBars",
@@ -400,7 +422,7 @@ export function buildYearBlocks(input: {
         const then = input.lastYearTerms.find((t) => t.term.slot === slot);
         return {
           at: slot,
-          label: name((now ?? then)!),
+          label: termName((now ?? then)!),
           segments: [
             { key: "now", value: now?.summary.weeklyAvg ?? 0, colour: THIS_COLOUR },
             { key: "then", value: then?.summary.weeklyAvg ?? 0, colour: LAST_COLOUR },
@@ -411,12 +433,10 @@ export function buildYearBlocks(input: {
       keepZeros: true,
     });
   }
-  blocks.push(
-    byCategoryChart(
-      input.terms.flatMap((t) => termPoints(t, `${t.term.label.split(" ").slice(0, -1).join(" ")} `)),
-      "Who came each week"
-    )
-  );
+  // One chart per term: a whole year of weeks is too crowded for one.
+  for (const t of input.terms) {
+    blocks.push(byCategoryChart(termPoints(t), `Who came each week · ${termName(t)}`));
+  }
   blocks.push(peopleBlock("Everyone", peopleRows(result.rows, result.year), `Everyone who came in ${result.year}.`));
   return blocks;
 }
@@ -448,8 +468,9 @@ export function buildMemberBlocks(input: {
       reason: latest
         ? [
             `${latest.term.label}: ${latest.row.attended}/${latest.row.held} · ${pctText(latest.row.pct)}`,
+            lastCame(latest.row, input.year),
             ...(input.followUp ? [input.followUp.reason] : []),
-          ].join(" · ")
+          ].join("\n")
         : undefined,
     },
   ];
@@ -468,7 +489,7 @@ export function buildMemberBlocks(input: {
     blocks.push({
       type: "weekGrid",
       title: latest!.term.label,
-      subtitle: "Weeklies held this term",
+      subtitle: "Weeklies attended this term",
       weeks: latest!.term.weeklies.map((w) => ({
         label: `W${w.week}`,
         came: latest!.row.weeks.includes(w.week),

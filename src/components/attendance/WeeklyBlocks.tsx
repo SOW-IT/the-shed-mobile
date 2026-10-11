@@ -8,7 +8,7 @@ import {
   type Pill,
   type WeeklyBlock,
 } from "../../../shared/weeklyInsightsView";
-import { Avatar, Btn, ReadableColumn, SearchField } from "@/components/ui";
+import { Avatar, Btn, ReadableColumn, ScrollCap, SearchField } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 // Draws the campus weeklies blocks (shared/weeklyInsightsView.ts). Like the
@@ -27,6 +27,9 @@ export const WEEKLY_BLOCK_TYPES = new Set([
 ]);
 
 const PAGE = 40;
+
+/** How tall a list's box is before it scrolls inside (about six people). */
+const LIST_HEIGHT = 380;
 
 function CategoryPill({ pill }: { pill: Pill }) {
   return (
@@ -116,6 +119,7 @@ function PeopleList({ block, onOpen }: { block: Block<"people">; onOpen?: (key: 
   const [chips, setChips] = useState<string[]>([]);
   const [sort, setSort] = useState<PeopleSortKey>(block.sorts[0]?.key ?? "pct");
   const [limit, setLimit] = useState(PAGE);
+  const [all, setAll] = useState(false);
 
   // Within each section, people stay grouped by category (in the order the
   // server lists the category chips), then by the chosen sort.
@@ -141,7 +145,9 @@ function PeopleList({ block, onOpen }: { block: Block<"people">; onOpen?: (key: 
   }, [block, search, chips, sort, rank]);
 
   const total = sections.reduce((n, s) => n + s.rows.length, 0);
-  let shown = 0;
+  const max = all ? total : limit;
+  // Rows before each section, so only the first `max` rows are drawn.
+  const before = sections.map((_, i) => sections.slice(0, i).reduce((n, s) => n + s.rows.length, 0));
   const toggle = (key: string) => {
     setChips((current) => (current.includes(key) ? current.filter((c) => c !== key) : [...current, key]));
     setLimit(PAGE);
@@ -198,41 +204,43 @@ function PeopleList({ block, onOpen }: { block: Block<"people">; onOpen?: (key: 
           {block.rows.length === 0 ? block.emptyText : "Nobody matches."}
         </Text>
       ) : (
-        sections.map((section) => {
-          if (shown >= limit) return null;
-          const rows = section.rows.slice(0, limit - shown);
-          shown += rows.length;
-          return (
-            <View key={section.key}>
-              <Text style={[typography.label, styles.sectionLabel, { color: t.muted }]}>
-                {`${section.label} · ${section.rows.length}`}
-              </Text>
-              {rows.map((r) => (
-                <PersonRow
-                  key={r.key}
-                  name={r.name}
-                  photo={r.photo}
-                  pill={r.category}
-                  lines={[r.secondary]}
-                  trailing={r.primary}
-                  warning={r.warning}
-                  onPress={() => onOpen?.(r.key)}
-                />
-              ))}
-            </View>
-          );
-        })
+        <ScrollCap
+          maxHeight={LIST_HEIGHT}
+          count={total}
+          onEndReached={() => setLimit((n) => (n < total ? n + PAGE : n))}
+          onExpandedChange={setAll}
+        >
+          {sections.map((section, i) => {
+            if (before[i] >= max) return null;
+            const rows = section.rows.slice(0, max - before[i]);
+            return (
+              <View key={section.key}>
+                <Text style={[typography.label, styles.sectionLabel, { color: t.muted }]}>
+                  {`${section.label} · ${section.rows.length}`}
+                </Text>
+                {rows.map((r) => (
+                  <PersonRow
+                    key={r.key}
+                    name={r.name}
+                    photo={r.photo}
+                    pill={r.category}
+                    lines={[r.secondary]}
+                    trailing={r.primary}
+                    warning={r.warning}
+                    onPress={() => onOpen?.(r.key)}
+                  />
+                ))}
+              </View>
+            );
+          })}
+        </ScrollCap>
       )}
-      {total > limit ? (
-        <Btn title={`Show ${Math.min(PAGE, total - limit)} more`} variant="ghost" onPress={() => setLimit(limit + PAGE)} />
-      ) : null}
     </Panel>
   );
 }
 
 function FollowUpGroups({ block, onOpen }: { block: Block<"followUpGroups">; onOpen?: (key: string) => void }) {
   const t = useAppTheme();
-  const [open, setOpen] = useState<Record<string, boolean>>({});
   const total = block.groups.reduce((n, g) => n + g.people.length, 0);
   return (
     <ReadableColumn maxWidth={640}>
@@ -247,15 +255,13 @@ function FollowUpGroups({ block, onOpen }: { block: Block<"followUpGroups">; onO
             <Text style={[typography.caption, { color: t.muted }]}>{block.emptyText}</Text>
           </View>
         ) : (
-          block.groups.map((group) => {
-            const all = open[group.key];
-            const people: FollowRow[] = all ? group.people : group.people.slice(0, block.preview);
-            return (
+          <ScrollCap maxHeight={LIST_HEIGHT} count={total}>
+            {block.groups.map((group) => (
               <View key={group.key}>
                 <Text style={[typography.label, styles.sectionLabel, { color: t.muted }]}>
                   {`${group.title} · ${group.people.length}`}
                 </Text>
-                {people.map((p) => (
+                {group.people.map((p: FollowRow) => (
                   <PersonRow
                     key={p.key}
                     name={p.name}
@@ -265,20 +271,9 @@ function FollowUpGroups({ block, onOpen }: { block: Block<"followUpGroups">; onO
                     onPress={() => onOpen?.(p.key)}
                   />
                 ))}
-                {group.people.length > block.preview ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => setOpen({ ...open, [group.key]: !all })}
-                    style={({ pressed }) => [styles.more, pressed && { opacity: 0.6 }]}
-                  >
-                    <Text style={[typography.caption, { color: t.primary, fontWeight: "700" }]}>
-                      {all ? "Show fewer" : `Show all ${group.people.length}`}
-                    </Text>
-                  </Pressable>
-                ) : null}
               </View>
-            );
-          })
+            ))}
+          </ScrollCap>
         )}
       </Panel>
     </ReadableColumn>
@@ -373,17 +368,19 @@ export function renderWeeklyBlock(
           {block.rows.length === 0 ? (
             <Text style={[typography.caption, { color: t.muted }]}>{block.emptyText}</Text>
           ) : (
-            block.rows.map((row, i) => (
-              <View key={i} style={[styles.kv, { borderTopColor: t.separator }]}>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={[typography.body, { color: t.text }]} numberOfLines={1}>
-                    {row.title}
-                  </Text>
-                  <Text style={[typography.caption, { color: t.muted }]}>{row.subtitle}</Text>
+            <ScrollCap maxHeight={LIST_HEIGHT} count={block.rows.length}>
+              {block.rows.map((row, i) => (
+                <View key={i} style={[styles.kv, { borderTopColor: t.separator }]}>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={[typography.body, { color: t.text }]} numberOfLines={1}>
+                      {row.title}
+                    </Text>
+                    <Text style={[typography.caption, { color: t.muted }]}>{row.subtitle}</Text>
+                  </View>
+                  {row.tag ? <CategoryPill pill={{ label: row.tag, colour: t.success }} /> : null}
                 </View>
-                {row.tag ? <CategoryPill pill={{ label: row.tag, colour: t.success }} /> : null}
-              </View>
-            ))
+              ))}
+            </ScrollCap>
           )}
         </Panel>
       );
@@ -428,7 +425,6 @@ const styles = StyleSheet.create({
   sortChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.full },
   sectionLabel: { marginTop: spacing.sm, marginBottom: spacing.xs },
   empty: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.md },
-  more: { alignSelf: "center", paddingVertical: spacing.sm },
   kv: {
     flexDirection: "row",
     alignItems: "center",
