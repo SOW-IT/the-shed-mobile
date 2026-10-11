@@ -240,12 +240,22 @@ const shareDelta = (now: number | null, then: number | null): ViewCard["delta"] 
 
 const stayedShare = (s: PeriodSummary) => (s.newcomers ? s.newcomersStayed / s.newcomers : null);
 
+/**
+ * The summary cards. `lastLabel` names exactly what they're compared with
+ * ("T2 2026 W1–4" while a term runs, "2025 to 11 Oct" for the year so far),
+ * and `compareNote` says the same in every card's (i).
+ */
 export function summaryCards(
   s: PeriodSummary,
   last: PeriodSummary | null,
-  lastLabel: string | null
+  lastLabel: string | null,
+  compareNote?: string
 ): ViewCard[] {
   const vs = (v: string) => (last && lastLabel ? `vs ${v} in ${lastLabel}` : undefined);
+  const info = (title: string, body: string) => ({
+    title,
+    body: compareNote && last ? `${body} ${compareNote}` : body,
+  });
   const stayed = stayedShare(s);
   const lastStayed = last ? stayedShare(last) : null;
   return [
@@ -254,21 +264,27 @@ export function summaryCards(
       value: s.weeklyAvg === null ? "–" : String(s.weeklyAvg),
       delta: countDelta(s.weeklyAvg, last?.weeklyAvg ?? null),
       hint: last?.weeklyAvg != null ? vs(String(last.weeklyAvg)) : undefined,
-      info: { title: "Weekly avg", body: "Average head count at this campus's weekly meetings. A weekly nobody signed in to doesn't count." },
+      info: info(
+        "Weekly avg",
+        "Average head count at this campus's own weekly meetings. Mega and combined weeklies shared with other campuses don't count, and nor does a weekly nobody signed in to."
+      ),
     },
     {
       label: "People",
       value: String(s.people),
       delta: countDelta(s.people, last?.people ?? null),
       hint: last ? vs(String(last.people)) : undefined,
-      info: { title: "People", body: "Different people who came to at least one weekly." },
+      info: info(
+        "People",
+        "Different people who came to at least one of this campus's own weeklies (Mega and combined weeklies don't count)."
+      ),
     },
     {
       label: "Regulars",
       value: String(s.regulars),
       delta: countDelta(s.regulars, last?.regulars ?? null),
       hint: last ? vs(String(last.regulars)) : undefined,
-      info: { title: "Regulars", body: "People who came to at least half of the weeklies (leaders, staff and visitors aside)." },
+      info: info("Regulars", "People who came to at least half of the weeklies (leaders, staff and visitors aside)."),
     },
     {
       label: "Newcomers",
@@ -276,21 +292,24 @@ export function summaryCards(
       tone: "positive",
       delta: countDelta(s.newcomers, last?.newcomers ?? null),
       hint: last ? vs(String(last.newcomers)) : undefined,
-      info: { title: "Newcomers", body: "People whose first-ever weekly here was in this period." },
+      info: info("Newcomers", "People whose first-ever weekly here was in this period."),
     },
     {
       label: "Newcomers who stayed",
       value: stayed === null ? "–" : pctText(stayed),
       delta: shareDelta(stayed, lastStayed),
       hint: s.newcomers ? `${s.newcomersStayed} of ${s.newcomers} came 2+ times` : undefined,
-      info: { title: "Newcomers who stayed", body: "Of this period's newcomers, the share who came to two or more weeklies." },
+      info: info("Newcomers who stayed", "Of this period's newcomers, the share who came to two or more weeklies."),
     },
     {
       label: "Campus share",
       value: s.campusShare === null ? "–" : pctText(s.campusShare),
       delta: shareDelta(s.campusShare, last?.campusShare ?? null),
       hint: last?.campusShare != null ? vs(pctText(last.campusShare)) : undefined,
-      info: { title: "Campus share", body: "Of the students at weeklies, the share from this campus (including people with no campus set)." },
+      info: info(
+        "Campus share",
+        "Of the students at weeklies, the share from this campus (including people with no campus set)."
+      ),
     },
   ];
 }
@@ -329,16 +348,24 @@ export function buildTermBlocks(input: {
   const { result, before, running } = input;
   const { term } = result;
   const lastWeek = term.weeklies[term.weeklies.length - 1].week;
+  // While this term runs, the term before is cut to the same week; say so
+  // wherever its numbers appear, so they don't look like its full-term ones.
+  const beforeLabel = before ? `${before.term.label}${running ? ` W1–${lastWeek}` : ""}` : null;
   const compare = before
     ? `Compared with ${before.term.label}${running ? ` up to week ${lastWeek}` : ""}.`
     : "Nothing to compare with from the term before.";
+  const compareNote = before
+    ? running
+      ? `Compared with ${before.term.label}'s weeks 1–${lastWeek}, the same point in the term (its full-term numbers are on its own page).`
+      : `Compared with ${before.term.label}.`
+    : undefined;
   const blocks: WeeklyBlock[] = [
     { type: "updated", computedAt: input.computedAt },
     {
       type: "caption",
       text: `${term.label} · ${term.weeklies.length} weekl${term.weeklies.length === 1 ? "y" : "ies"}${running ? " so far" : ""}. ${compare}`,
     },
-    { type: "cards", layout: "grid", cards: summaryCards(result.summary, before?.summary ?? null, before?.term.label ?? null) },
+    { type: "cards", layout: "grid", cards: summaryCards(result.summary, before?.summary ?? null, beforeLabel, compareNote) },
   ];
   // The week-by-week charts sit near the top, above the follow-up lists.
   const weeks = new Map<number, { at: number; now: number; then: number }>();
@@ -352,10 +379,10 @@ export function buildTermBlocks(input: {
     blocks.push({
       type: "multiBars",
       title: "Week by week",
-      subtitle: `${term.label} vs ${before.term.label}`,
+      subtitle: `${term.label} vs ${beforeLabel}`,
       legend: [
         { key: "now", colour: THIS_COLOUR, label: term.label },
-        { key: "then", colour: LAST_COLOUR, label: before.term.label },
+        { key: "then", colour: LAST_COLOUR, label: beforeLabel! },
       ],
       points: [...weeks.entries()]
         .sort((a, b) => a[0] - b[0])
@@ -384,7 +411,8 @@ export function buildTermBlocks(input: {
 }
 
 /** "T1" or "Sem 1": a term's label without its year. */
-const termName = (t: TermResult) => t.term.label.split(" ").slice(0, -1).join(" ");
+const withoutYear = (t: { label: string }) => t.label.split(" ").slice(0, -1).join(" ");
+const termName = (t: TermResult) => withoutYear(t.term);
 
 export function buildYearBlocks(input: {
   computedAt: number;
@@ -395,27 +423,33 @@ export function buildYearBlocks(input: {
   lastYearTerms: TermResult[];
 }): WeeklyBlock[] {
   const { result, lastYear } = input;
-  const lastLabel = lastYear ? String(lastYear.year) : null;
+  const upTo = input.upTo ? dayLabel(input.upTo) : null;
+  const lastLabel = lastYear ? `${lastYear.year}${upTo ? ` to ${upTo}` : ""}` : null;
   const caption = lastYear
-    ? `Compared with ${lastYear.year}${input.upTo ? ` up to ${dayLabel(input.upTo)}` : ""}.`
+    ? `Compared with ${lastYear.year}${upTo ? ` up to ${upTo}` : ""}.`
     : "Nothing to compare with from last year.";
+  const compareNote = lastYear
+    ? upTo
+      ? `Compared with ${lastYear.year} up to ${upTo}, the same point in the year (its full-year numbers are on its own page).`
+      : `Compared with ${lastYear.year}.`
+    : undefined;
   const blocks: WeeklyBlock[] = [
     { type: "updated", computedAt: input.computedAt },
     {
       type: "caption",
-      text: `${result.year} · ${result.terms.map((t) => t.label.split(" ")[0]).join(", ")} · ${result.summary.weeklies} weeklies. ${caption}`,
+      text: `${result.year} · ${result.terms.map(withoutYear).join(", ")} · ${result.summary.weeklies} weeklies. ${caption}`,
     },
-    { type: "cards", layout: "grid", cards: summaryCards(result.summary, lastYear?.summary ?? null, lastLabel) },
+    { type: "cards", layout: "grid", cards: summaryCards(result.summary, lastYear?.summary ?? null, lastLabel, compareNote) },
   ];
   if (lastYear) {
     const slots = [...new Set([...input.terms, ...input.lastYearTerms].map((t) => t.term.slot))].sort();
     blocks.push({
       type: "multiBars",
       title: "Weekly avg by term",
-      subtitle: `${result.year} vs ${lastYear.year}`,
+      subtitle: `${result.year} vs ${lastLabel}`,
       legend: [
         { key: "now", colour: THIS_COLOUR, label: String(result.year) },
-        { key: "then", colour: LAST_COLOUR, label: String(lastYear.year) },
+        { key: "then", colour: LAST_COLOUR, label: lastLabel! },
       ],
       points: slots.map((slot) => {
         const now = input.terms.find((t) => t.term.slot === slot);

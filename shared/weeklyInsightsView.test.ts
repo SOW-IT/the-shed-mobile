@@ -159,6 +159,17 @@ describe("term view", () => {
       followUps: followUps(terms, result.rows, c),
     });
     expect(blocks[1]).toEqual({ type: "caption", text: "T1 2026 · 4 weeklies so far. Compared with T1 2025 up to week 4." });
+    // The cut is named wherever the term before's numbers appear.
+    const cards = byType(blocks, "cards")[0].cards;
+    expect(cards[0].hint).toBe("vs 2 in T1 2025 W1–4");
+    expect(cards[0].info!.body).toBe(
+      "Average head count at this campus's own weekly meetings. Mega and combined weeklies shared with other campuses don't count, and nor does a weekly nobody signed in to. Compared with T1 2025's weeks 1–4, the same point in the term (its full-term numbers are on its own page)."
+    );
+    expect(cards[1].info!.body).toMatch(/Mega and combined weeklies don't count\)\. Compared with T1 2025's weeks 1–4/);
+    expect(byType(blocks, "multiBars")[0]).toMatchObject({
+      subtitle: "T1 2026 vs T1 2025 W1–4",
+      legend: [{ label: "T1 2026" }, { label: "T1 2025 W1–4" }],
+    });
     expect(byType(blocks, "followUpGroups")).toHaveLength(2);
     const charts = byType(blocks, "multiBars");
     expect(charts.map((b) => b.title)).toEqual(["Week by week", "Who came each week"]);
@@ -174,6 +185,21 @@ describe("term view", () => {
     expect(charts[0].points.map((p) => p.label)).toEqual(["W1", "W2", "W3", "W4"]);
     expect(charts[0].points[3].segments.map((sg) => sg.value)).toEqual([1, 0]);
     expect(byType(blocks, "people")[0].subtitle).toBe("Everyone who came in T1 2026 or the term before.");
+  });
+
+  test("a finished term: compared with the whole term before", () => {
+    const blocks = buildTermBlocks({
+      computedAt: 1,
+      result: computeTerm(terms, 1, c),
+      before: termBefore(terms, 1, false, c),
+      running: false,
+      followUps: null,
+    });
+    expect(blocks[1]).toEqual({ type: "caption", text: "T1 2026 · 4 weeklies. Compared with T1 2025." });
+    const cards = byType(blocks, "cards")[0].cards;
+    expect(cards[0].hint).toBe("vs 2 in T1 2025");
+    expect(cards[0].info!.body).toMatch(/signed in to\. Compared with T1 2025\.$/);
+    expect(byType(blocks, "multiBars")[0].subtitle).toBe("T1 2026 vs T1 2025");
   });
 
   test("a finished term with no term before it", () => {
@@ -197,7 +223,11 @@ describe("year view", () => {
       lastYearTerms: [computeTerm(terms, 0, c)],
     });
     expect(blocks[1]).toEqual({ type: "caption", text: "2026 · T1 · 4 weeklies. Compared with 2025 up to 1 Mar." });
+    const cards = byType(blocks, "cards")[0].cards;
+    expect(cards[0].hint).toMatch(/^vs [\d.]+ in 2025 to 1 Mar$/);
+    expect(cards[0].info!.body).toMatch(/Compared with 2025 up to 1 Mar, the same point in the year/);
     const [byTerm, byCat] = byType(blocks, "multiBars");
+    expect(byTerm).toMatchObject({ subtitle: "2026 vs 2025 to 1 Mar", legend: [{ label: "2026" }, { label: "2025 to 1 Mar" }] });
     expect(byTerm.points).toMatchObject([{ label: "T1", segments: [{ value: 1.5 }, { value: 2 }] }]);
     expect(byCat).toMatchObject({ title: "Who came each week · T1" });
     expect(byCat.points[0].label).toBe("W1");
@@ -214,6 +244,9 @@ describe("year view", () => {
       lastYearTerms: [],
     });
     expect((full[1] as { text: string }).text).toMatch(/Compared with 2025\.$/);
+    const fullCards = byType(full, "cards")[0].cards;
+    expect(fullCards[0].hint).toMatch(/^vs [\d.]+ in 2025$/);
+    expect(fullCards[0].info!.body).toMatch(/Compared with 2025\.$/);
     expect(byType(full, "multiBars")[0].points[0].segments[1].value).toBe(0);
     const first = buildYearBlocks({
       computedAt: 1,
@@ -224,7 +257,25 @@ describe("year view", () => {
       lastYearTerms: [],
     });
     expect((first[1] as { text: string }).text).toMatch(/Nothing to compare with/);
+    // Nothing to compare with: the (i) only explains the number.
+    expect(byType(first, "cards")[0].cards[0].info!.body).toMatch(/signed in to\.$/);
     expect(byType(first, "multiBars")).toHaveLength(1);
+  });
+});
+
+describe("semester years", () => {
+  test("the caption names each semester", () => {
+    const held = [wed(2026, 3, 4), wed(2026, 8, 5)].map((at, i) => ({ eventId: `s${i}`, at, count: 1 }));
+    const sems = deriveTerms(held, "semesters", 18).map((t) => ({ ...t, attendance: { Ana: [0] } }));
+    const blocks = buildYearBlocks({
+      computedAt: 1,
+      result: computeYear(sems, 2026, c)!,
+      lastYear: null,
+      upTo: null,
+      terms: [computeTerm(sems, 0, c), computeTerm(sems, 1, c)],
+      lastYearTerms: [],
+    });
+    expect((blocks[1] as { text: string }).text).toMatch(/^2026 · Sem 1, Sem 2 · 2 weeklies\./);
   });
 });
 

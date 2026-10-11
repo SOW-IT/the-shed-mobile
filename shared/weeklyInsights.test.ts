@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   computeTerm,
   computeYear,
+  cutAt,
   dayLabel,
   DEFAULT_WEEKLY_SETTINGS,
   deriveTerms,
@@ -339,6 +340,9 @@ describe("summaries and comparisons", () => {
     expect(termBefore(terms, 1, false, c)!.term.weeklies).toHaveLength(4);
     expect(termBefore(terms, 0, false, c)).toBeNull();
     expect(truncateTerm(terms[0], 0)).toBeNull();
+    // Cut at a date: the weeklies up to it, or nothing before it.
+    expect(cutAt(terms[0], terms[0].weeklies[1].at)!.weeklies).toHaveLength(2);
+    expect(cutAt(terms[0], terms[0].weeklies[0].at - 1)).toBeNull();
     // The term before only had weeks after this one's first: nothing to cut to.
     const named = deriveTerms(
       [

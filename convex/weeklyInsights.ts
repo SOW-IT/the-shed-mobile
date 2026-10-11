@@ -24,6 +24,7 @@ import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImpor
 import {
   CATEGORY_META,
   computeTerm,
+  cutAt,
   computeYear,
   DEFAULT_WEEKLY_SETTINGS,
   deriveTerms,
@@ -88,7 +89,7 @@ const INDEX_WEEKLIES_WEEKS = 60;
 const NEVER = Number.MAX_SAFE_INTEGER;
 // Bump when what a view shows changes, so every campus redoes its views on
 // the next build after a deploy.
-export const VIEW_VERSION = 3;
+export const VIEW_VERSION = 4;
 
 export async function readSettings(
   ctx: QueryCtx
@@ -728,15 +729,22 @@ async function buildSubgroup(
   for (const year of [...years].sort()) {
     const upTo = year === thisYear ? yearBefore(now) : undefined;
     const result = computeYear(facts, year, c)!;
-    const inYear = (y: number) =>
-      facts.map((f, i) => (f.year === y ? computeTerm(facts, i, c) : null)).filter((r) => r !== null);
+    // Last year's terms are cut to the same date, like the cards above them.
+    const inYear = (y: number, cutDate?: number) =>
+      facts
+        .map((f, i) => {
+          if (f.year !== y) return null;
+          const cut = cutDate === undefined ? f : cutAt(f, cutDate);
+          return cut ? computeTerm([...facts.slice(0, i), cut], i, c) : null;
+        })
+        .filter((r) => r !== null);
     const blocks = buildYearBlocks({
       computedAt: now,
       result,
       lastYear: computeYear(facts, year - 1, c, upTo),
       upTo: upTo ?? null,
       terms: inYear(year),
-      lastYearTerms: inYear(year - 1),
+      lastYearTerms: inYear(year - 1, upTo),
     });
     await ctx.runMutation(internal.weeklyInsights.saveView, {
       subgroup,

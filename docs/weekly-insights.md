@@ -16,8 +16,12 @@ year, 2025 T3, …".
 - **Cards**: Weekly avg, People, Regulars, Newcomers, Newcomers who stayed
   (came 2+ times), Campus share. A term is compared with **the term before**
   (T3 with T2, Sem 2 with Sem 1, T1 with last year's T3); one still running
-  is compared up to the same week. A year is compared with last year, the
-  current year up to the same day.
+  is compared up to the same week, and every comparison names that cut ("vs
+  97.3 in T2 2026 W1–4"), since the term before's own page shows its
+  full-term numbers. A year is compared with last year, the current year up
+  to the same day ("vs 66.3 in 2025 to 11 Oct"), and so is its weekly avg by
+  term chart. Each card's (i) says what it's compared with, and Weekly avg
+  and People say that Mega and combined weeklies don't count.
 - **Charts**, near the top: week by week against the term before, and who
   came each week by category. The year view has one "who came each week"
   chart per term.

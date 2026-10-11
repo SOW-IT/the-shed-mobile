@@ -604,6 +604,12 @@ const sectionTotals = (facts: TermFacts, rows: TermRow[]): Record<WeeklySection,
   return bySection;
 };
 
+/** A term cut at a date (its weeklies up to `upTo`), or null if none were by then. */
+export const cutAt = (facts: TermFacts, upTo: number): TermFacts | null => {
+  const keep = facts.weeklies.filter((w) => w.at <= upTo);
+  return keep.length ? truncateTerm(facts, keep[keep.length - 1].week) : null;
+};
+
 /** A term cut back to its first `maxWeek` weeks, for like-for-like comparisons. */
 export const truncateTerm = (facts: TermFacts, maxWeek: number): TermFacts | null => {
   const keep = facts.weeklies.map((w, i) => (w.week <= maxWeek ? i : -1)).filter((i) => i >= 0);
@@ -689,13 +695,8 @@ export function computeYear(
   const cutTerms: TermFacts[] = [];
   for (const t of terms) {
     if (t.year > year) break;
-    if (t.year < year || upTo === undefined) {
-      cutTerms.push(t);
-      continue;
-    }
-    const keep = t.weeklies.filter((w) => w.at <= upTo);
-    if (keep.length === 0) continue;
-    cutTerms.push(truncateTerm(t, keep[keep.length - 1].week)!);
+    const cut = t.year < year || upTo === undefined ? t : cutAt(t, upTo);
+    if (cut) cutTerms.push(cut);
   }
   const indexes = cutTerms.map((t, i) => (t.year === year ? i : -1)).filter((i) => i >= 0);
   if (indexes.length === 0) return null;

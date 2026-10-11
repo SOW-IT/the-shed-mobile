@@ -484,6 +484,25 @@ describe("Role option Visitor → Guest", () => {
   });
 });
 
+describe("year so far", () => {
+  test("the by-term chart cuts last year's terms to the same date, like the cards", async () => {
+    const { t, leader, ids } = await setup();
+    // T2 2025's third weekly (18 Jun) gets a third person: 2, 2, 3.
+    await t.run((ctx) => ctx.db.insert("attendance", { eventId: ids.weeklies[2], memberId: ids.cy, signInTime: 0 }));
+    vi.setSystemTime(Date.UTC(2026, 5, 12, 2)); // Fri 12 Jun 2026: T2 has had 2 weeklies.
+    await rebuild(t);
+    const blocks = (await leader.query(api.weeklyInsights.view, { subgroup: UNSW, period: "2026" }))!.blocks as Block[];
+    const chart = block(blocks, "multiBars", "Weekly avg by term");
+    expect(chart.subtitle).toBe("2026 vs 2025 to 12 Jun");
+    // Up to 12 Jun 2025 only T2's first two weeklies had happened.
+    expect(chart.points.find((p) => p.label === "T2")!.segments[1].value).toBe(2);
+    expect(block(blocks, "cards").cards[0].hint).toMatch(/ in 2025 to 12 Jun$/);
+    // T2 2025's own page still shows the whole term.
+    const t2 = (await leader.query(api.weeklyInsights.view, { subgroup: UNSW, period: "2025-T2" }))!.blocks as Block[];
+    expect(block(t2, "cards").cards[0].value).toBe("2.3");
+  });
+});
+
 describe("a term that's gone", () => {
   test("the term after it is redone against its new term before", async () => {
     const { t, leader, ids } = await setup();
