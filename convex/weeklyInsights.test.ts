@@ -103,21 +103,24 @@ async function setup() {
       if (i === 0) await signIn(e, cy);
     }
     for (const [i, at] of T2_2026.entries()) {
-      const joint = i === 6;
-      const e = await event(joint ? "Mega weeklies" : "Weeklies", at, joint ? [UNSW, USYD] : [UNSW]);
+      const e = await event("Weeklies", at);
       weeklies.push(e);
       await signIn(e, LEADER);
       if (i < 5) await signIn(e, ana);
       if (i === 5) await signIn(e, newbie);
       if (i === 6) await signIn(e, guest);
     }
+    // A Mega Weeklies shared with another campus: never counted by default.
+    const mega = await event("Mega weeklies", wed(2026, 7, 15), [UNSW, USYD]);
+    await signIn(mega, ana);
+    await signIn(mega, cy);
     // Not held (nobody came), not yet held, and not a weekly at all.
     await event("Weeklies", wed(2026, 7, 15));
     const future = await event("Weeklies", wed(2026, 8, 5));
     await signIn(future, ana);
     const social = await event("Social", wed(2026, 7, 10), [UNSW], false);
     await signIn(social, ana);
-    return { tag, campus, role, ana, ben, cy, newbie, guest, weeklies, social };
+    return { tag, campus, role, ana, ben, cy, newbie, guest, weeklies, social, mega };
   });
   return { t, admin, leader: asUser(t, LEADER), ids };
 }
@@ -167,8 +170,9 @@ describe("first build and the view", () => {
       "2025 · whole year",
     ]);
     expect(index.currentKey).toBe("2026-T2");
-    // Recent held weeklies for the SOW comparison: joint ones marked.
-    expect(index.weeklies.at(-1)).toMatchObject({ at: T2_2026[6], count: 2, joint: true });
+    // Recent held weeklies for the SOW comparison; the shared Mega weeklies
+    // (15 Jul) isn't one of them.
+    expect(index.weeklies.at(-1)).toMatchObject({ at: T2_2026[6], count: 2, joint: false });
     expect(index.weeklies.some((w) => w.at === wed(2026, 7, 15) || w.at === wed(2026, 8, 5))).toBe(false);
     expect(Object.keys(await viewDocs(t)).sort()).toEqual(
       [`${UNSW}|2025`, `${UNSW}|2025-T2`, `${UNSW}|2026`, `${UNSW}|2026-T1`, `${UNSW}|2026-T2`].sort()
@@ -513,5 +517,144 @@ describe("member page", () => {
     expect(bogus.title).toBe("Unknown");
     expect(bogus.blocks[0]).toMatchObject({ lines: ["No campus set"] });
     expect(await t.query(api.weeklyInsights.member, { personKey: `member:${ids.ana}`, subgroup: UNSW })).toBeNull();
+  });
+});
+
+describe("combined weeklies, marks and suggestions", () => {
+  test("a weekly shared with other campuses counts only when the setting says so", async () => {
+    const { t } = await setup();
+    await rebuild(t);
+    expect((await factDocs(t))[`${UNSW}|2026-T2`].weeklies).toHaveLength(7);
+    await t.mutation(internal.weeklyInsights.setSettings, { jointWeeklies: true });
+    await rebuild(t);
+    const t2 = (await factDocs(t))[`${UNSW}|2026-T2`];
+    expect(t2.weeklies.map((w) => w.at)).toContain(wed(2026, 7, 15));
+    expect((await indexDoc(t))!.weeklies.find((w) => w.at === wed(2026, 7, 15))!.joint).toBe(true);
+  });
+
+  test("a weekly's own term and week win over dates", async () => {
+    const { t, ids } = await setup();
+    await t.run((ctx) => ctx.db.patch(ids.weeklies[12], { weekly: { year: 2026, slot: 2, week: 9 } }));
+    await rebuild(t);
+    // 22 Jul is week 9 by its mark, so the unnamed 29 Jul after it is week 10.
+    expect((await factDocs(t))[`${UNSW}|2026-T2`].weeklies.map((w) => w.week)).toEqual([1, 2, 3, 4, 5, 9, 10]);
+  });
+
+  test("suggests the term, week and name for a new weekly", async () => {
+    const { t, leader, ids } = await setup();
+    const next = (await leader.query(api.weeklyInsights.suggestWeekly, { subgroup: UNSW, dateStart: wed(2026, 8, 12) }))!;
+    expect(next).toMatchObject({ system: "terms", suggested: { key: "2026-T2", week: 11 }, name: "Weeklies T2W11" });
+    expect(next.options.map((o) => o.label)).toEqual(["T3 2025", "T1 2026", "T2 2026", "T3 2026"]);
+    // Editing the 5 Aug weekly leaves it out of its own suggestion.
+    const future = ids.weeklies.length; // the 5 Aug weekly isn't in `weeklies`
+    void future;
+    const own = (await leader.query(api.weeklyInsights.suggestWeekly, {
+      subgroup: UNSW,
+      dateStart: T2_2026[6],
+      eventId: ids.weeklies[13],
+    }))!;
+    expect(own.suggested.week).toBe(9);
+    const usyd = (await leader.query(api.weeklyInsights.suggestWeekly, { subgroup: USYD, dateStart: wed(2026, 7, 29) }))!;
+    expect(usyd).toMatchObject({ system: "semesters", suggested: { key: "2026-S2", week: 1 }, name: "Weeklies S2W1" });
+    expect(await t.query(api.weeklyInsights.suggestWeekly, { subgroup: UNSW, dateStart: NOW })).toBeNull();
+  });
+});
+
+describe("backfilling weeklies' term and week", () => {
+  const extras = (t: TestConvex<typeof schema>) =>
+    t.run(async (ctx) => {
+      const usydWeekly = await ctx.db.insert("events", {
+        name: "WK #3",
+        dateStart: wed(2026, 8, 12),
+        dateEnd: wed(2026, 8, 12),
+        subgroups: [USYD],
+      });
+      const season = await ctx.db.insert("events", {
+        name: "Season S2W3",
+        dateStart: wed(2026, 8, 13),
+        dateEnd: wed(2026, 8, 13),
+        subgroups: ["SOW"],
+      });
+      return { usydWeekly, season };
+    });
+
+  test("a dry run reports without writing; the real run fills in and tags, once", async () => {
+    const { t, ids } = await setup();
+    const { usydWeekly, season } = await extras(t);
+    const dry = await t.mutation(internal.weeklyInsights.backfillWeeklies, { dryRun: true });
+    expect(dry).toMatchObject({ marked: 17, tagged: 1 });
+    expect(dry.byCampus.map((c) => c.campus)).toEqual([USYD, UNSW].sort());
+    expect(dry.byCampus.find((c) => c.campus === USYD)!.terms).toEqual(["Sem 2 2026: W3"]);
+    expect((await t.run((ctx) => ctx.db.get(ids.weeklies[0])))!.weekly).toBeUndefined();
+
+    expect(await t.mutation(internal.weeklyInsights.backfillWeeklies, {})).toMatchObject({ marked: 17, tagged: 1 });
+    const [first, usyd, mega, sow] = await t.run((ctx) =>
+      Promise.all([ids.weeklies[0], usydWeekly, ids.mega, season].map((id) => ctx.db.get(id)))
+    );
+    expect(first!.weekly).toEqual({ year: 2025, slot: 2, week: 1 });
+    expect(usyd).toMatchObject({ weekly: { year: 2026, slot: 2, week: 3 }, tagIds: [ids.tag] });
+    expect(mega!.weekly).toBeUndefined();
+    expect(sow!.weekly).toBeUndefined();
+    const jobs = await t.run(async (ctx) =>
+      (await ctx.db.system.query("_scheduled_functions").collect()).filter((j) => j.name === "weeklyInsights:rebuildAll")
+    );
+    expect(jobs.map((j) => j.args[0])).toEqual([{ force: true }]);
+    expect(await t.mutation(internal.weeklyInsights.backfillWeeklies, {})).toMatchObject({ marked: 0, tagged: 0 });
+  });
+
+  test("makes the Weekly Meeting tag if there isn't one", async () => {
+    const { t, ids } = await setup();
+    await t.run(async (ctx) => {
+      for (const e of await ctx.db.query("events").collect()) await ctx.db.patch(e._id, { tagIds: [] });
+      await ctx.db.delete(ids.tag);
+    });
+    await t.mutation(internal.weeklyInsights.backfillWeeklies, {});
+    const tags = await t.run((ctx) => ctx.db.query("attendanceTags").collect());
+    expect(tags.map((tag) => tag.name)).toEqual(["Weekly Meeting"]);
+  });
+});
+
+describe("creating an event as a Weekly", () => {
+  const base = { name: "Weeklies T2W11", dateStart: wed(2026, 8, 12), dateEnd: wed(2026, 8, 12) + 7_200_000, subgroups: [UNSW] };
+
+  test("stores its term and week and adds the Weekly Meeting tag", async () => {
+    const { t, leader, ids } = await setup();
+    const id = await leader.mutation(api.events.create, { ...base, weekly: { year: 2026, slot: 2, week: 11 } });
+    const saved = await t.run((ctx) => ctx.db.get(id));
+    expect(saved).toMatchObject({ weekly: { year: 2026, slot: 2, week: 11 }, tagIds: [ids.tag] });
+
+    // Leaving it out on update keeps it; null makes it an ordinary event.
+    await leader.mutation(api.events.update, { eventId: id, ...base, name: "Renamed", tagIds: [ids.tag] });
+    expect((await t.run((ctx) => ctx.db.get(id)))!.weekly).toEqual({ year: 2026, slot: 2, week: 11 });
+    await leader.mutation(api.events.update, { eventId: id, ...base, tagIds: [ids.tag], weekly: null });
+    const plain = await t.run((ctx) => ctx.db.get(id));
+    expect(plain!.weekly).toBeUndefined();
+    expect(plain!.tagIds).toBeUndefined();
+    const log = await t.run((ctx) => ctx.db.query("attendanceAuditLog").collect());
+    expect(log.some((l) => l.detail?.includes("term and week"))).toBe(true);
+  });
+
+  test("checks the week, term and year, and makes the tag if needed", async () => {
+    const { t, leader, ids } = await setup();
+    const bad = (weekly: { year: number; slot: number; week: number }, subgroups = [UNSW]) =>
+      leader.mutation(api.events.create, { ...base, subgroups, weekly });
+    await expect(bad({ year: 2026, slot: 2, week: 0 })).rejects.toThrow(/1 to 20/);
+    await expect(bad({ year: 2026, slot: 2, week: 2.5 })).rejects.toThrow(/1 to 20/);
+    await expect(bad({ year: 2026, slot: 3, week: 1 }, [USYD])).rejects.toThrow(/semester doesn't exist/);
+    await expect(bad({ year: 2026, slot: 4, week: 1 })).rejects.toThrow(/term doesn't exist/);
+    await expect(bad({ year: 2028, slot: 1, week: 1 })).rejects.toThrow(/same year/);
+    await t.run((ctx) => ctx.db.delete(ids.tag));
+    const id = await leader.mutation(api.events.create, { ...base, weekly: { year: 2026, slot: 2, week: 11 } });
+    const tags = await t.run((ctx) => ctx.db.query("attendanceTags").collect());
+    expect(tags.map((tag) => tag.name)).toEqual(["Weekly Meeting"]);
+    expect((await t.run((ctx) => ctx.db.get(id)))!.tagIds).toEqual([tags[0]._id]);
+  });
+
+  test("switching off Weekly keeps the event's other tags", async () => {
+    const { t, leader, ids } = await setup();
+    const social = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "Social" }));
+    const id = await leader.mutation(api.events.create, { ...base, tagIds: [social], weekly: { year: 2026, slot: 2, week: 11 } });
+    await leader.mutation(api.events.update, { eventId: id, ...base, tagIds: [social, ids.tag], weekly: null });
+    expect((await t.run((ctx) => ctx.db.get(id)))!.tagIds).toEqual([social]);
   });
 });

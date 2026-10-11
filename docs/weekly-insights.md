@@ -33,13 +33,20 @@ year**; the current term opens first.
 
 ## Rules (`shared/weeklyInsights.ts`)
 
-- **Held weekly**: a Weekly Meeting event someone signed in to. A joint weekly
-  counts for every campus it's tagged with.
+- **Held weekly**: a Weekly Meeting event (or one created as a Weekly) for
+  one campus that someone signed in to. A weekly shared with other campuses
+  (a Mega or combined weekly) doesn't count: it would start terms early and
+  fill a campus's numbers with other campuses' people (setting
+  `jointWeeklies`, off).
 - **Term**: held weeklies grouped where there's a gap of 18+ days, named by
   the month the run starts (terms: Jan–May T1, Jun–Aug T2, Sep–Dec T3;
   semesters: Jan–Jun, Jul–Dec). Runs that land on the same name are one term,
-  so a cancelled week next to a break doesn't split it. Week numbers count
-  calendar weeks from the first weekly, so flexi week shows as a gap.
+  so a cancelled week next to a break doesn't split it. A weekly's own term
+  (set when it was created as a Weekly) always wins.
+- **Week**: the week the weekly was created with; else the week in its name
+  ("T2W8", "S1W8", "WM #9", "WK #13"); else Monday-to-Sunday weeks on from the
+  last weekly that had one (or from the term's first). Semesters don't number
+  the mid-semester break, which is why names come before dates.
 - **Categories**, first match wins, using roles and campus as of the term's
   last weekly: Staff, alumni & guests (staff profile or those Role options) →
   Leader (a university leader role at this campus) → Visitor (another campus,
@@ -62,6 +69,21 @@ npx convex run weeklyInsights:setSettings '{"regularShare": 0.4}'
 `regularShare`, `termGapDays`, `carryOverWeeklies`, `followUpMisses`,
 `newcomerMisses`, `freshWeeklies`, `newcomerPromoteWeeklies`,
 `visitorMinWeeklies`, `termCampuses`, `staffRoles`, `leaderRoles`.
+
+## Creating a weekly
+
+New event asks **Weekly or Other event** first (campuses only, not SOW). A
+Weekly gets a Term/Semester dropdown and a Week number, pre-filled for the
+event's date by `weeklyInsights.suggestWeekly` (the same rules as above, with
+the new weekly added), and a name like "Weeklies T3W5". Changing the date
+updates the suggestion until the leader edits a field. The event stores
+`weekly: { year, slot, week }` and gets the Weekly Meeting tag; switching an
+event back to Other event takes both off.
+
+`weeklyInsights:backfillWeeklies` gave every existing one-campus weekly its
+term and week (and tagged the ones that looked like weeklies by name but
+weren't tagged). Run it with `'{"dryRun": true}'` first to see the result;
+it's safe to run again.
 
 ## The build (`convex/weeklyInsights.ts`)
 

@@ -94,6 +94,13 @@ export const weeklyBlockValidator = v.union(
   })
 );
 
+/** The term and week a weekly was created with (see shared WeeklyMark). */
+export const weeklyMarkValidator = v.object({
+  year: v.number(),
+  slot: v.number(),
+  week: v.number(),
+});
+
 export const weeklySettingsFields = {
   regularShare: v.number(),
   termGapDays: v.number(),
@@ -104,6 +111,7 @@ export const weeklySettingsFields = {
   newcomerPromoteWeeklies: v.number(),
   visitorMinWeeklies: v.number(),
   termCampuses: v.array(v.string()),
+  jointWeeklies: v.optional(v.boolean()),
   staffRoles: v.array(v.string()),
   leaderRoles: v.array(v.string()),
 };

@@ -32,6 +32,11 @@ import {
   type TermFacts,
   termRows,
   termSystemFor,
+  looksWeekly,
+  suggestWeekly as suggestFrom,
+  termOptions,
+  weeklyName,
+  type WeeklyMark,
   type WeeklyPerson,
   type WeeklySettings,
 } from "../shared/weeklyInsights";
@@ -55,6 +60,7 @@ import { currentStaffYear, optionalProfile } from "./model";
 import {
   termFactsFields,
   weeklyBlockValidator,
+  weeklyMarkValidator,
   weeklySettingsFields,
 } from "./weeklyInsightsData";
 
@@ -77,7 +83,7 @@ const INDEX_WEEKLIES_WEEKS = 60;
 const NEVER = Number.MAX_SAFE_INTEGER;
 // Bump when what a view shows changes, so every campus redoes its views on
 // the next build after a deploy.
-export const VIEW_VERSION = 1;
+export const VIEW_VERSION = 2;
 
 export async function readSettings(
   ctx: QueryCtx
@@ -219,18 +225,29 @@ export const checkChanges = internalQuery({
   },
 });
 
-const weeklyEventValidator = v.object({ eventId: v.id("events"), at: v.number(), joint: v.boolean() });
+const weeklyEventValidator = v.object({
+  eventId: v.id("events"),
+  at: v.number(),
+  joint: v.boolean(),
+  name: v.string(),
+  mark: v.union(v.null(), weeklyMarkValidator),
+});
 
 /** One page of this campus's weekly meetings so far, newest first. Every
  *  page is read, so no old term looks deleted because of a cap. */
 export const weeklyEventsPage = internalQuery({
-  args: { subgroup: v.string(), now: v.number(), paginationOpts: paginationOptsValidator },
+  args: {
+    subgroup: v.string(),
+    now: v.number(),
+    includeJoint: v.boolean(),
+    paginationOpts: paginationOptsValidator,
+  },
   returns: v.object({
     page: v.array(weeklyEventValidator),
     isDone: v.boolean(),
     continueCursor: v.string(),
   }),
-  handler: async (ctx, { subgroup, now, paginationOpts }) => {
+  handler: async (ctx, { subgroup, now, includeJoint, paginationOpts }) => {
     const weekly = await weeklyTagIds(ctx);
     const result = await ctx.db
       .query("events")
@@ -242,12 +259,15 @@ export const weeklyEventsPage = internalQuery({
         .filter(
           (e) =>
             eventIncludesSubgroup(e.subgroups, subgroup) &&
-            (e.tagIds ?? []).some((id) => weekly.has(id))
+            (e.tagIds ?? []).some((id) => weekly.has(id)) &&
+            (includeJoint || normalizeSubgroups(e.subgroups).length === 1)
         )
         .map((e) => ({
           eventId: e._id,
           at: e.dateStart,
           joint: normalizeSubgroups(e.subgroups).length > 1,
+          name: e.name,
+          mark: e.weekly ?? null,
         })),
       isDone: result.isDone,
       continueCursor: result.continueCursor,
@@ -506,12 +526,19 @@ async function buildSubgroup(
   force: boolean
 ): Promise<void> {
   const { settings } = check;
-  const weeklyEvents: { eventId: Id<"events">; at: number; joint: boolean }[] = [];
+  const weeklyEvents: {
+    eventId: Id<"events">;
+    at: number;
+    joint: boolean;
+    name: string;
+    mark: WeeklyMark | null;
+  }[] = [];
   for (let cursor: string | null = null, done = false; !done; ) {
     const page: { page: typeof weeklyEvents; isDone: boolean; continueCursor: string } =
       await ctx.runQuery(internal.weeklyInsights.weeklyEventsPage, {
         subgroup,
         now,
+        includeJoint: settings.jointWeeklies,
         paginationOpts: { numItems: EVENTS_PAGE, cursor },
       });
     weeklyEvents.push(...page.page);
@@ -550,7 +577,13 @@ async function buildSubgroup(
 
   const held: HeldWeekly[] = data.weeklyEvents
     .filter((e) => (keysByEvent.get(e.eventId)?.length ?? 0) > 0)
-    .map((e) => ({ eventId: e.eventId, at: e.at, count: keysByEvent.get(e.eventId)!.length }))
+    .map((e) => ({
+      eventId: e.eventId,
+      at: e.at,
+      count: keysByEvent.get(e.eventId)!.length,
+      name: e.name,
+      mark: e.mark,
+    }))
     .sort((a, b) => a.at - b.at);
   const terms = deriveTerms(held, termSystemFor(subgroup, settings), settings.termGapDays);
   const facts: TermFacts[] = terms.map((t) => {
@@ -765,6 +798,7 @@ export const setSettings = internalMutation({
     newcomerPromoteWeeklies: v.optional(v.number()),
     visitorMinWeeklies: v.optional(v.number()),
     termCampuses: v.optional(v.array(v.string())),
+    jointWeeklies: v.optional(v.boolean()),
     staffRoles: v.optional(v.array(v.string())),
     leaderRoles: v.optional(v.array(v.string())),
   },
@@ -798,6 +832,124 @@ export const renameVisitorRole = internalMutation({
       values: { ...role.values, [entry[0]]: "Guest" },
     });
     return { renamed: true };
+  },
+});
+
+/** A campus's weeklies as Insights sees them: one campus, tagged Weekly
+ *  Meeting or created as a Weekly (joint ones only if the setting allows). */
+async function campusWeeklies(
+  ctx: QueryCtx,
+  subgroup: string,
+  settings: WeeklySettings,
+  except?: Id<"events">
+): Promise<HeldWeekly[]> {
+  const weekly = await weeklyTagIds(ctx);
+  const events = await ctx.db.query("events").withIndex("by_dateStart").take(MAX_EVENTS);
+  return events
+    .filter(
+      (e) =>
+        e._id !== except &&
+        eventIncludesSubgroup(e.subgroups, subgroup) &&
+        (!!e.weekly || (e.tagIds ?? []).some((id) => weekly.has(id))) &&
+        (settings.jointWeeklies || normalizeSubgroups(e.subgroups).length === 1)
+    )
+    .map((e) => ({ eventId: e._id, at: e.dateStart, count: 1, name: e.name, mark: e.weekly ?? null }));
+}
+
+const markOption = v.object({ key: v.string(), label: v.string(), year: v.number(), slot: v.number() });
+
+/** What the New event form pre-fills for a Weekly on a date: its term (and
+ *  the terms to choose from), week and name. `eventId` leaves an event being
+ *  edited out of its own suggestion. */
+export const suggestWeekly = query({
+  args: { subgroup: v.string(), dateStart: v.number(), eventId: v.optional(v.id("events")) },
+  returns: v.union(
+    v.null(),
+    v.object({
+      system: v.union(v.literal("terms"), v.literal("semesters")),
+      options: v.array(markOption),
+      suggested: v.object({ key: v.string(), year: v.number(), slot: v.number(), week: v.number() }),
+      name: v.string(),
+    })
+  ),
+  handler: async (ctx, { subgroup, dateStart, eventId }) => {
+    if (!(await optionalProfile(ctx))) return null;
+    const canonical = canonicalSubgroup(subgroup);
+    const { settings } = await readSettings(ctx);
+    const system = termSystemFor(canonical, settings);
+    const s = suggestFrom(
+      await campusWeeklies(ctx, canonical, settings, eventId),
+      dateStart,
+      system,
+      settings.termGapDays
+    );
+    // The form adds the suggested term if it isn't one of these.
+    const options = termOptions(system, sydneyCalendarYear(new Date(dateStart)));
+    return {
+      system,
+      options,
+      suggested: { key: s.key, year: s.year, slot: s.slot, week: s.week },
+      name: weeklyName(system, s.slot, s.week),
+    };
+  },
+});
+
+/**
+ * One-off: gives every campus weekly its term and week, the way Insights
+ * works them out (names first, then dates), and tags the ones that look like
+ * weeklies by name but were never tagged. Combined and Mega weeklies (more
+ * than one campus) are left alone. Then rebuilds Insights.
+ * `npx convex run weeklyInsights:backfillWeeklies '{"dryRun": true}'`
+ */
+export const backfillWeeklies = internalMutation({
+  args: { dryRun: v.optional(v.boolean()) },
+  returns: v.object({
+    marked: v.number(),
+    tagged: v.number(),
+    byCampus: v.array(v.object({ campus: v.string(), terms: v.array(v.string()) })),
+  }),
+  handler: async (ctx, { dryRun = false }) => {
+    const { settings } = await readSettings(ctx);
+    const weeklyTags = await weeklyTagIds(ctx);
+    let tag = [...weeklyTags][0];
+    const events = await ctx.db.query("events").withIndex("by_dateStart").take(MAX_EVENTS);
+    const single = events.filter(
+      (e) => normalizeSubgroups(e.subgroups).length === 1 && !isOrgWideSubgroup(e.subgroups[0])
+    );
+    const isWeekly = (e: Doc<"events">) =>
+      !!e.weekly || (e.tagIds ?? []).some((id) => weeklyTags.has(id)) || looksWeekly(e.name);
+    let marked = 0;
+    let tagged = 0;
+    const byCampus: { campus: string; terms: string[] }[] = [];
+    for (const campus of [...new Set(single.map((e) => canonicalSubgroup(e.subgroups[0])))].sort()) {
+      const mine = single.filter((e) => canonicalSubgroup(e.subgroups[0]) === campus && isWeekly(e));
+      const system = termSystemFor(campus, settings);
+      const terms = deriveTerms(
+        mine.map((e) => ({ eventId: e._id, at: e.dateStart, count: 1, name: e.name, mark: e.weekly ?? null })),
+        system,
+        settings.termGapDays
+      );
+      byCampus.push({
+        campus,
+        terms: terms.map((t) => `${t.label}: ${t.weeklies.map((w) => `W${w.week}`).join(" ")}`),
+      });
+      for (const t of terms) {
+        for (const w of t.weeklies) {
+          const event = mine.find((e) => e._id === w.eventId)!;
+          const hasTag = (event.tagIds ?? []).some((id) => weeklyTags.has(id));
+          if (!hasTag) tagged += 1;
+          if (!event.weekly) marked += 1;
+          if (dryRun || (event.weekly && hasTag)) continue;
+          if (!tag) tag = await ctx.db.insert("attendanceTags", { name: WEEKLY_MEETING_TAG_NAME });
+          await ctx.db.patch("events", event._id, {
+            weekly: event.weekly ?? { year: t.year, slot: t.slot, week: w.week },
+            tagIds: hasTag ? event.tagIds : [...(event.tagIds ?? []), tag],
+          });
+        }
+      }
+    }
+    if (!dryRun) await ctx.scheduler.runAfter(0, internal.weeklyInsights.rebuildAll, { force: true });
+    return { marked, tagged, byCampus };
   },
 });
 

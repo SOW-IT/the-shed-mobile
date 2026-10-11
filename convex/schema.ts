@@ -6,6 +6,7 @@ import { metricsDataValidator } from "./metricsData";
 import {
   termFactsFields,
   weeklyBlockValidator,
+  weeklyMarkValidator,
   weeklySettingsFields,
 } from "./weeklyInsightsData";
 import { homeBlockValidator } from "./homeData";
@@ -444,6 +445,9 @@ export default defineSchema({
     sourceImportId: v.optional(v.string()),
     subgroups: v.array(v.string()),
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
+    // A campus weekly's term and week, set when it was created as a Weekly
+    // (or by the backfill). Insights trusts these over dates and names.
+    weekly: v.optional(weeklyMarkValidator),
   })
     .index("by_dateStart", ["dateStart"])
     .index("by_sourceImportId", ["sourceImportId"]),

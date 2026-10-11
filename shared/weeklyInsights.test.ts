@@ -13,7 +13,12 @@ import {
   termLabel,
   termRows,
   termSystemFor,
+  termOptions,
   truncateTerm,
+  looksWeekly,
+  suggestWeekly,
+  weekFromName,
+  weeklyName,
   type WeeklyPerson,
   type WeeklySettings,
 } from "./weeklyInsights";
@@ -91,6 +96,67 @@ describe("terms", () => {
     expect(termLabel("semesters", 2, 2026)).toBe("Sem 2 2026");
     expect(termKey("terms", 3, 2025)).toBe("2025-T3");
     expect(dayLabel(wed(2026, 3, 4))).toBe("4 Mar");
+  });
+});
+
+describe("week numbers and marks", () => {
+  test("a week in the name wins, so a semester break isn't counted", () => {
+    expect(["Weeklies T2W8", "S1W8", "Weeklies s2w9", "WM #9", "S2 WK #13 PPN", "Week 4", "PPN T1W10"].map(weekFromName)).toEqual([8, 8, 9, 9, 13, 4, 10]);
+    expect(["TWIG 1", "Mega Weeklies 2025", "Week 40", undefined].map((n) => weekFromName(n))).toEqual([null, null, null, null]);
+    const held = [
+      ["S1W1", wed(2026, 2, 25)], ["S1W2", wed(2026, 3, 4)],
+      // Two-week break, then week 3; an unnamed weekly after it; and before a named one.
+      ["S1W3", wed(2026, 3, 25)], ["USYD PPN", wed(2026, 4, 1)],
+    ].map(([name, at], i) => ({ eventId: `x${i}`, at: at as number, count: 1, name: name as string }));
+    const [sem] = deriveTerms(held, "semesters", 18);
+    expect(sem.weeklies.map((w) => w.week)).toEqual([1, 2, 3, 4]);
+    const lead = deriveTerms(
+      [{ eventId: "a", at: wed(2026, 2, 25), count: 1, name: "Social" }, { eventId: "b", at: wed(2026, 3, 11), count: 1, name: "S1W5" }],
+      "semesters",
+      18
+    )[0];
+    // Before the first named weekly, weeks count from the term's start.
+    expect(lead.weeklies.map((w) => w.week)).toEqual([1, 5]);
+  });
+
+  test("weeks run Monday to Sunday, so a Sunday is in the same week as the Wednesday before", () => {
+    const held = [
+      { eventId: "w", at: wed(2026, 9, 16), count: 1, name: "Weeklies T3W1" },
+      { eventId: "s", at: Date.UTC(2026, 8, 20, 2), count: 1, name: "Sunday social" },
+      { eventId: "m", at: Date.UTC(2026, 8, 21, 2), count: 1, name: "Monday catch-up" },
+    ];
+    expect(deriveTerms(held, "terms", 18)[0].weeklies.map((w) => w.week)).toEqual([1, 1, 2]);
+    expect(suggestWeekly(held.slice(0, 1), Date.UTC(2026, 8, 20, 2), "terms", 18).week).toBe(1);
+  });
+
+  test("a weekly created with a term and week keeps them", () => {
+    const terms = deriveTerms(
+      [
+        { eventId: "a", at: wed(2026, 2, 18), count: 1, name: "Weeklies T1W1" },
+        // Created as T1 week 11 despite being in June.
+        { eventId: "b", at: wed(2026, 6, 3), count: 1, name: "Catch-up", mark: { year: 2026, slot: 1, week: 11 } },
+        { eventId: "c", at: wed(2026, 6, 10), count: 1, name: "Weeklies T2W2" },
+      ],
+      "terms",
+      18
+    );
+    expect(terms.map((t) => [t.label, t.weeklies.map((w) => w.week)])).toEqual([
+      ["T1 2026", [1, 11]],
+      ["T2 2026", [2]],
+    ]);
+  });
+
+  test("suggestions for a new weekly, its name and the terms to pick from", () => {
+    const held = T1_2026.slice(0, 5).map((at, i) => ({ eventId: `t${i}`, at, count: 1, name: `Weeklies T1W${i + 1}` }));
+    // Flexi week skipped: the 8 Apr weekly is week 8 of T1.
+    expect(suggestWeekly(held, wed(2026, 4, 8), "terms", 18)).toEqual({ year: 2026, slot: 1, week: 8, key: "2026-T1", label: "T1 2026" });
+    // After a long break: a new term starting at week 1.
+    expect(suggestWeekly(held, wed(2026, 6, 3), "terms", 18)).toMatchObject({ key: "2026-T2", week: 1 });
+    expect(weeklyName("terms", 3, 5)).toBe("Weeklies T3W5");
+    expect(weeklyName("semesters", 2, 9)).toBe("Weeklies S2W9");
+    expect(termOptions("semesters", 2026).map((o) => o.label)).toEqual(["Sem 2 2025", "Sem 1 2026", "Sem 2 2026"]);
+    expect(termOptions("terms", 2026).map((o) => o.key)).toEqual(["2025-T3", "2026-T1", "2026-T2", "2026-T3"]);
+    expect([looksWeekly("WK #9"), looksWeekly("UNSW Weeklies"), looksWeekly("Hot Pot")]).toEqual([true, true, false]);
   });
 });
 

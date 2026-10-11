@@ -4,12 +4,14 @@ import {
   eventStaffYear,
   roleNeedsUniversity,
   staffYearForDate,
+  sydneyCalendarYear,
 } from "../shared/flow";
 import {
   eventIncludesSubgroup,
   normalizeSubgroups,
   SOW_SUBGROUP,
   subgroupLabel,
+  WEEKLY_MEETING_TAG_NAME,
 } from "../shared/rollcall";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
@@ -21,6 +23,9 @@ import {
   query,
 } from "./_generated/server";
 import { displayName, optionalProfile, requireProfile } from "./model";
+import { readSettings } from "./weeklyInsights";
+import { weeklyMarkValidator } from "./weeklyInsightsData";
+import { termSystemFor, type WeeklyMark } from "../shared/weeklyInsights";
 import { notify } from "./requests";
 import {
   auditStamp,
@@ -101,6 +106,14 @@ const annotate = async (ctx: QueryCtx, event: Doc<"events">) => {
   };
 };
 
+/** The Weekly Meeting tag, made if the campus has never had one. */
+async function weeklyMeetingTag(ctx: MutationCtx): Promise<Id<"attendanceTags">> {
+  const existing = (await ctx.db.query("attendanceTags").take(500)).find(
+    (t) => t.name === WEEKLY_MEETING_TAG_NAME
+  );
+  return existing?._id ?? (await ctx.db.insert("attendanceTags", { name: WEEKLY_MEETING_TAG_NAME }));
+}
+
 async function validateEventFields(
   ctx: MutationCtx,
   args: {
@@ -109,6 +122,7 @@ async function validateEventFields(
     dateEnd: number;
     subgroups: string[];
     tagIds?: Id<"attendanceTags">[];
+    weekly?: WeeklyMark | null;
   }
 ) {
   const trimmed = args.name.trim();
@@ -131,7 +145,34 @@ async function validateEventFields(
       throw new ConvexError(`Unknown sub-group "${subgroup}" for ${year}.`);
     }
   }
-  const uniqueTagIds = args.tagIds?.length ? [...new Set(args.tagIds)] : undefined;
+  let uniqueTagIds = args.tagIds?.length ? [...new Set(args.tagIds)] : undefined;
+  // A Weekly carries the Weekly Meeting tag, which the rest of Attendance
+  // reads; and its term must exist at its campus (T1–T3 or Sem 1–2).
+  if (args.weekly) {
+    const { settings } = await readSettings(ctx);
+    const system = termSystemFor(uniqueSubgroups[0], settings);
+    const { slot, week, year: termYear } = args.weekly;
+    const dateYear = sydneyCalendarYear(new Date(args.dateStart));
+    if (!Number.isInteger(week) || week < 1 || week > 20) {
+      throw new ConvexError("The week should be a number from 1 to 20.");
+    }
+    if (!Number.isInteger(slot) || slot < 1 || slot > (system === "terms" ? 3 : 2)) {
+      throw new ConvexError(`That ${system === "terms" ? "term" : "semester"} doesn't exist here.`);
+    }
+    if (Math.abs(termYear - dateYear) > 1) {
+      throw new ConvexError("The term should be in the same year as the date.");
+    }
+    const weeklyTag = await weeklyMeetingTag(ctx);
+    uniqueTagIds = [...new Set([...(uniqueTagIds ?? []), weeklyTag])];
+  } else if (args.weekly === null && uniqueTagIds) {
+    const weeklyTags = new Set(
+      (await ctx.db.query("attendanceTags").take(500))
+        .filter((t) => t.name === WEEKLY_MEETING_TAG_NAME)
+        .map((t) => t._id)
+    );
+    uniqueTagIds = uniqueTagIds.filter((id) => !weeklyTags.has(id));
+    if (!uniqueTagIds.length) uniqueTagIds = undefined;
+  }
   if (uniqueTagIds) {
     for (const tagId of uniqueTagIds) {
       const tag = await ctx.db.get(tagId);
@@ -146,6 +187,7 @@ async function validateEventFields(
     dateEnd: args.dateEnd,
     subgroups: uniqueSubgroups,
     tagIds: uniqueTagIds,
+    weekly: args.weekly ?? undefined,
   };
 }
 
@@ -315,8 +357,9 @@ export const create = mutation({
     dateEnd: v.number(),
     subgroups: v.array(v.string()),
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
+    weekly: v.optional(weeklyMarkValidator),
   },
-  handler: async (ctx, { name, dateStart, dateEnd, subgroups, tagIds }) => {
+  handler: async (ctx, { name, dateStart, dateEnd, subgroups, tagIds, weekly }) => {
     const { email } = await requireProfile(ctx);
     const eventFields = await validateEventFields(ctx, {
       name,
@@ -324,6 +367,7 @@ export const create = mutation({
       dateEnd,
       subgroups,
       tagIds,
+      weekly,
     });
     const eventId = await ctx.db.insert("events", eventFields);
     await logAttendanceAction(ctx, {
@@ -349,11 +393,13 @@ export const update = mutation({
     dateEnd: v.number(),
     subgroups: v.array(v.string()),
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
+    // Leave out to keep the event's term and week; null makes it not a Weekly.
+    weekly: v.optional(v.union(v.null(), weeklyMarkValidator)),
   },
   returns: v.null(),
   handler: async (
     ctx,
-    { eventId, name, dateStart, dateEnd, subgroups, tagIds }
+    { eventId, name, dateStart, dateEnd, subgroups, tagIds, weekly }
   ) => {
     const { email } = await requireProfile(ctx);
     const existing = await ctx.db.get(eventId);
@@ -364,6 +410,7 @@ export const update = mutation({
       dateEnd,
       subgroups,
       tagIds,
+      weekly: weekly === undefined ? existing.weekly : weekly,
     });
     await ctx.db.patch(eventId, eventFields);
     const changes: string[] = [];
@@ -374,6 +421,8 @@ export const update = mutation({
       changes.push("sub-groups");
     if ((existing.tagIds ?? []).join() !== (eventFields.tagIds ?? []).join())
       changes.push("tags");
+    if (JSON.stringify(existing.weekly ?? null) !== JSON.stringify(eventFields.weekly ?? null))
+      changes.push("term and week");
     if (changes.length) {
       await logAttendanceAction(ctx, {
         actorEmail: email,

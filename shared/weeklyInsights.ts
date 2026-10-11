@@ -31,6 +31,10 @@ export type WeeklySettings = {
   visitorMinWeeklies: number;
   /** Campuses that run terms (T1–T3); everyone else runs semesters. */
   termCampuses: string[];
+  /** Whether a weekly tagged with several campuses (a Mega Weeklies) counts
+   *  as each campus's weekly. Off: it would start terms early and fill a
+   *  campus's numbers with other campuses' people. */
+  jointWeeklies: boolean;
   /** Role labels that make someone Staff, alumni & guests. */
   staffRoles: string[];
   /** Role labels that make someone a Leader. */
@@ -47,6 +51,7 @@ export const DEFAULT_WEEKLY_SETTINGS: WeeklySettings = {
   newcomerPromoteWeeklies: 4,
   visitorMinWeeklies: 2,
   termCampuses: ["University of New South Wales"],
+  jointWeeklies: false,
   staffRoles: [
     "Staff",
     "Head of Department",
@@ -111,9 +116,35 @@ export const SECTION_LABELS: Record<WeeklySection, string> = {
   staff: "Staff, alumni & guests",
 };
 
-export type HeldWeekly = { eventId: string; at: number; count: number };
+/** The term and week a leader gave a weekly when creating it. */
+export type WeeklyMark = { year: number; slot: number; week: number };
 
-export type TermWeekly = HeldWeekly & { week: number };
+export type HeldWeekly = {
+  eventId: string;
+  at: number;
+  count: number;
+  name?: string;
+  mark?: WeeklyMark | null;
+};
+
+export type TermWeekly = { eventId: string; at: number; count: number; week: number };
+
+// Leaders put the term week in a weekly's name: "Weeklies T2W8", "S1W8",
+// "s2w9", "WM #9", "WK #13". Semesters don't number the mid-semester break,
+// so counting calendar weeks would run ahead of these after it.
+const WEEK_IN_NAME = [
+  /\b[TS]\s?\d\s?W(?:EEK)?\s?(\d{1,2})\b/i,
+  /\bW[MK]?\s?#\s?(\d{1,2})\b/i,
+  /\bWEEK\s?(\d{1,2})\b/i,
+];
+
+export const weekFromName = (name?: string): number | null => {
+  for (const pattern of WEEK_IN_NAME) {
+    const n = Number(pattern.exec(name ?? "")?.[1]);
+    if (n >= 1 && n <= 20) return n;
+  }
+  return null;
+};
 
 export type WeeklyTerm = {
   key: string;
@@ -144,6 +175,10 @@ const sydneyDay = (ms: number): number => {
   const { year, month, day } = sydneyYmd(new Date(ms));
   return Math.round(Date.UTC(year, month - 1, day) / DAY_MS);
 };
+
+/** The Monday that starts a day's week (uni weeks run Monday to Sunday);
+ *  day 0 (1 Jan 1970) was a Thursday. */
+const weekStart = (day: number): number => day - ((day + 3) % 7);
 
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -182,24 +217,72 @@ export function deriveTerms(
       runStart = weekly;
     }
     previous = weekly;
+    // A weekly created with its term keeps it; others take their run's.
     const { year, month } = sydneyYmd(new Date(runStart!.at));
-    const slot = slotFor(month, system);
-    const key = termKey(system, slot, year);
+    const slot = weekly.mark?.slot ?? slotFor(month, system);
+    const termYear = weekly.mark?.year ?? year;
+    const key = termKey(system, slot, termYear);
     let term = terms.find((t) => t.key === key);
     if (!term) {
-      term = { key, label: termLabel(system, slot, year), year, slot, system, weeklies: [] };
+      term = { key, label: termLabel(system, slot, termYear), year: termYear, slot, system, weeklies: [] };
       terms.push(term);
     }
-    term.weeklies.push({ ...weekly, week: 0 });
+    term.weeklies.push({
+      eventId: weekly.eventId,
+      at: weekly.at,
+      count: weekly.count,
+      week: weekly.mark?.week ?? weekFromName(weekly.name) ?? 0,
+    });
   }
+  terms.sort((a, b) => a.weeklies[0].at - b.weeklies[0].at);
+  for (const term of terms) term.weeklies.sort((a, b) => a.at - b.at);
+  // A weekly with no week in its name or mark counts calendar weeks on from
+  // the last one that had a week, or from the term's first weekly.
   for (const term of terms) {
-    const first = sydneyDay(term.weeklies[0].at);
-    for (const weekly of term.weeklies) {
-      weekly.week = Math.floor((sydneyDay(weekly.at) - first) / 7) + 1;
-    }
+    const weeks = term.weeklies.map((w) => weekStart(sydneyDay(w.at)) / 7);
+    const named = term.weeklies.map((w) => w.week);
+    term.weeklies.forEach((weekly, i) => {
+      if (named[i]) return;
+      let before = -1;
+      for (let j = 0; j < i; j++) if (named[j] > 0) before = j;
+      weekly.week = before >= 0 ? named[before] + weeks[i] - weeks[before] : weeks[i] - weeks[0] + 1;
+    });
   }
   return terms;
 }
+
+/** "Weeklies T3W5" at a term campus, "Weeklies S2W5" elsewhere. */
+export const weeklyName = (system: TermSystem, slot: number, week: number): string =>
+  `Weeklies ${system === "terms" ? "T" : "S"}${slot}W${week}`;
+
+/** The terms a weekly on this date could be in: that year's, plus the last
+ *  of the year before (for a weekly in early January). */
+export const termOptions = (system: TermSystem, year: number) => {
+  const slots = system === "terms" ? [1, 2, 3] : [1, 2];
+  return [
+    { year: year - 1, slot: slots[slots.length - 1] },
+    ...slots.map((slot) => ({ year, slot })),
+  ].map((o) => ({ ...o, key: termKey(system, o.slot, o.year), label: termLabel(system, o.slot, o.year) }));
+};
+
+/** The term and week a new weekly on `at` most likely belongs to, worked out
+ *  the same way as Insights from the campus's other weeklies. */
+export function suggestWeekly(
+  weeklies: HeldWeekly[],
+  at: number,
+  system: TermSystem,
+  gapDays: number
+): WeeklyMark & { key: string; label: string } {
+  const NEW = "__new__";
+  const terms = deriveTerms([...weeklies, { eventId: NEW, at, count: 1 }], system, gapDays);
+  const term = terms.find((t) => t.weeklies.some((w) => w.eventId === NEW))!;
+  const week = term.weeklies.find((w) => w.eventId === NEW)!.week;
+  return { year: term.year, slot: term.slot, week, key: term.key, label: term.label };
+}
+
+/** Looks like a campus weekly by its name: "Weeklies …", "S2W3", "WK #9". */
+export const looksWeekly = (name: string): boolean =>
+  /weekl/i.test(name) || weekFromName(name) !== null;
 
 export type TermRow = {
   key: string;
