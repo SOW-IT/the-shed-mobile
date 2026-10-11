@@ -155,6 +155,8 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   becomes a plain member: their sign-ins
   move onto that one record, their personal email replaces the staff one, and a
   staff role becomes Member (Alumni is set by leaders when someone graduates).
+  A member's email, and a staff person's personal email, can't be an SOW
+  address or anyone's staff email.
   Member names are capitalised as they're typed.
 - **Audit log**: an immutable trail of every attendance-area action (event /
   member / tag / metadata edits, merges and deletes, and each

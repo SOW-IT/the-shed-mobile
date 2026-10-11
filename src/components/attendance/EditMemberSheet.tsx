@@ -128,8 +128,9 @@ export function EditMemberSheet({
     visible && emailChanged ? { email: typedEmail, staffYear } : "skip"
   );
   const staffEmailOwner = emailChanged ? (staffForEmail ?? null) : null;
-  // Any other SOW address is still a staff one, never a personal email.
-  const sowAddress = emailChanged && !staffEmailOwner && isSowStaffAddress(typedEmail);
+  // Any other SOW address is still a staff one, never a personal email, even
+  // one already saved (an import can bring one in).
+  const sowAddress = !staffEmailOwner && isSowStaffAddress(typedEmail);
 
   const metadataSummary = (meta: Record<string, string>) =>
     metadataFields

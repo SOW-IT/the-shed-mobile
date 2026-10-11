@@ -526,8 +526,9 @@ export const update = mutation({
     if (!trimmed) throw new ConvexError("Name is required.");
     const ownEmail = email?.trim().toLowerCase() || undefined;
     // A plain member's email is their own; a staff one (say a former
-    // leader's old SOW address) would make them read as staff.
-    if (ownEmail && ownEmail !== row.email?.toLowerCase() && (await isStaffAddress(ctx, ownEmail))) {
+    // leader's old SOW address, or one an import brought in) would make them
+    // read as staff, so it has to be replaced or cleared before saving.
+    if (ownEmail && (await isStaffAddress(ctx, ownEmail))) {
       throw new ConvexError(NOT_PERSONAL(ownEmail));
     }
     await ctx.db.patch(memberId, {

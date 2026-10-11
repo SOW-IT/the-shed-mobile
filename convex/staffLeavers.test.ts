@@ -486,6 +486,19 @@ describe("a plain member's email", () => {
     expect((await s.members()).find((m) => m._id === memberId)?.email).toBe("former.leader@outlook.com");
   });
 
+  test("one already saved (say from an import) has to be replaced before saving", async () => {
+    const s = await setup();
+    const admin = asUser(s.t, ADMIN);
+    const memberId = await s.t.run((ctx) =>
+      ctx.db.insert("attendanceMembers", { name: "Imported Person", email: "imported@sowaustralia.com" })
+    );
+    const save = (email: string) =>
+      admin.mutation(api.attendanceMembers.update, { memberId, name: "Imported Person", email, staffYear: YEAR });
+    await expect(save("imported@sowaustralia.com")).rejects.toThrow("not a personal one");
+    await save("");
+    expect((await s.members())[0].email).toBeUndefined();
+  });
+
   test("a leaver's personal email that is an SOW address is passed over", async () => {
     const s = await setup();
     await s.profile(LEAVER, LAST, "Lee Aver");

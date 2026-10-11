@@ -67,29 +67,28 @@ async function outgoingStaff(
   ctx: MutationCtx,
   year: number
 ): Promise<{ key: string; profile: Doc<"staffProfiles"> }[]> {
+  // Two index ranges, however many people: earlier profiles, and everyone
+  // still staff this year or later.
   const leaving = await ctx.db
     .query("staffProfiles")
     .withIndex("by_year", (q) => q.lt("year", year))
     .collect();
+  const staying = new Set(
+    (
+      await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_year", (q) => q.gte("year", year))
+        .collect()
+    ).map((p) => canonicalEmailKey(p.email))
+  );
   const byKey = new Map<string, Doc<"staffProfiles">>();
   for (const profile of leaving) {
     const key = canonicalEmailKey(profile.email);
-    const seen = key ? byKey.get(key) : undefined;
-    if (key && (!seen || profile.year > seen.year)) byKey.set(key, profile);
+    if (!key || staying.has(key)) continue;
+    const seen = byKey.get(key);
+    if (!seen || profile.year > seen.year) byKey.set(key, profile);
   }
-  const out = [];
-  for (const [key, profile] of byKey) {
-    let stays = false;
-    for (const candidate of staffEmailCandidates(profile.email)) {
-      const later = await ctx.db
-        .query("staffProfiles")
-        .withIndex("by_email_and_year", (q) => q.eq("email", candidate).gte("year", year))
-        .first();
-      if (later) stays = true;
-    }
-    if (!stays) out.push({ key, profile });
-  }
-  return out.sort((a, b) => a.key.localeCompare(b.key));
+  return [...byKey].map(([key, profile]) => ({ key, profile })).sort((a, b) => a.key.localeCompare(b.key));
 }
 
 type RoleField = {
