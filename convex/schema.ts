@@ -619,7 +619,16 @@ export default defineSchema({
   weeklyInsightIndex: defineTable({
     subgroup: v.string(),
     computedAt: v.number(),
-    periods: v.array(v.object({ key: v.string(), label: v.string() })),
+    periods: v.array(
+      v.object({
+        key: v.string(),
+        label: v.string(),
+        group: v.optional(v.string()),
+        short: v.optional(v.string()),
+        kind: v.optional(v.union(v.literal("term"), v.literal("year"))),
+        slot: v.optional(v.number()),
+      })
+    ),
     currentKey: v.union(v.string(), v.null()),
     weeklies: v.array(v.object({ at: v.number(), count: v.number(), joint: v.boolean() })),
     settingsVersion: v.number(),
@@ -627,8 +636,8 @@ export default defineSchema({
     viewVersion: v.optional(v.number()),
     auditSeen: v.number(),
     eventsSeen: v.number(),
-    // When the current year's "vs last year up to today" next changes, so
-    // the year view is redone then even if no attendance has changed.
+    // When the latest term stops running, so its views are redone then even
+    // if no attendance has changed.
     nextCompareAt: v.number(),
   }).index("by_subgroup", ["subgroup"]),
 

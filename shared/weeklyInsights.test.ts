@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   computeTerm,
   computeYear,
+  cutToPoint,
   dayLabel,
   DEFAULT_WEEKLY_SETTINGS,
   deriveTerms,
@@ -20,6 +21,7 @@ import {
   weekFromName,
   weeklyName,
   weeklyWhen,
+  yearCutOf,
   type WeeklyPerson,
   type WeeklySettings,
 } from "./weeklyInsights";
@@ -286,8 +288,8 @@ describe("follow-ups", () => {
       ["freshVis", "visitor", false],
     ]);
     expect(fu[0].reason).toBe("Came to 5 of 5, then missed the last 2");
-    expect(fu[2].reason).toBe("New on T2W8 (22 Jul) · came 1 time, missed the last weekly");
-    expect(fu[3].reason).toBe("Visited T2W5 (1 Jul), not back since");
+    expect(fu[2].reason).toBe("New at T2W8 (22 Jul). Came once, then missed the last weekly");
+    expect(fu[3].reason).toBe("Visited T2W5 (1 Jul) and hasn't come back");
     expect(fu[4].reason).toBe("Visited T2W9 (29 Jul)");
   });
 
@@ -339,6 +341,11 @@ describe("summaries and comparisons", () => {
     expect(termBefore(terms, 1, false, c)!.term.weeklies).toHaveLength(4);
     expect(termBefore(terms, 0, false, c)).toBeNull();
     expect(truncateTerm(terms[0], 0)).toBeNull();
+    // Cut to a point in another year: earlier terms whole, the same term up to
+    // the same week, later terms left out.
+    expect(cutToPoint(terms[0], { slot: 2, week: 1, name: "T2" })).toBe(terms[0]);
+    expect(cutToPoint(terms[0], { slot: 1, week: 2, name: "T1" })!.weeklies).toHaveLength(2);
+    expect(cutToPoint(terms[0], { slot: 0, week: 9, name: "T0" })).toBeNull();
     // The term before only had weeks after this one's first: nothing to cut to.
     const named = deriveTerms(
       [
@@ -359,8 +366,11 @@ describe("summaries and comparisons", () => {
     expect(y.rows.find((r) => r.key === "a")).toMatchObject({ attended: 3, held: 3, termKey: "2026-T1" });
     expect(y.summary.newcomers).toBe(2);
     expect(computeYear(terms, 2024, c)).toBeNull();
-    const cut = computeYear(terms, 2025, c, wed(2025, 2, 27))!;
-    expect(cut.summary.weeklies).toBe(2);
-    expect(computeYear(terms, 2025, c, wed(2025, 1, 1))).toBeNull();
+    // This year has got to T1 week 3: last year up to the same point.
+    const point = yearCutOf(terms, 2026)!;
+    expect(point).toEqual({ slot: 1, week: 3, name: "T1" });
+    expect(computeYear(terms, 2025, c, point)!.summary.weeklies).toBe(3);
+    expect(computeYear(terms, 2025, c, { slot: 0, week: 1, name: "T0" })).toBeNull();
+    expect(yearCutOf(terms, 2030)).toBeNull();
   });
 });

@@ -111,6 +111,19 @@ function PersonRow({
   );
 }
 
+/** A group heading inside a list: its name, and how many are in it. */
+function SectionLabel({ title, count }: { title: string; count: number }) {
+  const t = useAppTheme();
+  return (
+    <View style={[styles.sectionLabel, { borderBottomColor: t.separator }]}>
+      <Text style={[styles.sectionTitle, { color: t.text }]} numberOfLines={1}>
+        {title}
+      </Text>
+      <Text style={[styles.sectionCount, { color: t.faint }]}>{count}</Text>
+    </View>
+  );
+}
+
 const SORT_DIRECTION: Record<PeopleSortKey, 1 | -1> = { pct: -1, name: 1, last: -1 };
 
 function PeopleList({ block, onOpen }: { block: Block<"people">; onOpen?: (key: string) => void }) {
@@ -215,9 +228,7 @@ function PeopleList({ block, onOpen }: { block: Block<"people">; onOpen?: (key: 
             const rows = section.rows.slice(0, max - before[i]);
             return (
               <View key={section.key}>
-                <Text style={[typography.label, styles.sectionLabel, { color: t.muted }]}>
-                  {`${section.label} · ${section.rows.length}`}
-                </Text>
+                <SectionLabel title={section.label} count={section.rows.length} />
                 {rows.map((r) => (
                   <PersonRow
                     key={r.key}
@@ -258,9 +269,7 @@ function FollowUpGroups({ block, onOpen }: { block: Block<"followUpGroups">; onO
           <ScrollCap maxHeight={LIST_HEIGHT} count={total}>
             {block.groups.map((group) => (
               <View key={group.key}>
-                <Text style={[typography.label, styles.sectionLabel, { color: t.muted }]}>
-                  {`${group.title} · ${group.people.length}`}
-                </Text>
+                <SectionLabel title={group.title} count={group.people.length} />
                 {group.people.map((p: FollowRow) => (
                   <PersonRow
                     key={p.key}
@@ -423,7 +432,15 @@ const styles = StyleSheet.create({
   },
   sortRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, flexWrap: "wrap" },
   sortChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.full },
-  sectionLabel: { marginTop: spacing.sm, marginBottom: spacing.xs },
+  sectionLabel: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    paddingBottom: spacing.xs,
+  },
+  sectionTitle: { flex: 1, fontSize: 13, fontWeight: "700", letterSpacing: -0.05 },
+  sectionCount: { fontSize: 13, fontWeight: "600" },
   empty: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.md },
   kv: {
     flexDirection: "row",

@@ -9,18 +9,27 @@ sheets. The org-wide SOW view is unchanged (see
 ## What it shows
 
 Pick a **term** (T1–T3 at UNSW, Sem 1–2 elsewhere) or a **whole calendar
-year**; the current term opens first. The picker lists each year's terms,
-newest first, then that whole year: "2026 T3, 2026 T2, 2026 T1, 2026 · whole
-year, 2025 T3, …".
+year**; the current term opens first. The picker has one row per year, newest
+first, with its terms side by side and the whole year last (T1, T2, T3,
+Year).
 
 - **Cards**: Weekly avg, People, Regulars, Newcomers, Newcomers who stayed
-  (came 2+ times), Campus share. A term is compared with **the term before**
-  (T3 with T2, Sem 2 with Sem 1, T1 with last year's T3); one still running
-  is compared up to the same week. A year is compared with last year, the
-  current year up to the same day.
-- **Charts**, near the top: week by week against the term before, and who
+  (came back for a second weekly), Campus share, each with its change in a
+  pill. A term is compared with **the term before** (T3 with T2, Sem 2 with
+  Sem 1, T1 with last year's T3); one still running is compared up to the
+  same week, and the comparison says so ("vs 97.3 in T2 2026 up to W4"),
+  since the term before's own page shows its whole term. A year is compared
+  with last year; the year in progress up to the same term and week ("vs
+  66.3 in 2025 up to T3 W4"), and so is its weekly avg by term chart. Each
+  card's (i) says what it's compared with, and Weekly avg and People say
+  whether Mega and combined weeklies are counted (not by default; see
+  `jointWeeklies` under Settings).
+- **Charts**, near the top: week by week against the term before (its bars
+  in grey), and who
   came each week by category. The year view has one "who came each week"
-  chart per term.
+  chart per term. Each weekly is its own point: two in the same week (a special
+  night in a week the campus didn't number, say) show as "W7" and "W7·2",
+  in the charts and in a member's week grid.
 - **Needs follow-up** (current term only): people who were coming (Regular,
   or a Leader, judged on the weeklies before) but missed the last 2 held
   weeklies; then newcomers who missed the last one, while their visit is
@@ -111,8 +120,7 @@ it's safe to run again.
   weeklies (or a removed member's), rewrite the terms whose facts changed,
   and redo the views from the term before the first change onwards (a term is
   compared with the one before, so a change also redoes the next), plus the
-  latest term if someone in it or the term before was edited. The year view is
-  also redone when last year's comparison date passes. A settings change or a bump of
+  latest term if someone in it or the term before was edited. The latest term is also redone when it stops running (no more "so far"). A settings change or a bump of
   `VIEW_VERSION` (when a deploy changes what views show) redoes every view
   from the stored facts, without reading attendance.
 - **First build** reads all weekly history once.

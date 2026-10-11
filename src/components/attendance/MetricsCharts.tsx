@@ -419,18 +419,20 @@ export function MetricCard({
   const t = useAppTheme();
   const accent =
     tone === "positive" ? t.success : tone === "attention" ? t.warning : t.text;
-  const deltaColour = !delta
-    ? t.muted
+  // The change sits in a soft pill beside the number, so the number reads
+  // first and the comparison second.
+  const [deltaColour, deltaBackground] = !delta
+    ? [t.muted, t.ghost]
     : delta.direction === "up"
-      ? t.success
+      ? [t.success, t.successSoft]
       : delta.direction === "down"
-        ? t.danger
-        : t.muted;
+        ? [t.danger, t.dangerSoft]
+        : [t.ghostText, t.ghost];
   const body = (
     <>
       <View style={styles.metricLabelRow}>
         <Text
-          style={[typography.label, { color: t.muted, flex: 1 }]}
+          style={[styles.metricLabel, { color: t.muted }]}
           numberOfLines={labelLines}
         >
           {label}
@@ -443,45 +445,36 @@ export function MetricCard({
           />
         ) : null}
       </View>
-      <Text style={[typography.amount, { color: accent }]} numberOfLines={1}>
-        {value}
-      </Text>
-      <View style={styles.metricFooter}>
-        <View style={styles.deltaSlot}>
-          {delta ? (
-            <View style={styles.deltaRow}>
-              <Ionicons
-                name={
-                  delta.direction === "up"
-                    ? "arrow-up"
-                    : delta.direction === "down"
-                      ? "arrow-down"
-                      : "remove"
-                }
-                size={13}
-                color={deltaColour}
-              />
-              <Text
-                style={[
-                  typography.caption,
-                  { color: deltaColour, fontWeight: "700" },
-                ]}
-              >
-                {delta.text}
-              </Text>
-            </View>
-          ) : null}
-        </View>
-        <View style={styles.hintSlot}>
-          {hint ? (
-            <Text
-              style={[typography.caption, { color: t.faint }]}
-              numberOfLines={1}
-            >
-              {hint}
-            </Text>
-          ) : null}
-        </View>
+      <View style={styles.metricValueRow}>
+        <Text style={[typography.amount, { color: accent }]} numberOfLines={1}>
+          {value}
+        </Text>
+        {delta ? (
+          <View style={[styles.deltaPill, { backgroundColor: deltaBackground }]}>
+            <Ionicons
+              name={
+                delta.direction === "up"
+                  ? "arrow-up"
+                  : delta.direction === "down"
+                    ? "arrow-down"
+                    : "remove"
+              }
+              size={12}
+              color={deltaColour}
+            />
+            <Text style={[styles.deltaText, { color: deltaColour }]}>{delta.text}</Text>
+          </View>
+        ) : null}
+      </View>
+      <View style={styles.hintSlot}>
+        {hint ? (
+          <Text
+            style={[typography.caption, { color: t.faint }]}
+            numberOfLines={2}
+          >
+            {hint}
+          </Text>
+        ) : null}
       </View>
     </>
   );
@@ -1446,20 +1439,29 @@ const styles = StyleSheet.create({
   },
   metricLabelRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 4,
   },
-  metricFooter: {
-    gap: 2,
-    marginTop: 2,
-  },
-  deltaSlot: { height: 17, justifyContent: "center" },
-  hintSlot: { height: 15, justifyContent: "center" },
-  deltaRow: {
+  metricLabel: { flex: 1, fontSize: 13, fontWeight: "600", letterSpacing: -0.05 },
+  metricValueRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
+    flexWrap: "wrap",
+    columnGap: spacing.sm,
+    rowGap: 4,
   },
+  deltaPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+  },
+  deltaText: { fontSize: 12, fontWeight: "700" },
+  // Room for a second line, so a comparison like "vs 22 in T2 2026 up to W4"
+  // wraps instead of being cut off on a phone.
+  hintSlot: { minHeight: 15, justifyContent: "center" },
   chartCard: {
     padding: spacing.md,
     gap: spacing.md,

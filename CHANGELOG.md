@@ -6,6 +6,39 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.5.3] — 2026-10-12
+
+### Changed
+- **Comparisons say exactly what they're compared with, in weeks.** While
+  a term is running it's compared with the term before up to the same week,
+  and the cards now say so: "vs 97.3 in T2 2026 up to W4". Before, they said
+  "vs 97.3 in T2 2026", which didn't match T2's own page (87.3 for the whole
+  term). The year so far is compared with last year up to the same term and
+  week ("up to T3 week 4") instead of the same date. I checked every number
+  against prod's raw sign-ins: all were right, only the labels were unclear.
+  Mega and combined weeklies were never counted on either side.
+- **Clearer cards.** Labels are in sentence case, and the change sits in a
+  small coloured pill beside the number. The comparison wraps onto a second
+  line instead of being cut off on narrow phones.
+- **Last term's bars are grey** in the week-by-week and by-term charts, so
+  this term stands out.
+- **The term picker shows one row per year**, its terms side by side
+  (T1, T2, T3, Year) rather than one long list.
+- **Plainer wording** in captions, (i) notes, chart subtitles, follow-up
+  reasons and list headings. Weekly avg's and People's (i) say that Mega and
+  combined weeklies aren't counted.
+
+### Fixed
+- **The year's weekly avg by term chart compares like with like.** It set
+  this term so far against last year's whole term; last year's terms are
+  now cut to the same term and week, as the cards are.
+- **Two weeklies in the same week are both shown.** USYD's Sem 1 2026 has
+  "USYD PPN" (7 Apr) and "WK #7" (14 Apr), both week 7. The week-by-week
+  chart showed only one, and a member's week grid could mark both as
+  attended when they came to one. The second is now its own "W7·2" bar and
+  box. Averages and counts always included both.
+- Semester years' captions say "Sem 1 and Sem 2" instead of "Sem, Sem".
+
 ## [2.5.2] — 2026-10-11
 
 ### Added

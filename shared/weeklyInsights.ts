@@ -306,6 +306,9 @@ export type TermRow = {
   pct: number;
   /** Week numbers attended in this term. */
   weeks: number[];
+  /** Which of this term's weeklies they came to (indexes into its weeklies):
+   *  unlike week numbers, never ambiguous when two weeklies share a week. */
+  indexes: number[];
   /** Last weekly here, up to the end of this term. */
   lastAt: number | null;
   /** That weekly's short name ("T2W5"). */
@@ -417,6 +420,7 @@ export function termRows(terms: TermFacts[], index: number, c: Classify): TermRo
       held: term.weeklies.length,
       pct: term.weeklies.length ? attended / term.weeklies.length : 0,
       weeks: [...here].sort((a, b) => a - b).map((i) => term.weeklies[i].week),
+      indexes: [...here].sort((a, b) => a - b),
       lastAt: lastAt.get(key)?.at ?? null,
       lastWeekly: lastAt.get(key)?.code ?? null,
       firstAt: first,
@@ -458,7 +462,7 @@ export type WeeklyFollowUp = {
   share: number;
 };
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const timesText = (n: number) => (n === 1 ? "once" : n === 2 ? "twice" : `${n} times`);
 
 const missedText = (n: number) => (n === 1 ? "missed the last weekly" : `missed the last ${n}`);
 
@@ -509,7 +513,7 @@ export function followUps(
         campus: row.campus,
         group: "visitor",
         needsFollowUp: missed,
-        reason: missed ? `Visited ${when}, not back since` : `Visited ${when}`,
+        reason: missed ? `Visited ${when} and hasn't come back` : `Visited ${when}`,
         share: 0,
       });
       continue;
@@ -533,7 +537,7 @@ export function followUps(
         ...base,
         group: "newcomer",
         needsFollowUp: true,
-        reason: `New on ${weeklyWhen(row.firstAt!, row.firstWeekly)} · came ${plural(row.attended, "time")}, ${missedText(settings.newcomerMisses)}`,
+        reason: `New at ${weeklyWhen(row.firstAt!, row.firstWeekly)}. Came ${timesText(row.attended)}, then ${missedText(settings.newcomerMisses)}`,
         share,
       });
     }
@@ -603,6 +607,26 @@ const sectionTotals = (facts: TermFacts, rows: TermRow[]): Record<WeeklySection,
   }
   return bySection;
 };
+
+/** How far a year has got: its latest term (by slot) and that term's last
+ *  week, so last year can be compared up to the same point ("T3 week 4"). */
+export type YearCut = { slot: number; week: number; name: string };
+
+export function yearCutOf(terms: TermFacts[], year: number): YearCut | null {
+  const inYear = terms.filter((t) => t.year === year);
+  const latest = inYear[inYear.length - 1];
+  if (!latest) return null;
+  return {
+    slot: latest.slot,
+    week: latest.weeklies[latest.weeklies.length - 1].week,
+    name: latest.label.split(" ").slice(0, -1).join(" "),
+  };
+}
+
+/** A term of another year cut to `cut`: earlier terms whole, the same term up
+ *  to the same week, later terms left out (null). */
+export const cutToPoint = (facts: TermFacts, cut: YearCut): TermFacts | null =>
+  facts.slot < cut.slot ? facts : facts.slot === cut.slot ? truncateTerm(facts, cut.week) : null;
 
 /** A term cut back to its first `maxWeek` weeks, for like-for-like comparisons. */
 export const truncateTerm = (facts: TermFacts, maxWeek: number): TermFacts | null => {
@@ -677,25 +701,21 @@ export type YearResult = {
 
 /**
  * A calendar year: each person's share of the year's weeklies, with their
- * category from the latest term they're listed in. `upTo` cuts the year at a
- * date, so a year in progress compares fairly with last year to the same day.
+ * category from the latest term they're listed in. `cut` stops the year at a
+ * term and week, so a year in progress compares fairly with last year up to
+ * the same point ("up to T3 week 4").
  */
 export function computeYear(
   terms: TermFacts[],
   year: number,
   c: Classify,
-  upTo?: number
+  cut?: YearCut
 ): YearResult | null {
   const cutTerms: TermFacts[] = [];
   for (const t of terms) {
     if (t.year > year) break;
-    if (t.year < year || upTo === undefined) {
-      cutTerms.push(t);
-      continue;
-    }
-    const keep = t.weeklies.filter((w) => w.at <= upTo);
-    if (keep.length === 0) continue;
-    cutTerms.push(truncateTerm(t, keep[keep.length - 1].week)!);
+    const kept = t.year < year || cut === undefined ? t : cutToPoint(t, cut);
+    if (kept) cutTerms.push(kept);
   }
   const indexes = cutTerms.map((t, i) => (t.year === year ? i : -1)).filter((i) => i >= 0);
   if (indexes.length === 0) return null;
