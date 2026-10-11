@@ -20,6 +20,7 @@ import {
   peopleRows,
   periodOptions,
   pill,
+  weekLabels,
   summaryCards,
   type WeeklyBlock,
 } from "./weeklyInsightsView";
@@ -265,6 +266,62 @@ describe("year view", () => {
     // Nothing to compare with: the (i) only explains the number.
     expect(byType(first, "cards")[0].cards[0].info!.body).toMatch(/signed in to\.$/);
     expect(byType(first, "multiBars")).toHaveLength(1);
+  });
+});
+
+describe("two weeklies in one week", () => {
+  // A special night marked week 2, then the campus's own "week 2" a week later.
+  const held = [wed(2026, 3, 4), wed(2026, 3, 11), wed(2026, 3, 18)].map((at, i) => ({
+    eventId: `d${i}`,
+    at,
+    count: [3, 2, 4][i],
+    mark: { year: 2026, slot: 1, week: [1, 2, 2][i] },
+  }));
+  const dup = deriveTerms(held, "terms", 18).map((t) => ({
+    ...t,
+    attendance: { Ana: [0, 1], Ben: [0, 2], Cy: [0, 2] },
+  }));
+
+  test("labels keep them apart", () => {
+    expect(weekLabels([{ week: 1 }, { week: 2 }, { week: 2 }, { week: 3 }, { week: 2 }])).toEqual([
+      "W1",
+      "W2",
+      "W2·2",
+      "W3",
+      "W2·3",
+    ]);
+  });
+
+  test("each gets its own bar and its own box in the week grid", () => {
+    const result = computeTerm(dup, 0, c);
+    const blocks = buildTermBlocks({ computedAt: 1, result, before: null, running: false, followUps: null });
+    const [byCat] = byType(blocks, "multiBars");
+    expect(byCat.points.map((p) => p.label)).toEqual(["W1", "W2", "W2·2"]);
+    const ana = result.rows.find((r) => r.key === "Ana")!;
+    const member = buildMemberBlocks({ name: "Ana", lines: [], details: [], history: [{ term: dup[0], row: ana }], followUp: null, events: [], year: 2026 });
+    // Ana came to the first week-2 weekly only.
+    expect(byType(member, "weekGrid")[0].weeks).toEqual([
+      { label: "W1", came: true },
+      { label: "W2", came: true },
+      { label: "W2·2", came: false },
+    ]);
+  });
+
+  test("the week-by-week chart lines both up against the term before", () => {
+    const next = [...dup, ...build([[wed(2026, 6, 3), ["Ana"]], [wed(2026, 6, 10), ["Ana", "Ben"]]]).map((t) => ({ ...t }))];
+    const blocks = buildTermBlocks({
+      computedAt: 1,
+      result: computeTerm(next, 1, c),
+      before: termBefore(next, 1, false, c),
+      running: false,
+      followUps: null,
+    });
+    const chart = byType(blocks, "multiBars").find((b) => b.title === "Week by week")!;
+    expect(chart.points.map((p) => [p.label, p.segments.map((sg) => sg.value)])).toEqual([
+      ["W1", [1, 3]],
+      ["W2", [2, 2]],
+      ["W2·2", [0, 4]],
+    ]);
   });
 });
 

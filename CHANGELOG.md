@@ -22,7 +22,14 @@ All notable changes to **The SHED** mobile app. This project follows
   setting this term so far against last year's whole term.
 - **Each card's (i) says what it's compared with**, and Weekly avg and People
   say that Mega and combined weeklies shared with other campuses don't count.
+- **Two weeklies in the same week are both shown.** USYD's Sem 1 2026 has
+  "USYD PPN" (7 Apr) and "WK #7" (14 Apr), both week 7. The week-by-week
+  chart showed only one of them, and a member's week grid could mark both as
+  attended when they came to one. The second is now its own "W7·2" bar and
+  box. Averages and counts always included both.
 - Semester years' captions say "Sem 1, Sem 2" instead of "Sem, Sem".
+- Card comparisons wrap onto a second line instead of being cut off on
+  narrow phones.
 
 ## [2.5.2] — 2026-10-11
 

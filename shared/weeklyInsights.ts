@@ -306,6 +306,9 @@ export type TermRow = {
   pct: number;
   /** Week numbers attended in this term. */
   weeks: number[];
+  /** Which of this term's weeklies they came to (indexes into its weeklies):
+   *  unlike week numbers, never ambiguous when two weeklies share a week. */
+  indexes: number[];
   /** Last weekly here, up to the end of this term. */
   lastAt: number | null;
   /** That weekly's short name ("T2W5"). */
@@ -417,6 +420,7 @@ export function termRows(terms: TermFacts[], index: number, c: Classify): TermRo
       held: term.weeklies.length,
       pct: term.weeklies.length ? attended / term.weeklies.length : 0,
       weeks: [...here].sort((a, b) => a - b).map((i) => term.weeklies[i].week),
+      indexes: [...here].sort((a, b) => a - b),
       lastAt: lastAt.get(key)?.at ?? null,
       lastWeekly: lastAt.get(key)?.code ?? null,
       firstAt: first,

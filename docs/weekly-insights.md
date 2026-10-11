@@ -24,7 +24,9 @@ year, 2025 T3, …".
   and People say that Mega and combined weeklies don't count.
 - **Charts**, near the top: week by week against the term before, and who
   came each week by category. The year view has one "who came each week"
-  chart per term.
+  chart per term. Each weekly is its own point: two in the same week (a special
+  night in a week the campus didn't number, say) show as "W7" and "W7·2",
+  in the charts and in a member's week grid.
 - **Needs follow-up** (current term only): people who were coming (Regular,
   or a Leader, judged on the weeklies before) but missed the last 2 held
   weeklies; then newcomers who missed the last one, while their visit is

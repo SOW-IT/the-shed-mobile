@@ -321,8 +321,24 @@ const LAST_COLOUR = "accent";
 
 type CategoryPoint = { at: number; label: string; counts: TermResult["byCategory"][number]["counts"] };
 
-const termPoints = (t: TermResult): CategoryPoint[] =>
-  t.byCategory.map((p) => ({ at: p.at, label: `W${p.week}`, counts: p.counts }));
+/**
+ * "W1", "W2", …, one per weekly. A second weekly with the same week number
+ * (say a special night in a week the campus didn't count) is "W7·2", so it's
+ * never merged with the first.
+ */
+export function weekLabels(weeklies: { week: number }[]): string[] {
+  const seen = new Map<number, number>();
+  return weeklies.map(({ week }) => {
+    const n = (seen.get(week) ?? 0) + 1;
+    seen.set(week, n);
+    return n === 1 ? `W${week}` : `W${week}·${n}`;
+  });
+}
+
+const termPoints = (t: TermResult): CategoryPoint[] => {
+  const labels = weekLabels(t.byCategory);
+  return t.byCategory.map((p, i) => ({ at: p.at, label: labels[i], counts: p.counts }));
+};
 
 function byCategoryChart(points: CategoryPoint[], title: string): WeeklyBlock {
   const used = CATEGORY_ORDER.filter((c) => points.some((p) => (p.counts[c] ?? 0) > 0));
@@ -370,13 +386,18 @@ export function buildTermBlocks(input: {
     { type: "cards", layout: "grid", cards: summaryCards(result.summary, before?.summary ?? null, beforeLabel, compareNote) },
   ];
   // The week-by-week charts sit near the top, above the follow-up lists.
-  const weeks = new Map<number, { at: number; now: number; then: number }>();
-  for (const w of term.weeklies) weeks.set(w.week, { at: w.at, now: w.count, then: 0 });
-  for (const w of before?.term.weeklies ?? []) {
-    const slot = weeks.get(w.week) ?? { at: w.at, now: 0, then: 0 };
-    slot.then = w.count;
-    weeks.set(w.week, slot);
-  }
+  // Points line up by label, so a second weekly in one week keeps its own bar.
+  type WeekPoint = { at: number; week: number; n: number; now: number; then: number };
+  const weeks = new Map<string, WeekPoint>();
+  const add = (weeklies: TermResult["term"]["weeklies"], side: "now" | "then") =>
+    weekLabels(weeklies).forEach((label, i) => {
+      const w = weeklies[i];
+      const point = weeks.get(label) ?? { at: w.at, week: w.week, n: i, now: 0, then: 0 };
+      point[side] = w.count;
+      weeks.set(label, point);
+    });
+  add(term.weeklies, "now");
+  add(before?.term.weeklies ?? [], "then");
   if (before) {
     blocks.push({
       type: "multiBars",
@@ -387,10 +408,10 @@ export function buildTermBlocks(input: {
         { key: "then", colour: LAST_COLOUR, label: beforeLabel! },
       ],
       points: [...weeks.entries()]
-        .sort((a, b) => a[0] - b[0])
-        .map(([week, p]) => ({
+        .sort((a, b) => a[1].week - b[1].week || a[1].n - b[1].n)
+        .map(([label, p]) => ({
           at: p.at,
-          label: `W${week}`,
+          label,
           segments: [
             { key: "now", value: p.now, colour: THIS_COLOUR },
             { key: "then", value: p.then, colour: LAST_COLOUR },
@@ -526,9 +547,9 @@ export function buildMemberBlocks(input: {
       type: "weekGrid",
       title: latest!.term.label,
       subtitle: "Weeklies attended this term",
-      weeks: latest!.term.weeklies.map((w) => ({
-        label: `W${w.week}`,
-        came: latest!.row.weeks.includes(w.week),
+      weeks: weekLabels(latest!.term.weeklies).map((label, i) => ({
+        label,
+        came: latest!.row.indexes.includes(i),
       })),
     });
   }
