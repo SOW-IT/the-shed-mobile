@@ -484,6 +484,28 @@ describe("Role option Visitor → Guest", () => {
   });
 });
 
+describe("a term that's gone", () => {
+  test("the term after it is redone against its new term before", async () => {
+    const { t, leader, ids } = await setup();
+    await rebuild(t);
+    const caption = async (period: string) =>
+      ((await leader.query(api.weeklyInsights.view, { subgroup: UNSW, period }))!.blocks[1] as { text: string }).text;
+    expect(await caption("2026-T1")).toMatch(/Compared with T2 2025\.$/);
+    vi.setSystemTime(NOW + DAY);
+    await t.run(async (ctx) => {
+      for (const eventId of ids.weeklies.slice(0, T2_2025.length)) {
+        for (const row of await ctx.db.query("attendance").withIndex("by_event", (q) => q.eq("eventId", eventId)).collect()) {
+          await ctx.db.delete(row._id);
+        }
+        await ctx.db.insert("attendanceAuditLog", { actorEmail: ADMIN, entityType: "attendance", action: "delete", summary: "x", eventId });
+      }
+    });
+    await rebuild(t);
+    expect(Object.keys(await factDocs(t)).sort()).toEqual([`${UNSW}|2026-T1`, `${UNSW}|2026-T2`]);
+    expect(await caption("2026-T1")).toMatch(/Nothing to compare with from the term before\.$/);
+  });
+});
+
 describe("sign-in tags", () => {
   test("newcomers and visitors from the last build; a shared event only tags newcomers", async () => {
     const { t, leader, ids } = await setup();

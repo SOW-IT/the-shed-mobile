@@ -643,10 +643,15 @@ async function buildSubgroup(
   // is redone below), or the latest term stopped running (no more "so far",
   // no follow-ups once it's over).
   if (latest >= 0 && check.compareDue) recompute.add(latest);
-  // A term that's gone (say every weekly in the latest one was deleted) can
-  // leave another term as the latest: redo it, so its view and the sign-in
+  // A term that's gone (say all its weeklies were deleted) changes what the
+  // term after it compares with, and can leave another term as the latest:
+  // redo every term from the one after it, so the views and the sign-in
   // categories follow.
-  if (latest >= 0 && removed.length) recompute.add(latest);
+  for (const key of removed) {
+    const start = stored.get(key)!.weeklies[0].at;
+    const next = facts.findIndex((f) => f.weeklies[0].at > start);
+    for (let i = next < 0 ? latest : next; i >= 0 && i <= latest; i++) recompute.add(i);
+  }
 
   const thisYear = sydneyCalendarYear(new Date(now));
   const years = new Set<number>([...recompute].map((i) => facts[i].year));
