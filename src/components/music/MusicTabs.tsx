@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import {
   Alert,
   FlatList,
+  Image,
   Linking,
   Platform,
   Pressable,
@@ -17,12 +18,10 @@ import {
 } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Doc, Id } from "../../../convex/_generated/dataModel";
-
 type MusicRequest = Doc<"musicRequests"> & {
   requesterName?: string | null;
   reviewerName?: string | null;
 };
-
 const shareLink = async (url: string) => {
   try {
     await Share.share({ message: url });
@@ -30,6 +29,34 @@ const shareLink = async (url: string) => {
     // user cancelled or share failed
   }
 };
+/** Album art saved with the request; icon fallback for manual entries. */
+function SongArtwork({ url, size = 46 }: { url?: string; size?: number }) {
+  const t = useAppTheme();
+  const [failed, setFailed] = useState(false);
+  return (
+    <View
+      style={[
+        styles.musicArtwork,
+        {
+          width: size,
+          height: size,
+          backgroundColor: t.inputBackground,
+        },
+      ]}
+    >
+      {url && !failed ? (
+        <Image
+          source={{ uri: url }}
+          style={{ width: size, height: size, borderRadius: radius.md }}
+          resizeMode="cover"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <Ionicons name="musical-notes-outline" size={21} color={t.faint} />
+      )}
+    </View>
+  );
+}
 
 /* Approved Playlist */
 type SortOption = "title-asc" | "title-desc" | "artist-asc" | "artist-desc";
@@ -164,18 +191,7 @@ export const ApprovedPlaylistTab = () => {
                     pressed && { opacity: 0.65 },
                   ]}
                 >
-                  <View
-                    style={[
-                      styles.musicArtwork,
-                      { backgroundColor: t.inputBackground },
-                    ]}
-                  >
-                    <Ionicons
-                      name="musical-notes-outline"
-                      size={21}
-                      color={t.faint}
-                    />
-                  </View>
+                  <SongArtwork url={item.albumArtUrl} />
                   <View style={styles.musicSongDetails}>
                     <Text
                       numberOfLines={2}
@@ -202,7 +218,6 @@ export const ApprovedPlaylistTab = () => {
     </View>
   );
 };
-
 /* My Requests*/
 const cardBorderStyle = (
   status: MusicRequest["status"],
@@ -237,8 +252,14 @@ export const MyRequestsTab = () => {
     return (
       <Card style={cardBorderStyle(request.status, t)}>
         <View style={styles.topRow}>
-          <View style={styles.topSide}>
-            <Text style={[styles.cardTitle, { color: t.text }]}>
+          <View
+            style={[
+              styles.topSide,
+              { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+            ]}
+          >
+            <SongArtwork url={request.albumArtUrl} size={54} />
+            <Text style={[styles.cardTitle, { color: t.text, flex: 1 }]}>
               {request.title}
             </Text>
           </View>
@@ -312,7 +333,6 @@ export const MyRequestsTab = () => {
     </View>
   );
 };
-
 /* To Review*/
 export const ToReviewTab = () => {
   const t = useAppTheme();
@@ -397,8 +417,17 @@ function ReviewCard({ request }: { request: MusicRequest }) {
   };
   return (
     <Card style={cardBorderStyle(request.status, t)}>
-      <Text style={[styles.cardTitle, { color: t.text }]}>{request.title}</Text>
-      <Text style={{ color: t.text }}>{request.artist}</Text>
+      <View
+        style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}
+      >
+        <SongArtwork url={request.albumArtUrl} size={58} />
+        <View style={{ flex: 1, gap: 3 }}>
+          <Text style={[styles.cardTitle, { color: t.text }]}>
+            {request.title}
+          </Text>
+          <Text style={{ color: t.text }}>{request.artist}</Text>
+        </View>
+      </View>
       <Text style={{ color: t.text, marginTop: 2 }}>
         Requested by {request.requesterName ?? request.requesterEmail}
       </Text>
@@ -431,7 +460,6 @@ function ReviewCard({ request }: { request: MusicRequest }) {
     </Card>
   );
 }
-
 const styles = StyleSheet.create({
   musicSearchRow: {
     flexDirection: "row",

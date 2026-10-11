@@ -3,12 +3,41 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation } from "convex/react";
 import { useEffect, useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, StyleSheet, Text, View } from "react-native";
 
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
 
 export type MusicRequest = Doc<"musicRequests">;
+
+type SpotifyMetadata = {
+  title: string;
+  thumbnail_url?: string;
+  provider_name?: string;
+};
+
+const spotifyTrackUrl = (value: string) => {
+  try {
+    const url = new URL(value.trim());
+
+    if (
+      url.hostname !== "open.spotify.com" &&
+      url.hostname !== "www.open.spotify.com"
+    ) {
+      return null;
+    }
+
+    const match = url.pathname.match(
+      /^\/(?:intl-[a-zA-Z-]+\/)?track\/([a-zA-Z0-9]+)\/?$/,
+    );
+
+    if (!match) return null;
+
+    return `https://open.spotify.com/track/${match[1]}`;
+  } catch {
+    return null;
+  }
+};
 
 export const NewMusicRequestSheet = ({
   visible,
@@ -19,15 +48,21 @@ export const NewMusicRequestSheet = ({
   onClose: () => void;
   prefill: MusicRequest | null;
 }) => {
+  const t = useAppTheme();
+
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
   const [link, setLink] = useState("");
   const [requestComment, setRequestComment] = useState("");
 
+  const [spotifyLink, setSpotifyLink] = useState("");
+  const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
+  const [fetchingSpotify, setFetchingSpotify] = useState(false);
+  const [spotifyError, setSpotifyError] = useState<string | null>(null);
+
   const submit = useMutation(api.musicRequests.submit);
   const [submitting, setSubmitting] = useState(false);
 
-  // Populate fields when opening with an existing request
   useEffect(() => {
     if (!visible) return;
 
@@ -35,7 +70,54 @@ export const NewMusicRequestSheet = ({
     setArtist(prefill?.artist ?? "");
     setLink(prefill?.link ?? "");
     setRequestComment(prefill?.requestComment ?? "");
+
+    setSpotifyLink("");
+    setAlbumArtUrl(null);
+    setSpotifyError(null);
   }, [visible, prefill]);
+
+  const autofillSpotify = async () => {
+    const cleanUrl = spotifyTrackUrl(spotifyLink);
+
+    if (!cleanUrl) {
+      setSpotifyError("Please paste a valid Spotify track link.");
+      return;
+    }
+
+    setFetchingSpotify(true);
+    setSpotifyError(null);
+
+    try {
+      const endpoint = `https://open.spotify.com/oembed?url=${encodeURIComponent(cleanUrl)}`;
+
+      const response = await fetch(endpoint);
+
+      if (!response.ok) {
+        throw new Error("Spotify could not find this track.");
+      }
+
+      const metadata: SpotifyMetadata = await response.json();
+
+      if (!metadata.title) {
+        throw new Error("Spotify did not return a song title.");
+      }
+
+      setTitle(metadata.title);
+      setLink(cleanUrl);
+      setAlbumArtUrl(metadata.thumbnail_url ?? null);
+
+      // Spotify oEmbed does not reliably provide a separate artist.
+      // Keep the existing artist field editable.
+    } catch (error) {
+      setSpotifyError(
+        error instanceof Error
+          ? error.message
+          : "Could not retrieve Spotify information.",
+      );
+    } finally {
+      setFetchingSpotify(false);
+    }
+  };
 
   const onSubmit = async () => {
     if (submitting) return;
@@ -63,13 +145,16 @@ export const NewMusicRequestSheet = ({
         artist: artist.trim(),
         link: link.trim(),
         requestComment: requestComment.trim() || undefined,
+        albumArtUrl: albumArtUrl ?? undefined,
       });
 
-      // Clear form after successful submission
       setTitle("");
       setArtist("");
       setLink("");
       setRequestComment("");
+      setSpotifyLink("");
+      setAlbumArtUrl(null);
+      setSpotifyError(null);
 
       onClose();
 
@@ -77,8 +162,11 @@ export const NewMusicRequestSheet = ({
         "Request sent",
         "A Chaplain will review your song request soon.",
       );
-    } catch (e: any) {
-      Alert.alert("Couldn't send request", e?.message ?? "Please try again.");
+    } catch (error: unknown) {
+      Alert.alert(
+        "Couldn't send request",
+        error instanceof Error ? error.message : "Please try again.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -99,6 +187,76 @@ export const NewMusicRequestSheet = ({
         </Row>
       }
     >
+      <View
+        style={[
+          styles.spotifySection,
+          {
+            borderColor: t.separator,
+            backgroundColor: t.card,
+          },
+        ]}
+      >
+        <View style={styles.spotifyHeading}>
+          <Ionicons name="musical-notes-outline" size={20} color={t.primary} />
+
+          <Text style={[styles.spotifyTitle, { color: t.text }]}>
+            Autofill from Spotify
+          </Text>
+        </View>
+
+        <Text style={[typography.caption, { color: t.muted }]}>
+          Paste a Spotify song link to automatically fill in the song title and
+          link, and preview the album artwork.
+        </Text>
+
+        <Field
+          label="Spotify Track URL"
+          value={spotifyLink}
+          onChangeText={(value) => {
+            setSpotifyLink(value);
+            setSpotifyError(null);
+          }}
+          placeholder="https://open.spotify.com/track/..."
+          autoCapitalize="none"
+        />
+
+        <Btn
+          title={fetchingSpotify ? "Finding song..." : "Autofill"}
+          icon="search-outline"
+          onPress={() => void autofillSpotify()}
+          disabled={fetchingSpotify || !spotifyLink.trim()}
+        />
+
+        {spotifyError ? (
+          <Text style={[typography.caption, { color: t.warning }]}>
+            {spotifyError}
+          </Text>
+        ) : null}
+
+        {albumArtUrl ? (
+          <View style={styles.preview}>
+            <Image
+              source={{ uri: albumArtUrl }}
+              style={styles.albumCover}
+              resizeMode="cover"
+            />
+
+            <View style={styles.previewText}>
+              <Text
+                style={[typography.body, { color: t.text, fontWeight: "700" }]}
+                numberOfLines={2}
+              >
+                {title}
+              </Text>
+
+              <Text style={[typography.caption, { color: t.muted }]}>
+                Spotify artwork preview
+              </Text>
+            </View>
+          </View>
+        ) : null}
+      </View>
+
       <Field
         label="Song Title"
         value={title}
@@ -171,13 +329,7 @@ export const MusicGuideSheet = ({
 
           <View style={{ flex: 1, gap: 2 }}>
             <Text
-              style={[
-                typography.caption,
-                {
-                  color: t.text,
-                  fontWeight: "700",
-                },
-              ]}
+              style={[typography.caption, { color: t.text, fontWeight: "700" }]}
             >
               {step.title}
             </Text>
@@ -193,6 +345,36 @@ export const MusicGuideSheet = ({
 };
 
 const styles = StyleSheet.create({
+  spotifySection: {
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    gap: spacing.md,
+    marginTop: spacing.md,
+  },
+  spotifyHeading: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  spotifyTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  preview: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  albumCover: {
+    width: 76,
+    height: 76,
+    borderRadius: radius.sm,
+  },
+  previewText: {
+    flex: 1,
+    gap: spacing.xs,
+  },
   guideStep: {
     flexDirection: "row",
     alignItems: "flex-start",

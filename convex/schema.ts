@@ -671,6 +671,7 @@ export default defineSchema({
   // Chaplain (Senior/Junior/Intern) — unlike `requests`, there is no multi-step
   // approval chain: one Chaplin action (approve/decline) closes it out.
   musicRequests: defineTable({
+    albumArtUrl: v.optional(v.string()),
     requesterEmail: v.string(),
     title: v.string(),
     artist: v.string(),

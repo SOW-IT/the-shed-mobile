@@ -4,16 +4,12 @@ import type { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { findMemberByEmail, requireProfile, rolesOf } from "./model";
 
-/**
- * Check whether the caller has a Chaplain role.
- */
+/** Check whether the caller has a Chaplain role. */
 const callerIsChaplain = (profile: Doc<"staffProfiles">) =>
   rolesOf(profile).some(isChaplainRole) ||
   profile.email === "natalie.kwok@sow.org.au"; // TODO: Remove testing override before deployment
 
-/**
- * Get Chaplain emails for the current year.
- */
+/** Get Chaplain emails for the current year. */
 async function chaplainEmailsForYear(
   ctx: any,
   year: number,
@@ -28,9 +24,7 @@ async function chaplainEmailsForYear(
     .map((p: any) => p.email);
 }
 
-/**
- * Create in-app notifications.
- */
+/** Create in-app notifications. */
 async function notify(
   ctx: any,
   emails: string[],
@@ -49,16 +43,14 @@ async function notify(
   }
 }
 
-/**
- * Submit a new music request.
- * Any signed-in staff member with a profile can submit.
- */
+/** Submit a new music request. */
 export const submit = mutation({
   args: {
     title: v.string(),
     artist: v.string(),
     link: v.string(),
     requestComment: v.optional(v.string()),
+    albumArtUrl: v.optional(v.string()),
   },
 
   handler: async (ctx, args) => {
@@ -81,16 +73,28 @@ export const submit = mutation({
 
     const requestComment = args.requestComment?.trim() || undefined;
 
+    const isSpotifyTrack =
+      /^https:\/\/open\.spotify\.com\/(?:intl-[a-zA-Z-]+\/)?track\/[a-zA-Z0-9]+(?:[/?#]|$)/i.test(
+        link,
+      );
+
+    const artwork = args.albumArtUrl?.trim();
+
+    const albumArtUrl =
+      isSpotifyTrack && artwork && /^https:\/\//i.test(artwork)
+        ? artwork
+        : undefined;
+
     const id = await ctx.db.insert("musicRequests", {
       requesterEmail: caller.email,
       title,
       artist,
       link,
       requestComment,
+      albumArtUrl,
       status: "PENDING",
     });
 
-    // Notify Chaplains
     const chaplains = await chaplainEmailsForYear(ctx, caller.year);
 
     await notify(
@@ -105,10 +109,7 @@ export const submit = mutation({
   },
 });
 
-/**
- * Get the current user's music requests.
- * Newest requests appear first.
- */
+/** Get the current user's music requests. */
 export const myRequests = query({
   args: {},
 
@@ -137,10 +138,7 @@ export const myRequests = query({
   },
 });
 
-/**
- * Get pending music requests.
- * Chaplain-only.
- */
+/** Get pending music requests. Chaplain-only. */
 export const toReview = query({
   args: {},
 
@@ -173,10 +171,7 @@ export const toReview = query({
   },
 });
 
-/**
- * Get approved music requests.
- * Available to signed-in staff members.
- */
+/** Get approved music requests. */
 export const approved = query({
   args: {},
 
@@ -205,10 +200,7 @@ export const approved = query({
   },
 });
 
-/**
- * Approve a pending music request.
- * Chaplain-only.
- */
+/** Approve a pending music request. */
 export const approve = mutation({
   args: {
     requestId: v.id("musicRequests"),
@@ -247,10 +239,7 @@ export const approve = mutation({
   },
 });
 
-/**
- * Decline a pending music request.
- * Chaplain-only, with an optional comment.
- */
+/** Decline a pending music request. */
 export const decline = mutation({
   args: {
     requestId: v.id("musicRequests"),
