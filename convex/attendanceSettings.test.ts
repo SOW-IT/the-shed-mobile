@@ -798,10 +798,10 @@ describe("attendance members", () => {
   test("ensureForStaff won't adopt an unlinked member without a staff profile", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
-    const memberId = await leader.mutation(api.attendanceMembers.create, {
-      name: "Outside Person",
-      email: OUTSIDER,
-    });
+    // An imported row with an SOW address (the app won't take one).
+    const memberId = await t.run((ctx) =>
+      ctx.db.insert("attendanceMembers", { name: "Outside Person", email: OUTSIDER })
+    );
     await expect(
       leader.mutation(api.attendanceMembers.ensureForStaff, {
         staffEmail: OUTSIDER,

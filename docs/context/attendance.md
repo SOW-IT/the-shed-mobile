@@ -16,13 +16,16 @@ _Avoid_: attendee, participant, person
 A staff person's member row carries their staff email, which links it to their
 `staffProfile` and keys their sign-ins; their own email is kept beside it as a
 personal email. The edit sheet shows the staff email (read-only) only for
-someone who is staff in the year being viewed, and an editable Email for
-everyone — for staff, that is the personal one. Merging a member into staff
-keeps the member's email as the personal one.
+someone who is staff in the year being viewed, and an editable email for
+everyone — for staff, labelled Personal email. Merging a member into staff
+keeps the member's email as the personal one. A personal email (and a plain
+member's email) never overlaps a staff one: it can't be an SOW address
+(@sow.org.au, @sowaustralia.com) or anyone's staff email from any year.
 _Avoid_: work email, org email (for the personal one)
 
 **Staff leaver**:
-Someone who was staff last staff year and isn't this year. At 01:30 Sydney on
+Someone who was staff (a leader, an exec or staff) in an earlier staff year
+and isn't this year, whichever year they stopped. At 01:30 Sydney on
 October 1 (after the flip) each one becomes a plain Member: every sign-in under
 their staff email moves onto their member row, the staff email comes off for
 their personal email (empty if none was recorded), and a staff Role becomes

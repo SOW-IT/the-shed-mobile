@@ -204,10 +204,15 @@ export const checkChanges = internalQuery({
     const eventIds = new Set<Id<"events">>(created.map((e) => e._id));
     const memberIds = new Set<Id<"attendanceMembers">>();
     let tagChanged = false;
+    // Someone who left staff had their sign-ins moved off their staff email
+    // onto a member record: re-read the weeklies that had the staff email.
+    const leftStaff = new Set<string>();
     for (const row of audit) {
       if (row.eventId) eventIds.add(row.eventId);
       if (row.memberId) memberIds.add(row.memberId);
       if (row.entityType === "tag") tagChanged = true;
+      const email = row.action === "member.leftStaff" ? canonicalEmailKey(row.subjectEmail) : undefined;
+      if (email) leftStaff.add(`staff:${email}`);
     }
     const relevant: Id<"events">[] = [];
     for (const id of eventIds) {
@@ -222,6 +227,7 @@ export const checkChanges = internalQuery({
       const keys = [`member:${id}`, ...(member?.email ? [`staff:${canonicalEmailKey(member.email)}`] : [])];
       (member ? memberKeys : goneMemberKeys).push(...keys);
     }
+    goneMemberKeys.push(...leftStaff);
     const settingsChanged = index.settingsVersion !== version || index.viewVersion !== VIEW_VERSION;
     const compareDue = index.nextCompareAt <= now;
     return {
@@ -362,11 +368,22 @@ async function resolvePeople(ctx: QueryCtx, keys: string[], years: number[]): Pr
   for (const key of keys) {
     let member: Doc<"attendanceMembers"> | null;
     let email: string | undefined;
+    // Someone who left staff: the staff email they had, for the years they
+    // served (they're still a leader in those terms, a member after).
+    let formerStaffEmail: string | undefined;
     if (key.startsWith("member:")) {
       const id = ctx.db.normalizeId("attendanceMembers", key.slice("member:".length));
       member = id ? await ctx.db.get("attendanceMembers", id) : null;
       // Staff signed in through their member row still have a staff profile.
       email = member?.email ? canonicalEmailKey(member.email) : undefined;
+      if (id) {
+        const left = await ctx.db
+          .query("attendanceAuditLog")
+          .withIndex("by_member_and_action", (q) => q.eq("memberId", id).eq("action", "member.leftStaff"))
+          .order("desc")
+          .first();
+        formerStaffEmail = canonicalEmailKey(left?.subjectEmail);
+      }
     } else {
       email = key.slice("staff:".length);
       const staffEmail = email;
@@ -378,9 +395,11 @@ async function resolvePeople(ctx: QueryCtx, keys: string[], years: number[]): Pr
     const fallback = memberInfo(member);
     const infoByYear: WeeklyPerson["infoByYear"] = {};
     let latest: Doc<"staffProfiles"> | undefined;
-    for (const year of email ? years : []) {
+    const emails = [email, formerStaffEmail].filter((e): e is string => Boolean(e));
+    for (const year of emails.length ? years : []) {
       const byEmail = profilesByYear.get(year)!;
-      const profile = staffEmailCandidates(email!)
+      const profile = emails
+        .flatMap((e) => staffEmailCandidates(e))
         .map((candidate) => byEmail.get(candidate))
         .find((p) => p);
       if (!profile) continue;
