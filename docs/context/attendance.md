@@ -142,3 +142,9 @@ The gentle, explainable list for the current Term: people who were coming
 (Regular, judged on the Weeklies before) but missed the last two, then
 Newcomers who missed the last one while their visit is recent. Visitors have
 their own list. A prompt for a leader, never a judgement.
+
+**Sign-in tag**:
+The Newcomer or Visitor label beside a name on an event's sign-in screen
+while the event is on, taken from last night's Insights build, so a leader
+can welcome them. Only those two categories are shown there.
+_Avoid_: badge (that's the campus pill)

@@ -6,6 +6,37 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.5.2] — 2026-10-11
+
+### Added
+- **Newcomers and visitors are tagged when you sign people in.** While an
+  event is on, its sign-in screen shows a Newcomer or Visitor tag beside
+  those people (from last night's Insights), so leaders know who to welcome.
+  An event shared by several campuses only tags newcomers, and a finished
+  event shows no tags.
+
+### Changed
+- **A term is compared with the term before, not last year's.** T3 is
+  compared with T2 (Sem 2 with Sem 1, T1 with last year's T3), up to the same
+  week while the term is running. The whole-year view still compares with
+  last year.
+- **"Last came" says which weekly.** People lists, follow-ups and a member's
+  page show the term and week as well as the date: "Last came T3W2 (23 Sep)",
+  "Visited T3W1 (16 Sep)", "New on T3W3 (30 Sep)".
+- **Week-by-week charts sit near the top** of a term, above Needs follow-up.
+  The whole-year view has a "Who came each week" chart for each term instead
+  of one crowded chart.
+- **The term picker lists each year's terms, then that whole year:** 2026 T3,
+  2026 T2, 2026 T1, 2026 · whole year, 2025 T3, and so on.
+- **Long lists scroll inside their box**, like the sign-in lists, with a Show
+  all button under them (as in Admin) to see the whole list: Needs follow-up,
+  Visitors, Everyone and a member's events.
+- A member's week grid is now titled "Weeklies attended this term".
+
+### Fixed
+- **Chart legends wrap** instead of running off the edge of the card on
+  phones (the "Who came each week" legend lost Leader and Staff).
+
 ## [2.5.1] — 2026-10-11
 
 ### Added

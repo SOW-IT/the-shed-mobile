@@ -1525,7 +1525,8 @@ const styles = StyleSheet.create({
   },
   barValue: { fontSize: 11, fontWeight: "700" },
   barLabel: { fontSize: 10, letterSpacing: -0.2 },
-  legendBlock: { gap: 6 },
+  // Shrinks to the card so a long legend wraps instead of running off it.
+  legendBlock: { gap: 6, flexShrink: 1, minWidth: 0 },
   legendRow: {
     flexDirection: "row",
     flexWrap: "wrap",
