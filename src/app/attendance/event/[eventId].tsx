@@ -159,6 +159,12 @@ export default function EventAttendanceScreen() {
     event ? { subgroup: eventSubgroup } : "skip"
   );
   const subgroups = useQuery(api.events.subgroups);
+  // Newcomer and Visitor tags from last night's Insights build.
+  const signInTags = useQuery(api.weeklyInsights.signInTags, event ? { eventId: evId } : "skip");
+  const tagsByKey = useMemo(
+    () => new Map((signInTags ?? []).map((tag) => [tag.key, { label: tag.label, colour: tag.colour }])),
+    [signInTags]
+  );
 
   const [optimisticSignedIn, setOptimisticSignedIn] = useState<
     Map<string, NonNullable<typeof roster>[number]>
@@ -224,6 +230,9 @@ export default function EventAttendanceScreen() {
     return () => clearInterval(id);
   }, []);
   const pastEvent = event != null && eventHasEnded(event.dateEnd, clock);
+  // Tags describe people as of now, so a finished event doesn't show them.
+  const tagFor = (key: string, memberId?: string | null) =>
+    pastEvent ? undefined : (tagsByKey.get(key) ?? (memberId ? tagsByKey.get(`member:${memberId}`) : undefined));
   const canEdit = !pastEvent || editUnlocked;
   const { height: windowHeight } = useWindowDimensions();
   // Measured beside the wide-screen sidebar, not across the whole window.
@@ -804,6 +813,7 @@ export default function EventAttendanceScreen() {
             photo={m.photo ?? null}
             university={m.university}
             roles={m.roles}
+            tag={tagFor(m.key)}
             disabled={busy || !canEdit}
             dimmed={!canEdit}
             entering={isEntering}
@@ -852,6 +862,7 @@ export default function EventAttendanceScreen() {
             photo={a.photo ?? null}
             university={a.university}
             roles={a.roles}
+            tag={tagFor(aKey, a.memberId)}
             disabled={locked || busy}
             dimmed={locked}
             entering={isEntering}

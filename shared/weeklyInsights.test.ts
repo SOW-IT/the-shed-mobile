@@ -7,11 +7,11 @@ import {
   deriveTerms,
   followUps,
   type HeldWeekly,
-  sameTermLastYear,
   type TermFacts,
   termKey,
   termLabel,
   termRows,
+  termBefore,
   termSystemFor,
   termOptions,
   truncateTerm,
@@ -19,6 +19,7 @@ import {
   suggestWeekly,
   weekFromName,
   weeklyName,
+  weeklyWhen,
   type WeeklyPerson,
   type WeeklySettings,
 } from "./weeklyInsights";
@@ -154,6 +155,8 @@ describe("week numbers and marks", () => {
     expect(suggestWeekly(held, wed(2026, 6, 3), "terms", 18)).toMatchObject({ key: "2026-T2", week: 1 });
     expect(weeklyName("terms", 3, 5)).toBe("Weeklies T3W5");
     expect(weeklyName("semesters", 2, 9)).toBe("Weeklies S2W9");
+    expect(weeklyWhen(Date.UTC(2026, 5, 3, 7), "T2W1")).toBe("T2W1 (3 Jun)");
+    expect(weeklyWhen(Date.UTC(2026, 5, 3, 7))).toBe("3 Jun");
     expect(termOptions("semesters", 2026).map((o) => o.label)).toEqual(["Sem 2 2025", "Sem 1 2026", "Sem 2 2026"]);
     expect(termOptions("terms", 2026).map((o) => o.key)).toEqual(["2025-T3", "2026-T1", "2026-T2", "2026-T3"]);
     expect([looksWeekly("WK #9"), looksWeekly("UNSW Weeklies"), looksWeekly("Hot Pot")]).toEqual([true, true, false]);
@@ -283,9 +286,9 @@ describe("follow-ups", () => {
       ["freshVis", "visitor", false],
     ]);
     expect(fu[0].reason).toBe("Came to 5 of 5, then missed the last 2");
-    expect(fu[2].reason).toBe("New on 22 Jul · came 1 time, missed the last weekly");
-    expect(fu[3].reason).toBe("Visited 1 Jul, not back since");
-    expect(fu[4].reason).toBe("Visited 29 Jul");
+    expect(fu[2].reason).toBe("New on T2W8 (22 Jul) · came 1 time, missed the last weekly");
+    expect(fu[3].reason).toBe("Visited T2W5 (1 Jul), not back since");
+    expect(fu[4].reason).toBe("Visited T2W9 (29 Jul)");
   });
 
   test("newcomers and visitors drop off once their visit is no longer recent", () => {
@@ -329,16 +332,24 @@ describe("summaries and comparisons", () => {
     expect(r.byCategory[0].counts).toEqual({ newcomer: 2, regular: 1 });
   });
 
-  test("last year's same term, cut to the same week while this one runs", () => {
+  test("the term before, cut to the same week while this one runs", () => {
     const terms = all();
     const c = classify(people);
-    expect(sameTermLastYear(terms, 1, true, c)!.term.weeklies).toHaveLength(3);
-    expect(sameTermLastYear(terms, 1, false, c)!.term.weeklies).toHaveLength(4);
-    expect(sameTermLastYear(terms, 0, false, c)).toBeNull();
+    expect(termBefore(terms, 1, true, c)!.term.weeklies).toHaveLength(3);
+    expect(termBefore(terms, 1, false, c)!.term.weeklies).toHaveLength(4);
+    expect(termBefore(terms, 0, false, c)).toBeNull();
     expect(truncateTerm(terms[0], 0)).toBeNull();
-    const late = build([[wed(2025, 3, 12), ["a"]], [wed(2026, 2, 18), ["a"]]]);
-    // Last year's T1 started in its week 1 on 12 Mar; nothing to cut to.
-    expect(sameTermLastYear(late, 1, true, c)).not.toBeNull();
+    // The term before only had weeks after this one's first: nothing to cut to.
+    const named = deriveTerms(
+      [
+        { eventId: "x", at: wed(2026, 3, 4), count: 1, name: "Weeklies T1W5" },
+        { eventId: "y", at: wed(2026, 6, 3), count: 1, name: "Weeklies T2W1" },
+      ],
+      "terms",
+      18
+    ).map((t) => ({ ...t, attendance: { a: [0] } }));
+    expect(termBefore(named, 1, true, c)).toBeNull();
+    expect(termBefore(named, 1, false, c)!.term.label).toBe("T1 2026");
   });
 
   test("a year: everyone's share of its weeklies, latest category, and to-date cuts", () => {

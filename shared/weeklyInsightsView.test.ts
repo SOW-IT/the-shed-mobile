@@ -6,7 +6,7 @@ import {
   deriveTerms,
   followUps,
   type PeriodSummary,
-  sameTermLastYear,
+  termBefore,
   type TermFacts,
   type WeeklyPerson,
 } from "./weeklyInsights";
@@ -18,6 +18,7 @@ import {
   followUpBlocks,
   peopleBlock,
   peopleRows,
+  periodOptions,
   pill,
   summaryCards,
   type WeeklyBlock,
@@ -73,10 +74,10 @@ describe("people list", () => {
       tags: ["newcomer", "noCampus"],
       category: { label: "Newcomer" },
       primary: "1/4 · 25%",
-      secondary: "Last came 18 Feb",
+      secondary: "Last came T1W1 (18 Feb)",
       warning: "No campus set",
     });
-    expect(rows.find((r) => r.key === "Di")!.secondary).toBe("Last came 5 Mar 2025");
+    expect(rows.find((r) => r.key === "Di")!.secondary).toBe("Last came T1W3 (5 Mar 2025)");
     const block = peopleBlock("Everyone", rows, "sub");
     expect(block).toMatchObject({ type: "people", subtitle: "sub" });
     if (block.type !== "people") throw new Error();
@@ -91,7 +92,7 @@ describe("people list", () => {
       [wed(2025, 6, 4), ["Ana"]],
     ]);
     const rows = peopleRows(computeTerm(early, 1, c).rows, 2025);
-    expect(rows[0].secondary).toBe("Last came 4 Jun · 4 of the last 4 weeklies");
+    expect(rows[0].secondary).toBe("Last came T2W1 (4 Jun) · 4 of the last 4 weeklies");
   });
 
   test("helpers", () => {
@@ -153,7 +154,7 @@ describe("term view", () => {
     const blocks = buildTermBlocks({
       computedAt: 1,
       result,
-      lastYear: sameTermLastYear(terms, 1, true, c),
+      before: termBefore(terms, 1, true, c),
       running: true,
       followUps: followUps(terms, result.rows, c),
     });
@@ -161,15 +162,24 @@ describe("term view", () => {
     expect(byType(blocks, "followUpGroups")).toHaveLength(2);
     const charts = byType(blocks, "multiBars");
     expect(charts.map((b) => b.title)).toEqual(["Week by week", "Who came each week"]);
+    // Charts first, then the follow-up lists, then everyone.
+    expect(blocks.slice(2).map((b) => b.type)).toEqual([
+      "cards",
+      "multiBars",
+      "multiBars",
+      "followUpGroups",
+      "followUpGroups",
+      "people",
+    ]);
     expect(charts[0].points.map((p) => p.label)).toEqual(["W1", "W2", "W3", "W4"]);
     expect(charts[0].points[3].segments.map((sg) => sg.value)).toEqual([1, 0]);
     expect(byType(blocks, "people")[0].subtitle).toBe("Everyone who came in T1 2026 or the term before.");
   });
 
-  test("a finished term with nothing from last year", () => {
+  test("a finished term with no term before it", () => {
     const one = build([[wed(2026, 2, 18), ["Ana"]]]);
-    const blocks = buildTermBlocks({ computedAt: 1, result: computeTerm(one, 0, c), lastYear: null, running: false, followUps: null });
-    expect(blocks[1]).toEqual({ type: "caption", text: "T1 2026 · 1 weekly. Nothing to compare with from last year." });
+    const blocks = buildTermBlocks({ computedAt: 1, result: computeTerm(one, 0, c), before: null, running: false, followUps: null });
+    expect(blocks[1]).toEqual({ type: "caption", text: "T1 2026 · 1 weekly. Nothing to compare with from the term before." });
     expect(byType(blocks, "followUpGroups")).toHaveLength(0);
     expect(byType(blocks, "multiBars").map((b) => b.title)).toEqual(["Who came each week"]);
     expect(byType(blocks, "people")[0].subtitle).toBe("Everyone who came in T1 2026.");
@@ -189,7 +199,8 @@ describe("year view", () => {
     expect(blocks[1]).toEqual({ type: "caption", text: "2026 · T1 · 4 weeklies. Compared with 2025 up to 1 Mar." });
     const [byTerm, byCat] = byType(blocks, "multiBars");
     expect(byTerm.points).toMatchObject([{ label: "T1", segments: [{ value: 1.5 }, { value: 2 }] }]);
-    expect(byCat.points[0].label).toBe("T1 W1");
+    expect(byCat).toMatchObject({ title: "Who came each week · T1" });
+    expect(byCat.points[0].label).toBe("W1");
     expect(byType(blocks, "people")[0].subtitle).toBe("Everyone who came in 2026.");
   });
 
@@ -217,6 +228,24 @@ describe("year view", () => {
   });
 });
 
+describe("term picker", () => {
+  test("newest first, each year's terms then the whole year", () => {
+    const three = build([
+      [wed(2025, 9, 17), ["Ana"]],
+      [wed(2026, 3, 4), ["Ana"]],
+      [wed(2026, 6, 10), ["Ana"]],
+    ]);
+    expect(periodOptions(three)).toEqual([
+      { key: "2026-T2", label: "2026 T2" },
+      { key: "2026-T1", label: "2026 T1" },
+      { key: "2026", label: "2026 · whole year" },
+      { key: "2025-T3", label: "2025 T3" },
+      { key: "2025", label: "2025 · whole year" },
+    ]);
+    expect(periodOptions([])).toEqual([]);
+  });
+});
+
 describe("member page", () => {
   test("header, details, history, week grid and events", () => {
     const result = computeTerm(terms, 1, c);
@@ -237,9 +266,10 @@ describe("member page", () => {
     expect(blocks.map((b) => b.type)).toEqual(["memberHeader", "keyValues", "termHistory", "weekGrid", "eventList"]);
     expect(blocks[0]).toMatchObject({
       category: { label: "Regular" },
-      reason: "T1 2026: 4/4 · 100% · Came to 4 of 4, then missed the last 2",
+      reason: "T1 2026: 4/4 · 100%\nLast came T1W4 (11 Mar)\nCame to 4 of 4, then missed the last 2",
       photo: null,
     });
+    expect(byType(blocks, "weekGrid")[0]).toMatchObject({ subtitle: "Weeklies attended this term" });
     expect(byType(blocks, "weekGrid")[0].weeks.every((w) => w.came)).toBe(true);
     expect(byType(blocks, "eventList")[0].rows).toEqual([
       { title: "Weeklies T1W1", subtitle: "18 Feb · UNSW", tag: "Weekly" },
@@ -260,6 +290,6 @@ describe("member page", () => {
       events: [],
       year: 2026,
     });
-    expect((withRow[0] as { reason: string }).reason).toBe("T1 2026: 4/4 · 100%");
+    expect((withRow[0] as { reason: string }).reason).toBe("T1 2026: 4/4 · 100%\nLast came T1W4 (11 Mar)");
   });
 });

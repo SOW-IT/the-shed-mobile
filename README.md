@@ -161,7 +161,8 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
 - **CSV import/export**: bulk-import historical roll-call data and export
   attendance.
 - **Insights** (a dedicated bottom tab): for a campus, its **weekly meetings**
-  by term (T1–T3 / Sem 1–2) or calendar year: cards against last year, a
+  by term (T1–T3 / Sem 1–2) or calendar year: cards against the term before
+  (a year against last year), a
   follow-up list (people who were coming but stopped, newcomers who haven't
   come back) and a visitors list, charts, and everyone's attendance % and
   category (Regular, Irregular, Newcomer, Visitor, Leader, Staff/alumni/guests)

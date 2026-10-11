@@ -134,3 +134,15 @@ export const termFactsFields = {
   // Person key → indexes into `weeklies`.
   attendance: v.array(v.object({ key: v.string(), indexes: v.array(v.number()) })),
 };
+
+export const weeklyCategoryValidator = v.union(
+  v.literal("irregular"),
+  v.literal("newcomer"),
+  v.literal("regular"),
+  v.literal("visitor"),
+  v.literal("leader"),
+  v.literal("staff")
+);
+
+/** A person key and their category in a campus's latest term. */
+export const personCategoryValidator = v.object({ key: v.string(), category: weeklyCategoryValidator });

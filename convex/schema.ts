@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { announcementStatusValidator, audienceValidator } from "./announcementData";
 import { metricsDataValidator } from "./metricsData";
 import {
+  personCategoryValidator,
   termFactsFields,
   weeklyBlockValidator,
   weeklyMarkValidator,
@@ -629,6 +630,14 @@ export default defineSchema({
     // When the current year's "vs last year up to today" next changes, so
     // the year view is redone then even if no attendance has changed.
     nextCompareAt: v.number(),
+  }).index("by_subgroup", ["subgroup"]),
+
+  // One row per campus: everyone in its latest term and their category, so
+  // the sign-in screen can tag newcomers and visitors from the nightly build.
+  weeklyCategories: defineTable({
+    subgroup: v.string(),
+    termKey: v.string(),
+    people: v.array(personCategoryValidator),
   }).index("by_subgroup", ["subgroup"]),
 
   // One row per edited Home sub-tab (home, resources, connect, partner). A tab

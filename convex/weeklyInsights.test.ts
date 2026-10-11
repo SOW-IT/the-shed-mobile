@@ -162,11 +162,12 @@ describe("first build and the view", () => {
     await rebuild(t);
     expect(Object.keys(await factDocs(t)).sort()).toEqual([`${UNSW}|2025-T2`, `${UNSW}|2026-T1`, `${UNSW}|2026-T2`]);
     const index = (await indexDoc(t))!;
+    // Each year's terms, newest first, then that whole year.
     expect(index.periods.map((p) => p.label)).toEqual([
-      "T2 2026",
-      "T1 2026",
-      "T2 2025",
+      "2026 T2",
+      "2026 T1",
       "2026 · whole year",
+      "2025 T2",
       "2025 · whole year",
     ]);
     expect(index.currentKey).toBe("2026-T2");
@@ -360,7 +361,7 @@ describe("nightly builds only redo what changed", () => {
     await rebuild(t);
     const now = (await leader.query(api.weeklyInsights.view, { subgroup: UNSW }))!;
     expect((now.blocks[1] as { text: string }).text).toBe(
-      "T2 2026 · 8 weeklies. Compared with T2 2025."
+      "T2 2026 · 8 weeklies. Compared with T1 2026."
     );
     expect((await indexDoc(t))!.nextCompareAt).toBe(Number.MAX_SAFE_INTEGER);
   });
@@ -449,7 +450,7 @@ describe("settings", () => {
     const index = (await indexDoc(t))!;
     expect(index.settingsVersion).toBe(3);
     // UNSW now runs semesters.
-    expect(index.periods[0].label).toBe("Sem 2 2026");
+    expect(index.periods[0].label).toBe("2026 Sem 2");
     expect((await leader.query(api.weeklyInsights.view, { subgroup: UNSW }))!.period).toBe("2026-S2");
   });
 
@@ -483,6 +484,87 @@ describe("Role option Visitor → Guest", () => {
   });
 });
 
+describe("a term that's gone", () => {
+  test("the term after it is redone against its new term before", async () => {
+    const { t, leader, ids } = await setup();
+    await rebuild(t);
+    const caption = async (period: string) =>
+      ((await leader.query(api.weeklyInsights.view, { subgroup: UNSW, period }))!.blocks[1] as { text: string }).text;
+    expect(await caption("2026-T1")).toMatch(/Compared with T2 2025\.$/);
+    vi.setSystemTime(NOW + DAY);
+    await t.run(async (ctx) => {
+      for (const eventId of ids.weeklies.slice(0, T2_2025.length)) {
+        for (const row of await ctx.db.query("attendance").withIndex("by_event", (q) => q.eq("eventId", eventId)).collect()) {
+          await ctx.db.delete(row._id);
+        }
+        await ctx.db.insert("attendanceAuditLog", { actorEmail: ADMIN, entityType: "attendance", action: "delete", summary: "x", eventId });
+      }
+    });
+    await rebuild(t);
+    expect(Object.keys(await factDocs(t)).sort()).toEqual([`${UNSW}|2026-T1`, `${UNSW}|2026-T2`]);
+    expect(await caption("2026-T1")).toMatch(/Nothing to compare with from the term before\.$/);
+  });
+});
+
+describe("sign-in tags", () => {
+  test("newcomers and visitors from the last build; a shared event only tags newcomers", async () => {
+    const { t, leader, ids } = await setup();
+    // Lee also has a member row, so the sign-in screen may look them up by it.
+    const leeMember = await t.run((ctx) =>
+      ctx.db.insert("attendanceMembers", { name: "Lee Leader", metadata: {}, email: LEADER })
+    );
+    expect(await leader.query(api.weeklyInsights.signInTags, { eventId: ids.weeklies[0] })).toEqual([]);
+    await rebuild(t);
+    const saved = (await t.run((ctx) => ctx.db.query("weeklyCategories").collect()))[0];
+    expect(saved).toMatchObject({ subgroup: UNSW, termKey: "2026-T2" });
+    expect(saved.people).toContainEqual({ key: `staff:${LEADER}`, category: "leader" });
+    expect(saved.people).toContainEqual({ key: `member:${leeMember}`, category: "leader" });
+
+    expect(await leader.query(api.weeklyInsights.signInTags, { eventId: ids.weeklies[0] })).toEqual([
+      { key: `member:${ids.newbie}`, label: "Newcomer", colour: "#8B5CF6" },
+      { key: `member:${ids.cy}`, label: "Visitor", colour: "#3B82F6" },
+    ]);
+    expect(await leader.query(api.weeklyInsights.signInTags, { eventId: ids.mega })).toEqual([
+      { key: `member:${ids.newbie}`, label: "Newcomer", colour: "#8B5CF6" },
+    ]);
+    expect(await t.query(api.weeklyInsights.signInTags, { eventId: ids.mega })).toEqual([]);
+    await t.run((ctx) => ctx.db.delete(ids.social));
+    expect(await leader.query(api.weeklyInsights.signInTags, { eventId: ids.social })).toEqual([]);
+
+    // The latest term loses all its weeklies: the term before becomes the
+    // latest, and its categories replace the old ones.
+    vi.setSystemTime(NOW + DAY);
+    await t.run(async (ctx) => {
+      for (const eventId of ids.weeklies.slice(T2_2025.length + T1_2026.length)) {
+        for (const row of await ctx.db.query("attendance").withIndex("by_event", (q) => q.eq("eventId", eventId)).collect()) {
+          await ctx.db.delete(row._id);
+        }
+        await ctx.db.insert("attendanceAuditLog", { actorEmail: ADMIN, entityType: "attendance", action: "delete", summary: "x", eventId });
+      }
+    });
+    const before = (await viewDocs(t))[`${UNSW}|2026-T1`].computedAt;
+    await rebuild(t);
+    expect((await indexDoc(t))!.currentKey).toBe("2026-T1");
+    expect((await viewDocs(t))[`${UNSW}|2026-T1`].computedAt).toBeGreaterThan(before);
+    const after = (await t.run((ctx) => ctx.db.query("weeklyCategories").collect()))[0];
+    expect(after.termKey).toBe("2026-T1");
+    expect(await leader.query(api.weeklyInsights.signInTags, { eventId: ids.weeklies[0] })).toEqual([
+      { key: `member:${ids.cy}`, label: "Visitor", colour: "#3B82F6" },
+    ]);
+
+    // A campus left with no weeklies drops its tags.
+    const { _id, _creationTime, ...index } = (await indexDoc(t))!;
+    await t.mutation(internal.weeklyInsights.saveIndex, {
+      ...index,
+      viewVersion: index.viewVersion!,
+      periods: [],
+      currentKey: null,
+    });
+    expect(await t.run((ctx) => ctx.db.query("weeklyCategories").collect())).toEqual([]);
+    await t.mutation(internal.weeklyInsights.saveIndex, { ...index, viewVersion: 3, periods: [], currentKey: null });
+  });
+});
+
 describe("member page", () => {
   test("a member: header, details, weeklies by term, week grid and every event", async () => {
     const { t, leader, ids } = await setup();
@@ -494,7 +576,7 @@ describe("member page", () => {
     expect(blocks[0]).toMatchObject({
       lines: ["UNSW", "Member"],
       category: { label: "Regular" },
-      reason: "T2 2026: 5/7 · 71% · Came to 5 of 5, then missed the last 2",
+      reason: "T2 2026: 5/7 · 71%\nLast came T2W5 (1 Jul)\nCame to 5 of 5, then missed the last 2",
       memberId: ids.ana,
     });
     expect(blocks[1]).toMatchObject({ rows: [{ label: "Email", value: "ana@example.com" }, { label: "Year", value: "2" }] });
