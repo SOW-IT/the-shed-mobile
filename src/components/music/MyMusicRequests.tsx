@@ -1,39 +1,29 @@
 import { Btn, Field, Row, Sheet } from "@/components/ui";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
 import { Alert, Image, StyleSheet, Text, View } from "react-native";
-
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
-
 export type MusicRequest = Doc<"musicRequests">;
-
 type SpotifyMetadata = {
   title: string;
   thumbnail_url?: string;
   provider_name?: string;
 };
-
-const spotifyTrackUrl = (value: string) => {
+const spotifyTrackUrl = (value: string): string | null => {
   try {
     const url = new URL(value.trim());
-
     if (
       url.hostname !== "open.spotify.com" &&
       url.hostname !== "www.open.spotify.com"
-    ) {
+    )
       return null;
-    }
-
     const match = url.pathname.match(
       /^\/(?:intl-[a-zA-Z-]+\/)?track\/([a-zA-Z0-9]+)\/?$/,
     );
-
-    if (!match) return null;
-
-    return `https://open.spotify.com/track/${match[1]}`;
+    return match ? `https://open.spotify.com/track/${match[1]}` : null;
   } catch {
     return null;
   }
@@ -49,63 +39,58 @@ export const NewMusicRequestSheet = ({
   prefill: MusicRequest | null;
 }) => {
   const t = useAppTheme();
-
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
   const [link, setLink] = useState("");
   const [requestComment, setRequestComment] = useState("");
-
   const [spotifyLink, setSpotifyLink] = useState("");
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
   const [fetchingSpotify, setFetchingSpotify] = useState(false);
   const [spotifyError, setSpotifyError] = useState<string | null>(null);
+  // Check either the Spotify autofill field or the final song link.
+  const duplicateLink = link.trim()
+    ? spotifyTrackUrl(link)
+    : spotifyTrackUrl(spotifyLink);
+  const duplicate = useQuery(
+    api.musicRequests.checkDuplicate,
+    visible && duplicateLink ? { link: duplicateLink } : "skip",
+  );
+  const duplicateBlocked =
+    duplicate?.status === "APPROVED" || duplicate?.status === "PENDING";
 
   const submit = useMutation(api.musicRequests.submit);
   const [submitting, setSubmitting] = useState(false);
-
   useEffect(() => {
     if (!visible) return;
-
     setTitle(prefill?.title ?? "");
     setArtist(prefill?.artist ?? "");
     setLink(prefill?.link ?? "");
     setRequestComment(prefill?.requestComment ?? "");
-
     setSpotifyLink("");
     setAlbumArtUrl(null);
     setSpotifyError(null);
   }, [visible, prefill]);
-
   const autofillSpotify = async () => {
     const cleanUrl = spotifyTrackUrl(spotifyLink);
-
     if (!cleanUrl) {
       setSpotifyError("Please paste a valid Spotify track link.");
       return;
     }
-
     setFetchingSpotify(true);
     setSpotifyError(null);
-
     try {
       const endpoint = `https://open.spotify.com/oembed?url=${encodeURIComponent(cleanUrl)}`;
-
       const response = await fetch(endpoint);
-
       if (!response.ok) {
         throw new Error("Spotify could not find this track.");
       }
-
       const metadata: SpotifyMetadata = await response.json();
-
       if (!metadata.title) {
         throw new Error("Spotify did not return a song title.");
       }
-
       setTitle(metadata.title);
       setLink(cleanUrl);
       setAlbumArtUrl(metadata.thumbnail_url ?? null);
-
       // Spotify oEmbed does not reliably provide a separate artist.
       // Keep the existing artist field editable.
     } catch (error) {
@@ -118,27 +103,29 @@ export const NewMusicRequestSheet = ({
       setFetchingSpotify(false);
     }
   };
-
   const onSubmit = async () => {
     if (submitting) return;
-
     if (!title.trim()) {
       Alert.alert("Song title required", "Please enter a song title.");
       return;
     }
-
     if (!artist.trim()) {
       Alert.alert("Artist name required", "Please enter an artist name.");
       return;
     }
-
     if (!link.trim()) {
       Alert.alert("Link required", "Please enter a song link.");
       return;
     }
+    if (duplicateBlocked) {
+      Alert.alert(
+        "Song already requested",
+        "This Spotify track is already approved or pending review.",
+      );
+      return;
+    }
 
     setSubmitting(true);
-
     try {
       await submit({
         title: title.trim(),
@@ -147,7 +134,6 @@ export const NewMusicRequestSheet = ({
         requestComment: requestComment.trim() || undefined,
         albumArtUrl: albumArtUrl ?? undefined,
       });
-
       setTitle("");
       setArtist("");
       setLink("");
@@ -155,9 +141,7 @@ export const NewMusicRequestSheet = ({
       setSpotifyLink("");
       setAlbumArtUrl(null);
       setSpotifyError(null);
-
       onClose();
-
       Alert.alert(
         "Request sent",
         "A Chaplain will review your song request soon.",
@@ -171,7 +155,6 @@ export const NewMusicRequestSheet = ({
       setSubmitting(false);
     }
   };
-
   return (
     <Sheet
       visible={visible}
@@ -183,6 +166,12 @@ export const NewMusicRequestSheet = ({
           <Btn
             title={submitting ? "Submitting..." : "Submit Request"}
             onPress={onSubmit}
+            disabled={
+              submitting ||
+              fetchingSpotify ||
+              duplicateBlocked ||
+              (!!duplicateLink && duplicate === undefined)
+            }
           />
         </Row>
       }
@@ -198,17 +187,14 @@ export const NewMusicRequestSheet = ({
       >
         <View style={styles.spotifyHeading}>
           <Ionicons name="musical-notes-outline" size={20} color={t.primary} />
-
           <Text style={[styles.spotifyTitle, { color: t.text }]}>
             Autofill from Spotify
           </Text>
         </View>
-
         <Text style={[typography.caption, { color: t.muted }]}>
           Paste a Spotify song link to automatically fill in the song title and
           link, and preview the album artwork.
         </Text>
-
         <Field
           label="Spotify Track URL"
           value={spotifyLink}
@@ -219,20 +205,17 @@ export const NewMusicRequestSheet = ({
           placeholder="https://open.spotify.com/track/..."
           autoCapitalize="none"
         />
-
         <Btn
           title={fetchingSpotify ? "Finding song..." : "Autofill"}
           icon="search-outline"
           onPress={() => void autofillSpotify()}
           disabled={fetchingSpotify || !spotifyLink.trim()}
         />
-
         {spotifyError ? (
           <Text style={[typography.caption, { color: t.warning }]}>
             {spotifyError}
           </Text>
         ) : null}
-
         {albumArtUrl ? (
           <View style={styles.preview}>
             <Image
@@ -240,7 +223,6 @@ export const NewMusicRequestSheet = ({
               style={styles.albumCover}
               resizeMode="cover"
             />
-
             <View style={styles.previewText}>
               <Text
                 style={[typography.body, { color: t.text, fontWeight: "700" }]}
@@ -248,36 +230,63 @@ export const NewMusicRequestSheet = ({
               >
                 {title}
               </Text>
-
+            </View>
+          </View>
+        ) : null}
+        {duplicate ? (
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "flex-start",
+              gap: spacing.sm,
+              paddingVertical: spacing.sm,
+            }}
+          >
+            <Ionicons
+              name={
+                duplicateBlocked
+                  ? "alert-circle-outline"
+                  : "information-circle-outline"
+              }
+              size={20}
+              color={duplicateBlocked ? t.warning : t.muted}
+            />
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text style={{ color: t.text, fontWeight: "700" }}>
+                {duplicate.status === "APPROVED"
+                  ? "Already in the playlist"
+                  : duplicate.status === "PENDING"
+                    ? "This song has already been requested"
+                    : "This song was previously declined"}
+              </Text>
               <Text style={[typography.caption, { color: t.muted }]}>
-                Spotify artwork preview
+                {duplicate.title} by {duplicate.artist}
+                {duplicateBlocked
+                  ? ". You can't submit another request for this track."
+                  : ". You can submit a new request if you'd like it reconsidered."}
               </Text>
             </View>
           </View>
         ) : null}
       </View>
-
       <Field
         label="Song Title"
         value={title}
         onChangeText={setTitle}
         placeholder="Enter song title"
       />
-
       <Field
         label="Artist"
         value={artist}
         onChangeText={setArtist}
         placeholder="Enter artist name"
       />
-
       <Field
         label="Link"
         value={link}
         onChangeText={setLink}
         placeholder="Spotify or YouTube link"
       />
-
       <Field
         label="Request Comment (Optional)"
         value={requestComment}
@@ -288,7 +297,6 @@ export const NewMusicRequestSheet = ({
     </Sheet>
   );
 };
-
 const buildGuideSteps = () => [
   {
     icon: "create-outline" as const,
@@ -303,7 +311,6 @@ const buildGuideSteps = () => [
       "A Chaplain reviews your request and decides whether to approve it.",
   },
 ];
-
 export const MusicGuideSheet = ({
   visible,
   onClose,
@@ -312,7 +319,6 @@ export const MusicGuideSheet = ({
   onClose: () => void;
 }) => {
   const t = useAppTheme();
-
   return (
     <Sheet
       visible={visible}
@@ -326,14 +332,12 @@ export const MusicGuideSheet = ({
           >
             <Ionicons name={step.icon} size={18} color={t.primary} />
           </View>
-
           <View style={{ flex: 1, gap: 2 }}>
             <Text
               style={[typography.caption, { color: t.text, fontWeight: "700" }]}
             >
               {step.title}
             </Text>
-
             <Text style={[typography.caption, { color: t.muted }]}>
               {step.detail}
             </Text>
@@ -343,7 +347,6 @@ export const MusicGuideSheet = ({
     </Sheet>
   );
 };
-
 const styles = StyleSheet.create({
   spotifySection: {
     borderWidth: 1,
