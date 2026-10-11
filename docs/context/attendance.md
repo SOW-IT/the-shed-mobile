@@ -22,7 +22,8 @@ keeps the member's email as the personal one.
 _Avoid_: work email, org email (for the personal one)
 
 **Staff leaver**:
-Someone who was staff last staff year and isn't this year. At 01:30 Sydney on
+Someone who was staff (a leader, an exec or staff) in an earlier staff year
+and isn't this year, whichever year they stopped. At 01:30 Sydney on
 October 1 (after the flip) each one becomes a plain Member: every sign-in under
 their staff email moves onto their member row, the staff email comes off for
 their personal email (empty if none was recorded), and a staff Role becomes

@@ -528,6 +528,33 @@ describe("a term that's gone", () => {
   });
 });
 
+describe("someone who left staff", () => {
+  test("their weeklies are re-read, so they show up as a member", async () => {
+    const { t } = await setup();
+    await rebuild(t);
+    const keysIn = async () => {
+      const facts = Object.values(await factDocs(t));
+      return new Set(facts.flatMap((f) => f.attendance.map((a) => a.key)));
+    };
+    expect((await keysIn()).has(`staff:${LEADER}`)).toBe(true);
+    // Lee isn't staff next year: their sign-ins move onto a member record.
+    vi.setSystemTime(NOW + DAY);
+    const result = await t.mutation(internal.staffLeavers.convertOutgoingStaff, {
+      year: 2027,
+      dryRun: false,
+      email: LEADER,
+    });
+    expect(result.people).toBe(1);
+    const lee = (await t.run((ctx) => ctx.db.query("attendanceMembers").collect())).find(
+      (m) => m.name === "Lee Leader"
+    )!;
+    await rebuild(t);
+    const keys = await keysIn();
+    expect(keys.has(`staff:${LEADER}`)).toBe(false);
+    expect(keys.has(`member:${lee._id}`)).toBe(true);
+  });
+});
+
 describe("sign-in tags", () => {
   test("newcomers and visitors from the last build; a shared event only tags newcomers", async () => {
     const { t, leader, ids } = await setup();

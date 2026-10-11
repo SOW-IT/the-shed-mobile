@@ -58,20 +58,24 @@ const resultValidator = v.object({
   details: v.array(detailValidator),
 });
 
-/** Staff in `year - 1` with no staff profile in `year` or any later year:
- *  they left staff when `year` began. Sorted by email so batches can resume. */
+/** Everyone who was staff (a leader, an exec or staff) in some year before
+ *  `year` but has no staff profile in `year` or any later year, with their
+ *  latest profile. Not just last year's: someone who left before this ran
+ *  (it started on 1 Oct 2026) is caught up too. Sorted by email so batches
+ *  can resume. */
 async function outgoingStaff(
   ctx: MutationCtx,
   year: number
 ): Promise<{ key: string; profile: Doc<"staffProfiles"> }[]> {
   const leaving = await ctx.db
     .query("staffProfiles")
-    .withIndex("by_year", (q) => q.eq("year", year - 1))
+    .withIndex("by_year", (q) => q.lt("year", year))
     .collect();
   const byKey = new Map<string, Doc<"staffProfiles">>();
   for (const profile of leaving) {
     const key = canonicalEmailKey(profile.email);
-    if (key && !byKey.has(key)) byKey.set(key, profile);
+    const seen = key ? byKey.get(key) : undefined;
+    if (key && (!seen || profile.year > seen.year)) byKey.set(key, profile);
   }
   const out = [];
   for (const [key, profile] of byKey) {
@@ -279,16 +283,20 @@ async function convertBatch(
     (a, b) => a.order - b.order
   );
   const role = batch.length > 0 ? await roleField(ctx, opts.dryRun) : null;
-  const staffRoles = await staffRoleLabels(ctx, opts.year - 1);
+  // Staff role names as of the year each person left.
+  const rolesByYear = new Map<number, Set<string>>();
   const details: Detail[] = [];
   for (const { profile } of batch) {
+    if (!rolesByYear.has(profile.year)) {
+      rolesByYear.set(profile.year, await staffRoleLabels(ctx, profile.year));
+    }
     const detail = await convertPerson(
       ctx,
       profile,
       opts.year,
       fields,
       role,
-      staffRoles,
+      rolesByYear.get(profile.year)!,
       opts.dryRun
     );
     if (detail) details.push(detail);
@@ -308,10 +316,11 @@ async function convertBatch(
 }
 
 /**
- * Turns everyone who was staff last staff year but isn't this year (or any
- * later year) back into plain members. See `convertPerson` for what changes.
- * Runs itself on October 1; this is the manual handle, e.g. for someone taken
- * off this year's staff after the rollover, or for an earlier year's leavers.
+ * Turns everyone who was staff in an earlier staff year but isn't this year
+ * (or any later year) back into plain members: leaders, execs and staff
+ * alike. See `convertPerson` for what changes. Runs itself on October 1; this
+ * is the manual handle, e.g. for someone taken off this year's staff after
+ * the rollover.
  *
  * Dry run by default. `year` is the staff year they are not staff in
  * (default: the current one). Processes `limit` people per call; pass the

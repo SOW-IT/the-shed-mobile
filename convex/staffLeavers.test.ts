@@ -257,6 +257,25 @@ describe("convertOutgoingStaff", () => {
     expect((await s.members())[0].email).toBe(back);
   });
 
+  test("catches up a leader who left in an earlier year, using that year's profile", async () => {
+    const s = await setup();
+    const old = "old.leader@sow.org.au";
+    await s.profile(old, YEAR - 4, "Old Leader");
+    await s.profile(old, YEAR - 3, "Old Leader");
+    const e = await s.event("Weeklies", Date.UTC(2023, 2, 1));
+    await s.signIn(e, { email: old }, 1);
+    const result = await s.convert({ dryRun: false });
+    expect(result.details).toMatchObject([{ staffEmail: old, recordsMoved: 1 }]);
+    const row = (await s.members()).find((m) => m.name === "Old Leader")!;
+    expect(row.email).toBeUndefined();
+    expect(row.metadata?.[s.fields.role]).toBe("3");
+    const [record] = await s.attendance();
+    expect(record.memberId).toBe(row._id);
+    expect(record.email).toBeUndefined();
+    // Done once: nothing left to move.
+    expect((await s.convert({ dryRun: false })).people).toBe(0);
+  });
+
   test("pages through leavers, and can be limited to one person", async () => {
     const s = await setup();
     for (const who of ["a.one", "b.two", "c.three"]) {

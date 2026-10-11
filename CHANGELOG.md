@@ -6,6 +6,20 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.5.4] — 2026-10-12
+
+### Fixed
+- **Former leaders, execs and staff can be edited from Insights.** Someone
+  who stopped serving before 1 Oct 2026 (when the leavers conversion started)
+  still had their sign-ins under their staff email, so their member page had
+  nothing to edit. The 1 Oct conversion now catches up everyone who isn't
+  serving this year, whichever year they stopped, and turns them into plain
+  members with their sign-ins on their member record.
+- **Insights picks up the change straight away.** When someone becomes a
+  member this way, the next Insights build re-reads their weeklies, so they
+  show up as a member (with Edit member) instead of under their old staff
+  email.
+
 ## [2.5.3] — 2026-10-12
 
 ### Changed

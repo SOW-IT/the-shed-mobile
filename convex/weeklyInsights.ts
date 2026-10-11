@@ -204,10 +204,15 @@ export const checkChanges = internalQuery({
     const eventIds = new Set<Id<"events">>(created.map((e) => e._id));
     const memberIds = new Set<Id<"attendanceMembers">>();
     let tagChanged = false;
+    // Someone who left staff had their sign-ins moved off their staff email
+    // onto a member record: re-read the weeklies that had the staff email.
+    const leftStaff = new Set<string>();
     for (const row of audit) {
       if (row.eventId) eventIds.add(row.eventId);
       if (row.memberId) memberIds.add(row.memberId);
       if (row.entityType === "tag") tagChanged = true;
+      const email = row.action === "member.leftStaff" ? canonicalEmailKey(row.subjectEmail) : undefined;
+      if (email) leftStaff.add(`staff:${email}`);
     }
     const relevant: Id<"events">[] = [];
     for (const id of eventIds) {
@@ -222,6 +227,7 @@ export const checkChanges = internalQuery({
       const keys = [`member:${id}`, ...(member?.email ? [`staff:${canonicalEmailKey(member.email)}`] : [])];
       (member ? memberKeys : goneMemberKeys).push(...keys);
     }
+    goneMemberKeys.push(...leftStaff);
     const settingsChanged = index.settingsVersion !== version || index.viewVersion !== VIEW_VERSION;
     const compareDue = index.nextCompareAt <= now;
     return {
