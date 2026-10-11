@@ -30,6 +30,13 @@ From 2.5.0 a campus's Insights view is built from its weekly meetings:
   only re-reads weeklies the attendance change log says changed, and only
   redoes the affected views. Finished terms are kept as computed.
 
+- **Weeklies carry their own term and week** (2.5.1). Names showed that
+  semesters don't number the mid-semester break, so counting calendar weeks
+  ran ahead; and a Mega Weeklies tagged with four campuses had started three
+  campuses' Semester 2 early and doubled UNSW's week. Weeklies are now created
+  as a Weekly with a pre-filled term and week, existing ones were backfilled
+  from their names, and weeklies shared between campuses don't count.
+
 ## Considered options
 
 **Admins enter term dates.** Exact, but a chore every term at every campus,

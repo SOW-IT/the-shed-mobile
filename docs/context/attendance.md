@@ -102,9 +102,10 @@ honest.
 _Avoid_: dirty, dirty recompute (the old 15-minute mechanism, removed in 1.11)
 
 **Weekly** (held weekly):
-A campus's weekly meeting: an event tagged *Weekly Meeting*. It counts as
-held only if someone signed in to it, so a cancelled week isn't a missed
-week. A weekly tagged with several campuses counts for each.
+A campus's weekly meeting: an event created as a Weekly (with its Term and
+week) or tagged *Weekly Meeting*. It counts as held only if someone signed in
+to it, so a cancelled week isn't a missed week. A weekly shared with other
+campuses (a Mega or combined weekly) isn't any campus's weekly in Insights.
 _Avoid_: meeting, event (for this)
 
 **Term**:

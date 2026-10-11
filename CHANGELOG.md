@@ -6,6 +6,31 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.5.1] — 2026-10-11
+
+### Added
+- **Create a weekly as a Weekly.** New event now starts by asking whether
+  it's a Weekly or another event. A Weekly gets a term or semester (a
+  dropdown) and a week number (numbers only), both filled in for the date
+  from the campus's other weeklies, and a name like "Weeklies T3W5". Change
+  any of them if the suggestion's wrong. A Weekly is tagged Weekly Meeting
+  automatically.
+
+### Fixed
+- **Comparisons with last year no longer count Mega or combined weeklies.**
+  A weekly shared with other campuses was counted as each campus's own: last
+  year's Mega Weeklies made UNSW's T2 2025 look like 83 a week and 280
+  people (it was 70 and 194), and it started USYD, UTS and Macquarie's
+  Semester 2 a week early. Weeklies with more than one campus are now left
+  out of Insights.
+- **Week numbers match what leaders call them.** Semesters don't number the
+  mid-semester break, so weeks after it showed one or two too high (Week 8
+  as W10). Each weekly now keeps its term and week; existing weeklies were
+  filled in from their names (S1W8, T2W8, WK #9), and the few with no week
+  in their name count on from the last one that did.
+- **Weeklies that were never tagged now count**: UNSW T1W7 (1 Apr), USYD
+  WK #9–#12 and two Macquarie weeklies.
+
 ## [2.5.0] — 2026-10-11
 
 ### Added

@@ -13,6 +13,8 @@ import {
   errorMessage,
   Field,
   LoadingState,
+  Segmented,
+  Select,
   Sheet,
   Txt,
 } from "@/components/ui";
@@ -36,9 +38,11 @@ import {
   endDateAfterStartChange,
   eventWindowFromInputs,
   isMultiDayEvent,
+  isOrgWideSubgroup,
   subgroupLabel,
   subgroupMatches,
 } from "../../../shared/rollcall";
+import { termLabel, weeklyName } from "../../../shared/weeklyInsights";
 
 const defaultDate = (): string => toDateInputValue(new Date());
 
@@ -50,8 +54,12 @@ const timeInputFromMs = (ms: number): string => toTimeInputValue(new Date(ms));
 
 type EditableEvent = Pick<
   Doc<"events">,
-  "_id" | "name" | "dateStart" | "dateEnd" | "subgroups" | "tagIds"
+  "_id" | "name" | "dateStart" | "dateEnd" | "subgroups" | "tagIds" | "weekly"
 >;
+
+type Kind = "weekly" | "event";
+type TermPick = { year: number; slot: number };
+const termValue = (p: TermPick) => `${p.year}:${p.slot}`;
 
 export function CreateEventSheet({
   visible,
@@ -80,6 +88,14 @@ export function CreateEventSheet({
 
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
+  // A Weekly's term, week and name are pre-filled from the campus's other
+  // weeklies (weeklyInsights.suggestWeekly) until the leader changes them.
+  const [kind, setKind] = useState<Kind>("event");
+  const [initialKind, setInitialKind] = useState<Kind>("event");
+  const [term, setTerm] = useState<TermPick | null>(null);
+  const [weekText, setWeekText] = useState("");
+  const [weekTouched, setWeekTouched] = useState(false);
+  const [nameTouched, setNameTouched] = useState(false);
   const [selectedTags, setSelectedTags] = useState<Id<"attendanceTags">[]>([]);
   const [collaborators, setCollaborators] = useState<string[]>([subgroup]);
   const [dateStr, setDateStr] = useState(defaultDate());
@@ -129,9 +145,17 @@ export function CreateEventSheet({
       startTime: event ? timeInputFromMs(event.dateStart) : defaultTime(17),
       endTime: event ? timeInputFromMs(event.dateEnd) : defaultTime(19),
     };
+    // Every weekly has its term and week (backfilled); tags may still be loading.
+    const savedKind: Kind = event?.weekly ? "weekly" : "event";
     // eslint-disable-next-line react-hooks/set-state-in-effect -- load the event's saved fields on the open transition (edit mode)
     setStep(0);
     setName(snapshot.name);
+    setNameTouched(true);
+    setKind(savedKind);
+    setInitialKind(savedKind);
+    setTerm(event?.weekly ? { year: event.weekly.year, slot: event.weekly.slot } : null);
+    setWeekText(event?.weekly ? String(event.weekly.week) : "");
+    setWeekTouched(!!event?.weekly);
     setSelectedTags(snapshot.tags);
     setCollaborators(snapshot.collaborators);
     setDateStr(snapshot.dateStr);
@@ -150,6 +174,12 @@ export function CreateEventSheet({
   const resetForm = () => {
     setStep(0);
     setName("");
+    setNameTouched(false);
+    setKind("event");
+    setInitialKind("event");
+    setTerm(null);
+    setWeekText("");
+    setWeekTouched(false);
     setSelectedTags([]);
     setCollaborators([subgroup]);
     setDateStr(defaultDate());
@@ -169,6 +199,37 @@ export function CreateEventSheet({
       endTime: defaultTime(19),
     });
   };
+
+  const canBeWeekly = !isOrgWideSubgroup(ownerGroup);
+  const preview = eventWindowFromInputs({
+    startDate: dateStr,
+    startTime,
+    endDate: multiDay ? endDateStr : dateStr,
+    endTime,
+  });
+  const suggestAt = "error" in preview ? null : preview.dateStart;
+  const suggestion = useQuery(
+    api.weeklyInsights.suggestWeekly,
+    visible && canBeWeekly && kind === "weekly" && suggestAt !== null
+      ? { subgroup: ownerGroup, dateStart: suggestAt, eventId: event?._id }
+      : "skip"
+  );
+  const weekly = kind === "weekly" && canBeWeekly;
+  const pickedTerm = term ?? suggestion?.suggested ?? null;
+  const weekValue = weekTouched ? weekText : suggestion ? String(suggestion.suggested.week) : "";
+  const weekNumber = Number(weekValue);
+  const weekValid = Number.isInteger(weekNumber) && weekNumber >= 1 && weekNumber <= 20;
+  const termOptions = [
+    ...(suggestion?.options ?? []),
+    ...(pickedTerm && suggestion && !suggestion.options.some((o) => o.year === pickedTerm.year && o.slot === pickedTerm.slot)
+      ? [{ year: pickedTerm.year, slot: pickedTerm.slot, label: termLabel(suggestion.system, pickedTerm.slot, pickedTerm.year) }]
+      : []),
+  ].map((o) => ({ value: termValue(o), label: o.label }));
+  const nameValue =
+    weekly && !nameTouched && pickedTerm && weekValid && suggestion
+      ? weeklyName(suggestion.system, pickedTerm.slot, weekNumber)
+      : name;
+  const weeklyReady = !weekly || (!!pickedTerm && weekValid);
 
   const steps = ["Name", "Tags", "Collaboration", "Schedule"];
   const maxStep = steps.length - 1;
@@ -237,19 +298,25 @@ export function CreateEventSheet({
     }
     const { dateStart, dateEnd } = schedule;
     try {
+      const mark = weekly && pickedTerm ? { ...pickedTerm, week: weekNumber } : null;
       const payload = {
-        name,
+        name: nameValue,
         dateStart,
         dateEnd,
         subgroups: collaborators,
         tagIds: selectedTags.length ? selectedTags : undefined,
       };
       if (event) {
-        await updateEvent({ eventId: event._id, ...payload });
+        await updateEvent({
+          eventId: event._id,
+          ...payload,
+          // Switching an event away from Weekly takes its term, week and tag off.
+          ...(mark ? { weekly: mark } : initialKind === "weekly" ? { weekly: null } : {}),
+        });
         onClose();
         return;
       }
-      const eventId = await createEvent(payload);
+      const eventId = await createEvent({ ...payload, ...(mark ? { weekly: mark } : {}) });
       resetForm();
       onClose();
       router.push({
@@ -282,7 +349,13 @@ export function CreateEventSheet({
   const sameMembers = <T,>(a: readonly T[], b: readonly T[]) =>
     a.length === b.length && a.every((x) => b.includes(x));
   const dirty =
-    name !== initial.name ||
+    nameValue !== initial.name ||
+    kind !== initialKind ||
+    (weekly &&
+      (!event?.weekly ||
+        pickedTerm?.year !== event.weekly.year ||
+        pickedTerm?.slot !== event.weekly.slot ||
+        weekNumber !== event.weekly.week)) ||
     !sameMembers(selectedTags, initial.tags) ||
     !sameMembers(collaborators, initial.collaborators) ||
     dateStr !== initial.dateStr ||
@@ -357,7 +430,7 @@ export function CreateEventSheet({
             <Btn
               title="Next"
               onPress={() => setStep((s) => s + 1)}
-              disabled={step === 0 && !name.trim()}
+              disabled={step === 0 && (!nameValue.trim() || !weeklyReady)}
             />
           ) : isEditing ? (
             saveButton
@@ -366,6 +439,7 @@ export function CreateEventSheet({
               title="Create"
               onPress={() => void submit()}
               loading={submitting}
+              disabled={!weeklyReady}
             />
           )}
         </View>
@@ -373,7 +447,7 @@ export function CreateEventSheet({
     >
       <View style={{ flexDirection: "row", gap: 6, marginBottom: spacing.sm }}>
         {steps.map((label, i) => {
-          const reachable = i <= step || !!name.trim();
+          const reachable = i <= step || (!!nameValue.trim() && weeklyReady);
           return (
             <Pressable
               key={i}
@@ -400,12 +474,68 @@ export function CreateEventSheet({
       </View>
 
       {step === 0 ? (
-        <Field
-          label="Event name"
-          value={name}
-          onChangeText={setName}
-          placeholder="e.g. Weekly Meeting"
-        />
+        <View style={{ gap: spacing.md }}>
+          {canBeWeekly ? (
+            <View style={{ gap: spacing.xs }}>
+              <Txt style={[typography.label, { color: t.muted }]}>Type</Txt>
+              <Segmented
+                segments={[
+                  { key: "weekly", label: "Weekly" },
+                  { key: "event", label: "Other event" },
+                ]}
+                active={kind}
+                onChange={(key) => setKind(key as Kind)}
+              />
+            </View>
+          ) : null}
+          {weekly ? (
+            <View style={{ flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" }}>
+              <View style={{ flex: 2 }}>
+                <Select
+                  label={suggestion?.system === "semesters" ? "Semester" : "Term"}
+                  value={pickedTerm ? termValue(pickedTerm) : ""}
+                  options={termOptions}
+                  placeholder={suggestion ? "Choose" : "Loading…"}
+                  onSelect={(value) => {
+                    const [year, slot] = value.split(":").map(Number);
+                    setTerm({ year, slot });
+                  }}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Field
+                  label="Week"
+                  value={weekValue}
+                  onChangeText={(text) => {
+                    setWeekText(text.replace(/\D/g, "").slice(0, 2));
+                    setWeekTouched(true);
+                  }}
+                  keyboardType="numeric"
+                  maxLength={2}
+                  placeholder="1"
+                  accessibilityLabel="Week number"
+                />
+              </View>
+            </View>
+          ) : null}
+          {weekly && weekValue.trim() && !weekValid ? (
+            <Txt style={{ color: t.errorText }}>The week is a number from 1 to 20.</Txt>
+          ) : null}
+          <Field
+            label="Event name"
+            value={nameValue}
+            onChangeText={(text) => {
+              setName(text);
+              setNameTouched(true);
+            }}
+            placeholder={weekly ? "e.g. Weeklies T3W5" : "e.g. Hot Pot Night"}
+          />
+          {weekly && collaborators.length > 1 ? (
+            <Txt style={{ color: t.faint }}>
+              {"Weeklies shared with other campuses don't count in Insights."}
+            </Txt>
+          ) : null}
+        </View>
       ) : null}
 
       {step === 1 ? (
