@@ -38,9 +38,24 @@ export default defineSchema({
     phone: v.optional(v.string()),
     phoneVerificationTime: v.optional(v.number()),
     isAnonymous: v.optional(v.boolean()),
+    // The church they picked from the list (`churches`).
+    churchId: v.optional(v.id("churches")),
+    // What they typed before churches were a list; shown as a hint until
+    // they pick one.
     localChurch: v.optional(v.string()),
     avatarId: v.optional(v.id("_storage")),
   }).index("email", ["email"]),
+
+  // Local churches staff go to, which any staff member can add or fill in.
+  churches: defineTable({
+    name: v.string(),
+    // Lower-case, single-spaced name, so the same church isn't added twice.
+    nameKey: v.string(),
+    address: v.optional(v.string()),
+    serviceTimes: v.optional(v.string()),
+    addedBy: v.string(),
+    updatedBy: v.optional(v.string()),
+  }).index("by_nameKey", ["nameKey"]),
 
   staffProfiles: defineTable({
     email: v.string(),

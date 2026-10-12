@@ -9,6 +9,7 @@ import { timeAgo } from "../../shared/datetime";
 import { acronym, formatAssignment, staffYearForDate } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { ChromeScreen } from "./ChromeScreen";
+import { ChurchDetails, ChurchPicker } from "./ChurchPicker";
 import { radius, spacing, typography, useAppTheme } from "../theme";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
 import {
@@ -17,12 +18,10 @@ import {
 } from "@/lib/uploadLocalFile";
 import {
   Avatar,
-  Btn,
   Card,
   ErrorBanner,
   errorMessage,
   FadeInView,
-  Field,
   LoadingState,
   MAX_UPLOAD_BYTES,
   Muted,
@@ -59,11 +58,9 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
   const profile = useQuery(api.profile.get, email ? { email } : {});
   // Keeps "Last online 5m ago" current while the profile is open.
   useMinuteTick();
-  const updateChurch = useMutation(api.profile.updateChurch);
   const generateAvatarUploadUrl = useMutation(api.profile.generateAvatarUploadUrl);
   const setAvatar = useMutation(api.profile.setAvatar);
 
-  const [churchDraft, setChurchDraft] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -108,16 +105,6 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
       setError(errorMessage(e));
     } finally {
       setUploading(false);
-    }
-  };
-
-  const saveChurch = async () => {
-    setError(null);
-    try {
-      await updateChurch({ localChurch: churchDraft ?? "" });
-      setChurchDraft(null);
-    } catch (e) {
-      setError(errorMessage(e));
     }
   };
 
@@ -172,7 +159,7 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
           ) : (
             <Muted>No assignment for {currentYear}</Muted>
           )}
-          {!profile.isMe && profile.localChurch ? (
+          {!profile.isMe && !profile.church && profile.localChurch ? (
             <Muted>Church: {profile.localChurch}</Muted>
           ) : null}
           <ErrorBanner message={error} />
@@ -182,17 +169,7 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
       {profile.isMe && (
         <FadeInView delay={stagger(1)}>
           <Card>
-            <Field
-              label="Local church"
-              value={churchDraft ?? profile.localChurch ?? ""}
-              onChangeText={setChurchDraft}
-              placeholder="e.g. SOW City Church"
-            />
-            <Btn
-              title="Save Church"
-              onPress={() => void saveChurch()}
-              disabled={churchDraft === null}
-            />
+            <ChurchPicker church={profile.church} typedChurch={profile.typedChurch} />
             <Muted>
               Name and email sync from Google; your role and department are set
               by admins per year.
@@ -200,6 +177,15 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
           </Card>
         </FadeInView>
       )}
+
+      {!profile.isMe && profile.church ? (
+        <FadeInView delay={stagger(1)}>
+          <Card style={{ gap: spacing.sm }}>
+            <Text style={[typography.label, { color: t.muted }]}>Local church</Text>
+            <ChurchDetails church={profile.church} />
+          </Card>
+        </FadeInView>
+      ) : null}
 
       <SectionTitle>Service History</SectionTitle>
       {profile.serviceHistory.length === 0 ? (

@@ -6,6 +6,21 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.5.5] — 2026-10-12
+
+### Added
+- **Pick your local church from a list.** Profile's free-text church box is
+  now a dropdown of churches staff go to. Each church shows where it meets
+  (tap to open it in Maps) and its service times, and that shows on your
+  profile for other staff too. Not in the list? Add it with its location and
+  service times; anyone on staff can fill in a missing detail later. The list
+  starts with Harbour City Church (Gladesville, Sunday 10:30am) and Living
+  Hope Presbyterian Church (Sunday 10am and 12pm). Anyone who typed one of
+  those is linked to it; anyone who typed something else sees it as a hint
+  until they pick or add their church.
+- **A reminder to set your local church**, as a notification and a push, for
+  staff who haven't picked one.
+
 ## [2.5.4] — 2026-10-12
 
 ### Fixed

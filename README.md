@@ -49,6 +49,11 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   old identity so they are not treated as a new person.
   Admin → Users marks staff who have **never signed in** to The SHED, with a
   count and a filter to list only them.
+- **Local church**: staff pick their church in Profile from a shared list
+  (`churches`) that any staff member can add to or fill in: each church has
+  where it meets (tap to open the map) and its service times, shown on their
+  profile to signed-in staff. `churches:remindToSetChurch` reminds this year's
+  staff who haven't picked one (in-app notification and push).
 - **Last online**: someone else's profile shows when they last had The SHED
   open (signed-in viewers only), or that they haven't signed in yet. The app
   and website report it while open, at most every 5 minutes
