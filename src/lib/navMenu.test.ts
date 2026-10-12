@@ -145,11 +145,11 @@ describe("drawerItems", () => {
 
 describe("sidebarItems", () => {
   test("signed-out people see the public pages", () => {
-    expect(sidebarItems(signedOut)).toEqual(["home", "insights", "org"]);
+    expect(sidebarItems(signedOut)).toEqual(["home", "insights", "org", "churches"]);
   });
 
   test("guests add Profile", () => {
-    expect(sidebarItems(guest)).toEqual(["home", "insights", "org", "profile"]);
+    expect(sidebarItems(guest)).toEqual(["home", "insights", "org", "churches", "profile"]);
   });
 
   test("staff see everything but Admin, in tab order", () => {

@@ -9,7 +9,7 @@ import { timeAgo } from "../../shared/datetime";
 import { acronym, formatAssignment, staffYearForDate } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { ChromeScreen } from "./ChromeScreen";
-import { ChurchDetails, ChurchPicker, useCanEditChurches } from "./ChurchPicker";
+import { ChurchDetails, ChurchPicker } from "./ChurchPicker";
 import { radius, spacing, typography, useAppTheme } from "../theme";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
 import {
@@ -65,7 +65,6 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
   const [uploading, setUploading] = useState(false);
 
   const router = useRouter();
-  const canOpenChurches = useCanEditChurches();
   const goBack = router.canGoBack() ? () => router.back() : undefined;
 
   if (!profile) {
@@ -182,23 +181,20 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
       {!profile.isMe && profile.church ? (
         <FadeInView delay={stagger(1)}>
           <Pressable
-            disabled={!canOpenChurches}
-            accessibilityRole={canOpenChurches ? "link" : undefined}
-            accessibilityLabel={canOpenChurches ? `${profile.church.name}. See who goes there` : undefined}
+            accessibilityRole="link"
+            accessibilityLabel={`${profile.church.name}. See who goes there`}
             onPress={() => router.push({ pathname: "/churches", params: { church: profile.church!._id } })}
             style={({ pressed }) => pressed && { opacity: 0.85 }}
           >
             <Card style={{ gap: spacing.sm }}>
               <Text style={[typography.label, { color: t.muted }]}>Local church</Text>
               <ChurchDetails church={profile.church} />
-              {canOpenChurches ? (
-                <View style={styles.seeWho}>
-                  <Text style={[typography.caption, { color: t.primary, fontWeight: "700" }]}>
-                    See who goes there
-                  </Text>
-                  <Ionicons name="chevron-forward" size={16} color={t.primary} />
-                </View>
-              ) : null}
+              <View style={styles.seeWho}>
+                <Text style={[typography.caption, { color: t.primary, fontWeight: "700" }]}>
+                  See who goes there
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color={t.primary} />
+              </View>
             </Card>
           </Pressable>
         </FadeInView>

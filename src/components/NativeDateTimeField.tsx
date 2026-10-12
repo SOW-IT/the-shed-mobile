@@ -1,7 +1,7 @@
 import { DateTimePicker } from "@expo/ui/community/datetime-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { Platform, Pressable, View } from "react-native";
 import { Btn, Sheet, Txt } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
 import {
@@ -14,6 +14,8 @@ import {
   formatTimeDisplay,
   inputToTime,
 } from "./dateTimeDisplay";
+
+const PICKER_IS_A_DIALOG = Platform.OS === "android";
 
 const clampDate = (d: Date, min?: Date, max?: Date): Date => {
   let ms = d.getTime();
@@ -134,7 +136,10 @@ export const NativeDateInput = ({
             minimumDate={minDate}
             maximumDate={maxDate}
             accentColor={t.primary}
-            onValueChange={(_event, date) => onChange(toDateInputValue(date))}
+            onValueChange={(_event, date) => {
+              onChange(toDateInputValue(date));
+              if (PICKER_IS_A_DIALOG) setOpen(false);
+            }}
             onDismiss={() => setOpen(false)}
           />
         </View>
@@ -179,7 +184,10 @@ export const NativeTimeInput = ({
             style={{ width: "100%" }}
             value={initial}
             accentColor={t.primary}
-            onValueChange={(_event, date) => onChange(toTimeInputValue(date))}
+            onValueChange={(_event, date) => {
+              onChange(toTimeInputValue(date));
+              if (PICKER_IS_A_DIALOG) setOpen(false);
+            }}
             onDismiss={() => setOpen(false)}
           />
         </View>

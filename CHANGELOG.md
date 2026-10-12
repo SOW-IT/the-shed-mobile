@@ -32,6 +32,12 @@ All notable changes to **The SHED** mobile app. This project follows
 - **From a person to their church.** On someone's profile, and on an Insights
   member page, tap their church to open it on the Churches page with everyone
   who goes there.
+- **Service times are picked, not typed:** a day of the week and a start time
+  for each service, as many as a church has, shown as "Sunday 10am and 12pm".
+  A church can also have its website and Instagram, both optional.
+- **Anyone can see the churches**, signed in or not, from the Churches tab or
+  menu. Signed-out visitors see how many people go to each church but not
+  who, and no one's profile.
 - **Only staff and campus leaders add or edit churches** (anyone with a staff
   profile this year). Everyone signed in can pick theirs from the list.
 - **Members have a local church too.** Edit member has a Local church row
@@ -40,6 +46,10 @@ All notable changes to **The SHED** mobile app. This project follows
   also shows on their Insights member page.
 - **A reminder to set your local church**, as a notification and a push, for
   staff who haven't picked one.
+
+### Fixed
+- **Picking a date or time on Android** closes the picker. Before, the clock
+  opened again after OK until you pressed Cancel (in Create event too).
 
 ## [2.5.4] — 2026-10-12
 

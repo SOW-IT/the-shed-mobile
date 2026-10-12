@@ -39,8 +39,12 @@ function ChurchCard({
         </Pressable>
       ) : null}
       <ChurchDetails church={entry.church} onEdit={onEdit} />
-      {entry.people.length === 0 ? (
+      {entry.peopleCount === 0 ? (
         <Text style={[typography.caption, { color: t.muted }]}>Nobody has picked it yet.</Text>
+      ) : entry.people.length === 0 ? (
+        <Text style={[typography.caption, { color: t.muted }]}>
+          {entry.peopleCount === 1 ? "1 person goes here." : `${entry.peopleCount} people go here.`} Sign in to see who.
+        </Text>
       ) : (
         <View>
           <Text style={[styles.groupTitle, { color: t.muted }]}>
@@ -97,7 +101,6 @@ export function ChurchesView() {
   const t = useAppTheme();
   const router = useRouter();
   const directory = useQuery(api.churches.directory);
-  const me = useQuery(api.directory.me);
   const canEdit = useCanEditChurches();
   const [search, setSearch] = useState("");
   const [form, setForm] = useState<{ church: Church | null } | null>(null);
@@ -139,12 +142,14 @@ export function ChurchesView() {
           <Btn title="Add a church" icon="add" variant="tonal" onPress={() => setForm({ church: null })} />
         ) : null}
       </View>
-      {directory === undefined || me === undefined ? (
+      {directory === undefined ? (
         <LoadingState />
-      ) : !canEdit ? (
-        <EmptyState icon="business-outline" title="For staff" message="Staff and campus leaders see where everyone goes to church." />
       ) : directory.length === 0 ? (
-        <EmptyState icon="business-outline" title="No churches yet" message="Add the first one." />
+        <EmptyState
+          icon="business-outline"
+          title="No churches yet"
+          message={canEdit ? "Add the first one." : "Staff will add them soon."}
+        />
       ) : (
         <>
           <SearchField value={search} onChangeText={setSearch} placeholder="Search churches, people or roles" />

@@ -4,21 +4,34 @@ import { useState } from "react";
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
+import {
+  instagramUrl,
+  MAX_SERVICES,
+  parseServiceTimes,
+  type ServiceTime,
+  WEEKDAYS,
+  websiteLabel,
+} from "../../shared/churches";
 import { durations, radius, spacing, typography, useAppTheme } from "../theme";
-import { Btn, ErrorBanner, errorMessage, Field, OptionSheet, Sheet } from "./ui";
+import { NativeTimeInput } from "./NativeDateTimeField";
+import { Btn, ErrorBanner, errorMessage, Field, OptionSheet, Select, Sheet } from "./ui";
+import { WebTimeInput } from "./WebDateTimeInput";
 
 export type Church = {
   _id: Id<"churches">;
   name: string;
   address: string | null;
   serviceTimes: string | null;
+  services: ServiceTime[];
+  website: string | null;
+  instagram: string | null;
   location: { lat: number; lng: number } | null;
 };
 
-/** Opens a church's address in the phone's maps app (Apple Maps on iOS,
- *  Google Maps elsewhere and on the web). */
 export const useCanEditChurches = () => Boolean(useQuery(api.directory.me)?.profile);
 
+/** Opens a church's address in the phone's maps app (Apple Maps on iOS,
+ *  Google Maps elsewhere and on the web). */
 export const openInMaps = (address: string) => {
   const query = encodeURIComponent(address);
   void Linking.openURL(
@@ -56,6 +69,32 @@ export function ChurchDetails({ church, onEdit }: { church: Church; onEdit?: () 
           {church.serviceTimes ?? "No service times yet"}
         </Text>
       </View>
+      {church.website ? (
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel={`${church.name} website`}
+          onPress={() => void Linking.openURL(church.website!)}
+          style={({ pressed }) => [styles.detailRow, pressed && { opacity: 0.6 }]}
+        >
+          <Ionicons name="globe-outline" size={16} color={t.primary} />
+          <Text style={[typography.body, styles.link, { color: t.primary }]} numberOfLines={1}>
+            {websiteLabel(church.website)}
+          </Text>
+        </Pressable>
+      ) : null}
+      {church.instagram ? (
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel={`${church.name} on Instagram`}
+          onPress={() => void Linking.openURL(instagramUrl(church.instagram!))}
+          style={({ pressed }) => [styles.detailRow, pressed && { opacity: 0.6 }]}
+        >
+          <Ionicons name="logo-instagram" size={16} color={t.primary} />
+          <Text style={[typography.body, styles.link, { color: t.primary }]} numberOfLines={1}>
+            @{church.instagram}
+          </Text>
+        </Pressable>
+      ) : null}
       {onEdit ? (
         <Pressable
           accessibilityRole="button"
@@ -65,6 +104,67 @@ export function ChurchDetails({ church, onEdit }: { church: Church; onEdit?: () 
         >
           <Text style={[typography.caption, { color: t.primary, fontWeight: "700" }]}>
             {church.address && church.serviceTimes ? "Edit details" : "Add the missing details"}
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+const DAY_OPTIONS = WEEKDAYS.map((day, index) => ({ label: day, value: String(index) }));
+const TimeInput = Platform.OS === "web" ? WebTimeInput : NativeTimeInput;
+
+function ServiceTimesField({
+  services,
+  onChange,
+}: {
+  services: ServiceTime[];
+  onChange: (services: ServiceTime[]) => void;
+}) {
+  const t = useAppTheme();
+  const change = (index: number, patch: Partial<ServiceTime>) =>
+    onChange(services.map((service, i) => (i === index ? { ...service, ...patch } : service)));
+  return (
+    <View style={{ gap: spacing.sm }}>
+      <Text style={[typography.label, { color: t.muted }]}>Service times</Text>
+      {services.length === 0 ? (
+        <Text style={[typography.caption, { color: t.muted }]}>None yet. Add the day and time each service starts.</Text>
+      ) : null}
+      {services.map((service, index) => (
+        <View key={index} style={styles.serviceRow}>
+          <View style={{ flex: 1 }}>
+            <Select
+              label="Day"
+              value={String(service.day)}
+              options={DAY_OPTIONS}
+              onSelect={(day) => change(index, { day: Number(day) })}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <TimeInput label="Time" value={service.time} onChange={(time) => change(index, { time })} />
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Remove the ${WEEKDAYS[service.day]} service`}
+            hitSlop={8}
+            onPress={() => onChange(services.filter((_, i) => i !== index))}
+            style={({ pressed }) => [styles.removeService, pressed && { opacity: 0.6 }]}
+          >
+            <Ionicons name="close-circle" size={22} color={t.faint} />
+          </Pressable>
+        </View>
+      ))}
+      {services.length < MAX_SERVICES ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() =>
+            onChange([...services, { day: services[services.length - 1]?.day ?? 0, time: services.length ? "" : "10:00" }])
+          }
+          style={({ pressed }) => [styles.addService, pressed && { opacity: 0.6 }]}
+        >
+          <Ionicons name="add-circle-outline" size={18} color={t.primary} />
+          <Text style={[typography.caption, { color: t.primary, fontWeight: "700" }]}>
+            {services.length ? "Add another service" : "Add a service time"}
           </Text>
         </Pressable>
       ) : null}
@@ -86,11 +186,14 @@ export function ChurchForm({
   onClose: () => void;
   onSaved: (churchId: Id<"churches">) => void;
 }) {
+  const t = useAppTheme();
   const add = useMutation(api.churches.add);
   const update = useMutation(api.churches.update);
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
-  const [serviceTimes, setServiceTimes] = useState("");
+  const [services, setServices] = useState<ServiceTime[]>([]);
+  const [website, setWebsite] = useState("");
+  const [instagram, setInstagram] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [openedFor, setOpenedFor] = useState<string | null>(null);
@@ -102,16 +205,20 @@ export function ChurchForm({
     if (openKey) {
       setName(church?.name ?? initialName ?? "");
       setAddress(church?.address ?? "");
-      setServiceTimes(church?.serviceTimes ?? "");
+      setServices(church?.services.length ? church.services : parseServiceTimes(church?.serviceTimes ?? ""));
+      setWebsite(church?.website ?? "");
+      setInstagram(church?.instagram ? `@${church.instagram}` : "");
       setError(null);
     }
   }
+
+  const missingTime = services.some((service) => !service.time);
 
   const save = async () => {
     setSaving(true);
     setError(null);
     try {
-      const details = { name, address, serviceTimes };
+      const details = { name, address, services, website, instagram };
       if (church) {
         await update({ churchId: church._id, ...details });
         onSaved(church._id);
@@ -130,7 +237,13 @@ export function ChurchForm({
       visible={visible}
       onClose={onClose}
       title={church ? "Edit church" : "Add a church"}
-      footer={<Btn title={church ? "Save" : "Add church"} onPress={() => void save()} disabled={saving || !name.trim()} />}
+      footer={
+        <Btn
+          title={church ? "Save" : "Add church"}
+          onPress={() => void save()}
+          disabled={saving || !name.trim() || missingTime}
+        />
+      }
     >
       <Field label="Name" value={name} onChangeText={setName} placeholder="e.g. Harbour City Church" />
       <Field
@@ -139,11 +252,24 @@ export function ChurchForm({
         onChangeText={setAddress}
         placeholder="Street address, suburb"
       />
+      <ServiceTimesField services={services} onChange={setServices} />
+      {missingTime ? (
+        <Text style={[typography.caption, { color: t.muted }]}>Pick a time for each service, or remove it.</Text>
+      ) : null}
       <Field
-        label="Service times"
-        value={serviceTimes}
-        onChangeText={setServiceTimes}
-        placeholder="e.g. Sunday 10am and 12pm"
+        label="Website (optional)"
+        value={website}
+        onChangeText={setWebsite}
+        placeholder="e.g. harbourcitychurch.com"
+        keyboardType="url"
+        autoCorrect={false}
+      />
+      <Field
+        label="Instagram (optional)"
+        value={instagram}
+        onChangeText={setInstagram}
+        placeholder="e.g. @harbourcitychurch"
+        autoCorrect={false}
       />
       <ErrorBanner message={error} />
     </Sheet>
@@ -344,4 +470,7 @@ const styles = StyleSheet.create({
   },
   addOption: { borderWidth: 1, borderStyle: "dashed" },
   clear: { alignSelf: "center", paddingVertical: spacing.sm },
+  serviceRow: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm },
+  removeService: { height: 44, justifyContent: "center" },
+  addService: { flexDirection: "row", alignItems: "center", gap: spacing.xs, alignSelf: "flex-start", paddingVertical: 4 },
 });

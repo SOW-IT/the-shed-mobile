@@ -11,10 +11,19 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { CAMPUS_FIELD_KEY } from "../shared/attendanceMemberMeta";
+import {
+  cleanInstagram,
+  cleanWebsite,
+  formatServices,
+  isServiceTime,
+  MAX_SERVICES,
+  type ServiceTime,
+  sortServices,
+} from "../shared/churches";
 import { assignmentsOf, MEMBER } from "../shared/flow";
 import { personDisplayName } from "../shared/rollcall";
 import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
-import { currentStaffYear, getProfile, optionalEmail, optionalProfile, requireProfile, rolesOf } from "./model";
+import { currentStaffYear, getProfile, optionalEmail, requireProfile, rolesOf } from "./model";
 
 // Local churches staff go to. Any staff member can add one (with where it is
 // and when it meets) or fill in a missing detail; everyone picks theirs from
@@ -30,24 +39,30 @@ const MAX_ATTENDEES = 500;
 export const STARTER_CHURCHES: {
   name: string;
   address?: string;
-  serviceTimes: string;
+  services: ServiceTime[];
   aliases?: string[];
 }[] = [
-  { name: "Living Hope Presbyterian Church", serviceTimes: "Sunday 10am and 12pm" },
+  {
+    name: "Living Hope Presbyterian Church",
+    services: [
+      { day: 0, time: "10:00" },
+      { day: 0, time: "12:00" },
+    ],
+  },
   {
     name: "Harbour City Church",
     address: "41b College Street, Gladesville NSW 2111",
-    serviceTimes: "Sunday 10:30am",
+    services: [{ day: 0, time: "10:30" }],
   },
   {
     name: "Sydney Young Nak Church",
     address: "7-9 Manson Street, Telopea NSW",
-    serviceTimes: "Sunday 1:15pm",
+    services: [{ day: 0, time: "13:15" }],
   },
   {
     name: "Sydney Sae Soon Presbyterian Church (New Life)",
     address: "219A North Rocks Road, North Rocks NSW",
-    serviceTimes: "Sunday 10am",
+    services: [{ day: 0, time: "10:00" }],
     aliases: [
       "Sydney Saesoon Presbyterian Church",
       "New Life Sydney (Saesoon Presbyterian Church)",
@@ -60,12 +75,16 @@ const tidy = (text: string | undefined) => text?.trim().replace(/\s+/g, " ") || 
 export const churchNameKey = (name: string) => tidy(name)?.toLowerCase() ?? "";
 
 const locationView = v.object({ lat: v.number(), lng: v.number() });
+const serviceView = v.object({ day: v.number(), time: v.string() });
 
 export const churchView = v.object({
   _id: v.id("churches"),
   name: v.string(),
   address: v.union(v.string(), v.null()),
   serviceTimes: v.union(v.string(), v.null()),
+  services: v.array(serviceView),
+  website: v.union(v.string(), v.null()),
+  instagram: v.union(v.string(), v.null()),
   location: v.union(locationView, v.null()),
 });
 
@@ -73,7 +92,10 @@ export const viewOf = (church: Doc<"churches">) => ({
   _id: church._id,
   name: church.name,
   address: church.address ?? null,
-  serviceTimes: church.serviceTimes ?? null,
+  serviceTimes: formatServices(church.services ?? []) ?? church.serviceTimes ?? null,
+  services: church.services ?? [],
+  website: church.website ?? null,
+  instagram: church.instagram ?? null,
   location: church.location ?? null,
 });
 
@@ -103,8 +125,37 @@ export const list = query({
 const details = {
   name: v.string(),
   address: v.optional(v.string()),
-  serviceTimes: v.optional(v.string()),
+  services: v.optional(v.array(serviceView)),
+  website: v.optional(v.string()),
+  instagram: v.optional(v.string()),
 };
+
+type Details = {
+  name: string;
+  address?: string;
+  services?: ServiceTime[];
+  website?: string;
+  instagram?: string;
+};
+
+function cleanDetails({ name, address, services = [], website, instagram }: Details) {
+  if (services.length > MAX_SERVICES) throw new ConvexError(`A church can have up to ${MAX_SERVICES} service times.`);
+  if (!services.every(isServiceTime)) throw new ConvexError("Pick a day and a time for each service.");
+  const site = cleanWebsite(website);
+  if (site === null) throw new ConvexError("That website doesn't look right. Try something like harbourcitychurch.com.");
+  const handle = cleanInstagram(instagram);
+  if (handle === null) throw new ConvexError("That Instagram doesn't look right. Use the handle, like @harbourcitychurch.");
+  const sorted = sortServices(services);
+  return {
+    name: tidy(name)!,
+    nameKey: churchNameKey(name),
+    address: tidy(address),
+    services: sorted.length ? sorted : undefined,
+    serviceTimes: undefined,
+    website: site,
+    instagram: handle,
+  };
+}
 
 async function checkName(ctx: MutationCtx, name: string, except?: Id<"churches">) {
   if (!tidy(name)) throw new ConvexError("Add the church's name.");
@@ -118,17 +169,12 @@ async function checkName(ctx: MutationCtx, name: string, except?: Id<"churches">
 export const add = mutation({
   args: details,
   returns: v.id("churches"),
-  handler: async (ctx, { name, address, serviceTimes }) => {
+  handler: async (ctx, input) => {
     const { email } = await requireProfile(ctx);
-    await checkName(ctx, name);
-    const churchId = await ctx.db.insert("churches", {
-      name: tidy(name)!,
-      nameKey: churchNameKey(name),
-      address: tidy(address),
-      serviceTimes: tidy(serviceTimes),
-      addedBy: email,
-    });
-    if (tidy(address)) await scheduleLocating(ctx);
+    await checkName(ctx, input.name);
+    const church = cleanDetails(input);
+    const churchId = await ctx.db.insert("churches", { ...church, addedBy: email });
+    if (church.address) await scheduleLocating(ctx);
     return churchId;
   },
 });
@@ -137,21 +183,19 @@ export const add = mutation({
 export const update = mutation({
   args: { churchId: v.id("churches"), ...details },
   returns: v.null(),
-  handler: async (ctx, { churchId, name, address, serviceTimes }) => {
+  handler: async (ctx, { churchId, ...input }) => {
     const { email } = await requireProfile(ctx);
     const church = await ctx.db.get("churches", churchId);
     if (!church) throw new ConvexError("That church isn't in the list any more.");
-    await checkName(ctx, name, churchId);
-    const moved = tidy(address) !== church.address;
+    await checkName(ctx, input.name, churchId);
+    const changes = cleanDetails(input);
+    const moved = changes.address !== church.address;
     await ctx.db.patch("churches", churchId, {
-      name: tidy(name)!,
-      nameKey: churchNameKey(name),
-      address: tidy(address),
-      serviceTimes: tidy(serviceTimes),
+      ...changes,
       updatedBy: email,
       ...(moved ? { location: undefined, locatedAt: undefined } : {}),
     });
-    if (moved && tidy(address)) await scheduleLocating(ctx);
+    if (moved && changes.address) await scheduleLocating(ctx);
     return null;
   },
 });
@@ -172,10 +216,13 @@ export const setUp = internalMutation({
     let added = 0;
     const aliases = new Map<string, Id<"churches">>();
     for (const { aliases: alsoKnownAs = [], ...church } of STARTER_CHURCHES) {
-      let id = (await churchByName(ctx, church.name))?._id;
+      const existing = await churchByName(ctx, church.name);
+      let id = existing?._id;
       if (!id) {
         id = await ctx.db.insert("churches", { ...church, nameKey: churchNameKey(church.name), addedBy: "system" });
         added++;
+      } else if (!existing?.services?.length) {
+        await ctx.db.patch("churches", id, { services: church.services, serviceTimes: undefined });
       }
       for (const alias of alsoKnownAs) aliases.set(churchNameKey(alias), id);
     }
@@ -259,9 +306,9 @@ const leadersFirst = (a: Person, b: Person) => roleRank(a.role) - roleRank(b.rol
 
 export const directory = query({
   args: {},
-  returns: v.array(v.object({ church: churchView, people: v.array(personView) })),
+  returns: v.array(v.object({ church: churchView, people: v.array(personView), peopleCount: v.number() })),
   handler: async (ctx) => {
-    if (!(await optionalProfile(ctx))) return [];
+    const signedIn = (await optionalEmail(ctx)) !== null;
     const campusField = (await ctx.db.query("attendanceMetadata").take(200)).find(
       (f) => f.key === CAMPUS_FIELD_KEY
     );
@@ -304,7 +351,8 @@ export const directory = query({
           memberId: member._id,
         });
       }
-      out.push({ church: viewOf(church), people: people.sort(leadersFirst) });
+      people.sort(leadersFirst);
+      out.push({ church: viewOf(church), people: signedIn ? people : [], peopleCount: people.length });
     }
     return out;
   },

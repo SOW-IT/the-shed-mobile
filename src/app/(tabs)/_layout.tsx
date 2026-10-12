@@ -219,7 +219,6 @@ export default function TabsLayout() {
         options={{ title: "Event Requests", href: null }}
       />
       <Tabs.Screen name="profile" options={{ title: "Profile", href: null }} />
-      <Tabs.Screen name="churches" options={{ title: "Churches", href: null }} />
       <Tabs.Screen
         name="attendance"
         options={{
@@ -242,6 +241,14 @@ export default function TabsLayout() {
         options={{
           title: "Org Chart",
           tabBarIcon: tabIcon("people-outline", "people"),
+        }}
+      />
+      <Tabs.Screen
+        name="churches"
+        options={{
+          title: "Churches",
+          ...(isStaff ? { href: null } : {}),
+          tabBarIcon: tabIcon("business-outline", "business"),
         }}
       />
       <Tabs.Screen

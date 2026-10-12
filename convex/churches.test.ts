@@ -36,12 +36,30 @@ describe("the church list", () => {
     const grace = await sam.mutation(api.churches.add, {
       name: "  Grace   Church ",
       address: " 1 Church St,  Ryde ",
-      serviceTimes: "Sunday 10am",
+      services: [
+        { day: 0, time: "17:00" },
+        { day: 0, time: "10:00" },
+      ],
+      website: "gracechurch.org.au",
+      instagram: "@gracechurchryde",
     });
-    await sam.mutation(api.churches.add, { name: "Abba Church", serviceTimes: "  " });
+    await sam.mutation(api.churches.add, { name: "Abba Church", services: [], website: " ", instagram: "" });
+    const empty = { address: null, serviceTimes: null, services: [], website: null, instagram: null, location: null };
     expect(await sam.query(api.churches.list, {})).toEqual([
-      { _id: expect.any(String), name: "Abba Church", address: null, serviceTimes: null, location: null },
-      { _id: grace, name: "Grace Church", address: "1 Church St, Ryde", serviceTimes: "Sunday 10am", location: null },
+      { _id: expect.any(String), name: "Abba Church", ...empty },
+      {
+        _id: grace,
+        name: "Grace Church",
+        address: "1 Church St, Ryde",
+        serviceTimes: "Sunday 10am and 5pm",
+        services: [
+          { day: 0, time: "10:00" },
+          { day: 0, time: "17:00" },
+        ],
+        website: "https://gracechurch.org.au/",
+        instagram: "gracechurchryde",
+        location: null,
+      },
     ]);
     await expect(sam.mutation(api.churches.add, { name: "grace church" })).rejects.toThrow(
       "Grace Church is already in the list"
@@ -58,10 +76,23 @@ describe("the church list", () => {
       churchId: abba,
       name: "Abba Church",
       address: "2 Hill Rd, Eastwood",
-      serviceTimes: "Sunday 11am",
+      services: [{ day: 6, time: "18:30" }],
     });
     const row = await t.run((ctx) => ctx.db.get("churches", abba));
-    expect(row).toMatchObject({ address: "2 Hill Rd, Eastwood", serviceTimes: "Sunday 11am", updatedBy: ADMIN });
+    expect(row).toMatchObject({ address: "2 Hill Rd, Eastwood", services: [{ day: 6, time: "18:30" }], updatedBy: ADMIN });
+    const bad = (details: object) => admin.mutation(api.churches.update, { churchId: abba, name: "Abba Church", ...details });
+    await expect(bad({ services: [{ day: 7, time: "10:00" }] })).rejects.toThrow("Pick a day and a time");
+    await expect(bad({ services: [{ day: 0, time: "10am" }] })).rejects.toThrow("Pick a day and a time");
+    await expect(
+      bad({ services: Array.from({ length: 11 }, (_, i) => ({ day: 0, time: `${String(i + 8).padStart(2, "0")}:00` })) })
+    ).rejects.toThrow("up to 10 service times");
+    await expect(bad({ website: "not a site" })).rejects.toThrow("That website doesn't look right");
+    await expect(bad({ instagram: "@not a handle" })).rejects.toThrow("That Instagram doesn't look right");
+    await t.run((ctx) => ctx.db.patch("churches", abba, { services: undefined, serviceTimes: "Sunday 9am" }));
+    expect((await sam.query(api.churches.list, {})).find((c) => c._id === abba)).toMatchObject({
+      serviceTimes: "Sunday 9am",
+      services: [],
+    });
     await expect(
       admin.mutation(api.churches.update, { churchId: abba, name: "GRACE church" })
     ).rejects.toThrow("already in the list");
@@ -85,21 +116,46 @@ describe("the church list", () => {
     expect(await t.mutation(internal.churches.setUp, {})).toEqual({ added: 0, linked: 0, next: null });
     const churches = await t.run((ctx) => ctx.db.query("churches").collect());
     const harbour = churches.find((c) => c.name === "Harbour City Church")!;
-    expect(harbour).toMatchObject({ address: "41b College Street, Gladesville NSW 2111", serviceTimes: "Sunday 10:30am" });
+    expect(harbour).toMatchObject({
+      address: "41b College Street, Gladesville NSW 2111",
+      services: [{ day: 0, time: "10:30" }],
+    });
     expect(churches.find((c) => c.name === "Living Hope Presbyterian Church")).toMatchObject({
-      serviceTimes: "Sunday 10am and 12pm",
+      services: [
+        { day: 0, time: "10:00" },
+        { day: 0, time: "12:00" },
+      ],
     });
     expect(churches.find((c) => c.name === "Sydney Young Nak Church")).toMatchObject({
       address: "7-9 Manson Street, Telopea NSW",
-      serviceTimes: "Sunday 1:15pm",
+      services: [{ day: 0, time: "13:15" }],
     });
     const newLife = churches.find((c) => c.name === "Sydney Sae Soon Presbyterian Church (New Life)")!;
-    expect(newLife).toMatchObject({ address: "219A North Rocks Road, North Rocks NSW", serviceTimes: "Sunday 10am" });
+    expect(newLife).toMatchObject({
+      address: "219A North Rocks Road, North Rocks NSW",
+      services: [{ day: 0, time: "10:00" }],
+    });
     expect(await t.run((ctx) => ctx.db.get("users", saesoon))).toMatchObject({ churchId: newLife._id });
     const [sam, x] = await t.run(async (ctx) => [await ctx.db.get("users", samId), await ctx.db.get("users", other)]);
     expect(sam).toMatchObject({ churchId: harbour._id });
     expect(sam?.localChurch).toBeUndefined();
     expect(x).toMatchObject({ localChurch: "Somewhere Else" });
+  });
+
+  test("setUp gives starter churches that only had typed times their days and times", async () => {
+    const { t } = await setup();
+    await t.run((ctx) =>
+      ctx.db.insert("churches", {
+        name: "Harbour City Church",
+        nameKey: "harbour city church",
+        serviceTimes: "Sunday 10:30am",
+        addedBy: "system",
+      })
+    );
+    expect(await t.mutation(internal.churches.setUp, {})).toMatchObject({ added: 3 });
+    const harbour = (await t.run((ctx) => ctx.db.query("churches").collect())).find((c) => c.name === "Harbour City Church")!;
+    expect(harbour.services).toEqual([{ day: 0, time: "10:30" }]);
+    expect(harbour.serviceTimes).toBeUndefined();
   });
 });
 
@@ -129,12 +185,21 @@ describe("who can add and edit churches", () => {
     await expect(
       gus.mutation(api.churches.update, { churchId: grace, name: "Renamed", address: "" })
     ).rejects.toThrow("No role/department assigned");
-    expect(await gus.query(api.churches.directory, {})).toEqual([]);
+    await sam.mutation(api.profile.setChurch, { churchId: grace });
+    const forGus = await gus.query(api.churches.directory, {});
+    expect(forGus.map((d) => [d.church.name, d.people.map((p) => p.name), d.peopleCount])).toEqual([
+      ["Abba Church", [], 0],
+      ["Grace Church", ["Sam Staff"], 1],
+    ]);
     await gus.mutation(api.profile.setChurch, { churchId: grace });
     expect((await gus.query(api.profile.get, {}))!.church?.name).toBe("Grace Church");
 
     expect(await t.query(api.churches.list, {})).toEqual([]);
-    expect(await t.query(api.churches.directory, {})).toEqual([]);
+    const forVisitors = await t.query(api.churches.directory, {});
+    expect(forVisitors.map((d) => [d.church.name, d.church.address, d.people, d.peopleCount])).toEqual([
+      ["Abba Church", null, [], 0],
+      ["Grace Church", "1 Church St", [], 2],
+    ]);
     expect(await t.run((ctx) => ctx.db.get("churches", grace))).toMatchObject({ name: "Grace Church", address: "1 Church St" });
   });
 });
@@ -286,7 +351,7 @@ describe("the map", () => {
     expect((await located(t, "Grace Church")).location).toEqual({ lat: -33.8, lng: 151.0 });
 
     const save = (address?: string) =>
-      sam.mutation(api.churches.update, { churchId: grace, name: "Grace Church", address, serviceTimes: "Sunday" });
+      sam.mutation(api.churches.update, { churchId: grace, name: "Grace Church", address, services: [] });
     await save("Nowhere Rd");
     expect((await located(t, "Grace Church")).location).toEqual({ lat: -33.8, lng: 151.0 });
 
