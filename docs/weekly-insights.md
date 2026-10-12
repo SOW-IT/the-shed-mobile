@@ -9,27 +9,46 @@ sheets. The org-wide SOW view is unchanged (see
 ## What it shows
 
 Pick a **term** (T1–T3 at UNSW, Sem 1–2 elsewhere) or a **whole calendar
-year**; the current term opens first.
+year**; the current term opens first. The picker has one row per year, newest
+first, with its terms side by side and the whole year last (T1, T2, T3,
+Year).
 
-- **Cards**, each against last year: Weekly avg, People, Regulars, Newcomers,
-  Newcomers who stayed (came 2+ times), Campus share. A term still running is
-  compared with last year's same term up to the same week; the current year
-  with last year up to the same day.
+- **Cards**: Weekly avg, People, Regulars, Newcomers, Newcomers who stayed
+  (came back for a second weekly), Campus share, each with its change in a
+  pill. A term is compared with **the term before** (T3 with T2, Sem 2 with
+  Sem 1, T1 with last year's T3); one still running is compared up to the
+  same week, and the comparison says so ("vs 97.3 in T2 2026 up to W4"),
+  since the term before's own page shows its whole term. A year is compared
+  with last year; the year in progress up to the same term and week ("vs
+  66.3 in 2025 up to T3 W4"), and so is its weekly avg by term chart. Each
+  card's (i) says what it's compared with, and Weekly avg and People say
+  whether Mega and combined weeklies are counted (not by default; see
+  `jointWeeklies` under Settings).
+- **Charts**, near the top: week by week against the term before (its bars
+  in grey), and who
+  came each week by category. The year view has one "who came each week"
+  chart per term. Each weekly is its own point: two in the same week (a special
+  night in a week the campus didn't number, say) show as "W7" and "W7·2",
+  in the charts and in a member's week grid.
 - **Needs follow-up** (current term only): people who were coming (Regular,
   or a Leader, judged on the weeklies before) but missed the last 2 held
   weeklies; then newcomers who missed the last one, while their visit is
   recent. Staff, alumni and guests are left out.
 - **Visitors**: this term's visitors from other campuses, those not back in
   the last 2 first, while their visit is recent.
-- **Charts**: week by week against last year's term, and who came each week
-  by category.
 - **Everyone**: each person's share of the weeklies held so far ("6/8 · 75%"),
-  category and last visit, grouped (this campus, other campuses, leaders,
+  category and last visit ("Last came T3W2 (23 Sep)"), grouped (this campus, other campuses, leaders,
   staff/alumni/guests) with Irregulars and Newcomers first. Filter by
   category or "No campus set", sort by % / name / last came, search by name.
-- Tapping anyone opens their page (`/attendance/member/[key]`): category and
-  share each term, the week grid, every event they've signed in to, and Edit
-  member.
+- Long lists (follow-up, visitors, everyone, a member's events) scroll inside
+  their box, with **Show all** under them to see the whole list.
+- Tapping anyone opens their page (`/attendance/member/[key]`): category,
+  share each term and when they last came, the week grid ("Weeklies attended
+  this term"), every event they've signed in to, and Edit member.
+- **Sign-in tags**: while an event is on, its sign-in screen tags Newcomers
+  and Visitors from the last nightly build, so leaders can welcome them. A
+  shared (multi-campus) event only tags newcomers; a finished event shows no
+  tags.
 
 ## Rules (`shared/weeklyInsights.ts`)
 
@@ -90,16 +109,18 @@ it's safe to run again.
 
 - **Stored per campus**: who came to which weekly, one row per term
   (`weeklyTermFacts`); the finished blocks for each term and year
-  (`weeklyInsightViews`); and an index row with the period list, how far
+  (`weeklyInsightViews`); an index row with the period list, how far
   through the attendance change log it got, and recent weekly head counts
-  (which the SOW view's campus comparison reads).
+  (which the SOW view's campus comparison reads); and everyone's category in
+  the latest term (`weeklyCategories`), for the sign-in tags
+  (`weeklyInsights.signInTags`).
 - **Nightly** (`weekly insights nightly build`, 16:30 UTC): for each campus,
   read the attendance change log and new events since the last build. Nothing
   relevant → just move the watermark. Otherwise re-read only the changed
   weeklies (or a removed member's), rewrite the terms whose facts changed,
-  and redo the views from the term before the first change onwards, plus the
-  latest term if someone in it was edited. The year view is also redone when
-  last year's comparison date passes. A settings change or a bump of
+  and redo the views from the term before the first change onwards (a term is
+  compared with the one before, so a change also redoes the next), plus the
+  latest term if someone in it or the term before was edited. The latest term is also redone when it stops running (no more "so far"). A settings change or a bump of
   `VIEW_VERSION` (when a deploy changes what views show) redoes every view
   from the stored facts, without reading attendance.
 - **First build** reads all weekly history once.

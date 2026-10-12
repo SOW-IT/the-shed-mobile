@@ -22,29 +22,36 @@ import {
 } from "../shared/rollcall";
 import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
 import {
+  CATEGORY_META,
   computeTerm,
+  cutToPoint,
   computeYear,
   DEFAULT_WEEKLY_SETTINGS,
   deriveTerms,
   followUps,
   type HeldWeekly,
-  sameTermLastYear,
   type TermFacts,
+  termBefore,
   termRows,
   termSystemFor,
   looksWeekly,
   suggestWeekly as suggestFrom,
   termOptions,
   weeklyName,
+  type TermRow,
+  type WeeklyCategory,
   type WeeklyMark,
   type WeeklyPerson,
   type WeeklySettings,
+  type YearCut,
+  yearCutOf,
 } from "../shared/weeklyInsights";
 import {
   buildMemberBlocks,
   buildTermBlocks,
   buildYearBlocks,
   type MemberEvent,
+  periodOptions,
 } from "../shared/weeklyInsightsView";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
@@ -58,6 +65,7 @@ import {
 } from "./_generated/server";
 import { currentStaffYear, optionalProfile } from "./model";
 import {
+  personCategoryValidator,
   termFactsFields,
   weeklyBlockValidator,
   weeklyMarkValidator,
@@ -83,7 +91,7 @@ const INDEX_WEEKLIES_WEEKS = 60;
 const NEVER = Number.MAX_SAFE_INTEGER;
 // Bump when what a view shows changes, so every campus redoes its views on
 // the next build after a deploy.
-export const VIEW_VERSION = 2;
+export const VIEW_VERSION = 4;
 
 export async function readSettings(
   ctx: QueryCtx
@@ -95,6 +103,20 @@ export async function readSettings(
 }
 
 const settingsValidator = v.object(weeklySettingsFields);
+
+const categoriesFor = (ctx: QueryCtx, subgroup: string) =>
+  ctx.db
+    .query("weeklyCategories")
+    .withIndex("by_subgroup", (q) => q.eq("subgroup", subgroup))
+    .unique();
+
+/** Everyone's category, under each key the sign-in screen might look them up
+ *  by: staff signed in through a member row also go under that member. */
+const categoryEntries = (rows: TermRow[]) =>
+  rows.flatMap((r) => [
+    { key: r.key, category: r.category },
+    ...(r.key.startsWith("staff:") && r.memberId ? [{ key: `member:${r.memberId}`, category: r.category }] : []),
+  ]);
 
 const indexFor = (ctx: QueryCtx, subgroup: string) =>
   ctx.db
@@ -182,10 +204,15 @@ export const checkChanges = internalQuery({
     const eventIds = new Set<Id<"events">>(created.map((e) => e._id));
     const memberIds = new Set<Id<"attendanceMembers">>();
     let tagChanged = false;
+    // Someone who left staff had their sign-ins moved off their staff email
+    // onto a member record: re-read the weeklies that had the staff email.
+    const leftStaff = new Set<string>();
     for (const row of audit) {
       if (row.eventId) eventIds.add(row.eventId);
       if (row.memberId) memberIds.add(row.memberId);
       if (row.entityType === "tag") tagChanged = true;
+      const email = row.action === "member.leftStaff" ? canonicalEmailKey(row.subjectEmail) : undefined;
+      if (email) leftStaff.add(`staff:${email}`);
     }
     const relevant: Id<"events">[] = [];
     for (const id of eventIds) {
@@ -200,6 +227,7 @@ export const checkChanges = internalQuery({
       const keys = [`member:${id}`, ...(member?.email ? [`staff:${canonicalEmailKey(member.email)}`] : [])];
       (member ? memberKeys : goneMemberKeys).push(...keys);
     }
+    goneMemberKeys.push(...leftStaff);
     const settingsChanged = index.settingsVersion !== version || index.viewVersion !== VIEW_VERSION;
     const compareDue = index.nextCompareAt <= now;
     return {
@@ -340,11 +368,22 @@ async function resolvePeople(ctx: QueryCtx, keys: string[], years: number[]): Pr
   for (const key of keys) {
     let member: Doc<"attendanceMembers"> | null;
     let email: string | undefined;
+    // Someone who left staff: the staff email they had, for the years they
+    // served (they're still a leader in those terms, a member after).
+    let formerStaffEmail: string | undefined;
     if (key.startsWith("member:")) {
       const id = ctx.db.normalizeId("attendanceMembers", key.slice("member:".length));
       member = id ? await ctx.db.get("attendanceMembers", id) : null;
       // Staff signed in through their member row still have a staff profile.
       email = member?.email ? canonicalEmailKey(member.email) : undefined;
+      if (id) {
+        const left = await ctx.db
+          .query("attendanceAuditLog")
+          .withIndex("by_member_and_action", (q) => q.eq("memberId", id).eq("action", "member.leftStaff"))
+          .order("desc")
+          .first();
+        formerStaffEmail = canonicalEmailKey(left?.subjectEmail);
+      }
     } else {
       email = key.slice("staff:".length);
       const staffEmail = email;
@@ -356,9 +395,11 @@ async function resolvePeople(ctx: QueryCtx, keys: string[], years: number[]): Pr
     const fallback = memberInfo(member);
     const infoByYear: WeeklyPerson["infoByYear"] = {};
     let latest: Doc<"staffProfiles"> | undefined;
-    for (const year of email ? years : []) {
+    const emails = [email, formerStaffEmail].filter((e): e is string => Boolean(e));
+    for (const year of emails.length ? years : []) {
       const byEmail = profilesByYear.get(year)!;
-      const profile = staffEmailCandidates(email!)
+      const profile = emails
+        .flatMap((e) => staffEmailCandidates(e))
         .map((candidate) => byEmail.get(candidate))
         .find((p) => p);
       if (!profile) continue;
@@ -431,10 +472,19 @@ export const saveView = internalMutation({
   },
 });
 
+const periodValidator = v.object({
+  key: v.string(),
+  label: v.string(),
+  group: v.optional(v.string()),
+  short: v.optional(v.string()),
+  kind: v.optional(v.union(v.literal("term"), v.literal("year"))),
+  slot: v.optional(v.number()),
+});
+
 const indexFields = {
   subgroup: v.string(),
   computedAt: v.number(),
-  periods: v.array(v.object({ key: v.string(), label: v.string() })),
+  periods: v.array(periodValidator),
   currentKey: v.union(v.string(), v.null()),
   weeklies: v.array(v.object({ at: v.number(), count: v.number(), joint: v.boolean() })),
   settingsVersion: v.number(),
@@ -444,11 +494,12 @@ const indexFields = {
   nextCompareAt: v.number(),
 };
 
-/** Writes the campus's index row and drops views for periods that are gone. */
+/** Writes the campus's index row and drops views for periods that are gone.
+ *  `categories` comes with a rebuilt latest term, for the sign-in tags. */
 export const saveIndex = internalMutation({
-  args: indexFields,
+  args: { ...indexFields, categories: v.optional(v.array(personCategoryValidator)) },
   returns: v.null(),
-  handler: async (ctx, row) => {
+  handler: async (ctx, { categories, ...row }) => {
     const existing = await indexFor(ctx, row.subgroup);
     if (existing) await ctx.db.replace("weeklyInsightIndex", existing._id, row);
     else await ctx.db.insert("weeklyInsightIndex", row);
@@ -459,6 +510,16 @@ export const saveIndex = internalMutation({
       .take(MAX_TERMS);
     for (const view of views) {
       if (!keep.has(view.periodKey)) await ctx.db.delete("weeklyInsightViews", view._id);
+    }
+    if (categories || row.currentKey === null) {
+      const saved = await categoriesFor(ctx, row.subgroup);
+      if (row.currentKey === null) {
+        if (saved) await ctx.db.delete("weeklyCategories", saved._id);
+      } else {
+        const next = { subgroup: row.subgroup, termKey: row.currentKey, people: categories! };
+        if (saved) await ctx.db.replace("weeklyCategories", saved._id, next);
+        else await ctx.db.insert("weeklyCategories", next);
+      }
     }
     return null;
   },
@@ -487,19 +548,6 @@ const sameFacts = (a: TermFacts, b: FactsDoc | undefined): boolean => {
     weekly(a.weeklies) === weekly(b.weeklies) &&
     people(Object.entries(a.attendance)) === people(b.attendance.map((x) => [x.key, x.indexes]))
   );
-};
-
-/** The same day a year earlier, for year-to-date comparisons. */
-export const yearBefore = (ms: number): number => {
-  const d = new Date(ms);
-  d.setUTCFullYear(d.getUTCFullYear() - 1);
-  return d.getTime();
-};
-
-const yearAfter = (ms: number): number => {
-  const d = new Date(ms);
-  d.setUTCFullYear(d.getUTCFullYear() + 1);
-  return d.getTime();
 };
 
 const termYears = (facts: TermFacts[]) => [
@@ -609,9 +657,18 @@ async function buildSubgroup(
   const edited = new Set(check.memberKeys);
   const touches = (f: TermFacts | undefined) => !!f && Object.keys(f.attendance).some((k) => edited.has(k));
   if (latest >= 0 && (touches(facts[latest]) || touches(facts[latest - 1]))) recompute.add(latest);
-  // A due date passed: last year's comparison moved on, or the latest term
-  // stopped running (no more "so far", no follow-ups once it's over).
+  // The latest term stopped running: no more "so far", and its year's
+  // comparison point is settled.
   if (latest >= 0 && check.compareDue) recompute.add(latest);
+  // A term that's gone (say all its weeklies were deleted) changes what the
+  // term after it compares with, and can leave another term as the latest:
+  // redo every term from the one after it, so the views and the sign-in
+  // categories follow.
+  for (const key of removed) {
+    const start = stored.get(key)!.weeklies[0].at;
+    const next = facts.findIndex((f) => f.weeklies[0].at > start);
+    for (let i = next < 0 ? latest : next; i >= 0 && i <= latest; i++) recompute.add(i);
+  }
 
   const thisYear = sydneyCalendarYear(new Date(now));
   const years = new Set<number>([...recompute].map((i) => facts[i].year));
@@ -620,18 +677,15 @@ async function buildSubgroup(
   if (years.size) for (let y = Math.min(...years); y <= thisYear; y++) years.add(y);
   for (const y of [...years]) if (!facts.some((f) => f.year === y)) years.delete(y);
 
-  // People needed: everyone in the terms being redone and those they're
-  // compared with.
+  // People needed: everyone in the terms being redone and the terms before
+  // them (for categories and the comparison).
   const need = new Set<number>();
   const add = (i: number) => {
     if (i < 0) return;
     need.add(i);
     if (i > 0) need.add(i - 1);
   };
-  for (const i of recompute) {
-    add(i);
-    add(facts.findIndex((f) => f.year === facts[i].year - 1 && f.slot === facts[i].slot));
-  }
+  for (const i of recompute) add(i);
   facts.forEach((f, i) => {
     if (years.has(f.year) || years.has(f.year + 1)) add(i);
   });
@@ -668,14 +722,17 @@ async function buildSubgroup(
     });
   }
 
+  let categories: { key: string; category: WeeklyCategory }[] | undefined;
   for (const i of [...recompute].sort((a, b) => a - b)) {
     const lastAt = facts[i].weeklies[facts[i].weeklies.length - 1].at;
     const running = i === latest && now - lastAt < settings.termGapDays * DAY_MS;
     const result = computeTerm(facts, i, c);
+    if (i === latest) categories = categoryEntries(result.rows);
     const blocks = buildTermBlocks({
       computedAt: now,
+      jointCounted: settings.jointWeeklies,
       result,
-      lastYear: sameTermLastYear(facts, i, running, c),
+      before: termBefore(facts, i, running, c),
       running,
       followUps: i === latest ? followUps(facts, result.rows, c) : null,
     });
@@ -687,17 +744,26 @@ async function buildSubgroup(
     });
   }
   for (const year of [...years].sort()) {
-    const upTo = year === thisYear ? yearBefore(now) : undefined;
+    // The year in progress is compared with last year up to the same term
+    // and week; so are last year's terms in the by-term chart.
+    const cut = year === thisYear ? (yearCutOf(facts, year) ?? undefined) : undefined;
     const result = computeYear(facts, year, c)!;
-    const inYear = (y: number) =>
-      facts.map((f, i) => (f.year === y ? computeTerm(facts, i, c) : null)).filter((r) => r !== null);
+    const inYear = (y: number, to?: YearCut) =>
+      facts
+        .map((f, i) => {
+          if (f.year !== y) return null;
+          const kept = to === undefined ? f : cutToPoint(f, to);
+          return kept ? computeTerm([...facts.slice(0, i), kept], i, c) : null;
+        })
+        .filter((r) => r !== null);
     const blocks = buildYearBlocks({
       computedAt: now,
+      jointCounted: settings.jointWeeklies,
       result,
-      lastYear: computeYear(facts, year - 1, c, upTo),
-      upTo: upTo ?? null,
+      lastYear: computeYear(facts, year - 1, c, cut),
+      cut: cut ? `${cut.name} week ${cut.week}` : null,
       terms: inYear(year),
-      lastYearTerms: inYear(year - 1),
+      lastYearTerms: inYear(year - 1, cut),
     });
     await ctx.runMutation(internal.weeklyInsights.saveView, {
       subgroup,
@@ -711,24 +777,15 @@ async function buildSubgroup(
     latest >= 0
       ? facts[latest].weeklies[facts[latest].weeklies.length - 1].at + settings.termGapDays * DAY_MS
       : 0;
-  const nextCompareAt = Math.min(
-    NEVER,
-    ...(runningUntil > now ? [runningUntil] : []),
-    ...facts
-      .filter((f) => f.year === thisYear - 1)
-      .flatMap((f) => f.weeklies.map((w) => yearAfter(w.at)))
-      .filter((at) => at > now)
-  );
-  const factYears = [...new Set(facts.map((f) => f.year))].sort((a, b) => b - a);
+  // The year's comparison moves with its weeklies, so the only date to wait
+  // for is the latest term stopping running.
+  const nextCompareAt = runningUntil > now ? runningUntil : NEVER;
   const recentFrom = now - INDEX_WEEKLIES_WEEKS * WEEK_MS;
   const joint = new Map(data.weeklyEvents.map((e) => [e.eventId, e.joint]));
   await ctx.runMutation(internal.weeklyInsights.saveIndex, {
     subgroup,
     computedAt: now,
-    periods: [
-      ...[...facts].reverse().map((f) => ({ key: f.key, label: f.label })),
-      ...factYears.map((y) => ({ key: String(y), label: `${y} · whole year` })),
-    ],
+    periods: periodOptions(facts),
     currentKey: latest >= 0 ? facts[latest].key : null,
     weeklies: held
       .filter((w) => w.at >= recentFrom)
@@ -738,6 +795,7 @@ async function buildSubgroup(
     auditSeen: check.auditMax,
     eventsSeen: check.eventsMax,
     nextCompareAt,
+    categories,
   });
 }
 
@@ -960,17 +1018,16 @@ const NOT_READY: ViewBlock = {
   type: "empty",
   icon: "sparkles-outline",
   title: "Not ready yet",
-  message: "Insights rebuild overnight.",
+  message: "Insights update overnight. Check back tomorrow.",
 };
 
 const NO_WEEKLIES: ViewBlock = {
   type: "empty",
   icon: "calendar-outline",
   title: "No weekly meetings yet",
-  message: "Tag a campus's weekly meetings with Weekly Meeting to see them here.",
+  message: "Create this campus's weeklies as Weekly events and they'll show here the next day.",
 };
 
-const periodValidator = v.object({ key: v.string(), label: v.string() });
 
 /** A campus's Insights view for a term or year (its current term by default). */
 export const view = query({
@@ -1092,6 +1149,31 @@ export const member = query({
         year: sydneyCalendarYear(new Date(now)),
       }),
     };
+  },
+});
+
+const SIGN_IN_TAGS: WeeklyCategory[] = ["newcomer", "visitor"];
+
+/** Newcomer and Visitor tags for an event's sign-in screen, from each campus's
+ *  last build. A shared event only tags newcomers: someone from one of its
+ *  campuses isn't visiting. */
+export const signInTags = query({
+  args: { eventId: v.id("events") },
+  returns: v.array(v.object({ key: v.string(), label: v.string(), colour: v.string() })),
+  handler: async (ctx, { eventId }) => {
+    if (!(await optionalProfile(ctx))) return [];
+    const event = await ctx.db.get("events", eventId);
+    if (!event) return [];
+    const campuses = normalizeSubgroups(event.subgroups).filter((s) => !isOrgWideSubgroup(s));
+    const shown = campuses.length === 1 ? SIGN_IN_TAGS : SIGN_IN_TAGS.slice(0, 1);
+    const tags = new Map<string, WeeklyCategory>();
+    for (const campus of campuses) {
+      const row = await categoriesFor(ctx, canonicalSubgroup(campus));
+      for (const p of row?.people ?? []) {
+        if (shown.includes(p.category) && !tags.has(p.key)) tags.set(p.key, p.category);
+      }
+    }
+    return [...tags].map(([key, category]) => ({ key, ...CATEGORY_META[category] }));
   },
 });
 

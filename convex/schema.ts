@@ -20,6 +20,7 @@ import {
 import { homeBlockValidator } from "./homeData";
 import { metricsDataValidator } from "./metricsData";
 import {
+  personCategoryValidator,
   termFactsFields,
   weeklyBlockValidator,
   weeklyMarkValidator,
@@ -491,7 +492,10 @@ export default defineSchema({
     detail: v.optional(v.string()),
   })
     .index("by_event", ["eventId"])
-    .index("by_actor", ["actorEmail"]),
+    .index("by_actor", ["actorEmail"])
+    // Finds the staff email a former leader or staff member had, from the
+    // "member.leftStaff" entry their conversion wrote.
+    .index("by_member_and_action", ["memberId", "action"]),
 
   attendanceTags: defineTable({
     name: v.string(),
@@ -640,7 +644,16 @@ export default defineSchema({
   weeklyInsightIndex: defineTable({
     subgroup: v.string(),
     computedAt: v.number(),
-    periods: v.array(v.object({ key: v.string(), label: v.string() })),
+    periods: v.array(
+      v.object({
+        key: v.string(),
+        label: v.string(),
+        group: v.optional(v.string()),
+        short: v.optional(v.string()),
+        kind: v.optional(v.union(v.literal("term"), v.literal("year"))),
+        slot: v.optional(v.number()),
+      }),
+    ),
     currentKey: v.union(v.string(), v.null()),
     weeklies: v.array(
       v.object({ at: v.number(), count: v.number(), joint: v.boolean() }),
@@ -650,9 +663,17 @@ export default defineSchema({
     viewVersion: v.optional(v.number()),
     auditSeen: v.number(),
     eventsSeen: v.number(),
-    // When the current year's "vs last year up to today" next changes, so
-    // the year view is redone then even if no attendance has changed.
+    // When the latest term stops running, so its views are redone then even
+    // if no attendance has changed.
     nextCompareAt: v.number(),
+  }).index("by_subgroup", ["subgroup"]),
+
+  // One row per campus: everyone in its latest term and their category, so
+  // the sign-in screen can tag newcomers and visitors from the nightly build.
+  weeklyCategories: defineTable({
+    subgroup: v.string(),
+    termKey: v.string(),
+    people: v.array(personCategoryValidator),
   }).index("by_subgroup", ["subgroup"]),
 
   // One row per edited Home sub-tab (home, resources, connect, partner). A tab

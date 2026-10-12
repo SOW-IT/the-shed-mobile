@@ -151,9 +151,12 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   lists every event whose attendance goes with them and points to merging.
 - **Staff and leavers**: a staff person's member record is linked by their
   staff email and also holds their personal email. On October 1, anyone who was
-  staff last year but isn't this year becomes a plain member: their sign-ins
+  staff (a leader, an exec or staff) in an earlier year but isn't this year
+  becomes a plain member: their sign-ins
   move onto that one record, their personal email replaces the staff one, and a
   staff role becomes Member (Alumni is set by leaders when someone graduates).
+  A member's email, and a staff person's personal email, can't be an SOW
+  address or anyone's staff email.
   Member names are capitalised as they're typed.
 - **Audit log**: an immutable trail of every attendance-area action (event /
   member / tag / metadata edits, merges and deletes, and each
@@ -161,7 +164,8 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
 - **CSV import/export**: bulk-import historical roll-call data and export
   attendance.
 - **Insights** (a dedicated bottom tab): for a campus, its **weekly meetings**
-  by term (T1–T3 / Sem 1–2) or calendar year: cards against last year, a
+  by term (T1–T3 / Sem 1–2) or calendar year: cards against the term before
+  (a year against last year), a
   follow-up list (people who were coming but stopped, newcomers who haven't
   come back) and a visitors list, charts, and everyone's attendance % and
   category (Regular, Irregular, Newcomer, Visitor, Leader, Staff/alumni/guests)

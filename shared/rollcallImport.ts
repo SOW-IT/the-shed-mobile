@@ -46,6 +46,14 @@ export function canonicalStaffEmail(
 
 const SOW_STAFF_DOMAINS = ["sow.org.au", "sowaustralia.com"] as const;
 
+/** An SOW address (sow.org.au or sowaustralia.com): a staff email, never
+ *  someone's personal one. */
+export const isSowStaffAddress = (email: string | undefined): boolean => {
+  const lower = email?.trim().toLowerCase() ?? "";
+  const at = lower.lastIndexOf("@");
+  return at > 0 && (SOW_STAFF_DOMAINS as readonly string[]).includes(lower.slice(at + 1));
+};
+
 export function staffEmailCandidates(email: string | undefined): string[] {
   const lower = normalizedEmail(email);
   if (!lower) return [];

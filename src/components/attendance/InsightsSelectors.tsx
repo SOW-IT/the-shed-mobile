@@ -126,34 +126,101 @@ export function AttendanceRangeFab({
   );
 }
 
-/** Picks a campus's term or whole year; the server lists the choices. */
+type PickerPeriod = {
+  key: string;
+  label: string;
+  group?: string;
+  short?: string;
+  kind?: "term" | "year";
+  slot?: number;
+};
+
+/** Picks a campus's term or whole year; the server lists the choices. Each
+ *  year is one row, its terms side by side in their own columns and the
+ *  whole year last. Without grouping (an older server), a plain list. */
 export function PeriodFab({
   periods,
   value,
   onChange,
 }: {
-  periods: { key: string; label: string }[];
+  periods: PickerPeriod[];
   value: string | null;
   onChange: (key: string) => void;
 }) {
+  const t = useAppTheme();
   const label = periods.find((p) => p.key === value)?.label ?? "Term";
+  const grouped = periods.length > 0 && periods.every((p) => p.group && p.short && p.kind);
+  const years = [...new Set(periods.map((p) => p.group!))];
+  const columns = Math.max(0, ...periods.map((p) => p.slot ?? 0));
   return (
     <SelectorFab icon="calendar-outline" label={label} sheetTitle="Term or year">
-      {(close) => (
-        <View style={{ gap: spacing.sm }}>
-          {periods.map((period) => (
-            <OptionRow
-              key={period.key}
-              label={period.label}
-              selected={period.key === value}
-              onPress={() => {
-                onChange(period.key);
-                close();
-              }}
-            />
-          ))}
-        </View>
-      )}
+      {(close) => {
+        const pick = (key: string) => {
+          onChange(key);
+          close();
+        };
+        if (!grouped) {
+          return (
+            <View style={{ gap: spacing.sm }}>
+              {periods.map((period) => (
+                <OptionRow
+                  key={period.key}
+                  label={period.label}
+                  selected={period.key === value}
+                  onPress={() => pick(period.key)}
+                />
+              ))}
+            </View>
+          );
+        }
+        return (
+          <View style={{ gap: spacing.md }}>
+            {years.map((year) => {
+              const inYear = periods.filter((p) => p.group === year);
+              const cells: (PickerPeriod | null)[] = [
+                ...Array.from({ length: columns }, (_, i) => inYear.find((p) => p.kind === "term" && p.slot === i + 1) ?? null),
+                inYear.find((p) => p.kind === "year") ?? null,
+              ];
+              return (
+                <View key={year} style={{ gap: 6 }}>
+                  <Text style={[typography.headline, { color: t.text }]}>{year}</Text>
+                  <View style={[styles.periodRow, { backgroundColor: t.ghost }]}>
+                    {cells.map((cell, i) => {
+                      if (!cell) return <View key={`empty-${i}`} style={styles.periodCell} />;
+                      const selected = cell.key === value;
+                      return (
+                        <Pressable
+                          key={cell.key}
+                          accessibilityRole="button"
+                          accessibilityLabel={cell.label}
+                          accessibilityState={{ selected }}
+                          onPress={() => pick(cell.key)}
+                          style={({ pressed }) => [
+                            styles.periodCell,
+                            styles.periodButton,
+                            selected && [{ backgroundColor: t.primary }, t.shadowCard],
+                            pressed && !selected && { backgroundColor: t.card },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              typography.body,
+                              { color: selected ? t.onPrimary : t.text, fontWeight: selected ? "800" : "600" },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {cell.short}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        );
+      }}
     </SelectorFab>
   );
 }
@@ -252,6 +319,20 @@ export function GeneralScopeFab({
 }
 
 const styles = StyleSheet.create({
+  // One year in the term picker: a track of evenly split choices.
+  periodRow: {
+    flexDirection: "row",
+    gap: 4,
+    padding: 4,
+    borderRadius: radius.md,
+  },
+  periodCell: { flex: 1, minHeight: 42 },
+  periodButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radius.sm,
+    paddingHorizontal: 4,
+  },
   fab: {
     position: "absolute",
     bottom: spacing.md,

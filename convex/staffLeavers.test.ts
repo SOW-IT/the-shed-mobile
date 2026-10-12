@@ -257,6 +257,25 @@ describe("convertOutgoingStaff", () => {
     expect((await s.members())[0].email).toBe(back);
   });
 
+  test("catches up a leader who left in an earlier year, using that year's profile", async () => {
+    const s = await setup();
+    const old = "old.leader@sow.org.au";
+    await s.profile(old, YEAR - 4, "Old Leader");
+    await s.profile(old, YEAR - 3, "Old Leader");
+    const e = await s.event("Weeklies", Date.UTC(2023, 2, 1));
+    await s.signIn(e, { email: old }, 1);
+    const result = await s.convert({ dryRun: false });
+    expect(result.details).toMatchObject([{ staffEmail: old, recordsMoved: 1 }]);
+    const row = (await s.members()).find((m) => m.name === "Old Leader")!;
+    expect(row.email).toBeUndefined();
+    expect(row.metadata?.[s.fields.role]).toBe("3");
+    const [record] = await s.attendance();
+    expect(record.memberId).toBe(row._id);
+    expect(record.email).toBeUndefined();
+    // Done once: nothing left to move.
+    expect((await s.convert({ dryRun: false })).people).toBe(0);
+  });
+
   test("pages through leavers, and can be limited to one person", async () => {
     const s = await setup();
     for (const who of ["a.one", "b.two", "c.three"]) {
@@ -433,10 +452,63 @@ describe("a staff person's personal email", () => {
     expect(found.page.map((r) => r.key)).toEqual([`staff:${LEAVER}`]);
 
     await expect(save(STAYER)).rejects.toThrow("is a staff email");
+    // Any SOW address is a staff one, even with no profile behind it, and so
+    // is their own staff email on the other domain.
+    await expect(save("someone.else@sow.org.au")).rejects.toThrow("not a personal one");
+    await expect(save("lee.aver@sowaustralia.com")).rejects.toThrow("not a personal one");
     await save("");
     expect(
       (await admin.query(api.attendanceMembers.get, { memberId, staffYear: NOW_YEAR }))
         ?.personalEmail
     ).toBeUndefined();
+  });
+});
+
+describe("a plain member's email", () => {
+  test("can't be a staff email, any year's or any SOW address", async () => {
+    const s = await setup();
+    await s.profile(LEAVER, LAST, "Lee Aver");
+    const admin = asUser(s.t, ADMIN);
+    // Creating with an SOW address that isn't anyone's profile.
+    await expect(
+      admin.mutation(api.attendanceMembers.create, { name: "New Person", email: "new.person@sow.org.au" })
+    ).rejects.toThrow("not a personal one");
+    const memberId = await admin.mutation(api.attendanceMembers.create, {
+      name: "Former Leader",
+      email: "former@gmail.com",
+    });
+    const save = (email: string) =>
+      admin.mutation(api.attendanceMembers.update, { memberId, name: "Former Leader", email, staffYear: YEAR });
+    // A former leader's old staff email is still a staff email: merge them instead.
+    await expect(save(LEAVER)).rejects.toThrow(/staff email/);
+    await expect(save("anyone@sowaustralia.com")).rejects.toThrow("not a personal one");
+    await save("former.leader@outlook.com");
+    expect((await s.members()).find((m) => m._id === memberId)?.email).toBe("former.leader@outlook.com");
+  });
+
+  test("one already saved (say from an import) has to be replaced before saving", async () => {
+    const s = await setup();
+    const admin = asUser(s.t, ADMIN);
+    const memberId = await s.t.run((ctx) =>
+      ctx.db.insert("attendanceMembers", { name: "Imported Person", email: "imported@sowaustralia.com" })
+    );
+    const save = (email: string) =>
+      admin.mutation(api.attendanceMembers.update, { memberId, name: "Imported Person", email, staffYear: YEAR });
+    await expect(save("imported@sowaustralia.com")).rejects.toThrow("not a personal one");
+    await save("");
+    expect((await s.members())[0].email).toBeUndefined();
+  });
+
+  test("a leaver's personal email that is an SOW address is passed over", async () => {
+    const s = await setup();
+    await s.profile(LEAVER, LAST, "Lee Aver");
+    await s.t.run((ctx) =>
+      ctx.db.insert("attendanceMembers", { name: "Lee Aver", email: LEAVER, personalEmail: "lee.old@sow.org.au" })
+    );
+    const e = await s.event("Weeklies", 1);
+    await s.signIn(e, { email: LEAVER }, 1);
+    const result = await s.convert({ dryRun: false });
+    expect(result.details).toMatchObject([{ staffEmail: LEAVER, email: null }]);
+    expect((await s.members())[0].email).toBeUndefined();
   });
 });

@@ -6,6 +6,94 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.5.4] — 2026-10-12
+
+### Fixed
+- **Former leaders, execs and staff can be edited from Insights.** Someone
+  who stopped serving before 1 Oct 2026 (when the leavers conversion started)
+  still had their sign-ins under their staff email, so their member page had
+  nothing to edit. The 1 Oct conversion now catches up everyone who isn't
+  serving this year, whichever year they stopped, and turns them into plain
+  members with their sign-ins on their member record.
+- **Insights picks up the change straight away.** When someone becomes a
+  member this way, the next Insights build re-reads their weeklies, so they
+  show up as a member (with Edit member) instead of under their old staff
+  email.
+- **They're still a leader in the terms they served.** Insights used to
+  re-label a converted leader's past terms as Regular or Irregular. It now
+  finds the staff email they had and keeps them as a Leader (or staff) for
+  those terms, and a member from the year they stopped.
+- **A personal email can't be a staff email.** A staff person's personal
+  email, and a plain member's email, can no longer be an SOW address
+  (@sow.org.au or @sowaustralia.com) or anyone's staff email from any year.
+  The form says so as you type and won't save; merging and the leavers
+  conversion skip such an address too. For staff, the second email box is
+  now labelled "Personal email".
+
+## [2.5.3] — 2026-10-12
+
+### Changed
+- **Comparisons say exactly what they're compared with, in weeks.** While
+  a term is running it's compared with the term before up to the same week,
+  and the cards now say so: "vs 97.3 in T2 2026 up to W4". Before, they said
+  "vs 97.3 in T2 2026", which didn't match T2's own page (87.3 for the whole
+  term). The year so far is compared with last year up to the same term and
+  week ("up to T3 week 4") instead of the same date. I checked every number
+  against prod's raw sign-ins: all were right, only the labels were unclear.
+  Mega and combined weeklies were never counted on either side.
+- **Clearer cards.** Labels are in sentence case, and the change sits in a
+  small coloured pill beside the number. The comparison wraps onto a second
+  line instead of being cut off on narrow phones.
+- **Last term's bars are grey** in the week-by-week and by-term charts, so
+  this term stands out.
+- **The term picker shows one row per year**, its terms side by side
+  (T1, T2, T3, Year) rather than one long list.
+- **Plainer wording** in captions, (i) notes, chart subtitles, follow-up
+  reasons and list headings. Weekly avg's and People's (i) say that Mega and
+  combined weeklies aren't counted.
+
+### Fixed
+- **The year's weekly avg by term chart compares like with like.** It set
+  this term so far against last year's whole term; last year's terms are
+  now cut to the same term and week, as the cards are.
+- **Two weeklies in the same week are both shown.** USYD's Sem 1 2026 has
+  "USYD PPN" (7 Apr) and "WK #7" (14 Apr), both week 7. The week-by-week
+  chart showed only one, and a member's week grid could mark both as
+  attended when they came to one. The second is now its own "W7·2" bar and
+  box. Averages and counts always included both.
+- Semester years' captions say "Sem 1 and Sem 2" instead of "Sem, Sem".
+
+## [2.5.2] — 2026-10-11
+
+### Added
+- **Newcomers and visitors are tagged when you sign people in.** While an
+  event is on, its sign-in screen shows a Newcomer or Visitor tag beside
+  those people (from last night's Insights), so leaders know who to welcome.
+  An event shared by several campuses only tags newcomers, and a finished
+  event shows no tags. Screen readers read the tag with the name.
+
+### Changed
+- **A term is compared with the term before, not last year's.** T3 is
+  compared with T2 (Sem 2 with Sem 1, T1 with last year's T3), up to the same
+  week while the term is running. The whole-year view still compares with
+  last year.
+- **"Last came" says which weekly.** People lists, follow-ups and a member's
+  page show the term and week as well as the date: "Last came T3W2 (23 Sep)",
+  "Visited T3W1 (16 Sep)", "New on T3W3 (30 Sep)".
+- **Week-by-week charts sit near the top** of a term, above Needs follow-up.
+  The whole-year view has a "Who came each week" chart for each term instead
+  of one crowded chart.
+- **The term picker lists each year's terms, then that whole year:** 2026 T3,
+  2026 T2, 2026 T1, 2026 · whole year, 2025 T3, and so on.
+- **Long lists scroll inside their box**, like the sign-in lists, with a Show
+  all button under them (as in Admin) to see the whole list: Needs follow-up,
+  Visitors, Everyone and a member's events.
+- A member's week grid is now titled "Weeklies attended this term".
+
+### Fixed
+- **Chart legends wrap** instead of running off the edge of the card on
+  phones (the "Who came each week" legend lost Leader and Staff).
+
 ## [2.5.1] — 2026-10-11
 
 ### Added

@@ -13,6 +13,7 @@ import {
   type TermRow,
   type WeeklyCategory,
   type WeeklyFollowUp,
+  type WeeklyTerm,
   type YearResult,
 } from "./weeklyInsights";
 
@@ -95,7 +96,37 @@ export type WeeklyBlock =
       emptyText: string;
     };
 
-export type WeeklyPeriod = { key: string; label: string };
+/** A choice in the term picker. `group` (the year), `short` and `slot` let
+ *  the picker lay each year out as one row of terms; older apps just list
+ *  the labels. */
+export type WeeklyPeriod = {
+  key: string;
+  label: string;
+  group?: string;
+  short?: string;
+  kind?: "term" | "year";
+  slot?: number;
+};
+
+/** The term picker, newest first: each year's terms, then that whole year
+ *  ("2026 T3, 2026 T2, 2026 T1, 2026, 2025 T3, …"). */
+export function periodOptions(terms: WeeklyTerm[]): WeeklyPeriod[] {
+  const years = [...new Set(terms.map((t) => t.year))].sort((a, b) => b - a);
+  return years.flatMap((year): WeeklyPeriod[] => [
+    ...terms
+      .filter((t) => t.year === year)
+      .reverse()
+      .map((t) => ({
+        key: t.key,
+        label: `${year} ${withoutYear(t)}`,
+        group: String(year),
+        short: withoutYear(t),
+        kind: "term" as const,
+        slot: t.slot,
+      })),
+    { key: String(year), label: String(year), group: String(year), short: "Year", kind: "year" as const },
+  ]);
+}
 
 export const FOLLOW_UP_PREVIEW = 5;
 
@@ -112,8 +143,12 @@ export const dateText = (ms: number, year: number): string => {
   return y === year ? dayLabel(ms) : `${dayLabel(ms)} ${y}`;
 };
 
-const lastCame = (row: { lastAt: number | null }, year: number) =>
-  row.lastAt ? `Last came ${dateText(row.lastAt, year)}` : "Hasn't come yet";
+/** "Last came T2W5 (3 Jun)": the weekly's term and week, then its date. */
+const lastCame = (row: { lastAt: number | null; lastWeekly?: string | null }, year: number) => {
+  if (!row.lastAt) return "Hasn't come yet";
+  const date = dateText(row.lastAt, year);
+  return `Last came ${row.lastWeekly ? `${row.lastWeekly} (${date})` : date}`;
+};
 
 export function peopleRows(
   rows: (TermRow & { termKey?: string })[],
@@ -128,7 +163,7 @@ export function peopleRows(
     category: pill(r.category),
     primary: `${r.attended}/${r.held} · ${pctText(r.pct)}`,
     secondary: r.window
-      ? `${lastCame(r, year)} · ${r.window.attended} of the last ${r.window.held} weeklies`
+      ? `${lastCame(r, year)}. Came to ${r.window.attended} of the last ${r.window.held}.`
       : lastCame(r, year),
     warning: r.noCampus && r.section === "campus" ? "No campus set" : undefined,
     pct: r.pct,
@@ -192,18 +227,18 @@ export function followUpBlocks(people: WeeklyFollowUp[], year: number): WeeklyBl
         { key: "newcomer", title: GROUP_TITLES.newcomer, people: pick("newcomer") },
       ].filter((g) => g.people.length > 0),
       preview: FOLLOW_UP_PREVIEW,
-      emptyText: "Nobody right now.",
+      emptyText: "Nobody needs a follow-up right now.",
     },
     {
       type: "followUpGroups",
       title: "Visitors",
       icon: "airplane-outline",
       groups: [
-        { key: "visitor_gone", title: "Not back since", people: pick("visitor", true) },
-        { key: "visitor_recent", title: "Visited recently", people: pick("visitor", false) },
+        { key: "visitor_gone", title: "Haven't come back", people: pick("visitor", true) },
+        { key: "visitor_recent", title: "Came recently", people: pick("visitor", false) },
       ].filter((g) => g.people.length > 0),
       preview: FOLLOW_UP_PREVIEW,
-      emptyText: "No visitors lately.",
+      emptyText: "No visitors from other campuses lately.",
     },
   ];
 }
@@ -222,12 +257,26 @@ const shareDelta = (now: number | null, then: number | null): ViewCard["delta"] 
 
 const stayedShare = (s: PeriodSummary) => (s.newcomers ? s.newcomersStayed / s.newcomers : null);
 
+/**
+ * The summary cards. `lastLabel` names exactly what they're compared with
+ * ("T2 2026 up to W4" while a term runs, "2025 up to T3 W4" for the year so
+ * far), and `compareNote` says the same in every card's (i).
+ */
 export function summaryCards(
   s: PeriodSummary,
   last: PeriodSummary | null,
-  lastLabel: string | null
+  lastLabel: string | null,
+  compareNote?: string,
+  /** The jointWeeklies setting: Mega and combined weeklies are counted too. */
+  jointCounted = false
 ): ViewCard[] {
-  const vs = (v: string) => (last && lastLabel ? `vs ${v} in ${lastLabel}` : undefined);
+  // The label stays on one line ("T2 2026 up to W4"); a narrow card wraps before it.
+  const keep = (label: string) => label.replace(/ /g, "\u00a0").replace(/–/g, "–\u2060");
+  const vs = (v: string) => (last && lastLabel ? `vs ${v} in ${keep(lastLabel)}` : undefined);
+  const info = (title: string, body: string) => ({
+    title,
+    body: compareNote && last ? `${body} ${compareNote}` : body,
+  });
   const stayed = stayedShare(s);
   const lastStayed = last ? stayedShare(last) : null;
   return [
@@ -236,21 +285,31 @@ export function summaryCards(
       value: s.weeklyAvg === null ? "–" : String(s.weeklyAvg),
       delta: countDelta(s.weeklyAvg, last?.weeklyAvg ?? null),
       hint: last?.weeklyAvg != null ? vs(String(last.weeklyAvg)) : undefined,
-      info: { title: "Weekly avg", body: "Average head count at this campus's weekly meetings. A weekly nobody signed in to doesn't count." },
+      info: info(
+        "Weekly avg",
+        jointCounted
+          ? "The average head count at this campus's weeklies, Mega and combined ones with other campuses included. A weekly nobody signed in to isn't counted."
+          : "The average head count at this campus's own weeklies. Mega and combined weeklies with other campuses aren't counted, and neither is a weekly nobody signed in to."
+      ),
     },
     {
       label: "People",
       value: String(s.people),
       delta: countDelta(s.people, last?.people ?? null),
       hint: last ? vs(String(last.people)) : undefined,
-      info: { title: "People", body: "Different people who came to at least one weekly." },
+      info: info(
+        "People",
+        jointCounted
+          ? "How many different people came to at least one of this campus's weeklies, Mega and combined ones included."
+          : "How many different people came to at least one of this campus's own weeklies. Mega and combined weeklies aren't counted."
+      ),
     },
     {
       label: "Regulars",
       value: String(s.regulars),
       delta: countDelta(s.regulars, last?.regulars ?? null),
       hint: last ? vs(String(last.regulars)) : undefined,
-      info: { title: "Regulars", body: "People who came to at least half of the weeklies (leaders, staff and visitors aside)." },
+      info: info("Regulars", "People who came to at least half the weeklies. Leaders, staff and visitors aren't counted."),
     },
     {
       label: "Newcomers",
@@ -258,38 +317,60 @@ export function summaryCards(
       tone: "positive",
       delta: countDelta(s.newcomers, last?.newcomers ?? null),
       hint: last ? vs(String(last.newcomers)) : undefined,
-      info: { title: "Newcomers", body: "People whose first-ever weekly here was in this period." },
+      info: info("Newcomers", "People who came to their first weekly at this campus in this period."),
     },
     {
       label: "Newcomers who stayed",
       value: stayed === null ? "–" : pctText(stayed),
       delta: shareDelta(stayed, lastStayed),
-      hint: s.newcomers ? `${s.newcomersStayed} of ${s.newcomers} came 2+ times` : undefined,
-      info: { title: "Newcomers who stayed", body: "Of this period's newcomers, the share who came to two or more weeklies." },
+      hint: s.newcomers ? `${s.newcomersStayed} of ${s.newcomers} came back` : undefined,
+      info: info("Newcomers who stayed", "The share of this period's newcomers who came to a second weekly."),
     },
     {
       label: "Campus share",
       value: s.campusShare === null ? "–" : pctText(s.campusShare),
       delta: shareDelta(s.campusShare, last?.campusShare ?? null),
       hint: last?.campusShare != null ? vs(pctText(last.campusShare)) : undefined,
-      info: { title: "Campus share", body: "Of the students at weeklies, the share from this campus (including people with no campus set)." },
+      info: info(
+        "Campus share",
+        "The share of student sign-ins that came from this campus's own people, counting people with no campus set. Visitors from other campuses make up the rest."
+      ),
     },
   ];
 }
 
 const THIS_COLOUR = "primary";
-const LAST_COLOUR = "accent";
+// The comparison stays in the background: a see-through grey. Sent as hex
+// rather than a token so older app builds draw it the same way.
+const LAST_COLOUR = "#9CA3AFA6";
 
 type CategoryPoint = { at: number; label: string; counts: TermResult["byCategory"][number]["counts"] };
 
-const termPoints = (t: TermResult, prefix = ""): CategoryPoint[] =>
-  t.byCategory.map((p) => ({ at: p.at, label: `${prefix}W${p.week}`, counts: p.counts }));
+/**
+ * "W1", "W2", …, one per weekly. A second weekly with the same week number
+ * (say a special night in a week the campus didn't count) is "W7·2", so it's
+ * never merged with the first.
+ */
+export function weekLabels(weeklies: { week: number }[]): string[] {
+  const seen = new Map<number, number>();
+  return weeklies.map(({ week }) => {
+    const n = (seen.get(week) ?? 0) + 1;
+    seen.set(week, n);
+    return n === 1 ? `W${week}` : `W${week}·${n}`;
+  });
+}
 
-function byCategoryChart(points: CategoryPoint[], title: string): WeeklyBlock {
+const termPoints = (t: TermResult): CategoryPoint[] => {
+  const labels = weekLabels(t.byCategory);
+  return t.byCategory.map((p, i) => ({ at: p.at, label: labels[i], counts: p.counts }));
+};
+
+function byCategoryChart(points: CategoryPoint[], title: string, subtitle?: string): WeeklyBlock {
   const used = CATEGORY_ORDER.filter((c) => points.some((p) => (p.counts[c] ?? 0) > 0));
   return {
     type: "multiBars",
     title,
+    subtitle,
     legend: used.map((c) => ({ key: c, colour: CATEGORY_META[c].colour, label: CATEGORY_META[c].label })),
     points: points.map((p) => ({
       at: p.at,
@@ -303,46 +384,67 @@ function byCategoryChart(points: CategoryPoint[], title: string): WeeklyBlock {
 export function buildTermBlocks(input: {
   computedAt: number;
   result: TermResult;
-  lastYear: TermResult | null;
+  /** The term before, to compare with. */
+  before: TermResult | null;
   running: boolean;
   followUps: WeeklyFollowUp[] | null;
+  /** The jointWeeklies setting, for the cards' (i). */
+  jointCounted?: boolean;
 }): WeeklyBlock[] {
-  const { result, lastYear, running } = input;
+  const { result, before, running } = input;
   const { term } = result;
   const lastWeek = term.weeklies[term.weeklies.length - 1].week;
-  const compare = lastYear
-    ? `Compared with ${lastYear.term.label}${running ? ` up to week ${lastWeek}` : ""}.`
-    : "Nothing to compare with from last year.";
+  // While this term runs, the term before is cut to the same week; say so
+  // wherever its numbers appear, so they don't look like its full-term ones.
+  const beforeLabel = before ? `${before.term.label}${running ? ` up to W${lastWeek}` : ""}` : null;
+  const point = before ? `${before.term.label}${running ? ` up to week ${lastWeek}` : ""}` : null;
+  const count = `${term.weeklies.length} weekl${term.weeklies.length === 1 ? "y" : "ies"}${running ? " so far" : ""}`;
+  const compareNote = before
+    ? running
+      ? `Compared with ${point}, the same point in the term. ${before.term.label}'s own page has its whole term.`
+      : `Compared with ${point}.`
+    : undefined;
   const blocks: WeeklyBlock[] = [
     { type: "updated", computedAt: input.computedAt },
     {
       type: "caption",
-      text: `${term.label} · ${term.weeklies.length} weekl${term.weeklies.length === 1 ? "y" : "ies"}${running ? " so far" : ""}. ${compare}`,
+      text: before
+        ? `${term.label}: ${count}, compared with ${point}.`
+        : `${term.label}: ${count}. There's no earlier term to compare with.`,
     },
-    { type: "cards", layout: "grid", cards: summaryCards(result.summary, lastYear?.summary ?? null, lastYear?.term.label ?? null) },
+    {
+      type: "cards",
+      layout: "grid",
+      cards: summaryCards(result.summary, before?.summary ?? null, beforeLabel, compareNote, input.jointCounted),
+    },
   ];
-  if (input.followUps) blocks.push(...followUpBlocks(input.followUps, term.year));
-  const weeks = new Map<number, { at: number; now: number; then: number }>();
-  for (const w of term.weeklies) weeks.set(w.week, { at: w.at, now: w.count, then: 0 });
-  for (const w of lastYear?.term.weeklies ?? []) {
-    const slot = weeks.get(w.week) ?? { at: w.at, now: 0, then: 0 };
-    slot.then = w.count;
-    weeks.set(w.week, slot);
-  }
-  if (lastYear) {
+  // The week-by-week charts sit near the top, above the follow-up lists.
+  // Points line up by label, so a second weekly in one week keeps its own bar.
+  type WeekPoint = { at: number; week: number; n: number; now: number; then: number };
+  const weeks = new Map<string, WeekPoint>();
+  const add = (weeklies: TermResult["term"]["weeklies"], side: "now" | "then") =>
+    weekLabels(weeklies).forEach((label, i) => {
+      const w = weeklies[i];
+      const point = weeks.get(label) ?? { at: w.at, week: w.week, n: i, now: 0, then: 0 };
+      point[side] = w.count;
+      weeks.set(label, point);
+    });
+  add(term.weeklies, "now");
+  add(before?.term.weeklies ?? [], "then");
+  if (before) {
     blocks.push({
       type: "multiBars",
       title: "Week by week",
-      subtitle: `${term.label} vs ${lastYear.term.label}`,
+      subtitle: `Against ${point}`,
       legend: [
         { key: "now", colour: THIS_COLOUR, label: term.label },
-        { key: "then", colour: LAST_COLOUR, label: lastYear.term.label },
+        { key: "then", colour: LAST_COLOUR, label: before.term.label },
       ],
       points: [...weeks.entries()]
-        .sort((a, b) => a[0] - b[0])
-        .map(([week, p]) => ({
+        .sort((a, b) => a[1].week - b[1].week || a[1].n - b[1].n)
+        .map(([label, p]) => ({
           at: p.at,
-          label: `W${week}`,
+          label,
           segments: [
             { key: "now", value: p.now, colour: THIS_COLOUR },
             { key: "then", value: p.then, colour: LAST_COLOUR },
@@ -352,7 +454,8 @@ export function buildTermBlocks(input: {
       keepZeros: true,
     });
   }
-  blocks.push(byCategoryChart(termPoints(result), "Who came each week"));
+  blocks.push(byCategoryChart(termPoints(result), "Who came each week", "Head count by category"));
+  if (input.followUps) blocks.push(...followUpBlocks(input.followUps, term.year));
   blocks.push(
     peopleBlock(
       "Everyone",
@@ -363,34 +466,54 @@ export function buildTermBlocks(input: {
   return blocks;
 }
 
+/** "T1" or "Sem 1": a term's label without its year. */
+const withoutYear = (t: { label: string }) => t.label.split(" ").slice(0, -1).join(" ");
+const termName = (t: TermResult) => withoutYear(t.term);
+
 export function buildYearBlocks(input: {
   computedAt: number;
   result: YearResult;
   lastYear: YearResult | null;
-  upTo: number | null;
+  /** How far the year in progress has got ("T3 week 4"), or null for a past year. */
+  cut: string | null;
   terms: TermResult[];
   lastYearTerms: TermResult[];
+  /** The jointWeeklies setting, for the cards' (i). */
+  jointCounted?: boolean;
 }): WeeklyBlock[] {
   const { result, lastYear } = input;
-  const lastLabel = lastYear ? String(lastYear.year) : null;
-  const caption = lastYear
-    ? `Compared with ${lastYear.year}${input.upTo ? ` up to ${dayLabel(input.upTo)}` : ""}.`
-    : "Nothing to compare with from last year.";
+  const { cut } = input;
+  const shortCut = cut?.replace(" week ", " W");
+  const lastLabel = lastYear ? `${lastYear.year}${shortCut ? ` up to ${shortCut}` : ""}` : null;
+  const point = lastYear ? `${lastYear.year}${cut ? ` up to ${cut}` : ""}` : null;
+  const names = result.terms.map(withoutYear);
+  const across = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0];
+  const count = `${result.summary.weeklies} weekl${result.summary.weeklies === 1 ? "y" : "ies"} in ${across}`;
+  const compareNote = lastYear
+    ? cut
+      ? `Compared with ${point}, the same point in the year. ${lastYear.year}'s own page has the whole year.`
+      : `Compared with ${point}.`
+    : undefined;
   const blocks: WeeklyBlock[] = [
     { type: "updated", computedAt: input.computedAt },
     {
       type: "caption",
-      text: `${result.year} · ${result.terms.map((t) => t.label.split(" ")[0]).join(", ")} · ${result.summary.weeklies} weeklies. ${caption}`,
+      text: lastYear
+        ? `${result.year}: ${count}, compared with ${point}.`
+        : `${result.year}: ${count}. There's no earlier year to compare with.`,
     },
-    { type: "cards", layout: "grid", cards: summaryCards(result.summary, lastYear?.summary ?? null, lastLabel) },
+    {
+      type: "cards",
+      layout: "grid",
+      cards: summaryCards(result.summary, lastYear?.summary ?? null, lastLabel, compareNote, input.jointCounted),
+    },
   ];
   if (lastYear) {
-    const name = (t: TermResult) => t.term.label.split(" ").slice(0, -1).join(" ");
     const slots = [...new Set([...input.terms, ...input.lastYearTerms].map((t) => t.term.slot))].sort();
     blocks.push({
       type: "multiBars",
       title: "Weekly avg by term",
-      subtitle: `${result.year} vs ${lastYear.year}`,
+      subtitle: `Against ${point}`,
       legend: [
         { key: "now", colour: THIS_COLOUR, label: String(result.year) },
         { key: "then", colour: LAST_COLOUR, label: String(lastYear.year) },
@@ -400,7 +523,7 @@ export function buildYearBlocks(input: {
         const then = input.lastYearTerms.find((t) => t.term.slot === slot);
         return {
           at: slot,
-          label: name((now ?? then)!),
+          label: termName((now ?? then)!),
           segments: [
             { key: "now", value: now?.summary.weeklyAvg ?? 0, colour: THIS_COLOUR },
             { key: "then", value: then?.summary.weeklyAvg ?? 0, colour: LAST_COLOUR },
@@ -411,12 +534,10 @@ export function buildYearBlocks(input: {
       keepZeros: true,
     });
   }
-  blocks.push(
-    byCategoryChart(
-      input.terms.flatMap((t) => termPoints(t, `${t.term.label.split(" ").slice(0, -1).join(" ")} `)),
-      "Who came each week"
-    )
-  );
+  // One chart per term: a whole year of weeks is too crowded for one.
+  for (const t of input.terms) {
+    blocks.push(byCategoryChart(termPoints(t), `Who came each week in ${termName(t)}`, "Head count by category"));
+  }
   blocks.push(peopleBlock("Everyone", peopleRows(result.rows, result.year), `Everyone who came in ${result.year}.`));
   return blocks;
 }
@@ -448,8 +569,9 @@ export function buildMemberBlocks(input: {
       reason: latest
         ? [
             `${latest.term.label}: ${latest.row.attended}/${latest.row.held} · ${pctText(latest.row.pct)}`,
+            lastCame(latest.row, input.year),
             ...(input.followUp ? [input.followUp.reason] : []),
-          ].join(" · ")
+          ].join("\n")
         : undefined,
     },
   ];
@@ -468,10 +590,10 @@ export function buildMemberBlocks(input: {
     blocks.push({
       type: "weekGrid",
       title: latest!.term.label,
-      subtitle: "Weeklies held this term",
-      weeks: latest!.term.weeklies.map((w) => ({
-        label: `W${w.week}`,
-        came: latest!.row.weeks.includes(w.week),
+      subtitle: "Weeklies attended this term",
+      weeks: weekLabels(latest!.term.weeklies).map((label, i) => ({
+        label,
+        came: latest!.row.indexes.includes(i),
       })),
     });
   }
