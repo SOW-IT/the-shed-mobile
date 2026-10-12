@@ -258,6 +258,12 @@ Create keys in the Google Cloud console, each restricted to its one API:
 | `GOOGLE_MAPS_IOS_API_KEY` | EAS env (app build) | Maps SDK for iOS | `au.org.sow.theshed` |
 | `GOOGLE_MAPS_ANDROID_API_KEY` | EAS env (app build) | Maps SDK for Android | package + SHA-1 |
 
+Dev and prod have separate keys: the DEVELOPMENT - The SHED project
+(`sowwebsite-50dec`) for the dev deployment, dev web, local runs and
+preview/staging builds, and PRODUCTION - The SHED (`theshedsow`) for prod.
+In EAS the `development` and `preview` environments hold the dev keys and
+`production` the prod ones; the `staging` build profile uses `preview`.
+
 `EXPO_PUBLIC_GOOGLE_MAPS_MAP_ID` (web, optional) replaces Google's demo map
 ID. Addresses are looked up when a church is added or moved and again daily
 for any older than 25 days (Google lets coordinates be kept for 30). To fill
