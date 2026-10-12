@@ -12,10 +12,13 @@ export type Church = {
   name: string;
   address: string | null;
   serviceTimes: string | null;
+  location: { lat: number; lng: number } | null;
 };
 
 /** Opens a church's address in the phone's maps app (Apple Maps on iOS,
  *  Google Maps elsewhere and on the web). */
+export const useCanEditChurches = () => Boolean(useQuery(api.directory.me)?.profile);
+
 export const openInMaps = (address: string) => {
   const query = encodeURIComponent(address);
   void Linking.openURL(
@@ -165,6 +168,7 @@ export function ChurchSelect({
 }) {
   const t = useAppTheme();
   const churches = useQuery(api.churches.list);
+  const canAdd = useCanEditChurches();
   const [listOpen, setListOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const selected = churches?.find((c) => c._id === churchId) ?? null;
@@ -220,23 +224,25 @@ export function ChurchSelect({
             </Pressable>
           );
         })}
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => {
-            setListOpen(false);
-            // iOS can't show the form while the list is still fading out.
-            setTimeout(() => setAdding(true), durations.overlayOut + 80);
-          }}
-          style={({ pressed }) => [
-            styles.option,
-            styles.addOption,
-            { borderColor: t.separator },
-            pressed && { opacity: 0.7 },
-          ]}
-        >
-          <Ionicons name="add-circle-outline" size={20} color={t.primary} />
-          <Text style={[typography.headline, { color: t.primary, flex: 1 }]}>Add a church</Text>
-        </Pressable>
+        {canAdd ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              setListOpen(false);
+              // iOS can't show the form while the list is still fading out.
+              setTimeout(() => setAdding(true), durations.overlayOut + 80);
+            }}
+            style={({ pressed }) => [
+              styles.option,
+              styles.addOption,
+              { borderColor: t.separator },
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Ionicons name="add-circle-outline" size={20} color={t.primary} />
+            <Text style={[typography.headline, { color: t.primary, flex: 1 }]}>Add a church</Text>
+          </Pressable>
+        ) : null}
         {churchId ? (
           <Pressable
             accessibilityRole="button"
@@ -276,6 +282,7 @@ export function ChurchPicker({
 }) {
   const t = useAppTheme();
   const setChurch = useMutation(api.profile.setChurch);
+  const canEdit = useCanEditChurches();
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -297,10 +304,12 @@ export function ChurchPicker({
       />
       {!church && typedChurch ? (
         <Text style={[typography.caption, { color: t.muted }]}>
-          You wrote “{typedChurch}”. Pick it from the list, or add it with where it meets and when.
+          {canEdit
+            ? `You wrote “${typedChurch}”. Pick it from the list, or add it with where it meets and when.`
+            : `You wrote “${typedChurch}”. Pick it from the list.`}
         </Text>
       ) : null}
-      {church ? <ChurchDetails church={church} onEdit={() => setEditing(true)} /> : null}
+      {church ? <ChurchDetails church={church} onEdit={canEdit ? () => setEditing(true) : undefined} /> : null}
       <ErrorBanner message={error} />
       <ChurchForm
         visible={editing}

@@ -69,7 +69,7 @@ export const weeklyBlockValidator = v.union(
   v.object({
     type: v.literal("keyValues"),
     title: v.string(),
-    rows: v.array(v.object({ label: v.string(), value: v.string() })),
+    rows: v.array(v.object({ label: v.string(), value: v.string(), link: v.optional(v.string()) })),
   }),
   v.object({
     type: v.literal("termHistory"),

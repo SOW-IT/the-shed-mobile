@@ -2,16 +2,19 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import {
+  internalAction,
   internalMutation,
+  internalQuery,
   mutation,
   type MutationCtx,
   query,
   type QueryCtx,
 } from "./_generated/server";
 import { CAMPUS_FIELD_KEY } from "../shared/attendanceMemberMeta";
+import { assignmentsOf, MEMBER } from "../shared/flow";
 import { personDisplayName } from "../shared/rollcall";
 import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
-import { currentStaffYear, optionalProfile, requireProfile } from "./model";
+import { currentStaffYear, getProfile, optionalEmail, optionalProfile, requireProfile, rolesOf } from "./model";
 
 // Local churches staff go to. Any staff member can add one (with where it is
 // and when it meets) or fill in a missing detail; everyone picks theirs from
@@ -56,11 +59,14 @@ export const STARTER_CHURCHES: {
 const tidy = (text: string | undefined) => text?.trim().replace(/\s+/g, " ") || undefined;
 export const churchNameKey = (name: string) => tidy(name)?.toLowerCase() ?? "";
 
+const locationView = v.object({ lat: v.number(), lng: v.number() });
+
 export const churchView = v.object({
   _id: v.id("churches"),
   name: v.string(),
   address: v.union(v.string(), v.null()),
   serviceTimes: v.union(v.string(), v.null()),
+  location: v.union(locationView, v.null()),
 });
 
 export const viewOf = (church: Doc<"churches">) => ({
@@ -68,7 +74,14 @@ export const viewOf = (church: Doc<"churches">) => ({
   name: church.name,
   address: church.address ?? null,
   serviceTimes: church.serviceTimes ?? null,
+  location: church.location ?? null,
 });
+
+const mapsKey = () => process.env.GOOGLE_MAPS_API_KEY || undefined;
+
+const scheduleLocating = async (ctx: MutationCtx) => {
+  if (mapsKey()) await ctx.scheduler.runAfter(0, internal.churches.locateAll, {});
+};
 
 export const churchByName = (ctx: QueryCtx, name: string) =>
   ctx.db
@@ -81,7 +94,7 @@ export const list = query({
   args: {},
   returns: v.array(churchView),
   handler: async (ctx) => {
-    if (!(await optionalProfile(ctx))) return [];
+    if (!(await optionalEmail(ctx))) return [];
     const churches = await ctx.db.query("churches").withIndex("by_nameKey").take(MAX_CHURCHES);
     return churches.map(viewOf);
   },
@@ -108,13 +121,15 @@ export const add = mutation({
   handler: async (ctx, { name, address, serviceTimes }) => {
     const { email } = await requireProfile(ctx);
     await checkName(ctx, name);
-    return await ctx.db.insert("churches", {
+    const churchId = await ctx.db.insert("churches", {
       name: tidy(name)!,
       nameKey: churchNameKey(name),
       address: tidy(address),
       serviceTimes: tidy(serviceTimes),
       addedBy: email,
     });
+    if (tidy(address)) await scheduleLocating(ctx);
+    return churchId;
   },
 });
 
@@ -127,13 +142,16 @@ export const update = mutation({
     const church = await ctx.db.get("churches", churchId);
     if (!church) throw new ConvexError("That church isn't in the list any more.");
     await checkName(ctx, name, churchId);
+    const moved = tidy(address) !== church.address;
     await ctx.db.patch("churches", churchId, {
       name: tidy(name)!,
       nameKey: churchNameKey(name),
       address: tidy(address),
       serviceTimes: tidy(serviceTimes),
       updatedBy: email,
+      ...(moved ? { location: undefined, locatedAt: undefined } : {}),
     });
+    if (moved && tidy(address)) await scheduleLocating(ctx);
     return null;
   },
 });
@@ -171,6 +189,7 @@ export const setUp = internalMutation({
       await ctx.db.patch("users", user._id, { churchId, localChurch: undefined });
       linked++;
     }
+    if (added) await scheduleLocating(ctx);
     return { added, linked, next: page.isDone ? null : page.continueCursor };
   },
 });
@@ -179,22 +198,78 @@ export const setUp = internalMutation({
  * The Churches page: every church with the staff (who picked it in their
  * Profile) and members (set on their attendance record) who go there.
  */
+const LEADER_ROLES = [
+  "Director",
+  "Head of Division",
+  "Head of Department",
+  "Staff",
+  "Senior Chaplain",
+  "Junior Chaplain",
+  "Intern Chaplain",
+  "President",
+  "Vice President",
+  "Executive",
+  "Student Leader",
+  "Outsource",
+];
+
+export const roleRank = (role: string) => {
+  if (role === MEMBER) return LEADER_ROLES.length + 1;
+  const index = LEADER_ROLES.indexOf(role);
+  return index === -1 ? LEADER_ROLES.length : index;
+};
+
+export const leadingRole = (roles: readonly string[]) =>
+  roles
+    .filter((role) => role !== MEMBER)
+    .sort((a, b) => roleRank(a) - roleRank(b) || a.localeCompare(b))[0] ?? MEMBER;
+
+async function currentProfile(ctx: QueryCtx, email: string | undefined) {
+  for (const candidate of staffEmailCandidates(email)) {
+    const profile = await getProfile(ctx, candidate, currentStaffYear());
+    if (profile) return profile;
+  }
+  return null;
+}
+
+async function signedInUser(ctx: QueryCtx, email: string | undefined) {
+  for (const candidate of staffEmailCandidates(email)) {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("email", (q) => q.eq("email", candidate))
+      .first();
+    if (user) return user;
+  }
+  return null;
+}
+
+const personView = v.object({
+  name: v.string(),
+  role: v.string(),
+  campus: v.union(v.string(), v.null()),
+  email: v.union(v.string(), v.null()),
+  memberId: v.union(v.id("attendanceMembers"), v.null()),
+});
+type Person = typeof personView.type;
+
+const campusOfProfile = (profile: Doc<"staffProfiles">) =>
+  assignmentsOf(profile).find((a) => a.university)?.university ?? null;
+
+const leadersFirst = (a: Person, b: Person) => roleRank(a.role) - roleRank(b.role) || a.name.localeCompare(b.name);
+
 export const directory = query({
   args: {},
-  returns: v.array(
-    v.object({
-      church: churchView,
-      staff: v.array(v.object({ email: v.string(), name: v.string() })),
-      members: v.array(
-        v.object({ memberId: v.id("attendanceMembers"), name: v.string(), campus: v.union(v.string(), v.null()) })
-      ),
-    })
-  ),
+  returns: v.array(v.object({ church: churchView, people: v.array(personView) })),
   handler: async (ctx) => {
     if (!(await optionalProfile(ctx))) return [];
     const campusField = (await ctx.db.query("attendanceMetadata").take(200)).find(
       (f) => f.key === CAMPUS_FIELD_KEY
     );
+    const memberCampus = (member: Doc<"attendanceMembers">) => {
+      const raw = campusField ? member.metadata?.[campusField._id] : undefined;
+      const campus = raw ? (campusField?.values?.[raw] ?? raw) : null;
+      return campus && campus !== "Other" ? campus : null;
+    };
     const churches = await ctx.db.query("churches").withIndex("by_nameKey").take(MAX_CHURCHES);
     const out = [];
     for (const church of churches) {
@@ -206,23 +281,101 @@ export const directory = query({
         .query("attendanceMembers")
         .withIndex("by_churchId", (q) => q.eq("churchId", church._id))
         .take(MAX_ATTENDEES);
-      const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
-      out.push({
-        church: viewOf(church),
-        staff: users
-          .filter((u) => u.email)
-          .map((u) => ({ email: u.email!, name: personDisplayName(u.name, u.email) || u.email! }))
-          .sort(byName),
-        members: members
-          .map((m) => {
-            const raw = campusField ? m.metadata?.[campusField._id] : undefined;
-            const campus = raw ? (campusField?.values?.[raw] ?? raw) : null;
-            return { memberId: m._id, name: m.name, campus: campus && campus !== "Other" ? campus : null };
-          })
-          .sort(byName),
-      });
+      const people: Person[] = [];
+      for (const user of users) {
+        if (!user.email) continue;
+        const profile = await currentProfile(ctx, user.email);
+        people.push({
+          name: personDisplayName(user.name, user.email) || user.email,
+          role: profile ? leadingRole(rolesOf(profile)) : MEMBER,
+          campus: profile ? campusOfProfile(profile) : null,
+          email: user.email,
+          memberId: null,
+        });
+      }
+      for (const member of members) {
+        const profile = await currentProfile(ctx, member.email);
+        if (profile && (await signedInUser(ctx, member.email))?.churchId) continue;
+        people.push({
+          name: profile?.name ?? member.name,
+          role: profile ? leadingRole(rolesOf(profile)) : MEMBER,
+          campus: (profile && campusOfProfile(profile)) ?? memberCampus(member),
+          email: profile?.email ?? null,
+          memberId: member._id,
+        });
+      }
+      out.push({ church: viewOf(church), people: people.sort(leadersFirst) });
     }
     return out;
+  },
+});
+
+const LOCATION_MAX_AGE_MS = 25 * 24 * 60 * 60 * 1000;
+
+type Located = { lat: number; lng: number };
+
+export const needingLocation = internalQuery({
+  args: { now: v.number() },
+  returns: v.array(v.object({ churchId: v.id("churches"), address: v.string() })),
+  handler: async (ctx, { now }) => {
+    const churches = await ctx.db.query("churches").take(MAX_CHURCHES);
+    return churches
+      .filter((c) => c.address && (c.locatedAt === undefined || now - c.locatedAt > LOCATION_MAX_AGE_MS))
+      .map((c) => ({ churchId: c._id, address: c.address! }));
+  },
+});
+
+export const saveLocation = internalMutation({
+  args: { churchId: v.id("churches"), address: v.string(), location: v.union(locationView, v.null()) },
+  returns: v.null(),
+  handler: async (ctx, { churchId, address, location }) => {
+    const church = await ctx.db.get("churches", churchId);
+    if (church?.address !== address) return null;
+    await ctx.db.patch("churches", churchId, { location: location ?? undefined, locatedAt: Date.now() });
+    return null;
+  },
+});
+
+async function geocode(address: string, key: string): Promise<Located | null> {
+  const params = new URLSearchParams({ address, components: "country:AU", key });
+  const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`);
+  if (!response.ok) throw new Error(`Geocoding returned HTTP ${response.status}`);
+  const body = (await response.json()) as {
+    status: string;
+    error_message?: string;
+    results?: { geometry: { location: Located } }[];
+  };
+  if (body.status === "ZERO_RESULTS") return null;
+  if (body.status !== "OK" || !body.results?.length) {
+    throw new Error(`Geocoding returned ${body.status}${body.error_message ? `: ${body.error_message}` : ""}`);
+  }
+  const { lat, lng } = body.results[0].geometry.location;
+  return { lat, lng };
+}
+
+export const locateAll = internalAction({
+  args: {},
+  returns: v.object({ located: v.number(), notFound: v.number(), failed: v.number() }),
+  handler: async (ctx) => {
+    const tally = { located: 0, notFound: 0, failed: 0 };
+    const key = mapsKey();
+    if (!key) return tally;
+    const todo: { churchId: Id<"churches">; address: string }[] = await ctx.runQuery(
+      internal.churches.needingLocation,
+      { now: Date.now() }
+    );
+    for (const { churchId, address } of todo) {
+      try {
+        const location = await geocode(address, key);
+        await ctx.runMutation(internal.churches.saveLocation, { churchId, address, location });
+        if (location) tally.located++;
+        else tally.notFound++;
+      } catch (error) {
+        console.error(`Couldn't find "${address}" on the map`, error);
+        tally.failed++;
+      }
+    }
+    return tally;
   },
 });
 

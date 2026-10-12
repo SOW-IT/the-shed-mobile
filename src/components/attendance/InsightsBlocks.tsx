@@ -253,7 +253,12 @@ export function InsightsBlocks({
           />
         );
       default:
-        return renderWeeklyBlock(block, key, { onOpenPerson, onEditMember, colours: t });
+        return renderWeeklyBlock(block, key, {
+          onOpenPerson,
+          onEditMember,
+          onOpenLink: (link) => router.push(link as never),
+          colours: t,
+        });
     }
   };
 

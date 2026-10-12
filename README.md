@@ -55,6 +55,9 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   profile to signed-in staff. Plain attendance members get one too, from the
   same list in Edit member. The **Churches** page (side menu) lists every
   church with the staff and members who go there.
+  Each person shows their role, leaders first, and a map pins every church
+  with an address (see [Church map](#church-map-optional)). Only people with
+  a staff profile this year add or edit churches.
   `churches:remindToSetChurch` reminds this year's staff who haven't picked
   one (in-app notification and push).
 - **Last online**: someone else's profile shows when they last had The SHED
@@ -241,6 +244,28 @@ Until configured, the daily sync no-ops and the admin screen shows
 "not synced yet". Syncing only fills the picker. Assigning roles stays an
 explicit admin action. A directory email that matches a previous staff year
 is listed under Previously staff rather than as a brand-new person.
+
+### Church map (optional)
+
+The Churches page draws a map of every church with an address. Without keys
+it is hidden on the web and Android, and iPhone falls back to Apple Maps.
+Create keys in the Google Cloud console, each restricted to its one API:
+
+| Key | Where it goes | API | Restrict to |
+| --- | --- | --- | --- |
+| `GOOGLE_MAPS_API_KEY` | `npx convex env set` | Geocoding API | (server key) |
+| `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` | Vercel env (web build) | Maps JavaScript API | the web origins |
+| `GOOGLE_MAPS_IOS_API_KEY` | EAS env (app build) | Maps SDK for iOS | `au.org.sow.theshed` |
+| `GOOGLE_MAPS_ANDROID_API_KEY` | EAS env (app build) | Maps SDK for Android | package + SHA-1 |
+
+`EXPO_PUBLIC_GOOGLE_MAPS_MAP_ID` (web, optional) replaces Google's demo map
+ID. Addresses are looked up when a church is added or moved and again daily
+for any older than 25 days (Google lets coordinates be kept for 30). To fill
+them in straight after setting the key:
+
+```bash
+npx convex run churches:locateAll '{}'
+```
 
 ## CI/CD
 

@@ -57,6 +57,8 @@ export default defineSchema({
     serviceTimes: v.optional(v.string()),
     addedBy: v.string(),
     updatedBy: v.optional(v.string()),
+    location: v.optional(v.object({ lat: v.number(), lng: v.number() })),
+    locatedAt: v.optional(v.number()),
   }).index("by_nameKey", ["nameKey"]),
 
   staffProfiles: defineTable({

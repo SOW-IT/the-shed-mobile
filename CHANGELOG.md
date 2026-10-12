@@ -21,8 +21,19 @@ All notable changes to **The SHED** mobile app. This project follows
   spelling of Sae Soon) is linked to it; anyone who typed something else
   sees it as a hint until they pick or add their church.
 - **A Churches page** in the side menu: every church with where it meets and
-  when, and the staff and members who go there. Search by church or person,
-  add a church, or fill in a church's details.
+  when, and the people who go there with their role, leaders first (staff
+  and campus leaders show their role; everyone else shows as Member). Search
+  by church, person or role, add a church, or fill in a church's details.
+- **A map of the churches** on the Churches page: each church with an address
+  is a pin labelled with its initials (Harbour City Church is HCC). Tap one to
+  see its details and who goes there. Google Maps on the web and Android, and
+  on iPhone once its key is set (Apple Maps until then). Addresses are found
+  with Google's Geocoding API and looked up again within its 30-day limit.
+- **From a person to their church.** On someone's profile, and on an Insights
+  member page, tap their church to open it on the Churches page with everyone
+  who goes there.
+- **Only staff and campus leaders add or edit churches** (anyone with a staff
+  profile this year). Everyone signed in can pick theirs from the list.
 - **Members have a local church too.** Edit member has a Local church row
   picked from the same list (with Add a church). A staff person's church
   comes from their own Profile and shows there read-only. A person's church

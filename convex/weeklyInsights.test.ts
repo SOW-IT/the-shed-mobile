@@ -635,8 +635,9 @@ describe("member page", () => {
       const page = (await leader.query(api.weeklyInsights.member, { personKey, subgroup: UNSW }))!;
       return block(page.blocks as Block[], "keyValues")?.rows ?? [];
     };
-    expect(await details(`member:${ids.ana}`)).toContainEqual({ label: "Church", value: "Grace Church" });
-    expect(await details(`staff:${LEADER}`)).toContainEqual({ label: "Church", value: "Grace Church" });
+    const churchRow = { label: "Church", value: "Grace Church", link: expect.stringMatching(/^\/churches\?church=/) };
+    expect(await details(`member:${ids.ana}`)).toContainEqual(churchRow);
+    expect(await details(`staff:${LEADER}`)).toContainEqual(churchRow);
     expect(await details(`member:${ids.ben}`)).not.toContainEqual(expect.objectContaining({ label: "Church" }));
   });
 

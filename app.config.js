@@ -14,7 +14,24 @@ const resolveGoogleServicesFile = () => {
   return fs.existsSync(local) ? "./google-services.json" : undefined;
 };
 
-module.exports = ({ config }) => {
+const withMaps = (config) => {
+  const iosGoogleMapsApiKey = process.env.GOOGLE_MAPS_IOS_API_KEY || undefined;
+  const androidGoogleMapsApiKey = process.env.GOOGLE_MAPS_ANDROID_API_KEY || undefined;
+  return {
+    ...config,
+    plugins: [
+      ...(config.plugins ?? []),
+      ["react-native-maps", { iosGoogleMapsApiKey, androidGoogleMapsApiKey }],
+    ],
+    extra: {
+      ...config.extra,
+      googleMaps: { ios: Boolean(iosGoogleMapsApiKey), android: Boolean(androidGoogleMapsApiKey) },
+    },
+  };
+};
+
+module.exports = ({ config: base }) => {
+  const config = withMaps(base);
   const googleServicesFile = IS_STAGING
     ? undefined
     : resolveGoogleServicesFile();
