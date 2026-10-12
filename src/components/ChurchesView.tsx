@@ -132,12 +132,7 @@ export function ChurchesView() {
   return (
     <ChromeScreen>
       <View style={styles.header}>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text style={[typography.largeTitle, { color: t.text }]}>Churches</Text>
-          <Text style={[typography.caption, { color: t.muted }]}>
-            Where staff and members go to church
-          </Text>
-        </View>
+        <Text style={[typography.largeTitle, { color: t.text, flex: 1 }]}>Churches</Text>
         {canEdit ? (
           <Btn title="Add a church" icon="add" variant="tonal" onPress={() => setForm({ church: null })} />
         ) : null}
@@ -156,11 +151,6 @@ export function ChurchesView() {
           {churchMapAvailable && onMap.length > 0 ? (
             <FadeInView>
               <ChurchMap churches={onMap} selectedId={selected?.church._id ?? null} onSelect={choose} />
-              {selected ? null : (
-                <Text style={[typography.caption, styles.mapHint, { color: t.muted }]}>
-                  Tap a church on the map to see who goes there.
-                </Text>
-              )}
             </FadeInView>
           ) : null}
           {selected ? (
@@ -193,7 +183,7 @@ export function ChurchesView() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "flex-end", gap: spacing.md, flexWrap: "wrap" },
+  header: { flexDirection: "row", alignItems: "center", gap: spacing.md, flexWrap: "wrap" },
   groupTitle: { fontSize: 13, fontWeight: "700", marginTop: spacing.xs, marginBottom: spacing.xs },
   person: {
     flexDirection: "row",
@@ -215,5 +205,4 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  mapHint: { textAlign: "center", marginTop: spacing.xs },
 });
