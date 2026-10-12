@@ -1124,6 +1124,17 @@ export const member = query({
     const details: { label: string; value: string }[] = [];
     const email = memberDoc?.email ?? (key.startsWith("staff:") ? key.slice("staff:".length) : undefined);
     if (email) details.push({ label: "Email", value: email });
+    // Their church: set on a member's record, or in a staff person's Profile.
+    const staffUser =
+      !memberDoc?.churchId && key.startsWith("staff:")
+        ? await ctx.db
+            .query("users")
+            .withIndex("email", (q) => q.eq("email", key.slice("staff:".length)))
+            .first()
+        : null;
+    const churchId = memberDoc?.churchId ?? staffUser?.churchId;
+    const church = churchId ? await ctx.db.get("churches", churchId) : null;
+    if (church) details.push({ label: "Church", value: church.name });
     for (const field of fields) {
       if (field.key === CAMPUS_FIELD_KEY || field.key === ROLE_FIELD_KEY) continue;
       const raw = memberDoc?.metadata?.[field._id];

@@ -70,7 +70,7 @@ export function ChurchDetails({ church, onEdit }: { church: Church; onEdit?: () 
 }
 
 /** Add a church to the list, or fix one that's there. */
-function ChurchForm({
+export function ChurchForm({
   visible,
   church,
   initialName,
@@ -147,37 +147,33 @@ function ChurchForm({
   );
 }
 
-/** Your local church: picked from the list everyone shares, or added to it. */
-export function ChurchPicker({
-  church,
-  typedChurch,
+/**
+ * A church dropdown over the shared list, with "Add a church" at the bottom
+ * (which picks the new one). `onChange(null)` clears it.
+ */
+export function ChurchSelect({
+  label = "Local church",
+  churchId,
+  onChange,
+  addName,
 }: {
-  church: Church | null;
-  /** What they typed before churches were a list. */
-  typedChurch: string | null;
+  label?: string;
+  churchId: Id<"churches"> | null;
+  onChange: (churchId: Id<"churches"> | null) => void;
+  /** A likely name for a church to add (what someone typed before). */
+  addName?: string;
 }) {
   const t = useAppTheme();
   const churches = useQuery(api.churches.list);
-  const setChurch = useMutation(api.profile.setChurch);
   const [listOpen, setListOpen] = useState(false);
-  const [form, setForm] = useState<{ church: Church | null; name?: string } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const choose = async (churchId: Id<"churches"> | null) => {
-    setError(null);
-    try {
-      await setChurch({ churchId });
-    } catch (e) {
-      setError(errorMessage(e));
-    }
-  };
-
+  const [adding, setAdding] = useState(false);
+  const selected = churches?.find((c) => c._id === churchId) ?? null;
   return (
-    <View style={{ gap: spacing.sm }}>
-      <Text style={[typography.label, { color: t.muted }]}>Local church</Text>
+    <View style={{ gap: spacing.xs }}>
+      <Text style={[typography.label, { color: t.muted }]}>{label}</Text>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Local church: ${church?.name ?? "not set"}. Change`}
+        accessibilityLabel={`${label}: ${selected?.name ?? "not set"}. Change`}
         onPress={() => setListOpen(true)}
         style={({ pressed }) => [
           styles.face,
@@ -185,34 +181,27 @@ export function ChurchPicker({
           pressed && { opacity: 0.8 },
         ]}
       >
-        <Text style={[typography.body, { color: church ? t.text : t.muted, flex: 1 }]} numberOfLines={1}>
-          {church?.name ?? "Pick your church"}
+        <Text style={[typography.body, { color: selected ? t.text : t.muted, flex: 1 }]} numberOfLines={1}>
+          {selected?.name ?? "Pick a church"}
         </Text>
         <Ionicons name="chevron-down" size={18} color={t.muted} />
       </Pressable>
-      {!church && typedChurch ? (
-        <Text style={[typography.caption, { color: t.muted }]}>
-          You wrote “{typedChurch}”. Pick it from the list, or add it with where it meets and when.
-        </Text>
-      ) : null}
-      {church ? <ChurchDetails church={church} onEdit={() => setForm({ church })} /> : null}
-      <ErrorBanner message={error} />
 
-      <OptionSheet visible={listOpen} title="Local church" onClose={() => setListOpen(false)}>
+      <OptionSheet visible={listOpen} title={label} onClose={() => setListOpen(false)}>
         {(churches ?? []).map((option) => {
-          const selected = option._id === church?._id;
+          const on = option._id === churchId;
           return (
             <Pressable
               key={option._id}
               accessibilityRole="button"
-              accessibilityState={{ selected }}
+              accessibilityState={{ selected: on }}
               onPress={() => {
                 setListOpen(false);
-                void choose(option._id);
+                onChange(option._id);
               }}
               style={({ pressed }) => [
                 styles.option,
-                { backgroundColor: selected ? t.primarySoft : t.inputBackground },
+                { backgroundColor: on ? t.primarySoft : t.inputBackground },
                 pressed && { opacity: 0.7 },
               ]}
             >
@@ -227,7 +216,7 @@ export function ChurchPicker({
                   </Text>
                 ) : null}
               </View>
-              {selected ? <Ionicons name="checkmark" size={20} color={t.primary} /> : null}
+              {on ? <Ionicons name="checkmark" size={20} color={t.primary} /> : null}
             </Pressable>
           );
         })}
@@ -235,8 +224,7 @@ export function ChurchPicker({
           accessibilityRole="button"
           onPress={() => {
             setListOpen(false);
-            // What they typed before is the likely name of a church to add.
-            setForm({ church: null, name: typedChurch ?? undefined });
+            setAdding(true);
           }}
           style={({ pressed }) => [
             styles.option,
@@ -248,30 +236,76 @@ export function ChurchPicker({
           <Ionicons name="add-circle-outline" size={20} color={t.primary} />
           <Text style={[typography.headline, { color: t.primary, flex: 1 }]}>Add a church</Text>
         </Pressable>
-        {church ? (
+        {churchId ? (
           <Pressable
             accessibilityRole="button"
             onPress={() => {
               setListOpen(false);
-              void choose(null);
+              onChange(null);
             }}
             style={({ pressed }) => [styles.clear, pressed && { opacity: 0.6 }]}
           >
-            <Text style={[typography.caption, { color: t.muted, fontWeight: "600" }]}>Clear my church</Text>
+            <Text style={[typography.caption, { color: t.muted, fontWeight: "600" }]}>Clear</Text>
           </Pressable>
         ) : null}
       </OptionSheet>
 
       <ChurchForm
-        visible={form !== null}
-        church={form?.church ?? null}
-        initialName={form?.name}
-        onClose={() => setForm(null)}
-        onSaved={(churchId) => {
-          const adding = form?.church == null;
-          setForm(null);
-          if (adding) void choose(churchId);
+        visible={adding}
+        church={null}
+        initialName={addName}
+        onClose={() => setAdding(false)}
+        onSaved={(id) => {
+          setAdding(false);
+          onChange(id);
         }}
+      />
+    </View>
+  );
+}
+
+/** Your local church in your Profile: picked from the list, with its details. */
+export function ChurchPicker({
+  church,
+  typedChurch,
+}: {
+  church: Church | null;
+  /** What they typed before churches were a list. */
+  typedChurch: string | null;
+}) {
+  const t = useAppTheme();
+  const setChurch = useMutation(api.profile.setChurch);
+  const [editing, setEditing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const choose = async (churchId: Id<"churches"> | null) => {
+    setError(null);
+    try {
+      await setChurch({ churchId });
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
+  return (
+    <View style={{ gap: spacing.sm }}>
+      <ChurchSelect
+        churchId={church?._id ?? null}
+        onChange={(id) => void choose(id)}
+        addName={typedChurch ?? undefined}
+      />
+      {!church && typedChurch ? (
+        <Text style={[typography.caption, { color: t.muted }]}>
+          You wrote “{typedChurch}”. Pick it from the list, or add it with where it meets and when.
+        </Text>
+      ) : null}
+      {church ? <ChurchDetails church={church} onEdit={() => setEditing(true)} /> : null}
+      <ErrorBanner message={error} />
+      <ChurchForm
+        visible={editing}
+        church={church}
+        onClose={() => setEditing(false)}
+        onSaved={() => setEditing(false)}
       />
     </View>
   );

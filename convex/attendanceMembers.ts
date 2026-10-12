@@ -331,14 +331,21 @@ export const get = query({
     if (!row) return null;
     const profileYear = staffYear ?? staffYearForDate(new Date());
     const profile = await staffOverlayProfile(ctx, row, profileYear);
-    if (!profile) return { ...row, isStaffOverlay: false };
+    if (!profile) return { ...row, isStaffOverlay: false, profileChurch: null };
     const fields = await allMetadataFields(ctx);
+    // Staff pick their church in their own Profile; the sheet just shows it.
+    const user = await ctx.db
+      .query("users")
+      .withIndex("email", (q) => q.eq("email", profile.email.toLowerCase()))
+      .first();
+    const church = user?.churchId ? await ctx.db.get("churches", user.churchId) : null;
     return {
       ...row,
       isStaffOverlay: true,
       name: profile.name ?? row.name,
       email: profile.email,
       metadata: staffLockedMetadata(fields, profile, row.metadata),
+      profileChurch: church?.name ?? null,
     };
   },
 });
@@ -435,13 +442,22 @@ export const staffForEmail = query({
   },
 });
 
+/** A member's church from the list: checked to still be there. */
+async function checkedChurch(ctx: Ctx, churchId: Id<"churches"> | null | undefined) {
+  if (churchId && !(await ctx.db.get("churches", churchId))) {
+    throw new ConvexError("That church isn't in the list any more.");
+  }
+  return churchId;
+}
+
 export const create = mutation({
   args: {
     name: v.string(),
     email: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.string())),
+    churchId: v.optional(v.id("churches")),
   },
-  handler: async (ctx, { name, email, metadata }) => {
+  handler: async (ctx, { name, email, metadata, churchId }) => {
     const { email: actorEmail } = await requireProfile(ctx);
     const trimmed = capitalizeMemberName(name.trim());
     if (!trimmed) throw new ConvexError("Name is required.");
@@ -460,6 +476,7 @@ export const create = mutation({
       name: trimmed,
       email: email?.trim().toLowerCase() || undefined,
       metadata,
+      churchId: (await checkedChurch(ctx, churchId)) ?? undefined,
     });
     await logAttendanceAction(ctx, {
       actorEmail,
@@ -481,8 +498,11 @@ export const update = mutation({
     personalEmail: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.string())),
     staffYear: v.optional(v.number()),
+    /** A plain member's church; null clears it, left out keeps it. Staff
+     *  set theirs in their own Profile, so it's ignored for them. */
+    churchId: v.optional(v.union(v.id("churches"), v.null())),
   },
-  handler: async (ctx, { memberId, name, email, personalEmail, metadata, staffYear }) => {
+  handler: async (ctx, { memberId, name, email, personalEmail, metadata, staffYear, churchId }) => {
     const { email: actorEmail } = await requireProfile(ctx);
     const row = await ctx.db.get(memberId);
     if (!row) throw new ConvexError("Member not found.");
@@ -535,6 +555,7 @@ export const update = mutation({
       name: trimmed,
       email: ownEmail,
       metadata,
+      ...(churchId === undefined ? {} : { churchId: (await checkedChurch(ctx, churchId)) ?? undefined }),
     });
     await logAttendanceAction(ctx, {
       actorEmail,

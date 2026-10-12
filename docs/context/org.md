@@ -54,9 +54,10 @@ the earlier one by email, including the sow.org.au / sowaustralia.com pair.
 _Avoid_: rehire, returning employee, alumni
 
 **Local church**:
-The church a staff member goes to, picked in their Profile from the shared
-list of churches (each with where it meets and its service times). Any staff
-member can add a church or fill in a missing detail. What people typed before
+The church someone goes to, from the shared list of churches (each with where
+it meets and its service times): a staff member picks theirs in their
+Profile; a plain member's is set in Edit member. Any staff member can add a
+church or fill in a missing detail. The Churches page lists who goes where. What people typed before
 the list existed is kept as a hint until they pick one.
 _Avoid_: home church (ambiguous with a campus), church (alone, for SOW itself)
 

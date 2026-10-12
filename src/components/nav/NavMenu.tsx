@@ -36,6 +36,7 @@ const NAV_ICONS: Record<NavKey, { outline: IconName; filled: IconName }> = {
   insights: { outline: "stats-chart-outline", filled: "stats-chart" },
   org: { outline: "people-outline", filled: "people" },
   profile: { outline: "person-outline", filled: "person" },
+  churches: { outline: "business-outline", filled: "business" },
   announcements: { outline: "megaphone-outline", filled: "megaphone" },
   admin: { outline: "settings-outline", filled: "settings" },
 };
@@ -47,6 +48,7 @@ const TAB_KEYS: ReadonlySet<NavKey> = new Set<NavKey>([
   "designRequests",
   "eventRequests",
   "profile",
+  "churches",
   "attendance",
   "insights",
   "org",

@@ -8,6 +8,8 @@ import {
   query,
   type QueryCtx,
 } from "./_generated/server";
+import { CAMPUS_FIELD_KEY } from "../shared/attendanceMemberMeta";
+import { personDisplayName } from "../shared/rollcall";
 import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
 import { currentStaffYear, optionalProfile, requireProfile } from "./model";
 
@@ -16,8 +18,9 @@ import { currentStaffYear, optionalProfile, requireProfile } from "./model";
 // the list in their Profile.
 
 const MAX_CHURCHES = 500;
-const MAX_USERS = 5000;
+const USERS_PAGE = 500;
 const MAX_STAFF = 3000;
+const MAX_ATTENDEES = 500;
 
 /** The churches the list starts with. */
 export const STARTER_CHURCHES = [
@@ -26,6 +29,11 @@ export const STARTER_CHURCHES = [
     name: "Harbour City Church",
     address: "41b College Street, Gladesville NSW 2111",
     serviceTimes: "Sunday 10:30am",
+  },
+  {
+    name: "Sydney Young Nak Church",
+    address: "7-9 Manson Street, Telopea NSW",
+    serviceTimes: "Sunday 1:15pm",
   },
 ];
 
@@ -117,14 +125,16 @@ export const update = mutation({
 /**
  * Starts the list and links what people typed before it existed: adds the
  * starter churches if they're missing, then points everyone whose typed
- * church has the same name as one in the list at it. Safe to run again.
+ * church has the same name as one in the list at it, a page of users at a
+ * time (pass the returned `next` back as `cursor` until it's null). Safe to
+ * run again.
  *
  *   npx convex run --prod churches:setUp '{}'
  */
 export const setUp = internalMutation({
-  args: {},
-  returns: v.object({ added: v.number(), linked: v.number() }),
-  handler: async (ctx) => {
+  args: { cursor: v.optional(v.union(v.string(), v.null())) },
+  returns: v.object({ added: v.number(), linked: v.number(), next: v.union(v.string(), v.null()) }),
+  handler: async (ctx, { cursor }) => {
     let added = 0;
     for (const church of STARTER_CHURCHES) {
       if (await churchByName(ctx, church.name)) continue;
@@ -132,14 +142,66 @@ export const setUp = internalMutation({
       added++;
     }
     let linked = 0;
-    for (const user of await ctx.db.query("users").take(MAX_USERS)) {
+    const page = await ctx.db.query("users").paginate({ numItems: USERS_PAGE, cursor: cursor ?? null });
+    for (const user of page.page) {
       if (user.churchId || !user.localChurch) continue;
       const church = await churchByName(ctx, user.localChurch);
       if (!church) continue;
       await ctx.db.patch("users", user._id, { churchId: church._id, localChurch: undefined });
       linked++;
     }
-    return { added, linked };
+    return { added, linked, next: page.isDone ? null : page.continueCursor };
+  },
+});
+
+/**
+ * The Churches page: every church with the staff (who picked it in their
+ * Profile) and members (set on their attendance record) who go there.
+ */
+export const directory = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      church: churchView,
+      staff: v.array(v.object({ email: v.string(), name: v.string() })),
+      members: v.array(
+        v.object({ memberId: v.id("attendanceMembers"), name: v.string(), campus: v.union(v.string(), v.null()) })
+      ),
+    })
+  ),
+  handler: async (ctx) => {
+    if (!(await optionalProfile(ctx))) return [];
+    const campusField = (await ctx.db.query("attendanceMetadata").take(200)).find(
+      (f) => f.key === CAMPUS_FIELD_KEY
+    );
+    const churches = await ctx.db.query("churches").withIndex("by_nameKey").take(MAX_CHURCHES);
+    const out = [];
+    for (const church of churches) {
+      const users = await ctx.db
+        .query("users")
+        .withIndex("by_churchId", (q) => q.eq("churchId", church._id))
+        .take(MAX_ATTENDEES);
+      const members = await ctx.db
+        .query("attendanceMembers")
+        .withIndex("by_churchId", (q) => q.eq("churchId", church._id))
+        .take(MAX_ATTENDEES);
+      const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
+      out.push({
+        church: viewOf(church),
+        staff: users
+          .filter((u) => u.email)
+          .map((u) => ({ email: u.email!, name: personDisplayName(u.name, u.email) || u.email! }))
+          .sort(byName),
+        members: members
+          .map((m) => {
+            const raw = campusField ? m.metadata?.[campusField._id] : undefined;
+            const campus = raw ? (campusField?.values?.[raw] ?? raw) : null;
+            return { memberId: m._id, name: m.name, campus: campus && campus !== "Other" ? campus : null };
+          })
+          .sort(byName),
+      });
+    }
+    return out;
   },
 });
 

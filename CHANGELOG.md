@@ -14,10 +14,18 @@ All notable changes to **The SHED** mobile app. This project follows
   (tap to open it in Maps) and its service times, and that shows on your
   profile for other staff too. Not in the list? Add it with its location and
   service times; anyone on staff can fill in a missing detail later. The list
-  starts with Harbour City Church (Gladesville, Sunday 10:30am) and Living
-  Hope Presbyterian Church (Sunday 10am and 12pm). Anyone who typed one of
-  those is linked to it; anyone who typed something else sees it as a hint
-  until they pick or add their church.
+  starts with Harbour City Church (Gladesville, Sunday 10:30am), Sydney Young
+  Nak Church (Telopea, Sunday 1:15pm) and Living Hope Presbyterian Church
+  (Sunday 10am and 12pm). Anyone who typed one of those is linked to it;
+  anyone who typed something else sees it as a hint until they pick or add
+  their church.
+- **A Churches page** in the side menu: every church with where it meets and
+  when, and the staff and members who go there. Search by church or person,
+  add a church, or fill in a church's details.
+- **Members have a local church too.** Edit member has a Local church row
+  picked from the same list (with Add a church). A staff person's church
+  comes from their own Profile and shows there read-only. A person's church
+  also shows on their Insights member page.
 - **A reminder to set your local church**, as a notification and a push, for
   staff who haven't picked one.
 

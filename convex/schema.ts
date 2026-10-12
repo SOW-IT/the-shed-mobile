@@ -44,7 +44,9 @@ export default defineSchema({
     // they pick one.
     localChurch: v.optional(v.string()),
     avatarId: v.optional(v.id("_storage")),
-  }).index("email", ["email"]),
+  })
+    .index("email", ["email"])
+    .index("by_churchId", ["churchId"]),
 
   // Local churches staff go to, which any staff member can add or fill in.
   churches: defineTable({
@@ -515,10 +517,13 @@ export default defineSchema({
     personalEmail: v.optional(v.string()),
     sourceImportId: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.string())),
+    // A plain member's local church (staff set theirs in their Profile).
+    churchId: v.optional(v.id("churches")),
   })
     .index("by_email", ["email"])
     .index("by_source_import_id", ["sourceImportId"])
-    .index("by_name", ["name"]),
+    .index("by_name", ["name"])
+    .index("by_churchId", ["churchId"]),
 
   // An admin said this member isn't this staff person, so Admin → Merges
   // stops suggesting the pair. `staffEmail` is the canonical email key.
