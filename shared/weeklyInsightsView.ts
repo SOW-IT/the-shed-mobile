@@ -77,7 +77,7 @@ export type WeeklyBlock =
       reason?: string;
       memberId?: string | null;
     }
-  | { type: "keyValues"; title: string; rows: { label: string; value: string }[] }
+  | { type: "keyValues"; title: string; rows: { label: string; value: string; link?: string }[] }
   | {
       type: "termHistory";
       title: string;
@@ -551,7 +551,7 @@ export function buildMemberBlocks(input: {
   photo?: string | null;
   memberId?: string | null;
   lines: string[];
-  details: { label: string; value: string }[];
+  details: { label: string; value: string; link?: string }[];
   history: { term: TermResult["term"]; row: TermRow }[];
   followUp: WeeklyFollowUp | null;
   events: MemberEvent[];

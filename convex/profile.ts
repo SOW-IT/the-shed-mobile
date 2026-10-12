@@ -6,6 +6,7 @@ import { assignmentsOf, departmentsOf, divisionsOf } from "../shared/flow";
 import { currentStaffYear, optionalEmail, rolesOf } from "./model";
 import { hasSignedIn, lastOnlineAt } from "./presence";
 import { canonicalEmailKey } from "../shared/rollcallImport";
+import { churchByName, viewOf } from "./churches";
 
 export const get = query({
   args: { email: v.optional(v.string()) },
@@ -53,6 +54,7 @@ export const get = query({
       .sort((a, b) => b.year - a.year);
 
     const anyProfile = serviceHistory.find((h) => h.name) ?? null;
+    const church = callerEmail && user?.churchId ? await ctx.db.get("churches", user.churchId) : null;
     const dirPhoto = dirUser?.photoId
       ? await ctx.storage.getUrl(dirUser.photoId)
       : null;
@@ -62,7 +64,11 @@ export const get = query({
       isMe: callerEmail !== null && canonicalEmailKey(email) === canonicalEmailKey(callerEmail),
       name: user?.name ?? dirUser?.name ?? anyProfile?.name ?? null,
       photo: avatarUrl ?? user?.image ?? dirPhoto,
-      localChurch: callerEmail ? (user?.localChurch ?? null) : null,
+      // Older app builds show this text; newer ones show `church`.
+      localChurch: callerEmail ? (church?.name ?? user?.localChurch ?? null) : null,
+      church: church ? viewOf(church) : null,
+      // What they typed before churches were a list, until they pick one.
+      typedChurch: callerEmail && !church ? (user?.localChurch ?? null) : null,
       // Like the church, only for signed-in staff.
       lastOnlineAt: callerEmail ? await lastOnlineAt(ctx, email) : null,
       hasSignedIn: callerEmail ? await hasSignedIn(ctx, email) : null,
@@ -85,12 +91,31 @@ async function requireOwnUser(ctx: MutationCtx): Promise<Doc<"users">> {
   return user;
 }
 
+/** Picks your church from the list, or clears it (null). */
+export const setChurch = mutation({
+  args: { churchId: v.union(v.id("churches"), v.null()) },
+  returns: v.null(),
+  handler: async (ctx, { churchId }) => {
+    const user = await requireOwnUser(ctx);
+    if (churchId && !(await ctx.db.get("churches", churchId))) {
+      throw new ConvexError("That church isn't in the list any more.");
+    }
+    await ctx.db.patch("users", user._id, { churchId: churchId ?? undefined, localChurch: undefined });
+    return null;
+  },
+});
+
+/** The free-text church older app builds still save: a name in the list
+ *  becomes that church; anything else is kept as typed until they pick. */
 export const updateChurch = mutation({
   args: { localChurch: v.string() },
   handler: async (ctx, args) => {
     const user = await requireOwnUser(ctx);
+    const typed = args.localChurch.trim();
+    const church = typed ? await churchByName(ctx, typed) : null;
     await ctx.db.patch("users", user._id, {
-      localChurch: args.localChurch.trim() || undefined,
+      churchId: church?._id,
+      localChurch: church ? undefined : typed || undefined,
     });
     return null;
   },

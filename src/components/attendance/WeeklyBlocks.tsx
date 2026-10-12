@@ -296,6 +296,7 @@ export function renderWeeklyBlock(
   ctx: {
     onOpenPerson?: (personKey: string) => void;
     onEditMember?: (memberId: string) => void;
+    onOpenLink?: (link: string) => void;
     colours: ReturnType<typeof useAppTheme>;
   }
 ): ReactNode {
@@ -329,14 +330,29 @@ export function renderWeeklyBlock(
     case "keyValues":
       return (
         <Panel key={key} title={block.title} icon="id-card-outline">
-          {block.rows.map((row) => (
-            <View key={row.label} style={[styles.kv, { borderTopColor: t.separator }]}>
-              <Text style={[typography.caption, { color: t.muted, width: 120 }]}>{row.label}</Text>
-              <Text style={[typography.body, { color: t.text, flex: 1 }]} selectable>
-                {row.value}
-              </Text>
-            </View>
-          ))}
+          {block.rows.map((row) => {
+            const link = row.link;
+            return link && ctx.onOpenLink ? (
+              <Pressable
+                key={row.label}
+                accessibilityRole="link"
+                accessibilityLabel={`${row.label}: ${row.value}. Open`}
+                onPress={() => ctx.onOpenLink?.(link)}
+                style={({ pressed }) => [styles.kv, { borderTopColor: t.separator }, pressed && { opacity: 0.6 }]}
+              >
+                <Text style={[typography.caption, { color: t.muted, width: 120 }]}>{row.label}</Text>
+                <Text style={[typography.body, { color: t.primary, flex: 1, fontWeight: "600" }]}>{row.value}</Text>
+                <Ionicons name="chevron-forward" size={16} color={t.primary} />
+              </Pressable>
+            ) : (
+              <View key={row.label} style={[styles.kv, { borderTopColor: t.separator }]}>
+                <Text style={[typography.caption, { color: t.muted, width: 120 }]}>{row.label}</Text>
+                <Text style={[typography.body, { color: t.text, flex: 1 }]} selectable>
+                  {row.value}
+                </Text>
+              </View>
+            );
+          })}
         </Panel>
       );
     case "termHistory":

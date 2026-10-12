@@ -244,6 +244,14 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="churches"
+        options={{
+          title: "Churches",
+          ...(isStaff ? { href: null } : {}),
+          tabBarIcon: tabIcon("business-outline", "business"),
+        }}
+      />
+      <Tabs.Screen
         name="admin"
         options={{
           title: "Admin",

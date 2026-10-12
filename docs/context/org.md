@@ -53,6 +53,14 @@ Assigning them for the viewed year creates that year's profile and links it to
 the earlier one by email, including the sow.org.au / sowaustralia.com pair.
 _Avoid_: rehire, returning employee, alumni
 
+**Local church**:
+The church someone goes to, from the shared list of churches (each with where
+it meets and its service times): a staff member picks theirs in their
+Profile; a plain member's is set in Edit member. Any staff member can add a
+church or fill in a missing detail. The Churches page lists who goes where. What people typed before
+the list existed is kept as a hint until they pick one.
+_Avoid_: home church (ambiguous with a campus), church (alone, for SOW itself)
+
 **Guest**:
 A signed-in account that is not Staff — someone who signed in with Apple
 rather than an `@sow.org.au` Google account (personal Google sign-in was

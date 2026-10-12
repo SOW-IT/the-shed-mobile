@@ -38,9 +38,31 @@ export default defineSchema({
     phone: v.optional(v.string()),
     phoneVerificationTime: v.optional(v.number()),
     isAnonymous: v.optional(v.boolean()),
+    // The church they picked from the list (`churches`).
+    churchId: v.optional(v.id("churches")),
+    // What they typed before churches were a list; shown as a hint until
+    // they pick one.
     localChurch: v.optional(v.string()),
     avatarId: v.optional(v.id("_storage")),
-  }).index("email", ["email"]),
+  })
+    .index("email", ["email"])
+    .index("by_churchId", ["churchId"]),
+
+  // Local churches staff go to, which any staff member can add or fill in.
+  churches: defineTable({
+    name: v.string(),
+    // Lower-case, single-spaced name, so the same church isn't added twice.
+    nameKey: v.string(),
+    address: v.optional(v.string()),
+    serviceTimes: v.optional(v.string()),
+    services: v.optional(v.array(v.object({ day: v.number(), time: v.string() }))),
+    website: v.optional(v.string()),
+    instagram: v.optional(v.string()),
+    addedBy: v.string(),
+    updatedBy: v.optional(v.string()),
+    location: v.optional(v.object({ lat: v.number(), lng: v.number() })),
+    locatedAt: v.optional(v.number()),
+  }).index("by_nameKey", ["nameKey"]),
 
   staffProfiles: defineTable({
     email: v.string(),
@@ -500,10 +522,13 @@ export default defineSchema({
     personalEmail: v.optional(v.string()),
     sourceImportId: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.string())),
+    // A plain member's local church (staff set theirs in their Profile).
+    churchId: v.optional(v.id("churches")),
   })
     .index("by_email", ["email"])
     .index("by_source_import_id", ["sourceImportId"])
-    .index("by_name", ["name"]),
+    .index("by_name", ["name"])
+    .index("by_churchId", ["churchId"]),
 
   // An admin said this member isn't this staff person, so Admin → Merges
   // stops suggesting the pair. `staffEmail` is the canonical email key.

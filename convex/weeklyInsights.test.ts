@@ -621,6 +621,26 @@ describe("sign-in tags", () => {
 });
 
 describe("member page", () => {
+  test("shows their church: a member's own, or a staff person's from their Profile", async () => {
+    const { t, leader, ids } = await setup();
+    await rebuild(t);
+    const grace = await t.run((ctx) =>
+      ctx.db.insert("churches", { name: "Grace Church", nameKey: "grace church", addedBy: "x" })
+    );
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", { email: LEADER, churchId: grace });
+      await ctx.db.patch("attendanceMembers", ids.ana, { churchId: grace });
+    });
+    const details = async (personKey: string) => {
+      const page = (await leader.query(api.weeklyInsights.member, { personKey, subgroup: UNSW }))!;
+      return block(page.blocks as Block[], "keyValues")?.rows ?? [];
+    };
+    const churchRow = { label: "Church", value: "Grace Church", link: expect.stringMatching(/^\/churches\?church=/) };
+    expect(await details(`member:${ids.ana}`)).toContainEqual(churchRow);
+    expect(await details(`staff:${LEADER}`)).toContainEqual(churchRow);
+    expect(await details(`member:${ids.ben}`)).not.toContainEqual(expect.objectContaining({ label: "Church" }));
+  });
+
   test("a member: header, details, weeklies by term, week grid and every event", async () => {
     const { t, leader, ids } = await setup();
     await rebuild(t);

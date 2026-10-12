@@ -17,6 +17,7 @@ import { SYDNEY_TIME_ZONE } from "../../../shared/flow";
 import { isSowStaffAddress } from "../../../shared/rollcallImport";
 import { capitalizeMemberName } from "../../../shared/rollcall";
 import { MergeMemberSheet } from "@/components/attendance/MergeMemberSheet";
+import { ChurchSelect } from "@/components/ChurchPicker";
 import {
   Btn,
   CannotUndo,
@@ -92,6 +93,7 @@ export function EditMemberSheet({
   const [email, setEmail] = useState("");
   const [personalEmail, setPersonalEmail] = useState("");
   const [metadata, setMetadata] = useState<Record<string, string>>({});
+  const [churchId, setChurchId] = useState<Id<"churches"> | null>(null);
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -147,11 +149,13 @@ export function EditMemberSheet({
       setEmail(row.email ?? "");
       setPersonalEmail(row.personalEmail ?? "");
       setMetadata(row.metadata ?? {});
+      setChurchId(row.churchId ?? null);
     } else if (!memberId) {
       setName(capitalizeMemberName(prefillName ?? ""));
       setEmail("");
       setPersonalEmail("");
       setMetadata({});
+      setChurchId(null);
     }
     setNotes(eventAttendance?.notes ?? "");
     setError(null);
@@ -183,9 +187,11 @@ export function EditMemberSheet({
           personalEmail: isStaffOverlay ? personalEmail : undefined,
           metadata,
           staffYear,
+          // Staff set their church in their own Profile.
+          ...(isStaffOverlay ? {} : { churchId }),
         });
       } else {
-        createdId = await create({ name, email: email || undefined, metadata });
+        createdId = await create({ name, email: email || undefined, metadata, churchId: churchId ?? undefined });
       }
       if (eventAttendance) {
         await updateAttendance({
@@ -351,6 +357,21 @@ export function EditMemberSheet({
               />
             </View>
           ) : null}
+          {isStaffOverlay ? (
+            <View style={{ gap: 4 }}>
+              <Field
+                label="Local church"
+                value={row?.profileChurch ?? "Not set"}
+                onChangeText={() => {}}
+                disabled
+              />
+              <Txt style={[typography.caption, { color: t.muted }]}>
+                Staff pick their church in their own Profile.
+              </Txt>
+            </View>
+          ) : (
+            <ChurchSelect churchId={churchId} onChange={setChurchId} />
+          )}
           {metadataFields.map((field) => {
             const lockedForStaff =
               isStaffOverlay &&

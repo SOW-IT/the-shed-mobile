@@ -6,6 +6,51 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.5.5] — 2026-10-12
+
+### Added
+- **Pick your local church from a list.** Profile's free-text church box is
+  now a dropdown of churches staff go to. Each church shows where it meets
+  (tap to open it in Maps) and its service times, and that shows on your
+  profile for other staff too. Not in the list? Add it with its location and
+  service times; anyone on staff can fill in a missing detail later. The list
+  starts with Harbour City Church (Gladesville, Sunday 10:30am), Sydney Young
+  Nak Church (Telopea, Sunday 1:15pm), Sydney Sae Soon Presbyterian Church
+  (New Life; North Rocks, Sunday 10am) and Living Hope Presbyterian Church
+  (Sunday 10am and 12pm). Anyone who typed one of those (or a common
+  spelling of Sae Soon) is linked to it; anyone who typed something else
+  sees it as a hint until they pick or add their church.
+- **A Churches page** in the side menu: every church with where it meets and
+  when, and the people who go there with their role, leaders first (staff
+  and campus leaders show their role; everyone else shows as Member). Search
+  by church, person or role, add a church, or fill in a church's details.
+- **A map of the churches** on the Churches page: each church with an address
+  is a pin labelled with its initials (Harbour City Church is HCC). Tap one to
+  see its details and who goes there. Google Maps on the web and Android, and
+  on iPhone once its key is set (Apple Maps until then). Addresses are found
+  with Google's Geocoding API and looked up again within its 30-day limit.
+- **From a person to their church.** On someone's profile, and on an Insights
+  member page, tap their church to open it on the Churches page with everyone
+  who goes there.
+- **Service times are picked, not typed:** a day of the week and a start time
+  for each service, as many as a church has, shown as "Sunday 10am and 12pm".
+  A church can also have its website and Instagram, both optional.
+- **Anyone can see the churches**, signed in or not, from the Churches tab or
+  menu. Signed-out visitors see how many people go to each church but not
+  who, and no one's profile.
+- **Only staff and campus leaders add or edit churches** (anyone with a staff
+  profile this year). Everyone signed in can pick theirs from the list.
+- **Members have a local church too.** Edit member has a Local church row
+  picked from the same list (with Add a church). A staff person's church
+  comes from their own Profile and shows there read-only. A person's church
+  also shows on their Insights member page.
+- **A reminder to set your local church**, as a notification and a push, for
+  staff who haven't picked one.
+
+### Fixed
+- **Picking a date or time on Android** closes the picker. Before, the clock
+  opened again after OK until you pressed Cancel (in Create event too).
+
 ## [2.5.4] — 2026-10-12
 
 ### Fixed

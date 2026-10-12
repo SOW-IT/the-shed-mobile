@@ -19,6 +19,7 @@
       }
     },
     "staging": {
+      "environment": "preview",
       "autoIncrement": true,
       "env": {
         "APP_VARIANT": "staging",
