@@ -164,6 +164,49 @@ describe("the church list", () => {
     expect(harbour.serviceTimes).toBeUndefined();
   });
 
+  test("setUp finds a starter church spelt with a curly apostrophe", async () => {
+    const { t } = await setup();
+    await t.run((ctx) =>
+      ctx.db.insert("churches", {
+        name: "St John’s Anglican Cathedral Parramatta",
+        nameKey: "st john’s anglican cathedral parramatta",
+        addedBy: "system",
+      })
+    );
+    expect(await t.mutation(internal.churches.setUp, {})).toMatchObject({ added: STARTER_CHURCHES.length - 1, filled: 1 });
+    const stJohns = (await t.run((ctx) => ctx.db.query("churches").collect())).filter((c) => c.name.startsWith("St John"));
+    expect(stJohns).toHaveLength(1);
+  });
+
+  test("setUp keeps a church's own typed times over the starter's", async () => {
+    const { t } = await setup();
+    const [youngNak, onnuri] = await t.run(async (ctx) => [
+      await ctx.db.insert("churches", {
+        name: "Sydney Young Nak Church",
+        nameKey: "sydney young nak church",
+        serviceTimes: "Sundays 9am and 11am",
+        addedBy: "system",
+      }),
+      await ctx.db.insert("churches", {
+        name: "Sydney Onnuri Church",
+        nameKey: "sydney onnuri church",
+        serviceTimes: "Ask the office",
+        addedBy: "system",
+      }),
+    ]);
+    await t.mutation(internal.churches.setUp, {});
+    const [yn, on] = await t.run(async (ctx) => [await ctx.db.get("churches", youngNak), await ctx.db.get("churches", onnuri)]);
+    expect(yn).toMatchObject({
+      services: [
+        { day: 0, time: "09:00" },
+        { day: 0, time: "11:00" },
+      ],
+    });
+    expect(yn?.serviceTimes).toBeUndefined();
+    expect(on).toMatchObject({ serviceTimes: "Ask the office", website: "https://syd.onnuri.or.kr/" });
+    expect(on?.services).toBeUndefined();
+  });
+
   test("the starter churches' details are what the edit form would save", () => {
     for (const church of STARTER_CHURCHES) {
       if (church.website) expect(cleanWebsite(church.website)).toBe(church.website);

@@ -17,6 +17,7 @@ import {
   formatServices,
   isServiceTime,
   MAX_SERVICES,
+  parseServiceTimes,
   type ServiceTime,
   sortServices,
 } from "../shared/churches";
@@ -347,7 +348,7 @@ export const setUp = internalMutation({
     let needsLocating = false;
     const aliases = new Map<string, Id<"churches">>();
     for (const { aliases: alsoKnownAs = [], ...church } of STARTER_CHURCHES) {
-      let existing = await churchByName(ctx, church.name);
+      let existing = await churchByAlias(ctx, church.name);
       for (const alias of alsoKnownAs) existing ??= await churchByAlias(ctx, alias);
       let id = existing?._id;
       if (!existing) {
@@ -360,11 +361,11 @@ export const setUp = internalMutation({
         added++;
         needsLocating ||= Boolean(church.address);
       } else {
+        const typedTimes = existing.serviceTimes ? parseServiceTimes(existing.serviceTimes) : [];
+        const services = existing.serviceTimes ? typedTimes : church.services;
         const blanks = {
           ...(!existing.address && church.address ? { address: church.address } : {}),
-          ...(!existing.services?.length && church.services.length
-            ? { services: church.services, serviceTimes: undefined }
-            : {}),
+          ...(!existing.services?.length && services.length ? { services, serviceTimes: undefined } : {}),
           ...(!existing.website && church.website ? { website: church.website } : {}),
           ...(!existing.instagram && church.instagram ? { instagram: church.instagram } : {}),
         };
