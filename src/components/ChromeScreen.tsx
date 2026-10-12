@@ -1,6 +1,6 @@
 import { useQuery } from "convex/react";
-import { ReactNode } from "react";
-import { Animated, StyleSheet, View } from "react-native";
+import { ReactNode, Ref } from "react";
+import { Animated, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../../convex/_generated/api";
 import { spacing, useAppTheme } from "@/theme";
@@ -14,11 +14,13 @@ export const ChromeScreen = ({
   footer,
   floating,
   fullWidth = false,
+  scrollRef,
 }: {
   children?: ReactNode;
   footer?: ReactNode;
   floating?: ReactNode;
   fullWidth?: boolean;
+  scrollRef?: Ref<ScrollView>;
 }) => {
   const t = useAppTheme();
   const me = useQuery(api.directory.me);
@@ -29,6 +31,7 @@ export const ChromeScreen = ({
   return (
     <View style={[styles.screen, { backgroundColor: t.background }]}>
       <Animated.ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         automaticallyAdjustKeyboardInsets
         keyboardShouldPersistTaps="handled"

@@ -6,6 +6,32 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.5.6] — 2026-10-13
+
+### Added
+- **Everyone's typed church is now on the list.** `churches:setUp` adds the
+  churches people had typed before the list existed, with where they meet,
+  their Sunday services and their website and Instagram: St John's Anglican
+  Cathedral Parramatta, Sydney Dongsan Church, The Movement Church, West
+  Sydney Community Church, Sydney Onnuri Church, St Barnabas Anglican Church
+  Roseville, Cornerstone Church Rhodes, Cabramatta Anglican Church, Macquarie
+  Anglican Church, Jesus Follower Church and Saving Grace Christian Church.
+  Everyone who typed one of them (or "New Life", for Sae Soon) is linked to
+  it. A church staff already added under another spelling is reused, and
+  only its blank details are filled in.
+
+### Changed
+- **Signed-out visitors see who goes to each church**, with their role and
+  campus, and can open the profiles of the staff and campus leaders in the
+  list. A staff profile shows their church to visitors too. Other people's
+  member records stay private.
+- **Each church lists its first 5 people**, with "N more" under them. Pick a
+  church on the map, or tap anywhere on its card, and it opens under the map
+  with everyone in a box that scrolls, like the Insights lists.
+- **Alumni show as Alumni**, after the members at the bottom of a church's
+  list.
+- **Search matches church and people names only**, not roles.
+
 ## [2.5.5] — 2026-10-12
 
 ### Added

@@ -54,7 +54,7 @@ export const get = query({
       .sort((a, b) => b.year - a.year);
 
     const anyProfile = serviceHistory.find((h) => h.name) ?? null;
-    const church = callerEmail && user?.churchId ? await ctx.db.get("churches", user.churchId) : null;
+    const church = user?.churchId ? await ctx.db.get("churches", user.churchId) : null;
     const dirPhoto = dirUser?.photoId
       ? await ctx.storage.getUrl(dirUser.photoId)
       : null;
@@ -65,7 +65,7 @@ export const get = query({
       name: user?.name ?? dirUser?.name ?? anyProfile?.name ?? null,
       photo: avatarUrl ?? user?.image ?? dirPhoto,
       // Older app builds show this text; newer ones show `church`.
-      localChurch: callerEmail ? (church?.name ?? user?.localChurch ?? null) : null,
+      localChurch: church?.name ?? (callerEmail ? (user?.localChurch ?? null) : null),
       church: church ? viewOf(church) : null,
       // What they typed before churches were a list, until they pick one.
       typedChurch: callerEmail && !church ? (user?.localChurch ?? null) : null,
