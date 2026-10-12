@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
-import { radius, spacing, typography, useAppTheme } from "../theme";
+import { durations, radius, spacing, typography, useAppTheme } from "../theme";
 import { Btn, ErrorBanner, errorMessage, Field, OptionSheet, Sheet } from "./ui";
 
 export type Church = {
@@ -224,7 +224,8 @@ export function ChurchSelect({
           accessibilityRole="button"
           onPress={() => {
             setListOpen(false);
-            setAdding(true);
+            // iOS can't show the form while the list is still fading out.
+            setTimeout(() => setAdding(true), durations.overlayOut + 80);
           }}
           style={({ pressed }) => [
             styles.option,

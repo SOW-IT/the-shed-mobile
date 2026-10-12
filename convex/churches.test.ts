@@ -72,11 +72,15 @@ describe("the church list", () => {
 
   test("setUp adds the starter churches once and links what people typed", async () => {
     const { t, samId } = await setup();
-    const other = await t.run(async (ctx) => {
+    const [other, saesoon] = await t.run(async (ctx) => {
       await ctx.db.patch("users", samId, { localChurch: "harbour city  church" });
-      return await ctx.db.insert("users", { email: "x@gmail.com", localChurch: "Somewhere Else" });
+      return [
+        await ctx.db.insert("users", { email: "x@gmail.com", localChurch: "Somewhere Else" }),
+        // Typed another way: an alias of a starter church.
+        await ctx.db.insert("users", { email: "y@gmail.com", localChurch: "New Life Sydney (Saesoon Presbyterian Church)" }),
+      ];
     });
-    expect(await t.mutation(internal.churches.setUp, {})).toEqual({ added: 3, linked: 1, next: null });
+    expect(await t.mutation(internal.churches.setUp, {})).toEqual({ added: 4, linked: 2, next: null });
     expect(await t.mutation(internal.churches.setUp, {})).toEqual({ added: 0, linked: 0, next: null });
     const churches = await t.run((ctx) => ctx.db.query("churches").collect());
     const harbour = churches.find((c) => c.name === "Harbour City Church")!;
@@ -88,6 +92,9 @@ describe("the church list", () => {
       address: "7-9 Manson Street, Telopea NSW",
       serviceTimes: "Sunday 1:15pm",
     });
+    const newLife = churches.find((c) => c.name === "Sydney Sae Soon Presbyterian Church (New Life)")!;
+    expect(newLife).toMatchObject({ address: "219A North Rocks Road, North Rocks NSW", serviceTimes: "Sunday 10am" });
+    expect(await t.run((ctx) => ctx.db.get("users", saesoon))).toMatchObject({ churchId: newLife._id });
     const [sam, x] = await t.run(async (ctx) => [await ctx.db.get("users", samId), await ctx.db.get("users", other)]);
     expect(sam).toMatchObject({ churchId: harbour._id });
     expect(sam?.localChurch).toBeUndefined();

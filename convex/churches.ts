@@ -22,8 +22,14 @@ const USERS_PAGE = 500;
 const MAX_STAFF = 3000;
 const MAX_ATTENDEES = 500;
 
-/** The churches the list starts with. */
-export const STARTER_CHURCHES = [
+/** The churches the list starts with. `aliases` are other ways people typed
+ *  the name before the list existed, so `setUp` links them too. */
+export const STARTER_CHURCHES: {
+  name: string;
+  address?: string;
+  serviceTimes: string;
+  aliases?: string[];
+}[] = [
   { name: "Living Hope Presbyterian Church", serviceTimes: "Sunday 10am and 12pm" },
   {
     name: "Harbour City Church",
@@ -34,6 +40,16 @@ export const STARTER_CHURCHES = [
     name: "Sydney Young Nak Church",
     address: "7-9 Manson Street, Telopea NSW",
     serviceTimes: "Sunday 1:15pm",
+  },
+  {
+    name: "Sydney Sae Soon Presbyterian Church (New Life)",
+    address: "219A North Rocks Road, North Rocks NSW",
+    serviceTimes: "Sunday 10am",
+    aliases: [
+      "Sydney Saesoon Presbyterian Church",
+      "New Life Sydney (Saesoon Presbyterian Church)",
+      "Saesoon Presbyterian church, New Life",
+    ],
   },
 ];
 
@@ -136,18 +152,23 @@ export const setUp = internalMutation({
   returns: v.object({ added: v.number(), linked: v.number(), next: v.union(v.string(), v.null()) }),
   handler: async (ctx, { cursor }) => {
     let added = 0;
-    for (const church of STARTER_CHURCHES) {
-      if (await churchByName(ctx, church.name)) continue;
-      await ctx.db.insert("churches", { ...church, nameKey: churchNameKey(church.name), addedBy: "system" });
-      added++;
+    const aliases = new Map<string, Id<"churches">>();
+    for (const { aliases: alsoKnownAs = [], ...church } of STARTER_CHURCHES) {
+      let id = (await churchByName(ctx, church.name))?._id;
+      if (!id) {
+        id = await ctx.db.insert("churches", { ...church, nameKey: churchNameKey(church.name), addedBy: "system" });
+        added++;
+      }
+      for (const alias of alsoKnownAs) aliases.set(churchNameKey(alias), id);
     }
     let linked = 0;
     const page = await ctx.db.query("users").paginate({ numItems: USERS_PAGE, cursor: cursor ?? null });
     for (const user of page.page) {
       if (user.churchId || !user.localChurch) continue;
-      const church = await churchByName(ctx, user.localChurch);
-      if (!church) continue;
-      await ctx.db.patch("users", user._id, { churchId: church._id, localChurch: undefined });
+      const churchId =
+        (await churchByName(ctx, user.localChurch))?._id ?? aliases.get(churchNameKey(user.localChurch));
+      if (!churchId) continue;
+      await ctx.db.patch("users", user._id, { churchId, localChurch: undefined });
       linked++;
     }
     return { added, linked, next: page.isDone ? null : page.continueCursor };
