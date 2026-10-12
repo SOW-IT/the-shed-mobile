@@ -52,6 +52,7 @@ import {
 import { currentStaffYear, optionalProfile, requireAttendanceManager } from "./model";
 import { metricsDataValidator, viewBlockValidator } from "./metricsData";
 import { readCampusWeeklyAverages } from "./weeklyInsights";
+import { photoFor } from "./photo";
 import {
   ATTENDANCE_RANGE_OPTIONS,
   buildAttendanceView,
@@ -355,7 +356,7 @@ async function resolvePersons(
         kind: isStaff ? "staff" : "member",
         name: personDisplayName(profile?.name, email),
         subtitle: isStaff ? roles.join(" · ") || undefined : undefined,
-        photo: user?.image ?? null,
+        photo: await photoFor(ctx, user, profile?.email ?? email),
         breakdown: isStaff
           ? buildBreakdown(roles[0], campuses[0])
           : buildBreakdown("Member", undefined),

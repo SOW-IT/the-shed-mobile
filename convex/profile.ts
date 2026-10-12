@@ -7,6 +7,7 @@ import { currentStaffYear, optionalEmail, rolesOf } from "./model";
 import { hasSignedIn, lastOnlineAt } from "./presence";
 import { canonicalEmailKey } from "../shared/rollcallImport";
 import { churchByName, viewOf } from "./churches";
+import { photoUrl } from "./photo";
 
 export const get = query({
   args: { email: v.optional(v.string()) },
@@ -19,7 +20,6 @@ export const get = query({
       .query("users")
       .withIndex("email", (q) => q.eq("email", email))
       .first();
-    const avatarUrl = user?.avatarId ? await ctx.storage.getUrl(user.avatarId) : null;
     const dirUser = await ctx.db
       .query("directoryUsers")
       .withIndex("by_email", (q) => q.eq("email", email))
@@ -55,9 +55,6 @@ export const get = query({
 
     const anyProfile = serviceHistory.find((h) => h.name) ?? null;
     const church = user?.churchId ? await ctx.db.get("churches", user.churchId) : null;
-    const dirPhoto = dirUser?.photoId
-      ? await ctx.storage.getUrl(dirUser.photoId)
-      : null;
     const isMe =
       callerEmail !== null && canonicalEmailKey(email) === canonicalEmailKey(callerEmail);
     const directorySync = isMe && dirUser
@@ -78,7 +75,7 @@ export const get = query({
       isMe,
       googleSyncedAt: isMe && googleSyncTimes.length ? Math.max(...googleSyncTimes) : null,
       name: user?.name ?? dirUser?.name ?? anyProfile?.name ?? null,
-      photo: avatarUrl ?? user?.image ?? dirPhoto,
+      photo: await photoUrl(ctx, user, dirUser),
       // Older app builds show this text; newer ones show `church`.
       localChurch: church?.name ?? (callerEmail ? (user?.localChurch ?? null) : null),
       church: church ? viewOf(church) : null,
