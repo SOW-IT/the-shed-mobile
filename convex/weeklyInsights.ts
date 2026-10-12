@@ -65,6 +65,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { currentStaffYear, optionalProfile } from "./model";
+import { photoFor } from "./photo";
 import {
   personCategoryValidator,
   termFactsFields,
@@ -417,7 +418,7 @@ async function resolvePeople(ctx: QueryCtx, keys: string[], years: number[]): Pr
     people.push({
       key,
       name: personDisplayName(latest?.name ?? member?.name, email) || "Unknown",
-      photo: user?.image ?? null,
+      photo: await photoFor(ctx, user, latest?.email ?? email),
       memberId: member?._id ?? null,
       infoByYear,
       info: fallback,
