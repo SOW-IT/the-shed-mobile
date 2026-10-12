@@ -6,6 +6,22 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.5.7] — 2026-10-13
+
+### Changed
+- **Insights no longer counts outsourced people as staff.** Someone whose only
+  role is Outsource is left out of the General tab's headcount, retention and
+  years-served numbers. Someone who is also Staff or a Student Leader counts
+  as that.
+- **Your profile shows when Google last synced it**, as a chip under your
+  name: "Synced from Google 3d ago". It is the later of your last Google
+  sign-in and the weekly directory sync.
+- **Less explanatory text.** Lines that repeated a heading or a button, or
+  explained what the screen already shows, are gone: on your profile, the
+  admin directory sync and delegation cards, new attendance events, the Home
+  editor, event request forms, request and attendance exports, attendance
+  tags, the risk guide and the "Recommended" note.
+
 ## [2.5.6] — 2026-10-13
 
 ### Added

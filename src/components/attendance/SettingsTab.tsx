@@ -119,9 +119,6 @@ export function SettingsTab({
 
   return (
     <>
-      <View style={{ marginBottom: spacing.md }}>
-        <Muted>Event categories (e.g. Weekly Meeting) with colours.</Muted>
-      </View>
       {tagDrafts.map((tag, i) => (
         <Card
           key={tag.id ?? `new-${i}`}

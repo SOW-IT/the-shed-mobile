@@ -26,7 +26,6 @@ import {
   ErrorBanner,
   errorMessage,
   MultiSelect,
-  Muted,
   Sheet,
   Txt,
 } from "@/components/ui";
@@ -275,15 +274,6 @@ export function ExportSheet({
         />
       }
     >
-      {isEvent ? (
-        <Muted>Export this event&apos;s attendance to a CSV file.</Muted>
-      ) : (
-        <Muted>
-          Export attendance for {subgroupLabel(subgroup)}, including
-          collaborative events, to a CSV file.
-        </Muted>
-      )}
-
       <Txt style={[typography.label, styles.heading, { color: t.muted }]}>
         Layout
       </Txt>

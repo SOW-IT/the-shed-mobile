@@ -11,7 +11,6 @@ import {
   ErrorBanner,
   errorMessage,
   MultiSelect,
-  Muted,
   SectionTitle,
 } from "@/components/ui";
 
@@ -60,7 +59,6 @@ export const ExportRequestsCard = ({ currentYear }: { currentYear: number }) => 
     <>
       <SectionTitle>Export</SectionTitle>
       <Card>
-        <Muted>Download all requests for the selected staff years as a CSV.</Muted>
         <MultiSelect
           label="Years"
           values={selected}

@@ -19,7 +19,6 @@ import {
   normalizeRisk,
   riskProblem,
   SUB_FORM_LABELS,
-  SUB_FORM_TEAMS,
   type SubFormKind,
 } from "@shared/eventRequests";
 import {
@@ -311,11 +310,6 @@ export default function EventSubFormScreen() {
                 ) : (
                   <Muted>{statusLine}</Muted>
                 )}
-                {canFill ? (
-                  <Muted>
-                    {`Fill it in, then submit it for the ${SUB_FORM_TEAMS[kind]} Head to approve. You can save a draft and come back to it.`}
-                  </Muted>
-                ) : null}
                 {canFill ? null : <ErrorBanner message={error} />}
                 <Row>
                   {current.can.decide ? (
