@@ -10,6 +10,7 @@ import {
   roleNeedsUniversity,
 } from "../shared/flow";
 import { query } from "./_generated/server";
+import { photoUrl } from "./photo";
 import {
   currentStaffYear,
   delegatorsForYear,
@@ -62,10 +63,7 @@ export const me = query({
       .query("directoryUsers")
       .withIndex("by_email", (q) => q.eq("email", email))
       .unique();
-    const photo = user?.avatarId
-      ? await ctx.storage.getUrl(user.avatarId)
-      : (user?.image ??
-        (dirUser?.photoId ? await ctx.storage.getUrl(dirUser.photoId) : null));
+    const photo = await photoUrl(ctx, user, dirUser);
     const name = user?.name ?? dirUser?.name ?? profile?.name ?? null;
     if (!profile) {
       return { email, year, name, photo, profile: null };
@@ -207,10 +205,7 @@ export const orgChart = query({
       const dir = directoryByEmail.get(profile.email);
       nameByEmail[profile.email] =
         user?.name ?? dir?.name ?? profile.name ?? null;
-      photoByEmail[profile.email] = user?.avatarId
-        ? await ctx.storage.getUrl(user.avatarId)
-        : (user?.image ??
-          (dir?.photoId ? await ctx.storage.getUrl(dir.photoId) : null));
+      photoByEmail[profile.email] = await photoUrl(ctx, user, dir);
     }
     const person = (email: string, role?: string) => ({
       email,

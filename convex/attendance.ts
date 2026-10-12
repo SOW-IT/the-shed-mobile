@@ -24,6 +24,7 @@ import {
   requireProfile,
 } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
+import { photoFor } from "./photo";
 
 const ROSTER_HISTORY_EVENT_LIMIT = 60;
 
@@ -114,7 +115,7 @@ export const roster = query({
         campuses,
         university: campuses[0] ?? resolveUniversity(metadataFields, shadow?.metadata, campuses),
         subtitle: subtitle || undefined,
-        photo: user?.image ?? null,
+        photo: await photoFor(ctx, user, p.email),
       };
     }));
 
@@ -257,7 +258,7 @@ export const listByEvent = query({
               calendarYear,
               profile ? [ROLE_FIELD_KEY, CAMPUS_FIELD_KEY] : [CAMPUS_FIELD_KEY]
             ) || undefined,
-          photo: user?.image ?? null,
+          photo: await photoFor(ctx, user, resolvedEmail),
         },
       };
     };
