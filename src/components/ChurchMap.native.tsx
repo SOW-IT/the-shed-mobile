@@ -78,7 +78,7 @@ export function ChurchMap({
         const on = church._id === selectedId;
         return (
           <Marker
-            key={church._id}
+            key={`${church._id}:${on ? "on" : "off"}`}
             coordinate={coordinate}
             anchor={{ x: 0.5, y: 1 }}
             zIndex={on ? 2 : 1}
@@ -87,11 +87,7 @@ export function ChurchMap({
           >
             <View style={styles.pin}>
               <View
-                style={[
-                  styles.label,
-                  t.shadowFloat,
-                  { backgroundColor: on ? t.primary : t.card, borderColor: t.primary },
-                ]}
+                style={[styles.label, { backgroundColor: on ? t.primary : t.card, borderColor: t.primary }]}
               >
                 <Text
                   style={[typography.caption, styles.labelText, { color: on ? t.onPrimary : t.text }]}
