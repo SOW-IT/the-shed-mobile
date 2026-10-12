@@ -11,6 +11,7 @@ export type NavKey =
   | "insights"
   | "org"
   | "profile"
+  | "churches"
   | "announcements"
   | "admin";
 
@@ -24,6 +25,7 @@ export const NAV_HREFS = {
   insights: "/insights",
   org: "/org",
   profile: "/profile",
+  churches: "/churches",
   announcements: "/announcements",
   admin: "/admin",
 } as const satisfies Record<NavKey, string>;
@@ -38,6 +40,7 @@ export const NAV_LABELS: Record<NavKey, string> = {
   insights: "Insights",
   org: "Org Chart",
   profile: "Profile",
+  churches: "Churches",
   announcements: "Announcements",
   admin: "Admin",
 };
@@ -93,6 +96,7 @@ export const showsEventRequests = showsReimbursements;
 export const drawerItems = (viewer: NavViewer): NavKey[] => {
   if (!viewer.signedIn) return [];
   const items: NavKey[] = ["profile", "music"];
+  if (viewer.isStaff) items.push("churches");
   if (showsReimbursements(viewer)) items.push("reimbursements");
   if (showsEventRequests(viewer)) items.push("eventRequests");
   if (showsDesignRequests(viewer)) items.push("designRequests");
@@ -109,7 +113,7 @@ export const sidebarItems = (viewer: NavViewer): NavKey[] => {
   if (showsEventRequests(viewer)) items.push("eventRequests");
   if (showsDesignRequests(viewer)) items.push("designRequests");
   if (viewer.isStaff) items.push("attendance");
-  items.push("insights", "org");
+  items.push("insights", "org", "churches");
   if (viewer.signedIn) items.push("profile");
   if (viewer.canAnnounce) items.push("announcements");
   if (viewer.canAdmin) items.push("admin");
@@ -141,6 +145,7 @@ export const activeNavKey = (pathname: string): NavKey | null => {
   if (pathname === "/insights") return "insights";
   if (pathname === "/org") return "org";
   if (pathname === "/profile") return "profile";
+  if (pathname === "/churches") return "churches";
   if (pathname === "/announcements" || pathname.startsWith("/announcements/")) {
     return "announcements";
   }

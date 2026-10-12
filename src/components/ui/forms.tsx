@@ -14,6 +14,7 @@ export const Field = ({
   placeholder,
   keyboardType,
   autoCapitalize = "none",
+  autoCorrect,
   multiline,
   disabled,
   maxLength,
@@ -25,8 +26,9 @@ export const Field = ({
   value: string;
   onChangeText: (text: string) => void;
   placeholder?: string;
-  keyboardType?: "default" | "numeric" | "decimal-pad" | "email-address";
+  keyboardType?: "default" | "numeric" | "decimal-pad" | "email-address" | "url";
   autoCapitalize?: "none" | "sentences" | "words" | "characters";
+  autoCorrect?: boolean;
   multiline?: boolean;
   disabled?: boolean;
   maxLength?: number;
@@ -64,6 +66,7 @@ export const Field = ({
           placeholderTextColor={t.faint}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
+          autoCorrect={autoCorrect}
           maxLength={maxLength}
           testID={testID}
           accessibilityLabel={accessibilityLabel ?? label}

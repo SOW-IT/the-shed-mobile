@@ -49,6 +49,17 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   old identity so they are not treated as a new person.
   Admin → Users marks staff who have **never signed in** to The SHED, with a
   count and a filter to list only them.
+- **Local church**: staff pick their church in Profile from a shared list
+  (`churches`) that any staff member can add to or fill in: each church has
+  where it meets (tap to open the map) and its service times, shown on their
+  profile to signed-in staff. Plain attendance members get one too, from the
+  same list in Edit member. The **Churches** page (side menu) lists every
+  church with the staff and members who go there.
+  Each person shows their role, leaders first, and a map pins every church
+  with an address (see [Church map](#church-map-optional)). Only people with
+  a staff profile this year add or edit churches.
+  `churches:remindToSetChurch` reminds this year's staff who haven't picked
+  one (in-app notification and push).
 - **Last online**: someone else's profile shows when they last had The SHED
   open (signed-in viewers only), or that they haven't signed in yet. The app
   and website report it while open, at most every 5 minutes
@@ -233,6 +244,34 @@ Until configured, the daily sync no-ops and the admin screen shows
 "not synced yet". Syncing only fills the picker. Assigning roles stays an
 explicit admin action. A directory email that matches a previous staff year
 is listed under Previously staff rather than as a brand-new person.
+
+### Church map (optional)
+
+The Churches page draws a map of every church with an address. Without keys
+it is hidden on the web and Android, and iPhone falls back to Apple Maps.
+Create keys in the Google Cloud console, each restricted to its one API:
+
+| Key | Where it goes | API | Restrict to |
+| --- | --- | --- | --- |
+| `GOOGLE_MAPS_API_KEY` | `npx convex env set` | Geocoding API | (server key) |
+| `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` | Vercel env (web build) | Maps JavaScript API | the web origins |
+| `GOOGLE_MAPS_IOS_API_KEY` | EAS env (app build) | Maps SDK for iOS | `au.org.sow.theshed` |
+| `GOOGLE_MAPS_ANDROID_API_KEY` | EAS env (app build) | Maps SDK for Android | package + SHA-1 |
+
+Dev and prod have separate keys: the DEVELOPMENT - The SHED project
+(`sowwebsite-50dec`) for the dev deployment, dev web, local runs and
+preview/staging builds, and PRODUCTION - The SHED (`theshedsow`) for prod.
+In EAS the `development` and `preview` environments hold the dev keys and
+`production` the prod ones; the `staging` build profile uses `preview`.
+
+`EXPO_PUBLIC_GOOGLE_MAPS_MAP_ID` (web, optional) replaces Google's demo map
+ID. Addresses are looked up when a church is added or moved and again daily
+for any older than 25 days (Google lets coordinates be kept for 30). To fill
+them in straight after setting the key:
+
+```bash
+npx convex run churches:locateAll '{}'
+```
 
 ## CI/CD
 

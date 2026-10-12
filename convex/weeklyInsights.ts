@@ -2,6 +2,7 @@ import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { CAMPUS_FIELD_KEY, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
 import { DAY_MS, rangeStartFor, WEEK_MS } from "../shared/attendanceMetrics";
+import { churchPagePath } from "../shared/churches";
 import { type ViewBlock } from "../shared/attendanceMetricsView";
 import {
   assignmentsOf,
@@ -1121,9 +1122,20 @@ export const member = query({
       ? await ctx.db.get("attendanceMembers", person.memberId as Id<"attendanceMembers">)
       : null;
     const fields = (await ctx.db.query("attendanceMetadata").take(200)).sort((a, b) => a.order - b.order);
-    const details: { label: string; value: string }[] = [];
+    const details: { label: string; value: string; link?: string }[] = [];
     const email = memberDoc?.email ?? (key.startsWith("staff:") ? key.slice("staff:".length) : undefined);
     if (email) details.push({ label: "Email", value: email });
+    // Their church: set on a member's record, or in a staff person's Profile.
+    const staffUser =
+      !memberDoc?.churchId && key.startsWith("staff:")
+        ? await ctx.db
+            .query("users")
+            .withIndex("email", (q) => q.eq("email", key.slice("staff:".length)))
+            .first()
+        : null;
+    const churchId = memberDoc?.churchId ?? staffUser?.churchId;
+    const church = churchId ? await ctx.db.get("churches", churchId) : null;
+    if (church) details.push({ label: "Church", value: church.name, link: churchPagePath(church._id) });
     for (const field of fields) {
       if (field.key === CAMPUS_FIELD_KEY || field.key === ROLE_FIELD_KEY) continue;
       const raw = memberDoc?.metadata?.[field._id];

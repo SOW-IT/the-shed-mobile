@@ -22,6 +22,7 @@ import type * as attendanceMetrics from "../attendanceMetrics.js";
 import type * as attendanceTags from "../attendanceTags.js";
 import type * as auth from "../auth.js";
 import type * as bankAccounts from "../bankAccounts.js";
+import type * as churches from "../churches.js";
 import type * as cleanup from "../cleanup.js";
 import type * as comments from "../comments.js";
 import type * as contact from "../contact.js";
@@ -88,6 +89,7 @@ declare const fullApi: ApiFromModules<{
   attendanceTags: typeof attendanceTags;
   auth: typeof auth;
   bankAccounts: typeof bankAccounts;
+  churches: typeof churches;
   cleanup: typeof cleanup;
   comments: typeof comments;
   contact: typeof contact;
