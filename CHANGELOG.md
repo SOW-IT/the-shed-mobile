@@ -6,6 +6,20 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.5.8] — 2026-10-13
+
+### Fixed
+- **Staff show their real Google photo instead of a letter.** Anyone who
+  signed in before they had set a Google photo kept Google's coloured letter
+  placeholder, and it hid the real photo the Workspace directory sync had
+  already copied (11 staff, including Brandon Teng). A photo uploaded in The
+  SHED still comes first, then the Workspace directory photo, then the
+  picture from Google sign-in, then initials.
+- **Attendance and Insights lists show uploaded photos.** Roll call, the
+  member list, attendance metrics and weekly Insights only used the Google
+  sign-in picture, so a photo uploaded in The SHED or set in Workspace never
+  appeared there. They now use the same order as profiles and the org chart.
+
 ## [2.5.6] — 2026-10-13
 
 ### Added
