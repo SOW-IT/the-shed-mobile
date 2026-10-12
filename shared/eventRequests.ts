@@ -97,12 +97,6 @@ export const eventStatusFor = (statuses: readonly SubFormStatus[]): EventRequest
 
 export type EventSize = "small" | "medium" | "large";
 
-export const EVENT_SIZE_LABELS: Record<EventSize, string> = {
-  small: "Small",
-  medium: "Medium",
-  large: "Large",
-};
-
 export const REGISTRATION_GOAL_HINT =
   "Small: less than 50, Medium: 50–100, Large: more than 100";
 

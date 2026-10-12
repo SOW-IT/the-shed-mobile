@@ -10,7 +10,6 @@ import {
   errorMessage,
   Field,
   LoadingState,
-  Muted,
   MultiSelect,
   Screen,
 } from "@/components/ui";
@@ -70,11 +69,6 @@ export default function NewEventScreen() {
         onSelect={setSelected}
         placeholder="Pick one or more"
       />
-      <Muted>
-        Pick two or more sub-groups to make this a collaborative event. It
-        appears in each sub-group&apos;s list and shares one attendance list drawn
-        from SOW&apos;s staff for the year.
-      </Muted>
       {collaborative ? <Chip label="Collaborative event" /> : null}
       {error ? (
         <Text style={[typography.caption, { color: t.danger }]}>{error}</Text>

@@ -133,7 +133,16 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
             {profile.name ?? profile.email}
           </Text>
           <Text style={[typography.caption, { color: t.muted }]}>{profile.email}</Text>
-          {profile.isMe ? null : profile.lastOnlineAt ? (
+          {profile.isMe ? (
+            profile.googleSyncedAt ? (
+              <View style={[styles.syncChip, { backgroundColor: t.inputBackground }]}>
+                <Ionicons name="logo-google" size={12} color={t.muted} />
+                <Text style={[typography.caption, { color: t.muted }]}>
+                  Synced from Google {timeAgo(profile.googleSyncedAt)}
+                </Text>
+              </View>
+            ) : null
+          ) : profile.lastOnlineAt ? (
             <Text style={[typography.caption, { color: t.muted }]}>
               Last online {timeAgo(profile.lastOnlineAt)}
             </Text>
@@ -170,10 +179,6 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
         <FadeInView delay={stagger(1)}>
           <Card>
             <ChurchPicker church={profile.church} typedChurch={profile.typedChurch} />
-            <Muted>
-              Name and email sync from Google; your role and department are set
-              by admins per year.
-            </Muted>
           </Card>
         </FadeInView>
       )}
@@ -254,6 +259,14 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
 };
 
 const styles = StyleSheet.create({
+  syncChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
   seeWho: { flexDirection: "row", alignItems: "center", gap: 2, alignSelf: "flex-end" },
   hero: { alignItems: "center", paddingVertical: spacing.xxl },
   cameraBadge: {

@@ -58,10 +58,25 @@ export const get = query({
     const dirPhoto = dirUser?.photoId
       ? await ctx.storage.getUrl(dirUser.photoId)
       : null;
+    const isMe =
+      callerEmail !== null && canonicalEmailKey(email) === canonicalEmailKey(callerEmail);
+    const directorySync = isMe && dirUser
+      ? await ctx.db
+          .query("syncState")
+          .withIndex("by_key", (q) => q.eq("key", "directory"))
+          .unique()
+      : null;
+    const directorySyncedAt = directorySync?.detail?.startsWith("synced")
+      ? directorySync.at
+      : null;
+    const googleSyncTimes = [user?.emailVerificationTime ?? null, directorySyncedAt].filter(
+      (at): at is number => at !== null
+    );
     return {
       email,
       // Either staff email spelling is the same person.
-      isMe: callerEmail !== null && canonicalEmailKey(email) === canonicalEmailKey(callerEmail),
+      isMe,
+      googleSyncedAt: isMe && googleSyncTimes.length ? Math.max(...googleSyncTimes) : null,
       name: user?.name ?? dirUser?.name ?? anyProfile?.name ?? null,
       photo: avatarUrl ?? user?.image ?? dirPhoto,
       // Older app builds show this text; newer ones show `church`.

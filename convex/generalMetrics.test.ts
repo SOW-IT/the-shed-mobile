@@ -278,6 +278,39 @@ describe("staffTrends", () => {
     expect(trends.lifetimeAvgTenureYears.staff).toBe(2);
   });
 
+  test("leaves outsourced people out of the staff numbers", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await ctx.db.insert(
+        "staffProfiles",
+        profile(CALLER, YEAR, [{ role: "Staff", department: "Marketing" }])
+      );
+      await ctx.db.insert(
+        "staffProfiles",
+        profile("contractor@sow.org.au", YEAR, [{ role: "Outsource", department: "Marketing" }])
+      );
+      await ctx.db.insert(
+        "staffProfiles",
+        profile("both@sow.org.au", YEAR, [
+          { role: "Outsource", department: "Marketing" },
+          { role: "Staff", department: "Ops" },
+        ])
+      );
+      await ctx.db.insert(
+        "staffProfiles",
+        profile("leader@sow.org.au", YEAR, [
+          { role: "Outsource", department: "Marketing" },
+          { role: "Student Leader", university: "USYD" },
+        ])
+      );
+    });
+    const trends = (await asUser(t, CALLER).query(api.generalMetrics.staffTrends, {}))!;
+
+    expect(trends.allStaff).toEqual([3]);
+    expect(trends.staff).toEqual([2]);
+    expect(trends.studentLeaders).toEqual([1]);
+  });
+
   test("counts a leader with two campus roles once per campus, not twice", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
