@@ -44,7 +44,7 @@ describe("profile.get", () => {
     expect(profile.isMe).toBe(true);
   });
 
-  test("public person view (1.7.0): readable signed out with an email, church hidden", async () => {
+  test("public person view (1.7.0): readable signed out with an email, a typed church hidden", async () => {
     const t = await setup();
     const email = "pat@sow.org.au";
     await t.run(async (ctx) => {
@@ -66,6 +66,17 @@ describe("profile.get", () => {
     expect(viewer.localChurch).toBe("Grace Church");
 
     expect(await t.query(api.profile.get, {})).toBeNull();
+
+    const grace = await t.run(async (ctx) => {
+      const churchId = await ctx.db.insert("churches", { name: "Grace Church", nameKey: "grace church", addedBy: ADMIN });
+      const user = (await ctx.db.query("users").withIndex("email", (q) => q.eq("email", email)).first())!;
+      await ctx.db.patch("users", user._id, { churchId, localChurch: undefined });
+      return churchId;
+    });
+    const listed = (await t.query(api.profile.get, { email }))!;
+    expect(listed.church?._id).toBe(grace);
+    expect(listed.localChurch).toBe("Grace Church");
+    expect(listed.typedChurch).toBeNull();
   });
 
   test("falls back to the directory name when no user row or profile name exists", async () => {

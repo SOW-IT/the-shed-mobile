@@ -1,8 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useRef, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { subgroupLabel } from "../../shared/rollcall";
@@ -10,23 +10,68 @@ import { ChromeScreen } from "./ChromeScreen";
 import { ChurchMap, churchMapAvailable } from "./ChurchMap";
 import { type Church, ChurchDetails, ChurchForm, useCanEditChurches } from "./ChurchPicker";
 import { radius, spacing, typography, useAppTheme } from "../theme";
-import { Btn, Card, EmptyState, FadeInView, LoadingState, SearchField, stagger } from "./ui";
+import { Btn, Card, EmptyState, FadeInView, LoadingState, ScrollCap, SearchField, stagger } from "./ui";
 
 type Entry = NonNullable<ReturnType<typeof useQuery<typeof api.churches.directory>>>[number];
 
+const PEOPLE_PREVIEW = 5;
+const PERSON_ROW_HEIGHT = 44;
+const EXPANDED_VISIBLE_ROWS = 8;
+
 function ChurchCard({
   entry,
+  onSelect,
   onEdit,
   onClose,
 }: {
   entry: Entry;
+  onSelect?: () => void;
   onEdit?: () => void;
   onClose?: () => void;
 }) {
   const t = useAppTheme();
   const router = useRouter();
-  return (
-    <Card style={[{ gap: spacing.sm }, onClose ? { borderWidth: 2, borderColor: t.primary } : null]}>
+  const expanded = Boolean(onClose);
+  const shownPeople = expanded ? entry.people : entry.people.slice(0, PEOPLE_PREVIEW);
+  const hiddenCount = entry.people.length - shownPeople.length;
+  const rows = shownPeople.map((person, index) => {
+    const email = person.email;
+    const row = (
+      <>
+        <Text style={[typography.body, { color: t.text, flex: 1 }]} numberOfLines={1}>
+          {person.name}
+        </Text>
+        {person.campus ? (
+          <View style={[styles.campus, { backgroundColor: t.ghost }]}>
+            <Text style={[typography.caption, { color: t.ghostText, fontWeight: "700" }]}>
+              {subgroupLabel(person.campus)}
+            </Text>
+          </View>
+        ) : null}
+        <Text style={[typography.caption, styles.role, { color: t.muted }]} numberOfLines={1}>
+          {person.role}
+        </Text>
+      </>
+    );
+    const key = `${index}:${person.memberId ?? email ?? person.name}`;
+    return email ? (
+      <Pressable
+        key={key}
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${person.name}, ${person.role}`}
+        onPress={() => router.push({ pathname: "/person/[email]", params: { email } })}
+        style={({ pressed }) => [styles.person, { borderTopColor: t.separator }, pressed && { opacity: 0.6 }]}
+      >
+        {row}
+      </Pressable>
+    ) : (
+      <View key={key} style={[styles.person, { borderTopColor: t.separator }]}>
+        {row}
+      </View>
+    );
+  });
+  const card = (
+    <Card style={[{ gap: spacing.sm }, expanded ? { borderWidth: 2, borderColor: t.primary } : null]}>
       {onClose ? (
         <Pressable
           accessibilityRole="button"
@@ -39,56 +84,43 @@ function ChurchCard({
         </Pressable>
       ) : null}
       <ChurchDetails church={entry.church} onEdit={onEdit} />
-      {entry.peopleCount === 0 ? (
+      {entry.people.length === 0 ? (
         <Text style={[typography.caption, { color: t.muted }]}>Nobody has picked it yet.</Text>
-      ) : entry.people.length === 0 ? (
-        <Text style={[typography.caption, { color: t.muted }]}>
-          {entry.peopleCount === 1 ? "1 person goes here." : `${entry.peopleCount} people go here.`} Sign in to see who.
-        </Text>
       ) : (
         <View>
           <Text style={[styles.groupTitle, { color: t.muted }]}>
             People <Text style={{ color: t.faint }}>{entry.people.length}</Text>
           </Text>
-          {entry.people.map((person, index) => {
-            const email = person.email;
-            const row = (
-              <>
-                <Text style={[typography.body, { color: t.text, flex: 1 }]} numberOfLines={1}>
-                  {person.name}
-                </Text>
-                {person.campus ? (
-                  <View style={[styles.campus, { backgroundColor: t.ghost }]}>
-                    <Text style={[typography.caption, { color: t.ghostText, fontWeight: "700" }]}>
-                      {subgroupLabel(person.campus)}
-                    </Text>
-                  </View>
-                ) : null}
-                <Text style={[typography.caption, styles.role, { color: t.muted }]} numberOfLines={1}>
-                  {person.role}
-                </Text>
-              </>
-            );
-            const key = `${index}:${person.memberId ?? email ?? person.name}`;
-            return email ? (
-              <Pressable
-                key={key}
-                accessibilityRole="button"
-                accessibilityLabel={`Open ${person.name}, ${person.role}`}
-                onPress={() => router.push({ pathname: "/person/[email]", params: { email } })}
-                style={({ pressed }) => [styles.person, { borderTopColor: t.separator }, pressed && { opacity: 0.6 }]}
-              >
-                {row}
-              </Pressable>
-            ) : (
-              <View key={key} style={[styles.person, { borderTopColor: t.separator }]}>
-                {row}
-              </View>
-            );
-          })}
+          {expanded ? (
+            <ScrollCap maxHeight={PERSON_ROW_HEIGHT * EXPANDED_VISIBLE_ROWS} count={entry.people.length}>
+              {rows}
+            </ScrollCap>
+          ) : (
+            rows
+          )}
+          {hiddenCount > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Show all ${entry.people.length} people`}
+              onPress={onSelect}
+              style={({ pressed }) => [styles.person, { borderTopColor: t.separator }, pressed && { opacity: 0.6 }]}
+            >
+              <Text style={[typography.caption, { color: t.primary, fontWeight: "700", flex: 1 }]}>
+                {hiddenCount} more
+              </Text>
+              <Ionicons name="chevron-forward" size={16} color={t.primary} />
+            </Pressable>
+          ) : null}
         </View>
       )}
     </Card>
+  );
+  return onSelect ? (
+    <Pressable accessible={false} onPress={onSelect} style={({ pressed }) => pressed && { opacity: 0.85 }}>
+      {card}
+    </Pressable>
+  ) : (
+    card
   );
 }
 
@@ -100,6 +132,7 @@ function ChurchCard({
 export function ChurchesView() {
   const t = useAppTheme();
   const router = useRouter();
+  const scrollRef = useRef<ScrollView>(null);
   const directory = useQuery(api.churches.directory);
   const canEdit = useCanEditChurches();
   const [search, setSearch] = useState("");
@@ -118,19 +151,23 @@ export function ChurchesView() {
     setSelectedId(churchId);
     if (linkedChurch) router.setParams({ church: undefined });
   };
+  const showOnMap = (churchId: Id<"churches">) => {
+    choose(churchId);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  };
 
   const q = search.trim().toLowerCase();
   const shown = (directory ?? []).filter(
     (entry) =>
       !q ||
       entry.church.name.toLowerCase().includes(q) ||
-      entry.people.some((p) => p.name.toLowerCase().includes(q) || p.role.toLowerCase().includes(q))
+      entry.people.some((p) => p.name.toLowerCase().includes(q))
   );
   const onMap = shown.map((entry) => entry.church).filter((church) => church.location);
   const selected = shown.find((entry) => entry.church._id === selectedId) ?? null;
 
   return (
-    <ChromeScreen>
+    <ChromeScreen scrollRef={scrollRef}>
       <View style={styles.header}>
         <Text style={[typography.largeTitle, { color: t.text, flex: 1 }]}>Churches</Text>
         {canEdit ? (
@@ -147,7 +184,7 @@ export function ChurchesView() {
         />
       ) : (
         <>
-          <SearchField value={search} onChangeText={setSearch} placeholder="Search churches, people or roles" />
+          <SearchField value={search} onChangeText={setSearch} placeholder="Search churches or people" />
           {churchMapAvailable && onMap.length > 0 ? (
             <FadeInView>
               <ChurchMap churches={onMap} selectedId={selected?.church._id ?? null} onSelect={choose} />
@@ -164,7 +201,11 @@ export function ChurchesView() {
             .filter((entry) => entry !== selected)
             .map((entry, index) => (
               <FadeInView key={entry.church._id} delay={stagger(index)}>
-                <ChurchCard entry={entry} onEdit={canEdit ? () => setForm({ church: entry.church }) : undefined} />
+                <ChurchCard
+                  entry={entry}
+                  onSelect={() => showOnMap(entry.church._id)}
+                  onEdit={canEdit ? () => setForm({ church: entry.church }) : undefined}
+                />
               </FadeInView>
             ))}
           {shown.length === 0 ? (
@@ -189,6 +230,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
+    minHeight: PERSON_ROW_HEIGHT,
     paddingVertical: spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
   },

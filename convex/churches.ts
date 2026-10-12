@@ -10,7 +10,7 @@ import {
   query,
   type QueryCtx,
 } from "./_generated/server";
-import { CAMPUS_FIELD_KEY } from "../shared/attendanceMemberMeta";
+import { CAMPUS_FIELD_KEY, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
 import {
   cleanInstagram,
   cleanWebsite,
@@ -260,8 +260,11 @@ const LEADER_ROLES = [
   "Outsource",
 ];
 
+export const ALUMNI = "Alumni";
+
 export const roleRank = (role: string) => {
   if (role === MEMBER) return LEADER_ROLES.length + 1;
+  if (role === ALUMNI) return LEADER_ROLES.length + 2;
   const index = LEADER_ROLES.indexOf(role);
   return index === -1 ? LEADER_ROLES.length : index;
 };
@@ -275,6 +278,17 @@ async function currentProfile(ctx: QueryCtx, email: string | undefined) {
   for (const candidate of staffEmailCandidates(email)) {
     const profile = await getProfile(ctx, candidate, currentStaffYear());
     if (profile) return profile;
+  }
+  return null;
+}
+
+async function memberRow(ctx: QueryCtx, email: string) {
+  for (const candidate of staffEmailCandidates(email)) {
+    const member = await ctx.db
+      .query("attendanceMembers")
+      .withIndex("by_email", (q) => q.eq("email", candidate))
+      .first();
+    if (member) return member;
   }
   return null;
 }
@@ -309,13 +323,17 @@ export const directory = query({
   returns: v.array(v.object({ church: churchView, people: v.array(personView), peopleCount: v.number() })),
   handler: async (ctx) => {
     const signedIn = (await optionalEmail(ctx)) !== null;
-    const campusField = (await ctx.db.query("attendanceMetadata").take(200)).find(
-      (f) => f.key === CAMPUS_FIELD_KEY
-    );
-    const memberCampus = (member: Doc<"attendanceMembers">) => {
-      const raw = campusField ? member.metadata?.[campusField._id] : undefined;
+    const fields = await ctx.db.query("attendanceMetadata").take(200);
+    const campusField = fields.find((f) => f.key === CAMPUS_FIELD_KEY);
+    const roleField = fields.find((f) => f.key === ROLE_FIELD_KEY);
+    const memberCampus = (member: Doc<"attendanceMembers"> | null) => {
+      const raw = campusField ? member?.metadata?.[campusField._id] : undefined;
       const campus = raw ? (campusField?.values?.[raw] ?? raw) : null;
       return campus && campus !== "Other" ? campus : null;
+    };
+    const memberRole = (member: Doc<"attendanceMembers"> | null) => {
+      const raw = roleField ? member?.metadata?.[roleField._id] : undefined;
+      return raw && (roleField?.values?.[raw] ?? raw) === ALUMNI ? ALUMNI : MEMBER;
     };
     const churches = await ctx.db.query("churches").withIndex("by_nameKey").take(MAX_CHURCHES);
     const out = [];
@@ -332,11 +350,12 @@ export const directory = query({
       for (const user of users) {
         if (!user.email) continue;
         const profile = await currentProfile(ctx, user.email);
+        const member = profile ? null : await memberRow(ctx, user.email);
         people.push({
           name: personDisplayName(user.name, user.email) || user.email,
-          role: profile ? leadingRole(rolesOf(profile)) : MEMBER,
-          campus: profile ? campusOfProfile(profile) : null,
-          email: user.email,
+          role: profile ? leadingRole(rolesOf(profile)) : memberRole(member),
+          campus: profile ? campusOfProfile(profile) : memberCampus(member),
+          email: profile || signedIn ? user.email : null,
           memberId: null,
         });
       }
@@ -345,14 +364,14 @@ export const directory = query({
         if (profile && (await signedInUser(ctx, member.email))?.churchId) continue;
         people.push({
           name: profile?.name ?? member.name,
-          role: profile ? leadingRole(rolesOf(profile)) : MEMBER,
+          role: profile ? leadingRole(rolesOf(profile)) : memberRole(member),
           campus: (profile && campusOfProfile(profile)) ?? memberCampus(member),
           email: profile?.email ?? null,
-          memberId: member._id,
+          memberId: signedIn ? member._id : null,
         });
       }
       people.sort(leadersFirst);
-      out.push({ church: viewOf(church), people: signedIn ? people : [], peopleCount: people.length });
+      out.push({ church: viewOf(church), people, peopleCount: people.length });
     }
     return out;
   },

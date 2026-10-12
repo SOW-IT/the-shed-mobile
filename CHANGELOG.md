@@ -6,6 +6,20 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.5.6] — 2026-10-13
+
+### Changed
+- **Signed-out visitors see who goes to each church**, with their role and
+  campus, and can open the profiles of the staff and campus leaders in the
+  list. A staff profile shows their church to visitors too. Other people's
+  member records stay private.
+- **Each church lists its first 5 people**, with "N more" under them. Pick a
+  church on the map, or tap anywhere on its card, and it opens under the map
+  with everyone in a box that scrolls, like the Insights lists.
+- **Alumni show as Alumni**, after the members at the bottom of a church's
+  list.
+- **Search matches church and people names only**, not roles.
+
 ## [2.5.5] — 2026-10-12
 
 ### Added
