@@ -145,6 +145,7 @@ export const submit = mutation({
         ? artwork
         : undefined;
 
+    const isPraiseManager = await callerIsPraiseManager(ctx, caller.email);
     const id = await ctx.db.insert("musicRequests", {
       requesterEmail: caller.email,
       title,
@@ -152,21 +153,29 @@ export const submit = mutation({
       link,
       requestComment,
       albumArtUrl,
-      status: "PENDING",
+      status: isPraiseManager ? "APPROVED" : "PENDING",
+      ...(isPraiseManager
+        ? {
+            reviewedByEmail: caller.email,
+            reviewedTime: Date.now(),
+          }
+        : {}),
     });
 
-    const praiseManagers = await praiseManagerEmailsForYear(
-      ctx,
-      currentStaffYear(),
-    );
+    if (!isPraiseManager) {
+      const praiseManagers = await praiseManagerEmailsForYear(
+        ctx,
+        currentStaffYear(),
+      );
 
-    await notify(
-      ctx,
-      praiseManagers,
-      "New music request",
-      `${caller.email} requested "${title}"`,
-      "/music?tab=review",
-    );
+      await notify(
+        ctx,
+        praiseManagers,
+        "New music request",
+        `${caller.email} requested "${title}"`,
+        "/music?tab=review",
+      );
+    }
     return id;
   },
 });
@@ -215,6 +224,40 @@ export const toReview = query({
       rows.map(async (row) => {
         const member = await findMemberByEmail(ctx, row.requesterEmail);
         const reviewer = await findMemberByEmail(ctx, row.reviewedByEmail);
+        return {
+          ...row,
+          requesterName: member?.name ?? null,
+          reviewerName: reviewer?.name ?? null,
+        };
+      }),
+    );
+  },
+});
+
+/** Get declined music requests. Praise Manager only. */
+export const declined = query({
+  args: {},
+  handler: async (ctx) => {
+    const caller = await requireProfile(ctx);
+
+    if (!(await callerIsPraiseManager(ctx, caller.email))) {
+      throw new ConvexError(
+        "Only Praise Managers can view declined music requests.",
+      );
+    }
+
+    const rows = await ctx.db
+      .query("musicRequests")
+      .withIndex("by_status", (q) => q.eq("status", "DECLINED"))
+      .order("desc")
+      .take(200);
+
+    return Promise.all(
+      rows.map(async (row) => {
+        const member = await findMemberByEmail(ctx, row.requesterEmail);
+
+        const reviewer = await findMemberByEmail(ctx, row.reviewedByEmail);
+
         return {
           ...row,
           requesterName: member?.name ?? null,

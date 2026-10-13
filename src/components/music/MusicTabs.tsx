@@ -1,4 +1,8 @@
 import { MusicActionsMenu } from "@/components/music/MusicActionMenu";
+import {
+  usePagerFooterClearance,
+  usePagerTopBarInset,
+} from "@/components/PagerScreen";
 import { Card, LoadingState } from "@/components/ui";
 import { radius, spacing, useAppTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,6 +16,7 @@ import {
   Linking,
   Platform,
   Pressable,
+  ScrollView,
   Share,
   StyleSheet,
   Text,
@@ -77,12 +82,16 @@ const SORT_OPTIONS: { key: SortOption; label: string }[] = [
   { key: "artist-asc", label: "Artist (A–Z)" },
   { key: "artist-desc", label: "Artist (Z–A)" },
 ];
+
 export const ApprovedPlaylistTab = ({
   onEditRequest,
   onDeleteRequest,
 }: MusicRowActions = {}) => {
   const t = useAppTheme();
+  const topInset = usePagerTopBarInset();
+  const footerClearance = usePagerFooterClearance();
   const { isAuthenticated, isLoading } = useConvexAuth();
+
   const approvedList = useQuery(
     api.musicRequests.approved,
     !isLoading && isAuthenticated ? {} : "skip",
@@ -94,6 +103,7 @@ export const ApprovedPlaylistTab = ({
 
   const visibleSongs = useMemo(() => {
     const q = search.trim().toLocaleLowerCase();
+
     return [...(approvedList ?? [])]
       .filter((song) =>
         [song.title, song.artist, song.requesterName, song.requesterEmail].some(
@@ -104,150 +114,206 @@ export const ApprovedPlaylistTab = ({
         const byArtist = sortBy.startsWith("artist");
         const first = byArtist ? a.artist : a.title;
         const second = byArtist ? b.artist : b.title;
+
         const order = (first ?? "").localeCompare(second ?? "", undefined, {
           sensitivity: "base",
         });
+
         return sortBy.endsWith("desc") ? -order : order;
       });
   }, [approvedList, search, sortBy]);
 
   return (
-    <View style={styles.section}>
-      <View style={styles.musicSearchRow}>
-        <View
-          style={[
-            styles.search,
-            styles.musicSearchField,
-            { backgroundColor: t.inputBackground },
-          ]}
-        >
-          <Ionicons name="search-outline" size={18} color={t.faint} />
-          <TextInput
-            style={[styles.searchInput, { color: t.text }]}
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search songs or artists"
-            placeholderTextColor={t.faint}
-            accessibilityLabel="Search approved songs"
-          />
-          {!!search && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Clear search"
-              onPress={() => setSearch("")}
-            >
-              <Ionicons name="close-circle" size={19} color={t.faint} />
-            </Pressable>
-          )}
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Sort approved songs"
-          accessibilityState={{ expanded: sortOpen }}
-          onPress={() => setSortOpen((value) => !value)}
-          style={[styles.sortButton, { backgroundColor: t.inputBackground }]}
-        >
-          <Ionicons name="options-outline" size={21} color={t.text} />
-        </Pressable>
-      </View>
-      {sortOpen && (
-        <View style={[styles.sortMenu, { backgroundColor: t.inputBackground }]}>
-          <Text style={[styles.sortHeading, { color: t.text }]}>Sort by</Text>
-          {SORT_OPTIONS.map((option) => (
-            <Pressable
-              key={option.key}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: sortBy === option.key }}
-              onPress={() => {
-                setSortBy(option.key);
-                setSortOpen(false);
-              }}
-              style={styles.sortOption}
-            >
-              <Text style={{ color: t.text, flex: 1 }}>{option.label}</Text>
-              {sortBy === option.key && (
-                <Ionicons name="checkmark" size={18} color={t.success} />
-              )}
-            </Pressable>
-          ))}
-        </View>
-      )}
-      {approvedList === undefined ? (
-        <LoadingState />
-      ) : (
-        <>
-          <View style={styles.musicMetaRow}>
-            <Text style={{ color: t.faint, fontSize: 12 }}>
-              {visibleSongs.length} SONGS
-            </Text>
-            <Text style={{ color: t.faint, fontSize: 12 }}>
-              {SORT_OPTIONS.find((option) => option.key === sortBy)?.label}
-            </Text>
-          </View>
-          {visibleSongs.length === 0 ? (
-            <Text style={{ color: t.faint }}>
-              {search.trim() ? "No matching songs." : "No songs approved yet."}
-            </Text>
-          ) : (
-            <FlatList
-              data={visibleSongs}
-              scrollEnabled={false}
-              keyExtractor={(song) => song._id}
-              ItemSeparatorComponent={() => (
-                <View
-                  style={[
-                    styles.musicDivider,
-                    { backgroundColor: t.inputBackground },
-                  ]}
-                />
-              )}
-              renderItem={({ item }) => (
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Open ${item.title} by ${item.artist}`}
-                    onPress={() => item.link && Linking.openURL(item.link)}
-                    onLongPress={() => item.link && shareLink(item.link)}
-                    style={({ pressed }) => [
-                      styles.musicSongRow,
-                      { flex: 1 },
-                      pressed && { opacity: 0.65 },
-                    ]}
-                  >
-                    <SongArtwork url={item.albumArtUrl} />
-                    <View style={styles.musicSongDetails}>
-                      <Text
-                        numberOfLines={2}
-                        style={[styles.musicSongTitle, { color: t.text }]}
-                      >
-                        {item.title}
-                      </Text>
-                      <Text
-                        numberOfLines={1}
-                        style={{ color: t.faint, fontSize: 13 }}
-                      >
-                        {item.artist}
-                      </Text>
-                    </View>
-                    {item.link ? (
-                      <Ionicons name="open-outline" size={19} color={t.faint} />
-                    ) : null}
-                  </Pressable>
-                  {(onEditRequest || onDeleteRequest) && (
-                    <MusicActionsMenu
-                      onEdit={() => onEditRequest?.(item)}
-                      onDelete={() => onDeleteRequest?.(item)}
-                    />
-                  )}
-                </View>
-              )}
+    <View style={{ flex: 1, backgroundColor: t.background }}>
+      {/* FIXED SEARCH AND SORT */}
+      <View
+        style={{
+          paddingTop: topInset + spacing.md,
+          paddingHorizontal: spacing.lg,
+          paddingBottom: spacing.sm,
+          gap: spacing.sm,
+        }}
+      >
+        <View style={styles.musicSearchRow}>
+          <View
+            style={[
+              styles.search,
+              styles.musicSearchField,
+              { backgroundColor: t.inputBackground },
+            ]}
+          >
+            <Ionicons name="search-outline" size={18} color={t.faint} />
+
+            <TextInput
+              style={[styles.searchInput, { color: t.text }]}
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search songs or artists"
+              placeholderTextColor={t.faint}
+              accessibilityLabel="Search approved songs"
             />
-          )}
-        </>
-      )}
+
+            {!!search && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Clear search"
+                onPress={() => setSearch("")}
+              >
+                <Ionicons name="close-circle" size={19} color={t.faint} />
+              </Pressable>
+            )}
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Sort approved songs"
+            accessibilityState={{ expanded: sortOpen }}
+            onPress={() => setSortOpen((value) => !value)}
+            style={[styles.sortButton, { backgroundColor: t.inputBackground }]}
+          >
+            <Ionicons name="options-outline" size={21} color={t.text} />
+          </Pressable>
+        </View>
+
+        {sortOpen && (
+          <View
+            style={[styles.sortMenu, { backgroundColor: t.inputBackground }]}
+          >
+            <Text style={[styles.sortHeading, { color: t.text }]}>Sort by</Text>
+
+            {SORT_OPTIONS.map((option) => (
+              <Pressable
+                key={option.key}
+                accessibilityRole="radio"
+                accessibilityState={{
+                  checked: sortBy === option.key,
+                }}
+                onPress={() => {
+                  setSortBy(option.key);
+                  setSortOpen(false);
+                }}
+                style={styles.sortOption}
+              >
+                <Text style={{ color: t.text, flex: 1 }}>{option.label}</Text>
+
+                {sortBy === option.key && (
+                  <Ionicons name="checkmark" size={18} color={t.success} />
+                )}
+              </Pressable>
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* SCROLLABLE SONG LIST */}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          paddingHorizontal: spacing.lg,
+          paddingBottom: footerClearance,
+          gap: spacing.md,
+        }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {approvedList === undefined ? (
+          <LoadingState />
+        ) : (
+          <>
+            <View style={styles.musicMetaRow}>
+              <Text style={{ color: t.faint, fontSize: 12 }}>
+                {visibleSongs.length} SONGS
+              </Text>
+
+              <Text style={{ color: t.faint, fontSize: 12 }}>
+                {SORT_OPTIONS.find((option) => option.key === sortBy)?.label}
+              </Text>
+            </View>
+
+            {visibleSongs.length === 0 ? (
+              <Text style={{ color: t.faint }}>
+                {search.trim()
+                  ? "No matching songs."
+                  : "No songs approved yet."}
+              </Text>
+            ) : (
+              <FlatList
+                data={visibleSongs}
+                scrollEnabled={false}
+                keyExtractor={(song) => song._id}
+                ItemSeparatorComponent={() => (
+                  <View
+                    style={[
+                      styles.musicDivider,
+                      { backgroundColor: t.inputBackground },
+                    ]}
+                  />
+                )}
+                renderItem={({ item }) => (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Open ${item.title} by ${item.artist}`}
+                      onPress={() => item.link && Linking.openURL(item.link)}
+                      onLongPress={() => item.link && shareLink(item.link)}
+                      style={({ pressed }) => [
+                        styles.musicSongRow,
+                        { flex: 1 },
+                        pressed && { opacity: 0.65 },
+                      ]}
+                    >
+                      <SongArtwork url={item.albumArtUrl} />
+
+                      <View style={styles.musicSongDetails}>
+                        <Text
+                          numberOfLines={2}
+                          style={[styles.musicSongTitle, { color: t.text }]}
+                        >
+                          {item.title}
+                        </Text>
+
+                        <Text
+                          numberOfLines={1}
+                          style={{
+                            color: t.faint,
+                            fontSize: 13,
+                          }}
+                        >
+                          {item.artist}
+                        </Text>
+                      </View>
+
+                      {item.link ? (
+                        <Ionicons
+                          name="open-outline"
+                          size={19}
+                          color={t.faint}
+                        />
+                      ) : null}
+                    </Pressable>
+
+                    {(onEditRequest || onDeleteRequest) && (
+                      <MusicActionsMenu
+                        onEdit={() => onEditRequest?.(item)}
+                        onDelete={() => onDeleteRequest?.(item)}
+                      />
+                    )}
+                  </View>
+                )}
+              />
+            )}
+          </>
+        )}
+      </ScrollView>
     </View>
   );
 };
+
 /* Shared request UI */
 type RequestFilter = "ALL" | "PENDING" | "APPROVED" | "DECLINED";
 const formatDate = (timestamp?: number) =>
@@ -258,6 +324,7 @@ const formatDate = (timestamp?: number) =>
         year: "numeric",
       })
     : "";
+
 function FilterChips({
   value,
   onChange,
@@ -296,6 +363,7 @@ function FilterChips({
     </View>
   );
 }
+
 function StatusPill({ status }: { status: MusicRequest["status"] }) {
   const t = useAppTheme();
   const chip =
@@ -323,6 +391,7 @@ function StatusPill({ status }: { status: MusicRequest["status"] }) {
     </View>
   );
 }
+
 function SongHeader({
   request,
   status = false,
@@ -523,62 +592,93 @@ export const ToReviewTab = ({
 }: MusicRowActions = {}) => {
   const t = useAppTheme();
   const { isAuthenticated, isLoading } = useConvexAuth();
+  const [filter, setFilter] = useState<RequestFilter>("PENDING");
   // Backend query and mutations enforce Praise Manager access.
   const toReview = useQuery(
     api.musicRequests.toReview,
     !isLoading && isAuthenticated ? {} : "skip",
   );
+  const declinedRequests = useQuery(
+    api.musicRequests.declined,
+    !isLoading && isAuthenticated && filter === "DECLINED" ? {} : "skip",
+  );
+
+  const showingPending = filter === "PENDING";
+  const visibleRequests = showingPending ? toReview : declinedRequests;
+
   return (
     <View style={styles.section}>
+      <FilterChips
+        value={filter}
+        onChange={setFilter}
+        options={["PENDING", "DECLINED"]}
+      />
+
       <View style={styles.requestSectionHeading}>
         <Text style={{ color: t.faint, fontSize: 13 }}>
-          {toReview
-            ? `${toReview.length} pending song ${toReview.length === 1 ? "request" : "requests"}`
+          {visibleRequests
+            ? `${visibleRequests.length} ${
+                showingPending ? "pending" : "declined"
+              } song ${visibleRequests.length === 1 ? "request" : "requests"}`
             : "Loading requests..."}
         </Text>
       </View>
-      {toReview === undefined ? (
+
+      {visibleRequests === undefined ? (
         <LoadingState />
-      ) : toReview.length === 0 ? (
+      ) : visibleRequests.length === 0 ? (
         <View
           style={[styles.emptyReview, { backgroundColor: t.inputBackground }]}
         >
           <Ionicons
-            name="checkmark-circle-outline"
+            name={
+              showingPending
+                ? "checkmark-circle-outline"
+                : "close-circle-outline"
+            }
             size={32}
-            color={t.success}
+            color={showingPending ? t.success : t.faint}
           />
+
           <Text style={{ color: t.text, fontWeight: "700" }}>
-            You're all caught up!
+            {showingPending ? "You're all caught up!" : "No declined requests"}
           </Text>
+
           <Text style={{ color: t.faint, fontSize: 13 }}>
-            No requests need reviewing.
+            {showingPending
+              ? "No requests need reviewing."
+              : "Previously declined songs will appear here."}
           </Text>
         </View>
       ) : (
         <FlatList
-          data={toReview}
+          data={visibleRequests}
           scrollEnabled={false}
           keyExtractor={(item) => item._id}
           ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-          renderItem={({ item }) => (
-            <ReviewCard
-              request={item}
-              actions={
-                onEditRequest || onDeleteRequest ? (
-                  <MusicActionsMenu
-                    onEdit={() => onEditRequest?.(item)}
-                    onDelete={() => onDeleteRequest?.(item)}
-                  />
-                ) : undefined
-              }
-            />
-          )}
+          renderItem={({ item }) =>
+            showingPending ? (
+              <ReviewCard
+                request={item}
+                actions={
+                  onEditRequest || onDeleteRequest ? (
+                    <MusicActionsMenu
+                      onEdit={() => onEditRequest?.(item)}
+                      onDelete={() => onDeleteRequest?.(item)}
+                    />
+                  ) : undefined
+                }
+              />
+            ) : (
+              <MyRequestCard request={item} />
+            )
+          }
         />
       )}
     </View>
   );
 };
+
 function ReviewCard({
   request,
   actions,

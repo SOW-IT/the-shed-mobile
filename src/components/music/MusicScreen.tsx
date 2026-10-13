@@ -82,6 +82,7 @@ export default function MusicScreen() {
     {
       key: "approvedPlaylist",
       label: "Approved Playlist",
+      selfScrolling: true,
       render: () => (
         <ApprovedPlaylistTab
           onEditRequest={
@@ -91,16 +92,20 @@ export default function MusicScreen() {
         />
       ),
     },
-    {
-      key: "myRequest",
-      label: "My Request",
-      render: () => (
-        <MyRequestsTab
-          onEditRequest={(request) => handleEdit(request, "myRequests")}
-          onDeleteRequest={handleDelete}
-        />
-      ),
-    },
+    ...(!canReview
+      ? [
+          {
+            key: "myRequest",
+            label: "My Request",
+            render: () => (
+              <MyRequestsTab
+                onEditRequest={(request) => handleEdit(request, "myRequests")}
+                onDeleteRequest={handleDelete}
+              />
+            ),
+          },
+        ]
+      : []),
     ...(canReview
       ? [
           {
@@ -126,7 +131,7 @@ export default function MusicScreen() {
         footer={
           showMakeRequest ? (
             <FooterAction
-              title="+ Make Request"
+              title={canReview ? "+ Add to Playlist" : "+ Make Request"}
               onPress={openNewRequest}
               onInfo={() => setGuideOpen(true)}
             />
