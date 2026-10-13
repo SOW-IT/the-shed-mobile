@@ -25,6 +25,7 @@ import { assignmentsOf, MEMBER } from "../shared/flow";
 import { personDisplayName } from "../shared/rollcall";
 import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
 import { currentStaffYear, getProfile, optionalEmail, requireProfile, rolesOf } from "./model";
+import { staffProfileOfMember } from "./staffMembers";
 
 // Local churches staff go to. Any staff member can add one (with where it is
 // and when it meets) or fill in a missing detail; everyone picks theirs from
@@ -435,11 +436,15 @@ async function currentProfile(ctx: QueryCtx, email: string | undefined) {
 
 async function memberRow(ctx: QueryCtx, email: string) {
   for (const candidate of staffEmailCandidates(email)) {
-    const member = await ctx.db
-      .query("attendanceMembers")
-      .withIndex("by_email", (q) => q.eq("email", candidate))
-      .first();
-    if (member) return member;
+    const profiles = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_email_and_year", (q) => q.eq("email", candidate))
+      .order("desc")
+      .take(50);
+    for (const profile of profiles) {
+      const member = profile.memberId ? await ctx.db.get("attendanceMembers", profile.memberId) : null;
+      if (member) return member;
+    }
   }
   return null;
 }
@@ -511,8 +516,8 @@ export const directory = query({
         });
       }
       for (const member of members) {
-        const profile = await currentProfile(ctx, member.email);
-        if (profile && (await signedInUser(ctx, member.email))?.churchId) continue;
+        const profile = await staffProfileOfMember(ctx, member._id, currentStaffYear());
+        if (profile && (await signedInUser(ctx, profile.email))?.churchId) continue;
         people.push({
           name: profile?.name ?? member.name,
           role: profile ? leadingRole(rolesOf(profile)) : memberRole(member),

@@ -22,7 +22,8 @@ import {
   mutation,
   query,
 } from "./_generated/server";
-import { displayName, optionalProfile, requireProfile } from "./model";
+import { optionalProfile, requireProfile } from "./model";
+import { memberDisplayName } from "./staffMembers";
 import { readSettings } from "./weeklyInsights";
 import { weeklyMarkValidator } from "./weeklyInsightsData";
 import { termSystemFor, type WeeklyMark } from "../shared/weeklyInsights";
@@ -453,9 +454,7 @@ const attendeesToList = async (
   const people = [];
   for (const row of listed) {
     const member = row.memberId ? await ctx.db.get(row.memberId) : null;
-    const name = row.email
-      ? await displayName(ctx, row.email, year)
-      : (member?.name ?? "Deleted member");
+    const name = member ? (await memberDisplayName(ctx, member, year)).name : "Deleted member";
     people.push({ attendanceId: row._id, name, signInTime: row.signInTime });
   }
   return people;

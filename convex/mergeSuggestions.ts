@@ -14,6 +14,7 @@ import { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { logAttendanceAction } from "./attendanceAudit";
 import { latestStaffProfile } from "./attendanceMembers";
+import { isAssigned } from "./staffMembers";
 import { currentStaffYear, optionalEmail, requireAdmin, rolesOf } from "./model";
 
 export type MergeCandidate = {
@@ -48,15 +49,16 @@ export const list = query({
     if ((await optionalEmail(ctx)) === null) return null;
     await requireAdmin(ctx);
     const year = currentStaffYear();
+    const years = new Set([year, year + 1]);
 
     const fields = await ctx.db.query("attendanceMetadata").collect();
     const roleField = fields.find((f) => f.key === ROLE_FIELD_KEY);
     const allProfiles = await ctx.db.query("staffProfiles").collect();
     // A row carrying anyone's staff email (any year) is that person's own
     // staff row, not a duplicate: merging it away is blocked anyway.
-    const staffKeys = new Set(allProfiles.map((p) => canonicalEmailKey(p.email)));
+    const linked = new Set(allProfiles.flatMap((p) => (p.memberId ? [p.memberId] : [])));
     const members = (await ctx.db.query("attendanceMembers").collect())
-      .filter((m) => !staffKeys.has(canonicalEmailKey(m.email)))
+      .filter((m) => !linked.has(m._id))
       .map((m) => ({ row: m, words: nameWords(m.name) }));
     const dismissed = new Set(
       (await ctx.db.query("mergeSuggestionDismissals").collect()).map(
@@ -89,9 +91,14 @@ export const list = query({
     };
 
     const suggestions: MergeSuggestion[] = [];
-    for (const profile of allProfiles) {
-      if (profile.year !== year) continue;
+    const suggested = new Set<string>();
+    const staffProfiles = allProfiles
+      .filter((p) => years.has(p.year) && isAssigned(p))
+      .sort((a, b) => a.year - b.year);
+    for (const profile of staffProfiles) {
       const staffKey = canonicalEmailKey(profile.email)!;
+      if (suggested.has(staffKey)) continue;
+      suggested.add(staffKey);
       const staffWords = nameWords(profile.name ?? "");
       const universities = [
         ...new Set(assignmentsOf(profile).flatMap((a) => (a.university ? [a.university] : []))),
