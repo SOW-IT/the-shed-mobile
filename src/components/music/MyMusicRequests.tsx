@@ -206,15 +206,6 @@ export const NewMusicRequestSheet = ({
             {spotifyError}
           </Text>
         ) : null}
-        {albumArtUrl ? (
-          <View style={styles.preview}>
-            <Image
-              source={{ uri: albumArtUrl }}
-              style={styles.albumCover}
-              resizeMode="cover"
-            />
-          </View>
-        ) : null}
         {duplicate ? (
           <View
             style={{
@@ -251,6 +242,15 @@ export const NewMusicRequestSheet = ({
           </View>
         ) : null}
       </View>
+      {albumArtUrl ? (
+        <View style={styles.preview}>
+          <Image
+            source={{ uri: albumArtUrl }}
+            style={styles.albumCover}
+            resizeMode="cover"
+          />
+        </View>
+      ) : null}
       <Field
         label="Song Title"
         value={title}
@@ -349,7 +349,9 @@ const styles = StyleSheet.create({
   preview: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.md,
+    justifyContent: "center",
+    marginTop: spacing.md,
+    marginBottom: spacing.md,
   },
   albumCover: {
     width: 76,

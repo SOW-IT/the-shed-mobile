@@ -1,11 +1,7 @@
 import { Card, LoadingState } from "@/components/ui";
-
 import { radius, spacing, useAppTheme } from "@/theme";
-
 import { Ionicons } from "@expo/vector-icons";
-
-import { useMutation, useQuery } from "convex/react";
-
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -86,25 +82,22 @@ type SortOption = "title-asc" | "title-desc" | "artist-asc" | "artist-desc";
 
 const SORT_OPTIONS: { key: SortOption; label: string }[] = [
   { key: "title-asc", label: "Song name (A–Z)" },
-
   { key: "title-desc", label: "Song name (Z–A)" },
-
   { key: "artist-asc", label: "Artist (A–Z)" },
-
   { key: "artist-desc", label: "Artist (Z–A)" },
 ];
 
 export const ApprovedPlaylistTab = () => {
   const t = useAppTheme();
-
-  const approvedList = useQuery(api.musicRequests.approved);
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const approvedList = useQuery(
+    api.musicRequests.approved,
+    !isLoading && isAuthenticated ? {} : "skip",
+  );
 
   const [search, setSearch] = useState("");
-
   const [sortBy, setSortBy] = useState<SortOption>("title-asc");
-
   const [sortOpen, setSortOpen] = useState(false);
-
   const visibleSongs = useMemo(() => {
     const q = search.trim().toLocaleLowerCase();
 
@@ -118,11 +111,8 @@ export const ApprovedPlaylistTab = () => {
 
       .sort((a, b) => {
         const byArtist = sortBy.startsWith("artist");
-
         const first = byArtist ? a.artist : a.title;
-
         const second = byArtist ? b.artist : b.title;
-
         const order = (first ?? "").localeCompare(second ?? "", undefined, {
           sensitivity: "base",
         });
@@ -444,7 +434,11 @@ function SongLink({ link }: { link: string }) {
 /* My Requests */
 export const MyRequestsTab = () => {
   const t = useAppTheme();
-  const myRequests = useQuery(api.musicRequests.myRequests);
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const myRequests = useQuery(
+    api.musicRequests.myRequests,
+    !isLoading && isAuthenticated ? {} : "skip",
+  );
   const [filter, setFilter] = useState<RequestFilter>("ALL");
 
   const visible = useMemo(
@@ -554,8 +548,13 @@ function MyRequestCard({ request }: { request: MusicRequest }) {
 /* To Review */
 export const ToReviewTab = () => {
   const t = useAppTheme();
+  const { isAuthenticated, isLoading } = useConvexAuth();
+
   // Backend query and mutations enforce Chaplain access.
-  const toReview = useQuery(api.musicRequests.toReview);
+  const toReview = useQuery(
+    api.musicRequests.toReview,
+    !isLoading && isAuthenticated ? {} : "skip",
+  );
   return (
     <View style={styles.section}>
       <View style={styles.requestSectionHeading}>
