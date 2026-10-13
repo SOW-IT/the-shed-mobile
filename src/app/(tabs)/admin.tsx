@@ -1674,7 +1674,8 @@ export default function AdminScreen() {
               <Card>
                 <Muted>
                   A delegate can approve, decline and pay everything their
-                  approver could, for this staff year.
+                  approver could, for this staff year. Remove it when the
+                  approver is back.
                 </Muted>
                 {(delegations ?? []).length === 0 ? (
                   <Muted>No delegations set.</Muted>

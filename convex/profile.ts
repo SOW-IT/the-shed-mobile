@@ -23,7 +23,7 @@ export const get = query({
     const dirUser = await ctx.db
       .query("directoryUsers")
       .withIndex("by_email", (q) => q.eq("email", email))
-      .unique();
+      .first();
 
     const byEmail = await ctx.db
       .query("staffProfiles")
@@ -63,9 +63,9 @@ export const get = query({
           .withIndex("by_key", (q) => q.eq("key", "directory"))
           .unique()
       : null;
-    const directorySyncedAt = directorySync?.detail?.startsWith("synced")
-      ? directorySync.at
-      : null;
+    const directorySyncedAt =
+      directorySync?.lastSuccessAt ??
+      (directorySync?.detail?.startsWith("synced") ? directorySync.at : null);
     const googleSyncTimes = [user?.emailVerificationTime ?? null, directorySyncedAt].filter(
       (at): at is number => at !== null
     );

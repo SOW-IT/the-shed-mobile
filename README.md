@@ -241,7 +241,7 @@ npx convex env set GOOGLE_SA_PRIVATE_KEY -- "-----BEGIN PRIVATE KEY-----\n...\n-
 npx convex env set GOOGLE_ADMIN_IMPERSONATE <a-workspace-admin>@sow.org.au
 ```
 
-Until configured, the daily sync no-ops and the admin screen shows
+Until configured, the weekly sync no-ops and the admin screen shows
 "not synced yet". Syncing fills the picker and staff photos. Assigning
 roles stays an explicit admin action.
 

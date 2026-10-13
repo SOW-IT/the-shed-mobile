@@ -262,15 +262,17 @@ export const photoSyncState = internalQuery({
   },
 });
 
-const upsertSyncState = async (ctx: MutationCtx, detail: string) => {
+const upsertSyncState = async (ctx: MutationCtx, detail: string, succeeded: boolean) => {
   const existing = await ctx.db
     .query("syncState")
     .withIndex("by_key", (q) => q.eq("key", "directory"))
     .unique();
+  const at = Date.now();
+  const state = { at, detail, ...(succeeded ? { lastSuccessAt: at } : {}) };
   if (existing) {
-    await ctx.db.patch("syncState", existing._id, { at: Date.now(), detail });
+    await ctx.db.patch("syncState", existing._id, state);
   } else {
-    await ctx.db.insert("syncState", { key: "directory", at: Date.now(), detail });
+    await ctx.db.insert("syncState", { key: "directory", ...state });
   }
 };
 
@@ -317,7 +319,7 @@ export const store = internalMutation({
       await ctx.storage.delete(stale);
     }
 
-    await upsertSyncState(ctx, `synced ${args.users.length} people`);
+    await upsertSyncState(ctx, `synced ${args.users.length} people`, true);
     return null;
   },
 });
@@ -325,7 +327,7 @@ export const store = internalMutation({
 export const recordFailure = internalMutation({
   args: { detail: v.string() },
   handler: async (ctx, args) => {
-    await upsertSyncState(ctx, `failed: ${args.detail}`);
+    await upsertSyncState(ctx, `failed: ${args.detail}`, false);
     return null;
   },
 });

@@ -25,7 +25,7 @@ export async function photoFor(
     ? await ctx.db
         .query("directoryUsers")
         .withIndex("by_email", (q) => q.eq("email", email.toLowerCase()))
-        .unique()
+        .first()
     : null;
   return photoUrl(ctx, user, directoryUser);
 }

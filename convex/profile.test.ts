@@ -119,6 +119,16 @@ describe("profile.get", () => {
     expect((await asUser(t, email).query(api.profile.get, {}))!.googleSyncedAt).toBe(signInAt);
 
     await t.run(async (ctx) => {
+      const state = (await ctx.db.query("syncState").first())!;
+      await ctx.db.patch("syncState", state._id, { lastSuccessAt: directoryAt });
+    });
+    expect((await asUser(t, email).query(api.profile.get, {}))!.googleSyncedAt).toBe(directoryAt);
+    await t.run(async (ctx) => {
+      const state = (await ctx.db.query("syncState").first())!;
+      await ctx.db.patch("syncState", state._id, { lastSuccessAt: undefined });
+    });
+
+    await t.run(async (ctx) => {
       const user = (await ctx.db.query("users").withIndex("email", (q) => q.eq("email", email)).first())!;
       await ctx.db.patch("users", user._id, { emailVerificationTime: undefined });
     });

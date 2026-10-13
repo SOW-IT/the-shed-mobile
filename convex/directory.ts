@@ -62,7 +62,7 @@ export const me = query({
     const dirUser = await ctx.db
       .query("directoryUsers")
       .withIndex("by_email", (q) => q.eq("email", email))
-      .unique();
+      .first();
     const photo = await photoUrl(ctx, user, dirUser);
     const name = user?.name ?? dirUser?.name ?? profile?.name ?? null;
     if (!profile) {
@@ -122,7 +122,7 @@ export const nameForEmail = query({
     const dirUser = await ctx.db
       .query("directoryUsers")
       .withIndex("by_email", (q) => q.eq("email", args.email))
-      .unique();
+      .first();
     return dirUser?.name ?? null;
   },
 });
