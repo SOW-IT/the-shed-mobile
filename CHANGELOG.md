@@ -6,6 +6,42 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.6.0] — 2026-10-13
+
+### Changed
+- **Everyone has one attendance record, and staff sit on top of it.** Each
+  year's staff profile now points at the person's member record, and every
+  sign-in points at a member, staff included. Someone shows as staff on the
+  events of the years they were staff and as a member on every other event,
+  under the same record. Their own email stays on the record; the staff email
+  lives on the profile.
+- **New staff get their record when they're assigned.** Assigning someone for
+  this staff year in Admin links them to the record an earlier profile of
+  theirs points at, or makes one. Next year's staff are linked on October 1,
+  unless they're linked earlier.
+- **Admin → Merges shows next year's staff too**, so a new leader who came
+  as a member can be linked to their member record before October 1. Merging a
+  staff person who has no record yet just links them; nothing moves.
+- **Leaving staff moves nothing.** On October 1 a leaver's record and sign-ins
+  stay where they are; an empty Campus is filled from their last role and an
+  empty Role becomes Member. Removing someone from this year's staff in Admin
+  does the same straight away.
+- **Merging two records keeps the one with more events attended** (the older
+  one on a tie), and points every staff profile at it.
+
+### Fixed
+- **Staff who left before 2.6.0 show as staff again on the events of the years
+  they served**, instead of as members.
+- **Insights counts a staff person once**, not twice when some of their
+  sign-ins were under their member record.
+- **Signing out a staff sign-in always works**, including ones made through
+  their member record.
+- **Editing a staff person from an event in a year they weren't staff** now
+  saves them as a member instead of failing with "Staff profile not found."
+- **A re-hired leader is the same person again**, not a second record.
+- **The Churches page counts someone with an unassigned profile as a member**,
+  and attendance exports give staff their Campus and Role from their profile.
+
 ## [2.5.8] — 2026-10-13
 
 ### Fixed

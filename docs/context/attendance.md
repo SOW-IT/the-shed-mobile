@@ -7,31 +7,45 @@ from *time-to-rollcall*. Reads staff identity and universities from
 ## Language
 
 **Member**:
-A person in the attendance pool. May have no account and no `staffProfile` at
-all — attendance-only members are the common case. Staff who attend events are
-Members too, resolved by email.
+A person in the attendance pool, with one `attendanceMembers` row for good.
+May have no account and no `staffProfile` at all: attendance-only members are
+the common case. Every sign-in points at a Member (`attendance.memberId`),
+staff included.
 _Avoid_: attendee, participant, person
 
+**Staff on top**:
+Staff is a layer over a Member, one year at a time. Each year's
+`staffProfile` points at its person's member row (`staffProfiles.memberId`),
+and someone is staff in a staff year when that year's profile has at least one
+assignment. In those years their name, Campus and Role come from the profile;
+in every other year they read as the plain Member underneath, with that row's
+own Campus and Role. A profile with no assignments doesn't make anyone staff.
+_Avoid_: overlay, shadow row
+
 **Staff email** / **Personal email**:
-A staff person's member row carries their staff email, which links it to their
-`staffProfile` and keys their sign-ins; their own email is kept beside it as a
-personal email. The edit sheet shows the staff email (read-only) only for
-someone who is staff in the year being viewed, and an editable email for
-everyone — for staff, labelled Personal email. Merging a member into staff
-keeps the member's email as the personal one. A personal email (and a plain
-member's email) never overlaps a staff one: it can't be an SOW address
-(@sow.org.au, @sowaustralia.com) or anyone's staff email from any year.
+The staff email lives only on the `staffProfile`. A member row's `email` is
+always the person's own. The edit sheet shows the staff email (read-only) for
+someone who is staff in the year being viewed, and labels their own email
+Personal email. A Member's own email can't be an SOW address (@sow.org.au,
+@sowaustralia.com) or anyone's staff email from any year.
 _Avoid_: work email, org email (for the personal one)
 
+**Getting a member row**:
+Someone assigned for the current staff year in Admin gets their member row
+straight away: the one an earlier profile of theirs already points at, or a
+new one. Someone assigned for next year waits for October 1, unless an
+earlier profile already points at their row or an admin links them on Admin →
+Merges first. Signing in a staffer who somehow has no row creates or links it.
+_Avoid_: ensure, shadow
+
 **Staff leaver**:
-Someone who was staff (a leader, an exec or staff) in an earlier staff year
-and isn't this year, whichever year they stopped. At 01:30 Sydney on
-October 1 (after the flip) each one becomes a plain Member: every sign-in under
-their staff email moves onto their member row, the staff email comes off for
-their personal email (empty if none was recorded), and a staff Role becomes
-Member (a non-staff Role a leader set, such as Alumni, is kept). Their past
-events then show them as a Member, not staff. Someone taken off staff later in
-the year is converted by hand (`staffLeavers:convertOutgoingStaff`).
+Someone who was staff last staff year and isn't this year. Nothing moves when
+they leave: their member row and every sign-in stay as they are, and from the
+new year they read as that plain Member. At 01:30 Sydney on October 1 (and
+when an admin removes this year's profile) their row's empty Campus is filled
+from their last staff role and an empty Role becomes Member, and a
+`member.leftStaff` entry goes in the audit log. A Role a leader set, such as
+Alumni, is kept.
 _Avoid_: alumni (leaving staff isn't graduating; leaders set the Alumni role
 when someone graduates), ex-staff
 
@@ -60,22 +74,23 @@ Insights and the staff year go by the day it starts.
 _Avoid_: per-day attendance (there isn't any), series
 
 **Merge**:
-Folding a duplicate Member into the one who is kept: every attendance record
-moves across, and an event both were signed in to becomes one record (earlier
-sign-in time, both notes). Only a Member without a staff profile can be merged
-away; a staff person (a staff profile in any year) is always the one kept and
-keeps their Org-owned name, email, campus and role. Two staff can never be
-merged, and a Member can't carry a staff email.
+Folding two records for one person into one. When the staff person being kept
+has no member row yet, the Member simply becomes theirs: their profile is
+linked to it and nothing moves. Otherwise the row with more events attended
+survives (the older one on a tie), every sign-in moves onto it, an event both
+were signed in to becomes one record (earlier sign-in time, both notes), and
+every profile that pointed at the other row points at the survivor. Someone
+who is staff in the year being viewed can't be merged away, and two people who
+were both staff in the same year can't be merged.
 _Avoid_: combine, dedupe, delete (deleting throws the attendance away)
 
 **Suggested merge**:
-A staff person in the current staff year who looks like a Member still in
-attendance: a similar name (same, spaced or ordered differently, an added
-middle name, or a shortened first name) and no different campus. Admin →
-Merges lists them, on the current staff year only, while there are any; Merge
-opens the usual merge review, and "Not the same" stops that pair being
-suggested. Once every pair is merged or marked, the tab disappears. Next
-year's staff aren't suggested until their year starts.
+A staff person in the current or next staff year who looks like a Member not
+yet linked to anyone's profile: a similar name (same, spaced or ordered
+differently, an added middle name, or a shortened first name) and no different
+campus. Admin → Merges lists them while there are any; Merge opens the usual
+merge review, and "Not the same" stops that pair being suggested. Linking next
+year's staff here before October 1 keeps their history on one row.
 
 **Roll-call**:
 Signing Members in and out of an event. Once an event has ended, sign-ins made

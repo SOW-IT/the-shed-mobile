@@ -140,7 +140,8 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
 
 - **Events & roll-call**: create events tagged with one or more sub-groups
   (multi-sub-group = a *collaborative* event that appears under each), then sign
-  people in/out. Attendees are staff (by email) or attendance-only **members**.
+  people in/out. Everyone signed in is a **member**; staff are members with
+  that year's staff profile on top.
   An event can run over several days (a camp or conference); each person
   signs in once for the whole event.
   Post-event sign-ins can be reversed; sign-ins made during an event can't,
@@ -148,26 +149,28 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
 - **Tags & metadata**: per-year event tags (including the **"Weekly Meeting"**
   tag that drives the weekly-meeting analytics) and configurable member metadata
   fields (Year, Gender, Campus, Role, …).
-- **Merge duplicates**: fold a duplicate member into another member or into a
-  staff person, moving every attendance record across (shared events collapse
-  to one record). Only members can be merged away — staff are always kept and
-  two staff can never merge. Typing a staff email onto a member points to
-  merging too, instead of relabelling the record and splitting their history.
-  **Admin → Merges** (current staff year only, shown only while there are
-  any) lists staff who look like someone still in attendance as a member — a similar name on the same
-  campus, typically new leaders who signed in as members before joining
-  staff — with Merge (the usual review) or "Not the same" for each.
+- **Merge duplicates**: fold two records for one person into one, moving every
+  attendance record across (shared events collapse to one record). Someone who
+  is staff this year can't be merged away, and two people who were both staff
+  in the same year can't merge. Typing a staff email onto a member points to
+  merging instead of relabelling the record.
+  **Admin → Merges** (current and next staff year, shown only while there are
+  any) lists staff who look like a member not yet linked to anyone's profile
+  (a similar name on the same campus, typically new leaders who signed in as
+  members before joining staff) with Merge or "Not the same" for each. Merging
+  a staff person who has no member record yet just links their profile to the
+  member.
   Only admins (Data and IT, HR, the Governance head, the Director) can delete
   a member; the sheet
   lists every event whose attendance goes with them and points to merging.
-- **Staff and leavers**: a staff person's member record is linked by their
-  staff email and also holds their personal email. On October 1, anyone who was
-  staff (a leader, an exec or staff) in an earlier year but isn't this year
-  becomes a plain member: their sign-ins
-  move onto that one record, their personal email replaces the staff one, and a
-  staff role becomes Member (Alumni is set by leaders when someone graduates).
-  A member's email, and a staff person's personal email, can't be an SOW
-  address or anyone's staff email.
+- **Staff and leavers**: every person, staff included, has one member record
+  for good, and each year's staff profile points at it. Staff assigned for the
+  current year get their record when they're assigned; next year's staff get
+  theirs on October 1 unless they're already linked. Leaving staff moves
+  nothing: from October 1 they read as the plain member underneath, with an
+  empty Campus filled from their last role and an empty Role set to Member
+  (Alumni is set by leaders when someone graduates). A member's own email
+  can't be an SOW address or anyone's staff email.
   Member names are capitalised as they're typed.
 - **Audit log**: an immutable trail of every attendance-area action (event /
   member / tag / metadata edits, merges and deletes, and each
