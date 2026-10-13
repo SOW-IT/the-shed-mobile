@@ -58,8 +58,9 @@ async function pendingLeavers(
   const stayingMembers = new Set(staying.flatMap((p) => (p.memberId ? [p.memberId] : [])));
   const since = staffYearStartMs(year);
   const pending: { profile: Doc<"staffProfiles">; memberId: Id<"attendanceMembers"> }[] = [];
+  const seen = new Set<Id<"attendanceMembers">>();
   for (const profile of await profilesIn(ctx, year - 1)) {
-    if (!profile.memberId || stayingMembers.has(profile.memberId)) continue;
+    if (!profile.memberId || stayingMembers.has(profile.memberId) || seen.has(profile.memberId)) continue;
     if (stayingKeys.has(canonicalEmailKey(profile.email))) continue;
     if (!(await ctx.db.get("attendanceMembers", profile.memberId))) continue;
     const left = await ctx.db
@@ -70,6 +71,7 @@ async function pendingLeavers(
       .order("desc")
       .first();
     if (left && left._creationTime >= since) continue;
+    seen.add(profile.memberId);
     pending.push({ profile, memberId: profile.memberId });
   }
   return pending.sort((a, b) => a.profile.email.localeCompare(b.profile.email));
@@ -83,19 +85,25 @@ async function rolloverBatch(
     throw new ConvexError("limit must be a positive whole number.");
   }
   const unlinked = await unlinkedStaff(ctx, opts.year);
-  const leavers = await pendingLeavers(ctx, opts.year);
+  const returning = new Set<Id<"attendanceMembers">>();
+  const knownByProfile = new Map<Id<"staffProfiles">, Id<"attendanceMembers"> | null>();
+  for (const profile of unlinked) {
+    const known = await knownMemberId(ctx, profile);
+    knownByProfile.set(profile._id, known);
+    if (known) returning.add(known);
+  }
   const details: Detail[] = [];
   let budget = opts.limit;
   for (const profile of unlinked.slice(0, budget)) {
-    const known = await knownMemberId(ctx, profile);
     if (!opts.dryRun) await linkOrCreateMember(ctx, profile, ROLLOVER_ACTOR);
     details.push({
       email: profile.email.toLowerCase(),
       name: personDisplayName(profile.name, profile.email),
-      action: known ? "linked" : "created",
+      action: knownByProfile.get(profile._id) ? "linked" : "created",
     });
   }
   budget -= Math.min(budget, unlinked.length);
+  const leavers = (await pendingLeavers(ctx, opts.year)).filter((l) => !returning.has(l.memberId));
   for (const { profile, memberId } of leavers.slice(0, budget)) {
     if (!opts.dryRun) await leaveStaff(ctx, memberId, profile, opts.year, ROLLOVER_ACTOR);
     details.push({

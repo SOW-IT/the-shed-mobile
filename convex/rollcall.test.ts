@@ -57,6 +57,17 @@ async function setup() {
   return t;
 }
 
+async function memberOf(t: TestConvex<typeof schema>, email: string, year = YEAR) {
+  const profile = await t.run((ctx) =>
+    ctx.db
+      .query("staffProfiles")
+      .withIndex("by_email_and_year", (q) => q.eq("email", email).eq("year", year))
+      .first()
+  );
+  if (!profile?.memberId) throw new Error(`No member linked to ${email} in ${year}`);
+  return profile.memberId;
+}
+
 const window = () => ({ dateStart: Date.now(), dateEnd: Date.now() + 3600_000 });
 
 describe("subgroups", () => {
@@ -78,7 +89,7 @@ describe("subgroups", () => {
 });
 
 describe("legacy import matching", () => {
-  test("a first.last@sowaustralia.com member folds into that year's staff profile", async () => {
+  test("a member linked to that year's assigned profile is one staff entry, and an email alone links nothing", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     const leader = asUser(t, LEADER);
@@ -89,14 +100,18 @@ describe("legacy import matching", () => {
       department: "Missions",
     });
     await admin.mutation(api.attendanceMetadata.ensureDefaults, { });
-    // A legacy row: members created before 1.13.0 could carry a staff email.
-    const memberId = await t.run((ctx) =>
+    const memberId = await memberOf(t, "jane.doe@sow.org.au");
+    const legacyId = await t.run((ctx) =>
       ctx.db.insert("attendanceMembers", { name: "Old Jane", email: "jane.doe@sowaustralia.com" })
     );
 
     const roster = await leader.query(api.attendance.roster, { year: YEAR });
-    expect(roster.filter((m) => m.email === "jane.doe@sow.org.au")).toHaveLength(1);
-    expect(roster.some((m) => m.name === "Old Jane")).toBe(false);
+    const jane = roster.filter((m) => m.email === "jane.doe@sow.org.au");
+    expect(jane).toHaveLength(1);
+    expect(jane[0].memberId).toBe(memberId);
+    expect(jane[0].key).toBe("staff:jane.doe@sow.org.au");
+    expect(roster.some((m) => m.memberId === memberId && m.kind === "member")).toBe(false);
+    expect(roster.find((m) => m.memberId === legacyId)?.kind).toBe("member");
 
     const { dateStart, dateEnd } = window();
     const eventId = await admin.mutation(api.events.create, {
@@ -106,11 +121,17 @@ describe("legacy import matching", () => {
       subgroups: [USYD],
     });
     await admin.mutation(api.attendance.signIn, { eventId, memberId });
+    await admin.mutation(api.attendance.signIn, { eventId, memberId: legacyId });
     const listed = await leader.query(api.attendance.listByEvent, { eventId });
-    expect(listed).toHaveLength(1);
-    expect(listed[0].kind).toBe("staff");
-    expect(listed[0].email).toBe("jane.doe@sow.org.au");
-    expect(listed[0].roles).toContain("Staff");
+    expect(listed).toHaveLength(2);
+    const staffRow = listed.find((r) => r.memberId === memberId)!;
+    expect(staffRow.kind).toBe("staff");
+    expect(staffRow.email).toBe("jane.doe@sow.org.au");
+    expect(staffRow.roles).toContain("Staff");
+    const legacyRow = listed.find((r) => r.memberId === legacyId)!;
+    expect(legacyRow.kind).toBe("member");
+    expect(legacyRow.email).toBeUndefined();
+    expect(legacyRow.name).toBe("Old Jane");
   });
 
   test("an unmatched legacy member stays a plain attendance member", async () => {
@@ -244,14 +265,18 @@ describe("mergeLegacyStaffMembers (staff-year-aware relink)", () => {
 });
 
 describe("staff year derivation for events", () => {
-  test("a Sep–Dec attendee with no profile this staff year falls back to the calendar-year member", async () => {
+  test("a Sep–Dec attendee who was staff only in the calendar year shows as a plain member", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
     const eventId = await t.run(async (ctx) => {
       const dateStart = Date.UTC(2025, 10, 1, 9, 0, 0);
-      await ctx.db.insert("attendanceMembers", {
-        name: "Jane Doe",
-        email: "jane.doe@sowaustralia.com",
+      const memberId = await ctx.db.insert("attendanceMembers", { name: "Jane Doe" });
+      await ctx.db.insert("staffProfiles", {
+        email: "jane.doe@sow.org.au",
+        year: 2025,
+        name: "Jane Staff",
+        memberId,
+        assignments: [{ role: "Staff", department: "Missions" }],
       });
       const e = await ctx.db.insert("events", {
         name: "Nov",
@@ -259,17 +284,14 @@ describe("staff year derivation for events", () => {
         dateEnd: dateStart + 3600_000,
         subgroups: [USYD],
       });
-      await ctx.db.insert("attendance", {
-        eventId: e,
-        email: "jane.doe@sowaustralia.com",
-        signInTime: dateStart,
-      });
+      await ctx.db.insert("attendance", { eventId: e, memberId, signInTime: dateStart });
       return e;
     });
     const listed = await leader.query(api.attendance.listByEvent, { eventId });
     expect(listed).toHaveLength(1);
     expect(listed[0].kind).toBe("member");
     expect(listed[0].name).toBe("Jane Doe");
+    expect(listed[0].email).toBeUndefined();
   });
 
   test("a Sep–Dec event shows the next staff year's roles/campus", async () => {
@@ -280,15 +302,18 @@ describe("staff year derivation for events", () => {
     const STAFF_YEAR = staffYearForDate(new Date(dateStart));
     expect(STAFF_YEAR).toBe(2024);
 
-    const eventId = await t.run(async (ctx) => {
+    const { eventId, memberId } = await t.run(async (ctx) => {
+      const memberId = await ctx.db.insert("attendanceMembers", { name: "Leader" });
       await ctx.db.insert("staffProfiles", {
         email: LEADER,
         year: CAL,
+        memberId,
         assignments: [{ role: "Student Leader", university: USYD }],
       });
       await ctx.db.insert("staffProfiles", {
         email: LEADER,
         year: STAFF_YEAR,
+        memberId,
         assignments: [{ role: "Student Leader", university: MACQ }],
       });
       const id = await ctx.db.insert("events", {
@@ -297,17 +322,14 @@ describe("staff year derivation for events", () => {
         dateEnd: dateStart + 3600_000,
         subgroups: [USYD],
       });
-      await ctx.db.insert("attendance", {
-        eventId: id,
-        email: LEADER,
-        signInTime: dateStart,
-      });
-      return id;
+      await ctx.db.insert("attendance", { eventId: id, memberId, signInTime: dateStart });
+      return { eventId: id, memberId };
     });
 
     const listed = await leader.query(api.attendance.listByEvent, { eventId });
     expect(listed).toHaveLength(1);
     expect(listed[0].kind).toBe("staff");
+    expect(listed[0].email).toBe(LEADER);
     expect(listed[0].university).toBe(MACQ);
 
     const roster = await leader.query(api.attendance.roster, {
@@ -316,6 +338,65 @@ describe("staff year derivation for events", () => {
     });
     const leaderRow = roster.find((m) => m.email === LEADER)!;
     expect(leaderRow.campuses).toEqual([MACQ]);
+    expect(leaderRow.memberId).toBe(memberId);
+  });
+
+  test("a member who was staff in an earlier year is staff on that year's event and a plain member on a later one", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const earlierStart = staffYearStartMs(YEAR - 1) + 30 * 86_400_000;
+    const laterStart = Date.now() - 86_400_000;
+    const { memberId, earlier, later } = await t.run(async (ctx) => {
+      const memberId = await ctx.db.insert("attendanceMembers", { name: "Former Fran" });
+      await ctx.db.insert("staffProfiles", {
+        email: "fran@sow.org.au",
+        year: YEAR - 1,
+        name: "Fran Staffer",
+        memberId,
+        assignments: [{ role: "Student Leader", university: USYD }],
+      });
+      const earlier = await ctx.db.insert("events", {
+        name: "Earlier",
+        dateStart: earlierStart,
+        dateEnd: earlierStart + 3600_000,
+        subgroups: [USYD],
+      });
+      const later = await ctx.db.insert("events", {
+        name: "Later",
+        dateStart: laterStart,
+        dateEnd: laterStart + 3600_000,
+        subgroups: [USYD],
+      });
+      await ctx.db.insert("attendance", { eventId: earlier, memberId, signInTime: earlierStart });
+      await ctx.db.insert("attendance", { eventId: later, memberId, signInTime: laterStart });
+      return { memberId, earlier, later };
+    });
+
+    const [then] = await leader.query(api.attendance.listByEvent, { eventId: earlier });
+    expect(then.kind).toBe("staff");
+    expect(then.email).toBe("fran@sow.org.au");
+    expect(then.name).toBe("Fran Staffer");
+    expect(then.roles).toEqual(["Student Leader"]);
+    expect(then.campuses).toEqual([USYD]);
+
+    const [now] = await leader.query(api.attendance.listByEvent, { eventId: later });
+    expect(now.kind).toBe("member");
+    expect(now.email).toBeUndefined();
+    expect(now.name).toBe("Former Fran");
+    expect(now.roles).toEqual([]);
+
+    const earlierRoster = await leader.query(api.attendance.roster, { year: YEAR - 1, eventId: earlier });
+    const asStaff = earlierRoster.filter((r) => r.memberId === memberId);
+    expect(asStaff).toHaveLength(1);
+    expect(asStaff[0].kind).toBe("staff");
+    expect(asStaff[0].key).toBe("staff:fran@sow.org.au");
+
+    const laterRoster = await leader.query(api.attendance.roster, { year: YEAR, eventId: later });
+    const asMember = laterRoster.filter((r) => r.memberId === memberId);
+    expect(asMember).toHaveLength(1);
+    expect(asMember[0].kind).toBe("member");
+    expect(asMember[0].key).toBe(`member:${memberId}`);
+    expect(asMember[0].name).toBe("Former Fran");
   });
 });
 
@@ -332,6 +413,42 @@ describe("roster (the shared member pool)", () => {
     const leader = roster.find((m) => m.email === LEADER)!;
     expect(leader.roles).toContain("Student Leader");
     expect(leader.campuses).toContain(USYD);
+  });
+
+  test("an unassigned profile is not staff: its linked member is a plain entry", async () => {
+    const t = await setup();
+    const memberId = await t.run(async (ctx) => {
+      const memberId = await ctx.db.insert("attendanceMembers", { name: "Paused Pat" });
+      await ctx.db.insert("staffProfiles", {
+        email: "pat@sow.org.au",
+        year: YEAR,
+        memberId,
+        assignments: [],
+      });
+      return memberId;
+    });
+    const roster = await asUser(t, LEADER).query(api.attendance.roster, { year: YEAR });
+    expect(roster.some((m) => m.email === "pat@sow.org.au")).toBe(false);
+    const pat = roster.filter((m) => m.memberId === memberId);
+    expect(pat).toHaveLength(1);
+    expect(pat[0].kind).toBe("member");
+    expect(pat[0].name).toBe("Paused Pat");
+  });
+
+  test("a staff profile with no member yet is still a staff entry, with no memberId", async () => {
+    const t = await setup();
+    await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email: "new@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Staff", department: "Missions" }],
+      })
+    );
+    const roster = await asUser(t, LEADER).query(api.attendance.roster, { year: YEAR });
+    const row = roster.find((m) => m.email === "new@sow.org.au")!;
+    expect(row.kind).toBe("staff");
+    expect(row.memberId).toBeUndefined();
+    expect(row.key).toBe("staff:new@sow.org.au");
   });
 });
 
@@ -664,6 +781,7 @@ describe("events + roll-call", () => {
     const leader = asUser(t, LEADER);
     const dateStart = Date.now() - 3 * 86_400_000;
     const dateEnd = dateStart + 3600_000;
+    const staffMemberId = await memberOf(t, STAFF);
     const { eventId, memberId } = await t.run(async (ctx) => {
       const eventId = await ctx.db.insert("events", {
         name: "Past",
@@ -673,7 +791,7 @@ describe("events + roll-call", () => {
       });
       await ctx.db.insert("attendance", {
         eventId,
-        email: STAFF,
+        memberId: staffMemberId,
         signInTime: dateStart + 600_000,
       });
       const memberId = await ctx.db.insert("attendanceMembers", { name: "Guest" });
@@ -697,6 +815,7 @@ describe("events + roll-call", () => {
   test("past event: a sign-in from the last 10 minutes can still be undone, and the audit says so", async () => {
     const leader = asUser(t, LEADER);
     const now = Date.now();
+    const staffMemberId = await memberOf(t, STAFF);
     const { eventId, memberId } = await t.run(async (ctx) => {
       // Ended 2 minutes ago; the guest was signed in by mistake 5 minutes ago.
       const eventId = await ctx.db.insert("events", {
@@ -707,7 +826,7 @@ describe("events + roll-call", () => {
       });
       const memberId = await ctx.db.insert("attendanceMembers", { name: "Guest" });
       await ctx.db.insert("attendance", { eventId, memberId, signInTime: now - 300_000 });
-      await ctx.db.insert("attendance", { eventId, email: STAFF, signInTime: now - 11 * 60_000 });
+      await ctx.db.insert("attendance", { eventId, memberId: staffMemberId, signInTime: now - 11 * 60_000 });
       return { eventId, memberId };
     });
     await leader.mutation(api.attendance.signOut, { eventId, memberId });
@@ -727,10 +846,11 @@ describe("events + roll-call", () => {
     const eventId = await t.run((ctx) =>
       ctx.db.insert("events", { name: "Past", dateStart, dateEnd, subgroups: [USYD] })
     );
+    const memberId = await memberOf(t, STAFF);
     await t.run((ctx) =>
       ctx.db.insert("attendance", {
         eventId,
-        email: STAFF,
+        memberId,
         signInTime: dateEnd + 86_400_000,
       })
     );
@@ -1466,5 +1586,264 @@ describe("roster without an event scopes metadata to the asked-for sub-group", (
     expect(
       macq.find((r) => r.name === "Scoped Member")?.subtitle ?? ""
     ).toContain("Red");
+  });
+});
+
+describe("staff sign-in and sign-out by email", () => {
+  test("signing in a staff email with no member creates and links one, then reuses it", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const { dateStart, dateEnd } = window();
+    const eventId = await leader.mutation(api.events.create, {
+      name: "E",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    const otherId = await leader.mutation(api.events.create, {
+      name: "Other",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    const profileId = await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email: "fresh@sow.org.au",
+        year: YEAR,
+        name: "fresh person",
+        assignments: [{ role: "Staff", department: "Missions" }],
+      })
+    );
+    const membersBefore = await t.run(async (ctx) => (await ctx.db.query("attendanceMembers").collect()).length);
+
+    const first = await leader.mutation(api.attendance.signIn, { eventId, email: " Fresh@SOW.org.au " });
+    const linked = await t.run(async (ctx) => (await ctx.db.get(profileId))!.memberId);
+    expect(linked).toBeDefined();
+    const member = await t.run((ctx) => ctx.db.get(linked!));
+    expect(member?.name).toBe("Fresh Person");
+    expect(member?.email).toBeUndefined();
+    const row = await t.run((ctx) => ctx.db.get(first));
+    expect(row?.memberId).toBe(linked);
+    expect(row?.email).toBeUndefined();
+
+    expect(await leader.mutation(api.attendance.signIn, { eventId, email: "fresh@sow.org.au" })).toBe(first);
+    await leader.mutation(api.attendance.signIn, { eventId: otherId, email: "fresh@sowaustralia.com" });
+    const membersAfter = await t.run(async (ctx) => (await ctx.db.query("attendanceMembers").collect()).length);
+    expect(membersAfter).toBe(membersBefore + 1);
+
+    const logs = await t.run((ctx) => ctx.db.query("attendanceAuditLog").collect());
+    const created = logs.filter((l) => l.action === "member.create" && l.memberId === linked);
+    expect(created).toHaveLength(1);
+    expect(created[0].subjectEmail).toBe("fresh@sow.org.au");
+    const signIns = logs.filter((l) => l.action === "attendance.signIn" && l.memberId === linked);
+    expect(signIns).toHaveLength(2);
+    expect(signIns[0].summary).toBe('fresh person signed in to "E"');
+    expect(signIns[0].subjectEmail).toBe("fresh@sow.org.au");
+
+    const [listed] = await leader.query(api.attendance.listByEvent, { eventId });
+    expect(listed.kind).toBe("staff");
+    expect(listed.email).toBe("fresh@sow.org.au");
+    expect(listed.memberId).toBe(linked);
+  });
+
+  test("signing in a staff email reuses the member already linked to the profile", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const staffMemberId = await memberOf(t, STAFF);
+    const { dateStart, dateEnd } = window();
+    const eventId = await leader.mutation(api.events.create, {
+      name: "E",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    const membersBefore = await t.run(async (ctx) => (await ctx.db.query("attendanceMembers").collect()).length);
+    const id = await leader.mutation(api.attendance.signIn, { eventId, email: STAFF });
+    expect((await t.run((ctx) => ctx.db.get(id)))?.memberId).toBe(staffMemberId);
+    expect(
+      await leader.mutation(api.attendance.signIn, { eventId, memberId: staffMemberId })
+    ).toBe(id);
+    const membersAfter = await t.run(async (ctx) => (await ctx.db.query("attendanceMembers").collect()).length);
+    expect(membersAfter).toBe(membersBefore);
+  });
+
+  test("signing in an email with no assigned profile in the event's staff year throws", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const { dateStart, dateEnd } = window();
+    const eventId = await leader.mutation(api.events.create, {
+      name: "E",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", { email: "idle@sow.org.au", year: YEAR, assignments: [] });
+      await ctx.db.insert("staffProfiles", {
+        email: "old@sow.org.au",
+        year: YEAR - 1,
+        assignments: [{ role: "Staff", department: "Missions" }],
+      });
+    });
+    for (const email of ["nobody@sow.org.au", "idle@sow.org.au", "old@sow.org.au"]) {
+      await expect(
+        leader.mutation(api.attendance.signIn, { eventId, email })
+      ).rejects.toThrow("Staff profile not found.");
+    }
+    expect(await leader.query(api.attendance.listByEvent, { eventId })).toEqual([]);
+  });
+
+  test("signing out an email with no linked member, or no profile, is a no-op", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const { dateStart, dateEnd } = window();
+    const eventId = await leader.mutation(api.events.create, {
+      name: "E",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email: "unlinked@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Staff", department: "Missions" }],
+      })
+    );
+    const membersBefore = await t.run(async (ctx) => (await ctx.db.query("attendanceMembers").collect()).length);
+    const logsBefore = await t.run(async (ctx) => (await ctx.db.query("attendanceAuditLog").collect()).length);
+    await expect(
+      leader.mutation(api.attendance.signOut, { eventId, email: "unlinked@sow.org.au" })
+    ).resolves.toBeNull();
+    await expect(
+      leader.mutation(api.attendance.signOut, { eventId, email: "nobody@sow.org.au" })
+    ).resolves.toBeNull();
+    expect(await t.run(async (ctx) => (await ctx.db.query("attendanceMembers").collect()).length)).toBe(membersBefore);
+    expect(await t.run(async (ctx) => (await ctx.db.query("attendanceAuditLog").collect()).length)).toBe(logsBefore);
+  });
+
+  test("signing out by email removes the linked member's row and names them in the audit", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const { dateStart, dateEnd } = window();
+    const eventId = await leader.mutation(api.events.create, {
+      name: "Live",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    const staffMemberId = await memberOf(t, STAFF);
+    await leader.mutation(api.attendance.signIn, { eventId, memberId: staffMemberId });
+    await leader.mutation(api.attendance.signOut, { eventId, email: "STAFF@sowaustralia.com" });
+    expect(await leader.query(api.attendance.listByEvent, { eventId })).toEqual([]);
+    const logs = await t.run((ctx) => ctx.db.query("attendanceAuditLog").collect());
+    const out = logs.find((l) => l.action === "attendance.signOut")!;
+    expect(out.memberId).toBe(staffMemberId);
+    expect(out.subjectEmail).toBe(STAFF);
+    expect(out.summary).toBe('staff@sow.org.au signed out of "Live"');
+    expect(out.detail).toBeUndefined();
+  });
+});
+
+describe("listByEvent identity", () => {
+  test("two rows for one member collapse to the earliest sign-in; memberless and orphaned rows stay separate as Unknown", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const { dateStart, dateEnd } = window();
+    const eventId = await leader.mutation(api.events.create, {
+      name: "E",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    const staffMemberId = await memberOf(t, STAFF);
+    const { early } = await t.run(async (ctx) => {
+      const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
+      await ctx.db.delete(gone);
+      await ctx.db.insert("attendance", { eventId, memberId: staffMemberId, signInTime: dateStart + 5_000 });
+      const early = await ctx.db.insert("attendance", {
+        eventId,
+        memberId: staffMemberId,
+        signInTime: dateStart + 1_000,
+      });
+      await ctx.db.insert("attendance", { eventId, memberId: staffMemberId, signInTime: dateStart + 3_000 });
+      await ctx.db.insert("attendance", { eventId, memberId: gone, signInTime: dateStart + 2_000 });
+      await ctx.db.insert("attendance", { eventId, signInTime: dateStart + 4_000 });
+      return { early };
+    });
+    const listed = await leader.query(api.attendance.listByEvent, { eventId });
+    expect(listed).toHaveLength(3);
+    const staffRows = listed.filter((r) => r.memberId === staffMemberId);
+    expect(staffRows).toHaveLength(1);
+    expect(staffRows[0]._id).toBe(early);
+    expect(staffRows[0].email).toBe(STAFF);
+    const unknown = listed.filter((r) => r.name === "Unknown");
+    expect(unknown).toHaveLength(2);
+    expect(unknown.every((r) => r.kind === "member" && r.email === undefined)).toBe(true);
+    expect(listed.map((r) => r.signInTime)).toEqual([dateStart + 4_000, dateStart + 2_000, dateStart + 1_000]);
+  });
+
+  test("an invalid or missing event id lists nothing", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    expect(await leader.query(api.attendance.listByEvent, { eventId: "not-an-id" })).toEqual([]);
+    const { dateStart, dateEnd } = window();
+    const eventId = await leader.mutation(api.events.create, {
+      name: "E",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    await leader.mutation(api.events.remove, { eventId });
+    expect(await leader.query(api.attendance.listByEvent, { eventId })).toEqual([]);
+  });
+});
+
+describe("roster ranking history", () => {
+  test("scores history by member, staff and plain alike, and a memberless history row counts for no one", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const { dateStart, dateEnd } = window();
+    const staffMemberId = await memberOf(t, STAFF);
+    const guestId = await t.run((ctx) => ctx.db.insert("attendanceMembers", { name: "Zz Guest" }));
+    const pastId = await leader.mutation(api.events.create, {
+      name: "Past",
+      dateStart: dateStart - 86_400_000,
+      dateEnd: dateEnd - 86_400_000,
+      subgroups: [USYD],
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("attendance", { eventId: pastId, signInTime: dateStart - 86_400_000 });
+      await ctx.db.insert("attendance", { eventId: pastId, memberId: staffMemberId, signInTime: dateStart - 86_400_000 });
+      await ctx.db.insert("attendance", { eventId: pastId, memberId: guestId, signInTime: dateStart - 86_400_000 });
+    });
+    const targetId = await leader.mutation(api.events.create, {
+      name: "Target",
+      dateStart,
+      dateEnd,
+      subgroups: [MACQ],
+    });
+    const roster = await leader.query(api.attendance.roster, { year: YEAR, eventId: targetId });
+    const ranked = roster.slice(0, 2).map((r) => r.memberId).sort();
+    expect(ranked).toEqual([staffMemberId, guestId].sort());
+    expect(roster.find((r) => r.memberId === staffMemberId)?.key).toBe(`staff:${STAFF}`);
+  });
+});
+
+describe("event lookups skip ids that no longer resolve", () => {
+  test("get with a malformed id is null, and a buffered cursor skips a deleted event", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const { dateStart, dateEnd } = window();
+    expect(await leader.query(api.events.get, { eventId: "not-an-id" })).toBeNull();
+    const kept = await leader.mutation(api.events.create, { name: "Kept", dateStart, dateEnd, subgroups: [USYD] });
+    const removed = await leader.mutation(api.events.create, { name: "Removed", dateStart, dateEnd, subgroups: [USYD] });
+    await leader.mutation(api.events.remove, { eventId: removed });
+    const page = await leader.query(api.events.listBySubgroup, {
+      subgroup: USYD,
+      cursor: `event-subgroup:${JSON.stringify({ dbCursor: null, dbIsDone: true, bufferedIds: [removed, kept] })}`,
+      numItems: 5,
+    });
+    expect(page.events.map((e) => e._id)).toEqual([kept]);
   });
 });

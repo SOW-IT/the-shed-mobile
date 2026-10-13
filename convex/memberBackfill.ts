@@ -128,7 +128,7 @@ async function memberForEmail(ctx: MutationCtx, email: string): Promise<Id<"atte
   if (existing) return existing._id;
   return await ctx.db.insert("attendanceMembers", {
     name: displayNameFromEmail(email) ?? email,
-    email: (await isStaffAddress(ctx, email)) ? undefined : email,
+    email,
   });
 }
 

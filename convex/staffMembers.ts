@@ -111,9 +111,10 @@ export async function linkKnownMember(ctx: MutationCtx, profile: Profile): Promi
   return memberId;
 }
 
-export const staffMemberName = (profile: Profile): string =>
-  capitalizeMemberName(personDisplayName(profile.name, profile.email).trim()) ||
-  profile.email.toLowerCase();
+export const staffMemberName = (profile: Profile): string => {
+  const shown = personDisplayName(profile.name, profile.email).trim();
+  return shown.includes("@") || !shown ? profile.email.toLowerCase() : capitalizeMemberName(shown);
+};
 
 export async function linkOrCreateMember(
   ctx: MutationCtx,

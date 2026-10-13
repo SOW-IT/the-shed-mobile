@@ -1,27 +1,37 @@
-/// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
-import { Id } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
 const NOW_YEAR = staffYearForDate(new Date());
-// The staff year the leavers are no longer staff in, and the one they left.
 const YEAR = 2027;
 const LAST = YEAR - 1;
 const ADMIN = "admin@sow.org.au";
 const LEAVER = "lee.aver@sow.org.au";
 const STAYER = "stay.er@sow.org.au";
+const NEWBIE = "new.bie@sow.org.au";
 const USYD = "University of Sydney";
+const ROLLOVER_ACTOR = "system:staff-rollover";
+
+type ProfileFields = Partial<Omit<Doc<"staffProfiles">, "_id" | "_creationTime">>;
 
 const asUser = (t: TestConvex<typeof schema>, email: string) =>
   t.withIdentity({ email, subject: email, issuer: "test" });
 
+afterEach(() => vi.useRealTimers());
+
 async function setup() {
   const t = convexTest(schema, modules);
   await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+  await t.run(async (ctx) => {
+    const adminRow = await ctx.db.insert("attendanceMembers", { name: "Admin" });
+    for (const seeded of await ctx.db.query("staffProfiles").collect()) {
+      await ctx.db.patch(seeded._id, { memberId: adminRow });
+    }
+  });
   const fields = await t.run(async (ctx) => ({
     role: await ctx.db.insert("attendanceMetadata", {
       key: "Role",
@@ -35,387 +45,331 @@ async function setup() {
       order: 1,
       values: { usyd: USYD },
     }),
-    year: await ctx.db.insert("attendanceMetadata", { key: "Year", type: "input", order: 2 }),
   }));
-  const profile = (email: string, year: number, name?: string) =>
+  const profile = (email: string, year: number, name?: string, extra: ProfileFields = {}) =>
     t.run((ctx) =>
       ctx.db.insert("staffProfiles", {
         email,
         year,
         name,
         assignments: [{ role: "Student Leader", university: USYD }],
+        ...extra,
       })
     );
-  const event = (name: string, at: number) =>
-    t.run((ctx) =>
-      ctx.db.insert("events", { name, dateStart: at, dateEnd: at + 1, subgroups: [] })
-    );
-  const signIn = (
-    eventId: Id<"events">,
-    who: { memberId: Id<"attendanceMembers"> } | { email: string },
-    signInTime: number,
-    notes?: string
-  ) => t.run((ctx) => ctx.db.insert("attendance", { eventId, ...who, signInTime, notes }));
+  const member = (name: string, metadata?: Record<string, string>) =>
+    t.run((ctx) => ctx.db.insert("attendanceMembers", { name, metadata }));
+  const getProfile = (id: Id<"staffProfiles">) => t.run((ctx) => ctx.db.get(id));
+  const getMember = (id: Id<"attendanceMembers">) => t.run((ctx) => ctx.db.get(id));
   const members = () => t.run((ctx) => ctx.db.query("attendanceMembers").collect());
-  const attendance = () => t.run((ctx) => ctx.db.query("attendance").collect());
-  const leaverLogs = async () =>
-    (await t.run((ctx) => ctx.db.query("attendanceAuditLog").collect())).filter(
-      (l) => l.action === "member.leftStaff"
+  const logs = (action: string) =>
+    t.run(async (ctx) =>
+      (await ctx.db.query("attendanceAuditLog").collect()).filter((l) => l.action === action)
     );
-  const convert = (args: { dryRun?: boolean; after?: string; limit?: number; email?: string } = {}) =>
-    t.mutation(internal.staffLeavers.convertOutgoingStaff, { year: YEAR, ...args });
-  return { t, fields, profile, event, signIn, members, attendance, leaverLogs, convert };
+  const snapshot = () =>
+    t.run(async (ctx) => ({
+      members: await ctx.db.query("attendanceMembers").collect(),
+      profiles: await ctx.db.query("staffProfiles").collect(),
+      logs: await ctx.db.query("attendanceAuditLog").collect(),
+      metadata: await ctx.db.query("attendanceMetadata").collect(),
+    }));
+  const rollover = (args: { dryRun?: boolean; limit?: number } = {}) =>
+    t.mutation(internal.staffLeavers.staffRollover, { year: YEAR, ...args });
+  return {
+    t,
+    fields,
+    profile,
+    member,
+    getProfile,
+    getMember,
+    members,
+    logs,
+    snapshot,
+    rollover,
+  };
 }
 
-describe("convertOutgoingStaff", () => {
-  test("moves a leaver's sign-ins onto their member record and makes them a member", async () => {
+describe("staffRollover", () => {
+  test("links returning staff, creates rows for new staff, and turns leavers into members", async () => {
     const s = await setup();
-    await s.profile(LEAVER, LAST, "Lee Aver");
-    await s.profile(STAYER, LAST, "Stay Er");
-    await s.profile(STAYER, YEAR, "Stay Er");
-    const row = await s.t.run((ctx) =>
-      ctx.db.insert("attendanceMembers", {
-        name: "Lee Aver",
-        email: LEAVER,
-        personalEmail: "lee@gmail.com",
-        metadata: { [s.fields.year]: "2024" },
-      })
-    );
-    const stayerRow = await s.t.run((ctx) =>
-      ctx.db.insert("attendanceMembers", { name: "Stay Er", email: STAYER })
-    );
-    const e1 = await s.event("e1", 1_000);
-    const e2 = await s.event("e2", 2_000);
-    const e3 = await s.event("e3", 3_000);
-    // Under the legacy spelling of their staff email, too.
-    await s.signIn(e1, { email: "lee.aver@sowaustralia.com" }, 1_100);
-    await s.signIn(e2, { email: LEAVER }, 2_200, "late");
-    await s.signIn(e2, { memberId: row }, 2_100, "early");
-    await s.signIn(e3, { memberId: row }, 3_100);
-    await s.signIn(e1, { email: STAYER }, 1_200);
+    const leaverRow = await s.member("Lee Aver");
+    const stayerRow = await s.member("Stay Er");
+    await s.profile(LEAVER, LAST, "Lee Aver", { memberId: leaverRow });
+    await s.profile(STAYER, LAST, "Stay Er", { memberId: stayerRow });
+    const returning = await s.profile("stay.er@sowaustralia.com", YEAR, "Stay Er");
+    const fresh = await s.profile(NEWBIE, YEAR);
+    const idle = await s.profile("una.ssigned@sow.org.au", YEAR, undefined, { assignments: [] });
+    const before = await s.snapshot();
 
-    const dry = await s.convert();
-    expect(dry).toMatchObject({
-      dryRun: true,
+    const dry = await s.rollover();
+    const expected = {
       year: YEAR,
-      people: 1,
-      recordsMoved: 1,
-      recordsCombined: 1,
-      rowsFolded: 0,
-      next: null,
-    });
-    expect(dry.details[0]).toMatchObject({
-      staffEmail: LEAVER,
-      name: "Lee Aver",
-      email: "lee@gmail.com",
-    });
-    expect((await s.members()).find((m) => m._id === row)?.email).toBe(LEAVER);
-    expect(await s.leaverLogs()).toHaveLength(0);
+      linked: 1,
+      created: 1,
+      left: 1,
+      remaining: 0,
+      details: [
+        { email: NEWBIE, name: "New Bie", action: "created" },
+        { email: "stay.er@sowaustralia.com", name: "Stay Er", action: "linked" },
+        { email: LEAVER, name: "Lee Aver", action: "left" },
+      ],
+    };
+    expect(dry).toEqual({ dryRun: true, ...expected });
+    expect(await s.snapshot()).toEqual(before);
 
-    await s.convert({ dryRun: false });
+    const real = await s.rollover({ dryRun: false });
+    expect(real).toEqual({ dryRun: false, ...expected });
 
-    const converted = (await s.members()).find((m) => m._id === row)!;
-    expect(converted.email).toBe("lee@gmail.com");
-    expect(converted.personalEmail).toBeUndefined();
-    // Their staff role becomes Member; leaving staff doesn't make them Alumni.
-    expect(converted.metadata).toEqual({
-      [s.fields.year]: "2024",
+    expect((await s.getProfile(returning))?.memberId).toBe(stayerRow);
+    const created = (await s.getProfile(fresh))?.memberId;
+    expect(created).toBeDefined();
+    expect((await s.getMember(created!))?.name).toBe("New Bie");
+    expect((await s.getProfile(idle))?.memberId).toBeUndefined();
+    expect(await s.members()).toHaveLength(4);
+
+    const [createLog] = await s.logs("member.create");
+    expect(createLog).toMatchObject({
+      actorEmail: ROLLOVER_ACTOR,
+      memberId: created,
+      subjectEmail: NEWBIE,
+    });
+    const leftLogs = await s.logs("member.leftStaff");
+    expect(leftLogs).toHaveLength(1);
+    expect(leftLogs[0]).toMatchObject({
+      actorEmail: ROLLOVER_ACTOR,
+      memberId: leaverRow,
+      subjectEmail: LEAVER,
+      detail: [
+        `Not staff in ${YEAR}`,
+        `Campus set to ${USYD}, from their last staff role`,
+        "Role set to Member",
+      ].join("\n"),
+    });
+    expect((await s.getMember(leaverRow))?.metadata).toEqual({
       [s.fields.campus]: "usyd",
       [s.fields.role]: "3",
     });
+    expect((await s.getMember(stayerRow))?.metadata).toBeUndefined();
 
-    const records = await s.attendance();
-    const leavers = records.filter((r) => r.memberId === row);
-    expect(leavers).toHaveLength(3);
-    expect(leavers.every((r) => r.email === undefined)).toBe(true);
-    expect(leavers.find((r) => r.eventId === e2)).toMatchObject({
-      signInTime: 2_100,
-      notes: "early\nlate",
-    });
-    // Someone still on staff is left exactly as they were.
-    expect(records.find((r) => r.email === STAYER)).toBeDefined();
-    expect((await s.members()).find((m) => m._id === stayerRow)?.email).toBe(STAYER);
-
-    const [log] = await s.leaverLogs();
-    expect(log).toMatchObject({
-      summary: '"Lee Aver" left staff and is now a member',
-      memberId: row,
-      subjectEmail: LEAVER,
-    });
-    expect(log.detail).toContain("Email is now lee@gmail.com");
-    expect(log.detail).toContain("Moved 1 sign-in onto their member record");
-
-    const again = await s.convert({ dryRun: false });
-    expect(again.people).toBe(0);
-    expect(await s.leaverLogs()).toHaveLength(1);
-  });
-
-  test("the app shows them as a plain member with their own email", async () => {
-    const s = await setup();
-    await s.profile(LEAVER, LAST, "Lee Aver");
-    const row = await s.t.run((ctx) =>
-      ctx.db.insert("attendanceMembers", { name: "Lee Aver", email: LEAVER })
-    );
-    await s.convert({ dryRun: false });
-    const admin = asUser(s.t, ADMIN);
-
-    const got = await admin.query(api.attendanceMembers.get, { memberId: row, staffYear: YEAR });
-    expect(got).toMatchObject({ isStaffOverlay: false, name: "Lee Aver" });
-    // No personal email was on record, so it is empty rather than the staff one.
-    expect(got?.email).toBeUndefined();
-
-    const list = await admin.query(api.attendanceMembers.list, {
+    const settled = await s.snapshot();
+    const again = await s.rollover({ dryRun: false });
+    expect(again).toEqual({
+      dryRun: false,
       year: YEAR,
-      search: "lee aver",
-      paginationOpts: { numItems: 10, cursor: null },
+      linked: 0,
+      created: 0,
+      left: 0,
+      remaining: 0,
+      details: [],
     });
-    expect(list.page).toEqual([
-      expect.objectContaining({ key: `member:${row}`, kind: "member", subtitle: "Member" }),
-    ]);
-    expect(list.page[0].email).toBeUndefined();
+    expect(await s.snapshot()).toEqual(settled);
   });
 
-  test("gives a leaver with only staff sign-ins a member record, and folds duplicates", async () => {
+  test("a leaver keeps a Campus and Role they already have", async () => {
     const s = await setup();
-    await s.profile(LEAVER, LAST);
-    const e1 = await s.event("e1", 1_000);
-    await s.signIn(e1, { email: LEAVER }, 1_100);
-    const lonely = "no.row@sow.org.au";
-    await s.profile(lonely, LAST, "No Row");
-    await s.signIn(e1, { email: lonely }, 1_200);
-    const [kept, dup] = await s.t.run(async (ctx) => [
-      await ctx.db.insert("attendanceMembers", { name: LEAVER, email: LEAVER }),
-      await ctx.db.insert("attendanceMembers", {
-        name: "Lee",
-        email: LEAVER,
-        personalEmail: "lee@gmail.com",
-        metadata: { [s.fields.year]: "2023" },
-      }),
-    ]);
-    await s.signIn(e1, { memberId: dup }, 1_050);
+    const row = await s.member("Lee Aver", { [s.fields.campus]: "other", [s.fields.role]: "1" });
+    await s.profile(LEAVER, LAST, "lee aver", { memberId: row });
 
-    const result = await s.convert({ dryRun: false });
-    expect(result).toMatchObject({ people: 2, rowsFolded: 1, recordsCombined: 1 });
-
-    const rows = await s.members();
-    expect(rows.find((m) => m._id === dup)).toBeUndefined();
-    // A name that was only the email becomes a readable one.
-    expect(rows.find((m) => m._id === kept)).toMatchObject({
+    await s.rollover({ dryRun: false });
+    expect(await s.getMember(row)).toMatchObject({
       name: "Lee Aver",
-      email: "lee@gmail.com",
-      metadata: expect.objectContaining({ [s.fields.year]: "2023" }),
+      metadata: { [s.fields.campus]: "other", [s.fields.role]: "1" },
     });
-    const created = rows.find((m) => m.name === "No Row")!;
-    expect(created.email).toBeUndefined();
-    const records = await s.attendance();
-    expect(records.find((r) => r.memberId === kept)?.signInTime).toBe(1_050);
-    expect(records.find((r) => r.memberId === created._id)?.signInTime).toBe(1_200);
-    expect(records.some((r) => r.email)).toBe(false);
+    expect((await s.logs("member.leftStaff"))[0].detail).toBe(`Not staff in ${YEAR}`);
   });
 
-  test("never gives a leaver's row someone's staff email", async () => {
+  test("a next-year profile with no assignments still counts as leaving", async () => {
     const s = await setup();
-    await s.profile(LEAVER, LAST);
-    await s.profile(STAYER, YEAR);
-    const second = "sec.ond@sow.org.au";
-    await s.profile(second, LAST);
-    const [lee, dup, sec] = await s.t.run(async (ctx) => [
-      // A personal email that has since become a staff email is passed over
-      // for the next row's.
-      await ctx.db.insert("attendanceMembers", {
-        name: "Lee",
-        email: LEAVER,
-        personalEmail: STAYER,
-      }),
-      await ctx.db.insert("attendanceMembers", {
-        name: "Lee",
-        email: LEAVER,
-        personalEmail: "lee@gmail.com",
-      }),
-      await ctx.db.insert("attendanceMembers", {
-        name: "Sec",
-        email: second,
-        personalEmail: STAYER,
-      }),
-    ]);
-    await s.convert({ dryRun: false });
-    const rows = await s.members();
-    expect(rows.find((m) => m._id === dup)).toBeUndefined();
-    expect(rows.find((m) => m._id === lee)?.email).toBe("lee@gmail.com");
-    expect(rows.find((m) => m._id === sec)?.email).toBeUndefined();
+    const row = await s.member("Lee Aver");
+    await s.profile(LEAVER, LAST, "Lee Aver", { memberId: row });
+    await s.profile(LEAVER, YEAR, "Lee Aver", { memberId: row, assignments: [] });
+
+    const result = await s.rollover({ dryRun: false });
+    expect(result).toMatchObject({ linked: 0, created: 0, left: 1 });
+    expect((await s.logs("member.leftStaff")).map((l) => l.memberId)).toEqual([row]);
   });
 
-  test("leaves out anyone staff again in a later year, and people with nothing to move", async () => {
+  test("returning staff are not leavers, matched by member or by either SOW email", async () => {
     const s = await setup();
-    const back = "back.later@sow.org.au";
-    await s.profile(back, LAST);
-    await s.profile(back, YEAR + 1);
-    await s.t.run((ctx) => ctx.db.insert("attendanceMembers", { name: "Back", email: back }));
-    await s.profile("nothing@sow.org.au", LAST);
-    const result = await s.convert({ dryRun: false });
-    expect(result.people).toBe(0);
-    expect((await s.members())[0].email).toBe(back);
+    const byMember = await s.member("By Member");
+    const byEmail = await s.member("By Email");
+    await s.profile("by.member@sow.org.au", LAST, "By Member", { memberId: byMember });
+    await s.profile("by.member.renamed@sow.org.au", YEAR, "By Member", { memberId: byMember });
+    await s.profile("by.email@sowaustralia.com", LAST, "By Email", { memberId: byEmail });
+    await s.profile("by.email@sow.org.au", YEAR, "By Email", {
+      memberId: await s.member("Another Row"),
+    });
+
+    const result = await s.rollover({ dryRun: false });
+    expect(result).toMatchObject({ linked: 0, created: 0, left: 0, remaining: 0 });
+    expect(await s.logs("member.leftStaff")).toHaveLength(0);
   });
 
-  test("catches up a leader who left in an earlier year, using that year's profile", async () => {
+  test("passes over last year's unassigned, unlinked and dangling profiles", async () => {
     const s = await setup();
-    const old = "old.leader@sow.org.au";
-    await s.profile(old, YEAR - 4, "Old Leader");
-    await s.profile(old, YEAR - 3, "Old Leader");
-    const e = await s.event("Weeklies", Date.UTC(2023, 2, 1));
-    await s.signIn(e, { email: old }, 1);
-    const result = await s.convert({ dryRun: false });
-    expect(result.details).toMatchObject([{ staffEmail: old, recordsMoved: 1 }]);
-    const row = (await s.members()).find((m) => m.name === "Old Leader")!;
-    expect(row.email).toBeUndefined();
-    expect(row.metadata?.[s.fields.role]).toBe("3");
-    const [record] = await s.attendance();
-    expect(record.memberId).toBe(row._id);
-    expect(record.email).toBeUndefined();
-    // Done once: nothing left to move.
-    expect((await s.convert({ dryRun: false })).people).toBe(0);
+    const row = await s.member("Una Ssigned");
+    const gone = await s.member("Gone");
+    await s.t.run((ctx) => ctx.db.delete(gone));
+    await s.profile("una.ssigned@sow.org.au", LAST, undefined, { memberId: row, assignments: [] });
+    await s.profile("un.linked@sow.org.au", LAST);
+    await s.profile("dang.ling@sow.org.au", LAST, undefined, { memberId: gone });
+
+    expect(await s.rollover({ dryRun: false })).toMatchObject({ left: 0, remaining: 0 });
   });
 
-  test("pages through leavers, and can be limited to one person", async () => {
+  test("a dangling link on this year's profile is treated as unlinked", async () => {
     const s = await setup();
-    for (const who of ["a.one", "b.two", "c.three"]) {
-      const email = `${who}@sow.org.au`;
-      await s.profile(email, LAST);
-      await s.t.run((ctx) => ctx.db.insert("attendanceMembers", { name: who, email }));
+    const gone = await s.member("Gone");
+    await s.t.run((ctx) => ctx.db.delete(gone));
+    const profileId = await s.profile(NEWBIE, YEAR, "New Bie", { memberId: gone });
+
+    const result = await s.rollover({ dryRun: false });
+    expect(result).toMatchObject({ created: 1, linked: 0 });
+    const memberId = (await s.getProfile(profileId))?.memberId;
+    expect(memberId).not.toBe(gone);
+    expect((await s.getMember(memberId!))?.name).toBe("New Bie");
+  });
+
+  test("links this year's profile through an importId when the email changed", async () => {
+    const s = await setup();
+    const row = await s.member("Jane Doe");
+    await s.profile("jane.old@sow.org.au", YEAR - 2, "Jane Doe", { memberId: row, importId: "p-jane" });
+    const profileId = await s.profile("jane.new@sow.org.au", YEAR, "Jane Doe", { importId: "p-jane" });
+
+    const result = await s.rollover({ dryRun: false });
+    expect(result).toMatchObject({ linked: 1, created: 0, left: 0 });
+    expect((await s.getProfile(profileId))?.memberId).toBe(row);
+  });
+
+  test("skips a leaver already logged as leaving this staff year, but not one logged in an earlier year", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(staffYearStartMs(YEAR) - 86_400_000));
+    const s = await setup();
+    const early = await s.member("Early Leaver");
+    const before = await s.member("Before Leaver");
+    await s.profile("early.leaver@sow.org.au", LAST, "Early Leaver", { memberId: early });
+    await s.profile("before.leaver@sow.org.au", LAST, "Before Leaver", { memberId: before });
+    const log = (memberId: Id<"attendanceMembers">) =>
+      s.t.run((ctx) =>
+        ctx.db.insert("attendanceAuditLog", {
+          actorEmail: ADMIN,
+          entityType: "member",
+          action: "member.leftStaff",
+          summary: "left",
+          memberId,
+        })
+      );
+    await log(before);
+    vi.setSystemTime(new Date(staffYearStartMs(YEAR) + 60_000));
+    await log(early);
+
+    const result = await s.rollover({ dryRun: false });
+    const emails = result.details.map((d) => d.email);
+    expect(emails).toContain("before.leaver@sow.org.au");
+    expect(emails).not.toContain("early.leaver@sow.org.au");
+    const leftLogs = await s.logs("member.leftStaff");
+    expect(leftLogs.filter((l) => l.memberId === early)).toHaveLength(1);
+    expect(leftLogs.filter((l) => l.memberId === before)).toHaveLength(2);
+  });
+
+  test("works through people a batch at a time, staff to link first", async () => {
+    const s = await setup();
+    for (const name of ["a", "b", "c"]) await s.profile(`new.${name}@sow.org.au`, YEAR);
+    for (const name of ["d", "e"]) {
+      const memberId = await s.member(`Old ${name}`);
+      await s.profile(`old.${name}@sow.org.au`, LAST, undefined, { memberId });
     }
-    const only = await s.convert({ email: "B.TWO@sowaustralia.com" });
-    expect(only.details.map((d) => d.staffEmail)).toEqual(["b.two@sow.org.au"]);
+    const actions = (r: { details: { email: string; action: string }[] }) =>
+      r.details.map((d) => `${d.action} ${d.email}`);
 
-    // Other leavers (like the seeded admin, on a date before the rollover)
-    // take batch slots too, so follow `next` to the end.
-    const first = await s.convert({ dryRun: false, limit: 2 });
-    expect(first.next).not.toBeNull();
-    const converted = first.details.map((d) => d.staffEmail);
-    let next = first.next;
-    while (next) {
-      const page = await s.convert({ dryRun: false, limit: 2, after: next });
-      converted.push(...page.details.map((d) => d.staffEmail));
-      next = page.next;
-    }
-    expect(converted).toEqual(["a.one@sow.org.au", "b.two@sow.org.au", "c.three@sow.org.au"]);
+    const dry = await s.rollover({ limit: 2 });
+    expect(dry).toMatchObject({ created: 2, left: 0, remaining: 3 });
+
+    const first = await s.rollover({ dryRun: false, limit: 2 });
+    expect(first.remaining).toBe(3);
+    expect(actions(first)).toEqual(["created new.a@sow.org.au", "created new.b@sow.org.au"]);
+    const second = await s.rollover({ dryRun: false, limit: 2 });
+    expect(second.remaining).toBe(1);
+    expect(actions(second)).toEqual(["created new.c@sow.org.au", "left old.d@sow.org.au"]);
+    const third = await s.rollover({ dryRun: false, limit: 2 });
+    expect(third.remaining).toBe(0);
+    expect(actions(third)).toEqual(["left old.e@sow.org.au"]);
   });
 
-  test("keeps a non-staff role a leader gave them, such as Alumni", async () => {
+  test("defaults to a dry run of the current staff year", async () => {
     const s = await setup();
-    await s.t.run((ctx) =>
-      ctx.db.patch(s.fields.role, {
-        values: { "1": "Staff", "2": "Student Leader", "3": "Member", "8": "Alumni" },
-      })
-    );
-    await s.profile(LEAVER, LAST);
-    const row = await s.t.run((ctx) =>
-      ctx.db.insert("attendanceMembers", {
-        name: "Lee",
-        email: LEAVER,
-        metadata: { [s.fields.role]: "8" },
-      })
-    );
-    await s.convert({ dryRun: false });
-    expect((await s.members()).find((m) => m._id === row)?.metadata).toMatchObject({
-      [s.fields.role]: "8",
-    });
-  });
-
-  test("a custom staff role from that year's catalog also becomes Member", async () => {
-    const s = await setup();
-    await s.t.run(async (ctx) => {
-      await ctx.db.insert("roles", { year: LAST, name: "Worship Lead" });
-      await ctx.db.patch(s.fields.role, {
-        values: { "3": "Member", "5": "Worship Lead", "6": "Coordinator" },
-      });
-      // Held on their profile but not in the catalog any more.
-      await ctx.db.insert("staffProfiles", {
-        email: STAYER,
-        year: LAST,
-        assignments: [{ role: "Coordinator" }],
-      });
-    });
-    await s.profile(LEAVER, LAST);
-    const [lee, stay] = await s.t.run(async (ctx) => [
-      await ctx.db.insert("attendanceMembers", {
-        name: "Lee",
-        email: LEAVER,
-        metadata: { [s.fields.role]: "5" },
-      }),
-      await ctx.db.insert("attendanceMembers", {
-        name: "Stay",
-        email: STAYER,
-        metadata: { [s.fields.role]: "6" },
-      }),
-    ]);
-    await s.convert({ dryRun: false });
-    const rows = await s.members();
-    expect(rows.find((m) => m._id === lee)?.metadata?.[s.fields.role]).toBe("3");
-    expect(rows.find((m) => m._id === stay)?.metadata?.[s.fields.role]).toBe("3");
-  });
-
-  test("turns a staff role into Member, adding the option if it's missing", async () => {
-    const s = await setup();
-    await s.t.run((ctx) =>
-      ctx.db.patch(s.fields.role, { values: { "1": "Staff", "2": "Student Leader" } })
-    );
-    await s.profile(LEAVER, LAST);
-    const row = await s.t.run((ctx) =>
-      ctx.db.insert("attendanceMembers", {
-        name: "Lee",
-        email: LEAVER,
-        metadata: { [s.fields.role]: "2" },
-      })
-    );
-    // A dry run leaves the Role field alone.
-    await s.convert();
-    expect((await s.t.run((ctx) => ctx.db.get(s.fields.role)))!.values).toEqual({
-      "1": "Staff",
-      "2": "Student Leader",
-    });
-    await s.convert({ dryRun: false });
-    const roleField = await s.t.run((ctx) => ctx.db.get(s.fields.role));
-    expect(roleField!.values).toEqual({ "1": "Staff", "2": "Student Leader", "3": "Member" });
-    expect((await s.members()).find((m) => m._id === row)?.metadata).toMatchObject({
-      [s.fields.role]: "3",
-    });
-  });
-
-  test("still converts when there is no Role field", async () => {
-    const s = await setup();
-    await s.t.run((ctx) => ctx.db.delete(s.fields.role));
-    await s.profile(LEAVER, LAST);
-    await s.t.run((ctx) =>
-      ctx.db.insert("attendanceMembers", { name: "Lee", email: LEAVER })
-    );
-    expect((await s.convert({ dryRun: false })).people).toBe(1);
+    await s.profile(NEWBIE, NOW_YEAR);
+    const result = await s.t.mutation(internal.staffLeavers.staffRollover, {});
+    expect(result).toMatchObject({ dryRun: true, year: NOW_YEAR, created: 1 });
+    expect(await s.members()).toHaveLength(1);
   });
 
   test("rejects a limit that isn't a positive whole number", async () => {
     const s = await setup();
-    await expect(s.convert({ limit: 0 })).rejects.toThrow("limit must be a positive whole number.");
+    await expect(s.rollover({ limit: 0 })).rejects.toThrow("limit must be a positive whole number.");
+    await expect(s.rollover({ limit: 1.5 })).rejects.toThrow("limit must be a positive whole number.");
   });
 });
 
-describe("convertOutgoingStaffOnRollover", () => {
-  test("on 1 October converts every leaver, a batch at a time", async () => {
+describe("staffRolloverOnOct1", () => {
+  test("on 1 October works through everyone, rescheduling itself until done", async () => {
     const s = await setup();
+    for (let i = 0; i < 20; i++) {
+      await s.profile(`staff.${String(i).padStart(2, "0")}@sow.org.au`, YEAR);
+    }
     for (let i = 0; i < 12; i++) {
-      const email = `leaver.${String(i).padStart(2, "0")}@sow.org.au`;
-      await s.profile(email, LAST);
-      await s.t.run((ctx) => ctx.db.insert("attendanceMembers", { name: `L ${i}`, email }));
+      const memberId = await s.member(`Leaver ${i}`);
+      await s.profile(`leaver.${String(i).padStart(2, "0")}@sow.org.au`, LAST, undefined, {
+        memberId,
+      });
     }
     vi.useFakeTimers();
     vi.setSystemTime(new Date(staffYearStartMs(YEAR) + 90 * 60_000));
-    try {
-      await s.t.mutation(internal.staffLeavers.convertOutgoingStaffOnRollover, {});
-      await s.t.finishAllScheduledFunctions(vi.runAllTimers);
-    } finally {
-      vi.useRealTimers();
-    }
-    const rows = await s.members();
-    expect(rows.every((m) => m.email === undefined)).toBe(true);
-    expect(await s.leaverLogs()).toHaveLength(12);
+    await s.t.mutation(internal.staffLeavers.staffRolloverOnOct1, {});
+    const scheduled = await s.t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+    expect(scheduled).toHaveLength(1);
+    expect(scheduled[0].args).toEqual([{ year: YEAR }]);
+    await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    expect(await s.members()).toHaveLength(33);
+    expect(await s.logs("member.create")).toHaveLength(20);
+    expect(await s.logs("member.leftStaff")).toHaveLength(12);
+    const done = await s.t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+    expect(done.map((f) => f.state.kind)).toEqual(["success"]);
+  });
+
+  test("does not reschedule when one batch is enough", async () => {
+    const s = await setup();
+    await s.profile(NEWBIE, YEAR);
+    await s.t.mutation(internal.staffLeavers.staffRolloverOnOct1, { year: YEAR });
+    expect(await s.members()).toHaveLength(2);
+    expect(
+      await s.t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect())
+    ).toHaveLength(0);
+  });
+});
+
+describe("suspected staffRollover bugs", () => {
+  test("a returning staff member linked by importId in the same batch is not also logged as leaving", async () => {
+    const s = await setup();
+    const row = await s.member("Jane Doe");
+    await s.profile("jane.old@sow.org.au", LAST, "Jane Doe", { memberId: row, importId: "p-jane" });
+    const renamed = await s.profile("jane.new@sow.org.au", YEAR, "Jane Doe", { importId: "p-jane" });
+
+    const result = await s.rollover({ dryRun: false });
+    expect((await s.getProfile(renamed))?.memberId).toBe(row);
+    expect(result).toMatchObject({ linked: 1, left: 0 });
+    expect(await s.logs("member.leftStaff")).toHaveLength(0);
+  });
+
+  test("a leaver with last-year profiles on both SOW domains leaves once", async () => {
+    const s = await setup();
+    const row = await s.member("Lee Aver");
+    await s.profile(LEAVER, LAST, "Lee Aver", { memberId: row });
+    await s.profile("lee.aver@sowaustralia.com", LAST, "Lee Aver", { memberId: row });
+
+    const result = await s.rollover({ dryRun: false });
+    expect(result.left).toBe(1);
+    expect(await s.logs("member.leftStaff")).toHaveLength(1);
   });
 });
 
@@ -496,19 +450,6 @@ describe("a plain member's email", () => {
       admin.mutation(api.attendanceMembers.update, { memberId, name: "Imported Person", email, staffYear: YEAR });
     await expect(save("imported@sowaustralia.com")).rejects.toThrow("not a personal one");
     await save("");
-    expect((await s.members())[0].email).toBeUndefined();
-  });
-
-  test("a leaver's personal email that is an SOW address is passed over", async () => {
-    const s = await setup();
-    await s.profile(LEAVER, LAST, "Lee Aver");
-    await s.t.run((ctx) =>
-      ctx.db.insert("attendanceMembers", { name: "Lee Aver", email: LEAVER, personalEmail: "lee.old@sow.org.au" })
-    );
-    const e = await s.event("Weeklies", 1);
-    await s.signIn(e, { email: LEAVER }, 1);
-    const result = await s.convert({ dryRun: false });
-    expect(result.details).toMatchObject([{ staffEmail: LEAVER, email: null }]);
     expect((await s.members())[0].email).toBeUndefined();
   });
 });

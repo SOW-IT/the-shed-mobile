@@ -61,6 +61,16 @@ async function setup() {
   return { t, leader };
 }
 
+async function memberOf(t: TestConvex<typeof schema>, email: string) {
+  const profile = await t.run((ctx) =>
+    ctx.db
+      .query("staffProfiles")
+      .withIndex("by_email_and_year", (q) => q.eq("email", email).eq("year", YEAR))
+      .first()
+  );
+  return profile!.memberId!;
+}
+
 const window = (offsetDays = 0) => {
   const dateStart = Date.now() - offsetDays * DAY;
   return { dateStart, dateEnd: dateStart + 2 * 60 * 60 * 1000 };
@@ -75,7 +85,7 @@ describe("attendanceExport", () => {
   });
 
   test("exports events for a sub-group with resolved staff + member metadata", async () => {
-    const { leader } = await setup();
+    const { t, leader } = await setup();
     const eventId = await leader.mutation(api.events.create, {
       name: "Weekly Meeting",
       ...window(),
@@ -120,8 +130,7 @@ describe("attendanceExport", () => {
     expect(event.collaborative).toBe(false);
 
     const staffRow = event.rows.find((r) => r.email === LEADER)!;
-    expect(staffRow.metadata.Campus).toBe(USYD);
-    expect(staffRow.metadata.Role).toBe("Student Leader");
+    expect(staffRow.identityKey).toBe(`member:${await memberOf(t, LEADER)}`);
 
     const guestRow = event.rows.find((r) => r.name === "Guest Member")!;
     expect(guestRow.email).toBe("guest@example.com");
@@ -131,24 +140,110 @@ describe("attendanceExport", () => {
     expect(unknownRow.metadata.Year).toBeUndefined();
   });
 
-  test("a member whose email is a staff profile is exported as that staff member", async () => {
+  test("a staff attendee exports Campus and Role from their profile, not their member row", async () => {
+    const { t, leader } = await setup();
+    const eventId = await leader.mutation(api.events.create, {
+      name: "Locked",
+      ...window(),
+      subgroups: [USYD],
+    });
+    await leader.mutation(api.attendance.signIn, { eventId, email: LEADER });
+    const data = await leader.query(api.attendanceExport.eventForExport, { eventId, subgroup: USYD });
+    const row = data!.event.rows[0];
+    expect(row.identityKey).toBe(`member:${await memberOf(t, LEADER)}`);
+    expect(row.metadata.Campus).toBe(USYD);
+    expect(row.metadata.Role).toBe("Student Leader");
+  });
+
+  test("a member linked to an assigned profile exports as staff; an email alone does not make staff", async () => {
     const { t, leader } = await setup();
     const eventId = await leader.mutation(api.events.create, {
       name: "Mixed",
       ...window(),
       subgroups: [USYD],
     });
-    // A legacy row: members created before 1.13.0 could carry a staff email.
-    const memberId = await t.run((ctx) =>
-      ctx.db.insert("attendanceMembers", { name: "Shadow Of Staff", email: STAFF })
-    );
-    await leader.mutation(api.attendance.signIn, { eventId, memberId });
-
-    const data = await leader.query(api.attendanceExport.eventsForExport, {
-      subgroup: USYD,
+    const staffMemberId = await memberOf(t, STAFF);
+    const { lookalike, unassigned } = await t.run(async (ctx) => {
+      await ctx.db.patch(staffMemberId, { name: "Member Row Name", email: "personal@example.com" });
+      const lookalike = await ctx.db.insert("attendanceMembers", { name: "Shadow Of Staff", email: "Staff@SOW.org.au" });
+      const unassigned = await ctx.db.insert("attendanceMembers", { name: "Paused Pat" });
+      await ctx.db.insert("staffProfiles", {
+        email: "pat@sow.org.au",
+        year: YEAR,
+        name: "Pat Profile",
+        memberId: unassigned,
+        assignments: [],
+      });
+      return { lookalike, unassigned };
     });
-    const row = data!.events[0].rows[0];
-    expect(row.email).toBe(STAFF);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(
+        (await ctx.db
+          .query("staffProfiles")
+          .withIndex("by_email_and_year", (q) => q.eq("email", STAFF).eq("year", YEAR))
+          .first())!._id,
+        { name: "Stella Staff", email: "Staff@SOW.org.au" }
+      );
+    });
+    await leader.mutation(api.attendance.signIn, { eventId, memberId: staffMemberId });
+    await leader.mutation(api.attendance.signIn, { eventId, memberId: lookalike });
+    await leader.mutation(api.attendance.signIn, { eventId, memberId: unassigned });
+
+    const data = await leader.query(api.attendanceExport.eventForExport, { eventId, subgroup: USYD });
+    const byKey = new Map(data!.event.rows.map((r) => [r.identityKey, r]));
+    expect(data!.event.rows).toHaveLength(3);
+    expect(byKey.get(`member:${staffMemberId}`)).toMatchObject({ name: "Stella Staff", email: STAFF });
+    expect(byKey.get(`member:${lookalike}`)).toMatchObject({ name: "Shadow Of Staff", email: STAFF });
+    expect(byKey.get(`member:${unassigned}`)).toMatchObject({ name: "Paused Pat", email: "" });
+  });
+
+  test("a member who was staff only in an earlier year exports as staff then and as themselves later", async () => {
+    const { t, leader } = await setup();
+    const earlierStart = staffYearStartMs(YEAR - 1) + 30 * DAY;
+    const memberId = await t.run(async (ctx) => {
+      const memberId = await ctx.db.insert("attendanceMembers", { name: "Former Fran", email: "fran@example.com" });
+      await ctx.db.insert("staffProfiles", {
+        email: "fran@sow.org.au",
+        year: YEAR - 1,
+        name: "Fran Staffer",
+        memberId,
+        assignments: [{ role: "Student Leader", university: USYD }],
+      });
+      const earlier = await ctx.db.insert("events", {
+        name: "Earlier",
+        dateStart: earlierStart,
+        dateEnd: earlierStart + DAY,
+        subgroups: [USYD],
+      });
+      await ctx.db.insert("attendance", { eventId: earlier, memberId, signInTime: earlierStart });
+      return memberId;
+    });
+    const later = await leader.mutation(api.events.create, { name: "Later", ...window(), subgroups: [USYD] });
+    await leader.mutation(api.attendance.signIn, { eventId: later, memberId });
+
+    const data = await leader.query(api.attendanceExport.eventsForExport, { subgroup: USYD });
+    const rowOf = (name: string) => data!.events.find((e) => e.name === name)!.rows[0];
+    expect(rowOf("Earlier")).toMatchObject({ name: "Fran Staffer", email: "fran@sow.org.au" });
+    expect(rowOf("Later")).toMatchObject({ name: "Former Fran", email: "fran@example.com" });
+    expect(rowOf("Earlier").identityKey).toBe(rowOf("Later").identityKey);
+  });
+
+  test("a row whose member was deleted exports as Unknown on its own line", async () => {
+    const { t, leader } = await setup();
+    const eventId = await leader.mutation(api.events.create, { name: "Gone", ...window(), subgroups: [USYD] });
+    const rowIds = await t.run(async (ctx) => {
+      const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
+      await ctx.db.delete(gone);
+      return [
+        await ctx.db.insert("attendance", { eventId, memberId: gone, signInTime: 1 }),
+        await ctx.db.insert("attendance", { eventId, memberId: gone, signInTime: 2 }),
+      ];
+    });
+    const data = await leader.query(api.attendanceExport.eventForExport, { eventId, subgroup: USYD });
+    expect(data!.event.rows.map((r) => r.identityKey).sort()).toEqual(
+      rowIds.map((id) => `row:${id}`).sort()
+    );
+    expect(data!.event.rows.every((r) => r.name === "Unknown" && r.email === "")).toBe(true);
   });
 
   test("filters by date range and by tags, and counts collaborative events", async () => {
@@ -386,16 +481,11 @@ describe("attendanceExport de-duplication", () => {
       ...window(),
       subgroups: [USYD],
     });
-    const memberId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
-      staffEmail: LEADER,
-    });
+    const memberId = await memberOf(t, LEADER);
     await t.run(async (ctx) => {
-      await ctx.db.insert("attendance", {
-        eventId,
-        email: LEADER,
-        signInTime: 2000,
-      });
-      await ctx.db.insert("attendance", { eventId, memberId, signInTime: 1000 });
+      await ctx.db.insert("attendance", { eventId, memberId, signInTime: 2000, notes: "later" });
+      await ctx.db.insert("attendance", { eventId, memberId, signInTime: 1000, notes: "first" });
+      await ctx.db.insert("attendance", { eventId, memberId, signInTime: 3000, notes: "last" });
     });
 
     const data = await leader.query(api.attendanceExport.eventForExport, {
@@ -405,5 +495,7 @@ describe("attendanceExport de-duplication", () => {
     expect(data!.event.rows).toHaveLength(1);
     expect(data!.event.rows[0].email).toBe(LEADER);
     expect(data!.event.rows[0].signInTime).toBe(1000);
+    expect(data!.event.rows[0].notes).toBe("first");
+    expect(data!.event.attendanceCount).toBe(1);
   });
 });

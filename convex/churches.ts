@@ -25,7 +25,7 @@ import { assignmentsOf, MEMBER } from "../shared/flow";
 import { personDisplayName } from "../shared/rollcall";
 import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
 import { currentStaffYear, getProfile, optionalEmail, requireProfile, rolesOf } from "./model";
-import { staffProfileOfMember } from "./staffMembers";
+import { isAssigned, staffProfileOfMember } from "./staffMembers";
 
 // Local churches staff go to. Any staff member can add one (with where it is
 // and when it meets) or fill in a missing detail; everyone picks theirs from
@@ -429,7 +429,7 @@ export const leadingRole = (roles: readonly string[]) =>
 async function currentProfile(ctx: QueryCtx, email: string | undefined) {
   for (const candidate of staffEmailCandidates(email)) {
     const profile = await getProfile(ctx, candidate, currentStaffYear());
-    if (profile) return profile;
+    if (profile && isAssigned(profile)) return profile;
   }
   return null;
 }

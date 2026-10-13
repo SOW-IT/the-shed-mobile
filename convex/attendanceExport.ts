@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { staffYearForDate, sydneyCalendarYear } from "../shared/flow";
-import { formatMetadataFieldValue } from "../shared/attendanceMemberMeta";
+import { formatMetadataFieldValue, staffLockedMetadata } from "../shared/attendanceMemberMeta";
 import {
   eventIncludesSubgroup,
   normalizeSubgroups,
@@ -110,7 +110,9 @@ async function resolveExportEvents(
         email: profile?.email.toLowerCase() ?? member.email?.toLowerCase() ?? "",
         signInTime: row.signInTime,
         notes: row.notes,
-        metadata: resolveMetadata(member.metadata),
+        metadata: resolveMetadata(
+          profile ? staffLockedMetadata(fields, profile, member.metadata) : member.metadata
+        ),
         identityKey: `member:${String(member._id)}`,
       };
     });
