@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.5.8] — 2026-10-13
+
+### Fixed
+- **iOS builds carry a location purpose string.** App Store Connect flagged
+  build 36 (ITMS-90683) because the Churches map library references iOS
+  location APIs, so iOS needs `NSLocationWhenInUseUsageDescription` even
+  though The SHED never asks for your location. The string says exactly
+  that.
+
 ## [2.5.7] — 2026-10-13
 
 ### Changed
