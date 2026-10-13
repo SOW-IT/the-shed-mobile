@@ -247,6 +247,10 @@ async function expectBackfilled(t: T, ids: Seeded) {
   const pat = state.members.find((m) => m._id === ids.pat)!;
   expect(pat.email).toBe("pat@gmail.com");
   expect(pat.personalEmail).toBeUndefined();
+  const dropped = state.audit.filter((l) => l.memberId === ids.pat && l.actorEmail === "system:member-backfill");
+  expect(dropped).toHaveLength(1);
+  expect(dropped[0].summary).toContain("pat.other@gmail.com");
+  expect(dropped[0].detail).toContain("Email kept: pat@gmail.com");
   expect(state.attendance.filter((r) => r.memberId === ids.pat).map((r) => r.eventId).sort()).toEqual(
     [ids.e2, ids.e3].sort()
   );

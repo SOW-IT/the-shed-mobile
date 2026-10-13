@@ -16,6 +16,7 @@ import {
   internalQuery,
   type MutationCtx,
 } from "./_generated/server";
+import { logAttendanceAction } from "./attendanceAudit";
 import { isStaffAddress, latestStaffProfile } from "./attendanceMembers";
 import { findMemberByEmail } from "./model";
 import {
@@ -197,6 +198,19 @@ async function membersStep(ctx: MutationCtx, cursor: string | null): Promise<Ste
       personalEmail: undefined,
       ...(metadataChanged ? { metadata } : {}),
     });
+    if (personal && personal !== email) {
+      await logAttendanceAction(ctx, {
+        actorEmail: ACTOR,
+        entityType: "member",
+        action: "member.update",
+        summary: `Dropped "${row.name}"'s second email ${personal}`,
+        memberId: row._id,
+        detail: [
+          `Personal email ${personal} removed when member emails were merged into one field`,
+          email ? `Email kept: ${email}` : "No email kept",
+        ].join("\n"),
+      });
+    }
     changed++;
   }
   return { processed: page.page.length, changed, isDone: page.isDone, cursor: page.continueCursor };
