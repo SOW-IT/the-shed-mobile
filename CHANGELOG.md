@@ -6,6 +6,22 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.6.1] — 2026-10-13
+
+### Changed
+- **Every sign-in is now kept only on the person's member record.** The old
+  copies of staff sign-ins stored by email, and the second "personal email"
+  slot on member records, are gone, along with the one-off tools that tidied
+  them up for 2.6.0. Nothing changes in the app. Restoring a deleted sign-in
+  by a staff email finds that person's member record, and reports "member
+  missing" if they don't have one.
+
+### Fixed
+- **Leaving staff keeps the name on someone's member record.** The October 1
+  job (and removing someone from this year's staff) no longer replaces it with
+  the name on their staff profile, so a corrected spelling such as
+  "Anna-Leah" stays.
+
 ## [2.6.0] — 2026-10-13
 
 ### Changed

@@ -284,7 +284,9 @@ export const get = query({
     if (!row) return null;
     const profileYear = staffYear ?? staffYearForDate(new Date());
     const profile = await staffProfileOfMember(ctx, row._id, profileYear);
-    if (!profile) return { ...row, isStaffOverlay: false, profileChurch: null };
+    if (!profile) {
+      return { ...row, isStaffOverlay: false, personalEmail: undefined as string | undefined, profileChurch: null };
+    }
     const fields = await allMetadataFields(ctx);
     // Staff pick their church in their own Profile; the sheet just shows it.
     const user = await ctx.db

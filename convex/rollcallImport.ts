@@ -3,7 +3,6 @@ import {
   assignmentsOf,
   eventStaffYear,
   rolesOfLike,
-  staffYearForDate,
   staffYearStartMs,
   sydneyCalendarYear,
 } from "../shared/flow";
@@ -16,7 +15,6 @@ import {
   optionIdForLabel,
   ROLE_FIELD_KEY,
   memberOwnMetadata,
-  staffLockedMetadata,
   STUDENT_YEAR_FIELD_KEY,
   STUDENT_YEAR_VALUES,
   commencementYearFromLevel,
@@ -32,8 +30,7 @@ import { MutationCtx, mutation, query, QueryCtx } from "./_generated/server";
 import { isAssigned, linkOrCreateMember } from "./staffMembers";
 
 type Ctx = QueryCtx | MutationCtx;
-import { findMemberByEmail, getProfile, requireAdmin } from "./model";
-import { mergeNotes } from "../shared/memberMerge";
+import { getProfile, requireAdmin } from "./model";
 
 const eventsInStaffYear = (ctx: Ctx, year: number) =>
   ctx.db
@@ -530,122 +527,6 @@ export const resetYears = mutation({
   },
 });
 
-export const mergeLegacyStaffMembers = mutation({
-  args: { year: v.number() },
-  returns: v.object({
-    mergedMembers: v.number(),
-    attendanceMoved: v.number(),
-    attendanceDeduplicated: v.number(),
-    skipped: v.array(
-      v.object({
-        memberId: v.id("attendanceMembers"),
-        name: v.string(),
-        email: v.optional(v.string()),
-        reason: v.string(),
-      })
-    ),
-  }),
-  handler: async (ctx, { year }) => {
-    await requireAdmin(ctx);
-    const fields = await allMetadataFields(ctx);
-    const members = await ctx.db
-      .query("attendanceMembers")
-      .collect();
-    let mergedMembers = 0;
-    let attendanceMoved = 0;
-    let attendanceDeduplicated = 0;
-    const skipped: Array<{
-      memberId: Id<"attendanceMembers">;
-      name: string;
-      email?: string;
-      reason: string;
-    }> = [];
-
-    for (const member of members) {
-      const candidates = staffEmailCandidates(member.email);
-      const legacy = canonicalStaffEmailForLegacyMember(member);
-      if (legacy && !candidates.includes(legacy)) candidates.unshift(legacy);
-      if (candidates.length === 0) continue;
-
-      let profile: Awaited<ReturnType<typeof getProfile>> = null;
-      for (const candidate of candidates) {
-        profile =
-          (await getProfile(ctx, candidate, year)) ??
-          (await getProfile(ctx, candidate, year + 1));
-        if (profile) break;
-      }
-      if (!profile) {
-        skipped.push({
-          memberId: member._id,
-          name: member.name,
-          email: member.email,
-          reason: `No staff profile found for ${member.email ?? member.name}`,
-        });
-        continue;
-      }
-      const targetEmail = profile.email.toLowerCase();
-      if ((member.email ?? "").toLowerCase() === targetEmail) continue;
-
-      const found = await findMemberByEmail(ctx, targetEmail);
-      const existingOverlay = found && found._id !== member._id ? found : null;
-      const mergedMetadata = staffLockedMetadata(fields, profile, {
-        ...(member.metadata ?? {}),
-        ...(existingOverlay?.metadata ?? {}),
-      });
-      if (existingOverlay) {
-        await ctx.db.patch(existingOverlay._id, {
-          name: profile.name ?? member.name,
-          email: targetEmail,
-          metadata: mergedMetadata,
-        });
-      } else {
-        await ctx.db.insert("attendanceMembers", {
-          name: profile.name ?? member.name,
-          email: targetEmail,
-          metadata: mergedMetadata,
-        });
-      }
-
-      const attendanceRows = await ctx.db
-        .query("attendance")
-        .withIndex("by_member", (q) => q.eq("memberId", member._id))
-        .collect();
-      for (const row of attendanceRows) {
-        const existingAttendance = await ctx.db
-          .query("attendance")
-          .withIndex("by_event_and_email", (q) =>
-            q.eq("eventId", row.eventId).eq("email", targetEmail)
-          )
-          .unique();
-        if (existingAttendance) {
-          await ctx.db.patch(existingAttendance._id, {
-            signInTime: Math.min(existingAttendance.signInTime, row.signInTime),
-            notes: mergeNotes(existingAttendance.notes, row.notes),
-          });
-          await ctx.db.delete(row._id);
-          attendanceDeduplicated++;
-        } else {
-          await ctx.db.patch(row._id, {
-            email: targetEmail,
-            memberId: undefined,
-          });
-          attendanceMoved++;
-        }
-      }
-
-      await ctx.db.delete(member._id);
-      mergedMembers++;
-    }
-
-    return {
-      mergedMembers,
-      attendanceMoved,
-      attendanceDeduplicated,
-      skipped,
-    };
-  },
-});
-
 export const migrateOrgWideSubgroupToSow = mutation({
   args: { year: v.number() },
   returns: v.object({
@@ -737,75 +618,3 @@ export const repairGenderMetadata = mutation({
   },
 });
 
-export const auditAttendanceMapping = query({
-  args: { year: v.number() },
-  handler: async (ctx, { year }) => {
-    await requireAdmin(ctx);
-    const events = await eventsInStaffYear(ctx, year).collect();
-
-    let total = 0;
-    let staffByEmail = 0;
-    let plainMember = 0;
-    const memberShouldBeStaff: Record<string, unknown>[] = [];
-    const noProfileEmail: Record<string, unknown>[] = [];
-    const missingMember: Record<string, unknown>[] = [];
-    let noIdentifier = 0;
-
-    for (const event of events) {
-      const profileYear = staffYearForDate(new Date(event.dateStart));
-      const rows = await ctx.db
-        .query("attendance")
-        .withIndex("by_event", (q) => q.eq("eventId", event._id))
-        .collect();
-      for (const row of rows) {
-        total++;
-        const findProfile = async (email: string | undefined) => {
-          for (const candidate of staffEmailCandidates(email)) {
-            const profile = await getProfile(ctx, candidate, profileYear);
-            if (profile) return profile;
-          }
-          return null;
-        };
-        if (row.email) {
-          if (await findProfile(row.email)) staffByEmail++;
-          else noProfileEmail.push({ event: event.name, email: row.email, staffYear: profileYear });
-        } else if (row.memberId) {
-          const member = await ctx.db.get(row.memberId);
-          if (!member) {
-            missingMember.push({ event: event.name, memberId: row.memberId });
-            continue;
-          }
-          const profile = await findProfile(member.email);
-          if (profile) {
-            memberShouldBeStaff.push({
-              event: event.name,
-              member: member.name,
-              email: member.email,
-              profile: profile.email,
-              staffYear: profileYear,
-            });
-          } else {
-            plainMember++;
-          }
-        } else {
-          noIdentifier++;
-        }
-      }
-    }
-
-    return {
-      year,
-      events: events.length,
-      total,
-      staffByEmail,
-      plainMember,
-      memberShouldBeStaffCount: memberShouldBeStaff.length,
-      noProfileEmailCount: noProfileEmail.length,
-      missingMemberCount: missingMember.length,
-      noIdentifier,
-      memberShouldBeStaff: memberShouldBeStaff.slice(0, 40),
-      noProfileEmail: noProfileEmail.slice(0, 40),
-      missingMember: missingMember.slice(0, 20),
-    };
-  },
-});

@@ -434,7 +434,7 @@ describe("attendanceMetrics", () => {
         memberId,
         assignments: [{ role: "Student Leader", university: USYD }],
       });
-      await ctx.db.insert("attendance", { eventId: e, email: "legacy@sow.org.au", signInTime: Date.now() });
+      await ctx.db.insert("attendance", { eventId: e, signInTime: Date.now() });
       return memberId;
     });
     await leader.mutation(api.attendance.signIn, { eventId: e, memberId: ghost });

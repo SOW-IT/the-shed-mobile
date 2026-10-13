@@ -520,9 +520,6 @@ export default defineSchema({
     // A plain member's own email. On a staff person's row it is their staff
     // email, which links the row to their staff profile.
     email: v.optional(v.string()),
-    // A staff person's own email, kept apart from the staff one. It becomes
-    // `email` when they leave staff and turn into alumni.
-    personalEmail: v.optional(v.string()),
     sourceImportId: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.string())),
     // A plain member's local church (staff set theirs in their Profile).
@@ -544,15 +541,12 @@ export default defineSchema({
 
   attendance: defineTable({
     eventId: v.id("events"),
-    email: v.optional(v.string()),
     memberId: v.optional(v.id("attendanceMembers")),
     signInTime: v.number(),
     notes: v.optional(v.string()),
   })
     .index("by_event", ["eventId"])
-    .index("by_event_and_email", ["eventId", "email"])
     .index("by_event_and_member", ["eventId", "memberId"])
-    .index("by_email", ["email"])
     .index("by_member", ["memberId"]),
 
   contactRateLimit: defineTable({

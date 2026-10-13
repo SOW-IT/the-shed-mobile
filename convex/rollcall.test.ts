@@ -193,77 +193,6 @@ describe("legacy import matching", () => {
   });
 });
 
-describe("mergeLegacyStaffMembers (staff-year-aware relink)", () => {
-  test("normalises a legacy @sowaustralia.com member to the profile email, leaving an already-canonical row", async () => {
-    const t = await setup();
-    const admin = asUser(t, ADMIN);
-    await admin.mutation(api.admin.setStaffProfile, {
-      email: "jane.doe@sow.org.au",
-      year: YEAR,
-      roles: ["Student Leader"],
-      university: USYD,
-    });
-
-    const { m1, m2, eventId } = await t.run(async (ctx) => {
-      // November before YEAR's calendar year: in staff year YEAR.
-      const dateStart = Date.UTC(YEAR - 1, 10, 1, 9, 0, 0);
-      const eId = await ctx.db.insert("events", {
-        name: "Nov event",
-        dateStart,
-        dateEnd: dateStart + 3600_000,
-        subgroups: [USYD],
-      });
-      const a = await ctx.db.insert("attendanceMembers", {
-        name: "Leader Legacy",
-        email: LEADER,
-      });
-      const b = await ctx.db.insert("attendanceMembers", {
-        name: "Jane Doe",
-        email: "jane.doe@sowaustralia.com",
-        metadata: { keep: "value" },
-      });
-      await ctx.db.insert("attendance", { eventId: eId, memberId: a, signInTime: dateStart });
-      await ctx.db.insert("attendance", { eventId: eId, memberId: b, signInTime: dateStart });
-      return { m1: a, m2: b, eventId: eId };
-    });
-
-    const res = await admin.mutation(api.rollcallImport.mergeLegacyStaffMembers, {
-      year: YEAR - 1,
-    });
-    expect(res.mergedMembers).toBe(1);
-    expect(res.attendanceMoved).toBe(1);
-
-    const after = await t.run(async (ctx) => {
-      const att = await ctx.db
-        .query("attendance")
-        .withIndex("by_event", (q) => q.eq("eventId", eventId))
-        .collect();
-      return {
-        att: att.map((a) => ({ email: a.email, memberId: a.memberId })).sort((x, y) =>
-          (x.email ?? "").localeCompare(y.email ?? "")
-        ),
-        oldM1: await ctx.db.get(m1),
-        oldM2: await ctx.db.get(m2),
-      };
-    });
-    expect(after.oldM1).not.toBeNull();
-    expect(after.oldM2).toBeNull();
-    expect(after.att).toEqual([
-      { email: undefined, memberId: m1 },
-      { email: "jane.doe@sow.org.au", memberId: undefined },
-    ]);
-
-    const canonical = await t.run((ctx) =>
-      ctx.db
-        .query("attendanceMembers")
-        .withIndex("by_email", (q) => q.eq("email", "jane.doe@sow.org.au"))
-        .unique()
-    );
-    expect(canonical?.name).toBe("Jane Doe");
-    expect(canonical?.metadata?.keep).toBe("value");
-  });
-});
-
 describe("staff year derivation for events", () => {
   test("a Sep–Dec attendee who was staff only in the calendar year shows as a plain member", async () => {
     const t = await setup();
@@ -1624,7 +1553,6 @@ describe("staff sign-in and sign-out by email", () => {
     expect(member?.email).toBeUndefined();
     const row = await t.run((ctx) => ctx.db.get(first));
     expect(row?.memberId).toBe(linked);
-    expect(row?.email).toBeUndefined();
 
     expect(await leader.mutation(api.attendance.signIn, { eventId, email: "fresh@sow.org.au" })).toBe(first);
     await leader.mutation(api.attendance.signIn, { eventId: otherId, email: "fresh@sowaustralia.com" });

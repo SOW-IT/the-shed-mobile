@@ -363,7 +363,6 @@ describe("campusWeeklyAttendance", () => {
       for (let i = 0; i < opts.count; i++) {
         await ctx.db.insert("attendance", {
           eventId,
-          email: `p${i}@sow.org.au`,
           signInTime: opts.dateStart,
         });
       }
@@ -401,7 +400,6 @@ describe("campusWeeklyAttendance", () => {
       });
       await ctx.db.insert("attendance", {
         eventId,
-        email: "x@sow.org.au",
         signInTime: IN_2025,
       });
     });
