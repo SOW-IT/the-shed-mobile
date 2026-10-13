@@ -145,7 +145,7 @@ export const setAvatar = mutation({
   args: { storageId: v.id("_storage") },
   handler: async (ctx, args) => {
     const user = await requireOwnUser(ctx);
-    if (user.avatarId) {
+    if (user.avatarId && (await ctx.db.system.get(user.avatarId))) {
       await ctx.storage.delete(user.avatarId);
     }
     await ctx.db.patch("users", user._id, { avatarId: args.storageId });

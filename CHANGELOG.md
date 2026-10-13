@@ -52,6 +52,11 @@ All notable changes to **The SHED** mobile app. This project follows
 - **A re-hired leader is the same person again**, not a second record.
 - **The Churches page counts someone with an unassigned profile as a member**,
   and attendance exports give staff their Campus and Role from their profile.
+- **Former and next-year staff whose record still had their SOW email can be
+  saved without it.** Clearing the email no longer fails with "Staff profile
+  not found." when they aren't staff in the year being viewed.
+- **Changing your profile photo works when the old photo's file is missing**,
+  instead of failing with an id-not-found error.
 
 ## [2.5.8] — 2026-10-13
 

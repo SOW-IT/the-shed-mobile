@@ -819,6 +819,37 @@ describe("attendance members", () => {
     expect((await t.run((ctx) => ctx.db.get(memberId)))?.name).toBe("New Name");
   });
 
+  test("next year's staff still holding their staff email can have it cleared this year", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const NEXT = "next.leader@sow.org.au";
+    const memberId = await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: NEXT,
+        year: YEAR + 1,
+        name: "Next Leader",
+        assignments: [{ role: "Student Leader", university: USYD }],
+      });
+      return await ctx.db.insert("attendanceMembers", { name: "Next Leader", email: NEXT });
+    });
+    const shown = await leader.query(api.attendanceMembers.get, { memberId, staffYear: YEAR });
+    expect(shown?.isStaffOverlay).toBe(false);
+    await expect(
+      leader.mutation(api.attendanceMembers.update, {
+        memberId,
+        name: "Next Leader",
+        email: NEXT,
+        staffYear: YEAR,
+      })
+    ).rejects.toThrow(/staff email/);
+    await leader.mutation(api.attendanceMembers.update, {
+      memberId,
+      name: "Next Leader",
+      staffYear: YEAR,
+    });
+    expect((await t.run((ctx) => ctx.db.get(memberId)))?.email).toBeUndefined();
+  });
+
   test("ensureForStaff won't adopt an unlinked member without a staff profile", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
