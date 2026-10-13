@@ -103,6 +103,24 @@ describe("me", () => {
     expect(me.photo).not.toBe("g");
   });
 
+  test("the Workspace directory photo wins over the Google image", async () => {
+    const t = await setup();
+    const photoId = await t.run((ctx) =>
+      ctx.storage.store(new Blob(["jpg"], { type: "image/jpeg" }))
+    );
+    await t.run((ctx) =>
+      ctx.db.insert("users", { email: RACHEL, name: "Rachel R", image: "g" })
+    );
+    await t.mutation(internal.directorySync.store, {
+      users: [{ email: RACHEL, name: "Rachel R", photoId, photoEtag: "e1" }],
+    });
+    const directoryUrl = await t.run((ctx) => ctx.storage.getUrl(photoId));
+    const me = (await asUser(t, RACHEL).query(api.directory.me, {}))!;
+    expect(me.photo).toBe(directoryUrl);
+    const viewed = (await asUser(t, HENRY).query(api.profile.get, { email: RACHEL }))!;
+    expect(viewed.photo).toBe(directoryUrl);
+  });
+
   test("reports capabilities for the Finance Head", async () => {
     const t = await setup();
     const me = (await asUser(t, FIONA).query(api.directory.me, {}))!;

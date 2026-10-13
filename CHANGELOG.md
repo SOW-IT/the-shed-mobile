@@ -6,6 +6,69 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.5.8] — 2026-10-13
+
+### Fixed
+- **iOS builds carry a location purpose string.** App Store Connect flagged
+  build 36 (ITMS-90683) because the Churches map library references iOS
+  location APIs, so iOS needs `NSLocationWhenInUseUsageDescription` even
+  though The SHED never asks for your location. The string says exactly
+  that.
+
+## [2.5.7] — 2026-10-13
+
+### Changed
+- **Insights no longer counts outsourced people as staff.** Someone whose only
+  role is Outsource is left out of the General tab's headcount, retention and
+  years-served numbers. Someone who is also Staff or a Student Leader counts
+  as that.
+- **Your profile shows when Google last synced it**, as a chip under your
+  name: "Synced from Google 3d ago". It is the later of your last Google
+  sign-in and the weekly directory sync.
+- **Less explanatory text.** Lines that repeated a heading or a button, or
+  explained what the screen already shows, are gone: on your profile, the
+  admin directory sync and delegation cards, new attendance events, the Home
+  editor, event request forms, request and attendance exports, attendance
+  tags, the risk guide and the "Recommended" note.
+
+### Fixed
+- **Staff show their real Google photo instead of a letter.** Anyone who
+  signed in before they had set a Google photo kept Google's coloured letter
+  placeholder, and it hid the real photo the Workspace directory sync had
+  already copied (11 staff, including Brandon Teng). A photo uploaded in The
+  SHED still comes first, then the Workspace directory photo, then the
+  picture from Google sign-in, then initials.
+- **Attendance and Insights lists show uploaded photos.** Roll call, the
+  member list, attendance metrics and weekly Insights only used the Google
+  sign-in picture, so a photo uploaded in The SHED or set in Workspace never
+  appeared there. They now use the same order as profiles and the org chart.
+
+## [2.5.6] — 2026-10-13
+
+### Added
+- **Everyone's typed church is now on the list.** `churches:setUp` adds the
+  churches people had typed before the list existed, with where they meet,
+  their Sunday services and their website and Instagram: St John's Anglican
+  Cathedral Parramatta, Sydney Dongsan Church, The Movement Church, West
+  Sydney Community Church, Sydney Onnuri Church, St Barnabas Anglican Church
+  Roseville, Cornerstone Church Rhodes, Cabramatta Anglican Church, Macquarie
+  Anglican Church, Jesus Follower Church and Saving Grace Christian Church.
+  Everyone who typed one of them (or "New Life", for Sae Soon) is linked to
+  it. A church staff already added under another spelling is reused, and
+  only its blank details are filled in.
+
+### Changed
+- **Signed-out visitors see who goes to each church**, with their role and
+  campus, and can open the profiles of the staff and campus leaders in the
+  list. A staff profile shows their church to visitors too. Other people's
+  member records stay private.
+- **Each church lists its first 5 people**, with "N more" under them. Pick a
+  church on the map, or tap anywhere on its card, and it opens under the map
+  with everyone in a box that scrolls, like the Insights lists.
+- **Alumni show as Alumni**, after the members at the bottom of a church's
+  list.
+- **Search matches church and people names only**, not roles.
+
 ## [2.5.5] — 2026-10-12
 
 ### Added

@@ -148,7 +148,6 @@ export const RiskGuide = () => {
         <Text style={[typography.headline, { color: t.text, flex: 1 }]}>How to rate a risk</Text>
         <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={t.faint} />
       </Pressable>
-      <Muted>From SOW&apos;s Risk Management Standard (2026).</Muted>
       {open ? (
         <View style={{ gap: spacing.md }}>
           <Text style={[typography.body, { color: t.text }]}>

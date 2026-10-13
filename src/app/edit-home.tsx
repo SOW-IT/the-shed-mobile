@@ -25,7 +25,6 @@ import {
   errorMessage,
   Field,
   FooterAction,
-  InfoBanner,
   LoadingState,
   Muted,
   OptionRow,
@@ -163,7 +162,6 @@ function Editor({
       }
     >
       <View style={styles.page}>
-        <InfoBanner message="Changes show for everyone using THE SHED as soon as you save." />
         {edited ? (
           <Muted>
             Last saved by {edited.by} on {new Date(edited.at).toLocaleString("en-AU")}.

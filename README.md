@@ -224,8 +224,9 @@ For a fresh deployment, regenerate the JWT keys with
 
 ### Workspace directory sync (optional)
 
-Syncs the sow.org.au member list daily (and via the admin screen's *Sync
-Directory* button) so admins assign people from a picker. Setup:
+Syncs the sow.org.au member list weekly (Mondays 21:00 UTC, and via the
+admin screen's *Sync Directory* button) so admins assign people from a
+picker, and copies each staff member's Workspace photo. Setup:
 
 1. In the Google Cloud console, create a **service account** (no roles
    needed), create a JSON key, and enable the **Admin SDK API**.
@@ -240,9 +241,15 @@ npx convex env set GOOGLE_SA_PRIVATE_KEY -- "-----BEGIN PRIVATE KEY-----\n...\n-
 npx convex env set GOOGLE_ADMIN_IMPERSONATE <a-workspace-admin>@sow.org.au
 ```
 
-Until configured, the daily sync no-ops and the admin screen shows
-"not synced yet". Syncing only fills the picker. Assigning roles stays an
-explicit admin action. A directory email that matches a previous staff year
+Until configured, the weekly sync no-ops and the admin screen shows
+"not synced yet". Syncing fills the picker and staff photos. Assigning
+roles stays an explicit admin action.
+
+A person's photo is, in order: the one they uploaded in The SHED, their
+Workspace directory photo, the picture Google sent at their last sign-in,
+then their initials. The directory photo outranks the sign-in picture
+because Google sends a letter placeholder to anyone who had no photo when
+they signed in, and that placeholder only changes when they sign in again. A directory email that matches a previous staff year
 is listed under Previously staff rather than as a brand-new person.
 
 ### Church map (optional)

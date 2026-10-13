@@ -1,9 +1,10 @@
 /// <reference types="vite/client" />
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { cleanInstagram, cleanWebsite, isServiceTime, sortServices } from "../shared/churches";
 import { staffYearForDate } from "../shared/flow";
 import { api, internal } from "./_generated/api";
-import { leadingRole, roleRank } from "./churches";
+import { leadingRole, roleRank, STARTER_CHURCHES } from "./churches";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -112,8 +113,13 @@ describe("the church list", () => {
         await ctx.db.insert("users", { email: "y@gmail.com", localChurch: "New Life Sydney (Saesoon Presbyterian Church)" }),
       ];
     });
-    expect(await t.mutation(internal.churches.setUp, {})).toEqual({ added: 4, linked: 2, next: null });
-    expect(await t.mutation(internal.churches.setUp, {})).toEqual({ added: 0, linked: 0, next: null });
+    expect(await t.mutation(internal.churches.setUp, {})).toEqual({
+      added: STARTER_CHURCHES.length,
+      filled: 0,
+      linked: 2,
+      next: null,
+    });
+    expect(await t.mutation(internal.churches.setUp, {})).toEqual({ added: 0, filled: 0, linked: 0, next: null });
     const churches = await t.run((ctx) => ctx.db.query("churches").collect());
     const harbour = churches.find((c) => c.name === "Harbour City Church")!;
     expect(harbour).toMatchObject({
@@ -152,10 +158,122 @@ describe("the church list", () => {
         addedBy: "system",
       })
     );
-    expect(await t.mutation(internal.churches.setUp, {})).toMatchObject({ added: 3 });
+    expect(await t.mutation(internal.churches.setUp, {})).toMatchObject({ added: STARTER_CHURCHES.length - 1, filled: 1 });
     const harbour = (await t.run((ctx) => ctx.db.query("churches").collect())).find((c) => c.name === "Harbour City Church")!;
     expect(harbour.services).toEqual([{ day: 0, time: "10:30" }]);
     expect(harbour.serviceTimes).toBeUndefined();
+  });
+
+  test("setUp finds a starter church spelt with a curly apostrophe", async () => {
+    const { t } = await setup();
+    await t.run((ctx) =>
+      ctx.db.insert("churches", {
+        name: "St John’s Anglican Cathedral Parramatta",
+        nameKey: "st john’s anglican cathedral parramatta",
+        addedBy: "system",
+      })
+    );
+    expect(await t.mutation(internal.churches.setUp, {})).toMatchObject({ added: STARTER_CHURCHES.length - 1, filled: 1 });
+    const stJohns = (await t.run((ctx) => ctx.db.query("churches").collect())).filter((c) => c.name.startsWith("St John"));
+    expect(stJohns).toHaveLength(1);
+  });
+
+  test("setUp keeps a church's own typed times over the starter's", async () => {
+    const { t } = await setup();
+    const [youngNak, onnuri] = await t.run(async (ctx) => [
+      await ctx.db.insert("churches", {
+        name: "Sydney Young Nak Church",
+        nameKey: "sydney young nak church",
+        serviceTimes: "Sundays 9am and 11am",
+        addedBy: "system",
+      }),
+      await ctx.db.insert("churches", {
+        name: "Sydney Onnuri Church",
+        nameKey: "sydney onnuri church",
+        serviceTimes: "Ask the office",
+        addedBy: "system",
+      }),
+    ]);
+    await t.mutation(internal.churches.setUp, {});
+    const [yn, on] = await t.run(async (ctx) => [await ctx.db.get("churches", youngNak), await ctx.db.get("churches", onnuri)]);
+    expect(yn).toMatchObject({
+      services: [
+        { day: 0, time: "09:00" },
+        { day: 0, time: "11:00" },
+      ],
+    });
+    expect(yn?.serviceTimes).toBeUndefined();
+    expect(on).toMatchObject({ serviceTimes: "Ask the office", website: "https://syd.onnuri.or.kr/" });
+    expect(on?.services).toBeUndefined();
+  });
+
+  test("the starter churches' details are what the edit form would save", () => {
+    for (const church of STARTER_CHURCHES) {
+      if (church.website) expect(cleanWebsite(church.website)).toBe(church.website);
+      if (church.instagram) expect(cleanInstagram(church.instagram)).toBe(church.instagram);
+      expect(church.services.every(isServiceTime)).toBe(true);
+      expect(sortServices(church.services)).toEqual(church.services);
+    }
+  });
+
+  test("setUp moves everyone's typed church onto the list, keeping what staff already added", async () => {
+    const { t } = await setup();
+    const [stJohns, harbour, saving] = await t.run(async (ctx) => [
+      await ctx.db.insert("churches", {
+        name: "St John’s Anglican Parramatta",
+        nameKey: "st john’s anglican parramatta",
+        address: "195 Church St, Parramatta NSW 2150",
+        services: [{ day: 0, time: "09:30" }],
+        addedBy: "natalie@sow.org.au",
+      }),
+      await ctx.db.insert("churches", {
+        name: "Harbour City Church",
+        nameKey: "harbour city church",
+        services: [{ day: 0, time: "10:30" }],
+        website: "https://custom.example",
+        addedBy: "system",
+      }),
+      await ctx.db.insert("churches", {
+        name: "Saving Grace Christian Church",
+        nameKey: "saving grace christian church",
+        address: "171-173 Power Street, Glendenning NSW 2761",
+        addedBy: "system",
+      }),
+    ]);
+    const typed = ["St John’s Anglican Cathedral", "Dongsan Church", "New Life", "Jesus Follower", "New Life Christian Church"];
+    const users = await t.run(async (ctx) =>
+      Promise.all(typed.map((localChurch, i) => ctx.db.insert("users", { email: `typed${i}@gmail.com`, localChurch })))
+    );
+
+    expect(await t.mutation(internal.churches.setUp, {})).toEqual({
+      added: STARTER_CHURCHES.length - 3,
+      filled: 2,
+      linked: 4,
+      next: null,
+    });
+    const churches = await t.run((ctx) => ctx.db.query("churches").collect());
+    expect(churches.filter((c) => c.name.startsWith("St John"))).toHaveLength(1);
+    expect(churches.find((c) => c._id === stJohns)).toMatchObject({
+      name: "St John’s Anglican Parramatta",
+      services: [{ day: 0, time: "09:30" }],
+      website: "https://stjohnscathedral.org.au/",
+      instagram: "stjohnsparra",
+    });
+    expect(churches.find((c) => c._id === harbour)).toMatchObject({
+      address: "41b College Street, Gladesville NSW 2111",
+      website: "https://custom.example",
+      instagram: "hcc_syd",
+    });
+    expect(churches.find((c) => c._id === saving)?.services).toBeUndefined();
+    const byName = (name: string) => churches.find((c) => c.name === name)!._id;
+    const after = await t.run(async (ctx) => Promise.all(users.map((id) => ctx.db.get("users", id))));
+    expect(after.map((u) => [u?.churchId ?? null, u?.localChurch ?? null])).toEqual([
+      [stJohns, null],
+      [byName("Sydney Dongsan Church"), null],
+      [byName("Sydney Sae Soon Presbyterian Church (New Life)"), null],
+      [byName("Jesus Follower Church"), null],
+      [null, "New Life Christian Church"],
+    ]);
   });
 });
 
@@ -196,9 +314,9 @@ describe("who can add and edit churches", () => {
 
     expect(await t.query(api.churches.list, {})).toEqual([]);
     const forVisitors = await t.query(api.churches.directory, {});
-    expect(forVisitors.map((d) => [d.church.name, d.church.address, d.people, d.peopleCount])).toEqual([
+    expect(forVisitors.map((d) => [d.church.name, d.church.address, d.people.map((p) => [p.name, p.email]), d.peopleCount])).toEqual([
       ["Abba Church", null, [], 0],
-      ["Grace Church", "1 Church St", [], 2],
+      ["Grace Church", "1 Church St", [["Sam Staff", STAFF], ["Gus Guest", null]], 2],
     ]);
     expect(await t.run((ctx) => ctx.db.get("churches", grace))).toMatchObject({ name: "Grace Church", address: "1 Church St" });
   });
@@ -220,7 +338,7 @@ describe("setUp pages through users", () => {
 });
 
 describe("the Churches page", () => {
-  test("each church with who goes there and their role, leaders first", async () => {
+  test("each church with who goes there and their role, leaders first, alumni last", async () => {
     const { t, sam } = await setup();
     expect(await t.query(api.churches.directory, {})).toEqual([]);
     const grace = await sam.mutation(api.churches.add, { name: "Grace Church" });
@@ -234,6 +352,9 @@ describe("the Churches page", () => {
         values: { u: "University of New South Wales", o: "Other" },
       })
     );
+    const role = await t.run((ctx) =>
+      ctx.db.insert("attendanceMetadata", { key: "Role", type: "select", order: 1, values: { a: "Alumni", m: "Member" } })
+    );
     await t.run(async (ctx) => {
       const staff = (email: string, assignments: { role: string; university?: string }[], name?: string) =>
         ctx.db.insert("staffProfiles", { email, year: YEAR, assignments, name });
@@ -242,6 +363,7 @@ describe("the Churches page", () => {
       await staff("hal@sow.org.au", [{ role: "Staff" }, { role: "Head of Department" }]);
       await ctx.db.insert("users", { email: "hal@sow.org.au", name: "Hal Head", churchId: grace });
       await ctx.db.insert("users", { email: "fay@sow.org.au", name: "Fay Former", churchId: grace });
+      await ctx.db.insert("attendanceMembers", { name: "Fay F", email: "fay@sow.org.au", metadata: { [role]: "a" } });
       await ctx.db.insert("users", { churchId: grace });
       await staff("sol@sow.org.au", [{ role: "Staff" }]);
       await ctx.db.insert("users", { email: "sol@sow.org.au", name: "Sol Staff", churchId: abba });
@@ -250,7 +372,8 @@ describe("the Churches page", () => {
       await ctx.db.insert("attendanceMembers", { name: "Eve E", email: "eve@sow.org.au", churchId: grace });
     });
     await sam.mutation(api.attendanceMembers.create, { name: "Zed Member", churchId: grace, metadata: { [campus]: "u" } });
-    await sam.mutation(api.attendanceMembers.create, { name: "Amy Member", churchId: grace, metadata: { [campus]: "o" } });
+    await sam.mutation(api.attendanceMembers.create, { name: "Amy Member", churchId: grace, metadata: { [campus]: "o", [role]: "m" } });
+    await sam.mutation(api.attendanceMembers.create, { name: "Ali Alumni", churchId: grace, metadata: { [role]: "a" } });
 
     const directory = await sam.query(api.churches.directory, {});
     expect(directory.map((d) => d.church.name)).toEqual(["Abba Church", "Grace Church"]);
@@ -262,8 +385,9 @@ describe("the Churches page", () => {
       ["Pia President", "President", "University of Sydney"],
       ["Eve Exec", "Executive", "University of New South Wales"],
       ["Amy Member", "Member", null],
-      ["Fay Former", "Member", null],
       ["Zed Member", "Member", "University of New South Wales"],
+      ["Ali Alumni", "Alumni", null],
+      ["Fay Former", "Alumni", null],
     ]);
     expect(grace_[0]).toEqual({
       name: "Hal Head",
@@ -273,7 +397,20 @@ describe("the Churches page", () => {
       memberId: null,
     });
     expect(grace_[3]).toMatchObject({ email: "eve@sow.org.au", memberId: expect.any(String) });
-    expect(grace_[6]).toMatchObject({ email: null, memberId: expect.any(String) });
+    expect(grace_[5]).toMatchObject({ email: null, memberId: expect.any(String) });
+    expect(grace_[7]).toMatchObject({ email: "fay@sow.org.au", memberId: null });
+
+    const forVisitors = (await t.query(api.churches.directory, {}))[1].people;
+    expect(forVisitors.map((p) => [p.name, p.role, p.email, p.memberId])).toEqual([
+      ["Hal Head", "Head of Department", "hal@sow.org.au", null],
+      ["Sam Staff", "Staff", STAFF, null],
+      ["Pia President", "President", "pia@sow.org.au", null],
+      ["Eve Exec", "Executive", "eve@sow.org.au", null],
+      ["Amy Member", "Member", null, null],
+      ["Zed Member", "Member", null, null],
+      ["Ali Alumni", "Alumni", null, null],
+      ["Fay Former", "Alumni", null, null],
+    ]);
   });
 
   test("a person's leading role, and where a role sorts", () => {
@@ -283,6 +420,7 @@ describe("the Churches page", () => {
     expect(leadingRole(["Zeta Role", "Alpha Role"])).toBe("Alpha Role");
     expect(roleRank("Student Leader")).toBeLessThan(roleRank("Alpha Role"));
     expect(roleRank("Alpha Role")).toBeLessThan(roleRank("Member"));
+    expect(roleRank("Member")).toBeLessThan(roleRank("Alumni"));
   });
 });
 
@@ -417,9 +555,9 @@ describe("the map", () => {
     const { t } = await setup();
     await t.mutation(internal.churches.setUp, {});
     await t.finishAllScheduledFunctions(vi.runAllTimers);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(STARTER_CHURCHES.length);
     expect((await located(t, "Harbour City Church")).location).toEqual({ lat: -33.8, lng: 151.1 });
-    expect((await located(t, "Living Hope Presbyterian Church")).location).toBeUndefined();
+    expect((await located(t, "Living Hope Presbyterian Church")).location).toEqual({ lat: -33.8, lng: 151.1 });
 
     await t.mutation(internal.churches.setUp, {});
     const scheduled = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
@@ -492,7 +630,7 @@ describe("your church in your Profile", () => {
     });
     // Others see it too; signed-out visitors don't.
     expect((await asUser(t, ADMIN).query(api.profile.get, { email: STAFF }))!.church?.name).toBe("Grace Church");
-    expect((await t.query(api.profile.get, { email: STAFF }))!.church).toBeNull();
+    expect((await t.query(api.profile.get, { email: STAFF }))!.church?.name).toBe("Grace Church");
 
     await sam.mutation(api.profile.setChurch, { churchId: null });
     expect((await sam.query(api.profile.get, {}))!.church).toBeNull();

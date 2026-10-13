@@ -45,6 +45,7 @@ import {
   MAX_AUDIT_ATTENDANCE_LINES,
 } from "./attendanceAudit";
 import { Doc, Id } from "./_generated/dataModel";
+import { photoFor } from "./photo";
 
 export type MemberRow = {
   key: string;
@@ -194,7 +195,7 @@ export const list = query({
         subtitle: subtitle || undefined,
         university,
         metadata,
-        photo: user?.image ?? null,
+        photo: await photoFor(ctx, user, p.email),
       });
     }
 

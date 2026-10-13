@@ -1631,7 +1631,6 @@ export default function AdminScreen() {
             <Muted>
               Event requests whose Finance form has total expenses over this amount
               also need the Director&apos;s approval, before the Finance Head&apos;s.
-              Separate from the reimbursement threshold.
               {configuredEventThreshold == null
                 ? ` Using the standard default of $${formatAmount(EVENT_DIRECTOR_APPROVAL_THRESHOLD)}.`
                 : ""}{" "}
@@ -1674,9 +1673,9 @@ export default function AdminScreen() {
               <SectionTitle>Approver Delegation · {selectedYear}</SectionTitle>
               <Card>
                 <Muted>
-                  Cover an approver while they&apos;re away: their delegate can
-                  approve, decline and pay everything the approver could, for
-                  this staff year. Remove it when they&apos;re back.
+                  A delegate can approve, decline and pay everything their
+                  approver could, for this staff year. Remove it when the
+                  approver is back.
                 </Muted>
                 {(delegations ?? []).length === 0 ? (
                   <Muted>No delegations set.</Muted>
@@ -1748,11 +1747,6 @@ export default function AdminScreen() {
             <View style={{ gap: spacing.md }}>
               <SectionTitle>Directory Sync</SectionTitle>
               <Card>
-                <Muted>
-                  Syncs all active Google Workspace users on sow.org.au into the
-                  people picker, and caches staff profile photos for the org
-                  chart. Runs automatically once a week.
-                </Muted>
                 {syncState?.syncedAt ? (
                   <Muted>
                     Last synced:{" "}

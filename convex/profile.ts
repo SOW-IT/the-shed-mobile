@@ -7,6 +7,7 @@ import { currentStaffYear, optionalEmail, rolesOf } from "./model";
 import { hasSignedIn, lastOnlineAt } from "./presence";
 import { canonicalEmailKey } from "../shared/rollcallImport";
 import { churchByName, viewOf } from "./churches";
+import { photoUrl } from "./photo";
 
 export const get = query({
   args: { email: v.optional(v.string()) },
@@ -19,11 +20,10 @@ export const get = query({
       .query("users")
       .withIndex("email", (q) => q.eq("email", email))
       .first();
-    const avatarUrl = user?.avatarId ? await ctx.storage.getUrl(user.avatarId) : null;
     const dirUser = await ctx.db
       .query("directoryUsers")
       .withIndex("by_email", (q) => q.eq("email", email))
-      .unique();
+      .first();
 
     const byEmail = await ctx.db
       .query("staffProfiles")
@@ -54,18 +54,30 @@ export const get = query({
       .sort((a, b) => b.year - a.year);
 
     const anyProfile = serviceHistory.find((h) => h.name) ?? null;
-    const church = callerEmail && user?.churchId ? await ctx.db.get("churches", user.churchId) : null;
-    const dirPhoto = dirUser?.photoId
-      ? await ctx.storage.getUrl(dirUser.photoId)
+    const church = user?.churchId ? await ctx.db.get("churches", user.churchId) : null;
+    const isMe =
+      callerEmail !== null && canonicalEmailKey(email) === canonicalEmailKey(callerEmail);
+    const directorySync = isMe && dirUser
+      ? await ctx.db
+          .query("syncState")
+          .withIndex("by_key", (q) => q.eq("key", "directory"))
+          .unique()
       : null;
+    const directorySyncedAt =
+      directorySync?.lastSuccessAt ??
+      (directorySync?.detail?.startsWith("synced") ? directorySync.at : null);
+    const googleSyncTimes = [user?.emailVerificationTime ?? null, directorySyncedAt].filter(
+      (at): at is number => at !== null
+    );
     return {
       email,
       // Either staff email spelling is the same person.
-      isMe: callerEmail !== null && canonicalEmailKey(email) === canonicalEmailKey(callerEmail),
+      isMe,
+      googleSyncedAt: isMe && googleSyncTimes.length ? Math.max(...googleSyncTimes) : null,
       name: user?.name ?? dirUser?.name ?? anyProfile?.name ?? null,
-      photo: avatarUrl ?? user?.image ?? dirPhoto,
+      photo: await photoUrl(ctx, user, dirUser),
       // Older app builds show this text; newer ones show `church`.
-      localChurch: callerEmail ? (church?.name ?? user?.localChurch ?? null) : null,
+      localChurch: church?.name ?? (callerEmail ? (user?.localChurch ?? null) : null),
       church: church ? viewOf(church) : null,
       // What they typed before churches were a list, until they pick one.
       typedChurch: callerEmail && !church ? (user?.localChurch ?? null) : null,

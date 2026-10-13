@@ -44,7 +44,7 @@ describe("profile.get", () => {
     expect(profile.isMe).toBe(true);
   });
 
-  test("public person view (1.7.0): readable signed out with an email, church hidden", async () => {
+  test("public person view (1.7.0): readable signed out with an email, a typed church hidden", async () => {
     const t = await setup();
     const email = "pat@sow.org.au";
     await t.run(async (ctx) => {
@@ -66,6 +66,17 @@ describe("profile.get", () => {
     expect(viewer.localChurch).toBe("Grace Church");
 
     expect(await t.query(api.profile.get, {})).toBeNull();
+
+    const grace = await t.run(async (ctx) => {
+      const churchId = await ctx.db.insert("churches", { name: "Grace Church", nameKey: "grace church", addedBy: ADMIN });
+      const user = (await ctx.db.query("users").withIndex("email", (q) => q.eq("email", email)).first())!;
+      await ctx.db.patch("users", user._id, { churchId, localChurch: undefined });
+      return churchId;
+    });
+    const listed = (await t.query(api.profile.get, { email }))!;
+    expect(listed.church?._id).toBe(grace);
+    expect(listed.localChurch).toBe("Grace Church");
+    expect(listed.typedChurch).toBeNull();
   });
 
   test("falls back to the directory name when no user row or profile name exists", async () => {
@@ -81,6 +92,47 @@ describe("profile.get", () => {
     });
     const profile = (await asUser(t, email).query(api.profile.get, { email }))!;
     expect(profile.name).toBe("Nav from Directory");
+  });
+
+  test("your own profile says when Google last synced it; nobody else's does", async () => {
+    const t = await setup();
+    const email = "gia@sow.org.au";
+    const signInAt = Date.UTC(2026, 9, 1);
+    const directoryAt = Date.UTC(2026, 9, 5);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", { email, name: "Gia", emailVerificationTime: signInAt });
+    });
+    expect((await asUser(t, email).query(api.profile.get, {}))!.googleSyncedAt).toBe(signInAt);
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("directoryUsers", { email, name: "Gia" });
+      await ctx.db.insert("syncState", { key: "directory", at: directoryAt, detail: "synced 40 people" });
+    });
+    expect((await asUser(t, email).query(api.profile.get, {}))!.googleSyncedAt).toBe(directoryAt);
+    expect((await asUser(t, ADMIN).query(api.profile.get, { email }))!.googleSyncedAt).toBeNull();
+    expect((await t.query(api.profile.get, { email }))!.googleSyncedAt).toBeNull();
+
+    await t.run(async (ctx) => {
+      const state = (await ctx.db.query("syncState").first())!;
+      await ctx.db.patch("syncState", state._id, { at: directoryAt + 1, detail: "failed: quota" });
+    });
+    expect((await asUser(t, email).query(api.profile.get, {}))!.googleSyncedAt).toBe(signInAt);
+
+    await t.run(async (ctx) => {
+      const state = (await ctx.db.query("syncState").first())!;
+      await ctx.db.patch("syncState", state._id, { lastSuccessAt: directoryAt });
+    });
+    expect((await asUser(t, email).query(api.profile.get, {}))!.googleSyncedAt).toBe(directoryAt);
+    await t.run(async (ctx) => {
+      const state = (await ctx.db.query("syncState").first())!;
+      await ctx.db.patch("syncState", state._id, { lastSuccessAt: undefined });
+    });
+
+    await t.run(async (ctx) => {
+      const user = (await ctx.db.query("users").withIndex("email", (q) => q.eq("email", email)).first())!;
+      await ctx.db.patch("users", user._id, { emailVerificationTime: undefined });
+    });
+    expect((await asUser(t, email).query(api.profile.get, {}))!.googleSyncedAt).toBeNull();
   });
 });
 

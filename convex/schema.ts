@@ -151,6 +151,7 @@ export default defineSchema({
     key: v.string(),
     at: v.number(),
     detail: v.optional(v.string()),
+    lastSuccessAt: v.optional(v.number()),
   }).index("by_key", ["key"]),
 
   yearSettings: defineTable({

@@ -4,7 +4,7 @@ import { Doc, Id } from "./_generated/dataModel";
 import { currentStaffYear } from "./model";
 import { viewBlockValidator } from "./metricsData";
 import { buildGeneralView } from "../shared/generalMetricsView";
-import { staffYearStartMs, sydneyCalendarYear } from "../shared/flow";
+import { OUTSOURCE, staffYearStartMs, sydneyCalendarYear } from "../shared/flow";
 import {
   isOrgWideSubgroup,
   normalizeSubgroups,
@@ -217,7 +217,10 @@ export async function computeStaffTrends(ctx: QueryCtx): Promise<StaffTrends> {
   };
 
   for (const profile of profiles) {
-    const roles = (profile.assignments ?? []).map((a) => a.role);
+    const roles = (profile.assignments ?? [])
+      .map((a) => a.role)
+      .filter((role) => role !== OUTSOURCE);
+    if (profile.assignments?.length && roles.length === 0) continue;
     const tally =
       totals.get(profile.year) ?? { all: 0, staff: 0, studentLeaders: 0 };
     tally.all += 1;
