@@ -1,10 +1,10 @@
+import { MusicActionsMenu } from "@/components/music/MusicActionMenu";
 import { Card, LoadingState } from "@/components/ui";
 import { radius, spacing, useAppTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-
 import {
   Alert,
   FlatList,
@@ -18,14 +18,16 @@ import {
   TextInput,
   View,
 } from "react-native";
-
 import { api } from "../../../convex/_generated/api";
-
 import type { Doc } from "../../../convex/_generated/dataModel";
+
+export type MusicRowActions = {
+  onEditRequest?: (request: Doc<"musicRequests">) => void;
+  onDeleteRequest?: (request: Doc<"musicRequests">) => void;
+};
 
 type MusicRequest = Doc<"musicRequests"> & {
   requesterName?: string | null;
-
   reviewerName?: string | null;
 };
 
@@ -38,23 +40,17 @@ const shareLink = async (url: string) => {
 };
 
 /** Album art saved with the request; icon fallback for manual entries. */
-
 function SongArtwork({ url, size = 46 }: { url?: string; size?: number }) {
   const t = useAppTheme();
-
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [url]);
-
   return (
     <View
       style={[
         styles.musicArtwork,
-
         {
           width: size,
-
           height: size,
-
           backgroundColor: t.inputBackground,
         },
       ]}
@@ -62,11 +58,8 @@ function SongArtwork({ url, size = 46 }: { url?: string; size?: number }) {
       {url && !failed ? (
         <Image
           source={{ uri: url }}
-
           style={{ width: size, height: size, borderRadius: radius.md }}
-
           resizeMode="cover"
-
           onError={() => setFailed(true)}
         />
       ) : (
@@ -77,17 +70,17 @@ function SongArtwork({ url, size = 46 }: { url?: string; size?: number }) {
 }
 
 /* Approved Playlist */
-
 type SortOption = "title-asc" | "title-desc" | "artist-asc" | "artist-desc";
-
 const SORT_OPTIONS: { key: SortOption; label: string }[] = [
   { key: "title-asc", label: "Song name (A–Z)" },
   { key: "title-desc", label: "Song name (Z–A)" },
   { key: "artist-asc", label: "Artist (A–Z)" },
   { key: "artist-desc", label: "Artist (Z–A)" },
 ];
-
-export const ApprovedPlaylistTab = () => {
+export const ApprovedPlaylistTab = ({
+  onEditRequest,
+  onDeleteRequest,
+}: MusicRowActions = {}) => {
   const t = useAppTheme();
   const { isAuthenticated, isLoading } = useConvexAuth();
   const approvedList = useQuery(
@@ -98,17 +91,15 @@ export const ApprovedPlaylistTab = () => {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("title-asc");
   const [sortOpen, setSortOpen] = useState(false);
+
   const visibleSongs = useMemo(() => {
     const q = search.trim().toLocaleLowerCase();
-
     return [...(approvedList ?? [])]
-
       .filter((song) =>
         [song.title, song.artist, song.requesterName, song.requesterEmail].some(
           (value) => (value ?? "").toLocaleLowerCase().includes(q),
         ),
       )
-
       .sort((a, b) => {
         const byArtist = sortBy.startsWith("artist");
         const first = byArtist ? a.artist : a.title;
@@ -116,7 +107,6 @@ export const ApprovedPlaylistTab = () => {
         const order = (first ?? "").localeCompare(second ?? "", undefined, {
           sensitivity: "base",
         });
-
         return sortBy.endsWith("desc") ? -order : order;
       });
   }, [approvedList, search, sortBy]);
@@ -127,78 +117,54 @@ export const ApprovedPlaylistTab = () => {
         <View
           style={[
             styles.search,
-
             styles.musicSearchField,
-
             { backgroundColor: t.inputBackground },
           ]}
         >
           <Ionicons name="search-outline" size={18} color={t.faint} />
-
           <TextInput
             style={[styles.searchInput, { color: t.text }]}
-
             value={search}
-
             onChangeText={setSearch}
-
             placeholder="Search songs or artists"
-
             placeholderTextColor={t.faint}
-
             accessibilityLabel="Search approved songs"
           />
-
           {!!search && (
             <Pressable
               accessibilityRole="button"
-
               accessibilityLabel="Clear search"
-
               onPress={() => setSearch("")}
             >
               <Ionicons name="close-circle" size={19} color={t.faint} />
             </Pressable>
           )}
         </View>
-
         <Pressable
           accessibilityRole="button"
-
           accessibilityLabel="Sort approved songs"
-
           accessibilityState={{ expanded: sortOpen }}
-
           onPress={() => setSortOpen((value) => !value)}
-
           style={[styles.sortButton, { backgroundColor: t.inputBackground }]}
         >
           <Ionicons name="options-outline" size={21} color={t.text} />
         </Pressable>
       </View>
-
       {sortOpen && (
         <View style={[styles.sortMenu, { backgroundColor: t.inputBackground }]}>
           <Text style={[styles.sortHeading, { color: t.text }]}>Sort by</Text>
-
           {SORT_OPTIONS.map((option) => (
             <Pressable
               key={option.key}
-
               accessibilityRole="radio"
-
               accessibilityState={{ checked: sortBy === option.key }}
-
               onPress={() => {
                 setSortBy(option.key);
-
                 setSortOpen(false);
               }}
-
               style={styles.sortOption}
             >
               <Text style={{ color: t.text, flex: 1 }}>{option.label}</Text>
-
               {sortBy === option.key && (
                 <Ionicons name="checkmark" size={18} color={t.success} />
               )}
@@ -206,7 +172,6 @@ export const ApprovedPlaylistTab = () => {
           ))}
         </View>
       )}
-
       {approvedList === undefined ? (
         <LoadingState />
       ) : (
@@ -215,12 +180,10 @@ export const ApprovedPlaylistTab = () => {
             <Text style={{ color: t.faint, fontSize: 12 }}>
               {visibleSongs.length} SONGS
             </Text>
-
             <Text style={{ color: t.faint, fontSize: 12 }}>
               {SORT_OPTIONS.find((option) => option.key === sortBy)?.label}
             </Text>
           </View>
-
           {visibleSongs.length === 0 ? (
             <Text style={{ color: t.faint }}>
               {search.trim() ? "No matching songs." : "No songs approved yet."}
@@ -228,61 +191,55 @@ export const ApprovedPlaylistTab = () => {
           ) : (
             <FlatList
               data={visibleSongs}
-
               scrollEnabled={false}
-
               keyExtractor={(song) => song._id}
-
               ItemSeparatorComponent={() => (
                 <View
                   style={[
                     styles.musicDivider,
-
                     { backgroundColor: t.inputBackground },
                   ]}
                 />
               )}
-
               renderItem={({ item }) => (
-                <Pressable
-                  accessibilityRole="button"
-
-                  accessibilityLabel={`Open ${item.title} by ${item.artist}`}
-
-                  onPress={() => item.link && Linking.openURL(item.link)}
-
-                  onLongPress={() => item.link && shareLink(item.link)}
-
-                  style={({ pressed }) => [
-                    styles.musicSongRow,
-
-                    pressed && { opacity: 0.65 },
-                  ]}
-                >
-                  <SongArtwork url={item.albumArtUrl} />
-
-                  <View style={styles.musicSongDetails}>
-                    <Text
-                      numberOfLines={2}
-
-                      style={[styles.musicSongTitle, { color: t.text }]}
-                    >
-                      {item.title}
-                    </Text>
-
-                    <Text
-                      numberOfLines={1}
-
-                      style={{ color: t.faint, fontSize: 13 }}
-                    >
-                      {item.artist}
-                    </Text>
-                  </View>
-
-                  {item.link ? (
-                    <Ionicons name="open-outline" size={19} color={t.faint} />
-                  ) : null}
-                </Pressable>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open ${item.title} by ${item.artist}`}
+                    onPress={() => item.link && Linking.openURL(item.link)}
+                    onLongPress={() => item.link && shareLink(item.link)}
+                    style={({ pressed }) => [
+                      styles.musicSongRow,
+                      { flex: 1 },
+                      pressed && { opacity: 0.65 },
+                    ]}
+                  >
+                    <SongArtwork url={item.albumArtUrl} />
+                    <View style={styles.musicSongDetails}>
+                      <Text
+                        numberOfLines={2}
+                        style={[styles.musicSongTitle, { color: t.text }]}
+                      >
+                        {item.title}
+                      </Text>
+                      <Text
+                        numberOfLines={1}
+                        style={{ color: t.faint, fontSize: 13 }}
+                      >
+                        {item.artist}
+                      </Text>
+                    </View>
+                    {item.link ? (
+                      <Ionicons name="open-outline" size={19} color={t.faint} />
+                    ) : null}
+                  </Pressable>
+                  {(onEditRequest || onDeleteRequest) && (
+                    <MusicActionsMenu
+                      onEdit={() => onEditRequest?.(item)}
+                      onDelete={() => onDeleteRequest?.(item)}
+                    />
+                  )}
+                </View>
               )}
             />
           )}
@@ -291,10 +248,8 @@ export const ApprovedPlaylistTab = () => {
     </View>
   );
 };
-
 /* Shared request UI */
 type RequestFilter = "ALL" | "PENDING" | "APPROVED" | "DECLINED";
-
 const formatDate = (timestamp?: number) =>
   timestamp
     ? new Date(timestamp).toLocaleDateString(undefined, {
@@ -303,7 +258,6 @@ const formatDate = (timestamp?: number) =>
         year: "numeric",
       })
     : "";
-
 function FilterChips({
   value,
   onChange,
@@ -342,7 +296,6 @@ function FilterChips({
     </View>
   );
 }
-
 function StatusPill({ status }: { status: MusicRequest["status"] }) {
   const t = useAppTheme();
   const chip =
@@ -370,7 +323,6 @@ function StatusPill({ status }: { status: MusicRequest["status"] }) {
     </View>
   );
 }
-
 function SongHeader({
   request,
   status = false,
@@ -397,7 +349,6 @@ function SongHeader({
     </View>
   );
 }
-
 function DetailLine({
   icon,
   children,
@@ -413,7 +364,6 @@ function DetailLine({
     </View>
   );
 }
-
 function SongLink({ link }: { link: string }) {
   const t = useAppTheme();
   return (
@@ -430,9 +380,11 @@ function SongLink({ link }: { link: string }) {
     </Pressable>
   );
 }
-
 /* My Requests */
-export const MyRequestsTab = () => {
+export const MyRequestsTab = ({
+  onEditRequest,
+  onDeleteRequest,
+}: MusicRowActions = {}) => {
   const t = useAppTheme();
   const { isAuthenticated, isLoading } = useConvexAuth();
   const myRequests = useQuery(
@@ -440,7 +392,6 @@ export const MyRequestsTab = () => {
     !isLoading && isAuthenticated ? {} : "skip",
   );
   const [filter, setFilter] = useState<RequestFilter>("ALL");
-
   const visible = useMemo(
     () =>
       (myRequests ?? []).filter(
@@ -448,7 +399,6 @@ export const MyRequestsTab = () => {
       ),
     [myRequests, filter],
   );
-
   return (
     <View style={styles.section}>
       <FilterChips
@@ -470,21 +420,44 @@ export const MyRequestsTab = () => {
           scrollEnabled={false}
           keyExtractor={(item) => item._id}
           ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-          renderItem={({ item }) => <MyRequestCard request={item} />}
+          renderItem={({ item }) => (
+            <MyRequestCard
+              request={item}
+              actions={
+                item.status === "PENDING" &&
+                (onEditRequest || onDeleteRequest) ? (
+                  <MusicActionsMenu
+                    onEdit={() => onEditRequest?.(item)}
+                    onDelete={() => onDeleteRequest?.(item)}
+                  />
+                ) : undefined
+              }
+            />
+          )}
         />
       )}
     </View>
   );
 };
-
-function MyRequestCard({ request }: { request: MusicRequest }) {
+function MyRequestCard({
+  request,
+  actions,
+}: {
+  request: MusicRequest;
+  actions?: ReactNode;
+}) {
   const t = useAppTheme();
   const date =
     request.status === "PENDING" ? request._creationTime : request.reviewedTime;
   return (
     <Card>
       <View style={styles.requestCardContent}>
-        <SongHeader request={request} status />
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <View style={{ flex: 1 }}>
+            <SongHeader request={request} status />
+          </View>
+          {actions}
+        </View>
         <DetailLine icon="calendar-outline">
           {request.status === "PENDING"
             ? "Requested"
@@ -515,7 +488,6 @@ function MyRequestCard({ request }: { request: MusicRequest }) {
             >
               REQUEST NOTE
             </Text>
-
             <Text
               style={{
                 color: t.text,
@@ -544,12 +516,13 @@ function MyRequestCard({ request }: { request: MusicRequest }) {
     </Card>
   );
 }
-
 /* To Review */
-export const ToReviewTab = () => {
+export const ToReviewTab = ({
+  onEditRequest,
+  onDeleteRequest,
+}: MusicRowActions = {}) => {
   const t = useAppTheme();
   const { isAuthenticated, isLoading } = useConvexAuth();
-
   // Backend query and mutations enforce Chaplain access.
   const toReview = useQuery(
     api.musicRequests.toReview,
@@ -588,19 +561,35 @@ export const ToReviewTab = () => {
           scrollEnabled={false}
           keyExtractor={(item) => item._id}
           ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-          renderItem={({ item }) => <ReviewCard request={item} />}
+          renderItem={({ item }) => (
+            <ReviewCard
+              request={item}
+              actions={
+                onEditRequest || onDeleteRequest ? (
+                  <MusicActionsMenu
+                    onEdit={() => onEditRequest?.(item)}
+                    onDelete={() => onDeleteRequest?.(item)}
+                  />
+                ) : undefined
+              }
+            />
+          )}
         />
       )}
     </View>
   );
 };
-
-function ReviewCard({ request }: { request: MusicRequest }) {
+function ReviewCard({
+  request,
+  actions,
+}: {
+  request: MusicRequest;
+  actions?: ReactNode;
+}) {
   const t = useAppTheme();
   const approve = useMutation(api.musicRequests.approve);
   const decline = useMutation(api.musicRequests.decline);
   const [busy, setBusy] = useState(false);
-
   const onApprove = async () => {
     if (busy) return;
     setBusy(true);
@@ -615,7 +604,6 @@ function ReviewCard({ request }: { request: MusicRequest }) {
       setBusy(false);
     }
   };
-
   const runDecline = async (reason?: string) => {
     if (busy) return;
     setBusy(true);
@@ -633,7 +621,6 @@ function ReviewCard({ request }: { request: MusicRequest }) {
       setBusy(false);
     }
   };
-
   const onDecline = () => {
     if (busy) return;
     if (Platform.OS === "web") {
@@ -666,11 +653,15 @@ function ReviewCard({ request }: { request: MusicRequest }) {
       },
     ]);
   };
-
   return (
     <Card>
       <View style={styles.requestCardContent}>
-        <SongHeader request={request} />
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <View style={{ flex: 1 }}>
+            <SongHeader request={request} />
+          </View>
+          {actions}
+        </View>
         <DetailLine icon="person-outline">
           Requested by {request.requesterName ?? request.requesterEmail}
         </DetailLine>
@@ -694,7 +685,6 @@ function ReviewCard({ request }: { request: MusicRequest }) {
             >
               REQUEST NOTE
             </Text>
-
             <Text
               style={{
                 color: t.text,
@@ -739,7 +729,6 @@ function ReviewCard({ request }: { request: MusicRequest }) {
     </Card>
   );
 }
-
 const styles = StyleSheet.create({
   requestSectionHeading: { gap: 4, marginBottom: 4 },
   requestSectionTitle: { fontSize: 20, fontWeight: "800" },
@@ -794,194 +783,113 @@ const styles = StyleSheet.create({
     padding: 28,
     borderRadius: radius.lg,
   },
-
   musicSearchRow: {
     flexDirection: "row",
-
     alignItems: "center",
-
     gap: spacing.sm,
   },
-
   musicSearchField: { flex: 1, marginTop: 0, marginBottom: 0 },
-
   sortButton: {
     height: 44,
-
     width: 44,
-
     borderRadius: radius.md,
-
     alignItems: "center",
-
     justifyContent: "center",
   },
-
   sortMenu: { borderRadius: radius.md, padding: spacing.sm, gap: 2 },
-
   sortHeading: { fontWeight: "700", padding: spacing.sm },
-
   sortOption: {
     flexDirection: "row",
-
     alignItems: "center",
-
     padding: spacing.sm,
-
     minHeight: 42,
   },
-
   musicMetaRow: {
     flexDirection: "row",
-
     justifyContent: "space-between",
-
     alignItems: "center",
-
     gap: spacing.sm,
   },
-
   musicSongRow: {
     flexDirection: "row",
-
     alignItems: "center",
-
     gap: spacing.md,
-
     paddingVertical: 9,
   },
-
   musicArtwork: {
     width: 46,
-
     height: 46,
-
     borderRadius: radius.md,
-
     alignItems: "center",
-
     justifyContent: "center",
   },
-
   musicSongDetails: { flex: 1, gap: 3 },
-
   musicSongTitle: { fontSize: 14, fontWeight: "600" },
-
   musicDivider: { height: StyleSheet.hairlineWidth },
-
   container: { padding: 16, gap: 16 },
-
   heading: { fontSize: 28, fontWeight: "800" },
-
   section: { gap: 10 },
-
   sectionTitle: { fontSize: 16, fontWeight: "700" },
-
   card: { borderRadius: 12, padding: 14, gap: 4 },
-
   cardTitle: { fontSize: 15, fontWeight: "700" },
-
   input: {
     borderWidth: StyleSheet.hairlineWidth,
-
     borderRadius: 8,
-
     paddingHorizontal: 12,
-
     paddingVertical: 10,
-
     marginTop: 8,
   },
-
   button: {
     marginTop: 12,
-
     borderRadius: 8,
-
     paddingVertical: 12,
-
     alignItems: "center",
   },
-
   buttonText: { color: "#fff", fontWeight: "700" },
-
   actionsRow: { flexDirection: "row", gap: 8, marginTop: 10 },
-
   smallButton: {
     flexDirection: "row",
-
     alignItems: "center",
-
     gap: 4,
-
     paddingHorizontal: 12,
-
     paddingVertical: 8,
-
     borderRadius: 8,
   },
-
   smallButtonText: { color: "#fff", fontWeight: "700", fontSize: 13 },
-
   topRow: {
     flexDirection: "row",
-
     alignItems: "center",
-
     justifyContent: "space-between",
   },
-
   topSide: { flex: 1 },
-
   statusPill: {
     borderRadius: radius.full,
-
     paddingHorizontal: 10,
-
     paddingVertical: 4,
-
     maxWidth: "60%",
   },
-
   statusPillText: {
     fontSize: 11,
-
     fontWeight: "800",
-
     letterSpacing: 0.3,
   },
-
   bodyMeasure: { gap: spacing.sm + 2, paddingTop: spacing.sm + 2 },
-
   search: {
     flexDirection: "row",
-
     alignItems: "center",
-
     gap: spacing.sm,
-
     borderRadius: radius.md,
-
     paddingHorizontal: 12,
-
     height: 44,
-
     marginTop: spacing.xs,
-
     marginBottom: spacing.sm,
   },
-
   searchInput: { flex: 1, fontSize: 15 },
-
   searchClear: {
     width: 26,
-
     height: 26,
-
     borderRadius: 13,
-
     alignItems: "center",
-
     justifyContent: "center",
   },
 });

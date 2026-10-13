@@ -4,9 +4,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
 import { Alert, Image, StyleSheet, Text, View } from "react-native";
-import { api } from "../../../convex/\_generated/api";
-import type { Doc } from "../../../convex/\_generated/dataModel";
+import { api } from "../../../convex/_generated/api";
+import type { Doc } from "../../../convex/_generated/dataModel";
+
 export type MusicRequest = Doc<"musicRequests">;
+
 const spotifyTrackUrl = (value: string): string | null => {
   try {
     const url = new URL(value.trim());
@@ -23,14 +25,17 @@ const spotifyTrackUrl = (value: string): string | null => {
     return null;
   }
 };
+
 export const NewMusicRequestSheet = ({
   visible,
   onClose,
   prefill,
+  hideRequestComment = false,
 }: {
   visible: boolean;
   onClose: () => void;
   prefill: MusicRequest | null;
+  hideRequestComment?: boolean;
 }) => {
   const t = useAppTheme();
   const [title, setTitle] = useState("");
@@ -41,6 +46,7 @@ export const NewMusicRequestSheet = ({
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
   const [fetchingSpotify, setFetchingSpotify] = useState(false);
   const [spotifyError, setSpotifyError] = useState<string | null>(null);
+
   // Check either the Spotify autofill field or the final song link.
   const duplicateLink = link.trim()
     ? spotifyTrackUrl(link)
@@ -49,11 +55,19 @@ export const NewMusicRequestSheet = ({
     api.musicRequests.checkDuplicate,
     visible && duplicateLink ? { link: duplicateLink } : "skip",
   );
+  const duplicateIsSelf =
+    !!prefill &&
+    !!duplicateLink &&
+    spotifyTrackUrl(prefill.link) === duplicateLink;
   const duplicateBlocked =
-    duplicate?.status === "APPROVED" || duplicate?.status === "PENDING";
+    !duplicateIsSelf &&
+    (duplicate?.status === "APPROVED" || duplicate?.status === "PENDING");
+
   const getSpotifyTrack = useAction(api.spotify.getTrack);
   const submit = useMutation(api.musicRequests.submit);
+  const update = useMutation(api.musicRequests.update);
   const [submitting, setSubmitting] = useState(false);
+
   useEffect(() => {
     if (!visible) return;
     setTitle(prefill?.title ?? "");
@@ -61,9 +75,10 @@ export const NewMusicRequestSheet = ({
     setLink(prefill?.link ?? "");
     setRequestComment(prefill?.requestComment ?? "");
     setSpotifyLink("");
-    setAlbumArtUrl(null);
+    setAlbumArtUrl(prefill?.albumArtUrl ?? null);
     setSpotifyError(null);
   }, [visible, prefill?._id]);
+
   const autofillSpotify = async () => {
     const cleanUrl = spotifyTrackUrl(spotifyLink);
     if (!cleanUrl) {
@@ -113,13 +128,18 @@ export const NewMusicRequestSheet = ({
     }
     setSubmitting(true);
     try {
-      await submit({
+      const values = {
         title: title.trim(),
         artist: artist.trim(),
         link: link.trim(),
         requestComment: requestComment.trim() || undefined,
         albumArtUrl: albumArtUrl ?? undefined,
-      });
+      };
+      if (prefill) {
+        await update({ requestId: prefill._id, ...values });
+      } else {
+        await submit(values);
+      }
       setTitle("");
       setArtist("");
       setLink("");
@@ -129,12 +149,14 @@ export const NewMusicRequestSheet = ({
       setSpotifyError(null);
       onClose();
       Alert.alert(
-        "Request sent",
-        "A Chaplain will review your song request soon.",
+        prefill ? "Song updated" : "Request sent",
+        prefill
+          ? "Your changes have been saved."
+          : "A Chaplain will review your song request soon.",
       );
     } catch (error: unknown) {
       Alert.alert(
-        "Couldn't send request",
+        prefill ? "Couldn't update song" : "Couldn't send request",
         error instanceof Error ? error.message : "Please try again.",
       );
     } finally {
@@ -145,12 +167,20 @@ export const NewMusicRequestSheet = ({
     <Sheet
       visible={visible}
       onClose={onClose}
-      title="Request a song"
+      title={prefill ? "Edit song" : "Request a song"}
       footer={
         <Row spread>
           <Btn title="Cancel" variant="ghost" onPress={onClose} />
           <Btn
-            title={submitting ? "Submitting..." : "Submit Request"}
+            title={
+              submitting
+                ? prefill
+                  ? "Saving..."
+                  : "Submitting..."
+                : prefill
+                  ? "Save Changes"
+                  : "Submit Request"
+            }
             onPress={onSubmit}
             disabled={
               submitting ||
@@ -206,7 +236,7 @@ export const NewMusicRequestSheet = ({
             {spotifyError}
           </Text>
         ) : null}
-        {duplicate ? (
+        {duplicate && !duplicateIsSelf ? (
           <View
             style={{
               flexDirection: "row",
@@ -269,13 +299,15 @@ export const NewMusicRequestSheet = ({
         onChangeText={setLink}
         placeholder="Spotify or YouTube link"
       />
-      <Field
-        label="Request Comment (Optional)"
-        value={requestComment}
-        onChangeText={setRequestComment}
-        placeholder="Why would you like to request this song?"
-        multiline
-      />
+      {!hideRequestComment && (
+        <Field
+          label="Request Comment (Optional)"
+          value={requestComment}
+          onChangeText={setRequestComment}
+          placeholder="Why would you like to request this song?"
+          multiline
+        />
+      )}
     </Sheet>
   );
 };

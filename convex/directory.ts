@@ -6,11 +6,11 @@ import {
   divisionsOf,
   FINANCE,
   HEAD_OF_DIVISION,
+  isChaplainRole,
   isMemberOfDepartment,
   roleNeedsUniversity,
 } from "../shared/flow";
 import { query } from "./_generated/server";
-import { photoUrl } from "./photo";
 import {
   currentStaffYear,
   delegatorsForYear,
@@ -23,6 +23,7 @@ import {
   optionalProfile,
   rolesOf,
 } from "./model";
+import { photoUrl } from "./photo";
 
 export const serverInfo = query({
   args: {},
@@ -42,7 +43,10 @@ export const serverInfo = query({
       nextStaffYear: nextStaffYear(),
       allowedDomain: process.env.AUTH_ALLOWED_DOMAIN ?? "sow.org.au",
       divisions: divisions.map((d) => d.name),
-      departments: departments.map((d) => ({ name: d.name, division: d.division })),
+      departments: departments.map((d) => ({
+        name: d.name,
+        division: d.division,
+      })),
     };
   },
 });
@@ -71,10 +75,10 @@ export const me = query({
     const approvers = await getApprovers(
       ctx,
       year,
-      departmentsOf(profile)[0] ?? divisionsOf(profile)[0] ?? ""
+      departmentsOf(profile)[0] ?? divisionsOf(profile)[0] ?? "",
     );
     const headedDepartments = (await departmentsHeadedBy(ctx, year, email)).map(
-      (d) => d.name
+      (d) => d.name,
     );
     const [delegatedTo, prevDelegatedTo] = await Promise.all([
       delegatorsForYear(ctx, year, email),
@@ -95,6 +99,7 @@ export const me = query({
         divisions: divisionsOf(profile),
       },
       isAdmin: await isAdminProfile(ctx, profile),
+      isChaplain: rolesOf(profile).some(isChaplainRole),
       isFinance: isMemberOfDepartment(profile, FINANCE),
       isDirector: rolesOf(profile).includes(DIRECTOR),
       isBudgetManager: approvers.budgetManagerEmail === email,
@@ -107,7 +112,9 @@ export const me = query({
         approvers.financeHeadEmail === email ||
         rolesOf(profile).includes(DIRECTOR) ||
         isDelegate,
-      isCampusLeader: assignmentsOf(profile).some((a) => roleNeedsUniversity(a.role)),
+      isCampusLeader: assignmentsOf(profile).some((a) =>
+        roleNeedsUniversity(a.role),
+      ),
     };
   },
 });
@@ -134,7 +141,9 @@ export const availableYears = query({
     if ((await optionalEmail(ctx)) === null) return null;
     const thisYear = currentStaffYear();
     const nextYear = nextStaffYear();
-    const canSeeNextYear = caller ? await isAdminProfile(ctx, caller.profile) : false;
+    const canSeeNextYear = caller
+      ? await isAdminProfile(ctx, caller.profile)
+      : false;
     const divisions = await ctx.db.query("divisions").take(1000);
     return [...new Set([...divisions.map((d) => d.year), thisYear, nextYear])]
       .filter((y) => y <= thisYear || (canSeeNextYear && y === nextYear))
@@ -145,7 +154,12 @@ export const availableYears = query({
 const INTERIM_DIRECTOR = "Interim Director";
 const FALLBACK_DIVISION = "General";
 
-const CAMPUS_ROLE_ORDER = ["President", "Vice President", "Executive", "Student Leader"] as const;
+const CAMPUS_ROLE_ORDER = [
+  "President",
+  "Vice President",
+  "Executive",
+  "Student Leader",
+] as const;
 const campusRoleRank = (roles: string[]) => {
   const idx = CAMPUS_ROLE_ORDER.findIndex((r) => roles.includes(r));
   return idx === -1 ? CAMPUS_ROLE_ORDER.length : idx;
@@ -158,11 +172,14 @@ export const orgChart = query({
     const nextYear = nextStaffYear();
 
     const caller = await optionalProfile(ctx);
-    const canSeeNextYear = caller ? await isAdminProfile(ctx, caller.profile) : false;
+    const canSeeNextYear = caller
+      ? await isAdminProfile(ctx, caller.profile)
+      : false;
 
     const requestedYear = args.year ?? thisYear;
     const year =
-      requestedYear > thisYear && !(canSeeNextYear && requestedYear === nextYear)
+      requestedYear > thisYear &&
+      !(canSeeNextYear && requestedYear === nextYear)
         ? thisYear
         : requestedYear;
 
@@ -192,7 +209,7 @@ export const orgChart = query({
 
     const directoryUsers = await ctx.db.query("directoryUsers").take(4000);
     const directoryByEmail = new Map(
-      directoryUsers.map((u) => [u.email, u] as const)
+      directoryUsers.map((u) => [u.email, u] as const),
     );
 
     const nameByEmail: Record<string, string | null> = {};
@@ -214,7 +231,8 @@ export const orgChart = query({
       role: role ?? null,
     });
 
-    const assignmentsFor = (p: (typeof profiles)[number]) => p.assignments ?? [];
+    const assignmentsFor = (p: (typeof profiles)[number]) =>
+      p.assignments ?? [];
     const rolesFor = (p: (typeof profiles)[number]) => [
       ...new Set(assignmentsFor(p).map((a) => a.role)),
     ];
@@ -233,11 +251,11 @@ export const orgChart = query({
       .filter((p) => {
         const myAssignments = assignmentsFor(p);
         const hasRealDivision = myAssignments.some(
-          (a) => a.division && a.division !== FALLBACK_DIVISION
+          (a) => a.division && a.division !== FALLBACK_DIVISION,
         );
         const hasDept = myAssignments.some((a) => a.department);
         const isCampus = myAssignments.some(
-          (a) => a.university && roleNeedsUniversity(a.role)
+          (a) => a.university && roleNeedsUniversity(a.role),
         );
         const hasStaffRole = rolesFor(p).some((r) => !roleNeedsUniversity(r));
         return (
@@ -249,7 +267,9 @@ export const orgChart = query({
         );
       })
       .sort((a, b) =>
-        (nameByEmail[a.email] ?? a.email).localeCompare(nameByEmail[b.email] ?? b.email)
+        (nameByEmail[a.email] ?? a.email).localeCompare(
+          nameByEmail[b.email] ?? b.email,
+        ),
       )
       .map((p) => person(p.email, rolesFor(p).join(", ")));
 
@@ -269,8 +289,9 @@ export const orgChart = query({
           division.headEmail ??
           profiles.find((p) =>
             assignmentsFor(p).some(
-              (a) => a.role === HEAD_OF_DIVISION && a.division === division.name
-            )
+              (a) =>
+                a.role === HEAD_OF_DIVISION && a.division === division.name,
+            ),
           )?.email;
         const realDepartments = departments
           .filter((department) => department.division === division.name)
@@ -281,9 +302,11 @@ export const orgChart = query({
             members: profiles
               .filter(
                 (p) =>
-                  assignmentsFor(p).some((a) => a.department === department.name) &&
+                  assignmentsFor(p).some(
+                    (a) => a.department === department.name,
+                  ) &&
                   p.email !== department.headEmail &&
-                  p.email !== directorEmail
+                  p.email !== directorEmail,
               )
               .map((p) =>
                 person(
@@ -291,8 +314,8 @@ export const orgChart = query({
                   assignmentsFor(p)
                     .filter((a) => a.department === department.name)
                     .map((a) => a.role)
-                    .join(", ")
-                )
+                    .join(", "),
+                ),
               ),
           }));
         return {
@@ -300,7 +323,14 @@ export const orgChart = query({
           head: divisionHead ? person(divisionHead, HEAD_OF_DIVISION) : null,
           departments:
             staffUnderGeneral && division.name === FALLBACK_DIVISION
-              ? [{ name: "Staff", colour: null, head: null, members: staffPeople }]
+              ? [
+                  {
+                    name: "Staff",
+                    colour: null,
+                    head: null,
+                    members: staffPeople,
+                  },
+                ]
               : realDepartments,
         };
       }),
@@ -311,21 +341,25 @@ export const orgChart = query({
             (p) =>
               assignmentsFor(p).some(
                 (a) =>
-                  a.university === university.name && roleNeedsUniversity(a.role)
-              ) && p.email !== directorEmail
+                  a.university === university.name &&
+                  roleNeedsUniversity(a.role),
+              ) && p.email !== directorEmail,
           )
-          .sort((a, b) => campusRoleRank(rolesFor(a)) - campusRoleRank(rolesFor(b)))
+          .sort(
+            (a, b) => campusRoleRank(rolesFor(a)) - campusRoleRank(rolesFor(b)),
+          )
           .map((p) =>
             person(
               p.email,
               assignmentsFor(p)
                 .filter(
                   (a) =>
-                    a.university === university.name && roleNeedsUniversity(a.role)
+                    a.university === university.name &&
+                    roleNeedsUniversity(a.role),
                 )
                 .map((a) => a.role)
-                .join(", ")
-            )
+                .join(", "),
+            ),
           ),
       })),
     };
@@ -371,7 +405,8 @@ export const yearStructure = query({
       roles: roles.map((r) => r.name),
       budgetManagerEmail: settings?.budgetManagerEmail ?? null,
       directorApprovalThreshold: settings?.directorApprovalThreshold ?? null,
-      eventDirectorApprovalThreshold: settings?.eventDirectorApprovalThreshold ?? null,
+      eventDirectorApprovalThreshold:
+        settings?.eventDirectorApprovalThreshold ?? null,
     };
   },
 });

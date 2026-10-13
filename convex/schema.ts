@@ -61,7 +61,9 @@ export default defineSchema({
     nameKey: v.string(),
     address: v.optional(v.string()),
     serviceTimes: v.optional(v.string()),
-    services: v.optional(v.array(v.object({ day: v.number(), time: v.string() }))),
+    services: v.optional(
+      v.array(v.object({ day: v.number(), time: v.string() })),
+    ),
     website: v.optional(v.string()),
     instagram: v.optional(v.string()),
     addedBy: v.string(),
@@ -83,6 +85,7 @@ export default defineSchema({
         }),
       ),
     ),
+    memberId: v.optional(v.id("attendanceMembers")),
     name: v.optional(v.string()),
     userId: v.optional(v.id("users")),
     importId: v.optional(v.string()),

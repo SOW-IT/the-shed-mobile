@@ -6,8 +6,7 @@ import { findMemberByEmail, requireProfile, rolesOf } from "./model";
 
 /** Check whether the caller has a Chaplain role. */
 const callerIsChaplain = (profile: Doc<"staffProfiles">) =>
-  rolesOf(profile).some(isChaplainRole) ||
-  profile.email === "natalie.kwok@sow.org.au"; // TODO: Remove testing override before deployment
+  rolesOf(profile).some(isChaplainRole);
 
 /** Get Chaplain emails for the current year. */
 async function chaplainEmailsForYear(
@@ -308,5 +307,102 @@ export const decline = mutation({
         : `"${request.title}" was declined by ${caller.email}`,
       "/music?tab=my-requests",
     );
+  },
+});
+
+/** Edit a music request. */
+export const update = mutation({
+  args: {
+    requestId: v.id("musicRequests"),
+    title: v.string(),
+    artist: v.string(),
+    link: v.string(),
+    requestComment: v.optional(v.string()),
+    albumArtUrl: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const caller = await requireProfile(ctx);
+    const request = await ctx.db.get(args.requestId);
+
+    if (!request) {
+      throw new ConvexError("Request not found.");
+    }
+
+    const isChaplain = callerIsChaplain(caller.profile);
+    const isOwner = request.requesterEmail === caller.email;
+
+    if (!isChaplain && (!isOwner || request.status !== "PENDING")) {
+      throw new ConvexError("You can only edit your own pending requests.");
+    }
+
+    if (request.status !== "PENDING" && request.status !== "APPROVED") {
+      throw new ConvexError("This request cannot be edited.");
+    }
+
+    const title = args.title.trim();
+    const artist = args.artist.trim();
+    const link = args.link.trim();
+
+    if (!title || !artist || !link) {
+      throw new ConvexError("Title, artist and link are required.");
+    }
+
+    const trackId = spotifyTrackId(link);
+
+    if (trackId) {
+      const requests = await ctx.db.query("musicRequests").collect();
+
+      const duplicate = requests.find(
+        (row) =>
+          row._id !== args.requestId &&
+          (row.status === "PENDING" || row.status === "APPROVED") &&
+          spotifyTrackId(row.link) === trackId,
+      );
+
+      if (duplicate) {
+        throw new ConvexError("This song is already pending or approved.");
+      }
+    }
+
+    const artwork = args.albumArtUrl?.trim();
+
+    await ctx.db.patch(args.requestId, {
+      title,
+      artist,
+      link,
+      requestComment: args.requestComment?.trim() || undefined,
+      albumArtUrl:
+        trackId && artwork && /^https:\/\//i.test(artwork)
+          ? artwork
+          : undefined,
+    });
+  },
+});
+
+/** Delete a music request. */
+export const remove = mutation({
+  args: {
+    requestId: v.id("musicRequests"),
+  },
+  handler: async (ctx, args) => {
+    const caller = await requireProfile(ctx);
+    const request = await ctx.db.get(args.requestId);
+
+    if (!request) {
+      throw new ConvexError("Request not found.");
+    }
+
+    const isChaplain = callerIsChaplain(caller.profile);
+    const isOwner = request.requesterEmail === caller.email;
+
+    if (!isChaplain && (!isOwner || request.status !== "PENDING")) {
+      throw new ConvexError("You can only delete your own pending requests.");
+    }
+
+    if (request.status !== "PENDING" && request.status !== "APPROVED") {
+      throw new ConvexError("This request cannot be deleted.");
+    }
+
+    await ctx.db.delete(args.requestId);
   },
 });

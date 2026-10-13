@@ -1,8 +1,9 @@
 import { PagerScreen, type PagerTab } from "@/components/PagerScreen";
 import { FooterAction } from "@/components/ui";
 import { api } from "@convex/_generated/api";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
+import { Alert, Platform } from "react-native";
 import { ApprovedPlaylistTab, MyRequestsTab, ToReviewTab } from "./MusicTabs";
 import {
   MusicGuideSheet,
@@ -23,10 +24,51 @@ export default function MusicScreen() {
 
   const [newRequestOpen, setNewRequestOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
+  const removeRequest = useMutation(api.musicRequests.remove);
+  const [hideRequestComment, setHideRequestComment] = useState(false);
+
+  const handleEdit = (
+    request: MusicRequest,
+    source: "approved" | "myRequests" | "toReview",
+  ) => {
+    setRequestPrefill(request);
+    setHideRequestComment(source !== "myRequests");
+    setNewRequestOpen(true);
+  };
+
+  const handleDelete = (request: MusicRequest) => {
+    const deleteRequest = async () => {
+      try {
+        await removeRequest({ requestId: request._id });
+      } catch (error) {
+        Alert.alert(
+          "Couldn't delete request",
+          error instanceof Error ? error.message : "Please try again.",
+        );
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm(`Delete "${request.title}"?`)) {
+        void deleteRequest();
+      }
+      return;
+    }
+
+    Alert.alert("Delete request?", request.title, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => void deleteRequest(),
+      },
+    ]);
+  };
 
   // Open a blank music request form
   const openNewRequest = () => {
     setRequestPrefill(null);
+    setHideRequestComment(false);
     setNewRequestOpen(true);
   };
 
@@ -34,27 +76,43 @@ export default function MusicScreen() {
   const showMakeRequest = me?.profile != null;
 
   // Only Chaplains can review requests
-  // const canReview = me?.isChaplain === true; TODO
-  const canReview = true;
+  const canReview = me?.isChaplain === true;
 
   // Music navigation tabs
   const tabs: PagerTab[] = [
     {
       key: "approvedPlaylist",
       label: "Approved Playlist",
-      render: () => <ApprovedPlaylistTab />,
+      render: () => (
+        <ApprovedPlaylistTab
+          onEditRequest={
+            canReview ? (request) => handleEdit(request, "approved") : undefined
+          }
+          onDeleteRequest={canReview ? handleDelete : undefined}
+        />
+      ),
     },
     {
       key: "myRequest",
       label: "My Request",
-      render: () => <MyRequestsTab />,
+      render: () => (
+        <MyRequestsTab
+          onEditRequest={(request) => handleEdit(request, "myRequests")}
+          onDeleteRequest={handleDelete}
+        />
+      ),
     },
     ...(canReview
       ? [
           {
             key: "toReview",
             label: "To Review",
-            render: () => <ToReviewTab />,
+            render: () => (
+              <ToReviewTab
+                onEditRequest={(request) => handleEdit(request, "toReview")}
+                onDeleteRequest={handleDelete}
+              />
+            ),
           },
         ]
       : []),
@@ -81,6 +139,7 @@ export default function MusicScreen() {
         visible={newRequestOpen}
         onClose={() => setNewRequestOpen(false)}
         prefill={requestPrefill}
+        hideRequestComment={hideRequestComment}
       />
 
       <MusicGuideSheet
