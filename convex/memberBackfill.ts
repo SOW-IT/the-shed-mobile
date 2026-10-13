@@ -10,7 +10,12 @@ import { displayNameFromEmail } from "../shared/rollcall";
 import { staffEmailCandidates } from "../shared/rollcallImport";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, internalQuery, type MutationCtx } from "./_generated/server";
+import {
+  internalAction,
+  internalMutation,
+  internalQuery,
+  type MutationCtx,
+} from "./_generated/server";
 import { isStaffAddress, latestStaffProfile } from "./attendanceMembers";
 import { findMemberByEmail } from "./model";
 import {
@@ -274,15 +279,25 @@ export const run = internalMutation({
   },
 });
 
-export const report = internalQuery({
+const reportValidator = v.object({
+  attendanceWithEmail: v.number(),
+  attendanceWithoutMember: v.number(),
+  attendanceMemberMissing: v.number(),
+  membersWithPersonalEmail: v.number(),
+  linkedMembersWithStaffEmail: v.number(),
+  duplicateSignIns: v.number(),
+  currentStaffUnlinked: v.number(),
+  nextStaffUnlinked: v.number(),
+  profilesLinkedToMissingMember: v.number(),
+  membersLinkedToTwoStaffInOneYear: v.number(),
+});
+
+export const reportPeople = internalQuery({
   args: {},
   returns: v.object({
-    attendanceWithEmail: v.number(),
-    attendanceWithoutMember: v.number(),
-    attendanceMemberMissing: v.number(),
+    memberIds: v.array(v.string()),
     membersWithPersonalEmail: v.number(),
     linkedMembersWithStaffEmail: v.number(),
-    duplicateSignIns: v.number(),
     currentStaffUnlinked: v.number(),
     nextStaffUnlinked: v.number(),
     profilesLinkedToMissingMember: v.number(),
@@ -290,20 +305,11 @@ export const report = internalQuery({
   }),
   handler: async (ctx) => {
     const current = staffYearForDate(new Date());
-    const attendance = await ctx.db.query("attendance").collect();
     const members = await ctx.db.query("attendanceMembers").collect();
-    const memberIds = new Set(members.map((m) => m._id));
+    const memberIds = new Set<string>(members.map((m) => m._id));
     const profiles = await ctx.db.query("staffProfiles").collect();
-    const linkedIds = new Set(profiles.flatMap((p) => (p.memberId ? [p.memberId] : [])));
-    const staffEmails = new Set(
-      profiles.flatMap((p) => staffEmailCandidates(p.email))
-    );
-    const signIns = new Map<string, number>();
-    for (const row of attendance) {
-      if (!row.memberId) continue;
-      const key = `${row.eventId}|${row.memberId}`;
-      signIns.set(key, (signIns.get(key) ?? 0) + 1);
-    }
+    const linkedIds = new Set<string>(profiles.flatMap((p) => (p.memberId ? [p.memberId] : [])));
+    const staffEmails = new Set(profiles.flatMap((p) => staffEmailCandidates(p.email)));
     const staffPerMemberYear = new Map<string, number>();
     for (const p of profiles) {
       if (!p.memberId || !isAssigned(p)) continue;
@@ -315,23 +321,95 @@ export const report = internalQuery({
         (p) => p.year === year && isAssigned(p) && !(p.memberId && memberIds.has(p.memberId))
       ).length;
     return {
-      attendanceWithEmail: attendance.filter((r) => r.email !== undefined).length,
-      attendanceWithoutMember: attendance.filter((r) => !r.memberId).length,
-      attendanceMemberMissing: attendance.filter((r) => r.memberId && !memberIds.has(r.memberId))
-        .length,
+      memberIds: [...memberIds],
       membersWithPersonalEmail: members.filter((m) => m.personalEmail !== undefined).length,
       linkedMembersWithStaffEmail: members.filter(
         (m) =>
           linkedIds.has(m._id) &&
           staffEmailCandidates(m.email).some((candidate) => staffEmails.has(candidate))
       ).length,
-      duplicateSignIns: [...signIns.values()].filter((n) => n > 1).length,
       currentStaffUnlinked: unlinked(current),
       nextStaffUnlinked: unlinked(current + 1),
       profilesLinkedToMissingMember: profiles.filter(
         (p) => p.memberId && !memberIds.has(p.memberId)
       ).length,
       membersLinkedToTwoStaffInOneYear: [...staffPerMemberYear.values()].filter((n) => n > 1).length,
+    };
+  },
+});
+
+export const reportAttendancePage = internalQuery({
+  args: { cursor: v.union(v.string(), v.null()), pageSize: v.number() },
+  returns: v.object({
+    withEmail: v.number(),
+    withoutMember: v.number(),
+    signIns: v.array(v.object({ eventId: v.string(), memberId: v.string() })),
+    isDone: v.boolean(),
+    cursor: v.string(),
+  }),
+  handler: async (ctx, { cursor, pageSize }) => {
+    const page = await ctx.db.query("attendance").paginate({ numItems: pageSize, cursor });
+    return {
+      withEmail: page.page.filter((r) => r.email !== undefined).length,
+      withoutMember: page.page.filter((r) => !r.memberId).length,
+      signIns: page.page.flatMap((r) => (r.memberId ? [{ eventId: r.eventId, memberId: r.memberId }] : [])),
+      isDone: page.isDone,
+      cursor: page.continueCursor,
+    };
+  },
+});
+
+export const report = internalAction({
+  args: { pageSize: v.optional(v.number()) },
+  returns: reportValidator,
+  handler: async (ctx, { pageSize = 4000 }): Promise<typeof reportValidator.type> => {
+    const people: {
+      memberIds: string[];
+      membersWithPersonalEmail: number;
+      linkedMembersWithStaffEmail: number;
+      currentStaffUnlinked: number;
+      nextStaffUnlinked: number;
+      profilesLinkedToMissingMember: number;
+      membersLinkedToTwoStaffInOneYear: number;
+    } = await ctx.runQuery(internal.memberBackfill.reportPeople, {});
+    const memberIds = new Set(people.memberIds);
+    let withEmail = 0;
+    let withoutMember = 0;
+    let memberMissing = 0;
+    const signIns = new Map<string, number>();
+    let cursor: string | null = null;
+    for (;;) {
+      const page: {
+        withEmail: number;
+        withoutMember: number;
+        signIns: { eventId: string; memberId: string }[];
+        isDone: boolean;
+        cursor: string;
+      } = await ctx.runQuery(internal.memberBackfill.reportAttendancePage, {
+        cursor,
+        pageSize,
+      });
+      withEmail += page.withEmail;
+      withoutMember += page.withoutMember;
+      for (const { eventId, memberId } of page.signIns) {
+        if (!memberIds.has(memberId)) memberMissing++;
+        const key = `${eventId}|${memberId}`;
+        signIns.set(key, (signIns.get(key) ?? 0) + 1);
+      }
+      if (page.isDone) break;
+      cursor = page.cursor;
+    }
+    return {
+      membersWithPersonalEmail: people.membersWithPersonalEmail,
+      linkedMembersWithStaffEmail: people.linkedMembersWithStaffEmail,
+      currentStaffUnlinked: people.currentStaffUnlinked,
+      nextStaffUnlinked: people.nextStaffUnlinked,
+      profilesLinkedToMissingMember: people.profilesLinkedToMissingMember,
+      membersLinkedToTwoStaffInOneYear: people.membersLinkedToTwoStaffInOneYear,
+      attendanceWithEmail: withEmail,
+      attendanceWithoutMember: withoutMember,
+      attendanceMemberMissing: memberMissing,
+      duplicateSignIns: [...signIns.values()].filter((n) => n > 1).length,
     };
   },
 });
