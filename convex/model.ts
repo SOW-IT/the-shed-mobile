@@ -114,7 +114,7 @@ export async function resolveName(
     const dirUser = await ctx.db
       .query("directoryUsers")
       .withIndex("by_email", (q) => q.eq("email", candidate))
-      .unique();
+      .first();
     if (dirUser?.name) return dirUser.name;
   }
   return null;
@@ -270,7 +270,7 @@ export async function resolveStaffIdentity(
       const dirUser = await ctx.db
         .query("directoryUsers")
         .withIndex("by_email", (q) => q.eq("email", candidate))
-        .unique();
+        .first();
       if (dirUser?.name) {
         name = dirUser.name;
         break;

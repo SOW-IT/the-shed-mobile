@@ -8,7 +8,7 @@ import {
   type FormAnswers,
   type FormField,
 } from "@shared/forms";
-import { EVENT_SIZE_LABELS, type EventSize } from "@shared/eventRequests";
+import { type EventSize } from "@shared/eventRequests";
 import { NativeDateInput, NativeTimeInput } from "@/components/NativeDateTimeField";
 import { WebDateInput, WebTimeInput } from "@/components/WebDateTimeInput";
 import {
@@ -332,11 +332,6 @@ export const FormQuestions = ({
   let number = 0;
   return (
     <View style={{ gap: spacing.md }}>
-      {size ? (
-        <Muted>
-          {`"Recommended" marks what usually suits a ${EVENT_SIZE_LABELS[size].toLowerCase()} event like this one.`}
-        </Muted>
-      ) : null}
       {shown.map((field) => (
         <View key={field.key} style={{ gap: spacing.md }}>
           {field.section ? <SectionTitle>{field.section}</SectionTitle> : null}

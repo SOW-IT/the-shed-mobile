@@ -281,6 +281,26 @@ describe("directorySync.run", () => {
   });
 });
 
+describe("directorySync sync state", () => {
+  test("a failed sync keeps the time of the last successful one", async () => {
+    const t = convexTest(schema, modules);
+    const readState = () =>
+      t.run((ctx) =>
+        ctx.db.query("syncState").withIndex("by_key", (q) => q.eq("key", "directory")).unique()
+      );
+    await t.mutation(internal.directorySync.store, {
+      users: [{ email: "alice@sow.org.au", name: "Alice" }],
+    });
+    const synced = (await readState())!;
+    expect(synced.lastSuccessAt).toBe(synced.at);
+
+    await t.mutation(internal.directorySync.recordFailure, { detail: "quota" });
+    const failed = (await readState())!;
+    expect(failed.detail).toBe("failed: quota");
+    expect(failed.lastSuccessAt).toBe(synced.at);
+  });
+});
+
 describe("directorySync.store photo cleanup", () => {
   test("deletes replaced and removed thumbnails from storage", async () => {
     const t = convexTest(schema, modules);

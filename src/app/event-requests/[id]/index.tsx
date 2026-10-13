@@ -274,7 +274,6 @@ export default function EventRequestScreen() {
               </Card>
             </FadeInView>
             <SectionTitle>Forms</SectionTitle>
-            <Muted>All three need to be approved (or not required) for the event to go ahead.</Muted>
             {SUB_FORM_KINDS.map((kind) => (
               <FormCard
                 key={kind}

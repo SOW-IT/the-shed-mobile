@@ -55,6 +55,7 @@ import type * as metricsData from "../metricsData.js";
 import type * as model from "../model.js";
 import type * as notifications from "../notifications.js";
 import type * as pagination from "../pagination.js";
+import type * as photo from "../photo.js";
 import type * as presence from "../presence.js";
 import type * as profile from "../profile.js";
 import type * as push from "../push.js";
@@ -120,6 +121,7 @@ declare const fullApi: ApiFromModules<{
   model: typeof model;
   notifications: typeof notifications;
   pagination: typeof pagination;
+  photo: typeof photo;
   presence: typeof presence;
   profile: typeof profile;
   push: typeof push;

@@ -28,6 +28,7 @@ export const HEAD_OF_DIVISION: Role = "Head of Division";
 export const DIRECTOR: Role = "Director";
 export const STUDENT_LEADER: Role = "Student Leader";
 export const MEMBER: Role = "Member";
+export const OUTSOURCE: Role = "Outsource";
 
 export const UNIVERSITY_ROLES: readonly Role[] = [
   STUDENT_LEADER,
