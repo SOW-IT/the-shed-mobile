@@ -334,6 +334,21 @@ export const staffLockedMetadata = (
   return next;
 };
 
+export const memberOwnMetadata = (
+  fields: readonly MetadataFieldLike[],
+  submitted: Record<string, string> | undefined,
+  previous: Record<string, string> | undefined
+): Record<string, string> => {
+  const next = { ...(submitted ?? {}) };
+  for (const field of fields) {
+    if (field.key !== CAMPUS_FIELD_KEY && field.key !== ROLE_FIELD_KEY) continue;
+    const kept = previous?.[field._id];
+    if (kept) next[field._id] = kept;
+    else delete next[field._id];
+  }
+  return next;
+};
+
 /** The member's campus from metadata, else their first org campus. */
 export const resolveUniversity = (
   fields: readonly MetadataFieldLike[],

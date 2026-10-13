@@ -2163,3 +2163,127 @@ describe("nameStaffProfilesFromEmail", () => {
     expect(second.updated).toBe(0);
   });
 });
+
+describe("staff profiles and their attendance member", () => {
+  const NEXT = YEAR + 1;
+  const NEWBIE = "new.bie@sow.org.au";
+
+  const memberOf = (t: TestConvex<typeof schema>, email: string, year: number) =>
+    t.run(async (ctx) =>
+      (
+        await ctx.db
+          .query("staffProfiles")
+          .withIndex("by_email_and_year", (q) => q.eq("email", email).eq("year", year))
+          .unique()
+      )?.memberId ?? null
+    );
+  const logs = (t: TestConvex<typeof schema>, action: string) =>
+    t.run(async (ctx) =>
+      (await ctx.db.query("attendanceAuditLog").collect()).filter((l) => l.action === action)
+    );
+  const financeIn = async (t: TestConvex<typeof schema>, year: number) => {
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertDivision, { year, name: "Governance" });
+    await admin.mutation(api.admin.upsertDepartment, { year, name: "Finance", division: "Governance" });
+  };
+
+  test("saving a current-year profile creates the member once and links it", async () => {
+    const t = await setup();
+    const memberId = await memberOf(t, BELLA, YEAR);
+    expect(memberId).not.toBeNull();
+    const [created] = (await logs(t, "member.create")).filter((l) => l.memberId === memberId);
+    expect(created).toMatchObject({ actorEmail: ADMIN, subjectEmail: BELLA });
+
+    await asUser(t, ADMIN).mutation(api.admin.setStaffProfile, {
+      email: BELLA,
+      year: YEAR,
+      roles: ["Staff", "Director"],
+      department: "Finance",
+    });
+    expect(await memberOf(t, BELLA, YEAR)).toBe(memberId);
+    expect((await logs(t, "member.create")).filter((l) => l.subjectEmail === BELLA)).toHaveLength(1);
+  });
+
+  test("a next-year profile links a known member but never creates one", async () => {
+    const t = await setup();
+    await financeIn(t, NEXT);
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: NEWBIE,
+      year: NEXT,
+      roles: ["Staff"],
+      department: "Finance",
+    });
+    const newbie = await t.run((ctx) =>
+      ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", NEWBIE).eq("year", NEXT))
+        .unique()
+    );
+    expect(newbie).not.toBeNull();
+    expect(newbie?.memberId).toBeUndefined();
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: BELLA,
+      year: NEXT,
+      roles: ["Staff"],
+      department: "Finance",
+    });
+    expect(await memberOf(t, BELLA, NEXT)).toBe(await memberOf(t, BELLA, YEAR));
+  });
+
+  test("copyYear carries each profile's member over", async () => {
+    const t = await setup();
+    const memberId = await memberOf(t, BELLA, YEAR);
+    await t.mutation(internal.admin.copyYear, { from: YEAR, to: NEXT });
+    expect(await memberOf(t, BELLA, NEXT)).toBe(memberId);
+  });
+
+  test("removing a current-year profile turns them into a member", async () => {
+    const t = await setup();
+    const roleField = await t.run((ctx) =>
+      ctx.db.insert("attendanceMetadata", {
+        key: "Role",
+        type: "select",
+        order: 0,
+        values: { "1": "Staff" },
+      })
+    );
+    const memberId = (await memberOf(t, BELLA, YEAR))!;
+    await asUser(t, ADMIN).mutation(api.admin.removeStaffProfile, { email: BELLA, year: YEAR });
+
+    const [left] = await logs(t, "member.leftStaff");
+    expect(left).toMatchObject({
+      actorEmail: ADMIN,
+      memberId,
+      subjectEmail: BELLA,
+      detail: `Not staff in ${YEAR}\nRole set to Member`,
+    });
+    expect((await t.run((ctx) => ctx.db.get(memberId)))?.metadata).toEqual({ [roleField]: "2" });
+  });
+
+  test("removing a profile leaves the member alone while they are still staff, or in another year", async () => {
+    const t = await setup();
+    await financeIn(t, NEXT);
+    const admin = asUser(t, ADMIN);
+    const memberId = (await memberOf(t, BELLA, YEAR))!;
+    await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email: "bella@sowaustralia.com",
+        year: YEAR,
+        assignments: [{ role: "Outsource" }],
+        memberId,
+      })
+    );
+    await admin.mutation(api.admin.removeStaffProfile, { email: BELLA, year: YEAR });
+
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: BELLA,
+      year: NEXT,
+      roles: ["Staff"],
+      department: "Finance",
+    });
+    await admin.mutation(api.admin.removeStaffProfile, { email: BELLA, year: NEXT });
+    await admin.mutation(api.admin.removeStaffProfile, { email: NEWBIE, year: YEAR });
+    expect(await logs(t, "member.leftStaff")).toHaveLength(0);
+  });
+});

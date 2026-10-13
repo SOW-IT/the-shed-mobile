@@ -17,11 +17,10 @@ import {
   isOrgWideSubgroup,
   normalizeSubgroups,
   personDisplayName,
-  personKey,
   subgroupLabel,
   WEEKLY_MEETING_TAG_NAME,
 } from "../shared/rollcall";
-import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
+import { canonicalEmailKey } from "../shared/rollcallImport";
 import {
   CATEGORY_META,
   computeTerm,
@@ -66,6 +65,7 @@ import {
 } from "./_generated/server";
 import { currentStaffYear, optionalProfile } from "./model";
 import { photoFor } from "./photo";
+import { isAssigned, latestProfileOfMember } from "./staffMembers";
 import {
   personCategoryValidator,
   termFactsFields,
@@ -327,7 +327,10 @@ export const attendanceFor = internalQuery({
           .query("attendance")
           .withIndex("by_event", (q) => q.eq("eventId", eventId))
           .take(MAX_EVENTS);
-        return { eventId, keys: [...new Set(rows.map(personKey).filter((k) => k))] };
+        return {
+          eventId,
+          keys: [...new Set(rows.flatMap((r) => (r.memberId ? [`member:${r.memberId}`] : [])))],
+        };
       })
     ),
 });
@@ -343,14 +346,14 @@ const personValidator = v.object({
 });
 
 async function resolvePeople(ctx: QueryCtx, keys: string[], years: number[]): Promise<WeeklyPerson[]> {
-  const profilesByYear = new Map<number, Map<string, Doc<"staffProfiles">>>();
-  {
-    for (const year of years) {
-      const profiles = await ctx.db
-        .query("staffProfiles")
-        .withIndex("by_year", (q) => q.eq("year", year))
-        .take(MAX_PROFILES_PER_YEAR);
-      profilesByYear.set(year, new Map(profiles.map((p) => [p.email.toLowerCase(), p])));
+  const profileByMemberYear = new Map<string, Doc<"staffProfiles">>();
+  for (const year of years) {
+    const profiles = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_year", (q) => q.eq("year", year))
+      .take(MAX_PROFILES_PER_YEAR);
+    for (const p of profiles) {
+      if (p.memberId && isAssigned(p)) profileByMemberYear.set(`${p.memberId}:${year}`, p);
     }
   }
   const fields = await ctx.db.query("attendanceMetadata").take(200);
@@ -368,42 +371,15 @@ async function resolvePeople(ctx: QueryCtx, keys: string[], years: number[]): Pr
 
   const people: WeeklyPerson[] = [];
   for (const key of keys) {
-    let member: Doc<"attendanceMembers"> | null;
-    let email: string | undefined;
-    // Someone who left staff: the staff email they had, for the years they
-    // served (they're still a leader in those terms, a member after).
-    let formerStaffEmail: string | undefined;
-    if (key.startsWith("member:")) {
-      const id = ctx.db.normalizeId("attendanceMembers", key.slice("member:".length));
-      member = id ? await ctx.db.get("attendanceMembers", id) : null;
-      // Staff signed in through their member row still have a staff profile.
-      email = member?.email ? canonicalEmailKey(member.email) : undefined;
-      if (id) {
-        const left = await ctx.db
-          .query("attendanceAuditLog")
-          .withIndex("by_member_and_action", (q) => q.eq("memberId", id).eq("action", "member.leftStaff"))
-          .order("desc")
-          .first();
-        formerStaffEmail = canonicalEmailKey(left?.subjectEmail);
-      }
-    } else {
-      email = key.slice("staff:".length);
-      const staffEmail = email;
-      member = await ctx.db
-        .query("attendanceMembers")
-        .withIndex("by_email", (q) => q.eq("email", staffEmail))
-        .first();
-    }
+    const id = key.startsWith("member:")
+      ? ctx.db.normalizeId("attendanceMembers", key.slice("member:".length))
+      : null;
+    const member = id ? await ctx.db.get("attendanceMembers", id) : null;
     const fallback = memberInfo(member);
     const infoByYear: WeeklyPerson["infoByYear"] = {};
     let latest: Doc<"staffProfiles"> | undefined;
-    const emails = [email, formerStaffEmail].filter((e): e is string => Boolean(e));
-    for (const year of emails.length ? years : []) {
-      const byEmail = profilesByYear.get(year)!;
-      const profile = emails
-        .flatMap((e) => staffEmailCandidates(e))
-        .map((candidate) => byEmail.get(candidate))
-        .find((p) => p);
+    for (const year of id ? years : []) {
+      const profile = profileByMemberYear.get(`${id}:${year}`);
       if (!profile) continue;
       latest = profile;
       const assignments = assignmentsOf(profile);
@@ -414,11 +390,12 @@ async function resolvePeople(ctx: QueryCtx, keys: string[], years: number[]): Pr
         roles: roles.length ? roles : fallback.roles,
       };
     }
+    const email = latest?.email ?? member?.email;
     const user = latest?.userId ? await ctx.db.get("users", latest.userId) : null;
     people.push({
       key,
       name: personDisplayName(latest?.name ?? member?.name, email) || "Unknown",
-      photo: await photoFor(ctx, user, latest?.email ?? email),
+      photo: await photoFor(ctx, user, email),
       memberId: member?._id ?? null,
       infoByYear,
       info: fallback,
@@ -1059,26 +1036,15 @@ export const view = query({
 });
 
 async function eventsAttended(ctx: QueryCtx, key: string): Promise<MemberEvent[]> {
-  let rows: Doc<"attendance">[];
-  if (key.startsWith("member:")) {
-    const id = ctx.db.normalizeId("attendanceMembers", key.slice("member:".length));
-    rows = id
-      ? await ctx.db
-          .query("attendance")
-          .withIndex("by_member", (q) => q.eq("memberId", id))
-          .take(MAX_MEMBER_EVENTS)
-      : [];
-  } else {
-    rows = [];
-    for (const email of staffEmailCandidates(key.slice("staff:".length))) {
-      rows.push(
-        ...(await ctx.db
-          .query("attendance")
-          .withIndex("by_email", (q) => q.eq("email", email))
-          .take(MAX_MEMBER_EVENTS))
-      );
-    }
-  }
+  const id = key.startsWith("member:")
+    ? ctx.db.normalizeId("attendanceMembers", key.slice("member:".length))
+    : null;
+  const rows = id
+    ? await ctx.db
+        .query("attendance")
+        .withIndex("by_member", (q) => q.eq("memberId", id))
+        .take(MAX_MEMBER_EVENTS)
+    : [];
   const weekly = await weeklyTagIds(ctx);
   const seen = new Set<string>();
   const events: MemberEvent[] = [];
@@ -1124,14 +1090,15 @@ export const member = query({
       : null;
     const fields = (await ctx.db.query("attendanceMetadata").take(200)).sort((a, b) => a.order - b.order);
     const details: { label: string; value: string; link?: string }[] = [];
-    const email = memberDoc?.email ?? (key.startsWith("staff:") ? key.slice("staff:".length) : undefined);
+    const staffProfile = memberDoc ? await latestProfileOfMember(ctx, memberDoc._id) : null;
+    const email = memberDoc?.email ?? staffProfile?.email;
     if (email) details.push({ label: "Email", value: email });
     // Their church: set on a member's record, or in a staff person's Profile.
     const staffUser =
-      !memberDoc?.churchId && key.startsWith("staff:")
+      !memberDoc?.churchId && staffProfile
         ? await ctx.db
             .query("users")
-            .withIndex("email", (q) => q.eq("email", key.slice("staff:".length)))
+            .withIndex("email", (q) => q.eq("email", staffProfile.email.toLowerCase()))
             .first()
         : null;
     const churchId = memberDoc?.churchId ?? staffUser?.churchId;

@@ -5,6 +5,7 @@ import {
   formatMetadataFieldValue,
   isCommencementYear,
   isLockedSelectOption,
+  memberOwnMetadata,
   metadataFieldAllowsCustomOptions,
   orderedRoleFilterOptions,
   orderedSelectOptions,
@@ -15,6 +16,7 @@ import {
   canonicalizeGenderValues,
   GENDER_VALUES,
   sanitizeGenderValues,
+  staffLockedMetadata,
   studentYearLevelFromCommencement,
   STUDENT_YEAR_LEVELS,
   STUDENT_YEAR_VALUES,
@@ -238,5 +240,40 @@ describe("gender and field helpers", () => {
     expect(
       yearOptionIdForStoredValue("2024", 2028, { "1": "1", "2": "2" })
     ).toBe("");
+  });
+});
+
+describe("memberOwnMetadata", () => {
+  const fields = [
+    { _id: "campus", key: "Campus" },
+    { _id: "role", key: "Role" },
+    { _id: "year", key: "Year" },
+  ];
+
+  test("keeps the member's own Campus and Role under a staff edit", () => {
+    expect(
+      memberOwnMetadata(
+        fields,
+        { campus: "usyd", role: "Staff", year: "2" },
+        { campus: "unsw", role: "Member", year: "1" }
+      )
+    ).toEqual({ campus: "unsw", role: "Member", year: "2" });
+  });
+
+  test("drops the profile's Campus and Role when the member had none", () => {
+    expect(memberOwnMetadata(fields, { campus: "usyd", role: "Staff" }, undefined)).toEqual({});
+    expect(memberOwnMetadata(fields, undefined, { role: "Alumni" })).toEqual({ role: "Alumni" });
+  });
+});
+
+describe("staffLockedMetadata", () => {
+  test("clears Campus and Role a profile with no assignments doesn't give", () => {
+    const fields: { _id: string; key: string; values: Record<string, string> }[] = [
+      { _id: "campus", key: "Campus", values: { usyd: "University of Sydney" } },
+      { _id: "role", key: "Role", values: { s: "Staff" } },
+    ];
+    expect(
+      staffLockedMetadata(fields, { assignments: [] }, { campus: "usyd", role: "s", other: "x" })
+    ).toEqual({ other: "x" });
   });
 });

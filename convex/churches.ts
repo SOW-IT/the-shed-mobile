@@ -24,7 +24,8 @@ import {
 import { assignmentsOf, MEMBER } from "../shared/flow";
 import { personDisplayName } from "../shared/rollcall";
 import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
-import { currentStaffYear, getProfile, optionalEmail, requireProfile, rolesOf } from "./model";
+import { currentStaffYear, findMemberByEmail, getProfile, optionalEmail, requireProfile, rolesOf } from "./model";
+import { isAssigned, staffProfileOfMember } from "./staffMembers";
 
 // Local churches staff go to. Any staff member can add one (with where it is
 // and when it meets) or fill in a missing detail; everyone picks theirs from
@@ -428,18 +429,7 @@ export const leadingRole = (roles: readonly string[]) =>
 async function currentProfile(ctx: QueryCtx, email: string | undefined) {
   for (const candidate of staffEmailCandidates(email)) {
     const profile = await getProfile(ctx, candidate, currentStaffYear());
-    if (profile) return profile;
-  }
-  return null;
-}
-
-async function memberRow(ctx: QueryCtx, email: string) {
-  for (const candidate of staffEmailCandidates(email)) {
-    const member = await ctx.db
-      .query("attendanceMembers")
-      .withIndex("by_email", (q) => q.eq("email", candidate))
-      .first();
-    if (member) return member;
+    if (profile && isAssigned(profile)) return profile;
   }
   return null;
 }
@@ -501,7 +491,7 @@ export const directory = query({
       for (const user of users) {
         if (!user.email) continue;
         const profile = await currentProfile(ctx, user.email);
-        const member = profile ? null : await memberRow(ctx, user.email);
+        const member = profile ? null : await findMemberByEmail(ctx, user.email);
         people.push({
           name: personDisplayName(user.name, user.email) || user.email,
           role: profile ? leadingRole(rolesOf(profile)) : memberRole(member),
@@ -511,8 +501,8 @@ export const directory = query({
         });
       }
       for (const member of members) {
-        const profile = await currentProfile(ctx, member.email);
-        if (profile && (await signedInUser(ctx, member.email))?.churchId) continue;
+        const profile = await staffProfileOfMember(ctx, member._id, currentStaffYear());
+        if (profile && (await signedInUser(ctx, profile.email))?.churchId) continue;
         people.push({
           name: profile?.name ?? member.name,
           role: profile ? leadingRole(rolesOf(profile)) : memberRole(member),

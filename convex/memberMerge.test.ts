@@ -56,11 +56,35 @@ async function setup() {
     t.run((ctx) => ctx.db.insert("attendanceMembers", { name, metadata, email }));
   const signIn = (
     eventId: Id<"events">,
-    who: { memberId: Id<"attendanceMembers"> } | { email: string },
+    who: { memberId: Id<"attendanceMembers"> },
     signInTime: number,
     notes?: string
   ) => t.run((ctx) => ctx.db.insert("attendance", { eventId, ...who, signInTime, notes }));
   const attendance = () => t.run((ctx) => ctx.db.query("attendance").collect());
+  const profilesOf = (email: string) =>
+    t.run((ctx) =>
+      ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", email))
+        .collect()
+    );
+  const staffRow = async (email: string) =>
+    (await profilesOf(email)).find((p) => p.year === YEAR)!.memberId!;
+  const staffProfile = (
+    email: string,
+    year: number,
+    fields: { name?: string; memberId?: Id<"attendanceMembers">; assigned?: boolean } = {}
+  ) =>
+    t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email,
+        year,
+        name: fields.name,
+        memberId: fields.memberId,
+        assignments:
+          fields.assigned === false ? [] : [{ role: "Student Leader", university: USYD }],
+      })
+    );
   const audit = () => t.run((ctx) => ctx.db.query("attendanceAuditLog").collect());
   return {
     t,
@@ -71,6 +95,9 @@ async function setup() {
     member,
     signIn,
     attendance,
+    profilesOf,
+    staffRow,
+    staffProfile,
     audit,
   };
 }
@@ -188,8 +215,10 @@ describe("merging a member into another member", () => {
 });
 
 describe("merging a member into staff", () => {
-  test("turns the member's attendance into staff sign-ins and keeps the staff identity", async () => {
+  test("turns the member's attendance into the staff person's and keeps the staff identity", async () => {
     const s = await setup();
+    const leaderRow = await s.staffRow(LEADER);
+    const leaderName = (await s.t.run((ctx) => ctx.db.get(leaderRow)))!.name;
     const dup = await s.member(
       "Leader Nickname",
       { [s.yearField]: "3", [s.campusField]: "unsw" },
@@ -198,7 +227,7 @@ describe("merging a member into staff", () => {
     const onlyDup = await s.event("S2W1", 1_000);
     const both = await s.event("S2W2", 2_000);
     await s.signIn(onlyDup, { memberId: dup }, 1_100);
-    await s.signIn(both, { email: LEADER }, 2_200);
+    await s.signIn(both, { memberId: leaderRow }, 2_200);
     await s.signIn(both, { memberId: dup }, 2_100, "helped set up");
 
     const preview = await s.leader.query(api.attendanceMembers.mergePreview, {
@@ -212,76 +241,86 @@ describe("merging a member into staff", () => {
       email: LEADER,
       personalEmail: "personal@gmail.com",
     });
-    // Name, email and campus are locked to the staff profile.
     expect(preview.conflicts).toEqual([]);
     expect(preview.attendance).toEqual({ total: 2, shared: 1, moved: 1 });
     expect(preview.keep.history).toEqual({ events: 1, lastAttended: 2_200 });
     expect(preview.remove.history).toEqual({ events: 2, lastAttended: 2_100 });
 
-    await s.leader.mutation(api.attendanceMembers.merge, {
+    const result = await s.leader.mutation(api.attendanceMembers.merge, {
       removeId: dup,
       keep: { staffEmail: LEADER },
       resolutions: { name: "remove", email: "remove" },
       staffYear: YEAR,
     });
+    expect(result).toEqual({ moved: 0, combined: 1 });
 
     const rows = await s.attendance();
     expect(rows).toHaveLength(2);
-    expect(rows.every((r) => r.email === LEADER && r.memberId === undefined)).toBe(true);
+    expect(rows.every((r) => r.memberId === dup && r.email === undefined)).toBe(true);
     const shared = rows.find((r) => r.eventId === both)!;
     expect(shared).toMatchObject({ signInTime: 2_100, notes: "helped set up" });
 
-    const members = await s.t.run((ctx) => ctx.db.query("attendanceMembers").collect());
-    expect(members).toHaveLength(1);
-    expect(members[0]).toMatchObject({
+    expect(await s.t.run((ctx) => ctx.db.get(leaderRow))).toBeNull();
+    expect(await s.staffRow(LEADER)).toBe(dup);
+    const survivor = await s.t.run((ctx) => ctx.db.get(dup));
+    expect(survivor).toMatchObject({
+      name: leaderName,
+      email: "personal@gmail.com",
+      metadata: { [s.yearField]: "3", [s.campusField]: "unsw" },
+    });
+    const viewed = await s.leader.query(api.attendanceMembers.get, { memberId: dup });
+    expect(viewed).toMatchObject({
+      isStaffOverlay: true,
       email: LEADER,
-      // The member's own email is kept as the staff person's personal one.
       personalEmail: "personal@gmail.com",
-      metadata: { [s.yearField]: "3", [s.campusField]: "usyd" },
+      metadata: { [s.campusField]: "usyd" },
     });
     const log = (await s.audit()).find((r) => r.action === "member.merge")!;
-    expect(log).toMatchObject({ memberId: members[0]._id, subjectEmail: LEADER });
-    expect(log.summary).toContain('into staff "');
+    expect(log).toMatchObject({ memberId: dup, subjectEmail: LEADER });
+    expect(log.summary).toBe(`Merged "Leader Nickname" into staff "${LEADER}"`);
+    expect(log.detail).toContain(`Removed member "${leaderName}" (${leaderRow})`);
   });
 
-  test("uses the staff person's existing overlay row", async () => {
+  test("keeps the staff person's row when it has as long a history and is older", async () => {
     const s = await setup();
     const shadow = await s.leader.mutation(api.attendanceMembers.ensureForStaff, {
       staffEmail: LEADER,
     });
+    expect(shadow).toBe(await s.staffRow(LEADER));
     const dup = await s.member("Leader Nickname", { [s.yearField]: "3" });
     const ev = await s.event("S2W1", 1_000);
     const other = await s.event("S2W2", 2_000);
-    // An older member-keyed sign-in on the overlay still counts as "both there".
+    const extra = await s.event("S2W3", 3_000);
     await s.signIn(ev, { memberId: shadow }, 1_200);
+    await s.signIn(extra, { memberId: shadow }, 3_100);
     await s.signIn(ev, { memberId: dup }, 1_100);
     await s.signIn(other, { memberId: dup }, 2_100);
 
-    await s.leader.mutation(api.attendanceMembers.merge, {
-      removeId: dup,
-      keep: { memberId: shadow },
-      resolutions: {},
-    });
+    expect(
+      await s.leader.mutation(api.attendanceMembers.merge, {
+        removeId: dup,
+        keep: { memberId: shadow },
+        resolutions: {},
+      })
+    ).toEqual({ moved: 1, combined: 1 });
 
     const rows = await s.attendance();
-    expect(rows).toHaveLength(2);
-    // The overlay's own sign-in is folded onto the staff email too.
-    const folded = rows.find((r) => r.eventId === ev)!;
-    expect(folded).toMatchObject({ email: LEADER, signInTime: 1_100 });
-    expect(folded.memberId).toBeUndefined();
-    expect(rows.find((r) => r.eventId === other)).toMatchObject({ email: LEADER });
+    expect(rows).toHaveLength(3);
+    expect(rows.every((r) => r.memberId === shadow)).toBe(true);
+    expect(rows.find((r) => r.eventId === ev)).toMatchObject({ signInTime: 1_100 });
+    expect(await s.t.run((ctx) => ctx.db.get(dup))).toBeNull();
     expect(await s.t.run((ctx) => ctx.db.get(shadow))).toMatchObject({
       metadata: expect.objectContaining({ [s.yearField]: "3" }),
     });
+    expect(await s.staffRow(LEADER)).toBe(shadow);
+    const log = (await s.audit()).find((r) => r.action === "member.merge")!;
+    expect(log.detail).toContain(`Removed member "Leader Nickname" (${dup})`);
   });
 
   test("a personal email that has become someone's staff email isn't kept", async () => {
     const s = await setup();
-    const shadow = await s.leader.mutation(api.attendanceMembers.ensureForStaff, {
-      staffEmail: LEADER,
-    });
-    // Saved as personal, then that address was given a staff profile.
-    await s.t.run((ctx) => ctx.db.patch(shadow, { personalEmail: OTHER_LEADER }));
+    const shadow = await s.staffRow(LEADER);
+    await s.t.run((ctx) => ctx.db.patch(shadow, { email: OTHER_LEADER }));
     const dup = await s.member("Leader Nickname", {}, "personal@gmail.com");
 
     const preview = await s.leader.query(api.attendanceMembers.mergePreview, {
@@ -297,68 +336,112 @@ describe("merging a member into staff", () => {
       keep: { memberId: shadow },
       resolutions: {},
     });
-    expect((await s.t.run((ctx) => ctx.db.get(shadow)))?.personalEmail).toBe(
-      "personal@gmail.com"
+    expect((await s.t.run((ctx) => ctx.db.get(shadow)))?.email).toBe("personal@gmail.com");
+  });
+
+  test("repoints every profile that pointed at the deleted row", async () => {
+    const s = await setup();
+    const leaderRow = await s.staffRow(LEADER);
+    await s.staffProfile(LEADER, YEAR - 2, { memberId: leaderRow });
+    const dup = await s.member("Leader Nickname");
+    await s.signIn(await s.event("A", 1_000), { memberId: dup }, 1_100);
+    await s.signIn(await s.event("B", 2_000), { memberId: dup }, 2_100);
+
+    expect(
+      await s.leader.mutation(api.attendanceMembers.merge, {
+        removeId: dup,
+        keep: { memberId: leaderRow },
+        resolutions: {},
+      })
+    ).toEqual({ moved: 0, combined: 0 });
+
+    expect(await s.t.run((ctx) => ctx.db.get(leaderRow))).toBeNull();
+    const profiles = await s.profilesOf(LEADER);
+    expect(profiles).toHaveLength(2);
+    expect(profiles.every((p) => p.memberId === dup)).toBe(true);
+  });
+
+  test("a staff person with no row yet just takes over the member's row", async () => {
+    const s = await setup();
+    const NEW = "new.leader@sow.org.au";
+    const current = await s.staffProfile(NEW, YEAR, { name: "New Leader" });
+    const past = await s.staffProfile("new.leader@sowaustralia.com", YEAR - 1);
+    const dup = await s.member("Newbie", { [s.yearField]: "3" }, "newbie@gmail.com");
+    const ev = await s.event("Before they were staff", 1_000);
+    await s.signIn(ev, { memberId: dup }, 1_100);
+
+    const preview = await s.leader.query(api.attendanceMembers.mergePreview, {
+      removeId: dup,
+      keep: { staffEmail: NEW },
+    });
+    if (!preview || "blocked" in preview) throw new Error("expected a preview");
+    expect(preview.keep).toMatchObject({
+      kind: "staff",
+      name: "New Leader",
+      email: NEW,
+      personalEmail: "newbie@gmail.com",
+      history: { events: 0, lastAttended: null },
+    });
+    expect(preview.attendance).toEqual({ total: 1, shared: 0, moved: 1 });
+
+    expect(
+      await s.leader.mutation(api.attendanceMembers.merge, {
+        removeId: dup,
+        keep: { staffEmail: NEW },
+        resolutions: {},
+      })
+    ).toEqual({ moved: 0, combined: 0 });
+
+    expect(await s.t.run((ctx) => ctx.db.get(dup))).toMatchObject({
+      name: "New Leader",
+      email: "newbie@gmail.com",
+      metadata: { [s.yearField]: "3" },
+    });
+    const linked = await s.t.run(async (ctx) => [
+      (await ctx.db.get(current))?.memberId,
+      (await ctx.db.get(past))?.memberId,
+    ]);
+    expect(linked).toEqual([dup, dup]);
+    expect(await s.attendance()).toEqual([
+      expect.objectContaining({ eventId: ev, memberId: dup, signInTime: 1_100 }),
+    ]);
+    const log = (await s.audit()).find((r) => r.action === "member.merge")!;
+    expect(log).toMatchObject({
+      memberId: dup,
+      subjectEmail: NEW,
+      summary: 'Merged "Newbie" into staff "New Leader"',
+    });
+    expect(log.detail).toContain(
+      `Linked New Leader's staff profile to "Newbie", so their attendance stays where it is`
     );
+    expect(log.detail).toContain('Took from "Newbie": ');
   });
 
-  test("a staff merge leaves one record per event even if the staff person was already split", async () => {
+  test("a link-only merge with nothing to take logs just the link", async () => {
     const s = await setup();
-    const shadow = await s.leader.mutation(api.attendanceMembers.ensureForStaff, {
-      staffEmail: LEADER,
-    });
-    const dup = await s.member("Leader Nickname");
-    const both = await s.event("Split already", 1_000);
-    const shadowOnly = await s.event("Overlay only", 2_000);
-    await s.signIn(both, { email: LEADER }, 1_300, "by email");
-    await s.signIn(both, { memberId: shadow }, 1_200, "by overlay");
-    await s.signIn(both, { memberId: dup }, 1_100);
-    await s.signIn(shadowOnly, { memberId: shadow }, 2_100);
-
+    await s.staffProfile("plain.leader@sow.org.au", YEAR, { name: "Plain Leader" });
+    const dup = await s.member("Plain");
     await s.leader.mutation(api.attendanceMembers.merge, {
       removeId: dup,
-      keep: { memberId: shadow },
+      keep: { staffEmail: "plain.leader@sow.org.au" },
       resolutions: {},
     });
-
-    const rows = await s.attendance();
-    expect(rows).toHaveLength(2);
-    expect(rows.every((r) => r.email === LEADER && r.memberId === undefined)).toBe(true);
-    expect(rows.find((r) => r.eventId === both)).toMatchObject({
-      signInTime: 1_100,
-      notes: "by email\nby overlay",
-    });
     const log = (await s.audit()).find((r) => r.action === "member.merge")!;
-    expect(log.detail).toContain("Also moved 2 of");
+    expect(log.detail).toBe(
+      `Linked Plain Leader's staff profile to "Plain", so their attendance stays where it is`
+    );
+    expect((await s.t.run((ctx) => ctx.db.get(dup)))?.email).toBeUndefined();
   });
 
-  test("always leaves the staff person an overlay row, so older events keep a name", async () => {
+  test("counts the staff person's history by distinct events on their row", async () => {
     const s = await setup();
-    const dup = await s.member("Leader Nickname");
-    const before = await s.event("Before they were staff", 1_000);
-    await s.signIn(before, { memberId: dup }, 1_100);
-    await s.leader.mutation(api.attendanceMembers.merge, {
-      removeId: dup,
-      keep: { staffEmail: LEADER },
-      resolutions: {},
-    });
-    const members = await s.t.run((ctx) => ctx.db.query("attendanceMembers").collect());
-    expect(members).toHaveLength(1);
-    expect(members[0]).toMatchObject({ email: LEADER });
-    const log = (await s.audit()).find((r) => r.action === "member.merge")!;
-    expect(log.memberId).toBe(members[0]._id);
-  });
-
-  test("counts the staff person's history from both email and overlay sign-ins", async () => {
-    const s = await setup();
-    const shadow = await s.leader.mutation(api.attendanceMembers.ensureForStaff, {
-      staffEmail: LEADER,
-    });
+    const shadow = await s.staffRow(LEADER);
     const dup = await s.member("Leader Nickname");
     const a = await s.event("A", 1_000);
     const b = await s.event("B", 2_000);
-    await s.signIn(a, { email: LEADER }, 1_100);
+    await s.signIn(a, { memberId: shadow }, 1_100);
     await s.signIn(b, { memberId: shadow }, 2_100);
+    await s.signIn(b, { memberId: shadow }, 2_050);
     const preview = await s.leader.query(api.attendanceMembers.mergePreview, {
       removeId: dup,
       keep: { memberId: shadow },
@@ -426,6 +509,61 @@ describe("staff can't be merged away", () => {
         keep: { memberId: shadow },
       })
     ).toMatchObject({ keep: { kind: "staff" } });
+  });
+});
+
+describe("staff in the same year are different people", () => {
+  test("two people who were both staff in one year can't be merged", async () => {
+    const s = await setup();
+    const first = await s.member("Sam One");
+    const second = await s.member("Sam Two");
+    await s.staffProfile("sam.one@sow.org.au", YEAR - 1, { memberId: first });
+    await s.staffProfile("sam.one@sow.org.au", YEAR - 3, { memberId: first });
+    await s.staffProfile("sam.two@sow.org.au", YEAR - 3, { memberId: second });
+    await s.staffProfile("sam.two@sow.org.au", YEAR - 1, { memberId: second });
+    const blocked = `Sam One and the person you're keeping were both staff in ${YEAR - 3}, so they're different people.`;
+    expect(
+      await s.leader.query(api.attendanceMembers.mergePreview, {
+        removeId: first,
+        keep: { memberId: second },
+      })
+    ).toEqual({ blocked });
+    await expect(
+      s.leader.mutation(api.attendanceMembers.merge, {
+        removeId: first,
+        keep: { memberId: second },
+        resolutions: {},
+      })
+    ).rejects.toThrow(blocked);
+  });
+
+  test("a former staffer can't be linked to a staff person from their own year", async () => {
+    const s = await setup();
+    const former = await s.member("Old Leader");
+    await s.staffProfile("old.leader@sow.org.au", YEAR - 2, { memberId: former });
+    await s.staffProfile("other.old@sow.org.au", YEAR - 2, { name: "Other Old", assigned: false });
+    expect(
+      await s.leader.query(api.attendanceMembers.mergePreview, {
+        removeId: former,
+        keep: { staffEmail: "other.old@sow.org.au" },
+      })
+    ).toEqual({
+      blocked: `Old Leader and the person you're keeping were both staff in ${YEAR - 2}, so they're different people.`,
+    });
+  });
+
+  test("a staff person's unassigned profile years don't count as staff", async () => {
+    const s = await setup();
+    const first = await s.member("Sam One");
+    const second = await s.member("Sam Two");
+    await s.staffProfile("sam.one@sow.org.au", YEAR - 1, { memberId: first, assigned: false });
+    await s.staffProfile("sam.two@sow.org.au", YEAR - 1, { memberId: second });
+    expect(
+      await s.leader.query(api.attendanceMembers.mergePreview, {
+        removeId: first,
+        keep: { memberId: second },
+      })
+    ).toMatchObject({ keep: { kind: "member" } });
   });
 });
 
@@ -527,32 +665,38 @@ describe("a staff email on a member points to Merge", () => {
     });
   });
 
-  test("a member can be merged into former staff, and former staff can't be merged away", async () => {
+  test("a member can be merged into former staff", async () => {
     const s = await setup();
-    await s.t.run((ctx) =>
-      ctx.db.insert("staffProfiles", {
-        email: "former@sow.org.au",
-        year: YEAR - 4,
-        name: "Former Staff",
-        assignments: [],
-      })
-    );
+    await s.staffProfile("former@sow.org.au", YEAR - 4, { name: "Former Staff", assigned: false });
     const dup = await s.member("Former Nickname");
     const preview = await s.leader.query(api.attendanceMembers.mergePreview, {
       removeId: dup,
       keep: { staffEmail: "former@sow.org.au" },
     });
     expect(preview).toMatchObject({ keep: { kind: "staff", name: "Former Staff" } });
-    const overlay = await s.t.run((ctx) =>
-      ctx.db.insert("attendanceMembers", { name: "Former Staff", email: "former@sow.org.au" })
-    );
+  });
+
+  test("a former staffer's row merges like a member's in a year they aren't staff", async () => {
+    const s = await setup();
+    const former = await s.member("Former Staff");
+    const profile = await s.staffProfile("old.leader@sow.org.au", YEAR - 4, {
+      memberId: former,
+    });
+    await s.signIn(await s.event("Old", 1_000), { memberId: former }, 1_100);
     const plain = await s.member("Plain");
-    expect(
-      await s.leader.query(api.attendanceMembers.mergePreview, {
-        removeId: overlay,
-        keep: { memberId: plain },
-      })
-    ).toMatchObject({ blocked: expect.stringContaining("is staff") });
+    const preview = await s.leader.query(api.attendanceMembers.mergePreview, {
+      removeId: former,
+      keep: { memberId: plain },
+    });
+    expect(preview).toMatchObject({ keep: { kind: "member" } });
+    await s.leader.mutation(api.attendanceMembers.merge, {
+      removeId: former,
+      keep: { memberId: plain },
+      resolutions: {},
+    });
+    expect(await s.t.run((ctx) => ctx.db.get(plain))).toBeNull();
+    expect(await s.t.run((ctx) => ctx.db.get(former))).toMatchObject({ name: "Plain" });
+    expect((await s.t.run((ctx) => ctx.db.get(profile)))?.memberId).toBe(former);
   });
 
   test("only admins can delete a member", async () => {
@@ -720,6 +864,7 @@ describe("choosing which metadata stays", () => {
       [s.f.gender]: "f",
       [s.campusField]: "unsw",
     });
+    const shadowName = (await s.t.run((ctx) => ctx.db.get(shadow)))!.name;
     const preview = await s.leader.query(api.attendanceMembers.mergePreview, {
       removeId: dup,
       keep: { memberId: shadow },
@@ -737,6 +882,7 @@ describe("choosing which metadata stays", () => {
     expect(row?.metadata?.[s.f.diet]).toBe("halal");
     expect(row?.metadata?.[s.f.gender]).toBe("m");
     expect(row?.metadata?.[s.campusField]).toBe("usyd");
-    expect(row?.email).toBe(LEADER);
+    expect(row?.email).toBeUndefined();
+    expect(row?.name).toBe(shadowName);
   });
 });

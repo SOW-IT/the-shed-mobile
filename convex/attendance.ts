@@ -3,6 +3,7 @@ import {
   assignmentsOf,
   eventStaffYear,
   roleNeedsUniversity,
+  staffYearForDate,
   staffYearStartMs,
   sydneyCalendarYear,
 } from "../shared/flow";
@@ -13,20 +14,24 @@ import {
   ROLE_FIELD_KEY,
 } from "../shared/attendanceMemberMeta";
 import { canReverseSignIn, reversibleOnlyByGrace, compareAttendanceFrequency, memberMatchesEventCampus, normalizeSubgroups, personDisplayName, personKey, subgroupMatches } from "../shared/rollcall";
-import { staffEmailCandidates } from "../shared/rollcallImport";
-import { Doc } from "./_generated/dataModel";
+import { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
-import {
-  displayName,
-  findMemberByEmail,
-  getProfile,
-  optionalProfile,
-  requireProfile,
-} from "./model";
+import { optionalProfile, requireProfile } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
 import { photoFor } from "./photo";
+import {
+  assignedProfileForEmail,
+  isAssigned,
+  knownMemberId,
+  memberDisplayName,
+  staffMemberForEmail,
+  staffProfileOfMember,
+} from "./staffMembers";
 
 const ROSTER_HISTORY_EVENT_LIMIT = 60;
+
+const scoreKey = (row: { memberId?: Id<"attendanceMembers"> }) =>
+  row.memberId ? `member:${row.memberId}` : "";
 
 export type RosterEntry = {
   key: string;
@@ -67,31 +72,19 @@ export const roster = query({
       })
       .sort((a, b) => a.order - b.order);
 
-    const profiles = await ctx.db
-      .query("staffProfiles")
-      .withIndex("by_year", (q) => q.eq("year", profileYear))
-      .collect();
-    const extras = await ctx.db
-      .query("attendanceMembers")
-      .collect();
-
-    const profileEmails = new Set(profiles.map((p) => p.email.toLowerCase()));
-    const matchProfileEmail = (email: string | undefined): string | undefined =>
-      staffEmailCandidates(email).find((c) => profileEmails.has(c));
-    const shadowByEmail = new Map<string, (typeof extras)[number]>();
-    const pureExtras: typeof extras = [];
-    for (const m of extras) {
-      const matched = matchProfileEmail(m.email);
-      if (matched) {
-        if (!shadowByEmail.has(matched)) shadowByEmail.set(matched, m);
-        continue;
-      }
-      pureExtras.push(m);
-    }
-
+    const profiles = (
+      await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_year", (q) => q.eq("year", profileYear))
+        .collect()
+    ).filter(isAssigned);
+    const members = await ctx.db.query("attendanceMembers").collect();
+    const memberById = new Map(members.map((m) => [m._id, m]));
+    const staffMemberIds = new Set(profiles.flatMap((p) => (p.memberId ? [p.memberId] : [])));
+    const pureExtras = members.filter((m) => !staffMemberIds.has(m._id));
 
     const staffRows: RosterEntry[] = await Promise.all(profiles.map(async (p) => {
-      const shadow = shadowByEmail.get(p.email.toLowerCase());
+      const shadow = p.memberId ? memberById.get(p.memberId) : undefined;
       const assignments = assignmentsOf(p);
       const roles = [...new Set(assignments.map((a) => a.role))];
       const campuses = [
@@ -159,7 +152,7 @@ export const roster = query({
     );
     otherHistory.forEach((historyEvent, i) => {
       for (const row of historyAttendances[i]) {
-        const key = personKey(row);
+        const key = scoreKey(row);
         if (!key) continue;
         const score = scores.get(key) ?? {
           tagMatches: 0,
@@ -183,10 +176,12 @@ export const roster = query({
       }
     });
 
+    const scoreOf = (entry: RosterEntry) =>
+      scores.get(entry.memberId ? `member:${entry.memberId}` : entry.key);
     return rows.sort((a, b) =>
       compareAttendanceFrequency(
-        scores.get(a.key),
-        scores.get(b.key),
+        scoreOf(a),
+        scoreOf(b),
         memberMatchesEventCampus(eventSubgroups, a),
         memberMatchesEventCampus(eventSubgroups, b),
         a.name,
@@ -220,90 +215,56 @@ export const listByEvent = query({
       .withIndex("by_event", (q) => q.eq("eventId", eventId))
       .collect();
 
-    type AttendanceDoc = (typeof rows)[number];
-    const staffRowFor = async (row: AttendanceDoc, email: string) => {
-      let profile: Awaited<ReturnType<typeof getProfile>> = null;
-      for (const candidate of staffEmailCandidates(email)) {
-        profile = await getProfile(ctx, candidate, profileYear);
-        if (profile) break;
-      }
-      const resolvedEmail = profile?.email.toLowerCase() ?? email.toLowerCase();
-      const shadow = await findMemberByEmail(ctx, resolvedEmail);
-      const assignments = profile ? assignmentsOf(profile) : [];
-      const roles = [...new Set(assignments.map((assignment) => assignment.role))];
-      const campuses = [
-        ...new Set(
-          assignments.flatMap((assignment) =>
-            assignment.university && roleNeedsUniversity(assignment.role)
-              ? [assignment.university]
-              : []
-          )
-        ),
-      ];
-      const user = profile?.userId ? await ctx.db.get(profile.userId) : null;
-      return {
-        profile,
-        row: {
-          ...row,
-          email: resolvedEmail,
-          name: personDisplayName(profile?.name ?? shadow?.name, resolvedEmail),
-          kind: profile ? ("staff" as const) : ("member" as const),
-          roles,
-          campuses,
-          university: campuses[0] ?? resolveUniversity(metadataFields, shadow?.metadata, campuses),
-          subtitle:
-            metadataSubtitle(
-              metadataFields,
-              shadow?.metadata,
-              calendarYear,
-              profile ? [ROLE_FIELD_KEY, CAMPUS_FIELD_KEY] : [CAMPUS_FIELD_KEY]
-            ) || undefined,
-          photo: await photoFor(ctx, user, resolvedEmail),
-        },
-      };
-    };
-
     const withNames = await Promise.all(
       rows.map(async (row) => {
-        if (row.email) {
-          return (await staffRowFor(row, row.email)).row;
-        }
-        if (row.memberId) {
-          const member = await ctx.db.get(row.memberId);
-          if (member?.email) {
-            const built = await staffRowFor(row, member.email);
-            if (built.profile) return built.row;
-          }
+        const member = row.memberId ? await ctx.db.get(row.memberId) : null;
+        const profile = member ? await staffProfileOfMember(ctx, member._id, profileYear) : null;
+        if (profile) {
+          const email = profile.email.toLowerCase();
+          const assignments = assignmentsOf(profile);
+          const roles = [...new Set(assignments.map((assignment) => assignment.role))];
+          const campuses = [
+            ...new Set(
+              assignments.flatMap((assignment) =>
+                assignment.university && roleNeedsUniversity(assignment.role)
+                  ? [assignment.university]
+                  : []
+              )
+            ),
+          ];
+          const user = profile.userId ? await ctx.db.get(profile.userId) : null;
           return {
             ...row,
-            name: member?.name ?? "Unknown",
-            kind: "member" as const,
-            roles: [],
-            campuses: [],
-            university: resolveUniversity(metadataFields, member?.metadata),
-            subtitle: metadataSubtitle(metadataFields, member?.metadata, calendarYear, [CAMPUS_FIELD_KEY]) || undefined,
-            photo: null,
+            email,
+            name: personDisplayName(profile.name ?? member?.name, email),
+            kind: "staff" as const,
+            roles,
+            campuses,
+            university: campuses[0] ?? resolveUniversity(metadataFields, member?.metadata, campuses),
+            subtitle:
+              metadataSubtitle(metadataFields, member?.metadata, calendarYear, [
+                ROLE_FIELD_KEY,
+                CAMPUS_FIELD_KEY,
+              ]) || undefined,
+            photo: await photoFor(ctx, user, email),
           };
         }
         return {
           ...row,
-          name: "Unknown",
-          kind: "staff" as const,
+          email: undefined,
+          name: member?.name ?? "Unknown",
+          kind: "member" as const,
           roles: [],
           campuses: [],
-          university: undefined,
-          subtitle: undefined,
+          university: resolveUniversity(metadataFields, member?.metadata),
+          subtitle: metadataSubtitle(metadataFields, member?.metadata, calendarYear, [CAMPUS_FIELD_KEY]) || undefined,
           photo: null,
         };
       })
     );
     const byIdentity = new Map<string, (typeof withNames)[number]>();
     for (const row of withNames) {
-      const identity = row.email
-        ? `email:${row.email}`
-        : row.memberId
-          ? `member:${row.memberId}`
-          : `row:${row._id}`;
+      const identity = row.memberId ? `member:${row.memberId}` : `row:${row._id}`;
       const existing = byIdentity.get(identity);
       if (!existing || row.signInTime < existing.signInTime) {
         byIdentity.set(identity, row);
@@ -319,49 +280,30 @@ export const signIn = mutation({
     email: v.optional(v.string()),
     memberId: v.optional(v.id("attendanceMembers")),
   },
-  handler: async (ctx, { eventId, email, memberId }) => {
+  handler: async (ctx, { eventId, email, memberId: memberArg }) => {
     const { email: actorEmail } = await requireProfile(ctx);
     const event = await ctx.db.get(eventId);
     if (!event) throw new ConvexError("Event not found.");
-    if (!!email === !!memberId) {
+    if (!!email === !!memberArg) {
       throw new ConvexError("Provide either email or memberId.");
     }
-
+    const year = eventStaffYear(event.dateStart);
+    let memberId: Id<"attendanceMembers">;
     if (email) {
       const lower = email.trim().toLowerCase();
       if (!lower) throw new ConvexError("A person's email is required.");
-      const existing = await ctx.db
-        .query("attendance")
-        .withIndex("by_event_and_email", (q) =>
-          q.eq("eventId", eventId).eq("email", lower)
-        )
-        .unique();
-      if (existing) return existing._id;
-      const id = await ctx.db.insert("attendance", {
-        eventId,
-        email: lower,
-        signInTime: Date.now(),
-      });
-      const who = await displayName(ctx, lower, eventStaffYear(event.dateStart));
-      await logAttendanceAction(ctx, {
-        actorEmail,
-        entityType: "attendance",
-        action: "attendance.signIn",
-        summary: `${who} signed in to "${event.name}"`,
-        eventId,
-        subjectEmail: lower,
-      });
-      return id;
+      const staff = await staffMemberForEmail(ctx, lower, year, actorEmail);
+      if (!staff) throw new ConvexError("Staff profile not found.");
+      memberId = staff.memberId;
+    } else {
+      memberId = memberArg!;
     }
-
-    const member = memberId ? await ctx.db.get(memberId) : null;
-    if (!member) {
-      throw new ConvexError("Member not found.");
-    }
+    const member = await ctx.db.get(memberId);
+    if (!member) throw new ConvexError("Member not found.");
     const existing = await ctx.db
       .query("attendance")
       .withIndex("by_event_and_member", (q) =>
-        q.eq("eventId", eventId).eq("memberId", memberId!)
+        q.eq("eventId", eventId).eq("memberId", memberId)
       )
       .unique();
     if (existing) return existing._id;
@@ -370,13 +312,15 @@ export const signIn = mutation({
       memberId,
       signInTime: Date.now(),
     });
+    const { name, email: subjectEmail } = await memberDisplayName(ctx, member, year);
     await logAttendanceAction(ctx, {
       actorEmail,
       entityType: "attendance",
       action: "attendance.signIn",
-      summary: `${member.name} signed in to "${event.name}"`,
+      summary: `${name} signed in to "${event.name}"`,
       eventId,
       memberId,
+      subjectEmail,
     });
     return id;
   },
@@ -407,15 +351,14 @@ export const updateRecord = mutation({
     if (Object.keys(patch).length === 0) return;
     await ctx.db.patch(attendanceId, patch);
     const event = await ctx.db.get(row.eventId);
-    const who = row.memberId
-      ? (await ctx.db.get(row.memberId))?.name ?? "A member"
-      : row.email
-        ? await displayName(
-            ctx,
-            row.email,
-            event ? eventStaffYear(event.dateStart) : sydneyCalendarYear(new Date())
-          )
-        : "A member";
+    const member = row.memberId ? await ctx.db.get(row.memberId) : null;
+    const who = member
+      ? await memberDisplayName(
+          ctx,
+          member,
+          event ? eventStaffYear(event.dateStart) : staffYearForDate(new Date())
+        )
+      : { name: "A member", email: undefined };
     const fields = [
       patch.notes !== undefined ? "notes" : null,
       patch.signInTime !== undefined ? "sign-in time" : null,
@@ -424,10 +367,10 @@ export const updateRecord = mutation({
       actorEmail,
       entityType: "attendance",
       action: "attendance.update",
-      summary: `Edited ${who}'s record for "${event?.name ?? "an event"}"`,
+      summary: `Edited ${who.name}'s record for "${event?.name ?? "an event"}"`,
       eventId: row.eventId,
       memberId: row.memberId,
-      subjectEmail: row.email,
+      subjectEmail: who.email,
       detail: fields.length ? `Changed: ${fields.join(", ")}` : undefined,
     });
   },
@@ -448,69 +391,45 @@ export const signOut = mutation({
     email: v.optional(v.string()),
     memberId: v.optional(v.id("attendanceMembers")),
   },
-  handler: async (ctx, { eventId, email, memberId }) => {
+  handler: async (ctx, { eventId, email, memberId: memberArg }) => {
     const { email: actorEmail } = await requireProfile(ctx);
-    if (!!email === !!memberId) {
+    if (!!email === !!memberArg) {
       throw new ConvexError("Provide either email or memberId.");
     }
     const event = await ctx.db.get(eventId);
+    const year = event ? eventStaffYear(event.dateStart) : staffYearForDate(new Date());
+    let memberId = memberArg ?? null;
     if (email) {
-      const lower = email.trim().toLowerCase();
-      const existing = await ctx.db
-        .query("attendance")
-        .withIndex("by_event_and_email", (q) =>
-          q.eq("eventId", eventId).eq("email", lower)
-        )
-        .unique();
-      if (existing) {
-        if (event && !canReverseSignIn(event, existing.signInTime)) {
-          throw new ConvexError(
-            "This sign-in can't be undone. After an event ends, only sign-ins from the last 10 minutes or added after it ended can be removed."
-          );
-        }
-        await ctx.db.delete(existing._id);
-        const who = await displayName(
-          ctx,
-          lower,
-          event ? eventStaffYear(event.dateStart) : sydneyCalendarYear(new Date())
-        );
-        await logAttendanceAction(ctx, {
-          actorEmail,
-          entityType: "attendance",
-          action: "attendance.signOut",
-          summary: `${who} signed out of "${event?.name ?? "an event"}"`,
-          eventId,
-          subjectEmail: lower,
-          detail: undoDetail(event, existing.signInTime),
-        });
-      }
-      return;
+      const profile = await assignedProfileForEmail(ctx, email.trim().toLowerCase(), year);
+      memberId = profile ? await knownMemberId(ctx, profile) : null;
     }
-    if (memberId) {
-      const existing = await ctx.db
-        .query("attendance")
-        .withIndex("by_event_and_member", (q) =>
-          q.eq("eventId", eventId).eq("memberId", memberId)
-        )
-        .unique();
-      if (existing) {
-        if (event && !canReverseSignIn(event, existing.signInTime)) {
-          throw new ConvexError(
-            "This sign-in can't be undone. After an event ends, only sign-ins from the last 10 minutes or added after it ended can be removed."
-          );
-        }
-        await ctx.db.delete(existing._id);
-        const member = await ctx.db.get(memberId);
-        await logAttendanceAction(ctx, {
-          actorEmail,
-          entityType: "attendance",
-          action: "attendance.signOut",
-          summary: `${member?.name ?? "A member"} signed out of "${event?.name ?? "an event"}"`,
-          eventId,
-          memberId,
-          detail: undoDetail(event, existing.signInTime),
-        });
-      }
+    if (!memberId) return;
+    const existing = await ctx.db
+      .query("attendance")
+      .withIndex("by_event_and_member", (q) =>
+        q.eq("eventId", eventId).eq("memberId", memberId)
+      )
+      .unique();
+    if (!existing) return;
+    if (event && !canReverseSignIn(event, existing.signInTime)) {
+      throw new ConvexError(
+        "This sign-in can't be undone. After an event ends, only sign-ins from the last 10 minutes or added after it ended can be removed."
+      );
     }
+    await ctx.db.delete(existing._id);
+    const member = await ctx.db.get(memberId);
+    const who = member
+      ? await memberDisplayName(ctx, member, year)
+      : { name: "A member", email: undefined };
+    await logAttendanceAction(ctx, {
+      actorEmail,
+      entityType: "attendance",
+      action: "attendance.signOut",
+      summary: `${who.name} signed out of "${event?.name ?? "an event"}"`,
+      eventId,
+      memberId,
+      subjectEmail: who.email,
+      detail: undoDetail(event, existing.signInTime),
+    });
   },
 });

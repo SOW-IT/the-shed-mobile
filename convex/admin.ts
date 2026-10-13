@@ -54,6 +54,7 @@ import {
   setCachedDirectorEmail,
 } from "./model";
 import { hasSignedIn } from "./presence";
+import { attachMember, isAssigned, leaveStaff, staffProfileOfMember } from "./staffMembers";
 
 const syncDirectorCacheAfterProfileChange = async (
   ctx: MutationCtx,
@@ -138,11 +139,10 @@ const writeStaffProfile = async (
     name: existing?.name ?? identity.name,
     userId: existing?.userId ?? identity.userId,
   };
-  if (existing) {
-    await ctx.db.patch("staffProfiles", existing._id, fields);
-    return existing._id;
-  }
-  return await ctx.db.insert("staffProfiles", { email, year, ...fields });
+  const profileId = existing?._id ?? (await ctx.db.insert("staffProfiles", { email, year, ...fields }));
+  if (existing) await ctx.db.patch("staffProfiles", existing._id, fields);
+  await attachMember(ctx, profileId, (await optionalEmail(ctx)) ?? "system:staff-assign");
+  return profileId;
 };
 
 const grantHead = async (
@@ -552,12 +552,20 @@ export const setStaffProfile = mutation({
 export const removeStaffProfile = mutation({
   args: { email: v.string(), year: v.number() },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const { email: actorEmail } = await requireAdmin(ctx);
     assertManagedYear(args.year);
     const email = args.email.trim().toLowerCase();
     const profile = await getProfile(ctx, email, args.year);
     const wasDirector = profile ? rolesOf(profile).includes(DIRECTOR) : false;
     if (profile) await ctx.db.delete("staffProfiles", profile._id);
+    if (
+      profile?.memberId &&
+      isAssigned(profile) &&
+      args.year === currentStaffYear() &&
+      !(await staffProfileOfMember(ctx, profile.memberId, args.year))
+    ) {
+      await leaveStaff(ctx, profile.memberId, profile, args.year, actorEmail);
+    }
     const settings = await getYearSettings(ctx, args.year);
     if (settings?.budgetManagerEmail === email) {
       await ctx.db.patch("yearSettings", settings._id, {
@@ -1552,6 +1560,7 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
       name: profile.name,
       userId: profile.userId,
       importId: profile.importId,
+      memberId: profile.memberId,
     };
     const byPerson = profile.importId
       ? await ctx.db

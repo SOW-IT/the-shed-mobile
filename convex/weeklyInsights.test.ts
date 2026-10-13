@@ -47,6 +47,7 @@ async function setup() {
   const ids = await t.run(async (ctx) => {
     const profile = (await ctx.db.query("staffProfiles").collect()).find((p) => p.email === LEADER)!;
     await ctx.db.patch(profile._id, { name: "Lee Leader" });
+    const lee = profile.memberId!;
     const tag = await ctx.db.insert("attendanceTags", { name: "Weekly Meeting" });
     const campus = await ctx.db.insert("attendanceMetadata", {
       key: "Campus",
@@ -99,13 +100,13 @@ async function setup() {
       const e = await event("Weeklies", at);
       weeklies.push(e);
       await signIn(e, ana);
-      await signIn(e, LEADER);
+      await signIn(e, lee);
       if (i === 0) await signIn(e, cy);
     }
     for (const [i, at] of T2_2026.entries()) {
       const e = await event("Weeklies", at);
       weeklies.push(e);
-      await signIn(e, LEADER);
+      await signIn(e, lee);
       if (i < 5) await signIn(e, ana);
       if (i === 5) await signIn(e, newbie);
       if (i === 6) await signIn(e, guest);
@@ -120,7 +121,7 @@ async function setup() {
     await signIn(future, ana);
     const social = await event("Social", wed(2026, 7, 10), [UNSW], false);
     await signIn(social, ana);
-    return { tag, campus, role, ana, ben, cy, newbie, guest, weeklies, social, mega };
+    return { tag, campus, role, lee, ana, ben, cy, newbie, guest, weeklies, social, mega };
   });
   return { t, admin, leader: asUser(t, LEADER), ids };
 }
@@ -390,19 +391,16 @@ describe("nightly builds only redo what changed", () => {
     for (const key of Object.keys(views)) expect(after[key].computedAt).toBeGreaterThan(views[key].computedAt);
   });
 
-  test("staff signed in through their member row are still staff", async () => {
+  test("staff are keyed by their member row; a sign-in with only an email is left out", async () => {
     const { t, leader, ids } = await setup();
-    await t.run(async (ctx) => {
-      const row = await ctx.db.insert("attendanceMembers", { name: "Lee Leader", email: LEADER });
-      for (const a of await ctx.db.query("attendance").withIndex("by_email", (q) => q.eq("email", LEADER)).collect()) {
-        await ctx.db.patch(a._id, { email: undefined, memberId: row });
-      }
-    });
+    await t.run((ctx) =>
+      ctx.db.insert("attendance", { eventId: ids.weeklies.at(-1)!, email: "stray@example.com", signInTime: 0 })
+    );
     await rebuild(t);
     const now = (await leader.query(api.weeklyInsights.view, { subgroup: UNSW }))!;
     const lee = block(now.blocks, "people").rows.find((r) => r.name === "Lee Leader")!;
-    expect(lee).toMatchObject({ section: "leader", category: { label: "Leader" } });
-    void ids;
+    expect(lee).toMatchObject({ key: `member:${ids.lee}`, section: "leader", category: { label: "Leader" } });
+    expect((await indexDoc(t))!.weeklies.at(-1)).toMatchObject({ at: T2_2026[6], count: 2 });
   });
 
   test("a forced rebuild redoes every view", async () => {
@@ -529,51 +527,51 @@ describe("a term that's gone", () => {
 });
 
 describe("someone who left staff", () => {
-  test("their weeklies are re-read, so they show up as a member", async () => {
-    const { t, leader } = await setup();
+  test("they stay a leader in the terms they served and the rebuild re-reads them", async () => {
+    const { t, leader, ids } = await setup();
     await rebuild(t);
-    const keysIn = async () => {
-      const facts = Object.values(await factDocs(t));
-      return new Set(facts.flatMap((f) => f.attendance.map((a) => a.key)));
-    };
-    expect((await keysIn()).has(`staff:${LEADER}`)).toBe(true);
-    // Lee isn't staff next year: their sign-ins move onto a member record.
+    const views = await viewDocs(t);
     vi.setSystemTime(NOW + DAY);
-    const result = await t.mutation(internal.staffLeavers.convertOutgoingStaff, {
-      year: 2027,
-      dryRun: false,
-      email: LEADER,
-    });
-    expect(result.people).toBe(1);
-    const lee = (await t.run((ctx) => ctx.db.query("attendanceMembers").collect())).find(
-      (m) => m.name === "Lee Leader"
+    const result = await t.mutation(internal.staffLeavers.staffRollover, { year: 2027, dryRun: false });
+    expect(result).toMatchObject({ left: 1, details: [{ email: LEADER, action: "left" }] });
+    const left = (await t.run((ctx) => ctx.db.query("attendanceAuditLog").collect())).find(
+      (l) => l.action === "member.leftStaff"
     )!;
+    expect(left).toMatchObject({ memberId: ids.lee, subjectEmail: LEADER });
+    const check = await t.query(internal.weeklyInsights.checkChanges, { subgroup: UNSW, now: NOW + DAY });
+    expect(check.memberKeys).toEqual([`member:${ids.lee}`]);
+    expect(check.goneMemberKeys).toEqual([`staff:${LEADER}`]);
     await rebuild(t);
-    const keys = await keysIn();
-    expect(keys.has(`staff:${LEADER}`)).toBe(false);
-    expect(keys.has(`member:${lee._id}`)).toBe(true);
-    // Still a leader in the terms they served (T2 2026, staff year 2026).
+    expect((await viewDocs(t))[`${UNSW}|2026-T2`].computedAt).toBeGreaterThan(views[`${UNSW}|2026-T2`].computedAt);
     const t2 = (await leader.query(api.weeklyInsights.view, { subgroup: UNSW, period: "2026-T2" }))!.blocks as Block[];
-    expect(block(t2, "people").rows.find((r) => r.key === `member:${lee._id}`)).toMatchObject({
+    expect(block(t2, "people").rows.find((r) => r.key === `member:${ids.lee}`)).toMatchObject({
       name: "Lee Leader",
       category: { label: "Leader" },
     });
+  });
+
+  test("a member with an email edited since the last build re-reads that email's weeklies", async () => {
+    const { t, ids } = await setup();
+    await rebuild(t);
+    vi.setSystemTime(NOW + DAY);
+    await t.run((ctx) =>
+      ctx.db.insert("attendanceAuditLog", { actorEmail: ADMIN, entityType: "member", action: "update", summary: "x", memberId: ids.ana })
+    );
+    const check = await t.query(internal.weeklyInsights.checkChanges, { subgroup: UNSW, now: NOW + DAY });
+    expect(check.memberKeys).toEqual([`member:${ids.ana}`, "staff:ana@example.com"]);
+    expect(check.needsBuild).toBe(true);
   });
 });
 
 describe("sign-in tags", () => {
   test("newcomers and visitors from the last build; a shared event only tags newcomers", async () => {
     const { t, leader, ids } = await setup();
-    // Lee also has a member row, so the sign-in screen may look them up by it.
-    const leeMember = await t.run((ctx) =>
-      ctx.db.insert("attendanceMembers", { name: "Lee Leader", metadata: {}, email: LEADER })
-    );
     expect(await leader.query(api.weeklyInsights.signInTags, { eventId: ids.weeklies[0] })).toEqual([]);
     await rebuild(t);
     const saved = (await t.run((ctx) => ctx.db.query("weeklyCategories").collect()))[0];
     expect(saved).toMatchObject({ subgroup: UNSW, termKey: "2026-T2" });
-    expect(saved.people).toContainEqual({ key: `staff:${LEADER}`, category: "leader" });
-    expect(saved.people).toContainEqual({ key: `member:${leeMember}`, category: "leader" });
+    expect(saved.people).toContainEqual({ key: `member:${ids.lee}`, category: "leader" });
+    expect(saved.people.some((p) => p.key.startsWith("staff:"))).toBe(false);
 
     expect(await leader.query(api.weeklyInsights.signInTags, { eventId: ids.weeklies[0] })).toEqual([
       { key: `member:${ids.newbie}`, label: "Newcomer", colour: "#8B5CF6" },
@@ -637,7 +635,8 @@ describe("member page", () => {
     };
     const churchRow = { label: "Church", value: "Grace Church", link: expect.stringMatching(/^\/churches\?church=/) };
     expect(await details(`member:${ids.ana}`)).toContainEqual(churchRow);
-    expect(await details(`staff:${LEADER}`)).toContainEqual(churchRow);
+    expect(await details(`member:${ids.lee}`)).toContainEqual(churchRow);
+    expect(await details(`member:${ids.lee}`)).toContainEqual({ label: "Email", value: LEADER });
     expect(await details(`member:${ids.ben}`)).not.toContainEqual(expect.objectContaining({ label: "Church" }));
   });
 
@@ -661,10 +660,43 @@ describe("member page", () => {
     expect(events.find((e) => e.title === "Social")!.tag).toBeUndefined();
   });
 
+  test("lists each event once and skips deleted ones", async () => {
+    const { t, leader, ids } = await setup();
+    const events = async () => {
+      const page = (await leader.query(api.weeklyInsights.member, { personKey: `member:${ids.ana}`, subgroup: UNSW }))!;
+      return block(page.blocks as Block[], "eventList").rows;
+    };
+    const before = await events();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("attendance", { eventId: ids.social, memberId: ids.ana, signInTime: 1 });
+      const gone = await ctx.db.insert("events", { name: "Gone", dateStart: NOW, dateEnd: NOW, subgroups: [UNSW] });
+      await ctx.db.insert("attendance", { eventId: gone, memberId: ids.ana, signInTime: 1 });
+      await ctx.db.delete(gone);
+    });
+    expect(await events()).toEqual(before);
+  });
+
+  test("a staff year with no campus role falls back to the member's own campus", async () => {
+    const { t, ids } = await setup();
+    await t.run(async (ctx) => {
+      const id = await ctx.db.insert("users", { email: "dir@sow.org.au" });
+      await ctx.db.insert("staffProfiles", {
+        email: "dir@sow.org.au",
+        year: 2026,
+        name: "Dee Director",
+        userId: id,
+        memberId: ids.ana,
+        assignments: [{ role: "Director" }],
+      });
+    });
+    const [ana] = await t.query(internal.weeklyInsights.gatherPeople, { keys: [`member:${ids.ana}`], years: [2026] });
+    expect(ana).toMatchObject({ name: "Dee Director", infoByYear: { "2026": { campus: UNSW, roles: ["Director"] } } });
+  });
+
   test("staff, someone with no weeklies here, and an unknown key", async () => {
     const { t, leader, ids } = await setup();
     await rebuild(t);
-    const staff = (await leader.query(api.weeklyInsights.member, { personKey: `staff:${LEADER}`, subgroup: UNSW }))!;
+    const staff = (await leader.query(api.weeklyInsights.member, { personKey: `member:${ids.lee}`, subgroup: UNSW }))!;
     expect(staff.blocks[0]).toMatchObject({ name: "Lee Leader", lines: ["UNSW", "Student Leader"], category: { label: "Leader" } });
     expect((staff.blocks.at(-1) as { rows: unknown[] }).rows).toHaveLength(11);
     const cy = (await leader.query(api.weeklyInsights.member, { personKey: `member:${ids.cy}`, subgroup: MQ }))!;
@@ -673,6 +705,9 @@ describe("member page", () => {
     const bogus = (await leader.query(api.weeklyInsights.member, { personKey: "member:nope", subgroup: UNSW }))!;
     expect(bogus.title).toBe("Unknown");
     expect(bogus.blocks[0]).toMatchObject({ lines: ["No campus set"] });
+    const legacy = (await leader.query(api.weeklyInsights.member, { personKey: `staff:${LEADER}`, subgroup: UNSW }))!;
+    expect(legacy.title).toBe("Unknown");
+    expect(legacy.blocks.map((b) => b.type)).toEqual(["memberHeader", "eventList"]);
     expect(await t.query(api.weeklyInsights.member, { personKey: `member:${ids.ana}`, subgroup: UNSW })).toBeNull();
   });
 });

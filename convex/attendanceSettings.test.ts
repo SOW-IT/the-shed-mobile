@@ -619,37 +619,28 @@ describe("attendance members", () => {
     expect(page.page.some((r) => r.email === OUTSIDER)).toBe(true);
   });
 
-  test("staffLockedMetadata clears role when profile has no role assignment", async () => {
+  test("staffLockedMetadata clears campus for staff with no campus assignment", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const fields = await leader.query(api.attendanceMetadata.list, { });
-    const roleField = fields.find((f) => f.key === "Role")!;
-
-    const profileId = await t.run(async (ctx) => {
-      return await ctx.db.insert("staffProfiles", {
-        email: OUTSIDER,
-        year: YEAR,
-        name: "No-Role User",
-        assignments: [],
-      });
-    });
+    const campusField = fields.find((f) => f.key === "Campus")!;
+    const usydId = Object.entries(campusField.values ?? {}).find(
+      ([, label]) => label === USYD
+    )![0];
     const shadowId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
-      staffEmail: OUTSIDER,
+      staffEmail: STAFF,
     });
-    const roleOptionId = Object.keys(roleField.values ?? {})[0]!;
-    await leader.mutation(api.attendanceMembers.update, {
-      memberId: shadowId,
-      name: "ignored",
-      metadata: { [roleField._id]: roleOptionId },
-    });
+    await t.run((ctx) =>
+      ctx.db.patch(shadowId, { metadata: { [campusField._id]: usydId } })
+    );
     const page = await leader.query(api.attendanceMembers.list, {
       year: YEAR,
       paginationOpts: { numItems: 100, cursor: null },
     });
-    const row = page.page.find((r) => r.email === OUTSIDER);
-    expect(row?.metadata[roleField._id]).toBeUndefined();
-    await t.run(async (ctx) => { await ctx.db.delete(profileId); });
+    const row = page.page.find((r) => r.email === STAFF);
+    expect(row?.memberId).toBe(shadowId);
+    expect(row?.metadata[campusField._id]).toBeUndefined();
   });
 
   test("list combines staff profiles with attendance-only members", async () => {
@@ -680,17 +671,27 @@ describe("attendance members", () => {
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const fields = await leader.query(api.attendanceMetadata.list, { });
     const yearField = fields.find((f) => f.key === "Year")!;
-    // A legacy row: members created before 1.13.0 could carry a staff email.
-    const memberId = await t.run((ctx) =>
-      ctx.db.insert("attendanceMembers", { name: "Future Leader", email: LEADER })
+    const memberId = await leader.mutation(api.attendanceMembers.create, {
+      name: "Future Leader",
+      email: "future@gmail.com",
+    });
+    await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email: OUTSIDER,
+        year: YEAR,
+        name: "Future Leader",
+        assignments: [{ role: "Student Leader", university: USYD }],
+        memberId,
+      })
     );
 
     const thisYear = await leader.query(api.attendanceMembers.list, {
       year: YEAR,
       paginationOpts: { numItems: 50, cursor: null },
     });
-    const staffRow = thisYear.page.find((r) => r.key === `staff:${LEADER}`);
+    const staffRow = thisYear.page.find((r) => r.key === `staff:${OUTSIDER}`);
     expect(staffRow?.memberId).toBe(memberId);
+    expect(staffRow?.personalEmail).toBe("future@gmail.com");
     expect(thisYear.page.some((r) => r.key === `member:${memberId}`)).toBe(false);
 
     const merged = await leader.query(api.attendanceMembers.get, {
@@ -698,11 +699,12 @@ describe("attendance members", () => {
       staffYear: YEAR,
     });
     expect(merged?.isStaffOverlay).toBe(true);
-    expect(merged?.email).toBe(LEADER);
+    expect(merged?.email).toBe(OUTSIDER);
     await leader.mutation(api.attendanceMembers.update, {
       memberId,
       name: "Edited Name",
-      email: "edited@example.com",
+      email: "ignored@example.com",
+      personalEmail: "edited@example.com",
       metadata: { [yearField._id]: String(YEAR - 2) },
       staffYear: YEAR,
     });
@@ -711,16 +713,20 @@ describe("attendance members", () => {
       staffYear: YEAR,
     });
     if (!updated) throw new Error("Expected merged attendance member");
-    expect(updated?.isStaffOverlay).toBe(true);
-    expect(updated?.email).toBe(LEADER);
+    expect(updated.isStaffOverlay).toBe(true);
+    expect(updated.email).toBe(OUTSIDER);
+    expect(updated.personalEmail).toBe("edited@example.com");
+    expect(updated.name).toBe("Future Leader");
     expect(updated.metadata?.[yearField._id]).toBe(String(YEAR - 2));
 
     const pastYear = await leader.query(api.attendanceMembers.list, {
       year: YEAR - 5,
       paginationOpts: { numItems: 50, cursor: null },
     });
-    expect(pastYear.page.some((r) => r.key === `member:${memberId}`)).toBe(true);
-    expect(pastYear.page.some((r) => r.key === `staff:${LEADER}`)).toBe(false);
+    expect(pastYear.page.find((r) => r.key === `member:${memberId}`)?.email).toBe(
+      "edited@example.com"
+    );
+    expect(pastYear.page.some((r) => r.key === `staff:${OUTSIDER}`)).toBe(false);
   });
 
   test("list shows a member whose email has no profile this year as a plain member", async () => {
@@ -742,57 +748,106 @@ describe("attendance members", () => {
     expect(row?.name).toBe("Ghost");
   });
 
-  test("ensureForStaff reuses an existing member with the staff email instead of duplicating", async () => {
+  test("ensureForStaff reuses the member linked from last year's profile instead of duplicating", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
-    await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
-    // A legacy row: members created before 1.13.0 could carry a staff email.
-    const memberId = await t.run((ctx) =>
-      ctx.db.insert("attendanceMembers", { name: "Staff Person", email: STAFF })
-    );
+    const { memberId, profileId } = await t.run(async (ctx) => {
+      const memberId = await ctx.db.insert("attendanceMembers", { name: "Returning Staff" });
+      await ctx.db.insert("staffProfiles", {
+        email: "returning@sowaustralia.com",
+        year: YEAR - 1,
+        assignments: [{ role: "Staff", department: "Missions" }],
+        memberId,
+      });
+      const profileId = await ctx.db.insert("staffProfiles", {
+        email: "returning@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Staff", department: "Missions" }],
+      });
+      return { memberId, profileId };
+    });
+    const before = await t.run((ctx) => ctx.db.query("attendanceMembers").collect());
     const ensured = await leader.mutation(api.attendanceMembers.ensureForStaff, {
-      staffEmail: STAFF,
+      staffEmail: "returning@sow.org.au",
     });
     expect(ensured).toBe(memberId);
-    const rows = (
-      await t.run(async (ctx) => ctx.db.query("attendanceMembers").collect())
-    ).filter((m) => m.email === STAFF);
-    expect(rows).toHaveLength(1);
+    expect(await t.run((ctx) => ctx.db.query("attendanceMembers").collect())).toHaveLength(
+      before.length
+    );
+    expect((await t.run((ctx) => ctx.db.get(profileId)))?.memberId).toBe(memberId);
   });
 
-  test("ensureForStaff reuses a member stored under a differently-cased/spaced email", async () => {
+  test("ensureForStaff reuses a member linked from a profile with the same import id", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
-    await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
-    // A legacy row: members created before 1.13.0 could carry a staff email.
-    const memberId = await t.run((ctx) =>
-      ctx.db.insert("attendanceMembers", { name: "Cased Staff", email: STAFF })
-    );
-    const ensured = await leader.mutation(api.attendanceMembers.ensureForStaff, {
-      staffEmail: STAFF,
+    const memberId = await t.run(async (ctx) => {
+      const memberId = await ctx.db.insert("attendanceMembers", { name: "Renamed Staff" });
+      await ctx.db.insert("staffProfiles", {
+        email: "maiden.name@sow.org.au",
+        year: YEAR - 1,
+        importId: "import-7",
+        assignments: [{ role: "Staff", department: "Missions" }],
+        memberId,
+      });
+      await ctx.db.insert("staffProfiles", {
+        email: "married.name@sow.org.au",
+        year: YEAR,
+        importId: "import-7",
+        assignments: [{ role: "Staff", department: "Missions" }],
+      });
+      return memberId;
     });
-    expect(ensured).toBe(memberId);
-    const rows = (
-      await t.run(async (ctx) => ctx.db.query("attendanceMembers").collect())
-    ).filter((m) => m.name === "Cased Staff" || m.email === STAFF);
-    expect(rows).toHaveLength(1);
-    expect(rows[0].email).toBe(STAFF);
+    expect(
+      await leader.mutation(api.attendanceMembers.ensureForStaff, {
+        staffEmail: "married.name@sow.org.au",
+      })
+    ).toBe(memberId);
   });
 
-  test("update refuses a staff overlay when no profile exists for the requested year", async () => {
+  test("update of a staffer from a year they weren't staff is a plain member edit", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const memberId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
       staffEmail: LEADER,
     });
+    await leader.mutation(api.attendanceMembers.update, {
+      memberId,
+      name: "New Name",
+      staffYear: YEAR - 5,
+    });
+    expect((await t.run((ctx) => ctx.db.get(memberId)))?.name).toBe("New Name");
+  });
+
+  test("next year's staff still holding their staff email can have it cleared this year", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const NEXT = "next.leader@sow.org.au";
+    const memberId = await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: NEXT,
+        year: YEAR + 1,
+        name: "Next Leader",
+        assignments: [{ role: "Student Leader", university: USYD }],
+      });
+      return await ctx.db.insert("attendanceMembers", { name: "Next Leader", email: NEXT });
+    });
+    const shown = await leader.query(api.attendanceMembers.get, { memberId, staffYear: YEAR });
+    expect(shown?.isStaffOverlay).toBe(false);
     await expect(
       leader.mutation(api.attendanceMembers.update, {
         memberId,
-        name: "New Name",
-        staffYear: YEAR - 5,
+        name: "Next Leader",
+        email: NEXT,
+        staffYear: YEAR,
       })
-    ).rejects.toThrow(/not found/i);
+    ).rejects.toThrow(/staff email/);
+    await leader.mutation(api.attendanceMembers.update, {
+      memberId,
+      name: "Next Leader",
+      staffYear: YEAR,
+    });
+    expect((await t.run((ctx) => ctx.db.get(memberId)))?.email).toBeUndefined();
   });
 
   test("ensureForStaff won't adopt an unlinked member without a staff profile", async () => {

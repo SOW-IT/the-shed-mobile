@@ -14,9 +14,9 @@ crons.cron("purge old receipt files", "0 15 30 9 *", internal.cleanup.purgeOldRe
 // 01:30 Sydney on 1 Oct, after the flip: last year's staff who aren't staff
 // this year go back to being plain members.
 crons.cron(
-  "staff leavers to members",
+  "staff rollover members",
   "30 15 30 9 *",
-  internal.staffLeavers.convertOutgoingStaffOnRollover,
+  internal.staffLeavers.staffRolloverOnOct1,
   {}
 );
 

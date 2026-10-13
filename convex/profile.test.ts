@@ -196,4 +196,24 @@ describe("profile avatars", () => {
     ).toBe(second);
     expect(await t.run((ctx) => ctx.storage.getUrl(first))).toBeNull();
   });
+
+  test("replaces an avatar whose old file is already gone", async () => {
+    const t = await setup();
+    const gone = await t.run(async (ctx) => {
+      const id = await ctx.storage.store(new Blob(["a"], { type: "image/png" }));
+      await ctx.storage.delete(id);
+      return id;
+    });
+    const userId = await t.run((ctx) =>
+      ctx.db.insert("users", { email: "ivy@sow.org.au", name: "Ivy", avatarId: gone })
+    );
+    const me = signedIn(t, userId, "ivy@sow.org.au");
+    const next = await t.run((ctx) =>
+      ctx.storage.store(new Blob(["b"], { type: "image/png" }))
+    );
+    await me.mutation(api.profile.setAvatar, { storageId: next });
+    expect(
+      await t.run((ctx) => ctx.db.get("users", userId).then((u) => u?.avatarId))
+    ).toBe(next);
+  });
 });

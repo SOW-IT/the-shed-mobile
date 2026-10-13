@@ -418,17 +418,26 @@ describe("attendanceMetrics", () => {
     expect(orgSnap!.data.leadersVsOthers).toBeDefined();
   });
 
-  test("resolves a staff sign-in that has no profile for the year", async () => {
-    const { leader } = await setup();
+  test("a member whose only staff profile is outside the window is a Member", async () => {
+    const { t, leader } = await setup();
     const e = await leader.mutation(api.events.create, {
       name: "Guest visit",
       ...window(2),
       subgroups: [USYD],
     });
-    await leader.mutation(api.attendance.signIn, {
-      eventId: e,
-      email: "ghost@sow.org.au",
+    const ghost = await t.run(async (ctx) => {
+      const memberId = await ctx.db.insert("attendanceMembers", { name: "Ghost Member" });
+      await ctx.db.insert("staffProfiles", {
+        email: "ghost@sow.org.au",
+        year: YEAR + 1,
+        name: "Ghost",
+        memberId,
+        assignments: [{ role: "Student Leader", university: USYD }],
+      });
+      await ctx.db.insert("attendance", { eventId: e, email: "legacy@sow.org.au", signInTime: Date.now() });
+      return memberId;
     });
+    await leader.mutation(api.attendance.signIn, { eventId: e, memberId: ghost });
     await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
     });
@@ -438,28 +447,74 @@ describe("attendanceMetrics", () => {
     });
     expect(snap!.data.summary.uniqueAttendees).toBe(1);
     const role = snap!.data.breakdowns.find((b) => b.field === "Role");
-    expect(role?.rows.some((r) => r.label === "Member")).toBe(true);
+    expect(role?.rows.map((r) => r.label)).toEqual(["Member"]);
+  });
+
+  test("resolves people by member: former staff keep each year they served", async () => {
+    const { t } = await setup();
+    const ids = await t.run(async (ctx) => {
+      const campus = await ctx.db.insert("attendanceMetadata", {
+        key: "Campus",
+        type: "select",
+        order: 0,
+        values: { other: "Other" },
+      });
+      const role = await ctx.db.insert("attendanceMetadata", { key: "Role", type: "select", order: 1 });
+      const user = await ctx.db.insert("users", { email: "former@sow.org.au" });
+      const former = await ctx.db.insert("attendanceMembers", { name: "Former Row" });
+      await ctx.db.insert("staffProfiles", {
+        email: "former@sow.org.au",
+        year: YEAR - 1,
+        name: "Fay Former",
+        userId: user,
+        memberId: former,
+        assignments: [{ role: "Student Leader", university: USYD }],
+      });
+      const plain = await ctx.db.insert("attendanceMembers", {
+        name: "Pat Plain",
+        metadata: { [campus]: "other", [role]: "raw-role" },
+      });
+      return { former, plain };
+    });
+    const persons = await t.query(internal.attendanceMetrics.gatherPersons, {
+      keys: [`member:${ids.former}`, `member:${ids.plain}`, "member:nope", "staff:legacy@sow.org.au"],
+      year: YEAR,
+    });
+    expect(persons.map((p) => p.key)).toEqual([`member:${ids.former}`, `member:${ids.plain}`, "member:nope"]);
+    expect(persons[0]).toMatchObject({
+      kind: "member",
+      name: "Fay Former",
+      breakdown: { Role: "Member" },
+      isStudentLeader: false,
+      campuses: [],
+      leaderByYear: { [YEAR - 1]: true, [YEAR]: false },
+    });
+    expect(persons[0].subtitle).toBeUndefined();
+    expect(persons[0].breakdownByYear![String(YEAR - 1)]).toMatchObject({ Role: "Student Leader" });
+    expect(persons[1]).toMatchObject({ kind: "member", name: "Pat Plain", isStudentLeader: false });
+    expect(persons[1].campuses).toBeUndefined();
+    expect(persons[2]).toMatchObject({ kind: "member", name: "Unknown" });
   });
 
   test("treats a staff profile with no assignment this year as a Member", async () => {
     const { t, leader } = await setup();
-    await t.run((ctx) =>
-      ctx.db.insert("staffProfiles", {
+    const former = await t.run(async (ctx) => {
+      const memberId = await ctx.db.insert("attendanceMembers", { name: "Former Staff" });
+      await ctx.db.insert("staffProfiles", {
         email: "former@sow.org.au",
         year: YEAR,
         name: "Former Staff",
+        memberId,
         assignments: [],
-      })
-    );
+      });
+      return memberId;
+    });
     const e = await leader.mutation(api.events.create, {
       name: "Gathering",
       ...window(2),
       subgroups: [USYD],
     });
-    await leader.mutation(api.attendance.signIn, {
-      eventId: e,
-      email: "former@sow.org.au",
-    });
+    await leader.mutation(api.attendance.signIn, { eventId: e, memberId: former });
     await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
     });

@@ -15,6 +15,7 @@ import {
   GENDER_OPTION_IDS,
   optionIdForLabel,
   ROLE_FIELD_KEY,
+  memberOwnMetadata,
   staffLockedMetadata,
   STUDENT_YEAR_FIELD_KEY,
   STUDENT_YEAR_VALUES,
@@ -28,6 +29,7 @@ import {
 } from "../shared/rollcallImport";
 import { Id } from "./_generated/dataModel";
 import { MutationCtx, mutation, query, QueryCtx } from "./_generated/server";
+import { isAssigned, linkOrCreateMember } from "./staffMembers";
 
 type Ctx = QueryCtx | MutationCtx;
 import { findMemberByEmail, getProfile, requireAdmin } from "./model";
@@ -251,7 +253,7 @@ export const importMembers = mutation({
   },
   returns: v.object({ imported: v.number(), staffOverlays: v.number() }),
   handler: async (ctx, { year, fieldMap, members }) => {
-    await requireAdmin(ctx);
+    const { email: actorEmail } = await requireAdmin(ctx);
     const fields = await allMetadataFields(ctx);
     const fieldsByKey = new Map(fields.map((field) => [field.key, field]));
     const fieldsById = new Map(fields.map((field) => [field._id, field]));
@@ -282,15 +284,12 @@ export const importMembers = mutation({
       );
       if (profile) {
         staffOverlays++;
-        const existing = await findMemberByEmail(ctx, profile.email);
-        const patch = {
-          name: profile.name ?? displayName,
-          email: profile.email,
+        const memberId = await linkOrCreateMember(ctx, profile, actorEmail);
+        const existing = await ctx.db.get(memberId);
+        await ctx.db.patch(memberId, {
           sourceImportId: member.sourceImportId,
-          metadata,
-        };
-        if (existing) await ctx.db.patch(existing._id, patch);
-        else await ctx.db.insert("attendanceMembers", patch);
+          metadata: memberOwnMetadata(fields, metadata, existing?.metadata),
+        });
         imported++;
         continue;
       }
@@ -331,7 +330,7 @@ export const importEvents = mutation({
     skipped: v.number(),
   }),
   handler: async (ctx, { tagMap, fieldMapByYear, events }) => {
-    await requireAdmin(ctx);
+    const { email: actorEmail } = await requireAdmin(ctx);
     let importedEvents = 0;
     let importedAttendance = 0;
     let skipped = 0;
@@ -390,27 +389,17 @@ export const importEvents = mutation({
           fieldsByKey,
           fieldsById
         );
-        const metadata = profile
-          ? staffLockedMetadata(fields, profile, baseMetadata)
-          : baseMetadata;
+        const metadata = baseMetadata;
         const signInTime = row.signInTime ?? event.dateStart;
 
         let memberId: Id<"attendanceMembers">;
-        if (profile) {
-          const staffEmail = profile.email.toLowerCase();
-          const overlay = await findMemberByEmail(ctx, staffEmail);
-          const memberPatch = {
-            name: profile.name ?? displayName,
-            email: staffEmail,
+        if (profile && isAssigned(profile)) {
+          memberId = await linkOrCreateMember(ctx, profile, actorEmail);
+          const overlay = await ctx.db.get(memberId);
+          await ctx.db.patch(memberId, {
             sourceImportId: row.source,
-            metadata,
-          };
-          if (overlay) {
-            await ctx.db.patch(overlay._id, memberPatch);
-            memberId = overlay._id;
-          } else {
-            memberId = await ctx.db.insert("attendanceMembers", memberPatch);
-          }
+            metadata: memberOwnMetadata(fields, metadata, overlay?.metadata),
+          });
         } else {
           const existingMember = row.source
             ? await ctx.db

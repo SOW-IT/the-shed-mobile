@@ -80,11 +80,13 @@ export default defineSchema({
     name: v.optional(v.string()),
     userId: v.optional(v.id("users")),
     importId: v.optional(v.string()),
+    memberId: v.optional(v.id("attendanceMembers")),
   })
     .index("by_email_and_year", ["email", "year"])
     .index("by_year", ["year"])
     .index("by_userId", ["userId"])
-    .index("by_importId", ["importId"]),
+    .index("by_importId", ["importId"])
+    .index("by_memberId_and_year", ["memberId", "year"]),
 
   divisions: defineTable({
     year: v.number(),

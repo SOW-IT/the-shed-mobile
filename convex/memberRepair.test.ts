@@ -24,6 +24,17 @@ async function setup() {
       university: "USYD",
     });
   }
+  await t.run(async (ctx) => {
+    for (const profile of await ctx.db.query("staffProfiles").collect()) {
+      await ctx.db.patch(profile._id, { memberId: undefined });
+    }
+    for (const member of await ctx.db.query("attendanceMembers").collect()) {
+      await ctx.db.delete(member._id);
+    }
+    for (const entry of await ctx.db.query("attendanceAuditLog").collect()) {
+      await ctx.db.delete(entry._id);
+    }
+  });
   return t;
 }
 
