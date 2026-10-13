@@ -16,6 +16,12 @@ All notable changes to **The SHED** mobile app. This project follows
   by a staff email finds that person's member record, and reports "member
   missing" if they don't have one.
 
+### Fixed
+- **Leaving staff keeps the name on someone's member record.** The October 1
+  job (and removing someone from this year's staff) no longer replaces it with
+  the name on their staff profile, so a corrected spelling such as
+  "Anna-Leah" stays.
+
 ## [2.6.0] — 2026-10-13
 
 ### Changed

@@ -262,26 +262,26 @@ describe("memberRoleOption", () => {
 });
 
 describe("leaveStaff", () => {
-  test("fills an empty Campus and Role, renames from the profile, and logs it", async () => {
+  test("fills an empty Campus and Role, keeps the member's own name, and logs it", async () => {
     const s = setup();
     const role = await s.roleField({ "1": "Staff", "3": "Member" });
     const campus = await s.campusField();
-    const memberId = await s.member("old name", { other: "kept" });
-    const profileId = await s.profile("lee.aver@sow.org.au", NOW, { name: "lee aver", memberId });
+    const memberId = await s.member("Lee-Ann Aver", { other: "kept" });
+    const profileId = await s.profile("lee.aver@sow.org.au", NOW, { name: "Lee-ann aver", memberId });
 
     const ok = await s.t.run(async (ctx) =>
       leaveStaff(ctx, memberId, (await ctx.db.get(profileId))!, NOW + 1, ACTOR)
     );
     expect(ok).toBe(true);
     const row = await s.getMember(memberId);
-    expect(row?.name).toBe("Lee Aver");
+    expect(row?.name).toBe("Lee-Ann Aver");
     expect(row?.metadata).toEqual({ other: "kept", [campus]: "usyd", [role]: "3" });
     const [log] = await s.logs();
     expect(log).toMatchObject({
       actorEmail: ACTOR,
       entityType: "member",
       action: "member.leftStaff",
-      summary: '"Lee Aver" left staff and is now a member',
+      summary: '"Lee-Ann Aver" left staff and is now a member',
       memberId,
       subjectEmail: "lee.aver@sow.org.au",
       detail: [

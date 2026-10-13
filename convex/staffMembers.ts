@@ -200,8 +200,8 @@ export async function leaveStaff(
     metadata[role.fieldId] = role.optionId;
     filled.push(`Role set to ${MEMBER}`);
   }
-  const name = lastProfile.name ? staffMemberName(lastProfile) : row.name;
-  await ctx.db.patch("attendanceMembers", memberId, { name, metadata });
+  const name = row.name;
+  await ctx.db.patch("attendanceMembers", memberId, { metadata });
   await logAttendanceAction(ctx, {
     actorEmail,
     entityType: "member",
