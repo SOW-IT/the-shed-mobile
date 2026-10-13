@@ -256,7 +256,7 @@ describe("merging a member into staff", () => {
 
     const rows = await s.attendance();
     expect(rows).toHaveLength(2);
-    expect(rows.every((r) => r.memberId === dup && r.email === undefined)).toBe(true);
+    expect(rows.every((r) => r.memberId === dup)).toBe(true);
     const shared = rows.find((r) => r.eventId === both)!;
     expect(shared).toMatchObject({ signInTime: 2_100, notes: "helped set up" });
 

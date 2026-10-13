@@ -81,20 +81,6 @@ export async function getProfile(
     .first();
 }
 
-export async function findMemberByEmail(
-  ctx: Ctx,
-  email: string | undefined
-): Promise<Doc<"attendanceMembers"> | null> {
-  for (const candidate of staffEmailCandidates(email)) {
-    const byEmail = await ctx.db
-      .query("attendanceMembers")
-      .withIndex("by_email", (q) => q.eq("email", candidate))
-      .first();
-    if (byEmail) return byEmail;
-  }
-  return null;
-}
-
 /**
  * Best-known display name for `email` in `year`: the staff profile's name,
  * else the Google directory name, else null. Legacy-domain spellings of the

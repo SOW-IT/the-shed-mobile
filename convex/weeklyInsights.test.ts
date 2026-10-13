@@ -391,10 +391,10 @@ describe("nightly builds only redo what changed", () => {
     for (const key of Object.keys(views)) expect(after[key].computedAt).toBeGreaterThan(views[key].computedAt);
   });
 
-  test("staff are keyed by their member row; a sign-in with only an email is left out", async () => {
+  test("staff are keyed by their member row; a sign-in with no member is left out", async () => {
     const { t, leader, ids } = await setup();
     await t.run((ctx) =>
-      ctx.db.insert("attendance", { eventId: ids.weeklies.at(-1)!, email: "stray@example.com", signInTime: 0 })
+      ctx.db.insert("attendance", { eventId: ids.weeklies.at(-1)!, signInTime: 0 })
     );
     await rebuild(t);
     const now = (await leader.query(api.weeklyInsights.view, { subgroup: UNSW }))!;
