@@ -85,7 +85,6 @@ export default defineSchema({
         }),
       ),
     ),
-    memberId: v.optional(v.id("attendanceMembers")),
     name: v.optional(v.string()),
     userId: v.optional(v.id("users")),
     importId: v.optional(v.string()),
