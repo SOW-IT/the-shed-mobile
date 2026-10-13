@@ -320,9 +320,9 @@ const buildGuideSteps = () => [
   },
   {
     icon: "person-outline" as const,
-    title: "Chaplain approval",
+    title: "Praise Manger approval",
     detail:
-      "A Chaplain reviews your request and decides whether to approve it.",
+      "A Praise Manager reviews your request and decides whether to approve it.",
   },
 ];
 export const MusicGuideSheet = ({

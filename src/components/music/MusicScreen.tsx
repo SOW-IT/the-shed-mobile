@@ -72,11 +72,10 @@ export default function MusicScreen() {
     setNewRequestOpen(true);
   };
 
-  // Staff can make requests
   const showMakeRequest = me?.profile != null;
 
-  // Only Chaplains can review requests
-  const canReview = me?.isChaplain === true;
+  // Only Praise Managers can review requests
+  const canReview = me?.isPraiseManager === true;
 
   // Music navigation tabs
   const tabs: PagerTab[] = [

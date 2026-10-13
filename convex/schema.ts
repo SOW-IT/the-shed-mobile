@@ -159,6 +159,7 @@ export default defineSchema({
   yearSettings: defineTable({
     year: v.number(),
     budgetManagerEmail: v.optional(v.string()),
+    praiseManagerEmails: v.optional(v.array(v.string())),
     directorEmail: v.optional(v.string()),
     directorApprovalThreshold: v.optional(v.number()),
     // Event requests with expenses over this also need the Director (see

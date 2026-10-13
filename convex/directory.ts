@@ -58,6 +58,14 @@ export const me = query({
     const email = caller?.email ?? (await optionalEmail(ctx));
     if (!email) return null;
     const year = caller?.year ?? currentStaffYear();
+    const settings = await ctx.db
+      .query("yearSettings")
+      .withIndex("by_year", (q) => q.eq("year", year))
+      .first();
+
+    const isPraiseManager = (settings?.praiseManagerEmails ?? []).some(
+      (managerEmail) => managerEmail.toLowerCase() === email.toLowerCase(),
+    );
     const user = await ctx.db
       .query("users")
       .withIndex("email", (q) => q.eq("email", email))
@@ -70,7 +78,14 @@ export const me = query({
     const photo = await photoUrl(ctx, user, dirUser);
     const name = user?.name ?? dirUser?.name ?? profile?.name ?? null;
     if (!profile) {
-      return { email, year, name, photo, profile: null };
+      return {
+        email,
+        year,
+        name,
+        photo,
+        profile: null,
+        isPraiseManager: false,
+      };
     }
     const approvers = await getApprovers(
       ctx,
@@ -100,6 +115,7 @@ export const me = query({
       },
       isAdmin: await isAdminProfile(ctx, profile),
       isChaplain: rolesOf(profile).some(isChaplainRole),
+      isPraiseManager,
       isFinance: isMemberOfDepartment(profile, FINANCE),
       isDirector: rolesOf(profile).includes(DIRECTOR),
       isBudgetManager: approvers.budgetManagerEmail === email,
@@ -404,6 +420,7 @@ export const yearStructure = query({
       universities: universities.map((u) => u.name),
       roles: roles.map((r) => r.name),
       budgetManagerEmail: settings?.budgetManagerEmail ?? null,
+      praiseManagerEmails: settings?.praiseManagerEmails ?? [],
       directorApprovalThreshold: settings?.directorApprovalThreshold ?? null,
       eventDirectorApprovalThreshold:
         settings?.eventDirectorApprovalThreshold ?? null,

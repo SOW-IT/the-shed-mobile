@@ -1,26 +1,31 @@
 import { ConvexError, v } from "convex/values";
-import { isChaplainRole } from "../shared/flow";
 import type { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
-import { findMemberByEmail, requireProfile, rolesOf } from "./model";
+import { currentStaffYear, findMemberByEmail, requireProfile } from "./model";
 
-/** Check whether the caller has a Chaplain role. */
-const callerIsChaplain = (profile: Doc<"staffProfiles">) =>
-  rolesOf(profile).some(isChaplainRole);
-
-/** Get Chaplain emails for the current year. */
-async function chaplainEmailsForYear(
+/** Get Praise Manager emails for the active staff year. */
+async function praiseManagerEmailsForYear(
   ctx: any,
   year: number,
 ): Promise<string[]> {
-  const profiles = await ctx.db
-    .query("staffProfiles")
+  const settings = await ctx.db
+    .query("yearSettings")
     .withIndex("by_year", (q: any) => q.eq("year", year))
-    .take(1000);
+    .first();
 
-  return profiles
-    .filter((p: Doc<"staffProfiles">) => rolesOf(p).some(isChaplainRole))
-    .map((p: Doc<"staffProfiles">) => p.email);
+  return settings?.praiseManagerEmails ?? [];
+}
+
+/** Check whether the caller is an assigned Praise Manager. */
+async function callerIsPraiseManager(
+  ctx: any,
+  email: string,
+): Promise<boolean> {
+  const managers = await praiseManagerEmailsForYear(ctx, currentStaffYear());
+
+  return managers.some(
+    (managerEmail) => managerEmail.toLowerCase() === email.toLowerCase(),
+  );
 }
 
 /** Create in-app notifications. */
@@ -150,10 +155,14 @@ export const submit = mutation({
       status: "PENDING",
     });
 
-    const chaplains = await chaplainEmailsForYear(ctx, caller.year);
+    const praiseManagers = await praiseManagerEmailsForYear(
+      ctx,
+      currentStaffYear(),
+    );
+
     await notify(
       ctx,
-      chaplains,
+      praiseManagers,
       "New music request",
       `${caller.email} requested "${title}"`,
       "/music?tab=review",
@@ -192,8 +201,8 @@ export const toReview = query({
   args: {},
   handler: async (ctx) => {
     const caller = await requireProfile(ctx);
-    if (!callerIsChaplain(caller.profile)) {
-      throw new ConvexError("Only Chaplains can review music requests.");
+    if (!(await callerIsPraiseManager(ctx, caller.email))) {
+      throw new ConvexError("Only Praise Managers can review music requests.");
     }
 
     const rows = await ctx.db
@@ -246,8 +255,8 @@ export const approve = mutation({
   args: { requestId: v.id("musicRequests") },
   handler: async (ctx, args) => {
     const caller = await requireProfile(ctx);
-    if (!callerIsChaplain(caller.profile)) {
-      throw new ConvexError("Only Chaplains can approve music requests.");
+    if (!(await callerIsPraiseManager(ctx, caller.email))) {
+      throw new ConvexError("Only Praise Managers can approve music requests.");
     }
 
     const request = await ctx.db.get(args.requestId);
@@ -280,10 +289,9 @@ export const decline = mutation({
   },
   handler: async (ctx, args) => {
     const caller = await requireProfile(ctx);
-    if (!callerIsChaplain(caller.profile)) {
-      throw new ConvexError("Only Chaplains can decline music requests.");
+    if (!(await callerIsPraiseManager(ctx, caller.email))) {
+      throw new ConvexError("Only Praise Managers can decline music requests.");
     }
-
     const request = await ctx.db.get(args.requestId);
     if (!request) throw new ConvexError("Request not found.");
     if (request.status !== "PENDING") {
@@ -328,10 +336,11 @@ export const update = mutation({
       throw new ConvexError("Request not found.");
     }
 
-    const isChaplain = callerIsChaplain(caller.profile);
-    const isOwner = request.requesterEmail === caller.email;
+    const isPraiseManager = await callerIsPraiseManager(ctx, caller.email);
+    const isOwner =
+      request.requesterEmail.toLowerCase() === caller.email.toLowerCase();
 
-    if (!isChaplain && (!isOwner || request.status !== "PENDING")) {
+    if (!isPraiseManager && (!isOwner || request.status !== "PENDING")) {
       throw new ConvexError("You can only edit your own pending requests.");
     }
 
@@ -392,10 +401,11 @@ export const remove = mutation({
       throw new ConvexError("Request not found.");
     }
 
-    const isChaplain = callerIsChaplain(caller.profile);
-    const isOwner = request.requesterEmail === caller.email;
+    const isPraiseManager = await callerIsPraiseManager(ctx, caller.email);
+    const isOwner =
+      request.requesterEmail.toLowerCase() === caller.email.toLowerCase();
 
-    if (!isChaplain && (!isOwner || request.status !== "PENDING")) {
+    if (!isPraiseManager && (!isOwner || request.status !== "PENDING")) {
       throw new ConvexError("You can only delete your own pending requests.");
     }
 

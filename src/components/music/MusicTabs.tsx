@@ -523,7 +523,7 @@ export const ToReviewTab = ({
 }: MusicRowActions = {}) => {
   const t = useAppTheme();
   const { isAuthenticated, isLoading } = useConvexAuth();
-  // Backend query and mutations enforce Chaplain access.
+  // Backend query and mutations enforce Praise Manager access.
   const toReview = useQuery(
     api.musicRequests.toReview,
     !isLoading && isAuthenticated ? {} : "skip",

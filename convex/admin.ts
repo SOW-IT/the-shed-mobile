@@ -15,17 +15,20 @@ import {
   isChaplainRole,
   isMemberOfDepartment,
   isSystemRole,
-  MEMBER,
   requestCompleted,
-  ROLES,
   roleNeedsDepartment,
   roleNeedsUniversity,
+  ROLES,
   rolesNeedUniversity,
-  staffYearStartMs,
   STAFF_ROLE,
   STAFF_SIDE_ROLES,
+  staffYearStartMs,
 } from "../shared/flow";
-import { displayNameFromEmail, normalizeSubgroups, SOW_SUBGROUP } from "../shared/rollcall";
+import {
+  displayNameFromEmail,
+  normalizeSubgroups,
+  SOW_SUBGROUP,
+} from "../shared/rollcall";
 import {
   previousStaffYearByEmailKey,
   previousStaffYearForEmail,
@@ -33,15 +36,21 @@ import {
 } from "../shared/rollcallImport";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, MutationCtx, mutation, query, QueryCtx } from "./_generated/server";
+import {
+  internalMutation,
+  mutation,
+  MutationCtx,
+  query,
+  QueryCtx,
+} from "./_generated/server";
 import {
   currentStaffYear,
   DELEGATION_QUERY_LIMIT,
   findProfileForYear,
-  incomingStaffYear,
   getDepartment,
   getProfile,
   getYearSettings,
+  incomingStaffYear,
   isAdminProfile,
   isOrgEmail,
   nextStaffYear,
@@ -60,7 +69,7 @@ const syncDirectorCacheAfterProfileChange = async (
   year: number,
   email: string,
   nowDirector: boolean,
-  previous: Doc<"staffProfiles"> | null
+  previous: Doc<"staffProfiles"> | null,
 ) => {
   const wasDirector = previous ? rolesOf(previous).includes(DIRECTOR) : false;
   if (nowDirector) {
@@ -73,7 +82,7 @@ const syncDirectorCacheAfterProfileChange = async (
 const assertManagedYear = (year: number) => {
   if (year !== currentStaffYear() && year !== nextStaffYear()) {
     throw new ConvexError(
-      `You can only manage ${currentStaffYear()} and ${nextStaffYear()}.`
+      `You can only manage ${currentStaffYear()} and ${nextStaffYear()}.`,
     );
   }
 };
@@ -82,11 +91,13 @@ const setLeaver = async (
   ctx: MutationCtx,
   year: number,
   email: string,
-  leaving: boolean
+  leaving: boolean,
 ) => {
   const existing = await ctx.db
     .query("leavers")
-    .withIndex("by_year_and_email", (q) => q.eq("year", year).eq("email", email))
+    .withIndex("by_year_and_email", (q) =>
+      q.eq("year", year).eq("email", email),
+    )
     .unique();
   if (leaving && !existing) {
     await ctx.db.insert("leavers", { year, email });
@@ -97,7 +108,7 @@ const setLeaver = async (
 
 const leaverEmailSet = async (
   ctx: QueryCtx,
-  year: number
+  year: number,
 ): Promise<Set<string>> => {
   const rows = await ctx.db
     .query("leavers")
@@ -106,9 +117,17 @@ const leaverEmailSet = async (
   return new Set(rows.map((r) => r.email));
 };
 
-const allowedRolesForYear = async (ctx: MutationCtx, year: number): Promise<Set<string>> => {
-  const rows = await ctx.db.query("roles").withIndex("by_year_and_name", (q) => q.eq("year", year)).take(500);
-  return rows.length > 0 ? new Set(rows.map((r) => r.name)) : new Set<string>(ROLES);
+const allowedRolesForYear = async (
+  ctx: MutationCtx,
+  year: number,
+): Promise<Set<string>> => {
+  const rows = await ctx.db
+    .query("roles")
+    .withIndex("by_year_and_name", (q) => q.eq("year", year))
+    .take(500);
+  return rows.length > 0
+    ? new Set(rows.map((r) => r.name))
+    : new Set<string>(ROLES);
 };
 
 const isHeadRole = (role: string): boolean =>
@@ -117,7 +136,7 @@ const isHeadRole = (role: string): boolean =>
 const patchFromAssignments = async (
   ctx: MutationCtx,
   profile: Doc<"staffProfiles">,
-  assignments: Assignment[]
+  assignments: Assignment[],
 ) => {
   await ctx.db.patch("staffProfiles", profile._id, {
     assignments: dedupeAssignments(assignments),
@@ -129,7 +148,7 @@ const writeStaffProfile = async (
   existing: Doc<"staffProfiles"> | null,
   email: string,
   year: number,
-  assignments: Assignment[]
+  assignments: Assignment[],
 ): Promise<Id<"staffProfiles">> => {
   const identity = await resolveStaffIdentity(ctx, email);
   const fields = {
@@ -150,7 +169,7 @@ const grantHead = async (
   year: number,
   email: string,
   role: typeof HEAD_OF_DEPARTMENT | typeof HEAD_OF_DIVISION,
-  scopeName: string
+  scopeName: string,
 ) => {
   const headAssignment: Assignment =
     role === HEAD_OF_DEPARTMENT
@@ -167,7 +186,11 @@ const grantHead = async (
         role === HEAD_OF_DEPARTMENT ? a.department : a.division;
       return existingScope !== scopeName;
     }
-    if (role === HEAD_OF_DEPARTMENT && !isHeadRole(a.role) && a.department === scopeName) {
+    if (
+      role === HEAD_OF_DEPARTMENT &&
+      !isHeadRole(a.role) &&
+      a.department === scopeName
+    ) {
       return false;
     }
     return true;
@@ -180,13 +203,13 @@ const revokeHead = async (
   year: number,
   email: string,
   role: typeof HEAD_OF_DEPARTMENT | typeof HEAD_OF_DIVISION,
-  scopeName: string
+  scopeName: string,
 ) => {
   const profile = await getProfile(ctx, email, year);
   if (!profile) return;
   const scopeKey = role === HEAD_OF_DEPARTMENT ? "department" : "division";
   const remaining = assignmentsOf(profile).filter(
-    (a) => !(a.role === role && a[scopeKey] === scopeName)
+    (a) => !(a.role === role && a[scopeKey] === scopeName),
   );
   const finalAssignments =
     remaining.length > 0 ? remaining : [{ role: STAFF_ROLE }];
@@ -199,7 +222,7 @@ const remapScope = (
   assignments: Assignment[],
   key: ScopeKey,
   oldName: string,
-  newName: string
+  newName: string,
 ): Assignment[] =>
   assignments.map((a) => (a[key] === oldName ? { ...a, [key]: newName } : a));
 
@@ -213,7 +236,7 @@ const renameScopeInProfiles = async (
   year: number,
   key: ScopeKey,
   oldName: string,
-  newName: string
+  newName: string,
 ) => {
   for await (const profile of ctx.db
     .query("staffProfiles")
@@ -233,7 +256,7 @@ const renameScopeInProfiles = async (
 const stripAssignmentsInProfiles = async (
   ctx: MutationCtx,
   year: number,
-  remove: (assignment: Assignment) => boolean
+  remove: (assignment: Assignment) => boolean,
 ): Promise<number> => {
   let touched = 0;
   for await (const profile of ctx.db
@@ -252,26 +275,24 @@ const stripAssignmentsInProfiles = async (
 const departmentRequestsInYear = (
   ctx: MutationCtx,
   year: number,
-  department: string
+  department: string,
 ) =>
-  ctx.db
-    .query("requests")
-    .withIndex("by_department", (q) =>
-      q
-        .eq("department", department)
-        .gte("_creationTime", staffYearStartMs(year))
-        .lt("_creationTime", staffYearStartMs(year + 1))
-    );
+  ctx.db.query("requests").withIndex("by_department", (q) =>
+    q
+      .eq("department", department)
+      .gte("_creationTime", staffYearStartMs(year))
+      .lt("_creationTime", staffYearStartMs(year + 1)),
+  );
 
 const assertNoOpenRequests = async (
   ctx: MutationCtx,
   year: number,
-  department: string
+  department: string,
 ) => {
   for await (const request of departmentRequestsInYear(ctx, year, department)) {
     if (!requestCompleted(request)) {
       throw new ConvexError(
-        `"${department}" still has open requests in ${year}. Complete or cancel them first.`
+        `"${department}" still has open requests in ${year}. Complete or cancel them first.`,
       );
     }
   }
@@ -281,25 +302,29 @@ const clearBudgetManagerIfNotFinance = async (
   ctx: MutationCtx,
   year: number,
   email: string,
-  assignments: Assignment[]
+  assignments: Assignment[],
 ) => {
   if (assignments.some((a) => a.department === FINANCE)) return;
   const settings = await getYearSettings(ctx, year);
   if (settings?.budgetManagerEmail === email) {
-    await ctx.db.patch("yearSettings", settings._id, { budgetManagerEmail: undefined });
+    await ctx.db.patch("yearSettings", settings._id, {
+      budgetManagerEmail: undefined,
+    });
   }
 };
 
 const clearBudgetManager = async (ctx: MutationCtx, year: number) => {
   const settings = await getYearSettings(ctx, year);
   if (settings?.budgetManagerEmail) {
-    await ctx.db.patch("yearSettings", settings._id, { budgetManagerEmail: undefined });
+    await ctx.db.patch("yearSettings", settings._id, {
+      budgetManagerEmail: undefined,
+    });
   }
 };
 
 /** Google directory display names keyed by email, for filling in unnamed rows. */
 const directoryNamesByEmail = async (
-  ctx: QueryCtx
+  ctx: QueryCtx,
 ): Promise<Map<string, string | null>> => {
   const directoryUsers = await ctx.db.query("directoryUsers").take(4000);
   return new Map(directoryUsers.map((u) => [u.email, u.name ?? null] as const));
@@ -308,12 +333,14 @@ const directoryNamesByEmail = async (
 const assertRolesAllowed = async (
   ctx: MutationCtx,
   year: number,
-  roles: Iterable<string>
+  roles: Iterable<string>,
 ) => {
   const allowed = await allowedRolesForYear(ctx, year);
   for (const role of roles) {
     if (!allowed.has(role)) {
-      throw new ConvexError(`Roles must be among the roles available for ${year}.`);
+      throw new ConvexError(
+        `Roles must be among the roles available for ${year}.`,
+      );
     }
   }
 };
@@ -324,14 +351,14 @@ const HEAD_VIA_STRUCTURE_MESSAGE =
 const assertSingleDirector = async (
   ctx: MutationCtx,
   year: number,
-  email: string
+  email: string,
 ) => {
   for await (const profile of ctx.db
     .query("staffProfiles")
     .withIndex("by_year", (q) => q.eq("year", year))) {
     if (profile.email !== email && rolesOf(profile).includes(DIRECTOR)) {
       throw new ConvexError(
-        `${profile.email} is already the Director for ${year}. There can only be one.`
+        `${profile.email} is already the Director for ${year}. There can only be one.`,
       );
     }
   }
@@ -340,7 +367,7 @@ const assertSingleDirector = async (
 /** Roles may only shrink for people whose headship is managed via Structure. */
 const assertNotPureRoleReduction = (
   existing: Doc<"staffProfiles"> | null,
-  submittedRoles: string[]
+  submittedRoles: string[],
 ) => {
   if (!existing || rolesOf(existing).some(isHeadRole)) return;
   const currentRoles = rolesOf(existing);
@@ -349,7 +376,7 @@ const assertNotPureRoleReduction = (
     currentRoles.some((r) => !submittedRoles.includes(r));
   if (isPureReduction) {
     throw new ConvexError(
-      "Roles can only be removed from users who hold a Head of Department or Head of Division position."
+      "Roles can only be removed from users who hold a Head of Department or Head of Division position.",
     );
   }
 };
@@ -361,7 +388,7 @@ const assertNotPureRoleReduction = (
  */
 const mergeWithPreservedHeads = (
   existing: Doc<"staffProfiles"> | null,
-  submitted: Assignment[]
+  submitted: Assignment[],
 ): Assignment[] => {
   const preservedHead = existing
     ? assignmentsOf(existing).filter((a) => isHeadRole(a.role))
@@ -369,10 +396,10 @@ const mergeWithPreservedHeads = (
   const headedDepts = new Set(
     preservedHead
       .filter((a) => a.role === HEAD_OF_DEPARTMENT && a.department)
-      .map((a) => a.department)
+      .map((a) => a.department),
   );
   const submittedKept = submitted.filter(
-    (a) => !(a.department && headedDepts.has(a.department))
+    (a) => !(a.department && headedDepts.has(a.department)),
   );
   return dedupeAssignments([...submittedKept, ...preservedHead]);
 };
@@ -380,7 +407,7 @@ const mergeWithPreservedHeads = (
 const assertUniversityExists = async (
   ctx: MutationCtx,
   year: number,
-  name: string
+  name: string,
 ) => {
   const exists = await ctx.db
     .query("universities")
@@ -395,7 +422,7 @@ const assertChaplaincyExists = async (ctx: MutationCtx, year: number) => {
   const chaplaincy = await getDepartment(ctx, year, CHAPLAINCY_DEPARTMENT);
   if (!chaplaincy) {
     throw new ConvexError(
-      `The "${CHAPLAINCY_DEPARTMENT}" department doesn't exist in ${year}. Create it first.`
+      `The "${CHAPLAINCY_DEPARTMENT}" department doesn't exist in ${year}. Create it first.`,
     );
   }
 };
@@ -406,17 +433,23 @@ const saveStaffProfile = async (
   existing: Doc<"staffProfiles"> | null,
   email: string,
   year: number,
-  assignments: Assignment[]
+  assignments: Assignment[],
 ): Promise<Id<"staffProfiles">> => {
   await clearBudgetManagerIfNotFinance(ctx, year, email, assignments);
   await setLeaver(ctx, year, email, false);
-  const profileId = await writeStaffProfile(ctx, existing, email, year, assignments);
+  const profileId = await writeStaffProfile(
+    ctx,
+    existing,
+    email,
+    year,
+    assignments,
+  );
   await syncDirectorCacheAfterProfileChange(
     ctx,
     year,
     email,
     assignments.some((a) => a.role === DIRECTOR),
-    existing
+    existing,
   );
   return profileId;
 };
@@ -436,8 +469,8 @@ export const setStaffProfile = mutation({
           department: v.optional(v.string()),
           division: v.optional(v.string()),
           university: v.optional(v.string()),
-        })
-      )
+        }),
+      ),
     ),
   },
   handler: async (ctx, args) => {
@@ -447,13 +480,20 @@ export const setStaffProfile = mutation({
     if (!email.includes("@")) throw new ConvexError("Enter a valid email.");
 
     const existing = await findProfileForYear(ctx, email, args.year);
-    const existingHeadRoles = existing ? rolesOf(existing).filter(isHeadRole) : [];
+    const existingHeadRoles = existing
+      ? rolesOf(existing).filter(isHeadRole)
+      : [];
 
     if (args.assignments !== undefined) {
       const drafts = args.assignments;
-      if (drafts.length === 0) throw new ConvexError("Add at least one assignment.");
+      if (drafts.length === 0)
+        throw new ConvexError("Add at least one assignment.");
 
-      await assertRolesAllowed(ctx, args.year, drafts.map((a) => a.role));
+      await assertRolesAllowed(
+        ctx,
+        args.year,
+        drafts.map((a) => a.role),
+      );
       for (const a of drafts) {
         if (isHeadRole(a.role) && !existingHeadRoles.includes(a.role)) {
           throw new ConvexError(HEAD_VIA_STRUCTURE_MESSAGE);
@@ -476,18 +516,24 @@ export const setStaffProfile = mutation({
           const exists = await getDepartment(ctx, args.year, built.department);
           if (!exists) {
             throw new ConvexError(
-              `Department "${built.department}" doesn't exist in ${args.year}.`
+              `Department "${built.department}" doesn't exist in ${args.year}.`,
             );
           }
         }
-        if (isChaplainRole(draft.role)) await assertChaplaincyExists(ctx, args.year);
-        if (built.university) await assertUniversityExists(ctx, args.year, built.university);
+        if (isChaplainRole(draft.role))
+          await assertChaplaincyExists(ctx, args.year);
+        if (built.university)
+          await assertUniversityExists(ctx, args.year, built.university);
         if (roleNeedsUniversity(draft.role) && !built.university) {
           throw new ConvexError(
-            `Campus roles (Student Leader, President, Vice President, Executive) need a university that exists in ${args.year}.`
+            `Campus roles (Student Leader, President, Vice President, Executive) need a university that exists in ${args.year}.`,
           );
         }
-        if (roleNeedsDepartment(draft.role) && !isChaplainRole(draft.role) && !built.department) {
+        if (
+          roleNeedsDepartment(draft.role) &&
+          !isChaplainRole(draft.role) &&
+          !built.department
+        ) {
           throw new ConvexError(`${draft.role} needs a department.`);
         }
         builtAssignments.push(built);
@@ -495,7 +541,13 @@ export const setStaffProfile = mutation({
 
       assertNotPureRoleReduction(existing, submittedRoles);
       const assignments = mergeWithPreservedHeads(existing, builtAssignments);
-      return await saveStaffProfile(ctx, existing, email, args.year, assignments);
+      return await saveStaffProfile(
+        ctx,
+        existing,
+        email,
+        args.year,
+        assignments,
+      );
     }
 
     const roles = [...new Set(args.roles ?? [])];
@@ -511,7 +563,9 @@ export const setStaffProfile = mutation({
 
     const nonHeadRoles = roles.filter((r) => !isHeadRole(r));
     const needsUniversity = rolesNeedUniversity(nonHeadRoles);
-    const hasBlockingRole = STAFF_SIDE_ROLES.some((r) => nonHeadRoles.includes(r));
+    const hasBlockingRole = STAFF_SIDE_ROLES.some((r) =>
+      nonHeadRoles.includes(r),
+    );
     let university: string | undefined;
     if (!hasBlockingRole) {
       const raw = args.university?.trim();
@@ -520,12 +574,12 @@ export const setStaffProfile = mutation({
         university = raw;
       } else if (needsUniversity) {
         throw new ConvexError(
-          `Campus roles (Student Leader, President, Vice President, Executive) need a university that exists in ${args.year}.`
+          `Campus roles (Student Leader, President, Vice President, Executive) need a university that exists in ${args.year}.`,
         );
       }
     }
     const needsPickedDepartment = nonHeadRoles.some(
-      (r) => roleNeedsDepartment(r) && !isChaplainRole(r)
+      (r) => roleNeedsDepartment(r) && !isChaplainRole(r),
     );
     let department: string | undefined;
     if (needsPickedDepartment) {
@@ -534,15 +588,16 @@ export const setStaffProfile = mutation({
         department && (await getDepartment(ctx, args.year, department));
       if (!exists) {
         throw new ConvexError(
-          `Department "${args.department ?? ""}" doesn't exist in ${args.year}.`
+          `Department "${args.department ?? ""}" doesn't exist in ${args.year}.`,
         );
       }
     }
-    if (nonHeadRoles.some(isChaplainRole)) await assertChaplaincyExists(ctx, args.year);
+    if (nonHeadRoles.some(isChaplainRole))
+      await assertChaplaincyExists(ctx, args.year);
 
     assertNotPureRoleReduction(existing, roles);
     const submitted = nonHeadRoles.map((role) =>
-      assignmentFor(role, { department, university })
+      assignmentFor(role, { department, university }),
     );
     const assignments = mergeWithPreservedHeads(existing, submitted);
     return await saveStaffProfile(ctx, existing, email, args.year, assignments);
@@ -562,6 +617,13 @@ export const removeStaffProfile = mutation({
     if (settings?.budgetManagerEmail === email) {
       await ctx.db.patch("yearSettings", settings._id, {
         budgetManagerEmail: undefined,
+      });
+    }
+    if (settings?.praiseManagerEmails?.includes(email)) {
+      await ctx.db.patch("yearSettings", settings._id, {
+        praiseManagerEmails: settings.praiseManagerEmails.filter(
+          (e) => e !== email,
+        ),
       });
     }
     if (wasDirector) {
@@ -628,7 +690,8 @@ export const listUnassignedUsers = query({
     const currentKeys = new Set<string>();
     for (const profile of allProfiles) {
       if (profile.year !== args.year) continue;
-      for (const key of staffEmailCandidates(profile.email)) currentKeys.add(key);
+      for (const key of staffEmailCandidates(profile.email))
+        currentKeys.add(key);
     }
     const previousByEmail = previousStaffYearByEmailKey(allProfiles, args.year);
     const unassigned: {
@@ -644,7 +707,8 @@ export const listUnassignedUsers = query({
       unassigned.push({
         email: user.email,
         name: user.name ?? directoryNameByEmail.get(user.email) ?? null,
-        previousYear: previousStaffYearForEmail(previousByEmail, user.email) ?? null,
+        previousYear:
+          previousStaffYearForEmail(previousByEmail, user.email) ?? null,
       });
     }
     return unassigned;
@@ -711,7 +775,9 @@ export const upsertDivision = mutation({
     const headEmail = args.headEmail?.trim().toLowerCase() || undefined;
     const existing = await ctx.db
       .query("divisions")
-      .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", name))
+      .withIndex("by_year_and_name", (q) =>
+        q.eq("year", args.year).eq("name", name),
+      )
       .unique();
     const oldHeadEmail = existing?.headEmail;
     let divisionId;
@@ -755,7 +821,9 @@ export const updateDivision = mutation({
 
     const existing = await ctx.db
       .query("divisions")
-      .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", oldName))
+      .withIndex("by_year_and_name", (q) =>
+        q.eq("year", args.year).eq("name", oldName),
+      )
       .unique();
     if (!existing) throw new ConvexError(`Division "${oldName}" not found.`);
 
@@ -764,11 +832,17 @@ export const updateDivision = mutation({
     if (newName !== oldName) {
       const conflict = await ctx.db
         .query("divisions")
-        .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", newName))
+        .withIndex("by_year_and_name", (q) =>
+          q.eq("year", args.year).eq("name", newName),
+        )
         .unique();
-      if (conflict) throw new ConvexError(`A division named "${newName}" already exists.`);
+      if (conflict)
+        throw new ConvexError(`A division named "${newName}" already exists.`);
 
-      await ctx.db.patch("divisions", existing._id, { name: newName, headEmail });
+      await ctx.db.patch("divisions", existing._id, {
+        name: newName,
+        headEmail,
+      });
 
       const departments = await ctx.db
         .query("departments")
@@ -803,7 +877,7 @@ export const removeDivision = mutation({
     const division = await ctx.db
       .query("divisions")
       .withIndex("by_year_and_name", (q) =>
-        q.eq("year", args.year).eq("name", args.name)
+        q.eq("year", args.year).eq("name", args.name),
       )
       .unique();
     if (!division) return null;
@@ -822,7 +896,7 @@ export const removeDivision = mutation({
     await stripAssignmentsInProfiles(
       ctx,
       args.year,
-      (a) => a.division === args.name || deptNames.has(a.department ?? "")
+      (a) => a.division === args.name || deptNames.has(a.department ?? ""),
     );
 
     if (deptNames.has(FINANCE)) await clearBudgetManager(ctx, args.year);
@@ -843,7 +917,9 @@ export const upsertUniversity = mutation({
     if (!name) throw new ConvexError("University name is required.");
     const existing = await ctx.db
       .query("universities")
-      .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", name))
+      .withIndex("by_year_and_name", (q) =>
+        q.eq("year", args.year).eq("name", name),
+      )
       .unique();
     if (existing) return existing._id;
     const id = await ctx.db.insert("universities", { year: args.year, name });
@@ -858,10 +934,17 @@ export const ensureUniversity = internalMutation({
     if (!name) throw new ConvexError("University name is required.");
     const existing = await ctx.db
       .query("universities")
-      .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", name))
+      .withIndex("by_year_and_name", (q) =>
+        q.eq("year", args.year).eq("name", name),
+      )
       .first();
     if (existing) {
-      return { id: existing._id, created: false as const, year: args.year, name };
+      return {
+        id: existing._id,
+        created: false as const,
+        year: args.year,
+        name,
+      };
     }
     const id = await ctx.db.insert("universities", { year: args.year, name });
     return { id, created: true as const, year: args.year, name };
@@ -875,15 +958,22 @@ export const removeUniversityRow = internalMutation({
     if (!name) throw new ConvexError("University name is required.");
     const university = await ctx.db
       .query("universities")
-      .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", name))
+      .withIndex("by_year_and_name", (q) =>
+        q.eq("year", args.year).eq("name", name),
+      )
       .first();
     if (!university) {
-      return { removed: false as const, year: args.year, name, profilesTouched: 0 };
+      return {
+        removed: false as const,
+        year: args.year,
+        name,
+        profilesTouched: 0,
+      };
     }
     const profilesTouched = await stripAssignmentsInProfiles(
       ctx,
       args.year,
-      (a) => a.university === name
+      (a) => a.university === name,
     );
     await ctx.db.delete("universities", university._id);
     return { removed: true as const, year: args.year, name, profilesTouched };
@@ -901,19 +991,32 @@ export const updateUniversity = mutation({
 
     const existing = await ctx.db
       .query("universities")
-      .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", oldName))
+      .withIndex("by_year_and_name", (q) =>
+        q.eq("year", args.year).eq("name", oldName),
+      )
       .unique();
     if (!existing) throw new ConvexError(`University "${oldName}" not found.`);
 
     if (newName !== oldName) {
       const conflict = await ctx.db
         .query("universities")
-        .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", newName))
+        .withIndex("by_year_and_name", (q) =>
+          q.eq("year", args.year).eq("name", newName),
+        )
         .unique();
-      if (conflict) throw new ConvexError(`A university named "${newName}" already exists.`);
+      if (conflict)
+        throw new ConvexError(
+          `A university named "${newName}" already exists.`,
+        );
 
       await ctx.db.patch("universities", existing._id, { name: newName });
-      await renameScopeInProfiles(ctx, args.year, "university", oldName, newName);
+      await renameScopeInProfiles(
+        ctx,
+        args.year,
+        "university",
+        oldName,
+        newName,
+      );
     }
 
     return existing._id;
@@ -928,11 +1031,15 @@ export const removeUniversity = mutation({
     const university = await ctx.db
       .query("universities")
       .withIndex("by_year_and_name", (q) =>
-        q.eq("year", args.year).eq("name", args.name)
+        q.eq("year", args.year).eq("name", args.name),
       )
       .unique();
     if (!university) return null;
-    await stripAssignmentsInProfiles(ctx, args.year, (a) => a.university === args.name);
+    await stripAssignmentsInProfiles(
+      ctx,
+      args.year,
+      (a) => a.university === args.name,
+    );
     await ctx.db.delete("universities", university._id);
     return null;
   },
@@ -947,7 +1054,9 @@ export const upsertRole = mutation({
     if (!name) throw new ConvexError("Role name is required.");
     const existing = await ctx.db
       .query("roles")
-      .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", name))
+      .withIndex("by_year_and_name", (q) =>
+        q.eq("year", args.year).eq("name", name),
+      )
       .unique();
     if (existing) return existing._id;
     return await ctx.db.insert("roles", { year: args.year, name });
@@ -963,21 +1072,28 @@ export const updateRole = mutation({
     const newName = args.newName.trim();
     if (!newName) throw new ConvexError("Role name is required.");
     if (isSystemRole(oldName) || isSystemRole(newName)) {
-      throw new ConvexError("This role is managed by the app and can't be renamed.");
+      throw new ConvexError(
+        "This role is managed by the app and can't be renamed.",
+      );
     }
 
     const existing = await ctx.db
       .query("roles")
-      .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", oldName))
+      .withIndex("by_year_and_name", (q) =>
+        q.eq("year", args.year).eq("name", oldName),
+      )
       .unique();
     if (!existing) throw new ConvexError(`Role "${oldName}" not found.`);
 
     if (newName !== oldName) {
       const conflict = await ctx.db
         .query("roles")
-        .withIndex("by_year_and_name", (q) => q.eq("year", args.year).eq("name", newName))
+        .withIndex("by_year_and_name", (q) =>
+          q.eq("year", args.year).eq("name", newName),
+        )
         .unique();
-      if (conflict) throw new ConvexError(`A role named "${newName}" already exists.`);
+      if (conflict)
+        throw new ConvexError(`A role named "${newName}" already exists.`);
 
       await ctx.db.patch("roles", existing._id, { name: newName });
 
@@ -989,7 +1105,9 @@ export const updateRole = mutation({
         await patchFromAssignments(
           ctx,
           profile,
-          current.map((a) => (a.role === oldName ? { ...a, role: newName } : a))
+          current.map((a) =>
+            a.role === oldName ? { ...a, role: newName } : a,
+          ),
         );
       }
     }
@@ -1005,12 +1123,14 @@ export const removeRole = mutation({
     assertManagedYear(args.year);
     const name = args.name.trim();
     if (isSystemRole(name)) {
-      throw new ConvexError("This role is managed by the app and can't be deleted.");
+      throw new ConvexError(
+        "This role is managed by the app and can't be deleted.",
+      );
     }
     const role = await ctx.db
       .query("roles")
       .withIndex("by_year_and_name", (q) =>
-        q.eq("year", args.year).eq("name", name)
+        q.eq("year", args.year).eq("name", name),
       )
       .unique();
     if (!role) return null;
@@ -1022,7 +1142,7 @@ export const removeRole = mutation({
     }
     if (inUse > 0) {
       throw new ConvexError(
-        `"${name}" is still assigned to ${inUse} ${inUse === 1 ? "person" : "people"} in ${args.year}. Reassign them first.`
+        `"${name}" is still assigned to ${inUse} ${inUse === 1 ? "person" : "people"} in ${args.year}. Reassign them first.`,
       );
     }
     await ctx.db.delete("roles", role._id);
@@ -1046,11 +1166,13 @@ export const upsertDepartment = mutation({
     const division = await ctx.db
       .query("divisions")
       .withIndex("by_year_and_name", (q) =>
-        q.eq("year", args.year).eq("name", args.division)
+        q.eq("year", args.year).eq("name", args.division),
       )
       .unique();
     if (!division) {
-      throw new ConvexError(`Division "${args.division}" doesn't exist in ${args.year}.`);
+      throw new ConvexError(
+        `Division "${args.division}" doesn't exist in ${args.year}.`,
+      );
     }
     const headEmail = args.headEmail?.trim().toLowerCase() || undefined;
     const existing = await getDepartment(ctx, args.year, name);
@@ -1134,7 +1256,7 @@ export const people = query({
       });
     }
     return [...byEmail.values()].sort((a, b) =>
-      (a.name ?? a.email).localeCompare(b.name ?? b.email)
+      (a.name ?? a.email).localeCompare(b.name ?? b.email),
     );
   },
 });
@@ -1157,11 +1279,13 @@ export const updateDepartment = mutation({
     const divisionDoc = await ctx.db
       .query("divisions")
       .withIndex("by_year_and_name", (q) =>
-        q.eq("year", args.year).eq("name", args.division)
+        q.eq("year", args.year).eq("name", args.division),
       )
       .unique();
     if (!divisionDoc) {
-      throw new ConvexError(`Division "${args.division}" doesn't exist in ${args.year}.`);
+      throw new ConvexError(
+        `Division "${args.division}" doesn't exist in ${args.year}.`,
+      );
     }
 
     const headEmail = args.headEmail?.trim().toLowerCase() || undefined;
@@ -1172,7 +1296,10 @@ export const updateDepartment = mutation({
 
     if (newName !== oldName) {
       const conflict = await getDepartment(ctx, args.year, newName);
-      if (conflict) throw new ConvexError(`A department named "${newName}" already exists.`);
+      if (conflict)
+        throw new ConvexError(
+          `A department named "${newName}" already exists.`,
+        );
 
       await ctx.db.patch("departments", existing._id, {
         name: newName,
@@ -1180,8 +1307,18 @@ export const updateDepartment = mutation({
         headEmail,
       });
 
-      await renameScopeInProfiles(ctx, args.year, "department", oldName, newName);
-      for await (const request of departmentRequestsInYear(ctx, args.year, oldName)) {
+      await renameScopeInProfiles(
+        ctx,
+        args.year,
+        "department",
+        oldName,
+        newName,
+      );
+      for await (const request of departmentRequestsInYear(
+        ctx,
+        args.year,
+        oldName,
+      )) {
         await ctx.db.patch("requests", request._id, { department: newName });
       }
     } else {
@@ -1195,7 +1332,13 @@ export const updateDepartment = mutation({
       await grantHead(ctx, args.year, headEmail, HEAD_OF_DEPARTMENT, newName);
     }
     if (oldHeadEmail && oldHeadEmail !== headEmail) {
-      await revokeHead(ctx, args.year, oldHeadEmail, HEAD_OF_DEPARTMENT, newName);
+      await revokeHead(
+        ctx,
+        args.year,
+        oldHeadEmail,
+        HEAD_OF_DEPARTMENT,
+        newName,
+      );
     }
 
     return existing._id;
@@ -1211,7 +1354,11 @@ export const removeDepartment = mutation({
     if (!department) return null;
 
     await assertNoOpenRequests(ctx, args.year, args.name);
-    await stripAssignmentsInProfiles(ctx, args.year, (a) => a.department === args.name);
+    await stripAssignmentsInProfiles(
+      ctx,
+      args.year,
+      (a) => a.department === args.name,
+    );
     if (args.name === FINANCE) await clearBudgetManager(ctx, args.year);
 
     await ctx.db.delete("departments", department._id);
@@ -1226,7 +1373,7 @@ export const removeDepartment = mutation({
  */
 const financeSettingsAccess = async (
   ctx: QueryCtx,
-  year: number
+  year: number,
 ): Promise<string | null> => {
   const callerEmail = await requireEmail(ctx);
   const caller = await optionalProfile(ctx);
@@ -1238,7 +1385,7 @@ const financeSettingsAccess = async (
 const requireFinanceSettingsAccess = async (
   ctx: QueryCtx,
   year: number,
-  action: string
+  action: string,
 ): Promise<string> => {
   const callerEmail = await financeSettingsAccess(ctx, year);
   if (!callerEmail) {
@@ -1250,18 +1397,24 @@ const requireFinanceSettingsAccess = async (
 export const setBudgetManager = mutation({
   args: { year: v.number(), email: v.string() },
   handler: async (ctx, args) => {
-    await requireFinanceSettingsAccess(ctx, args.year, "set the Budget Manager");
+    await requireFinanceSettingsAccess(
+      ctx,
+      args.year,
+      "set the Budget Manager",
+    );
     assertManagedYear(args.year);
     const email = args.email.trim().toLowerCase();
     const profile = await getProfile(ctx, email, args.year);
     if (!profile || !isMemberOfDepartment(profile, FINANCE)) {
       throw new ConvexError(
-        `The Budget Manager must be from the ${FINANCE} department in ${args.year}.`
+        `The Budget Manager must be from the ${FINANCE} department in ${args.year}.`,
       );
     }
     const settings = await getYearSettings(ctx, args.year);
     if (settings) {
-      await ctx.db.patch("yearSettings", settings._id, { budgetManagerEmail: email });
+      await ctx.db.patch("yearSettings", settings._id, {
+        budgetManagerEmail: email,
+      });
       return settings._id;
     }
     return await ctx.db.insert("yearSettings", {
@@ -1271,13 +1424,72 @@ export const setBudgetManager = mutation({
   },
 });
 
+export const addPraiseManager = mutation({
+  args: {
+    year: v.number(),
+    email: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    assertManagedYear(args.year);
+
+    const email = args.email.trim().toLowerCase();
+
+    if (!(await getProfile(ctx, email, args.year))) {
+      throw new ConvexError(`${email} has no staff profile for ${args.year}.`);
+    }
+
+    const settings = await getYearSettings(ctx, args.year);
+
+    const emails = [
+      ...new Set([...(settings?.praiseManagerEmails ?? []), email]),
+    ];
+
+    if (settings) {
+      await ctx.db.patch("yearSettings", settings._id, {
+        praiseManagerEmails: emails,
+      });
+      return settings._id;
+    }
+
+    return await ctx.db.insert("yearSettings", {
+      year: args.year,
+      praiseManagerEmails: emails,
+    });
+  },
+});
+
+export const removePraiseManager = mutation({
+  args: {
+    year: v.number(),
+    email: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    assertManagedYear(args.year);
+
+    const settings = await getYearSettings(ctx, args.year);
+    if (!settings) return null;
+
+    const email = args.email.trim().toLowerCase();
+
+    await ctx.db.patch("yearSettings", settings._id, {
+      praiseManagerEmails: (settings.praiseManagerEmails ?? []).filter(
+        (e) => e !== email,
+      ),
+    });
+
+    return null;
+  },
+});
+
 export const setDirectorThreshold = mutation({
   args: { year: v.number(), amount: v.number() },
   handler: async (ctx, args) => {
     await requireFinanceSettingsAccess(
       ctx,
       args.year,
-      "change the Director approval threshold"
+      "change the Director approval threshold",
     );
     assertManagedYear(args.year);
     if (!(args.amount > 0)) {
@@ -1304,7 +1516,7 @@ export const setEventDirectorThreshold = mutation({
     await requireFinanceSettingsAccess(
       ctx,
       args.year,
-      "change the event Director approval threshold"
+      "change the event Director approval threshold",
     );
     assertManagedYear(args.year);
     if (!(args.amount > 0)) {
@@ -1444,7 +1656,10 @@ export const addDelegation = mutation({
     const existing = await ctx.db
       .query("approverDelegations")
       .withIndex("by_year_and_from_and_to", (q) =>
-        q.eq("year", args.year).eq("fromEmail", fromEmail).eq("toEmail", toEmail)
+        q
+          .eq("year", args.year)
+          .eq("fromEmail", fromEmail)
+          .eq("toEmail", toEmail),
       )
       .unique();
     if (existing) return existing._id;
@@ -1463,7 +1678,7 @@ export const removeDelegation = mutation({
     await requireFinanceSettingsAccess(
       ctx,
       row?.year ?? currentStaffYear(),
-      "remove delegations"
+      "remove delegations",
     );
     if (row) await ctx.db.delete("approverDelegations", args.id);
     return null;
@@ -1487,13 +1702,19 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
     .withIndex("by_year_and_name", (q) => q.eq("year", from))) {
     const existing = await ctx.db
       .query("divisions")
-      .withIndex("by_year_and_name", (q) => q.eq("year", to).eq("name", division.name))
+      .withIndex("by_year_and_name", (q) =>
+        q.eq("year", to).eq("name", division.name),
+      )
       .first();
     const fields = { headEmail: division.headEmail };
     if (existing) {
       await ctx.db.patch("divisions", existing._id, fields);
     } else {
-      await ctx.db.insert("divisions", { year: to, name: division.name, ...fields });
+      await ctx.db.insert("divisions", {
+        year: to,
+        name: division.name,
+        ...fields,
+      });
     }
     counts.divisions++;
   }
@@ -1503,7 +1724,7 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
     const existing = await ctx.db
       .query("departments")
       .withIndex("by_year_and_name", (q) =>
-        q.eq("year", to).eq("name", department.name)
+        q.eq("year", to).eq("name", department.name),
       )
       .first();
     const fields = {
@@ -1514,7 +1735,11 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
     if (existing) {
       await ctx.db.patch("departments", existing._id, fields);
     } else {
-      await ctx.db.insert("departments", { year: to, name: department.name, ...fields });
+      await ctx.db.insert("departments", {
+        year: to,
+        name: department.name,
+        ...fields,
+      });
     }
     counts.departments++;
   }
@@ -1524,7 +1749,7 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
     const existing = await ctx.db
       .query("universities")
       .withIndex("by_year_and_name", (q) =>
-        q.eq("year", to).eq("name", university.name)
+        q.eq("year", to).eq("name", university.name),
       )
       .first();
     if (!existing) {
@@ -1537,7 +1762,9 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
     .withIndex("by_year_and_name", (q) => q.eq("year", from))) {
     const existing = await ctx.db
       .query("roles")
-      .withIndex("by_year_and_name", (q) => q.eq("year", to).eq("name", role.name))
+      .withIndex("by_year_and_name", (q) =>
+        q.eq("year", to).eq("name", role.name),
+      )
       .first();
     if (!existing) {
       await ctx.db.insert("roles", { year: to, name: role.name });
@@ -1564,13 +1791,17 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
       (await ctx.db
         .query("staffProfiles")
         .withIndex("by_email_and_year", (q) =>
-          q.eq("email", profile.email).eq("year", to)
+          q.eq("email", profile.email).eq("year", to),
         )
         .first());
     if (existing) {
       await ctx.db.patch("staffProfiles", existing._id, fields);
     } else {
-      await ctx.db.insert("staffProfiles", { email: profile.email, year: to, ...fields });
+      await ctx.db.insert("staffProfiles", {
+        email: profile.email,
+        year: to,
+        ...fields,
+      });
     }
     counts.profiles++;
   }
@@ -1588,7 +1819,8 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
       eventDirectorApprovalThreshold?: number;
     } = {};
     if (fromSettings.eventDirectorApprovalThreshold !== undefined) {
-      patch.eventDirectorApprovalThreshold = fromSettings.eventDirectorApprovalThreshold;
+      patch.eventDirectorApprovalThreshold =
+        fromSettings.eventDirectorApprovalThreshold;
     }
     if (fromSettings.budgetManagerEmail) {
       patch.budgetManagerEmail = fromSettings.budgetManagerEmail;
@@ -1634,7 +1866,7 @@ type CopyYearCounts = Awaited<ReturnType<typeof copyYearData>>;
 const alreadyCopiedFrom = async (
   ctx: MutationCtx,
   from: number,
-  to: number
+  to: number,
 ): Promise<boolean> => {
   const settings = await getYearSettings(ctx, to);
   return (
@@ -1652,7 +1884,7 @@ export const copyYear = internalMutation({
   handler: async (ctx, args) => {
     if (!args.force && (await alreadyCopiedFrom(ctx, args.from, args.to))) {
       throw new ConvexError(
-        `${args.to} was already copied from ${args.from}. Pass force:true to overwrite.`
+        `${args.to} was already copied from ${args.from}. Pass force:true to overwrite.`,
       );
     }
     return await copyYearData(ctx, args.from, args.to);
@@ -1671,7 +1903,7 @@ const prefillNextStaffYearHandler = async (ctx: MutationCtx) => {
   };
   if (await alreadyCopiedFrom(ctx, from, to)) {
     console.log(
-      `prefillNextStaffYear: skipping — ${to} already copied from ${from}`
+      `prefillNextStaffYear: skipping — ${to} already copied from ${from}`,
     );
     await recomputeInsights();
     return {
@@ -1789,7 +2021,9 @@ export const seed = internalMutation({
     for (const name of UNIVERSITIES) {
       const existing = await ctx.db
         .query("universities")
-        .withIndex("by_year_and_name", (q) => q.eq("year", year).eq("name", name))
+        .withIndex("by_year_and_name", (q) =>
+          q.eq("year", year).eq("name", name),
+        )
         .unique();
       if (!existing) {
         await ctx.db.insert("universities", { year, name });
