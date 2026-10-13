@@ -8,14 +8,13 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [2.6.1] — 2026-10-13
 
-### Removed
-- **The old email-keyed attendance columns are gone.** Every sign-in has
-  pointed at a member since 2.6.0's backfill, so `attendance.email` (with its
-  two indexes) and the members' separate personal email column are dropped,
-  along with the one-off tools that read them (`memberBackfill`,
-  `memberRepair:repairStaffAttendance`, `rollcallImport:mergeLegacyStaffMembers`
-  and `rollcallImport:auditAttendanceMapping`). Restoring deleted attendance by
-  a staff email now finds that person's member record.
+### Changed
+- **Every sign-in is now kept only on the person's member record.** The old
+  copies of staff sign-ins stored by email, and the second "personal email"
+  slot on member records, are gone, along with the one-off tools that tidied
+  them up for 2.6.0. Nothing changes in the app. Restoring a deleted sign-in
+  by a staff email finds that person's member record, and reports "member
+  missing" if they don't have one.
 
 ## [2.6.0] — 2026-10-13
 
