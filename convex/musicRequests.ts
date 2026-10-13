@@ -1,8 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
-import { currentStaffYear, findMemberByEmail, requireProfile } from "./model";
-
+import { currentStaffYear, requireProfile, resolveName } from "./model";
 /** Get Praise Manager emails for the active staff year. */
 async function praiseManagerEmailsForYear(
   ctx: any,
@@ -12,7 +11,6 @@ async function praiseManagerEmailsForYear(
     .query("yearSettings")
     .withIndex("by_year", (q: any) => q.eq("year", year))
     .first();
-
   return settings?.praiseManagerEmails ?? [];
 }
 
@@ -69,7 +67,6 @@ function spotifyTrackId(value: string): string | null {
 }
 
 type MusicRequestRow = Doc<"musicRequests">;
-
 /** Prefer approved, then pending, then declined if multiple rows share a track. */
 async function findDuplicateMusicRequest(
   ctx: any,
@@ -117,16 +114,12 @@ export const submit = mutation({
   },
   handler: async (ctx, args) => {
     const caller = await requireProfile(ctx);
-
     const title = args.title.trim();
     if (!title) throw new ConvexError("Please enter a song title.");
-
     const artist = args.artist.trim();
     if (!artist) throw new ConvexError("Please enter an artist name.");
-
     const link = args.link.trim();
     if (!link) throw new ConvexError("Please enter a song link.");
-
     const duplicate = await findDuplicateMusicRequest(ctx, link);
     if (duplicate?.status === "APPROVED") {
       throw new ConvexError("This song is already in the approved playlist.");
@@ -136,7 +129,11 @@ export const submit = mutation({
         "This song has already been requested and is awaiting review.",
       );
     }
-
+    if (duplicate?.status === "DECLINED") {
+      throw new ConvexError(
+        "This song was previously declined and cannot be submitted again.",
+      );
+    }
     const requestComment = args.requestComment?.trim() || undefined;
     const isSpotifyTrack = spotifyTrackId(link) !== null;
     const artwork = args.albumArtUrl?.trim();
@@ -161,7 +158,6 @@ export const submit = mutation({
           }
         : {}),
     });
-
     if (!isPraiseManager) {
       const praiseManagers = await praiseManagerEmailsForYear(
         ctx,
@@ -193,18 +189,23 @@ export const myRequests = query({
 
     return Promise.all(
       rows.map(async (row) => {
-        const member = await findMemberByEmail(ctx, row.requesterEmail);
-        const reviewer = await findMemberByEmail(ctx, row.reviewedByEmail);
+        const requesterName = await resolveName(
+          ctx,
+          row.requesterEmail,
+          currentStaffYear(),
+        );
+        const reviewerName = row.reviewedByEmail
+          ? await resolveName(ctx, row.reviewedByEmail, currentStaffYear())
+          : null;
         return {
           ...row,
-          requesterName: member?.name ?? null,
-          reviewerName: reviewer?.name ?? null,
+          requesterName,
+          reviewerName,
         };
       }),
     );
   },
 });
-
 /** Get pending music requests. Chaplain-only. */
 export const toReview = query({
   args: {},
@@ -213,21 +214,25 @@ export const toReview = query({
     if (!(await callerIsPraiseManager(ctx, caller.email))) {
       throw new ConvexError("Only Praise Managers can review music requests.");
     }
-
     const rows = await ctx.db
       .query("musicRequests")
       .withIndex("by_status", (q) => q.eq("status", "PENDING"))
       .order("desc")
       .take(200);
-
     return Promise.all(
       rows.map(async (row) => {
-        const member = await findMemberByEmail(ctx, row.requesterEmail);
-        const reviewer = await findMemberByEmail(ctx, row.reviewedByEmail);
+        const requesterName = await resolveName(
+          ctx,
+          row.requesterEmail,
+          currentStaffYear(),
+        );
+        const reviewerName = row.reviewedByEmail
+          ? await resolveName(ctx, row.reviewedByEmail, currentStaffYear())
+          : null;
         return {
           ...row,
-          requesterName: member?.name ?? null,
-          reviewerName: reviewer?.name ?? null,
+          requesterName,
+          reviewerName,
         };
       }),
     );
@@ -239,7 +244,6 @@ export const declined = query({
   args: {},
   handler: async (ctx) => {
     const caller = await requireProfile(ctx);
-
     if (!(await callerIsPraiseManager(ctx, caller.email))) {
       throw new ConvexError(
         "Only Praise Managers can view declined music requests.",
@@ -251,23 +255,25 @@ export const declined = query({
       .withIndex("by_status", (q) => q.eq("status", "DECLINED"))
       .order("desc")
       .take(200);
-
     return Promise.all(
       rows.map(async (row) => {
-        const member = await findMemberByEmail(ctx, row.requesterEmail);
-
-        const reviewer = await findMemberByEmail(ctx, row.reviewedByEmail);
-
+        const requesterName = await resolveName(
+          ctx,
+          row.requesterEmail,
+          currentStaffYear(),
+        );
+        const reviewerName = row.reviewedByEmail
+          ? await resolveName(ctx, row.reviewedByEmail, currentStaffYear())
+          : null;
         return {
           ...row,
-          requesterName: member?.name ?? null,
-          reviewerName: reviewer?.name ?? null,
+          requesterName,
+          reviewerName,
         };
       }),
     );
   },
 });
-
 /** Get approved music requests. */
 export const approved = query({
   args: {},
@@ -278,21 +284,25 @@ export const approved = query({
       .withIndex("by_status", (q) => q.eq("status", "APPROVED"))
       .order("desc")
       .take(200);
-
     return Promise.all(
       rows.map(async (row) => {
-        const member = await findMemberByEmail(ctx, row.requesterEmail);
-        const reviewer = await findMemberByEmail(ctx, row.reviewedByEmail);
+        const requesterName = await resolveName(
+          ctx,
+          row.requesterEmail,
+          currentStaffYear(),
+        );
+        const reviewerName = row.reviewedByEmail
+          ? await resolveName(ctx, row.reviewedByEmail, currentStaffYear())
+          : null;
         return {
           ...row,
-          requesterName: member?.name ?? null,
-          reviewerName: reviewer?.name ?? null,
+          requesterName,
+          reviewerName,
         };
       }),
     );
   },
 });
-
 /** Approve a pending music request. */
 export const approve = mutation({
   args: { requestId: v.id("musicRequests") },
@@ -301,19 +311,16 @@ export const approve = mutation({
     if (!(await callerIsPraiseManager(ctx, caller.email))) {
       throw new ConvexError("Only Praise Managers can approve music requests.");
     }
-
     const request = await ctx.db.get(args.requestId);
     if (!request) throw new ConvexError("Request not found.");
     if (request.status !== "PENDING") {
       throw new ConvexError("This request has already been reviewed.");
     }
-
     await ctx.db.patch(args.requestId, {
       status: "APPROVED",
       reviewedByEmail: caller.email,
       reviewedTime: Date.now(),
     });
-
     await notify(
       ctx,
       [request.requesterEmail],
@@ -323,7 +330,6 @@ export const approve = mutation({
     );
   },
 });
-
 /** Decline a pending music request. */
 export const decline = mutation({
   args: {
@@ -340,7 +346,6 @@ export const decline = mutation({
     if (request.status !== "PENDING") {
       throw new ConvexError("This request has already been reviewed.");
     }
-
     const declineComment = args.reason?.trim() || undefined;
     await ctx.db.patch(args.requestId, {
       status: "DECLINED",
@@ -348,7 +353,6 @@ export const decline = mutation({
       reviewedTime: Date.now(),
       declineComment,
     });
-
     await notify(
       ctx,
       [request.requesterEmail],
@@ -360,7 +364,6 @@ export const decline = mutation({
     );
   },
 });
-
 /** Edit a music request. */
 export const update = mutation({
   args: {
@@ -374,50 +377,42 @@ export const update = mutation({
   handler: async (ctx, args) => {
     const caller = await requireProfile(ctx);
     const request = await ctx.db.get(args.requestId);
-
     if (!request) {
       throw new ConvexError("Request not found.");
     }
-
     const isPraiseManager = await callerIsPraiseManager(ctx, caller.email);
     const isOwner =
       request.requesterEmail.toLowerCase() === caller.email.toLowerCase();
-
     if (!isPraiseManager && (!isOwner || request.status !== "PENDING")) {
       throw new ConvexError("You can only edit your own pending requests.");
     }
-
     if (request.status !== "PENDING" && request.status !== "APPROVED") {
       throw new ConvexError("This request cannot be edited.");
     }
-
     const title = args.title.trim();
     const artist = args.artist.trim();
     const link = args.link.trim();
-
     if (!title || !artist || !link) {
       throw new ConvexError("Title, artist and link are required.");
     }
-
     const trackId = spotifyTrackId(link);
-
     if (trackId) {
       const requests = await ctx.db.query("musicRequests").collect();
-
       const duplicate = requests.find(
         (row) =>
           row._id !== args.requestId &&
-          (row.status === "PENDING" || row.status === "APPROVED") &&
+          (row.status === "PENDING" ||
+            row.status === "APPROVED" ||
+            row.status === "DECLINED") &&
           spotifyTrackId(row.link) === trackId,
       );
-
       if (duplicate) {
-        throw new ConvexError("This song is already pending or approved.");
+        throw new ConvexError(
+          "This song has already been submitted (pending, approved, or declined).",
+        );
       }
     }
-
     const artwork = args.albumArtUrl?.trim();
-
     await ctx.db.patch(args.requestId, {
       title,
       artist,
@@ -430,7 +425,6 @@ export const update = mutation({
     });
   },
 });
-
 /** Delete a music request. */
 export const remove = mutation({
   args: {
@@ -439,23 +433,18 @@ export const remove = mutation({
   handler: async (ctx, args) => {
     const caller = await requireProfile(ctx);
     const request = await ctx.db.get(args.requestId);
-
     if (!request) {
       throw new ConvexError("Request not found.");
     }
-
     const isPraiseManager = await callerIsPraiseManager(ctx, caller.email);
     const isOwner =
       request.requesterEmail.toLowerCase() === caller.email.toLowerCase();
-
     if (!isPraiseManager && (!isOwner || request.status !== "PENDING")) {
       throw new ConvexError("You can only delete your own pending requests.");
     }
-
     if (request.status !== "PENDING" && request.status !== "APPROVED") {
       throw new ConvexError("This request cannot be deleted.");
     }
-
     await ctx.db.delete(args.requestId);
   },
 });

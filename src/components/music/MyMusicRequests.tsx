@@ -6,9 +6,7 @@ import { useEffect, useState } from "react";
 import { Alert, Image, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
-
 export type MusicRequest = Doc<"musicRequests">;
-
 const spotifyTrackUrl = (value: string): string | null => {
   try {
     const url = new URL(value.trim());
@@ -25,7 +23,6 @@ const spotifyTrackUrl = (value: string): string | null => {
     return null;
   }
 };
-
 export const NewMusicRequestSheet = ({
   visible,
   onClose,
@@ -46,7 +43,6 @@ export const NewMusicRequestSheet = ({
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
   const [fetchingSpotify, setFetchingSpotify] = useState(false);
   const [spotifyError, setSpotifyError] = useState<string | null>(null);
-
   // Check either the Spotify autofill field or the final song link.
   const duplicateLink = link.trim()
     ? spotifyTrackUrl(link)
@@ -60,14 +56,11 @@ export const NewMusicRequestSheet = ({
     !!duplicateLink &&
     spotifyTrackUrl(prefill.link) === duplicateLink;
   const duplicateBlocked =
-    !duplicateIsSelf &&
-    (duplicate?.status === "APPROVED" || duplicate?.status === "PENDING");
-
+    !duplicateIsSelf && duplicate !== undefined && duplicate !== null;
   const getSpotifyTrack = useAction(api.spotify.getTrack);
   const submit = useMutation(api.musicRequests.submit);
   const update = useMutation(api.musicRequests.update);
   const [submitting, setSubmitting] = useState(false);
-
   useEffect(() => {
     if (!visible) return;
     setTitle(prefill?.title ?? "");
@@ -78,7 +71,6 @@ export const NewMusicRequestSheet = ({
     setAlbumArtUrl(prefill?.albumArtUrl ?? null);
     setSpotifyError(null);
   }, [visible, prefill?._id]);
-
   const autofillSpotify = async () => {
     const cleanUrl = spotifyTrackUrl(spotifyLink);
     if (!cleanUrl) {
@@ -122,7 +114,7 @@ export const NewMusicRequestSheet = ({
     if (duplicateBlocked) {
       Alert.alert(
         "Song already requested",
-        "This Spotify track is already approved or pending review.",
+        "This Spotify track has already been submitted and cannot be requested again.",
       );
       return;
     }
@@ -152,7 +144,7 @@ export const NewMusicRequestSheet = ({
         prefill ? "Song updated" : "Request sent",
         prefill
           ? "Your changes have been saved."
-          : "A Chaplain will review your song request soon.",
+          : "A Praise Manager will review your song request soon.",
       );
     } catch (error: unknown) {
       Alert.alert(
@@ -179,7 +171,7 @@ export const NewMusicRequestSheet = ({
                   : "Submitting..."
                 : prefill
                   ? "Save Changes"
-                  : "Submit Request"
+                  : "Submit"
             }
             onPress={onSubmit}
             disabled={
@@ -246,13 +238,9 @@ export const NewMusicRequestSheet = ({
             }}
           >
             <Ionicons
-              name={
-                duplicateBlocked
-                  ? "alert-circle-outline"
-                  : "information-circle-outline"
-              }
+              name={"alert-circle-outline"}
               size={20}
-              color={duplicateBlocked ? t.warning : t.muted}
+              color={t.warning}
             />
             <View style={{ flex: 1, gap: 3 }}>
               <Text style={{ color: t.text, fontWeight: "700" }}>
@@ -264,9 +252,7 @@ export const NewMusicRequestSheet = ({
               </Text>
               <Text style={[typography.caption, { color: t.muted }]}>
                 {duplicate.title} by {duplicate.artist}
-                {duplicateBlocked
-                  ? ". You can't submit another request for this track."
-                  : ". You can submit a new request if you'd like it reconsidered."}
+                {". You can't submit another request for this track."}
               </Text>
             </View>
           </View>
