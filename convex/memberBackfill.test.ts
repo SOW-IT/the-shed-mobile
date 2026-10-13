@@ -411,6 +411,9 @@ describe("memberBackfill", () => {
       await profile(ctx, "twice@sow.org.au", YEAR, "Twice", leader(UNSW), { memberId: twice });
       await profile(ctx, "twice2@sow.org.au", YEAR, "Twice", leader(UNSW), { memberId: twice });
       await profile(ctx, "lost@sow.org.au", YEAR - 1, "Lost", leader(UNSW), { memberId: gone });
+      const both = await ctx.db.insert("attendanceMembers", { name: "Both" });
+      await profile(ctx, "both.domains@sow.org.au", YEAR, "Both", leader(UNSW), { memberId: both });
+      await profile(ctx, "both.domains@sowaustralia.com", YEAR, "Both", leader(UNSW), { memberId: both });
     });
     const expected = {
       attendanceWithEmail: 0,

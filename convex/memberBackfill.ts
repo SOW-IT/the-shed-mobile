@@ -7,7 +7,7 @@ import {
 import { staffYearForDate } from "../shared/flow";
 import { mergeNotes } from "../shared/memberMerge";
 import { displayNameFromEmail } from "../shared/rollcall";
-import { staffEmailCandidates } from "../shared/rollcallImport";
+import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import {
@@ -310,11 +310,13 @@ export const reportPeople = internalQuery({
     const profiles = await ctx.db.query("staffProfiles").collect();
     const linkedIds = new Set<string>(profiles.flatMap((p) => (p.memberId ? [p.memberId] : [])));
     const staffEmails = new Set(profiles.flatMap((p) => staffEmailCandidates(p.email)));
-    const staffPerMemberYear = new Map<string, number>();
+    const peoplePerMemberYear = new Map<string, Set<string>>();
     for (const p of profiles) {
       if (!p.memberId || !isAssigned(p)) continue;
       const key = `${p.memberId}|${p.year}`;
-      staffPerMemberYear.set(key, (staffPerMemberYear.get(key) ?? 0) + 1);
+      const people = peoplePerMemberYear.get(key) ?? new Set<string>();
+      people.add(canonicalEmailKey(p.email) ?? p.email);
+      peoplePerMemberYear.set(key, people);
     }
     const unlinked = (year: number) =>
       profiles.filter(
@@ -333,7 +335,7 @@ export const reportPeople = internalQuery({
       profilesLinkedToMissingMember: profiles.filter(
         (p) => p.memberId && !memberIds.has(p.memberId)
       ).length,
-      membersLinkedToTwoStaffInOneYear: [...staffPerMemberYear.values()].filter((n) => n > 1).length,
+      membersLinkedToTwoStaffInOneYear: [...peoplePerMemberYear.values()].filter((p) => p.size > 1).length,
     };
   },
 });
