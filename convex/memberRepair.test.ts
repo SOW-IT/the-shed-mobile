@@ -275,3 +275,134 @@ describe("restoreCampus", () => {
     expect(result.results[0].status).toBe("unknown campus");
   });
 });
+
+describe("linkProfiles", () => {
+  test("links only an unlinked profile, dry run first, with an audit entry", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const edwin = await ctx.db.insert("attendanceMembers", { name: "Edwin Gao" });
+      const other = await ctx.db.insert("attendanceMembers", { name: "Other Person" });
+      const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
+      const assignments = [{ role: "Student Leader", university: "University of Sydney" }];
+      return {
+        edwin,
+        other,
+        gone,
+        unlinked: await ctx.db.insert("staffProfiles", { email: "edwin.gao@sow.org.au", year: 2025, assignments }),
+        linked: await ctx.db.insert("staffProfiles", { email: "o@sow.org.au", year: 2025, assignments, memberId: other }),
+        stale: await ctx.db.insert("staffProfiles", { email: "s@sow.org.au", year: 2025, assignments, memberId: gone }),
+        orphan: await ctx.db.insert("staffProfiles", { email: "x@sow.org.au", year: 2025, assignments }),
+      };
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.delete(ids.gone);
+      await ctx.db.delete(ids.orphan);
+    });
+    const links = [
+      { profileId: ids.unlinked, memberId: ids.edwin, reason: "2025 sign-ins at UNSW" },
+      { profileId: ids.linked, memberId: ids.other, reason: "already" },
+      { profileId: ids.linked, memberId: ids.edwin, reason: "elsewhere" },
+      { profileId: ids.stale, memberId: ids.edwin, reason: "points at a deleted row" },
+      { profileId: ids.orphan, memberId: ids.edwin, reason: "profile gone" },
+      { profileId: ids.unlinked, memberId: ids.gone, reason: "member gone" },
+    ];
+
+    const dry = await t.mutation(internal.memberRepair.linkProfiles, { links });
+    expect(dry).toMatchObject({ dryRun: true, linked: 2 });
+    expect(dry.results.map((r) => r.status)).toEqual([
+      "linked",
+      "already linked",
+      "linked elsewhere",
+      "linked",
+      "profile missing",
+      "member missing",
+    ]);
+    expect((await t.run((ctx) => ctx.db.get(ids.unlinked)))?.memberId).toBeUndefined();
+
+    const real = await t.mutation(internal.memberRepair.linkProfiles, { links, dryRun: false });
+    expect(real.linked).toBe(2);
+    expect((await t.run((ctx) => ctx.db.get(ids.unlinked)))?.memberId).toBe(ids.edwin);
+    expect((await t.run((ctx) => ctx.db.get(ids.stale)))?.memberId).toBe(ids.edwin);
+    const log = await t.run((ctx) => ctx.db.query("attendanceAuditLog").collect());
+    expect(log[0]).toMatchObject({
+      actorEmail: "system:profile-link",
+      action: "member.linkStaff",
+      summary: `Linked edwin.gao@sow.org.au's 2025 staff profile to "Edwin Gao"`,
+      memberId: ids.edwin,
+      subjectEmail: "edwin.gao@sow.org.au",
+      detail: "2025 sign-ins at UNSW",
+    });
+
+    const again = await t.mutation(internal.memberRepair.linkProfiles, { links, dryRun: false });
+    expect(again.linked).toBe(0);
+  });
+});
+
+describe("replaceRole", () => {
+  test("changes a Role only from the expected one, dry run first, and a rerun changes nothing", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const role = await ctx.db.insert("attendanceMetadata", {
+        key: "Role",
+        type: "select",
+        order: 0,
+        values: { "2": "Member", "3": "Student Leader", "7": "Staff" },
+      });
+      return {
+        role,
+        leader: await ctx.db.insert("attendanceMembers", { name: "Lee Leader", metadata: { [role]: "3", other: "x" } }),
+        staff: await ctx.db.insert("attendanceMembers", { name: "Sam Staff", metadata: { [role]: "7" } }),
+        member: await ctx.db.insert("attendanceMembers", { name: "Mo Member", metadata: { [role]: "2" } }),
+        none: await ctx.db.insert("attendanceMembers", { name: "No Role" }),
+        gone: await ctx.db.insert("attendanceMembers", { name: "Gone" }),
+      };
+    });
+    await t.run((ctx) => ctx.db.delete(ids.gone));
+    const reason = "stale leader Role on a current staffer";
+    const changes = [
+      { memberId: ids.leader, from: "Student Leader", to: "Member", reason },
+      { memberId: ids.staff, from: "Student Leader", to: "Member", reason },
+      { memberId: ids.member, from: "Student Leader", to: "Member", reason },
+      { memberId: ids.none, from: "Student Leader", to: "Member", reason },
+      { memberId: ids.gone, from: "Student Leader", to: "Member", reason },
+      { memberId: ids.leader, from: "Student Leader", to: "Nope", reason },
+    ];
+
+    const dry = await t.mutation(internal.memberRepair.replaceRole, { changes });
+    expect(dry).toMatchObject({ dryRun: true, changed: 1 });
+    expect(dry.results.map((r) => r.status)).toEqual([
+      "changed",
+      "role differs",
+      "already set",
+      "role differs",
+      "member missing",
+      "unknown role",
+    ]);
+    expect((await t.run((ctx) => ctx.db.get(ids.leader)))?.metadata?.[ids.role]).toBe("3");
+
+    const real = await t.mutation(internal.memberRepair.replaceRole, { changes, dryRun: false });
+    expect(real.changed).toBe(1);
+    expect((await t.run((ctx) => ctx.db.get(ids.leader)))?.metadata).toEqual({ [ids.role]: "2", other: "x" });
+    const log = await t.run((ctx) => ctx.db.query("attendanceAuditLog").collect());
+    expect(log).toHaveLength(1);
+    expect(log[0]).toMatchObject({
+      actorEmail: "system:role-repair",
+      action: "member.update",
+      summary: `Changed "Lee Leader"'s Role from Student Leader to Member`,
+      memberId: ids.leader,
+      detail: reason,
+    });
+
+    const again = await t.mutation(internal.memberRepair.replaceRole, { changes, dryRun: false });
+    expect(again.changed).toBe(0);
+  });
+
+  test("reports an unknown role when there is no Role field", async () => {
+    const t = convexTest(schema, modules);
+    const id = await t.run((ctx) => ctx.db.insert("attendanceMembers", { name: "No Field" }));
+    const result = await t.mutation(internal.memberRepair.replaceRole, {
+      changes: [{ memberId: id, from: "Student Leader", to: "Member", reason: "x" }],
+    });
+    expect(result.results[0].status).toBe("unknown role");
+  });
+});

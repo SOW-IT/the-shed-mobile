@@ -6,6 +6,15 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.6.3] - 2026-10-14
+
+### Added
+- **Two repair tools for data fixes run from the command line.**
+  `memberRepair:linkProfiles` links a past year's staff profile to the member
+  it belongs to, and `memberRepair:replaceRole` changes a member's Role only
+  when it is still the one expected. Both dry-run first, can be run twice, and
+  write each change to the attendance audit log. Nothing changes in the app.
+
 ## [2.6.2] - 2026-10-14
 
 ### Changed
