@@ -402,11 +402,14 @@ export const replaceRole = internalMutation({
 
 const MERGED_ACTOR = "system:merge-backfill";
 
+const MERGE_SCAN_LIMIT = 5000;
+
 export const flagMergedAway = internalMutation({
-  args: { since: v.number(), dryRun: v.optional(v.boolean()) },
+  args: { since: v.number(), dryRun: v.optional(v.boolean()), limit: v.optional(v.number()) },
   returns: v.object({
     dryRun: v.boolean(),
     flagged: v.number(),
+    next: v.union(v.number(), v.null()),
     results: v.array(
       v.object({
         mergeId: v.id("attendanceAuditLog"),
@@ -420,11 +423,12 @@ export const flagMergedAway = internalMutation({
       })
     ),
   }),
-  handler: async (ctx, { since, dryRun = true }) => {
+  handler: async (ctx, { since, dryRun = true, limit = MERGE_SCAN_LIMIT }) => {
     const merges = await ctx.db
       .query("attendanceAuditLog")
       .withIndex("by_creation_time", (q) => q.gte("_creationTime", since))
-      .take(5000);
+      .take(limit);
+    const next = merges.length === limit ? merges[merges.length - 1]._creationTime : null;
     const results = [];
     let flagged = 0;
     for (const merge of merges) {
@@ -461,6 +465,6 @@ export const flagMergedAway = internalMutation({
         detail: `From merge ${merge._id}`,
       });
     }
-    return { dryRun, flagged, results };
+    return { dryRun, flagged, next, results };
   },
 });

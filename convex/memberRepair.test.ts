@@ -456,5 +456,12 @@ describe("flagMergedAway", () => {
     const again = await t.mutation(internal.memberRepair.flagMergedAway, { since: 0, dryRun: false });
     expect(again.flagged).toBe(0);
     expect(again.results.find((r) => r.mergeId === ids.deleted)?.status).toBe("already flagged");
+    expect(again.next).toBeNull();
+
+    const capped = await t.mutation(internal.memberRepair.flagMergedAway, { since: 0, limit: 2 });
+    expect(capped.results).toHaveLength(2);
+    expect(capped.next).toEqual(expect.any(Number));
+    const rest = await t.mutation(internal.memberRepair.flagMergedAway, { since: capped.next!, limit: 10 });
+    expect(rest.next).toBeNull();
   });
 });
