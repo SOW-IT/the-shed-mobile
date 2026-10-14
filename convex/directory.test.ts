@@ -170,6 +170,23 @@ describe("me", () => {
   });
 });
 
+describe("me without an email", () => {
+  test("an Apple account Apple gave no email still gets its own name, not a missing account", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await t.run(async (ctx) => ctx.db.insert("users", { name: "Apple user" }));
+    const me = await t.withIdentity({ subject: `${userId}|s`, issuer: "test" }).query(api.directory.me, {});
+    expect(me).toEqual({ email: "", year: YEAR, name: "Apple user", photo: null, profile: null });
+
+    const nameless = await t.run(async (ctx) => ctx.db.insert("users", {}));
+    const blank = await t.withIdentity({ subject: `${nameless}|s`, issuer: "test" }).query(api.directory.me, {});
+    expect(blank?.name).toBeNull();
+
+    await t.run(async (ctx) => ctx.db.delete("users", userId));
+    expect(await t.withIdentity({ subject: `${userId}|s`, issuer: "test" }).query(api.directory.me, {})).toBeNull();
+    expect(await t.withIdentity({ subject: "not-an-id|s", issuer: "test" }).query(api.directory.me, {})).toBeNull();
+  });
+});
+
 describe("nameForEmail", () => {
   test("prefers a profile name, falls back to the directory, else null", async () => {
     const t = await setup();

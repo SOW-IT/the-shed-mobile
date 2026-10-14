@@ -17,7 +17,12 @@ const appleProof = async (): Promise<AppleProof | "cancelled" | null> => {
     return null;
   }
   try {
-    const credential = await AppleAuthentication.signInAsync({ requestedScopes: [] });
+    const credential = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+    });
     return credential.authorizationCode
       ? { authorizationCode: credential.authorizationCode, clientId }
       : null;

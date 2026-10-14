@@ -334,6 +334,36 @@ describe("account.deleteMine", () => {
   });
 });
 
+describe("account.fillFromApple", () => {
+  test("fills a missing email and the fallback name, never overwrites, skips an email someone else has", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => ({
+      bare: await ctx.db.insert("users", { name: "Apple user" }),
+      named: await ctx.db.insert("users", { name: "Gina Guest", email: "gina@icloud.com" }),
+      unnamed: await ctx.db.insert("users", {}),
+      taken: await ctx.db.insert("users", { email: "taken@gmail.com" }),
+      gone: await ctx.db.insert("users", {}),
+    }));
+    await t.run(async (ctx) => ctx.db.delete("users", ids.gone));
+    const fill = (userId: Id<"users">, email: string | null, name: string | null) =>
+      t.mutation(internal.account.fillFromApple, { userId, email, name });
+
+    await fill(ids.bare, "abc@privaterelay.appleid.com", "Chan Kim");
+    await fill(ids.named, "other@icloud.com", "Someone Else");
+    await fill(ids.unnamed, "taken@gmail.com", "New Name");
+    await fill(ids.unnamed, null, null);
+    expect(await fill(ids.gone, "x@icloud.com", "X")).toBeNull();
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get("users", ids.bare)).toMatchObject({ email: "abc@privaterelay.appleid.com", name: "Chan Kim" });
+      expect(await ctx.db.get("users", ids.named)).toMatchObject({ email: "gina@icloud.com", name: "Gina Guest" });
+      const unnamed = await ctx.db.get("users", ids.unnamed);
+      expect(unnamed?.email).toBeUndefined();
+      expect(unnamed?.name).toBe("New Name");
+    });
+  });
+});
+
 describe("account.wipe", () => {
   test("a user already gone, no email, or an avatar file already deleted", async () => {
     const t = convexTest(schema, modules);

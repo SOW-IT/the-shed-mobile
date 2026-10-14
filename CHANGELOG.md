@@ -21,6 +21,9 @@ All notable changes to **The SHED** mobile app. This project follows
   5.1.1(v)).
 
 ### Fixed
+- **An Apple account that Apple gave no email can open its Profile** instead
+  of waiting forever, and the menu shows its name instead of "?". If Apple
+  sends the email or name at a later sign-in, the account picks them up.
 - **Apple accounts' Profile no longer says "Synced from Google".**
 - **The type-to-confirm box doesn't autocorrect what you type**, which could
   stop a name from matching (Admin's delete confirmations use it too).

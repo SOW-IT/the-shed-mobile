@@ -133,7 +133,9 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
           <Text style={[typography.title, { color: t.text, textAlign: "center" }]}>
             {profile.name ?? profile.email}
           </Text>
-          <Text style={[typography.caption, { color: t.muted }]}>{profile.email}</Text>
+          {profile.email ? (
+            <Text style={[typography.caption, { color: t.muted }]}>{profile.email}</Text>
+          ) : null}
           {profile.isMe ? (
             profile.googleSyncedAt ? (
               <View style={[styles.syncChip, { backgroundColor: t.inputBackground }]}>

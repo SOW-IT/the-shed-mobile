@@ -10,6 +10,7 @@ import {
   query,
   QueryCtx,
 } from "./_generated/server";
+import { APPLE_FALLBACK_NAME } from "./appleIdentity";
 import { revokeAppleTokens } from "./appleRevoke";
 import { isOrgEmail } from "./model";
 
@@ -126,6 +127,28 @@ export const wipe = internalMutation({
       await ctx.storage.delete(user.avatarId);
     }
     await ctx.db.delete("users", userId);
+    return null;
+  },
+});
+
+export const fillFromApple = internalMutation({
+  args: { userId: v.id("users"), email: v.union(v.string(), v.null()), name: v.union(v.string(), v.null()) },
+  returns: v.null(),
+  handler: async (ctx, { userId, email, name }) => {
+    const user = await ctx.db.get("users", userId);
+    if (!user) return null;
+    const patch: { email?: string; name?: string } = {};
+    if (email && !user.email) {
+      const taken = await ctx.db
+        .query("users")
+        .withIndex("email", (q) => q.eq("email", email))
+        .first();
+      if (!taken) patch.email = email;
+    }
+    if (name && (!user.name || user.name === APPLE_FALLBACK_NAME)) patch.name = name;
+    if (patch.email !== undefined || patch.name !== undefined) {
+      await ctx.db.patch("users", userId, patch);
+    }
     return null;
   },
 });

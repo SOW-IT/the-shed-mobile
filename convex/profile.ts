@@ -1,9 +1,16 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
-import { mutation, MutationCtx, query } from "./_generated/server";
+import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
 import { assignmentsOf, departmentsOf, divisionsOf } from "../shared/flow";
-import { currentStaffYear, isOrgEmail, optionalEmail, optionalProfile, rolesOf } from "./model";
+import {
+  currentStaffYear,
+  isOrgEmail,
+  optionalEmail,
+  optionalProfile,
+  optionalUser,
+  rolesOf,
+} from "./model";
 import { hasSignedIn, lastOnlineAt } from "./presence";
 import { canonicalEmailKey } from "../shared/rollcallImport";
 import { churchByName, viewOf } from "./churches";
@@ -13,7 +20,10 @@ export const get = query({
   args: { email: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const callerEmail = await optionalEmail(ctx);
-    if (!callerEmail && !args.email) return null;
+    if (!callerEmail && !args.email) {
+      const user = await optionalUser(ctx);
+      return user ? await ownProfileWithoutEmail(ctx, user) : null;
+    }
     const email = (args.email ?? callerEmail ?? "").trim().toLowerCase();
 
     const user = await ctx.db
@@ -97,6 +107,23 @@ export const get = query({
     };
   },
 });
+
+async function ownProfileWithoutEmail(ctx: QueryCtx, user: Doc<"users">) {
+  const church = user.churchId ? await ctx.db.get("churches", user.churchId) : null;
+  return {
+    email: "",
+    isMe: true,
+    googleSyncedAt: null,
+    name: user.name ?? null,
+    photo: await photoUrl(ctx, user, null),
+    localChurch: church?.name ?? user.localChurch ?? null,
+    church: church ? viewOf(church) : null,
+    typedChurch: church ? null : (user.localChurch ?? null),
+    lastOnlineAt: null,
+    hasSignedIn: true,
+    serviceHistory: [],
+  };
+}
 
 async function requireOwnUser(ctx: MutationCtx): Promise<Doc<"users">> {
   const userId = await getAuthUserId(ctx);

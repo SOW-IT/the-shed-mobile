@@ -142,6 +142,36 @@ describe("profile.get", () => {
   });
 });
 
+describe("profile.get without an email", () => {
+  test("your own Profile loads for an Apple account Apple gave no email", async () => {
+    const t = await setup();
+    const { userId, churchId } = await t.run(async (ctx) => {
+      const churchId = await ctx.db.insert("churches", { name: "Grace Church", nameKey: "grace church", addedBy: ADMIN });
+      return { userId: await ctx.db.insert("users", { name: "Apple user", localChurch: "Hillside" }), churchId };
+    });
+    const me = t.withIdentity({ subject: `${userId}|s`, issuer: "test" });
+    expect(await me.query(api.profile.get, {})).toMatchObject({
+      email: "",
+      isMe: true,
+      name: "Apple user",
+      localChurch: "Hillside",
+      typedChurch: "Hillside",
+      church: null,
+      serviceHistory: [],
+    });
+
+    await t.run(async (ctx) => ctx.db.patch("users", userId, { churchId, localChurch: undefined, name: undefined }));
+    const picked = (await me.query(api.profile.get, {}))!;
+    expect(picked.church?._id).toBe(churchId);
+    expect(picked.localChurch).toBe("Grace Church");
+    expect(picked.typedChurch).toBeNull();
+    expect(picked.name).toBeNull();
+
+    await t.run(async (ctx) => ctx.db.delete("users", userId));
+    expect(await me.query(api.profile.get, {})).toBeNull();
+  });
+});
+
 describe("profile.updateChurch", () => {
   test("sets and clears the church; requires a signed-in user", async () => {
     const t = await setup();
