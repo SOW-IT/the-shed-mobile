@@ -32,7 +32,7 @@ import {
   type MergeSide,
 } from "../shared/memberMerge";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
-import { getProfile, optionalProfile, requireAdmin, requireProfile } from "./model";
+import { currentStaffYear, getProfile, optionalProfile, requireAdmin, requireProfile } from "./model";
 import {
   auditStamp,
   logAttendanceAction,
@@ -47,9 +47,12 @@ import {
   linkOrCreateMember,
   linkPerson,
   moveAttendance,
+  personName,
+  profileOwnName,
   profilesOfMember,
   staffMemberName,
   staffProfileOfMember,
+  staffRowName,
 } from "./staffMembers";
 
 export type MemberRow = {
@@ -284,8 +287,18 @@ export const get = query({
     if (!row) return null;
     const profileYear = staffYear ?? staffYearForDate(new Date());
     const profile = await staffProfileOfMember(ctx, row._id, profileYear);
+    const isStaffNow =
+      (profile !== null && profileYear === currentStaffYear()) ||
+      (await staffProfileOfMember(ctx, row._id, currentStaffYear())) !== null;
     if (!profile) {
-      return { ...row, isStaffOverlay: false, personalEmail: undefined as string | undefined, profileChurch: null };
+      return {
+        ...row,
+        isStaffOverlay: false,
+        isStaffNow,
+        nameLocked: false,
+        personalEmail: undefined as string | undefined,
+        profileChurch: null,
+      };
     }
     const fields = await allMetadataFields(ctx);
     // Staff pick their church in their own Profile; the sheet just shows it.
@@ -297,7 +310,9 @@ export const get = query({
     return {
       ...row,
       isStaffOverlay: true,
-      name: profile.name ?? row.name,
+      isStaffNow,
+      nameLocked: profileOwnName(profile) !== null,
+      name: staffRowName(profile, row.name) ?? "",
       email: profile.email,
       personalEmail: row.email,
       metadata: staffLockedMetadata(fields, profile, row.metadata),
@@ -451,9 +466,11 @@ export const update = mutation({
       if (personal && (await isStaffAddress(ctx, personal))) {
         throw new ConvexError(NOT_PERSONAL(personal));
       }
+      const staffName = profileOwnName(profile) ?? personName(name);
+      if (!staffName) throw new ConvexError("Name is required.");
       const fields = await allMetadataFields(ctx);
       await ctx.db.patch(memberId, {
-        name: staffMemberName(profile),
+        name: staffName,
         email: personal,
         metadata: memberOwnMetadata(fields, metadata, row.metadata),
       });
@@ -461,12 +478,13 @@ export const update = mutation({
         actorEmail,
         entityType: "member",
         action: "member.update",
-        summary: `Updated member "${profile.name ?? row.name}"`,
+        summary: `Updated member "${staffName}"`,
         memberId,
         subjectEmail: profile.email,
       });
       return;
     }
+    const staffNow = await staffProfileOfMember(ctx, memberId, currentStaffYear());
     const newKey = canonicalEmailKey(email);
     if (newKey && newKey !== canonicalEmailKey(row.email)) {
       const staff = await staffProfileForEmail(ctx, email!, profileYear);
@@ -484,7 +502,7 @@ export const update = mutation({
     await ctx.db.patch(memberId, {
       name: trimmed,
       email: ownEmail,
-      metadata,
+      metadata: staffNow ? memberOwnMetadata(await allMetadataFields(ctx), metadata, row.metadata) : metadata,
       ...(churchId === undefined ? {} : { churchId: (await checkedChurch(ctx, churchId)) ?? undefined }),
     });
     await logAttendanceAction(ctx, {
@@ -510,6 +528,11 @@ export const remove = mutation({
     // Someone else may have deleted or merged them first; say so rather than
     // letting the caller report a deletion that didn't happen here.
     if (!row) return false;
+    if (await staffProfileOfMember(ctx, memberId, currentStaffYear())) {
+      throw new ConvexError(
+        `${row.name} is on staff this year. Remove their staff role in Admin before deleting them.`
+      );
+    }
     const signed = await ctx.db
       .query("attendance")
       .withIndex("by_member", (q) => q.eq("memberId", memberId))
@@ -883,7 +906,8 @@ export const merge = mutation({
       keep.kind === "member"
         ? { name: merged.name, email: merged.email, metadata: merged.metadata }
         : {
-            name: staffMemberName(keep.profile),
+            name:
+              staffRowName(keep.profile, keep.row?.name, remove.name) ?? staffMemberName(keep.profile),
             email: await keptPersonalEmail(ctx, keep, remove),
             metadata: memberOwnMetadata(fields, merged.metadata, {
               ...(remove.metadata ?? {}),
@@ -915,7 +939,11 @@ export const merge = mutation({
       { row: remove, records: await recordsOf(ctx, remove._id) }
     );
     const { moved, combined } = await moveAttendance(ctx, victim.row._id, survivor.row._id);
-    await ctx.db.patch(survivor.row._id, await fieldsFor());
+    await ctx.db.patch(survivor.row._id, {
+      ...(await fieldsFor()),
+      churchId: keep.row.churchId ?? remove.churchId,
+      sourceImportId: keep.row.sourceImportId ?? remove.sourceImportId,
+    });
     await ctx.db.delete(victim.row._id);
 
     await logAttendanceAction(ctx, {

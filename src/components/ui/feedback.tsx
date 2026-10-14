@@ -138,9 +138,10 @@ export const Avatar = ({
   size?: number;
 }) => {
   const t = useAppTheme();
+  const [brokenPhoto, setBrokenPhoto] = useState<string | null>(null);
   const round = { width: size, height: size, borderRadius: size / 2 };
-  if (photo) {
-    return <Image source={{ uri: photo }} style={round} />;
+  if (photo && photo !== brokenPhoto) {
+    return <Image source={{ uri: photo }} style={round} onError={() => setBrokenPhoto(photo)} />;
   }
   const initials = (name ?? "?")
     .split(" ")

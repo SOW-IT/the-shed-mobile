@@ -83,6 +83,8 @@ export function EditMemberSheet({
   const updateAttendance = useMutation(api.attendance.updateRecord);
 
   const isStaffOverlay = Boolean(row?.isStaffOverlay);
+  const isStaffNow = Boolean(row?.isStaffNow);
+  const nameLocked = isStaffOverlay && Boolean(row?.nameLocked);
   // Deleting throws attendance away, so only admins (Data and IT, HR, the
   // Governance head, the Director) get the button; everyone else merges
   // duplicates instead.
@@ -257,7 +259,7 @@ export function EditMemberSheet({
             >
               <Ionicons name="git-merge-outline" size={18} color={t.ghostText} />
             </Pressable>
-            {!isStaffOverlay && canDelete ? (
+            {!isStaffOverlay && !isStaffNow && canDelete ? (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Delete member"
@@ -283,7 +285,7 @@ export function EditMemberSheet({
             title="Save"
             onPress={handleSave}
             loading={submitting}
-            disabled={(!isStaffOverlay && !name.trim()) || Boolean(staffEmailOwner) || sowAddress}
+            disabled={!name.trim() || Boolean(staffEmailOwner) || sowAddress}
           />
         )
       }
@@ -302,7 +304,7 @@ export function EditMemberSheet({
             onChangeText={(text) => setName(capitalizeMemberName(text))}
             placeholder="Full name"
             autoCapitalize="words"
-            disabled={isStaffOverlay}
+            disabled={nameLocked}
           />
           {hasDuplicate ? (
             <Txt
@@ -374,7 +376,7 @@ export function EditMemberSheet({
           )}
           {metadataFields.map((field) => {
             const lockedForStaff =
-              isStaffOverlay &&
+              (isStaffOverlay || isStaffNow) &&
               (field.key === CAMPUS_FIELD_KEY || field.key === ROLE_FIELD_KEY);
             return field.type === "select" ? (
               <Select

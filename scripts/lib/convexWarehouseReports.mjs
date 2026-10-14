@@ -129,6 +129,7 @@ SELECT
   JSON_VALUE(s.document, '$.name') AS name,
   SAFE_CAST(JSON_VALUE(s.document, '$.year') AS INT64) AS year,
   JSON_VALUE(s.document, '$.importId') AS importId,
+  JSON_VALUE(s.document, '$.memberId') AS memberId,
   JSON_VALUE(assignment, '$.role') AS role,
   JSON_VALUE(assignment, '$.department') AS department,
   JSON_VALUE(assignment, '$.division') AS division,
@@ -138,29 +139,64 @@ LEFT JOIN UNNEST(IFNULL(JSON_QUERY_ARRAY(s.document, '$.assignments'), [])) AS a
 `.trim()
   );
 
+const staffYearOf = (timestamp) =>
+  `EXTRACT(YEAR FROM DATETIME(${timestamp}, 'Australia/Sydney')) + IF(EXTRACT(MONTH FROM DATETIME(${timestamp}, 'Australia/Sydney')) >= 10, 1, 0)`;
+
 const attendanceSigninsSql = (project, source, warehouse) =>
   createView(
     project,
     warehouse,
     "attendance_signins",
     `
+WITH signins AS (
+  SELECT
+    a._id AS attendanceId,
+    a._loadedAt AS loadedAt,
+    JSON_VALUE(a.document, '$.memberId') AS memberId,
+    JSON_VALUE(m.document, '$.name') AS memberName,
+    ${ts("JSON_VALUE(a.document, '$.signInTime')")} AS signInTime,
+    JSON_VALUE(a.document, '$.notes') AS notes,
+    JSON_VALUE(a.document, '$.eventId') AS eventId,
+    JSON_VALUE(e.document, '$.name') AS eventName,
+    ${ts("JSON_VALUE(e.document, '$.dateStart')")} AS eventStart,
+    ${ts("JSON_VALUE(e.document, '$.dateEnd')")} AS eventEnd
+  FROM ${q(project, source, "attendance")} AS a
+  LEFT JOIN ${q(project, source, "events")} AS e
+    ON e._id = JSON_VALUE(a.document, '$.eventId')
+  LEFT JOIN ${q(project, source, "attendanceMembers")} AS m
+    ON m._id = JSON_VALUE(a.document, '$.memberId')
+),
+staff AS (
+  SELECT
+    JSON_VALUE(p.document, '$.memberId') AS memberId,
+    SAFE_CAST(JSON_VALUE(p.document, '$.year') AS INT64) AS year,
+    JSON_VALUE(p.document, '$.email') AS email
+  FROM ${q(project, source, "staffProfiles")} AS p
+  WHERE JSON_VALUE(p.document, '$.memberId') IS NOT NULL
+    AND ARRAY_LENGTH(IFNULL(JSON_QUERY_ARRAY(p.document, '$.assignments'), [])) > 0
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY JSON_VALUE(p.document, '$.memberId'), JSON_VALUE(p.document, '$.year')
+    ORDER BY ENDS_WITH(LOWER(JSON_VALUE(p.document, '$.email')), '@sow.org.au') DESC, p._creationTime DESC
+  ) = 1
+)
 SELECT
-  a._id AS attendanceId,
-  a._loadedAt AS loadedAt,
-  JSON_VALUE(a.document, '$.email') AS email,
-  JSON_VALUE(a.document, '$.memberId') AS memberId,
-  JSON_VALUE(m.document, '$.name') AS memberName,
-  ${ts("JSON_VALUE(a.document, '$.signInTime')")} AS signInTime,
-  JSON_VALUE(a.document, '$.notes') AS notes,
-  JSON_VALUE(a.document, '$.eventId') AS eventId,
-  JSON_VALUE(e.document, '$.name') AS eventName,
-  ${ts("JSON_VALUE(e.document, '$.dateStart')")} AS eventStart,
-  ${ts("JSON_VALUE(e.document, '$.dateEnd')")} AS eventEnd
-FROM ${q(project, source, "attendance")} AS a
-LEFT JOIN ${q(project, source, "events")} AS e
-  ON e._id = JSON_VALUE(a.document, '$.eventId')
-LEFT JOIN ${q(project, source, "attendanceMembers")} AS m
-  ON m._id = JSON_VALUE(a.document, '$.memberId')
+  s.attendanceId,
+  s.loadedAt,
+  staff.email AS email,
+  staff.email IS NOT NULL AS isStaff,
+  ${staffYearOf("s.eventStart")} AS staffYear,
+  s.memberId,
+  s.memberName,
+  s.signInTime,
+  s.notes,
+  s.eventId,
+  s.eventName,
+  s.eventStart,
+  s.eventEnd
+FROM signins AS s
+LEFT JOIN staff
+  ON staff.memberId = s.memberId
+  AND staff.year = ${staffYearOf("s.eventStart")}
 `.trim()
   );
 
@@ -318,7 +354,7 @@ export const REPORT_VIEWS = [
   },
   {
     name: "attendance_signins",
-    requires: ["attendance", "events", "attendanceMembers"],
+    requires: ["attendance", "events", "attendanceMembers", "staffProfiles"],
     sql: attendanceSigninsSql,
   },
   {

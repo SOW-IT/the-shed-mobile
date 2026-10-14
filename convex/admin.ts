@@ -25,7 +25,7 @@ import {
   STAFF_ROLE,
   STAFF_SIDE_ROLES,
 } from "../shared/flow";
-import { displayNameFromEmail, normalizeSubgroups, SOW_SUBGROUP } from "../shared/rollcall";
+import { displayNameFromEmail, normalizeSubgroups, personDisplayName, SOW_SUBGROUP } from "../shared/rollcall";
 import {
   previousStaffYearByEmailKey,
   previousStaffYearForEmail,
@@ -246,6 +246,24 @@ const stripAssignmentsInProfiles = async (
     touched++;
   }
   return touched;
+};
+
+const assertNobodyHolds = async (
+  ctx: MutationCtx,
+  year: number,
+  label: string,
+  holds: (assignment: Assignment) => boolean
+) => {
+  const holders: string[] = [];
+  for await (const profile of ctx.db
+    .query("staffProfiles")
+    .withIndex("by_year", (q) => q.eq("year", year))) {
+    if (assignmentsOf(profile).some(holds)) holders.push(personDisplayName(profile.name, profile.email));
+  }
+  if (holders.length === 0) return;
+  const named =
+    holders.length > 3 ? `${holders.slice(0, 3).join(", ")} and ${holders.length - 3} more` : holders.join(", ");
+  throw new ConvexError(`${label} is still assigned to ${named} in ${year}. Reassign them first.`);
 };
 
 /** Requests raised against `department` during staff year `year`. */
@@ -826,10 +844,10 @@ export const removeDivision = mutation({
     for (const dept of divDepts) {
       await assertNoOpenRequests(ctx, args.year, dept.name);
     }
-
-    await stripAssignmentsInProfiles(
+    await assertNobodyHolds(
       ctx,
       args.year,
+      `The ${args.name} division or one of its departments`,
       (a) => a.division === args.name || deptNames.has(a.department ?? "")
     );
 
@@ -940,7 +958,7 @@ export const removeUniversity = mutation({
       )
       .unique();
     if (!university) return null;
-    await stripAssignmentsInProfiles(ctx, args.year, (a) => a.university === args.name);
+    await assertNobodyHolds(ctx, args.year, args.name, (a) => a.university === args.name);
     await ctx.db.delete("universities", university._id);
     return null;
   },
@@ -1219,7 +1237,7 @@ export const removeDepartment = mutation({
     if (!department) return null;
 
     await assertNoOpenRequests(ctx, args.year, args.name);
-    await stripAssignmentsInProfiles(ctx, args.year, (a) => a.department === args.name);
+    await assertNobodyHolds(ctx, args.year, args.name, (a) => a.department === args.name);
     if (args.name === FINANCE) await clearBudgetManager(ctx, args.year);
 
     await ctx.db.delete("departments", department._id);

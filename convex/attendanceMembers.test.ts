@@ -359,10 +359,14 @@ describe("attendanceMembers.update", () => {
     const { t, admin, leader } = await setup();
     const f = await defaultFields(admin);
     const memberId = await linkedMemberOf(t, LEADER);
-    const before = await t.run((ctx) => ctx.db.get(memberId));
-    await t.run((ctx) =>
-      ctx.db.patch(memberId, { metadata: { [f.campus._id]: "own-campus" } })
-    );
+    await t.run(async (ctx) => {
+      const profile = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", LEADER).eq("year", YEAR))
+        .first();
+      await ctx.db.patch(profile!._id, { name: "Lee Leader" });
+      await ctx.db.patch(memberId, { metadata: { [f.campus._id]: "own-campus" } });
+    });
 
     await leader.mutation(api.attendanceMembers.update, {
       memberId,
@@ -379,7 +383,7 @@ describe("attendanceMembers.update", () => {
 
     const row = await t.run((ctx) => ctx.db.get(memberId));
     expect(row).toMatchObject({
-      name: before!.name,
+      name: "Lee Leader",
       email: "lee@gmail.com",
       metadata: { [f.campus._id]: "own-campus", [f.year._id]: "2024" },
     });
@@ -391,6 +395,68 @@ describe("attendanceMembers.update", () => {
         .first()
     );
     expect(log).toMatchObject({ memberId, subjectEmail: LEADER });
+  });
+
+  test("as staff with no name on their profile, a name has to be typed and an email won't do", async () => {
+    const { t, leader } = await setup();
+    const memberId = await linkedMemberOf(t, LEADER);
+    const shown = await leader.query(api.attendanceMembers.get, { memberId, staffYear: YEAR });
+    expect(shown).toMatchObject({ isStaffOverlay: true, isStaffNow: true, nameLocked: false, name: "" });
+
+    for (const name of ["   ", "leader@sow.org.au"]) {
+      await expect(
+        leader.mutation(api.attendanceMembers.update, { memberId, name, staffYear: YEAR })
+      ).rejects.toThrow("Name is required.");
+    }
+    await leader.mutation(api.attendanceMembers.update, {
+      memberId,
+      name: " lee leader ",
+      staffYear: YEAR,
+    });
+    expect((await t.run((ctx) => ctx.db.get(memberId)))?.name).toBe("Lee Leader");
+    const again = await leader.query(api.attendanceMembers.get, { memberId, staffYear: YEAR });
+    expect(again).toMatchObject({ nameLocked: false, name: "Lee Leader" });
+  });
+
+  test("as staff whose profile has a name, the name is locked to it", async () => {
+    const { t, leader } = await setup();
+    const memberId = await linkedMemberOf(t, LEADER);
+    await t.run(async (ctx) => {
+      const profile = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", LEADER).eq("year", YEAR))
+        .first();
+      await ctx.db.patch(profile!._id, { name: "Lee Leader" });
+    });
+    const shown = await leader.query(api.attendanceMembers.get, { memberId, staffYear: YEAR });
+    expect(shown).toMatchObject({ nameLocked: true, name: "Lee Leader" });
+    await leader.mutation(api.attendanceMembers.update, { memberId, name: "", staffYear: YEAR });
+    expect((await t.run((ctx) => ctx.db.get(memberId)))?.name).toBe("Lee Leader");
+  });
+
+  test("a current staffer edited from a year they weren't staff keeps their Campus and Role", async () => {
+    const { t, admin, leader } = await setup();
+    const f = await defaultFields(admin);
+    const memberId = await linkedMemberOf(t, LEADER);
+    await t.run((ctx) =>
+      ctx.db.patch(memberId, {
+        metadata: { [f.campus._id]: "own-campus", [f.role._id]: "own-role" },
+      })
+    );
+    const shown = await leader.query(api.attendanceMembers.get, { memberId, staffYear: YEAR - 3 });
+    expect(shown).toMatchObject({ isStaffOverlay: false, isStaffNow: true, nameLocked: false });
+
+    await leader.mutation(api.attendanceMembers.update, {
+      memberId,
+      name: "Lee Leader",
+      metadata: { [f.year._id]: "2024" },
+      staffYear: YEAR - 3,
+    });
+    const row = await t.run((ctx) => ctx.db.get(memberId));
+    expect(row).toMatchObject({
+      name: "Lee Leader",
+      metadata: { [f.campus._id]: "own-campus", [f.role._id]: "own-role", [f.year._id]: "2024" },
+    });
   });
 
   test("as staff, a blank personal email clears it and a staff address is refused", async () => {
@@ -507,17 +573,31 @@ describe("attendanceMembers.create", () => {
 });
 
 describe("attendanceMembers.remove", () => {
+  test("won't delete someone who is on staff this year", async () => {
+    const { t, admin } = await setup();
+    const memberId = await linkedMemberOf(t, LEADER);
+    await expect(admin.mutation(api.attendanceMembers.remove, { memberId })).rejects.toThrow(
+      /on staff this year/
+    );
+    expect(await t.run((ctx) => ctx.db.get(memberId))).not.toBeNull();
+  });
+
   test("unlinks every staff profile that pointed at the deleted row", async () => {
     const { t, admin } = await setup();
     const memberId = await linkedMemberOf(t, LEADER);
-    const pastProfile = await t.run((ctx) =>
-      ctx.db.insert("staffProfiles", {
+    const pastProfile = await t.run(async (ctx) => {
+      const current = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", LEADER).eq("year", YEAR))
+        .first();
+      await ctx.db.patch(current!._id, { assignments: [] });
+      return await ctx.db.insert("staffProfiles", {
         email: LEADER,
         year: YEAR - 1,
         assignments: [{ role: "Student Leader", university: USYD }],
         memberId,
-      })
-    );
+      });
+    });
 
     expect(await admin.mutation(api.attendanceMembers.remove, { memberId })).toBe(true);
 

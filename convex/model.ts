@@ -288,6 +288,7 @@ export async function resolveStaffIdentity(
       }
     }
   }
+  if (!name && user?.name?.trim() && !user.name.includes("@")) name = user.name.trim();
 
   const userId = profiles.find((p) => p.userId !== undefined)?.userId ?? user?._id;
 

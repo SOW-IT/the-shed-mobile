@@ -24,7 +24,15 @@ import {
 import { assignmentsOf, MEMBER } from "../shared/flow";
 import { personDisplayName } from "../shared/rollcall";
 import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
-import { currentStaffYear, findMemberByEmail, getProfile, optionalEmail, requireProfile, rolesOf } from "./model";
+import {
+  currentStaffYear,
+  findMemberByEmail,
+  getProfile,
+  optionalEmail,
+  optionalProfile,
+  requireProfile,
+  rolesOf,
+} from "./model";
 import { isAssigned, staffProfileOfMember } from "./staffMembers";
 
 // Local churches staff go to. Any staff member can add one (with where it is
@@ -463,7 +471,7 @@ export const directory = query({
   args: {},
   returns: v.array(v.object({ church: churchView, people: v.array(personView), peopleCount: v.number() })),
   handler: async (ctx) => {
-    const signedIn = (await optionalEmail(ctx)) !== null;
+    const staffViewer = (await optionalProfile(ctx)) !== null;
     const fields = await ctx.db.query("attendanceMetadata").take(200);
     const campusField = fields.find((f) => f.key === CAMPUS_FIELD_KEY);
     const roleField = fields.find((f) => f.key === ROLE_FIELD_KEY);
@@ -496,7 +504,7 @@ export const directory = query({
           name: personDisplayName(user.name, user.email) || user.email,
           role: profile ? leadingRole(rolesOf(profile)) : memberRole(member),
           campus: profile ? campusOfProfile(profile) : memberCampus(member),
-          email: profile || signedIn ? user.email : null,
+          email: profile || staffViewer ? user.email : null,
           memberId: null,
         });
       }
@@ -508,7 +516,7 @@ export const directory = query({
           role: profile ? leadingRole(rolesOf(profile)) : memberRole(member),
           campus: (profile && campusOfProfile(profile)) ?? memberCampus(member),
           email: profile?.email ?? null,
-          memberId: signedIn ? member._id : null,
+          memberId: staffViewer ? member._id : null,
         });
       }
       people.sort(leadersFirst);

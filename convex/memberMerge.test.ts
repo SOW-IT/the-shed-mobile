@@ -214,6 +214,56 @@ describe("merging a member into another member", () => {
   });
 });
 
+describe("the kept person's church and import id survive the merge", () => {
+  test("when the removed record has more sign-ins and survives, it takes the kept person's church", async () => {
+    const s = await setup();
+    const { grace, hope } = await s.t.run(async (ctx) => ({
+      grace: await ctx.db.insert("churches", { name: "Grace", nameKey: "grace", addedBy: ADMIN }),
+      hope: await ctx.db.insert("churches", { name: "Hope", nameKey: "hope", addedBy: ADMIN }),
+    }));
+    const keep = await s.member("Alice Kim");
+    const dup = await s.member("Alice K");
+    await s.t.run(async (ctx) => {
+      await ctx.db.patch(keep, { churchId: grace, sourceImportId: "keep-import" });
+      await ctx.db.patch(dup, { churchId: hope, sourceImportId: "dup-import" });
+    });
+    for (const at of [1_000, 2_000, 3_000]) {
+      await s.signIn(await s.event(`W${at}`, at), { memberId: dup }, at + 100);
+    }
+
+    await s.leader.mutation(api.attendanceMembers.merge, {
+      removeId: dup,
+      keep: { memberId: keep },
+      resolutions: { name: "keep" },
+    });
+
+    expect(await s.t.run((ctx) => ctx.db.get(keep))).toBeNull();
+    expect(await s.t.run((ctx) => ctx.db.get(dup))).toMatchObject({
+      name: "Alice Kim",
+      churchId: grace,
+      sourceImportId: "keep-import",
+    });
+  });
+
+  test("a kept person with no church takes the removed person's", async () => {
+    const s = await setup();
+    const hope = await s.t.run((ctx) =>
+      ctx.db.insert("churches", { name: "Hope", nameKey: "hope", addedBy: ADMIN })
+    );
+    const keep = await s.member("Bo Lee");
+    const dup = await s.member("Bo L");
+    await s.t.run((ctx) => ctx.db.patch(dup, { churchId: hope }));
+    await s.signIn(await s.event("W1", 1_000), { memberId: keep }, 1_100);
+
+    await s.leader.mutation(api.attendanceMembers.merge, {
+      removeId: dup,
+      keep: { memberId: keep },
+      resolutions: {},
+    });
+    expect(await s.t.run((ctx) => ctx.db.get(keep))).toMatchObject({ name: "Bo Lee", churchId: hope });
+  });
+});
+
 describe("merging a member into staff", () => {
   test("turns the member's attendance into the staff person's and keeps the staff identity", async () => {
     const s = await setup();
@@ -263,8 +313,9 @@ describe("merging a member into staff", () => {
     expect(await s.t.run((ctx) => ctx.db.get(leaderRow))).toBeNull();
     expect(await s.staffRow(LEADER)).toBe(dup);
     const survivor = await s.t.run((ctx) => ctx.db.get(dup));
+    expect(leaderName).toBe(LEADER);
     expect(survivor).toMatchObject({
-      name: leaderName,
+      name: "Leader Nickname",
       email: "personal@gmail.com",
       metadata: { [s.yearField]: "3", [s.campusField]: "unsw" },
     });
@@ -460,6 +511,30 @@ describe("merging a member into staff", () => {
         keep: { staffEmail: "nobody@sow.org.au" },
       })
     ).toEqual({ blocked: "Staff profile not found." });
+  });
+});
+
+describe("merging into staff whose profile has a name", () => {
+  test("the record takes the profile's name, not the member's", async () => {
+    const s = await setup();
+    await s.t.run(async (ctx) => {
+      const profile = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", LEADER).eq("year", YEAR))
+        .first();
+      await ctx.db.patch(profile!._id, { name: "Lee Leader" });
+    });
+    const dup = await s.member("Leader Nickname");
+    await s.signIn(await s.event("W1", 1_000), { memberId: dup }, 1_100);
+    await s.signIn(await s.event("W2", 2_000), { memberId: dup }, 2_100);
+    await s.leader.mutation(api.attendanceMembers.merge, {
+      removeId: dup,
+      keep: { staffEmail: LEADER },
+      resolutions: {},
+      staffYear: YEAR,
+    });
+    const row = await s.staffRow(LEADER);
+    expect((await s.t.run((ctx) => ctx.db.get(row)))?.name).toBe("Lee Leader");
   });
 });
 
@@ -864,7 +939,7 @@ describe("choosing which metadata stays", () => {
       [s.f.gender]: "f",
       [s.campusField]: "unsw",
     });
-    const shadowName = (await s.t.run((ctx) => ctx.db.get(shadow)))!.name;
+    expect((await s.t.run((ctx) => ctx.db.get(shadow)))!.name).toBe(LEADER);
     const preview = await s.leader.query(api.attendanceMembers.mergePreview, {
       removeId: dup,
       keep: { memberId: shadow },
@@ -883,6 +958,6 @@ describe("choosing which metadata stays", () => {
     expect(row?.metadata?.[s.f.gender]).toBe("m");
     expect(row?.metadata?.[s.campusField]).toBe("usyd");
     expect(row?.email).toBeUndefined();
-    expect(row?.name).toBe(shadowName);
+    expect(row?.name).toBe("Leader Nickname");
   });
 });

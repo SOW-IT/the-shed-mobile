@@ -116,6 +116,19 @@ export const staffMemberName = (profile: Profile): string => {
   return shown.includes("@") || !shown ? profile.email.toLowerCase() : capitalizeMemberName(shown);
 };
 
+export const personName = (name: string | null | undefined): string | null => {
+  const trimmed = name?.trim();
+  return trimmed && !trimmed.includes("@") ? capitalizeMemberName(trimmed) : null;
+};
+
+export const profileOwnName = (profile: Profile): string | null =>
+  profile.name?.trim().toLowerCase() === profile.email.toLowerCase() ? null : personName(profile.name);
+
+export const staffRowName = (profile: Profile, ...ownNames: (string | undefined)[]): string | null =>
+  profileOwnName(profile) ??
+  ownNames.map(personName).find((name): name is string => name !== null) ??
+  personName(staffMemberName(profile));
+
 export async function linkOrCreateMember(
   ctx: MutationCtx,
   profile: Profile,

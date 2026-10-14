@@ -66,6 +66,30 @@ describe("report views", () => {
     expect(sql).toContain("LEFT JOIN UNNEST");
     expect(sql).toContain("AS department");
     expect(sql).toContain("AS university");
+    expect(sql).toContain("JSON_VALUE(s.document, '$.memberId') AS memberId");
+  });
+
+  test("attendance sign-ins find staff through the profile linked to the member that year", () => {
+    const sql = reportViewSql(
+      "theshedsow",
+      "convex_production",
+      "convex_warehouse",
+      "attendance_signins"
+    );
+    expect(sql).not.toContain("JSON_VALUE(a.document, '$.email')");
+    expect(sql).toContain("FROM `theshedsow.convex_production.staffProfiles` AS p");
+    expect(sql).toContain("staff.email AS email");
+    expect(sql).toContain("staff.email IS NOT NULL AS isStaff");
+    expect(sql).toContain("DATETIME(s.eventStart, 'Australia/Sydney')");
+    expect(sql).toContain(">= 10, 1, 0) AS staffYear");
+    expect(sql).toContain("ARRAY_LENGTH(IFNULL(JSON_QUERY_ARRAY(p.document, '$.assignments'), [])) > 0");
+    expect(sql).toMatch(/QUALIFY ROW_NUMBER\(\) OVER \([\s\S]*\) = 1/);
+    expect(reportViewsToPublish(["attendance", "events", "attendanceMembers"])).not.toContain(
+      "attendance_signins"
+    );
+    expect(
+      reportViewsToPublish(["attendance", "events", "attendanceMembers", "staffProfiles"])
+    ).toContain("attendance_signins");
   });
 
   test("request recipients flatten bank lines; requests_status has no JSON columns", () => {
