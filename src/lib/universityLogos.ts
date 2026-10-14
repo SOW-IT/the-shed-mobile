@@ -10,7 +10,7 @@ const LOGOS: Record<string, ImageSourcePropType> = {
   WSU: require("../../assets/images/WSU-crimson.png"),
 };
 
-export const sowLogo = (darkTheme: boolean): ImageSourcePropType =>
+const sowLogo = (darkTheme: boolean): ImageSourcePropType =>
   darkTheme
     ? require("../../assets/images/mark-cream.png")
     : require("../../assets/images/mark-dark.png");

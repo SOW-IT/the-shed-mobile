@@ -98,7 +98,7 @@ const joined = (main: string | undefined, label: string, extra: string | undefin
     .filter(Boolean)
     .join("\n\n");
 
-const sydneyDate = (ms: number) => {
+export const sydneyDate = (ms: number) => {
   const { year, month, day } = sydneyYmd(new Date(ms));
   return `${year}-${pad2(month)}-${pad2(day)}`;
 };

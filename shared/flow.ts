@@ -20,7 +20,7 @@ export const ROLES = [
   "Outsource",
   "Member",
 ] as const;
-export type Role = (typeof ROLES)[number];
+type Role = (typeof ROLES)[number];
 
 export const STAFF_ROLE: Role = "Staff";
 export const HEAD_OF_DEPARTMENT: Role = "Head of Department";
@@ -39,7 +39,7 @@ export const UNIVERSITY_ROLES: readonly Role[] = [
 export const roleNeedsUniversity = (role: string): boolean =>
   UNIVERSITY_ROLES.includes(role as Role);
 
-export const CHAPLAIN_ROLES: readonly Role[] = [
+const CHAPLAIN_ROLES: readonly Role[] = [
   "Senior Chaplain",
   "Junior Chaplain",
   "Intern Chaplain",
@@ -54,7 +54,7 @@ export const rolesNeedUniversity = (roles: readonly string[]): boolean =>
   roles.some(roleNeedsUniversity) &&
   !roles.some((role) => STAFF_SIDE_ROLES.includes(role as Role));
 
-export const SYSTEM_ROLES: readonly Role[] = [
+const SYSTEM_ROLES: readonly Role[] = [
   HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
   DIRECTOR,
@@ -111,7 +111,7 @@ export const rolesOfLike = (p: ProfileLike): string[] => [
   ...new Set((p.assignments ?? []).map((a) => a.role)),
 ];
 
-export type ScopeKind = "department" | "division" | "university" | "none";
+type ScopeKind = "department" | "division" | "university" | "none";
 export const scopeKindFor = (role: string): ScopeKind => {
   if (role === HEAD_OF_DIVISION) return "division";
   if (isChaplainRole(role)) return "department";
@@ -158,7 +158,7 @@ export const divisionsOf = (p: ProfileLike): string[] => [
 export const isMemberOfDepartment = (p: ProfileLike, department: string): boolean =>
   assignmentsOf(p).some((a) => a.department === department);
 
-export const assignmentKey = (a: Assignment): string =>
+const assignmentKey = (a: Assignment): string =>
   `${a.role} ${a.department ?? ""} ${a.division ?? ""} ${a.university ?? ""}`;
 
 export const dedupeAssignments = (assignments: Assignment[]): Assignment[] => {

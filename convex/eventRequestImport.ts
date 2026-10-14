@@ -1,8 +1,6 @@
 import { Infer, v } from "convex/values";
 import { Doc } from "./_generated/dataModel";
 import { internalMutation } from "./_generated/server";
-import { pad2 } from "../shared/datetime";
-import { sydneyYmd } from "../shared/flow";
 import {
   answerForRole,
   normalizeAnswers,
@@ -20,7 +18,7 @@ import {
   type SubFormStatus,
 } from "../shared/eventRequests";
 import { formatAmount } from "../shared/money";
-import { legacyEmail } from "./designRequestImport";
+import { legacyEmail, sydneyDate } from "./designRequestImport";
 import { EVENT_FIELDS, MARKETING_FIELDS } from "./eventRequestForm";
 
 /** The note on old events that never finished, which the import closes. */
@@ -108,11 +106,6 @@ const STATUSES: Record<string, SubFormStatus> = {
 };
 const statusOf = (legacy: string | undefined): SubFormStatus =>
   (legacy && STATUSES[legacy]) || "DRAFT";
-
-const sydneyDate = (ms: number) => {
-  const { year, month, day } = sydneyYmd(new Date(ms));
-  return `${year}-${pad2(month)}-${pad2(day)}`;
-};
 
 const when = (ms: number | undefined) => (ms === undefined ? undefined : sydneyDateTimeAnswer(ms));
 

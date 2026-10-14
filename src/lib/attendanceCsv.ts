@@ -10,7 +10,7 @@ const ATTENDEE_HEADERS = ["Sign In", "Name", "Email"] as const;
 export const NOTES_HEADER = "Notes";
 export const ATTENDANCE_PCT_HEADER = "Attendance %";
 
-export const isNotesExportFieldKey = (key: string): boolean =>
+const isNotesExportFieldKey = (key: string): boolean =>
   key.trim().toLowerCase() === NOTES_HEADER.toLowerCase();
 
 export const isReservedExportFieldKey = (key: string): boolean => {

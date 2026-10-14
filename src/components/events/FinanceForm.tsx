@@ -5,7 +5,7 @@ import {
   type FinanceData,
   type FinanceLine,
 } from "@shared/eventRequests";
-import { formatAmount, sumAmounts } from "@shared/money";
+import { formatAmount, money, sumAmounts } from "@shared/money";
 import { Btn, Card, currencyText, Field, Muted } from "@/components/ui";
 import { spacing, typography, useAppTheme } from "@/theme";
 
@@ -36,8 +36,6 @@ export const financeDataFrom = (draft: FinanceDraft): FinanceData => {
     ...(draft.spreadsheetUrl.trim() ? { spreadsheetUrl: draft.spreadsheetUrl } : {}),
   };
 };
-
-const money = (amount: number) => `${amount < 0 ? "-" : ""}$${formatAmount(Math.abs(amount))}`;
 
 const Lines = ({
   title,

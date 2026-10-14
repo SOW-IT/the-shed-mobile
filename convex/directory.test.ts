@@ -339,6 +339,33 @@ describe("orgChart", () => {
     expect(chart.staff.some((s) => s.email === "prez@sow.org.au")).toBe(false);
   });
 
+  test("campus people are listed under their university, President first", async () => {
+    const t = await setup();
+    const USYD = "University of Sydney";
+    await t.run(async (ctx) => {
+      await ctx.db.insert("universities", { year: YEAR, name: USYD });
+      await ctx.db.insert("staffProfiles", {
+        email: "leader@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Student Leader", university: USYD }],
+      });
+      await ctx.db.insert("staffProfiles", {
+        email: "prez@sow.org.au",
+        year: YEAR,
+        assignments: [
+          { role: "President", university: USYD },
+          { role: "Staff", department: "Marketing" },
+        ],
+      });
+    });
+    const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
+    const usyd = chart.universities.find((u) => u.name === USYD)!;
+    expect(usyd.members.map((m) => [m.email, m.role])).toEqual([
+      ["prez@sow.org.au", "President"],
+      ["leader@sow.org.au", "Student Leader"],
+    ]);
+  });
+
   test('the "General" division is shown; in a year with real departments staff stay a top-level group', async () => {
     const t = await setup();
     await t.run(async (ctx) => {

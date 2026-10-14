@@ -4,7 +4,7 @@ export function canonicalImportMemberName(name: string): string {
   return trimmed;
 }
 
-const normalizedEmail = (email: string | undefined): string | undefined => {
+export const normalizedEmail = (email: string | undefined): string | undefined => {
   const lower = email?.trim().toLowerCase();
   return lower && lower.includes("@") ? lower : undefined;
 };
@@ -30,18 +30,6 @@ export function resolveImportStaffEmail(member: {
   return (
     canonicalStaffEmailFromLegacy(member) ?? normalizedEmail(member.email)
   );
-}
-
-export function canonicalStaffEmail(
-  email: string | undefined
-): string | undefined {
-  const lower = normalizedEmail(email);
-  if (!lower) return undefined;
-  if (lower.endsWith("@sowaustralia.com")) {
-    const localPart = lower.slice(0, -"@sowaustralia.com".length);
-    if (localPart.includes(".")) return `${localPart}@sow.org.au`;
-  }
-  return lower;
 }
 
 const SOW_STAFF_DOMAINS = ["sow.org.au", "sowaustralia.com"] as const;

@@ -2,7 +2,7 @@
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
-import { ALL_SUBGROUP, SOW_SUBGROUP } from "../shared/rollcall";
+import { SOW_SUBGROUP } from "../shared/rollcall";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
 
@@ -75,7 +75,6 @@ describe("subgroups", () => {
     const t = await setup();
     const subgroups = await asUser(t, LEADER).query(api.events.subgroups, {});
     expect(subgroups[0]).toBe(SOW_SUBGROUP);
-    expect(ALL_SUBGROUP).toBe(SOW_SUBGROUP);
     expect(subgroups).toContain(USYD);
     expect(subgroups).toContain(MACQ);
     const campuses = subgroups.slice(1);
@@ -414,7 +413,7 @@ describe("events + roll-call", () => {
         name: "Whole-org night",
         dateStart,
         dateEnd,
-        subgroups: [ALL_SUBGROUP, SOW_SUBGROUP],
+        subgroups: [SOW_SUBGROUP, SOW_SUBGROUP],
       })
     );
 
@@ -696,7 +695,7 @@ describe("events + roll-call", () => {
       name: "Event",
       dateStart,
       dateEnd,
-      subgroups: [ALL_SUBGROUP],
+      subgroups: [SOW_SUBGROUP],
     });
     await leader.mutation(api.attendance.signIn, {
       eventId,
@@ -810,7 +809,7 @@ describe("events + roll-call", () => {
       name: "Notes event",
       dateStart,
       dateEnd,
-      subgroups: [ALL_SUBGROUP],
+      subgroups: [SOW_SUBGROUP],
     });
     await leader.mutation(api.attendance.signIn, { eventId, email: LEADER });
     const [row] = await leader.query(api.attendance.listByEvent, { eventId });

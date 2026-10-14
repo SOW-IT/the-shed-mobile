@@ -16,16 +16,6 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 
 type Block<T extends WeeklyBlock["type"]> = Extract<WeeklyBlock, { type: T }>;
 
-export const WEEKLY_BLOCK_TYPES = new Set([
-  "people",
-  "followUpGroups",
-  "memberHeader",
-  "keyValues",
-  "termHistory",
-  "weekGrid",
-  "eventList",
-]);
-
 const PAGE = 40;
 
 /** How tall a list's box is before it scrolls inside (about six people). */

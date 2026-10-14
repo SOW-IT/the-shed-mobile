@@ -4,7 +4,6 @@ import {
   DAY_MS,
   METRICS_THRESHOLDS as T,
   RANGE_WEEKS,
-  rangeLabel,
   rangeStartFor,
   shortDate,
   STAFF_YEAR_RANGE,
@@ -253,9 +252,6 @@ describe("computeSubgroupMetrics — summary & trends", () => {
 describe("range presets", () => {
   it("offers week, month, and year windows", () => {
     expect([...RANGE_WEEKS]).toEqual([1, 4, 52]);
-    expect(rangeLabel(1)).toBe("Past week");
-    expect(rangeLabel(4)).toBe("Past month");
-    expect(rangeLabel(52)).toBe("Past year");
   });
 });
 

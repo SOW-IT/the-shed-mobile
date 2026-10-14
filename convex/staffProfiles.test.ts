@@ -3,13 +3,11 @@ import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
-import { IMPORT_DATA } from "./importData";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
 // Pinned mid staff year (still ticking) so dates a few weeks either side of
 // "now" never straddle the 1 October rollover (see ADR 0003).
-// The imported history ends at 2026, so this file runs in staff year 2026.
 const PINNED_NOW = staffYearStartMs(2026) + 150 * 86_400_000;
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
@@ -30,74 +28,6 @@ async function setup() {
   await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
   return t;
 }
-
-describe("importHistory: backfill from the old web app's Firestore", () => {
-  test("fills every year's structure and people, and re-runs cleanly", async () => {
-    const t = await setup();
-    const first = await t.mutation(internal.importHistory.run, {});
-    expect(first.profiles).toBeGreaterThan(750);
-    expect(IMPORT_DATA.years.some((y) => y.year > 2026)).toBe(false);
-    expect(first.budgetManagers).toBeGreaterThanOrEqual(6);
-
-    const second = await t.mutation(internal.importHistory.run, {});
-    expect(second.divisions).toBe(0);
-    expect(second.universities).toBe(0);
-
-    const data2026 = IMPORT_DATA.years.find((y) => y.year === 2026)!;
-    await t.run(async (ctx) => {
-      const finance = await ctx.db
-        .query("departments")
-        .withIndex("by_year_and_name", (q) => q.eq("year", 2026).eq("name", "Finance"))
-        .unique();
-      expect(finance?.division).toBe("Governance");
-      expect(finance?.headEmail).toMatch(/@sow\.org\.au$/);
-
-      const settings = await ctx.db
-        .query("yearSettings")
-        .withIndex("by_year", (q) => q.eq("year", 2026))
-        .unique();
-      expect(settings?.budgetManagerEmail).toBe(data2026.budgetManagerEmail);
-
-      const profiles = await ctx.db
-        .query("staffProfiles")
-        .withIndex("by_year", (q) => q.eq("year", 2026))
-        .take(1000);
-      const imported = profiles.filter((p) => p.importId !== undefined);
-      expect(imported.length).toBe(data2026.profiles.length);
-
-      const studentLeaders = imported.filter((p) =>
-        (p.assignments ?? []).some((a) => a.role === "Student Leader")
-      );
-      expect(studentLeaders.length).toBeGreaterThan(0);
-      for (const leader of studentLeaders) {
-        expect(leader.assignments?.some((a) => a.university)).toBe(true);
-        expect(leader.assignments?.some((a) => a.department)).toBe(false);
-      }
-
-      const universities = await ctx.db
-        .query("universities")
-        .withIndex("by_year_and_name", (q) => q.eq("year", 2026))
-        .take(50);
-      expect(universities.map((u) => u.name).sort()).toEqual(
-        [
-          ...new Set([...data2026.universities, "Western Sydney University"]),
-        ].sort()
-      );
-    });
-
-    const chart = (await asUser(t, ADMIN).query(api.directory.orgChart, {
-      year: 2026,
-    }))!;
-    const campus = chart.universities.flatMap((u) => u.members);
-    expect(campus.length).toBeGreaterThan(20);
-
-    const headOf = (name: string) =>
-      chart.divisions.find((d) => d.name === name)?.head?.email;
-    expect(headOf("Chaplaincy")).toBe("sijin.yang@sow.org.au");
-    expect(headOf("Engagement")).toBe("sijin.yang@sow.org.au");
-    expect(headOf("Operations")).toBe("monica.park@sow.org.au");
-  });
-});
 
 describe("email changes: the person stays the same", () => {
   test("sign-in with a new email claims imported years keyed by the old one", async () => {
@@ -357,33 +287,6 @@ describe("email changes: the person stays the same", () => {
       expect(profile?.assignments).toEqual([
         { role: "Staff", department: "Missions" },
       ]);
-    });
-  });
-});
-
-describe("importHistory: re-import after a re-key", () => {
-  test("matches the person by importId and never duplicates them", async () => {
-    const t = await setup();
-    await t.mutation(internal.importHistory.run, {});
-
-    const imported = IMPORT_DATA.years.find((y) => y.year === 2025)!.profiles.find(
-      (p) => p.email.endsWith("@sowaustralia.com") && (p.roles ?? []).length > 0
-    )!;
-    const newEmail = `${imported.email.split("@")[0]}@sow.org.au`;
-    const userId = await t.run((ctx) => ctx.db.insert("users", { email: newEmail }));
-    await t.mutation(internal.userLink.link, { userId });
-
-    await t.mutation(internal.importHistory.run, {});
-    await t.run(async (ctx) => {
-      const rows = await ctx.db
-        .query("staffProfiles")
-        .withIndex("by_importId", (q) => q.eq("importId", imported.importId))
-        .take(50);
-      const years = rows.map((r) => r.year);
-      expect(new Set(years).size).toBe(years.length);
-      for (const row of rows) {
-        expect(row.email).toBe(newEmail);
-      }
     });
   });
 });

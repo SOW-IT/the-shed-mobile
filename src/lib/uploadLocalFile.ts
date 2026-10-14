@@ -2,7 +2,7 @@ import { File } from "expo-file-system";
 import { Platform } from "react-native";
 import { Id } from "../../convex/_generated/dataModel";
 
-export type LocalUploadSource = {
+type LocalUploadSource = {
   uri: string;
   mimeType?: string | null;
 };

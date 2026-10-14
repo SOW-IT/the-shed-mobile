@@ -5,8 +5,8 @@ import { departmentsOf, type ProfileLike } from "./flow";
 // draws; admins and Marketing staff edit them in the app, and a tab nobody has
 // edited shows the defaults below.
 
-export const MARKETING_DEPARTMENT = "Marketing";
-export const ENGAGEMENT_DIVISION = "Engagement";
+const MARKETING_DEPARTMENT = "Marketing";
+const ENGAGEMENT_DIVISION = "Engagement";
 
 export const HOME_TABS = [
   { key: "home", label: "Home" },
@@ -100,7 +100,7 @@ export const HOME_ICONS = [
   "musical-notes",
 ] as const;
 
-export const CONTACT_EMAIL = "info@sowaustralia.com";
+const CONTACT_EMAIL = "info@sowaustralia.com";
 
 const LINKS = {
   story: "https://www.sow.org.au/our-story",

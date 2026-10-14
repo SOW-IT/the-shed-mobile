@@ -1,10 +1,7 @@
 import {
   answerForRole,
-  type FormAnswer,
   type FormAnswers,
   type FormField,
-  type FormFieldKind,
-  type FormFieldOption,
 } from "./forms";
 
 /** The department that receives design requests; its head approves them. */
@@ -42,10 +39,7 @@ export const isOpenDesignStatus = (status: DesignRequestStatus): boolean =>
 // checks and formats answers is shared with event requests (shared/forms.ts);
 // these are its design-request names.
 
-export type DesignAnswer = FormAnswer;
 export type DesignAnswers = FormAnswers;
-export type DesignFieldKind = FormFieldKind;
-export type DesignFieldOption = FormFieldOption;
 export type DesignField = FormField;
 
 export {

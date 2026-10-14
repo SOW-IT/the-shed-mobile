@@ -38,7 +38,7 @@ export type RiskDraft = { noRisks: boolean; risks: (RiskRow & { key: string })[]
 let nextKey = 0;
 const newKey = () => `risk-${nextKey++}`;
 
-export const blankRisk = (): RiskRow & { key: string } => ({ key: newKey(), description: "" });
+const blankRisk = (): RiskRow & { key: string } => ({ key: newKey(), description: "" });
 
 export const riskDraftFrom = (data: RiskData | undefined): RiskDraft => ({
   noRisks: data?.noRisks ?? false,
@@ -133,7 +133,7 @@ const Matrix = () => {
 };
 
 /** "How to rate a risk": SOW's Risk Management Standard, folded away until it's wanted. */
-export const RiskGuide = () => {
+const RiskGuide = () => {
   const t = useAppTheme();
   const [open, setOpen] = useState(false);
   return (

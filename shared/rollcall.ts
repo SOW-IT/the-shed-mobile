@@ -10,8 +10,6 @@ import { canonicalEmailKey } from "./rollcallImport";
 
 export const SOW_SUBGROUP = "SOW";
 
-export const ALL_SUBGROUP = SOW_SUBGROUP;
-
 export const canonicalSubgroup = (subgroup: string): string =>
   subgroup === "ALL" ? SOW_SUBGROUP : subgroup;
 
@@ -212,7 +210,7 @@ export const canReverseSignIn = (
   signInTime > event.dateEnd ||
   now - signInTime <= SIGN_IN_UNDO_GRACE_MS;
 
-export type AttendanceFrequencyScore = {
+type AttendanceFrequencyScore = {
   tagMatches: number;
   subgroupMatches: number;
   total: number;
@@ -251,7 +249,7 @@ export const compareAttendanceFrequency = (
   return aName.localeCompare(bName);
 };
 
-export type ProfileAssignment = {
+type ProfileAssignment = {
   role: string;
   university?: string;
 };

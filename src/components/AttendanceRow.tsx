@@ -58,7 +58,7 @@ type SnapVisual = "closed" | "primary" | "edit";
 
 export type AttendanceRowMode = "suggested" | "signedIn";
 
-export interface AttendanceRowProps {
+interface AttendanceRowProps {
   name: string;
   subtitle?: string;
   photo?: string | null;

@@ -88,20 +88,11 @@ reading every event's attendance in one mutation. It:
 The view reads the snapshot (the same lookup as `api.attendanceMetrics.snapshot`, still served for older apps), which tolerates a
 stale prior-staff-year row (treated as "not ready") and a rare duplicate row
 (takes the newest). Because the nightly cron keeps snapshots current
-automatically, **there is no manual refresh control in the UI**. A server-side
-recovery path still exists — `api.attendanceMetrics.recomputeNow` (gated by
-`requireAttendanceManager`) — but it is not wired to a button today. For SOW
-it's throttled to once per week via `MANUAL_REFRESH_COOLDOWN_MS`; for a campus
-it runs that campus's weeklies rebuild with no cooldown; with no sub-group it
-does both for everything. The
-cooldown is measured from the last *manual* refresh
-(`attendanceMetricsRuns.lastManualRefreshAt`), never from the nightly rebuild's
-`computedAt`, otherwise the cron would keep the manual path permanently
-throttled.
+automatically, **there is no manual refresh control in the UI**. To force a
+rebuild, run `attendanceMetrics:recomputeAll` by hand.
 
 Authorization is server-side and identical to the rest of Attendance: any
-provisioned staff member of the current staff year can read; only campus leaders
-/ admins can trigger `recomputeNow`.
+provisioned staff member of the current staff year can read.
 
 ## Definitions & thresholds
 

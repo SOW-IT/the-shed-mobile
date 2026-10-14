@@ -10,7 +10,7 @@ const SIZES = {
   xl: { logoHeight: 40, badgePadH: 14, badgePadV: 6, fontSize: 14 },
 } as const;
 
-export type CampusMarkSize = keyof typeof SIZES;
+type CampusMarkSize = keyof typeof SIZES;
 
 type CampusMarkProps = {
   campus: string;

@@ -64,9 +64,9 @@ const yAt = (v: number, max: number, chartHeight: number) =>
 export type ChartMode = "bar" | "line";
 const ChartModeContext = createContext<ChartMode>("bar");
 export const ChartModeProvider = ChartModeContext.Provider;
-export const useChartMode = (): ChartMode => useContext(ChartModeContext);
+const useChartMode = (): ChartMode => useContext(ChartModeContext);
 
-export type LegendItem = { key: string; colour: string; label: string };
+type LegendItem = { key: string; colour: string; label: string };
 
 type ChartSelection = { selectedKey: string | null; toggle: (key: string) => void };
 const ChartSelectionContext = createContext<ChartSelection>({
@@ -1033,7 +1033,7 @@ export function StackedBarChart({
   );
 }
 
-export type MultiStackPoint = {
+type MultiStackPoint = {
   at: number;
   label: string;
   segments: { key: string; value: number; colour: string }[];
@@ -1267,22 +1267,6 @@ export function MultiStackedBarChart({
               })}
         </View>
       </View>
-    </View>
-  );
-}
-
-export function LegendDot({
-  colour,
-  label,
-}: {
-  colour: string;
-  label: string;
-}) {
-  const t = useAppTheme();
-  return (
-    <View style={styles.legendItem}>
-      <View style={[styles.legendDot, { backgroundColor: colour }]} />
-      <Text style={[typography.caption, { color: t.muted }]}>{label}</Text>
     </View>
   );
 }

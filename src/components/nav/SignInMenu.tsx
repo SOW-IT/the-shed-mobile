@@ -9,7 +9,7 @@ import {
 import { type SignInOutcome, useGoogleSignIn } from "@/hooks/useGoogleSignIn";
 import { radius, spacing, typography, useAppTheme } from "@/theme";
 
-export type SignInMenuAnchor = { top: number; left: number };
+type SignInMenuAnchor = { top: number; left: number };
 
 /**
  * The sign-in choices (SOW account, Apple) as a small menu
