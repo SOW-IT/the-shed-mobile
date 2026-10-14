@@ -20,6 +20,11 @@ and someone is staff in a staff year when that year's profile has at least one
 assignment. In those years their name, Campus and Role come from the profile;
 in every other year they read as the plain Member underneath, with that row's
 own Campus and Role. A profile with no assignments doesn't make anyone staff.
+While someone is staff this staff year, the edit sheet keeps their row's own
+Campus and Role as they are and offers no Delete, even when opened from an
+event in another year. When their profile has no name, the row's own name
+stands in; the edit sheet asks for one if neither has it, and an email is
+never used as a name.
 _Avoid_: overlay, shadow row
 
 **Staff email** / **Personal email**:
@@ -79,9 +84,11 @@ has no member row yet, the Member simply becomes theirs: their profile is
 linked to it and nothing moves. Otherwise the row with more events attended
 survives (the older one on a tie), every sign-in moves onto it, an event both
 were signed in to becomes one record (earlier sign-in time, both notes), and
-every profile that pointed at the other row points at the survivor. Someone
-who is staff in the year being viewed can't be merged away, and two people who
-were both staff in the same year can't be merged.
+every profile that pointed at the other row points at the survivor. The
+survivor keeps the kept person's name, church and import id (taking the other
+row's only where the kept person has none). Someone who is staff in the year
+being viewed can't be merged away, and two people who were both staff in the
+same year can't be merged.
 _Avoid_: combine, dedupe, delete (deleting throws the attendance away)
 
 **Suggested merge**:
