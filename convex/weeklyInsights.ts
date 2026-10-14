@@ -163,6 +163,7 @@ const checkResult = v.object({
   memberKeys: v.array(v.string()),
   goneMemberKeys: v.array(v.string()),
   tagChanged: v.boolean(),
+  metadataChanged: v.boolean(),
   compareDue: v.boolean(),
   auditMax: v.number(),
   eventsMax: v.number(),
@@ -189,6 +190,7 @@ export const checkChanges = internalQuery({
         memberKeys: [],
         goneMemberKeys: [],
         tagChanged: false,
+        metadataChanged: false,
         compareDue: false,
         auditMax: latestAudit?._creationTime ?? 0,
         eventsMax: latestEvent?._creationTime ?? 0,
@@ -206,6 +208,7 @@ export const checkChanges = internalQuery({
     const eventIds = new Set<Id<"events">>(created.map((e) => e._id));
     const memberIds = new Set<Id<"attendanceMembers">>();
     let tagChanged = false;
+    let metadataChanged = false;
     // Someone who left staff had their sign-ins moved off their staff email
     // onto a member record: re-read the weeklies that had the staff email.
     const leftStaff = new Set<string>();
@@ -213,6 +216,7 @@ export const checkChanges = internalQuery({
       if (row.eventId) eventIds.add(row.eventId);
       if (row.memberId) memberIds.add(row.memberId);
       if (row.entityType === "tag") tagChanged = true;
+      if (row.entityType === "metadata") metadataChanged = true;
       const email = row.action === "member.leftStaff" ? canonicalEmailKey(row.subjectEmail) : undefined;
       if (email) leftStaff.add(`staff:${email}`);
     }
@@ -241,6 +245,7 @@ export const checkChanges = internalQuery({
       memberKeys,
       goneMemberKeys,
       tagChanged,
+      metadataChanged,
       compareDue,
       auditMax: audit.length ? audit[audit.length - 1]._creationTime : index.auditSeen,
       eventsMax: created.length ? created[created.length - 1]._creationTime : index.eventsSeen,
@@ -248,6 +253,7 @@ export const checkChanges = internalQuery({
         settingsChanged ||
         compareDue ||
         tagChanged ||
+        metadataChanged ||
         relevant.length > 0 ||
         memberKeys.length > 0 ||
         goneMemberKeys.length > 0,
@@ -545,6 +551,7 @@ async function buildSubgroup(
     memberKeys: string[];
     goneMemberKeys: string[];
     tagChanged: boolean;
+    metadataChanged: boolean;
     compareDue: boolean;
     auditMax: number;
     eventsMax: number;
@@ -565,7 +572,7 @@ async function buildSubgroup(
       await ctx.runQuery(internal.weeklyInsights.weeklyEventsPage, {
         subgroup,
         now,
-        includeJoint: settings.jointWeeklies,
+        includeJoint: true,
         paginationOpts: { numItems: EVENTS_PAGE, cursor },
       });
     weeklyEvents.push(...page.page);
@@ -602,7 +609,7 @@ async function buildSubgroup(
     for (const row of rows) keysByEvent.set(row.eventId, row.keys);
   }
 
-  const held: HeldWeekly[] = data.weeklyEvents
+  const heldAll: (HeldWeekly & { joint: boolean })[] = data.weeklyEvents
     .filter((e) => (keysByEvent.get(e.eventId)?.length ?? 0) > 0)
     .map((e) => ({
       eventId: e.eventId,
@@ -610,8 +617,12 @@ async function buildSubgroup(
       count: keysByEvent.get(e.eventId)!.length,
       name: e.name,
       mark: e.mark,
+      joint: e.joint,
     }))
     .sort((a, b) => a.at - b.at);
+  const held: HeldWeekly[] = heldAll
+    .filter((w) => settings.jointWeeklies || !w.joint)
+    .map(({ joint: _joint, ...w }) => w);
   const terms = deriveTerms(held, termSystemFor(subgroup, settings), settings.termGapDays);
   const facts: TermFacts[] = terms.map((t) => {
     const attendance: Record<string, number[]> = {};
@@ -629,7 +640,7 @@ async function buildSubgroup(
   // change.
   const latest = facts.length - 1;
   const recompute = new Set<number>();
-  if (force || check.settingsChanged) facts.forEach((_, i) => recompute.add(i));
+  if (force || check.settingsChanged || check.metadataChanged) facts.forEach((_, i) => recompute.add(i));
   if (changed.length) {
     for (let i = Math.max(0, Math.min(...changed) - 1); i <= latest; i++) recompute.add(i);
   }
@@ -760,15 +771,14 @@ async function buildSubgroup(
   // for is the latest term stopping running.
   const nextCompareAt = runningUntil > now ? runningUntil : NEVER;
   const recentFrom = now - INDEX_WEEKLIES_WEEKS * WEEK_MS;
-  const joint = new Map(data.weeklyEvents.map((e) => [e.eventId, e.joint]));
   await ctx.runMutation(internal.weeklyInsights.saveIndex, {
     subgroup,
     computedAt: now,
     periods: periodOptions(facts),
     currentKey: latest >= 0 ? facts[latest].key : null,
-    weeklies: held
+    weeklies: heldAll
       .filter((w) => w.at >= recentFrom)
-      .map((w) => ({ at: w.at, count: w.count, joint: joint.get(w.eventId as Id<"events">)! })),
+      .map((w) => ({ at: w.at, count: w.count, joint: w.joint })),
     settingsVersion: check.version,
     viewVersion: VIEW_VERSION,
     auditSeen: check.auditMax,

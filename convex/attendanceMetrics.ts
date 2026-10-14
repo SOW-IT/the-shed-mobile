@@ -510,10 +510,16 @@ export const recomputeAll = internalMutation({
     // is built from its weekly meetings by weeklyInsights.rebuildAll.
     const years = args.staffYear ? [args.staffYear] : metricsYears();
     for (const year of years) {
-      await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeSubgroup, {
-        subgroup: SOW_SUBGROUP,
-        staffYear: year,
-      });
+      const universities = await ctx.db
+        .query("universities")
+        .withIndex("by_year_and_name", (q) => q.eq("year", year))
+        .take(100);
+      for (const subgroup of [SOW_SUBGROUP, ...universities.map((u) => u.name)]) {
+        await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeSubgroup, {
+          subgroup,
+          staffYear: year,
+        });
+      }
     }
     await ctx.scheduler.runAfter(
       0,

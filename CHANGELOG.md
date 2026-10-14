@@ -6,6 +6,29 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.6.4] - 2026-10-14
+
+### Fixed
+- **Merging two people no longer leaves an "Unknown" in campus Insights.** The
+  record that's merged away is now noted for Insights, so the nightly build
+  moves its weeklies onto the person kept. Earlier merges are caught up with
+  `memberRepair:flagMergedAway`.
+- **Campus Insights on older phone apps (2.4.7 and before) stay current.** The
+  nightly job builds every campus's snapshot again, not just SOW.
+- **The SOW "include collaborative" switch changes the campus comparison
+  again.** Shared weeklies such as Mega Weeklies count towards each campus's
+  average when it's on, as before 2.5.0. Terms still leave them out unless
+  the setting says otherwise.
+- **Insights picks up staff role changes and member field changes** made in
+  Admin and Attendance settings, instead of waiting for the next sign-in.
+- **Design request links don't send older apps to a missing page.** Apps
+  before 2.2.0 get the web page, as with event requests; the Churches page is
+  handled the same way for apps before 2.5.5.
+- **Tapping the "Set your local church" push opens Profile**, and a push about
+  the Churches page opens it (in the next app build).
+- **Line breaks in a design request's answers and comments print as line
+  breaks in its PDF**, not as "?".
+
 ## [2.6.3] - 2026-10-14
 
 ### Added

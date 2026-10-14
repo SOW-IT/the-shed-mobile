@@ -71,7 +71,11 @@ describe("app versions", () => {
     const urls = async (args: { appVersion?: string }) =>
       (await asUser(t, ADMIN).query(api.notifications.list, args))!.map((n) => [n.title, n.url]);
     expect(await urls({})).toEqual([
-      ["Design", "/design-requests/x"],
+      ["Design", null],
+      ["Event", null],
+    ]);
+    expect(await urls({ appVersion: "2.1.9" })).toEqual([
+      ["Design", null],
       ["Event", null],
     ]);
     expect(await urls({ appVersion: "2.3.1" })).toEqual([

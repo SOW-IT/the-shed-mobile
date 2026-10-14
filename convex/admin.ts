@@ -53,6 +53,7 @@ import {
   rolesOf,
   setCachedDirectorEmail,
 } from "./model";
+import { logAttendanceAction } from "./attendanceAudit";
 import { hasSignedIn } from "./presence";
 import { attachMember, isAssigned, leaveStaff, staffProfileOfMember } from "./staffMembers";
 
@@ -141,7 +142,19 @@ const writeStaffProfile = async (
   };
   const profileId = existing?._id ?? (await ctx.db.insert("staffProfiles", { email, year, ...fields }));
   if (existing) await ctx.db.patch("staffProfiles", existing._id, fields);
-  await attachMember(ctx, profileId, (await optionalEmail(ctx)) ?? "system:staff-assign");
+  const actorEmail = (await optionalEmail(ctx)) ?? "system:staff-assign";
+  await attachMember(ctx, profileId, actorEmail);
+  const memberId = (await ctx.db.get("staffProfiles", profileId))?.memberId;
+  if (memberId) {
+    await logAttendanceAction(ctx, {
+      actorEmail,
+      entityType: "member",
+      action: "member.staffProfile",
+      summary: `Set ${email}'s ${year} staff roles: ${assignments.map((a) => a.role).join(", ") || "none"}`,
+      memberId,
+      subjectEmail: email,
+    });
+  }
   return profileId;
 };
 
@@ -583,6 +596,15 @@ export const removeStaffProfile = mutation({
       !(await staffProfileOfMember(ctx, profile.memberId, args.year))
     ) {
       await leaveStaff(ctx, profile.memberId, profile, args.year, actorEmail);
+    } else if (profile?.memberId) {
+      await logAttendanceAction(ctx, {
+        actorEmail,
+        entityType: "member",
+        action: "member.staffProfile",
+        summary: `Removed ${email}'s ${args.year} staff profile`,
+        memberId: profile.memberId,
+        subjectEmail: email,
+      });
     }
     const settings = await getYearSettings(ctx, args.year);
     if (settings?.budgetManagerEmail === email) {

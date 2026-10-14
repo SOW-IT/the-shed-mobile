@@ -47,8 +47,10 @@ export const appLinkForScheme = (scheme: string | undefined): AppLink =>
  * person's app is new enough (`#app`, see `appCanOpen`).
  */
 export const NEWER_PAGES: readonly { prefix: string; since: string }[] = [
+  { prefix: "/design-requests", since: "2.2.0" },
   { prefix: "/event-requests", since: "2.3.0" },
   { prefix: "/announcements", since: "2.4.0" },
+  { prefix: "/churches", since: "2.5.5" },
 ];
 
 /** The marker on a link whose recipient's app can open it. */

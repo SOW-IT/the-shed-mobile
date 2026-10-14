@@ -5,6 +5,7 @@ import { api, internal } from "./_generated/api";
 import type { WeeklyBlock } from "../shared/weeklyInsightsView";
 import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
+import { readCampusWeeklyAverages } from "./weeklyInsights";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -175,7 +176,8 @@ describe("first build and the view", () => {
     // Recent held weeklies for the SOW comparison; the shared Mega weeklies
     // (15 Jul) isn't one of them.
     expect(index.weeklies.at(-1)).toMatchObject({ at: T2_2026[6], count: 2, joint: false });
-    expect(index.weeklies.some((w) => w.at === wed(2026, 7, 15) || w.at === wed(2026, 8, 5))).toBe(false);
+    expect(index.weeklies.find((w) => w.at === wed(2026, 7, 15))).toMatchObject({ count: 2, joint: true });
+    expect(index.weeklies.some((w) => w.at === wed(2026, 8, 5))).toBe(false);
     expect(Object.keys(await viewDocs(t)).sort()).toEqual(
       [`${UNSW}|2025`, `${UNSW}|2025-T2`, `${UNSW}|2026`, `${UNSW}|2026-T1`, `${UNSW}|2026-T2`].sort()
     );
@@ -848,5 +850,77 @@ describe("creating an event as a Weekly", () => {
     const id = await leader.mutation(api.events.create, { ...base, tagIds: [social], weekly: { year: 2026, slot: 2, week: 11 } });
     await leader.mutation(api.events.update, { eventId: id, ...base, tagIds: [social, ids.tag], weekly: null });
     expect((await t.run((ctx) => ctx.db.get(id)))!.tagIds).toEqual([social]);
+  });
+});
+
+describe("2.6.4 regressions", () => {
+  test("merging a duplicate away leaves no Unknown behind and gives the kept person the weeklies", async () => {
+    const { t, leader, ids } = await setup();
+    const dup = await t.run(async (ctx) => {
+      const id = await ctx.db.insert("attendanceMembers", { name: "Ana D", metadata: {} });
+      for (const eventId of ids.weeklies.slice(-2)) {
+        await ctx.db.insert("attendance", { eventId, memberId: id, signInTime: NOW - DAY });
+      }
+      return id;
+    });
+    await rebuild(t);
+    const before = block((await leader.query(api.weeklyInsights.view, { subgroup: UNSW }))!.blocks as Block[], "people");
+    expect(before.rows.some((r) => r.name === "Ana D")).toBe(true);
+
+    await leader.mutation(api.attendanceMembers.merge, { removeId: dup, keep: { memberId: ids.ana }, resolutions: {} });
+    await rebuild(t);
+
+    const after = block((await leader.query(api.weeklyInsights.view, { subgroup: UNSW }))!.blocks as Block[], "people");
+    expect(after.rows.map((r) => r.name)).not.toContain("Unknown");
+    expect(after.rows.map((r) => r.name)).not.toContain("Ana D");
+    const facts = Object.values(await factDocs(t)).flatMap((f) => f.attendance.map((a) => a.key));
+    expect(facts).not.toContain(`member:${dup}`);
+    const ana = Object.values(await factDocs(t))
+      .find((f) => f.termKey === "2026-T2")!
+      .attendance.find((a) => a.key === `member:${ids.ana}`)!;
+    expect(ana.indexes).toHaveLength(7);
+  });
+
+  test("the SOW campus comparison counts shared weeklies only when collaborative is on", async () => {
+    const { t, ids } = await setup();
+    await t.run((ctx) => ctx.db.insert("attendance", { eventId: ids.mega, memberId: ids.ben, signInTime: wed(2026, 7, 15) }));
+    await rebuild(t);
+    const [withShared, without] = await t.run(async (ctx) => [
+      await readCampusWeeklyAverages(ctx, 2026, 4, true),
+      await readCampusWeeklyAverages(ctx, 2026, 4, false),
+    ]);
+    const unsw = (rows: { campus: string; avgWeekly: number }[]) => rows.find((r) => r.campus === UNSW)?.avgWeekly;
+    expect(unsw(withShared)).toBeDefined();
+    expect(unsw(withShared)).not.toBe(unsw(without));
+  });
+
+  test("a staff profile change in Admin, and a member field change, trigger a rebuild", async () => {
+    const { t, admin } = await setup();
+    await rebuild(t);
+    const check = () => t.query(internal.weeklyInsights.checkChanges, { subgroup: UNSW, now: NOW });
+    expect((await check()).needsBuild).toBe(false);
+
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: LEADER,
+      year: 2026,
+      roles: ["Student Leader", "Executive"],
+      university: UNSW,
+    });
+    const afterProfile = await check();
+    expect(afterProfile.needsBuild).toBe(true);
+    expect(afterProfile.memberKeys.some((k) => k.startsWith("member:"))).toBe(true);
+    await rebuild(t);
+    expect((await check()).needsBuild).toBe(false);
+
+    await t.run((ctx) =>
+      ctx.db.insert("attendanceAuditLog", {
+        actorEmail: ADMIN,
+        entityType: "metadata",
+        action: "metadata.update",
+        summary: 'Updated member field "Role"',
+      })
+    );
+    const afterField = await check();
+    expect(afterField).toMatchObject({ needsBuild: true, metadataChanged: true });
   });
 });
