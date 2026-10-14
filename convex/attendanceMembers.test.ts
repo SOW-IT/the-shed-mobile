@@ -416,6 +416,8 @@ describe("attendanceMembers.update", () => {
     expect((await t.run((ctx) => ctx.db.get(memberId)))?.name).toBe("Lee Leader");
     const again = await leader.query(api.attendanceMembers.get, { memberId, staffYear: YEAR });
     expect(again).toMatchObject({ nameLocked: false, name: "Lee Leader" });
+    const { page } = await listAll(leader, { search: "lee" });
+    expect(page.find((r) => r.email === LEADER)?.name).toBe("Lee Leader");
   });
 
   test("as staff whose profile has a name, the name is locked to it", async () => {

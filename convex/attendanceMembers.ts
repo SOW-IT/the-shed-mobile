@@ -142,7 +142,7 @@ export const list = query({
       rows.push({
         key: `staff:${p.email}`,
         kind: "staff",
-        name: personDisplayName(p.name, p.email),
+        name: staffRowName(p, shadow?.name) ?? personDisplayName(p.name, p.email),
         email: p.email,
         personalEmail: shadow?.email,
         memberId: shadow?._id,
@@ -746,7 +746,7 @@ const keepSide = (keep: MergeKeep, fields: MetadataField[]): MergeSide =>
         metadata: keep.row.metadata ?? {},
       }
     : {
-        name: personDisplayName(keep.profile.name, keep.email),
+        name: staffRowName(keep.profile, keep.row?.name) ?? personDisplayName(keep.profile.name, keep.email),
         email: keep.email,
         metadata: staffLockedMetadata(fields, keep.profile, keep.row?.metadata),
       };
