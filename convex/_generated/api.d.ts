@@ -8,11 +8,13 @@
  * @module
  */
 
+import type * as account from "../account.js";
 import type * as admin from "../admin.js";
 import type * as announcementData from "../announcementData.js";
 import type * as announcements from "../announcements.js";
 import type * as appInstalls from "../appInstalls.js";
 import type * as appleIdentity from "../appleIdentity.js";
+import type * as appleRevoke from "../appleRevoke.js";
 import type * as attendance from "../attendance.js";
 import type * as attendanceAudit from "../attendanceAudit.js";
 import type * as attendanceExport from "../attendanceExport.js";
@@ -75,11 +77,13 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  account: typeof account;
   admin: typeof admin;
   announcementData: typeof announcementData;
   announcements: typeof announcements;
   appInstalls: typeof appInstalls;
   appleIdentity: typeof appleIdentity;
+  appleRevoke: typeof appleRevoke;
   attendance: typeof attendance;
   attendanceAudit: typeof attendanceAudit;
   attendanceExport: typeof attendanceExport;

@@ -6,6 +6,8 @@ export const APPLE_ISSUER = "https://appleid.apple.com";
 
 export const APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys";
 
+export const APPLE_AUDIENCES = ["au.org.sow.theshed", "au.org.sow.theshed.staging"];
+
 export type AppleIdentity = {
   sub: string;
   email: string | null;

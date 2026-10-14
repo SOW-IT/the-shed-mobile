@@ -4,6 +4,7 @@ import { convexAuth, createAccount, retrieveAccount } from "@convex-dev/auth/ser
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { DataModel } from "./_generated/dataModel";
 import {
+  APPLE_AUDIENCES,
   APPLE_ISSUER,
   APPLE_JWKS_URL,
   assertNotOrgEmail,
@@ -50,8 +51,6 @@ const E2eLogin = ConvexCredentials<DataModel>({
     return { userId: user._id };
   },
 });
-
-const APPLE_AUDIENCES = ["au.org.sow.theshed", "au.org.sow.theshed.staging"];
 
 let appleJwks: ReturnType<typeof createRemoteJWKSet> | null = null;
 const verifyAppleJwt = async (
