@@ -133,6 +133,12 @@ describe("profile.get", () => {
       await ctx.db.patch("users", user._id, { emailVerificationTime: undefined });
     });
     expect((await asUser(t, email).query(api.profile.get, {}))!.googleSyncedAt).toBeNull();
+
+    const guest = "gia@icloud.com";
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", { email: guest, name: "Gia", emailVerificationTime: signInAt });
+    });
+    expect((await asUser(t, guest).query(api.profile.get, {}))!.googleSyncedAt).toBeNull();
   });
 });
 

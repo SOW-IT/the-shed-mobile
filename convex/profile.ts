@@ -3,7 +3,7 @@ import { ConvexError, v } from "convex/values";
 import { mutation, MutationCtx, query } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
 import { assignmentsOf, departmentsOf, divisionsOf } from "../shared/flow";
-import { currentStaffYear, optionalEmail, optionalProfile, rolesOf } from "./model";
+import { currentStaffYear, isOrgEmail, optionalEmail, optionalProfile, rolesOf } from "./model";
 import { hasSignedIn, lastOnlineAt } from "./presence";
 import { canonicalEmailKey } from "../shared/rollcallImport";
 import { churchByName, viewOf } from "./churches";
@@ -67,7 +67,8 @@ export const get = query({
     const directorySyncedAt =
       directorySync?.lastSuccessAt ??
       (directorySync?.detail?.startsWith("synced") ? directorySync.at : null);
-    const googleSyncTimes = [user?.emailVerificationTime ?? null, directorySyncedAt].filter(
+    const googleSignInAt = isOrgEmail(email) ? (user?.emailVerificationTime ?? null) : null;
+    const googleSyncTimes = [googleSignInAt, directorySyncedAt].filter(
       (at): at is number => at !== null
     );
     return {
