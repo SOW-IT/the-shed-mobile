@@ -84,6 +84,9 @@ describe("report views", () => {
     expect(sql).toContain(">= 10, 1, 0) AS staffYear");
     expect(sql).toContain("ARRAY_LENGTH(IFNULL(JSON_QUERY_ARRAY(p.document, '$.assignments'), [])) > 0");
     expect(sql).toMatch(/QUALIFY ROW_NUMBER\(\) OVER \([\s\S]*\) = 1/);
+    expect(sql).toContain(
+      "PARTITION BY JSON_VALUE(p.document, '$.memberId'), SAFE_CAST(JSON_VALUE(p.document, '$.year') AS INT64)"
+    );
     expect(reportViewsToPublish(["attendance", "events", "attendanceMembers"])).not.toContain(
       "attendance_signins"
     );

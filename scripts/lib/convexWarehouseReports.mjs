@@ -175,7 +175,7 @@ staff AS (
   WHERE JSON_VALUE(p.document, '$.memberId') IS NOT NULL
     AND ARRAY_LENGTH(IFNULL(JSON_QUERY_ARRAY(p.document, '$.assignments'), [])) > 0
   QUALIFY ROW_NUMBER() OVER (
-    PARTITION BY JSON_VALUE(p.document, '$.memberId'), JSON_VALUE(p.document, '$.year')
+    PARTITION BY JSON_VALUE(p.document, '$.memberId'), SAFE_CAST(JSON_VALUE(p.document, '$.year') AS INT64)
     ORDER BY ENDS_WITH(LOWER(JSON_VALUE(p.document, '$.email')), '@sow.org.au') DESC, p._creationTime DESC
   ) = 1
 )
