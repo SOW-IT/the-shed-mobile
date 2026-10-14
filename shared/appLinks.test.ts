@@ -42,8 +42,13 @@ describe("the app's own links and web-only pages", () => {
     expect(versionNeededFor("/event-requests")).toBe("2.3.0");
     expect(versionNeededFor("/event-requests/abc/risk?thread=1")).toBe("2.3.0");
     expect(versionNeededFor("/event-requestsx")).toBeNull();
-    expect(versionNeededFor("/design-requests/abc")).toBeNull();
-    expect(appCanOpen("/design-requests/abc", null)).toBe(true);
+    expect(versionNeededFor("/design-requests/abc")).toBe("2.2.0");
+    expect(appCanOpen("/design-requests/abc", null)).toBe(false);
+    expect(appCanOpen("/design-requests/abc", "2.1.9")).toBe(false);
+    expect(appCanOpen("/design-requests/abc", "2.2.0")).toBe(true);
+    expect(versionNeededFor("/churches?church=abc")).toBe("2.5.5");
+    expect(appCanOpen("/churches", "2.5.4")).toBe(false);
+    expect(versionNeededFor("/request/abc")).toBeNull();
     expect(appCanOpen("/event-requests/abc", null)).toBe(false);
     expect(appCanOpen("/event-requests/abc", "2.2.9")).toBe(false);
     expect(appCanOpen("/event-requests/abc", "2.3.0")).toBe(true);

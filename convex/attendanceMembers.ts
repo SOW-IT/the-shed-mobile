@@ -962,6 +962,14 @@ export const merge = mutation({
         `Removed member "${victim.row.name}" (${victim.row._id})`,
       ].join("\n"),
     });
+    await logAttendanceAction(ctx, {
+      actorEmail,
+      entityType: "member",
+      action: "member.mergedAway",
+      summary: `"${victim.row.name}" was merged into "${keptName}"`,
+      memberId: victim.row._id,
+      detail: `Kept as ${survivor.row._id}`,
+    });
     return { moved, combined };
   },
 });

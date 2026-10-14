@@ -136,7 +136,12 @@ describe("October rollover → Attendance Insights", () => {
     await admin.mutation(api.admin.upsertUniversity, { year: 2027, name: newCampus });
 
     await t.mutation(internal.attendanceMetrics.recomputeAll, {});
-    expect(await scheduledSubgroups(t)).toEqual([SOW_SUBGROUP]);
+    expect(await scheduledSubgroups(t)).toEqual([
+      SOW_SUBGROUP,
+      "University of New South Wales",
+      "University of Sydney",
+      newCampus,
+    ]);
     await t.mutation(internal.weeklyInsights.rebuildAll, {});
     const campuses = await t.run(async (ctx) =>
       (await ctx.db.system.query("_scheduled_functions").collect())

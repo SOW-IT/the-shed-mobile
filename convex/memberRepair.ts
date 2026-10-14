@@ -399,3 +399,68 @@ export const replaceRole = internalMutation({
     return { dryRun, changed, results };
   },
 });
+
+const MERGED_ACTOR = "system:merge-backfill";
+
+export const flagMergedAway = internalMutation({
+  args: { since: v.number(), dryRun: v.optional(v.boolean()) },
+  returns: v.object({
+    dryRun: v.boolean(),
+    flagged: v.number(),
+    results: v.array(
+      v.object({
+        mergeId: v.id("attendanceAuditLog"),
+        removed: v.union(v.string(), v.null()),
+        status: v.union(
+          v.literal("flagged"),
+          v.literal("already flagged"),
+          v.literal("still exists"),
+          v.literal("no removed member")
+        ),
+      })
+    ),
+  }),
+  handler: async (ctx, { since, dryRun = true }) => {
+    const merges = await ctx.db
+      .query("attendanceAuditLog")
+      .withIndex("by_creation_time", (q) => q.gte("_creationTime", since))
+      .take(5000);
+    const results = [];
+    let flagged = 0;
+    for (const merge of merges) {
+      if (merge.action !== "member.merge") continue;
+      const raw = /Removed member .*\(([^()\s]+)\)\s*$/m.exec(merge.detail ?? "")?.[1] ?? null;
+      const removedId = raw ? ctx.db.normalizeId("attendanceMembers", raw) : null;
+      if (!removedId) {
+        results.push({ mergeId: merge._id, removed: raw, status: "no removed member" as const });
+        continue;
+      }
+      if (await ctx.db.get(removedId)) {
+        results.push({ mergeId: merge._id, removed: raw, status: "still exists" as const });
+        continue;
+      }
+      const existing = await ctx.db
+        .query("attendanceAuditLog")
+        .withIndex("by_member_and_action", (q) =>
+          q.eq("memberId", removedId).eq("action", "member.mergedAway")
+        )
+        .first();
+      if (existing) {
+        results.push({ mergeId: merge._id, removed: raw, status: "already flagged" as const });
+        continue;
+      }
+      results.push({ mergeId: merge._id, removed: raw, status: "flagged" as const });
+      flagged++;
+      if (dryRun) continue;
+      await logAttendanceAction(ctx, {
+        actorEmail: MERGED_ACTOR,
+        entityType: "member",
+        action: "member.mergedAway",
+        summary: `${merge.summary} (merged-away record flagged for Insights)`,
+        memberId: removedId,
+        detail: `From merge ${merge._id}`,
+      });
+    }
+    return { dryRun, flagged, results };
+  },
+});

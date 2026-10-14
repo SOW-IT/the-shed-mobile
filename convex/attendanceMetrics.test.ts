@@ -96,7 +96,7 @@ describe("attendanceMetrics", () => {
       expect(scheduled).toContainEqual({ subgroup: SOW_SUBGROUP, staffYear: year });
     }
     // Campuses are built from their weeklies by weeklyInsights.rebuildAll.
-    expect(scheduled.some((j) => j.subgroup === USYD)).toBe(false);
+    expect(scheduled.some((j) => j.subgroup === USYD)).toBe(true);
   });
 
   test("snapshot returns null when not signed in", async () => {
@@ -295,7 +295,7 @@ describe("attendanceMetrics", () => {
     ).resolves.toBeNull();
   });
 
-  test("recomputeAll (daily cron entry) schedules a full SOW rebuild only", async () => {
+  test("recomputeAll (daily cron entry) rebuilds SOW and every campus, for older apps", async () => {
     const { t } = await setup();
     await expect(
       t.mutation(internal.attendanceMetrics.recomputeAll, {})
@@ -308,7 +308,7 @@ describe("attendanceMetrics", () => {
     });
     const subgroups = new Set(jobs.map((j) => j.subgroup));
     expect(subgroups.has(SOW_SUBGROUP)).toBe(true);
-    expect(subgroups.has(USYD)).toBe(false);
+    expect(subgroups.has(USYD)).toBe(true);
     expect(jobs.every((j) => j.ranges === undefined)).toBe(true);
   });
 
