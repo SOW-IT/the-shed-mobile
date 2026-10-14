@@ -110,6 +110,7 @@ export const ConfirmDialog = ({
             value={input}
             onChangeText={setInput}
             placeholder={normalizedRequired}
+            autoCorrect={false}
           />
         </>
       )}
