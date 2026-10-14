@@ -155,7 +155,7 @@ describe("account.get", () => {
       return { userId, sessionId: await ctx.db.insert("authSessions", { userId, expirationTime: 0 }) };
     });
     expect(await as(t, nameless.userId, nameless.sessionId).query(api.account.get, {})).toEqual({
-      name: "",
+      name: "DELETE",
       kind: "sow",
     });
 

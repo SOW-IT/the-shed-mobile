@@ -31,7 +31,7 @@ async function describe(ctx: QueryCtx, userId: Id<"users">) {
     .take(20);
   const apple = accounts.find((a) => a.provider === "apple");
   return {
-    name: user.name?.trim() || user.email || "",
+    name: user.name?.trim() || user.email || "DELETE",
     kind: apple ? ("apple" as const) : ("sow" as const),
     appleSubject: apple?.providerAccountId ?? null,
   };
