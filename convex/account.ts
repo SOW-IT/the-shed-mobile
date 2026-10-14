@@ -18,6 +18,8 @@ const accountKind = v.union(v.literal("sow"), v.literal("apple"));
 
 const REFRESH_TOKEN_BATCH = 500;
 
+export const WIPE_BATCH = 500;
+
 export const sameName = (typed: string, name: string): boolean => {
   const normalize = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
   return normalize(typed) !== "" && normalize(typed) === normalize(name);
@@ -57,28 +59,48 @@ export const forDeletion = internalQuery({
   handler: async (ctx, { userId }) => await describe(ctx, userId),
 });
 
-async function deleteByEmail(ctx: MutationCtx, email: string, includeGuestData: boolean) {
-  const tokens = await ctx.db
-    .query("pushTokens")
-    .withIndex("by_email", (q) => q.eq("email", email))
-    .take(100);
-  for (const row of tokens) await ctx.db.delete("pushTokens", row._id);
-  const seen = await ctx.db
-    .query("lastSeen")
-    .withIndex("by_email", (q) => q.eq("email", email))
-    .take(10);
-  for (const row of seen) await ctx.db.delete("lastSeen", row._id);
-  const installs = await ctx.db
-    .query("appInstalls")
-    .withIndex("by_email_and_platform", (q) => q.eq("email", email))
-    .take(10);
-  for (const row of installs) await ctx.db.delete("appInstalls", row._id);
-  if (!includeGuestData) return;
-  const notifications = await ctx.db
-    .query("notifications")
-    .withIndex("by_user", (q) => q.eq("userEmail", email))
-    .take(1000);
-  for (const row of notifications) await ctx.db.delete("notifications", row._id);
+async function deleteBatch<T extends { _id: string }>(
+  rows: T[],
+  remove: (row: T) => Promise<void>
+): Promise<boolean> {
+  for (const row of rows) await remove(row);
+  return rows.length === WIPE_BATCH;
+}
+
+async function deleteByEmail(
+  ctx: MutationCtx,
+  email: string,
+  includeGuestData: boolean
+): Promise<boolean> {
+  const more = [
+    await deleteBatch(
+      await ctx.db.query("pushTokens").withIndex("by_email", (q) => q.eq("email", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("pushTokens", row._id)
+    ),
+    await deleteBatch(
+      await ctx.db.query("lastSeen").withIndex("by_email", (q) => q.eq("email", email)).take(WIPE_BATCH),
+      (row) => ctx.db.delete("lastSeen", row._id)
+    ),
+    await deleteBatch(
+      await ctx.db
+        .query("appInstalls")
+        .withIndex("by_email_and_platform", (q) => q.eq("email", email))
+        .take(WIPE_BATCH),
+      (row) => ctx.db.delete("appInstalls", row._id)
+    ),
+  ];
+  if (includeGuestData) {
+    more.push(
+      await deleteBatch(
+        await ctx.db
+          .query("notifications")
+          .withIndex("by_user", (q) => q.eq("userEmail", email))
+          .take(WIPE_BATCH),
+        (row) => ctx.db.delete("notifications", row._id)
+      )
+    );
+  }
+  return more.some(Boolean);
 }
 
 export const wipe = internalMutation({
@@ -91,12 +113,19 @@ export const wipe = internalMutation({
     const sessions = await ctx.db
       .query("authSessions")
       .withIndex("userId", (q) => q.eq("userId", userId))
-      .take(1000);
+      .take(WIPE_BATCH);
     for (const session of sessions) await ctx.db.delete("authSessions", session._id);
     if (sessions.length > 0) {
       await ctx.scheduler.runAfter(0, internal.account.purgeRefreshTokens, {
         sessionIds: sessions.map((s) => s._id),
       });
+    }
+
+    const email = user.email?.toLowerCase();
+    const moreByEmail = email ? await deleteByEmail(ctx, email, !isOrgEmail(email)) : false;
+    if (sessions.length === WIPE_BATCH || moreByEmail) {
+      await ctx.scheduler.runAfter(0, internal.account.wipe, { userId });
+      return null;
     }
 
     const accounts = await ctx.db
@@ -119,9 +148,6 @@ export const wipe = internalMutation({
     for (const profile of profiles) {
       await ctx.db.patch("staffProfiles", profile._id, { userId: undefined });
     }
-
-    const email = user.email?.toLowerCase();
-    if (email) await deleteByEmail(ctx, email, !isOrgEmail(email));
 
     if (user.avatarId && (await ctx.db.system.get(user.avatarId))) {
       await ctx.storage.delete(user.avatarId);

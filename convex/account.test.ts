@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
-import { sameName } from "./account";
+import { sameName, WIPE_BATCH } from "./account";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -379,6 +379,32 @@ describe("account.wipe", () => {
     await t.mutation(internal.account.wipe, { userId: ids.bare });
     await t.run(async (ctx) => {
       expect(await ctx.db.get("users", ids.bare)).toBeNull();
+    });
+  });
+
+  test("keeps going until every session and email-keyed row is gone, then deletes the user", async () => {
+    vi.useFakeTimers();
+    const t = convexTest(schema, modules);
+    const over = WIPE_BATCH + 1;
+    const userId = await t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", { email: GUEST, name: "Gina Guest" });
+      await ctx.db.insert("authAccounts", { userId, provider: "apple", providerAccountId: APPLE_SUB });
+      for (let i = 0; i < over; i++) {
+        await ctx.db.insert("authSessions", { userId, expirationTime: 0 });
+        await ctx.db.insert("pushTokens", { email: GUEST, token: `t${i}` });
+        await ctx.db.insert("lastSeen", { email: GUEST, at: i });
+        await ctx.db.insert("appInstalls", { email: GUEST, platform: "ios", version: "2.7.0", seenAt: i });
+        await ctx.db.insert("notifications", { userEmail: GUEST, title: "Hi", body: `${i}`, read: false });
+      }
+      return userId;
+    });
+    await t.mutation(internal.account.wipe, { userId });
+    expect((await counts(t, GUEST)).users).toBe(1);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(Object.values(await counts(t, GUEST)).every((n) => n === 0)).toBe(true);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("authSessions").take(10)).toHaveLength(0);
+      expect(await ctx.db.query("lastSeen").take(10)).toHaveLength(0);
     });
   });
 

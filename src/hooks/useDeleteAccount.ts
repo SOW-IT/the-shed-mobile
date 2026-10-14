@@ -28,7 +28,7 @@ const appleProof = async (): Promise<AppleProof | "cancelled" | null> => {
       : null;
   } catch (e) {
     if ((e as { code?: unknown } | null)?.code === APPLE_CANCEL_CODE) return "cancelled";
-    return null;
+    throw e;
   }
 };
 
