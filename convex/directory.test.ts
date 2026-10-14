@@ -170,6 +170,23 @@ describe("me", () => {
   });
 });
 
+describe("me without an email", () => {
+  test("an Apple account Apple gave no email still gets its own name, not a missing account", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await t.run(async (ctx) => ctx.db.insert("users", { name: "Apple user" }));
+    const me = await t.withIdentity({ subject: `${userId}|s`, issuer: "test" }).query(api.directory.me, {});
+    expect(me).toEqual({ email: "", year: YEAR, name: "Apple user", photo: null, profile: null });
+
+    const nameless = await t.run(async (ctx) => ctx.db.insert("users", {}));
+    const blank = await t.withIdentity({ subject: `${nameless}|s`, issuer: "test" }).query(api.directory.me, {});
+    expect(blank?.name).toBeNull();
+
+    await t.run(async (ctx) => ctx.db.delete("users", userId));
+    expect(await t.withIdentity({ subject: `${userId}|s`, issuer: "test" }).query(api.directory.me, {})).toBeNull();
+    expect(await t.withIdentity({ subject: "not-an-id|s", issuer: "test" }).query(api.directory.me, {})).toBeNull();
+  });
+});
+
 describe("nameForEmail", () => {
   test("prefers a profile name, falls back to the directory, else null", async () => {
     const t = await setup();
@@ -337,6 +354,33 @@ describe("orgChart", () => {
     );
     const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
     expect(chart.staff.some((s) => s.email === "prez@sow.org.au")).toBe(false);
+  });
+
+  test("campus people are listed under their university, President first", async () => {
+    const t = await setup();
+    const USYD = "University of Sydney";
+    await t.run(async (ctx) => {
+      await ctx.db.insert("universities", { year: YEAR, name: USYD });
+      await ctx.db.insert("staffProfiles", {
+        email: "leader@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Student Leader", university: USYD }],
+      });
+      await ctx.db.insert("staffProfiles", {
+        email: "prez@sow.org.au",
+        year: YEAR,
+        assignments: [
+          { role: "President", university: USYD },
+          { role: "Staff", department: "Marketing" },
+        ],
+      });
+    });
+    const chart = (await asUser(t, RACHEL).query(api.directory.orgChart, {}))!;
+    const usyd = chart.universities.find((u) => u.name === USYD)!;
+    expect(usyd.members.map((m) => [m.email, m.role])).toEqual([
+      ["prez@sow.org.au", "President"],
+      ["leader@sow.org.au", "Student Leader"],
+    ]);
   });
 
   test('the "General" division is shown; in a year with real departments staff stay a top-level group', async () => {

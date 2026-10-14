@@ -1,4 +1,4 @@
-export const ALLOWED_DEEP_LINK_PREFIXES = [
+const ALLOWED_DEEP_LINK_PREFIXES = [
   "/?",
   "/request/",
   "/review",

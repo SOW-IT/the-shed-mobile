@@ -2,8 +2,11 @@ import Google from "@auth/core/providers/google";
 import { ConvexCredentials } from "@convex-dev/auth/providers/ConvexCredentials";
 import { convexAuth, createAccount, retrieveAccount } from "@convex-dev/auth/server";
 import { createRemoteJWKSet, jwtVerify } from "jose";
+import { internal } from "./_generated/api";
 import { DataModel } from "./_generated/dataModel";
 import {
+  APPLE_AUDIENCES,
+  APPLE_FALLBACK_NAME,
   APPLE_ISSUER,
   APPLE_JWKS_URL,
   assertNotOrgEmail,
@@ -51,8 +54,6 @@ const E2eLogin = ConvexCredentials<DataModel>({
   },
 });
 
-const APPLE_AUDIENCES = ["au.org.sow.theshed", "au.org.sow.theshed.staging"];
-
 let appleJwks: ReturnType<typeof createRemoteJWKSet> | null = null;
 const verifyAppleJwt = async (
   identityToken: string,
@@ -89,13 +90,20 @@ const AppleLogin = ConvexCredentials<DataModel>({
       provider: "apple",
       account: { id: sub },
     }).catch(() => null);
-    if (existing) return { userId: existing.user._id };
+    if (existing) {
+      await ctx.runMutation(internal.account.fillFromApple, {
+        userId: existing.user._id,
+        email: emailVerified ? email : null,
+        name: fullName,
+      });
+      return { userId: existing.user._id };
+    }
 
     const { user } = await createAccount(ctx, {
       provider: "apple",
       account: { id: sub },
       profile: {
-        name: fullName ?? email?.split("@")[0] ?? "Apple user",
+        name: fullName ?? email?.split("@")[0] ?? APPLE_FALLBACK_NAME,
         ...(email ? { email } : {}),
         ...(emailVerified ? { emailVerificationTime: Date.now() } : {}),
       },

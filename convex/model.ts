@@ -31,6 +31,13 @@ export const allowedDomain = () =>
 export const isOrgEmail = (email: string | null | undefined): boolean =>
   !!email && email.toLowerCase().endsWith(`@${allowedDomain()}`);
 
+export async function optionalUser(ctx: Ctx): Promise<Doc<"users"> | null> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) return null;
+  const userId = ctx.db.normalizeId("users", identity.subject.split("|")[0]);
+  return userId ? await ctx.db.get("users", userId) : null;
+}
+
 export async function optionalEmail(ctx: Ctx): Promise<string | null> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) return null;

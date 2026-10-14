@@ -144,7 +144,7 @@ export const SearchField = ({
   );
 };
 
-export type SelectOption = string | { label: string; value: string };
+type SelectOption = string | { label: string; value: string };
 
 const normalizeOptions = (options: readonly SelectOption[]) =>
   options.map((option) =>

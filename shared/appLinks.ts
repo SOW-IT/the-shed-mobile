@@ -3,9 +3,9 @@
  * pairs with The SHED; the dev web (the-shed-web-dev) pairs with The SHED
  * Staging, which is on TestFlight rather than the stores.
  */
-export type AppVariant = "production" | "staging";
+type AppVariant = "production" | "staging";
 
-export type AppLink = {
+type AppLink = {
   scheme: string;
   /** The web deployment that pairs with the app, for opening a page there. */
   web: string;

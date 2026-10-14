@@ -16,7 +16,7 @@ import Reanimated, {
 import { measureY, type Measurable } from "@/components/ui";
 import { spacing, USE_NATIVE_DRIVER, useAppTheme } from "@/theme";
 
-export type ReorderableRenderContext = {
+type ReorderableRenderContext = {
   dragHandle: ReactNode;
   dragging: boolean;
 };

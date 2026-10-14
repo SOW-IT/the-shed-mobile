@@ -100,10 +100,8 @@ updates the suggestion until the leader edits a field. The event stores
 `weekly: { year, slot, week }` and gets the Weekly Meeting tag; switching an
 event back to Other event takes both off.
 
-`weeklyInsights:backfillWeeklies` gave every existing one-campus weekly its
-term and week (and tagged the ones that looked like weeklies by name but
-weren't tagged). Run it with `'{"dryRun": true}'` first to see the result;
-it's safe to run again.
+A one-off backfill gave every existing one-campus weekly its term and week
+(and tagged the ones that looked like weeklies by name but weren't tagged).
 
 ## The build (`convex/weeklyInsights.ts`)
 
@@ -126,4 +124,3 @@ it's safe to run again.
 - **First build** reads all weekly history once.
 - **By hand**: `npx convex run weeklyInsights:rebuild '{"subgroup": "University of New South Wales"}'`
   (add `"force": true` to redo every view), or `weeklyInsights:rebuildAll`.
-  The app's refresh (`attendanceMetrics.recomputeNow`) uses the same path.

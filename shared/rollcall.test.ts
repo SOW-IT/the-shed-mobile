@@ -1,6 +1,5 @@
 import { describe, expect, test } from "vitest";
 import {
-  ALL_SUBGROUP,
   canonicalSubgroup,
   compareAttendanceFrequency,
   contrastingText,
@@ -161,7 +160,6 @@ describe("subgroupLabel", () => {
   test("the synthetic ALL sub-group displays as SOW", () => {
     expect(subgroupLabel(SOW_SUBGROUP)).toBe("SOW");
     expect(subgroupLabel("ALL")).toBe("SOW");
-    expect(ALL_SUBGROUP).toBe(SOW_SUBGROUP);
   });
 
   test("a known campus collapses to its acronym", () => {

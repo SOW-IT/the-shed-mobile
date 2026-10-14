@@ -14,7 +14,7 @@ export type MergeSide = {
   metadata: Record<string, string>;
 };
 
-export type MergeFieldLike = { _id: string; key: string };
+type MergeFieldLike = { _id: string; key: string };
 
 export type MergeConflict = {
   /** "name", "email", or a metadata field id. */
@@ -29,7 +29,7 @@ export type MergeConflict = {
 /** Which side's value wins, keyed by `MergeConflict.field`. Missing = keep. */
 export type MergeResolutions = Record<string, "keep" | "remove">;
 
-export type MergeOptions = {
+type MergeOptions = {
   /** A staff person's name and email come from their profile. */
   identityLocked?: boolean;
   /** Metadata fields that can't change (a staff person's campus and role). */

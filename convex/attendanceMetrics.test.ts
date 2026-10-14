@@ -277,24 +277,6 @@ describe("attendanceMetrics", () => {
     expect(live!.data.summary.uniqueAttendees).toBe(1);
   });
 
-  test("recomputeNow requires an attendance manager", async () => {
-    const { t } = await setup();
-    const outsider = asUser(t, "nobody@sow.org.au");
-    await expect(
-      outsider.mutation(api.attendanceMetrics.recomputeNow, { subgroup: USYD })
-    ).rejects.toThrow();
-  });
-
-  test("recomputeNow (manager) schedules a refresh per-subgroup and for all", async () => {
-    const { leader } = await setup();
-    await expect(
-      leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: USYD })
-    ).resolves.toBeNull();
-    await expect(
-      leader.mutation(api.attendanceMetrics.recomputeNow, {})
-    ).resolves.toBeNull();
-  });
-
   test("recomputeAll (daily cron entry) rebuilds SOW and every campus, for older apps", async () => {
     const { t } = await setup();
     await expect(
@@ -526,67 +508,6 @@ describe("attendanceMetrics", () => {
     expect(role?.rows.map((r) => r.label)).toEqual(["Member"]);
   });
 
-  test("recomputeNow for SOW is throttled to once per week, not by the nightly rebuild", async () => {
-    const { t, leader } = await setup();
-    // The nightly cron has just rebuilt this group.
-    await t.run((ctx) =>
-      ctx.db.insert("attendanceMetricsRuns", {
-        subgroup: SOW_SUBGROUP,
-        staffYear: YEAR,
-        computedAt: Date.now(),
-        variants: ["4:true"],
-      })
-    );
-    // A manual refresh must still be allowed…
-    await expect(
-      leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: SOW_SUBGROUP })
-    ).resolves.toBeNull();
-    // …and only a second manual refresh within the week is throttled.
-    await expect(
-      leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: SOW_SUBGROUP })
-    ).rejects.toThrow(/refresh again in 7 days/i);
-  });
-
-  test("recomputeNow for a campus schedules its weeklies rebuild, with no cooldown", async () => {
-    const { t, leader } = await setup();
-    await leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: USYD });
-    await leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: USYD });
-    const jobs = await t.run(async (ctx) =>
-      (await ctx.db.system.query("_scheduled_functions").collect()).filter(
-        (j) => j.name === "weeklyInsights:rebuild"
-      )
-    );
-    expect(jobs.map((j) => j.args[0])).toEqual([{ subgroup: USYD }, { subgroup: USYD }]);
-  });
-
-  test("recomputeNow with no sub-group rebuilds SOW and every campus", async () => {
-    const { t, leader } = await setup();
-    await leader.mutation(api.attendanceMetrics.recomputeNow, {});
-    const names = await t.run(async (ctx) =>
-      (await ctx.db.system.query("_scheduled_functions").collect()).map((j) => j.name)
-    );
-    expect(names).toEqual(
-      expect.arrayContaining(["attendanceMetrics:recomputeAll", "weeklyInsights:rebuildAll"])
-    );
-  });
-
-  test("recomputeNow records the manual refresh even before any rebuild has run", async () => {
-    const { t, leader } = await setup();
-    await leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: SOW_SUBGROUP });
-    const run = await t.run((ctx) =>
-      ctx.db
-        .query("attendanceMetricsRuns")
-        .withIndex("by_subgroup_and_year", (q) =>
-          q.eq("subgroup", SOW_SUBGROUP).eq("staffYear", YEAR)
-        )
-        .unique()
-    );
-    expect(run?.lastManualRefreshAt).toBeGreaterThan(0);
-    await expect(
-      leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: SOW_SUBGROUP })
-    ).rejects.toThrow(/refresh/i);
-  });
-
   test("detects Weekly Meeting tagged events", async () => {
     const { t, leader } = await setup();
     const tagId = await t.run((ctx) =>
@@ -760,33 +681,6 @@ const EMPTY_DATA = {
   hasEnoughHistory: false,
   hasWeeklyMeetings: false,
 };
-
-describe("purgeStaleSnapshotRanges", () => {
-  test("deletes rows whose rangeWeeks is no longer served", async () => {
-    const { t } = await setup();
-    await t.run(async (ctx) => {
-      for (const rangeWeeks of [1, 2, 4, 8, 12, 52]) {
-        await ctx.db.insert("attendanceMetricsSnapshots", {
-          subgroup: USYD,
-          rangeWeeks,
-          includeCollaborative: true,
-          staffYear: YEAR,
-          computedAt: Date.now(),
-          data: EMPTY_DATA,
-        });
-      }
-    });
-    const result = await t.mutation(
-      internal.attendanceMetrics.purgeStaleSnapshotRanges,
-      {}
-    );
-    expect(result).toEqual({ deleted: 3, kept: 3 });
-    const left = await t.run((ctx) =>
-      ctx.db.query("attendanceMetricsSnapshots").collect()
-    );
-    expect(left.map((r) => r.rangeWeeks).sort((a, b) => a - b)).toEqual([1, 4, 52]);
-  });
-});
 
 describe("campusWeeklyAverages", () => {
   const snap = (avgWeekly: number | null) => ({

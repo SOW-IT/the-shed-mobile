@@ -133,6 +133,42 @@ describe("profile.get", () => {
       await ctx.db.patch("users", user._id, { emailVerificationTime: undefined });
     });
     expect((await asUser(t, email).query(api.profile.get, {}))!.googleSyncedAt).toBeNull();
+
+    const guest = "gia@icloud.com";
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", { email: guest, name: "Gia", emailVerificationTime: signInAt });
+    });
+    expect((await asUser(t, guest).query(api.profile.get, {}))!.googleSyncedAt).toBeNull();
+  });
+});
+
+describe("profile.get without an email", () => {
+  test("your own Profile loads for an Apple account Apple gave no email", async () => {
+    const t = await setup();
+    const { userId, churchId } = await t.run(async (ctx) => {
+      const churchId = await ctx.db.insert("churches", { name: "Grace Church", nameKey: "grace church", addedBy: ADMIN });
+      return { userId: await ctx.db.insert("users", { name: "Apple user", localChurch: "Hillside" }), churchId };
+    });
+    const me = t.withIdentity({ subject: `${userId}|s`, issuer: "test" });
+    expect(await me.query(api.profile.get, {})).toMatchObject({
+      email: "",
+      isMe: true,
+      name: "Apple user",
+      localChurch: "Hillside",
+      typedChurch: "Hillside",
+      church: null,
+      serviceHistory: [],
+    });
+
+    await t.run(async (ctx) => ctx.db.patch("users", userId, { churchId, localChurch: undefined, name: undefined }));
+    const picked = (await me.query(api.profile.get, {}))!;
+    expect(picked.church?._id).toBe(churchId);
+    expect(picked.localChurch).toBe("Grace Church");
+    expect(picked.typedChurch).toBeNull();
+    expect(picked.name).toBeNull();
+
+    await t.run(async (ctx) => ctx.db.delete("users", userId));
+    expect(await me.query(api.profile.get, {})).toBeNull();
   });
 });
 

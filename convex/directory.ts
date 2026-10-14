@@ -21,6 +21,7 @@ import {
   nextStaffYear,
   optionalEmail,
   optionalProfile,
+  optionalUser,
   rolesOf,
 } from "./model";
 
@@ -52,7 +53,12 @@ export const me = query({
   handler: async (ctx) => {
     const caller = await optionalProfile(ctx);
     const email = caller?.email ?? (await optionalEmail(ctx));
-    if (!email) return null;
+    if (!email) {
+      const user = await optionalUser(ctx);
+      if (!user) return null;
+      const photo = await photoUrl(ctx, user, null);
+      return { email: "", year: currentStaffYear(), name: user.name ?? null, photo, profile: null };
+    }
     const year = caller?.year ?? currentStaffYear();
     const user = await ctx.db
       .query("users")

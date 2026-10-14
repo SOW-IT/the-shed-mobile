@@ -10,6 +10,7 @@ import {
   scheduleError,
   sortRoles,
 } from "../shared/announcements";
+import { DAY_MS } from "../shared/attendanceMetrics";
 import { assignmentsOf } from "../shared/flow";
 import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
@@ -41,7 +42,6 @@ const PUSH_BATCH = 100;
 const EMAIL_BATCH = 100;
 /** Gap between email batches, to stay under Resend's requests per second. */
 const EMAIL_BATCH_GAP_MS = 1000;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 const cleanList = (values: string[]) => [
   ...new Set(values.map((value) => value.trim()).filter(Boolean)),

@@ -68,6 +68,8 @@ removed in 2.4.7; guests who used it before keep their account but can't
 sign in with it again). A guest has an account and no profile. The Role
 option of the same name (it was called Visitor until 2.5.0) marks a
 non-student at events, such as a parent or a church guest.
+Deleting a guest's account removes everything it had; deleting a staff
+member's account removes only the sign-in, and their profiles stay.
 _Avoid_: visitor (in Attendance that's someone from another campus), public
 user, non-staff
 

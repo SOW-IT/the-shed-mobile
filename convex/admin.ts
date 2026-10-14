@@ -7,15 +7,12 @@ import {
   dedupeAssignments,
   departmentsOf,
   DIRECTOR,
-  DIRECTOR_APPROVAL_THRESHOLD,
-  EARLIEST_REQUEST_YEAR,
   FINANCE,
   HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
   isChaplainRole,
   isMemberOfDepartment,
   isSystemRole,
-  MEMBER,
   requestCompleted,
   ROLES,
   roleNeedsDepartment,
@@ -1369,31 +1366,6 @@ export const setEventDirectorThreshold = mutation({
       year: args.year,
       eventDirectorApprovalThreshold: args.amount,
     });
-  },
-});
-
-export const backfillDirectorThresholds = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    let filled = 0;
-    for (let year = EARLIEST_REQUEST_YEAR; year <= nextStaffYear(); year++) {
-      const settings = await getYearSettings(ctx, year);
-      if (settings) {
-        if (settings.directorApprovalThreshold === undefined) {
-          await ctx.db.patch("yearSettings", settings._id, {
-            directorApprovalThreshold: DIRECTOR_APPROVAL_THRESHOLD,
-          });
-          filled++;
-        }
-      } else {
-        await ctx.db.insert("yearSettings", {
-          year,
-          directorApprovalThreshold: DIRECTOR_APPROVAL_THRESHOLD,
-        });
-        filled++;
-      }
-    }
-    return { filled };
   },
 });
 

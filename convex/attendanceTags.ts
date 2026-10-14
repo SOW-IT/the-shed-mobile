@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { normalizeSubgroups } from "../shared/rollcall";
 import { Id } from "./_generated/dataModel";
-import { internalMutation, mutation, query } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { optionalProfile, requireAttendanceManager } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
 
@@ -110,77 +110,5 @@ export const saveAll = mutation({
         });
       }
     }
-  },
-});
-
-export const consolidateAttendanceTags = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const rows = await ctx.db.query("attendanceTags").collect();
-    const groups = new Map<string, typeof rows>();
-    for (const row of rows) {
-      const key = row.name.trim().toLowerCase();
-      const g = groups.get(key) ?? [];
-      g.push(row);
-      groups.set(key, g);
-    }
-
-    const remap = new Map<Id<"attendanceTags">, Id<"attendanceTags">>();
-    let merged = 0;
-
-    for (const group of groups.values()) {
-      const sorted = [...group].sort(
-        (a, b) => a._creationTime - b._creationTime
-      );
-      const survivor = sorted[0];
-
-      let global = false;
-      const scopes = new Set<string>();
-      for (const tag of sorted) {
-        if (!tag.subgroups?.length) global = true;
-        else for (const s of tag.subgroups) scopes.add(s);
-      }
-      const mergedSubgroups = global
-        ? undefined
-        : normalizeSubgroups([...scopes]);
-      const colour = sorted.find((tag) => tag.colour)?.colour;
-
-      for (const loser of sorted.slice(1)) {
-        remap.set(loser._id, survivor._id);
-        await ctx.db.delete(loser._id);
-        merged++;
-      }
-
-      const subgroupsChanged =
-        JSON.stringify([...(survivor.subgroups ?? [])].sort()) !==
-        JSON.stringify([...(mergedSubgroups ?? [])].sort());
-      const colourChanged =
-        (survivor.colour ?? undefined) !== (colour ?? undefined);
-      if (subgroupsChanged || colourChanged) {
-        await ctx.db.patch(survivor._id, {
-          subgroups: mergedSubgroups,
-          colour,
-        });
-      }
-    }
-
-    let eventsRemapped = 0;
-    if (remap.size > 0) {
-      for (const event of await ctx.db.query("events").collect()) {
-        if (!event.tagIds?.length) continue;
-        const next = [
-          ...new Set(event.tagIds.map((id) => remap.get(id) ?? id)),
-        ];
-        const changed =
-          next.length !== event.tagIds.length ||
-          next.some((id, i) => id !== event.tagIds![i]);
-        if (changed) {
-          await ctx.db.patch(event._id, { tagIds: next });
-          eventsRemapped++;
-        }
-      }
-    }
-
-    return { groups: groups.size, merged, eventsRemapped };
   },
 });

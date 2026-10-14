@@ -16,7 +16,6 @@ import {
   termSystemFor,
   termOptions,
   truncateTerm,
-  looksWeekly,
   suggestWeekly,
   weekFromName,
   weeklyName,
@@ -161,7 +160,6 @@ describe("week numbers and marks", () => {
     expect(weeklyWhen(Date.UTC(2026, 5, 3, 7))).toBe("3 Jun");
     expect(termOptions("semesters", 2026).map((o) => o.label)).toEqual(["Sem 2 2025", "Sem 1 2026", "Sem 2 2026"]);
     expect(termOptions("terms", 2026).map((o) => o.key)).toEqual(["2025-T3", "2026-T1", "2026-T2", "2026-T3"]);
-    expect([looksWeekly("WK #9"), looksWeekly("UNSW Weeklies"), looksWeekly("Hot Pot")]).toEqual([true, true, false]);
   });
 });
 

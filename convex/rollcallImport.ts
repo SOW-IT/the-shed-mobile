@@ -1,28 +1,23 @@
 import { v } from "convex/values";
 import {
-  assignmentsOf,
   eventStaffYear,
-  rolesOfLike,
   staffYearStartMs,
   sydneyCalendarYear,
 } from "../shared/flow";
 import {
-  CAMPUS_FIELD_KEY,
   canonicalizeGenderOptionId,
   canonicalizeGenderValues,
   GENDER_FIELD_KEY,
   GENDER_OPTION_IDS,
-  optionIdForLabel,
-  ROLE_FIELD_KEY,
   memberOwnMetadata,
   STUDENT_YEAR_FIELD_KEY,
   STUDENT_YEAR_VALUES,
   commencementYearFromLevel,
 } from "../shared/attendanceMemberMeta";
-import { canonicalSubgroup, normalizeSubgroups, SOW_SUBGROUP } from "../shared/rollcall";
+import { canonicalSubgroup, normalizeSubgroups } from "../shared/rollcall";
 import {
   canonicalImportMemberName,
-  canonicalStaffEmailFromLegacy,
+  normalizedEmail,
   staffEmailCandidates,
 } from "../shared/rollcallImport";
 import { Id } from "./_generated/dataModel";
@@ -57,14 +52,6 @@ const tagInput = v.object({
   sourceIds: v.optional(v.array(v.string())),
 });
 
-const memberInput = v.object({
-  sourceImportId: v.string(),
-  name: v.string(),
-  email: v.optional(v.string()),
-  subgroup: v.string(),
-  metadata: v.optional(v.record(v.string(), v.string())),
-});
-
 const eventMemberInput = v.object({
   source: v.optional(v.string()),
   resolved: v.optional(v.boolean()),
@@ -91,21 +78,11 @@ async function allMetadataFields(ctx: Ctx) {
   return await ctx.db.query("attendanceMetadata").collect();
 }
 
-const normalizedEmail = (email: string | undefined): string | undefined => {
-  const lower = email?.trim().toLowerCase();
-  return lower && lower.includes("@") ? lower : undefined;
-};
-
-const canonicalStaffEmailForLegacyMember = canonicalStaffEmailFromLegacy;
-
-async function metadataForMember(
-  ctx: MutationCtx,
+function metadataForMember(
   year: number,
   raw: Record<string, string> | undefined,
   fieldMap: Record<string, Id<"attendanceMetadata">>,
-  fieldsByKey: Map<string, Awaited<ReturnType<typeof allMetadataFields>>[number]>,
-  byId: Map<string, Awaited<ReturnType<typeof allMetadataFields>>[number]>,
-  staffEmail?: string
+  byId: Map<string, Awaited<ReturnType<typeof allMetadataFields>>[number]>
 ) {
   const out: Record<string, string> = {};
   for (const [oldFieldId, value] of Object.entries(raw ?? {})) {
@@ -126,27 +103,6 @@ async function metadataForMember(
     out[field._id] = value;
   }
 
-  if (staffEmail) {
-    const profile = await getProfile(ctx, staffEmail, year);
-    if (profile) {
-      const campusField = fieldsByKey.get(CAMPUS_FIELD_KEY);
-      const roleField = fieldsByKey.get(ROLE_FIELD_KEY);
-      const campus = [
-        ...new Set(
-          assignmentsOf(profile).flatMap((a) => (a.university ? [a.university] : []))
-        ),
-      ][0];
-      const role = rolesOfLike(profile)[0];
-      if (campusField) {
-        if (campus) out[campusField._id] = optionIdForLabel(campusField.values, campus);
-        else delete out[campusField._id];
-      }
-      if (roleField) {
-        if (role) out[roleField._id] = optionIdForLabel(roleField.values, role);
-        else delete out[roleField._id];
-      }
-    }
-  }
   return out;
 }
 
@@ -242,76 +198,6 @@ export const prepare = mutation({
   },
 });
 
-export const importMembers = mutation({
-  args: {
-    year: v.number(),
-    fieldMap: v.record(v.string(), v.id("attendanceMetadata")),
-    members: v.array(memberInput),
-  },
-  returns: v.object({ imported: v.number(), staffOverlays: v.number() }),
-  handler: async (ctx, { year, fieldMap, members }) => {
-    const { email: actorEmail } = await requireAdmin(ctx);
-    const fields = await allMetadataFields(ctx);
-    const fieldsByKey = new Map(fields.map((field) => [field.key, field]));
-    const fieldsById = new Map(fields.map((field) => [field._id, field]));
-    let imported = 0;
-    let staffOverlays = 0;
-    for (const member of members) {
-      const displayName = canonicalImportMemberName(member.name);
-      const directEmail = normalizedEmail(member.email);
-      const legacyStaffEmail = canonicalStaffEmailForLegacyMember({
-        name: member.name,
-        email: member.email,
-      });
-      let profile = legacyStaffEmail
-        ? await getProfile(ctx, legacyStaffEmail, year)
-        : null;
-      if (!profile && directEmail) {
-        profile = await getProfile(ctx, directEmail, year);
-      }
-      const staffEmail = profile?.email ?? legacyStaffEmail ?? directEmail;
-      const metadata = await metadataForMember(
-        ctx,
-        year,
-        member.metadata,
-        fieldMap,
-        fieldsByKey,
-        fieldsById,
-        profile?.email
-      );
-      if (profile) {
-        staffOverlays++;
-        const memberId = await linkOrCreateMember(ctx, profile, actorEmail);
-        const existing = await ctx.db.get(memberId);
-        await ctx.db.patch(memberId, {
-          sourceImportId: member.sourceImportId,
-          metadata: memberOwnMetadata(fields, metadata, existing?.metadata),
-        });
-        imported++;
-        continue;
-      }
-
-      const existing = await ctx.db
-        .query("attendanceMembers")
-        .withIndex("by_source_import_id", (q) =>
-          q.eq("sourceImportId", member.sourceImportId)
-        )
-        .unique();
-      const patch = {
-        name: displayName,
-        email: staffEmail,
-        sourceImportId: member.sourceImportId,
-        metadata,
-      };
-      if (!patch.name) continue;
-      if (existing) await ctx.db.patch(existing._id, patch);
-      else await ctx.db.insert("attendanceMembers", patch);
-      imported++;
-    }
-    return { imported, staffOverlays };
-  },
-});
-
 export const importEvents = mutation({
   args: {
     tagMap: v.record(v.string(), v.id("attendanceTags")),
@@ -364,7 +250,6 @@ export const importEvents = mutation({
       const calendarYear = sydneyCalendarYear(new Date(event.dateStart));
       const staffYear = eventStaffYear(event.dateStart);
       const fieldMap = fieldMapByYear[String(calendarYear)] ?? {};
-      const fieldsByKey = new Map(fields.map((field) => [field.key, field]));
       const fieldsById = new Map(fields.map((field) => [field._id, field]));
 
       for (const row of event.members) {
@@ -378,12 +263,10 @@ export const importEvents = mutation({
           profile = await getProfile(ctx, candidate, staffYear);
           if (profile) break;
         }
-        const baseMetadata = await metadataForMember(
-          ctx,
+        const baseMetadata = metadataForMember(
           calendarYear,
           row.metadata,
           fieldMap,
-          fieldsByKey,
           fieldsById
         );
         const metadata = baseMetadata;
@@ -477,53 +360,6 @@ export const summary = query({
         )
       ).reduce((sum, rows) => sum + rows.length, 0),
     };
-  },
-});
-
-export const resetYears = mutation({
-  args: { years: v.array(v.number()), limit: v.optional(v.number()) },
-  returns: v.object({ deleted: v.number(), done: v.boolean() }),
-  handler: async (ctx, { years, limit = 400 }) => {
-    await requireAdmin(ctx);
-    let deleted = 0;
-
-    for (const year of years) {
-      while (deleted < limit) {
-        const eventBatch = await eventsInStaffYear(ctx, year).take(20);
-        if (eventBatch.length === 0) break;
-        let progressed = false;
-        for (const event of eventBatch) {
-          if (deleted >= limit) break;
-          const rows = await ctx.db
-            .query("attendance")
-            .withIndex("by_event", (q) => q.eq("eventId", event._id))
-            .take(200);
-          for (const row of rows) {
-            await ctx.db.delete(row._id);
-            deleted++;
-          }
-          if (rows.length < 200) {
-            await ctx.db.delete(event._id);
-            deleted++;
-            progressed = true;
-          }
-        }
-        // Every event in the batch still has >200 attendance rows to clear;
-        // the outer loop will pick them up again (bounded by `limit`).
-        if (!progressed && deleted >= limit) break;
-      }
-
-    }
-
-    let done = true;
-    for (const year of years) {
-      if (await eventsInStaffYear(ctx, year).first()) {
-        done = false;
-        break;
-      }
-    }
-
-    return { deleted, done };
   },
 });
 

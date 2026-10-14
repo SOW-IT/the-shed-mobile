@@ -253,7 +253,7 @@ export function deriveTerms(
 
 /** "Weeklies T3W5" at a term campus, "Weeklies S2W5" elsewhere. */
 /** A weekly's short name: "T3W5" (UNSW terms) or "S2W5" (semesters). */
-export const weekCode = (system: TermSystem, slot: number, week: number): string =>
+const weekCode = (system: TermSystem, slot: number, week: number): string =>
   `${system === "terms" ? "T" : "S"}${slot}W${week}`;
 
 export const weeklyName = (system: TermSystem, slot: number, week: number): string =>
@@ -287,10 +287,6 @@ export function suggestWeekly(
   const week = term.weeklies.find((w) => w.eventId === NEW)!.week;
   return { year: term.year, slot: term.slot, week, key: term.key, label: term.label };
 }
-
-/** Looks like a campus weekly by its name: "Weeklies …", "S2W3", "WK #9". */
-export const looksWeekly = (name: string): boolean =>
-  /weekl/i.test(name) || weekFromName(name) !== null;
 
 export type TermRow = {
   key: string;
@@ -433,7 +429,7 @@ export function termRows(terms: TermFacts[], index: number, c: Classify): TermRo
   return sortRows(rows);
 }
 
-export const sortRows = <R extends { section: WeeklySection; category: WeeklyCategory; pct: number; name: string }>(
+const sortRows = <R extends { section: WeeklySection; category: WeeklyCategory; pct: number; name: string }>(
   rows: R[]
 ): R[] =>
   rows.sort(
@@ -573,7 +569,7 @@ type SummaryRow = {
   firstAt: number | null;
 };
 
-export function summarise(
+function summarise(
   weeklies: { eventId: string; count: number }[],
   rows: SummaryRow[],
   attendancesBySection: Record<WeeklySection, number>,

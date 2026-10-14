@@ -120,6 +120,12 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   `googlePersonal` provider was removed in 2.4.7); **guests** (accounts with
   no staff profile) can sign in with Apple, which is offered on iOS only.
   Name/email sync from the Google profile on each sign-in.
+- **Delete account** (`convex/account.ts`): from your own Profile, after
+  typing your name. A SOW account loses its sign-in, sessions, push tokens,
+  uploaded photo and church, and keeps its staff profiles and directory data
+  (signing in again relinks them). An Apple account is deleted entirely and
+  its Apple tokens are revoked (`convex/appleRevoke.ts`, needs
+  `APPLE_TEAM_ID`, `APPLE_KEY_ID` and `APPLE_PRIVATE_KEY`).
 - **Email notifications** via Resend: submitter confirmation, "needs your
   approval" to the next approver at every step, declines (with reason),
   receipt-ready-to-pay to the Finance Head, paid confirmation, and a Budget

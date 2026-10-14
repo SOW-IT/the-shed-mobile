@@ -37,7 +37,7 @@ const hasGroups = (audience: Audience): boolean =>
  * also Staff in Finance isn't a "Staff at UNSW". `divisionOf` gives a
  * department's division, so choosing a division reaches its departments' staff.
  */
-export const assignmentInAudience = (
+const assignmentInAudience = (
   assignment: Assignment,
   audience: Audience,
   divisionOf: (department: string) => string | undefined
@@ -105,17 +105,17 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
 /** How many announcements one person can send or schedule in an hour. */
-export const HOURLY_LIMIT = 3;
+const HOURLY_LIMIT = 3;
 /** …and in a day. */
-export const DAILY_LIMIT = 10;
+const DAILY_LIMIT = 10;
 /** How many can be waiting to go out from one person at once. */
-export const PENDING_LIMIT = 10;
+const PENDING_LIMIT = 10;
 /** The same title and message again within this long is a double send. */
-export const DUPLICATE_WINDOW = 10 * MINUTE;
+const DUPLICATE_WINDOW = 10 * MINUTE;
 /** A scheduled time has to be at least this far off; sooner is "Send now". */
-export const MIN_SCHEDULE_LEAD = 5 * MINUTE;
+const MIN_SCHEDULE_LEAD = 5 * MINUTE;
 /** …and no further off than this. */
-export const MAX_SCHEDULE_AHEAD = 90 * DAY;
+const MAX_SCHEDULE_AHEAD = 90 * DAY;
 
 const sameText = (a: string, b: string) =>
   a.replace(/\s+/g, " ").trim().toLowerCase() === b.replace(/\s+/g, " ").trim().toLowerCase();

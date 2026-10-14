@@ -18,6 +18,17 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 ## Still outstanding
 
 
+- [ ] **Sign in with Apple key for account deletion** (2.7.0): create a key
+      with Sign in with Apple enabled in the Apple Developer portal (Team
+      `4FH642K7X2`), then set `APPLE_TEAM_ID`, `APPLE_KEY_ID` and
+      `APPLE_PRIVATE_KEY` (the `.p8` contents) on **both** Convex deployments.
+      Until then deleting an Apple account still deletes it but skips revoking
+      its Apple tokens (a warning in the Convex logs).
+- [ ] **Reply to App Review (2.5.8, guideline 5.1.1(v))** with a physical-device
+      recording: sign in with Apple, Profile, Delete account, type the name,
+      the Apple prompt, "Account deleted". Put the same recording in the App
+      Review Notes for later submissions.
+
 - [ ] **Copy the old web app's design requests into production** once 2.2.0's
       backend is deployed: `gcloud auth login` (an account with access to
       `theshedsow`), then `node scripts/import-design-requests.mjs --dry-run`

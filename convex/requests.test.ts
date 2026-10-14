@@ -167,13 +167,6 @@ describe("configurable Director approval threshold", () => {
     expect(structure?.directorApprovalThreshold).toBe(3000);
   });
 
-  test("backfill stamps the historical default onto the year", async () => {
-    const t = await setup();
-    await t.mutation(internal.admin.backfillDirectorThresholds, {});
-    const structure = await asUser(t, ADMIN).query(api.directory.yearStructure, { year: YEAR });
-    expect(structure?.directorApprovalThreshold).toBe(5000);
-  });
-
   test("setting it for a year with no settings row inserts one", async () => {
     const t = await setup();
     await t.run((ctx) =>

@@ -8,11 +8,13 @@
  * @module
  */
 
+import type * as account from "../account.js";
 import type * as admin from "../admin.js";
 import type * as announcementData from "../announcementData.js";
 import type * as announcements from "../announcements.js";
 import type * as appInstalls from "../appInstalls.js";
 import type * as appleIdentity from "../appleIdentity.js";
+import type * as appleRevoke from "../appleRevoke.js";
 import type * as attendance from "../attendance.js";
 import type * as attendanceAudit from "../attendanceAudit.js";
 import type * as attendanceExport from "../attendanceExport.js";
@@ -47,8 +49,6 @@ import type * as generalMetrics from "../generalMetrics.js";
 import type * as homeContent from "../homeContent.js";
 import type * as homeData from "../homeData.js";
 import type * as http from "../http.js";
-import type * as importData from "../importData.js";
-import type * as importHistory from "../importHistory.js";
 import type * as memberRepair from "../memberRepair.js";
 import type * as mergeSuggestions from "../mergeSuggestions.js";
 import type * as metricsData from "../metricsData.js";
@@ -75,11 +75,13 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  account: typeof account;
   admin: typeof admin;
   announcementData: typeof announcementData;
   announcements: typeof announcements;
   appInstalls: typeof appInstalls;
   appleIdentity: typeof appleIdentity;
+  appleRevoke: typeof appleRevoke;
   attendance: typeof attendance;
   attendanceAudit: typeof attendanceAudit;
   attendanceExport: typeof attendanceExport;
@@ -114,8 +116,6 @@ declare const fullApi: ApiFromModules<{
   homeContent: typeof homeContent;
   homeData: typeof homeData;
   http: typeof http;
-  importData: typeof importData;
-  importHistory: typeof importHistory;
   memberRepair: typeof memberRepair;
   mergeSuggestions: typeof mergeSuggestions;
   metricsData: typeof metricsData;

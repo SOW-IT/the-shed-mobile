@@ -99,7 +99,7 @@ export type WeeklyBlock =
 /** A choice in the term picker. `group` (the year), `short` and `slot` let
  *  the picker lay each year out as one row of terms; older apps just list
  *  the labels. */
-export type WeeklyPeriod = {
+type WeeklyPeriod = {
   key: string;
   label: string;
   group?: string;
@@ -128,14 +128,14 @@ export function periodOptions(terms: WeeklyTerm[]): WeeklyPeriod[] {
   ]);
 }
 
-export const FOLLOW_UP_PREVIEW = 5;
+const FOLLOW_UP_PREVIEW = 5;
 
 export const pill = (category: WeeklyCategory): Pill => ({
   label: CATEGORY_META[category].label,
   colour: CATEGORY_META[category].colour,
 });
 
-export const pctText = (n: number) => `${Math.round(n * 100)}%`;
+const pctText = (n: number) => `${Math.round(n * 100)}%`;
 
 /** "3 Jun", or "3 Jun 2025" when it isn't `year`. */
 export const dateText = (ms: number, year: number): string => {

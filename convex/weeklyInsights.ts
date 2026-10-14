@@ -34,7 +34,6 @@ import {
   termBefore,
   termRows,
   termSystemFor,
-  looksWeekly,
   suggestWeekly as suggestFrom,
   termOptions,
   weeklyName,
@@ -863,25 +862,6 @@ export const setSettings = internalMutation({
   },
 });
 
-/**
- * One-off: the Role option "Visitor" becomes "Guest", so Visitor can mean
- * someone visiting from another campus. Everyone tagged keeps the tag.
- */
-export const renameVisitorRole = internalMutation({
-  args: {},
-  returns: v.object({ renamed: v.boolean() }),
-  handler: async (ctx) => {
-    const fields = await ctx.db.query("attendanceMetadata").take(200);
-    const role = fields.find((f) => f.key === ROLE_FIELD_KEY);
-    const entry = Object.entries(role?.values ?? {}).find(([, label]) => label === "Visitor");
-    if (!role || !entry) return { renamed: false };
-    await ctx.db.patch("attendanceMetadata", role._id, {
-      values: { ...role.values, [entry[0]]: "Guest" },
-    });
-    return { renamed: true };
-  },
-});
-
 /** A campus's weeklies as Insights sees them: one campus, tagged Weekly
  *  Meeting or created as a Weekly (joint ones only if the setting allows). */
 async function campusWeeklies(
@@ -938,65 +918,6 @@ export const suggestWeekly = query({
       suggested: { key: s.key, year: s.year, slot: s.slot, week: s.week },
       name: weeklyName(system, s.slot, s.week),
     };
-  },
-});
-
-/**
- * One-off: gives every campus weekly its term and week, the way Insights
- * works them out (names first, then dates), and tags the ones that look like
- * weeklies by name but were never tagged. Combined and Mega weeklies (more
- * than one campus) are left alone. Then rebuilds Insights.
- * `npx convex run weeklyInsights:backfillWeeklies '{"dryRun": true}'`
- */
-export const backfillWeeklies = internalMutation({
-  args: { dryRun: v.optional(v.boolean()) },
-  returns: v.object({
-    marked: v.number(),
-    tagged: v.number(),
-    byCampus: v.array(v.object({ campus: v.string(), terms: v.array(v.string()) })),
-  }),
-  handler: async (ctx, { dryRun = false }) => {
-    const { settings } = await readSettings(ctx);
-    const weeklyTags = await weeklyTagIds(ctx);
-    let tag = [...weeklyTags][0];
-    const events = await ctx.db.query("events").withIndex("by_dateStart").take(MAX_EVENTS);
-    const single = events.filter(
-      (e) => normalizeSubgroups(e.subgroups).length === 1 && !isOrgWideSubgroup(e.subgroups[0])
-    );
-    const isWeekly = (e: Doc<"events">) =>
-      !!e.weekly || (e.tagIds ?? []).some((id) => weeklyTags.has(id)) || looksWeekly(e.name);
-    let marked = 0;
-    let tagged = 0;
-    const byCampus: { campus: string; terms: string[] }[] = [];
-    for (const campus of [...new Set(single.map((e) => canonicalSubgroup(e.subgroups[0])))].sort()) {
-      const mine = single.filter((e) => canonicalSubgroup(e.subgroups[0]) === campus && isWeekly(e));
-      const system = termSystemFor(campus, settings);
-      const terms = deriveTerms(
-        mine.map((e) => ({ eventId: e._id, at: e.dateStart, count: 1, name: e.name, mark: e.weekly ?? null })),
-        system,
-        settings.termGapDays
-      );
-      byCampus.push({
-        campus,
-        terms: terms.map((t) => `${t.label}: ${t.weeklies.map((w) => `W${w.week}`).join(" ")}`),
-      });
-      for (const t of terms) {
-        for (const w of t.weeklies) {
-          const event = mine.find((e) => e._id === w.eventId)!;
-          const hasTag = (event.tagIds ?? []).some((id) => weeklyTags.has(id));
-          if (!hasTag) tagged += 1;
-          if (!event.weekly) marked += 1;
-          if (dryRun || (event.weekly && hasTag)) continue;
-          if (!tag) tag = await ctx.db.insert("attendanceTags", { name: WEEKLY_MEETING_TAG_NAME });
-          await ctx.db.patch("events", event._id, {
-            weekly: event.weekly ?? { year: t.year, slot: t.slot, week: w.week },
-            tagIds: hasTag ? event.tagIds : [...(event.tagIds ?? []), tag],
-          });
-        }
-      }
-    }
-    if (!dryRun) await ctx.scheduler.runAfter(0, internal.weeklyInsights.rebuildAll, { force: true });
-    return { marked, tagged, byCampus };
   },
 });
 
