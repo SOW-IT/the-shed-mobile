@@ -41,7 +41,8 @@ changing anything seasonal, the October 1 staff-year rollover in particular
 - **Org structure** (seeded, editable per-year by admins): Governance (Data
   and IT, Finance, Compliance), Engagement (Marketing, Alumni), Human
   Resources (People and Culture, Training and Development), Operations
-  (Events, Missions).
+  (Events, Missions). A university, department, division or role that's still
+  assigned to someone can't be removed until they're reassigned.
 - **Pre-provisioning by email**: assign a role/department to someone who has
   never signed in; it links up on their first Google sign-in. People who
   were staff in an earlier year and are back in the Workspace directory
@@ -59,9 +60,11 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   with an address (see [Church map](#church-map-optional)). Only people with
   a staff profile this year add or edit churches.
   `churches:remindToSetChurch` reminds this year's staff who haven't picked
-  one (in-app notification and push).
+  one (in-app notification and push). Other people's emails, member ids and
+  typed churches are for staff only: anyone else, signed in or not, sees each
+  church with the names, roles and campuses of who goes there.
 - **Last online**: someone else's profile shows when they last had The SHED
-  open (signed-in viewers only), or that they haven't signed in yet. The app
+  open (staff viewers only), or that they haven't signed in yet. The app
   and website report it while open, at most every 5 minutes
   (`convex/presence.ts`); before that, sign-in session refreshes and the
   phone app's version check stand in.

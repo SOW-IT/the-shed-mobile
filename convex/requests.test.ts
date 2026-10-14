@@ -1096,13 +1096,15 @@ describe("audit trail and reminders", () => {
     expect(await t.query(api.requests.reviewed, {})).toBeNull();
   });
 
-  test("departments with open requests can't be deleted; members cascade", async () => {
+  test("departments with open requests or staff still in them can't be deleted", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
 
-    await admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Marketing" });
+    await expect(
+      admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Marketing" })
+    ).rejects.toThrow(/Marketing is still assigned to .* Reassign them first\./);
     const structure0 = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
-    expect(structure0.departments.map((d) => d.name)).not.toContain("Marketing");
+    expect(structure0.departments.map((d) => d.name)).toContain("Marketing");
 
     await admin.mutation(api.admin.upsertDepartment, {
       year: YEAR, name: "Marketing", division: "Operations", headEmail: HENRY,

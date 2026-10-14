@@ -1,4 +1,5 @@
 import { ConvexError, v } from "convex/values";
+import { CAMPUS_FIELD_KEY } from "../shared/attendanceMemberMeta";
 import { SYDNEY_TIME_ZONE } from "../shared/flow";
 import { capitalizeMemberName } from "../shared/rollcall";
 import { internalMutation } from "./_generated/server";
@@ -186,5 +187,70 @@ export const capitalizeMemberNames = internalMutation({
       next: page.isDone ? null : page.continueCursor,
       changes,
     };
+  },
+});
+
+const CAMPUS_ACTOR = "system:campus-restore";
+
+const campusStatus = v.union(
+  v.literal("filled"),
+  v.literal("already set"),
+  v.literal("member missing"),
+  v.literal("unknown campus")
+);
+
+export const restoreCampus = internalMutation({
+  args: {
+    fills: v.array(
+      v.object({ memberId: v.id("attendanceMembers"), campus: v.string(), reason: v.string() })
+    ),
+    dryRun: v.optional(v.boolean()),
+  },
+  returns: v.object({
+    dryRun: v.boolean(),
+    filled: v.number(),
+    results: v.array(
+      v.object({ memberId: v.id("attendanceMembers"), who: v.string(), status: campusStatus })
+    ),
+  }),
+  handler: async (ctx, { fills, dryRun = true }) => {
+    const campusField = (await ctx.db.query("attendanceMetadata").take(200)).find(
+      (f) => f.key === CAMPUS_FIELD_KEY
+    );
+    const results = [];
+    let filled = 0;
+    for (const fill of fills) {
+      const member = await ctx.db.get(fill.memberId);
+      if (!member) {
+        results.push({ memberId: fill.memberId, who: fill.memberId, status: "member missing" as const });
+        continue;
+      }
+      const optionId = Object.entries(campusField?.values ?? {}).find(
+        ([, label]) => label === fill.campus
+      )?.[0];
+      if (!campusField || !optionId) {
+        results.push({ memberId: fill.memberId, who: member.name, status: "unknown campus" as const });
+        continue;
+      }
+      if (member.metadata?.[campusField._id]) {
+        results.push({ memberId: fill.memberId, who: member.name, status: "already set" as const });
+        continue;
+      }
+      results.push({ memberId: fill.memberId, who: member.name, status: "filled" as const });
+      filled++;
+      if (dryRun) continue;
+      await ctx.db.patch(fill.memberId, {
+        metadata: { ...(member.metadata ?? {}), [campusField._id]: optionId },
+      });
+      await logAttendanceAction(ctx, {
+        actorEmail: CAMPUS_ACTOR,
+        entityType: "member",
+        action: "member.update",
+        summary: `Restored "${member.name}"'s Campus (${fill.campus})`,
+        memberId: fill.memberId,
+        detail: fill.reason,
+      });
+    }
+    return { dryRun, filled, results };
   },
 });

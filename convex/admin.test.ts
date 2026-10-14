@@ -35,6 +35,15 @@ async function setup() {
   return t;
 }
 
+const stripFinanceHolders = (t: TestConvex<typeof schema>) =>
+  t.run(async (ctx) => {
+    for (const profile of await ctx.db.query("staffProfiles").collect()) {
+      if (profile.assignments?.some((a) => a.department === "Finance")) {
+        await ctx.db.patch(profile._id, { assignments: [] });
+      }
+    }
+  });
+
 describe("setStaffProfile validation", () => {
   test("rejects bad emails, empty role lists, and unknown roles", async () => {
     const t = await setup();
@@ -394,7 +403,7 @@ describe("updateUniversity", () => {
 });
 
 describe("removeDivision", () => {
-  test("cascades to departments and staff assignments; no-ops on missing", async () => {
+  test("is refused while staff hold the division or its departments, then removes both", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
 
@@ -404,15 +413,24 @@ describe("removeDivision", () => {
       assignments: [{ role: "Staff", department: "Marketing" }],
     });
 
+    await expect(
+      admin.mutation(api.admin.removeDivision, { year: YEAR, name: "Engagement" })
+    ).rejects.toThrow(
+      `The Engagement division or one of its departments is still assigned to temp@sow.org.au in ${YEAR}. Reassign them first.`
+    );
+    let structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    expect(structure.divisions.map((d) => d.name)).toContain("Engagement");
+
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: "temp@sow.org.au",
+      year: YEAR,
+      assignments: [{ role: "Staff", department: "Finance" }],
+    });
     await admin.mutation(api.admin.removeDivision, { year: YEAR, name: "Engagement" });
-    const structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
+    structure = (await admin.query(api.directory.yearStructure, { year: YEAR }))!;
     expect(structure.divisions.map((d) => d.name)).not.toContain("Engagement");
     expect(structure.departments.map((d) => d.name)).not.toContain("Marketing");
     expect(structure.departments.map((d) => d.name)).not.toContain("Alumni");
-
-    const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
-    const temp = profiles.find((p) => p.email === "temp@sow.org.au");
-    expect(temp?.assignments ?? []).toHaveLength(0);
 
     await expect(
       admin.mutation(api.admin.removeDivision, { year: YEAR, name: "Nope" })
@@ -448,6 +466,10 @@ describe("removeDivision", () => {
       division: "FinanceOnly", headEmail: FIONA,
     });
     await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
+    await expect(
+      admin.mutation(api.admin.removeDivision, { year: YEAR, name: "FinanceOnly" })
+    ).rejects.toThrow(/still assigned to fiona@sow\.org\.au, bella@sow\.org\.au/);
+    await stripFinanceHolders(t);
     await admin.mutation(api.admin.removeDivision, { year: YEAR, name: "FinanceOnly" });
     const settings = await t.run((ctx) =>
       ctx.db.query("yearSettings").withIndex("by_year", (q) => q.eq("year", YEAR)).unique()
@@ -457,10 +479,31 @@ describe("removeDivision", () => {
 });
 
 describe("removeDepartment", () => {
+  test("names up to three people holding it and counts the rest", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    for (const who of ["a", "b", "c", "d"]) {
+      await admin.mutation(api.admin.setStaffProfile, {
+        email: `${who}.person@sow.org.au`,
+        year: YEAR,
+        roles: ["Staff"],
+        department: "Events",
+      });
+    }
+    await expect(
+      admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Events" })
+    ).rejects.toThrow(`Events is still assigned to A Person, B Person, C Person and 1 more in ${YEAR}.`);
+  });
+
+
   test("clears the budget manager when Finance is deleted", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     await admin.mutation(api.admin.setBudgetManager, { year: YEAR, email: BELLA });
+    await expect(
+      admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Finance" })
+    ).rejects.toThrow(`Finance is still assigned to fiona@sow.org.au, bella@sow.org.au in ${YEAR}. Reassign them first.`);
+    await stripFinanceHolders(t);
     await admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Finance" });
     const settings = await t.run((ctx) =>
       ctx.db.query("yearSettings").withIndex("by_year", (q) => q.eq("year", YEAR)).unique()
@@ -1917,6 +1960,34 @@ describe("returning staff identity", () => {
     const current = rows.find((p) => p.year === YEAR);
     expect(past?.importId).toBe(pastId);
     expect(current?.importId).toBe(pastId);
+  });
+
+  test("falls back to the Google account name when nothing else has one, never an email", async () => {
+    const t = await setup();
+    const admin = asUser(t, ADMIN);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", { email: "gina@sow.org.au", name: "Gina Google" });
+      await ctx.db.insert("users", { email: "nameless@sow.org.au", name: "nameless@sow.org.au" });
+    });
+    for (const email of ["gina@sow.org.au", "nameless@sow.org.au"]) {
+      await admin.mutation(api.admin.setStaffProfile, {
+        email,
+        year: YEAR,
+        assignments: [{ role: "Staff", department: "Finance" }],
+      });
+    }
+    const named = await t.run(async (ctx) => {
+      const out: Record<string, string | undefined> = {};
+      for (const email of ["gina@sow.org.au", "nameless@sow.org.au"]) {
+        const profile = await ctx.db
+          .query("staffProfiles")
+          .withIndex("by_email_and_year", (q) => q.eq("email", email).eq("year", YEAR))
+          .unique();
+        out[email] = profile?.name;
+      }
+      return out;
+    });
+    expect(named).toEqual({ "gina@sow.org.au": "Gina Google", "nameless@sow.org.au": undefined });
   });
 
   test("copies a directory name when the previous profile has none", async () => {

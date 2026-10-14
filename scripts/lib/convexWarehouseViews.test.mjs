@@ -22,6 +22,16 @@ describe("warehouse views", () => {
     expect(DEFAULT_WAREHOUSE_DATASET).toBe("convex_warehouse");
   });
 
+  test("sign-ins are keyed by member and staff profiles carry their member", () => {
+    const attendance = warehouseViewSql("p", "src", "wh", "attendance");
+    expect(attendance).not.toContain("'$.email'");
+    expect(attendance).toContain("JSON_VALUE(document, '$.memberId') AS `memberId`");
+    expect(warehouseViewSql("p", "src", "wh", "staffProfiles")).toContain(
+      "JSON_VALUE(document, '$.memberId') AS `memberId`"
+    );
+    expect(warehouseViewSql("p", "src", "wh", "attendanceMembers")).toContain("AS `churchId`");
+  });
+
   test("types scalars and leaves nested receipts as JSON", () => {
     expect(fieldExpression({ name: "email", type: "STRING" })).toBe("JSON_VALUE(document, '$.email')");
     expect(fieldExpression({ name: "year", type: "INT64" })).toBe(

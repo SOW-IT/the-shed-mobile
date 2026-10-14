@@ -323,6 +323,64 @@ describe("who can add and edit churches", () => {
   });
 });
 
+describe("an account with no staff profile sees what a visitor sees", () => {
+  test("no other people's emails or member ids in the directory", async () => {
+    const { t, sam } = await setup();
+    const grace = await sam.mutation(api.churches.add, { name: "Grace Church" });
+    await sam.mutation(api.profile.setChurch, { churchId: grace });
+    const outsiderId = await t.run(async (ctx) => {
+      await ctx.db.insert("users", { email: "gus@gmail.com", name: "Gus Guest", churchId: grace });
+      await ctx.db.insert("attendanceMembers", { name: "Mia Member", churchId: grace });
+      return await ctx.db.insert("users", { email: "relay@privaterelay.appleid.com", name: "Apple Person" });
+    });
+    const outsider = signedIn(t, outsiderId, "relay@privaterelay.appleid.com");
+    const people = async (who: { query: typeof t.query }) =>
+      (await who.query(api.churches.directory, {}))
+        .find((d) => d.church.name === "Grace Church")!
+        .people.map((p) => [p.name, p.email, p.memberId !== null])
+        .sort();
+
+    expect(await people(outsider)).toEqual(await people(t));
+    expect(await people(outsider)).toEqual([
+      ["Gus Guest", null, false],
+      ["Mia Member", null, false],
+      ["Sam Staff", STAFF, false],
+    ]);
+    expect(await people(sam)).toEqual([
+      ["Gus Guest", "gus@gmail.com", false],
+      ["Mia Member", null, true],
+      ["Sam Staff", STAFF, false],
+    ]);
+  });
+
+  test("no typed church, last online or signed-in state on profiles, except their own", async () => {
+    const { t, sam } = await setup();
+    const ids = await t.run(async (ctx) => ({
+      tom: await ctx.db.insert("users", { email: "tom@gmail.com", name: "Tom Typed", localChurch: "St Mark's" }),
+      outsider: await ctx.db.insert("users", { email: "relay@privaterelay.appleid.com", name: "Apple Person" }),
+    }));
+    const outsider = signedIn(t, ids.outsider, "relay@privaterelay.appleid.com");
+    const privateFields = (profile: Record<string, unknown> | null) => ({
+      localChurch: profile?.localChurch,
+      typedChurch: profile?.typedChurch,
+      lastOnlineAt: profile?.lastOnlineAt === null ? null : "set",
+      hasSignedIn: profile?.hasSignedIn,
+    });
+    const hidden = { localChurch: null, typedChurch: null, lastOnlineAt: null, hasSignedIn: null };
+
+    expect(privateFields(await outsider.query(api.profile.get, { email: "tom@gmail.com" }))).toEqual(hidden);
+    expect(privateFields(await t.query(api.profile.get, { email: "tom@gmail.com" }))).toEqual(hidden);
+    expect(privateFields(await sam.query(api.profile.get, { email: "tom@gmail.com" }))).toMatchObject({
+      localChurch: "St Mark's",
+      typedChurch: "St Mark's",
+    });
+    expect(
+      privateFields(await signedIn(t, ids.tom, "tom@gmail.com").query(api.profile.get, {}))
+    ).toMatchObject({ localChurch: "St Mark's", typedChurch: "St Mark's" });
+    expect((await outsider.query(api.profile.get, { email: STAFF }))?.name).toBe("Sam Staff");
+  });
+});
+
 describe("setUp pages through users", () => {
   test("returns where to carry on until every user has been looked at", async () => {
     const { t } = await setup();

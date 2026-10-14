@@ -3,7 +3,7 @@ import { ConvexError, v } from "convex/values";
 import { mutation, MutationCtx, query } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
 import { assignmentsOf, departmentsOf, divisionsOf } from "../shared/flow";
-import { currentStaffYear, optionalEmail, rolesOf } from "./model";
+import { currentStaffYear, optionalEmail, optionalProfile, rolesOf } from "./model";
 import { hasSignedIn, lastOnlineAt } from "./presence";
 import { canonicalEmailKey } from "../shared/rollcallImport";
 import { churchByName, viewOf } from "./churches";
@@ -57,6 +57,7 @@ export const get = query({
     const church = user?.churchId ? await ctx.db.get("churches", user.churchId) : null;
     const isMe =
       callerEmail !== null && canonicalEmailKey(email) === canonicalEmailKey(callerEmail);
+    const seesPrivate = isMe || (await optionalProfile(ctx)) !== null;
     const directorySync = isMe && dirUser
       ? await ctx.db
           .query("syncState")
@@ -77,13 +78,13 @@ export const get = query({
       name: user?.name ?? dirUser?.name ?? anyProfile?.name ?? null,
       photo: await photoUrl(ctx, user, dirUser),
       // Older app builds show this text; newer ones show `church`.
-      localChurch: church?.name ?? (callerEmail ? (user?.localChurch ?? null) : null),
+      localChurch: church?.name ?? (seesPrivate ? (user?.localChurch ?? null) : null),
       church: church ? viewOf(church) : null,
       // What they typed before churches were a list, until they pick one.
-      typedChurch: callerEmail && !church ? (user?.localChurch ?? null) : null,
+      typedChurch: seesPrivate && !church ? (user?.localChurch ?? null) : null,
       // Like the church, only for signed-in staff.
-      lastOnlineAt: callerEmail ? await lastOnlineAt(ctx, email) : null,
-      hasSignedIn: callerEmail ? await hasSignedIn(ctx, email) : null,
+      lastOnlineAt: seesPrivate ? await lastOnlineAt(ctx, email) : null,
+      hasSignedIn: seesPrivate ? await hasSignedIn(ctx, email) : null,
       serviceHistory: serviceHistory.map((h) => ({
         year: h.year,
         roles: rolesOf(h),

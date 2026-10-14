@@ -286,25 +286,23 @@ describe("request submit with multiple departments", () => {
   });
 });
 
-describe("structural deletes cascade to assignments", () => {
-  test("removeDepartment strips assignments even when a member is linked via assignments", async () => {
+describe("structural deletes are refused while staff hold them", () => {
+  test("removeDepartment is refused while someone is assigned to it", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     const email = "m@sow.org.au";
     await admin.mutation(api.admin.setStaffProfile, {
       email, year: YEAR, roles: ["Staff"], department: "Marketing",
     });
-    await admin.mutation(api.admin.upsertDepartment, {
-      year: YEAR, name: "Finance", division: "Governance", headEmail: email,
-    });
-    await admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Marketing" });
+    await expect(
+      admin.mutation(api.admin.removeDepartment, { year: YEAR, name: "Marketing" })
+    ).rejects.toThrow(/Marketing is still assigned to m@sow\.org\.au/);
     const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
     const m = profiles.find((p) => p.email === email)!;
-    expect(m.assignments?.some((a) => a.department === "Marketing")).toBe(false);
-    expect(m.assignments?.some((a) => a.department === "Finance")).toBe(true);
+    expect(m.assignments?.some((a) => a.department === "Marketing")).toBe(true);
   });
 
-  test("removeUniversity strips assignments even when a member is linked via assignments", async () => {
+  test("removeUniversity is refused while a leader is assigned to it", async () => {
     const t = await setup();
     const admin = asUser(t, ADMIN);
     const email = "sl@sow.org.au";
@@ -314,12 +312,14 @@ describe("structural deletes cascade to assignments", () => {
       roles: ["Student Leader"],
       university: "University of New South Wales",
     });
-    await admin.mutation(api.admin.removeUniversity, {
-      year: YEAR, name: "University of New South Wales",
-    });
+    await expect(
+      admin.mutation(api.admin.removeUniversity, {
+        year: YEAR, name: "University of New South Wales",
+      })
+    ).rejects.toThrow(/University of New South Wales is still assigned to sl@sow\.org\.au/);
     const profiles = (await admin.query(api.admin.listStaffProfiles, { year: YEAR }))!;
     const sl = profiles.find((p) => p.email === email)!;
-    expect(sl.assignments?.some((a) => a.university === "University of New South Wales")).toBe(false);
+    expect(sl.assignments?.some((a) => a.university === "University of New South Wales")).toBe(true);
   });
 });
 

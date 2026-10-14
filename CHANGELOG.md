@@ -6,6 +6,38 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.6.2] - 2026-10-14
+
+### Changed
+- **Other people's emails, typed churches and "last online" are for staff
+  only.** The Churches page and profiles still open for everyone, signed in or
+  not. An account with no staff profile now sees what a signed-out visitor
+  sees: each church with the names, roles and campuses of who goes there, but
+  not members' emails or ids, and not someone's typed church, last online or
+  whether they've signed in. Your own profile still shows you all of yours.
+- **A university, department or division still assigned to someone can't be
+  removed.** Admin says who holds it; reassign them first, as with roles.
+  Removing one used to quietly take the assignment away, which turned those
+  leaders into plain members.
+- **Someone on staff this year keeps their Campus and Role on the member
+  record, and can't be deleted from it,** even when it's opened from an event
+  in a year they weren't staff.
+- **BigQuery `attendance_signins` finds staff again.** `email` is the staff
+  email of the profile linked to that member for the event's staff year (empty
+  for members), with new `isStaff` and `staffYear` columns. Staff profiles and
+  `staff_assignments` carry `memberId`.
+
+### Fixed
+- **Merging two records keeps the kept person's church** (and import id) when
+  the other record survives because it has more sign-ins.
+- **Staff names are never their email.** A staff person whose profile has no
+  name keeps their own name on their record, the edit sheet asks for one when
+  there's none, and Save stays off until there is. New staff profiles take the
+  Google account name when the directory has none. The Members list and merge
+  review show that name too.
+- **A photo that can't load shows initials** instead of an empty circle, for
+  example in past Insights terms after someone's Workspace photo changes.
+
 ## [2.6.1] — 2026-10-13
 
 ### Changed
