@@ -1,5 +1,5 @@
 import { ConvexError, v } from "convex/values";
-import { CAMPUS_FIELD_KEY } from "../shared/attendanceMemberMeta";
+import { CAMPUS_FIELD_KEY, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
 import { SYDNEY_TIME_ZONE } from "../shared/flow";
 import { capitalizeMemberName } from "../shared/rollcall";
 import { internalMutation } from "./_generated/server";
@@ -252,5 +252,150 @@ export const restoreCampus = internalMutation({
       });
     }
     return { dryRun, filled, results };
+  },
+});
+
+const LINK_ACTOR = "system:profile-link";
+
+const linkStatus = v.union(
+  v.literal("linked"),
+  v.literal("already linked"),
+  v.literal("linked elsewhere"),
+  v.literal("profile missing"),
+  v.literal("member missing")
+);
+
+export const linkProfiles = internalMutation({
+  args: {
+    links: v.array(
+      v.object({
+        profileId: v.id("staffProfiles"),
+        memberId: v.id("attendanceMembers"),
+        reason: v.string(),
+      })
+    ),
+    dryRun: v.optional(v.boolean()),
+  },
+  returns: v.object({
+    dryRun: v.boolean(),
+    linked: v.number(),
+    results: v.array(
+      v.object({ profileId: v.id("staffProfiles"), who: v.string(), status: linkStatus })
+    ),
+  }),
+  handler: async (ctx, { links, dryRun = true }) => {
+    const results = [];
+    let linked = 0;
+    for (const link of links) {
+      const profile = await ctx.db.get(link.profileId);
+      if (!profile) {
+        results.push({ profileId: link.profileId, who: link.profileId, status: "profile missing" as const });
+        continue;
+      }
+      const member = await ctx.db.get(link.memberId);
+      if (!member) {
+        results.push({ profileId: link.profileId, who: profile.email, status: "member missing" as const });
+        continue;
+      }
+      if (profile.memberId === link.memberId) {
+        results.push({ profileId: link.profileId, who: member.name, status: "already linked" as const });
+        continue;
+      }
+      if (profile.memberId && (await ctx.db.get(profile.memberId))) {
+        results.push({ profileId: link.profileId, who: member.name, status: "linked elsewhere" as const });
+        continue;
+      }
+      results.push({ profileId: link.profileId, who: member.name, status: "linked" as const });
+      linked++;
+      if (dryRun) continue;
+      await ctx.db.patch(link.profileId, { memberId: link.memberId });
+      await logAttendanceAction(ctx, {
+        actorEmail: LINK_ACTOR,
+        entityType: "member",
+        action: "member.linkStaff",
+        summary: `Linked ${profile.email}'s ${profile.year} staff profile to "${member.name}"`,
+        memberId: link.memberId,
+        subjectEmail: profile.email.toLowerCase(),
+        detail: link.reason,
+      });
+    }
+    return { dryRun, linked, results };
+  },
+});
+
+const ROLE_ACTOR = "system:role-repair";
+
+const roleStatus = v.union(
+  v.literal("changed"),
+  v.literal("already set"),
+  v.literal("role differs"),
+  v.literal("member missing"),
+  v.literal("unknown role")
+);
+
+export const replaceRole = internalMutation({
+  args: {
+    changes: v.array(
+      v.object({
+        memberId: v.id("attendanceMembers"),
+        from: v.string(),
+        to: v.string(),
+        reason: v.string(),
+      })
+    ),
+    dryRun: v.optional(v.boolean()),
+  },
+  returns: v.object({
+    dryRun: v.boolean(),
+    changed: v.number(),
+    results: v.array(
+      v.object({ memberId: v.id("attendanceMembers"), who: v.string(), status: roleStatus })
+    ),
+  }),
+  handler: async (ctx, { changes, dryRun = true }) => {
+    const roleField = (await ctx.db.query("attendanceMetadata").take(200)).find(
+      (f) => f.key === ROLE_FIELD_KEY
+    );
+    const optionFor = (label: string) =>
+      Object.entries(roleField?.values ?? {}).find(([, value]) => value === label)?.[0];
+    const results = [];
+    let changed = 0;
+    for (const change of changes) {
+      const member = await ctx.db.get(change.memberId);
+      if (!member) {
+        results.push({ memberId: change.memberId, who: change.memberId, status: "member missing" as const });
+        continue;
+      }
+      const toId = optionFor(change.to);
+      if (!roleField || !toId) {
+        results.push({ memberId: change.memberId, who: member.name, status: "unknown role" as const });
+        continue;
+      }
+      const current = member.metadata?.[roleField._id];
+      const currentLabel = current ? (roleField.values?.[current] ?? current) : undefined;
+      if (currentLabel === change.to) {
+        results.push({ memberId: change.memberId, who: member.name, status: "already set" as const });
+        continue;
+      }
+      if (currentLabel !== change.from) {
+        results.push({ memberId: change.memberId, who: member.name, status: "role differs" as const });
+        continue;
+      }
+      results.push({ memberId: change.memberId, who: member.name, status: "changed" as const });
+      changed++;
+      if (dryRun) continue;
+      await ctx.db.patch(change.memberId, {
+        metadata: { ...(member.metadata ?? {}), [roleField._id]: toId },
+      });
+      await logAttendanceAction(ctx, {
+        actorEmail: ROLE_ACTOR,
+        entityType: "member",
+        action: "member.update",
+        summary: `Changed "${member.name}"'s Role from ${change.from} to ${change.to}`,
+        memberId: change.memberId,
+        detail: change.reason,
+      });
+    }
+    return { dryRun, changed, results };
   },
 });
