@@ -212,3 +212,66 @@ describe("capitalizeMemberNames", () => {
     ).rejects.toThrow("limit must be a positive whole number.");
   });
 });
+
+describe("restoreCampus", () => {
+  test("fills only an empty Campus, dry run first, and a rerun changes nothing", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const campus = await ctx.db.insert("attendanceMetadata", {
+        key: "Campus",
+        type: "select",
+        order: 0,
+        values: { "1": "University of Sydney", "2": "Macquarie University" },
+      });
+      return {
+        campus,
+        empty: await ctx.db.insert("attendanceMembers", { name: "Erin Empty", metadata: { other: "x" } }),
+        set: await ctx.db.insert("attendanceMembers", { name: "Sam Set", metadata: { [campus]: "2" } }),
+        gone: await ctx.db.insert("attendanceMembers", { name: "Gone" }),
+      };
+    });
+    await t.run((ctx) => ctx.db.delete(ids.gone));
+    const fills = [
+      { memberId: ids.empty, campus: "University of Sydney", reason: "cleared by 2.6.0" },
+      { memberId: ids.set, campus: "University of Sydney", reason: "cleared by 2.6.0" },
+      { memberId: ids.gone, campus: "University of Sydney", reason: "cleared by 2.6.0" },
+      { memberId: ids.empty, campus: "Nowhere Uni", reason: "cleared by 2.6.0" },
+    ];
+
+    const dry = await t.mutation(internal.memberRepair.restoreCampus, { fills });
+    expect(dry).toMatchObject({ dryRun: true, filled: 1 });
+    expect(dry.results.map((r) => [r.who, r.status])).toEqual([
+      ["Erin Empty", "filled"],
+      ["Sam Set", "already set"],
+      [ids.gone, "member missing"],
+      ["Erin Empty", "unknown campus"],
+    ]);
+    expect((await t.run((ctx) => ctx.db.get(ids.empty)))?.metadata).toEqual({ other: "x" });
+
+    const real = await t.mutation(internal.memberRepair.restoreCampus, { fills, dryRun: false });
+    expect(real.filled).toBe(1);
+    expect((await t.run((ctx) => ctx.db.get(ids.empty)))?.metadata).toEqual({ other: "x", [ids.campus]: "1" });
+    expect((await t.run((ctx) => ctx.db.get(ids.set)))?.metadata).toEqual({ [ids.campus]: "2" });
+    const log = await t.run((ctx) => ctx.db.query("attendanceAuditLog").collect());
+    expect(log).toHaveLength(1);
+    expect(log[0]).toMatchObject({
+      actorEmail: "system:campus-restore",
+      action: "member.update",
+      summary: `Restored "Erin Empty"'s Campus (University of Sydney)`,
+      memberId: ids.empty,
+      detail: "cleared by 2.6.0",
+    });
+
+    const again = await t.mutation(internal.memberRepair.restoreCampus, { fills, dryRun: false });
+    expect(again.filled).toBe(0);
+  });
+
+  test("reports an unknown campus when there is no Campus field", async () => {
+    const t = convexTest(schema, modules);
+    const id = await t.run((ctx) => ctx.db.insert("attendanceMembers", { name: "No Field" }));
+    const result = await t.mutation(internal.memberRepair.restoreCampus, {
+      fills: [{ memberId: id, campus: "University of Sydney", reason: "x" }],
+    });
+    expect(result.results[0].status).toBe("unknown campus");
+  });
+});
