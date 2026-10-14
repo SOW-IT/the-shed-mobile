@@ -6,6 +6,33 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.7.0] - 2026-10-14
+
+### Added
+- **Delete your account from your Profile.** At the bottom of your own
+  Profile, "Delete account" asks you to type your name, then deletes the
+  account and signs you out. For a SOW account that means the sign-in itself
+  (the linked Google account, every session, push tokens) plus the photo and
+  church you set here; your staff profile, service history and Google
+  directory details stay with SOW, and signing in again later links them back
+  up. An Apple account is removed entirely, notifications included, and
+  Apple is asked to revoke The SHED's access to that Apple ID. Apple requires
+  this for every app that lets people create an account (App Store guideline
+  5.1.1(v)).
+
+### Fixed
+- **Apple accounts' Profile no longer says "Synced from Google".**
+- **The type-to-confirm box doesn't autocorrect what you type**, which could
+  stop a name from matching (Admin's delete confirmations use it too).
+
+### Removed
+- **Code nothing uses any more:** the finished 2026-06 history import and its
+  data file, one-off fixes that have already run on production (tag merge,
+  director thresholds, weekly backfill, Visitor to Guest, stale snapshot
+  ranges), roll-call import functions no app ever called, the unused manual
+  Insights refresh, unused exports and images, and a stray debug screenshot.
+  Small helpers that were copied between files now live in one place.
+
 ## [2.6.4] - 2026-10-14
 
 ### Fixed
