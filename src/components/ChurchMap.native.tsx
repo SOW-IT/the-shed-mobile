@@ -7,8 +7,9 @@ import { radius, useAppTheme } from "../theme";
 import {
   PIN_NAME_MAX_WIDTH,
   pinAccessibilityLabel,
-  pinColours,
+  pinRing,
   pinLabel,
+  pinSize,
   pinZIndex,
   type ChurchPin,
 } from "./churchPins";
@@ -64,6 +65,7 @@ export function ChurchMap({
       : []
   );
   const placedKey = JSON.stringify(placed.map(({ coordinate }) => coordinate));
+  const most = Math.max(0, ...pins.map((pin) => pin.people));
 
   const [initialRegion] = useState(() => regionFor(placedKey));
   const shownKey = useRef(placedKey);
@@ -88,10 +90,11 @@ export function ChurchMap({
       >
         {placed.map(({ pin, coordinate }) => {
           const on = pin.church._id === selectedId;
-          const { ring, badgeText } = pinColours(pin, t.primary);
+          const ring = pinRing(pin, t.primary);
+          const size = pinSize(pin.people, most);
           return (
             <Marker
-              key={`${pin.church._id}:${on ? "on" : "off"}:${pin.people}:${ring}`}
+              key={`${pin.church._id}:${on ? "on" : "off"}:${size.fontSize}:${ring}`}
               coordinate={coordinate}
               anchor={{ x: 0.5, y: 1 }}
               zIndex={pinZIndex(pin, on)}
@@ -103,19 +106,15 @@ export function ChurchMap({
                   style={[
                     styles.bubble,
                     {
+                      height: size.height,
+                      paddingHorizontal: size.paddingHorizontal,
                       backgroundColor: on ? t.primary : t.card,
                       borderColor: on ? t.primary : ring,
-                      paddingLeft: pin.people > 0 ? 3 : 10,
                     },
                   ]}
                 >
-                  {pin.people > 0 ? (
-                    <View style={[styles.badge, { backgroundColor: on ? t.onPrimary : ring }]}>
-                      <Text style={[styles.badgeText, { color: on ? t.primary : badgeText }]}>{pin.people}</Text>
-                    </View>
-                  ) : null}
                   <Text
-                    style={[styles.labelText, { color: on ? t.onPrimary : t.text }]}
+                    style={[styles.labelText, { fontSize: size.fontSize, color: on ? t.onPrimary : t.text }]}
                     numberOfLines={1}
                   >
                     {pinLabel(pin, on)}
@@ -138,10 +137,7 @@ const styles = StyleSheet.create({
   bubble: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
     maxWidth: PIN_NAME_MAX_WIDTH,
-    height: 26,
-    paddingRight: 10,
     borderRadius: radius.full,
     borderWidth: 1.5,
     shadowColor: "#000",
@@ -150,16 +146,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     elevation: 3,
   },
-  badge: {
-    minWidth: 18,
-    height: 18,
-    paddingHorizontal: 4,
-    borderRadius: radius.full,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  badgeText: { fontSize: 10.5, fontWeight: "800" },
-  labelText: { fontSize: 12, fontWeight: "700", letterSpacing: 0.2, flexShrink: 1 },
+  labelText: { fontWeight: "700", letterSpacing: 0.2, flexShrink: 1 },
   stem: {
     width: 0,
     height: 0,
