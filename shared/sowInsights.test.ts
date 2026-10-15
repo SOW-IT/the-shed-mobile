@@ -162,6 +162,26 @@ describe("TWIG", () => {
     expect(buildTwigBlocks({ result: nothing, people, missesForFollowUp: 2 }).map((b) => b.type)).toEqual(["empty"]);
   });
 
+  test("last year with no roll by this date is said plainly, not compared with zero", () => {
+    const result = computeTwig({
+      year: 2027,
+      events: [event("t1", at(2026, 10, 12), ["a"])],
+      lastEvents: [event("l0", at(2025, 10, 13), []), event("l1", at(2026, 1, 5), ["a"])],
+      people,
+      now: at(2026, 10, 15),
+      rules: RULES,
+    });
+    expect(result.last).toBeNull();
+    expect(result.lastLabel).toBe("2026 up to 15 Oct");
+    const blocks = buildTwigBlocks({ result, people, missesForFollowUp: 2 });
+    expect(pick(blocks, "caption")[0].text).toBe(
+      "Staff year 2027: 1 TWIG so far. No TWIG in 2026 up to 15 Oct had a roll, so there's nothing to compare with yet. Only campus leaders are counted."
+    );
+    expect(pick(blocks, "cards")[0].cards.every((c) => !c.hint && !c.delta)).toBe(true);
+    expect(pick(blocks, "followUpGroups")[0].emptyText).toBe("Follow-up starts once 3 TWIGs have a roll.");
+    expect(pick(blocks, "multiBars")[0].points.map((p) => p.segments.map((x) => x.value))).toEqual([[1, 0]]);
+  });
+
   test("a past year's cards say what they're compared with", () => {
     const result = computeTwig({
       year: 2026,
@@ -208,11 +228,15 @@ describe("PPN", () => {
 
   test("a year of only leaders has no note about others; no PPN yet is an empty state", () => {
     const only = buildPpnBlocks({
-      result: computePpn({ year: 2027, events: [event("p1", at(2026, 10, 20), ["a"])], lastEvents: [], earlier: [], people }),
+      result: computePpn({ year: 2027, events: [event("p1", at(2026, 10, 20), ["a", "s"])], lastEvents: [], earlier: [], people }),
     });
     expect(pick(only, "caption")[0].text).toBe(
-      "Staff year 2027: 1 PPN, 1 sign-in from 1 person (1 from campus leaders, 0 from other staff, 0 from others)."
+      "Staff year 2027: 1 PPN, 2 sign-ins from 2 people (1 from campus leaders, 1 from other staff, 0 from others)."
     );
+    expect(pick(only, "monthRows")[0].rows[0].splits[0].parts).toEqual([
+      { label: "SOW", value: 1, colour: undefined },
+      { label: "UNSW", value: 1, colour: expect.any(String) },
+    ]);
     const none = buildPpnBlocks({
       result: computePpn({ year: 2027, events: [event("p0", at(2026, 10, 20), [])], lastEvents: [], earlier: [], people }),
     });

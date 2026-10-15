@@ -1,5 +1,5 @@
 import { roleNeedsUniversity, staffYearStartMs, sydneyYmd } from "./flow";
-import { tagListOf, type TagList } from "./rollcall";
+import { SOW_SUBGROUP, tagListOf, type TagList } from "./rollcall";
 import { dayLabel, type WeeklyPerson } from "./weeklyInsights";
 
 export type SowMode = "twig" | "ppn";
@@ -60,7 +60,8 @@ type Split = { campus: string | null; value: number }[];
 function splitByCampus(keys: string[], people: SowPeople, year: number): Split {
   const counts = new Map<string | null, number>();
   for (const key of keys) {
-    const campus = campusIn(people.get(key), year);
+    const person = people.get(key);
+    const campus = campusIn(person, year) ?? (roleIn(person, year) === "staff" ? SOW_SUBGROUP : null);
     counts.set(campus, (counts.get(campus) ?? 0) + 1);
   }
   return [...counts.entries()]
@@ -137,9 +138,8 @@ export function computeTwig(input: {
   const lastHeld = heldOf(input.lastEvents);
   const running = isRunning(year, input.now);
   const cut = running ? staffYearStartMs(year - 1) + (input.now - staffYearStartMs(year)) : Infinity;
-  const last = lastHeld.length
-    ? twigSummary(lastHeld.filter((e) => e.at <= cut), people, year - 1, rules)
-    : null;
+  const lastSoFar = lastHeld.filter((e) => e.at <= cut);
+  const last = lastSoFar.length ? twigSummary(lastSoFar, people, year - 1, rules) : null;
 
   const seen = new Map<string, { attended: number; lastAt: number }>();
   for (const event of held) {
@@ -176,7 +176,7 @@ export function computeTwig(input: {
     noRoll: noRollOf(input.events),
     summary: twigSummary(held, people, year, rules),
     last,
-    lastLabel: last ? (running ? `${year - 1} up to ${dayLabel(cut)}` : String(year - 1)) : null,
+    lastLabel: lastHeld.length ? (running ? `${year - 1} up to ${dayLabel(cut)}` : String(year - 1)) : null,
     counts: held.map((e) => leadersAt(e, people, year).length),
     lastCounts: lastHeld.map((e) => leadersAt(e, people, year - 1).length),
     lastHeld,

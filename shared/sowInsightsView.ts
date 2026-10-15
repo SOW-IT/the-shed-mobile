@@ -1,6 +1,6 @@
 import { type ViewCard } from "./attendanceMetricsView";
 import { sydneyYmd } from "./flow";
-import { subgroupColour, subgroupLabel } from "./rollcall";
+import { isOrgWideSubgroup, subgroupColour, subgroupLabel } from "./rollcall";
 import {
   SOW_ROLE_ORDER,
   type PpnResult,
@@ -145,9 +145,11 @@ export function buildTwigBlocks(input: {
   const blocks: WeeklyBlock[] = [
     {
       type: "caption",
-      text: result.lastLabel
+      text: result.last
         ? `Staff year ${year}: ${count}, compared with ${result.lastLabel}. Only campus leaders are counted.`
-        : `Staff year ${year}: ${count}. There's no earlier staff year to compare with. Only campus leaders are counted.`,
+        : result.lastLabel
+          ? `Staff year ${year}: ${count}. No TWIG in ${result.lastLabel} had a roll, so there's nothing to compare with yet. Only campus leaders are counted.`
+          : `Staff year ${year}: ${count}. There's no earlier staff year to compare with. Only campus leaders are counted.`,
     },
     { type: "cards", layout: "grid", cards: twigCards(result) },
   ];
@@ -197,7 +199,10 @@ export function buildTwigBlocks(input: {
         ? [{ key: "missed", title: "Regulars who stopped coming", people: followRows }]
         : [],
       preview: FOLLOW_UP_PREVIEW,
-      emptyText: "Every regular came to one of the last two TWIGs.",
+      emptyText:
+        held.length > input.missesForFollowUp
+          ? `Every regular came to one of the last ${input.missesForFollowUp} TWIGs.`
+          : `Follow-up starts once ${input.missesForFollowUp + 1} TWIGs have a roll.`,
     });
   }
   const rows = twigRows(result, people);
@@ -263,7 +268,7 @@ export function buildPpnBlocks(input: { result: PpnResult }): WeeklyBlock[] {
         parts: row.byCampus.map((c) => ({
           label: campusName(c.campus),
           value: c.value,
-          colour: c.campus ? subgroupColour(c.campus) : undefined,
+          colour: c.campus && !isOrgWideSubgroup(c.campus) ? subgroupColour(c.campus) : undefined,
         })),
       },
       {
