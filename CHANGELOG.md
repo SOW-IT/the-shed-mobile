@@ -6,6 +6,14 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.3] - 2026-10-16
+
+### Changed
+- **The typed church and old import ids are gone from the database.** 2.9.2's
+  clean-up ran on production (three churches added and linked, import ids
+  cleared from 220 events and 1,200 members), so the empty fields and their
+  indexes are removed along with the one-off clean-up code.
+
 ## [2.9.2] - 2026-10-16
 
 ### Changed
