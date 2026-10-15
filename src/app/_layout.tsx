@@ -7,6 +7,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { AppUpdatePrompt } from "@/components/AppUpdatePrompt";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppSidebar } from "@/components/nav/AppSidebar";
 import { AppDrawer, NavDrawerProvider } from "@/components/nav/NavDrawer";
@@ -153,6 +154,7 @@ export default function RootLayout() {
                 shouldHandleCode={Platform.OS !== "web"}
               >
                 <AuthGate />
+                <AppUpdatePrompt />
               </ConvexAuthProvider>
             ) : (
               <ConfigurationErrorScreen />
