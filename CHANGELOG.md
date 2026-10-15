@@ -6,6 +6,21 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.2] - 2026-10-16
+
+### Changed
+- **The last typed churches are on the list.** The three staff whose church
+  was still only typed text (Redeemer Presbyterian Church, Sydney Elim
+  Presbyterian Church, New Life Christian Church) are linked to new list
+  entries with those names, so they show on the Churches page. Where each
+  meets and when can be filled in from the page. Profiles no longer show or
+  hint at typed text.
+- **Leftover data from old imports is cleared.** The one-off import from the
+  old Roll Call app is retired, and the import ids it left on 220 events and
+  1,200 members are removed. Unused search indexes and the old free-text
+  service times column are gone, and every sign-in now has to belong to a
+  member (all of them already do).
+
 ## [2.9.1] - 2026-10-15
 
 ### Added

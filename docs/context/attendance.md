@@ -85,8 +85,8 @@ linked to it and nothing moves. Otherwise the row with more events attended
 survives (the older one on a tie), every sign-in moves onto it, an event both
 were signed in to becomes one record (earlier sign-in time, both notes), and
 every profile that pointed at the other row points at the survivor. The
-survivor keeps the kept person's name, church and import id (taking the other
-row's only where the kept person has none). Someone who is staff in the year
+survivor keeps the kept person's name and church (taking the other row's
+church only where the kept person has none). Someone who is staff in the year
 being viewed can't be merged away, and two people who were both staff in the
 same year can't be merged.
 _Avoid_: combine, dedupe, delete (deleting throws the attendance away)

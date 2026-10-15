@@ -1,7 +1,7 @@
 {
   "name": "theshed",
   "main": "expo-router/entry",
-  "version": "2.9.1",
+  "version": "2.9.2",
   "dependencies": {
     "@auth/core": "^0.41.3",
     "@convex-dev/auth": "^0.0.95",
@@ -70,10 +70,6 @@
     "e2e:setup": "convex run devE2E:setup",
     "e2e:teardown": "convex run devE2E:teardown",
     "e2e": "npm run e2e:setup && (npm run e2e:local; ec=$?; npm run e2e:teardown; exit $ec)",
-    "migrate:sow-subgroup": "node scripts/migrate-sow-subgroup.mjs",
-    "repair:gender-metadata": "node scripts/repair-gender-metadata.mjs",
-    "rollcall-import:dry-run": "node scripts/rollcall-import-dry-run.mjs",
-    "rollcall-import:apply": "node scripts/rollcall-import-apply.mjs",
     "deploy:web": "node scripts/deploy-web.mjs",
     "deploy:web:dev": "node scripts/deploy-web-dev.mjs"
   },

@@ -63,8 +63,8 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   staff), campus leaders or staff, and to one or more campuses. Only people with
   a staff profile this year add or edit churches.
   `churches:remindToSetChurch` reminds this year's staff who haven't picked
-  one (in-app notification and push). Other people's emails, member ids and
-  typed churches are for staff only: anyone else, signed in or not, sees each
+  one (in-app notification and push). Other people's emails and member ids
+  are for staff only: anyone else, signed in or not, sees each
   church with the names, roles and campuses of who goes there.
 - **Last online**: someone else's profile shows when they last had The SHED
   open (staff viewers only), or that they haven't signed in yet. The app
@@ -188,8 +188,7 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
 - **Audit log**: an immutable trail of every attendance-area action (event /
   member / tag / metadata edits, merges and deletes, and each
   sign-in/edit/sign-out), read by the Attendance → Audit tab.
-- **CSV import/export**: bulk-import historical roll-call data and export
-  attendance.
+- **CSV export**: export attendance.
 - **Insights** (a dedicated bottom tab): for a campus, its **weekly meetings**
   by term (T1–T3 / Sem 1–2) or calendar year: cards against the term before
   (a year against last year), a
@@ -496,7 +495,7 @@ The `convex-test` + shared-logic suite (run in CI with coverage thresholds)
 covers the reimbursement flow (the auto-approval matrix, approval ordering and
 authorization, decline behaviour, admin permissions, the Budget
 Manager-must-be-Finance rule, and the October 1 rollover) as well as the
-Attendance area: roll-call, events, members, tags, metadata, audit, import, and
+Attendance area: roll-call, events, members, tags, metadata, audit, and
 the Insights metrics precompute.
 
 ## Not yet implemented
