@@ -193,9 +193,13 @@ export function CreateEventSheet({
       endTime: event ? timeInputFromMs(event.dateEnd) : defaultTime(19),
     };
     const savedKind: Kind = event?.weekly ? "weekly" : "event";
+    const saved = event?.weekly;
+    const namedByCode =
+      !!saved &&
+      (["terms", "semesters"] as const).some((system) => weeklyName(system, saved.slot, saved.week) === snapshot.name);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- load the event's saved fields on the open transition (edit mode)
     setName(snapshot.name);
-    setNameTouched(true);
+    setNameTouched(!namedByCode);
     setWhenTouched(true);
     setKind(savedKind);
     setInitialKind(savedKind);
@@ -255,7 +259,7 @@ export function CreateEventSheet({
     weekly && pickedTerm && pickedWeek && suggestion
       ? weeklyName(suggestion.system, pickedTerm.slot, pickedWeek)
       : "";
-  const nameValue = weekly && !nameTouched ? code : name;
+  const nameValue = weekly && !nameTouched && code ? code : name;
   const weeklyReady = !weekly || (!!pickedTerm && !!pickedWeek);
   const duplicate =
     weekly && pickedTerm && pickedWeek
@@ -614,7 +618,7 @@ export function CreateEventSheet({
                     { borderColor: on ? t.primary : t.border, opacity: pressed ? 0.7 : 1 },
                   ]}
                 >
-                  <CampusMark campus={sg} size="sm" />
+                  <CampusMark campus={sg} variant="circle" circleDiameter={22} />
                   <Txt>{`${subgroupLabel(sg)}${isOwner ? " · owner" : ""}`}</Txt>
                 </Pressable>
               );
