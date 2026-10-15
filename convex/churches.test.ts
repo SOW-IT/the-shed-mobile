@@ -89,9 +89,9 @@ describe("the church list", () => {
     ).rejects.toThrow("up to 10 service times");
     await expect(bad({ website: "not a site" })).rejects.toThrow("That website doesn't look right");
     await expect(bad({ instagram: "@not a handle" })).rejects.toThrow("That Instagram doesn't look right");
-    await t.run((ctx) => ctx.db.patch("churches", abba, { services: undefined, serviceTimes: "Sunday 9am" }));
+    await t.run((ctx) => ctx.db.patch("churches", abba, { services: undefined }));
     expect((await sam.query(api.churches.list, {})).find((c) => c._id === abba)).toMatchObject({
-      serviceTimes: "Sunday 9am",
+      serviceTimes: null,
       services: [],
     });
     await expect(
@@ -179,30 +179,28 @@ describe("an account with no staff profile sees what a visitor sees", () => {
     ]);
   });
 
-  test("no typed church, last online or signed-in state on profiles, except their own", async () => {
+  test("no last online or signed-in state on profiles, except their own", async () => {
     const { t, sam } = await setup();
     const ids = await t.run(async (ctx) => ({
-      tom: await ctx.db.insert("users", { email: "tom@gmail.com", name: "Tom Typed", localChurch: "St Mark's" }),
+      tom: await ctx.db.insert("users", { email: "tom@gmail.com", name: "Tom Guest" }),
       outsider: await ctx.db.insert("users", { email: "relay@privaterelay.appleid.com", name: "Apple Person" }),
     }));
     const outsider = signedIn(t, ids.outsider, "relay@privaterelay.appleid.com");
     const privateFields = (profile: Record<string, unknown> | null) => ({
-      localChurch: profile?.localChurch,
-      typedChurch: profile?.typedChurch,
       lastOnlineAt: profile?.lastOnlineAt === null ? null : "set",
       hasSignedIn: profile?.hasSignedIn,
     });
-    const hidden = { localChurch: null, typedChurch: null, lastOnlineAt: null, hasSignedIn: null };
+    const hidden = { lastOnlineAt: null, hasSignedIn: null };
 
     expect(privateFields(await outsider.query(api.profile.get, { email: "tom@gmail.com" }))).toEqual(hidden);
     expect(privateFields(await t.query(api.profile.get, { email: "tom@gmail.com" }))).toEqual(hidden);
-    expect(privateFields(await sam.query(api.profile.get, { email: "tom@gmail.com" }))).toMatchObject({
-      localChurch: "St Mark's",
-      typedChurch: "St Mark's",
+    expect(privateFields(await sam.query(api.profile.get, { email: "tom@gmail.com" }))).toEqual({
+      lastOnlineAt: null,
+      hasSignedIn: true,
     });
     expect(
       privateFields(await signedIn(t, ids.tom, "tom@gmail.com").query(api.profile.get, {}))
-    ).toMatchObject({ localChurch: "St Mark's", typedChurch: "St Mark's" });
+    ).toEqual({ lastOnlineAt: null, hasSignedIn: true });
     expect((await outsider.query(api.profile.get, { email: STAFF }))?.name).toBe("Sam Staff");
   });
 });
@@ -510,19 +508,15 @@ describe("a member's church", () => {
 
 describe("your church in your Profile", () => {
   test("pick one from the list, see it with its details, or clear it", async () => {
-    const { t, sam, samId } = await setup();
-    await t.run((ctx) => ctx.db.patch("users", samId, { localChurch: "Old Typed Church" }));
+    const { t, sam } = await setup();
     let mine = (await sam.query(api.profile.get, {}))!;
-    expect(mine).toMatchObject({ church: null, typedChurch: "Old Typed Church", localChurch: "Old Typed Church" });
+    expect(mine).toMatchObject({ church: null });
 
     const grace = await sam.mutation(api.churches.add, { name: "Grace Church", address: "1 Church St" });
     await sam.mutation(api.profile.setChurch, { churchId: grace });
     mine = (await sam.query(api.profile.get, {}))!;
     expect(mine).toMatchObject({
       church: { _id: grace, name: "Grace Church", address: "1 Church St", serviceTimes: null },
-      typedChurch: null,
-      // Older app builds show the church's name.
-      localChurch: null,
     });
     // Others see it too; signed-out visitors don't.
     expect((await asUser(t, ADMIN).query(api.profile.get, { email: STAFF }))!.church?.name).toBe("Grace Church");

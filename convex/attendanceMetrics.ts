@@ -151,7 +151,6 @@ export const gatherAttendanceChunk = internalQuery({
     const out: MetricsAttendance[] = [];
     eventIds.forEach((id, i) => {
       for (const row of perEvent[i]) {
-        if (!row.memberId) continue;
         const key = `${MEMBER_PREFIX}${row.memberId}`;
         out.push({ eventId: id, personKey: key, signInTime: row.signInTime });
       }

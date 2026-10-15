@@ -93,7 +93,7 @@ async function resolveExportEvents(
     };
 
     const resolvedRows: ExportRow[] = attendanceRows.map((row): ExportRow => {
-      const member = row.memberId ? memberById.get(String(row.memberId)) : undefined;
+      const member = memberById.get(String(row.memberId));
       if (!member) {
         return {
           name: "Unknown",

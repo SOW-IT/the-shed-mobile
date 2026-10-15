@@ -81,7 +81,6 @@ export const get = query({
     const googleSyncTimes = [googleSignInAt, directorySyncedAt].filter(
       (at): at is number => at !== null
     );
-    const typedChurch = seesPrivate && !church ? (user?.localChurch ?? null) : null;
     return {
       email,
       // Either staff email spelling is the same person.
@@ -89,10 +88,7 @@ export const get = query({
       googleSyncedAt: isMe && googleSyncTimes.length ? Math.max(...googleSyncTimes) : null,
       name: user?.name ?? dirUser?.name ?? anyProfile?.name ?? null,
       photo: await photoUrl(ctx, user, dirUser),
-      localChurch: typedChurch,
       church: church ? viewOf(church) : null,
-      // What they typed before churches were a list, until they pick one.
-      typedChurch,
       // Like the church, only for signed-in staff.
       lastOnlineAt: seesPrivate ? await lastOnlineAt(ctx, email) : null,
       hasSignedIn: seesPrivate ? await hasSignedIn(ctx, email) : null,
@@ -116,9 +112,7 @@ async function ownProfileWithoutEmail(ctx: QueryCtx, user: Doc<"users">) {
     googleSyncedAt: null,
     name: user.name ?? null,
     photo: await photoUrl(ctx, user, null),
-    localChurch: church ? null : (user.localChurch ?? null),
     church: church ? viewOf(church) : null,
-    typedChurch: church ? null : (user.localChurch ?? null),
     lastOnlineAt: null,
     hasSignedIn: true,
     serviceHistory: [],
@@ -141,7 +135,7 @@ export const setChurch = mutation({
     if (churchId && !(await ctx.db.get("churches", churchId))) {
       throw new ConvexError("That church isn't in the list any more.");
     }
-    await ctx.db.patch("users", user._id, { churchId: churchId ?? undefined, localChurch: undefined });
+    await ctx.db.patch("users", user._id, { churchId: churchId ?? undefined });
     return null;
   },
 });

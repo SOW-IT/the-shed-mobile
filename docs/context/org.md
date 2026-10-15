@@ -57,8 +57,7 @@ _Avoid_: rehire, returning employee, alumni
 The church someone goes to, from the shared list of churches (each with where
 it meets and its service times): a staff member picks theirs in their
 Profile; a plain member's is set in Edit member. Any staff member can add a
-church or fill in a missing detail. The Churches page lists who goes where. What people typed before
-the list existed is kept as a hint until they pick one.
+church or fill in a missing detail. The Churches page lists who goes where.
 _Avoid_: home church (ambiguous with a campus), church (alone, for SOW itself)
 
 **Guest**:

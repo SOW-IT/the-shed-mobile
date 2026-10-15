@@ -3,7 +3,6 @@ import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate, staffYearStartMs, sydneyCalendarYear } from "../shared/flow";
 import { api, internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -378,26 +377,6 @@ describe("attendanceExport", () => {
       subgroup: MACQ,
     });
     expect(macq!.events[0].rows[0].metadata.House).toBeUndefined();
-  });
-
-  test("handles an attendance row with neither email nor member id", async () => {
-    const { t, leader } = await setup();
-    const eventId = await leader.mutation(api.events.create, {
-      name: "Orphan",
-      ...window(),
-      subgroups: [USYD],
-    });
-    await t.run(async (ctx) => {
-      await ctx.db.insert("attendance", {
-        eventId: eventId as Id<"events">,
-        signInTime: Date.now(),
-      });
-    });
-    const data = await leader.query(api.attendanceExport.eventsForExport, {
-      subgroup: USYD,
-    });
-    expect(data!.events[0].rows[0].name).toBe("Unknown");
-    expect(data!.events[0].rows[0].email).toBe("");
   });
 
   test("eventForExport: single event, missing event, and empty-subgroup fallback", async () => {

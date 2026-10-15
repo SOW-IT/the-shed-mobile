@@ -46,27 +46,6 @@ export const formatServices = (services: readonly ServiceTime[]): string | null 
   return [...byDay].map(([day, times]) => `${WEEKDAYS[day]} ${joinWithAnd(times)}`).join(" · ");
 };
 
-const WEEKDAY_PREFIXES = WEEKDAYS.map((day) => day.slice(0, 3).toLowerCase());
-const TOKEN = /([a-z]+)|(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)\b/gi;
-
-export const parseServiceTimes = (text: string): ServiceTime[] => {
-  let day = 0;
-  const services: ServiceTime[] = [];
-  for (const [, word, hour, minute, meridiem] of text.matchAll(TOKEN)) {
-    if (word) {
-      const found = WEEKDAY_PREFIXES.indexOf(word.slice(0, 3).toLowerCase());
-      if (found !== -1 && word.length >= 3) day = found;
-      continue;
-    }
-    const h = Number(hour);
-    if (h < 1 || h > 12) continue;
-    const hours = (h % 12) + (meridiem.toLowerCase() === "pm" ? 12 : 0);
-    const time = `${String(hours).padStart(2, "0")}:${minute ?? "00"}`;
-    if (CLOCK.test(time)) services.push({ day, time });
-  }
-  return sortServices(services);
-};
-
 export const cleanWebsite = (text: string | undefined): string | undefined | null => {
   const trimmed = text?.trim();
   if (!trimmed) return undefined;

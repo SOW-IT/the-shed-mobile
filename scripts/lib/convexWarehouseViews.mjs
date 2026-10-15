@@ -19,7 +19,6 @@ export const WAREHOUSE_TABLES = {
     s("phone"),
     t("phoneVerificationTime"),
     b("isAnonymous"),
-    s("localChurch"),
     s("churchId"),
     s("avatarId"),
   ],
@@ -82,7 +81,7 @@ export const WAREHOUSE_TABLES = {
   ],
   notifications: [s("userEmail"), s("title"), s("body"), s("url"), s("requestId"), b("read")],
   requestNudges: [s("requestId"), s("nudgerEmail"), t("sentAt")],
-  events: [s("name"), t("dateStart"), t("dateEnd"), s("sourceImportId"), j("subgroups"), j("tagIds")],
+  events: [s("name"), t("dateStart"), t("dateEnd"), j("subgroups"), j("tagIds")],
   attendanceAuditLog: [
     s("actorEmail"),
     s("entityType"),
@@ -102,7 +101,7 @@ export const WAREHOUSE_TABLES = {
     s("subgroup"),
     j("lockedValues"),
   ],
-  attendanceMembers: [s("name"), s("email"), s("sourceImportId"), j("metadata"), s("churchId")],
+  attendanceMembers: [s("name"), s("email"), j("metadata"), s("churchId")],
   attendance: [s("eventId"), s("memberId"), t("signInTime"), s("notes")],
   attendanceMetricsSnapshots: [
     s("subgroup"),

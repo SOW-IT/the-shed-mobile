@@ -741,7 +741,6 @@ describe("admin and per-year rules", () => {
     expect(viewed.isMe).toBe(false);
     expect(viewed.name).toBe("Rachel R");
     expect(viewed.church?.name).toBe("SOW City Church");
-    expect(viewed.localChurch).toBeNull();
     expect(viewed.serviceHistory).toEqual([
       {
         year: YEAR,

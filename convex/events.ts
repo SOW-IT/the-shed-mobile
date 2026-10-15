@@ -460,7 +460,7 @@ const attendeesToList = async (
     .slice(0, MAX_AUDIT_ATTENDANCE_LINES);
   const people = [];
   for (const row of listed) {
-    const member = row.memberId ? await ctx.db.get(row.memberId) : null;
+    const member = await ctx.db.get(row.memberId);
     const name = member ? (await memberDisplayName(ctx, member, year)).name : "Deleted member";
     people.push({ attendanceId: row._id, name, signInTime: row.signInTime });
   }

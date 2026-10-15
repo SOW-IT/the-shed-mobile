@@ -327,7 +327,7 @@ export const attendanceFor = internalQuery({
           .take(MAX_EVENTS);
         return {
           eventId,
-          keys: [...new Set(rows.flatMap((r) => (r.memberId ? [`member:${r.memberId}`] : [])))],
+          keys: [...new Set(rows.map((r) => `member:${r.memberId}`))],
         };
       })
     ),

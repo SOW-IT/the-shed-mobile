@@ -63,7 +63,7 @@ export const viewOf = (church: Doc<"churches">) => ({
   _id: church._id,
   name: church.name,
   address: church.address ?? null,
-  serviceTimes: formatServices(church.services ?? []) ?? church.serviceTimes ?? null,
+  serviceTimes: formatServices(church.services ?? []),
   services: church.services ?? [],
   website: church.website ?? null,
   instagram: church.instagram ?? null,
@@ -122,7 +122,6 @@ function cleanDetails({ name, address, services = [], website, instagram }: Deta
     nameKey: churchNameKey(name),
     address: tidy(address),
     services: sorted.length ? sorted : undefined,
-    serviceTimes: undefined,
     website: site,
     instagram: handle,
   };

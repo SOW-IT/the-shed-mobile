@@ -1389,8 +1389,11 @@ describe("guards + edge cases", () => {
       subgroups: [USYD],
     });
     await t.run(async (ctx) => {
+      const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
+      await ctx.db.delete(gone);
       await ctx.db.insert("attendance", {
         eventId,
+        memberId: gone,
         signInTime: Date.now(),
       });
     });
@@ -1673,7 +1676,7 @@ describe("staff sign-in and sign-out by email", () => {
 });
 
 describe("listByEvent identity", () => {
-  test("two rows for one member collapse to the earliest sign-in; memberless and orphaned rows stay separate as Unknown", async () => {
+  test("two rows for one member collapse to the earliest sign-in; an orphaned row stays separate as Unknown", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
     const { dateStart, dateEnd } = window();
@@ -1695,19 +1698,18 @@ describe("listByEvent identity", () => {
       });
       await ctx.db.insert("attendance", { eventId, memberId: staffMemberId, signInTime: dateStart + 3_000 });
       await ctx.db.insert("attendance", { eventId, memberId: gone, signInTime: dateStart + 2_000 });
-      await ctx.db.insert("attendance", { eventId, signInTime: dateStart + 4_000 });
       return { early };
     });
     const listed = await leader.query(api.attendance.listByEvent, { eventId });
-    expect(listed).toHaveLength(3);
+    expect(listed).toHaveLength(2);
     const staffRows = listed.filter((r) => r.memberId === staffMemberId);
     expect(staffRows).toHaveLength(1);
     expect(staffRows[0]._id).toBe(early);
     expect(staffRows[0].email).toBe(STAFF);
     const unknown = listed.filter((r) => r.name === "Unknown");
-    expect(unknown).toHaveLength(2);
+    expect(unknown).toHaveLength(1);
     expect(unknown.every((r) => r.kind === "member" && r.email === undefined)).toBe(true);
-    expect(listed.map((r) => r.signInTime)).toEqual([dateStart + 4_000, dateStart + 2_000, dateStart + 1_000]);
+    expect(listed.map((r) => r.signInTime)).toEqual([dateStart + 2_000, dateStart + 1_000]);
   });
 
   test("an invalid or missing event id lists nothing", async () => {
@@ -1727,7 +1729,7 @@ describe("listByEvent identity", () => {
 });
 
 describe("roster ranking history", () => {
-  test("scores history by member, staff and plain alike, and a memberless history row counts for no one", async () => {
+  test("scores history by member, staff and plain alike", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
     const { dateStart, dateEnd } = window();
@@ -1740,7 +1742,6 @@ describe("roster ranking history", () => {
       subgroups: [USYD],
     });
     await t.run(async (ctx) => {
-      await ctx.db.insert("attendance", { eventId: pastId, signInTime: dateStart - 86_400_000 });
       await ctx.db.insert("attendance", { eventId: pastId, memberId: staffMemberId, signInTime: dateStart - 86_400_000 });
       await ctx.db.insert("attendance", { eventId: pastId, memberId: guestId, signInTime: dateStart - 86_400_000 });
     });

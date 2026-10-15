@@ -7,7 +7,6 @@ import { Id } from "../../convex/_generated/dataModel";
 import {
   instagramUrl,
   MAX_SERVICES,
-  parseServiceTimes,
   type ServiceTime,
   WEEKDAYS,
   websiteLabel,
@@ -176,13 +175,11 @@ function ServiceTimesField({
 export function ChurchForm({
   visible,
   church,
-  initialName,
   onClose,
   onSaved,
 }: {
   visible: boolean;
   church: Church | null;
-  initialName?: string;
   onClose: () => void;
   onSaved: (churchId: Id<"churches">) => void;
 }) {
@@ -199,13 +196,13 @@ export function ChurchForm({
   const [openedFor, setOpenedFor] = useState<string | null>(null);
 
   // Fill the form each time it opens.
-  const openKey = visible ? (church?._id ?? `new:${initialName ?? ""}`) : null;
+  const openKey = visible ? (church?._id ?? "new") : null;
   if (openKey !== openedFor) {
     setOpenedFor(openKey);
     if (openKey) {
-      setName(church?.name ?? initialName ?? "");
+      setName(church?.name ?? "");
       setAddress(church?.address ?? "");
-      setServices(church?.services.length ? church.services : parseServiceTimes(church?.serviceTimes ?? ""));
+      setServices(church?.services ?? []);
       setWebsite(church?.website ?? "");
       setInstagram(church?.instagram ? `@${church.instagram}` : "");
       setError(null);
@@ -284,13 +281,10 @@ export function ChurchSelect({
   label = "Local church",
   churchId,
   onChange,
-  addName,
 }: {
   label?: string;
   churchId: Id<"churches"> | null;
   onChange: (churchId: Id<"churches"> | null) => void;
-  /** A likely name for a church to add (what someone typed before). */
-  addName?: string;
 }) {
   const t = useAppTheme();
   const churches = useQuery(api.churches.list);
@@ -386,7 +380,6 @@ export function ChurchSelect({
       <ChurchForm
         visible={adding}
         church={null}
-        initialName={addName}
         onClose={() => setAdding(false)}
         onSaved={(id) => {
           setAdding(false);
@@ -398,15 +391,7 @@ export function ChurchSelect({
 }
 
 /** Your local church in your Profile: picked from the list, with its details. */
-export function ChurchPicker({
-  church,
-  typedChurch,
-}: {
-  church: Church | null;
-  /** What they typed before churches were a list. */
-  typedChurch: string | null;
-}) {
-  const t = useAppTheme();
+export function ChurchPicker({ church }: { church: Church | null }) {
   const setChurch = useMutation(api.profile.setChurch);
   const canEdit = useCanEditChurches();
   const [editing, setEditing] = useState(false);
@@ -423,18 +408,7 @@ export function ChurchPicker({
 
   return (
     <View style={{ gap: spacing.sm }}>
-      <ChurchSelect
-        churchId={church?._id ?? null}
-        onChange={(id) => void choose(id)}
-        addName={typedChurch ?? undefined}
-      />
-      {!church && typedChurch ? (
-        <Text style={[typography.caption, { color: t.muted }]}>
-          {canEdit
-            ? `You wrote “${typedChurch}”. Pick it from the list, or add it with where it meets and when.`
-            : `You wrote “${typedChurch}”. Pick it from the list.`}
-        </Text>
-      ) : null}
+      <ChurchSelect churchId={church?._id ?? null} onChange={(id) => void choose(id)} />
       {church ? <ChurchDetails church={church} onEdit={canEdit ? () => setEditing(true) : undefined} /> : null}
       <ErrorBanner message={error} />
       <ChurchForm

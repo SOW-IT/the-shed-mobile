@@ -17,6 +17,18 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 ## Still outstanding
 
+- [ ] **2.9.2 clean-up, after its Convex deploy** (backup first:
+      ~/Documents/the-shed-backups/prod-2026-10-16-before-2.9.2.zip).
+      `npx convex run --prod fieldCleanup:linkTypedChurches '{}'` lists the
+      typed churches to add and link (3 expected); run again with
+      `'{"dryRun": false}'`. Then `fieldCleanup:clearImportIds` with
+      `'{"table": "events", "dryRun": false}'` and
+      `'{"table": "attendanceMembers", "dryRun": false}'`, passing each `next`
+      back as `cursor` until it's null (220 and 1,200 expected). A rerun of
+      each should find 0. Then 2.9.3 drops `users.localChurch`,
+      `events.sourceImportId`, `attendanceMembers.sourceImportId` and their
+      indexes, and deletes `convex/fieldCleanup.ts`.
+
 
 - [ ] **Ask phones to update to 2.9.1 once it's live in both stores** (2.9.0 is
       the first version with the update prompt, so it only reaches people on

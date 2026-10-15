@@ -359,8 +359,10 @@ describe("campus weekly attendance in General", () => {
         weekly: { year: new Date(opts.dateStart).getUTCFullYear(), slot: 1, week: 3 },
       });
       for (let i = 0; i < opts.count; i++) {
+        const memberId = await ctx.db.insert("attendanceMembers", { name: `Person ${i}` });
         await ctx.db.insert("attendance", {
           eventId,
+          memberId,
           signInTime: opts.dateStart,
         });
       }
@@ -428,9 +430,11 @@ describe("campus weekly attendance in General", () => {
         subgroups: ["USYD"],
         tagIds: [weekliesTag],
       });
+      const memberId = await ctx.db.insert("attendanceMembers", { name: "Not Weekly" });
       for (const eventId of [social, tagOnly]) {
         await ctx.db.insert("attendance", {
           eventId,
+          memberId,
           signInTime: IN_2025,
         });
       }
@@ -450,7 +454,10 @@ describe("campus weekly attendance in General", () => {
         subgroups: ["USYD"],
         weekly: { year: 2025, slot: 1, week: 2 },
       });
-      for (let i = 0; i < 7; i++) await ctx.db.insert("attendance", { eventId, signInTime: IN_2025 });
+      for (let i = 0; i < 7; i++) {
+        const memberId = await ctx.db.insert("attendanceMembers", { name: `Person ${i}` });
+        await ctx.db.insert("attendance", { eventId, memberId, signInTime: IN_2025 });
+      }
     });
     const res = await campusWeekly(t);
     expect(res.campuses).toEqual([{ campus: "USYD", averages: [7] }]);

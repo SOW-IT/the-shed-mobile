@@ -344,7 +344,6 @@ describe("attendanceMetrics", () => {
         memberId,
         assignments: [{ role: "Student Leader", university: USYD }],
       });
-      await ctx.db.insert("attendance", { eventId: e, signInTime: Date.now() });
       return memberId;
     });
     await leader.mutation(api.attendance.signIn, { eventId: e, memberId: ghost });
@@ -480,7 +479,7 @@ describe("attendanceMetrics", () => {
     const rows = await t.run((ctx) =>
       ctx.db
         .query("attendanceMetricsSnapshots")
-        .withIndex("by_subgroup_and_range", (q) =>
+        .withIndex("by_subgroup_range_year", (q) =>
           q
             .eq("subgroup", USYD)
             .eq("rangeWeeks", 4)
@@ -516,7 +515,7 @@ describe("attendanceMetrics", () => {
     const rows = await t.run((ctx) =>
       ctx.db
         .query("attendanceMetricsSnapshots")
-        .withIndex("by_subgroup_and_range", (q) =>
+        .withIndex("by_subgroup_range_year", (q) =>
           q
             .eq("subgroup", USYD)
             .eq("rangeWeeks", 4)
@@ -573,7 +572,7 @@ describe("attendanceMetrics", () => {
     const rows = await t.run((ctx) =>
       ctx.db
         .query("attendanceMetricsSnapshots")
-        .withIndex("by_subgroup_and_range", (q) =>
+        .withIndex("by_subgroup_range_year", (q) =>
           q
             .eq("subgroup", USYD)
             .eq("rangeWeeks", 4)
