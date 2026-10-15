@@ -120,6 +120,7 @@ export type SaveControls = {
   saving: boolean;
   save: () => void;
   revert: () => void;
+  error?: string | null;
 };
 
 export function MetadataTab({

@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { TAG_COLOUR_NAMES, tagColourHex } from "../../../shared/attendanceTags";
-import { isWeekliesTagName, tagListOf, type TagList } from "../../../shared/rollcall";
+import { isOrgWideSubgroup, isWeekliesTagName, tagListOf, type TagList } from "../../../shared/rollcall";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import type { SaveControls } from "@/components/attendance/MetadataTab";
 import { SubgroupScopePicker } from "@/components/attendance/SubgroupScopePicker";
@@ -120,16 +120,20 @@ export function SettingsTab({
       saving,
       save: () => void saveTagsNow(),
       revert: revertTags,
+      error,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tagsChanged, saving, tagDrafts, tagDeletes]);
+  }, [tagsChanged, saving, tagDrafts, tagDeletes, error]);
 
   if (tags === undefined) return <LoadingState />;
+
+  const scopeFor = (list: TagList) =>
+    list === "weeklies" ? subgroups.filter((subgroup) => !isOrgWideSubgroup(subgroup)) : subgroups;
 
   const addTag = (list: TagList) =>
     setTagDrafts((prev) => [
       ...prev,
-      { name: "", colour: "blue", subgroups: [...subgroups], list },
+      { name: "", colour: "blue", subgroups: [...scopeFor(list)], list },
     ]);
 
   const indexed = tagDrafts.map((tag, i) => ({ tag, i }));
@@ -224,7 +228,7 @@ export function SettingsTab({
               <View style={{ gap: spacing.xs }}>
                 <Muted>Applies to</Muted>
                 <SubgroupScopePicker
-                  subgroups={subgroups}
+                  subgroups={scopeFor(tag.list)}
                   isSelected={(subgroup) =>
                     tag.subgroups?.length ? tag.subgroups.includes(subgroup) : true
                   }
@@ -232,7 +236,7 @@ export function SettingsTab({
                     setTagDrafts((prev) =>
                       prev.map((x, j) => {
                         if (j !== i) return x;
-                        const set = new Set(x.subgroups?.length ? x.subgroups : subgroups);
+                        const set = new Set(x.subgroups?.length ? x.subgroups : scopeFor(x.list));
                         if (set.has(subgroup)) set.delete(subgroup);
                         else set.add(subgroup);
                         if (set.size === 0) return x;
