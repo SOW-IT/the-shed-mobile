@@ -1,5 +1,5 @@
 import { ConvexError, v } from "convex/values";
-import { isWeekliesTagName, normalizeSubgroups, tagListOf, type TagList } from "../shared/rollcall";
+import { isWeekliesTagName, tagListOf, tagScope, type TagList } from "../shared/rollcall";
 import { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { optionalProfile, requireAttendanceManager } from "./model";
@@ -89,9 +89,7 @@ export const saveAll = mutation({
         if (isWeekliesTagName(existing.name) && existing.name !== name) {
           throw new ConvexError("The Weeklies tag can't be renamed; every weekly gets it.");
         }
-        const nextSubgroups = tag.subgroups?.length
-          ? normalizeSubgroups(tag.subgroups)
-          : undefined;
+        const nextSubgroups = tagScope(list, tag.subgroups);
         const changed =
           existing.name !== name ||
           tagListOf(existing) !== list ||
@@ -120,9 +118,7 @@ export const saveAll = mutation({
           name,
           list,
           colour: tag.colour,
-          subgroups: tag.subgroups?.length
-            ? normalizeSubgroups(tag.subgroups)
-            : undefined,
+          subgroups: tagScope(list, tag.subgroups),
         });
         await logAttendanceAction(ctx, {
           actorEmail,

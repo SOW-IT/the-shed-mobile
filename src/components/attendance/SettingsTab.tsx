@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { TAG_COLOUR_NAMES, tagColourHex } from "../../../shared/attendanceTags";
-import { isOrgWideSubgroup, isWeekliesTagName, tagListOf, type TagList } from "../../../shared/rollcall";
+import { isOrgWideSubgroup, isWeekliesTagName, tagListOf, tagScope, type TagList } from "../../../shared/rollcall";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import type { SaveControls } from "@/components/attendance/MetadataTab";
 import { SubgroupScopePicker } from "@/components/attendance/SubgroupScopePicker";
@@ -31,6 +31,9 @@ type TagDraft = {
   subgroups?: string[];
   list: TagList;
 };
+
+const withList = (draft: TagDraft, list: TagList): TagDraft =>
+  list === "weeklies" ? { ...draft, list, subgroups: tagScope(list, draft.subgroups) } : { ...draft, list };
 
 const LISTS: { list: TagList; title: string; hint: string }[] = [
   { list: "weeklies", title: "Weeklies", hint: "Labels for a weekly, like BAM or PPN." },
@@ -100,7 +103,7 @@ export function SettingsTab({
     setSaving(true);
     setError(null);
     try {
-      await saveTags({ tags: tagDrafts, deleteIds: tagDeletes });
+      await saveTags({ tags: tagDrafts.map((draft) => withList(draft, draft.list)), deleteIds: tagDeletes });
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -219,7 +222,7 @@ export function SettingsTab({
                   active={tag.list}
                   onChange={(key) =>
                     setTagDrafts((prev) =>
-                      prev.map((x, j) => (j === i ? { ...x, list: key as TagList } : x))
+                      prev.map((x, j) => (j === i ? withList(x, key as TagList) : x))
                     )
                   }
                 />

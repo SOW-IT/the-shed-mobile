@@ -52,6 +52,13 @@ export type TagList = "weeklies" | "events";
 
 export const tagListOf = (tag: { list?: TagList }): TagList => tag.list ?? "events";
 
+export const tagScope = (list: TagList, subgroups: string[] | undefined): string[] | undefined => {
+  const scoped = normalizeSubgroups(subgroups ?? []).filter(
+    (subgroup) => list !== "weeklies" || !isOrgWideSubgroup(subgroup)
+  );
+  return scoped.length ? scoped : undefined;
+};
+
 export const contrastingText = (hex: string): string => {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
