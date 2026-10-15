@@ -6,6 +6,37 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.1] - 2026-10-15
+
+### Added
+- **Filter the Churches page by who goes.** Everyone, Volunteers (campus
+  leaders and staff together), Campus leaders or Staff, and one or more campuses.
+  The list, each church's People count ("3 of 8") and the map all follow the
+  filter, and churches nobody matching goes to drop out. Campus leaders are
+  staff with a campus role that staff year, the same rule as TWIG Insights.
+- **Map pins show who goes.** Each pin has the number of people (after the
+  filter) in the colour of their main campus, bigger churches sit on top, and
+  the chosen church's pin spells out its full name. The Apple map behind them
+  is the muted style so the pins stand out.
+
+### Changed
+- **Tags has a Weeklies | Other events switch at the top**, like Admin's
+  Structure, instead of both lists on one long page. Moving a tag to the other
+  list takes you there with it.
+- **Save and Cancel look switched off until something changes**, on Tags and
+  every other screen with a Save button at the bottom. They were already
+  disabled; now they look it.
+- **The owning campus in Shared with is shown, not labelled.** It's always
+  selected and can't be removed, so it's drawn selected but faded, instead of
+  "· owner" after its name.
+- **2.9.0 is now the oldest supported app.** The server no longer keeps code
+  for older builds: Insights screens from before 2.0.1, the typed church field
+  from before 2.5.5, weeklies that arrive without a term and week (2.7.0 and
+  older), the old Weekly Meeting tag name, and web links held back from apps
+  older than 2.5.5. Finished one-off jobs went too (the 2.8.0 weekly rename,
+  the 2.5.6 church list set-up, the 2.3.0 event form import and others).
+  The SOW Insights card now says "Average turnout at weeklies".
+
 ## [2.9.0] - 2026-10-15
 
 ### Added

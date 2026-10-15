@@ -18,13 +18,25 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 ## Still outstanding
 
 
-- [ ] **Ask phones to update once 2.9.0 is live in both stores** (2.9.0 is the
-      first version with the update prompt, so it only reaches people on 2.9.0
-      and later): `npx convex run --prod appInstalls:setUpdatePolicy
-      '{"platform": "ios", "recommended": "2.9.0"}'`, the same for `android`.
-      Raise `minimum` (the blocking screen) only after the nudge has had a week
-      or two, and only to a version both stores are serving. People on 2.8.0
-      and older never see it; reach them with a push or an announcement.
+- [ ] **Ask phones to update to 2.9.1 once it's live in both stores** (2.9.0 is
+      the first version with the update prompt, so it only reaches people on
+      2.9.0 and later): `npx convex run --prod appInstalls:setUpdatePolicy
+      '{"platform": "ios", "minimum": "2.9.0", "recommended": "2.9.1"}'`, the
+      same for `android`. `minimum` 2.9.0 shows nobody the blocking screen
+      (everyone who can see it is on 2.9.0 or later); `recommended` 2.9.1 is the
+      dismissable banner. Raise `minimum` past 2.9.0 only after the nudge has
+      had a week or two, and only to a version both stores are serving.
+      **People on 2.8.0 and older never see it, and from 2.9.1 the server no
+      longer answers some of their calls** (old Insights screens, the typed
+      church field, weeklies without a term and week), so send them an
+      announcement asking them to update before merging 2.9.1.
+
+- [ ] **Add the Google Chat webhook secret** so EAS Production posts its
+      result to the Data and IT space: `gh secret set GOOGLE_CHAT_WEBHOOK_URL
+      --repo SOW-IT/the-shed-mobile` and paste the space's incoming webhook URL
+      when asked. Without it the step skips. Pull requests go to the same space
+      through the **GitHub for Google Chat** app: add it to the space, then
+      `/github_subscribe SOW-IT/the-shed-mobile`.
 
 - [ ] **Reply to App Review (2.5.8, guideline 5.1.1(v))** with a physical-device
       recording: sign in with Apple, Profile, Delete account, type the name,
@@ -96,8 +108,7 @@ Forms pages now send people to `/event-requests` (SOW-IT/theshed#3).
 *Evidence (2026-10-07): `import-event-requests.mjs --prod` inserted 20 events
 (13 approved, 5 cancelled, SAF26 and SOW Camp 2027 in progress) with 60 forms;
 `theshedsow.web.app/event-form` and an old `/event-sub-form/…` link both land
-on theshed.sow.org.au. Re-running the import is still safe if anyone used the
-old pages before the redirect.*
+on theshed.sow.org.au. The import script was removed in 2.9.1.*
 
 **Accounts and signing** — Apple Developer (Team ID `4FH642K7X2`), Google Play
 and Expo accounts all exist; EAS holds the iOS credentials and the Android

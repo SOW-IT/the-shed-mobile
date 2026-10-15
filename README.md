@@ -57,7 +57,10 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   same list in Edit member. The **Churches** page (side menu) lists every
   church with the staff and members who go there.
   Each person shows their role, leaders first, and a map pins every church
-  with an address (see [Church map](#church-map-optional)). Only people with
+  with an address (see [Church map](#church-map-optional)), each pin showing
+  how many people go there in the colour of their main campus. Filters at the
+  top narrow the page and the map to everyone, volunteers (campus leaders and
+  staff), campus leaders or staff, and to one or more campuses. Only people with
   a staff profile this year add or edit churches.
   `churches:remindToSetChurch` reminds this year's staff who haven't picked
   one (in-app notification and push). Other people's emails, member ids and
@@ -94,8 +97,7 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   thread. The Events department, the three teams, the Director and admins can
   see every event. Team emails go to marketing@, compliance@ and
   finance@sow.org.au. Any event downloads as a PDF whose Risk and Finance
-  pages follow the Governance Review Form. Old event forms are copied in with
-  `scripts/import-event-requests.mjs` (safe to re-run).
+  pages follow the Governance Review Form.
 - **Announcements** (`convex/announcements.ts`, rules in
   `shared/announcements.ts`), from the side menu for admins (the Human
   Resources division among them). A title and message go to **all leaders**
@@ -211,7 +213,7 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   server's policy (`appUpdatePolicy`, per platform). Below `recommended`, a
   banner that can be dismissed; below `minimum`, a full screen with only the
   store button. Nothing is asked until a policy is set:
-  `npx convex run --prod appInstalls:setUpdatePolicy '{"platform": "ios", "recommended": "2.9.0"}'`
+  `npx convex run --prod appInstalls:setUpdatePolicy '{"platform": "ios", "minimum": "2.9.0", "recommended": "2.9.1"}'`
   (`minimum`, and an optional `message` to replace the default text; `null`
   clears one). Staging builds and the web are never asked.
 
@@ -317,7 +319,7 @@ Six workflows, in `.github/workflows/`:
 | Deploy web (dev) | `deploy-web-dev.yml` | merges to `main` → publishes the dev web app to `the-shed-web-dev` |
 | Backup Convex to GCS | `convex-backup.yml` | daily at 15:17 UTC (01:17 AEST / 02:17 AEDT). Database-only export, file storage excluded. After the zip lands, business tables replace the previous snapshot in dataset `convex_production`, then eligible typed views and Looker/Sheets report views replace `convex_warehouse`. A report view is rebuilt only if every table it needs was in that zip; otherwise it is dropped |
 | EAS Staging | `eas-staging.yml` | **manual only**. Builds and submits the staging app |
-| EAS Production | `eas-production.yml` | **manual only**. Builds and submits the production app |
+| EAS Production | `eas-production.yml` | **manual only**. Builds and submits the production app, then posts the result (version, build numbers, commit, links) to the Data and IT space in Google Chat (`.github/scripts/eas-production-chat.sh`) |
 
 Both EAS workflows take a **platform** input (`both` / `ios` / `android`,
 default `both`) and are never triggered by a PR or a merge.
@@ -329,8 +331,10 @@ separate build, not a re-pointed domain.
 
 Repository secrets these need: `CONVEX_DEPLOY_KEY` (prod backend deploys and
 the GCS backup), `VERCEL_TOKEN` + `VERCEL_PROJECT_ID_DEV` (dev web), and
-`EXPO_TOKEN` (both EAS workflows). Only **Deploy web (dev)** degrades
-gracefully when its secrets are missing. It warns and skips. The other four
+`EXPO_TOKEN` (both EAS workflows), and `GOOGLE_CHAT_WEBHOOK_URL` (the Data and
+IT space's incoming webhook, for EAS Production's Chat post). Only **Deploy
+web (dev)** and the Chat post degrade gracefully when their secrets are
+missing. They skip. The other four
 have no such guard and will **fail** the run, which is the right behaviour for
 a deploy but worth knowing before you add a workflow to a fork. The backup also
 needs the repository *variables*
