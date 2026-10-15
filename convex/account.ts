@@ -13,6 +13,7 @@ import {
 import { APPLE_FALLBACK_NAME } from "./appleIdentity";
 import { revokeAppleTokens } from "./appleRevoke";
 import { isOrgEmail } from "./model";
+import { typedMatches } from "../shared/typedConfirm";
 
 const accountKind = v.union(v.literal("sow"), v.literal("apple"));
 
@@ -20,10 +21,7 @@ const REFRESH_TOKEN_BATCH = 500;
 
 export const WIPE_BATCH = 500;
 
-export const sameName = (typed: string, name: string): boolean => {
-  const normalize = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
-  return normalize(typed) !== "" && normalize(typed) === normalize(name);
-};
+export const sameName = typedMatches;
 
 async function describe(ctx: QueryCtx, userId: Id<"users">) {
   const user = await ctx.db.get("users", userId);

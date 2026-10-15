@@ -14,6 +14,7 @@ import {
   ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { typedMatches } from "../../../shared/typedConfirm";
 import { spacing, typography, useAppTheme } from "@/theme";
 import { Btn } from "./buttons";
 import { Field, OptionSheet } from "./forms";
@@ -69,10 +70,8 @@ export const ConfirmDialog = ({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on close
     if (!visible) setInput("");
   }, [visible]);
-  const normalizedRequired = requireText?.trim();
   const confirmDisabled =
-    confirmDisabledProp ||
-    (normalizedRequired !== undefined && input.trim() !== normalizedRequired);
+    confirmDisabledProp || (requireText !== undefined && !typedMatches(input, requireText));
   const close = () => {
     setInput("");
     onClose();
@@ -102,14 +101,14 @@ export const ConfirmDialog = ({
       {requireText !== undefined && (
         <>
           <Txt>
-            Type <Txt style={{ fontWeight: "800" }}>{normalizedRequired}</Txt> to
+            Type <Txt style={{ fontWeight: "800" }}>{requireText?.trim()}</Txt> to
             confirm.
           </Txt>
           <Field
             label="Confirm"
             value={input}
             onChangeText={setInput}
-            placeholder={normalizedRequired}
+            placeholder={requireText?.trim()}
             autoCorrect={false}
           />
         </>
