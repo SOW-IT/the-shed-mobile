@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ -z "${GOOGLE_CHAT_WEBHOOK_URL:-}" ]; then
+webhook_url=$(printf '%s' "${GOOGLE_CHAT_WEBHOOK_URL:-}" | tr -d '[:space:]')
+if [ -z "$webhook_url" ]; then
   echo "GOOGLE_CHAT_WEBHOOK_URL is not set, so no Google Chat message was sent."
   exit 0
 fi
@@ -85,6 +86,6 @@ jq -n \
 if ! curl --fail-with-body -sS -X POST \
   -H "Content-Type: application/json; charset=UTF-8" \
   --data @"$message_file" \
-  "$GOOGLE_CHAT_WEBHOOK_URL" > /dev/null; then
+  "$webhook_url" > /dev/null; then
   echo "::warning::Couldn't post the EAS Production result to Google Chat."
 fi
