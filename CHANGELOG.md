@@ -24,6 +24,20 @@ All notable changes to **The SHED** mobile app. This project follows
   server says so: a banner that can be dismissed, or a full screen when a
   version is no longer supported. Nothing is asked until a version is set.
 
+### Fixed
+- **Changing a weekly's week renames it.** Editing T3W6 to week 7 left the
+  name T3W6 while Insights used week 7. A weekly named by its code now
+  follows a new term or week; a name typed by hand stays.
+- **Semester campuses' Insights say "semester"**, not "term" ("or the
+  semester before", "Weeklies by semester"). Wrong since 2.5.0.
+- **A failed tag save says why above Save tags**, instead of at the bottom of
+  a long list. Weekly tags no longer offer SOW, which has no weeklies.
+- **Typed confirmations ignore case and extra spaces** in the app as well as
+  on the server, so "JOSEPH.YANG " confirms Delete account for joseph.yang.
+- **Removing a university, division or department** says anyone still
+  assigned has to be reassigned first, which is what happens.
+- **Shared with** uses compact round campus marks.
+
 ## [2.8.0] - 2026-10-15
 
 ### Added
