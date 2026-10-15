@@ -176,6 +176,77 @@ export const submit = mutation({
   },
 });
 
+/** Submit several songs atomically; duplicates are skipped, never inserted. */
+export const submitMany = mutation({
+  args: {
+    songs: v.array(
+      v.object({
+        title: v.string(),
+        artist: v.string(),
+        link: v.string(),
+        albumArtUrl: v.optional(v.string()),
+      }),
+    ),
+    requestComment: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const caller = await requireProfile(ctx);
+    if (args.songs.length === 0 || args.songs.length > 50) {
+      throw new ConvexError("Add between 1 and 50 songs.");
+    }
+    const existing = await ctx.db.query("musicRequests").collect();
+    const seen = new Set(
+      existing.map(
+        (row) =>
+          spotifyTrackId(row.link) ?? `url:${row.link.trim().toLowerCase()}`,
+      ),
+    );
+    const isPraiseManager = await callerIsPraiseManager(ctx, caller.email);
+    const added: string[] = [];
+    let skipped = 0;
+    for (const song of args.songs) {
+      const title = song.title.trim();
+      const artist = song.artist.trim();
+      const link = song.link.trim();
+      if (!title || !artist || !link)
+        throw new ConvexError("Every song needs a title, artist and link.");
+      const key = spotifyTrackId(link) ?? `url:${link.toLowerCase()}`;
+      if (seen.has(key)) {
+        skipped++;
+        continue;
+      }
+      seen.add(key);
+      const artwork = song.albumArtUrl?.trim();
+      await ctx.db.insert("musicRequests", {
+        requesterEmail: caller.email,
+        title,
+        artist,
+        link,
+        albumArtUrl:
+          spotifyTrackId(link) && artwork && /^https:\/\//i.test(artwork)
+            ? artwork
+            : undefined,
+        requestComment: args.requestComment?.trim() || undefined,
+        status: isPraiseManager ? "APPROVED" : "PENDING",
+        ...(isPraiseManager
+          ? { reviewedByEmail: caller.email, reviewedTime: Date.now() }
+          : {}),
+      });
+      added.push(title);
+    }
+    if (!isPraiseManager && added.length) {
+      await notify(
+        ctx,
+        await praiseManagerEmailsForYear(ctx, currentStaffYear()),
+        "New music requests",
+        `${caller.email} requested ${added.length} song(s).`,
+        "/music?tab=review",
+      );
+    }
+    return { added: added.length, skipped };
+  },
+});
+
 /** Get the current user's music requests. */
 export const myRequests = query({
   args: {},

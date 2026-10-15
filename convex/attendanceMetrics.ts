@@ -12,12 +12,9 @@ import {
   isOrgWideSubgroup,
   normalizeSubgroups,
   personDisplayName,
-  personKey,
   SOW_SUBGROUP,
   subgroupLabel,
-  WEEKLY_MEETING_TAG_NAME,
 } from "../shared/rollcall";
-import { staffEmailCandidates } from "../shared/rollcallImport";
 import {
   CAMPUS_FIELD_KEY,
   ROLE_FIELD_KEY,
@@ -27,7 +24,6 @@ import {
 import {
   computeSubgroupMetrics,
   DAY_MS,
-  MANUAL_REFRESH_COOLDOWN_MS,
   METRICS_THRESHOLDS,
   RANGE_WEEKS,
   rangeStartFor,
@@ -38,18 +34,18 @@ import {
   type SubgroupMetricsData,
 } from "../shared/attendanceMetrics";
 import { internal } from "./_generated/api";
-import { Doc, Id } from "./_generated/dataModel";
+import { isAssigned } from "./staffMembers";
+import { Doc } from "./_generated/dataModel";
 import {
   action,
   internalAction,
   internalMutation,
   internalQuery,
-  mutation,
   query,
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
-import { currentStaffYear, optionalProfile, requireAttendanceManager } from "./model";
+import { currentStaffYear, optionalProfile } from "./model";
 import { metricsDataValidator, viewBlockValidator } from "./metricsData";
 import { readCampusWeeklyAverages } from "./weeklyInsights";
 import { photoFor } from "./photo";
@@ -99,7 +95,6 @@ const requestedRanges = (raw?: number[]): number[] => {
   return ALL_RANGES.filter((rangeWeeks) => wanted.includes(rangeWeeks));
 };
 
-const STAFF_PREFIX = "staff:";
 const MEMBER_PREFIX = "member:";
 
 const sanitize = (data: SubgroupMetricsData): SubgroupMetricsData =>
@@ -128,22 +123,13 @@ export const gatherEvents = internalQuery({
       .filter((e) => eventIncludesSubgroup(e.subgroups, canonical))
       .slice(0, MAX_EVENTS);
 
-    const tagIds = new Set<Id<"attendanceTags">>();
-    for (const e of events) for (const id of e.tagIds ?? []) tagIds.add(id);
-    const tagDocs = await Promise.all([...tagIds].map((id) => ctx.db.get(id)));
-    const weeklyTagIds = new Set(
-      tagDocs
-        .filter((t): t is Doc<"attendanceTags"> => !!t && t.name === WEEKLY_MEETING_TAG_NAME)
-        .map((t) => t._id as Id<"attendanceTags">)
-    );
-
     const metricsEvents: MetricsEvent[] = events.map((e) => ({
       id: e._id,
       name: e.name,
       dateStart: e.dateStart,
       subgroups: e.subgroups,
       collaborative: normalizeSubgroups(e.subgroups).length > 1,
-      isWeeklyMeeting: (e.tagIds ?? []).some((id) => weeklyTagIds.has(id)),
+      isWeeklyMeeting: !!e.weekly,
     }));
     return { eventIds: events.map((e) => e._id), metricsEvents };
   },
@@ -170,8 +156,8 @@ export const gatherAttendanceChunk = internalQuery({
     const out: MetricsAttendance[] = [];
     eventIds.forEach((id, i) => {
       for (const row of perEvent[i]) {
-        const key = personKey(row);
-        if (!key) continue;
+        if (!row.memberId) continue;
+        const key = `${MEMBER_PREFIX}${row.memberId}`;
         out.push({ eventId: id, personKey: key, signInTime: row.signInTime });
       }
     });
@@ -264,29 +250,20 @@ async function resolvePersons(
   year: number
 ): Promise<MetricsPerson[]> {
   const years = [year - 2, year - 1, year];
-  const profilesByYear = new Map<number, Map<string, Doc<"staffProfiles">>>();
+  const profileByMemberYear = new Map<string, Doc<"staffProfiles">>();
   for (const y of years) {
     const profiles = await ctx.db
       .query("staffProfiles")
       .withIndex("by_year", (q) => q.eq("year", y))
       .collect();
-    profilesByYear.set(
-      y,
-      new Map(profiles.map((p) => [p.email.toLowerCase(), p]))
-    );
+    for (const p of profiles) {
+      if (p.memberId && isAssigned(p)) profileByMemberYear.set(`${p.memberId}:${y}`, p);
+    }
   }
   const matchProfile = (
-    email: string,
+    memberId: string,
     y: number
-  ): Doc<"staffProfiles"> | undefined => {
-    const profileByEmail = profilesByYear.get(y);
-    if (!profileByEmail) return undefined;
-    for (const candidate of staffEmailCandidates(email)) {
-      const hit = profileByEmail.get(candidate);
-      if (hit) return hit;
-    }
-    return undefined;
-  };
+  ): Doc<"staffProfiles"> | undefined => profileByMemberYear.get(`${memberId}:${y}`);
 
   const metadataFields = await ctx.db.query("attendanceMetadata").collect();
   const campusField = metadataFields.find((f) => f.key === CAMPUS_FIELD_KEY);
@@ -309,66 +286,12 @@ async function resolvePersons(
 
   const persons: MetricsPerson[] = [];
   for (const key of keys) {
-    if (key.startsWith(STAFF_PREFIX)) {
-      const email = key.slice(STAFF_PREFIX.length);
-      const profile = matchProfile(email, year);
-      const roles = profile
-        ? [...new Set(assignmentsOf(profile).map((a) => a.role))]
-        : [];
-      const isStaff = !!profile && assignmentsOf(profile).length > 0;
-      const campuses = profile
-        ? [
-            ...new Set(
-              assignmentsOf(profile).flatMap((a) =>
-                a.university && roleNeedsUniversity(a.role) ? [a.university] : []
-              )
-            ),
-          ]
-        : [];
-      const user = profile?.userId ? await ctx.db.get(profile.userId) : null;
-      const breakdownByYear: Record<string, Record<string, string>> = {};
-      const leaderByYear: Record<string, boolean> = {};
-      const campusesByYear: Record<string, string[]> = {};
-      for (const y of years) {
-        const yearProfile = matchProfile(email, y);
-        const yearRoles = yearProfile
-          ? [...new Set(assignmentsOf(yearProfile).map((a) => a.role))]
-          : [];
-        const yearIsStaff =
-          !!yearProfile && assignmentsOf(yearProfile).length > 0;
-        const yearCampuses = yearProfile
-          ? [
-              ...new Set(
-                assignmentsOf(yearProfile).flatMap((a) =>
-                  a.university && roleNeedsUniversity(a.role) ? [a.university] : []
-                )
-              ),
-            ]
-          : [];
-        breakdownByYear[String(y)] = yearIsStaff
-          ? buildBreakdown(yearRoles[0], yearCampuses[0])
-          : buildBreakdown("Member", undefined);
-        leaderByYear[String(y)] = yearRoles.some(roleNeedsUniversity);
-        campusesByYear[String(y)] = yearCampuses;
-      }
-      persons.push({
-        key,
-        kind: isStaff ? "staff" : "member",
-        name: personDisplayName(profile?.name, email),
-        subtitle: isStaff ? roles.join(" · ") || undefined : undefined,
-        photo: await photoFor(ctx, user, profile?.email ?? email),
-        breakdown: isStaff
-          ? buildBreakdown(roles[0], campuses[0])
-          : buildBreakdown("Member", undefined),
-        breakdownByYear,
-        isStudentLeader: roles.some(roleNeedsUniversity),
-        leaderByYear,
-        campuses,
-        campusesByYear,
-      });
-    } else if (key.startsWith(MEMBER_PREFIX)) {
-      const id = ctx.db.normalizeId("attendanceMembers", key.slice(MEMBER_PREFIX.length));
-      const member = id ? await ctx.db.get(id) : null;
+    if (!key.startsWith(MEMBER_PREFIX)) continue;
+    const memberKey = key.slice(MEMBER_PREFIX.length);
+    const id = ctx.db.normalizeId("attendanceMembers", memberKey);
+    const member = id ? await ctx.db.get(id) : null;
+    const latest = [...years].reverse().map((y) => matchProfile(memberKey, y)).find(Boolean);
+    if (!latest) {
       const campus = memberCampus(member?.metadata);
       persons.push({
         key,
@@ -383,9 +306,54 @@ async function resolvePersons(
         ),
         campuses: campus ? [campus] : undefined,
       });
+      continue;
     }
+    const profile = matchProfile(memberKey, year);
+    const roles = profile ? [...new Set(assignmentsOf(profile).map((a) => a.role))] : [];
+    const campuses = profile ? campusesOf(profile) : [];
+    const user = latest.userId ? await ctx.db.get(latest.userId) : null;
+    const breakdownByYear: Record<string, Record<string, string>> = {};
+    const leaderByYear: Record<string, boolean> = {};
+    const campusesByYear: Record<string, string[]> = {};
+    for (const y of years) {
+      const yearProfile = matchProfile(memberKey, y);
+      const yearRoles = yearProfile
+        ? [...new Set(assignmentsOf(yearProfile).map((a) => a.role))]
+        : [];
+      const yearCampuses = yearProfile ? campusesOf(yearProfile) : [];
+      breakdownByYear[String(y)] = yearProfile
+        ? buildBreakdown(yearRoles[0], yearCampuses[0])
+        : buildBreakdown("Member", undefined);
+      leaderByYear[String(y)] = yearRoles.some(roleNeedsUniversity);
+      campusesByYear[String(y)] = yearCampuses;
+    }
+    persons.push({
+      key,
+      kind: profile ? "staff" : "member",
+      name: personDisplayName(latest.name ?? member?.name, latest.email),
+      subtitle: profile ? roles.join(" · ") || undefined : undefined,
+      photo: await photoFor(ctx, user, latest.email),
+      breakdown: profile
+        ? buildBreakdown(roles[0], campuses[0])
+        : buildBreakdown("Member", undefined),
+      breakdownByYear,
+      isStudentLeader: roles.some(roleNeedsUniversity),
+      leaderByYear,
+      campuses,
+      campusesByYear,
+    });
   }
   return persons;
+}
+
+function campusesOf(profile: Doc<"staffProfiles">): string[] {
+  return [
+    ...new Set(
+      assignmentsOf(profile).flatMap((a) =>
+        a.university && roleNeedsUniversity(a.role) ? [a.university] : []
+      )
+    ),
+  ];
 }
 
 function buildBreakdown(
@@ -530,10 +498,16 @@ export const recomputeAll = internalMutation({
     // is built from its weekly meetings by weeklyInsights.rebuildAll.
     const years = args.staffYear ? [args.staffYear] : metricsYears();
     for (const year of years) {
-      await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeSubgroup, {
-        subgroup: SOW_SUBGROUP,
-        staffYear: year,
-      });
+      const universities = await ctx.db
+        .query("universities")
+        .withIndex("by_year_and_name", (q) => q.eq("year", year))
+        .take(100);
+      for (const subgroup of [SOW_SUBGROUP, ...universities.map((u) => u.name)]) {
+        await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeSubgroup, {
+          subgroup,
+          staffYear: year,
+        });
+      }
     }
     await ctx.scheduler.runAfter(
       0,
@@ -541,22 +515,6 @@ export const recomputeAll = internalMutation({
       {}
     );
     return null;
-  },
-});
-
-export const purgeStaleSnapshotRanges = internalMutation({
-  args: {},
-  returns: v.object({ deleted: v.number(), kept: v.number() }),
-  handler: async (ctx) => {
-    const valid = new Set<number>(ALL_RANGES);
-    const rows = await ctx.db.query("attendanceMetricsSnapshots").collect();
-    let deleted = 0;
-    for (const row of rows) {
-      if (valid.has(row.rangeWeeks)) continue;
-      await ctx.db.delete(row._id);
-      deleted += 1;
-    }
-    return { deleted, kept: rows.length - deleted };
   },
 });
 
@@ -746,54 +704,6 @@ export const rangeOptions = query({
     v.object({ weeks: v.number(), label: v.string(), isDefault: v.optional(v.boolean()) })
   ),
   handler: async () => ATTENDANCE_RANGE_OPTIONS.map((o) => ({ ...o })),
-});
-
-export const recomputeNow = mutation({
-  args: { subgroup: v.optional(v.string()) },
-  returns: v.null(),
-  handler: async (ctx, { subgroup }) => {
-    await requireAttendanceManager(ctx);
-    if (subgroup && !isOrgWideSubgroup(subgroup)) {
-      // A campus rebuild only redoes what changed, so it needs no cooldown.
-      await ctx.scheduler.runAfter(0, internal.weeklyInsights.rebuild, { subgroup });
-    } else if (subgroup) {
-      const canonical = canonicalSubgroup(subgroup);
-      const year = currentStaffYear();
-      // The cooldown counts manual refreshes only. The nightly cron also
-      // stamps `computedAt`, so throttling on that would never let a manual
-      // refresh through at all.
-      const run = await runRow(ctx, canonical, year);
-      const lastManual = run?.lastManualRefreshAt ?? 0;
-      if (lastManual > 0) {
-        const elapsed = Date.now() - lastManual;
-        if (elapsed < MANUAL_REFRESH_COOLDOWN_MS) {
-          const days = Math.ceil((MANUAL_REFRESH_COOLDOWN_MS - elapsed) / DAY_MS);
-          throw new ConvexError(
-            `Insights for this group were refreshed recently. You can refresh again in ${days} day${days === 1 ? "" : "s"}.`
-          );
-        }
-      }
-      if (run) {
-        await ctx.db.patch(run._id, { lastManualRefreshAt: Date.now() });
-      } else {
-        await ctx.db.insert("attendanceMetricsRuns", {
-          subgroup: canonical,
-          staffYear: year,
-          computedAt: 0,
-          lastManualRefreshAt: Date.now(),
-          variants: [],
-        });
-      }
-      await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeSubgroup, {
-        subgroup: canonical,
-        staffYear: year,
-      });
-    } else {
-      await ctx.scheduler.runAfter(0, internal.attendanceMetrics.recomputeAll, {});
-      await ctx.scheduler.runAfter(0, internal.weeklyInsights.rebuildAll, {});
-    }
-    return null;
-  },
 });
 
 export { METRICS_THRESHOLDS };

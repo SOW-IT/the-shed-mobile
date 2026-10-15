@@ -1,3 +1,4 @@
+import { AppUpdatePrompt } from "@/components/AppUpdatePrompt";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppSidebar } from "@/components/nav/AppSidebar";
 import { AppDrawer, NavDrawerProvider } from "@/components/nav/NavDrawer";
@@ -155,6 +156,7 @@ export default function RootLayout() {
                 shouldHandleCode={Platform.OS !== "web"}
               >
                 <AuthGate />
+                <AppUpdatePrompt />
               </ConvexAuthProvider>
             ) : (
               <ConfigurationErrorScreen />

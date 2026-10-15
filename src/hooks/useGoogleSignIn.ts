@@ -86,7 +86,7 @@ export const useWebAuthCodeExchange = () => {
   return { busy, error, rejected, clearError, clearRejected };
 };
 
-const errorText = (e: unknown): string =>
+export const errorText = (e: unknown): string =>
   e instanceof Error ? e.message : String(e);
 
 export const useGoogleSignIn = () => {

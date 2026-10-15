@@ -1,3 +1,4 @@
+import { DAY_MS } from "../shared/attendanceMetrics";
 import {
   currentStep,
   eventStaffYear,
@@ -15,8 +16,6 @@ import {
   notify,
   openRequestsAcrossYears,
 } from "./requests";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 const reminderDelayMs = (count: number): number => {
   if (count === 0) return DAY_MS;

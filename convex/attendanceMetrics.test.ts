@@ -96,7 +96,7 @@ describe("attendanceMetrics", () => {
       expect(scheduled).toContainEqual({ subgroup: SOW_SUBGROUP, staffYear: year });
     }
     // Campuses are built from their weeklies by weeklyInsights.rebuildAll.
-    expect(scheduled.some((j) => j.subgroup === USYD)).toBe(false);
+    expect(scheduled.some((j) => j.subgroup === USYD)).toBe(true);
   });
 
   test("snapshot returns null when not signed in", async () => {
@@ -277,25 +277,7 @@ describe("attendanceMetrics", () => {
     expect(live!.data.summary.uniqueAttendees).toBe(1);
   });
 
-  test("recomputeNow requires an attendance manager", async () => {
-    const { t } = await setup();
-    const outsider = asUser(t, "nobody@sow.org.au");
-    await expect(
-      outsider.mutation(api.attendanceMetrics.recomputeNow, { subgroup: USYD })
-    ).rejects.toThrow();
-  });
-
-  test("recomputeNow (manager) schedules a refresh per-subgroup and for all", async () => {
-    const { leader } = await setup();
-    await expect(
-      leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: USYD })
-    ).resolves.toBeNull();
-    await expect(
-      leader.mutation(api.attendanceMetrics.recomputeNow, {})
-    ).resolves.toBeNull();
-  });
-
-  test("recomputeAll (daily cron entry) schedules a full SOW rebuild only", async () => {
+  test("recomputeAll (daily cron entry) rebuilds SOW and every campus, for older apps", async () => {
     const { t } = await setup();
     await expect(
       t.mutation(internal.attendanceMetrics.recomputeAll, {})
@@ -308,7 +290,7 @@ describe("attendanceMetrics", () => {
     });
     const subgroups = new Set(jobs.map((j) => j.subgroup));
     expect(subgroups.has(SOW_SUBGROUP)).toBe(true);
-    expect(subgroups.has(USYD)).toBe(false);
+    expect(subgroups.has(USYD)).toBe(true);
     expect(jobs.every((j) => j.ranges === undefined)).toBe(true);
   });
 
@@ -418,17 +400,26 @@ describe("attendanceMetrics", () => {
     expect(orgSnap!.data.leadersVsOthers).toBeDefined();
   });
 
-  test("resolves a staff sign-in that has no profile for the year", async () => {
-    const { leader } = await setup();
+  test("a member whose only staff profile is outside the window is a Member", async () => {
+    const { t, leader } = await setup();
     const e = await leader.mutation(api.events.create, {
       name: "Guest visit",
       ...window(2),
       subgroups: [USYD],
     });
-    await leader.mutation(api.attendance.signIn, {
-      eventId: e,
-      email: "ghost@sow.org.au",
+    const ghost = await t.run(async (ctx) => {
+      const memberId = await ctx.db.insert("attendanceMembers", { name: "Ghost Member" });
+      await ctx.db.insert("staffProfiles", {
+        email: "ghost@sow.org.au",
+        year: YEAR + 1,
+        name: "Ghost",
+        memberId,
+        assignments: [{ role: "Student Leader", university: USYD }],
+      });
+      await ctx.db.insert("attendance", { eventId: e, signInTime: Date.now() });
+      return memberId;
     });
+    await leader.mutation(api.attendance.signIn, { eventId: e, memberId: ghost });
     await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
     });
@@ -438,28 +429,74 @@ describe("attendanceMetrics", () => {
     });
     expect(snap!.data.summary.uniqueAttendees).toBe(1);
     const role = snap!.data.breakdowns.find((b) => b.field === "Role");
-    expect(role?.rows.some((r) => r.label === "Member")).toBe(true);
+    expect(role?.rows.map((r) => r.label)).toEqual(["Member"]);
+  });
+
+  test("resolves people by member: former staff keep each year they served", async () => {
+    const { t } = await setup();
+    const ids = await t.run(async (ctx) => {
+      const campus = await ctx.db.insert("attendanceMetadata", {
+        key: "Campus",
+        type: "select",
+        order: 0,
+        values: { other: "Other" },
+      });
+      const role = await ctx.db.insert("attendanceMetadata", { key: "Role", type: "select", order: 1 });
+      const user = await ctx.db.insert("users", { email: "former@sow.org.au" });
+      const former = await ctx.db.insert("attendanceMembers", { name: "Former Row" });
+      await ctx.db.insert("staffProfiles", {
+        email: "former@sow.org.au",
+        year: YEAR - 1,
+        name: "Fay Former",
+        userId: user,
+        memberId: former,
+        assignments: [{ role: "Student Leader", university: USYD }],
+      });
+      const plain = await ctx.db.insert("attendanceMembers", {
+        name: "Pat Plain",
+        metadata: { [campus]: "other", [role]: "raw-role" },
+      });
+      return { former, plain };
+    });
+    const persons = await t.query(internal.attendanceMetrics.gatherPersons, {
+      keys: [`member:${ids.former}`, `member:${ids.plain}`, "member:nope", "staff:legacy@sow.org.au"],
+      year: YEAR,
+    });
+    expect(persons.map((p) => p.key)).toEqual([`member:${ids.former}`, `member:${ids.plain}`, "member:nope"]);
+    expect(persons[0]).toMatchObject({
+      kind: "member",
+      name: "Fay Former",
+      breakdown: { Role: "Member" },
+      isStudentLeader: false,
+      campuses: [],
+      leaderByYear: { [YEAR - 1]: true, [YEAR]: false },
+    });
+    expect(persons[0].subtitle).toBeUndefined();
+    expect(persons[0].breakdownByYear![String(YEAR - 1)]).toMatchObject({ Role: "Student Leader" });
+    expect(persons[1]).toMatchObject({ kind: "member", name: "Pat Plain", isStudentLeader: false });
+    expect(persons[1].campuses).toBeUndefined();
+    expect(persons[2]).toMatchObject({ kind: "member", name: "Unknown" });
   });
 
   test("treats a staff profile with no assignment this year as a Member", async () => {
     const { t, leader } = await setup();
-    await t.run((ctx) =>
-      ctx.db.insert("staffProfiles", {
+    const former = await t.run(async (ctx) => {
+      const memberId = await ctx.db.insert("attendanceMembers", { name: "Former Staff" });
+      await ctx.db.insert("staffProfiles", {
         email: "former@sow.org.au",
         year: YEAR,
         name: "Former Staff",
+        memberId,
         assignments: [],
-      })
-    );
+      });
+      return memberId;
+    });
     const e = await leader.mutation(api.events.create, {
       name: "Gathering",
       ...window(2),
       subgroups: [USYD],
     });
-    await leader.mutation(api.attendance.signIn, {
-      eventId: e,
-      email: "former@sow.org.au",
-    });
+    await leader.mutation(api.attendance.signIn, { eventId: e, memberId: former });
     await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
       subgroup: USYD,
     });
@@ -471,65 +508,22 @@ describe("attendanceMetrics", () => {
     expect(role?.rows.map((r) => r.label)).toEqual(["Member"]);
   });
 
-  test("recomputeNow for SOW is throttled to once per week, not by the nightly rebuild", async () => {
+  test("an event with the old weekly tag but no term and week isn't a weekly", async () => {
     const { t, leader } = await setup();
-    // The nightly cron has just rebuilt this group.
-    await t.run((ctx) =>
-      ctx.db.insert("attendanceMetricsRuns", {
-        subgroup: SOW_SUBGROUP,
-        staffYear: YEAR,
-        computedAt: Date.now(),
-        variants: ["4:true"],
-      })
-    );
-    // A manual refresh must still be allowed…
-    await expect(
-      leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: SOW_SUBGROUP })
-    ).resolves.toBeNull();
-    // …and only a second manual refresh within the week is throttled.
-    await expect(
-      leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: SOW_SUBGROUP })
-    ).rejects.toThrow(/refresh again in 7 days/i);
-  });
-
-  test("recomputeNow for a campus schedules its weeklies rebuild, with no cooldown", async () => {
-    const { t, leader } = await setup();
-    await leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: USYD });
-    await leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: USYD });
-    const jobs = await t.run(async (ctx) =>
-      (await ctx.db.system.query("_scheduled_functions").collect()).filter(
-        (j) => j.name === "weeklyInsights:rebuild"
-      )
-    );
-    expect(jobs.map((j) => j.args[0])).toEqual([{ subgroup: USYD }, { subgroup: USYD }]);
-  });
-
-  test("recomputeNow with no sub-group rebuilds SOW and every campus", async () => {
-    const { t, leader } = await setup();
-    await leader.mutation(api.attendanceMetrics.recomputeNow, {});
-    const names = await t.run(async (ctx) =>
-      (await ctx.db.system.query("_scheduled_functions").collect()).map((j) => j.name)
-    );
-    expect(names).toEqual(
-      expect.arrayContaining(["attendanceMetrics:recomputeAll", "weeklyInsights:rebuildAll"])
-    );
-  });
-
-  test("recomputeNow records the manual refresh even before any rebuild has run", async () => {
-    const { t, leader } = await setup();
-    await leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: SOW_SUBGROUP });
-    const run = await t.run((ctx) =>
-      ctx.db
-        .query("attendanceMetricsRuns")
-        .withIndex("by_subgroup_and_year", (q) =>
-          q.eq("subgroup", SOW_SUBGROUP).eq("staffYear", YEAR)
-        )
-        .unique()
-    );
-    expect(run?.lastManualRefreshAt).toBeGreaterThan(0);
-    await expect(
-      leader.mutation(api.attendanceMetrics.recomputeNow, { subgroup: SOW_SUBGROUP })
-    ).rejects.toThrow(/refresh/i);
+    const e = await t.run(async (ctx) => {
+      const tagId = await ctx.db.insert("attendanceTags", { name: "Weekly Meeting" });
+      return ctx.db.insert("events", { name: "Weekly Meeting", ...window(2), subgroups: [USYD], tagIds: [tagId] });
+    });
+    await leader.mutation(api.attendance.signIn, { eventId: e, email: LEADER });
+    await leader.action(internal.attendanceMetrics.recomputeSubgroup, {
+      subgroup: USYD,
+    });
+    const snap = await leader.query(api.attendanceMetrics.snapshot, {
+      subgroup: USYD,
+      rangeWeeks: 4,
+    });
+    expect(snap!.data.weeklyTrend).toHaveLength(0);
+    expect(snap!.data.summary.weeklyConsistency).toBeNull();
   });
 
   test("detects Weekly Meeting tagged events", async () => {
@@ -705,33 +699,6 @@ const EMPTY_DATA = {
   hasEnoughHistory: false,
   hasWeeklyMeetings: false,
 };
-
-describe("purgeStaleSnapshotRanges", () => {
-  test("deletes rows whose rangeWeeks is no longer served", async () => {
-    const { t } = await setup();
-    await t.run(async (ctx) => {
-      for (const rangeWeeks of [1, 2, 4, 8, 12, 52]) {
-        await ctx.db.insert("attendanceMetricsSnapshots", {
-          subgroup: USYD,
-          rangeWeeks,
-          includeCollaborative: true,
-          staffYear: YEAR,
-          computedAt: Date.now(),
-          data: EMPTY_DATA,
-        });
-      }
-    });
-    const result = await t.mutation(
-      internal.attendanceMetrics.purgeStaleSnapshotRanges,
-      {}
-    );
-    expect(result).toEqual({ deleted: 3, kept: 3 });
-    const left = await t.run((ctx) =>
-      ctx.db.query("attendanceMetricsSnapshots").collect()
-    );
-    expect(left.map((r) => r.rangeWeeks).sort((a, b) => a - b)).toEqual([1, 4, 52]);
-  });
-});
 
 describe("campusWeeklyAverages", () => {
   const snap = (avgWeekly: number | null) => ({

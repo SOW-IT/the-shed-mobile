@@ -8,6 +8,8 @@ import {
   deriveTerms,
   followUps,
   type HeldWeekly,
+  markFromName,
+  nextWeeklyDate,
   type TermFacts,
   termKey,
   termLabel,
@@ -16,7 +18,6 @@ import {
   termSystemFor,
   termOptions,
   truncateTerm,
-  looksWeekly,
   suggestWeekly,
   weekFromName,
   weeklyName,
@@ -24,6 +25,7 @@ import {
   yearCutOf,
   type WeeklyPerson,
   type WeeklySettings,
+  WEEK_MAX,
 } from "./weeklyInsights";
 
 const UNSW = "University of New South Wales";
@@ -155,13 +157,65 @@ describe("week numbers and marks", () => {
     expect(suggestWeekly(held, wed(2026, 4, 8), "terms", 18)).toEqual({ year: 2026, slot: 1, week: 8, key: "2026-T1", label: "T1 2026" });
     // After a long break: a new term starting at week 1.
     expect(suggestWeekly(held, wed(2026, 6, 3), "terms", 18)).toMatchObject({ key: "2026-T2", week: 1 });
-    expect(weeklyName("terms", 3, 5)).toBe("Weeklies T3W5");
-    expect(weeklyName("semesters", 2, 9)).toBe("Weeklies S2W9");
+    expect(weeklyName("terms", 3, 5)).toBe("T3W5");
+    expect(weeklyName("semesters", 2, 9)).toBe("S2W9");
     expect(weeklyWhen(Date.UTC(2026, 5, 3, 7), "T2W1")).toBe("T2W1 (3 Jun)");
     expect(weeklyWhen(Date.UTC(2026, 5, 3, 7))).toBe("3 Jun");
-    expect(termOptions("semesters", 2026).map((o) => o.label)).toEqual(["Sem 2 2025", "Sem 1 2026", "Sem 2 2026"]);
-    expect(termOptions("terms", 2026).map((o) => o.key)).toEqual(["2025-T3", "2026-T1", "2026-T2", "2026-T3"]);
-    expect([looksWeekly("WK #9"), looksWeekly("UNSW Weeklies"), looksWeekly("Hot Pot")]).toEqual([true, true, false]);
+    expect(termOptions("semesters", 2026).map((o) => o.label)).toEqual(["Sem 1 2026", "Sem 2 2026"]);
+    expect(termOptions("terms", 2026).map((o) => o.key)).toEqual(["2026-T1", "2026-T2", "2026-T3"]);
+    expect(termOptions("terms", 2026)[0]).toEqual({ year: 2026, slot: 1, key: "2026-T1", label: "T1 2026" });
+  });
+
+  test("a suggestion stays in the date's own year", () => {
+    const december = [{ eventId: "d", at: wed(2026, 12, 30), count: 1, name: "T3W14" }];
+    expect(suggestWeekly(december, wed(2027, 1, 6), "terms", 18)).toEqual({
+      year: 2027,
+      slot: 1,
+      week: 1,
+      key: "2027-T1",
+      label: "T1 2027",
+    });
+    expect(suggestWeekly(december, wed(2027, 1, 6), "semesters", 18)).toMatchObject({ key: "2027-S1", week: 1 });
+    const marked = [{ eventId: "m", at: wed(2026, 9, 16), count: 1, mark: { year: 2025, slot: 3, week: 4 } }];
+    expect(suggestWeekly(marked, wed(2026, 9, 23), "terms", 18)).toMatchObject({ year: 2026, slot: 3, week: 1, key: "2026-T3" });
+  });
+
+  test("a suggested week never runs past the last week", () => {
+    const run = Array.from({ length: 16 }, (_, i) => ({
+      eventId: `r${i}`,
+      at: wed(2026, 2, 18) + i * 7 * 86_400_000,
+      count: 1,
+    }));
+    expect(WEEK_MAX).toBe(14);
+    expect(suggestWeekly(run.slice(0, 12), run[12].at, "terms", 18).week).toBe(13);
+    expect(suggestWeekly(run.slice(0, 15), run[15].at, "terms", 18)).toMatchObject({ key: "2026-T1", week: 14 });
+    const named = [{ eventId: "n", at: wed(2026, 2, 25), count: 1, name: "T1W14" }];
+    expect(suggestWeekly(named, wed(2026, 3, 11), "terms", 18).week).toBe(14);
+  });
+
+  test("the term and week a leader wrote in the name", () => {
+    expect(markFromName("WEEKLIES T3W5", "terms")).toEqual({ slot: 3, week: 5 });
+    expect(markFromName("weeklies t2 w 3 + games night", "terms")).toEqual({ slot: 2, week: 3 });
+    expect(markFromName("UTS S2W11", "semesters")).toEqual({ slot: 2, week: 11 });
+    expect(markFromName("S2 WM #13 PPN", "semesters")).toEqual({ slot: 2, week: 13 });
+    expect(markFromName("WK #4 [BAM NIGHT]", "terms")).toEqual({ slot: null, week: 4 });
+    expect(markFromName("UTS S2W11", "terms")).toEqual({ slot: null, week: 11 });
+    expect(markFromName("WEEKLIES T3W5", "semesters")).toEqual({ slot: null, week: 5 });
+    expect(markFromName("T4W2", "terms")).toEqual({ slot: null, week: 2 });
+    expect(markFromName("S3W2", "semesters")).toEqual({ slot: null, week: 2 });
+    expect(markFromName("T1W0", "terms")).toEqual({ slot: 1, week: null });
+    expect(markFromName("Week 15 Party", "terms")).toEqual({ slot: null, week: null });
+    expect(markFromName("T1W14", "terms")).toEqual({ slot: 1, week: 14 });
+    expect(markFromName("MEGA WEEKLIES", "terms")).toEqual({ slot: null, week: null });
+  });
+
+  test("the next weekly's date is a week on, and never in the past", () => {
+    expect(nextWeeklyDate("2026-10-07", "2026-10-08")).toBe("2026-10-14");
+    expect(nextWeeklyDate("2026-10-07", "2026-10-14")).toBe("2026-10-14");
+    expect(nextWeeklyDate("2026-10-07", "2026-10-15")).toBe("2026-10-21");
+    expect(nextWeeklyDate("2026-09-02", "2026-10-15")).toBe("2026-10-21");
+    expect(nextWeeklyDate("2026-12-30", "2026-12-01")).toBe("2027-01-06");
+    expect(nextWeeklyDate("2028-02-23", "2028-02-01")).toBe("2028-03-01");
   });
 });
 

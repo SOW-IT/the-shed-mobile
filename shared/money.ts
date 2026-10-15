@@ -26,3 +26,5 @@ export const formatAmount = (amount: number): string => {
   const fixed = Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
   return fixed.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 };
+
+export const money = (amount: number) => `${amount < 0 ? "-" : ""}$${formatAmount(Math.abs(amount))}`;

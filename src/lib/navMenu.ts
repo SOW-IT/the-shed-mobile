@@ -46,7 +46,7 @@ export const NAV_LABELS: Record<NavKey, string> = {
 };
 
 /** What the menu needs to know about whoever is looking at it. */
-export type NavViewer = {
+type NavViewer = {
   signedIn: boolean;
   /** Has a staff profile for the current year. */
   isStaff: boolean;

@@ -1007,34 +1007,6 @@ describe("cleanup.purgeReceiptFilesCreatedBefore", () => {
   });
 });
 
-describe("importHistory.personHistory", () => {
-  test("follows a person across emails via importId, sorted by year", async () => {
-    const t = await setup();
-    await t.run(async (ctx) => {
-      await ctx.db.insert("staffProfiles", {
-        email: "old@gmail.com",
-        year: YEAR - 2,
-        assignments: [
-          { role: "Student Leader", university: "University of Sydney" },
-        ],
-        importId: "uid-1",
-      });
-      await ctx.db.insert("staffProfiles", {
-        email: "new@sow.org.au",
-        year: YEAR,
-        assignments: [{ role: "Staff", department: "Marketing" }],
-        importId: "uid-1",
-      });
-    });
-    const history = await t.query(internal.importHistory.personHistory, {
-      email: "new@sow.org.au",
-    });
-    expect(history.map((h) => h.year)).toEqual([YEAR - 2, YEAR]);
-    expect(history[0].university).toBe("University of Sydney");
-    expect(history[1].department).toBe("Marketing");
-  });
-});
-
 describe("browsing past years", () => {
   const seedPastRequest = async (
     t: TestConvex<typeof schema>,

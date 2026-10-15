@@ -3,9 +3,9 @@
  * pairs with The SHED; the dev web (the-shed-web-dev) pairs with The SHED
  * Staging, which is on TestFlight rather than the stores.
  */
-export type AppVariant = "production" | "staging";
+type AppVariant = "production" | "staging";
 
-export type AppLink = {
+type AppLink = {
   scheme: string;
   /** The web deployment that pairs with the app, for opening a page there. */
   web: string;
@@ -47,8 +47,10 @@ export const appLinkForScheme = (scheme: string | undefined): AppLink =>
  * person's app is new enough (`#app`, see `appCanOpen`).
  */
 export const NEWER_PAGES: readonly { prefix: string; since: string }[] = [
+  { prefix: "/design-requests", since: "2.2.0" },
   { prefix: "/event-requests", since: "2.3.0" },
   { prefix: "/announcements", since: "2.4.0" },
+  { prefix: "/churches", since: "2.5.5" },
 ];
 
 /** The marker on a link whose recipient's app can open it. */
@@ -82,4 +84,15 @@ export const appCanOpen = (path: string, version: string | null | undefined): bo
   const needed = versionNeededFor(path);
   if (!needed) return true;
   return !!version && compareVersions(version, needed) >= 0;
+};
+
+export type UpdateStatus = "ok" | "recommended" | "required";
+
+export type UpdatePolicy = { minimum?: string; recommended?: string };
+
+export const updateStatusFor = (version: string, policy: UpdatePolicy | null): UpdateStatus => {
+  if (!isAppVersion(version) || !policy) return "ok";
+  if (policy.minimum && compareVersions(version, policy.minimum) < 0) return "required";
+  if (policy.recommended && compareVersions(version, policy.recommended) < 0) return "recommended";
+  return "ok";
 };

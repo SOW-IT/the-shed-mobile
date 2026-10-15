@@ -1,4 +1,4 @@
-export const ALLOWED_DEEP_LINK_PREFIXES = [
+const ALLOWED_DEEP_LINK_PREFIXES = [
   "/?",
   "/request/",
   "/review",
@@ -8,6 +8,8 @@ export const ALLOWED_DEEP_LINK_PREFIXES = [
   "/design-requests/",
   "/event-requests/",
   "/announcements/",
+  "/profile",
+  "/churches",
 ] as const;
 
 export const isAllowedDeepLink = (url: string): boolean =>

@@ -1,5 +1,6 @@
 import { PDFDocument } from "pdf-lib";
-import { describe, expect, test } from "vitest";
+import { PDFPage } from "pdf-lib/dist/pdf-lib.esm.min.js";
+import { describe, expect, test, vi } from "vitest";
 import type { DesignField } from "../../shared/designRequests";
 import {
   buildDesignRequestPdf,
@@ -113,6 +114,24 @@ describe("design request PDF", () => {
     const doc = await PDFDocument.load(bytes);
     expect(doc.getTitle()).toBe("Design request #4 (2027)");
     expect(doc.getPageCount()).toBe(1);
+  });
+
+  test("line breaks start new lines instead of printing as question marks", async () => {
+    const drawn: string[] = [];
+    const spy = vi.spyOn(PDFPage.prototype, "drawText").mockImplementation(function (text: string) {
+      drawn.push(text);
+    });
+    try {
+      await buildDesignRequestPdf(
+        input({
+          request: { ...input().request, answers: { types: ["event"], message: "Line one\r\nLine two\nLine three" } },
+        })
+      );
+    } finally {
+      spy.mockRestore();
+    }
+    expect(drawn).toEqual(expect.arrayContaining(["Line one", "Line two", "Line three", "On it", "Thanks"]));
+    expect(drawn.some((t) => t.includes("?Line") || t.includes("it?Thanks"))).toBe(false);
   });
 
   test("long answers wrap and run onto more pages", async () => {

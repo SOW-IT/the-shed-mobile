@@ -31,6 +31,13 @@ export const allowedDomain = () =>
 export const isOrgEmail = (email: string | null | undefined): boolean =>
   !!email && email.toLowerCase().endsWith(`@${allowedDomain()}`);
 
+export async function optionalUser(ctx: Ctx): Promise<Doc<"users"> | null> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) return null;
+  const userId = ctx.db.normalizeId("users", identity.subject.split("|")[0]);
+  return userId ? await ctx.db.get("users", userId) : null;
+}
+
 export async function optionalEmail(ctx: Ctx): Promise<string | null> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) return null;
@@ -85,6 +92,17 @@ export async function findMemberByEmail(
   ctx: Ctx,
   email: string | undefined
 ): Promise<Doc<"attendanceMembers"> | null> {
+  for (const candidate of staffEmailCandidates(email)) {
+    const profiles = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_email_and_year", (q) => q.eq("email", candidate))
+      .order("desc")
+      .take(50);
+    for (const profile of profiles) {
+      const member = profile.memberId ? await ctx.db.get("attendanceMembers", profile.memberId) : null;
+      if (member) return member;
+    }
+  }
   for (const candidate of staffEmailCandidates(email)) {
     const byEmail = await ctx.db
       .query("attendanceMembers")
@@ -277,6 +295,7 @@ export async function resolveStaffIdentity(
       }
     }
   }
+  if (!name && user?.name?.trim() && !user.name.includes("@")) name = user.name.trim();
 
   const userId = profiles.find((p) => p.userId !== undefined)?.userId ?? user?._id;
 

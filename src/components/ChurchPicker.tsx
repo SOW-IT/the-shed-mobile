@@ -32,7 +32,7 @@ export const useCanEditChurches = () => Boolean(useQuery(api.directory.me)?.prof
 
 /** Opens a church's address in the phone's maps app (Apple Maps on iOS,
  *  Google Maps elsewhere and on the web). */
-export const openInMaps = (address: string) => {
+const openInMaps = (address: string) => {
   const query = encodeURIComponent(address);
   void Linking.openURL(
     Platform.OS === "ios"

@@ -7,8 +7,6 @@ import {
   dedupeAssignments,
   departmentsOf,
   DIRECTOR,
-  DIRECTOR_APPROVAL_THRESHOLD,
-  EARLIEST_REQUEST_YEAR,
   FINANCE,
   HEAD_OF_DEPARTMENT,
   HEAD_OF_DIVISION,
@@ -27,6 +25,7 @@ import {
 import {
   displayNameFromEmail,
   normalizeSubgroups,
+  personDisplayName,
   SOW_SUBGROUP,
 } from "../shared/rollcall";
 import {
@@ -43,6 +42,7 @@ import {
   query,
   QueryCtx,
 } from "./_generated/server";
+import { logAttendanceAction } from "./attendanceAudit";
 import {
   currentStaffYear,
   DELEGATION_QUERY_LIMIT,
@@ -63,6 +63,12 @@ import {
   setCachedDirectorEmail,
 } from "./model";
 import { hasSignedIn } from "./presence";
+import {
+  attachMember,
+  isAssigned,
+  leaveStaff,
+  staffProfileOfMember,
+} from "./staffMembers";
 
 const syncDirectorCacheAfterProfileChange = async (
   ctx: MutationCtx,
@@ -157,11 +163,24 @@ const writeStaffProfile = async (
     name: existing?.name ?? identity.name,
     userId: existing?.userId ?? identity.userId,
   };
-  if (existing) {
-    await ctx.db.patch("staffProfiles", existing._id, fields);
-    return existing._id;
+  const profileId =
+    existing?._id ??
+    (await ctx.db.insert("staffProfiles", { email, year, ...fields }));
+  if (existing) await ctx.db.patch("staffProfiles", existing._id, fields);
+  const actorEmail = (await optionalEmail(ctx)) ?? "system:staff-assign";
+  await attachMember(ctx, profileId, actorEmail);
+  const memberId = (await ctx.db.get("staffProfiles", profileId))?.memberId;
+  if (memberId) {
+    await logAttendanceAction(ctx, {
+      actorEmail,
+      entityType: "member",
+      action: "member.staffProfile",
+      summary: `Set ${email}'s ${year} staff roles: ${assignments.map((a) => a.role).join(", ") || "none"}`,
+      memberId,
+      subjectEmail: email,
+    });
   }
-  return await ctx.db.insert("staffProfiles", { email, year, ...fields });
+  return profileId;
 };
 
 const grantHead = async (
@@ -269,6 +288,29 @@ const stripAssignmentsInProfiles = async (
     touched++;
   }
   return touched;
+};
+
+const assertNobodyHolds = async (
+  ctx: MutationCtx,
+  year: number,
+  label: string,
+  holds: (assignment: Assignment) => boolean,
+) => {
+  const holders: string[] = [];
+  for await (const profile of ctx.db
+    .query("staffProfiles")
+    .withIndex("by_year", (q) => q.eq("year", year))) {
+    if (assignmentsOf(profile).some(holds))
+      holders.push(personDisplayName(profile.name, profile.email));
+  }
+  if (holders.length === 0) return;
+  const named =
+    holders.length > 3
+      ? `${holders.slice(0, 3).join(", ")} and ${holders.length - 3} more`
+      : holders.join(", ");
+  throw new ConvexError(
+    `${label} is still assigned to ${named} in ${year}. Reassign them first.`,
+  );
 };
 
 /** Requests raised against `department` during staff year `year`. */
@@ -607,12 +649,29 @@ export const setStaffProfile = mutation({
 export const removeStaffProfile = mutation({
   args: { email: v.string(), year: v.number() },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const { email: actorEmail } = await requireAdmin(ctx);
     assertManagedYear(args.year);
     const email = args.email.trim().toLowerCase();
     const profile = await getProfile(ctx, email, args.year);
     const wasDirector = profile ? rolesOf(profile).includes(DIRECTOR) : false;
     if (profile) await ctx.db.delete("staffProfiles", profile._id);
+    if (
+      profile?.memberId &&
+      isAssigned(profile) &&
+      args.year === currentStaffYear() &&
+      !(await staffProfileOfMember(ctx, profile.memberId, args.year))
+    ) {
+      await leaveStaff(ctx, profile.memberId, profile, args.year, actorEmail);
+    } else if (profile?.memberId) {
+      await logAttendanceAction(ctx, {
+        actorEmail,
+        entityType: "member",
+        action: "member.staffProfile",
+        summary: `Removed ${email}'s ${args.year} staff profile`,
+        memberId: profile.memberId,
+        subjectEmail: email,
+      });
+    }
     const settings = await getYearSettings(ctx, args.year);
     if (settings?.budgetManagerEmail === email) {
       await ctx.db.patch("yearSettings", settings._id, {
@@ -892,10 +951,10 @@ export const removeDivision = mutation({
     for (const dept of divDepts) {
       await assertNoOpenRequests(ctx, args.year, dept.name);
     }
-
-    await stripAssignmentsInProfiles(
+    await assertNobodyHolds(
       ctx,
       args.year,
+      `The ${args.name} division or one of its departments`,
       (a) => a.division === args.name || deptNames.has(a.department ?? ""),
     );
 
@@ -1035,9 +1094,10 @@ export const removeUniversity = mutation({
       )
       .unique();
     if (!university) return null;
-    await stripAssignmentsInProfiles(
+    await assertNobodyHolds(
       ctx,
       args.year,
+      args.name,
       (a) => a.university === args.name,
     );
     await ctx.db.delete("universities", university._id);
@@ -1354,9 +1414,10 @@ export const removeDepartment = mutation({
     if (!department) return null;
 
     await assertNoOpenRequests(ctx, args.year, args.name);
-    await stripAssignmentsInProfiles(
+    await assertNobodyHolds(
       ctx,
       args.year,
+      args.name,
       (a) => a.department === args.name,
     );
     if (args.name === FINANCE) await clearBudgetManager(ctx, args.year);
@@ -1533,31 +1594,6 @@ export const setEventDirectorThreshold = mutation({
       year: args.year,
       eventDirectorApprovalThreshold: args.amount,
     });
-  },
-});
-
-export const backfillDirectorThresholds = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    let filled = 0;
-    for (let year = EARLIEST_REQUEST_YEAR; year <= nextStaffYear(); year++) {
-      const settings = await getYearSettings(ctx, year);
-      if (settings) {
-        if (settings.directorApprovalThreshold === undefined) {
-          await ctx.db.patch("yearSettings", settings._id, {
-            directorApprovalThreshold: DIRECTOR_APPROVAL_THRESHOLD,
-          });
-          filled++;
-        }
-      } else {
-        await ctx.db.insert("yearSettings", {
-          year,
-          directorApprovalThreshold: DIRECTOR_APPROVAL_THRESHOLD,
-        });
-        filled++;
-      }
-    }
-    return { filled };
   },
 });
 
@@ -1779,6 +1815,7 @@ const copyYearData = async (ctx: MutationCtx, from: number, to: number) => {
       name: profile.name,
       userId: profile.userId,
       importId: profile.importId,
+      memberId: profile.memberId,
     };
     const byPerson = profile.importId
       ? await ctx.db

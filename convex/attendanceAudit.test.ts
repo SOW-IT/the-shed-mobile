@@ -49,8 +49,23 @@ async function setup() {
       department: "Missions",
     });
   }
+  await t.run(async (ctx) => {
+    for (const row of await ctx.db.query("attendanceAuditLog").collect()) {
+      await ctx.db.delete(row._id);
+    }
+  });
   return t;
 }
+
+const linkedMember = async (t: TestConvex<typeof schema>, email: string) => {
+  const profile = await t.run((ctx) =>
+    ctx.db
+      .query("staffProfiles")
+      .withIndex("by_email_and_year", (q) => q.eq("email", email).eq("year", YEAR))
+      .first()
+  );
+  return profile!.memberId!;
+};
 
 const allLogs = (t: TestConvex<typeof schema>) =>
   t.run((ctx) => ctx.db.query("attendanceAuditLog").collect());
@@ -669,31 +684,43 @@ describe("audit logging across attendance mutations", () => {
 
     const actions = await actionsFor(t);
     expect(actions.filter((a) => a === "member.update")).toHaveLength(2);
-    expect(actions.filter((a) => a === "member.create").length).toBeGreaterThanOrEqual(
-      2
-    );
+    expect(actions.filter((a) => a === "member.create")).toHaveLength(1);
+    expect(overlay).toBe(await linkedMember(t, STAFF));
     const del = (await allLogs(t)).find((l) => l.action === "member.delete");
     expect(del?.detail).toContain("attendance record");
   });
 
-  test("ensureForStaff reuses an existing member row without a duplicate log", async () => {
-    const t = await setup();
-    const staff = asUser(t, STAFF);
-    // A legacy row: members created before 1.13.0 could carry a staff email.
-    const preexisting = await t.run((ctx) =>
+  test("assigning staff creates their member row once, and ensureForStaff reuses it without a log", async () => {
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.admin.seed, { adminEmail: ADMIN });
+    const admin = asUser(t, ADMIN);
+    await admin.mutation(api.admin.upsertDivision, { year: YEAR, name: "Ministry" });
+    await admin.mutation(api.admin.upsertDepartment, { year: YEAR, name: "Missions", division: "Ministry" });
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: STAFF,
+      year: YEAR,
+      roles: ["Staff"],
+      department: "Missions",
+    });
+    const linked = await linkedMember(t, STAFF);
+    const created = (await allLogs(t)).filter(
+      (l) => l.action === "member.create" && l.memberId === linked
+    );
+    expect(created).toHaveLength(1);
+    expect(created[0].actorEmail).toBe(ADMIN);
+    expect(created[0].subjectEmail).toBe(STAFF);
+
+    const legacy = await t.run((ctx) =>
       ctx.db.insert("attendanceMembers", { name: "Pre Existing", email: STAFF })
     );
-    const reused = await staff.mutation(api.attendanceMembers.ensureForStaff, {
+    const reused = await asUser(t, STAFF).mutation(api.attendanceMembers.ensureForStaff, {
       staffEmail: STAFF,
       staffYear: YEAR,
     });
-    expect(reused).toBe(preexisting);
-
+    expect(reused).toBe(linked);
+    expect(reused).not.toBe(legacy);
     const logs = await allLogs(t);
-    // Reusing the row writes no create log of its own.
-    expect(
-      logs.filter((l) => l.action === "member.create" && l.memberId === preexisting)
-    ).toHaveLength(0);
+    expect(logs.filter((l) => l.action === "member.create")).toHaveLength(created.length);
     expect(logs.some((l) => l.summary.includes("Linked"))).toBe(false);
   });
 
@@ -702,18 +729,18 @@ describe("audit logging across attendance mutations", () => {
     const staff = asUser(t, ADMIN);
 
     await staff.mutation(api.attendanceTags.saveAll, {
-      tags: [{ name: "Weekly" }],
+      tags: [{ name: "Social" }],
       deleteIds: [],
     });
     let tags = await staff.query(api.attendanceTags.list, {});
     const tagId = tags[0]._id;
 
     await staff.mutation(api.attendanceTags.saveAll, {
-      tags: [{ id: tagId, name: "Weekly Meeting" }],
+      tags: [{ id: tagId, name: "Social Night" }],
       deleteIds: [],
     });
     await staff.mutation(api.attendanceTags.saveAll, {
-      tags: [{ id: tagId, name: "Weekly Meeting", colour: "#abcdef" }],
+      tags: [{ id: tagId, name: "Social Night", colour: "#abcdef" }],
       deleteIds: [],
     });
     await staff.mutation(api.attendanceTags.saveAll, {
@@ -753,6 +780,19 @@ describe("audit logging across attendance mutations", () => {
     const updates = (await allLogs(t)).filter((l) => l.action === "tag.update");
     expect(updates).toHaveLength(1);
     expect(updates[0].summary).toContain("Beta");
+  });
+
+  test("moving a tag to the other list logs an update; re-saving without a list logs nothing", async () => {
+    const t = await setup();
+    const staff = asUser(t, ADMIN);
+    await staff.mutation(api.attendanceTags.saveAll, { tags: [{ name: "PPN" }], deleteIds: [] });
+    const [tag] = await staff.query(api.attendanceTags.list, {});
+    await staff.mutation(api.attendanceTags.saveAll, { tags: [{ id: tag._id, name: "PPN" }], deleteIds: [] });
+    await staff.mutation(api.attendanceTags.saveAll, { tags: [{ id: tag._id, name: "PPN", list: "events" }], deleteIds: [] });
+    expect((await allLogs(t)).filter((l) => l.action === "tag.update")).toHaveLength(0);
+    await staff.mutation(api.attendanceTags.saveAll, { tags: [{ id: tag._id, name: "PPN", list: "weeklies" }], deleteIds: [] });
+    const updates = (await allLogs(t)).filter((l) => l.action === "tag.update");
+    expect(updates.map((l) => l.summary)).toEqual(['Updated tag "PPN"']);
   });
 
   test("member fields log create, rename, unchanged-skip and delete", async () => {
@@ -955,5 +995,104 @@ describe("audit logging across attendance mutations", () => {
     const edit = (await allLogs(t)).find((l) => l.action === "attendance.update");
     expect(edit?.detail).toContain("notes");
     expect(edit?.subjectEmail).toBe(STAFF);
+  });
+});
+
+describe("attendance audit names the person by member", () => {
+  test("record edits name staff by their profile and plain members by their row", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const { dateStart, dateEnd } = window();
+    const eventId = await staff.mutation(api.events.create, {
+      name: "Night",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    const plainId = await staff.mutation(api.attendanceMembers.create, { name: "Pia Plain" });
+    const plainRow = await staff.mutation(api.attendance.signIn, { eventId, memberId: plainId });
+    const staffRow = await staff.mutation(api.attendance.signIn, {
+      eventId,
+      memberId: await linkedMember(t, OTHER),
+    });
+    await staff.mutation(api.attendance.updateRecord, { attendanceId: plainRow, notes: "hi" });
+    await staff.mutation(api.attendance.updateRecord, { attendanceId: staffRow, signInTime: dateStart });
+    const updates = (await allLogs(t)).filter((l) => l.action === "attendance.update");
+    const plain = updates.find((l) => l.memberId === plainId)!;
+    expect(plain.summary).toBe(`Edited Pia Plain's record for "Night"`);
+    expect(plain.subjectEmail).toBeUndefined();
+    expect(plain.detail).toBe("Changed: notes");
+    const other = updates.find((l) => l.memberId !== plainId)!;
+    expect(other.subjectEmail).toBe(OTHER);
+    expect(other.detail).toBe("Changed: sign-in time");
+    const signIns = (await allLogs(t)).filter((l) => l.action === "attendance.signIn");
+    expect(signIns.find((l) => l.memberId === plainId)?.subjectEmail).toBeUndefined();
+    expect(signIns.find((l) => l.memberId !== plainId)?.subjectEmail).toBe(OTHER);
+  });
+
+  test("edits and sign-outs on rows whose event or member is gone still log", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const { dateStart, dateEnd } = window();
+    const eventId = await staff.mutation(api.events.create, {
+      name: "Doomed",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    const otherMember = await linkedMember(t, OTHER);
+    const ids = await t.run(async (ctx) => {
+      const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
+      await ctx.db.delete(gone);
+      const orphan = await ctx.db.insert("attendance", { eventId, memberId: gone, signInTime: dateStart });
+      const memberless = await ctx.db.insert("attendance", { eventId, signInTime: dateStart });
+      const staffRow = await ctx.db.insert("attendance", { eventId, memberId: otherMember, signInTime: dateStart });
+      await ctx.db.delete(eventId);
+      return { gone, orphan, memberless, staffRow };
+    });
+    await expect(
+      staff.mutation(api.attendance.updateRecord, { attendanceId: ids.orphan, notes: "x" })
+    ).resolves.toBeNull();
+    await staff.mutation(api.attendance.updateRecord, { attendanceId: ids.memberless, notes: "y" });
+    await staff.mutation(api.attendance.updateRecord, { attendanceId: ids.staffRow, notes: "z" });
+    const updates = (await allLogs(t)).filter((l) => l.action === "attendance.update");
+    expect(updates.filter((l) => l.summary === `Edited A member's record for "an event"`)).toHaveLength(2);
+    const staffEdit = updates.find((l) => l.memberId === otherMember)!;
+    expect(staffEdit.summary).toMatch(/record for "an event"$/);
+    expect(staffEdit.subjectEmail).toBe(OTHER);
+
+    await staff.mutation(api.attendance.signOut, { eventId, memberId: ids.gone });
+    await staff.mutation(api.attendance.signOut, { eventId, email: OTHER });
+    const outs = (await allLogs(t)).filter((l) => l.action === "attendance.signOut");
+    expect(outs).toHaveLength(2);
+    expect(outs.find((l) => l.memberId === ids.gone)?.summary).toBe(
+      `A member signed out of "an event"`
+    );
+    const staffOut = outs.find((l) => l.memberId === otherMember)!;
+    expect(staffOut.subjectEmail).toBe(OTHER);
+    expect(staffOut.summary).toMatch(/signed out of "an event"$/);
+    expect(staffOut.detail).toBeUndefined();
+    const left = await t.run((ctx) => ctx.db.query("attendance").collect());
+    expect(left.map((r) => r._id)).toEqual([ids.memberless]);
+  });
+
+  test("editing a record that no longer exists throws", async () => {
+    const t = await setup();
+    const staff = asUser(t, STAFF);
+    const { dateStart, dateEnd } = window();
+    const eventId = await staff.mutation(api.events.create, {
+      name: "E",
+      dateStart,
+      dateEnd,
+      subgroups: [USYD],
+    });
+    const attendanceId = await t.run(async (ctx) => {
+      const id = await ctx.db.insert("attendance", { eventId, signInTime: dateStart });
+      await ctx.db.delete(id);
+      return id;
+    });
+    await expect(
+      staff.mutation(api.attendance.updateRecord, { attendanceId, notes: "n" })
+    ).rejects.toThrow("Attendance record not found.");
   });
 });

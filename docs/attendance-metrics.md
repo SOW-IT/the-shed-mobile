@@ -67,7 +67,7 @@ reading every event's attendance in one mutation. It:
    newest `MAX_EVENTS` (`gatherEvents`). Because the look-back equals the
    longest preset range, the **Past year** tab has no earlier period to
    compare against, so its "change vs previous period" is always blank.
-2. Marks events tagged **"Weekly Meeting"** as weekly meetings.
+2. Marks events with a term and week (`weekly`) as weekly meetings.
 3. Reads attendance in chunks of `ATTENDANCE_CHUNK` events per transaction
    (`gatherAttendanceChunk`), keyed by the shared `personKey`.
 4. Resolves each attendee's display name / subtitle / photo and cheap breakdown
@@ -88,20 +88,11 @@ reading every event's attendance in one mutation. It:
 The view reads the snapshot (the same lookup as `api.attendanceMetrics.snapshot`, still served for older apps), which tolerates a
 stale prior-staff-year row (treated as "not ready") and a rare duplicate row
 (takes the newest). Because the nightly cron keeps snapshots current
-automatically, **there is no manual refresh control in the UI**. A server-side
-recovery path still exists — `api.attendanceMetrics.recomputeNow` (gated by
-`requireAttendanceManager`) — but it is not wired to a button today. For SOW
-it's throttled to once per week via `MANUAL_REFRESH_COOLDOWN_MS`; for a campus
-it runs that campus's weeklies rebuild with no cooldown; with no sub-group it
-does both for everything. The
-cooldown is measured from the last *manual* refresh
-(`attendanceMetricsRuns.lastManualRefreshAt`), never from the nightly rebuild's
-`computedAt`, otherwise the cron would keep the manual path permanently
-throttled.
+automatically, **there is no manual refresh control in the UI**. To force a
+rebuild, run `attendanceMetrics:recomputeAll` by hand.
 
 Authorization is server-side and identical to the rest of Attendance: any
-provisioned staff member of the current staff year can read; only campus leaders
-/ admins can trigger `recomputeNow`.
+provisioned staff member of the current staff year can read.
 
 ## Definitions & thresholds
 
@@ -126,7 +117,8 @@ reason (at risk → lapsed → declining → newcomer-no-return → re-engaged).
 
 - **SOW:** the weekly-meeting average for each campus over the chosen range
   (from each campus's recent weeklies), then SOW events' three numbers.
-  There's no follow-up list at org level.
+  There's no follow-up list at org level. From 2.9.0 this is the **Campuses**
+  tab; TWIG and PPN have their own tabs ([sow-insights.md](sow-insights.md)).
 - **A campus (before 2.5.0, historical):** three numbers, one chart and Needs
   follow-up, from these Snapshots. A campus is now its weeklies view; see
   [weekly-insights.md](weekly-insights.md).

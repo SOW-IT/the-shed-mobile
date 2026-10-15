@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
-import { normalizeSubgroups } from "../shared/rollcall";
+import { isWeekliesTagName, tagListOf, tagScope, type TagList } from "../shared/rollcall";
 import { Id } from "./_generated/dataModel";
-import { internalMutation, mutation, query } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { optionalProfile, requireAttendanceManager } from "./model";
 import { logAttendanceAction } from "./attendanceAudit";
 
@@ -14,6 +14,10 @@ export const list = query({
   },
 });
 
+const tagListValidator = v.union(v.literal("weeklies"), v.literal("events"));
+
+const nameKey = (list: TagList, name: string) => `${list}:${name.trim().toLowerCase()}`;
+
 export const saveAll = mutation({
   args: {
     tags: v.array(
@@ -22,6 +26,7 @@ export const saveAll = mutation({
         name: v.string(),
         colour: v.optional(v.string()),
         subgroups: v.optional(v.array(v.string())),
+        list: v.optional(tagListValidator),
       })
     ),
     deleteIds: v.array(v.id("attendanceTags")),
@@ -31,6 +36,9 @@ export const saveAll = mutation({
     const deleteRows = (
       await Promise.all(deleteIds.map((id) => ctx.db.get(id)))
     ).filter((row): row is NonNullable<typeof row> => row !== null);
+    if (deleteRows.some((row) => isWeekliesTagName(row.name))) {
+      throw new ConvexError("The Weeklies tag can't be deleted; every weekly gets it.");
+    }
     if (deleteRows.length > 0) {
       const deleteSet = new Set(deleteRows.map((row) => row._id));
       for (const event of await ctx.db.query("events").collect()) {
@@ -51,30 +59,40 @@ export const saveAll = mutation({
       }
     }
     const deletedIds = new Set(deleteRows.map((row) => row._id));
+    const rows = (await ctx.db.query("attendanceTags").collect()).filter(
+      (row) => !deletedIds.has(row._id)
+    );
+    const rowsById = new Map(rows.map((row) => [row._id, row]));
     const existingByName = new Map<string, Id<"attendanceTags">>();
-    for (const row of await ctx.db.query("attendanceTags").collect()) {
-      if (deletedIds.has(row._id)) continue;
-      existingByName.set(row.name.trim().toLowerCase(), row._id);
-    }
+    for (const row of rows) existingByName.set(nameKey(tagListOf(row), row.name), row._id);
     const names = new Set<string>();
     for (const tag of tags) {
       const name = tag.name.trim();
       if (!name) throw new ConvexError("Every tag needs a name.");
-      const lower = name.toLowerCase();
-      if (names.has(lower)) throw new ConvexError(`Duplicate tag "${name}".`);
-      const conflict = existingByName.get(lower);
+      const saved = tag.id ? rowsById.get(tag.id) : undefined;
+      const list = tag.list ?? (saved ? tagListOf(saved) : "events");
+      const key = nameKey(list, name);
+      const listLabel = list === "weeklies" ? "Weeklies" : "Other events";
+      if (names.has(key)) throw new ConvexError(`Duplicate tag "${name}" in ${listLabel}.`);
+      const conflict = existingByName.get(key);
       if (conflict !== undefined && conflict !== tag.id) {
-        throw new ConvexError(`A tag named "${name}" already exists.`);
+        throw new ConvexError(`${listLabel} already has a tag named "${name}".`);
       }
-      names.add(lower);
+      names.add(key);
+      const keepsWeeklies = !!saved && isWeekliesTagName(saved.name);
+      if (isWeekliesTagName(name) && !keepsWeeklies) {
+        throw new ConvexError(`"${name}" is the automatic tag every weekly gets; pick another name.`);
+      }
       if (tag.id) {
-        const existing = await ctx.db.get(tag.id);
+        const existing = saved ?? (await ctx.db.get(tag.id));
         if (!existing) continue;
-        const nextSubgroups = tag.subgroups?.length
-          ? normalizeSubgroups(tag.subgroups)
-          : undefined;
+        if (isWeekliesTagName(existing.name) && existing.name !== name) {
+          throw new ConvexError("The Weeklies tag can't be renamed; every weekly gets it.");
+        }
+        const nextSubgroups = tagScope(list, tag.subgroups);
         const changed =
           existing.name !== name ||
+          tagListOf(existing) !== list ||
           (existing.colour ?? undefined) !== (tag.colour ?? undefined) ||
           JSON.stringify([...(existing.subgroups ?? [])].sort()) !==
             JSON.stringify([...(nextSubgroups ?? [])].sort());
@@ -82,6 +100,7 @@ export const saveAll = mutation({
           name,
           colour: tag.colour,
           subgroups: nextSubgroups,
+          ...(tag.list ? { list: tag.list } : {}),
         });
         if (changed) {
           await logAttendanceAction(ctx, {
@@ -97,10 +116,9 @@ export const saveAll = mutation({
       } else {
         await ctx.db.insert("attendanceTags", {
           name,
+          list,
           colour: tag.colour,
-          subgroups: tag.subgroups?.length
-            ? normalizeSubgroups(tag.subgroups)
-            : undefined,
+          subgroups: tagScope(list, tag.subgroups),
         });
         await logAttendanceAction(ctx, {
           actorEmail,
@@ -110,77 +128,5 @@ export const saveAll = mutation({
         });
       }
     }
-  },
-});
-
-export const consolidateAttendanceTags = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const rows = await ctx.db.query("attendanceTags").collect();
-    const groups = new Map<string, typeof rows>();
-    for (const row of rows) {
-      const key = row.name.trim().toLowerCase();
-      const g = groups.get(key) ?? [];
-      g.push(row);
-      groups.set(key, g);
-    }
-
-    const remap = new Map<Id<"attendanceTags">, Id<"attendanceTags">>();
-    let merged = 0;
-
-    for (const group of groups.values()) {
-      const sorted = [...group].sort(
-        (a, b) => a._creationTime - b._creationTime
-      );
-      const survivor = sorted[0];
-
-      let global = false;
-      const scopes = new Set<string>();
-      for (const tag of sorted) {
-        if (!tag.subgroups?.length) global = true;
-        else for (const s of tag.subgroups) scopes.add(s);
-      }
-      const mergedSubgroups = global
-        ? undefined
-        : normalizeSubgroups([...scopes]);
-      const colour = sorted.find((tag) => tag.colour)?.colour;
-
-      for (const loser of sorted.slice(1)) {
-        remap.set(loser._id, survivor._id);
-        await ctx.db.delete(loser._id);
-        merged++;
-      }
-
-      const subgroupsChanged =
-        JSON.stringify([...(survivor.subgroups ?? [])].sort()) !==
-        JSON.stringify([...(mergedSubgroups ?? [])].sort());
-      const colourChanged =
-        (survivor.colour ?? undefined) !== (colour ?? undefined);
-      if (subgroupsChanged || colourChanged) {
-        await ctx.db.patch(survivor._id, {
-          subgroups: mergedSubgroups,
-          colour,
-        });
-      }
-    }
-
-    let eventsRemapped = 0;
-    if (remap.size > 0) {
-      for (const event of await ctx.db.query("events").collect()) {
-        if (!event.tagIds?.length) continue;
-        const next = [
-          ...new Set(event.tagIds.map((id) => remap.get(id) ?? id)),
-        ];
-        const changed =
-          next.length !== event.tagIds.length ||
-          next.some((id, i) => id !== event.tagIds![i]);
-        if (changed) {
-          await ctx.db.patch(event._id, { tagIds: next });
-          eventsRemapped++;
-        }
-      }
-    }
-
-    return { groups: groups.size, merged, eventsRemapped };
   },
 });

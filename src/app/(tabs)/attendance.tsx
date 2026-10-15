@@ -102,7 +102,13 @@ export default function AttendanceScreen() {
         <FooterAction
           title={tagsSave.saving ? "Saving…" : "Save tags"}
           disabled={!tagsSave.dirty || tagsSave.saving}
-          note={tagsSave.dirty && !tagsSave.saving ? "You have unsaved changes" : null}
+          note={
+            tagsSave.error && !tagsSave.saving
+              ? `Not saved: ${tagsSave.error}`
+              : tagsSave.dirty && !tagsSave.saving
+                ? "You have unsaved changes"
+                : null
+          }
           onPress={() => setConfirmSaveTags(true)}
           avoidKeyboard={false}
           cancel={{

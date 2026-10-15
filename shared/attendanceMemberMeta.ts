@@ -24,7 +24,7 @@ export const ROLE_FIELD_KEY = "Role";
 export const STAFF_ROLE_FILTER_LABEL = STAFF_ROLE;
 export const STUDENT_LEADER_ROLE_FILTER_LABEL = STUDENT_LEADER;
 export const STUDENT_LEADER_ROLE_FILTER_ROLES = UNIVERSITY_ROLES;
-export const ROLE_FILTER_LABELS = [
+const ROLE_FILTER_LABELS = [
   STAFF_ROLE_FILTER_LABEL,
   STUDENT_LEADER_ROLE_FILTER_LABEL,
 ] as const;
@@ -33,7 +33,7 @@ const STAFF_PROFILE_ROLE_FILTER_LABELS = new Set<string>(
   ROLES.filter((role) => role !== MEMBER)
 );
 
-export const YEAR_LEVEL_MAX = 15;
+const YEAR_LEVEL_MAX = 15;
 
 export const STUDENT_YEAR_LEVELS: readonly string[] = Array.from(
   { length: YEAR_LEVEL_MAX },
@@ -190,7 +190,7 @@ export const canonicalizeGenderOptionId = (
   return stored;
 };
 
-export type MetadataSelectOption = { id: string; label: string };
+type MetadataSelectOption = { id: string; label: string };
 
 export const isLockedSelectOption = (
   id: string,
@@ -330,6 +330,21 @@ export const staffLockedMetadata = (
   if (roleField) {
     if (role) next[roleField._id] = optionIdForLabel(roleField.values, role);
     else delete next[roleField._id];
+  }
+  return next;
+};
+
+export const memberOwnMetadata = (
+  fields: readonly MetadataFieldLike[],
+  submitted: Record<string, string> | undefined,
+  previous: Record<string, string> | undefined
+): Record<string, string> => {
+  const next = { ...(submitted ?? {}) };
+  for (const field of fields) {
+    if (field.key !== CAMPUS_FIELD_KEY && field.key !== ROLE_FIELD_KEY) continue;
+    const kept = previous?.[field._id];
+    if (kept) next[field._id] = kept;
+    else delete next[field._id];
   }
   return next;
 };

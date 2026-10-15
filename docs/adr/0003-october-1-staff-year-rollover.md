@@ -81,17 +81,19 @@ staff years are left alone. Not 365 days after `paidTime`. The job must run
 *after* midnight so `currentStaffYear()` is already the new year. Attachment
 records stay, flagged deleted. All files in those old years, paid or not.
 
-**Leavers become plain members at 01:30 Sydney 1 Oct** (`30 15 30 9 *`,
-cron `staff leavers to members`, function `convertOutgoingStaffOnRollover`).
-Everyone with a profile in the year just ended and none in the new year or later
-has their staff-email sign-ins moved onto their member row, the staff email
-replaced by their personal email (possibly empty), and a staff Role set to
-Member. It does not set Alumni: leaving staff isn't graduating, so leaders set
-that by hand, and a non-staff Role already on the row is kept. It runs after the
-flip so `currentStaffYear()` already names the new year, works in batches that
-schedule the next, and is idempotent: a converted person has nothing left under
-the staff email. It never runs early — converting someone while they are still
-this year's staff would split them from their staff row.
+**Staff rows are linked, and leavers settled, at 01:30 Sydney 1 Oct**
+(`30 15 30 9 *`, cron `staff rollover members`, function
+`staffRolloverOnOct1`). Every assigned profile in the new year that doesn't
+point at a member row gets one: the row an earlier profile of the same person
+points at, or a new one. Then everyone who was staff last year and isn't this
+year has their row's empty Campus filled from their last staff role and an
+empty Role set to Member, with a `member.leftStaff` audit entry. Nothing else
+changes for a leaver: their sign-ins already point at their member row, and
+staff-ness is read from each year's profile. It does not set Alumni. It runs
+after the flip so `currentStaffYear()` already names the new year, works in
+batches that schedule the next, and is idempotent. `staffLeavers:staffRollover`
+is the manual handle (dry run by default). See
+[ADR 0009](./0009-staff-on-top-of-members.md).
 
 ## Consequences
 

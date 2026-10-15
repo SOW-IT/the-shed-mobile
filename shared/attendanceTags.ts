@@ -18,7 +18,7 @@ export const TAG_COLOUR_NAMES = [
   "rose",
 ] as const;
 
-export type TagColourName = (typeof TAG_COLOUR_NAMES)[number];
+type TagColourName = (typeof TAG_COLOUR_NAMES)[number];
 
 export const TAG_COLOUR_HEX: Record<TagColourName, string> = {
   gray: "#6B7280",

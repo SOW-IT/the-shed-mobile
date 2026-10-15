@@ -107,8 +107,8 @@ class Writer {
       supported = new Set(font.getCharacterSet());
       this.charsets.set(font, supported);
     }
-    return [...text.replace(/\t/g, "  ")]
-      .map((ch) => (supported.has(ch.codePointAt(0) as number) ? ch : "?"))
+    return [...text.replace(/\r\n?/g, "\n").replace(/\t/g, "  ")]
+      .map((ch) => (ch === "\n" || supported.has(ch.codePointAt(0) as number) ? ch : "?"))
       .join("");
   }
 

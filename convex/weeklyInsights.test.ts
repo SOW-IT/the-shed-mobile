@@ -3,8 +3,10 @@ import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import type { WeeklyBlock } from "../shared/weeklyInsightsView";
+import type { WeeklyMark } from "../shared/weeklyInsights";
 import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
+import { readCampusWeeklyAverages } from "./weeklyInsights";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -32,6 +34,7 @@ const asUser = (t: TestConvex<typeof schema>, email: string) =>
 const T2_2025 = [wed(2025, 6, 4), wed(2025, 6, 11), wed(2025, 6, 18)];
 const T1_2026 = [wed(2026, 2, 18), wed(2026, 2, 25), wed(2026, 3, 4), wed(2026, 3, 11)];
 const T2_2026 = [wed(2026, 6, 3), wed(2026, 6, 10), wed(2026, 6, 17), wed(2026, 6, 24), wed(2026, 7, 1), wed(2026, 7, 22), wed(2026, 7, 29)];
+const T2_2026_WEEKS = [1, 2, 3, 4, 5, 8, 9];
 
 async function setup() {
   const t = convexTest(schema, modules);
@@ -47,6 +50,7 @@ async function setup() {
   const ids = await t.run(async (ctx) => {
     const profile = (await ctx.db.query("staffProfiles").collect()).find((p) => p.email === LEADER)!;
     await ctx.db.patch(profile._id, { name: "Lee Leader" });
+    const lee = profile.memberId!;
     const tag = await ctx.db.insert("attendanceTags", { name: "Weekly Meeting" });
     const campus = await ctx.db.insert("attendanceMetadata", {
       key: "Campus",
@@ -74,13 +78,14 @@ async function setup() {
     const newbie = await member("Nia New", { [campus]: "c1" });
     const guest = await member("Gil Guest", { [role]: "r2" });
 
-    const event = (name: string, at: number, subgroups = [UNSW], weekly = true) =>
+    const event = (name: string, at: number, subgroups = [UNSW], mark: WeeklyMark | null = null) =>
       ctx.db.insert("events", {
         name,
         dateStart: at,
         dateEnd: at + 2 * 3600_000,
         subgroups,
-        tagIds: weekly ? [tag] : [],
+        tagIds: mark ? [tag] : [],
+        ...(mark ? { weekly: mark } : {}),
       });
     const signIn = (eventId: Id<"events">, who: Id<"attendanceMembers"> | string) =>
       ctx.db.insert("attendance", {
@@ -89,38 +94,38 @@ async function setup() {
         ...(typeof who === "string" && who.includes("@") ? { email: who } : { memberId: who as Id<"attendanceMembers"> }),
       });
     const weeklies: Id<"events">[] = [];
-    for (const at of T2_2025) {
-      const e = await event("Weeklies", at);
+    for (const [i, at] of T2_2025.entries()) {
+      const e = await event("Weeklies", at, [UNSW], { year: 2025, slot: 2, week: i + 1 });
       weeklies.push(e);
       await signIn(e, ana);
       await signIn(e, ben);
     }
     for (const [i, at] of T1_2026.entries()) {
-      const e = await event("Weeklies", at);
+      const e = await event("Weeklies", at, [UNSW], { year: 2026, slot: 1, week: i + 1 });
       weeklies.push(e);
       await signIn(e, ana);
-      await signIn(e, LEADER);
+      await signIn(e, lee);
       if (i === 0) await signIn(e, cy);
     }
     for (const [i, at] of T2_2026.entries()) {
-      const e = await event("Weeklies", at);
+      const e = await event("Weeklies", at, [UNSW], { year: 2026, slot: 2, week: T2_2026_WEEKS[i] });
       weeklies.push(e);
-      await signIn(e, LEADER);
+      await signIn(e, lee);
       if (i < 5) await signIn(e, ana);
       if (i === 5) await signIn(e, newbie);
       if (i === 6) await signIn(e, guest);
     }
     // A Mega Weeklies shared with another campus: never counted by default.
-    const mega = await event("Mega weeklies", wed(2026, 7, 15), [UNSW, USYD]);
+    const mega = await event("Mega weeklies", wed(2026, 7, 15), [UNSW, USYD], { year: 2026, slot: 2, week: 7 });
     await signIn(mega, ana);
     await signIn(mega, cy);
     // Not held (nobody came), not yet held, and not a weekly at all.
-    await event("Weeklies", wed(2026, 7, 15));
-    const future = await event("Weeklies", wed(2026, 8, 5));
+    await event("Weeklies", wed(2026, 7, 15), [UNSW], { year: 2026, slot: 2, week: 7 });
+    const future = await event("Weeklies", wed(2026, 8, 5), [UNSW], { year: 2026, slot: 2, week: 10 });
     await signIn(future, ana);
-    const social = await event("Social", wed(2026, 7, 10), [UNSW], false);
+    const social = await event("Social", wed(2026, 7, 10), [UNSW]);
     await signIn(social, ana);
-    return { tag, campus, role, ana, ben, cy, newbie, guest, weeklies, social, mega };
+    return { tag, campus, role, lee, ana, ben, cy, newbie, guest, weeklies, social, mega };
   });
   return { t, admin, leader: asUser(t, LEADER), ids };
 }
@@ -174,7 +179,8 @@ describe("first build and the view", () => {
     // Recent held weeklies for the SOW comparison; the shared Mega weeklies
     // (15 Jul) isn't one of them.
     expect(index.weeklies.at(-1)).toMatchObject({ at: T2_2026[6], count: 2, joint: false });
-    expect(index.weeklies.some((w) => w.at === wed(2026, 7, 15) || w.at === wed(2026, 8, 5))).toBe(false);
+    expect(index.weeklies.find((w) => w.at === wed(2026, 7, 15))).toMatchObject({ count: 2, joint: true });
+    expect(index.weeklies.some((w) => w.at === wed(2026, 8, 5))).toBe(false);
     expect(Object.keys(await viewDocs(t)).sort()).toEqual(
       [`${UNSW}|2025`, `${UNSW}|2025-T2`, `${UNSW}|2026`, `${UNSW}|2026-T1`, `${UNSW}|2026-T2`].sort()
     );
@@ -327,6 +333,7 @@ describe("nightly builds only redo what changed", () => {
         dateEnd: wed(2025, 6, 25),
         subgroups: [UNSW],
         tagIds: [ids.tag],
+        weekly: { year: 2025, slot: 2, week: 4 },
       });
       await ctx.db.insert("attendance", { eventId: imported, memberId: ids.cy, signInTime: 0 });
     });
@@ -390,19 +397,16 @@ describe("nightly builds only redo what changed", () => {
     for (const key of Object.keys(views)) expect(after[key].computedAt).toBeGreaterThan(views[key].computedAt);
   });
 
-  test("staff signed in through their member row are still staff", async () => {
+  test("staff are keyed by their member row; a sign-in with no member is left out", async () => {
     const { t, leader, ids } = await setup();
-    await t.run(async (ctx) => {
-      const row = await ctx.db.insert("attendanceMembers", { name: "Lee Leader", email: LEADER });
-      for (const a of await ctx.db.query("attendance").withIndex("by_email", (q) => q.eq("email", LEADER)).collect()) {
-        await ctx.db.patch(a._id, { email: undefined, memberId: row });
-      }
-    });
+    await t.run((ctx) =>
+      ctx.db.insert("attendance", { eventId: ids.weeklies.at(-1)!, signInTime: 0 })
+    );
     await rebuild(t);
     const now = (await leader.query(api.weeklyInsights.view, { subgroup: UNSW }))!;
     const lee = block(now.blocks, "people").rows.find((r) => r.name === "Lee Leader")!;
-    expect(lee).toMatchObject({ section: "leader", category: { label: "Leader" } });
-    void ids;
+    expect(lee).toMatchObject({ key: `member:${ids.lee}`, section: "leader", category: { label: "Leader" } });
+    expect((await indexDoc(t))!.weeklies.at(-1)).toMatchObject({ at: T2_2026[6], count: 2 });
   });
 
   test("a forced rebuild redoes every view", async () => {
@@ -421,7 +425,7 @@ describe("nightly builds only redo what changed", () => {
     vi.setSystemTime(NOW + DAY);
     await t.run(async (ctx) => {
       for (const id of ids.weeklies.slice(0, 3)) {
-        await ctx.db.patch(id, { tagIds: [] });
+        await ctx.db.patch(id, { tagIds: [], weekly: undefined });
         await ctx.db.insert("attendanceAuditLog", { actorEmail: ADMIN, entityType: "event", action: "update", summary: "x", eventId: id });
       }
     });
@@ -473,20 +477,6 @@ describe("settings", () => {
   });
 });
 
-describe("Role option Visitor → Guest", () => {
-  test("renames once; everyone tagged keeps the tag", async () => {
-    const { t, ids } = await setup();
-    expect(await t.mutation(internal.weeklyInsights.renameVisitorRole, {})).toEqual({ renamed: true });
-    const role = await t.run((ctx) => ctx.db.get(ids.role));
-    expect(role!.values).toEqual({ r1: "Member", r2: "Guest" });
-    const guest = await t.run((ctx) => ctx.db.get(ids.guest));
-    expect(guest!.metadata![ids.role]).toBe("r2");
-    expect(await t.mutation(internal.weeklyInsights.renameVisitorRole, {})).toEqual({ renamed: false });
-    await t.run((ctx) => ctx.db.delete(ids.role));
-    expect(await t.mutation(internal.weeklyInsights.renameVisitorRole, {})).toEqual({ renamed: false });
-  });
-});
-
 describe("year so far", () => {
   test("compared with last year up to the same term and week, chart included", async () => {
     const { t, leader, ids } = await setup();
@@ -529,51 +519,51 @@ describe("a term that's gone", () => {
 });
 
 describe("someone who left staff", () => {
-  test("their weeklies are re-read, so they show up as a member", async () => {
-    const { t, leader } = await setup();
+  test("they stay a leader in the terms they served and the rebuild re-reads them", async () => {
+    const { t, leader, ids } = await setup();
     await rebuild(t);
-    const keysIn = async () => {
-      const facts = Object.values(await factDocs(t));
-      return new Set(facts.flatMap((f) => f.attendance.map((a) => a.key)));
-    };
-    expect((await keysIn()).has(`staff:${LEADER}`)).toBe(true);
-    // Lee isn't staff next year: their sign-ins move onto a member record.
+    const views = await viewDocs(t);
     vi.setSystemTime(NOW + DAY);
-    const result = await t.mutation(internal.staffLeavers.convertOutgoingStaff, {
-      year: 2027,
-      dryRun: false,
-      email: LEADER,
-    });
-    expect(result.people).toBe(1);
-    const lee = (await t.run((ctx) => ctx.db.query("attendanceMembers").collect())).find(
-      (m) => m.name === "Lee Leader"
+    const result = await t.mutation(internal.staffLeavers.staffRollover, { year: 2027, dryRun: false });
+    expect(result).toMatchObject({ left: 1, details: [{ email: LEADER, action: "left" }] });
+    const left = (await t.run((ctx) => ctx.db.query("attendanceAuditLog").collect())).find(
+      (l) => l.action === "member.leftStaff"
     )!;
+    expect(left).toMatchObject({ memberId: ids.lee, subjectEmail: LEADER });
+    const check = await t.query(internal.weeklyInsights.checkChanges, { subgroup: UNSW, now: NOW + DAY });
+    expect(check.memberKeys).toEqual([`member:${ids.lee}`]);
+    expect(check.goneMemberKeys).toEqual([`staff:${LEADER}`]);
     await rebuild(t);
-    const keys = await keysIn();
-    expect(keys.has(`staff:${LEADER}`)).toBe(false);
-    expect(keys.has(`member:${lee._id}`)).toBe(true);
-    // Still a leader in the terms they served (T2 2026, staff year 2026).
+    expect((await viewDocs(t))[`${UNSW}|2026-T2`].computedAt).toBeGreaterThan(views[`${UNSW}|2026-T2`].computedAt);
     const t2 = (await leader.query(api.weeklyInsights.view, { subgroup: UNSW, period: "2026-T2" }))!.blocks as Block[];
-    expect(block(t2, "people").rows.find((r) => r.key === `member:${lee._id}`)).toMatchObject({
+    expect(block(t2, "people").rows.find((r) => r.key === `member:${ids.lee}`)).toMatchObject({
       name: "Lee Leader",
       category: { label: "Leader" },
     });
+  });
+
+  test("a member with an email edited since the last build re-reads that email's weeklies", async () => {
+    const { t, ids } = await setup();
+    await rebuild(t);
+    vi.setSystemTime(NOW + DAY);
+    await t.run((ctx) =>
+      ctx.db.insert("attendanceAuditLog", { actorEmail: ADMIN, entityType: "member", action: "update", summary: "x", memberId: ids.ana })
+    );
+    const check = await t.query(internal.weeklyInsights.checkChanges, { subgroup: UNSW, now: NOW + DAY });
+    expect(check.memberKeys).toEqual([`member:${ids.ana}`, "staff:ana@example.com"]);
+    expect(check.needsBuild).toBe(true);
   });
 });
 
 describe("sign-in tags", () => {
   test("newcomers and visitors from the last build; a shared event only tags newcomers", async () => {
     const { t, leader, ids } = await setup();
-    // Lee also has a member row, so the sign-in screen may look them up by it.
-    const leeMember = await t.run((ctx) =>
-      ctx.db.insert("attendanceMembers", { name: "Lee Leader", metadata: {}, email: LEADER })
-    );
     expect(await leader.query(api.weeklyInsights.signInTags, { eventId: ids.weeklies[0] })).toEqual([]);
     await rebuild(t);
     const saved = (await t.run((ctx) => ctx.db.query("weeklyCategories").collect()))[0];
     expect(saved).toMatchObject({ subgroup: UNSW, termKey: "2026-T2" });
-    expect(saved.people).toContainEqual({ key: `staff:${LEADER}`, category: "leader" });
-    expect(saved.people).toContainEqual({ key: `member:${leeMember}`, category: "leader" });
+    expect(saved.people).toContainEqual({ key: `member:${ids.lee}`, category: "leader" });
+    expect(saved.people.some((p) => p.key.startsWith("staff:"))).toBe(false);
 
     expect(await leader.query(api.weeklyInsights.signInTags, { eventId: ids.weeklies[0] })).toEqual([
       { key: `member:${ids.newbie}`, label: "Newcomer", colour: "#8B5CF6" },
@@ -637,7 +627,8 @@ describe("member page", () => {
     };
     const churchRow = { label: "Church", value: "Grace Church", link: expect.stringMatching(/^\/churches\?church=/) };
     expect(await details(`member:${ids.ana}`)).toContainEqual(churchRow);
-    expect(await details(`staff:${LEADER}`)).toContainEqual(churchRow);
+    expect(await details(`member:${ids.lee}`)).toContainEqual(churchRow);
+    expect(await details(`member:${ids.lee}`)).toContainEqual({ label: "Email", value: LEADER });
     expect(await details(`member:${ids.ben}`)).not.toContainEqual(expect.objectContaining({ label: "Church" }));
   });
 
@@ -661,10 +652,43 @@ describe("member page", () => {
     expect(events.find((e) => e.title === "Social")!.tag).toBeUndefined();
   });
 
+  test("lists each event once and skips deleted ones", async () => {
+    const { t, leader, ids } = await setup();
+    const events = async () => {
+      const page = (await leader.query(api.weeklyInsights.member, { personKey: `member:${ids.ana}`, subgroup: UNSW }))!;
+      return block(page.blocks as Block[], "eventList").rows;
+    };
+    const before = await events();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("attendance", { eventId: ids.social, memberId: ids.ana, signInTime: 1 });
+      const gone = await ctx.db.insert("events", { name: "Gone", dateStart: NOW, dateEnd: NOW, subgroups: [UNSW] });
+      await ctx.db.insert("attendance", { eventId: gone, memberId: ids.ana, signInTime: 1 });
+      await ctx.db.delete(gone);
+    });
+    expect(await events()).toEqual(before);
+  });
+
+  test("a staff year with no campus role falls back to the member's own campus", async () => {
+    const { t, ids } = await setup();
+    await t.run(async (ctx) => {
+      const id = await ctx.db.insert("users", { email: "dir@sow.org.au" });
+      await ctx.db.insert("staffProfiles", {
+        email: "dir@sow.org.au",
+        year: 2026,
+        name: "Dee Director",
+        userId: id,
+        memberId: ids.ana,
+        assignments: [{ role: "Director" }],
+      });
+    });
+    const [ana] = await t.query(internal.weeklyInsights.gatherPeople, { keys: [`member:${ids.ana}`], years: [2026] });
+    expect(ana).toMatchObject({ name: "Dee Director", infoByYear: { "2026": { campus: UNSW, roles: ["Director"] } } });
+  });
+
   test("staff, someone with no weeklies here, and an unknown key", async () => {
     const { t, leader, ids } = await setup();
     await rebuild(t);
-    const staff = (await leader.query(api.weeklyInsights.member, { personKey: `staff:${LEADER}`, subgroup: UNSW }))!;
+    const staff = (await leader.query(api.weeklyInsights.member, { personKey: `member:${ids.lee}`, subgroup: UNSW }))!;
     expect(staff.blocks[0]).toMatchObject({ name: "Lee Leader", lines: ["UNSW", "Student Leader"], category: { label: "Leader" } });
     expect((staff.blocks.at(-1) as { rows: unknown[] }).rows).toHaveLength(11);
     const cy = (await leader.query(api.weeklyInsights.member, { personKey: `member:${ids.cy}`, subgroup: MQ }))!;
@@ -673,6 +697,9 @@ describe("member page", () => {
     const bogus = (await leader.query(api.weeklyInsights.member, { personKey: "member:nope", subgroup: UNSW }))!;
     expect(bogus.title).toBe("Unknown");
     expect(bogus.blocks[0]).toMatchObject({ lines: ["No campus set"] });
+    const legacy = (await leader.query(api.weeklyInsights.member, { personKey: `staff:${LEADER}`, subgroup: UNSW }))!;
+    expect(legacy.title).toBe("Unknown");
+    expect(legacy.blocks.map((b) => b.type)).toEqual(["memberHeader", "eventList"]);
     expect(await t.query(api.weeklyInsights.member, { personKey: `member:${ids.ana}`, subgroup: UNSW })).toBeNull();
   });
 });
@@ -691,17 +718,21 @@ describe("combined weeklies, marks and suggestions", () => {
 
   test("a weekly's own term and week win over dates", async () => {
     const { t, ids } = await setup();
-    await t.run((ctx) => ctx.db.patch(ids.weeklies[12], { weekly: { year: 2026, slot: 2, week: 9 } }));
+    await t.run((ctx) => ctx.db.patch(ids.weeklies[12], { weekly: { year: 2026, slot: 1, week: 11 } }));
     await rebuild(t);
-    // 22 Jul is week 9 by its mark, so the unnamed 29 Jul after it is week 10.
-    expect((await factDocs(t))[`${UNSW}|2026-T2`].weeklies.map((w) => w.week)).toEqual([1, 2, 3, 4, 5, 9, 10]);
+    const facts = await factDocs(t);
+    expect(facts[`${UNSW}|2026-T1`].weeklies.map((w) => [w.at, w.week])).toEqual([
+      ...T1_2026.map((at, i) => [at, i + 1]),
+      [T2_2026[5], 11],
+    ]);
+    expect(facts[`${UNSW}|2026-T2`].weeklies.map((w) => w.week)).toEqual([1, 2, 3, 4, 5, 9]);
   });
 
   test("suggests the term, week and name for a new weekly", async () => {
     const { t, leader, ids } = await setup();
     const next = (await leader.query(api.weeklyInsights.suggestWeekly, { subgroup: UNSW, dateStart: wed(2026, 8, 12) }))!;
-    expect(next).toMatchObject({ system: "terms", suggested: { key: "2026-T2", week: 11 }, name: "Weeklies T2W11" });
-    expect(next.options.map((o) => o.label)).toEqual(["T3 2025", "T1 2026", "T2 2026", "T3 2026"]);
+    expect(next).toMatchObject({ system: "terms", suggested: { key: "2026-T2", week: 11 }, name: "T2W11" });
+    expect(next.options.map((o) => o.label)).toEqual(["T1 2026", "T2 2026", "T3 2026"]);
     // Editing the 5 Aug weekly leaves it out of its own suggestion.
     const future = ids.weeklies.length; // the 5 Aug weekly isn't in `weeklies`
     void future;
@@ -712,62 +743,8 @@ describe("combined weeklies, marks and suggestions", () => {
     }))!;
     expect(own.suggested.week).toBe(9);
     const usyd = (await leader.query(api.weeklyInsights.suggestWeekly, { subgroup: USYD, dateStart: wed(2026, 7, 29) }))!;
-    expect(usyd).toMatchObject({ system: "semesters", suggested: { key: "2026-S2", week: 1 }, name: "Weeklies S2W1" });
+    expect(usyd).toMatchObject({ system: "semesters", suggested: { key: "2026-S2", week: 1 }, name: "S2W1" });
     expect(await t.query(api.weeklyInsights.suggestWeekly, { subgroup: UNSW, dateStart: NOW })).toBeNull();
-  });
-});
-
-describe("backfilling weeklies' term and week", () => {
-  const extras = (t: TestConvex<typeof schema>) =>
-    t.run(async (ctx) => {
-      const usydWeekly = await ctx.db.insert("events", {
-        name: "WK #3",
-        dateStart: wed(2026, 8, 12),
-        dateEnd: wed(2026, 8, 12),
-        subgroups: [USYD],
-      });
-      const season = await ctx.db.insert("events", {
-        name: "Season S2W3",
-        dateStart: wed(2026, 8, 13),
-        dateEnd: wed(2026, 8, 13),
-        subgroups: ["SOW"],
-      });
-      return { usydWeekly, season };
-    });
-
-  test("a dry run reports without writing; the real run fills in and tags, once", async () => {
-    const { t, ids } = await setup();
-    const { usydWeekly, season } = await extras(t);
-    const dry = await t.mutation(internal.weeklyInsights.backfillWeeklies, { dryRun: true });
-    expect(dry).toMatchObject({ marked: 17, tagged: 1 });
-    expect(dry.byCampus.map((c) => c.campus)).toEqual([USYD, UNSW].sort());
-    expect(dry.byCampus.find((c) => c.campus === USYD)!.terms).toEqual(["Sem 2 2026: W3"]);
-    expect((await t.run((ctx) => ctx.db.get(ids.weeklies[0])))!.weekly).toBeUndefined();
-
-    expect(await t.mutation(internal.weeklyInsights.backfillWeeklies, {})).toMatchObject({ marked: 17, tagged: 1 });
-    const [first, usyd, mega, sow] = await t.run((ctx) =>
-      Promise.all([ids.weeklies[0], usydWeekly, ids.mega, season].map((id) => ctx.db.get(id)))
-    );
-    expect(first!.weekly).toEqual({ year: 2025, slot: 2, week: 1 });
-    expect(usyd).toMatchObject({ weekly: { year: 2026, slot: 2, week: 3 }, tagIds: [ids.tag] });
-    expect(mega!.weekly).toBeUndefined();
-    expect(sow!.weekly).toBeUndefined();
-    const jobs = await t.run(async (ctx) =>
-      (await ctx.db.system.query("_scheduled_functions").collect()).filter((j) => j.name === "weeklyInsights:rebuildAll")
-    );
-    expect(jobs.map((j) => j.args[0])).toEqual([{ force: true }]);
-    expect(await t.mutation(internal.weeklyInsights.backfillWeeklies, {})).toMatchObject({ marked: 0, tagged: 0 });
-  });
-
-  test("makes the Weekly Meeting tag if there isn't one", async () => {
-    const { t, ids } = await setup();
-    await t.run(async (ctx) => {
-      for (const e of await ctx.db.query("events").collect()) await ctx.db.patch(e._id, { tagIds: [] });
-      await ctx.db.delete(ids.tag);
-    });
-    await t.mutation(internal.weeklyInsights.backfillWeeklies, {});
-    const tags = await t.run((ctx) => ctx.db.query("attendanceTags").collect());
-    expect(tags.map((tag) => tag.name)).toEqual(["Weekly Meeting"]);
   });
 });
 
@@ -795,15 +772,18 @@ describe("creating an event as a Weekly", () => {
     const { t, leader, ids } = await setup();
     const bad = (weekly: { year: number; slot: number; week: number }, subgroups = [UNSW]) =>
       leader.mutation(api.events.create, { ...base, subgroups, weekly });
-    await expect(bad({ year: 2026, slot: 2, week: 0 })).rejects.toThrow(/1 to 20/);
-    await expect(bad({ year: 2026, slot: 2, week: 2.5 })).rejects.toThrow(/1 to 20/);
+    await expect(bad({ year: 2026, slot: 2, week: 0 })).rejects.toThrow(/1 to 14/);
+    await expect(bad({ year: 2026, slot: 2, week: 2.5 })).rejects.toThrow(/1 to 14/);
+    await expect(bad({ year: 2026, slot: 2, week: 15 })).rejects.toThrow("The week should be a number from 1 to 14.");
     await expect(bad({ year: 2026, slot: 3, week: 1 }, [USYD])).rejects.toThrow(/semester doesn't exist/);
     await expect(bad({ year: 2026, slot: 4, week: 1 })).rejects.toThrow(/term doesn't exist/);
-    await expect(bad({ year: 2028, slot: 1, week: 1 })).rejects.toThrow(/same year/);
+    await expect(bad({ year: 2028, slot: 1, week: 1 })).rejects.toThrow("The term should be in 2026, the year of the date.");
+    await expect(bad({ year: 2027, slot: 1, week: 1 })).rejects.toThrow(/should be in 2026/);
+    await expect(bad({ year: 2025, slot: 2, week: 1 }, [USYD])).rejects.toThrow("The semester should be in 2026, the year of the date.");
     await t.run((ctx) => ctx.db.delete(ids.tag));
     const id = await leader.mutation(api.events.create, { ...base, weekly: { year: 2026, slot: 2, week: 11 } });
     const tags = await t.run((ctx) => ctx.db.query("attendanceTags").collect());
-    expect(tags.map((tag) => tag.name)).toEqual(["Weekly Meeting"]);
+    expect(tags.map((tag) => tag.name)).toEqual(["Weeklies"]);
     expect((await t.run((ctx) => ctx.db.get(id)))!.tagIds).toEqual([tags[0]._id]);
   });
 
@@ -813,5 +793,174 @@ describe("creating an event as a Weekly", () => {
     const id = await leader.mutation(api.events.create, { ...base, tagIds: [social], weekly: { year: 2026, slot: 2, week: 11 } });
     await leader.mutation(api.events.update, { eventId: id, ...base, tagIds: [social, ids.tag], weekly: null });
     expect((await t.run((ctx) => ctx.db.get(id)))!.tagIds).toEqual([social]);
+  });
+});
+
+describe("weeklies from old and new phones", () => {
+  const base = { name: "T2W11", dateStart: wed(2026, 8, 12), dateEnd: wed(2026, 8, 12) + 7_200_000, subgroups: [UNSW] };
+  const saved = (t: TestConvex<typeof schema>, id: Id<"events">) => t.run(async (ctx) => (await ctx.db.get(id))!);
+  const tagNames = (t: TestConvex<typeof schema>) =>
+    t.run(async (ctx) => (await ctx.db.query("attendanceTags").collect()).map((tag) => tag.name));
+
+  test("the key builds 2.5.1 to 2.7.0 send with a mark is dropped", async () => {
+    const { t, leader } = await setup();
+    const id = await leader.mutation(api.events.create, { ...base, weekly: { year: 2026, slot: 2, week: 11, key: "2026-T2" } });
+    expect((await saved(t, id)).weekly).toEqual({ year: 2026, slot: 2, week: 11 });
+    await leader.mutation(api.events.update, { eventId: id, ...base, weekly: { year: 2026, slot: 2, week: 12, key: "2026-T2" } });
+    expect((await saved(t, id)).weekly).toEqual({ year: 2026, slot: 2, week: 12 });
+  });
+
+  test("the old Weekly Meeting tag is reused, not duplicated, and goes first", async () => {
+    const { t, leader, ids } = await setup();
+    const social = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "Social" }));
+    const id = await leader.mutation(api.events.create, { ...base, tagIds: [social], weekly: { year: 2026, slot: 2, week: 11 } });
+    expect((await saved(t, id)).tagIds).toEqual([ids.tag, social]);
+    expect(await tagNames(t)).toEqual(["Weekly Meeting", "Social"]);
+  });
+
+  test("once both names exist, a weekly carries only Weeklies", async () => {
+    const { t, leader, ids } = await setup();
+    const weeklies = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "Weeklies" }));
+    const social = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "Social" }));
+    const id = await leader.mutation(api.events.create, {
+      ...base,
+      tagIds: [social, ids.tag],
+      weekly: { year: 2026, slot: 2, week: 11 },
+    });
+    expect((await saved(t, id)).tagIds).toEqual([weeklies, social]);
+    await leader.mutation(api.events.update, { eventId: id, ...base, tagIds: [ids.tag, weeklies, social], weekly: null });
+    expect((await saved(t, id)).tagIds).toEqual([social]);
+  });
+
+  test("an old phone's weekly gets its term and week from the name", async () => {
+    const { t, leader, ids } = await setup();
+    const named = await leader.mutation(api.events.create, { ...base, name: "WEEKLIES T3W5", tagIds: [ids.tag] });
+    expect(await saved(t, named)).toMatchObject({ name: "WEEKLIES T3W5", weekly: { year: 2026, slot: 3, week: 5 }, tagIds: [ids.tag] });
+    const weekOnly = await leader.mutation(api.events.create, { ...base, name: "WK #4 [BAM NIGHT]", tagIds: [ids.tag] });
+    expect((await saved(t, weekOnly)).weekly).toEqual({ year: 2026, slot: 2, week: 4 });
+  });
+
+  test("an old phone's weekly with nothing in the name follows the campus's other weeklies", async () => {
+    const { t, leader, ids } = await setup();
+    const id = await leader.mutation(api.events.create, { ...base, name: "Weeklies", tagIds: [ids.tag] });
+    expect((await saved(t, id)).weekly).toEqual({ year: 2026, slot: 2, week: 11 });
+    const usyd = await leader.mutation(api.events.create, { ...base, name: "Weeklies", subgroups: [USYD], tagIds: [ids.tag] });
+    expect((await saved(t, usyd)).weekly).toEqual({ year: 2026, slot: 2, week: 1 });
+    const plain = await leader.mutation(api.events.create, { ...base, name: "Social" });
+    await leader.mutation(api.events.update, { eventId: plain, ...base, name: "Weeklies", tagIds: [ids.tag] });
+    expect((await saved(t, plain)).weekly).toEqual({ year: 2026, slot: 2, week: 11 });
+  });
+
+  test("an org-wide (SOW) event with the tag isn't a weekly and loses the tag", async () => {
+    const { t, leader, ids } = await setup();
+    const social = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "Social" }));
+    const sow = await leader.mutation(api.events.create, { ...base, name: "WEEKLIES T2W11", subgroups: ["SOW", UNSW], tagIds: [ids.tag, social] });
+    const doc = await saved(t, sow);
+    expect(doc.weekly).toBeUndefined();
+    expect(doc.tagIds).toEqual([social]);
+    const only = await leader.mutation(api.events.create, { ...base, subgroups: ["ALL"], tagIds: [ids.tag] });
+    expect((await saved(t, only)).tagIds).toBeUndefined();
+  });
+
+  test("an ordinary event never keeps the weekly tag", async () => {
+    const { t, leader, ids } = await setup();
+    const id = await leader.mutation(api.events.create, { ...base, name: "Weeklies", tagIds: [ids.tag] });
+    await leader.mutation(api.events.update, { eventId: id, ...base, name: "Social night", tagIds: [ids.tag], weekly: null });
+    const doc = await saved(t, id);
+    expect(doc.weekly).toBeUndefined();
+    expect(doc.tagIds).toBeUndefined();
+  });
+
+  test("a suggestion also gives the campus's latest weekly and the weeks already taken", async () => {
+    const { leader, ids } = await setup();
+    const next = (await leader.query(api.weeklyInsights.suggestWeekly, { subgroup: UNSW, dateStart: wed(2026, 8, 12) }))!;
+    expect(next.previous).toEqual({ dateStart: wed(2026, 8, 5), dateEnd: wed(2026, 8, 5) + 2 * 3600_000 });
+    expect(next.taken!.map((w) => `${w.year}-${w.slot}-${w.week}`)).toEqual([
+      ...[1, 2, 3, 4].map((w) => `2026-1-${w}`),
+      ...[1, 2, 3, 4, 5, 7, 8, 9, 10].map((w) => `2026-2-${w}`),
+    ]);
+    expect(next.taken!.every((w) => w.name === "Weeklies")).toBe(true);
+    const lastYear = (await leader.query(api.weeklyInsights.suggestWeekly, { subgroup: UNSW, dateStart: wed(2025, 6, 25) }))!;
+    expect(lastYear.taken!.map((w) => w.week)).toEqual([1, 2, 3]);
+    const editing = (await leader.query(api.weeklyInsights.suggestWeekly, {
+      subgroup: UNSW,
+      dateStart: wed(2026, 8, 5),
+      eventId: ids.weeklies.at(-1)!,
+    }))!;
+    expect(editing.taken!.some((w) => w.slot === 2 && w.week === 9)).toBe(false);
+    const none = (await leader.query(api.weeklyInsights.suggestWeekly, { subgroup: MQ, dateStart: wed(2026, 8, 12) }))!;
+    expect(none).toMatchObject({ previous: null, taken: [] });
+  });
+});
+
+describe("2.6.4 regressions", () => {
+  test("merging a duplicate away leaves no Unknown behind and gives the kept person the weeklies", async () => {
+    const { t, leader, ids } = await setup();
+    const dup = await t.run(async (ctx) => {
+      const id = await ctx.db.insert("attendanceMembers", { name: "Ana D", metadata: {} });
+      for (const eventId of ids.weeklies.slice(-2)) {
+        await ctx.db.insert("attendance", { eventId, memberId: id, signInTime: NOW - DAY });
+      }
+      return id;
+    });
+    await rebuild(t);
+    const before = block((await leader.query(api.weeklyInsights.view, { subgroup: UNSW }))!.blocks as Block[], "people");
+    expect(before.rows.some((r) => r.name === "Ana D")).toBe(true);
+
+    await leader.mutation(api.attendanceMembers.merge, { removeId: dup, keep: { memberId: ids.ana }, resolutions: {} });
+    await rebuild(t);
+
+    const after = block((await leader.query(api.weeklyInsights.view, { subgroup: UNSW }))!.blocks as Block[], "people");
+    expect(after.rows.map((r) => r.name)).not.toContain("Unknown");
+    expect(after.rows.map((r) => r.name)).not.toContain("Ana D");
+    const facts = Object.values(await factDocs(t)).flatMap((f) => f.attendance.map((a) => a.key));
+    expect(facts).not.toContain(`member:${dup}`);
+    const ana = Object.values(await factDocs(t))
+      .find((f) => f.termKey === "2026-T2")!
+      .attendance.find((a) => a.key === `member:${ids.ana}`)!;
+    expect(ana.indexes).toHaveLength(7);
+  });
+
+  test("the SOW campus comparison counts shared weeklies only when collaborative is on", async () => {
+    const { t, ids } = await setup();
+    await t.run((ctx) => ctx.db.insert("attendance", { eventId: ids.mega, memberId: ids.ben, signInTime: wed(2026, 7, 15) }));
+    await rebuild(t);
+    const [withShared, without] = await t.run(async (ctx) => [
+      await readCampusWeeklyAverages(ctx, 2026, 4, true),
+      await readCampusWeeklyAverages(ctx, 2026, 4, false),
+    ]);
+    const unsw = (rows: { campus: string; avgWeekly: number }[]) => rows.find((r) => r.campus === UNSW)?.avgWeekly;
+    expect(unsw(withShared)).toBeDefined();
+    expect(unsw(withShared)).not.toBe(unsw(without));
+  });
+
+  test("a staff profile change in Admin, and a member field change, trigger a rebuild", async () => {
+    const { t, admin } = await setup();
+    await rebuild(t);
+    const check = () => t.query(internal.weeklyInsights.checkChanges, { subgroup: UNSW, now: NOW });
+    expect((await check()).needsBuild).toBe(false);
+
+    await admin.mutation(api.admin.setStaffProfile, {
+      email: LEADER,
+      year: 2026,
+      roles: ["Student Leader", "Executive"],
+      university: UNSW,
+    });
+    const afterProfile = await check();
+    expect(afterProfile.needsBuild).toBe(true);
+    expect(afterProfile.memberKeys.some((k) => k.startsWith("member:"))).toBe(true);
+    await rebuild(t);
+    expect((await check()).needsBuild).toBe(false);
+
+    await t.run((ctx) =>
+      ctx.db.insert("attendanceAuditLog", {
+        actorEmail: ADMIN,
+        entityType: "metadata",
+        action: "metadata.update",
+        summary: 'Updated member field "Role"',
+      })
+    );
+    const afterField = await check();
+    expect(afterField).toMatchObject({ needsBuild: true, metadataChanged: true });
   });
 });

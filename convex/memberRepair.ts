@@ -1,179 +1,13 @@
 import { ConvexError, v } from "convex/values";
-import { mergeNotes } from "../shared/memberMerge";
+import { CAMPUS_FIELD_KEY, ROLE_FIELD_KEY } from "../shared/attendanceMemberMeta";
 import { SYDNEY_TIME_ZONE } from "../shared/flow";
 import { capitalizeMemberName } from "../shared/rollcall";
-import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
-import { Doc } from "./_generated/dataModel";
 import { internalMutation } from "./_generated/server";
 import { logAttendanceAction, MAX_AUDIT_ATTENDANCE_LINES } from "./attendanceAudit";
-import { findMemberByEmail } from "./model";
-
-const REPAIR_ACTOR = "system:staff-attendance-repair";
+import { latestStaffProfile } from "./attendanceMembers";
+import { knownMemberId } from "./staffMembers";
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
-
-const detailValidator = v.object({
-  email: v.string(),
-  rowsFolded: v.number(),
-  recordsMoved: v.number(),
-  recordsCombined: v.number(),
-});
-
-type Detail = {
-  email: string;
-  rowsFolded: number;
-  recordsMoved: number;
-  recordsCombined: number;
-};
-
-/**
- * One-off repair for data written before Merge existed. Putting a staff email
- * on a member relabelled the row as that staff person but left its attendance
- * keyed to the row, so Insights counted them twice, and a second such row for
- * the same staff person was hidden from the members list for good.
- *
- * For each staff person with overlay rows this folds duplicate rows into the
- * one the app shows, and moves member-keyed attendance onto the staff email,
- * combining events where both records exist (earlier time, both notes) — the
- * same rules as a member → staff merge.
- *
- * Dry run by default. Processes `limit` staff per call; pass the returned
- * `next` as `after` until it comes back null. Idempotent. `email` limits it to
- * one staff person, to check a single repair before running them all.
- *
- *   npx convex run --prod memberRepair:repairStaffAttendance '{}'
- *   npx convex run --prod memberRepair:repairStaffAttendance '{"email":"a@sow.org.au","dryRun":false}'
- *   npx convex run --prod memberRepair:repairStaffAttendance '{"dryRun":false}'
- */
-export const repairStaffAttendance = internalMutation({
-  args: {
-    dryRun: v.optional(v.boolean()),
-    after: v.optional(v.string()),
-    limit: v.optional(v.number()),
-    email: v.optional(v.string()),
-  },
-  returns: v.object({
-    dryRun: v.boolean(),
-    staff: v.number(),
-    rowsFolded: v.number(),
-    recordsMoved: v.number(),
-    recordsCombined: v.number(),
-    next: v.union(v.string(), v.null()),
-    details: v.array(detailValidator),
-  }),
-  handler: async (ctx, { dryRun = true, after, limit = 25, email: only }) => {
-    if (!Number.isInteger(limit) || limit < 1) {
-      throw new ConvexError("limit must be a positive whole number.");
-    }
-    const onlyKey = only === undefined ? undefined : canonicalEmailKey(only);
-    // Latest staff profile per person decides the email attendance is keyed by.
-    const latest = new Map<string, Doc<"staffProfiles">>();
-    for (const profile of await ctx.db.query("staffProfiles").collect()) {
-      const key = canonicalEmailKey(profile.email);
-      if (!key) continue;
-      const seen = latest.get(key);
-      if (!seen || profile.year > seen.year) latest.set(key, profile);
-    }
-
-    const rowsByStaff = new Map<string, Doc<"attendanceMembers">[]>();
-    for (const row of await ctx.db.query("attendanceMembers").collect()) {
-      const key = canonicalEmailKey(row.email);
-      if (!key || !latest.has(key)) continue;
-      rowsByStaff.set(key, [...(rowsByStaff.get(key) ?? []), row]);
-    }
-
-    const keys = [...rowsByStaff.keys()]
-      .filter((key) => after === undefined || key > after)
-      .filter((key) => only === undefined || key === onlyKey)
-      .sort();
-    const batch = keys.slice(0, limit);
-    const details: Detail[] = [];
-
-    for (const key of batch) {
-      const rows = rowsByStaff.get(key)!;
-      const email = latest.get(key)!.email.toLowerCase();
-      // The row the app already treats as this staff person's.
-      const kept = (await findMemberByEmail(ctx, email)) ?? rows[0];
-      const detail: Detail = { email, rowsFolded: 0, recordsMoved: 0, recordsCombined: 0 };
-
-      // The staff person's email record per event, under any spelling —
-      // including ones this run moves over, so a later duplicate combines.
-      const emailRecords = new Map<string, Doc<"attendance">>();
-      for (const candidate of staffEmailCandidates(email)) {
-        const own = await ctx.db
-          .query("attendance")
-          .withIndex("by_email", (q) => q.eq("email", candidate))
-          .collect();
-        for (const record of own) emailRecords.set(record.eventId, record);
-      }
-
-      for (const row of rows) {
-        const records = await ctx.db
-          .query("attendance")
-          .withIndex("by_member", (q) => q.eq("memberId", row._id))
-          .collect();
-        for (const record of records) {
-          const existing = emailRecords.get(record.eventId);
-          if (existing) {
-            detail.recordsCombined++;
-            const combined = {
-              signInTime: Math.min(existing.signInTime, record.signInTime),
-              notes: mergeNotes(existing.notes, record.notes),
-            };
-            emailRecords.set(record.eventId, { ...existing, ...combined });
-            if (dryRun) continue;
-            await ctx.db.patch(existing._id, combined);
-            await ctx.db.delete(record._id);
-          } else {
-            detail.recordsMoved++;
-            emailRecords.set(record.eventId, { ...record, email, memberId: undefined });
-            if (dryRun) continue;
-            await ctx.db.patch(record._id, { email, memberId: undefined });
-          }
-        }
-
-        if (row._id === kept._id) continue;
-        detail.rowsFolded++;
-        if (dryRun) continue;
-        // The kept row wins; a hidden duplicate only fills its blanks.
-        const current = (await ctx.db.get(kept._id))!;
-        const metadata = { ...(row.metadata ?? {}), ...(current.metadata ?? {}) };
-        await ctx.db.patch(kept._id, { metadata });
-        await ctx.db.delete(row._id);
-      }
-
-      const changed = detail.rowsFolded + detail.recordsMoved + detail.recordsCombined;
-      if (changed === 0) continue;
-      details.push(detail);
-      if (dryRun) continue;
-      await logAttendanceAction(ctx, {
-        actorEmail: REPAIR_ACTOR,
-        entityType: "member",
-        action: "member.repair",
-        summary: `Repaired staff attendance for ${email}`,
-        memberId: kept._id,
-        subjectEmail: email,
-        detail: [
-          `Moved ${plural(detail.recordsMoved, "sign-in")} to the staff email`,
-          `combined ${plural(detail.recordsCombined, "shared event")}`,
-          `folded ${plural(detail.rowsFolded, "duplicate record")}`,
-        ].join("; "),
-      });
-    }
-
-    const sum = (field: keyof Omit<Detail, "email">) =>
-      details.reduce((total, d) => total + d[field], 0);
-    return {
-      dryRun,
-      staff: details.length,
-      rowsFolded: sum("rowsFolded"),
-      recordsMoved: sum("recordsMoved"),
-      recordsCombined: sum("recordsCombined"),
-      next: keys.length > batch.length ? batch[batch.length - 1] : null,
-      details,
-    };
-  },
-});
 
 const RESTORE_ACTOR = "system:attendance-restore";
 
@@ -247,20 +81,19 @@ export const restoreAttendance = internalMutation({
         results.push({ eventId: record.eventId, who, status: "member missing" as const });
         continue;
       }
-      const existing = email
-        ? await ctx.db
-            .query("attendance")
-            .withIndex("by_event_and_email", (q) =>
-              q.eq("eventId", record.eventId).eq("email", email)
-            )
-            .first()
-        : await ctx.db
-            .query("attendance")
-            .withIndex("by_event_and_member", (q) =>
-              q.eq("eventId", record.eventId).eq("memberId", record.memberId!)
-            )
-            .first();
-      const name = member?.name ?? email!;
+      const staff = email ? await latestStaffProfile(ctx, email) : null;
+      const memberId = record.memberId ?? (staff ? await knownMemberId(ctx, staff) : null);
+      if (!memberId) {
+        results.push({ eventId: record.eventId, who, status: "member missing" as const });
+        continue;
+      }
+      const existing = await ctx.db
+        .query("attendance")
+        .withIndex("by_event_and_member", (q) =>
+          q.eq("eventId", record.eventId).eq("memberId", memberId)
+        )
+        .first();
+      const name = member?.name ?? (await ctx.db.get(memberId))?.name ?? email!;
       if (existing) {
         results.push({ eventId: record.eventId, who: name, status: "already there" as const });
         continue;
@@ -270,7 +103,7 @@ export const restoreAttendance = internalMutation({
       if (dryRun) continue;
       await ctx.db.insert("attendance", {
         eventId: record.eventId,
-        ...(email ? { email } : { memberId: record.memberId }),
+        memberId,
         signInTime: record.signInTime,
         notes: record.notes,
       });
@@ -280,7 +113,7 @@ export const restoreAttendance = internalMutation({
         action: "attendance.restore",
         summary: `${name} restored to "${event.name}"`,
         eventId: record.eventId,
-        memberId: record.memberId,
+        memberId,
         subjectEmail: email,
         detail: `${record.reason}\nOriginal sign-in: ${stamp(record.signInTime)}`,
       });
@@ -354,5 +187,284 @@ export const capitalizeMemberNames = internalMutation({
       next: page.isDone ? null : page.continueCursor,
       changes,
     };
+  },
+});
+
+const CAMPUS_ACTOR = "system:campus-restore";
+
+const campusStatus = v.union(
+  v.literal("filled"),
+  v.literal("already set"),
+  v.literal("member missing"),
+  v.literal("unknown campus")
+);
+
+export const restoreCampus = internalMutation({
+  args: {
+    fills: v.array(
+      v.object({ memberId: v.id("attendanceMembers"), campus: v.string(), reason: v.string() })
+    ),
+    dryRun: v.optional(v.boolean()),
+  },
+  returns: v.object({
+    dryRun: v.boolean(),
+    filled: v.number(),
+    results: v.array(
+      v.object({ memberId: v.id("attendanceMembers"), who: v.string(), status: campusStatus })
+    ),
+  }),
+  handler: async (ctx, { fills, dryRun = true }) => {
+    const campusField = (await ctx.db.query("attendanceMetadata").take(200)).find(
+      (f) => f.key === CAMPUS_FIELD_KEY
+    );
+    const results = [];
+    let filled = 0;
+    for (const fill of fills) {
+      const member = await ctx.db.get(fill.memberId);
+      if (!member) {
+        results.push({ memberId: fill.memberId, who: fill.memberId, status: "member missing" as const });
+        continue;
+      }
+      const optionId = Object.entries(campusField?.values ?? {}).find(
+        ([, label]) => label === fill.campus
+      )?.[0];
+      if (!campusField || !optionId) {
+        results.push({ memberId: fill.memberId, who: member.name, status: "unknown campus" as const });
+        continue;
+      }
+      if (member.metadata?.[campusField._id]) {
+        results.push({ memberId: fill.memberId, who: member.name, status: "already set" as const });
+        continue;
+      }
+      results.push({ memberId: fill.memberId, who: member.name, status: "filled" as const });
+      filled++;
+      if (dryRun) continue;
+      await ctx.db.patch(fill.memberId, {
+        metadata: { ...(member.metadata ?? {}), [campusField._id]: optionId },
+      });
+      await logAttendanceAction(ctx, {
+        actorEmail: CAMPUS_ACTOR,
+        entityType: "member",
+        action: "member.update",
+        summary: `Restored "${member.name}"'s Campus (${fill.campus})`,
+        memberId: fill.memberId,
+        detail: fill.reason,
+      });
+    }
+    return { dryRun, filled, results };
+  },
+});
+
+const LINK_ACTOR = "system:profile-link";
+
+const linkStatus = v.union(
+  v.literal("linked"),
+  v.literal("already linked"),
+  v.literal("linked elsewhere"),
+  v.literal("profile missing"),
+  v.literal("member missing")
+);
+
+export const linkProfiles = internalMutation({
+  args: {
+    links: v.array(
+      v.object({
+        profileId: v.id("staffProfiles"),
+        memberId: v.id("attendanceMembers"),
+        reason: v.string(),
+      })
+    ),
+    dryRun: v.optional(v.boolean()),
+  },
+  returns: v.object({
+    dryRun: v.boolean(),
+    linked: v.number(),
+    results: v.array(
+      v.object({ profileId: v.id("staffProfiles"), who: v.string(), status: linkStatus })
+    ),
+  }),
+  handler: async (ctx, { links, dryRun = true }) => {
+    const results = [];
+    let linked = 0;
+    for (const link of links) {
+      const profile = await ctx.db.get(link.profileId);
+      if (!profile) {
+        results.push({ profileId: link.profileId, who: link.profileId, status: "profile missing" as const });
+        continue;
+      }
+      const member = await ctx.db.get(link.memberId);
+      if (!member) {
+        results.push({ profileId: link.profileId, who: profile.email, status: "member missing" as const });
+        continue;
+      }
+      if (profile.memberId === link.memberId) {
+        results.push({ profileId: link.profileId, who: member.name, status: "already linked" as const });
+        continue;
+      }
+      if (profile.memberId && (await ctx.db.get(profile.memberId))) {
+        results.push({ profileId: link.profileId, who: member.name, status: "linked elsewhere" as const });
+        continue;
+      }
+      results.push({ profileId: link.profileId, who: member.name, status: "linked" as const });
+      linked++;
+      if (dryRun) continue;
+      await ctx.db.patch(link.profileId, { memberId: link.memberId });
+      await logAttendanceAction(ctx, {
+        actorEmail: LINK_ACTOR,
+        entityType: "member",
+        action: "member.linkStaff",
+        summary: `Linked ${profile.email}'s ${profile.year} staff profile to "${member.name}"`,
+        memberId: link.memberId,
+        subjectEmail: profile.email.toLowerCase(),
+        detail: link.reason,
+      });
+    }
+    return { dryRun, linked, results };
+  },
+});
+
+const ROLE_ACTOR = "system:role-repair";
+
+const roleStatus = v.union(
+  v.literal("changed"),
+  v.literal("already set"),
+  v.literal("role differs"),
+  v.literal("member missing"),
+  v.literal("unknown role")
+);
+
+export const replaceRole = internalMutation({
+  args: {
+    changes: v.array(
+      v.object({
+        memberId: v.id("attendanceMembers"),
+        from: v.string(),
+        to: v.string(),
+        reason: v.string(),
+      })
+    ),
+    dryRun: v.optional(v.boolean()),
+  },
+  returns: v.object({
+    dryRun: v.boolean(),
+    changed: v.number(),
+    results: v.array(
+      v.object({ memberId: v.id("attendanceMembers"), who: v.string(), status: roleStatus })
+    ),
+  }),
+  handler: async (ctx, { changes, dryRun = true }) => {
+    const roleField = (await ctx.db.query("attendanceMetadata").take(200)).find(
+      (f) => f.key === ROLE_FIELD_KEY
+    );
+    const optionFor = (label: string) =>
+      Object.entries(roleField?.values ?? {}).find(([, value]) => value === label)?.[0];
+    const results = [];
+    let changed = 0;
+    for (const change of changes) {
+      const member = await ctx.db.get(change.memberId);
+      if (!member) {
+        results.push({ memberId: change.memberId, who: change.memberId, status: "member missing" as const });
+        continue;
+      }
+      const toId = optionFor(change.to);
+      if (!roleField || !toId) {
+        results.push({ memberId: change.memberId, who: member.name, status: "unknown role" as const });
+        continue;
+      }
+      const current = member.metadata?.[roleField._id];
+      const currentLabel = current ? (roleField.values?.[current] ?? current) : undefined;
+      if (currentLabel === change.to) {
+        results.push({ memberId: change.memberId, who: member.name, status: "already set" as const });
+        continue;
+      }
+      if (currentLabel !== change.from) {
+        results.push({ memberId: change.memberId, who: member.name, status: "role differs" as const });
+        continue;
+      }
+      results.push({ memberId: change.memberId, who: member.name, status: "changed" as const });
+      changed++;
+      if (dryRun) continue;
+      await ctx.db.patch(change.memberId, {
+        metadata: { ...(member.metadata ?? {}), [roleField._id]: toId },
+      });
+      await logAttendanceAction(ctx, {
+        actorEmail: ROLE_ACTOR,
+        entityType: "member",
+        action: "member.update",
+        summary: `Changed "${member.name}"'s Role from ${change.from} to ${change.to}`,
+        memberId: change.memberId,
+        detail: change.reason,
+      });
+    }
+    return { dryRun, changed, results };
+  },
+});
+
+const MERGED_ACTOR = "system:merge-backfill";
+
+const MERGE_SCAN_LIMIT = 5000;
+
+export const flagMergedAway = internalMutation({
+  args: { since: v.number(), dryRun: v.optional(v.boolean()), limit: v.optional(v.number()) },
+  returns: v.object({
+    dryRun: v.boolean(),
+    flagged: v.number(),
+    next: v.union(v.number(), v.null()),
+    results: v.array(
+      v.object({
+        mergeId: v.id("attendanceAuditLog"),
+        removed: v.union(v.string(), v.null()),
+        status: v.union(
+          v.literal("flagged"),
+          v.literal("already flagged"),
+          v.literal("still exists"),
+          v.literal("no removed member")
+        ),
+      })
+    ),
+  }),
+  handler: async (ctx, { since, dryRun = true, limit = MERGE_SCAN_LIMIT }) => {
+    const merges = await ctx.db
+      .query("attendanceAuditLog")
+      .withIndex("by_creation_time", (q) => q.gte("_creationTime", since))
+      .take(limit);
+    const next = merges.length === limit ? merges[merges.length - 1]._creationTime : null;
+    const results = [];
+    let flagged = 0;
+    for (const merge of merges) {
+      if (merge.action !== "member.merge") continue;
+      const raw = /Removed member .*\(([^()\s]+)\)\s*$/m.exec(merge.detail ?? "")?.[1] ?? null;
+      const removedId = raw ? ctx.db.normalizeId("attendanceMembers", raw) : null;
+      if (!removedId) {
+        results.push({ mergeId: merge._id, removed: raw, status: "no removed member" as const });
+        continue;
+      }
+      if (await ctx.db.get(removedId)) {
+        results.push({ mergeId: merge._id, removed: raw, status: "still exists" as const });
+        continue;
+      }
+      const existing = await ctx.db
+        .query("attendanceAuditLog")
+        .withIndex("by_member_and_action", (q) =>
+          q.eq("memberId", removedId).eq("action", "member.mergedAway")
+        )
+        .first();
+      if (existing) {
+        results.push({ mergeId: merge._id, removed: raw, status: "already flagged" as const });
+        continue;
+      }
+      results.push({ mergeId: merge._id, removed: raw, status: "flagged" as const });
+      flagged++;
+      if (dryRun) continue;
+      await logAttendanceAction(ctx, {
+        actorEmail: MERGED_ACTOR,
+        entityType: "member",
+        action: "member.mergedAway",
+        summary: `${merge.summary} (merged-away record flagged for Insights)`,
+        memberId: removedId,
+        detail: `From merge ${merge._id}`,
+      });
+    }
+    return { dryRun, flagged, next, results };
   },
 });

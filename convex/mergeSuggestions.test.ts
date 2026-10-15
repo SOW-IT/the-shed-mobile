@@ -38,10 +38,10 @@ async function setup() {
     await staff("hana.doe2@sowaustralia.com", "Hana Doe", YEAR - 1, [
       { role: "Student Leader", university: USYD },
     ]);
-    // Staff from next year only: not suggested until their year starts.
     await staff("mia.doe@sow.org.au", "Mia Doe", YEAR + 1, [
       { role: "Student Leader", university: USYD },
     ]);
+    await staff(HANA, "Hana Doe", YEAR + 1, [{ role: "Student Leader", university: UNSW }]);
     return {
       campusField: await ctx.db.insert("attendanceMetadata", {
         key: "Campus",
@@ -59,6 +59,14 @@ async function setup() {
   });
   const member = (name: string, metadata: Record<string, string> = {}, email?: string) =>
     t.run((ctx) => ctx.db.insert("attendanceMembers", { name, metadata, email }));
+  const link = (email: string, year: number, memberId: Id<"attendanceMembers">) =>
+    t.run(async (ctx) => {
+      const profile = await ctx.db
+        .query("staffProfiles")
+        .withIndex("by_email_and_year", (q) => q.eq("email", email).eq("year", year))
+        .unique();
+      await ctx.db.patch(profile!._id, { memberId });
+    });
   const signIn = async (memberId: Id<"attendanceMembers">, signInTime: number) => {
     const eventId = await t.run((ctx) =>
       ctx.db.insert("events", {
@@ -79,6 +87,7 @@ async function setup() {
     campusField,
     roleField,
     member,
+    link,
     signIn,
   };
 }
@@ -92,9 +101,13 @@ describe("suggested merges", () => {
     const hanaNoCampus = await s.member("hana  doe");
     await s.member("Hana Doe", { [s.campusField]: "unsw" }); // another campus
     await s.member("Hana Doerr", { [s.campusField]: "usyd" }); // another name
-    await s.member("Hana Doe", {}, HANA); // their own staff row
-    await s.member("Hana Doe", {}, "hana.doe2@sow.org.au"); // last year's staff
-    await s.member("Mia Doe", { [s.campusField]: "usyd" }); // next year's staff
+    await s.link(HANA, YEAR, await s.member("Hana Doe", { [s.campusField]: "usyd" }));
+    await s.link(
+      "hana.doe2@sowaustralia.com",
+      YEAR - 1,
+      await s.member("Hana Doe", { [s.campusField]: "usyd" })
+    );
+    const mia = await s.member("Mia Doe", { [s.campusField]: "usyd" });
     const alex = await s.member("Alex Morgan", {
       [s.campusField]: "usyd",
       [s.roleField]: "member",
@@ -146,6 +159,13 @@ describe("suggested merges", () => {
             lastSignIn: null,
           },
         ],
+      },
+      {
+        staffEmail: "mia.doe@sow.org.au",
+        staffName: "Mia Doe",
+        roles: ["Student Leader"],
+        universities: [USYD],
+        candidates: [expect.objectContaining({ memberId: mia, match: "same", campus: USYD })],
       },
     ]);
   });

@@ -11,7 +11,9 @@ import {
   normalizeSubgroups,
   SOW_SUBGROUP,
   subgroupLabel,
-  WEEKLY_MEETING_TAG_NAME,
+  isWeekliesTagName,
+  isOrgWideSubgroup,
+  WEEKLIES_TAG_NAME,
 } from "../shared/rollcall";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
@@ -22,10 +24,16 @@ import {
   mutation,
   query,
 } from "./_generated/server";
-import { displayName, optionalProfile, requireProfile } from "./model";
-import { readSettings } from "./weeklyInsights";
-import { weeklyMarkValidator } from "./weeklyInsightsData";
-import { termSystemFor, type WeeklyMark } from "../shared/weeklyInsights";
+import { optionalProfile, requireProfile } from "./model";
+import { memberDisplayName } from "./staffMembers";
+import { campusWeeklies, readSettings } from "./weeklyInsights";
+import {
+  markFromName,
+  suggestWeekly,
+  termSystemFor,
+  WEEK_MAX,
+  type WeeklyMark,
+} from "../shared/weeklyInsights";
 import { notify } from "./requests";
 import {
   auditStamp,
@@ -35,6 +43,19 @@ import {
 import { paginator } from "convex-helpers/server/pagination";
 import { asPaginatorCursor } from "./pagination";
 import schema from "./schema";
+
+const weeklyMarkArg = v.object({
+  year: v.number(),
+  slot: v.number(),
+  week: v.number(),
+  key: v.optional(v.string()),
+});
+
+const markOnly = ({ year, slot, week }: WeeklyMark & { key?: string }): WeeklyMark => ({
+  year,
+  slot,
+  week,
+});
 
 const EVENTS_PAGE_SIZE = 20;
 const MAX_EVENTS_PAGE_SIZE = 50;
@@ -106,12 +127,38 @@ const annotate = async (ctx: QueryCtx, event: Doc<"events">) => {
   };
 };
 
-/** The Weekly Meeting tag, made if the campus has never had one. */
-async function weeklyMeetingTag(ctx: MutationCtx): Promise<Id<"attendanceTags">> {
-  const existing = (await ctx.db.query("attendanceTags").take(500)).find(
-    (t) => t.name === WEEKLY_MEETING_TAG_NAME
+async function weekliesTagIds(ctx: QueryCtx): Promise<Id<"attendanceTags">[]> {
+  const tags = await ctx.db.query("attendanceTags").take(500);
+  return tags
+    .filter((t) => isWeekliesTagName(t.name))
+    .sort((a, b) => Number(b.name === WEEKLIES_TAG_NAME) - Number(a.name === WEEKLIES_TAG_NAME))
+    .map((t) => t._id);
+}
+
+async function weekliesTag(ctx: MutationCtx): Promise<Id<"attendanceTags">> {
+  const [existing] = await weekliesTagIds(ctx);
+  return existing ?? (await ctx.db.insert("attendanceTags", { name: WEEKLIES_TAG_NAME }));
+}
+
+export async function inferWeekly(
+  ctx: QueryCtx,
+  args: { name: string; dateStart: number; subgroup: string; eventId?: Id<"events"> }
+): Promise<WeeklyMark | null> {
+  if (isOrgWideSubgroup(args.subgroup)) return null;
+  const { settings } = await readSettings(ctx);
+  const system = termSystemFor(args.subgroup, settings);
+  const fromName = markFromName(args.name, system);
+  const suggested = suggestWeekly(
+    await campusWeeklies(ctx, args.subgroup, settings, args.eventId),
+    args.dateStart,
+    system,
+    settings.termGapDays
   );
-  return existing?._id ?? (await ctx.db.insert("attendanceTags", { name: WEEKLY_MEETING_TAG_NAME }));
+  return {
+    year: sydneyCalendarYear(new Date(args.dateStart)),
+    slot: fromName.slot ?? suggested.slot,
+    week: fromName.week ?? suggested.week,
+  };
 }
 
 async function validateEventFields(
@@ -123,6 +170,7 @@ async function validateEventFields(
     subgroups: string[];
     tagIds?: Id<"attendanceTags">[];
     weekly?: WeeklyMark | null;
+    eventId?: Id<"events">;
   }
 ) {
   const trimmed = args.name.trim();
@@ -146,30 +194,33 @@ async function validateEventFields(
     }
   }
   let uniqueTagIds = args.tagIds?.length ? [...new Set(args.tagIds)] : undefined;
-  // A Weekly carries the Weekly Meeting tag, which the rest of Attendance
-  // reads; and its term must exist at its campus (T1–T3 or Sem 1–2).
-  if (args.weekly) {
+  const weeklyTags = new Set(await weekliesTagIds(ctx));
+  let weekly = args.weekly;
+  if (weekly === undefined && uniqueTagIds?.some((id) => weeklyTags.has(id))) {
+    weekly = await inferWeekly(ctx, {
+      name: trimmed,
+      dateStart: args.dateStart,
+      subgroup: uniqueSubgroups[0],
+      eventId: args.eventId,
+    });
+  }
+  if (weekly) {
     const { settings } = await readSettings(ctx);
     const system = termSystemFor(uniqueSubgroups[0], settings);
-    const { slot, week, year: termYear } = args.weekly;
+    const { slot, week, year: termYear } = weekly;
     const dateYear = sydneyCalendarYear(new Date(args.dateStart));
-    if (!Number.isInteger(week) || week < 1 || week > 20) {
-      throw new ConvexError("The week should be a number from 1 to 20.");
+    if (!Number.isInteger(week) || week < 1 || week > WEEK_MAX) {
+      throw new ConvexError(`The week should be a number from 1 to ${WEEK_MAX}.`);
     }
     if (!Number.isInteger(slot) || slot < 1 || slot > (system === "terms" ? 3 : 2)) {
       throw new ConvexError(`That ${system === "terms" ? "term" : "semester"} doesn't exist here.`);
     }
-    if (Math.abs(termYear - dateYear) > 1) {
-      throw new ConvexError("The term should be in the same year as the date.");
+    if (termYear !== dateYear) {
+      throw new ConvexError(`The ${system === "terms" ? "term" : "semester"} should be in ${dateYear}, the year of the date.`);
     }
-    const weeklyTag = await weeklyMeetingTag(ctx);
-    uniqueTagIds = [...new Set([...(uniqueTagIds ?? []), weeklyTag])];
-  } else if (args.weekly === null && uniqueTagIds) {
-    const weeklyTags = new Set(
-      (await ctx.db.query("attendanceTags").take(500))
-        .filter((t) => t.name === WEEKLY_MEETING_TAG_NAME)
-        .map((t) => t._id)
-    );
+    const weeklyTag = await weekliesTag(ctx);
+    uniqueTagIds = [weeklyTag, ...(uniqueTagIds ?? []).filter((id) => !weeklyTags.has(id))];
+  } else if (uniqueTagIds) {
     uniqueTagIds = uniqueTagIds.filter((id) => !weeklyTags.has(id));
     if (!uniqueTagIds.length) uniqueTagIds = undefined;
   }
@@ -187,7 +238,7 @@ async function validateEventFields(
     dateEnd: args.dateEnd,
     subgroups: uniqueSubgroups,
     tagIds: uniqueTagIds,
-    weekly: args.weekly ?? undefined,
+    weekly: weekly ?? undefined,
   };
 }
 
@@ -357,9 +408,10 @@ export const create = mutation({
     dateEnd: v.number(),
     subgroups: v.array(v.string()),
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
-    weekly: v.optional(weeklyMarkValidator),
+    weekly: v.optional(weeklyMarkArg),
   },
-  handler: async (ctx, { name, dateStart, dateEnd, subgroups, tagIds, weekly }) => {
+  handler: async (ctx, { name, dateStart, dateEnd, subgroups, tagIds, weekly: rawWeekly }) => {
+    const weekly = rawWeekly && markOnly(rawWeekly);
     const { email } = await requireProfile(ctx);
     const eventFields = await validateEventFields(ctx, {
       name,
@@ -394,13 +446,14 @@ export const update = mutation({
     subgroups: v.array(v.string()),
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
     // Leave out to keep the event's term and week; null makes it not a Weekly.
-    weekly: v.optional(v.union(v.null(), weeklyMarkValidator)),
+    weekly: v.optional(v.union(v.null(), weeklyMarkArg)),
   },
   returns: v.null(),
   handler: async (
     ctx,
-    { eventId, name, dateStart, dateEnd, subgroups, tagIds, weekly }
+    { eventId, name, dateStart, dateEnd, subgroups, tagIds, weekly: rawWeekly }
   ) => {
+    const weekly = rawWeekly ? markOnly(rawWeekly) : rawWeekly;
     const { email } = await requireProfile(ctx);
     const existing = await ctx.db.get(eventId);
     if (!existing) throw new ConvexError("Event not found.");
@@ -411,6 +464,7 @@ export const update = mutation({
       subgroups,
       tagIds,
       weekly: weekly === undefined ? existing.weekly : weekly,
+      eventId,
     });
     await ctx.db.patch(eventId, eventFields);
     const changes: string[] = [];
@@ -453,9 +507,7 @@ const attendeesToList = async (
   const people = [];
   for (const row of listed) {
     const member = row.memberId ? await ctx.db.get(row.memberId) : null;
-    const name = row.email
-      ? await displayName(ctx, row.email, year)
-      : (member?.name ?? "Deleted member");
+    const name = member ? (await memberDisplayName(ctx, member, year)).name : "Deleted member";
     people.push({ attendanceId: row._id, name, signInTime: row.signInTime });
   }
   return people;

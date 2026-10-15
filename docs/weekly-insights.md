@@ -1,7 +1,7 @@
 # Insights → Attendance for a campus (weeklies)
 
 From 2.5.0 a campus's Attendance view is built around its **weekly meetings**
-(events tagged *Weekly Meeting*), the way leaders kept it in their attendance
+(events with a term and week, tagged *Weeklies*), the way leaders kept it in their attendance
 sheets. The org-wide SOW view is unchanged (see
 [attendance-metrics.md](attendance-metrics.md)). Why it works this way:
 [ADR 0008](adr/0008-weekly-insights.md). Words: [Attendance](context/attendance.md).
@@ -52,7 +52,7 @@ Year).
 
 ## Rules (`shared/weeklyInsights.ts`)
 
-- **Held weekly**: a Weekly Meeting event (or one created as a Weekly) for
+- **Held weekly**: an event with a term and week (`weekly` mark) for
   one campus that someone signed in to. A weekly shared with other campuses
   (a Mega or combined weekly) doesn't count: it would start terms early and
   fill a campus's numbers with other campuses' people (setting
@@ -92,18 +92,25 @@ npx convex run weeklyInsights:setSettings '{"regularShare": 0.4}'
 
 ## Creating a weekly
 
-New event asks **Weekly or Other event** first (campuses only, not SOW). A
-Weekly gets a Term/Semester dropdown and a Week number, pre-filled for the
-event's date by `weeklyInsights.suggestWeekly` (the same rules as above, with
-the new weekly added), and a name like "Weeklies T3W5". Changing the date
-updates the suggestion until the leader edits a field. The event stores
-`weekly: { year, slot, week }` and gets the Weekly Meeting tag; switching an
-event back to Other event takes both off.
+New event is one screen and starts on **Weekly** (campuses only; SOW events
+are always Other events). A Weekly gets a Term/Semester dropdown (only the
+date's year) and a Week dropdown (1 to 14), pre-filled for the event's date by
+`weeklyInsights.suggestWeekly` (the same rules as above, with the new weekly
+added), and a name like "T3W5" or "S2W5" that follows them until the leader
+types in it. The date defaults to a week after the campus's last weekly (or
+the next same weekday if that has passed), at that weekly's times. Picking a
+term and week the campus already has asks for confirmation. The event stores
+`weekly: { year, slot, week }` and gets the *Weeklies* tag; switching an event
+back to Other event takes both off, along with any weekly-only tags.
 
-`weeklyInsights:backfillWeeklies` gave every existing one-campus weekly its
-term and week (and tagged the ones that looked like weeklies by name but
-weren't tagged). Run it with `'{"dryRun": true}'` first to see the result;
-it's safe to run again.
+A weekly is defined by that mark, not by the tag ([ADR 0010](adr/0010-weekly-is-its-mark.md)).
+An older app that sends the Weeklies tag without a mark gets one worked out
+from the name and date (`events.inferWeekly`). Tags belong to one list,
+Weeklies (BAM, PPN, Games Night, ...) or Other events, and the form offers
+only the list for its kind.
+
+A one-off backfill gave every existing one-campus weekly its term and week
+(and tagged the ones that looked like weeklies by name but weren't tagged).
 
 ## The build (`convex/weeklyInsights.ts`)
 
@@ -126,4 +133,3 @@ it's safe to run again.
 - **First build** reads all weekly history once.
 - **By hand**: `npx convex run weeklyInsights:rebuild '{"subgroup": "University of New South Wales"}'`
   (add `"force": true` to redo every view), or `weeklyInsights:rebuildAll`.
-  The app's refresh (`attendanceMetrics.recomputeNow`) uses the same path.

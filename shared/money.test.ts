@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { currencyText, formatAmount, roundToCents, sumAmounts, toCents } from "./money";
+import { currencyText, formatAmount, money, roundToCents, sumAmounts, toCents } from "./money";
 
 describe("cents helpers", () => {
   test("toCents rounds to whole cents", () => {
@@ -49,5 +49,13 @@ describe("formatAmount", () => {
     [30.299999999999997, "30.30"],
   ])("%d -> %j", (input, expected) => {
     expect(formatAmount(input)).toBe(expected);
+  });
+});
+
+describe("money", () => {
+  test("adds a dollar sign and puts a minus in front of it", () => {
+    expect(money(1234.5)).toBe("$1,234.50");
+    expect(money(-12)).toBe("-$12");
+    expect(money(0)).toBe("$0");
   });
 });

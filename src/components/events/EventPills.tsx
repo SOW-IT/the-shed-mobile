@@ -51,7 +51,7 @@ const RATING_TONES: Record<RiskRating, Tone> = {
 export const toneColour = (t: AppTheme, tone: Tone) =>
   tone === "waiting" ? t.warning : toneColours(t, tone).fg;
 
-export const Pill = ({ label, tone }: { label: string; tone: Tone }) => {
+const Pill = ({ label, tone }: { label: string; tone: Tone }) => {
   const t = useAppTheme();
   const { bg, fg } = toneColours(t, tone);
   return (

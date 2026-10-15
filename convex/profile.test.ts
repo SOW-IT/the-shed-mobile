@@ -133,6 +133,42 @@ describe("profile.get", () => {
       await ctx.db.patch("users", user._id, { emailVerificationTime: undefined });
     });
     expect((await asUser(t, email).query(api.profile.get, {}))!.googleSyncedAt).toBeNull();
+
+    const guest = "gia@icloud.com";
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", { email: guest, name: "Gia", emailVerificationTime: signInAt });
+    });
+    expect((await asUser(t, guest).query(api.profile.get, {}))!.googleSyncedAt).toBeNull();
+  });
+});
+
+describe("profile.get without an email", () => {
+  test("your own Profile loads for an Apple account Apple gave no email", async () => {
+    const t = await setup();
+    const { userId, churchId } = await t.run(async (ctx) => {
+      const churchId = await ctx.db.insert("churches", { name: "Grace Church", nameKey: "grace church", addedBy: ADMIN });
+      return { userId: await ctx.db.insert("users", { name: "Apple user", localChurch: "Hillside" }), churchId };
+    });
+    const me = t.withIdentity({ subject: `${userId}|s`, issuer: "test" });
+    expect(await me.query(api.profile.get, {})).toMatchObject({
+      email: "",
+      isMe: true,
+      name: "Apple user",
+      localChurch: "Hillside",
+      typedChurch: "Hillside",
+      church: null,
+      serviceHistory: [],
+    });
+
+    await t.run(async (ctx) => ctx.db.patch("users", userId, { churchId, localChurch: undefined, name: undefined }));
+    const picked = (await me.query(api.profile.get, {}))!;
+    expect(picked.church?._id).toBe(churchId);
+    expect(picked.localChurch).toBe("Grace Church");
+    expect(picked.typedChurch).toBeNull();
+    expect(picked.name).toBeNull();
+
+    await t.run(async (ctx) => ctx.db.delete("users", userId));
+    expect(await me.query(api.profile.get, {})).toBeNull();
   });
 });
 
@@ -195,5 +231,25 @@ describe("profile avatars", () => {
       await t.run((ctx) => ctx.db.get("users", userId).then((u) => u?.avatarId))
     ).toBe(second);
     expect(await t.run((ctx) => ctx.storage.getUrl(first))).toBeNull();
+  });
+
+  test("replaces an avatar whose old file is already gone", async () => {
+    const t = await setup();
+    const gone = await t.run(async (ctx) => {
+      const id = await ctx.storage.store(new Blob(["a"], { type: "image/png" }));
+      await ctx.storage.delete(id);
+      return id;
+    });
+    const userId = await t.run((ctx) =>
+      ctx.db.insert("users", { email: "ivy@sow.org.au", name: "Ivy", avatarId: gone })
+    );
+    const me = signedIn(t, userId, "ivy@sow.org.au");
+    const next = await t.run((ctx) =>
+      ctx.storage.store(new Blob(["b"], { type: "image/png" }))
+    );
+    await me.mutation(api.profile.setAvatar, { storageId: next });
+    expect(
+      await t.run((ctx) => ctx.db.get("users", userId).then((u) => u?.avatarId))
+    ).toBe(next);
   });
 });

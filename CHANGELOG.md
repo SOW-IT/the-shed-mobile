@@ -6,6 +6,225 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-10-15
+
+### Added
+- **TWIG and PPN Insights for SOW.** Insights → Attendance with SOW selected
+  has a Campuses / TWIG / PPN switcher. TWIG shows one staff year (1 Oct to
+  30 Sep) against the one before: average attendance, people and regulars,
+  counting campus leaders only; TWIG by TWIG against last year; campus leader
+  sign-ins by campus; regulars who missed the last two; and everyone, with
+  organisers listed but not counted and anyone without a staff profile
+  flagged. PPN shows each month's sign-ins (everyone), the change on the same
+  month last year, first-timers, and splits by campus and by campus leaders /
+  staff / others. TWIGs and PPNs nobody signed in to are listed as "No roll
+  taken". The tabs, numbers and wording all come from the server, so they
+  change without an app release. Older apps keep the Campuses view.
+- **Update prompt.** The app asks for the latest store version when the
+  server says so: a banner that can be dismissed, or a full screen when a
+  version is no longer supported. Nothing is asked until a version is set.
+
+### Fixed
+- **Changing a weekly's week renames it.** Editing T3W6 to week 7 left the
+  name T3W6 while Insights used week 7. A weekly named by its code now
+  follows a new term or week; a name typed by hand stays.
+- **Semester campuses' Insights say "semester"**, not "term" ("or the
+  semester before", "Weeklies by semester"). Wrong since 2.5.0.
+- **A failed tag save says why above Save tags**, instead of at the bottom of
+  a long list. Weekly tags no longer offer SOW, which has no weeklies.
+- **Typed confirmations ignore case and extra spaces** in the app as well as
+  on the server, so "JOSEPH.YANG " confirms Delete account for joseph.yang.
+- **Removing a university, division or department** says anyone still
+  assigned has to be reassigned first, which is what happens.
+- **Shared with** uses compact round campus marks.
+
+## [2.8.0] - 2026-10-15
+
+### Added
+- **New event is one screen, and starts on Weekly.** Pick the term (or
+  semester) and week from dropdowns, both pre-filled with the campus's next
+  week; the name fills in as the week code ("T3W5" at UNSW, "S2W5" at other
+  campuses) and can still be changed. The date starts a week after the
+  campus's last weekly, at the same times. Picking a week the campus already
+  has asks you to confirm. SOW events are always Other events.
+- **Weekly labels are tags.** BAM, Games Night, Mega, Grad and PPN are
+  Weeklies tags, and every tag now belongs to one list, Weeklies or Other
+  events, chosen on the Tags screen. A weekly only offers Weeklies tags and an
+  Other event only Other events tags; switching between them clears the tags
+  that don't fit.
+
+### Changed
+- **The Weekly Meeting tag is now called Weeklies**, and what makes an event a
+  weekly is its term and week, not the tag.
+- **Every past weekly was renamed to its week code**, with the extra words in
+  its name turned into tags ("S2 WM #13 PPN" is now S2W13 tagged PPN). Shared
+  weeklies like Mega Weeklies got a term and week from their owning campus
+  (Insights still leaves them out of campus terms).
+- **Tags tidied:** Event and Other Events merged into Social (a PPN, like
+  Intercampus PPN, takes PPN instead); Retreat,
+  Mid-Sem Break and PPN can be used by every campus and SOW; the SOW monthly
+  PPNs (and the September Farewells) also carry TWIG.
+- **Weeks go up to 14**, and a weekly's term is always in its date's year.
+
+### Fixed
+- **Creating a weekly no longer fails when the suggested term is left as it
+  is.** Since 2.5.1 the server rejected it, so leaders made Other events with
+  the tag instead, which then had no term or week. The server now accepts what
+  older apps send, and works out a term and week for a tagged weekly that
+  arrives without one.
+- **Closing New event without creating it starts the next one fresh.**
+
+## [2.7.0] - 2026-10-14
+
+### Added
+- **Delete your account from your Profile.** At the bottom of your own
+  Profile, "Delete account" asks you to type your name, then deletes the
+  account and signs you out. For a SOW account that means the sign-in itself
+  (the linked Google account, every session, push tokens) plus the photo and
+  church you set here; your staff profile, service history and Google
+  directory details stay with SOW, and signing in again later links them back
+  up. An Apple account is removed entirely, notifications included, and
+  Apple is asked to revoke The SHED's access to that Apple ID. Apple requires
+  this for every app that lets people create an account (App Store guideline
+  5.1.1(v)).
+
+### Fixed
+- **An Apple account that Apple gave no email can open its Profile** instead
+  of waiting forever, and the menu shows its name instead of "?". If Apple
+  sends the email or name at a later sign-in, the account picks them up.
+- **Apple accounts' Profile no longer says "Synced from Google".**
+- **The type-to-confirm box doesn't autocorrect what you type**, which could
+  stop a name from matching (Admin's delete confirmations use it too).
+
+### Removed
+- **Code nothing uses any more:** the finished 2026-06 history import and its
+  data file, one-off fixes that have already run on production (tag merge,
+  director thresholds, weekly backfill, Visitor to Guest, stale snapshot
+  ranges), roll-call import functions no app ever called, the unused manual
+  Insights refresh, unused exports and images, and a stray debug screenshot.
+  Small helpers that were copied between files now live in one place.
+
+## [2.6.4] - 2026-10-14
+
+### Fixed
+- **Merging two people no longer leaves an "Unknown" in campus Insights.** The
+  record that's merged away is now noted for Insights, so the nightly build
+  moves its weeklies onto the person kept. Earlier merges are caught up with
+  `memberRepair:flagMergedAway`.
+- **Campus Insights on older phone apps (2.4.7 and before) stay current.** The
+  nightly job builds every campus's snapshot again, not just SOW.
+- **The SOW "include collaborative" switch changes the campus comparison
+  again.** Shared weeklies such as Mega Weeklies count towards each campus's
+  average when it's on, as before 2.5.0. Terms still leave them out unless
+  the setting says otherwise.
+- **Insights picks up staff role changes and member field changes** made in
+  Admin and Attendance settings, instead of waiting for the next sign-in.
+- **Design request links don't send older apps to a missing page.** Apps
+  before 2.2.0 get the web page, as with event requests; the Churches page is
+  handled the same way for apps before 2.5.5.
+- **Tapping the "Set your local church" push opens Profile**, and a push about
+  the Churches page opens it (in the next app build).
+- **Line breaks in a design request's answers and comments print as line
+  breaks in its PDF**, not as "?".
+
+## [2.6.3] - 2026-10-14
+
+### Added
+- **Two repair tools for data fixes run from the command line.**
+  `memberRepair:linkProfiles` links a past year's staff profile to the member
+  it belongs to, and `memberRepair:replaceRole` changes a member's Role only
+  when it is still the one expected. Both dry-run first, can be run twice, and
+  write each change to the attendance audit log. Nothing changes in the app.
+
+## [2.6.2] - 2026-10-14
+
+### Changed
+- **Other people's emails, typed churches and "last online" are for staff
+  only.** The Churches page and profiles still open for everyone, signed in or
+  not. An account with no staff profile now sees what a signed-out visitor
+  sees: each church with the names, roles and campuses of who goes there, but
+  not members' emails or ids, and not someone's typed church, last online or
+  whether they've signed in. Your own profile still shows you all of yours.
+- **A university, department or division still assigned to someone can't be
+  removed.** Admin says who holds it; reassign them first, as with roles.
+  Removing one used to quietly take the assignment away, which turned those
+  leaders into plain members.
+- **Someone on staff this year keeps their Campus and Role on the member
+  record, and can't be deleted from it,** even when it's opened from an event
+  in a year they weren't staff.
+- **BigQuery `attendance_signins` finds staff again.** `email` is the staff
+  email of the profile linked to that member for the event's staff year (empty
+  for members), with new `isStaff` and `staffYear` columns. Staff profiles and
+  `staff_assignments` carry `memberId`.
+
+### Fixed
+- **Merging two records keeps the kept person's church** (and import id) when
+  the other record survives because it has more sign-ins.
+- **Staff names are never their email.** A staff person whose profile has no
+  name keeps their own name on their record, the edit sheet asks for one when
+  there's none, and Save stays off until there is. New staff profiles take the
+  Google account name when the directory has none. The Members list and merge
+  review show that name too.
+- **A photo that can't load shows initials** instead of an empty circle, for
+  example in past Insights terms after someone's Workspace photo changes.
+
+## [2.6.1] — 2026-10-13
+
+### Changed
+- **Every sign-in is now kept only on the person's member record.** The old
+  copies of staff sign-ins stored by email, and the second "personal email"
+  slot on member records, are gone, along with the one-off tools that tidied
+  them up for 2.6.0. Nothing changes in the app. Restoring a deleted sign-in
+  by a staff email finds that person's member record, and reports "member
+  missing" if they don't have one.
+
+### Fixed
+- **Leaving staff keeps the name on someone's member record.** The October 1
+  job (and removing someone from this year's staff) no longer replaces it with
+  the name on their staff profile, so a corrected spelling such as
+  "Anna-Leah" stays.
+
+## [2.6.0] — 2026-10-13
+
+### Changed
+- **Everyone has one attendance record, and staff sit on top of it.** Each
+  year's staff profile now points at the person's member record, and every
+  sign-in points at a member, staff included. Someone shows as staff on the
+  events of the years they were staff and as a member on every other event,
+  under the same record. Their own email stays on the record; the staff email
+  lives on the profile.
+- **New staff get their record when they're assigned.** Assigning someone for
+  this staff year in Admin links them to the record an earlier profile of
+  theirs points at, or makes one. Next year's staff are linked on October 1,
+  unless they're linked earlier.
+- **Admin → Merges shows next year's staff too**, so a new leader who came
+  as a member can be linked to their member record before October 1. Merging a
+  staff person who has no record yet just links them; nothing moves.
+- **Leaving staff moves nothing.** On October 1 a leaver's record and sign-ins
+  stay where they are; an empty Campus is filled from their last role and an
+  empty Role becomes Member. Removing someone from this year's staff in Admin
+  does the same straight away.
+- **Merging two records keeps the one with more events attended** (the older
+  one on a tie), and points every staff profile at it.
+
+### Fixed
+- **Staff who left before 2.6.0 show as staff again on the events of the years
+  they served**, instead of as members.
+- **Insights counts a staff person once**, not twice when some of their
+  sign-ins were under their member record.
+- **Signing out a staff sign-in always works**, including ones made through
+  their member record.
+- **Editing a staff person from an event in a year they weren't staff** now
+  saves them as a member instead of failing with "Staff profile not found."
+- **A re-hired leader is the same person again**, not a second record.
+- **The Churches page counts someone with an unassigned profile as a member**,
+  and attendance exports give staff their Campus and Role from their profile.
+- **Former and next-year staff whose record still had their SOW email can be
+  saved without it.** Clearing the email no longer fails with "Staff profile
+  not found." when they aren't staff in the year being viewed.
+- **Changing your profile photo works when the old photo's file is missing**,
+  instead of failing with an id-not-found error.
+
 ## [2.5.8] — 2026-10-13
 
 ### Fixed

@@ -5,7 +5,7 @@ import * as Crypto from "expo-crypto";
 import { useEffect, useState } from "react";
 import { Platform } from "react-native";
 import { APPLE_ORG_EMAIL_REJECTION } from "../../convex/appleIdentity";
-import type { SignInOutcome } from "./useGoogleSignIn";
+import { errorText, type SignInOutcome } from "./useGoogleSignIn";
 
 const CANCEL_CODE = "ERR_REQUEST_CANCELED";
 
@@ -19,9 +19,6 @@ const isOrgEmailRejection = (e: unknown): boolean =>
   e instanceof ConvexError &&
   (e.data as { kind?: unknown } | undefined)?.kind ===
     APPLE_ORG_EMAIL_REJECTION;
-
-const errorText = (e: unknown): string =>
-  e instanceof Error ? e.message : String(e);
 
 const formatFullName = (
   name: AppleAuthentication.AppleAuthenticationFullName | null

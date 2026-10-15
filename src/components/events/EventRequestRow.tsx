@@ -21,7 +21,7 @@ export type EventRequestListRow = Doc<"eventRequests"> & {
 };
 
 /** Where each of the three forms is up to, as three small labelled dots. */
-export const FormSteps = ({ forms }: { forms: EventRequestListRow["forms"] }) => {
+const FormSteps = ({ forms }: { forms: EventRequestListRow["forms"] }) => {
   const t = useAppTheme();
   return (
     <View style={styles.steps}>

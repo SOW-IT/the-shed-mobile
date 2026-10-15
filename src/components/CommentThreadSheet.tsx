@@ -14,9 +14,9 @@ import {
   SowSpinner,
 } from "./ui";
 
-export type ThreadReaction = { emoji: string; count: number; mine: boolean };
+type ThreadReaction = { emoji: string; count: number; mine: boolean };
 
-export type ThreadComment = {
+type ThreadComment = {
   id: string;
   authorEmail: string;
   authorName: string | null;
@@ -27,7 +27,7 @@ export type ThreadComment = {
 };
 
 /** Comments added optimistically have no server id yet, so can't be reacted to. */
-export const isOptimisticId = (id: string) => id.startsWith("optimistic-");
+const isOptimisticId = (id: string) => id.startsWith("optimistic-");
 
 /**
  * A request's comment thread in a bottom sheet: the comments, a composer, and,

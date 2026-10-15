@@ -55,7 +55,7 @@ const FOOTER_SETTLE_MS = 140;
 
 export type PagerScrollState = "idle" | "dragging" | "settling";
 
-export type PagerTabFooter = {
+type PagerTabFooter = {
   tabKey: string;
   node: ReactNode;
 };

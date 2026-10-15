@@ -29,7 +29,8 @@ hold code for all five — so each context's glossary lives under
   Who may action a step is a question about that year's roles, departments and
   divisions; Reimbursements stores no org structure of its own.
 - **Org → Attendance**: the year's universities become Attendance's
-  sub-groups, and staff identity resolves through `staffProfiles` by email.
+  sub-groups, and each year's `staffProfiles` row points at its person's
+  member row (`memberId`), which Attendance owns.
   Attendance never writes Org data.
 - **Org → Design Requests**: the Marketing Head approves and the Marketing
   department does the work, both read from that year's Org. Design Requests

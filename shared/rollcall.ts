@@ -10,8 +10,6 @@ import { canonicalEmailKey } from "./rollcallImport";
 
 export const SOW_SUBGROUP = "SOW";
 
-export const ALL_SUBGROUP = SOW_SUBGROUP;
-
 export const canonicalSubgroup = (subgroup: string): string =>
   subgroup === "ALL" ? SOW_SUBGROUP : subgroup;
 
@@ -43,7 +41,23 @@ export const subgroupColour = (subgroup: string): string =>
     ? UNIVERSITY_COLOURS.SOW
     : (universityColour(subgroup) ?? "#64748b");
 
-export const WEEKLY_MEETING_TAG_NAME = "Weekly Meeting";
+export const WEEKLIES_TAG_NAME = "Weeklies";
+
+export const LEGACY_WEEKLIES_TAG_NAME = "Weekly Meeting";
+
+export const isWeekliesTagName = (name: string): boolean =>
+  name === WEEKLIES_TAG_NAME || name === LEGACY_WEEKLIES_TAG_NAME;
+
+export type TagList = "weeklies" | "events";
+
+export const tagListOf = (tag: { list?: TagList }): TagList => tag.list ?? "events";
+
+export const tagScope = (list: TagList, subgroups: string[] | undefined): string[] | undefined => {
+  const scoped = normalizeSubgroups(subgroups ?? []).filter(
+    (subgroup) => list !== "weeklies" || !isOrgWideSubgroup(subgroup)
+  );
+  return scoped.length ? scoped : undefined;
+};
 
 export const contrastingText = (hex: string): string => {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -212,7 +226,7 @@ export const canReverseSignIn = (
   signInTime > event.dateEnd ||
   now - signInTime <= SIGN_IN_UNDO_GRACE_MS;
 
-export type AttendanceFrequencyScore = {
+type AttendanceFrequencyScore = {
   tagMatches: number;
   subgroupMatches: number;
   total: number;
@@ -251,7 +265,7 @@ export const compareAttendanceFrequency = (
   return aName.localeCompare(bName);
 };
 
-export type ProfileAssignment = {
+type ProfileAssignment = {
   role: string;
   university?: string;
 };

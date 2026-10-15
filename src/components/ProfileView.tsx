@@ -10,6 +10,7 @@ import { acronym, formatAssignment, staffYearForDate } from "../../shared/flow";
 import { api } from "../../convex/_generated/api";
 import { ChromeScreen } from "./ChromeScreen";
 import { ChurchDetails, ChurchPicker } from "./ChurchPicker";
+import { DeleteAccountCard } from "./DeleteAccountCard";
 import { radius, spacing, typography, useAppTheme } from "../theme";
 import { useMinuteTick } from "@/hooks/useMinuteTick";
 import {
@@ -132,7 +133,9 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
           <Text style={[typography.title, { color: t.text, textAlign: "center" }]}>
             {profile.name ?? profile.email}
           </Text>
-          <Text style={[typography.caption, { color: t.muted }]}>{profile.email}</Text>
+          {profile.email ? (
+            <Text style={[typography.caption, { color: t.muted }]}>{profile.email}</Text>
+          ) : null}
           {profile.isMe ? (
             profile.googleSyncedAt ? (
               <View style={[styles.syncChip, { backgroundColor: t.inputBackground }]}>
@@ -249,6 +252,7 @@ export const ProfileView = ({ email, asTab = false }: { email?: string; asTab?: 
           </FadeInView>
         ))
       )}
+      {profile.isMe && <DeleteAccountCard />}
       {profile.isMe && (
         <Text style={[typography.caption, { color: t.muted, textAlign: "center" }]}>
           Version {Constants.expoConfig?.version ?? "—"}

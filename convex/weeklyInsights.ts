@@ -17,11 +17,9 @@ import {
   isOrgWideSubgroup,
   normalizeSubgroups,
   personDisplayName,
-  personKey,
   subgroupLabel,
-  WEEKLY_MEETING_TAG_NAME,
 } from "../shared/rollcall";
-import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
+import { canonicalEmailKey } from "../shared/rollcallImport";
 import {
   CATEGORY_META,
   computeTerm,
@@ -35,7 +33,6 @@ import {
   termBefore,
   termRows,
   termSystemFor,
-  looksWeekly,
   suggestWeekly as suggestFrom,
   termOptions,
   weeklyName,
@@ -66,6 +63,7 @@ import {
 } from "./_generated/server";
 import { currentStaffYear, optionalProfile } from "./model";
 import { photoFor } from "./photo";
+import { isAssigned, latestProfileOfMember } from "./staffMembers";
 import {
   personCategoryValidator,
   termFactsFields,
@@ -93,7 +91,7 @@ const INDEX_WEEKLIES_WEEKS = 60;
 const NEVER = Number.MAX_SAFE_INTEGER;
 // Bump when what a view shows changes, so every campus redoes its views on
 // the next build after a deploy.
-export const VIEW_VERSION = 4;
+export const VIEW_VERSION = 5;
 
 export async function readSettings(
   ctx: QueryCtx
@@ -125,11 +123,6 @@ const indexFor = (ctx: QueryCtx, subgroup: string) =>
     .query("weeklyInsightIndex")
     .withIndex("by_subgroup", (q) => q.eq("subgroup", subgroup))
     .unique();
-
-async function weeklyTagIds(ctx: QueryCtx): Promise<Set<Id<"attendanceTags">>> {
-  const tags = await ctx.db.query("attendanceTags").take(500);
-  return new Set(tags.filter((t) => t.name === WEEKLY_MEETING_TAG_NAME).map((t) => t._id));
-}
 
 type FactsDoc = Doc<"weeklyTermFacts">;
 
@@ -163,6 +156,7 @@ const checkResult = v.object({
   memberKeys: v.array(v.string()),
   goneMemberKeys: v.array(v.string()),
   tagChanged: v.boolean(),
+  metadataChanged: v.boolean(),
   compareDue: v.boolean(),
   auditMax: v.number(),
   eventsMax: v.number(),
@@ -189,6 +183,7 @@ export const checkChanges = internalQuery({
         memberKeys: [],
         goneMemberKeys: [],
         tagChanged: false,
+        metadataChanged: false,
         compareDue: false,
         auditMax: latestAudit?._creationTime ?? 0,
         eventsMax: latestEvent?._creationTime ?? 0,
@@ -206,6 +201,7 @@ export const checkChanges = internalQuery({
     const eventIds = new Set<Id<"events">>(created.map((e) => e._id));
     const memberIds = new Set<Id<"attendanceMembers">>();
     let tagChanged = false;
+    let metadataChanged = false;
     // Someone who left staff had their sign-ins moved off their staff email
     // onto a member record: re-read the weeklies that had the staff email.
     const leftStaff = new Set<string>();
@@ -213,6 +209,7 @@ export const checkChanges = internalQuery({
       if (row.eventId) eventIds.add(row.eventId);
       if (row.memberId) memberIds.add(row.memberId);
       if (row.entityType === "tag") tagChanged = true;
+      if (row.entityType === "metadata") metadataChanged = true;
       const email = row.action === "member.leftStaff" ? canonicalEmailKey(row.subjectEmail) : undefined;
       if (email) leftStaff.add(`staff:${email}`);
     }
@@ -241,6 +238,7 @@ export const checkChanges = internalQuery({
       memberKeys,
       goneMemberKeys,
       tagChanged,
+      metadataChanged,
       compareDue,
       auditMax: audit.length ? audit[audit.length - 1]._creationTime : index.auditSeen,
       eventsMax: created.length ? created[created.length - 1]._creationTime : index.eventsSeen,
@@ -248,6 +246,7 @@ export const checkChanges = internalQuery({
         settingsChanged ||
         compareDue ||
         tagChanged ||
+        metadataChanged ||
         relevant.length > 0 ||
         memberKeys.length > 0 ||
         goneMemberKeys.length > 0,
@@ -278,7 +277,6 @@ export const weeklyEventsPage = internalQuery({
     continueCursor: v.string(),
   }),
   handler: async (ctx, { subgroup, now, includeJoint, paginationOpts }) => {
-    const weekly = await weeklyTagIds(ctx);
     const result = await ctx.db
       .query("events")
       .withIndex("by_dateStart", (q) => q.lte("dateStart", now))
@@ -289,7 +287,7 @@ export const weeklyEventsPage = internalQuery({
         .filter(
           (e) =>
             eventIncludesSubgroup(e.subgroups, subgroup) &&
-            (e.tagIds ?? []).some((id) => weekly.has(id)) &&
+            !!e.weekly &&
             (includeJoint || normalizeSubgroups(e.subgroups).length === 1)
         )
         .map((e) => ({
@@ -327,7 +325,10 @@ export const attendanceFor = internalQuery({
           .query("attendance")
           .withIndex("by_event", (q) => q.eq("eventId", eventId))
           .take(MAX_EVENTS);
-        return { eventId, keys: [...new Set(rows.map(personKey).filter((k) => k))] };
+        return {
+          eventId,
+          keys: [...new Set(rows.flatMap((r) => (r.memberId ? [`member:${r.memberId}`] : [])))],
+        };
       })
     ),
 });
@@ -342,15 +343,15 @@ const personValidator = v.object({
   info: personInfo,
 });
 
-async function resolvePeople(ctx: QueryCtx, keys: string[], years: number[]): Promise<WeeklyPerson[]> {
-  const profilesByYear = new Map<number, Map<string, Doc<"staffProfiles">>>();
-  {
-    for (const year of years) {
-      const profiles = await ctx.db
-        .query("staffProfiles")
-        .withIndex("by_year", (q) => q.eq("year", year))
-        .take(MAX_PROFILES_PER_YEAR);
-      profilesByYear.set(year, new Map(profiles.map((p) => [p.email.toLowerCase(), p])));
+export async function resolvePeople(ctx: QueryCtx, keys: string[], years: number[]): Promise<WeeklyPerson[]> {
+  const profileByMemberYear = new Map<string, Doc<"staffProfiles">>();
+  for (const year of years) {
+    const profiles = await ctx.db
+      .query("staffProfiles")
+      .withIndex("by_year", (q) => q.eq("year", year))
+      .take(MAX_PROFILES_PER_YEAR);
+    for (const p of profiles) {
+      if (p.memberId && isAssigned(p)) profileByMemberYear.set(`${p.memberId}:${year}`, p);
     }
   }
   const fields = await ctx.db.query("attendanceMetadata").take(200);
@@ -368,42 +369,15 @@ async function resolvePeople(ctx: QueryCtx, keys: string[], years: number[]): Pr
 
   const people: WeeklyPerson[] = [];
   for (const key of keys) {
-    let member: Doc<"attendanceMembers"> | null;
-    let email: string | undefined;
-    // Someone who left staff: the staff email they had, for the years they
-    // served (they're still a leader in those terms, a member after).
-    let formerStaffEmail: string | undefined;
-    if (key.startsWith("member:")) {
-      const id = ctx.db.normalizeId("attendanceMembers", key.slice("member:".length));
-      member = id ? await ctx.db.get("attendanceMembers", id) : null;
-      // Staff signed in through their member row still have a staff profile.
-      email = member?.email ? canonicalEmailKey(member.email) : undefined;
-      if (id) {
-        const left = await ctx.db
-          .query("attendanceAuditLog")
-          .withIndex("by_member_and_action", (q) => q.eq("memberId", id).eq("action", "member.leftStaff"))
-          .order("desc")
-          .first();
-        formerStaffEmail = canonicalEmailKey(left?.subjectEmail);
-      }
-    } else {
-      email = key.slice("staff:".length);
-      const staffEmail = email;
-      member = await ctx.db
-        .query("attendanceMembers")
-        .withIndex("by_email", (q) => q.eq("email", staffEmail))
-        .first();
-    }
+    const id = key.startsWith("member:")
+      ? ctx.db.normalizeId("attendanceMembers", key.slice("member:".length))
+      : null;
+    const member = id ? await ctx.db.get("attendanceMembers", id) : null;
     const fallback = memberInfo(member);
     const infoByYear: WeeklyPerson["infoByYear"] = {};
     let latest: Doc<"staffProfiles"> | undefined;
-    const emails = [email, formerStaffEmail].filter((e): e is string => Boolean(e));
-    for (const year of emails.length ? years : []) {
-      const byEmail = profilesByYear.get(year)!;
-      const profile = emails
-        .flatMap((e) => staffEmailCandidates(e))
-        .map((candidate) => byEmail.get(candidate))
-        .find((p) => p);
+    for (const year of id ? years : []) {
+      const profile = profileByMemberYear.get(`${id}:${year}`);
       if (!profile) continue;
       latest = profile;
       const assignments = assignmentsOf(profile);
@@ -414,11 +388,12 @@ async function resolvePeople(ctx: QueryCtx, keys: string[], years: number[]): Pr
         roles: roles.length ? roles : fallback.roles,
       };
     }
+    const email = latest?.email ?? member?.email;
     const user = latest?.userId ? await ctx.db.get("users", latest.userId) : null;
     people.push({
       key,
       name: personDisplayName(latest?.name ?? member?.name, email) || "Unknown",
-      photo: await photoFor(ctx, user, latest?.email ?? email),
+      photo: await photoFor(ctx, user, email),
       memberId: member?._id ?? null,
       infoByYear,
       info: fallback,
@@ -568,6 +543,7 @@ async function buildSubgroup(
     memberKeys: string[];
     goneMemberKeys: string[];
     tagChanged: boolean;
+    metadataChanged: boolean;
     compareDue: boolean;
     auditMax: number;
     eventsMax: number;
@@ -588,7 +564,7 @@ async function buildSubgroup(
       await ctx.runQuery(internal.weeklyInsights.weeklyEventsPage, {
         subgroup,
         now,
-        includeJoint: settings.jointWeeklies,
+        includeJoint: true,
         paginationOpts: { numItems: EVENTS_PAGE, cursor },
       });
     weeklyEvents.push(...page.page);
@@ -625,7 +601,7 @@ async function buildSubgroup(
     for (const row of rows) keysByEvent.set(row.eventId, row.keys);
   }
 
-  const held: HeldWeekly[] = data.weeklyEvents
+  const heldAll: (HeldWeekly & { joint: boolean })[] = data.weeklyEvents
     .filter((e) => (keysByEvent.get(e.eventId)?.length ?? 0) > 0)
     .map((e) => ({
       eventId: e.eventId,
@@ -633,8 +609,12 @@ async function buildSubgroup(
       count: keysByEvent.get(e.eventId)!.length,
       name: e.name,
       mark: e.mark,
+      joint: e.joint,
     }))
     .sort((a, b) => a.at - b.at);
+  const held: HeldWeekly[] = heldAll
+    .filter((w) => settings.jointWeeklies || !w.joint)
+    .map(({ joint: _joint, ...w }) => w);
   const terms = deriveTerms(held, termSystemFor(subgroup, settings), settings.termGapDays);
   const facts: TermFacts[] = terms.map((t) => {
     const attendance: Record<string, number[]> = {};
@@ -652,7 +632,7 @@ async function buildSubgroup(
   // change.
   const latest = facts.length - 1;
   const recompute = new Set<number>();
-  if (force || check.settingsChanged) facts.forEach((_, i) => recompute.add(i));
+  if (force || check.settingsChanged || check.metadataChanged) facts.forEach((_, i) => recompute.add(i));
   if (changed.length) {
     for (let i = Math.max(0, Math.min(...changed) - 1); i <= latest; i++) recompute.add(i);
   }
@@ -783,15 +763,14 @@ async function buildSubgroup(
   // for is the latest term stopping running.
   const nextCompareAt = runningUntil > now ? runningUntil : NEVER;
   const recentFrom = now - INDEX_WEEKLIES_WEEKS * WEEK_MS;
-  const joint = new Map(data.weeklyEvents.map((e) => [e.eventId, e.joint]));
   await ctx.runMutation(internal.weeklyInsights.saveIndex, {
     subgroup,
     computedAt: now,
     periods: periodOptions(facts),
     currentKey: latest >= 0 ? facts[latest].key : null,
-    weeklies: held
+    weeklies: heldAll
       .filter((w) => w.at >= recentFrom)
-      .map((w) => ({ at: w.at, count: w.count, joint: joint.get(w.eventId as Id<"events">)! })),
+      .map((w) => ({ at: w.at, count: w.count, joint: w.joint })),
     settingsVersion: check.version,
     viewVersion: VIEW_VERSION,
     auditSeen: check.auditMax,
@@ -876,41 +855,21 @@ export const setSettings = internalMutation({
   },
 });
 
-/**
- * One-off: the Role option "Visitor" becomes "Guest", so Visitor can mean
- * someone visiting from another campus. Everyone tagged keeps the tag.
- */
-export const renameVisitorRole = internalMutation({
-  args: {},
-  returns: v.object({ renamed: v.boolean() }),
-  handler: async (ctx) => {
-    const fields = await ctx.db.query("attendanceMetadata").take(200);
-    const role = fields.find((f) => f.key === ROLE_FIELD_KEY);
-    const entry = Object.entries(role?.values ?? {}).find(([, label]) => label === "Visitor");
-    if (!role || !entry) return { renamed: false };
-    await ctx.db.patch("attendanceMetadata", role._id, {
-      values: { ...role.values, [entry[0]]: "Guest" },
-    });
-    return { renamed: true };
-  },
-});
-
 /** A campus's weeklies as Insights sees them: one campus, tagged Weekly
  *  Meeting or created as a Weekly (joint ones only if the setting allows). */
-async function campusWeeklies(
+export async function campusWeeklies(
   ctx: QueryCtx,
   subgroup: string,
   settings: WeeklySettings,
   except?: Id<"events">
 ): Promise<HeldWeekly[]> {
-  const weekly = await weeklyTagIds(ctx);
   const events = await ctx.db.query("events").withIndex("by_dateStart").take(MAX_EVENTS);
   return events
     .filter(
       (e) =>
         e._id !== except &&
         eventIncludesSubgroup(e.subgroups, subgroup) &&
-        (!!e.weekly || (e.tagIds ?? []).some((id) => weekly.has(id))) &&
+        !!e.weekly &&
         (settings.jointWeeklies || normalizeSubgroups(e.subgroups).length === 1)
     )
     .map((e) => ({ eventId: e._id, at: e.dateStart, count: 1, name: e.name, mark: e.weekly ?? null }));
@@ -930,6 +889,10 @@ export const suggestWeekly = query({
       options: v.array(markOption),
       suggested: v.object({ key: v.string(), year: v.number(), slot: v.number(), week: v.number() }),
       name: v.string(),
+      previous: v.optional(v.union(v.null(), v.object({ dateStart: v.number(), dateEnd: v.number() }))),
+      taken: v.optional(
+        v.array(v.object({ year: v.number(), slot: v.number(), week: v.number(), name: v.string() }))
+      ),
     })
   ),
   handler: async (ctx, { subgroup, dateStart, eventId }) => {
@@ -937,79 +900,21 @@ export const suggestWeekly = query({
     const canonical = canonicalSubgroup(subgroup);
     const { settings } = await readSettings(ctx);
     const system = termSystemFor(canonical, settings);
-    const s = suggestFrom(
-      await campusWeeklies(ctx, canonical, settings, eventId),
-      dateStart,
-      system,
-      settings.termGapDays
-    );
-    // The form adds the suggested term if it isn't one of these.
-    const options = termOptions(system, sydneyCalendarYear(new Date(dateStart)));
+    const weeklies = await campusWeeklies(ctx, canonical, settings, eventId);
+    const s = suggestFrom(weeklies, dateStart, system, settings.termGapDays);
+    const year = sydneyCalendarYear(new Date(dateStart));
+    const latest = weeklies.length ? weeklies[weeklies.length - 1] : null;
+    const latestEvent = latest ? await ctx.db.get("events", latest.eventId as Id<"events">) : null;
     return {
       system,
-      options,
+      options: termOptions(system, year),
       suggested: { key: s.key, year: s.year, slot: s.slot, week: s.week },
       name: weeklyName(system, s.slot, s.week),
+      previous: latestEvent ? { dateStart: latestEvent.dateStart, dateEnd: latestEvent.dateEnd } : null,
+      taken: weeklies.flatMap((w) =>
+        w.mark && w.mark.year === year ? [{ ...w.mark, name: w.name ?? "" }] : []
+      ),
     };
-  },
-});
-
-/**
- * One-off: gives every campus weekly its term and week, the way Insights
- * works them out (names first, then dates), and tags the ones that look like
- * weeklies by name but were never tagged. Combined and Mega weeklies (more
- * than one campus) are left alone. Then rebuilds Insights.
- * `npx convex run weeklyInsights:backfillWeeklies '{"dryRun": true}'`
- */
-export const backfillWeeklies = internalMutation({
-  args: { dryRun: v.optional(v.boolean()) },
-  returns: v.object({
-    marked: v.number(),
-    tagged: v.number(),
-    byCampus: v.array(v.object({ campus: v.string(), terms: v.array(v.string()) })),
-  }),
-  handler: async (ctx, { dryRun = false }) => {
-    const { settings } = await readSettings(ctx);
-    const weeklyTags = await weeklyTagIds(ctx);
-    let tag = [...weeklyTags][0];
-    const events = await ctx.db.query("events").withIndex("by_dateStart").take(MAX_EVENTS);
-    const single = events.filter(
-      (e) => normalizeSubgroups(e.subgroups).length === 1 && !isOrgWideSubgroup(e.subgroups[0])
-    );
-    const isWeekly = (e: Doc<"events">) =>
-      !!e.weekly || (e.tagIds ?? []).some((id) => weeklyTags.has(id)) || looksWeekly(e.name);
-    let marked = 0;
-    let tagged = 0;
-    const byCampus: { campus: string; terms: string[] }[] = [];
-    for (const campus of [...new Set(single.map((e) => canonicalSubgroup(e.subgroups[0])))].sort()) {
-      const mine = single.filter((e) => canonicalSubgroup(e.subgroups[0]) === campus && isWeekly(e));
-      const system = termSystemFor(campus, settings);
-      const terms = deriveTerms(
-        mine.map((e) => ({ eventId: e._id, at: e.dateStart, count: 1, name: e.name, mark: e.weekly ?? null })),
-        system,
-        settings.termGapDays
-      );
-      byCampus.push({
-        campus,
-        terms: terms.map((t) => `${t.label}: ${t.weeklies.map((w) => `W${w.week}`).join(" ")}`),
-      });
-      for (const t of terms) {
-        for (const w of t.weeklies) {
-          const event = mine.find((e) => e._id === w.eventId)!;
-          const hasTag = (event.tagIds ?? []).some((id) => weeklyTags.has(id));
-          if (!hasTag) tagged += 1;
-          if (!event.weekly) marked += 1;
-          if (dryRun || (event.weekly && hasTag)) continue;
-          if (!tag) tag = await ctx.db.insert("attendanceTags", { name: WEEKLY_MEETING_TAG_NAME });
-          await ctx.db.patch("events", event._id, {
-            weekly: event.weekly ?? { year: t.year, slot: t.slot, week: w.week },
-            tagIds: hasTag ? event.tagIds : [...(event.tagIds ?? []), tag],
-          });
-        }
-      }
-    }
-    if (!dryRun) await ctx.scheduler.runAfter(0, internal.weeklyInsights.rebuildAll, { force: true });
-    return { marked, tagged, byCampus };
   },
 });
 
@@ -1059,27 +964,15 @@ export const view = query({
 });
 
 async function eventsAttended(ctx: QueryCtx, key: string): Promise<MemberEvent[]> {
-  let rows: Doc<"attendance">[];
-  if (key.startsWith("member:")) {
-    const id = ctx.db.normalizeId("attendanceMembers", key.slice("member:".length));
-    rows = id
-      ? await ctx.db
-          .query("attendance")
-          .withIndex("by_member", (q) => q.eq("memberId", id))
-          .take(MAX_MEMBER_EVENTS)
-      : [];
-  } else {
-    rows = [];
-    for (const email of staffEmailCandidates(key.slice("staff:".length))) {
-      rows.push(
-        ...(await ctx.db
-          .query("attendance")
-          .withIndex("by_email", (q) => q.eq("email", email))
-          .take(MAX_MEMBER_EVENTS))
-      );
-    }
-  }
-  const weekly = await weeklyTagIds(ctx);
+  const id = key.startsWith("member:")
+    ? ctx.db.normalizeId("attendanceMembers", key.slice("member:".length))
+    : null;
+  const rows = id
+    ? await ctx.db
+        .query("attendance")
+        .withIndex("by_member", (q) => q.eq("memberId", id))
+        .take(MAX_MEMBER_EVENTS)
+    : [];
   const seen = new Set<string>();
   const events: MemberEvent[] = [];
   for (const row of rows) {
@@ -1091,7 +984,7 @@ async function eventsAttended(ctx: QueryCtx, key: string): Promise<MemberEvent[]
       name: event.name,
       at: event.dateStart,
       campuses: normalizeSubgroups(event.subgroups).map(subgroupLabel).join(" · "),
-      weekly: (event.tagIds ?? []).some((id) => weekly.has(id)),
+      weekly: !!event.weekly,
     });
   }
   return events.sort((a, b) => b.at - a.at);
@@ -1124,14 +1017,15 @@ export const member = query({
       : null;
     const fields = (await ctx.db.query("attendanceMetadata").take(200)).sort((a, b) => a.order - b.order);
     const details: { label: string; value: string; link?: string }[] = [];
-    const email = memberDoc?.email ?? (key.startsWith("staff:") ? key.slice("staff:".length) : undefined);
+    const staffProfile = memberDoc ? await latestProfileOfMember(ctx, memberDoc._id) : null;
+    const email = memberDoc?.email ?? staffProfile?.email;
     if (email) details.push({ label: "Email", value: email });
     // Their church: set on a member's record, or in a staff person's Profile.
     const staffUser =
-      !memberDoc?.churchId && key.startsWith("staff:")
+      !memberDoc?.churchId && staffProfile
         ? await ctx.db
             .query("users")
-            .withIndex("email", (q) => q.eq("email", key.slice("staff:".length)))
+            .withIndex("email", (q) => q.eq("email", staffProfile.email.toLowerCase()))
             .first()
         : null;
     const churchId = memberDoc?.churchId ?? staffUser?.churchId;

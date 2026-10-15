@@ -1,9 +1,16 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { ConvexError, v } from "convex/values";
-import { mutation, MutationCtx, query } from "./_generated/server";
+import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
 import { assignmentsOf, departmentsOf, divisionsOf } from "../shared/flow";
-import { currentStaffYear, optionalEmail, rolesOf } from "./model";
+import {
+  currentStaffYear,
+  isOrgEmail,
+  optionalEmail,
+  optionalProfile,
+  optionalUser,
+  rolesOf,
+} from "./model";
 import { hasSignedIn, lastOnlineAt } from "./presence";
 import { canonicalEmailKey } from "../shared/rollcallImport";
 import { churchByName, viewOf } from "./churches";
@@ -13,7 +20,10 @@ export const get = query({
   args: { email: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const callerEmail = await optionalEmail(ctx);
-    if (!callerEmail && !args.email) return null;
+    if (!callerEmail && !args.email) {
+      const user = await optionalUser(ctx);
+      return user ? await ownProfileWithoutEmail(ctx, user) : null;
+    }
     const email = (args.email ?? callerEmail ?? "").trim().toLowerCase();
 
     const user = await ctx.db
@@ -57,6 +67,7 @@ export const get = query({
     const church = user?.churchId ? await ctx.db.get("churches", user.churchId) : null;
     const isMe =
       callerEmail !== null && canonicalEmailKey(email) === canonicalEmailKey(callerEmail);
+    const seesPrivate = isMe || (await optionalProfile(ctx)) !== null;
     const directorySync = isMe && dirUser
       ? await ctx.db
           .query("syncState")
@@ -66,7 +77,8 @@ export const get = query({
     const directorySyncedAt =
       directorySync?.lastSuccessAt ??
       (directorySync?.detail?.startsWith("synced") ? directorySync.at : null);
-    const googleSyncTimes = [user?.emailVerificationTime ?? null, directorySyncedAt].filter(
+    const googleSignInAt = isOrgEmail(email) ? (user?.emailVerificationTime ?? null) : null;
+    const googleSyncTimes = [googleSignInAt, directorySyncedAt].filter(
       (at): at is number => at !== null
     );
     return {
@@ -77,13 +89,13 @@ export const get = query({
       name: user?.name ?? dirUser?.name ?? anyProfile?.name ?? null,
       photo: await photoUrl(ctx, user, dirUser),
       // Older app builds show this text; newer ones show `church`.
-      localChurch: church?.name ?? (callerEmail ? (user?.localChurch ?? null) : null),
+      localChurch: church?.name ?? (seesPrivate ? (user?.localChurch ?? null) : null),
       church: church ? viewOf(church) : null,
       // What they typed before churches were a list, until they pick one.
-      typedChurch: callerEmail && !church ? (user?.localChurch ?? null) : null,
+      typedChurch: seesPrivate && !church ? (user?.localChurch ?? null) : null,
       // Like the church, only for signed-in staff.
-      lastOnlineAt: callerEmail ? await lastOnlineAt(ctx, email) : null,
-      hasSignedIn: callerEmail ? await hasSignedIn(ctx, email) : null,
+      lastOnlineAt: seesPrivate ? await lastOnlineAt(ctx, email) : null,
+      hasSignedIn: seesPrivate ? await hasSignedIn(ctx, email) : null,
       serviceHistory: serviceHistory.map((h) => ({
         year: h.year,
         roles: rolesOf(h),
@@ -95,6 +107,23 @@ export const get = query({
     };
   },
 });
+
+async function ownProfileWithoutEmail(ctx: QueryCtx, user: Doc<"users">) {
+  const church = user.churchId ? await ctx.db.get("churches", user.churchId) : null;
+  return {
+    email: "",
+    isMe: true,
+    googleSyncedAt: null,
+    name: user.name ?? null,
+    photo: await photoUrl(ctx, user, null),
+    localChurch: church?.name ?? user.localChurch ?? null,
+    church: church ? viewOf(church) : null,
+    typedChurch: church ? null : (user.localChurch ?? null),
+    lastOnlineAt: null,
+    hasSignedIn: true,
+    serviceHistory: [],
+  };
+}
 
 async function requireOwnUser(ctx: MutationCtx): Promise<Doc<"users">> {
   const userId = await getAuthUserId(ctx);
@@ -145,7 +174,7 @@ export const setAvatar = mutation({
   args: { storageId: v.id("_storage") },
   handler: async (ctx, args) => {
     const user = await requireOwnUser(ctx);
-    if (user.avatarId) {
+    if (user.avatarId && (await ctx.db.system.get(user.avatarId))) {
       await ctx.storage.delete(user.avatarId);
     }
     await ctx.db.patch("users", user._id, { avatarId: args.storageId });

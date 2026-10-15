@@ -64,7 +64,7 @@ const TAB_KEYS: ReadonlySet<NavKey> = new Set<NavKey>([
   "admin",
 ]);
 
-export type NavMenuVariant = "drawer" | "sidebar";
+type NavMenuVariant = "drawer" | "sidebar";
 
 /**
  * The side menu's contents, shared by the phone drawer and the wide-screen

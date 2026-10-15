@@ -143,6 +143,30 @@ describe("attendance tags (branch coverage)", () => {
     expect(updated.subgroups).toContain(USYD);
   });
 
+  test("a weekly tag never applies to SOW, which has no weeklies", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceTags.saveAll, {
+      tags: [
+        { name: "Retreat", colour: "purple", subgroups: ["SOW", USYD] },
+        { name: "BAM", colour: "orange", list: "weeklies", subgroups: ["SOW", USYD] },
+      ],
+      deleteIds: [],
+    });
+    const byName = async () =>
+      new Map((await leader.query(api.attendanceTags.list, {})).map((tag) => [tag.name, tag]));
+    let tags = await byName();
+    expect(tags.get("Retreat")!.subgroups).toEqual(["SOW", USYD]);
+    expect(tags.get("BAM")!.subgroups).toEqual([USYD]);
+    await leader.mutation(api.attendanceTags.saveAll, {
+      tags: [{ id: tags.get("Retreat")!._id, name: "Retreat", colour: "purple", list: "weeklies", subgroups: ["ALL"] }],
+      deleteIds: [],
+    });
+    tags = await byName();
+    expect(tags.get("Retreat")).toMatchObject({ list: "weeklies" });
+    expect(tags.get("Retreat")!.subgroups).toBeUndefined();
+  });
+
   test("deleteIds skips tags that don't exist", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
@@ -223,7 +247,7 @@ describe("attendance tags", () => {
         tags: [{ name: "retreat" }],
         deleteIds: [],
       })
-    ).rejects.toThrow(/already exists/i);
+    ).rejects.toThrow('Other events already has a tag named "retreat".');
     const [tag] = await leader.query(api.attendanceTags.list, {});
     await leader.mutation(api.attendanceTags.saveAll, {
       tags: [{ id: tag._id, name: "Retreat", colour: "teal" }],
@@ -241,113 +265,140 @@ describe("attendance tags", () => {
   });
 });
 
-describe("consolidateAttendanceTags migration", () => {
-  test("merges same-named tags into one global row, unions scopes, remaps events", async () => {
+describe("attendance tags in two lists", () => {
+  const listed = async (t: TestConvex<typeof schema>) =>
+    (await asUser(t, LEADER).query(api.attendanceTags.list, {})).map((tag) => `${tag.list ?? "-"}:${tag.name}`);
+
+  test("new tags go in Other events unless they say Weeklies", async () => {
     const t = await setup();
-    const { a2025, a2026, dup, keep, evId } = await t.run(async (ctx) => {
-      const a2025 = await ctx.db.insert("attendanceTags", {
-        name: "Weekly Meeting",
-        colour: "blue",
-        subgroups: [USYD],
-      });
-      const a2026 = await ctx.db.insert("attendanceTags", {
-        name: "weekly meeting",
-        colour: "teal",
-        subgroups: ["UNSW"],
-      });
-      const dup = await ctx.db.insert("attendanceTags", {
-        name: "Weekly Meeting",
-        subgroups: [USYD],
-      });
-      const keep = await ctx.db.insert("attendanceTags", {
-        name: "Retreat",
-        colour: "purple",
-        subgroups: [USYD],
-      });
-      const evId = await ctx.db.insert("events", {
-        name: "Meeting",
-        dateStart: Date.now(),
-        dateEnd: Date.now() + 3600_000,
-        subgroups: [USYD],
-        tagIds: [a2026, keep],
-      });
-      return { a2025, a2026, dup, keep, evId };
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceTags.saveAll, {
+      tags: [{ name: "Social" }, { name: "BAM", list: "weeklies" }, { name: "Retreat", list: "events" }],
+      deleteIds: [],
     });
-
-    const res = await t.mutation(
-      internal.attendanceTags.consolidateAttendanceTags,
-      {}
-    );
-    expect(res.merged).toBe(2);
-
-    const rows = await t.run(async (ctx) =>
-      ctx.db.query("attendanceTags").collect()
-    );
-    const weekly = rows.filter(
-      (r) => r.name.trim().toLowerCase() === "weekly meeting"
-    );
-    expect(weekly).toHaveLength(1);
-    const survivor = weekly[0];
-    expect(survivor._id).toBe(a2025);
-    expect(new Set(survivor.subgroups)).toEqual(new Set([USYD, "UNSW"]));
-
-    const event = await t.run(async (ctx) => ctx.db.get(evId));
-    expect(new Set(event!.tagIds)).toEqual(new Set([survivor._id, keep]));
-
-    expect(rows.some((r) => r._id === keep)).toBe(true);
-    expect(rows.some((r) => r._id === dup)).toBe(false);
-
-    const again = await t.mutation(
-      internal.attendanceTags.consolidateAttendanceTags,
-      {}
-    );
-    expect(again.merged).toBe(0);
+    expect(await listed(t)).toEqual(["weeklies:BAM", "events:Retreat", "events:Social"]);
   });
 
-  test("takes a loser's colour when the survivor has none, and leaves unrelated/tag-less events alone", async () => {
+  test("a name is unique within a list, but both lists can have it", async () => {
     const t = await setup();
-    const { survivorId, soloEventId, taglessId } = await t.run(async (ctx) => {
-      const survivor = await ctx.db.insert("attendanceTags", {
-        name: "Camp",
-        subgroups: [USYD],
-      });
-      await ctx.db.insert("attendanceTags", {
-        name: "camp",
-        colour: "red",
-        subgroups: [USYD],
-      });
-      const solo = await ctx.db.insert("attendanceTags", { name: "Solo" });
-      const soloEventId = await ctx.db.insert("events", {
-        name: "Solo event",
-        dateStart: Date.now(),
-        dateEnd: Date.now() + 3600_000,
-        subgroups: [USYD],
-        tagIds: [solo],
-      });
-      const taglessId = await ctx.db.insert("events", {
-        name: "No tags",
-        dateStart: Date.now(),
-        dateEnd: Date.now() + 3600_000,
-        subgroups: [USYD],
-      });
-      return { survivorId: survivor, soloEventId, taglessId };
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceTags.saveAll, {
+      tags: [{ name: "PPN", list: "events" }, { name: "ppn", list: "weeklies" }],
+      deleteIds: [],
     });
+    expect(await listed(t)).toEqual(["weeklies:ppn", "events:PPN"]);
+    await expect(
+      leader.mutation(api.attendanceTags.saveAll, {
+        tags: [{ name: "Mega", list: "weeklies" }, { name: "MEGA", list: "weeklies" }],
+        deleteIds: [],
+      })
+    ).rejects.toThrow('Duplicate tag "MEGA" in Weeklies.');
+    await expect(
+      leader.mutation(api.attendanceTags.saveAll, { tags: [{ name: "Social" }, { name: "social" }], deleteIds: [] })
+    ).rejects.toThrow('Duplicate tag "social" in Other events.');
+    await expect(
+      leader.mutation(api.attendanceTags.saveAll, { tags: [{ name: " PPN ", list: "weeklies" }], deleteIds: [] })
+    ).rejects.toThrow('Weeklies already has a tag named "PPN".');
+    await expect(
+      leader.mutation(api.attendanceTags.saveAll, { tags: [{ name: "PPN" }], deleteIds: [] })
+    ).rejects.toThrow('Other events already has a tag named "PPN".');
+  });
 
-    const res = await t.mutation(
-      internal.attendanceTags.consolidateAttendanceTags,
-      {}
-    );
-    expect(res.merged).toBe(1);
-    expect(res.eventsRemapped).toBe(0);
+  test("a saved tag sent without a list stays in its list", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    await leader.mutation(api.attendanceTags.saveAll, {
+      tags: [{ name: "Games Night", list: "weeklies" }, { name: "Games Night" }],
+      deleteIds: [],
+    });
+    const tags = await leader.query(api.attendanceTags.list, {});
+    const weekly = tags.find((tag) => tag.list === "weeklies")!;
+    const event = tags.find((tag) => tag.list === "events")!;
+    await leader.mutation(api.attendanceTags.saveAll, {
+      tags: [
+        { id: weekly._id, name: "Games Night", colour: "cyan" },
+        { id: event._id, name: "Games Night" },
+      ],
+      deleteIds: [],
+    });
+    const saved = await t.run((ctx) => ctx.db.get(weekly._id));
+    expect(saved).toMatchObject({ list: "weeklies", colour: "cyan" });
+    await leader.mutation(api.attendanceTags.saveAll, {
+      tags: [{ id: event._id, name: "Party", list: "weeklies" }],
+      deleteIds: [],
+    });
+    expect(await listed(t)).toEqual(["weeklies:Games Night", "weeklies:Party"]);
+    await expect(
+      leader.mutation(api.attendanceTags.saveAll, {
+        tags: [{ id: event._id, name: "Games Night" }],
+        deleteIds: [],
+      })
+    ).rejects.toThrow('Weeklies already has a tag named "Games Night".');
+  });
 
-    const survivor = await t.run(async (ctx) => ctx.db.get(survivorId));
-    expect(survivor?.colour).toBe("red");
-    expect(survivor?.subgroups).toEqual([USYD]);
+  test("a tag saved before lists existed counts as Other events", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const old = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "Seasons" }));
+    await expect(
+      leader.mutation(api.attendanceTags.saveAll, { tags: [{ name: "seasons", list: "events" }], deleteIds: [] })
+    ).rejects.toThrow(/Other events already has/);
+    await leader.mutation(api.attendanceTags.saveAll, { tags: [{ id: old, name: "Seasons" }], deleteIds: [] });
+    expect((await t.run((ctx) => ctx.db.get(old)))!.list).toBeUndefined();
+    await leader.mutation(api.attendanceTags.saveAll, { tags: [{ name: "Seasons", list: "weeklies" }], deleteIds: [] });
+    expect(await listed(t)).toEqual(["-:Seasons", "weeklies:Seasons"]);
+  });
 
-    const soloEvent = await t.run(async (ctx) => ctx.db.get(soloEventId));
-    expect(soloEvent?.tagIds).toHaveLength(1);
-    const tagless = await t.run(async (ctx) => ctx.db.get(taglessId));
-    expect(tagless?.tagIds).toBeUndefined();
+  test("the Weeklies tag, by either name, can't be renamed or deleted", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const [weeklies, legacy] = await t.run(async (ctx) => [
+      await ctx.db.insert("attendanceTags", { name: "Weeklies" }),
+      await ctx.db.insert("attendanceTags", { name: "Weekly Meeting" }),
+    ]);
+    for (const id of [weeklies, legacy]) {
+      await expect(
+        leader.mutation(api.attendanceTags.saveAll, { tags: [], deleteIds: [id] })
+      ).rejects.toThrow("The Weeklies tag can't be deleted; every weekly gets it.");
+    }
+    await expect(
+      leader.mutation(api.attendanceTags.saveAll, { tags: [{ id: weeklies, name: "Weekly" }], deleteIds: [] })
+    ).rejects.toThrow("The Weeklies tag can't be renamed; every weekly gets it.");
+    await expect(
+      leader.mutation(api.attendanceTags.saveAll, { tags: [{ id: legacy, name: "Weeklies 2" }], deleteIds: [] })
+    ).rejects.toThrow(/can't be renamed/);
+    await leader.mutation(api.attendanceTags.saveAll, {
+      tags: [
+        { id: weeklies, name: "Weeklies", colour: "amber" },
+        { id: legacy, name: "Weekly Meeting" },
+      ],
+      deleteIds: [],
+    });
+    expect(await t.run((ctx) => ctx.db.get(weeklies))).toMatchObject({ name: "Weeklies", colour: "amber" });
+    expect(await t.run((ctx) => ctx.db.query("attendanceTags").collect())).toHaveLength(2);
+  });
+
+  test("no other tag can take the Weeklies name, in either list", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const [, social] = await t.run(async (ctx) => [
+      await ctx.db.insert("attendanceTags", { name: "Weeklies" }),
+      await ctx.db.insert("attendanceTags", { name: "Social", list: "events" }),
+    ]);
+    await expect(
+      leader.mutation(api.attendanceTags.saveAll, { tags: [{ name: "Weeklies", list: "weeklies" }], deleteIds: [] })
+    ).rejects.toThrow('"Weeklies" is the automatic tag every weekly gets; pick another name.');
+    await expect(
+      leader.mutation(api.attendanceTags.saveAll, { tags: [{ id: social, name: "Weekly Meeting" }], deleteIds: [] })
+    ).rejects.toThrow('"Weekly Meeting" is the automatic tag every weekly gets; pick another name.');
+  });
+
+  test("a tag both saved and deleted is just deleted", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const id = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "Gone", list: "events" }));
+    await leader.mutation(api.attendanceTags.saveAll, { tags: [{ id, name: "Gone" }], deleteIds: [id] });
+    expect(await t.run((ctx) => ctx.db.get(id))).toBeNull();
   });
 });
 
@@ -619,37 +670,28 @@ describe("attendance members", () => {
     expect(page.page.some((r) => r.email === OUTSIDER)).toBe(true);
   });
 
-  test("staffLockedMetadata clears role when profile has no role assignment", async () => {
+  test("staffLockedMetadata clears campus for staff with no campus assignment", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const fields = await leader.query(api.attendanceMetadata.list, { });
-    const roleField = fields.find((f) => f.key === "Role")!;
-
-    const profileId = await t.run(async (ctx) => {
-      return await ctx.db.insert("staffProfiles", {
-        email: OUTSIDER,
-        year: YEAR,
-        name: "No-Role User",
-        assignments: [],
-      });
-    });
+    const campusField = fields.find((f) => f.key === "Campus")!;
+    const usydId = Object.entries(campusField.values ?? {}).find(
+      ([, label]) => label === USYD
+    )![0];
     const shadowId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
-      staffEmail: OUTSIDER,
+      staffEmail: STAFF,
     });
-    const roleOptionId = Object.keys(roleField.values ?? {})[0]!;
-    await leader.mutation(api.attendanceMembers.update, {
-      memberId: shadowId,
-      name: "ignored",
-      metadata: { [roleField._id]: roleOptionId },
-    });
+    await t.run((ctx) =>
+      ctx.db.patch(shadowId, { metadata: { [campusField._id]: usydId } })
+    );
     const page = await leader.query(api.attendanceMembers.list, {
       year: YEAR,
       paginationOpts: { numItems: 100, cursor: null },
     });
-    const row = page.page.find((r) => r.email === OUTSIDER);
-    expect(row?.metadata[roleField._id]).toBeUndefined();
-    await t.run(async (ctx) => { await ctx.db.delete(profileId); });
+    const row = page.page.find((r) => r.email === STAFF);
+    expect(row?.memberId).toBe(shadowId);
+    expect(row?.metadata[campusField._id]).toBeUndefined();
   });
 
   test("list combines staff profiles with attendance-only members", async () => {
@@ -680,17 +722,27 @@ describe("attendance members", () => {
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const fields = await leader.query(api.attendanceMetadata.list, { });
     const yearField = fields.find((f) => f.key === "Year")!;
-    // A legacy row: members created before 1.13.0 could carry a staff email.
-    const memberId = await t.run((ctx) =>
-      ctx.db.insert("attendanceMembers", { name: "Future Leader", email: LEADER })
+    const memberId = await leader.mutation(api.attendanceMembers.create, {
+      name: "Future Leader",
+      email: "future@gmail.com",
+    });
+    await t.run((ctx) =>
+      ctx.db.insert("staffProfiles", {
+        email: OUTSIDER,
+        year: YEAR,
+        name: "Future Leader",
+        assignments: [{ role: "Student Leader", university: USYD }],
+        memberId,
+      })
     );
 
     const thisYear = await leader.query(api.attendanceMembers.list, {
       year: YEAR,
       paginationOpts: { numItems: 50, cursor: null },
     });
-    const staffRow = thisYear.page.find((r) => r.key === `staff:${LEADER}`);
+    const staffRow = thisYear.page.find((r) => r.key === `staff:${OUTSIDER}`);
     expect(staffRow?.memberId).toBe(memberId);
+    expect(staffRow?.personalEmail).toBe("future@gmail.com");
     expect(thisYear.page.some((r) => r.key === `member:${memberId}`)).toBe(false);
 
     const merged = await leader.query(api.attendanceMembers.get, {
@@ -698,11 +750,12 @@ describe("attendance members", () => {
       staffYear: YEAR,
     });
     expect(merged?.isStaffOverlay).toBe(true);
-    expect(merged?.email).toBe(LEADER);
+    expect(merged?.email).toBe(OUTSIDER);
     await leader.mutation(api.attendanceMembers.update, {
       memberId,
       name: "Edited Name",
-      email: "edited@example.com",
+      email: "ignored@example.com",
+      personalEmail: "edited@example.com",
       metadata: { [yearField._id]: String(YEAR - 2) },
       staffYear: YEAR,
     });
@@ -711,16 +764,20 @@ describe("attendance members", () => {
       staffYear: YEAR,
     });
     if (!updated) throw new Error("Expected merged attendance member");
-    expect(updated?.isStaffOverlay).toBe(true);
-    expect(updated?.email).toBe(LEADER);
+    expect(updated.isStaffOverlay).toBe(true);
+    expect(updated.email).toBe(OUTSIDER);
+    expect(updated.personalEmail).toBe("edited@example.com");
+    expect(updated.name).toBe("Future Leader");
     expect(updated.metadata?.[yearField._id]).toBe(String(YEAR - 2));
 
     const pastYear = await leader.query(api.attendanceMembers.list, {
       year: YEAR - 5,
       paginationOpts: { numItems: 50, cursor: null },
     });
-    expect(pastYear.page.some((r) => r.key === `member:${memberId}`)).toBe(true);
-    expect(pastYear.page.some((r) => r.key === `staff:${LEADER}`)).toBe(false);
+    expect(pastYear.page.find((r) => r.key === `member:${memberId}`)?.email).toBe(
+      "edited@example.com"
+    );
+    expect(pastYear.page.some((r) => r.key === `staff:${OUTSIDER}`)).toBe(false);
   });
 
   test("list shows a member whose email has no profile this year as a plain member", async () => {
@@ -742,57 +799,106 @@ describe("attendance members", () => {
     expect(row?.name).toBe("Ghost");
   });
 
-  test("ensureForStaff reuses an existing member with the staff email instead of duplicating", async () => {
+  test("ensureForStaff reuses the member linked from last year's profile instead of duplicating", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
-    await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
-    // A legacy row: members created before 1.13.0 could carry a staff email.
-    const memberId = await t.run((ctx) =>
-      ctx.db.insert("attendanceMembers", { name: "Staff Person", email: STAFF })
-    );
+    const { memberId, profileId } = await t.run(async (ctx) => {
+      const memberId = await ctx.db.insert("attendanceMembers", { name: "Returning Staff" });
+      await ctx.db.insert("staffProfiles", {
+        email: "returning@sowaustralia.com",
+        year: YEAR - 1,
+        assignments: [{ role: "Staff", department: "Missions" }],
+        memberId,
+      });
+      const profileId = await ctx.db.insert("staffProfiles", {
+        email: "returning@sow.org.au",
+        year: YEAR,
+        assignments: [{ role: "Staff", department: "Missions" }],
+      });
+      return { memberId, profileId };
+    });
+    const before = await t.run((ctx) => ctx.db.query("attendanceMembers").collect());
     const ensured = await leader.mutation(api.attendanceMembers.ensureForStaff, {
-      staffEmail: STAFF,
+      staffEmail: "returning@sow.org.au",
     });
     expect(ensured).toBe(memberId);
-    const rows = (
-      await t.run(async (ctx) => ctx.db.query("attendanceMembers").collect())
-    ).filter((m) => m.email === STAFF);
-    expect(rows).toHaveLength(1);
+    expect(await t.run((ctx) => ctx.db.query("attendanceMembers").collect())).toHaveLength(
+      before.length
+    );
+    expect((await t.run((ctx) => ctx.db.get(profileId)))?.memberId).toBe(memberId);
   });
 
-  test("ensureForStaff reuses a member stored under a differently-cased/spaced email", async () => {
+  test("ensureForStaff reuses a member linked from a profile with the same import id", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
-    await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
-    // A legacy row: members created before 1.13.0 could carry a staff email.
-    const memberId = await t.run((ctx) =>
-      ctx.db.insert("attendanceMembers", { name: "Cased Staff", email: STAFF })
-    );
-    const ensured = await leader.mutation(api.attendanceMembers.ensureForStaff, {
-      staffEmail: STAFF,
+    const memberId = await t.run(async (ctx) => {
+      const memberId = await ctx.db.insert("attendanceMembers", { name: "Renamed Staff" });
+      await ctx.db.insert("staffProfiles", {
+        email: "maiden.name@sow.org.au",
+        year: YEAR - 1,
+        importId: "import-7",
+        assignments: [{ role: "Staff", department: "Missions" }],
+        memberId,
+      });
+      await ctx.db.insert("staffProfiles", {
+        email: "married.name@sow.org.au",
+        year: YEAR,
+        importId: "import-7",
+        assignments: [{ role: "Staff", department: "Missions" }],
+      });
+      return memberId;
     });
-    expect(ensured).toBe(memberId);
-    const rows = (
-      await t.run(async (ctx) => ctx.db.query("attendanceMembers").collect())
-    ).filter((m) => m.name === "Cased Staff" || m.email === STAFF);
-    expect(rows).toHaveLength(1);
-    expect(rows[0].email).toBe(STAFF);
+    expect(
+      await leader.mutation(api.attendanceMembers.ensureForStaff, {
+        staffEmail: "married.name@sow.org.au",
+      })
+    ).toBe(memberId);
   });
 
-  test("update refuses a staff overlay when no profile exists for the requested year", async () => {
+  test("update of a staffer from a year they weren't staff is a plain member edit", async () => {
     const t = await setup();
     const leader = asUser(t, LEADER);
     await leader.mutation(api.attendanceMetadata.ensureDefaults, { });
     const memberId = await leader.mutation(api.attendanceMembers.ensureForStaff, {
       staffEmail: LEADER,
     });
+    await leader.mutation(api.attendanceMembers.update, {
+      memberId,
+      name: "New Name",
+      staffYear: YEAR - 5,
+    });
+    expect((await t.run((ctx) => ctx.db.get(memberId)))?.name).toBe("New Name");
+  });
+
+  test("next year's staff still holding their staff email can have it cleared this year", async () => {
+    const t = await setup();
+    const leader = asUser(t, LEADER);
+    const NEXT = "next.leader@sow.org.au";
+    const memberId = await t.run(async (ctx) => {
+      await ctx.db.insert("staffProfiles", {
+        email: NEXT,
+        year: YEAR + 1,
+        name: "Next Leader",
+        assignments: [{ role: "Student Leader", university: USYD }],
+      });
+      return await ctx.db.insert("attendanceMembers", { name: "Next Leader", email: NEXT });
+    });
+    const shown = await leader.query(api.attendanceMembers.get, { memberId, staffYear: YEAR });
+    expect(shown?.isStaffOverlay).toBe(false);
     await expect(
       leader.mutation(api.attendanceMembers.update, {
         memberId,
-        name: "New Name",
-        staffYear: YEAR - 5,
+        name: "Next Leader",
+        email: NEXT,
+        staffYear: YEAR,
       })
-    ).rejects.toThrow(/not found/i);
+    ).rejects.toThrow(/staff email/);
+    await leader.mutation(api.attendanceMembers.update, {
+      memberId,
+      name: "Next Leader",
+      staffYear: YEAR,
+    });
+    expect((await t.run((ctx) => ctx.db.get(memberId)))?.email).toBeUndefined();
   });
 
   test("ensureForStaff won't adopt an unlinked member without a staff profile", async () => {

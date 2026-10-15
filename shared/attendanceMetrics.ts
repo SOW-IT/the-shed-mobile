@@ -8,8 +8,6 @@ import {
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const WEEK_MS = 7 * DAY_MS;
 
-export const MANUAL_REFRESH_COOLDOWN_MS = WEEK_MS;
-
 export const METRICS_THRESHOLDS = {
   regularMinEvents: 3,
   regularWeeklyRate: 0.5,
@@ -25,20 +23,13 @@ export const METRICS_THRESHOLDS = {
 } as const;
 
 export const RANGE_WEEKS = [1, 4, 52] as const;
-export type RangeWeeks = (typeof RANGE_WEEKS)[number];
+type RangeWeeks = (typeof RANGE_WEEKS)[number];
 
 export const RANGE_LABELS: Record<RangeWeeks, string> = {
   1: "Past week",
   4: "Past month",
   52: "Past year",
 };
-
-export const rangeLabel = (weeks: number): string =>
-  weeks in RANGE_LABELS
-    ? RANGE_LABELS[weeks as RangeWeeks]
-    : weeks === 1
-      ? "1 wk"
-      : `${weeks} wks`;
 
 export const STAFF_YEAR_RANGE = 0;
 
@@ -175,7 +166,7 @@ const monthLabel = (ms: number): string => {
 const daysBetween = (from: number, to: number): number =>
   Math.max(0, Math.round((to - from) / DAY_MS));
 
-export const humanGap = (from: number, to: number): string => {
+const humanGap = (from: number, to: number): string => {
   const days = daysBetween(from, to);
   if (days <= 1) return "1 day";
   if (days < 14) return `${days} days`;

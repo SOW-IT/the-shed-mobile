@@ -10,7 +10,6 @@ import {
   financeNotRequired,
   financeProblem,
   financeTotals,
-  highestRating,
   isSubFormDone,
   isSubFormEditable,
   isSubFormKind,
@@ -125,14 +124,12 @@ describe("risk", () => {
     expect(riskDraftProblem({ noRisks: false, risks: [] })).toBeNull();
   });
 
-  test("major risks and the highest rating", () => {
+  test("major risks", () => {
     const data = {
       noRisks: false,
       risks: [row({ category: "finance" }), row({ category: "safety", consequence: 5, likelihood: 5 })],
     };
     expect(majorRisks(data)).toEqual(["safety", "finance"]);
-    expect(highestRating(data)).toBe("Extreme");
-    expect(highestRating({ noRisks: false, risks: [{ description: "old", legacyRating: "Low" }] })).toBeNull();
   });
 });
 

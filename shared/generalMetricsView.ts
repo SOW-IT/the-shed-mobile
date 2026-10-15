@@ -32,12 +32,12 @@ export type StaffTrendsData = {
   lifetimeAvgTenureYears: { overall: number; staff: number; studentLeaders: number };
 };
 
-export type CampusAttendanceData = {
+type CampusAttendanceData = {
   years: number[];
   campuses: { campus: string; averages: number[] }[];
 };
 
-export type GeneralScope = number | "all" | null;
+type GeneralScope = number | "all" | null;
 
 type Delta = ViewCard["delta"];
 

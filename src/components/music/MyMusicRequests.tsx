@@ -3,7 +3,7 @@ import { radius, spacing, typography, useAppTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
-import { Alert, Image, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
 export type MusicRequest = Doc<"musicRequests">;
@@ -61,6 +61,51 @@ export const NewMusicRequestSheet = ({
   const submit = useMutation(api.musicRequests.submit);
   const update = useMutation(api.musicRequests.update);
   const [submitting, setSubmitting] = useState(false);
+  const submitMany = useMutation(api.musicRequests.submitMany);
+  const [songs, setSongs] = useState<
+    Array<{ title: string; artist: string; link: string; albumArtUrl?: string }>
+  >([]);
+  const clearSong = () => {
+    setTitle("");
+    setArtist("");
+    setLink("");
+    setSpotifyLink("");
+    setAlbumArtUrl(null);
+    setSpotifyError(null);
+  };
+  const addSong = () => {
+    if (!title.trim() || !artist.trim() || !link.trim()) {
+      Alert.alert("Incomplete song", "Enter a title, artist and link.");
+      return;
+    }
+    if (duplicateBlocked || (!!duplicateLink && duplicate === undefined)) {
+      Alert.alert(
+        "Duplicate",
+        "Song already requested or still being checked.",
+      );
+      return;
+    }
+    const key = spotifyTrackUrl(link) ?? link.trim().toLowerCase();
+    if (
+      songs.some(
+        (song) =>
+          (spotifyTrackUrl(song.link) ?? song.link.toLowerCase()) === key,
+      )
+    ) {
+      Alert.alert("Already added", "Song is already on your list.");
+      return;
+    }
+    setSongs((current) => [
+      ...current,
+      {
+        title: title.trim(),
+        artist: artist.trim(),
+        link: link.trim(),
+        albumArtUrl: albumArtUrl ?? undefined,
+      },
+    ]);
+    clearSong();
+  };
   useEffect(() => {
     if (!visible) return;
     setTitle(prefill?.title ?? "");
@@ -70,6 +115,7 @@ export const NewMusicRequestSheet = ({
     setSpotifyLink("");
     setAlbumArtUrl(prefill?.albumArtUrl ?? null);
     setSpotifyError(null);
+    setSongs([]);
   }, [visible, prefill?._id]);
   const autofillSpotify = async () => {
     const cleanUrl = spotifyTrackUrl(spotifyLink);
@@ -99,6 +145,51 @@ export const NewMusicRequestSheet = ({
   };
   const onSubmit = async () => {
     if (submitting) return;
+    if (!prefill && songs.length > 0) {
+      const all = [...songs];
+      if (title.trim() || artist.trim() || link.trim()) {
+        if (!title.trim() || !artist.trim() || !link.trim()) {
+          Alert.alert("Incomplete song", "Complete or clear the current song.");
+          return;
+        }
+        if (duplicateBlocked || (!!duplicateLink && duplicate === undefined)) {
+          Alert.alert(
+            "Duplicate",
+            "Current song is a duplicate or still being checked.",
+          );
+          return;
+        }
+        all.push({
+          title: title.trim(),
+          artist: artist.trim(),
+          link: link.trim(),
+          albumArtUrl: albumArtUrl ?? undefined,
+        });
+      }
+      setSubmitting(true);
+      try {
+        const result = await submitMany({
+          songs: all,
+          requestComment: requestComment.trim() || undefined,
+        });
+        setSongs([]);
+        clearSong();
+        setRequestComment("");
+        onClose();
+        Alert.alert(
+          "Songs submitted",
+          `${result.added} song(s) submitted; ${result.skipped} duplicate(s) skipped.`,
+        );
+      } catch (error) {
+        Alert.alert(
+          "Couldn't submit",
+          error instanceof Error ? error.message : "Please try again.",
+        );
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
     if (!title.trim()) {
       Alert.alert("Song title required", "Please enter a song title.");
       return;
@@ -171,14 +262,14 @@ export const NewMusicRequestSheet = ({
                   : "Submitting..."
                 : prefill
                   ? "Save Changes"
-                  : "Submit"
+                  : "Submit Song for Praise Manager"
             }
             onPress={onSubmit}
             disabled={
               submitting ||
               fetchingSpotify ||
-              duplicateBlocked ||
-              (!!duplicateLink && duplicate === undefined)
+              (songs.length === 0 && duplicateBlocked) ||
+              (songs.length === 0 && !!duplicateLink && duplicate === undefined)
             }
           />
         </Row>
@@ -285,6 +376,64 @@ export const NewMusicRequestSheet = ({
         onChangeText={setLink}
         placeholder="Spotify or YouTube link"
       />
+      {!prefill && (
+        <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
+          <Text style={{ color: t.text, fontWeight: "800" }}>
+            Songs to submit ({songs.length})
+          </Text>
+          {songs.map((song, index) => (
+            <View
+              key={`${song.link}-${index}`}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: spacing.sm,
+                padding: spacing.sm,
+                borderRadius: radius.md,
+                backgroundColor: t.card,
+              }}
+            >
+              {song.albumArtUrl ? (
+                <Image
+                  source={{ uri: song.albumArtUrl }}
+                  style={{ width: 42, height: 42, borderRadius: radius.sm }}
+                />
+              ) : (
+                <Ionicons name="musical-note" size={24} color={t.muted} />
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: t.text, fontWeight: "700" }}>
+                  {song.title}
+                </Text>
+                <Text style={{ color: t.muted }}>{song.artist}</Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${song.title}`}
+                onPress={() =>
+                  setSongs((current) => current.filter((_, i) => i !== index))
+                }
+              >
+                <Ionicons name="trash-outline" size={22} color={t.warning} />
+              </Pressable>
+            </View>
+          ))}
+          <Btn
+            title="Add song to list"
+            icon="add-outline"
+            onPress={addSong}
+            disabled={
+              fetchingSpotify ||
+              duplicateBlocked ||
+              (!!duplicateLink && duplicate === undefined)
+            }
+          />
+          <Text style={[typography.caption, { color: t.muted }]}>
+            Add multiple songs, remove any before submitting, then submit them
+            together. Duplicate tracks are skipped.
+          </Text>
+        </View>
+      )}
       {!hideRequestComment && (
         <Field
           label="Request Comment (Optional)"

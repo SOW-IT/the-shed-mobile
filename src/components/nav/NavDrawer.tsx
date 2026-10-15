@@ -33,7 +33,7 @@ import { spacing, useAppTheme } from "@/theme";
 const DRAWER_WIDTH_FRACTION = 0.8;
 const DRAWER_MAX_WIDTH = 320;
 /** How far in from the left edge a swipe can start and still open the drawer. */
-export const EDGE_SWIPE_WIDTH = 20;
+const EDGE_SWIPE_WIDTH = 20;
 const BACKDROP_OPACITY = 0.45;
 /** A flick faster than this (pt/s) opens or closes the drawer whatever its position. */
 const FLING_VELOCITY = 500;

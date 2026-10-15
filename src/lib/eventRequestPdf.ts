@@ -28,7 +28,7 @@ import {
   type RiskData,
   type SubFormKind,
 } from "../../shared/eventRequests";
-import { formatAmount } from "../../shared/money";
+import { money } from "../../shared/money";
 import { subFormStatusLine, type FormStatusFacts } from "./eventRequestText";
 import { sydneyDateTime } from "./sydneyTime";
 
@@ -65,8 +65,6 @@ export type EventRequestPdfInput = {
 
 export const eventRequestPdfFilename = (e: { year: number; number: number; name: string }) =>
   `event-request-${e.year}-${e.number}-${e.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.pdf`;
-
-const money = (amount: number) => `${amount < 0 ? "-" : ""}$${formatAmount(Math.abs(amount))}`;
 
 const PAGE = { width: 595.28, height: 841.89 }; // A4, in points
 const MARGIN = 45;

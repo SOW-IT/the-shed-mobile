@@ -88,11 +88,13 @@ export default defineSchema({
     name: v.optional(v.string()),
     userId: v.optional(v.id("users")),
     importId: v.optional(v.string()),
+    memberId: v.optional(v.id("attendanceMembers")),
   })
     .index("by_email_and_year", ["email", "year"])
     .index("by_year", ["year"])
     .index("by_userId", ["userId"])
-    .index("by_importId", ["importId"]),
+    .index("by_importId", ["importId"])
+    .index("by_memberId_and_year", ["memberId", "year"]),
 
   divisions: defineTable({
     year: v.number(),
@@ -127,6 +129,13 @@ export default defineSchema({
     version: v.string(),
     seenAt: v.number(),
   }).index("by_email_and_platform", ["email", "platform"]),
+
+  appUpdatePolicy: defineTable({
+    platform: v.union(v.literal("ios"), v.literal("android")),
+    minimum: v.optional(v.string()),
+    recommended: v.optional(v.string()),
+    message: v.optional(v.string()),
+  }).index("by_platform", ["platform"]),
 
   // When someone last had The SHED open, on the web or in the app. Written
   // at most every few minutes; see presence.ts.
@@ -527,6 +536,7 @@ export default defineSchema({
     name: v.string(),
     colour: v.optional(v.string()),
     subgroups: v.optional(v.array(v.string())),
+    list: v.optional(v.union(v.literal("weeklies"), v.literal("events"))),
   }),
 
   attendanceMetadata: defineTable({
@@ -543,9 +553,6 @@ export default defineSchema({
     // A plain member's own email. On a staff person's row it is their staff
     // email, which links the row to their staff profile.
     email: v.optional(v.string()),
-    // A staff person's own email, kept apart from the staff one. It becomes
-    // `email` when they leave staff and turn into alumni.
-    personalEmail: v.optional(v.string()),
     sourceImportId: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.string())),
     // A plain member's local church (staff set theirs in their Profile).
@@ -567,15 +574,12 @@ export default defineSchema({
 
   attendance: defineTable({
     eventId: v.id("events"),
-    email: v.optional(v.string()),
     memberId: v.optional(v.id("attendanceMembers")),
     signInTime: v.number(),
     notes: v.optional(v.string()),
   })
     .index("by_event", ["eventId"])
-    .index("by_event_and_email", ["eventId", "email"])
     .index("by_event_and_member", ["eventId", "memberId"])
-    .index("by_email", ["email"])
     .index("by_member", ["memberId"]),
 
   contactRateLimit: defineTable({

@@ -7,6 +7,7 @@ import {
   appVariantFrom,
   compareVersions,
   isAppVersion,
+  updateStatusFor,
   versionNeededFor,
 } from "./appLinks";
 
@@ -42,8 +43,13 @@ describe("the app's own links and web-only pages", () => {
     expect(versionNeededFor("/event-requests")).toBe("2.3.0");
     expect(versionNeededFor("/event-requests/abc/risk?thread=1")).toBe("2.3.0");
     expect(versionNeededFor("/event-requestsx")).toBeNull();
-    expect(versionNeededFor("/design-requests/abc")).toBeNull();
-    expect(appCanOpen("/design-requests/abc", null)).toBe(true);
+    expect(versionNeededFor("/design-requests/abc")).toBe("2.2.0");
+    expect(appCanOpen("/design-requests/abc", null)).toBe(false);
+    expect(appCanOpen("/design-requests/abc", "2.1.9")).toBe(false);
+    expect(appCanOpen("/design-requests/abc", "2.2.0")).toBe(true);
+    expect(versionNeededFor("/churches?church=abc")).toBe("2.5.5");
+    expect(appCanOpen("/churches", "2.5.4")).toBe(false);
+    expect(versionNeededFor("/request/abc")).toBeNull();
     expect(appCanOpen("/event-requests/abc", null)).toBe(false);
     expect(appCanOpen("/event-requests/abc", "2.2.9")).toBe(false);
     expect(appCanOpen("/event-requests/abc", "2.3.0")).toBe(true);
@@ -59,5 +65,16 @@ describe("the app's own links and web-only pages", () => {
     expect(isAppVersion("2.3.1")).toBe(true);
     expect(isAppVersion("2.3")).toBe(false);
     expect(isAppVersion("v2.3.1")).toBe(false);
+  });
+
+  test("an app below the minimum must update; below the recommended one is nudged", () => {
+    const policy = { minimum: "2.8.0", recommended: "2.9.0" };
+    expect(updateStatusFor("2.7.9", policy)).toBe("required");
+    expect(updateStatusFor("2.8.0", policy)).toBe("recommended");
+    expect(updateStatusFor("2.9.0", policy)).toBe("ok");
+    expect(updateStatusFor("2.7.0", { recommended: "2.9.0" })).toBe("recommended");
+    expect(updateStatusFor("2.7.0", {})).toBe("ok");
+    expect(updateStatusFor("2.7.0", null)).toBe("ok");
+    expect(updateStatusFor("dev", policy)).toBe("ok");
   });
 });

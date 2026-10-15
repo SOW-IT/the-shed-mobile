@@ -11,6 +11,7 @@ import {
   SECTION_ORDER,
   type TermResult,
   type TermRow,
+  type TermSystem,
   type WeeklyCategory,
   type WeeklyFollowUp,
   type WeeklyTerm,
@@ -94,12 +95,29 @@ export type WeeklyBlock =
       title: string;
       rows: { title: string; subtitle: string; tag?: string }[];
       emptyText: string;
+    }
+  | {
+      type: "monthRows";
+      title: string;
+      subtitle?: string;
+      rows: MonthRow[];
+      emptyText: string;
     };
+
+export type MonthRow = {
+  key: string;
+  title: string;
+  value: string;
+  delta?: { text: string; direction: "up" | "down" | "flat" };
+  hint?: string;
+  lines: string[];
+  splits: { title: string; parts: { label: string; value: number; colour?: string }[] }[];
+};
 
 /** A choice in the term picker. `group` (the year), `short` and `slot` let
  *  the picker lay each year out as one row of terms; older apps just list
  *  the labels. */
-export type WeeklyPeriod = {
+type WeeklyPeriod = {
   key: string;
   label: string;
   group?: string;
@@ -128,14 +146,16 @@ export function periodOptions(terms: WeeklyTerm[]): WeeklyPeriod[] {
   ]);
 }
 
-export const FOLLOW_UP_PREVIEW = 5;
+const FOLLOW_UP_PREVIEW = 5;
+
+const termWord = (system: TermSystem) => (system === "terms" ? "term" : "semester");
 
 export const pill = (category: WeeklyCategory): Pill => ({
   label: CATEGORY_META[category].label,
   colour: CATEGORY_META[category].colour,
 });
 
-export const pctText = (n: number) => `${Math.round(n * 100)}%`;
+const pctText = (n: number) => `${Math.round(n * 100)}%`;
 
 /** "3 Jun", or "3 Jun 2025" when it isn't `year`. */
 export const dateText = (ms: number, year: number): string => {
@@ -243,7 +263,7 @@ export function followUpBlocks(people: WeeklyFollowUp[], year: number): WeeklyBl
   ];
 }
 
-const countDelta = (now: number | null, then: number | null): ViewCard["delta"] => {
+export const countDelta = (now: number | null, then: number | null): ViewCard["delta"] => {
   if (now === null || then === null || then === 0) return undefined;
   const pct = Math.round(((now - then) / then) * 100);
   return { text: `${pct > 0 ? "+" : ""}${pct}%`, direction: pct > 0 ? "up" : pct < 0 ? "down" : "flat" };
@@ -401,7 +421,7 @@ export function buildTermBlocks(input: {
   const count = `${term.weeklies.length} weekl${term.weeklies.length === 1 ? "y" : "ies"}${running ? " so far" : ""}`;
   const compareNote = before
     ? running
-      ? `Compared with ${point}, the same point in the term. ${before.term.label}'s own page has its whole term.`
+      ? `Compared with ${point}, the same point in the ${termWord(term.system)}. ${before.term.label}'s own page has its whole ${termWord(term.system)}.`
       : `Compared with ${point}.`
     : undefined;
   const blocks: WeeklyBlock[] = [
@@ -410,7 +430,7 @@ export function buildTermBlocks(input: {
       type: "caption",
       text: before
         ? `${term.label}: ${count}, compared with ${point}.`
-        : `${term.label}: ${count}. There's no earlier term to compare with.`,
+        : `${term.label}: ${count}. There's no earlier ${termWord(term.system)} to compare with.`,
     },
     {
       type: "cards",
@@ -460,7 +480,7 @@ export function buildTermBlocks(input: {
     peopleBlock(
       "Everyone",
       peopleRows(result.rows, term.year),
-      `Everyone who came in ${term.label}${result.rows.some((r) => r.attended === 0) ? " or the term before" : ""}.`
+      `Everyone who came in ${term.label}${result.rows.some((r) => r.attended === 0) ? ` or the ${termWord(term.system)} before` : ""}.`
     )
   );
   return blocks;
@@ -512,7 +532,7 @@ export function buildYearBlocks(input: {
     const slots = [...new Set([...input.terms, ...input.lastYearTerms].map((t) => t.term.slot))].sort();
     blocks.push({
       type: "multiBars",
-      title: "Weekly avg by term",
+      title: `Weekly avg by ${termWord(input.terms[0]?.term.system ?? input.lastYearTerms[0].term.system)}`,
       subtitle: `Against ${point}`,
       legend: [
         { key: "now", colour: THIS_COLOUR, label: String(result.year) },
@@ -579,7 +599,7 @@ export function buildMemberBlocks(input: {
   if (input.history.length) {
     blocks.push({
       type: "termHistory",
-      title: "Weeklies by term",
+      title: `Weeklies by ${termWord(latest!.term.system)}`,
       rows: input.history.map(({ term, row }) => ({
         key: term.key,
         label: term.label,
@@ -590,7 +610,7 @@ export function buildMemberBlocks(input: {
     blocks.push({
       type: "weekGrid",
       title: latest!.term.label,
-      subtitle: "Weeklies attended this term",
+      subtitle: `Weeklies attended this ${termWord(latest!.term.system)}`,
       weeks: weekLabels(latest!.term.weeklies).map((label, i) => ({
         label,
         came: latest!.row.indexes.includes(i),

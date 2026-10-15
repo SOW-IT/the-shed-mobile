@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanInstagram, cleanWebsite, isServiceTime, sortServices } from "../shared/churches";
 import { staffYearForDate } from "../shared/flow";
 import { api, internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { leadingRole, roleRank, STARTER_CHURCHES } from "./churches";
 import schema from "./schema";
 
@@ -322,6 +323,64 @@ describe("who can add and edit churches", () => {
   });
 });
 
+describe("an account with no staff profile sees what a visitor sees", () => {
+  test("no other people's emails or member ids in the directory", async () => {
+    const { t, sam } = await setup();
+    const grace = await sam.mutation(api.churches.add, { name: "Grace Church" });
+    await sam.mutation(api.profile.setChurch, { churchId: grace });
+    const outsiderId = await t.run(async (ctx) => {
+      await ctx.db.insert("users", { email: "gus@gmail.com", name: "Gus Guest", churchId: grace });
+      await ctx.db.insert("attendanceMembers", { name: "Mia Member", churchId: grace });
+      return await ctx.db.insert("users", { email: "relay@privaterelay.appleid.com", name: "Apple Person" });
+    });
+    const outsider = signedIn(t, outsiderId, "relay@privaterelay.appleid.com");
+    const people = async (who: { query: typeof t.query }) =>
+      (await who.query(api.churches.directory, {}))
+        .find((d) => d.church.name === "Grace Church")!
+        .people.map((p) => [p.name, p.email, p.memberId !== null])
+        .sort();
+
+    expect(await people(outsider)).toEqual(await people(t));
+    expect(await people(outsider)).toEqual([
+      ["Gus Guest", null, false],
+      ["Mia Member", null, false],
+      ["Sam Staff", STAFF, false],
+    ]);
+    expect(await people(sam)).toEqual([
+      ["Gus Guest", "gus@gmail.com", false],
+      ["Mia Member", null, true],
+      ["Sam Staff", STAFF, false],
+    ]);
+  });
+
+  test("no typed church, last online or signed-in state on profiles, except their own", async () => {
+    const { t, sam } = await setup();
+    const ids = await t.run(async (ctx) => ({
+      tom: await ctx.db.insert("users", { email: "tom@gmail.com", name: "Tom Typed", localChurch: "St Mark's" }),
+      outsider: await ctx.db.insert("users", { email: "relay@privaterelay.appleid.com", name: "Apple Person" }),
+    }));
+    const outsider = signedIn(t, ids.outsider, "relay@privaterelay.appleid.com");
+    const privateFields = (profile: Record<string, unknown> | null) => ({
+      localChurch: profile?.localChurch,
+      typedChurch: profile?.typedChurch,
+      lastOnlineAt: profile?.lastOnlineAt === null ? null : "set",
+      hasSignedIn: profile?.hasSignedIn,
+    });
+    const hidden = { localChurch: null, typedChurch: null, lastOnlineAt: null, hasSignedIn: null };
+
+    expect(privateFields(await outsider.query(api.profile.get, { email: "tom@gmail.com" }))).toEqual(hidden);
+    expect(privateFields(await t.query(api.profile.get, { email: "tom@gmail.com" }))).toEqual(hidden);
+    expect(privateFields(await sam.query(api.profile.get, { email: "tom@gmail.com" }))).toMatchObject({
+      localChurch: "St Mark's",
+      typedChurch: "St Mark's",
+    });
+    expect(
+      privateFields(await signedIn(t, ids.tom, "tom@gmail.com").query(api.profile.get, {}))
+    ).toMatchObject({ localChurch: "St Mark's", typedChurch: "St Mark's" });
+    expect((await outsider.query(api.profile.get, { email: STAFF }))?.name).toBe("Sam Staff");
+  });
+});
+
 describe("setUp pages through users", () => {
   test("returns where to carry on until every user has been looked at", async () => {
     const { t } = await setup();
@@ -356,20 +415,34 @@ describe("the Churches page", () => {
       ctx.db.insert("attendanceMetadata", { key: "Role", type: "select", order: 1, values: { a: "Alumni", m: "Member" } })
     );
     await t.run(async (ctx) => {
-      const staff = (email: string, assignments: { role: string; university?: string }[], name?: string) =>
-        ctx.db.insert("staffProfiles", { email, year: YEAR, assignments, name });
+      const staff = (
+        email: string,
+        assignments: { role: string; university?: string }[],
+        name?: string,
+        memberId?: Id<"attendanceMembers">,
+        year = YEAR
+      ) => ctx.db.insert("staffProfiles", { email, year, assignments, name, memberId });
       await staff("pia@sow.org.au", [{ role: "President", university: "University of Sydney" }]);
       await ctx.db.insert("users", { email: "pia@sow.org.au", name: "Pia President", churchId: grace });
       await staff("hal@sow.org.au", [{ role: "Staff" }, { role: "Head of Department" }]);
       await ctx.db.insert("users", { email: "hal@sow.org.au", name: "Hal Head", churchId: grace });
       await ctx.db.insert("users", { email: "fay@sow.org.au", name: "Fay Former", churchId: grace });
-      await ctx.db.insert("attendanceMembers", { name: "Fay F", email: "fay@sow.org.au", metadata: { [role]: "a" } });
+      const fay = await ctx.db.insert("attendanceMembers", { name: "Fay F", metadata: { [role]: "a" } });
+      const gone = await ctx.db.insert("attendanceMembers", { name: "Gone" });
+      await ctx.db.delete(gone);
+      await staff("fay@sowaustralia.com", [{ role: "Staff" }], undefined, gone, YEAR - 1);
+      await staff("fay@sow.org.au", [{ role: "Staff" }], undefined, fay, YEAR - 2);
+      await ctx.db.insert("users", { email: "gus@sow.org.au", name: "Gus Gone", churchId: grace });
+      await staff("gus@sow.org.au", [{ role: "Staff" }], undefined, undefined, YEAR - 1);
       await ctx.db.insert("users", { churchId: grace });
-      await staff("sol@sow.org.au", [{ role: "Staff" }]);
+      const solMember = await ctx.db.insert("attendanceMembers", { name: "Sol Before Staff", churchId: grace });
+      await staff("sol@sow.org.au", [{ role: "Staff" }], undefined, solMember);
       await ctx.db.insert("users", { email: "sol@sow.org.au", name: "Sol Staff", churchId: abba });
-      await ctx.db.insert("attendanceMembers", { name: "Sol Before Staff", email: "sol@sow.org.au", churchId: grace });
-      await staff("eve@sow.org.au", [{ role: "Executive", university: "University of New South Wales" }], "Eve Exec");
-      await ctx.db.insert("attendanceMembers", { name: "Eve E", email: "eve@sow.org.au", churchId: grace });
+      const eve = await ctx.db.insert("attendanceMembers", { name: "Eve E", churchId: grace });
+      await staff("eve@sow.org.au", [{ role: "Executive", university: "University of New South Wales" }], "Eve Exec", eve);
+      const olly = await ctx.db.insert("attendanceMembers", { name: "Olly Old", churchId: grace, metadata: { [role]: "a" } });
+      await staff("olly@sow.org.au", [{ role: "Executive", university: "University of Sydney" }], "Olly Exec", olly, YEAR - 1);
+      await staff("olly@sow.org.au", [], "Olly Paused", olly);
     });
     await sam.mutation(api.attendanceMembers.create, { name: "Zed Member", churchId: grace, metadata: { [campus]: "u" } });
     await sam.mutation(api.attendanceMembers.create, { name: "Amy Member", churchId: grace, metadata: { [campus]: "o", [role]: "m" } });
@@ -385,9 +458,11 @@ describe("the Churches page", () => {
       ["Pia President", "President", "University of Sydney"],
       ["Eve Exec", "Executive", "University of New South Wales"],
       ["Amy Member", "Member", null],
+      ["Gus Gone", "Member", null],
       ["Zed Member", "Member", "University of New South Wales"],
       ["Ali Alumni", "Alumni", null],
       ["Fay Former", "Alumni", null],
+      ["Olly Old", "Alumni", null],
     ]);
     expect(grace_[0]).toEqual({
       name: "Hal Head",
@@ -397,8 +472,9 @@ describe("the Churches page", () => {
       memberId: null,
     });
     expect(grace_[3]).toMatchObject({ email: "eve@sow.org.au", memberId: expect.any(String) });
-    expect(grace_[5]).toMatchObject({ email: null, memberId: expect.any(String) });
-    expect(grace_[7]).toMatchObject({ email: "fay@sow.org.au", memberId: null });
+    expect(grace_[6]).toMatchObject({ email: null, memberId: expect.any(String) });
+    expect(grace_[8]).toMatchObject({ email: "fay@sow.org.au", memberId: null });
+    expect(grace_[9]).toMatchObject({ email: null, memberId: expect.any(String) });
 
     const forVisitors = (await t.query(api.churches.directory, {}))[1].people;
     expect(forVisitors.map((p) => [p.name, p.role, p.email, p.memberId])).toEqual([
@@ -407,10 +483,33 @@ describe("the Churches page", () => {
       ["Pia President", "President", "pia@sow.org.au", null],
       ["Eve Exec", "Executive", "eve@sow.org.au", null],
       ["Amy Member", "Member", null, null],
+      ["Gus Gone", "Member", null, null],
       ["Zed Member", "Member", null, null],
       ["Ali Alumni", "Alumni", null, null],
       ["Fay Former", "Alumni", null, null],
+      ["Olly Old", "Alumni", null, null],
     ]);
+  });
+
+  test("a signed-up user whose current profile has no assignments is listed as their member row, not as staff", async () => {
+    const { t, sam } = await setup();
+    const grace = await sam.mutation(api.churches.add, { name: "Grace Church" });
+    const role = await t.run((ctx) =>
+      ctx.db.insert("attendanceMetadata", { key: "Role", type: "select", order: 1, values: { a: "Alumni", m: "Member" } })
+    );
+    await t.run(async (ctx) => {
+      const olly = await ctx.db.insert("attendanceMembers", { name: "Olly Old", metadata: { [role]: "a" } });
+      await ctx.db.insert("staffProfiles", {
+        email: "olly@sow.org.au",
+        year: YEAR - 1,
+        memberId: olly,
+        assignments: [{ role: "Executive", university: "University of Sydney" }],
+      });
+      await ctx.db.insert("staffProfiles", { email: "olly@sow.org.au", year: YEAR, memberId: olly, assignments: [] });
+      await ctx.db.insert("users", { email: "olly@sow.org.au", name: "Olly User", churchId: grace });
+    });
+    const forVisitors = (await t.query(api.churches.directory, {}))[0].people;
+    expect(forVisitors.find((p) => p.name === "Olly User")).toMatchObject({ role: "Alumni", email: null });
   });
 
   test("a person's leading role, and where a role sorts", () => {

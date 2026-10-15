@@ -6,7 +6,7 @@ import { MARKETING } from "./designRequests";
 // ── Who's involved ──────────────────────────────────────────────────────────
 
 /** Reviews every event's Risk form; its head approves them. */
-export const COMPLIANCE = "Compliance";
+const COMPLIANCE = "Compliance";
 
 /** Runs SOW's events: can read every event request. */
 export const EVENTS = "Events";
@@ -73,11 +73,6 @@ export const SUB_FORM_STATUS_LABELS: Record<SubFormStatus, string> = {
 
 /** Finance's approval runs Director (only for big budgets) then Finance Head. */
 export type FinanceStep = "director" | "financeHead";
-
-export const FINANCE_STEP_LABELS: Record<FinanceStep, string> = {
-  director: "Director",
-  financeHead: "Finance Head",
-};
 
 /** Counts towards the event going ahead. */
 export const isSubFormDone = (status: SubFormStatus): boolean =>
@@ -213,14 +208,6 @@ export const LIKELIHOOD_GUIDE: Record<
 };
 
 export type RiskRating = "Low" | "Moderate" | "High" | "Very High" | "Extreme";
-export const RISK_RATINGS: readonly RiskRating[] = [
-  "Low",
-  "Moderate",
-  "High",
-  "Very High",
-  "Extreme",
-];
-
 /** The Standard's matrix: [likelihood][consequence] → score and rating. */
 const MATRIX: Record<RiskLevel, readonly [number, RiskRating][]> = {
   5: [[7, "Moderate"], [13, "Moderate"], [19, "High"], [23, "Very High"], [25, "Extreme"]],
@@ -337,16 +324,6 @@ export const riskProblem = (data: RiskData): string | null => {
 export const majorRisks = (data: RiskData): RiskCategory[] =>
   RISK_CATEGORIES.filter((c) => data.risks.some((r) => r.category === c));
 
-/** The highest-rated risk on the form, or null. */
-export const highestRating = (data: RiskData): RiskRating | null => {
-  let best = -1;
-  for (const row of data.risks) {
-    const score = rowScore(row);
-    if (score) best = Math.max(best, RISK_RATINGS.indexOf(score.rating));
-  }
-  return best === -1 ? null : RISK_RATINGS[best];
-};
-
 // ── Finance ─────────────────────────────────────────────────────────────────
 
 export interface FinanceLine {
@@ -361,7 +338,7 @@ export interface FinanceData {
 }
 
 export const MAX_FINANCE_LINES = 60;
-export const MAX_FINANCE_AMOUNT = 1_000_000;
+const MAX_FINANCE_AMOUNT = 1_000_000;
 
 const normalizeLines = (lines: readonly FinanceLine[]): FinanceLine[] =>
   lines

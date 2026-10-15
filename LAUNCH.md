@@ -18,6 +18,19 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 ## Still outstanding
 
 
+- [ ] **Ask phones to update once 2.9.0 is live in both stores** (2.9.0 is the
+      first version with the update prompt, so it only reaches people on 2.9.0
+      and later): `npx convex run --prod appInstalls:setUpdatePolicy
+      '{"platform": "ios", "recommended": "2.9.0"}'`, the same for `android`.
+      Raise `minimum` (the blocking screen) only after the nudge has had a week
+      or two, and only to a version both stores are serving. People on 2.8.0
+      and older never see it; reach them with a push or an announcement.
+
+- [ ] **Reply to App Review (2.5.8, guideline 5.1.1(v))** with a physical-device
+      recording: sign in with Apple, Profile, Delete account, type the name,
+      the Apple prompt, "Account deleted". Put the same recording in the App
+      Review Notes for later submissions.
+
 - [ ] **Copy the old web app's design requests into production** once 2.2.0's
       backend is deployed: `gcloud auth login` (an account with access to
       `theshedsow`), then `node scripts/import-design-requests.mjs --dry-run`
@@ -61,6 +74,21 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 Recorded so nobody re-does them. Each was confirmed against the live
 deployments, not assumed.
+
+**2.8.0 weekly migration ran on production**: every past weekly renamed to
+its code ("T3W5", "S1W5") with a term and week, name labels moved into
+Weeklies tags, Event and Other Events merged into Social.
+*Evidence (2026-10-15): prod exported first
+(`prod-2026-10-15-2.8.0-deployed.zip`); the dry run matched the approved list
+(183 events, 10 tag changes, no warnings); `{"dryRun": false}` applied the
+same 183 and 10; a rerun reports 0 and 0. All 195 weeklies have both a mark
+and the Weeklies tag, no event points at a deleted tag, and the attendance
+audit log has "Weekly names and tags tidied (2.8.0)".*
+
+**Sign in with Apple key for account deletion** (2.7.0): `APPLE_TEAM_ID`,
+`APPLE_KEY_ID` and `APPLE_PRIVATE_KEY` are set on both Convex deployments.
+*Evidence (2026-10-15): `npx convex env list` shows all three names on prod
+and dev.*
 
 **Old event forms copied in, and the old pages redirect** — 2.3.0's import
 ran against production after the Convex deploy, and the old web app's Event

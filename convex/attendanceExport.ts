@@ -1,15 +1,15 @@
 import { v } from "convex/values";
 import { staffYearForDate, sydneyCalendarYear } from "../shared/flow";
-import { formatMetadataFieldValue } from "../shared/attendanceMemberMeta";
+import { formatMetadataFieldValue, staffLockedMetadata } from "../shared/attendanceMemberMeta";
 import {
   eventIncludesSubgroup,
   normalizeSubgroups,
   subgroupMatches,
 } from "../shared/rollcall";
-import { staffEmailCandidates } from "../shared/rollcallImport";
 import { Doc } from "./_generated/dataModel";
 import { QueryCtx, query } from "./_generated/server";
 import { optionalProfile } from "./model";
+import { isAssigned } from "./staffMembers";
 
 export type ExportRow = {
   name: string;
@@ -35,9 +35,6 @@ export type ExportEvent = {
 
 type MemberDoc = Doc<"attendanceMembers">;
 
-const first = <T>(arr: (T | null | undefined)[]): T | null =>
-  arr.find((x): x is T => !!x) ?? null;
-
 async function resolveExportEvents(
   ctx: QueryCtx,
   events: Doc<"events">[],
@@ -47,12 +44,6 @@ async function resolveExportEvents(
   const memberById = new Map<string, MemberDoc>(
     members.map((m) => [String(m._id), m])
   );
-  const memberByEmail = new Map<string, MemberDoc>();
-  for (const m of members) {
-    for (const candidate of staffEmailCandidates(m.email)) {
-      if (!memberByEmail.has(candidate)) memberByEmail.set(candidate, m);
-    }
-  }
 
   const profilesByYear = new Map<number, Map<string, Doc<"staffProfiles">>>();
   const loadProfiles = async (year: number) => {
@@ -62,7 +53,9 @@ async function resolveExportEvents(
         .query("staffProfiles")
         .withIndex("by_year", (q) => q.eq("year", year))
         .collect();
-      map = new Map(rows.map((p) => [p.email.toLowerCase(), p]));
+      map = new Map(
+        rows.flatMap((p) => (p.memberId && isAssigned(p) ? [[String(p.memberId), p] as const] : []))
+      );
       profilesByYear.set(year, map);
     }
     return map;
@@ -99,54 +92,9 @@ async function resolveExportEvents(
       return result;
     };
 
-    const profileFor = (email: string) =>
-      first(staffEmailCandidates(email).map((c) => profiles.get(c)));
-    const shadowFor = (email: string) =>
-      first(staffEmailCandidates(email).map((c) => memberByEmail.get(c)));
-
-    const resolvedRows: ExportRow[] = attendanceRows
-      .map((row): ExportRow => {
-        if (row.email) {
-          const profile = profileFor(row.email);
-          const shadow = shadowFor(row.email);
-          const email = profile?.email.toLowerCase() ?? row.email.toLowerCase();
-          return {
-            name: profile?.name ?? shadow?.name ?? email,
-            email,
-            signInTime: row.signInTime,
-            notes: row.notes,
-            metadata: resolveMetadata(shadow?.metadata),
-            identityKey: `email:${email}`,
-          };
-        }
-        if (row.memberId) {
-          const member = memberById.get(String(row.memberId));
-          if (member?.email) {
-            const profile = profileFor(member.email);
-            if (profile) {
-              const email = profile.email.toLowerCase();
-              return {
-                name: profile.name ?? member.name,
-                email,
-                signInTime: row.signInTime,
-                notes: row.notes,
-                metadata: resolveMetadata(member.metadata),
-                identityKey: `email:${email}`,
-              };
-            }
-          }
-          const email = member?.email?.toLowerCase() ?? "";
-          return {
-            name: member?.name ?? "Unknown",
-            email,
-            signInTime: row.signInTime,
-            notes: row.notes,
-            metadata: resolveMetadata(member?.metadata),
-            identityKey: email
-              ? `email:${email}`
-              : `member:${String(row.memberId)}`,
-          };
-        }
+    const resolvedRows: ExportRow[] = attendanceRows.map((row): ExportRow => {
+      const member = row.memberId ? memberById.get(String(row.memberId)) : undefined;
+      if (!member) {
         return {
           name: "Unknown",
           email: "",
@@ -155,7 +103,19 @@ async function resolveExportEvents(
           metadata: {},
           identityKey: `row:${String(row._id)}`,
         };
-      });
+      }
+      const profile = profiles.get(String(member._id));
+      return {
+        name: profile?.name ?? member.name,
+        email: profile?.email.toLowerCase() ?? member.email?.toLowerCase() ?? "",
+        signInTime: row.signInTime,
+        notes: row.notes,
+        metadata: resolveMetadata(
+          profile ? staffLockedMetadata(fields, profile, member.metadata) : member.metadata
+        ),
+        identityKey: `member:${String(member._id)}`,
+      };
+    });
     const byIdentity = new Map<string, ExportRow>();
     const rows: ExportRow[] = [];
     for (const row of resolvedRows) {

@@ -41,7 +41,8 @@ changing anything seasonal, the October 1 staff-year rollover in particular
 - **Org structure** (seeded, editable per-year by admins): Governance (Data
   and IT, Finance, Compliance), Engagement (Marketing, Alumni), Human
   Resources (People and Culture, Training and Development), Operations
-  (Events, Missions).
+  (Events, Missions). A university, department, division or role that's still
+  assigned to someone can't be removed until they're reassigned.
 - **Pre-provisioning by email**: assign a role/department to someone who has
   never signed in; it links up on their first Google sign-in. People who
   were staff in an earlier year and are back in the Workspace directory
@@ -59,9 +60,11 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   with an address (see [Church map](#church-map-optional)). Only people with
   a staff profile this year add or edit churches.
   `churches:remindToSetChurch` reminds this year's staff who haven't picked
-  one (in-app notification and push).
+  one (in-app notification and push). Other people's emails, member ids and
+  typed churches are for staff only: anyone else, signed in or not, sees each
+  church with the names, roles and campuses of who goes there.
 - **Last online**: someone else's profile shows when they last had The SHED
-  open (signed-in viewers only), or that they haven't signed in yet. The app
+  open (staff viewers only), or that they haven't signed in yet. The app
   and website report it while open, at most every 5 minutes
   (`convex/presence.ts`); before that, sign-in session refreshes and the
   phone app's version check stand in.
@@ -117,6 +120,12 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   `googlePersonal` provider was removed in 2.4.7); **guests** (accounts with
   no staff profile) can sign in with Apple, which is offered on iOS only.
   Name/email sync from the Google profile on each sign-in.
+- **Delete account** (`convex/account.ts`): from your own Profile, after
+  typing your name. A SOW account loses its sign-in, sessions, push tokens,
+  uploaded photo and church, and keeps its staff profiles and directory data
+  (signing in again relinks them). An Apple account is deleted entirely and
+  its Apple tokens are revoked (`convex/appleRevoke.ts`, needs
+  `APPLE_TEAM_ID`, `APPLE_KEY_ID` and `APPLE_PRIVATE_KEY`).
 - **Email notifications** via Resend: submitter confirmation, "needs your
   approval" to the next approver at every step, declines (with reason),
   receipt-ready-to-pay to the Finance Head, paid confirmation, and a Budget
@@ -140,34 +149,39 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
 
 - **Events & roll-call**: create events tagged with one or more sub-groups
   (multi-sub-group = a *collaborative* event that appears under each), then sign
-  people in/out. Attendees are staff (by email) or attendance-only **members**.
+  people in/out. Everyone signed in is a **member**; staff are members with
+  that year's staff profile on top.
   An event can run over several days (a camp or conference); each person
   signs in once for the whole event.
   Post-event sign-ins can be reversed; sign-ins made during an event can't,
   except within 10 minutes of being made.
-- **Tags & metadata**: per-year event tags (including the **"Weekly Meeting"**
-  tag that drives the weekly-meeting analytics) and configurable member metadata
-  fields (Year, Gender, Campus, Role, …).
-- **Merge duplicates**: fold a duplicate member into another member or into a
-  staff person, moving every attendance record across (shared events collapse
-  to one record). Only members can be merged away — staff are always kept and
-  two staff can never merge. Typing a staff email onto a member points to
-  merging too, instead of relabelling the record and splitting their history.
-  **Admin → Merges** (current staff year only, shown only while there are
-  any) lists staff who look like someone still in attendance as a member — a similar name on the same
-  campus, typically new leaders who signed in as members before joining
-  staff — with Merge (the usual review) or "Not the same" for each.
+- **Tags & metadata**: event tags in two lists, **Weeklies** (labels like BAM
+  or PPN) and **Other events**, plus the automatic **Weeklies** tag on every
+  weekly (a weekly is defined by its term and week, which drive the
+  weekly-meeting analytics), and configurable member metadata fields (Year,
+  Gender, Campus, Role, …).
+- **Merge duplicates**: fold two records for one person into one, moving every
+  attendance record across (shared events collapse to one record). Someone who
+  is staff this year can't be merged away, and two people who were both staff
+  in the same year can't merge. Typing a staff email onto a member points to
+  merging instead of relabelling the record.
+  **Admin → Merges** (current and next staff year, shown only while there are
+  any) lists staff who look like a member not yet linked to anyone's profile
+  (a similar name on the same campus, typically new leaders who signed in as
+  members before joining staff) with Merge or "Not the same" for each. Merging
+  a staff person who has no member record yet just links their profile to the
+  member.
   Only admins (Data and IT, HR, the Governance head, the Director) can delete
   a member; the sheet
   lists every event whose attendance goes with them and points to merging.
-- **Staff and leavers**: a staff person's member record is linked by their
-  staff email and also holds their personal email. On October 1, anyone who was
-  staff (a leader, an exec or staff) in an earlier year but isn't this year
-  becomes a plain member: their sign-ins
-  move onto that one record, their personal email replaces the staff one, and a
-  staff role becomes Member (Alumni is set by leaders when someone graduates).
-  A member's email, and a staff person's personal email, can't be an SOW
-  address or anyone's staff email.
+- **Staff and leavers**: every person, staff included, has one member record
+  for good, and each year's staff profile points at it. Staff assigned for the
+  current year get their record when they're assigned; next year's staff get
+  theirs on October 1 unless they're already linked. Leaving staff moves
+  nothing: from October 1 they read as the plain member underneath, with an
+  empty Campus filled from their last role and an empty Role set to Member
+  (Alumni is set by leaders when someone graduates). A member's own email
+  can't be an SOW address or anyone's staff email.
   Member names are capitalised as they're typed.
 - **Audit log**: an immutable trail of every attendance-area action (event /
   member / tag / metadata edits, merges and deletes, and each
@@ -181,13 +195,25 @@ SOW events. SOW is the org; its **sub-groups** are the campuses (per-year
   come back) and a visitors list, charts, and everyone's attendance % and
   category (Regular, Irregular, Newcomer, Visitor, Leader, Staff/alumni/guests)
   with filters, sorting and search; tapping someone opens their attendance
-  page. For SOW, each campus's weekly average with past week / month / year
-  ranges. Layout, charts and wording come from the backend
-  (`weeklyInsights.view`, `generalMetrics.view`, `attendanceMetrics.view`), so
+  page. For SOW, a Campuses / TWIG / PPN switcher: each campus's weekly
+  average with past week / month / year ranges, then TWIG (campus leaders
+  only) and PPN (everyone, month by month) by staff year. Layout, charts,
+  wording and the SOW tabs come from the backend (`weeklyInsights.view`,
+  `generalMetrics.view`, `attendanceMetrics.view`, `sowInsights.tabs`,
+  `sowInsights.view`), so
   they change with a Convex deploy rather than an app release. A nightly build
   redoes only what changed since the night before, so roll-call changes show
-  the next morning. See [docs/weekly-insights.md](docs/weekly-insights.md) and
+  the next morning (TWIG and PPN are live). See
+  [docs/weekly-insights.md](docs/weekly-insights.md),
+  [docs/sow-insights.md](docs/sow-insights.md) and
   [docs/attendance-metrics.md](docs/attendance-metrics.md).
+- **Update prompt**: phones ask for the store version when it's older than the
+  server's policy (`appUpdatePolicy`, per platform). Below `recommended`, a
+  banner that can be dismissed; below `minimum`, a full screen with only the
+  store button. Nothing is asked until a policy is set:
+  `npx convex run --prod appInstalls:setUpdatePolicy '{"platform": "ios", "recommended": "2.9.0"}'`
+  (`minimum`, and an optional `message` to replace the default text; `null`
+  clears one). Staging builds and the web are never asked.
 
 ## Getting started
 

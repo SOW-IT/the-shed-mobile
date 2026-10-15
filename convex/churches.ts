@@ -24,7 +24,16 @@ import {
 import { assignmentsOf, MEMBER } from "../shared/flow";
 import { personDisplayName } from "../shared/rollcall";
 import { canonicalEmailKey, staffEmailCandidates } from "../shared/rollcallImport";
-import { currentStaffYear, getProfile, optionalEmail, requireProfile, rolesOf } from "./model";
+import {
+  currentStaffYear,
+  findMemberByEmail,
+  getProfile,
+  optionalEmail,
+  optionalProfile,
+  requireProfile,
+  rolesOf,
+} from "./model";
+import { isAssigned, staffProfileOfMember } from "./staffMembers";
 
 // Local churches staff go to. Any staff member can add one (with where it is
 // and when it meets) or fill in a missing detail; everyone picks theirs from
@@ -428,18 +437,7 @@ export const leadingRole = (roles: readonly string[]) =>
 async function currentProfile(ctx: QueryCtx, email: string | undefined) {
   for (const candidate of staffEmailCandidates(email)) {
     const profile = await getProfile(ctx, candidate, currentStaffYear());
-    if (profile) return profile;
-  }
-  return null;
-}
-
-async function memberRow(ctx: QueryCtx, email: string) {
-  for (const candidate of staffEmailCandidates(email)) {
-    const member = await ctx.db
-      .query("attendanceMembers")
-      .withIndex("by_email", (q) => q.eq("email", candidate))
-      .first();
-    if (member) return member;
+    if (profile && isAssigned(profile)) return profile;
   }
   return null;
 }
@@ -473,7 +471,7 @@ export const directory = query({
   args: {},
   returns: v.array(v.object({ church: churchView, people: v.array(personView), peopleCount: v.number() })),
   handler: async (ctx) => {
-    const signedIn = (await optionalEmail(ctx)) !== null;
+    const staffViewer = (await optionalProfile(ctx)) !== null;
     const fields = await ctx.db.query("attendanceMetadata").take(200);
     const campusField = fields.find((f) => f.key === CAMPUS_FIELD_KEY);
     const roleField = fields.find((f) => f.key === ROLE_FIELD_KEY);
@@ -501,24 +499,24 @@ export const directory = query({
       for (const user of users) {
         if (!user.email) continue;
         const profile = await currentProfile(ctx, user.email);
-        const member = profile ? null : await memberRow(ctx, user.email);
+        const member = profile ? null : await findMemberByEmail(ctx, user.email);
         people.push({
           name: personDisplayName(user.name, user.email) || user.email,
           role: profile ? leadingRole(rolesOf(profile)) : memberRole(member),
           campus: profile ? campusOfProfile(profile) : memberCampus(member),
-          email: profile || signedIn ? user.email : null,
+          email: profile || staffViewer ? user.email : null,
           memberId: null,
         });
       }
       for (const member of members) {
-        const profile = await currentProfile(ctx, member.email);
-        if (profile && (await signedInUser(ctx, member.email))?.churchId) continue;
+        const profile = await staffProfileOfMember(ctx, member._id, currentStaffYear());
+        if (profile && (await signedInUser(ctx, profile.email))?.churchId) continue;
         people.push({
           name: profile?.name ?? member.name,
           role: profile ? leadingRole(rolesOf(profile)) : memberRole(member),
           campus: (profile && campusOfProfile(profile)) ?? memberCampus(member),
           email: profile?.email ?? null,
-          memberId: signedIn ? member._id : null,
+          memberId: staffViewer ? member._id : null,
         });
       }
       people.sort(leadersFirst);
