@@ -72,43 +72,103 @@ function spotifyTrackId(value: string): string | null {
 }
 
 type MusicRequestRow = Doc<"musicRequests">;
-/** Prefer approved, then pending, then declined if multiple rows share a track. */
-async function findDuplicateMusicRequest(
-  ctx: any,
-  link: string,
-): Promise<MusicRequestRow | null> {
-  const id = spotifyTrackId(link);
-  if (!id) return null;
-
-  const rows: MusicRequestRow[] = await ctx.db.query("musicRequests").collect();
-  const matches = rows.filter((row) => spotifyTrackId(row.link) === id);
-
-  return (
-    matches.find((row) => row.status === "APPROVED") ??
-    matches.find((row) => row.status === "PENDING") ??
-    matches.find((row) => row.status === "DECLINED") ??
-    null
-  );
+/** Normalized song metadata is used only for a possible-duplicate warning. */
+function normalized(value: string): string {
+  return value
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
 }
 
-/** Check whether a Spotify track has already been requested. */
+function duplicateKind(
+  row: MusicRequestRow,
+  song: { link: string; title: string; artist: string; isrc?: string },
+): "exact" | "possible" | null {
+  const incomingId = spotifyTrackId(song.link);
+  const existingId = spotifyTrackId(row.link);
+  if (incomingId && existingId && incomingId === existingId) return "exact";
+  if (
+    song.isrc &&
+    row.isrc &&
+    song.isrc.toUpperCase() === row.isrc.toUpperCase()
+  )
+    return "exact";
+  if (
+    normalized(row.title) === normalized(song.title) &&
+    normalized(row.artist) === normalized(song.artist)
+  )
+    return "possible";
+  return null;
+}
+
+function preferredDuplicate(
+  rows: MusicRequestRow[],
+  song: { link: string; title: string; artist: string; isrc?: string },
+  excludeId?: string,
+) {
+  const matches = rows
+    .filter((row) => row._id !== excludeId)
+    .map((row) => ({ row, kind: duplicateKind(row, song) }))
+    .filter(
+      (entry): entry is { row: MusicRequestRow; kind: "exact" | "possible" } =>
+        entry.kind !== null,
+    );
+  const statusRank = { APPROVED: 0, PENDING: 1, DECLINED: 2 };
+  matches.sort(
+    (a, b) =>
+      (a.kind === "exact" ? 0 : 1) - (b.kind === "exact" ? 0 : 1) ||
+      statusRank[a.row.status] - statusRank[b.row.status],
+  );
+  return matches[0] ?? null;
+}
+
+function validateSong(song: {
+  title: string;
+  artist: string;
+  link: string;
+  isrc?: string;
+}) {
+  const title = song.title.trim();
+  const artist = song.artist.trim();
+  const link = song.link.trim();
+  if (!title || !artist || !link)
+    throw new ConvexError("Every song needs a title, artist and link.");
+  const isrc = song.isrc?.trim().toUpperCase() || undefined;
+  if (isrc && !/^[A-Z]{2}[A-Z0-9]{3}[0-9]{7}$/.test(isrc))
+    throw new ConvexError("Invalid ISRC format.");
+  return { title, artist, link, isrc };
+}
+
+/** Returns exact or possible duplicates; retains title/artist/status for existing UI. */
 export const checkDuplicate = query({
-  args: { link: v.string() },
+  args: {
+    link: v.string(),
+    title: v.optional(v.string()),
+    artist: v.optional(v.string()),
+    isrc: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     await requireProfile(ctx);
-    const duplicate = await findDuplicateMusicRequest(ctx, args.link);
+    const rows = await ctx.db.query("musicRequests").collect();
+    const duplicate = preferredDuplicate(rows, {
+      link: args.link,
+      title: args.title ?? "",
+      artist: args.artist ?? "",
+      isrc: args.isrc,
+    });
     if (!duplicate) return null;
-
     return {
-      title: duplicate.title,
-      artist: duplicate.artist,
-      status: duplicate.status,
-      albumArtUrl: duplicate.albumArtUrl,
+      title: duplicate.row.title,
+      artist: duplicate.row.artist,
+      status: duplicate.row.status,
+      albumArtUrl: duplicate.row.albumArtUrl,
+      kind: duplicate.kind,
     };
   },
 });
 
-/** Submit a new music request. */
+/** Submit a song. Possible duplicates require an explicit user confirmation. */
 export const submit = mutation({
   args: {
     title: v.string(),
@@ -116,65 +176,46 @@ export const submit = mutation({
     link: v.string(),
     requestComment: v.optional(v.string()),
     albumArtUrl: v.optional(v.string()),
+    isrc: v.optional(v.string()),
+    allowPossibleDuplicate: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const caller = await optionalProfile(ctx);
     if (!caller) return [];
-    const title = args.title.trim();
-    if (!title) throw new ConvexError("Please enter a song title.");
-    const artist = args.artist.trim();
-    if (!artist) throw new ConvexError("Please enter an artist name.");
-    const link = args.link.trim();
-    if (!link) throw new ConvexError("Please enter a song link.");
-    const duplicate = await findDuplicateMusicRequest(ctx, link);
-    if (duplicate?.status === "APPROVED") {
-      throw new ConvexError("This song is already in the approved playlist.");
-    }
-    if (duplicate?.status === "PENDING") {
+    const song = validateSong(args);
+    const rows = await ctx.db.query("musicRequests").collect();
+    const duplicate = preferredDuplicate(rows, song);
+    if (duplicate?.kind === "exact")
       throw new ConvexError(
-        "This song has already been requested and is awaiting review.",
+        `This recording was already requested (${duplicate.row.status.toLowerCase()}).`,
       );
-    }
-    if (duplicate?.status === "DECLINED") {
+    if (duplicate?.kind === "possible" && !args.allowPossibleDuplicate)
       throw new ConvexError(
-        "This song was previously declined and cannot be submitted again.",
+        "Possible duplicate: confirm that you want to request this version anyway.",
       );
-    }
-    const requestComment = args.requestComment?.trim() || undefined;
-    const isSpotifyTrack = spotifyTrackId(link) !== null;
+
     const artwork = args.albumArtUrl?.trim();
     const albumArtUrl =
-      isSpotifyTrack && artwork && /^https:\/\//i.test(artwork)
+      spotifyTrackId(song.link) && artwork && /^https:\/\//i.test(artwork)
         ? artwork
         : undefined;
-
     const isPraiseManager = await callerIsPraiseManager(ctx, caller.email);
     const id = await ctx.db.insert("musicRequests", {
       requesterEmail: caller.email,
-      title,
-      artist,
-      link,
-      requestComment,
+      ...song,
+      requestComment: args.requestComment?.trim() || undefined,
       albumArtUrl,
       status: isPraiseManager ? "APPROVED" : "PENDING",
       ...(isPraiseManager
-        ? {
-            reviewedByEmail: caller.email,
-            reviewedTime: Date.now(),
-          }
+        ? { reviewedByEmail: caller.email, reviewedTime: Date.now() }
         : {}),
     });
     if (!isPraiseManager) {
-      const praiseManagers = await praiseManagerEmailsForYear(
-        ctx,
-        currentStaffYear(),
-      );
-
       await notify(
         ctx,
-        praiseManagers,
+        await praiseManagerEmailsForYear(ctx, currentStaffYear()),
         "New music request",
-        `${caller.email} requested "${title}"`,
+        `${caller.email} requested "${song.title}"`,
         "/music?tab=review",
       );
     }
@@ -182,7 +223,43 @@ export const submit = mutation({
   },
 });
 
-/** Submit several songs atomically; duplicates are skipped, never inserted. */
+/** Preview duplicates without inserting any requests. */
+export const previewBatch = mutation({
+  args: {
+    songs: v.array(
+      v.object({
+        title: v.string(),
+        artist: v.string(),
+        link: v.string(),
+        albumArtUrl: v.optional(v.string()),
+        isrc: v.optional(v.string()),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    await requireProfile(ctx);
+    if (!args.songs.length || args.songs.length > 50)
+      throw new ConvexError("Add between 1 and 50 songs.");
+    const existing = await ctx.db.query("musicRequests").collect();
+    let exactDuplicates = 0;
+    let possibleDuplicates = 0;
+    for (const raw of args.songs) {
+      const song = validateSong(raw);
+      const duplicate = preferredDuplicate(existing, song);
+      if (duplicate?.kind === "exact") exactDuplicates++;
+      else if (duplicate?.kind === "possible") possibleDuplicates++;
+      // Include songs in this batch when checking subsequent entries.
+      existing.push({
+        ...song,
+        _id: `preview-${existing.length}`,
+        status: "PENDING",
+      } as MusicRequestRow);
+    }
+    return { exactDuplicates, possibleDuplicates };
+  },
+});
+
+/** Batch submission: exact and unconfirmed possible duplicates are skipped. */
 export const submitMany = mutation({
   args: {
     songs: v.array(
@@ -191,45 +268,39 @@ export const submitMany = mutation({
         artist: v.string(),
         link: v.string(),
         albumArtUrl: v.optional(v.string()),
+        isrc: v.optional(v.string()),
       }),
     ),
     requestComment: v.optional(v.string()),
+    allowPossibleDuplicates: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const caller = await requireProfile(ctx);
-    if (args.songs.length === 0 || args.songs.length > 50) {
+    if (!args.songs.length || args.songs.length > 50)
       throw new ConvexError("Add between 1 and 50 songs.");
-    }
     const existing = await ctx.db.query("musicRequests").collect();
-    const seen = new Set(
-      existing.map(
-        (row) =>
-          spotifyTrackId(row.link) ?? `url:${row.link.trim().toLowerCase()}`,
-      ),
-    );
     const isPraiseManager = await callerIsPraiseManager(ctx, caller.email);
     const added: string[] = [];
     let skipped = 0;
-    for (const song of args.songs) {
-      const title = song.title.trim();
-      const artist = song.artist.trim();
-      const link = song.link.trim();
-      if (!title || !artist || !link)
-        throw new ConvexError("Every song needs a title, artist and link.");
-      const key = spotifyTrackId(link) ?? `url:${link.toLowerCase()}`;
-      if (seen.has(key)) {
+    let possibleDuplicates = 0;
+    for (const raw of args.songs) {
+      const song = validateSong(raw);
+      const duplicate = preferredDuplicate(existing, song);
+      if (duplicate?.kind === "exact") {
         skipped++;
         continue;
       }
-      seen.add(key);
-      const artwork = song.albumArtUrl?.trim();
-      await ctx.db.insert("musicRequests", {
+      if (duplicate?.kind === "possible" && !args.allowPossibleDuplicates) {
+        skipped++;
+        possibleDuplicates++;
+        continue;
+      }
+      const artwork = raw.albumArtUrl?.trim();
+      const id = await ctx.db.insert("musicRequests", {
         requesterEmail: caller.email,
-        title,
-        artist,
-        link,
+        ...song,
         albumArtUrl:
-          spotifyTrackId(link) && artwork && /^https:\/\//i.test(artwork)
+          spotifyTrackId(song.link) && artwork && /^https:\/\//i.test(artwork)
             ? artwork
             : undefined,
         requestComment: args.requestComment?.trim() || undefined,
@@ -238,9 +309,15 @@ export const submitMany = mutation({
           ? { reviewedByEmail: caller.email, reviewedTime: Date.now() }
           : {}),
       });
-      added.push(title);
+      existing.push({
+        _id: id,
+        ...song,
+        requesterEmail: caller.email,
+        status: isPraiseManager ? "APPROVED" : "PENDING",
+      } as MusicRequestRow);
+      added.push(song.title);
     }
-    if (!isPraiseManager && added.length) {
+    if (!isPraiseManager && added.length)
       await notify(
         ctx,
         await praiseManagerEmailsForYear(ctx, currentStaffYear()),
@@ -248,8 +325,7 @@ export const submitMany = mutation({
         `${caller.email} requested ${added.length} song(s).`,
         "/music?tab=review",
       );
-    }
-    return { added: added.length, skipped };
+    return { added: added.length, skipped, possibleDuplicates };
   },
 });
 
@@ -453,6 +529,8 @@ export const update = mutation({
     link: v.string(),
     requestComment: v.optional(v.string()),
     albumArtUrl: v.optional(v.string()),
+    isrc: v.optional(v.string()),
+    allowPossibleDuplicate: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const caller = await requireProfile(ctx);
@@ -475,28 +553,22 @@ export const update = mutation({
     if (!title || !artist || !link) {
       throw new ConvexError("Title, artist and link are required.");
     }
-    const trackId = spotifyTrackId(link);
-    if (trackId) {
-      const requests = await ctx.db.query("musicRequests").collect();
-      const duplicate = requests.find(
-        (row) =>
-          row._id !== args.requestId &&
-          (row.status === "PENDING" ||
-            row.status === "APPROVED" ||
-            row.status === "DECLINED") &&
-          spotifyTrackId(row.link) === trackId,
+    const song = validateSong({ title, artist, link, isrc: args.isrc });
+    const requests = await ctx.db.query("musicRequests").collect();
+    const duplicate = preferredDuplicate(requests, song, args.requestId);
+    if (duplicate?.kind === "exact")
+      throw new ConvexError("This recording has already been submitted.");
+    if (duplicate?.kind === "possible" && !args.allowPossibleDuplicate)
+      throw new ConvexError(
+        "Possible duplicate: confirm that you want to use this version.",
       );
-      if (duplicate) {
-        throw new ConvexError(
-          "This song has already been submitted (pending, approved, or declined).",
-        );
-      }
-    }
+    const trackId = spotifyTrackId(link);
     const artwork = args.albumArtUrl?.trim();
     await ctx.db.patch(args.requestId, {
       title,
       artist,
       link,
+      isrc: song.isrc,
       requestComment: args.requestComment?.trim() || undefined,
       albumArtUrl:
         trackId && artwork && /^https:\/\//i.test(artwork)

@@ -721,15 +721,14 @@ export default defineSchema({
     updatedBy: v.string(),
   }).index("by_key", ["key"]),
 
-  // A song request from any signed-in staff member. Single-step approval by a
-  // Chaplain (Senior/Junior/Intern) — unlike `requests`, there is no multi-step
-  // approval chain: one Chaplin action (approve/decline) closes it out.
+  // A song request from any signed-in member, to be approved or declined by a Praise Manager.
   musicRequests: defineTable({
     albumArtUrl: v.optional(v.string()),
     requesterEmail: v.string(),
     title: v.string(),
     artist: v.string(),
     link: v.string(),
+    isrc: v.optional(v.string()),
     status: approvalStatus,
     reviewedByEmail: v.optional(v.string()),
     reviewedTime: v.optional(v.number()),

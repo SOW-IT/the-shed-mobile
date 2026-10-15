@@ -14,6 +14,7 @@ type SpotifySong = {
   artist: string;
   link: string;
   albumArtUrl?: string;
+  isrc?: string;
 };
 const detectSpotifyLink = (value: string): "track" | "playlist" | null => {
   try {
@@ -62,6 +63,7 @@ export const NewMusicRequestSheet = ({
   const [requestComment, setRequestComment] = useState("");
   const [spotifyLink, setSpotifyLink] = useState("");
   const [albumArtUrl, setAlbumArtUrl] = useState<string | null>(null);
+  const [isrc, setIsrc] = useState<string | undefined>();
   const [fetchingSpotify, setFetchingSpotify] = useState(false);
   const [spotifyError, setSpotifyError] = useState<string | null>(null);
   const [manualExpanded, setManualExpanded] = useState(false);
@@ -71,14 +73,16 @@ export const NewMusicRequestSheet = ({
     : spotifyTrackUrl(spotifyLink);
   const duplicate = useQuery(
     api.musicRequests.checkDuplicate,
-    visible && duplicateLink ? { link: duplicateLink } : "skip",
+    visible && (duplicateLink || (title.trim() && artist.trim()))
+      ? { link: duplicateLink ?? link.trim(), title, artist, isrc }
+      : "skip",
   );
   const duplicateIsSelf =
     !!prefill &&
     !!duplicateLink &&
     spotifyTrackUrl(prefill.link) === duplicateLink;
-  const duplicateBlocked =
-    !duplicateIsSelf && duplicate !== undefined && duplicate !== null;
+  const duplicateBlocked = !duplicateIsSelf && duplicate?.kind === "exact";
+  const possibleDuplicate = !duplicateIsSelf && duplicate?.kind === "possible";
   const getSpotifyTrack = useAction(api.spotify.getTrack);
   const spotifyPlaylist = useSpotifyPlaylist();
   useEffect(() => {
@@ -93,15 +97,15 @@ export const NewMusicRequestSheet = ({
   const update = useMutation(api.musicRequests.update);
   const [submitting, setSubmitting] = useState(false);
   const submitMany = useMutation(api.musicRequests.submitMany);
-  const [songs, setSongs] = useState<
-    Array<{ title: string; artist: string; link: string; albumArtUrl?: string }>
-  >([]);
+  const previewBatch = useMutation(api.musicRequests.previewBatch);
+  const [songs, setSongs] = useState<SpotifySong[]>([]);
   const clearSong = () => {
     setTitle("");
     setArtist("");
     setLink("");
     setSpotifyLink("");
     setAlbumArtUrl(null);
+    setIsrc(undefined);
     setSpotifyError(null);
   };
   const addSong = () => {
@@ -130,6 +134,20 @@ export const NewMusicRequestSheet = ({
       Alert.alert("List full", "You can submit up to 50 songs at once.");
       return;
     }
+    if (possibleDuplicate) {
+      Alert.alert(
+        "Possible duplicate",
+        `${duplicate?.title} by ${duplicate?.artist} has already been requested. Add this version anyway?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Add anyway", onPress: () => queueSong() },
+        ],
+      );
+      return;
+    }
+    queueSong();
+  };
+  const queueSong = () => {
     setSongs((current) => [
       ...current,
       {
@@ -137,6 +155,7 @@ export const NewMusicRequestSheet = ({
         artist: artist.trim(),
         link: link.trim(),
         albumArtUrl: albumArtUrl ?? undefined,
+        isrc,
       },
     ]);
     clearSong();
@@ -188,6 +207,7 @@ export const NewMusicRequestSheet = ({
     setRequestComment(prefill?.requestComment ?? "");
     setSpotifyLink("");
     setAlbumArtUrl(prefill?.albumArtUrl ?? null);
+    setIsrc(prefill?.isrc);
     setSpotifyError(null);
     setSongs([]);
     setManualExpanded(!!prefill);
@@ -195,7 +215,7 @@ export const NewMusicRequestSheet = ({
   const autofillSpotify = async () => {
     const cleanUrl = spotifyTrackUrl(spotifyLink);
     if (!cleanUrl) {
-      setSpotifyError("Please paste a valid Spotify track link.");
+      setSpotifyError("Please paste a valid Spotify track link. ");
       return;
     }
     setFetchingSpotify(true);
@@ -208,6 +228,7 @@ export const NewMusicRequestSheet = ({
       setArtist(track.artist);
       setLink(track.link);
       setAlbumArtUrl(track.albumArtUrl);
+      setIsrc(track.isrc ?? undefined);
       setManualExpanded(true);
     } catch (error) {
       setSpotifyError(
@@ -217,6 +238,34 @@ export const NewMusicRequestSheet = ({
       );
     } finally {
       setFetchingSpotify(false);
+    }
+  };
+  const submitBatch = async (
+    all: SpotifySong[],
+    allowPossibleDuplicates: boolean,
+  ) => {
+    setSubmitting(true);
+    try {
+      const result = await submitMany({
+        songs: all,
+        requestComment: requestComment.trim() || undefined,
+        allowPossibleDuplicates,
+      });
+      setSongs([]);
+      clearSong();
+      setRequestComment("");
+      onClose();
+      Alert.alert(
+        "Songs submitted",
+        `${result.added} song(s) submitted; ${result.skipped} duplicate(s) skipped.`,
+      );
+    } catch (error) {
+      Alert.alert(
+        "Couldn't submit",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+    } finally {
+      setSubmitting(false);
     }
   };
   const onSubmit = async () => {
@@ -240,25 +289,32 @@ export const NewMusicRequestSheet = ({
           artist: artist.trim(),
           link: link.trim(),
           albumArtUrl: albumArtUrl ?? undefined,
+          isrc,
         });
       }
       setSubmitting(true);
       try {
-        const result = await submitMany({
-          songs: all,
-          requestComment: requestComment.trim() || undefined,
-        });
-        setSongs([]);
-        clearSong();
-        setRequestComment("");
-        onClose();
-        Alert.alert(
-          "Songs submitted",
-          `${result.added} song(s) submitted; ${result.skipped} duplicate(s) skipped.`,
-        );
+        const preview = await previewBatch({ songs: all });
+        if (preview.possibleDuplicates > 0) {
+          setSubmitting(false);
+          Alert.alert(
+            "Possible duplicate songs",
+            `${preview.possibleDuplicates} song(s) may already have been requested in a different version. Submit these versions anyway? Exact duplicates will be skipped.`,
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Request anyway",
+                onPress: () => void submitBatch(all, true),
+              },
+            ],
+          );
+          return;
+        }
+        await submitBatch(all, false);
+        return;
       } catch (error) {
         Alert.alert(
-          "Couldn't submit",
+          "Couldn't check duplicates",
           error instanceof Error ? error.message : "Please try again.",
         );
       } finally {
@@ -285,6 +341,20 @@ export const NewMusicRequestSheet = ({
       );
       return;
     }
+    if (possibleDuplicate) {
+      Alert.alert(
+        "Possible duplicate",
+        `${duplicate?.title} by ${duplicate?.artist} has already been requested. Request this version anyway?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Request anyway", onPress: () => void saveSingle(true) },
+        ],
+      );
+      return;
+    }
+    await saveSingle(false);
+  };
+  const saveSingle = async (allowPossibleDuplicate: boolean) => {
     setSubmitting(true);
     try {
       const values = {
@@ -293,6 +363,8 @@ export const NewMusicRequestSheet = ({
         link: link.trim(),
         requestComment: requestComment.trim() || undefined,
         albumArtUrl: albumArtUrl ?? undefined,
+        isrc,
+        allowPossibleDuplicate,
       };
       if (prefill) {
         await update({ requestId: prefill._id, ...values });
@@ -305,6 +377,7 @@ export const NewMusicRequestSheet = ({
       setRequestComment("");
       setSpotifyLink("");
       setAlbumArtUrl(null);
+      setIsrc(undefined);
       setSpotifyError(null);
       onClose();
       Alert.alert(
@@ -338,7 +411,7 @@ export const NewMusicRequestSheet = ({
                   : "Submitting..."
                 : prefill
                   ? "Save Changes"
-                  : "Submit Song for Praise Manager"
+                  : "Submit Song"
             }
             onPress={onSubmit}
             disabled={
@@ -368,7 +441,11 @@ export const NewMusicRequestSheet = ({
           </Text>
         </View>
         <Text style={[typography.caption, { color: t.muted }]}>
-          Paste a song or playlist link. We’ll detect it automatically.
+          Paste a Spotify song or playlist link.
+        </Text>
+
+        <Text style={[typography.caption, { color: t.warning }]}>
+          Note: You can only import playlists that you own or collaborate on.
         </Text>
         <Field
           label="Spotify song or playlist URL"
@@ -380,6 +457,7 @@ export const NewMusicRequestSheet = ({
             setArtist("");
             setLink("");
             setAlbumArtUrl(null);
+            setIsrc(undefined);
           }}
           placeholder="https://open.spotify.com/track/... or playlist/..."
           autoCapitalize="none"
@@ -495,15 +573,19 @@ export const NewMusicRequestSheet = ({
             />
             <View style={{ flex: 1, gap: 3 }}>
               <Text style={{ color: t.text, fontWeight: "700" }}>
-                {duplicate.status === "APPROVED"
-                  ? "Already in the playlist"
-                  : duplicate.status === "PENDING"
-                    ? "This song has already been requested"
-                    : "This song was previously declined"}
+                {possibleDuplicate
+                  ? "Possible duplicate song"
+                  : duplicate.status === "APPROVED"
+                    ? "Already in the playlist"
+                    : duplicate.status === "PENDING"
+                      ? "This song has already been requested"
+                      : "This song was previously declined"}
               </Text>
               <Text style={[typography.caption, { color: t.muted }]}>
                 {duplicate.title} by {duplicate.artist}
-                {". You can't submit another request for this track."}
+                {possibleDuplicate
+                  ? ". You can request this version anyway."
+                  : ". You can't submit another request for this recording."}
               </Text>
             </View>
           </View>

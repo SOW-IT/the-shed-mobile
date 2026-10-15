@@ -22,6 +22,9 @@ type SpotifyTrack = {
   name: string;
   artists: { name: string }[];
   album: { images: { url: string }[] };
+  external_ids?: {
+    isrc?: string;
+  };
   is_local?: boolean;
   type?: string;
 };
@@ -75,6 +78,7 @@ export const getTrack = action({
       artist: track.artists.map((artist) => artist.name).join(", "),
       albumArtUrl: track.album.images[0]?.url ?? null,
       link: `https://open.spotify.com/track/${id}`,
+      isrc: track.external_ids?.isrc ?? null,
     };
   },
 });
@@ -127,6 +131,7 @@ export const getPlaylist = action({
       artist: string;
       link: string;
       albumArtUrl?: string;
+      isrc?: string;
     }> = [];
     for (const entry of page.items ?? []) {
       const track = entry.item ?? entry.track;
@@ -144,6 +149,7 @@ export const getPlaylist = action({
         artist: (track.artists ?? []).map((artist) => artist.name).join(", "),
         link: `https://open.spotify.com/track/${track.id}`,
         albumArtUrl: track.album?.images?.[0]?.url ?? undefined,
+        isrc: track.external_ids?.isrc ?? undefined,
       });
     }
     return {
