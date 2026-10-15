@@ -17,19 +17,6 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 
 ## Still outstanding
 
-- [ ] **2.9.2 clean-up, after its Convex deploy** (backup first:
-      ~/Documents/the-shed-backups/prod-2026-10-16-before-2.9.2.zip).
-      `npx convex run --prod fieldCleanup:linkTypedChurches '{}'` lists the
-      typed churches to add and link (3 expected); run again with
-      `'{"dryRun": false}'`. Then `fieldCleanup:clearImportIds` with
-      `'{"table": "events", "dryRun": false}'` and
-      `'{"table": "attendanceMembers", "dryRun": false}'`, passing each `next`
-      back as `cursor` until it's null (220 and 1,200 expected). A rerun of
-      each should find 0. Then 2.9.3 drops `users.localChurch`,
-      `events.sourceImportId`, `attendanceMembers.sourceImportId` and their
-      indexes, and deletes `convex/fieldCleanup.ts`.
-
-
 - [ ] **Ask phones to update to 2.9.1 once it's live in both stores** (2.9.0 is
       the first version with the update prompt, so it only reaches people on
       2.9.0 and later): `npx convex run --prod appInstalls:setUpdatePolicy
@@ -113,6 +100,14 @@ audit log has "Weekly names and tags tidied (2.8.0)".*
 `APPLE_KEY_ID` and `APPLE_PRIVATE_KEY` are set on both Convex deployments.
 *Evidence (2026-10-15): `npx convex env list` shows all three names on prod
 and dev.*
+
+**2.9.2 clean-up ran on production** (2026-10-16, after #367's Convex deploy).
+*Evidence: backup ~/Documents/the-shed-backups/prod-2026-10-16-2.9.2-deployed.zip
+taken first; `fieldCleanup:linkTypedChurches` added and linked Redeemer
+Presbyterian Church, Sydney Elim Presbyterian Church and New Life Christian
+Church (name only) for their three staff; `fieldCleanup:clearImportIds`
+cleared 220 events and 1,200 members; every rerun found 0. 2.9.3 then dropped
+the fields and the clean-up module.*
 
 **Old event forms copied in, and the old pages redirect** — 2.3.0's import
 ran against production after the Convex deploy, and the old web app's Event

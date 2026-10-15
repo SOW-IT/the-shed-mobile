@@ -44,7 +44,6 @@ import type * as eventRequestForm from "../eventRequestForm.js";
 import type * as eventRequests from "../eventRequests.js";
 import type * as eventSubForms from "../eventSubForms.js";
 import type * as events from "../events.js";
-import type * as fieldCleanup from "../fieldCleanup.js";
 import type * as generalMetrics from "../generalMetrics.js";
 import type * as homeContent from "../homeContent.js";
 import type * as homeData from "../homeData.js";
@@ -111,7 +110,6 @@ declare const fullApi: ApiFromModules<{
   eventRequests: typeof eventRequests;
   eventSubForms: typeof eventSubForms;
   events: typeof events;
-  fieldCleanup: typeof fieldCleanup;
   generalMetrics: typeof generalMetrics;
   homeContent: typeof homeContent;
   homeData: typeof homeData;

@@ -40,9 +40,6 @@ export default defineSchema({
     isAnonymous: v.optional(v.boolean()),
     // The church they picked from the list (`churches`).
     churchId: v.optional(v.id("churches")),
-    // What they typed before churches were a list; shown as a hint until
-    // they pick one.
-    localChurch: v.optional(v.string()),
     avatarId: v.optional(v.id("_storage")),
   })
     .index("email", ["email"])
@@ -472,15 +469,13 @@ export default defineSchema({
     name: v.string(),
     dateStart: v.number(),
     dateEnd: v.number(),
-    sourceImportId: v.optional(v.string()),
     subgroups: v.array(v.string()),
     tagIds: v.optional(v.array(v.id("attendanceTags"))),
     // A campus weekly's term and week, set when it was created as a Weekly
     // (or by the backfill). Insights trusts these over dates and names.
     weekly: v.optional(weeklyMarkValidator),
   })
-    .index("by_dateStart", ["dateStart"])
-    .index("by_sourceImportId", ["sourceImportId"]),
+    .index("by_dateStart", ["dateStart"]),
 
   attendanceAuditLog: defineTable({
     actorEmail: v.string(),
@@ -525,13 +520,11 @@ export default defineSchema({
     // A plain member's own email. On a staff person's row it is their staff
     // email, which links the row to their staff profile.
     email: v.optional(v.string()),
-    sourceImportId: v.optional(v.string()),
     metadata: v.optional(v.record(v.string(), v.string())),
     // A plain member's local church (staff set theirs in their Profile).
     churchId: v.optional(v.id("churches")),
   })
     .index("by_email", ["email"])
-    .index("by_source_import_id", ["sourceImportId"])
     .index("by_name", ["name"])
     .index("by_churchId", ["churchId"]),
 
