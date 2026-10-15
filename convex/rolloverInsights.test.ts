@@ -210,12 +210,15 @@ describe("October rollover → General Insights", () => {
     await t.run(async (ctx) => {
       const tag = await ctx.db
         .query("attendanceTags")
-        .filter((q) => q.eq(q.field("name"), "Weekly Meeting"))
+        .filter((q) => q.eq(q.field("name"), "Weeklies"))
         .first();
       const tagId =
-        tag?._id ?? (await ctx.db.insert("attendanceTags", { name: "Weekly Meeting" }));
+        tag?._id ?? (await ctx.db.insert("attendanceTags", { name: "Weeklies" }));
       for (const e of await ctx.db.query("events").collect()) {
-        await ctx.db.patch(e._id, { tagIds: [tagId] });
+        await ctx.db.patch(e._id, {
+          tagIds: [tagId],
+          weekly: { year: new Date(e.dateStart).getUTCFullYear(), slot: 2, week: 1 },
+        });
       }
     });
 

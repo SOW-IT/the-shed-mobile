@@ -351,14 +351,15 @@ describe("campusWeeklyAttendance", () => {
   ) {
     return t.run(async (ctx) => {
       const tagId = await ctx.db.insert("attendanceTags", {
-        name: "Weekly Meeting",
+        name: "Weeklies",
       });
       const eventId = await ctx.db.insert("events", {
-        name: "Weekly Meeting",
+        name: "T1W3",
         dateStart: opts.dateStart,
         dateEnd: opts.dateStart + 2 * 60 * 60 * 1000,
         subgroups: [opts.campus],
         tagIds: [tagId],
+        weekly: { year: new Date(opts.dateStart).getUTCFullYear(), slot: 1, week: 3 },
       });
       for (let i = 0; i < opts.count; i++) {
         await ctx.db.insert("attendance", {
@@ -388,24 +389,50 @@ describe("campusWeeklyAttendance", () => {
     ]);
   });
 
-  test("ignores events without the Weekly Meeting tag", async () => {
+  test("ignores events that aren't weeklies, whatever their tags", async () => {
     const t = convexTest(schema, modules);
     await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2025, count: 12 });
     await t.run(async (ctx) => {
-      const eventId = await ctx.db.insert("events", {
+      const legacyTag = await ctx.db.insert("attendanceTags", { name: "Weekly Meeting" });
+      const social = await ctx.db.insert("events", {
         name: "Social night",
         dateStart: IN_2025,
         dateEnd: IN_2025 + 60 * 60 * 1000,
         subgroups: ["USYD"],
       });
-      await ctx.db.insert("attendance", {
-        eventId,
-        signInTime: IN_2025,
+      const tagOnly = await ctx.db.insert("events", {
+        name: "Weekly Meeting",
+        dateStart: IN_2025,
+        dateEnd: IN_2025 + 60 * 60 * 1000,
+        subgroups: ["USYD"],
+        tagIds: [legacyTag],
       });
+      for (const eventId of [social, tagOnly]) {
+        await ctx.db.insert("attendance", {
+          eventId,
+          signInTime: IN_2025,
+        });
+      }
     });
     const res = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
     expect(res.years).toEqual([2025]);
     expect(res.campuses).toEqual([{ campus: "USYD", averages: [12] }]);
+  });
+
+  test("a marked weekly counts even without the Weeklies tag", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      const eventId = await ctx.db.insert("events", {
+        name: "S1W2",
+        dateStart: IN_2025,
+        dateEnd: IN_2025 + 60 * 60 * 1000,
+        subgroups: ["USYD"],
+        weekly: { year: 2025, slot: 1, week: 2 },
+      });
+      for (let i = 0; i < 7; i++) await ctx.db.insert("attendance", { eventId, signInTime: IN_2025 });
+    });
+    const res = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
+    expect(res.campuses).toEqual([{ campus: "USYD", averages: [7] }]);
   });
 
   test("skips org-wide (SOW) weekly meetings — they belong to no campus", async () => {

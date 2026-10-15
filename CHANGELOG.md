@@ -6,6 +6,42 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-10-15
+
+### Added
+- **New event is one screen, and starts on Weekly.** Pick the term (or
+  semester) and week from dropdowns, both pre-filled with the campus's next
+  week; the name fills in as the week code ("T3W5" at UNSW, "S2W5" at other
+  campuses) and can still be changed. The date starts a week after the
+  campus's last weekly, at the same times. Picking a week the campus already
+  has asks you to confirm. SOW events are always Other events.
+- **Weekly labels are tags.** BAM, Games Night, Mega, Grad and PPN are
+  Weeklies tags, and every tag now belongs to one list, Weeklies or Other
+  events, chosen on the Tags screen. A weekly only offers Weeklies tags and an
+  Other event only Other events tags; switching between them clears the tags
+  that don't fit.
+
+### Changed
+- **The Weekly Meeting tag is now called Weeklies**, and what makes an event a
+  weekly is its term and week, not the tag.
+- **Every past weekly was renamed to its week code**, with the extra words in
+  its name turned into tags ("S2 WM #13 PPN" is now S2W13 tagged PPN). Shared
+  weeklies like Mega Weeklies got a term and week from their owning campus
+  (Insights still leaves them out of campus terms).
+- **Tags tidied:** Event and Other Events merged into Social (a PPN, like
+  Intercampus PPN, takes PPN instead); Retreat,
+  Mid-Sem Break and PPN can be used by every campus and SOW; the SOW monthly
+  PPNs (and the September Farewells) also carry TWIG.
+- **Weeks go up to 14**, and a weekly's term is always in its date's year.
+
+### Fixed
+- **Creating a weekly no longer fails when the suggested term is left as it
+  is.** Since 2.5.1 the server rejected it, so leaders made Other events with
+  the tag instead, which then had no term or week. The server now accepts what
+  older apps send, and works out a term and week for a tagged weekly that
+  arrives without one.
+- **Closing New event without creating it starts the next one fresh.**
+
 ## [2.7.0] - 2026-10-14
 
 ### Added

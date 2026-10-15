@@ -26,6 +26,10 @@ import {
   subgroupColour,
   subgroupLabel,
   subgroupMatches,
+  isWeekliesTagName,
+  LEGACY_WEEKLIES_TAG_NAME,
+  tagListOf,
+  WEEKLIES_TAG_NAME,
 } from "./rollcall";
 
 describe("capitalizeMemberName", () => {
@@ -187,6 +191,23 @@ describe("subgroupColour", () => {
 
   test("an unknown campus falls back to slate", () => {
     expect(subgroupColour("Unknown Uni")).toBe("#64748b");
+  });
+});
+
+describe("weekly tags", () => {
+  test("the Weeklies tag goes by its new name or the old Weekly Meeting", () => {
+    expect(WEEKLIES_TAG_NAME).toBe("Weeklies");
+    expect(LEGACY_WEEKLIES_TAG_NAME).toBe("Weekly Meeting");
+    expect(isWeekliesTagName("Weeklies")).toBe(true);
+    expect(isWeekliesTagName("Weekly Meeting")).toBe(true);
+    expect(isWeekliesTagName("weeklies")).toBe(false);
+    expect(isWeekliesTagName("Social")).toBe(false);
+  });
+
+  test("a tag with no list is an Other events tag", () => {
+    expect(tagListOf({})).toBe("events");
+    expect(tagListOf({ list: "events" })).toBe("events");
+    expect(tagListOf({ list: "weeklies" })).toBe("weeklies");
   });
 });
 

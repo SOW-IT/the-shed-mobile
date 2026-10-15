@@ -138,6 +138,8 @@ const WEEK_IN_NAME = [
   /\bWEEK\s?(\d{1,2})\b/i,
 ];
 
+export const WEEK_MAX = 14;
+
 export const weekFromName = (name?: string): number | null => {
   for (const pattern of WEEK_IN_NAME) {
     const n = Number(pattern.exec(name ?? "")?.[1]);
@@ -251,27 +253,54 @@ export function deriveTerms(
   return terms;
 }
 
-/** "Weeklies T3W5" at a term campus, "Weeklies S2W5" elsewhere. */
 /** A weekly's short name: "T3W5" (UNSW terms) or "S2W5" (semesters). */
 const weekCode = (system: TermSystem, slot: number, week: number): string =>
   `${system === "terms" ? "T" : "S"}${slot}W${week}`;
 
-export const weeklyName = (system: TermSystem, slot: number, week: number): string =>
-  `Weeklies ${weekCode(system, slot, week)}`;
+export const weeklyName = weekCode;
+
+const SLOT_IN_NAME = /\b([TS])\s?(\d)\s?W/i;
+
+/** The term or semester and week a leader wrote in a weekly's name, when they
+ *  fit this campus: "WEEKLIES T3W5" at UNSW, "S2 WM #13" or "UTS S2W11"
+ *  elsewhere. */
+export function markFromName(
+  name: string,
+  system: TermSystem
+): { slot: number | null; week: number | null } {
+  const slotMatch = SLOT_IN_NAME.exec(name);
+  const letterFits = slotMatch && (slotMatch[1].toUpperCase() === "T") === (system === "terms");
+  const slot = letterFits ? Number(slotMatch[2]) : null;
+  const week = weekFromName(name);
+  return {
+    slot: slot !== null && slot >= 1 && slot <= (system === "terms" ? 3 : 2) ? slot : null,
+    week: week !== null && week <= WEEK_MAX ? week : null,
+  };
+}
 
 /** "T2W5 (3 Jun)", or just the date when the weekly isn't known. */
 export const weeklyWhen = (at: number, code?: string | null): string =>
   code ? `${code} (${dayLabel(at)})` : dayLabel(at);
 
-/** The terms a weekly on this date could be in: that year's, plus the last
- *  of the year before (for a weekly in early January). */
-export const termOptions = (system: TermSystem, year: number) => {
-  const slots = system === "terms" ? [1, 2, 3] : [1, 2];
-  return [
-    { year: year - 1, slot: slots[slots.length - 1] },
-    ...slots.map((slot) => ({ year, slot })),
-  ].map((o) => ({ ...o, key: termKey(system, o.slot, o.year), label: termLabel(system, o.slot, o.year) }));
-};
+/** The terms a weekly on this date can be in: that year's. */
+export const termOptions = (system: TermSystem, year: number) =>
+  (system === "terms" ? [1, 2, 3] : [1, 2]).map((slot) => ({
+    year,
+    slot,
+    key: termKey(system, slot, year),
+    label: termLabel(system, slot, year),
+  }));
+
+/** A new weekly's date: a week after the campus's last one, moved on a week at
+ *  a time until it isn't in the past. Dates are "YYYY-MM-DD". */
+export function nextWeeklyDate(previous: string, today: string): string {
+  const [y, m, d] = previous.split("-").map(Number);
+  let at = Date.UTC(y, m - 1, d);
+  const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+  do at += 7 * DAY_MS;
+  while (iso(at) < today);
+  return iso(at);
+}
 
 /** The term and week a new weekly on `at` most likely belongs to, worked out
  *  the same way as Insights from the campus's other weeklies. */
@@ -284,7 +313,12 @@ export function suggestWeekly(
   const NEW = "__new__";
   const terms = deriveTerms([...weeklies, { eventId: NEW, at, count: 1 }], system, gapDays);
   const term = terms.find((t) => t.weeklies.some((w) => w.eventId === NEW))!;
-  const week = term.weeklies.find((w) => w.eventId === NEW)!.week;
+  const { year, month } = sydneyYmd(new Date(at));
+  if (term.year !== year) {
+    const slot = slotFor(month, system);
+    return { year, slot, week: 1, key: termKey(system, slot, year), label: termLabel(system, slot, year) };
+  }
+  const week = Math.min(Math.max(term.weeklies.find((w) => w.eventId === NEW)!.week, 1), WEEK_MAX);
   return { year: term.year, slot: term.slot, week, key: term.key, label: term.label };
 }
 

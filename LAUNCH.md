@@ -18,6 +18,13 @@ dev web `https://the-shed-web-dev.vercel.app` (Vercel `the-shed-web-dev`).
 ## Still outstanding
 
 
+- [ ] **Run the 2.8.0 weekly migration on production** once 2.8.0's backend is
+      deployed and the dry-run list is approved:
+      `npx convex run --prod weeklyMigration:run '{}'` (dry run, prints every
+      change), then `'{"dryRun": false}'`. Export prod first. A second run is a
+      no-op. Until it runs, the nine weeklies with no term or week (the joint
+      ones and three made on 13-14 Oct) are left out of Insights.
+
 - [ ] **Sign in with Apple key for account deletion** (2.7.0): create a key
       with Sign in with Apple enabled in the Apple Developer portal (Team
       `4FH642K7X2`), then set `APPLE_TEAM_ID`, `APPLE_KEY_ID` and
