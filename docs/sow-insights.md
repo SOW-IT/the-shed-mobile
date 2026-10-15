@@ -48,7 +48,8 @@ counted; people with no staff profile are listed and flagged.
   (different campus leaders), Regulars (campus leaders at half or more of the
   year's held TWIGs, `regularShare`). The year in progress is compared with
   last staff year **up to the same date**; a past year with the whole year
-  before.
+  before. When last year had no TWIG with a roll by that date, the caption
+  says so and the cards show no comparison.
 - **TWIG by TWIG**: campus leaders at each TWIG in order, against the same
   TWIG (1st with 1st) last staff year in grey.
 - **Campus leader sign-ins by campus**.
@@ -68,8 +69,9 @@ Everyone counts; people with no staff profile are noted, never flagged.
 - **Month by month**, newest first: date and name, sign-ins, change against
   the PPN in the same calendar month last staff year, first-timers (their
   first PPN ever, across every year), split by campus and by campus leaders /
-  staff / others. Campus for someone without a university role is their
-  member Campus field, else "No campus".
+  staff / others. In the campus split, other staff with no campus count under
+  SOW, and anyone else without a university role uses their member Campus
+  field, else "No campus".
 - **No roll taken**.
 
 ## The query
