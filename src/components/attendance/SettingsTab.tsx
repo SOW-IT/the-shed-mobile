@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { TAG_COLOUR_NAMES, tagColourHex } from "../../../shared/attendanceTags";
+import { isWeekliesTagName, tagListOf, type TagList } from "../../../shared/rollcall";
 import { AttendanceTagPill } from "@/components/attendance/AttendanceTagPill";
 import type { SaveControls } from "@/components/attendance/MetadataTab";
 import { SubgroupScopePicker } from "@/components/attendance/SubgroupScopePicker";
@@ -16,6 +17,8 @@ import {
   IconButton,
   LoadingState,
   Muted,
+  SectionTitle,
+  Segmented,
   Sheet,
   Txt,
 } from "@/components/ui";
@@ -26,13 +29,20 @@ type TagDraft = {
   name: string;
   colour?: string;
   subgroups?: string[];
+  list: TagList;
 };
+
+const LISTS: { list: TagList; title: string; hint: string }[] = [
+  { list: "weeklies", title: "Weeklies", hint: "Labels for a weekly, like BAM or PPN." },
+  { list: "events", title: "Other events", hint: "For every other kind of event." },
+];
 
 const normalizeTag = (tag: TagDraft) => ({
   id: tag.id,
   name: tag.name.trim(),
   colour: tag.colour ?? "",
   subgroups: [...(tag.subgroups ?? [])].sort(),
+  list: tag.list,
 });
 
 const tagsEqual = (a: TagDraft[], b: TagDraft[]) =>
@@ -46,7 +56,8 @@ export function SettingsTab({
   onSaveStateChange?: (controls: SaveControls) => void;
 }) {
   const t = useAppTheme();
-  const tags = useQuery(api.attendanceTags.list, {});
+  const allTags = useQuery(api.attendanceTags.list, {});
+  const tags = allTags?.filter((tag) => !isWeekliesTagName(tag.name));
   const saveTags = useMutation(api.attendanceTags.saveAll);
 
   const [tagDrafts, setTagDrafts] = useState<TagDraft[]>([]);
@@ -58,25 +69,29 @@ export function SettingsTab({
   const [colourIndex, setColourIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    if (tags) {
+    if (allTags) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- sync drafts from server
       setTagDrafts(
-        tags.map((tag) => ({
-          id: tag._id,
-          name: tag.name,
-          colour: tag.colour,
-          subgroups: tag.subgroups,
-        }))
+        allTags
+          .filter((tag) => !isWeekliesTagName(tag.name))
+          .map((tag) => ({
+            id: tag._id,
+            name: tag.name,
+            colour: tag.colour,
+            subgroups: tag.subgroups,
+            list: tagListOf(tag),
+          }))
       );
       setTagDeletes([]);
     }
-  }, [tags]);
+  }, [allTags]);
 
   const serverTagDrafts: TagDraft[] = (tags ?? []).map((tag) => ({
     id: tag._id,
     name: tag.name,
     colour: tag.colour,
     subgroups: tag.subgroups,
+    list: tagListOf(tag),
   }));
   const tagsChanged =
     tagDeletes.length > 0 || !tagsEqual(tagDrafts, serverTagDrafts);
@@ -111,105 +126,131 @@ export function SettingsTab({
 
   if (tags === undefined) return <LoadingState />;
 
-  const addTag = () =>
+  const addTag = (list: TagList) =>
     setTagDrafts((prev) => [
       ...prev,
-      { name: "", colour: "blue", subgroups: [...subgroups] },
+      { name: "", colour: "blue", subgroups: [...subgroups], list },
     ]);
+
+  const indexed = tagDrafts.map((tag, i) => ({ tag, i }));
 
   return (
     <>
-      {tagDrafts.map((tag, i) => (
-        <Card
-          key={tag.id ?? `new-${i}`}
-          style={[
-            styles.tagCard,
-            {
-              borderColor: tag.colour ? tagColourHex(tag.colour) : t.separator,
-            },
-          ]}
-        >
-          <View style={styles.cardHeader}>
-            <AttendanceTagPill
-              name={tag.name.trim() || "New tag"}
-              colour={tag.colour}
-            />
-            <IconButton
-              name={tag.id ? "trash-outline" : "close"}
-              size={32}
-              color={tag.id ? t.danger : t.ghostText}
-              bg={tag.id ? t.dangerSoft : t.ghost}
-              accessibilityLabel={tag.id ? "Remove tag" : "Discard tag"}
-              onPress={() => {
-                if (tag.id) {
-                  setDeleteIndex(i);
-                  setDeleteText("");
-                } else {
-                  setTagDrafts((prev) => prev.filter((_, j) => j !== i));
-                }
-              }}
-            />
-          </View>
-
-          <Field
-            label="Name"
-            value={tag.name}
-            onChangeText={(name) =>
-              setTagDrafts((prev) => prev.map((x, j) => (j === i ? { ...x, name } : x)))
-            }
-          />
-
-          <View style={{ gap: spacing.xs }}>
-            <Muted>Colour</Muted>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Choose colour, currently ${tag.colour ?? "blue"}`}
-              onPress={() => setColourIndex(i)}
-              style={({ pressed }) => [
-                styles.colourPickerButton,
-                { borderColor: t.border, backgroundColor: t.card },
-                pressed && { opacity: 0.7 },
+      {LISTS.map((section) => (
+        <View key={section.list} style={{ marginBottom: spacing.md }}>
+          <SectionTitle>{section.title}</SectionTitle>
+          <Muted>{section.hint}</Muted>
+          <View style={{ height: spacing.sm }} />
+          {indexed.filter(({ tag }) => tag.list === section.list).map(({ tag, i }) => (
+            <Card
+              key={tag.id ?? `new-${i}`}
+              style={[
+                styles.tagCard,
+                {
+                  borderColor: tag.colour ? tagColourHex(tag.colour) : t.separator,
+                },
               ]}
             >
-              <View style={styles.colourPickerValue}>
-                <View
-                  style={[
-                    styles.colourDot,
-                    { backgroundColor: tagColourHex(tag.colour ?? "blue") },
-                  ]}
+              <View style={styles.cardHeader}>
+                <AttendanceTagPill
+                  name={tag.name.trim() || "New tag"}
+                  colour={tag.colour}
                 />
-                <Text style={[typography.body, { color: t.text, fontWeight: "700" }]}>
-                  {tag.colour ?? "blue"}
-                </Text>
+                <IconButton
+                  name={tag.id ? "trash-outline" : "close"}
+                  size={32}
+                  color={tag.id ? t.danger : t.ghostText}
+                  bg={tag.id ? t.dangerSoft : t.ghost}
+                  accessibilityLabel={tag.id ? "Remove tag" : "Discard tag"}
+                  onPress={() => {
+                    if (tag.id) {
+                      setDeleteIndex(i);
+                      setDeleteText("");
+                    } else {
+                      setTagDrafts((prev) => prev.filter((_, j) => j !== i));
+                    }
+                  }}
+                />
               </View>
-              <Ionicons name="chevron-down" size={18} color={t.ghostText} />
-            </Pressable>
-          </View>
 
-          <View style={{ gap: spacing.xs }}>
-            <Muted>Applies to</Muted>
-            <SubgroupScopePicker
-              subgroups={subgroups}
-              isSelected={(subgroup) =>
-                tag.subgroups?.length ? tag.subgroups.includes(subgroup) : true
-              }
-              onToggle={(subgroup) =>
-                setTagDrafts((prev) =>
-                  prev.map((x, j) => {
-                    if (j !== i) return x;
-                    const set = new Set(x.subgroups?.length ? x.subgroups : subgroups);
-                    if (set.has(subgroup)) set.delete(subgroup);
-                    else set.add(subgroup);
-                    if (set.size === 0) return x;
-                    return { ...x, subgroups: [...set] };
-                  })
-                )
-              }
-            />
-          </View>
-        </Card>
+              <Field
+                label="Name"
+                value={tag.name}
+                onChangeText={(name) =>
+                  setTagDrafts((prev) => prev.map((x, j) => (j === i ? { ...x, name } : x)))
+                }
+              />
+
+              <View style={{ gap: spacing.xs }}>
+                <Muted>Colour</Muted>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Choose colour, currently ${tag.colour ?? "blue"}`}
+                  onPress={() => setColourIndex(i)}
+                  style={({ pressed }) => [
+                    styles.colourPickerButton,
+                    { borderColor: t.border, backgroundColor: t.card },
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <View style={styles.colourPickerValue}>
+                    <View
+                      style={[
+                        styles.colourDot,
+                        { backgroundColor: tagColourHex(tag.colour ?? "blue") },
+                      ]}
+                    />
+                    <Text style={[typography.body, { color: t.text, fontWeight: "700" }]}>
+                      {tag.colour ?? "blue"}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={18} color={t.ghostText} />
+                </Pressable>
+              </View>
+
+              <View style={{ gap: spacing.xs }}>
+                <Muted>Used on</Muted>
+                <Segmented
+                  segments={LISTS.map((l) => ({ key: l.list, label: l.title }))}
+                  active={tag.list}
+                  onChange={(key) =>
+                    setTagDrafts((prev) =>
+                      prev.map((x, j) => (j === i ? { ...x, list: key as TagList } : x))
+                    )
+                  }
+                />
+              </View>
+
+              <View style={{ gap: spacing.xs }}>
+                <Muted>Applies to</Muted>
+                <SubgroupScopePicker
+                  subgroups={subgroups}
+                  isSelected={(subgroup) =>
+                    tag.subgroups?.length ? tag.subgroups.includes(subgroup) : true
+                  }
+                  onToggle={(subgroup) =>
+                    setTagDrafts((prev) =>
+                      prev.map((x, j) => {
+                        if (j !== i) return x;
+                        const set = new Set(x.subgroups?.length ? x.subgroups : subgroups);
+                        if (set.has(subgroup)) set.delete(subgroup);
+                        else set.add(subgroup);
+                        if (set.size === 0) return x;
+                        return { ...x, subgroups: [...set] };
+                      })
+                    )
+                  }
+                />
+              </View>
+            </Card>
+          ))}
+          <Btn
+            title={section.list === "weeklies" ? "Add weekly tag" : "Add event tag"}
+            variant="ghost"
+            onPress={() => addTag(section.list)}
+          />
+        </View>
       ))}
-      <Btn title="Add tag" variant="ghost" onPress={addTag} />
 
       {error ? (
         <Txt style={[typography.caption, { color: t.danger, marginTop: spacing.sm }]}>
