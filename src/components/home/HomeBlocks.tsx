@@ -62,7 +62,12 @@ type CardBlock = Extract<HomeBlock, { type: "card" }>;
 // A plain card with a dot and no buttons is one item of a list (like Our
 // values), so a run of them is drawn as one card rather than a stack.
 const isListItem = (block: HomeBlock): block is CardBlock =>
-  block.type === "card" && block.tone !== "primary" && Boolean(block.dot) && !block.campus && block.buttons.length === 0;
+  block.type === "card" &&
+  block.tone !== "primary" &&
+  Boolean(block.dot) &&
+  !block.icon &&
+  !block.campus &&
+  block.buttons.length === 0;
 
 const groupListCards = (blocks: HomeBlock[]): (HomeBlock | CardBlock[])[] => {
   const out: (HomeBlock | CardBlock[])[] = [];

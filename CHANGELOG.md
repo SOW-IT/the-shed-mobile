@@ -16,9 +16,9 @@ All notable changes to **The SHED** mobile app. This project follows
   shows under the picker and at the top of the list while choosing.
 
 ### Changed
-- **Members' churches are only for staff and campus leaders.** People without
-  a staff profile this year no longer appear on the Churches page, or on
-  their profile's church, for anyone else. Staff and campus leaders still see
+- **Members' churches are only for staff and campus leaders.** People with no
+  staff assignment this year no longer appear on the Churches page, and their
+  church no longer shows on their profile, for anyone else. Staff and campus leaders still see
   everyone, and the page says members are only visible to them.
 - **The Churches filter picks any mix of people and campuses.** One row has
   Campus leaders, Staff, and Members (for staff and campus leaders); the other
@@ -34,6 +34,9 @@ All notable changes to **The SHED** mobile app. This project follows
   in plain sentence case instead of capitals. The current bottom tab sits on
   a soft pill, Home's values are one list, and Profile's service history is
   one card with a row per year.
+- **Map pins grow with the number of people.** The church more people go to
+  has a bigger label, one fewer go to a smaller one, instead of a number on
+  each pin.
 
 ### Fixed
 - **The church map on iPhone has rounded corners** like the cards around it.

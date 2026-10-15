@@ -279,18 +279,19 @@ export function ChurchForm({
  * Who sees a church once it's set: a staff member's own church is on the
  * Churches page for anyone; a member's only for staff and campus leaders.
  */
-export type ChurchVisibility = "yours-public" | "yours-leaders" | "member";
+export type ChurchVisibility = "yours-public" | "yours-leaders" | "member" | "staff-record";
 
 const VISIBILITY_NOTES: Record<ChurchVisibility, string> = {
   "yours-public": "Anyone using The SHED can see your church, with your name, on the Churches page.",
   "yours-leaders": "Only staff and campus leaders can see your church.",
   member: "Only staff and campus leaders can see a member's church.",
+  "staff-record": "They're on staff this year, so their church shows with their name on the Churches page for anyone using The SHED.",
 };
 
 /** Says who will see the church, shown under the picker and while picking. */
 export function ChurchVisibilityNote({ visibility }: { visibility: ChurchVisibility }) {
   const t = useAppTheme();
-  const open = visibility === "yours-public";
+  const open = visibility === "yours-public" || visibility === "staff-record";
   return (
     <View
       accessibilityRole="text"
