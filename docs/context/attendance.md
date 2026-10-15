@@ -169,6 +169,18 @@ The gentle, explainable list for the current Term: people who were coming
 Newcomers who missed the last one while their visit is recent. Visitors have
 their own list. A prompt for a leader, never a judgement.
 
+**TWIG** / **PPN** (SOW Insights):
+A TWIG is an event with the Other-events TWIG tag and no PPN tag; a PPN here
+is one with both (the SOW monthly night). SOW Insights counts only Held ones
+and lists the rest as No roll taken. See [sow-insights.md](../sow-insights.md).
+_Avoid_: TWIG PPN for a campus PPN (that has the PPN tag alone)
+
+**Campus leader** / **Organiser**:
+For a staff year, a campus leader has a staff profile with a university role
+(Student Leader, President, Vice President, Executive); an organiser has a
+profile with no university role. TWIG Insights counts only campus leaders.
+_Avoid_: leader (ambiguous with the weekly Leader category)
+
 **Sign-in tag**:
 The Newcomer or Visitor label beside a name on an event's sign-in screen
 while the event is on, taken from last night's Insights build, so a leader

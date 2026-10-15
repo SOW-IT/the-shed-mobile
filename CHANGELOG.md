@@ -6,6 +6,24 @@ All notable changes to **The SHED** mobile app. This project follows
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-10-15
+
+### Added
+- **TWIG and PPN Insights for SOW.** Insights → Attendance with SOW selected
+  has a Campuses / TWIG / PPN switcher. TWIG shows one staff year (1 Oct to
+  30 Sep) against the one before: average attendance, people and regulars,
+  counting campus leaders only; TWIG by TWIG against last year; campus leader
+  sign-ins by campus; regulars who missed the last two; and everyone, with
+  organisers listed but not counted and anyone without a staff profile
+  flagged. PPN shows each month's sign-ins (everyone), the change on the same
+  month last year, first-timers, and splits by campus and by campus leaders /
+  staff / others. TWIGs and PPNs nobody signed in to are listed as "No roll
+  taken". The tabs, numbers and wording all come from the server, so they
+  change without an app release. Older apps keep the Campuses view.
+- **Update prompt.** The app asks for the latest store version when the
+  server says so: a banner that can be dismissed, or a full screen when a
+  version is no longer supported. Nothing is asked until a version is set.
+
 ## [2.8.0] - 2026-10-15
 
 ### Added
