@@ -75,61 +75,65 @@ export function ChurchMap({
   }, [placedKey]);
 
   return (
-    <MapView
-      ref={map}
-      provider={usesGoogle ? PROVIDER_GOOGLE : undefined}
-      mapType={usesGoogle ? "standard" : "mutedStandard"}
-      style={styles.map}
-      initialRegion={initialRegion}
-      showsPointsOfInterests={false}
-      toolbarEnabled={false}
-    >
-      {placed.map(({ pin, coordinate }) => {
-        const on = pin.church._id === selectedId;
-        const { ring, badgeText } = pinColours(pin, t.primary);
-        return (
-          <Marker
-            key={`${pin.church._id}:${on ? "on" : "off"}:${pin.people}:${ring}`}
-            coordinate={coordinate}
-            anchor={{ x: 0.5, y: 1 }}
-            zIndex={pinZIndex(pin, on)}
-            accessibilityLabel={pinAccessibilityLabel(pin)}
-            onPress={() => onSelect(pin.church._id)}
-          >
-            <View style={styles.pin}>
-              <View
-                style={[
-                  styles.bubble,
-                  {
-                    backgroundColor: on ? t.primary : t.card,
-                    borderColor: on ? t.primary : ring,
-                    paddingLeft: pin.people > 0 ? 3 : 10,
-                  },
-                ]}
-              >
-                {pin.people > 0 ? (
-                  <View style={[styles.badge, { backgroundColor: on ? t.onPrimary : ring }]}>
-                    <Text style={[styles.badgeText, { color: on ? t.primary : badgeText }]}>{pin.people}</Text>
-                  </View>
-                ) : null}
-                <Text
-                  style={[styles.labelText, { color: on ? t.onPrimary : t.text }]}
-                  numberOfLines={1}
+    // MapView ignores its own borderRadius on iOS, so a wrapper clips the corners.
+    <View style={[styles.frame, t.surfaceEdge]}>
+      <MapView
+        ref={map}
+        provider={usesGoogle ? PROVIDER_GOOGLE : undefined}
+        mapType={usesGoogle ? "standard" : "mutedStandard"}
+        style={styles.map}
+        initialRegion={initialRegion}
+        showsPointsOfInterests={false}
+        toolbarEnabled={false}
+      >
+        {placed.map(({ pin, coordinate }) => {
+          const on = pin.church._id === selectedId;
+          const { ring, badgeText } = pinColours(pin, t.primary);
+          return (
+            <Marker
+              key={`${pin.church._id}:${on ? "on" : "off"}:${pin.people}:${ring}`}
+              coordinate={coordinate}
+              anchor={{ x: 0.5, y: 1 }}
+              zIndex={pinZIndex(pin, on)}
+              accessibilityLabel={pinAccessibilityLabel(pin)}
+              onPress={() => onSelect(pin.church._id)}
+            >
+              <View style={styles.pin}>
+                <View
+                  style={[
+                    styles.bubble,
+                    {
+                      backgroundColor: on ? t.primary : t.card,
+                      borderColor: on ? t.primary : ring,
+                      paddingLeft: pin.people > 0 ? 3 : 10,
+                    },
+                  ]}
                 >
-                  {pinLabel(pin, on)}
-                </Text>
+                  {pin.people > 0 ? (
+                    <View style={[styles.badge, { backgroundColor: on ? t.onPrimary : ring }]}>
+                      <Text style={[styles.badgeText, { color: on ? t.primary : badgeText }]}>{pin.people}</Text>
+                    </View>
+                  ) : null}
+                  <Text
+                    style={[styles.labelText, { color: on ? t.onPrimary : t.text }]}
+                    numberOfLines={1}
+                  >
+                    {pinLabel(pin, on)}
+                  </Text>
+                </View>
+                <View style={[styles.stem, { borderTopColor: on ? t.primary : ring }]} />
               </View>
-              <View style={[styles.stem, { borderTopColor: on ? t.primary : ring }]} />
-            </View>
-          </Marker>
-        );
-      })}
-    </MapView>
+            </Marker>
+          );
+        })}
+      </MapView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  map: { height: 300, borderRadius: radius.md },
+  frame: { borderRadius: radius.lg, overflow: "hidden" },
+  map: { height: 300 },
   pin: { alignItems: "center", padding: 4 },
   bubble: {
     flexDirection: "row",

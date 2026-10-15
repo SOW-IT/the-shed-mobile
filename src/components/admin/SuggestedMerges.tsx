@@ -86,7 +86,7 @@ export function SuggestedMerges({
       <Grid fixedWidth={360} align="start">
         {suggestions.map((s) => (
           <Card key={s.staffEmail}>
-            <Text style={[typography.label, { color: t.muted }]}>STAFF</Text>
+            <Text style={[typography.label, { color: t.muted }]}>Staff</Text>
             <Txt style={{ fontWeight: "600" }}>{s.staffName}</Txt>
             <Muted>{[...s.roles, ...s.universities].join(" · ") || "Staff"}</Muted>
             <Muted>{s.staffEmail}</Muted>
@@ -98,8 +98,8 @@ export function SuggestedMerges({
                 {i === 0 ? (
                   <Text style={[typography.label, { color: t.muted }]}>
                     {s.candidates.length === 1
-                      ? "IN ATTENDANCE AS A MEMBER"
-                      : `IN ATTENDANCE AS ${s.candidates.length} MEMBERS`}
+                      ? "In attendance as a member"
+                      : `In attendance as ${s.candidates.length} members`}
                   </Text>
                 ) : null}
                 <View>

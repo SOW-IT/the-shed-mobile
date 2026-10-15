@@ -58,14 +58,23 @@ changing anything seasonal, the October 1 staff-year rollover in particular
   church with the staff and members who go there.
   Each person shows their role, leaders first, and a map pins every church
   with an address (see [Church map](#church-map-optional)), each pin showing
-  how many people go there in the colour of their main campus. Filters at the
-  top narrow the page and the map to everyone, volunteers (campus leaders and
-  staff), campus leaders or staff, and to one or more campuses. Only people with
-  a staff profile this year add or edit churches.
+  how many people go there in the colour of their main campus. Two rows of
+  filter chips narrow the page and the map: who (campus leaders, staff,
+  members) and which campus (plus "no campus"). Nothing picked shows everyone;
+  picking chips in a row shows only those, and each chip counts who it covers.
+  Only people with a staff profile this year add or edit churches.
   `churches:remindToSetChurch` reminds this year's staff who haven't picked
-  one (in-app notification and push). Other people's emails and member ids
-  are for staff only: anyone else, signed in or not, sees each
-  church with the names, roles and campuses of who goes there.
+  one (in-app notification and push). Members' churches (people with no staff
+  profile this year), and other people's emails and member ids, are for staff
+  and campus leaders only: anyone else, signed in or not, sees each church
+  with the names, roles and campuses of the staff and campus leaders who go
+  there. The church pickers say who will see the church before it's set.
+- **Look**: one theme (`src/theme.ts`) in SOW's evergreen and cream, light and
+  dark. Titles, headings and big numbers use Familjen Grotesk (bundled in
+  `assets/fonts`, OFL, loaded in the root layout); everything else is the
+  system font. Resting surfaces are flat with a hairline edge
+  (`surfaceEdge`); only floating things (sheets, the footer button) get a
+  shadow.
 - **Last online**: someone else's profile shows when they last had The SHED
   open (staff viewers only), or that they haven't signed in yet. The app
   and website report it while open, at most every 5 minutes

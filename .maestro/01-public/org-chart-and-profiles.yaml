@@ -20,7 +20,7 @@ tags:
     optional: true
 - runFlow:
     when:
-      notVisible: "Service History"
+      notVisible: ".*(Service History|Service history).*"
     commands:
       - scrollUntilVisible:
           element:

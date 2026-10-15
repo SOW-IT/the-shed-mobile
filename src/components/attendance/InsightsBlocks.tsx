@@ -202,7 +202,7 @@ export function InsightsBlocks({
         const shown = showAll ? block.people : block.people.slice(0, block.preview);
         return (
           <ReadableColumn key={key} maxWidth={560}>
-            <View style={[styles.followCard, { backgroundColor: t.card }, t.shadowCard]}>
+            <View style={[styles.followCard, { backgroundColor: t.card }, t.surfaceEdge]}>
               <View style={styles.followHeader}>
                 <Ionicons name="heart-outline" size={18} color={t.primary} />
                 <Text style={[typography.headline, { color: t.text, flex: 1 }]}>

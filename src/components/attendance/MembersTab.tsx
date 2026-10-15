@@ -229,7 +229,7 @@ export function MembersTab({
       </View>
 
       <View style={[styles.sectionHeader, { borderBottomColor: t.separator }]}>
-        <Text style={[typography.label, { color: t.muted }]}>MEMBERS</Text>
+        <Text style={[typography.label, { color: t.muted }]}>Members</Text>
         <View style={[styles.totalPill, { backgroundColor: t.ghost }]}>
           <Text style={[styles.totalPillText, { color: t.ghostText }]}>
             TOTAL: {total}

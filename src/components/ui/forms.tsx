@@ -110,7 +110,7 @@ export const SearchField = ({
   const t = useAppTheme();
   const reveal = useRevealFocusedInput();
   return (
-    <View style={[styles.search, { backgroundColor: t.inputBackground }, style]}>
+    <View style={[styles.search, { backgroundColor: t.card, borderColor: t.border }, style]}>
       <Ionicons name="search-outline" size={18} color={t.faint} />
       <TextInput
         style={[styles.searchInput, { color: t.text }]}
@@ -352,7 +352,7 @@ export const YearPill = ({
       <Pressable
         style={({ pressed }) => [
           styles.yearPill,
-          t.shadowCard,
+          t.surfaceEdge,
           { backgroundColor: t.card },
           pressed && { opacity: 0.7 },
         ]}

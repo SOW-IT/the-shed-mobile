@@ -37,7 +37,7 @@ export default function HomeScreen() {
       onPress={() => router.push({ pathname: "/edit-home", params: { tab: activeKey } })}
       style={({ pressed }) => [
         styles.fab,
-        t.shadowCard,
+        t.surfaceEdge,
         { backgroundColor: t.primary, opacity: pressed ? 0.85 : 1 },
       ]}
     >

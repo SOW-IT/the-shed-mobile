@@ -60,7 +60,7 @@ const FormCard = ({
       accessibilityLabel={`${SUB_FORM_LABELS[kind]} form: ${action}`}
       style={({ pressed }) => [
         styles.formCard,
-        t.shadowCard,
+        t.surfaceEdge,
         { backgroundColor: t.card },
         form.can.decide && { borderColor: t.accent, borderWidth: 1.5 },
         pressed && { opacity: 0.7 },

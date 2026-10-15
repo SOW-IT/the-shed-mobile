@@ -35,7 +35,7 @@ export const DesignRequestRow = ({
       accessibilityLabel={`Design request ${request.number}, ${items || "no items"}, ${meta}`}
       style={({ pressed }) => [
         styles.row,
-        t.shadowCard,
+        t.surfaceEdge,
         { backgroundColor: t.card },
         pressed && { opacity: 0.7 },
       ]}

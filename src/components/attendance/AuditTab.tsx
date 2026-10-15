@@ -250,7 +250,7 @@ export function AuditTab({
       </View>
 
       <View style={[styles.sectionHeader, { borderBottomColor: t.separator }]}>
-        <Text style={[typography.label, { color: t.muted }]}>ACTIVITY</Text>
+        <Text style={[typography.label, { color: t.muted }]}>Activity</Text>
       </View>
 
       {page === undefined && accumulated.length === 0 ? (

@@ -372,7 +372,7 @@ export function EditMemberSheet({
               </Txt>
             </View>
           ) : (
-            <ChurchSelect churchId={churchId} onChange={setChurchId} />
+            <ChurchSelect churchId={churchId} onChange={setChurchId} visibility="member" />
           )}
           {metadataFields.map((field) => {
             const lockedForStaff =

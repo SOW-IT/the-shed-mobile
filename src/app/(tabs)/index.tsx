@@ -32,6 +32,7 @@ import {
   Txt,
   WarningBanner,
 } from "@/components/ui";
+import { typography } from "@/theme";
 
 export default function RequestsScreen() {
   const { signOut } = useAuthActions();
@@ -203,7 +204,7 @@ export default function RequestsScreen() {
       <ChromeScreen>
         <FadeInView>
           <Card>
-            <Txt style={{ fontSize: 18, fontWeight: "700" }}>
+            <Txt style={typography.section}>
               Welcome{me?.name ? `, ${me.name}` : ""}
             </Txt>
             <Muted>

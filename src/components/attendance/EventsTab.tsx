@@ -134,7 +134,7 @@ export function EventsTab({
 
           {subgroup ? (
             <View style={styles.toolbar}>
-              <Text style={[typography.label, { color: t.muted }]}>EVENTS</Text>
+              <Text style={[typography.label, { color: t.muted }]}>Events</Text>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Export attendance"

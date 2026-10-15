@@ -74,42 +74,64 @@ export const instagramUrl = (handle: string) => `https://www.instagram.com/${han
 
 export type ChurchPersonGroup = "leader" | "staff" | "member";
 
-export type ChurchAudience = "everyone" | "volunteers" | "leaders" | "staff";
-
-export const CHURCH_AUDIENCES: readonly { key: ChurchAudience; label: string }[] = [
-  { key: "everyone", label: "Everyone" },
-  { key: "volunteers", label: "Volunteers" },
-  { key: "leaders", label: "Campus leaders" },
+/** Who's on the Churches page, in filter order. Members are only sent to staff and campus leaders. */
+export const CHURCH_GROUPS: readonly { key: ChurchPersonGroup; label: string }[] = [
+  { key: "leader", label: "Campus leaders" },
   { key: "staff", label: "Staff" },
+  { key: "member", label: "Members" },
 ];
 
-const AUDIENCE_GROUPS: Record<ChurchAudience, readonly ChurchPersonGroup[]> = {
-  everyone: ["leader", "staff", "member"],
-  volunteers: ["leader", "staff"],
-  leaders: ["leader"],
-  staff: ["staff"],
-};
+/** The campus filter's key for people with no campus. */
+export const NO_CAMPUS = "";
 
-export type ChurchFilter = { audience: ChurchAudience; campuses: readonly string[] };
+/**
+ * What the Churches page narrows to. Nothing picked shows everyone; picking
+ * options shows only those (any of them), within each filter.
+ */
+export type ChurchFilter = { groups: readonly ChurchPersonGroup[]; campuses: readonly string[] };
 
-export const NO_CHURCH_FILTER: ChurchFilter = { audience: "everyone", campuses: [] };
+export const NO_CHURCH_FILTER: ChurchFilter = { groups: [], campuses: [] };
 
-export const isChurchFilterActive = (filter: ChurchFilter) =>
-  filter.audience !== "everyone" || filter.campuses.length > 0;
+export const isChurchFilterActive = (filter: ChurchFilter) => filter.groups.length > 0 || filter.campuses.length > 0;
+
+/** Picks an option, or unpicks it if it's already picked. */
+export const togglePicked = <K extends string>(picked: readonly K[], key: K): K[] =>
+  picked.includes(key) ? picked.filter((k) => k !== key) : [...picked, key];
 
 type Filterable = { group: ChurchPersonGroup; campus: string | null };
 
-export const churchPeopleMatching = <P extends Filterable>(people: readonly P[], filter: ChurchFilter): P[] =>
-  people.filter(
-    (person) =>
-      AUDIENCE_GROUPS[filter.audience].includes(person.group) &&
-      (filter.campuses.length === 0 || (person.campus !== null && filter.campuses.includes(person.campus)))
-  );
+const campusKey = (person: Filterable) => person.campus ?? NO_CAMPUS;
 
-export const churchCampuses = (people: readonly Filterable[], label: (campus: string) => string): string[] =>
-  [...new Set(people.flatMap((person) => (person.campus ? [person.campus] : [])))].sort((a, b) =>
+const groupShown = (person: Filterable, filter: ChurchFilter) =>
+  filter.groups.length === 0 || filter.groups.includes(person.group);
+
+const campusShown = (person: Filterable, filter: ChurchFilter) =>
+  filter.campuses.length === 0 || filter.campuses.includes(campusKey(person));
+
+export const churchPeopleMatching = <P extends Filterable>(people: readonly P[], filter: ChurchFilter): P[] =>
+  people.filter((person) => groupShown(person, filter) && campusShown(person, filter));
+
+/** Each campus once, by label, with "no campus" (NO_CAMPUS) last when anyone has none. */
+export const churchCampuses = (people: readonly Filterable[], label: (campus: string) => string): string[] => {
+  const campuses = [...new Set(people.flatMap((person) => (person.campus ? [person.campus] : [])))].sort((a, b) =>
     label(a).localeCompare(label(b))
   );
+  return people.some((person) => !person.campus) ? [...campuses, NO_CAMPUS] : campuses;
+};
+
+/**
+ * How many people each filter option covers: a group's count follows the
+ * campus filter, and a campus's count follows the group filter.
+ */
+export const churchFilterCounts = (people: readonly Filterable[], filter: ChurchFilter) => {
+  const groups = new Map<ChurchPersonGroup, number>();
+  const campuses = new Map<string, number>();
+  for (const person of people) {
+    if (campusShown(person, filter)) groups.set(person.group, (groups.get(person.group) ?? 0) + 1);
+    if (groupShown(person, filter)) campuses.set(campusKey(person), (campuses.get(campusKey(person)) ?? 0) + 1);
+  }
+  return { groups, campuses };
+};
 
 export const mainCampus = (people: readonly Filterable[]): string | null => {
   const counts = new Map<string, number>();

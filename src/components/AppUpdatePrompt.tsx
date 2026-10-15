@@ -53,7 +53,7 @@ export function AppUpdatePrompt() {
   if (dismissed) return null;
   return (
     <View
-      style={[styles.banner, { top: insets.top + spacing.xs, backgroundColor: t.card }, t.shadowCard]}
+      style={[styles.banner, { top: insets.top + spacing.xs, backgroundColor: t.card }, t.surfaceEdge]}
       accessibilityRole="alert"
     >
       <Ionicons name="sparkles-outline" size={20} color={t.primary} />

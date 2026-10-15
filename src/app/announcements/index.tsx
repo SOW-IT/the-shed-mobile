@@ -398,7 +398,7 @@ export default function AnnouncementsScreen() {
             accessibilityRole="button"
             style={({ pressed }) => [
               styles.sentRow,
-              t.shadowCard,
+              t.surfaceEdge,
               { backgroundColor: t.card },
               pressed && { opacity: 0.7 },
             ]}
