@@ -40,3 +40,6 @@ and they can't say which app version handles which path anyway.
 - Add a page to `NEWER_PAGES` whenever a release adds one that emails or
   notifications link to. Entries can stay; they cost nothing once everyone's
   updated.
+- 2.9.1 emptied the list: every entry (design requests 2.2.0 to churches
+  2.5.5) was older than 2.9.0, the oldest supported app. The mechanism stays
+  for the next new page.

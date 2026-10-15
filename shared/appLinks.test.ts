@@ -7,6 +7,7 @@ import {
   appVariantFrom,
   compareVersions,
   isAppVersion,
+  NEWER_PAGES,
   updateStatusFor,
   versionNeededFor,
 } from "./appLinks";
@@ -40,20 +41,33 @@ describe("the app's own links and web-only pages", () => {
   });
 
   test("newer pages need a new enough app", () => {
-    expect(versionNeededFor("/event-requests")).toBe("2.3.0");
-    expect(versionNeededFor("/event-requests/abc/risk?thread=1")).toBe("2.3.0");
-    expect(versionNeededFor("/event-requestsx")).toBeNull();
-    expect(versionNeededFor("/design-requests/abc")).toBe("2.2.0");
-    expect(appCanOpen("/design-requests/abc", null)).toBe(false);
-    expect(appCanOpen("/design-requests/abc", "2.1.9")).toBe(false);
-    expect(appCanOpen("/design-requests/abc", "2.2.0")).toBe(true);
-    expect(versionNeededFor("/churches?church=abc")).toBe("2.5.5");
-    expect(appCanOpen("/churches", "2.5.4")).toBe(false);
-    expect(versionNeededFor("/request/abc")).toBeNull();
-    expect(appCanOpen("/event-requests/abc", null)).toBe(false);
-    expect(appCanOpen("/event-requests/abc", "2.2.9")).toBe(false);
-    expect(appCanOpen("/event-requests/abc", "2.3.0")).toBe(true);
-    expect(appCanOpen("/event-requests/abc", "2.10.0")).toBe(true);
+    const pages = [
+      { prefix: "/design-requests", since: "2.2.0" },
+      { prefix: "/event-requests", since: "2.3.0" },
+      { prefix: "/churches", since: "2.5.5" },
+    ];
+    expect(versionNeededFor("/event-requests", pages)).toBe("2.3.0");
+    expect(versionNeededFor("/event-requests/abc/risk?thread=1", pages)).toBe("2.3.0");
+    expect(versionNeededFor("/event-requestsx", pages)).toBeNull();
+    expect(versionNeededFor("/design-requests/abc", pages)).toBe("2.2.0");
+    expect(appCanOpen("/design-requests/abc", null, pages)).toBe(false);
+    expect(appCanOpen("/design-requests/abc", "2.1.9", pages)).toBe(false);
+    expect(appCanOpen("/design-requests/abc", "2.2.0", pages)).toBe(true);
+    expect(versionNeededFor("/churches?church=abc", pages)).toBe("2.5.5");
+    expect(appCanOpen("/churches", "2.5.4", pages)).toBe(false);
+    expect(versionNeededFor("/request/abc", pages)).toBeNull();
+    expect(appCanOpen("/event-requests/abc", null, pages)).toBe(false);
+    expect(appCanOpen("/event-requests/abc", "2.2.9", pages)).toBe(false);
+    expect(appCanOpen("/event-requests/abc", "2.3.0", pages)).toBe(true);
+    expect(appCanOpen("/event-requests/abc", "2.10.0", pages)).toBe(true);
+  });
+
+  test("every supported app opens every page", () => {
+    expect(NEWER_PAGES).toEqual([]);
+    expect(versionNeededFor("/event-requests/abc")).toBeNull();
+    expect(versionNeededFor("/churches?church=abc")).toBeNull();
+    expect(appCanOpen("/announcements/abc", null)).toBe(true);
+    expect(appCanOpen("/design-requests/abc", "2.1.9")).toBe(true);
   });
 
   test("versions", () => {

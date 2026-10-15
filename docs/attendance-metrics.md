@@ -28,7 +28,6 @@ follow-up prompts for a sub-group and time range.
   Sydney calendar year. Both tabs draw through
   `src/components/attendance/InsightsBlocks.tsx`. Colours travel as theme
   tokens (`text`, `primary`, `accent`, `success`) or campus hex colours.
-  `staffTrends` and `campusWeeklyAttendance` stay for apps older than 2.0.1.
 - **Logic (pure, shared, tested):** `shared/attendanceMetrics.ts`
   (`shared/attendanceMetrics.test.ts`).
 - **Backend precompute + read API:** `convex/attendanceMetrics.ts`
@@ -41,16 +40,17 @@ The dashboard never scans attendance history on the device. Snapshots are
 rebuilt by one cron, fanning out one bounded recompute per sub-group:
 
 - **Nightly rebuild** (`attendance metrics daily rebuild`, **16:00 UTC ≈
-  02:00–03:00 Sydney**) — `recomputeAll` recomputes the **SOW** sub-group for
-  the current staff year (campuses are built from their weeklies since 2.5.0;
-  see [weekly-insights.md](weekly-insights.md)). Roll-call and event changes therefore show up in
+  02:00–03:00 Sydney**) — `recomputeAll` recomputes **SOW and every campus**
+  for the current staff year. The app reads only the SOW snapshots; each
+  campus's Insights are built from its weeklies since 2.5.0 (see
+  [weekly-insights.md](weekly-insights.md)), and the campus snapshots feed the
+  BigQuery `insights_*` report views. Roll-call and event changes therefore show up in
   Insights the next morning, not within minutes; the trade-off is that the
   backend no longer re-reads a megabyte of snapshots every 15 minutes.
 - **Rollover** — the October 1 prefill job (`prefillNextStaffYear`) kicks a
   `recomputeAll` for the year that has just ended so the incoming year's
   snapshots start honest. While a current-year snapshot is missing, the
-  Attendance tab shows "Not ready yet". Apps older than 2.0.1 still fall back
-  to the on-demand `liveSnapshot`.
+  Attendance tab shows "Not ready yet".
 - **General tab campus chart** — the same nightly `recomputeAll` also rebuilds
   `campusAttendanceSnapshots` (`generalMetrics.recomputeCampusWeeklyAttendance`),
   so Insights → General reads one small row instead of every weekly meeting's
@@ -76,16 +76,14 @@ reading every event's attendance in one mutation. It:
    year** — `RANGE_WEEKS` = 1 / 4 / 52) × collaborative-included/excluded, and
    upserts one `attendanceMetricsSnapshots` row per combination
    (`writeSnapshots`, resilient to duplicate rows so racing recomputes can't
-   wedge later reads). Alongside each snapshot it writes one tiny
-   `attendanceMetricsWeeklyAverages` row (the weekly-meeting average). Since
-   2.5.0 the SOW campus comparison reads each campus's recent weekly head
-   counts from its `weeklyInsightIndex` row instead.
+   wedge later reads). The SOW campus comparison reads each campus's recent
+   weekly head counts from its `weeklyInsightIndex` row.
    **Custom** date ranges were removed in 2.0.1: they recomputed everything
-   from raw attendance on each view. `liveSnapshot` stays only for older apps. The whole-**staff-year** range is supported by
+   from raw attendance on each view. The whole-**staff-year** range is supported by
    the pure logic (`STAFF_YEAR_RANGE`) but is **not** currently precomputed
    (`ALL_RANGES = [...RANGE_WEEKS]`).
 
-The view reads the snapshot (the same lookup as `api.attendanceMetrics.snapshot`, still served for older apps), which tolerates a
+The view reads the newest snapshot, which tolerates a
 stale prior-staff-year row (treated as "not ready") and a rare duplicate row
 (takes the newest). Because the nightly cron keeps snapshots current
 automatically, **there is no manual refresh control in the UI**. To force a
@@ -125,8 +123,8 @@ reason (at risk → lapsed → declining → newcomer-no-return → re-engaged).
 
 Charts are plain React Native `View`s (no charting dependency). The pure
 module still computes the older series (rolling average, unique by month, new
-vs returning, breakdowns) because apps older than 2.0.1 read them from the
-snapshot; drop them once nobody is on those versions.
+vs returning, breakdowns) because the BigQuery `insights_*` report views read
+them from the snapshot.
 
 ## Language
 

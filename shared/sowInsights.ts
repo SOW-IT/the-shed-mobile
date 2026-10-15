@@ -2,9 +2,9 @@ import { roleNeedsUniversity, staffYearStartMs, sydneyYmd } from "./flow";
 import { SOW_SUBGROUP, tagListOf, type TagList } from "./rollcall";
 import { dayLabel, type WeeklyPerson } from "./weeklyInsights";
 
-export type SowMode = "twig" | "ppn";
+type SowMode = "twig" | "ppn";
 
-export type SowTab = { key: string; label: string; picker: "range" | "years"; pickerTitle?: string };
+type SowTab = { key: string; label: string; picker: "range" | "years"; pickerTitle?: string };
 
 const STAFF_YEAR_PICKER = "Staff year (1 Oct to 30 Sep)";
 
@@ -16,8 +16,8 @@ export const SOW_TABS: SowTab[] = [
 
 export const isSowMode = (key: string): key is SowMode => key === "twig" || key === "ppn";
 
-export const TWIG_TAG_NAME = "TWIG";
-export const PPN_TAG_NAME = "PPN";
+const TWIG_TAG_NAME = "TWIG";
+const PPN_TAG_NAME = "PPN";
 
 export type SowEvent = { id: string; name: string; at: number; people: string[] };
 
@@ -103,7 +103,7 @@ export type TwigResult = {
   followUp: TwigRow[];
 };
 
-export type SowRules = { regularShare: number; followUpMisses: number };
+type SowRules = { regularShare: number; followUpMisses: number };
 
 const leadersAt = (event: SowEvent, people: SowPeople, year: number) =>
   event.people.filter((key) => roleIn(people.get(key), year) === "leader");

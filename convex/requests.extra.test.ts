@@ -979,34 +979,6 @@ describe("pay", () => {
   });
 });
 
-describe("cleanup.purgeReceiptFilesCreatedBefore", () => {
-  test("pages through requests created before the cutoff", async () => {
-    const t = await setup();
-    const id = await approvedRequest(t);
-    const file = await storedReceipt(t);
-    await asUser(t, RACHEL).mutation(api.requests.submitReceipt, {
-      requestId: id,
-      recipients: [
-        { accountName: "Rachel", bsb: "123456", accountNumber: "12345678", amount: 100, attachments: [file] },
-      ],
-    });
-    const created = (await t.run((ctx) => ctx.db.get("requests", id)))!._creationTime;
-    const first = await t.mutation(internal.cleanup.purgeReceiptFilesCreatedBefore, {
-      beforeMs: created + 1,
-      batch: 1,
-    });
-    expect(first.filesDeleted).toBeGreaterThanOrEqual(0);
-    const second = await t.mutation(internal.cleanup.purgeReceiptFilesCreatedBefore, {
-      beforeMs: created + 1,
-      cursor: first.continueCursor,
-      batch: 1,
-    });
-    expect(second.filesDeleted + first.filesDeleted).toBeGreaterThanOrEqual(1);
-    const request = (await t.run((ctx) => ctx.db.get("requests", id)))!;
-    expect(request.receipt!.recipients[0].attachments![0].deleted).toBe(true);
-  });
-});
-
 describe("browsing past years", () => {
   const seedPastRequest = async (
     t: TestConvex<typeof schema>,

@@ -51,7 +51,7 @@ async function setup() {
     const profile = (await ctx.db.query("staffProfiles").collect()).find((p) => p.email === LEADER)!;
     await ctx.db.patch(profile._id, { name: "Lee Leader" });
     const lee = profile.memberId!;
-    const tag = await ctx.db.insert("attendanceTags", { name: "Weekly Meeting" });
+    const tag = await ctx.db.insert("attendanceTags", { name: "Weeklies" });
     const campus = await ctx.db.insert("attendanceMetadata", {
       key: "Campus",
       type: "select",
@@ -751,7 +751,7 @@ describe("combined weeklies, marks and suggestions", () => {
 describe("creating an event as a Weekly", () => {
   const base = { name: "Weeklies T2W11", dateStart: wed(2026, 8, 12), dateEnd: wed(2026, 8, 12) + 7_200_000, subgroups: [UNSW] };
 
-  test("stores its term and week and adds the Weekly Meeting tag", async () => {
+  test("stores its term and week and adds the Weeklies tag", async () => {
     const { t, leader, ids } = await setup();
     const id = await leader.mutation(api.events.create, { ...base, weekly: { year: 2026, slot: 2, week: 11 } });
     const saved = await t.run((ctx) => ctx.db.get(id));
@@ -796,59 +796,32 @@ describe("creating an event as a Weekly", () => {
   });
 });
 
-describe("weeklies from old and new phones", () => {
+describe("the Weeklies tag on events", () => {
   const base = { name: "T2W11", dateStart: wed(2026, 8, 12), dateEnd: wed(2026, 8, 12) + 7_200_000, subgroups: [UNSW] };
   const saved = (t: TestConvex<typeof schema>, id: Id<"events">) => t.run(async (ctx) => (await ctx.db.get(id))!);
   const tagNames = (t: TestConvex<typeof schema>) =>
     t.run(async (ctx) => (await ctx.db.query("attendanceTags").collect()).map((tag) => tag.name));
 
-  test("the key builds 2.5.1 to 2.7.0 send with a mark is dropped", async () => {
-    const { t, leader } = await setup();
-    const id = await leader.mutation(api.events.create, { ...base, weekly: { year: 2026, slot: 2, week: 11, key: "2026-T2" } });
-    expect((await saved(t, id)).weekly).toEqual({ year: 2026, slot: 2, week: 11 });
-    await leader.mutation(api.events.update, { eventId: id, ...base, weekly: { year: 2026, slot: 2, week: 12, key: "2026-T2" } });
-    expect((await saved(t, id)).weekly).toEqual({ year: 2026, slot: 2, week: 12 });
-  });
-
-  test("the old Weekly Meeting tag is reused, not duplicated, and goes first", async () => {
+  test("the Weeklies tag is reused, not duplicated, and goes first", async () => {
     const { t, leader, ids } = await setup();
     const social = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "Social" }));
     const id = await leader.mutation(api.events.create, { ...base, tagIds: [social], weekly: { year: 2026, slot: 2, week: 11 } });
     expect((await saved(t, id)).tagIds).toEqual([ids.tag, social]);
-    expect(await tagNames(t)).toEqual(["Weekly Meeting", "Social"]);
+    expect(await tagNames(t)).toEqual(["Weeklies", "Social"]);
   });
 
-  test("once both names exist, a weekly carries only Weeklies", async () => {
+  test("with a second Weeklies tag, a weekly carries only the first", async () => {
     const { t, leader, ids } = await setup();
-    const weeklies = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "Weeklies" }));
+    const second = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "Weeklies", list: "weeklies" }));
     const social = await t.run((ctx) => ctx.db.insert("attendanceTags", { name: "Social" }));
     const id = await leader.mutation(api.events.create, {
       ...base,
-      tagIds: [social, ids.tag],
+      tagIds: [social, second],
       weekly: { year: 2026, slot: 2, week: 11 },
     });
-    expect((await saved(t, id)).tagIds).toEqual([weeklies, social]);
-    await leader.mutation(api.events.update, { eventId: id, ...base, tagIds: [ids.tag, weeklies, social], weekly: null });
+    expect((await saved(t, id)).tagIds).toEqual([ids.tag, social]);
+    await leader.mutation(api.events.update, { eventId: id, ...base, tagIds: [second, ids.tag, social], weekly: null });
     expect((await saved(t, id)).tagIds).toEqual([social]);
-  });
-
-  test("an old phone's weekly gets its term and week from the name", async () => {
-    const { t, leader, ids } = await setup();
-    const named = await leader.mutation(api.events.create, { ...base, name: "WEEKLIES T3W5", tagIds: [ids.tag] });
-    expect(await saved(t, named)).toMatchObject({ name: "WEEKLIES T3W5", weekly: { year: 2026, slot: 3, week: 5 }, tagIds: [ids.tag] });
-    const weekOnly = await leader.mutation(api.events.create, { ...base, name: "WK #4 [BAM NIGHT]", tagIds: [ids.tag] });
-    expect((await saved(t, weekOnly)).weekly).toEqual({ year: 2026, slot: 2, week: 4 });
-  });
-
-  test("an old phone's weekly with nothing in the name follows the campus's other weeklies", async () => {
-    const { t, leader, ids } = await setup();
-    const id = await leader.mutation(api.events.create, { ...base, name: "Weeklies", tagIds: [ids.tag] });
-    expect((await saved(t, id)).weekly).toEqual({ year: 2026, slot: 2, week: 11 });
-    const usyd = await leader.mutation(api.events.create, { ...base, name: "Weeklies", subgroups: [USYD], tagIds: [ids.tag] });
-    expect((await saved(t, usyd)).weekly).toEqual({ year: 2026, slot: 2, week: 1 });
-    const plain = await leader.mutation(api.events.create, { ...base, name: "Social" });
-    await leader.mutation(api.events.update, { eventId: plain, ...base, name: "Weeklies", tagIds: [ids.tag] });
-    expect((await saved(t, plain)).weekly).toEqual({ year: 2026, slot: 2, week: 11 });
   });
 
   test("an org-wide (SOW) event with the tag isn't a weekly and loses the tag", async () => {

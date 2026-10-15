@@ -43,10 +43,7 @@ export const subgroupColour = (subgroup: string): string =>
 
 export const WEEKLIES_TAG_NAME = "Weeklies";
 
-export const LEGACY_WEEKLIES_TAG_NAME = "Weekly Meeting";
-
-export const isWeekliesTagName = (name: string): boolean =>
-  name === WEEKLIES_TAG_NAME || name === LEGACY_WEEKLIES_TAG_NAME;
+export const isWeekliesTagName = (name: string): boolean => name === WEEKLIES_TAG_NAME;
 
 export type TagList = "weeklies" | "events";
 

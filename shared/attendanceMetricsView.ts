@@ -113,7 +113,7 @@ export function summaryCards(data: SubgroupMetricsData): ViewCard[] {
             s.avgWeeklyAttendancePrev !== null ? `vs ${s.avgWeeklyAttendancePrev}` : undefined,
           info: {
             title: "Weekly avg",
-            body: "Average turnout at Weekly Meeting events, compared with the previous period of the same length.",
+            body: "Average turnout at weeklies, compared with the previous period of the same length.",
           },
         }
       : {

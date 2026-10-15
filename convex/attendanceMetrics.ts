@@ -1,4 +1,4 @@
-import { ConvexError, v } from "convex/values";
+import { v } from "convex/values";
 import {
   assignmentsOf,
   incomingStaffYear,
@@ -23,7 +23,6 @@ import {
 } from "../shared/attendanceMemberMeta";
 import {
   computeSubgroupMetrics,
-  DAY_MS,
   METRICS_THRESHOLDS,
   RANGE_WEEKS,
   rangeStartFor,
@@ -37,12 +36,10 @@ import { internal } from "./_generated/api";
 import { isAssigned } from "./staffMembers";
 import { Doc } from "./_generated/dataModel";
 import {
-  action,
   internalAction,
   internalMutation,
   internalQuery,
   query,
-  type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
 import { currentStaffYear, optionalProfile } from "./model";
@@ -53,8 +50,6 @@ import {
   ATTENDANCE_RANGE_OPTIONS,
   buildAttendanceView,
 } from "../shared/attendanceMetricsView";
-
-const LIVE_RANGE_MAX_MS = 2 * 365 * DAY_MS;
 
 const HISTORY_WEEKS = 52;
 const MAX_EVENTS = 800;
@@ -406,80 +401,10 @@ export const writeSnapshots = internalMutation({
         await ctx.db.patch(matches[0]._id, doc);
         for (const extra of matches.slice(1)) await ctx.db.delete(extra._id);
       }
-      await writeWeeklyAverage(ctx, {
-        subgroup,
-        rangeWeeks: snap.rangeWeeks,
-        includeCollaborative: snap.includeCollaborative,
-        staffYear,
-        computedAt,
-        avgWeekly: snap.data.summary.avgWeeklyAttendance,
-      });
     }
-    await recordRun(
-      ctx,
-      subgroup,
-      staffYear,
-      computedAt,
-      snapshots.map((s) => variantKey(s.rangeWeeks, s.includeCollaborative))
-    );
     return null;
   },
 });
-
-async function writeWeeklyAverage(
-  ctx: MutationCtx,
-  row: Omit<Doc<"attendanceMetricsWeeklyAverages">, "_id" | "_creationTime">
-): Promise<void> {
-  const existing = await ctx.db
-    .query("attendanceMetricsWeeklyAverages")
-    .withIndex("by_year_range_collab_subgroup", (q) =>
-      q
-        .eq("staffYear", row.staffYear)
-        .eq("rangeWeeks", row.rangeWeeks)
-        .eq("includeCollaborative", row.includeCollaborative)
-        .eq("subgroup", row.subgroup)
-    )
-    .take(10);
-  if (existing.length === 0) {
-    await ctx.db.insert("attendanceMetricsWeeklyAverages", row);
-  } else {
-    await ctx.db.replace(existing[0]._id, row);
-    for (const extra of existing.slice(1)) await ctx.db.delete(extra._id);
-  }
-}
-
-const variantKey = (rangeWeeks: number, includeCollaborative: boolean): string =>
-  `${rangeWeeks}:${includeCollaborative}`;
-
-function runRow(ctx: MutationCtx, subgroup: string, staffYear: number) {
-  return ctx.db
-    .query("attendanceMetricsRuns")
-    .withIndex("by_subgroup_and_year", (q) =>
-      q.eq("subgroup", canonicalSubgroup(subgroup)).eq("staffYear", staffYear)
-    )
-    .first();
-}
-
-async function recordRun(
-  ctx: MutationCtx,
-  subgroup: string,
-  staffYear: number,
-  computedAt: number,
-  variants: string[]
-): Promise<void> {
-  const existing = await runRow(ctx, subgroup, staffYear);
-  const merged = [...new Set([...(existing?.variants ?? []), ...variants])].sort();
-  if (existing) {
-    await ctx.db.patch(existing._id, { computedAt, variants: merged });
-  } else {
-    await ctx.db.insert("attendanceMetricsRuns", {
-      subgroup: canonicalSubgroup(subgroup),
-      staffYear,
-      computedAt,
-      variants: merged,
-    });
-  }
-}
 
 function metricsYears(): number[] {
   const years = [currentStaffYear()];
@@ -518,44 +443,6 @@ export const recomputeAll = internalMutation({
   },
 });
 
-export const snapshot = query({
-  args: {
-    subgroup: v.string(),
-    rangeWeeks: v.number(),
-    includeCollaborative: v.optional(v.boolean()),
-  },
-  returns: v.union(
-    v.null(),
-    v.object({
-      subgroup: v.string(),
-      rangeWeeks: v.number(),
-      includeCollaborative: v.boolean(),
-      staffYear: v.number(),
-      computedAt: v.number(),
-      data: metricsDataValidator,
-    })
-  ),
-  handler: async (ctx, { subgroup, rangeWeeks, includeCollaborative = true }) => {
-    if (!(await optionalProfile(ctx))) return null;
-    const row = await newestSnapshot(
-      ctx,
-      subgroup,
-      rangeWeeks,
-      includeCollaborative,
-      currentStaffYear()
-    );
-    if (!row) return null;
-    return {
-      subgroup: row.subgroup,
-      rangeWeeks: row.rangeWeeks,
-      includeCollaborative: row.includeCollaborative,
-      staffYear: row.staffYear,
-      computedAt: row.computedAt,
-      data: row.data,
-    };
-  },
-});
-
 async function newestSnapshot(
   ctx: QueryCtx,
   subgroup: string,
@@ -576,106 +463,6 @@ async function newestSnapshot(
   if (rows.length === 0) return null;
   return rows.reduce((a, b) => (b.computedAt > a.computedAt ? b : a));
 }
-
-export const canReadMetrics = internalQuery({
-  args: {},
-  returns: v.boolean(),
-  handler: async (ctx) => !!(await optionalProfile(ctx)),
-});
-
-export const liveSnapshot = action({
-  args: {
-    subgroup: v.string(),
-    rangeStartMs: v.number(),
-    rangeEndMs: v.number(),
-    includeCollaborative: v.boolean(),
-  },
-  returns: v.union(
-    v.null(),
-    v.object({
-      computedAt: v.number(),
-      data: metricsDataValidator,
-    })
-  ),
-  handler: async (ctx, { subgroup, rangeStartMs, rangeEndMs, includeCollaborative }) => {
-    const allowed = await ctx.runQuery(internal.attendanceMetrics.canReadMetrics, {});
-    if (!allowed) return null;
-
-    if (
-      !Number.isFinite(rangeStartMs) ||
-      !Number.isFinite(rangeEndMs) ||
-      rangeEndMs <= rangeStartMs
-    ) {
-      throw new ConvexError("Custom range needs a start before the end.");
-    }
-    if (rangeEndMs - rangeStartMs > LIVE_RANGE_MAX_MS) {
-      throw new ConvexError("Custom range can't be longer than two years.");
-    }
-
-    const canonical = canonicalSubgroup(subgroup);
-    const year = currentStaffYear();
-    const now = rangeEndMs;
-    const periodLen = rangeEndMs - rangeStartMs;
-    const loadStart = Math.min(
-      rangeStartMs - periodLen,
-      now - HISTORY_WEEKS * WEEK_MS
-    );
-
-    const { eventIds, metricsEvents } = await ctx.runQuery(
-      internal.attendanceMetrics.gatherEvents,
-      { subgroup: canonical, loadStart, loadEnd: now }
-    );
-
-    const attendance: MetricsAttendance[] = [];
-    const uniqueKeys = new Set<string>();
-    for (let i = 0; i < eventIds.length; i += ATTENDANCE_CHUNK) {
-      const rows = await ctx.runQuery(
-        internal.attendanceMetrics.gatherAttendanceChunk,
-        { eventIds: eventIds.slice(i, i + ATTENDANCE_CHUNK) }
-      );
-      for (const row of rows) {
-        attendance.push(row);
-        uniqueKeys.add(row.personKey);
-      }
-    }
-
-    const persons = await ctx.runQuery(internal.attendanceMetrics.gatherPersons, {
-      keys: [...uniqueKeys].slice(0, MAX_PERSONS),
-      year,
-    });
-
-    const data = sanitize(
-      computeSubgroupMetrics({
-        now,
-        subgroup: canonical,
-        rangeStartMs,
-        historyStartMs: loadStart,
-        events: metricsEvents,
-        attendance,
-        persons,
-        includeCollaborative,
-      })
-    );
-
-    return { computedAt: Date.now(), data };
-  },
-});
-
-export const campusWeeklyAverages = query({
-  args: {
-    rangeWeeks: v.number(),
-    includeCollaborative: v.optional(v.boolean()),
-  },
-  returns: v.union(
-    v.null(),
-    v.array(v.object({ campus: v.string(), avgWeekly: v.number() }))
-  ),
-  handler: async (ctx, { rangeWeeks, includeCollaborative = true }) => {
-    const caller = await optionalProfile(ctx);
-    if (!caller) return null;
-    return readCampusWeeklyAverages(ctx, caller.year, rangeWeeks, includeCollaborative);
-  },
-});
 
 export const view = query({
   args: {

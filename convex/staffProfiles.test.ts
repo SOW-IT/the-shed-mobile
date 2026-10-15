@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { staffYearForDate, staffYearStartMs } from "../shared/flow";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
+import { linkUserProfiles } from "./userLink";
 
 const modules = import.meta.glob("./**/*.ts");
 // Pinned mid staff year (still ticking) so dates a few weeks either side of
@@ -53,7 +54,7 @@ describe("email changes: the person stays the same", () => {
       return await ctx.db.insert("users", { email: newEmail, name: "Jane Doe" });
     });
 
-    await t.mutation(internal.userLink.link, { userId });
+    await t.run((ctx) => linkUserProfiles(ctx, userId));
 
     await t.run(async (ctx) => {
       const bound = await ctx.db
@@ -89,7 +90,7 @@ describe("email changes: the person stays the same", () => {
       return await ctx.db.insert("users", { email: "mia.cho@sow.org.au" });
     });
 
-    await t.mutation(internal.userLink.link, { userId });
+    await t.run((ctx) => linkUserProfiles(ctx, userId));
 
     await t.run(async (ctx) => {
       const bound = await ctx.db
@@ -118,7 +119,7 @@ describe("email changes: the person stays the same", () => {
       return { userId, legacyProfileId };
     });
 
-    await t.mutation(internal.userLink.link, { userId });
+    await t.run((ctx) => linkUserProfiles(ctx, userId));
 
     await t.run(async (ctx) => {
       const legacy = (await ctx.db.get(legacyProfileId))!;
@@ -149,7 +150,7 @@ describe("email changes: the person stays the same", () => {
       return { newUserId, legacyProfileId, oldUserId };
     });
 
-    await t.mutation(internal.userLink.link, { userId: newUserId });
+    await t.run((ctx) => linkUserProfiles(ctx, newUserId));
 
     await t.run(async (ctx) => {
       const legacy = (await ctx.db.get(legacyProfileId))!;
@@ -183,7 +184,7 @@ describe("email changes: the person stays the same", () => {
     });
 
     const userId = await t.run((ctx) => ctx.db.insert("users", { email: newcomer }));
-    await t.mutation(internal.userLink.link, { userId });
+    await t.run((ctx) => linkUserProfiles(ctx, userId));
     await t.run(async (ctx) => {
       const profile = await ctx.db
         .query("staffProfiles")
@@ -277,7 +278,7 @@ describe("email changes: the person stays the same", () => {
       return await ctx.db.insert("users", { email: newEmail });
     });
 
-    await t.mutation(internal.userLink.link, { userId });
+    await t.run((ctx) => linkUserProfiles(ctx, userId));
 
     await t.run(async (ctx) => {
       const profile = await ctx.db

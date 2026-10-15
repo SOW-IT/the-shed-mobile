@@ -75,7 +75,7 @@ describe("profile.get", () => {
     });
     const listed = (await t.query(api.profile.get, { email }))!;
     expect(listed.church?._id).toBe(grace);
-    expect(listed.localChurch).toBe("Grace Church");
+    expect(listed.localChurch).toBeNull();
     expect(listed.typedChurch).toBeNull();
   });
 
@@ -163,7 +163,7 @@ describe("profile.get without an email", () => {
     await t.run(async (ctx) => ctx.db.patch("users", userId, { churchId, localChurch: undefined, name: undefined }));
     const picked = (await me.query(api.profile.get, {}))!;
     expect(picked.church?._id).toBe(churchId);
-    expect(picked.localChurch).toBe("Grace Church");
+    expect(picked.localChurch).toBeNull();
     expect(picked.typedChurch).toBeNull();
     expect(picked.name).toBeNull();
 
@@ -172,24 +172,23 @@ describe("profile.get without an email", () => {
   });
 });
 
-describe("profile.updateChurch", () => {
+describe("profile.setChurch", () => {
   test("sets and clears the church; requires a signed-in user", async () => {
     const t = await setup();
-    const userId = await t.run((ctx) =>
-      ctx.db.insert("users", { email: "gita@sow.org.au", name: "Gita" })
-    );
+    const { userId, churchId } = await t.run(async (ctx) => ({
+      userId: await ctx.db.insert("users", { email: "gita@sow.org.au", name: "Gita", localChurch: "SOW City" }),
+      churchId: await ctx.db.insert("churches", { name: "Grace Church", nameKey: "grace church", addedBy: ADMIN }),
+    }));
     const me = signedIn(t, userId, "gita@sow.org.au");
+    const row = () => t.run((ctx) => ctx.db.get("users", userId));
 
-    await me.mutation(api.profile.updateChurch, { localChurch: "SOW City" });
-    expect(
-      await t.run((ctx) => ctx.db.get("users", userId).then((u) => u?.localChurch))
-    ).toBe("SOW City");
+    await me.mutation(api.profile.setChurch, { churchId });
+    expect(await row()).toMatchObject({ churchId });
+    expect((await row())?.localChurch).toBeUndefined();
 
-    await me.mutation(api.profile.updateChurch, { localChurch: "   " });
-    const cleared = await t.run((ctx) =>
-      ctx.db.get("users", userId).then((u) => u !== null && "localChurch" in u)
-    );
-    expect(cleared).toBe(false);
+    await me.mutation(api.profile.setChurch, { churchId: null });
+    const cleared = await row();
+    expect(cleared !== null && "churchId" in cleared).toBe(false);
 
     const ghostId = await t.run(async (ctx) => {
       const id = await ctx.db.insert("users", { email: "ghost@sow.org.au" });
@@ -197,9 +196,7 @@ describe("profile.updateChurch", () => {
       return id;
     });
     await expect(
-      signedIn(t, ghostId, "ghost@sow.org.au").mutation(api.profile.updateChurch, {
-        localChurch: "x",
-      })
+      signedIn(t, ghostId, "ghost@sow.org.au").mutation(api.profile.setChurch, { churchId: null })
     ).rejects.toThrow(/signed in/);
   });
 });

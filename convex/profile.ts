@@ -13,7 +13,7 @@ import {
 } from "./model";
 import { hasSignedIn, lastOnlineAt } from "./presence";
 import { canonicalEmailKey } from "../shared/rollcallImport";
-import { churchByName, viewOf } from "./churches";
+import { viewOf } from "./churches";
 import { photoUrl } from "./photo";
 
 export const get = query({
@@ -81,6 +81,7 @@ export const get = query({
     const googleSyncTimes = [googleSignInAt, directorySyncedAt].filter(
       (at): at is number => at !== null
     );
+    const typedChurch = seesPrivate && !church ? (user?.localChurch ?? null) : null;
     return {
       email,
       // Either staff email spelling is the same person.
@@ -88,11 +89,10 @@ export const get = query({
       googleSyncedAt: isMe && googleSyncTimes.length ? Math.max(...googleSyncTimes) : null,
       name: user?.name ?? dirUser?.name ?? anyProfile?.name ?? null,
       photo: await photoUrl(ctx, user, dirUser),
-      // Older app builds show this text; newer ones show `church`.
-      localChurch: church?.name ?? (seesPrivate ? (user?.localChurch ?? null) : null),
+      localChurch: typedChurch,
       church: church ? viewOf(church) : null,
       // What they typed before churches were a list, until they pick one.
-      typedChurch: seesPrivate && !church ? (user?.localChurch ?? null) : null,
+      typedChurch,
       // Like the church, only for signed-in staff.
       lastOnlineAt: seesPrivate ? await lastOnlineAt(ctx, email) : null,
       hasSignedIn: seesPrivate ? await hasSignedIn(ctx, email) : null,
@@ -116,7 +116,7 @@ async function ownProfileWithoutEmail(ctx: QueryCtx, user: Doc<"users">) {
     googleSyncedAt: null,
     name: user.name ?? null,
     photo: await photoUrl(ctx, user, null),
-    localChurch: church?.name ?? user.localChurch ?? null,
+    localChurch: church ? null : (user.localChurch ?? null),
     church: church ? viewOf(church) : null,
     typedChurch: church ? null : (user.localChurch ?? null),
     lastOnlineAt: null,
@@ -142,22 +142,6 @@ export const setChurch = mutation({
       throw new ConvexError("That church isn't in the list any more.");
     }
     await ctx.db.patch("users", user._id, { churchId: churchId ?? undefined, localChurch: undefined });
-    return null;
-  },
-});
-
-/** The free-text church older app builds still save: a name in the list
- *  becomes that church; anything else is kept as typed until they pick. */
-export const updateChurch = mutation({
-  args: { localChurch: v.string() },
-  handler: async (ctx, args) => {
-    const user = await requireOwnUser(ctx);
-    const typed = args.localChurch.trim();
-    const church = typed ? await churchByName(ctx, typed) : null;
-    await ctx.db.patch("users", user._id, {
-      churchId: church?._id,
-      localChurch: church ? undefined : typed || undefined,
-    });
     return null;
   },
 });

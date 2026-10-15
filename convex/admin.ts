@@ -1743,11 +1743,6 @@ export const prefillNextStaffYear = internalMutation({
   handler: prefillNextStaffYearHandler,
 });
 
-export const rollOverStaffYear = internalMutation({
-  args: {},
-  handler: prefillNextStaffYearHandler,
-});
-
 const ORG_STRUCTURE: Record<string, string[]> = {
   Governance: ["Data and IT", FINANCE, "Compliance"],
   Engagement: ["Marketing", "Alumni"],

@@ -9,29 +9,6 @@ export const normalizedEmail = (email: string | undefined): string | undefined =
   return lower && lower.includes("@") ? lower : undefined;
 };
 
-export function canonicalStaffEmailFromLegacy(member: {
-  name: string;
-  email?: string;
-}): string | null {
-  if (member.name.trim().toLowerCase() === "daniel kim snr") {
-    return "daniel.kim@sow.org.au";
-  }
-  const email = normalizedEmail(member.email);
-  if (!email?.endsWith("@sowaustralia.com")) return null;
-  const localPart = email.slice(0, -"@sowaustralia.com".length);
-  if (!localPart.includes(".")) return null;
-  return `${localPart}@sow.org.au`;
-}
-
-export function resolveImportStaffEmail(member: {
-  name: string;
-  email?: string;
-}): string | undefined {
-  return (
-    canonicalStaffEmailFromLegacy(member) ?? normalizedEmail(member.email)
-  );
-}
-
 const SOW_STAFF_DOMAINS = ["sow.org.au", "sowaustralia.com"] as const;
 
 /** An SOW address (sow.org.au or sowaustralia.com): a staff email, never

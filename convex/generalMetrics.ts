@@ -174,12 +174,6 @@ export const staffTrendsValidator = v.object({
 
 export type StaffTrends = Infer<typeof staffTrendsValidator>;
 
-export const staffTrends = query({
-  args: {},
-  returns: v.union(v.null(), staffTrendsValidator),
-  handler: (ctx) => computeStaffTrends(ctx),
-});
-
 export async function computeStaffTrends(ctx: QueryCtx): Promise<StaffTrends> {
 
   const currentYear = currentStaffYear();
@@ -394,26 +388,10 @@ export const CAMPUS_ATTENDANCE_START_YEAR = 2025;
 
 const MAX_EVENTS_SCAN = 4000;
 
-const campusWeeklyAttendanceValidator = v.object({
-  years: v.array(v.number()),
-  campuses: v.array(
-    v.object({ campus: v.string(), averages: v.array(v.number()) })
-  ),
-});
-
 type CampusWeeklyAttendance = {
   years: number[];
   campuses: { campus: string; averages: number[] }[];
 };
-
-// Reads the snapshot the nightly Insights rebuild writes. Computing it here
-// meant reading every weekly meeting's attendance on each open of the tab;
-// the live path is only a fallback until the first rebuild has run.
-export const campusWeeklyAttendance = query({
-  args: {},
-  returns: campusWeeklyAttendanceValidator,
-  handler: (ctx) => readCampusWeeklyAttendance(ctx),
-});
 
 export const view = query({
   args: { scope: v.union(v.number(), v.literal("all"), v.null()) },

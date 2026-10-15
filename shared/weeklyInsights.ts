@@ -259,25 +259,6 @@ const weekCode = (system: TermSystem, slot: number, week: number): string =>
 
 export const weeklyName = weekCode;
 
-const SLOT_IN_NAME = /\b([TS])\s?(\d)\s?W/i;
-
-/** The term or semester and week a leader wrote in a weekly's name, when they
- *  fit this campus: "WEEKLIES T3W5" at UNSW, "S2 WM #13" or "UTS S2W11"
- *  elsewhere. */
-export function markFromName(
-  name: string,
-  system: TermSystem
-): { slot: number | null; week: number | null } {
-  const slotMatch = SLOT_IN_NAME.exec(name);
-  const letterFits = slotMatch && (slotMatch[1].toUpperCase() === "T") === (system === "terms");
-  const slot = letterFits ? Number(slotMatch[2]) : null;
-  const week = weekFromName(name);
-  return {
-    slot: slot !== null && slot >= 1 && slot <= (system === "terms" ? 3 : 2) ? slot : null,
-    week: week !== null && week <= WEEK_MAX ? week : null,
-  };
-}
-
 /** "T2W5 (3 Jun)", or just the date when the weekly isn't known. */
 export const weeklyWhen = (at: number, code?: string | null): string =>
   code ? `${code} (${dayLabel(at)})` : dayLabel(at);

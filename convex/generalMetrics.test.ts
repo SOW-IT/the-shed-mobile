@@ -6,6 +6,7 @@ import { api, internal } from "./_generated/api";
 import {
   avgTenureYears,
   buildEmailToImportId,
+  computeStaffTrends,
   lifetimeAvgTenureYears,
   lifetimeTenureAtLeastPct,
   profilePersonKey,
@@ -47,6 +48,8 @@ const profile = (
   assignments,
   ...extra,
 });
+
+const trendsOf = (t: TestConvex<typeof schema>) => t.run((ctx) => computeStaffTrends(ctx));
 
 async function seed(t: TestConvex<typeof schema>) {
   await t.run(async (ctx) => {
@@ -136,32 +139,26 @@ describe("turnover and tenure helpers", () => {
   });
 });
 
-describe("staffTrends", () => {
-  test("is public — anonymous and profile-less callers see the org-wide trends", async () => {
+describe("staff trends", () => {
+  test("is public: anonymous and profile-less callers see the same org-wide trends", async () => {
     const t = convexTest(schema, modules);
     await seed(t);
-    const staff = (await asUser(t, CALLER).query(api.generalMetrics.staffTrends, {}))!;
-    const stranger = await asUser(t, "stranger@sow.org.au").query(
-      api.generalMetrics.staffTrends,
-      {}
-    );
-    const anon = await t.query(api.generalMetrics.staffTrends, {});
-    expect(stranger).not.toBeNull();
-    expect(anon).not.toBeNull();
-    for (const r of [stranger!, anon!]) {
+    const staff = await asUser(t, CALLER).query(api.generalMetrics.view, { scope: "all" });
+    const stranger = await asUser(t, "stranger@sow.org.au").query(api.generalMetrics.view, {
+      scope: "all",
+    });
+    const anon = await t.query(api.generalMetrics.view, { scope: "all" });
+    expect(staff.years).toEqual([PREV, YEAR]);
+    for (const r of [stranger, anon]) {
       expect(r.years).toEqual(staff.years);
-      expect(r.allStaff).toEqual(staff.allStaff);
-      expect(r.staff).toEqual(staff.staff);
-      expect(r.studentLeaders).toEqual(staff.studentLeaders);
-      expect(r.campuses).toEqual(staff.campuses);
-      expect(r.studentLeadersByCampus).toEqual(staff.studentLeadersByCampus);
+      expect(r.blocks).toEqual(staff.blocks);
     }
   });
 
   test("aggregates head-count, staff vs student leaders, and by campus per year", async () => {
     const t = convexTest(schema, modules);
     await seed(t);
-    const trends = (await asUser(t, CALLER).query(api.generalMetrics.staffTrends, {}))!;
+    const trends = await trendsOf(t);
 
     expect(trends.years).toEqual([PREV, YEAR]);
     expect(trends.years).not.toContain(NEXT);
@@ -178,7 +175,7 @@ describe("staffTrends", () => {
   test("reports year-over-year turnover, retention, and multi-year tenure", async () => {
     const t = convexTest(schema, modules);
     await seed(t);
-    const trends = (await asUser(t, CALLER).query(api.generalMetrics.staffTrends, {}))!;
+    const trends = await trendsOf(t);
 
     expect(trends.turnover.overall).toEqual([null, 0]);
     expect(trends.turnover.staff).toEqual([null, 0]);
@@ -237,7 +234,7 @@ describe("staffTrends", () => {
         profile(CALLER, YEAR, [{ role: "Staff", department: "Marketing" }])
       );
     });
-    const trends = (await asUser(t, CALLER).query(api.generalMetrics.staffTrends, {}))!;
+    const trends = await trendsOf(t);
 
     expect(trends.turnover.overall).toEqual([null, 50]);
     expect(trends.turnover.staff).toEqual([null, 100]);
@@ -271,7 +268,7 @@ describe("staffTrends", () => {
         )
       );
     });
-    const trends = (await asUser(t, CALLER).query(api.generalMetrics.staffTrends, {}))!;
+    const trends = await trendsOf(t);
     expect(trends.turnover.staff).toEqual([null, 0]);
     expect(trends.retention.staff).toEqual([null, 100]);
     expect(trends.lifetimeTenure2Plus.staff).toBe(100);
@@ -304,7 +301,7 @@ describe("staffTrends", () => {
         ])
       );
     });
-    const trends = (await asUser(t, CALLER).query(api.generalMetrics.staffTrends, {}))!;
+    const trends = await trendsOf(t);
 
     expect(trends.allStaff).toEqual([3]);
     expect(trends.staff).toEqual([2]);
@@ -326,7 +323,7 @@ describe("staffTrends", () => {
         ])
       );
     });
-    const trends = (await asUser(t, CALLER).query(api.generalMetrics.staffTrends, {}))!;
+    const trends = await trendsOf(t);
 
     expect(trends.studentLeaders).toEqual([1]);
     expect(trends.studentLeadersByCampus).toEqual([
@@ -336,7 +333,7 @@ describe("staffTrends", () => {
   });
 });
 
-describe("campusWeeklyAttendance", () => {
+describe("campus weekly attendance in General", () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date(Date.UTC(2026, 5, 1)));
@@ -371,17 +368,41 @@ describe("campusWeeklyAttendance", () => {
     });
   }
 
+  async function withStaffHistory() {
+    const t = convexTest(schema, modules);
+    await t.run((ctx) =>
+      ctx.db.insert(
+        "staffProfiles",
+        profile(CALLER, staffYearForDate(new Date()), [{ role: "Staff", department: "Marketing" }])
+      )
+    );
+    return t;
+  }
+
+  async function campusWeekly(t: TestConvex<typeof schema>) {
+    const { blocks } = await t.query(api.generalMetrics.view, { scope: "all" });
+    const chart = blocks.find((b) => b.type === "multiBars" && b.title === "Weekly avg by campus");
+    if (chart?.type !== "multiBars") return { years: [], campuses: [] };
+    return {
+      years: chart.points.map((p) => p.at),
+      campuses: chart.legend.map(({ key }) => ({
+        campus: key,
+        averages: chart.points.map((p) => p.segments.find((s) => s.key === key)?.value),
+      })),
+    };
+  }
+
   const IN_2025 = Date.UTC(2025, 2, 4);
   const IN_2026 = Date.UTC(2026, 2, 4);
 
   test("averages attendance per campus per staff year, from 2025", async () => {
-    const t = convexTest(schema, modules);
+    const t = await withStaffHistory();
     await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2025, count: 10 });
     await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2025, count: 20 });
     await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2026, count: 30 });
     await weeklyMeeting(t, { campus: "UNSW", dateStart: IN_2026, count: 8 });
 
-    const res = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
+    const res = await campusWeekly(t);
     expect(res.years).toEqual([2025, 2026]);
     expect(res.campuses).toEqual([
       { campus: "UNSW", averages: [0, 8] },
@@ -390,10 +411,10 @@ describe("campusWeeklyAttendance", () => {
   });
 
   test("ignores events that aren't weeklies, whatever their tags", async () => {
-    const t = convexTest(schema, modules);
+    const t = await withStaffHistory();
     await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2025, count: 12 });
     await t.run(async (ctx) => {
-      const legacyTag = await ctx.db.insert("attendanceTags", { name: "Weekly Meeting" });
+      const weekliesTag = await ctx.db.insert("attendanceTags", { name: "Weeklies" });
       const social = await ctx.db.insert("events", {
         name: "Social night",
         dateStart: IN_2025,
@@ -405,7 +426,7 @@ describe("campusWeeklyAttendance", () => {
         dateStart: IN_2025,
         dateEnd: IN_2025 + 60 * 60 * 1000,
         subgroups: ["USYD"],
-        tagIds: [legacyTag],
+        tagIds: [weekliesTag],
       });
       for (const eventId of [social, tagOnly]) {
         await ctx.db.insert("attendance", {
@@ -414,13 +435,13 @@ describe("campusWeeklyAttendance", () => {
         });
       }
     });
-    const res = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
+    const res = await campusWeekly(t);
     expect(res.years).toEqual([2025]);
     expect(res.campuses).toEqual([{ campus: "USYD", averages: [12] }]);
   });
 
   test("a marked weekly counts even without the Weeklies tag", async () => {
-    const t = convexTest(schema, modules);
+    const t = await withStaffHistory();
     await t.run(async (ctx) => {
       const eventId = await ctx.db.insert("events", {
         name: "S1W2",
@@ -431,44 +452,44 @@ describe("campusWeeklyAttendance", () => {
       });
       for (let i = 0; i < 7; i++) await ctx.db.insert("attendance", { eventId, signInTime: IN_2025 });
     });
-    const res = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
+    const res = await campusWeekly(t);
     expect(res.campuses).toEqual([{ campus: "USYD", averages: [7] }]);
   });
 
   test("skips org-wide (SOW) weekly meetings — they belong to no campus", async () => {
-    const t = convexTest(schema, modules);
+    const t = await withStaffHistory();
     await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2025, count: 9 });
     await weeklyMeeting(t, { campus: "SOW", dateStart: IN_2025, count: 40 });
-    const res = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
+    const res = await campusWeekly(t);
     expect(res.years).toEqual([2025]);
     expect(res.campuses).toEqual([{ campus: "USYD", averages: [9] }]);
   });
 
   test("a weekly meeting nobody signed in to isn't averaged in", async () => {
-    const t = convexTest(schema, modules);
+    const t = await withStaffHistory();
     await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2025, count: 20 });
     await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2025, count: 0 });
-    const res = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
+    const res = await campusWeekly(t);
     expect(res.campuses).toEqual([{ campus: "USYD", averages: [20] }]);
   });
 
   test("serves the nightly snapshot until the next rebuild", async () => {
-    const t = convexTest(schema, modules);
+    const t = await withStaffHistory();
     await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2026, count: 10 });
     await t.mutation(internal.generalMetrics.recomputeCampusWeeklyAttendance, {});
 
     await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2026, count: 30 });
-    const cached = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
+    const cached = await campusWeekly(t);
     expect(cached.campuses).toEqual([{ campus: "USYD", averages: [0, 10] }]);
 
     await t.mutation(internal.generalMetrics.recomputeCampusWeeklyAttendance, {});
-    const rebuilt = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
+    const rebuilt = await campusWeekly(t);
     expect(rebuilt.years).toEqual([2025, 2026]);
     expect(rebuilt.campuses).toEqual([{ campus: "USYD", averages: [0, 20] }]);
   });
 
   test("a rebuild leaves exactly one snapshot row", async () => {
-    const t = convexTest(schema, modules);
+    const t = await withStaffHistory();
     await weeklyMeeting(t, { campus: "USYD", dateStart: IN_2025, count: 5 });
     await t.run((ctx) =>
       ctx.db.insert("campusAttendanceSnapshots", {
@@ -491,7 +512,7 @@ describe("campusWeeklyAttendance", () => {
     );
     expect(rows).toHaveLength(1);
     expect(rows[0].campuses).toEqual([{ campus: "USYD", averages: [5] }]);
-    const res = await t.query(api.generalMetrics.campusWeeklyAttendance, {});
+    const res = await campusWeekly(t);
     expect(res.campuses).toEqual([{ campus: "USYD", averages: [5] }]);
   });
 });
