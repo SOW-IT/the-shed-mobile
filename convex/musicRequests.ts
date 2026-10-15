@@ -1,7 +1,12 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
-import { currentStaffYear, requireProfile, resolveName } from "./model";
+import {
+  currentStaffYear,
+  optionalProfile,
+  requireProfile,
+  resolveName,
+} from "./model";
 /** Get Praise Manager emails for the active staff year. */
 async function praiseManagerEmailsForYear(
   ctx: any,
@@ -113,7 +118,8 @@ export const submit = mutation({
     albumArtUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const caller = await requireProfile(ctx);
+    const caller = await optionalProfile(ctx);
+    if (!caller) return [];
     const title = args.title.trim();
     if (!title) throw new ConvexError("Please enter a song title.");
     const artist = args.artist.trim();
@@ -251,7 +257,8 @@ export const submitMany = mutation({
 export const myRequests = query({
   args: {},
   handler: async (ctx) => {
-    const caller = await requireProfile(ctx);
+    const caller = await optionalProfile(ctx);
+    if (!caller) return [];
     const rows = await ctx.db
       .query("musicRequests")
       .withIndex("by_requester", (q) => q.eq("requesterEmail", caller.email))
@@ -349,7 +356,8 @@ export const declined = query({
 export const approved = query({
   args: {},
   handler: async (ctx) => {
-    await requireProfile(ctx);
+    const caller = await optionalProfile(ctx);
+    if (!caller) return [];
     const rows = await ctx.db
       .query("musicRequests")
       .withIndex("by_status", (q) => q.eq("status", "APPROVED"))
@@ -378,7 +386,8 @@ export const approved = query({
 export const approve = mutation({
   args: { requestId: v.id("musicRequests") },
   handler: async (ctx, args) => {
-    const caller = await requireProfile(ctx);
+    const caller = await optionalProfile(ctx);
+    if (!caller) return [];
     if (!(await callerIsPraiseManager(ctx, caller.email))) {
       throw new ConvexError("Only Praise Managers can approve music requests.");
     }
