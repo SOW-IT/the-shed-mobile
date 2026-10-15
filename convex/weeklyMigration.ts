@@ -159,8 +159,10 @@ async function planTags(ctx: MutationCtx, apply: boolean) {
   };
 }
 
-const ownerCampus = (subgroups: string[]): string | null =>
-  normalizeSubgroups(subgroups).find((s) => !isOrgWideSubgroup(s)) ?? null;
+const ownerCampus = (subgroups: string[]): string | null => {
+  const [owner] = normalizeSubgroups(subgroups);
+  return owner && !isOrgWideSubgroup(owner) ? owner : null;
+};
 
 export const run = internalMutation({
   args: { dryRun: v.optional(v.boolean()) },
@@ -202,11 +204,11 @@ export const run = internalMutation({
       const owner = ownerCampus(subgroups);
       const looksWeekly = !!event.weekly || beforeTags.some((id) => weekliesIds.has(id));
       if (looksWeekly && !owner) {
-        warnings.push(`"${event.name}" (${dateOf(event.dateStart)}) has the weekly tag but no campus; treated as an Other event`);
+        warnings.push(`"${event.name}" (${dateOf(event.dateStart)}) is owned by SOW, which has no weeklies; treated as an Other event`);
       }
       const isWeekly = looksWeekly && !!owner;
       let name = event.name;
-      let mark: WeeklyMark | null = event.weekly ?? null;
+      let mark: WeeklyMark | null = isWeekly ? (event.weekly ?? null) : null;
       let nextTags = beforeTags.filter((id) => !tags.mergedIds.has(id) && (isWeekly || !weekliesIds.has(id)));
       if (beforeTags.some((id) => tags.mergedIds.has(id)) && tags.socialId && !isWeekly) {
         nextTags = [...nextTags, tags.socialId];
@@ -264,7 +266,7 @@ export const run = internalMutation({
         await ctx.db.patch("events", event._id, {
           name,
           tagIds: nextTags.length ? nextTags : undefined,
-          ...(mark ? { weekly: mark } : {}),
+          weekly: mark ?? undefined,
         });
       }
     }

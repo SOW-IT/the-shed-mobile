@@ -59,7 +59,7 @@ async function seed(t: TestConvex<typeof schema>) {
       bam: await event("WK #4 [BAM NIGHT]", wed(2025, 8, 20), [MQ], [wm]),
       trivia: await event("Trivia", wed(2025, 9, 10), [MQ], [tags.otherEvents]),
       t3w1: await event("T3W1", wed(2025, 9, 17), [UNSW], [wm], { year: 2025, slot: 3, week: 1 }),
-      mega: await event("MEGA WEEKLIES", wed(2025, 9, 24), [SOW, UNSW, USYD], [wm, tags.otherEvents]),
+      mega: await event("MEGA WEEKLIES", wed(2025, 9, 24), [UNSW, SOW, USYD], [wm, tags.otherEvents]),
       oldPhone: await event("Weeklies", wed(2025, 10, 1), [UNSW], [wm]),
       t3w4: await event("WEEKLIES T3W4", wed(2025, 10, 8), [UNSW], [wm]),
       twig: await event("TWIG OCT 12", Date.UTC(2025, 9, 12, 2), [SOW]),
@@ -67,7 +67,7 @@ async function seed(t: TestConvex<typeof schema>) {
       halloween: await event("T3W8 Halloween Weeklies", wed(2025, 10, 29), [UNSW], [wm], { year: 2025, slot: 3, week: 8 }),
       grad: await event("Grad + PPN T3W10", wed(2025, 11, 12), [UNSW], [wm, tags.ppn]),
       farewell: await event("Farewell Event", wed(2025, 11, 26), [SOW], [tags.ppn]),
-      sowWeekly: await event("SOW WEEKLIES", wed(2025, 12, 3), [SOW], [wm]),
+      sowWeekly: await event("SOW WEEKLIES", wed(2025, 12, 3), [SOW, UNSW], [wm], { year: 2025, slot: 2, week: 9 }),
       january: await event("Weeklies T3W12", wed(2026, 1, 7), [UNSW], [wm], { year: 2025, slot: 3, week: 12 }),
     };
     return { tags, events };
@@ -101,7 +101,7 @@ const EXPECTED_TAG_CHANGES = [
 
 const EXPECTED_WARNINGS = [
   '"USYD WEEKLIES S1W16" is marked week 16',
-  '"SOW WEEKLIES" (2025-12-03) has the weekly tag but no campus; treated as an Other event',
+  '"SOW WEEKLIES" (2025-12-03) is owned by SOW, which has no weeklies; treated as an Other event',
   '"Weeklies T3W12" (2026-01-07) is marked 2025, not 2026',
 ];
 
@@ -168,7 +168,7 @@ function expectedEventChanges(events: Events) {
     {
       eventId: events.mega,
       date: "2025-09-24",
-      subgroups: [SOW, UNSW, USYD],
+      subgroups: [UNSW, SOW, USYD],
       kind: "weekly",
       before: { name: "MEGA WEEKLIES", tags: ["Weeklies", "Other Events"], mark: null },
       after: { name: "T3W2", tags: ["Weeklies", "Mega (weekly)"], mark: mark(2025, 3, 2) },
@@ -233,9 +233,9 @@ function expectedEventChanges(events: Events) {
     {
       eventId: events.sowWeekly,
       date: "2025-12-03",
-      subgroups: [SOW],
+      subgroups: [SOW, UNSW],
       kind: "event",
-      before: { name: "SOW WEEKLIES", tags: ["Weeklies"], mark: null },
+      before: { name: "SOW WEEKLIES", tags: ["Weeklies"], mark: mark(2025, 2, 9) },
       after: { name: "SOW WEEKLIES", tags: [], mark: null },
     },
     {
